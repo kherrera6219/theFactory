@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.next/
+dist/
+
+# Env and local
+.env
+.env.*
+!.env.example
+*.local
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs and runtime
+*.log
+*.pid
+
+# Build artifacts
+build/
+out/
+
+# Runtime outputs
+backups/

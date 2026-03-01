@@ -1,0 +1,170 @@
+services:
+  redis:
+    image: redis:7
+    ports:
+      - "${REDIS_HOST_PORT:-6380}:6379"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "${QDRANT_HOST_PORT:-6334}:6333"
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: ulr
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: services/orchestrator/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/ulr
+      INTAKE_STREAM: missions.intake
+      INTAKE_TOPIC: intake.feature_contract.created
+      STATE_STREAM: missions.state
+      MAX_STREAM_LEN: 20000
+      MISSION_CONSUMER_GROUP: orchestrator
+      MISSION_CONSUMER_NAME: orchestrator-01
+      ORCHESTRATOR_ADMIN_API_KEY: admin-key
+      INTERNAL_SERVICE_API_KEY: worker-key
+      ORCHESTRATOR_READONLY_API_KEY: viewer-key
+      ORCHESTRATOR_API_KEYS: operator-key=mutate,read
+      ORCHESTRATOR_PORT: 8001
+    ports:
+      - "${ORCHESTRATOR_HOST_PORT:-8101}:8001"
+    depends_on:
+      - redis
+      - qdrant
+      - postgres
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: services/api-gateway/Dockerfile
+    environment:
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      REDIS_URL: redis://redis:6379/0
+      INTAKE_STREAM: missions.intake
+      INTAKE_TOPIC: intake.feature_contract.created
+      MAX_STREAM_LEN: 20000
+      IDEMPOTENCY_TTL_SECONDS: 86400
+      API_RATE_LIMIT_PER_MINUTE: 120
+      RATE_LIMIT_WINDOW_SECONDS: 60
+      CORS_ALLOW_ORIGINS: http://localhost:${MISSION_CONTROL_HOST_PORT:-3100}
+      API_GATEWAY_PORT: 8000
+    ports:
+      - "${API_GATEWAY_HOST_PORT:-8100}:8000"
+    depends_on:
+      - redis
+      - orchestrator
+
+  dashboard:
+    build:
+      context: ..
+      dockerfile: services/dashboard/Dockerfile
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8000
+      DASHBOARD_PORT: 8080
+    ports:
+      - "${DASHBOARD_HOST_PORT:-8180}:8080"
+    depends_on:
+      - api-gateway
+
+  mission-control:
+    build: ../apps/mission-control
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_GATEWAY_HOST_PORT:-8100}
+    ports:
+      - "${MISSION_CONTROL_HOST_PORT:-3100}:3000"
+    depends_on:
+      - api-gateway
+
+  pod-a-worker:
+    build:
+      context: ..
+      dockerfile: services/pod-worker/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      STATE_STREAM: missions.state
+      POD_WORKER_GROUP: pod-workers
+      POD_WORKER_NAME: pod-a-01
+      POD_NAME: podA
+      SUPPORTED_LANGUAGES: python,typescript,javascript,ruby,php
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      SERVICE_API_KEY: worker-key
+    depends_on:
+      - redis
+      - orchestrator
+
+  pod-b-worker:
+    build:
+      context: ..
+      dockerfile: services/pod-worker/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      STATE_STREAM: missions.state
+      POD_WORKER_GROUP: pod-workers
+      POD_WORKER_NAME: pod-b-01
+      POD_NAME: podB
+      SUPPORTED_LANGUAGES: go,rust,c,cpp,zig
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      SERVICE_API_KEY: worker-key
+    depends_on:
+      - redis
+      - orchestrator
+
+  pod-c-worker:
+    build:
+      context: ..
+      dockerfile: services/pod-worker/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      STATE_STREAM: missions.state
+      POD_WORKER_GROUP: pod-workers
+      POD_WORKER_NAME: pod-c-01
+      POD_NAME: podC
+      SUPPORTED_LANGUAGES: java,csharp,kotlin,scala
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      SERVICE_API_KEY: worker-key
+    depends_on:
+      - redis
+      - orchestrator
+
+  pod-d-worker:
+    build:
+      context: ..
+      dockerfile: services/pod-worker/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      STATE_STREAM: missions.state
+      POD_WORKER_GROUP: pod-workers
+      POD_WORKER_NAME: pod-d-01
+      POD_NAME: podD
+      SUPPORTED_LANGUAGES: haskell,ocaml,julia,r
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      SERVICE_API_KEY: worker-key
+    depends_on:
+      - redis
+      - orchestrator
+
+  audit-worker:
+    build:
+      context: ..
+      dockerfile: services/audit-worker/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      STATE_STREAM: missions.state
+      AUDIT_WORKER_GROUP: audit-workers
+      AUDIT_WORKER_NAME: audit-01
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      SERVICE_API_KEY: worker-key
+    depends_on:
+      - redis
+      - orchestrator

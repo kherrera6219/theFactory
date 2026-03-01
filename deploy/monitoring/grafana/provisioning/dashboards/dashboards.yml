@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: "theFactory"
+    orgId: 1
+    folder: "theFactory"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

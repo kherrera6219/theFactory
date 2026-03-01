@@ -1,0 +1,40 @@
+.PHONY: up down validate lint test sweep openapi predeploy backup dr perf monitor-up monitor-down
+
+up:
+	docker compose -f deploy/docker-compose.yaml up -d --build
+
+down:
+	docker compose -f deploy/docker-compose.yaml down -v
+
+monitor-up:
+	docker compose -f deploy/docker-compose.monitoring.yaml up -d
+
+monitor-down:
+	docker compose -f deploy/docker-compose.monitoring.yaml down -v
+
+validate:
+	python scripts/validate_schemas.py
+
+lint:
+	ruff check services tests scripts
+
+test:
+	pytest
+
+openapi:
+	python scripts/export_openapi.py
+
+predeploy:
+	powershell -ExecutionPolicy Bypass -File scripts/pre_deploy_check.ps1
+
+backup:
+	powershell -ExecutionPolicy Bypass -File scripts/backup_postgres.ps1
+
+dr:
+	powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1
+
+perf:
+	powershell -ExecutionPolicy Bypass -File scripts/perf_smoke.ps1
+
+sweep:
+	powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1

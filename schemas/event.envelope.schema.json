@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "event.envelope.schema.json",
+  "title": "SemanticBusEventEnvelope",
+  "type": "object",
+  "required": [
+    "event_id",
+    "topic",
+    "timestamp",
+    "producer",
+    "correlation_id",
+    "payload_ref",
+    "schema",
+    "priority"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "topic": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producer": {
+      "type": "string"
+    },
+    "correlation_id": {
+      "type": "string"
+    },
+    "payload_ref": {
+      "type": "string",
+      "pattern": "^registry://"
+    },
+    "schema": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "NORMAL",
+        "HIGH"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
