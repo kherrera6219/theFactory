@@ -1,0 +1,19 @@
+version: "1.0.0"
+topics:
+  - intake.feature_contract.created
+  - mission.state.queued
+  - mission.state.running
+  - mission.state.verified
+  - mission.state.complete
+  - mission.state.failed
+  - cluster.assigned.podA
+  - cluster.assigned.podB
+  - cluster.assigned.podC
+  - cluster.assigned.podD
+  - artifact.rir.submitted
+  - artifact.rir.verified
+  - artifact.rir.rejected
+  - pod.standard.ready
+  - fusion.requested
+  - binary.build.ready
+  - incident.runtime.errorlog

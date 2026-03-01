@@ -1,0 +1,23 @@
+{
+  "node_id": "LN-EXAMPLE-1",
+  "cmd": "IO_OUT",
+  "payload": {
+    "ref": "VAR_1"
+  },
+  "priority": "HIGH",
+  "intent": "display_value",
+  "types": {
+    "in": [
+      "number"
+    ],
+    "out": [
+      "void"
+    ]
+  },
+  "provenance": {
+    "source_ref": "repo://example/path/file.py#L10-L20",
+    "snippet_hash": "sha256:EXAMPLE",
+    "miner_agent": "S4_1",
+    "timestamp": "2026-01-29T00:00:00Z"
+  }
+}

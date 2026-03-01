@@ -1,0 +1,40 @@
+groups:
+  - name: thefactory-service-health
+    rules:
+      - alert: ApiGatewayDown
+        expr: up{job="api-gateway"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: API gateway is down
+          description: Prometheus cannot scrape api-gateway for 2 minutes.
+
+      - alert: OrchestratorDown
+        expr: up{job="orchestrator"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Orchestrator is down
+          description: Prometheus cannot scrape orchestrator for 2 minutes.
+
+  - name: thefactory-api-errors
+    rules:
+      - alert: ApiGateway5xxRateHigh
+        expr: sum(rate(api_gateway_http_requests_total{status_code=~"5.."}[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: high
+        annotations:
+          summary: API gateway 5xx error rate is elevated
+          description: 5xx rate is above 0.1 req/s for 10 minutes.
+
+      - alert: Orchestrator5xxRateHigh
+        expr: sum(rate(orchestrator_http_requests_total{status_code=~"5.."}[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: high
+        annotations:
+          summary: Orchestrator 5xx error rate is elevated
+          description: 5xx rate is above 0.1 req/s for 10 minutes.

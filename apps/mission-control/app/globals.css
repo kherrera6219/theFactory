@@ -1,0 +1,147 @@
+:root {
+  --bg: radial-gradient(circle at 20% -10%, #ffe0b2 0%, #fff8ec 35%, #e9f2ff 100%);
+  --panel: #ffffffd9;
+  --ink: #10243d;
+  --ink-muted: #315172;
+  --accent: #0d9488;
+  --accent-strong: #0f766e;
+  --danger: #b42318;
+  --ring: #8bb5f9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-display), "Trebuchet MS", sans-serif;
+}
+
+.page {
+  width: min(1100px, 92vw);
+  margin: 40px auto;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 18px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid #d9e2ec;
+  border-radius: 14px;
+  box-shadow: 0 14px 28px rgba(16, 36, 61, 0.08);
+  padding: 22px;
+}
+
+.hero {
+  grid-column: 1 / -1;
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+}
+
+h1 {
+  margin: 6px 0 10px;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+}
+
+h2 {
+  margin-top: 0;
+}
+
+form {
+  display: grid;
+  gap: 12px;
+}
+
+label {
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
+textarea,
+select {
+  width: 100%;
+  border: 1px solid #c7d5e5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.98rem;
+  font-family: var(--font-display), sans-serif;
+  background: #fff;
+  color: var(--ink);
+}
+
+textarea:focus,
+select:focus {
+  outline: 3px solid #c8ddff;
+  border-color: var(--ring);
+}
+
+button {
+  margin-top: 8px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #fff;
+  background: linear-gradient(120deg, var(--accent), #2563eb);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+dl {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+dl div {
+  padding: 10px;
+  border-radius: 10px;
+  background: #f5f8fd;
+}
+
+dt {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 5px;
+}
+
+dd {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+@media (max-width: 920px) {
+  .page {
+    grid-template-columns: 1fr;
+    margin: 20px auto 40px;
+  }
+}
