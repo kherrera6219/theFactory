@@ -136,3 +136,29 @@
 ### Outcome
 - Canonical runtime docs now represent both valid Mission Control launch modes.
 - Residual mismatch risk remains in archived/legacy design artifacts until they are revised.
+
+## Phase 5 - Operational Audit Script Tests
+
+### Objective
+- Increase automated coverage for operational scripts called out as a gap.
+
+### Implementation
+- Added new test suite:
+  - `tests/scripts/test_production_review_audit.py`
+- Covered script behaviors:
+  - coverage gate parsing logic
+  - security scanner presence checks
+  - non-root Dockerfile enforcement
+  - audit check inventory integrity
+
+### Validation and Debug Sweep
+- `python -m pytest tests/scripts/test_production_review_audit.py`: pass (6 tests)
+- `npm run lint` / `npm run test` (mission-control): pass
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (88.13%)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Operational script test coverage now exists for the production audit path.
+- Remaining script testing gap: backup, DR, and perf script automation coverage.
