@@ -24,6 +24,7 @@ Core services:
 
 - `services/api-gateway` (FastAPI): public API boundary and intake.
 - `services/orchestrator` (FastAPI): mission state machine, pod coordination, operations APIs.
+- `services/semantic-bus-mcp` (FastAPI): protocol validation/routing for alpha-beta-delta-sigma-omega-rho bus messages.
 - `services/pod-worker` (FastAPI worker runtime): pod routing and artifact processing for pod A/B/C/D.
 - `services/audit-worker`: audit stream processing and verification handoff.
 - `services/dashboard` (FastAPI + HTML): lightweight operational dashboard.
@@ -87,6 +88,14 @@ Orchestrator (`http://localhost:8101` by default):
 - `GET /internal/operations/agents`
 - `GET /internal/operations/agent-integrations`
 
+Semantic Bus MCP (`http://localhost:8102` by default):
+
+- `GET /health`
+- `GET /readyz`
+- `GET /metrics`
+- `POST /send`
+- `GET /dlq`
+
 OpenAPI exports:
 
 - `docs/openapi/api-gateway.v1.json`
@@ -129,6 +138,7 @@ Mission Control (`http://localhost:3100` by default) provides:
 3. Verify:
    - Gateway: `http://localhost:8100/health`
    - Orchestrator: `http://localhost:8101/health`
+   - Semantic Bus MCP: `http://localhost:8102/health`
    - Dashboard: `http://localhost:8180/health`
    - Mission Control: `http://localhost:3100`
 
@@ -136,6 +146,7 @@ Default host ports:
 
 - Gateway: `8100`
 - Orchestrator: `8101`
+- Semantic Bus MCP: `8102`
 - Dashboard: `8180`
 - Mission Control: `3100`
 - Redis: `6380`

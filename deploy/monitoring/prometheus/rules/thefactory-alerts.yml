@@ -19,6 +19,33 @@ groups:
           summary: Orchestrator is down
           description: Prometheus cannot scrape orchestrator for 2 minutes.
 
+      - alert: SemanticBusMcpDown
+        expr: up{job="semantic-bus-mcp"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Semantic Bus MCP is down
+          description: Prometheus cannot scrape semantic-bus-mcp for 2 minutes.
+
+      - alert: PodWorkerDown
+        expr: min(up{job="pod-workers"}) == 0
+        for: 2m
+        labels:
+          severity: high
+        annotations:
+          summary: One or more pod workers are down
+          description: At least one pod worker target has been unreachable for 2 minutes.
+
+      - alert: AuditWorkerDown
+        expr: up{job="audit-worker"} == 0
+        for: 2m
+        labels:
+          severity: high
+        annotations:
+          summary: Audit worker is down
+          description: Prometheus cannot scrape audit-worker for 2 minutes.
+
   - name: thefactory-api-errors
     rules:
       - alert: ApiGateway5xxRateHigh

@@ -393,7 +393,10 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     }
     assert all("persona_profile" in record for record in payload["agents"])
     assert all(persona_sections.issubset(record["persona_profile"]) for record in payload["agents"])
-    assert len({record["persona_profile"]["master_instruction"] for record in payload["agents"]}) == 35
+    master_instructions = {
+        record["persona_profile"]["master_instruction"] for record in payload["agents"]
+    }
+    assert len(master_instructions) == 35
     assert all(record["persona_profile"]["standards_alignment"] for record in payload["agents"])
     assert all(record["persona_profile"]["evidence_sources"] for record in payload["agents"])
     evidence_urls = [
@@ -431,7 +434,9 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert any(record["agent_id"] == "AGENT-01-PM" for record in integration_payload["agents"])
     assert all("llm_recommendation" in record for record in integration_payload["agents"])
     assert all("persona_profile" in record for record in integration_payload["agents"])
-    assert all("evidence_sources" in record["persona_profile"] for record in integration_payload["agents"])
+    assert all(
+        "evidence_sources" in record["persona_profile"] for record in integration_payload["agents"]
+    )
 
     logicnodes_all = client.get("/internal/operations/logicnodes?limit=5", headers=headers)
     assert logicnodes_all.status_code == 200

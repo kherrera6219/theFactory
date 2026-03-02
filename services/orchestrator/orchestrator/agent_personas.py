@@ -565,7 +565,8 @@ def _traits_for_agent(agent: AgentDefinition) -> list[str]:
     entries = list(_CATEGORY_TRAITS.get(agent.category, []))
     entries.extend(_SHORT_CODE_TRAITS.get(agent.short_code, []))
     if agent.category == "specialist" and agent.specialties:
-        entries.append(f"High-confidence reasoning in {_specialty_label(agent) or 'assigned'} workloads.")
+        specialty = _specialty_label(agent) or "assigned"
+        entries.append(f"High-confidence reasoning in {specialty} workloads.")
     return _dedupe(entries)
 
 
@@ -574,7 +575,9 @@ def _methods_for_agent(agent: AgentDefinition) -> list[str]:
     entries.extend(_SHORT_CODE_METHODS.get(agent.short_code, []))
     if agent.category == "specialist" and agent.specialties:
         specialty = agent.specialties[0]
-        entries.append(_LANGUAGE_GUIDANCE.get(specialty, "Maintain language-specific quality controls."))
+        entries.append(
+            _LANGUAGE_GUIDANCE.get(specialty, "Maintain language-specific quality controls.")
+        )
     return _dedupe(entries)
 
 
@@ -634,7 +637,9 @@ def _protocol_profile(agent: AgentDefinition, protocols: list[str]) -> dict[str,
         "primary_purpose": _PROTOCOL_PURPOSES.get(primary, "Coordinated inter-agent messaging."),
         "message_format": _PROTOCOL_FORMATS.get(primary, "Structured mission event envelope."),
         "supported_codes": supported_codes,
-        "supported_names": [_PROTOCOL_NAMES.get(protocol, protocol.title()) for protocol in supported],
+        "supported_names": [
+            _PROTOCOL_NAMES.get(protocol, protocol.title()) for protocol in supported
+        ],
     }
 
 
@@ -648,8 +653,9 @@ def _cache_hints_for_agent(agent: AgentDefinition) -> list[str]:
     entries.extend(_SHORT_CODE_CACHE_HINTS.get(agent.short_code, []))
     if agent.category == "specialist" and agent.specialties:
         specialty = agent.specialties[0]
+        language_label = _LANGUAGE_LABELS.get(specialty, specialty.title())
         entries.append(
-            f"{_LANGUAGE_LABELS.get(specialty, specialty.title())} language references and upgrade notes"
+            f"{language_label} language references and upgrade notes"
         )
     return _dedupe(entries)
 

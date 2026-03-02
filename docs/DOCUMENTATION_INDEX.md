@@ -17,11 +17,14 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `OBSERVABILITY_STACK.md`: monitoring/telemetry stack baseline.
 - `DEPLOYMENT_DR_PLAYBOOK.md`: deployment + disaster recovery operational playbook.
 - `PRODUCTION_REVIEW_AUDIT.md`: checklist-aligned production audit updates and outcomes.
+- `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
+- `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.
 
 ## Standards and External References
 
 - `PRODUCTION_STANDARDS_REFERENCES.md`: official external standards and technical references.
 - `AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`: authoritative standards and evidence model for agent personas.
+- `DATA_CLASSIFICATION_POLICY.md`: data handling classes and governance controls.
 
 ## Agent and Data-Plane Documentation
 
@@ -38,6 +41,12 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 
 - `openapi/api-gateway.v1.json`: exported API Gateway OpenAPI 3.1 contract.
 - `openapi/orchestrator.v1.json`: exported Orchestrator OpenAPI 3.1 contract.
+- `API_INTEGRATION_GUIDE.md`: authentication, examples, and integration behavior.
+
+## Developer Enablement
+
+- `DEVELOPER_ONBOARDING_GUIDE.md`: local setup and first-day validation flow.
+- `../CHANGELOG.md`: implementation change history.
 
 ## Suggested Read Order
 

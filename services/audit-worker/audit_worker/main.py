@@ -1,7 +1,9 @@
 import asyncio
+import inspect
 import json
 import os
 import re
+import time
 import uuid
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
@@ -10,7 +12,9 @@ from typing import Any
 
 import httpx
 import redis.asyncio as redis
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from redis.exceptions import ResponseError
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -24,6 +28,19 @@ PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 
 EVENT_SCHEMA_PATH = Path("/app/schemas/event.envelope.schema.json")
 TOPICS_PATH = Path("/app/protocol/topics.yaml")
+
+TASKS_PROCESSED = Counter(
+    "audit_worker_tasks_processed_total",
+    "Total mission events processed by audit worker",
+)
+TASKS_FAILED = Counter(
+    "audit_worker_tasks_failed_total",
+    "Total mission events failed by audit worker",
+)
+TASK_LATENCY_SECONDS = Histogram(
+    "audit_worker_task_latency_seconds",
+    "Mission event processing latency for audit worker",
+)
 
 
 class ProtocolValidationError(Exception):
@@ -167,6 +184,7 @@ async def _consumer_loop(app: FastAPI) -> None:
 
         for _, entries in records:
             for entry_id, fields in entries:
+                started = time.perf_counter()
                 try:
                     envelope_raw = fields.get("envelope")
                     payload_raw = fields.get("payload")
@@ -226,9 +244,12 @@ async def _consumer_loop(app: FastAPI) -> None:
                         )
 
                     app.state.processed += 1
+                    TASKS_PROCESSED.inc()
                 except Exception:
                     app.state.errors += 1
+                    TASKS_FAILED.inc()
                 finally:
+                    TASK_LATENCY_SECONDS.observe(time.perf_counter() - started)
                     await redis_client.xack(STATE_STREAM, CONSUMER_GROUP, entry_id)
 
 
@@ -247,7 +268,15 @@ async def lifespan(app: FastAPI):
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
-    await app.state.redis.close()
+    aclose = getattr(app.state.redis, "aclose", None)
+    if callable(aclose):
+        await aclose()
+    else:
+        close = getattr(app.state.redis, "close", None)
+        if callable(close):
+            result = close()
+            if inspect.isawaitable(result):
+                await result
 
 
 app = FastAPI(title="HolyGrail Audit Worker", version="0.1.0", lifespan=lifespan)
@@ -255,7 +284,13 @@ app = FastAPI(title="HolyGrail Audit Worker", version="0.1.0", lifespan=lifespan
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
-    ready = bool(await app.state.redis.ping())
+    ready = False
+    redis_client = getattr(app.state, "redis", None)
+    if redis_client is not None:
+        try:
+            ready = bool(await redis_client.ping())
+        except Exception:
+            ready = False
     return {
         "ok": ready,
         "service": "audit-worker",
@@ -265,3 +300,22 @@ async def health() -> dict[str, Any]:
         "processed": app.state.processed,
         "errors": app.state.errors,
     }
+
+
+@app.get("/readyz")
+async def readyz() -> dict[str, Any]:
+    redis_client = getattr(app.state, "redis", None)
+    if redis_client is None:
+        raise HTTPException(status_code=503, detail="redis unavailable")
+    try:
+        ready = bool(await redis_client.ping())
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+    if not ready:
+        raise HTTPException(status_code=503, detail="redis unavailable")
+    return {"ready": True, "service": "audit-worker"}
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)

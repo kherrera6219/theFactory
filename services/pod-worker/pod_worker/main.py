@@ -1,8 +1,10 @@
 import asyncio
+import inspect
 import json
 import logging
 import os
 import re
+import time
 import uuid
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
@@ -11,7 +13,9 @@ from typing import Any
 
 import httpx
 import redis.asyncio as redis
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from redis.exceptions import ResponseError
 
 LOGGER = logging.getLogger(__name__)
@@ -35,6 +39,22 @@ PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 
 EVENT_SCHEMA_PATH = Path("/app/schemas/event.envelope.schema.json")
 TOPICS_PATH = Path("/app/protocol/topics.yaml")
+
+TASKS_PROCESSED = Counter(
+    "pod_worker_tasks_processed_total",
+    "Total mission events processed by pod worker",
+    ("pod_name",),
+)
+TASKS_FAILED = Counter(
+    "pod_worker_tasks_failed_total",
+    "Total mission events failed by pod worker",
+    ("pod_name",),
+)
+TASK_LATENCY_SECONDS = Histogram(
+    "pod_worker_task_latency_seconds",
+    "Mission event processing latency for pod worker",
+    ("pod_name",),
+)
 
 
 class ProtocolValidationError(Exception):
@@ -279,6 +299,7 @@ async def _consumer_loop(app: FastAPI) -> None:
         for _, entries in records:
             for entry_id, fields in entries:
                 acknowledge = False
+                started = time.perf_counter()
                 try:
                     envelope_raw = fields.get("envelope")
                     payload_raw = fields.get("payload")
@@ -292,15 +313,21 @@ async def _consumer_loop(app: FastAPI) -> None:
                     if event_type == "MISSION_RUNNING":
                         await _handle_running_mission(redis_client, payload)
                         app.state.processed += 1
+                        TASKS_PROCESSED.labels(pod_name=POD_NAME).inc()
                     acknowledge = True
                 except (ProtocolValidationError, json.JSONDecodeError, KeyError, TypeError) as exc:
                     app.state.errors += 1
+                    TASKS_FAILED.labels(pod_name=POD_NAME).inc()
                     acknowledge = True
                     LOGGER.warning("discarding invalid state event %s: %s", entry_id, exc)
                 except Exception as exc:
                     app.state.errors += 1
+                    TASKS_FAILED.labels(pod_name=POD_NAME).inc()
                     LOGGER.warning("failed to process state event %s: %s", entry_id, exc)
                 finally:
+                    TASK_LATENCY_SECONDS.labels(pod_name=POD_NAME).observe(
+                        time.perf_counter() - started
+                    )
                     if acknowledge:
                         await redis_client.xack(STATE_STREAM, CONSUMER_GROUP, entry_id)
 
@@ -326,7 +353,11 @@ async def lifespan(app: FastAPI):
     if callable(aclose):
         await aclose()
     else:
-        await app.state.redis.close()
+        close = getattr(app.state.redis, "close", None)
+        if callable(close):
+            result = close()
+            if inspect.isawaitable(result):
+                await result
 
 
 app = FastAPI(title=f"HolyGrail Pod Worker ({POD_NAME})", version="0.1.0", lifespan=lifespan)
@@ -334,7 +365,13 @@ app = FastAPI(title=f"HolyGrail Pod Worker ({POD_NAME})", version="0.1.0", lifes
 
 @app.get("/health")
 async def health() -> dict[str, Any]:
-    ready = bool(await app.state.redis.ping())
+    ready = False
+    redis_client = getattr(app.state, "redis", None)
+    if redis_client is not None:
+        try:
+            ready = bool(await redis_client.ping())
+        except Exception:
+            ready = False
     return {
         "ok": ready,
         "service": "pod-worker",
@@ -346,3 +383,22 @@ async def health() -> dict[str, Any]:
         "processed": app.state.processed,
         "errors": app.state.errors,
     }
+
+
+@app.get("/readyz")
+async def readyz() -> dict[str, Any]:
+    redis_client = getattr(app.state, "redis", None)
+    if redis_client is None:
+        raise HTTPException(status_code=503, detail="redis unavailable")
+    try:
+        ready = bool(await redis_client.ping())
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+    if not ready:
+        raise HTTPException(status_code=503, detail="redis unavailable")
+    return {"ready": True, "service": "pod-worker", "pod_name": POD_NAME}
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
