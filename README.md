@@ -103,7 +103,12 @@ OpenAPI exports:
 
 ## Mission Control UI
 
-Mission Control (`http://localhost:3100` by default) provides:
+Mission Control access:
+
+- Docker stack default (external host port): `http://localhost:3100`
+- Direct Next.js dev server (`npm run dev`): `http://localhost:3000`
+
+Mission Control provides:
 
 - Dashboard and mission lifecycle views.
 - Agent grid and drill-down detail (including full 8-part persona + standards evidence).
@@ -162,6 +167,7 @@ Using `make`:
 - `make validate`: validate schema files.
 - `make lint`: run `ruff` on backend/test/scripts.
 - `make test`: run full pytest with global coverage gate (`>= 80%`) plus 100% coverage gates for core multi-agent communication/runtime modules.
+- `make test-ui`: run Mission Control lint + unit tests.
 - `make test-fast`: run pytest without coverage reporting.
 - `make audit`: run production checklist audit script.
 - `make openapi`: export OpenAPI documents.
@@ -179,6 +185,7 @@ Frontend app commands:
 - `npm run dev`
 - `npm run build`
 - `npm run lint`
+- `npm run test`
 
 ## Security, Auth, and Operational Controls
 
