@@ -162,3 +162,28 @@
 ### Outcome
 - Operational script test coverage now exists for the production audit path.
 - Remaining script testing gap: backup, DR, and perf script automation coverage.
+
+## Phase 6 - Performance Smoke Script Tests
+
+### Objective
+- Extend operational script test coverage to performance-smoke tooling.
+
+### Implementation
+- Added new test suite:
+  - `tests/scripts/test_perf_smoke.py`
+- Covered script behaviors:
+  - percentile helper edge cases
+  - CLI default argument parsing
+  - pass/fail threshold outcomes for success-rate and p95 latency logic
+
+### Validation and Debug Sweep
+- `python -m pytest tests/scripts/test_perf_smoke.py tests/scripts/test_production_review_audit.py`: pass (10 tests)
+- `npm run lint` / `npm run test` (mission-control): pass
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (88.13%)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Script validation coverage now includes production audit and perf-smoke automation.
+- Remaining script testing gap: backup and DR automation paths.
