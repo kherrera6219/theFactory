@@ -23,6 +23,8 @@ CONSUMER_GROUP = os.getenv("AUDIT_WORKER_GROUP", "audit-workers")
 CONSUMER_NAME = os.getenv("AUDIT_WORKER_NAME", f"audit-worker-{uuid.uuid4()}")
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8001")
 SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "worker-key")
+REQUEST_TIMEOUT_SECONDS = float(os.getenv("ORCHESTRATOR_TIMEOUT_SECONDS", "5.0"))
+REQUEST_MAX_RETRIES = int(os.getenv("ORCHESTRATOR_MAX_RETRIES", "3"))
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 
@@ -155,18 +157,30 @@ async def _ensure_group(redis_client: redis.Redis) -> None:
 
 
 async def _post_audit(mission_id: str, status: str, summary: str, report: dict[str, Any]) -> bool:
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        response = await client.post(
-            f"{ORCHESTRATOR_URL}/internal/audit-reports",
-            json={
-                "mission_id": mission_id,
-                "audit_id": f"audit-worker.{mission_id}",
-                "status": status,
-                "report": {"summary": summary, **report},
-            },
-            headers={"x-api-key": SERVICE_API_KEY},
-        )
-    return response.status_code < 400
+    request_id = f"audit-{uuid.uuid4()}"
+    last_response: httpx.Response | None = None
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
+        for attempt in range(1, REQUEST_MAX_RETRIES + 1):
+            try:
+                response = await client.post(
+                    f"{ORCHESTRATOR_URL}/internal/audit-reports",
+                    json={
+                        "mission_id": mission_id,
+                        "audit_id": f"audit-worker.{mission_id}",
+                        "status": status,
+                        "report": {"summary": summary, **report},
+                    },
+                    headers={"x-api-key": SERVICE_API_KEY, "x-request-id": request_id},
+                )
+                last_response = response
+                if response.status_code < 500 and response.status_code != 429:
+                    return response.status_code < 400
+            except httpx.HTTPError:
+                pass
+            if attempt < REQUEST_MAX_RETRIES:
+                await asyncio.sleep(0.1 * attempt)
+
+    return bool(last_response and last_response.status_code < 400)
 
 
 async def _consumer_loop(app: FastAPI) -> None:

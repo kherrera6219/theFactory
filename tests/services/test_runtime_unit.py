@@ -1,5 +1,7 @@
 import asyncio
+import builtins
 import importlib
+import importlib.util
 import json
 import sys
 from dataclasses import dataclass
@@ -245,6 +247,54 @@ def test_consume_intake_stream_invalid_payload_is_acked(monkeypatch) -> None:
     assert redis_client.xack_calls == [("missions.intake", "orchestrator", "1-0")]
 
 
+def test_consume_intake_stream_empty_then_cancel() -> None:
+    redis_client = FakeRedis()
+    redis_client.xreadgroup_responses = [[], asyncio.CancelledError()]
+    app = _app_state(redis=redis_client, lifecycle_tasks={})
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+    assert redis_client.xack_calls == []
+
+
+def test_consume_intake_stream_emit_failure_does_not_block_intake(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    payload = {
+        "mission_id": "mission-1",
+        "prompt": "Build API",
+        "requested_target_language": "python",
+        "metadata": {"source": "test"},
+        "created_at": "2026-03-01T00:00:00+00:00",
+    }
+    redis_client.xreadgroup_responses = [
+        [("missions.intake", [("1-0", {"payload": json.dumps(payload), "envelope": "{}"})])],
+        asyncio.CancelledError(),
+    ]
+    app = _app_state(redis=redis_client, lifecycle_tasks={})
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "upsert_mission", lambda *_args: None)
+    monkeypatch.setattr(runtime.storage, "insert_mission_event", lambda *_args: None)
+
+    async def _emit_fail(**_kwargs):
+        raise RuntimeError("emit down")
+
+    started: list[str] = []
+
+    monkeypatch.setattr(runtime, "emit_state_event", _emit_fail)
+    monkeypatch.setattr(runtime, "start_lifecycle_task", lambda _app, mid: started.append(mid))
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+    assert started == ["mission-1"]
+    assert redis_client.xack_calls == [("missions.intake", "orchestrator", "1-0")]
+
+
 def test_start_lifecycle_task_branches(monkeypatch) -> None:
     app = _app_state(lifecycle_tasks={})
     app.state.settings = _settings()
@@ -275,6 +325,23 @@ def test_start_lifecycle_task_branches(monkeypatch) -> None:
     runtime.start_lifecycle_task(app, "mission-2")
     assert created
     assert "mission-2" in app.state.lifecycle_tasks
+
+
+def test_start_lifecycle_task_cleanup_callback(monkeypatch) -> None:
+    app = _app_state(lifecycle_tasks={})
+    created: list[FakeTask] = []
+
+    def _create_task(_coro) -> FakeTask:
+        _coro.close()
+        task = FakeTask(done_state=False)
+        created.append(task)
+        return task
+
+    monkeypatch.setattr(runtime.asyncio, "create_task", _create_task)
+    runtime.start_lifecycle_task(app, "mission-cleanup")
+    assert "mission-cleanup" in app.state.lifecycle_tasks
+    created[0]._callback(created[0])
+    assert "mission-cleanup" not in app.state.lifecycle_tasks
 
 
 def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
@@ -332,6 +399,63 @@ def test_advance_mission_lifecycle_stops_on_missing_transition(monkeypatch) -> N
     monkeypatch.setattr(runtime, "emit_state_event", _emit)
     asyncio.run(runtime.advance_mission_lifecycle(app, "mission-1"))
     assert called["emit"] is False
+
+
+def test_advance_mission_lifecycle_skips_emit_when_redis_not_ready(monkeypatch) -> None:
+    app = _app_state(redis_ready=False, redis=FakeRedis(), lifecycle_tasks={})
+    app.state.settings = _settings()
+
+    async def _sleep(_):
+        return None
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.storage,
+        "transition_mission_state",
+        lambda _settings_obj, mission_id, expected_state, new_state, _event_type: _mission_record(
+            new_state
+        ),
+    )
+    called = {"emit": False}
+
+    async def _emit(**_kwargs):
+        called["emit"] = True
+
+    monkeypatch.setattr(runtime, "emit_state_event", _emit)
+    asyncio.run(runtime.advance_mission_lifecycle(app, "mission-1"))
+    assert called["emit"] is False
+
+
+def test_advance_mission_lifecycle_emit_exception_is_swallowed(monkeypatch) -> None:
+    app = _app_state(redis_ready=True, redis=FakeRedis(), lifecycle_tasks={})
+    app.state.settings = _settings()
+
+    async def _sleep(_):
+        return None
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.storage,
+        "transition_mission_state",
+        lambda _settings_obj, mission_id, expected_state, new_state, _event_type: _mission_record(
+            new_state
+        ),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "emit_state_event",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("emit fail")),
+    )
+
+    asyncio.run(runtime.advance_mission_lifecycle(app, "mission-1"))
 
 
 def test_ensure_runtime_ready_success(monkeypatch) -> None:
@@ -400,6 +524,58 @@ def test_ensure_runtime_ready_failure_paths(monkeypatch) -> None:
     assert app.state.consumer_task is None
 
 
+def test_ensure_runtime_ready_sets_defaults_and_handles_consumer_start_failure(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    app = _app_state(
+        redis=redis_client,
+        redis_ready=None,
+        db_ready=None,
+        consumer_task=None,
+        lifecycle_tasks=None,
+        startup_lock=None,
+        protocol_ready=True,
+    )
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "ensure_db_schema", lambda *_: None)
+
+    async def _ensure_group_fail(*_args, **_kwargs):
+        raise RuntimeError("group fail")
+
+    monkeypatch.setattr(runtime, "ensure_consumer_group", _ensure_group_fail)
+    redis_ready, db_ready = asyncio.run(runtime.ensure_runtime_ready(app))
+    assert redis_ready is True
+    assert db_ready is True
+    assert app.state.consumer_task is None
+    assert app.state.lifecycle_tasks == {}
+    assert app.state.startup_lock is not None
+
+
+def test_ensure_runtime_ready_skips_ping_and_db_when_already_ready(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    app = _app_state(
+        redis=redis_client,
+        redis_ready=True,
+        db_ready=True,
+        consumer_task=FakeTask(done_state=False),
+        protocol_ready=False,
+    )
+    touched = {"to_thread": 0}
+
+    async def _to_thread(fn, *args, **kwargs):
+        touched["to_thread"] += 1
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    redis_ready, db_ready = asyncio.run(runtime.ensure_runtime_ready(app))
+    assert redis_ready is True
+    assert db_ready is True
+    assert touched["to_thread"] == 0
+
+
 def test_runtime_self_heal_loop(monkeypatch) -> None:
     calls = {"count": 0}
 
@@ -416,3 +592,21 @@ def test_runtime_self_heal_loop(monkeypatch) -> None:
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(runtime.runtime_self_heal_loop(_app_state()))
     assert calls["count"] == 1
+
+
+def test_runtime_module_import_fallback_without_redis(monkeypatch) -> None:
+    module_path = ROOT / "services" / "orchestrator" / "orchestrator" / "runtime.py"
+    real_import = builtins.__import__
+
+    def _blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "redis.asyncio" or name == "redis.exceptions":
+            raise ModuleNotFoundError(name)
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _blocked_import)
+    spec = importlib.util.spec_from_file_location("orchestrator.runtime_no_redis", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.redis is None
+    assert issubclass(module.ResponseError, Exception)

@@ -34,6 +34,7 @@ jobs:
           pip-audit -r services/dashboard/requirements.txt
           pip-audit -r services/pod-worker/requirements.txt
           pip-audit -r services/audit-worker/requirements.txt
+          pip-audit -r services/semantic-bus-mcp/requirements.txt
 
       - name: Run Bandit
         run: bandit -r services scripts -ll

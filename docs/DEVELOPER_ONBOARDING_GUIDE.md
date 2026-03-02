@@ -37,7 +37,7 @@ A new developer should be able to set up and validate the stack in under 2 hours
 
 - `make validate`
 - `make lint`
-- `make test`
+- `make test` (global `>= 80%` coverage plus 100% gates on core multi-agent runtime/communication modules)
 - `make audit`
 - `make sweep`
 

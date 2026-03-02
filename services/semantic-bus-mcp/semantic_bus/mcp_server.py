@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 import os
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -24,6 +26,10 @@ MCP_PORT = int(os.getenv("MCP_PORT", "8090"))
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 MAX_MESSAGE_BYTES = int(os.getenv("MAX_MESSAGE_BYTES", "1048576"))
 MCP_API_KEY = os.getenv("MCP_API_KEY", "mcp-local-key").strip()
+MAX_RECIPIENTS = int(os.getenv("MAX_RECIPIENTS", "32"))
+
+LOGGER = logging.getLogger(__name__)
+AGENT_ID_PATTERN = re.compile(r"^AGENT-\d{2}-[A-Z0-9-]+$")
 
 ALLOWED_PROTOCOLS = ("alpha", "beta", "delta", "sigma", "omega", "rho")
 PRIORITY_LEVELS = ("low", "normal", "high", "critical")
@@ -57,6 +63,10 @@ def _parse_datetime(value: str) -> datetime:
     if parsed.tzinfo is None:
         raise ValueError("timestamp must include timezone")
     return parsed
+
+
+def _is_valid_agent_id(value: str) -> bool:
+    return bool(AGENT_ID_PATTERN.fullmatch(value.strip()))
 
 
 class AlphaPayload(BaseModel):
@@ -170,11 +180,25 @@ def _normalized_recipients(value: str | list[str]) -> list[str]:
         recipient = value.strip()
         if not recipient:
             raise HTTPException(status_code=422, detail="recipient must not be empty")
+        if recipient.lower() != "broadcast" and not _is_valid_agent_id(recipient):
+            raise HTTPException(status_code=422, detail=f"invalid recipient id: {recipient}")
         return [recipient]
 
     recipients = [item.strip() for item in value if isinstance(item, str) and item.strip()]
     if not recipients:
         raise HTTPException(status_code=422, detail="recipient list must not be empty")
+    if len(recipients) > MAX_RECIPIENTS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"recipient list exceeds maximum allowed recipients ({MAX_RECIPIENTS})",
+        )
+    invalid = [
+        recipient
+        for recipient in recipients
+        if recipient.lower() != "broadcast" and not _is_valid_agent_id(recipient)
+    ]
+    if invalid:
+        raise HTTPException(status_code=422, detail=f"invalid recipient id: {invalid[0]}")
     return sorted(set(recipients))
 
 
@@ -280,7 +304,8 @@ async def readyz() -> dict[str, Any]:
         app.state.redis_ready = redis_ready
     except Exception as exc:
         app.state.redis_ready = False
-        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+        LOGGER.warning("semantic-bus-mcp redis ping failed during readiness check")
+        raise HTTPException(status_code=503, detail="redis unavailable") from exc
     if not redis_ready:
         raise HTTPException(status_code=503, detail="redis unavailable")
     return {"ready": True, "service": "semantic-bus-mcp", "redis_ready": redis_ready}
@@ -340,9 +365,17 @@ async def send_message(
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
 
+    if not _is_valid_agent_id(payload.sender):
+        raise HTTPException(status_code=422, detail=f"invalid sender id: {payload.sender}")
     if MCP_API_KEY and (x_api_key or "").strip() != MCP_API_KEY:
+        LOGGER.warning("semantic-bus-mcp rejected request due to invalid api key")
         raise HTTPException(status_code=403, detail="invalid mcp api key")
     if (x_agent_id or "").strip() != payload.sender:
+        LOGGER.warning(
+            "semantic-bus-mcp rejected sender mismatch header=%s sender=%s",
+            (x_agent_id or "").strip(),
+            payload.sender,
+        )
         raise HTTPException(status_code=403, detail="sender identity mismatch")
 
     recipients = _normalized_recipients(payload.recipient)
@@ -387,7 +420,8 @@ async def send_message(
         MESSAGES_QUEUED.labels(protocol=payload.protocol).inc()
     except Exception as exc:
         await _write_dlq(redis_client, payload.protocol, body, str(exc))
-        raise HTTPException(status_code=503, detail=f"failed to publish message: {exc}") from exc
+        LOGGER.exception("semantic-bus-mcp failed to publish protocol message")
+        raise HTTPException(status_code=503, detail="failed to publish message") from exc
 
     return JSONResponse(
         status_code=200,

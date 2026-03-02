@@ -20,6 +20,17 @@ lint:
 
 test:
 	pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+	python scripts/check_coverage_thresholds.py \
+		--coverage-file coverage.xml \
+		--global-threshold 80 \
+		--module-threshold services/pod-worker/pod_worker/main.py=100 \
+		--module-threshold services/audit-worker/audit_worker/main.py=100 \
+		--module-threshold services/semantic-bus-mcp/semantic_bus/mcp_server.py=100 \
+		--module-threshold services/orchestrator/orchestrator/protocol.py=100 \
+		--module-threshold services/orchestrator/orchestrator/runtime.py=100 \
+		--module-threshold services/orchestrator/orchestrator/agent_personas.py=100 \
+		--module-threshold services/orchestrator/orchestrator/agent_integrations.py=100 \
+		--module-threshold services/orchestrator/orchestrator/agent_registry.py=100
 
 test-fast:
 	pytest

@@ -151,6 +151,36 @@ def test_orchestrator_envelope_load_missing_files(tmp_path: Path) -> None:
         EnvelopeValidator.load(missing_topics)
 
 
+def test_orchestrator_envelope_load_rejects_empty_topics(tmp_path: Path) -> None:
+    schema_path = tmp_path / "schema.json"
+    topics_path = tmp_path / "topics.yaml"
+    schema_path.write_text(
+        json.dumps(
+            {
+                "required": ["event_id", "topic", "timestamp", "producer", "correlation_id"],
+                "properties": {
+                    "event_id": {"type": "string"},
+                    "topic": {"type": "string"},
+                    "timestamp": {"type": "string"},
+                    "producer": {"type": "string"},
+                    "correlation_id": {"type": "string"},
+                    "payload_ref": {"type": "string"},
+                    "schema": {"type": "string"},
+                    "priority": {"type": "string", "enum": ["NORMAL", "HIGH"]},
+                },
+                "additionalProperties": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    topics_path.write_text("topics:\n  none: true\n", encoding="utf-8")
+
+    with pytest.raises(OrchestratorProtocolError):
+        EnvelopeValidator.load(
+            _with_settings_overrides(event_schema_path=schema_path, topics_path=topics_path)
+        )
+
+
 def test_parse_intake_envelope_paths() -> None:
     validator = EnvelopeValidator.load(_make_settings())
 
@@ -174,6 +204,94 @@ def test_parse_intake_envelope_paths() -> None:
 
     with pytest.raises(OrchestratorProtocolError):
         validator.parse_intake_envelope({}, {})
+
+
+def test_orchestrator_envelope_validator_failure_branches() -> None:
+    validator = EnvelopeValidator.load(_make_settings())
+    envelope = {
+        "event_id": "evt-1",
+        "topic": "intake.feature_contract.created",
+        "timestamp": "2026-03-01T00:00:00+00:00",
+        "producer": "api-gateway",
+        "correlation_id": "mission-1",
+        "payload_ref": "registry://missions/mission-1/intake",
+        "schema": "missions.intake.v1",
+        "priority": "NORMAL",
+    }
+
+    missing_required = dict(envelope)
+    del missing_required["producer"]
+    with pytest.raises(OrchestratorProtocolError):
+        validator.validate(missing_required)
+
+    unexpected = dict(envelope)
+    unexpected["extra_field"] = "boom"
+    with pytest.raises(OrchestratorProtocolError):
+        validator.validate(unexpected)
+
+    bad_payload_ref = dict(envelope)
+    bad_payload_ref["payload_ref"] = "http://bad"
+    with pytest.raises(OrchestratorProtocolError):
+        validator.validate(bad_payload_ref)
+
+    bad_priority = dict(envelope)
+    bad_priority["priority"] = "LOW"
+    with pytest.raises(OrchestratorProtocolError):
+        validator.validate(bad_priority)
+
+    bad_timestamp = dict(envelope)
+    bad_timestamp["timestamp"] = "2026-03-01T00:00:00"
+    with pytest.raises(OrchestratorProtocolError):
+        validator.validate(bad_timestamp)
+
+
+def test_orchestrator_envelope_validator_allows_unknown_when_schema_allows(tmp_path: Path) -> None:
+    schema_path = tmp_path / "schema.json"
+    topics_path = tmp_path / "topics.yaml"
+    schema_path.write_text(
+        json.dumps(
+            {
+                "required": [
+                    "event_id",
+                    "topic",
+                    "timestamp",
+                    "producer",
+                    "correlation_id",
+                    "payload_ref",
+                    "schema",
+                    "priority",
+                ],
+                "properties": {
+                    "event_id": {"type": "string"},
+                    "topic": {"type": "string"},
+                    "timestamp": {"type": "string"},
+                    "producer": {"type": "string"},
+                    "correlation_id": {"type": "string"},
+                    "payload_ref": {"type": "string"},
+                    "schema": {"type": "string"},
+                    "priority": {"type": "string", "enum": ["NORMAL", "HIGH"]},
+                },
+                "additionalProperties": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    topics_path.write_text("- intake.feature_contract.created\n", encoding="utf-8")
+    validator = EnvelopeValidator.load(
+        _with_settings_overrides(event_schema_path=schema_path, topics_path=topics_path)
+    )
+    envelope = {
+        "event_id": "evt-1",
+        "topic": "intake.feature_contract.created",
+        "timestamp": "2026-03-01T00:00:00+00:00",
+        "producer": "api-gateway",
+        "correlation_id": "mission-1",
+        "payload_ref": "registry://missions/mission-1/intake",
+        "schema": "missions.intake.v1",
+        "priority": "NORMAL",
+        "extra_field": "allowed",
+    }
+    validator.validate(envelope)
 
 
 def test_orchestrator_envelope_validator_rejects_non_string_field() -> None:

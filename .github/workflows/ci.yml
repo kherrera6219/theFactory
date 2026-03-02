@@ -38,6 +38,7 @@ jobs:
           pip install -r services/dashboard/requirements.txt
           pip install -r services/pod-worker/requirements.txt
           pip install -r services/audit-worker/requirements.txt
+          pip install -r services/semantic-bus-mcp/requirements.txt
 
       - name: Validate schemas
         run: python scripts/validate_schemas.py
@@ -52,6 +53,17 @@ jobs:
         run: |
           mkdir -p reports
           pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80 --junitxml=reports/junit.xml
+          python scripts/check_coverage_thresholds.py \
+            --coverage-file coverage.xml \
+            --global-threshold 80 \
+            --module-threshold services/pod-worker/pod_worker/main.py=100 \
+            --module-threshold services/audit-worker/audit_worker/main.py=100 \
+            --module-threshold services/semantic-bus-mcp/semantic_bus/mcp_server.py=100 \
+            --module-threshold services/orchestrator/orchestrator/protocol.py=100 \
+            --module-threshold services/orchestrator/orchestrator/runtime.py=100 \
+            --module-threshold services/orchestrator/orchestrator/agent_personas.py=100 \
+            --module-threshold services/orchestrator/orchestrator/agent_integrations.py=100 \
+            --module-threshold services/orchestrator/orchestrator/agent_registry.py=100
 
       - name: Upload Test Artifacts
         uses: actions/upload-artifact@v4
@@ -75,6 +87,7 @@ jobs:
           - dashboard
           - pod-worker
           - audit-worker
+          - semantic-bus-mcp
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -75,6 +75,24 @@ def test_loaders_and_validate_envelope_success(monkeypatch, tmp_path: Path) -> N
     audit_worker_main._validate_envelope(_valid_envelope())
 
 
+def test_loaders_missing_and_empty_topics(tmp_path: Path, monkeypatch) -> None:
+    missing_schema = tmp_path / "missing-schema.json"
+    missing_topics = tmp_path / "missing-topics.yaml"
+    monkeypatch.setattr(audit_worker_main, "EVENT_SCHEMA_PATH", missing_schema)
+    monkeypatch.setattr(audit_worker_main, "TOPICS_PATH", missing_topics)
+
+    with pytest.raises(audit_worker_main.ProtocolValidationError):
+        audit_worker_main._load_event_schema()
+    with pytest.raises(audit_worker_main.ProtocolValidationError):
+        audit_worker_main._load_topics()
+
+    topics_path = tmp_path / "topics.yaml"
+    topics_path.write_text("topics:\n  none: true\n", encoding="utf-8")
+    monkeypatch.setattr(audit_worker_main, "TOPICS_PATH", topics_path)
+    with pytest.raises(audit_worker_main.ProtocolValidationError):
+        audit_worker_main._load_topics()
+
+
 def test_validate_envelope_failures(monkeypatch) -> None:
     monkeypatch.setattr(audit_worker_main, "_load_event_schema", lambda: _schema())
     monkeypatch.setattr(audit_worker_main, "_load_topics", lambda: {"artifact.rir.verified"})
@@ -103,6 +121,26 @@ def test_validate_envelope_failures(monkeypatch) -> None:
     envelope["timestamp"] = "2026-03-01T00:00:00"
     with pytest.raises(audit_worker_main.ProtocolValidationError):
         audit_worker_main._validate_envelope(envelope)
+
+    envelope = _valid_envelope()
+    envelope["extra_field"] = "boom"
+    with pytest.raises(audit_worker_main.ProtocolValidationError):
+        audit_worker_main._validate_envelope(envelope)
+
+    envelope = _valid_envelope()
+    envelope["producer"] = 123
+    with pytest.raises(audit_worker_main.ProtocolValidationError):
+        audit_worker_main._validate_envelope(envelope)
+
+
+def test_validate_envelope_with_additional_properties_allowed(monkeypatch) -> None:
+    schema = _schema()
+    schema["additionalProperties"] = True
+    monkeypatch.setattr(audit_worker_main, "_load_event_schema", lambda: schema)
+    monkeypatch.setattr(audit_worker_main, "_load_topics", lambda: {"artifact.rir.verified"})
+    envelope = _valid_envelope()
+    envelope["unexpected"] = "allowed"
+    audit_worker_main._validate_envelope(envelope)
 
 
 class FakeRedis:
@@ -139,6 +177,20 @@ class FakeRedis:
     async def xack(self, stream: str, group: str, entry_id: str) -> int:
         self.xack_calls.append((stream, group, entry_id))
         return 1
+
+
+class FakeTask:
+    def __init__(self) -> None:
+        self.cancel_called = False
+
+    def cancel(self) -> None:
+        self.cancel_called = True
+
+    def __await__(self):
+        async def _cancelled():
+            raise asyncio.CancelledError
+
+        return _cancelled().__await__()
 
 
 def test_build_and_publish_event(monkeypatch) -> None:
@@ -218,6 +270,23 @@ def test_post_audit_success_and_failure(monkeypatch) -> None:
         is False
     )
 
+    class ErrorClient(FakeClient):
+        async def post(self, *_args: Any, **_kwargs: Any) -> FakeResponse:
+            raise audit_worker_main.httpx.HTTPError("network down")
+
+    monkeypatch.setattr(audit_worker_main.httpx, "AsyncClient", lambda timeout: ErrorClient(500))
+    assert (
+        asyncio.run(
+            audit_worker_main._post_audit(
+                mission_id="mission-1",
+                status="FAIL",
+                summary="summary",
+                report={"result": "FAIL"},
+            )
+        )
+        is False
+    )
+
 
 def test_consumer_loop_branches(monkeypatch) -> None:
     verified = {
@@ -272,6 +341,99 @@ def test_consumer_loop_branches(monkeypatch) -> None:
     assert published == ["artifact.rir.verified", "artifact.rir.rejected", "binary.build.ready"]
 
 
+def test_consumer_loop_handles_missing_fields(monkeypatch) -> None:
+    redis_client = FakeRedis(
+        responses=[[("missions.state", [("1-0", {})])], asyncio.CancelledError()]
+    )
+    monkeypatch.setattr(audit_worker_main, "_validate_envelope", lambda _envelope: None)
+    app = SimpleNamespace(state=SimpleNamespace(redis=redis_client, processed=0, errors=0))
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(audit_worker_main._consumer_loop(app))
+
+    assert app.state.processed == 0
+    assert app.state.errors == 1
+    assert redis_client.xack_calls == [("missions.state", "audit-workers", "1-0")]
+
+
+def test_consumer_loop_skips_publish_when_post_audit_returns_false(monkeypatch) -> None:
+    verified = {
+        "envelope": json.dumps({"topic": "artifact.rir.verified"}),
+        "payload": json.dumps({"event_type": "MISSION_VERIFIED", "mission_id": "mission-1"}),
+    }
+    failed = {
+        "envelope": json.dumps({"topic": "artifact.rir.rejected"}),
+        "payload": json.dumps({"event_type": "MISSION_FAILED", "mission_id": "mission-2"}),
+    }
+    complete = {
+        "envelope": json.dumps({"topic": "binary.build.ready"}),
+        "payload": json.dumps({"event_type": "MISSION_COMPLETE", "mission_id": "mission-3"}),
+    }
+    redis_client = FakeRedis(
+        responses=[
+            [("missions.state", [("1-0", verified), ("2-0", failed), ("3-0", complete)])],
+            asyncio.CancelledError(),
+        ]
+    )
+    monkeypatch.setattr(audit_worker_main, "_validate_envelope", lambda _envelope: None)
+    monkeypatch.setattr(
+        audit_worker_main,
+        "_post_audit",
+        lambda *_args, **_kwargs: asyncio.sleep(0),
+    )
+    published: list[str] = []
+
+    async def _publish_event(
+        _redis_client: Any, topic: str, _mission_id: str, _payload: dict[str, Any]
+    ) -> None:
+        published.append(topic)
+
+    monkeypatch.setattr(audit_worker_main, "_publish_event", _publish_event)
+
+    app = SimpleNamespace(state=SimpleNamespace(redis=redis_client, processed=0, errors=0))
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(audit_worker_main._consumer_loop(app))
+
+    assert app.state.processed == 3
+    assert app.state.errors == 0
+    assert published == ["binary.build.ready"]
+
+
+def test_consumer_loop_processes_unknown_event_without_publish(monkeypatch) -> None:
+    unknown = {
+        "envelope": json.dumps({"topic": "artifact.rir.verified"}),
+        "payload": json.dumps({"event_type": "MISSION_RUNNING", "mission_id": "mission-1"}),
+    }
+    redis_client = FakeRedis(
+        responses=[[("missions.state", [("1-0", unknown)])], asyncio.CancelledError()]
+    )
+    monkeypatch.setattr(audit_worker_main, "_validate_envelope", lambda _envelope: None)
+    monkeypatch.setattr(
+        audit_worker_main,
+        "_publish_event",
+        lambda *_args, **_kwargs: asyncio.sleep(0),
+    )
+    app = SimpleNamespace(state=SimpleNamespace(redis=redis_client, processed=0, errors=0))
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(audit_worker_main._consumer_loop(app))
+
+    assert app.state.processed == 1
+    assert app.state.errors == 0
+    assert redis_client.xack_calls == [("missions.state", "audit-workers", "1-0")]
+
+
+def test_consumer_loop_handles_empty_records(monkeypatch) -> None:
+    redis_client = FakeRedis(responses=[[], asyncio.CancelledError()])
+    monkeypatch.setattr(audit_worker_main, "_validate_envelope", lambda _envelope: None)
+    app = SimpleNamespace(state=SimpleNamespace(redis=redis_client, processed=0, errors=0))
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(audit_worker_main._consumer_loop(app))
+
+    assert redis_client.xack_calls == []
+
+
 def test_health_and_readyz_branches() -> None:
     class PingRedis:
         async def ping(self) -> bool:
@@ -298,3 +460,188 @@ def test_health_and_readyz_branches() -> None:
     audit_worker_main.app.state.redis = None
     with pytest.raises(audit_worker_main.HTTPException):
         asyncio.run(audit_worker_main.readyz())
+
+    class FalseRedis:
+        async def ping(self) -> bool:
+            return False
+
+    audit_worker_main.app.state.redis = FalseRedis()
+    with pytest.raises(audit_worker_main.HTTPException):
+        asyncio.run(audit_worker_main.readyz())
+
+
+def test_metrics_endpoint() -> None:
+    response = asyncio.run(audit_worker_main.metrics())
+    assert response.status_code == 200
+    assert response.media_type
+
+
+def test_health_when_redis_not_configured() -> None:
+    audit_worker_main.app.state.redis = None
+    audit_worker_main.app.state.processed = 0
+    audit_worker_main.app.state.errors = 0
+    payload = asyncio.run(audit_worker_main.health())
+    assert payload["ok"] is False
+
+
+def test_lifespan_shutdown_paths(monkeypatch) -> None:
+    class RedisWithAclose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def ping(self) -> bool:
+            return True
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    redis_client = RedisWithAclose()
+    fake_task = FakeTask()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    async def _ensure_group(_redis):
+        return None
+
+    def _create_task(coro):
+        coro.close()
+        return fake_task
+
+    monkeypatch.setattr(audit_worker_main, "redis", RedisModule)
+    monkeypatch.setattr(audit_worker_main, "_ensure_group", _ensure_group)
+    monkeypatch.setattr(audit_worker_main.asyncio, "create_task", _create_task)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run():
+        async with audit_worker_main.lifespan(app):
+            assert app.state.consumer_task is fake_task
+
+    asyncio.run(_run())
+    assert fake_task.cancel_called is True
+    assert redis_client.closed is True
+
+
+def test_lifespan_close_awaitable(monkeypatch) -> None:
+    class RedisWithClose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def ping(self) -> bool:
+            return True
+
+        def close(self):
+            async def _close():
+                self.closed = True
+
+            return _close()
+
+    redis_client = RedisWithClose()
+    fake_task = FakeTask()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    async def _ensure_group(_redis):
+        return None
+
+    def _create_task(coro):
+        coro.close()
+        return fake_task
+
+    monkeypatch.setattr(audit_worker_main, "redis", RedisModule)
+    monkeypatch.setattr(audit_worker_main, "_ensure_group", _ensure_group)
+    monkeypatch.setattr(audit_worker_main.asyncio, "create_task", _create_task)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run():
+        async with audit_worker_main.lifespan(app):
+            pass
+
+    asyncio.run(_run())
+    assert redis_client.closed is True
+
+
+def test_lifespan_shutdown_with_no_task_and_no_close(monkeypatch) -> None:
+    class RedisNoClose:
+        async def ping(self) -> bool:
+            return True
+
+    redis_client = RedisNoClose()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    async def _ensure_group(_redis):
+        return None
+
+    def _create_task(coro):
+        coro.close()
+        return None
+
+    monkeypatch.setattr(audit_worker_main, "redis", RedisModule)
+    monkeypatch.setattr(audit_worker_main, "_ensure_group", _ensure_group)
+    monkeypatch.setattr(audit_worker_main.asyncio, "create_task", _create_task)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run():
+        async with audit_worker_main.lifespan(app):
+            assert app.state.consumer_task is None
+
+    asyncio.run(_run())
+
+
+def test_lifespan_shutdown_with_sync_close(monkeypatch) -> None:
+    class RedisSyncClose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def ping(self) -> bool:
+            return True
+
+        def close(self) -> None:
+            self.closed = True
+
+    redis_client = RedisSyncClose()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    async def _ensure_group(_redis):
+        return None
+
+    def _create_task(coro):
+        coro.close()
+        return None
+
+    monkeypatch.setattr(audit_worker_main, "redis", RedisModule)
+    monkeypatch.setattr(audit_worker_main, "_ensure_group", _ensure_group)
+    monkeypatch.setattr(audit_worker_main.asyncio, "create_task", _create_task)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run():
+        async with audit_worker_main.lifespan(app):
+            pass
+
+    asyncio.run(_run())
+    assert redis_client.closed is True

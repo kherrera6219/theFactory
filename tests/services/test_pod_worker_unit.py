@@ -1,7 +1,9 @@
 import asyncio
 import importlib
+import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -28,6 +30,20 @@ class FakeRedis:
     async def xadd(self, stream: str, fields: dict[str, str], **kwargs) -> str:
         self.xadd_calls.append((stream, fields))
         return "1-0"
+
+
+class FakeTask:
+    def __init__(self) -> None:
+        self.cancel_called = False
+
+    def cancel(self) -> None:
+        self.cancel_called = True
+
+    def __await__(self):
+        async def _cancelled():
+            raise asyncio.CancelledError
+
+        return _cancelled().__await__()
 
 
 def test_parse_date_time() -> None:
@@ -90,6 +106,70 @@ def test_validate_envelope_and_build(monkeypatch) -> None:
     assert built["topic"] == "cluster.assigned.podA"
 
 
+def test_validate_envelope_failure_paths(monkeypatch) -> None:
+    schema = {
+        "required": [
+            "event_id",
+            "topic",
+            "timestamp",
+            "producer",
+            "correlation_id",
+            "payload_ref",
+            "schema",
+            "priority",
+        ],
+        "additionalProperties": False,
+        "properties": {
+            "event_id": {"type": "string"},
+            "topic": {"type": "string"},
+            "timestamp": {"type": "string"},
+            "producer": {"type": "string"},
+            "correlation_id": {"type": "string"},
+            "payload_ref": {"type": "string"},
+            "schema": {"type": "string"},
+            "priority": {"type": "string", "enum": ["NORMAL", "HIGH"]},
+        },
+    }
+    monkeypatch.setattr(pod_worker_main, "_load_event_schema", lambda: schema)
+    monkeypatch.setattr(pod_worker_main, "_load_topics", lambda: {"cluster.assigned.podA"})
+
+    envelope = {
+        "event_id": "evt-1",
+        "topic": "cluster.assigned.podA",
+        "timestamp": "2026-03-01T00:00:00+00:00",
+        "producer": "pod-worker-podA",
+        "correlation_id": "mission-1",
+        "payload_ref": "registry://missions/mission-1",
+        "schema": "pod.assignment.v1",
+        "priority": "NORMAL",
+    }
+
+    invalid = dict(envelope)
+    invalid["unexpected"] = "value"
+    with pytest.raises(pod_worker_main.ProtocolValidationError):
+        pod_worker_main._validate_envelope(invalid)
+
+    invalid = dict(envelope)
+    invalid["topic"] = "unknown.topic"
+    with pytest.raises(pod_worker_main.ProtocolValidationError):
+        pod_worker_main._validate_envelope(invalid)
+
+    invalid = dict(envelope)
+    invalid["payload_ref"] = "http://bad"
+    with pytest.raises(pod_worker_main.ProtocolValidationError):
+        pod_worker_main._validate_envelope(invalid)
+
+    invalid = dict(envelope)
+    invalid["timestamp"] = "2026-03-01T00:00:00"
+    with pytest.raises(pod_worker_main.ProtocolValidationError):
+        pod_worker_main._validate_envelope(invalid)
+
+    invalid = dict(envelope)
+    invalid["producer"] = 1
+    with pytest.raises(pod_worker_main.ProtocolValidationError):
+        pod_worker_main._validate_envelope(invalid)
+
+
 def test_publish_event(monkeypatch) -> None:
     redis_client = FakeRedis()
     monkeypatch.setattr(
@@ -124,7 +204,7 @@ def test_ensure_group_busygroup_and_error(monkeypatch) -> None:
         asyncio.run(pod_worker_main._ensure_group(ErrorRedis()))
 
 
-def test_has_assignment() -> None:
+def test_has_assignment(monkeypatch) -> None:
     async def _not_found(*_args, **_kwargs):
         return DummyResponse(404)
 
@@ -134,12 +214,94 @@ def test_has_assignment() -> None:
     async def _ok(*_args, **_kwargs):
         return DummyResponse(200, {"pod_name": "podA"})
 
-    pod_worker_main._request = _not_found
+    monkeypatch.setattr(pod_worker_main, "_request", _not_found)
     assert asyncio.run(pod_worker_main._has_assignment("mission-1")) is False
-    pod_worker_main._request = _error
+    monkeypatch.setattr(pod_worker_main, "_request", _error)
     assert asyncio.run(pod_worker_main._has_assignment("mission-1")) is False
-    pod_worker_main._request = _ok
+    monkeypatch.setattr(pod_worker_main, "_request", _ok)
     assert asyncio.run(pod_worker_main._has_assignment("mission-1")) is True
+
+
+def test_request_uses_httpx_client(monkeypatch) -> None:
+    class FakeResponse:
+        status_code = 200
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def request(self, *_args, **_kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(pod_worker_main.httpx, "AsyncClient", lambda timeout: FakeClient())
+    response = asyncio.run(
+        pod_worker_main._request(
+            "POST",
+            "/internal/logicnodes",
+            json_body={"mission_id": "mission-1"},
+            params={"a": 1},
+        )
+    )
+    assert response.status_code == 200
+
+
+def test_request_validation_and_retry_error_paths(monkeypatch) -> None:
+    with pytest.raises(ValueError):
+        asyncio.run(pod_worker_main._request("GET", "internal/missions"))
+
+    class ErrorClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def request(self, *_args, **_kwargs):
+            raise pod_worker_main.httpx.HTTPError("network down")
+
+    monkeypatch.setattr(pod_worker_main.httpx, "AsyncClient", lambda timeout: ErrorClient())
+    with pytest.raises(pod_worker_main.httpx.HTTPError):
+        asyncio.run(pod_worker_main._request("GET", "/internal/missions/test"))
+
+
+def test_request_raises_runtime_when_no_attempts(monkeypatch) -> None:
+    monkeypatch.setattr(pod_worker_main, "REQUEST_MAX_RETRIES", 0)
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def request(self, *_args, **_kwargs):
+            return DummyResponse(200)
+
+    monkeypatch.setattr(pod_worker_main.httpx, "AsyncClient", lambda timeout: FakeClient())
+    with pytest.raises(RuntimeError):
+        asyncio.run(pod_worker_main._request("GET", "/internal/missions/test"))
+
+
+def test_request_returns_last_response_after_retryable_statuses(monkeypatch) -> None:
+    responses = [DummyResponse(500), DummyResponse(429), DummyResponse(500)]
+
+    class RetryClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def request(self, *_args, **_kwargs):
+            return responses.pop(0)
+
+    monkeypatch.setattr(pod_worker_main.httpx, "AsyncClient", lambda timeout: RetryClient())
+    monkeypatch.setattr(pod_worker_main, "REQUEST_MAX_RETRIES", 3)
+    response = asyncio.run(pod_worker_main._request("GET", "/internal/missions/test"))
+    assert response.status_code == 500
 
 
 def test_handle_running_mission_branches(monkeypatch) -> None:
@@ -192,6 +354,42 @@ def test_handle_running_mission_branches(monkeypatch) -> None:
         )
     )
 
+    asyncio.run(
+        pod_worker_main._handle_running_mission(
+            redis_client,
+            {"mission_id": "mission-1"},
+        )
+    )
+
+    async def _has_assignment_true(_mission_id: str) -> bool:
+        return True
+
+    monkeypatch.setattr(pod_worker_main, "_has_assignment", _has_assignment_true)
+    asyncio.run(pod_worker_main._handle_running_mission(redis_client, payload))
+
+    async def _request_failure(method: str, path: str, **kwargs):
+        if path == "/internal/pod-assignment":
+            return DummyResponse(500)
+        return DummyResponse(200)
+
+    monkeypatch.setattr(pod_worker_main, "_has_assignment", _has_assignment_false)
+    monkeypatch.setattr(pod_worker_main, "_request", _request_failure)
+    asyncio.run(pod_worker_main._handle_running_mission(redis_client, payload))
+
+
+def test_handle_running_mission_skips_empty_target_for_non_default_pod(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    monkeypatch.setattr(pod_worker_main, "POD_NAME", "podB")
+    called = {"has_assignment": False}
+
+    async def _has_assignment(_mission_id: str) -> bool:
+        called["has_assignment"] = True
+        return False
+
+    monkeypatch.setattr(pod_worker_main, "_has_assignment", _has_assignment)
+    asyncio.run(pod_worker_main._handle_running_mission(redis_client, {"mission_id": "mission-1"}))
+    assert called["has_assignment"] is False
+
 
 def test_health_function() -> None:
     class PingRedis:
@@ -227,6 +425,201 @@ def test_readyz_function_unavailable() -> None:
     assert exc.value.status_code == 503
 
 
+def test_health_function_handles_ping_exception() -> None:
+    class DownRedis:
+        async def ping(self) -> bool:
+            raise RuntimeError("down")
+
+    pod_worker_main.app.state.redis = DownRedis()
+    pod_worker_main.app.state.processed = 1
+    pod_worker_main.app.state.errors = 1
+    result = asyncio.run(pod_worker_main.health())
+    assert result["ok"] is False
+
+
+def test_readyz_none_and_not_ready() -> None:
+    pod_worker_main.app.state.redis = None
+    with pytest.raises(pod_worker_main.HTTPException):
+        asyncio.run(pod_worker_main.readyz())
+
+    class FalseRedis:
+        async def ping(self) -> bool:
+            return False
+
+    pod_worker_main.app.state.redis = FalseRedis()
+    with pytest.raises(pod_worker_main.HTTPException):
+        asyncio.run(pod_worker_main.readyz())
+
+
+def test_metrics_endpoint() -> None:
+    response = asyncio.run(pod_worker_main.metrics())
+    assert response.status_code == 200
+    assert response.media_type
+
+
+def test_lifespan_shutdown_paths(monkeypatch) -> None:
+    class RedisWithAclose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def ping(self) -> bool:
+            return True
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    redis_client = RedisWithAclose()
+    fake_task = FakeTask()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    async def _ensure_group(_redis):
+        return None
+
+    def _create_task(coro):
+        coro.close()
+        return fake_task
+
+    monkeypatch.setattr(pod_worker_main, "redis", RedisModule)
+    monkeypatch.setattr(pod_worker_main, "_ensure_group", _ensure_group)
+    monkeypatch.setattr(pod_worker_main.asyncio, "create_task", _create_task)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run():
+        async with pod_worker_main.lifespan(app):
+            assert app.state.consumer_task is fake_task
+
+    asyncio.run(_run())
+    assert fake_task.cancel_called is True
+    assert redis_client.closed is True
+
+
+def test_lifespan_close_awaitable(monkeypatch) -> None:
+    class RedisWithClose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def ping(self) -> bool:
+            return True
+
+        def close(self):
+            async def _close():
+                self.closed = True
+
+            return _close()
+
+    redis_client = RedisWithClose()
+    fake_task = FakeTask()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    async def _ensure_group(_redis):
+        return None
+
+    def _create_task(coro):
+        coro.close()
+        return fake_task
+
+    monkeypatch.setattr(pod_worker_main, "redis", RedisModule)
+    monkeypatch.setattr(pod_worker_main, "_ensure_group", _ensure_group)
+    monkeypatch.setattr(pod_worker_main.asyncio, "create_task", _create_task)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run():
+        async with pod_worker_main.lifespan(app):
+            pass
+
+    asyncio.run(_run())
+    assert redis_client.closed is True
+
+
+def test_lifespan_shutdown_with_no_task_and_no_close(monkeypatch) -> None:
+    class RedisNoClose:
+        async def ping(self) -> bool:
+            return True
+
+    redis_client = RedisNoClose()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    async def _ensure_group(_redis):
+        return None
+
+    def _create_task(coro):
+        coro.close()
+        return None
+
+    monkeypatch.setattr(pod_worker_main, "redis", RedisModule)
+    monkeypatch.setattr(pod_worker_main, "_ensure_group", _ensure_group)
+    monkeypatch.setattr(pod_worker_main.asyncio, "create_task", _create_task)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run():
+        async with pod_worker_main.lifespan(app):
+            assert app.state.consumer_task is None
+
+    asyncio.run(_run())
+
+
+def test_lifespan_shutdown_with_sync_close(monkeypatch) -> None:
+    class RedisSyncClose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def ping(self) -> bool:
+            return True
+
+        def close(self) -> None:
+            self.closed = True
+
+    redis_client = RedisSyncClose()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    async def _ensure_group(_redis):
+        return None
+
+    def _create_task(coro):
+        coro.close()
+        return None
+
+    monkeypatch.setattr(pod_worker_main, "redis", RedisModule)
+    monkeypatch.setattr(pod_worker_main, "_ensure_group", _ensure_group)
+    monkeypatch.setattr(pod_worker_main.asyncio, "create_task", _create_task)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run():
+        async with pod_worker_main.lifespan(app):
+            pass
+
+    asyncio.run(_run())
+    assert redis_client.closed is True
+
+
 def test_loaders_raise_when_files_missing(monkeypatch, tmp_path: Path) -> None:
     missing_schema = tmp_path / "missing-schema.json"
     missing_topics = tmp_path / "missing-topics.yaml"
@@ -237,3 +630,84 @@ def test_loaders_raise_when_files_missing(monkeypatch, tmp_path: Path) -> None:
         pod_worker_main._load_event_schema()
     with pytest.raises(pod_worker_main.ProtocolValidationError):
         pod_worker_main._load_topics()
+
+
+def test_load_topics_rejects_empty_config(monkeypatch, tmp_path: Path) -> None:
+    topics_path = tmp_path / "topics.yaml"
+    topics_path.write_text("topics:\n  none: true\n", encoding="utf-8")
+    monkeypatch.setattr(pod_worker_main, "TOPICS_PATH", topics_path)
+    with pytest.raises(pod_worker_main.ProtocolValidationError):
+        pod_worker_main._load_topics()
+
+
+def test_loaders_success_paths(monkeypatch, tmp_path: Path) -> None:
+    schema_path = tmp_path / "event.envelope.schema.json"
+    topics_path = tmp_path / "topics.yaml"
+    schema_path.write_text(json.dumps({"properties": {}}), encoding="utf-8")
+    topics_path.write_text(
+        "- cluster.assigned.podA\nignored\n- pod.standard.ready\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(pod_worker_main, "EVENT_SCHEMA_PATH", schema_path)
+    monkeypatch.setattr(pod_worker_main, "TOPICS_PATH", topics_path)
+
+    schema = pod_worker_main._load_event_schema()
+    topics = pod_worker_main._load_topics()
+    assert "properties" in schema
+    assert "cluster.assigned.podA" in topics
+    assert "pod.standard.ready" in topics
+
+
+def test_validate_envelope_missing_required_and_additional_properties_allowed(monkeypatch) -> None:
+    schema = {
+        "required": [
+            "event_id",
+            "topic",
+            "timestamp",
+            "producer",
+            "correlation_id",
+            "payload_ref",
+            "schema",
+            "priority",
+        ],
+        "additionalProperties": True,
+        "properties": {
+            "event_id": {"type": "string"},
+            "topic": {"type": "string"},
+            "timestamp": {"type": "string"},
+            "producer": {"type": "string"},
+            "correlation_id": {"type": "string"},
+            "payload_ref": {"type": "string"},
+            "schema": {"type": "string"},
+            "priority": {"type": "string", "enum": ["NORMAL", "HIGH"]},
+        },
+    }
+    monkeypatch.setattr(pod_worker_main, "_load_event_schema", lambda: schema)
+    monkeypatch.setattr(pod_worker_main, "_load_topics", lambda: {"cluster.assigned.podA"})
+
+    base = {
+        "event_id": "evt-1",
+        "topic": "cluster.assigned.podA",
+        "timestamp": "2026-03-01T00:00:00+00:00",
+        "producer": "pod-worker-podA",
+        "correlation_id": "mission-1",
+        "payload_ref": "registry://missions/mission-1",
+        "schema": "pod.assignment.v1",
+        "priority": "NORMAL",
+    }
+
+    missing = dict(base)
+    del missing["event_id"]
+    with pytest.raises(pod_worker_main.ProtocolValidationError):
+        pod_worker_main._validate_envelope(missing)
+
+    with_extra = dict(base)
+    with_extra["unexpected"] = "allowed"
+    pod_worker_main._validate_envelope(with_extra)
+
+
+def test_health_when_redis_not_configured() -> None:
+    pod_worker_main.app.state.redis = None
+    pod_worker_main.app.state.processed = 0
+    pod_worker_main.app.state.errors = 0
+    payload = asyncio.run(pod_worker_main.health())
+    assert payload["ok"] is False
