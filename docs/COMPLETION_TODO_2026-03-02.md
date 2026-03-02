@@ -42,6 +42,7 @@ Evidence targets: `tests/services/`, `coverage.xml`.
 - [ ] Add automated validation for critical operational scripts (backup/DR/perf/audit).
 Acceptance: script regressions are detected by CI smoke tests.
 Evidence targets: `scripts/`, `.github/workflows/ci.yml`.
+Phase 5 status (2026-03-02): unit coverage added for `scripts/production_review_audit.py`; backup/DR/perf script test coverage is still pending.
 
 - [ ] Complete data-system roadmap activation/reconciliation (Qdrant active path, Neo4j/object-storage scope decision).
 Acceptance: either implemented with tests or formally deferred with documented rationale.

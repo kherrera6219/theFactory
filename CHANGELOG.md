@@ -54,3 +54,4 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `.github/workflows/ci.yml` now runs Mission Control `npm run lint` and `npm run test` as part of CI validation.
 - `Makefile` now exposes `make test-ui` for Mission Control lint/test execution.
 - `README.md` now explicitly distinguishes Mission Control Docker host port (`3100`) from direct Next.js dev port (`3000`).
+- Added operational script unit tests in `tests/scripts/test_production_review_audit.py`.
