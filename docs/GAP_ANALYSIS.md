@@ -1,42 +1,55 @@
-# Gap Analysis (2026-02-28)
+# Gap Analysis
+
+Last updated: 2026-03-02
 
 ## Scope
 
-- Local source requirements: `C:\software\Holygrail` documentation set.
-- External standards: OWASP API Top 10, NIST SSDF, NIST incident response, OpenTelemetry/Prometheus, Kubernetes readiness/security, SLSA, OpenAPI.
-- Reviewed codebase: `C:\software\Holygrail\theFactory`.
+- Local design requirements: `C:\software\Holygrail` documentation set.
+- External production references:
+  - OWASP (Top 10, ASVS)
+  - NIST (CSF, AI RMF, SSDF, incident response)
+  - ISO/IEC (27001, 42001)
+- Reviewed implementation: `C:\software\Holygrail\theFactory`.
 
 ## Findings and Disposition
 
-1. `High` Limited coverage for core reliability/security runtime paths.
-   - Status: `Partially addressed in this phase`.
+1. `High` Missing full 8-part agent personas in runtime APIs.
+   - Previous state: operations APIs exposed only runtime metadata and LLM routing.
+   - Status: `Addressed`.
    - Action taken:
-     - Added tests for gateway idempotency behavior and readiness/metrics contracts.
-     - Added worker consumer tests for ack-on-invalid vs no-ack-on-transient-failure behavior.
+     - Added persona builder and payload integration for all 35 agents.
+     - Added standards alignment and evidence source links per agent profile.
+     - Added UI rendering and test assertions for persona completeness.
+
+2. `Medium` Limited production-governance traceability from role definitions to external standards.
+   - Previous state: standards references existed in docs, but were not tied to agent runtime records.
+   - Status: `Addressed`.
+   - Action taken:
+     - Added `persona_profile.standards_alignment`.
+     - Added `persona_profile.evidence_sources`.
+     - Added integration metadata fields indicating profile framework/extensions and evidence verification date.
+
+3. `Medium` Documentation consistency gap after rapid implementation phases.
+   - Previous state: partial mismatch between architecture, roadmap, runbook, and readme detail depth.
+   - Status: `Addressed in this cycle`.
+   - Action taken:
+     - Refreshed root README and core docs set with aligned architecture, roadmap, operations, and audit content.
+     - Added `docs/DOCUMENTATION_INDEX.md` for central navigation.
+
+4. `Medium` Deep production controls not fully enforced.
+   - Status: `Partially addressed`.
    - Remaining:
-     - Expand full end-to-end scenarios across gateway -> orchestrator -> workers under dependency failures.
+     - Signed release attestation and promotion-gate enforcement.
+     - Distributed tracing and pager/on-call integration.
+     - Long-duration capacity and resilience qualification.
 
-2. `Medium` Gateway request metrics defined but not emitted.
-   - Status: `Addressed`.
-   - Action taken:
-     - Added HTTP middleware to emit request counters and latency histograms.
-     - Added `/metrics` endpoint.
-
-3. `Low` Pod worker acknowledged entries even when transient processing failed.
-   - Status: `Addressed`.
-   - Action taken:
-     - Updated consumer loop to only `XACK` when successfully processed or explicitly invalid.
-     - Added warning logs for invalid vs transient failure branches.
-
-## Structural Gaps Still Open (Planned Phases)
+## Structural Gaps Still Open (Planned)
 
 - CI/CD maturity:
-  - Build/test/security/SBOM baselines are in place; signing/attestation enforcement and environment promotion policy remain.
+  - Enforce signed artifact attestations and formal promotion policy.
 - Observability:
-  - Prometheus/Grafana/Loki/Alertmanager scaffolding and alert rules are in place; distributed tracing and pager integrations remain.
-- Security hardening breadth:
-  - API rate limiting + response hardening are implemented; full token-based auth model and secrets rotation automation remain.
-- Deployment and resilience:
-  - Preflight, backup, restore, and DR drill scripts exist; blue/green rollout and automated rollback orchestration remain.
+  - Add tracing spans and alert routing to incident channels.
+- Deployment resilience:
+  - Expand rollback orchestration and staged promotion automation.
 - Performance qualification:
-  - Performance smoke testing is automated; long-duration load qualification and capacity baselines remain.
+  - Long-duration load tests with workload-specific capacity baselines.

@@ -1,39 +1,99 @@
 # Mission Control
 
-Next.js application for the HolyGrail user-facing mission console.
+Mission Control is the Next.js operator console for theFactory.
 
-## Commands
+It is designed for local-first Windows operation and provides real-time visibility into missions, agents, semantic-bus activity, and runtime controls.
 
-- `npm install`
-- `npm run dev`
-- `npm run build`
-- `npm run start`
+## Responsibilities
+
+- Display global runtime and mission health.
+- Provide mission operations and status workflows.
+- Visualize 35-agent topology and telemetry.
+- Render full agent persona profiles with governance evidence.
+- Surface semantic bus and artifact-level observability.
+- Manage local runtime preferences and vault-backed integration secrets.
+
+## Run Locally
+
+1. Install dependencies:
+   - `npm install`
+2. Set environment:
+   - `.env.local` (or inherited root env) with `NEXT_PUBLIC_API_BASE_URL`
+3. Start dev server:
+   - `npm run dev`
+4. Build production bundle:
+   - `npm run build`
+5. Start production server:
+   - `npm run start`
+6. Lint:
+   - `npm run lint`
 
 ## Environment
 
 - `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8100`)
-- Builder preview endpoint expected at `${NEXT_PUBLIC_API_BASE_URL}/v1/builder/preview`
 
-## Application Routes
+Mission Control expects Gateway routes under:
 
-- `/`: home launch pad and system health overview
-- `/chat`: PM Agent chat intake with feature contract confirmation
-- `/missions`: mission control center and mission history
-- `/missions/[id]`: mission cockpit with phase stepper and live mission signals
-- `/agents`: agent and pod monitoring grid
-- `/logicnodes`: logic artifact explorer
-- `/semantic-bus`: protocol/event stream monitor
-- `/databases`: five-database health and runtime diagnostics
-- `/repo`: GitHub repository import, file scoping, and mission configuration
-- `/settings`: local runtime preferences and key handling
+- `/v1/*` for mission and operations endpoints.
 
-## Standards and Hardening Notes
+## Key Routes
 
-- TypeScript strict mode is enabled (`tsconfig.json`).
-- Security headers are set via `next.config.mjs` (CSP, clickjacking, referrer, permissions, CORP/COOP).
-- Accessibility features include skip navigation, aria-live announcements, keyboard focus styling, and semantic tables/captions.
-- Mission submission uses idempotency headers and resilient retry/stale-state handling.
-- Builder preview supports deterministic local generation and optional live LLM-backed output.
-- Local Windows mode is supported without account-login pages.
-- Provider/GitHub/operator secrets are managed through local server routes (`/api/vault`, `/api/vault/test`, `/api/operator/mission-state`) and are not persisted in browser storage.
-- Keyboard shortcuts are available with `Ctrl+?` and include mission/navigation actions for operator workflows.
+- `/`: launch overview.
+- `/dashboard`: runtime summary and status.
+- `/chat`: PM-style intake surface.
+- `/missions`: mission list and controls.
+- `/missions/[id]`: mission cockpit detail.
+- `/agents`: 35-agent runtime grid with persona detail.
+- `/logicnodes`: artifact explorer.
+- `/semantic-bus`: protocol/event monitor.
+- `/databases`: data-plane status.
+- `/repo`: repo scope and source controls.
+- `/settings`: runtime preferences and secret-slot management.
+
+## Agent Persona UI
+
+Agent detail includes:
+
+- Runtime telemetry (state, queue, workload, missions).
+- 8-part persona structure:
+  - job role
+  - education/certifications
+  - traits/skills
+  - methods/procedures
+  - tools
+  - master instruction
+  - protocol profile
+  - API configuration
+- Governance extension fields:
+  - standards alignment mappings
+  - evidence source links and verification dates
+
+## Local API Routes (Server Side)
+
+- `/api/vault`:
+  - GET vault slot metadata
+  - POST save slot secret
+  - DELETE clear slot
+- `/api/vault/test`:
+  - validate provider key formats or test checks
+- `/api/operator/mission-state`:
+  - safely forward mission state transitions using server-side key resolution
+
+## Security and Accessibility Notes
+
+- TypeScript strict mode is enabled.
+- Security headers are set via `next.config.mjs`.
+- API consumption uses timeout-based request guards and resilient parsing.
+- Accessibility includes semantic tables, captions, skip-navigation support, and keyboard focus visibility.
+- Local operation mode intentionally avoids external account-login requirements.
+
+## Related Backend Endpoints
+
+- `GET /v1/operations/agents`
+- `GET /v1/operations/agent-integrations`
+- `GET /v1/operations/summary`
+- `GET /v1/missions`
+- `GET /v1/missions/{mission_id}`
+- `GET /v1/missions/{mission_id}/events`
+- `POST /v1/missions`
+- `POST /v1/missions/{mission_id}/state`

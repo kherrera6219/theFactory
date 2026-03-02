@@ -16,7 +16,7 @@ from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from . import storage
-from .agent_integrations import build_agent_integrations_snapshot
+from .agent_integrations import build_agent_integration_record, build_agent_integrations_snapshot
 from .agent_registry import AGENT_REGISTRY, normalize_language
 from .auth import AuthContext, require_roles
 from .models import (
@@ -550,11 +550,17 @@ def _build_operations_agents_snapshot(
         for record in agent_heartbeats
         if isinstance(record, dict) and str(record.get("agent_id", ""))
     }
+    integration_map = {
+        record["agent_id"]: record
+        for record in (build_agent_integration_record(agent) for agent in AGENT_REGISTRY)
+    }
 
     agents_payload: list[dict[str, Any]] = []
     for agent in AGENT_REGISTRY:
         pod_key = _normalize_pod_name(agent.pod)
         live_record = heartbeat_map.get(agent.agent_id)
+        integration_record = integration_map.get(agent.agent_id, {})
+        persona_profile = integration_record.get("persona_profile", {})
         heartbeat_age_seconds: int | None = None
         heartbeat_source = "heuristic"
 
@@ -634,6 +640,7 @@ def _build_operations_agents_snapshot(
                 "active_mission_ids": related_missions[:25],
                 "heartbeat_source": heartbeat_source,
                 "heartbeat_age_seconds": heartbeat_age_seconds,
+                "persona_profile": persona_profile if isinstance(persona_profile, dict) else {},
             }
         )
 

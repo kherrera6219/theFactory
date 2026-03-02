@@ -326,6 +326,94 @@ export default function AgentsPage() {
               ].join("\n")}
             </pre>
           </div>
+          <h3 className="section-title">8-Part Persona Profile</h3>
+          <dl>
+            <div>
+              <dt>Job Title</dt>
+              <dd>{selectedAgent.persona_profile.job_role.title}</dd>
+            </div>
+            <div>
+              <dt>Scope</dt>
+              <dd>{selectedAgent.persona_profile.job_role.scope}</dd>
+            </div>
+            <div>
+              <dt>Primary Protocol</dt>
+              <dd>
+                {selectedAgent.persona_profile.protocol.primary_code} (
+                {selectedAgent.persona_profile.protocol.primary_name})
+              </dd>
+            </div>
+            <div>
+              <dt>Model Routing</dt>
+              <dd>
+                {String(selectedAgent.persona_profile.api_configuration.model_routing.provider)}/
+                {String(selectedAgent.persona_profile.api_configuration.model_routing.model)}
+              </dd>
+            </div>
+          </dl>
+          <h4 className="section-title">Education & Certifications</h4>
+          <ul className="summary-list">
+            {selectedAgent.persona_profile.education_certifications.map((item) => (
+              <li key={item}>
+                <strong>Item</strong>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <h4 className="section-title">Traits & Skills</h4>
+          <ul className="summary-list">
+            {selectedAgent.persona_profile.traits_skills.map((item) => (
+              <li key={item}>
+                <strong>Item</strong>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <h4 className="section-title">Methods & Procedures</h4>
+          <ul className="summary-list">
+            {selectedAgent.persona_profile.methods_procedures.map((item) => (
+              <li key={item}>
+                <strong>Method</strong>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <h4 className="section-title">Tools</h4>
+          <ul className="summary-list">
+            {selectedAgent.persona_profile.tools.map((item) => (
+              <li key={item}>
+                <strong>Tool</strong>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <h4 className="section-title">Master Instruction</h4>
+          <p className="muted">{selectedAgent.persona_profile.master_instruction}</p>
+          <h4 className="section-title">Standards Alignment</h4>
+          <ul className="summary-list">
+            {selectedAgent.persona_profile.standards_alignment.map((item) => (
+              <li key={item.standard_id}>
+                <strong>
+                  {item.framework} ({item.version})
+                </strong>
+                <span>{item.role_mapping}</span>
+              </li>
+            ))}
+          </ul>
+          <h4 className="section-title">Evidence Sources</h4>
+          <ul className="summary-list">
+            {selectedAgent.persona_profile.evidence_sources.map((source) => (
+              <li key={source.source_id}>
+                <strong>{source.organization}</strong>
+                <span>
+                  <a href={source.url} target="_blank" rel="noreferrer noopener">
+                    {source.title}
+                  </a>{" "}
+                  ({source.version}) - verified {formatDateTime(source.last_verified)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Panel>
       )}
     </div>
