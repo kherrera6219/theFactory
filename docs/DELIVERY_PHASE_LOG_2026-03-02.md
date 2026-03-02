@@ -111,3 +111,28 @@
 
 ### Next Phase
 - P2 target: resolve Mission Control port/documentation drift and align runtime docs.
+
+## Phase 4 - Mission Control Port Documentation Alignment
+
+### Objective
+- Remove ambiguity around Mission Control access URLs across runtime modes.
+
+### Implementation
+- Updated `README.md` Mission Control section:
+  - Explicitly documents Docker-host access (`http://localhost:3100`)
+  - Explicitly documents direct Next.js dev access (`http://localhost:3000`)
+- Updated command docs:
+  - Added `make test-ui`
+  - Added Mission Control `npm run test` command in frontend command list.
+
+### Validation and Debug Sweep
+- `npm run lint` (mission-control): pass
+- `npm run test` (mission-control): pass (8 tests)
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (88.13%)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Canonical runtime docs now represent both valid Mission Control launch modes.
+- Residual mismatch risk remains in archived/legacy design artifacts until they are revised.
