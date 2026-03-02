@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 
@@ -8,15 +10,24 @@ const monoFont = IBM_Plex_Mono({
   weight: ["400", "500"],
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Mission Control",
   description: "HolyGrail mission intake and orchestration view",
 };
 
-export default function RootLayout({ children }) {
+type RootLayoutProps = {
+  children: ReactNode;
+};
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
-      <body className={`${displayFont.variable} ${monoFont.variable}`}>{children}</body>
+      <body className={`${displayFont.variable} ${monoFont.variable}`}>
+        <a className="skip-link" href="#main-content">
+          Skip to main content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }
