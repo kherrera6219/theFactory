@@ -206,6 +206,27 @@ def test_health_function() -> None:
     assert result["processed"] == 3
 
 
+def test_readyz_function() -> None:
+    class PingRedis:
+        async def ping(self) -> bool:
+            return True
+
+    pod_worker_main.app.state.redis = PingRedis()
+    result = asyncio.run(pod_worker_main.readyz())
+    assert result["ready"] is True
+
+
+def test_readyz_function_unavailable() -> None:
+    class DownRedis:
+        async def ping(self) -> bool:
+            raise RuntimeError("down")
+
+    pod_worker_main.app.state.redis = DownRedis()
+    with pytest.raises(pod_worker_main.HTTPException) as exc:
+        asyncio.run(pod_worker_main.readyz())
+    assert exc.value.status_code == 503
+
+
 def test_loaders_raise_when_files_missing(monkeypatch, tmp_path: Path) -> None:
     missing_schema = tmp_path / "missing-schema.json"
     missing_topics = tmp_path / "missing-topics.yaml"

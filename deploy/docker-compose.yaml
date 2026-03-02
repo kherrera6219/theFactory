@@ -1,56 +1,162 @@
+x-common-service: &common-service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "100m"
+      max-file: "5"
+  networks:
+    - hgr-network
+
 services:
   redis:
-    image: redis:7
+    <<: *common-service
+    image: redis:7.2-alpine
+    command:
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+      - --requirepass
+      - ${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}
     ports:
       - "${REDIS_HOST_PORT:-6380}:6379"
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis-data:/data
+    mem_limit: 3g
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli -a ${REDIS_PASSWORD:-dev-redis-password-change-me-32chars} ping | grep PONG",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
 
   qdrant:
-    image: qdrant/qdrant:latest
+    <<: *common-service
+    image: qdrant/qdrant:v1.12.1
     ports:
       - "${QDRANT_HOST_PORT:-6334}:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
 
   postgres:
+    <<: *common-service
     image: postgres:16
     environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_DB: ulr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-ulr}
     ports:
       - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    mem_limit: 4g
+    mem_reservation: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ulr}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  minio:
+    <<: *common-service
+    image: minio/minio:RELEASE.2026-01-03T10-00-00Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    ports:
+      - "${MINIO_HOST_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    profiles:
+      - extended-data-plane
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:9000/minio/health/live >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  milvus:
+    <<: *common-service
+    image: milvusdb/milvus:v2.4.13
+    command: ["milvus", "run", "standalone"]
+    ports:
+      - "${MILVUS_HOST_PORT:-19530}:19530"
+      - "${MILVUS_METRICS_HOST_PORT:-9091}:9091"
+    volumes:
+      - milvus-data:/var/lib/milvus
+    profiles:
+      - extended-data-plane
+
+  jaeger:
+    <<: *common-service
+    image: jaegertracing/all-in-one:1.59
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "${JAEGER_UI_HOST_PORT:-16686}:16686"
+      - "${OTLP_GRPC_HOST_PORT:-4317}:4317"
+      - "${OTLP_HTTP_HOST_PORT:-4318}:4318"
 
   orchestrator:
+    <<: *common-service
     build:
       context: ..
       dockerfile: services/orchestrator/Dockerfile
     environment:
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
       QDRANT_URL: http://qdrant:6333
-      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/ulr
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ulr}
       INTAKE_STREAM: missions.intake
       INTAKE_TOPIC: intake.feature_contract.created
       STATE_STREAM: missions.state
       MAX_STREAM_LEN: 20000
       MISSION_CONSUMER_GROUP: orchestrator
       MISSION_CONSUMER_NAME: orchestrator-01
-      ORCHESTRATOR_ADMIN_API_KEY: admin-key
-      INTERNAL_SERVICE_API_KEY: worker-key
-      ORCHESTRATOR_READONLY_API_KEY: viewer-key
-      ORCHESTRATOR_API_KEYS: operator-key=mutate,read
+      ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-admin-key}
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-worker-key}
+      ORCHESTRATOR_READONLY_API_KEY: ${ORCHESTRATOR_READONLY_API_KEY:-viewer-key}
+      ORCHESTRATOR_API_KEYS: ${ORCHESTRATOR_API_KEYS:-operator-key=mutate,read}
       ORCHESTRATOR_PORT: 8001
     ports:
       - "${ORCHESTRATOR_HOST_PORT:-8101}:8001"
     depends_on:
-      - redis
-      - qdrant
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 1g
+    cpus: 1.0
 
   api-gateway:
+    <<: *common-service
     build:
       context: ..
       dockerfile: services/api-gateway/Dockerfile
     environment:
       ORCHESTRATOR_URL: http://orchestrator:8001
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
       INTAKE_STREAM: missions.intake
       INTAKE_TOPIC: intake.feature_contract.created
       MAX_STREAM_LEN: 20000
@@ -81,10 +187,58 @@ services:
     ports:
       - "${API_GATEWAY_HOST_PORT:-8100}:8000"
     depends_on:
-      - redis
-      - orchestrator
+      redis:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 0.75
+
+  semantic-bus-mcp:
+    <<: *common-service
+    build:
+      context: ..
+      dockerfile: services/semantic-bus-mcp/Dockerfile
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      MCP_PORT: 8090
+      MAX_STREAM_LEN: 20000
+      MAX_MESSAGE_BYTES: 1048576
+      MCP_API_KEY: ${MCP_API_KEY:-mcp-local-key}
+    ports:
+      - "${MCP_HOST_PORT:-8102}:8090"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8090/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 0.75
 
   dashboard:
+    <<: *common-service
     build:
       context: ..
       dockerfile: services/dashboard/Dockerfile
@@ -94,96 +248,222 @@ services:
     ports:
       - "${DASHBOARD_HOST_PORT:-8180}:8080"
     depends_on:
-      - api-gateway
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 512m
+    cpus: 0.5
 
   mission-control:
+    <<: *common-service
     build: ../apps/mission-control
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_GATEWAY_HOST_PORT:-8100}
     ports:
       - "${MISSION_CONTROL_HOST_PORT:-3100}:3000"
     depends_on:
-      - api-gateway
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000').then((r)=>{if(!r.ok)process.exit(1);}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
 
   pod-a-worker:
+    <<: *common-service
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
     environment:
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podA
       POD_WORKER_NAME: pod-a-01
       POD_NAME: podA
       SUPPORTED_LANGUAGES: python,typescript,javascript,ruby,php
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: worker-key
+      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key-pod-a}
     depends_on:
-      - redis
-      - orchestrator
+      redis:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 0.75
 
   pod-b-worker:
+    <<: *common-service
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
     environment:
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podB
       POD_WORKER_NAME: pod-b-01
       POD_NAME: podB
       SUPPORTED_LANGUAGES: go,rust,c,cpp,zig
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: worker-key
+      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key-pod-b}
     depends_on:
-      - redis
-      - orchestrator
+      redis:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 0.75
 
   pod-c-worker:
+    <<: *common-service
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
     environment:
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podC
       POD_WORKER_NAME: pod-c-01
       POD_NAME: podC
       SUPPORTED_LANGUAGES: java,csharp,kotlin,scala
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: worker-key
+      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key-pod-c}
     depends_on:
-      - redis
-      - orchestrator
+      redis:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 0.75
 
   pod-d-worker:
+    <<: *common-service
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
     environment:
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podD
       POD_WORKER_NAME: pod-d-01
       POD_NAME: podD
       SUPPORTED_LANGUAGES: haskell,ocaml,julia,r
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: worker-key
+      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key-pod-d}
     depends_on:
-      - redis
-      - orchestrator
+      redis:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 0.75
 
   audit-worker:
+    <<: *common-service
     build:
       context: ..
       dockerfile: services/audit-worker/Dockerfile
     environment:
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
       STATE_STREAM: missions.state
       AUDIT_WORKER_GROUP: audit-workers
       AUDIT_WORKER_NAME: audit-01
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: worker-key
+      SERVICE_API_KEY: ${AUDIT_SERVICE_API_KEY:-worker-key-audit}
     depends_on:
-      - redis
-      - orchestrator
+      redis:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8202/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 768m
+    cpus: 0.75
+
+volumes:
+  redis-data:
+  qdrant-data:
+  postgres-data:
+  minio-data:
+  milvus-data:
+
+networks:
+  hgr-network:
+    name: hgr-network
+    driver: bridge

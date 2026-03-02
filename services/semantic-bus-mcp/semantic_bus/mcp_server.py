@@ -1,0 +1,401 @@
+from __future__ import annotations
+
+import inspect
+import json
+import os
+import time
+import uuid
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from typing import Any, Literal
+
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+
+try:
+    import redis.asyncio as redis
+except ModuleNotFoundError:
+    redis = None
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+MCP_PORT = int(os.getenv("MCP_PORT", "8090"))
+MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
+MAX_MESSAGE_BYTES = int(os.getenv("MAX_MESSAGE_BYTES", "1048576"))
+MCP_API_KEY = os.getenv("MCP_API_KEY", "mcp-local-key").strip()
+
+ALLOWED_PROTOCOLS = ("alpha", "beta", "delta", "sigma", "omega", "rho")
+PRIORITY_LEVELS = ("low", "normal", "high", "critical")
+
+REQUEST_COUNTER = Counter(
+    "semantic_bus_mcp_http_requests_total",
+    "Total HTTP requests served by semantic-bus MCP",
+    ("method", "path", "status_code"),
+)
+REQUEST_LATENCY = Histogram(
+    "semantic_bus_mcp_http_request_duration_seconds",
+    "HTTP request latency in seconds for semantic-bus MCP",
+    ("method", "path"),
+)
+MESSAGES_QUEUED = Counter(
+    "semantic_bus_mcp_messages_queued_total",
+    "Total protocol messages queued by MCP",
+    ("protocol",),
+)
+DLQ_WRITES = Counter(
+    "semantic_bus_mcp_dlq_writes_total",
+    "Total dead-letter writes by MCP",
+    ("protocol",),
+)
+
+
+def _parse_datetime(value: str) -> datetime:
+    if value.endswith("Z"):
+        value = value.replace("Z", "+00:00")
+    parsed = datetime.fromisoformat(value)
+    if parsed.tzinfo is None:
+        raise ValueError("timestamp must include timezone")
+    return parsed
+
+
+class AlphaPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: str = Field(min_length=1, max_length=32)
+    priority: Literal["low", "normal", "high", "critical"]
+    target_pod: str = Field(min_length=1, max_length=64)
+    directive_type: str = Field(min_length=1, max_length=120)
+    directive: dict[str, Any] = Field(default_factory=dict)
+
+
+class BetaPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: str = Field(min_length=1, max_length=32)
+    logicnode_id: str = Field(min_length=1, max_length=120)
+    confidence_score: float = Field(ge=0.0, le=1.0)
+    source_language: str = Field(min_length=1, max_length=64)
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class DeltaPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: str = Field(min_length=1, max_length=32)
+    audit_result: Literal["pass", "fail", "warning"]
+    verification_method: str = Field(min_length=1, max_length=120)
+    tolerance_score: float = Field(ge=0.0, le=1.0)
+    findings: dict[str, Any] = Field(default_factory=dict)
+
+
+class SigmaPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: str = Field(min_length=1, max_length=32)
+    knowledge_type: str = Field(min_length=1, max_length=120)
+    embedding_ref: str = Field(min_length=1, max_length=255)
+    relevance_scope: str = Field(min_length=1, max_length=120)
+    content: dict[str, Any] = Field(default_factory=dict)
+
+
+class OmegaPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: str = Field(min_length=1, max_length=32)
+    feature_contract: dict[str, Any] = Field(default_factory=dict)
+    visual_blueprint: dict[str, Any] = Field(default_factory=dict)
+    user_intent: str = Field(min_length=1, max_length=2000)
+
+
+class RhoPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: str = Field(min_length=1, max_length=32)
+    token_budget: int = Field(ge=0)
+    rate_limit_action: str = Field(min_length=1, max_length=120)
+    agent_target: str = Field(min_length=1, max_length=120)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class MessageEnvelope(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    message_id: str
+    schema_version: str = Field(min_length=1, max_length=32)
+    protocol: Literal["alpha", "beta", "delta", "sigma", "omega", "rho"]
+    sender: str = Field(min_length=1, max_length=120)
+    recipient: str | list[str]
+    correlation_id: str
+    priority: Literal["low", "normal", "high", "critical"]
+    timestamp: str
+    payload: dict[str, Any]
+
+    @model_validator(mode="after")
+    def _validate_timestamp(self) -> "MessageEnvelope":
+        _parse_datetime(self.timestamp)
+        return self
+
+
+class SendMessageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: str = Field(default="v1", min_length=1, max_length=32)
+    protocol: Literal["alpha", "beta", "delta", "sigma", "omega", "rho"]
+    sender: str = Field(min_length=1, max_length=120)
+    recipient: str | list[str]
+    correlation_id: str | None = Field(default=None, max_length=120)
+    priority: Literal["low", "normal", "high", "critical"] = "normal"
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+def _validate_protocol_payload(protocol: str, payload: dict[str, Any]) -> dict[str, Any]:
+    validator_map: dict[str, type[BaseModel]] = {
+        "alpha": AlphaPayload,
+        "beta": BetaPayload,
+        "delta": DeltaPayload,
+        "sigma": SigmaPayload,
+        "omega": OmegaPayload,
+        "rho": RhoPayload,
+    }
+    validator = validator_map.get(protocol)
+    if validator is None:
+        raise ValueError(f"unsupported protocol: {protocol}")
+    validated = validator.model_validate(payload)
+    return validated.model_dump(mode="json")
+
+
+def _normalized_recipients(value: str | list[str]) -> list[str]:
+    if isinstance(value, str):
+        recipient = value.strip()
+        if not recipient:
+            raise HTTPException(status_code=422, detail="recipient must not be empty")
+        return [recipient]
+
+    recipients = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+    if not recipients:
+        raise HTTPException(status_code=422, detail="recipient list must not be empty")
+    return sorted(set(recipients))
+
+
+def _resolve_channels(protocol: str, recipients: list[str]) -> list[str]:
+    channels: list[str] = []
+    for recipient in recipients:
+        if recipient.lower() == "broadcast":
+            channels.append(f"protocol:{protocol}:broadcast")
+        else:
+            channels.append(f"protocol:{protocol}:{recipient}")
+    return sorted(set(channels))
+
+
+async def _write_dlq(redis_client: Any, protocol: str, payload: dict[str, Any], error: str) -> None:
+    if redis_client is None:
+        return
+    dlq_key = f"dlq:{protocol}"
+    await redis_client.xadd(
+        dlq_key,
+        {
+            "error": error,
+            "payload": json.dumps(payload),
+            "ts": datetime.now(UTC).isoformat(),
+        },
+        maxlen=MAX_STREAM_LEN,
+        approximate=True,
+    )
+    DLQ_WRITES.labels(protocol=protocol).inc()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.redis = None
+    app.state.redis_ready = False
+    if redis is not None:
+        try:
+            app.state.redis = redis.from_url(REDIS_URL, decode_responses=True)
+            app.state.redis_ready = bool(await app.state.redis.ping())
+        except Exception:
+            app.state.redis = None
+            app.state.redis_ready = False
+    yield
+    redis_client = getattr(app.state, "redis", None)
+    if redis_client is not None:
+        aclose = getattr(redis_client, "aclose", None)
+        if callable(aclose):
+            await aclose()
+        else:
+            close = getattr(redis_client, "close", None)
+            if callable(close):
+                result = close()
+                if inspect.isawaitable(result):
+                    await result
+
+
+app = FastAPI(title="HolyGrail Semantic Bus MCP", version="0.1.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def _request_metrics(request: Request, call_next):
+    started = time.perf_counter()
+    method = request.method
+    status_code = "500"
+    try:
+        response = await call_next(request)
+        status_code = str(response.status_code)
+        return response
+    finally:
+        route = request.scope.get("route")
+        path = route.path if route is not None else request.url.path
+        REQUEST_COUNTER.labels(method=method, path=path, status_code=status_code).inc()
+        REQUEST_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - started)
+
+
+@app.get("/health")
+async def health() -> dict[str, Any]:
+    redis_client = getattr(app.state, "redis", None)
+    redis_ready = False
+    if redis_client is not None:
+        try:
+            redis_ready = bool(await redis_client.ping())
+            app.state.redis_ready = redis_ready
+        except Exception:
+            redis_ready = False
+            app.state.redis_ready = False
+    return {
+        "ok": redis_ready,
+        "service": "semantic-bus-mcp",
+        "redis_ready": redis_ready,
+        "allowed_protocols": list(ALLOWED_PROTOCOLS),
+        "max_message_bytes": MAX_MESSAGE_BYTES,
+    }
+
+
+@app.get("/readyz")
+async def readyz() -> dict[str, Any]:
+    redis_client = getattr(app.state, "redis", None)
+    if redis_client is None:
+        app.state.redis_ready = False
+        raise HTTPException(status_code=503, detail="redis unavailable")
+    try:
+        redis_ready = bool(await redis_client.ping())
+        app.state.redis_ready = redis_ready
+    except Exception as exc:
+        app.state.redis_ready = False
+        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+    if not redis_ready:
+        raise HTTPException(status_code=503, detail="redis unavailable")
+    return {"ready": True, "service": "semantic-bus-mcp", "redis_ready": redis_ready}
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/dlq")
+async def list_dlq(protocol: str, limit: int = 50, offset: int = 0) -> dict[str, Any]:
+    if protocol not in ALLOWED_PROTOCOLS:
+        raise HTTPException(status_code=422, detail=f"unsupported protocol: {protocol}")
+
+    redis_client = getattr(app.state, "redis", None)
+    if redis_client is None or not bool(getattr(app.state, "redis_ready", False)):
+        raise HTTPException(status_code=503, detail="redis unavailable")
+
+    stream = f"dlq:{protocol}"
+    entries = await redis_client.xrevrange(stream, count=min(max(limit, 1), 200))
+    sliced = entries[offset : offset + limit]
+    return {
+        "protocol": protocol,
+        "stream": stream,
+        "count": len(sliced),
+        "offset": offset,
+        "items": [
+            {
+                "entry_id": entry_id,
+                "error": values.get("error", ""),
+                "payload": values.get("payload", ""),
+                "ts": values.get("ts", ""),
+            }
+            for entry_id, values in sliced
+        ],
+    }
+
+
+@app.post("/send")
+async def send_message(
+    request: Request,
+    x_agent_id: str | None = Header(default=None),
+    x_api_key: str | None = Header(default=None),
+) -> JSONResponse:
+    raw_body = await request.body()
+    if len(raw_body) > MAX_MESSAGE_BYTES:
+        raise HTTPException(status_code=413, detail="payload exceeds 1MB limit")
+
+    try:
+        body = json.loads(raw_body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"invalid JSON payload: {exc}") from exc
+
+    try:
+        payload = SendMessageRequest.model_validate(body)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    if MCP_API_KEY and (x_api_key or "").strip() != MCP_API_KEY:
+        raise HTTPException(status_code=403, detail="invalid mcp api key")
+    if (x_agent_id or "").strip() != payload.sender:
+        raise HTTPException(status_code=403, detail="sender identity mismatch")
+
+    recipients = _normalized_recipients(payload.recipient)
+    channels = _resolve_channels(payload.protocol, recipients)
+
+    try:
+        protocol_payload = _validate_protocol_payload(payload.protocol, payload.payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    envelope = MessageEnvelope(
+        message_id=f"msg-{uuid.uuid4()}",
+        schema_version=payload.schema_version,
+        protocol=payload.protocol,
+        sender=payload.sender,
+        recipient=recipients if len(recipients) > 1 else recipients[0],
+        correlation_id=payload.correlation_id or f"corr-{uuid.uuid4()}",
+        priority=payload.priority,
+        timestamp=datetime.now(UTC).isoformat(),
+        payload=protocol_payload,
+    )
+    envelope_json = json.dumps(envelope.model_dump(mode="json"))
+
+    redis_client = getattr(app.state, "redis", None)
+    if redis_client is None or not bool(getattr(app.state, "redis_ready", False)):
+        raise HTTPException(status_code=503, detail="redis unavailable")
+
+    try:
+        for channel in channels:
+            await redis_client.xadd(
+                channel,
+                {
+                    "envelope": envelope_json,
+                    "payload": json.dumps(protocol_payload),
+                    "sender": payload.sender,
+                },
+                maxlen=MAX_STREAM_LEN,
+                approximate=True,
+            )
+        MESSAGES_QUEUED.labels(protocol=payload.protocol).inc()
+    except Exception as exc:
+        await _write_dlq(redis_client, payload.protocol, body, str(exc))
+        raise HTTPException(status_code=503, detail=f"failed to publish message: {exc}") from exc
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "message_id": envelope.message_id,
+            "schema_version": payload.schema_version,
+            "protocol": payload.protocol,
+            "channels": channels,
+            "queued_at": envelope.timestamp,
+        },
+    )
