@@ -11,6 +11,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - `services/orchestrator/orchestrator/migrations.py`
   - `services/orchestrator/orchestrator/migrations/V001_initial_runtime_schema.sql`
   - checksum-tracked `schema_migrations` table enforcement
+- Mission Control frontend unit test baseline:
+  - Vitest + jsdom test tooling in `apps/mission-control`
+  - initial API client tests in `apps/mission-control/app/lib/api-client.test.ts`
 - Semantic Bus MCP service (`services/semantic-bus-mcp`) with:
   - six-protocol payload validation (alpha/beta/delta/sigma/omega/rho)
   - `/send`, `/health`, `/readyz`, `/metrics`, and `/dlq` endpoints
@@ -48,3 +51,5 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `Makefile` and `.github/workflows/ci.yml` now enforce 100% coverage for core multi-agent communication/runtime modules while preserving global `>= 80%` coverage.
 - `services/orchestrator/orchestrator/storage.py` now applies versioned SQL migrations instead of inline table DDL.
 - Added migration unit coverage in `tests/services/test_migrations_unit.py` and updated schema bootstrap tests.
+- `.github/workflows/ci.yml` now runs Mission Control `npm run lint` and `npm run test` as part of CI validation.
+- `Makefile` now exposes `make test-ui` for Mission Control lint/test execution.

@@ -24,6 +24,7 @@ Phase 1 status (2026-03-02): implemented with versioned SQL migrations + checksu
 - [ ] Establish Mission Control automated tests (unit + integration + critical e2e).
 Acceptance: CI executes UI tests for mission lifecycle, operations views, settings/vault, and error states.
 Evidence targets: `apps/mission-control/package.json`, `docs/TESTING_QUALITY_GATES.md`.
+Phase 2-3 status (2026-03-02): baseline unit test harness added with Vitest and API client tests, and CI now runs Mission Control lint + unit tests; integration/e2e coverage still pending.
 
 ## P1 - Important Hardening and Completeness
 - [ ] Replace placeholder builder preview UX with functional diff/preview rendering.
