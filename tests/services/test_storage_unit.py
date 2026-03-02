@@ -122,7 +122,10 @@ def test_ensure_db_schema_executes_queries(monkeypatch) -> None:
     used = _patch_db(monkeypatch, [cursor])
     storage.ensure_db_schema(_settings())
     assert used
-    assert len(cursor.executed) >= 10
+    assert len(cursor.executed) >= 3
+    assert "schema_migrations" in cursor.executed[0][0]
+    assert "SELECT version, checksum FROM schema_migrations" in cursor.executed[1][0]
+    assert cursor.executed[-1][1][0] == "001"
 
 
 def test_row_and_json_helpers() -> None:

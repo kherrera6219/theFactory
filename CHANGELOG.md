@@ -7,6 +7,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- Versioned orchestrator migration framework:
+  - `services/orchestrator/orchestrator/migrations.py`
+  - `services/orchestrator/orchestrator/migrations/V001_initial_runtime_schema.sql`
+  - checksum-tracked `schema_migrations` table enforcement
 - Semantic Bus MCP service (`services/semantic-bus-mcp`) with:
   - six-protocol payload validation (alpha/beta/delta/sigma/omega/rho)
   - `/send`, `/health`, `/readyz`, `/metrics`, and `/dlq` endpoints
@@ -42,3 +46,5 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Worker and MCP shutdown paths hardened for both async and sync Redis client close semantics.
 - `docs/DOCUMENTATION_INDEX.md` updated with new operations/compliance docs.
 - `Makefile` and `.github/workflows/ci.yml` now enforce 100% coverage for core multi-agent communication/runtime modules while preserving global `>= 80%` coverage.
+- `services/orchestrator/orchestrator/storage.py` now applies versioned SQL migrations instead of inline table DDL.
+- Added migration unit coverage in `tests/services/test_migrations_unit.py` and updated schema bootstrap tests.
