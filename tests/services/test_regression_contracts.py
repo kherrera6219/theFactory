@@ -11,6 +11,8 @@ def test_protocol_topics_include_required_runtime_topics() -> None:
         "artifact.rir.verified",
         "binary.build.ready",
         "incident.runtime.errorlog",
+        "agent.heartbeat",
+        "agent.state.changed",
         "cluster.assigned.podA",
         "cluster.assigned.podB",
         "cluster.assigned.podC",

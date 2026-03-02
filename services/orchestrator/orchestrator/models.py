@@ -72,3 +72,13 @@ class AuditReportUpsert(BaseModel):
     status: str = Field(min_length=1)
     report: dict[str, Any] = Field(default_factory=dict)
     created_at: str | None = None
+
+
+class AgentHeartbeatUpsert(BaseModel):
+    agent_id: str = Field(min_length=1)
+    state: str = Field(min_length=1)
+    queue_depth: int = Field(default=0, ge=0)
+    workload_pct: int = Field(default=0, ge=0, le=100)
+    active_mission_ids: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    last_heartbeat: str | None = None

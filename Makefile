@@ -1,4 +1,4 @@
-.PHONY: up down validate lint test sweep openapi predeploy backup dr perf monitor-up monitor-down
+.PHONY: up down validate lint test test-fast audit sweep openapi predeploy backup dr perf monitor-up monitor-down
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -19,7 +19,13 @@ lint:
 	ruff check services tests scripts
 
 test:
+	pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+test-fast:
 	pytest
+
+audit:
+	python scripts/production_review_audit.py
 
 openapi:
 	python scripts/export_openapi.py

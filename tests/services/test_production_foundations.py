@@ -167,6 +167,441 @@ def test_gateway_rate_limit_blocks_excess_requests(monkeypatch) -> None:
     assert second.status_code == 429
 
 
+def test_gateway_builder_preview_offline(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "offline")
+    monkeypatch.setattr(api_gateway_main, "OPENAI_API_KEY", "")
+
+    with TestClient(api_app) as client:
+        response = client.post(
+            "/v1/builder/preview",
+            json={
+                "request": "Add incident trend chart to alerts page",
+                "constraints": ["Keep existing routes", "No schema migrations"],
+                "view_mode": "desktop",
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "offline"
+    assert payload["plan"]
+    assert payload["diff_summary"]
+
+
+def test_gateway_builder_preview_openai(monkeypatch) -> None:
+    class DummyResponse:
+        def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
+            self.status_code = status_code
+            self._payload = payload
+
+        def json(self) -> dict[str, Any]:
+            return self._payload
+
+    class FakeClient:
+        def __init__(self, timeout: float) -> None:
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(
+            self,
+            url: str,
+            json: dict[str, Any],
+            headers: dict[str, str],
+        ) -> DummyResponse:
+            return DummyResponse(
+                200,
+                {
+                    "output_text": "\n".join(
+                        [
+                            "Implement builder preview API wiring.",
+                            "Add frontend rendering for generated plan sections.",
+                            "Cover route behavior with tests.",
+                        ]
+                    )
+                },
+            )
+
+    monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "openai")
+    monkeypatch.setattr(api_gateway_main, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", FakeClient)
+
+    with TestClient(api_app) as client:
+        response = client.post(
+            "/v1/builder/preview",
+            json={"request": "Wire builder preview end-to-end", "view_mode": "tablet"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "openai"
+    assert payload["diff_summary"][0] == "Implement builder preview API wiring."
+
+
+def test_gateway_builder_helpers_cover_branching() -> None:
+    assert api_gateway_main._normalize_builder_text("  keep   this\nclean ") == "keep this clean"
+    assert api_gateway_main._collect_distinct_lines("- one\n- one\n* two\nthree", 3) == [
+        "one",
+        "two",
+        "three",
+    ]
+
+    preview_request = api_gateway_main.BuilderPreviewRequest(
+        request="Implement mission review workflow",
+        constraints=["No schema changes", "Keep backward compatibility"],
+        view_mode="mobile",
+    )
+    preview = api_gateway_main._build_offline_builder_preview(
+        preview_request,
+        source="offline",
+        notice="offline preview",
+    )
+    assert preview["source"] == "offline"
+    assert preview["notice"] == "offline preview"
+    assert preview["plan"]
+
+    extracted_from_output = api_gateway_main._extract_openai_text(
+        {
+            "output": [
+                {
+                    "content": [
+                        {"text": "first line"},
+                        {"text": "second line"},
+                    ]
+                }
+            ]
+        }
+    )
+    assert extracted_from_output == "first line\nsecond line"
+
+    extracted_from_choices = api_gateway_main._extract_openai_text(
+        {"choices": [{"message": {"content": "from choices"}}]}
+    )
+    assert extracted_from_choices == "from choices"
+
+    extracted_from_anthropic = api_gateway_main._extract_anthropic_text(
+        {
+            "content": [
+                {"type": "thinking", "text": "internal"},
+                {"type": "text", "text": "anthropic line"},
+            ]
+        }
+    )
+    assert extracted_from_anthropic == "anthropic line"
+
+    extracted_from_gemini = api_gateway_main._extract_gemini_text(
+        {
+            "candidates": [
+                {"content": {"parts": [{"text": "gemini line one"}, {"text": "line two"}]}}
+            ]
+        }
+    )
+    assert extracted_from_gemini == "gemini line one\nline two"
+    assert api_gateway_main._is_gemini_3_model("gemini-3-flash-preview") is True
+    assert api_gateway_main._is_gemini_3_model("gemini-3.1-pro-preview") is True
+    assert api_gateway_main._is_gemini_3_model("gemini-2.5-pro") is False
+    assert api_gateway_main._to_gemini_thinking_level("minimal") == "low"
+    assert api_gateway_main._to_gemini_thinking_level("medium") == "medium"
+    assert api_gateway_main._to_gemini_thinking_level("xhigh") == "high"
+
+
+def test_gateway_builder_preview_openai_missing_key(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "openai")
+    monkeypatch.setattr(api_gateway_main, "OPENAI_API_KEY", "")
+
+    with TestClient(api_app) as client:
+        response = client.post(
+            "/v1/builder/preview",
+            json={"request": "Add comparison panel to dashboard"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "offline"
+    assert "OPENAI_API_KEY not configured" in payload["notice"]
+
+
+def test_gateway_builder_preview_anthropic_missing_key(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr(api_gateway_main, "ANTHROPIC_API_KEY", "")
+
+    with TestClient(api_app) as client:
+        response = client.post(
+            "/v1/builder/preview",
+            json={"request": "Add architecture review timeline"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "offline"
+    assert "ANTHROPIC_API_KEY not configured" in payload["notice"]
+
+
+def test_gateway_builder_preview_gemini_missing_key(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(api_gateway_main, "GEMINI_API_KEY", "")
+
+    with TestClient(api_app) as client:
+        response = client.post(
+            "/v1/builder/preview",
+            json={"request": "Add architecture review timeline"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "offline"
+    assert "GEMINI_API_KEY not configured" in payload["notice"]
+
+
+def test_gateway_builder_preview_openai_fallback(monkeypatch) -> None:
+    async def _openai_preview(_payload, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "openai")
+    monkeypatch.setattr(api_gateway_main, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(api_gateway_main, "_openai_builder_preview", _openai_preview)
+
+    with TestClient(api_app) as client:
+        response = client.post(
+            "/v1/builder/preview",
+            json={"request": "Generate regression checklist"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "openai-fallback"
+    assert "Live LLM request failed" in payload["notice"]
+
+
+def test_gateway_openai_builder_preview_helper(monkeypatch) -> None:
+    class DummyResponse:
+        def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
+            self.status_code = status_code
+            self._payload = payload
+
+        def json(self) -> dict[str, Any]:
+            return self._payload
+
+    class FakeClient:
+        def __init__(self, timeout: float) -> None:
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(
+            self,
+            url: str,
+            json: dict[str, Any],
+            headers: dict[str, str],
+        ) -> DummyResponse:
+            return DummyResponse(
+                200,
+                {
+                    "output": [
+                        {
+                            "content": [
+                                {"text": "Improve validation and data flow."},
+                                {"text": "Add endpoint tests for all branches."},
+                            ]
+                        }
+                    ]
+                },
+            )
+
+    monkeypatch.setattr(api_gateway_main, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", FakeClient)
+
+    payload = api_gateway_main.BuilderPreviewRequest(
+        request="Design builder endpoint",
+        constraints=["No breaking API changes"],
+        view_mode="desktop",
+    )
+    result = asyncio.run(
+        api_gateway_main._openai_builder_preview(
+            payload,
+            model="gpt-5.2",
+            reasoning_effort="high",
+        )
+    )
+    assert result is not None
+    assert result["source"] == "openai"
+
+
+def test_gateway_builder_preview_anthropic(monkeypatch) -> None:
+    class DummyResponse:
+        def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
+            self.status_code = status_code
+            self._payload = payload
+
+        def json(self) -> dict[str, Any]:
+            return self._payload
+
+    class FakeClient:
+        def __init__(self, timeout: float) -> None:
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(
+            self,
+            url: str,
+            json: dict[str, Any],
+            headers: dict[str, str],
+        ) -> DummyResponse:
+            return DummyResponse(
+                200,
+                {
+                    "content": [
+                        {"type": "text", "text": "Build agent assignment dashboard."},
+                        {"type": "text", "text": "Add regression tests for route fallback."},
+                    ]
+                },
+            )
+
+    monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr(api_gateway_main, "ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", FakeClient)
+
+    with TestClient(api_app) as client:
+        response = client.post(
+            "/v1/builder/preview",
+            json={"request": "Produce rollout plan", "view_mode": "desktop"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "anthropic"
+    assert payload["diff_summary"][0] == "Build agent assignment dashboard."
+
+
+def test_gateway_builder_preview_gemini(monkeypatch) -> None:
+    class DummyResponse:
+        def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
+            self.status_code = status_code
+            self._payload = payload
+
+        def json(self) -> dict[str, Any]:
+            return self._payload
+
+    class FakeClient:
+        def __init__(self, timeout: float) -> None:
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(
+            self,
+            url: str,
+            params: dict[str, str],
+            json: dict[str, Any],
+            headers: dict[str, str],
+        ) -> DummyResponse:
+            return DummyResponse(
+                200,
+                {
+                    "candidates": [
+                        {
+                            "content": {
+                                "parts": [
+                                    {"text": "Create semantic bus review panel."},
+                                    {"text": "Keep route contracts unchanged."},
+                                ]
+                            }
+                        }
+                    ]
+                },
+            )
+
+    monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(api_gateway_main, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", FakeClient)
+
+    with TestClient(api_app) as client:
+        response = client.post(
+            "/v1/builder/preview",
+            json={"request": "Build semantic panel", "view_mode": "tablet"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["source"] == "gemini"
+    assert payload["diff_summary"][0] == "Create semantic bus review panel."
+
+
+def test_gateway_internal_operations_routes(monkeypatch) -> None:
+    calls: list[tuple[str, dict[str, Any] | None]] = []
+
+    async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None) -> Any:
+        calls.append((path, params))
+        if path in {
+            "/internal/operations/summary",
+            "/internal/operations/agents",
+            "/internal/operations/agent-integrations",
+            "/internal/missions/mission-1/pod-assignment",
+        }:
+            return {"path": path, "ok": True}
+        return [{"path": path, "params": params}]
+
+    monkeypatch.setattr(api_gateway_main, "_proxy_get_internal", _proxy_get_internal)
+
+    with TestClient(api_app) as client:
+        assert client.get("/v1/missions/mission-1/pod-assignment").status_code == 200
+        assert client.get("/v1/missions/mission-1/logicnodes?limit=4").status_code == 200
+        assert client.get("/v1/missions/mission-1/knowledge?limit=3").status_code == 200
+        assert client.get("/v1/missions/mission-1/audit-reports?limit=2").status_code == 200
+
+        assert client.get("/v1/operations/summary").status_code == 200
+        assert (
+            client.get(
+                "/v1/operations/agents?mission_limit=120&assignment_limit=80&event_limit=60"
+            ).status_code
+            == 200
+        )
+        assert client.get("/v1/operations/events?limit=10").status_code == 200
+        assert client.get("/v1/operations/agent-events?limit=11").status_code == 200
+        assert client.get("/v1/operations/agent-integrations").status_code == 200
+        assert (
+            client.get("/v1/operations/logicnodes?limit=9&mission_id=mission-1").status_code
+            == 200
+        )
+        assert client.get("/v1/operations/pod-assignments?limit=8").status_code == 200
+        assert client.get("/v1/operations/projects?limit=7").status_code == 200
+        assert client.get("/v1/operations/alerts?limit=6").status_code == 200
+
+    assert ("/internal/missions/mission-1/pod-assignment", None) in calls
+    assert ("/internal/missions/mission-1/logicnodes", {"limit": 4}) in calls
+    assert ("/internal/missions/mission-1/knowledge", {"limit": 3}) in calls
+    assert ("/internal/missions/mission-1/audit-reports", {"limit": 2}) in calls
+    assert ("/internal/operations/summary", None) in calls
+    assert (
+        "/internal/operations/agents",
+        {"mission_limit": 120, "assignment_limit": 80, "event_limit": 60},
+    ) in calls
+    assert ("/internal/operations/events", {"limit": 10}) in calls
+    assert ("/internal/operations/agent-events", {"limit": 11}) in calls
+    assert ("/internal/operations/agent-integrations", None) in calls
+    assert ("/internal/operations/logicnodes", {"limit": 9, "mission_id": "mission-1"}) in calls
+    assert ("/internal/operations/pod-assignments", {"limit": 8}) in calls
+    assert ("/internal/operations/projects", {"limit": 7}) in calls
+    assert ("/internal/operations/alerts", {"limit": 6}) in calls
+
+
 def test_orchestrator_readyz_reports_ready(monkeypatch) -> None:
     async def _runtime_ready(_: Any) -> tuple[bool, bool]:
         return True, True

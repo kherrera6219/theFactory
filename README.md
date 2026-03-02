@@ -44,7 +44,9 @@ Default host ports are configured in `.env.example` and can be changed in `.env`
 - `make up`: start local stack
 - `make down`: stop stack
 - `make validate`: validate schema JSON files
-- `make test`: run pytest suite
+- `make test`: run pytest suite with coverage gate (`>=80%` on `services`)
+- `make test-fast`: run pytest suite without coverage reporting
+- `make audit`: run checklist-aligned production audit baseline
 - `make lint`: run ruff checks
 - `make openapi`: export OpenAPI contracts
 - `make predeploy`: run deployment preflight checks
@@ -66,6 +68,15 @@ Default host ports are configured in `.env.example` and can be changed in `.env`
   - `operator-key`
   - `worker-key`
   - `viewer-key`
+- Builder preview supports deterministic local mode by default (`LLM_PROVIDER=offline`).
+- To test live LLM preview generation, configure API gateway env values:
+  - `LLM_PROVIDER=openai|anthropic|gemini`
+  - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` as needed
+  - OpenAI thinking controls: `OPENAI_MODEL` (default `gpt-5.3-codex`) and `OPENAI_REASONING_EFFORT`
+  - Anthropic controls: `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`) and `ANTHROPIC_THINKING_MODE`
+  - Gemini controls: `GEMINI_MODEL` (default `gemini-3-flash-preview`), `GEMINI_THINKING_LEVEL`, and `GEMINI_THINKING_BUDGET` (for 2.5 models)
+- Per-agent provider/model recommendations are available at:
+  - `GET /v1/operations/agent-integrations`
 
 ## Current phase status
 
@@ -81,3 +92,10 @@ Default host ports are configured in `.env.example` and can be changed in `.env`
 1. Enforce signed release attestations and environment promotion policy in CI.
 2. Add distributed tracing and pager/webhook integrations in observability.
 3. Expand long-duration load qualification and capacity baselines.
+
+## Standards and audit references
+
+- Development standards: `HolyGrail_Development_Standards.docx`
+- Production checklist: `HolyGrail_Production_Review_Checklist.docx`
+- Style guide: `HolyGrail_Style_Guide.docx`
+- In-repo audit report: `docs/PRODUCTION_REVIEW_AUDIT.md`
