@@ -1,0 +1,161 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+import { PageHeader } from "../../components/page-header";
+import { Panel } from "../../components/panel";
+import { humanizeState } from "../../lib/format";
+import { getGatewayHealth, getGatewayReadyState, listMissions } from "../../lib/api-client";
+import type { GatewayHealth, MissionRecord } from "../../lib/types";
+
+function summarizeStates(missions: MissionRecord[]) {
+  const summary = new Map<string, number>();
+  for (const mission of missions) {
+    const state = mission.state.toUpperCase();
+    summary.set(state, (summary.get(state) ?? 0) + 1);
+  }
+  return Array.from(summary.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 4);
+}
+
+export default function DashboardPage() {
+  const [missions, setMissions] = useState<MissionRecord[]>([]);
+  const [health, setHealth] = useState<GatewayHealth | null>(null);
+  const [readyState, setReadyState] = useState<{ ready: boolean; detail?: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const stateSummary = useMemo(() => summarizeStates(missions), [missions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [data, healthData, ready] = await Promise.all([
+          listMissions(30),
+          getGatewayHealth(),
+          getGatewayReadyState(),
+        ]);
+        if (!cancelled) {
+          setMissions(data);
+          setHealth(healthData);
+          setReadyState(ready);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Unable to load mission overview.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="page shell-page">
+      <PageHeader
+        eyebrow="Home"
+        title="Launch Pad"
+        description="Open mission control and assess system health before launching the next mission."
+        actions={
+          <div className="inline-actions">
+            <Link href="/chat" className="secondary-button shell-link-button">
+              New Mission
+            </Link>
+            <Link href="/missions" className="secondary-button shell-link-button">
+              Mission Center
+            </Link>
+          </div>
+        }
+      />
+
+      <Panel title="System Health Snapshot">
+        {loading && <p className="muted">Collecting mission data...</p>}
+        {error && <p className="error-box">{error}</p>}
+        {!loading && !error && (
+          <div className="kpi-grid" role="list" aria-label="Mission metrics">
+            <article className="kpi-card" role="listitem">
+              <h3>Total Missions</h3>
+              <p>{missions.length}</p>
+            </article>
+            <article className="kpi-card" role="listitem">
+              <h3>Running</h3>
+              <p>{missions.filter((item) => item.state.toUpperCase() === "RUNNING").length}</p>
+            </article>
+            <article className="kpi-card" role="listitem">
+              <h3>Verified</h3>
+              <p>{missions.filter((item) => item.state.toUpperCase() === "VERIFIED").length}</p>
+            </article>
+            <article className="kpi-card" role="listitem">
+              <h3>Failed</h3>
+              <p>{missions.filter((item) => item.state.toUpperCase() === "FAILED").length}</p>
+            </article>
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="Runtime Health">
+        <ul className="summary-list">
+          <li>
+            <strong>Gateway readiness</strong>
+            <span>{readyState?.ready ? "Ready" : readyState?.detail ?? "Unavailable"}</span>
+          </li>
+          <li>
+            <strong>Redis</strong>
+            <span>{health?.redis_healthy ? "Healthy" : "Unavailable"}</span>
+          </li>
+          <li>
+            <strong>Orchestrator</strong>
+            <span>{health?.orchestrator_healthy ? "Healthy" : "Unavailable"}</span>
+          </li>
+        </ul>
+      </Panel>
+
+      <Panel title="Top Mission States">
+        {stateSummary.length === 0 && <p className="muted">No mission state data available yet.</p>}
+        {stateSummary.length > 0 && (
+          <ul className="summary-list">
+            {stateSummary.map(([state, count]) => (
+              <li key={state}>
+                <strong>{humanizeState(state)}</strong>
+                <span>{count} mission(s)</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
+      <Panel title="Operational Shortcuts">
+        <div className="shortcut-grid">
+          <Link href="/chat" className="shortcut-card">
+            <h3>PM Agent Chat</h3>
+            <p>Describe mission goals in natural language and launch directly.</p>
+          </Link>
+          <Link href="/agents" className="shortcut-card">
+            <h3>Agent Grid</h3>
+            <p>Inspect pod health, workload distribution, and stalled workers.</p>
+          </Link>
+          <Link href="/semantic-bus" className="shortcut-card">
+            <h3>Semantic Bus</h3>
+            <p>Trace live protocol messages and identify delivery bottlenecks.</p>
+          </Link>
+          <Link href="/repo" className="shortcut-card">
+            <h3>Repo Import</h3>
+            <p>Import a repository, scope files, and launch a targeted mission.</p>
+          </Link>
+        </div>
+      </Panel>
+    </div>
+  );
+}

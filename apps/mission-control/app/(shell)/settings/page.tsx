@@ -1,0 +1,448 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+import { PageHeader } from "../../components/page-header";
+import { Panel } from "../../components/panel";
+import { getOperationsAgentIntegrations } from "../../lib/api-client";
+import { formatDateTime } from "../../lib/format";
+import { clampNumber, isAllowedLocalApiBase, safeJsonParse } from "../../lib/security";
+import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
+
+type LocalPreferences = {
+  apiBaseUrl: string;
+  maxParallelAgents: number;
+  cpuLimitPct: number;
+  memoryLimitPct: number;
+};
+
+type VaultSlotRecord = {
+  slot_id: string;
+  provider: string;
+  status: "set" | "missing";
+  last_rotated_at: string | null;
+  masked_preview: string | null;
+};
+
+type SlotRow = {
+  slotId: string;
+  provider: string;
+  model: string;
+  title: string;
+  status: "set" | "missing";
+  lastRotatedAt: string | null;
+  maskedPreview: string | null;
+};
+
+const DEFAULT_PREFERENCES: LocalPreferences = {
+  apiBaseUrl: "http://localhost:8100",
+  maxParallelAgents: 8,
+  cpuLimitPct: 80,
+  memoryLimitPct: 80,
+};
+
+function parseNumberInput(value: string, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+export default function SettingsPage() {
+  const [preferences, setPreferences] = useState<LocalPreferences>(DEFAULT_PREFERENCES);
+  const [snapshot, setSnapshot] = useState<OperationsAgentIntegrationsSnapshot | null>(null);
+  const [vaultSlots, setVaultSlots] = useState<VaultSlotRecord[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState<string>("");
+  const [slotSecretInput, setSlotSecretInput] = useState("");
+  const [slotLoading, setSlotLoading] = useState(false);
+  const [slotMessage, setSlotMessage] = useState<string | null>(null);
+  const [slotError, setSlotError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem("mission-control:preferences");
+    if (raw) {
+      const parsed = safeJsonParse<LocalPreferences>(raw, DEFAULT_PREFERENCES);
+      setPreferences({ ...DEFAULT_PREFERENCES, ...parsed });
+    }
+  }, []);
+
+  async function loadVaultAndAgents() {
+    setSlotError(null);
+    try {
+      const [integrations, vaultResponse] = await Promise.all([
+        getOperationsAgentIntegrations(),
+        fetch("/api/vault", { method: "GET", cache: "no-store" }),
+      ]);
+      const vaultPayload = (await vaultResponse.json()) as { slots?: VaultSlotRecord[] };
+      setSnapshot(integrations);
+      setVaultSlots(Array.isArray(vaultPayload.slots) ? vaultPayload.slots : []);
+    } catch (loadError) {
+      setSlotError(loadError instanceof Error ? loadError.message : "Unable to load vault metadata.");
+    }
+  }
+
+  useEffect(() => {
+    void loadVaultAndAgents();
+  }, []);
+
+  const rows = useMemo<SlotRow[]>(() => {
+    const slotMap = new Map<string, VaultSlotRecord>();
+    vaultSlots.forEach((slot) => {
+      slotMap.set(slot.slot_id.toUpperCase(), slot);
+    });
+
+    const agentRows =
+      snapshot?.agents.map((agent) => {
+        const slotId = `${agent.agent_id}-API-KEY`;
+        const existing = slotMap.get(slotId);
+        return {
+          slotId,
+          provider: String(agent.llm_recommendation.provider ?? "operator"),
+          model: String(agent.llm_recommendation.model ?? "n/a"),
+          title: `${agent.agent_id} (${agent.name})`,
+          status: existing?.status ?? "missing",
+          lastRotatedAt: existing?.last_rotated_at ?? null,
+          maskedPreview: existing?.masked_preview ?? null,
+        };
+      }) ?? [];
+
+    const extraSlots: SlotRow[] = [
+      {
+        slotId: "OPERATOR-API-KEY",
+        provider: "operator",
+        model: "mission-state-control",
+        title: "Operator Runtime Key",
+        status: slotMap.get("OPERATOR-API-KEY")?.status ?? "missing",
+        lastRotatedAt: slotMap.get("OPERATOR-API-KEY")?.last_rotated_at ?? null,
+        maskedPreview: slotMap.get("OPERATOR-API-KEY")?.masked_preview ?? null,
+      },
+      {
+        slotId: "GITHUB-TOKEN",
+        provider: "github",
+        model: "repo-scope",
+        title: "GitHub Personal Access Token",
+        status: slotMap.get("GITHUB-TOKEN")?.status ?? "missing",
+        lastRotatedAt: slotMap.get("GITHUB-TOKEN")?.last_rotated_at ?? null,
+        maskedPreview: slotMap.get("GITHUB-TOKEN")?.masked_preview ?? null,
+      },
+    ];
+
+    return [...agentRows, ...extraSlots].sort((left, right) => left.slotId.localeCompare(right.slotId));
+  }, [snapshot, vaultSlots]);
+
+  useEffect(() => {
+    if (!selectedSlotId && rows.length > 0) {
+      setSelectedSlotId(rows[0].slotId);
+    }
+  }, [rows, selectedSlotId]);
+
+  const selectedSlot = useMemo(
+    () => rows.find((row) => row.slotId === selectedSlotId) ?? null,
+    [rows, selectedSlotId],
+  );
+
+  function updatePreference<K extends keyof LocalPreferences>(key: K, value: LocalPreferences[K]) {
+    setPreferences((current) => ({ ...current, [key]: value }));
+  }
+
+  function savePreferences() {
+    setSaveError(null);
+    setSaveMessage(null);
+    if (!isAllowedLocalApiBase(preferences.apiBaseUrl)) {
+      setSaveError(
+        "API base URL must target localhost or 127.0.0.1 for local secure mode.",
+      );
+      return;
+    }
+
+    const normalized: LocalPreferences = {
+      apiBaseUrl: preferences.apiBaseUrl.trim(),
+      maxParallelAgents: clampNumber(preferences.maxParallelAgents, 1, 35),
+      cpuLimitPct: clampNumber(preferences.cpuLimitPct, 10, 100),
+      memoryLimitPct: clampNumber(preferences.memoryLimitPct, 10, 100),
+    };
+
+    setPreferences(normalized);
+    window.localStorage.setItem("mission-control:preferences", JSON.stringify(normalized));
+    setSaveMessage("Local runtime preferences saved.");
+  }
+
+  async function saveVaultSlot() {
+    if (!selectedSlot) {
+      setSlotError("Select a slot before saving.");
+      return;
+    }
+    const secret = slotSecretInput.trim();
+    if (secret.length < 8) {
+      setSlotError("Secret must contain at least 8 characters.");
+      return;
+    }
+    setSlotLoading(true);
+    setSlotError(null);
+    setSlotMessage(null);
+    try {
+      const response = await fetch("/api/vault", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slot_id: selectedSlot.slotId,
+          provider: selectedSlot.provider,
+          secret,
+        }),
+      });
+      const payload = (await response.json()) as { detail?: string };
+      if (!response.ok) {
+        throw new Error(payload.detail || "Unable to save vault slot.");
+      }
+      setSlotSecretInput("");
+      setSlotMessage(`Saved ${selectedSlot.slotId}.`);
+      await loadVaultAndAgents();
+    } catch (requestError) {
+      setSlotError(requestError instanceof Error ? requestError.message : "Unable to save slot.");
+    } finally {
+      setSlotLoading(false);
+    }
+  }
+
+  async function testVaultSlot() {
+    if (!selectedSlot) {
+      setSlotError("Select a slot before testing.");
+      return;
+    }
+    setSlotLoading(true);
+    setSlotError(null);
+    setSlotMessage(null);
+    try {
+      const response = await fetch("/api/vault/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slot_id: selectedSlot.slotId,
+          provider: selectedSlot.provider,
+          secret: slotSecretInput.trim().length > 0 ? slotSecretInput.trim() : undefined,
+        }),
+      });
+      const payload = (await response.json()) as { valid?: boolean; reason?: string; detail?: string };
+      if (!response.ok) {
+        throw new Error(payload.detail || "Key test failed.");
+      }
+      setSlotMessage(payload.valid ? `Valid: ${payload.reason}` : `Invalid: ${payload.reason}`);
+    } catch (requestError) {
+      setSlotError(requestError instanceof Error ? requestError.message : "Unable to test slot.");
+    } finally {
+      setSlotLoading(false);
+    }
+  }
+
+  async function clearVaultSlot() {
+    if (!selectedSlot) {
+      return;
+    }
+    setSlotLoading(true);
+    setSlotError(null);
+    setSlotMessage(null);
+    try {
+      const response = await fetch("/api/vault", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slot_id: selectedSlot.slotId }),
+      });
+      const payload = (await response.json()) as { detail?: string };
+      if (!response.ok) {
+        throw new Error(payload.detail || "Unable to delete slot.");
+      }
+      setSlotSecretInput("");
+      setSlotMessage(`Cleared ${selectedSlot.slotId}.`);
+      await loadVaultAndAgents();
+    } catch (requestError) {
+      setSlotError(requestError instanceof Error ? requestError.message : "Unable to clear slot.");
+    } finally {
+      setSlotLoading(false);
+    }
+  }
+
+  return (
+    <div className="page shell-page">
+      <PageHeader
+        eyebrow="Settings"
+        title="Local Runtime and Integrations"
+        description="Configure API endpoints, execution limits, and local integration credentials for enterprise operations."
+      />
+
+      <Panel title="Runtime Preferences">
+        <div className="filters-grid">
+          <label>
+            API base URL
+            <input
+              type="url"
+              value={preferences.apiBaseUrl}
+              onChange={(event) => updatePreference("apiBaseUrl", event.target.value)}
+            />
+          </label>
+          <label>
+            Max parallel agents
+            <input
+              type="number"
+              min={1}
+              max={35}
+              value={preferences.maxParallelAgents}
+              onChange={(event) =>
+                updatePreference(
+                  "maxParallelAgents",
+                  parseNumberInput(event.target.value, preferences.maxParallelAgents),
+                )
+              }
+            />
+          </label>
+          <label>
+            CPU limit (%)
+            <input
+              type="number"
+              min={10}
+              max={100}
+              value={preferences.cpuLimitPct}
+              onChange={(event) =>
+                updatePreference(
+                  "cpuLimitPct",
+                  parseNumberInput(event.target.value, preferences.cpuLimitPct),
+                )
+              }
+            />
+          </label>
+          <label>
+            Memory limit (%)
+            <input
+              type="number"
+              min={10}
+              max={100}
+              value={preferences.memoryLimitPct}
+              onChange={(event) =>
+                updatePreference(
+                  "memoryLimitPct",
+                  parseNumberInput(event.target.value, preferences.memoryLimitPct),
+                )
+              }
+            />
+          </label>
+        </div>
+      </Panel>
+
+      <Panel title="API Key Vault Slots">
+        {slotError && <p className="error-box">{slotError}</p>}
+        <p className="help-text">
+          Provider and GitHub keys are stored server-side in the local vault API and never returned in plaintext.
+        </p>
+        <div className="table-wrap">
+          <table className="data-table">
+            <caption className="sr-only">Vault slots for all agents and operator integrations.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Slot ID</th>
+                <th scope="col">Provider</th>
+                <th scope="col">Model</th>
+                <th scope="col">Status</th>
+                <th scope="col">Masked</th>
+                <th scope="col">Last Rotated</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.slotId}>
+                  <td>{row.slotId}</td>
+                  <td>{row.provider}</td>
+                  <td>{row.model}</td>
+                  <td>{row.status === "set" ? "Set" : "Missing"}</td>
+                  <td>{row.maskedPreview ?? "n/a"}</td>
+                  <td>{row.lastRotatedAt ? formatDateTime(row.lastRotatedAt) : "n/a"}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        setSelectedSlotId(row.slotId);
+                        setSlotMessage(null);
+                        setSlotError(null);
+                      }}
+                    >
+                      Select
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      <Panel title="Edit Selected Vault Slot">
+        {!selectedSlot && <p className="muted">Select a slot from the table above.</p>}
+        {selectedSlot && (
+          <>
+            <ul className="summary-list">
+              <li>
+                <strong>Slot</strong>
+                <span>{selectedSlot.slotId}</span>
+              </li>
+              <li>
+                <strong>Provider</strong>
+                <span>{selectedSlot.provider}</span>
+              </li>
+              <li>
+                <strong>Status</strong>
+                <span>{selectedSlot.status === "set" ? "Set" : "Missing"}</span>
+              </li>
+            </ul>
+            <label htmlFor="vault-secret">Secret</label>
+            <input
+              id="vault-secret"
+              type="password"
+              value={slotSecretInput}
+              onChange={(event) => setSlotSecretInput(event.target.value)}
+              autoComplete="off"
+              placeholder={`Paste new secret for ${selectedSlot.slotId}`}
+            />
+            <div className="inline-actions">
+              <button type="button" onClick={() => void saveVaultSlot()} disabled={slotLoading}>
+                {slotLoading ? "Saving..." : "Save"}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void testVaultSlot()}
+                disabled={slotLoading}
+              >
+                Test
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void clearVaultSlot()}
+                disabled={slotLoading}
+              >
+                Clear
+              </button>
+            </div>
+          </>
+        )}
+        {slotMessage && <p className="success-box">{slotMessage}</p>}
+        {slotError && <p className="error-box">{slotError}</p>}
+      </Panel>
+
+      <Panel
+        title="Save Configuration"
+        actions={
+          <button type="button" className="secondary-button" onClick={() => void loadVaultAndAgents()}>
+            Refresh Vault Status
+          </button>
+        }
+      >
+        <button type="button" onClick={savePreferences}>
+          Save Runtime Preferences
+        </button>
+        {saveError && <p className="error-box">{saveError}</p>}
+        {saveMessage && <p className="success-box">{saveMessage}</p>}
+      </Panel>
+    </div>
+  );
+}

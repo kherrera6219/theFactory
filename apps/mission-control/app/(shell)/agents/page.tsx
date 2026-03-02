@@ -1,0 +1,364 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+import { PageHeader } from "../../components/page-header";
+import { Panel } from "../../components/panel";
+import { getOperationsAgents } from "../../lib/api-client";
+import { formatDateTime } from "../../lib/format";
+import type { OperationsAgentRecord, OperationsAgentsSnapshot } from "../../lib/types";
+
+export default function AgentsPage() {
+  const [tierFilter, setTierFilter] = useState<string>("ALL");
+  const [podFilter, setPodFilter] = useState<string>("ALL");
+  const [stateFilter, setStateFilter] = useState<string>("ALL");
+  const [snapshot, setSnapshot] = useState<OperationsAgentsSnapshot | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<OperationsAgentRecord | null>(null);
+  const [logLevel, setLogLevel] = useState<"ALL" | "INFO" | "WARNING" | "ERROR">("ALL");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setError(null);
+      try {
+        const data = await getOperationsAgents({
+          missionLimit: 2000,
+          assignmentLimit: 2000,
+          eventLimit: 500,
+        });
+        if (!cancelled) {
+          setSnapshot(data);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Unable to load agent telemetry.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    void load();
+    const intervalId = window.setInterval(() => {
+      void load();
+    }, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const agents = snapshot?.agents ?? [];
+
+  const tiers = useMemo(() => {
+    const discovered = new Set<string>();
+    agents.forEach((item) => discovered.add(item.tier));
+    return ["ALL", ...Array.from(discovered).sort()];
+  }, [agents]);
+
+  const pods = useMemo(() => {
+    const discovered = new Set<string>();
+    agents.forEach((item) => discovered.add(item.pod));
+    return ["ALL", ...Array.from(discovered).sort()];
+  }, [agents]);
+
+  const states = useMemo(() => {
+    const discovered = new Set<string>();
+    agents.forEach((item) => discovered.add(item.state));
+    return ["ALL", ...Array.from(discovered).sort()];
+  }, [agents]);
+
+  const filteredAgents = useMemo(
+    () =>
+      agents.filter((agent) => {
+        if (tierFilter !== "ALL" && agent.tier !== tierFilter) {
+          return false;
+        }
+        if (podFilter !== "ALL" && agent.pod !== podFilter) {
+          return false;
+        }
+        if (stateFilter !== "ALL" && agent.state !== stateFilter) {
+          return false;
+        }
+        return true;
+      }),
+    [agents, tierFilter, podFilter, stateFilter],
+  );
+
+  return (
+    <div className="page shell-page">
+      <PageHeader
+        eyebrow="Agents"
+        title="35-Agent Runtime Control Grid"
+        description="Track the full multi-agent topology, runtime health, and mission workload distribution."
+      />
+
+      <Panel title="Filters">
+        <div className="filters-grid">
+          <label>
+            Tier
+            <select value={tierFilter} onChange={(event) => setTierFilter(event.target.value)}>
+              {tiers.map((tier) => (
+                <option key={tier} value={tier}>
+                  {tier === "ALL" ? "All tiers" : tier}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Pod
+            <select value={podFilter} onChange={(event) => setPodFilter(event.target.value)}>
+              {pods.map((pod) => (
+                <option key={pod} value={pod}>
+                  {pod === "ALL" ? "All pods" : pod}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            State
+            <select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}>
+              {states.map((state) => (
+                <option key={state} value={state}>
+                  {state === "ALL" ? "All states" : state}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </Panel>
+
+      <Panel title="Runtime Dependencies">
+        {error && <p className="error-box">{error}</p>}
+        {!error && (
+          <ul className="summary-list">
+            <li>
+              <strong>Redis</strong>
+              <span>{snapshot?.runtime.redis_ready ? "Healthy" : "Unavailable"}</span>
+            </li>
+            <li>
+              <strong>Database</strong>
+              <span>{snapshot?.runtime.db_ready ? "Ready" : "Unavailable"}</span>
+            </li>
+            <li>
+              <strong>Protocol validation</strong>
+              <span>{snapshot?.runtime.protocol_ready ? "Ready" : "Unavailable"}</span>
+            </li>
+            <li>
+              <strong>Consumer task</strong>
+              <span>{snapshot?.runtime.consumer_running ? "Running" : "Not running"}</span>
+            </li>
+          </ul>
+        )}
+      </Panel>
+
+      <Panel title="Agent and Mission Snapshot">
+        {loading && <p className="muted">Loading pod workload summary...</p>}
+        {!loading && snapshot && (
+          <ul className="summary-list">
+            <li>
+              <strong>Total agents</strong>
+              <span>{snapshot.total_agents}</span>
+            </li>
+            <li>
+              <strong>Active missions</strong>
+              <span>{snapshot.mission_backlog.active}</span>
+            </li>
+            <li>
+              <strong>Verified missions</strong>
+              <span>{snapshot.mission_backlog.verified}</span>
+            </li>
+            <li>
+              <strong>Completed missions</strong>
+              <span>{snapshot.mission_backlog.complete}</span>
+            </li>
+          </ul>
+        )}
+      </Panel>
+
+      <Panel title="State Distribution">
+        {!loading && snapshot && (
+          <ul className="summary-list">
+            {Object.entries(snapshot.state_counts).map(([state, count]) => (
+              <li key={state}>
+                <strong>{state}</strong>
+                <span>{count} agent(s)</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
+      <Panel title="Agent Grid">
+        <p className="muted">
+          Showing {filteredAgents.length} of {agents.length} agents. Last refresh:{" "}
+          {snapshot ? formatDateTime(snapshot.generated_at) : "n/a"}.
+        </p>
+        <div className="table-wrap">
+          <table className="data-table">
+            <caption className="sr-only">
+              Full agent roster with state, queue depth, workload, and specialization.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Agent</th>
+                <th scope="col">Tier</th>
+                <th scope="col">Pod</th>
+                <th scope="col">State</th>
+                <th scope="col">Queue</th>
+                <th scope="col">Workload</th>
+                <th scope="col">Specialties</th>
+                <th scope="col">Last heartbeat</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAgents.map((agent) => (
+                <AgentRow key={agent.agent_id} agent={agent} onSelect={() => setSelectedAgent(agent)} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {filteredAgents.length === 0 && !loading && (
+          <p className="muted">No agents match the selected filters.</p>
+        )}
+      </Panel>
+
+      <Panel title="Pod Topology">
+        {!loading && snapshot && (
+          <ul className="summary-list">
+            {Object.entries(snapshot.pod_counts).map(([pod, count]) => (
+              <li key={pod}>
+                <strong>{pod}</strong>
+                <span>{count} agent(s)</span>
+              </li>
+            ))}
+            {Object.keys(snapshot.pod_counts).length === 0 && (
+              <li>
+                <strong>No pod topology</strong>
+                <span>Agent topology data is currently unavailable.</span>
+              </li>
+            )}
+          </ul>
+        )}
+      </Panel>
+
+      {selectedAgent && (
+        <Panel
+          title={`Agent Detail - ${selectedAgent.agent_id}`}
+          actions={
+            <button type="button" className="secondary-button" onClick={() => setSelectedAgent(null)}>
+              Close
+            </button>
+          }
+        >
+          <dl>
+            <div>
+              <dt>Name</dt>
+              <dd>{selectedAgent.name}</dd>
+            </div>
+            <div>
+              <dt>Role</dt>
+              <dd>{selectedAgent.role}</dd>
+            </div>
+            <div>
+              <dt>Pod</dt>
+              <dd>{selectedAgent.pod}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{selectedAgent.state}</dd>
+            </div>
+            <div>
+              <dt>Queue Depth</dt>
+              <dd>{selectedAgent.queue_depth}</dd>
+            </div>
+            <div>
+              <dt>Workload</dt>
+              <dd>{selectedAgent.workload_pct}%</dd>
+            </div>
+            <div>
+              <dt>Last Heartbeat</dt>
+              <dd>{formatDateTime(selectedAgent.last_heartbeat_iso)}</dd>
+            </div>
+          </dl>
+          <div className="inline-actions">
+            <span className="muted">Log Level</span>
+            <button
+              type="button"
+              className={`secondary-button ${logLevel === "ALL" ? "active-tab" : ""}`}
+              onClick={() => setLogLevel("ALL")}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`secondary-button ${logLevel === "INFO" ? "active-tab" : ""}`}
+              onClick={() => setLogLevel("INFO")}
+            >
+              Info
+            </button>
+            <button
+              type="button"
+              className={`secondary-button ${logLevel === "WARNING" ? "active-tab" : ""}`}
+              onClick={() => setLogLevel("WARNING")}
+            >
+              Warning
+            </button>
+            <button
+              type="button"
+              className={`secondary-button ${logLevel === "ERROR" ? "active-tab" : ""}`}
+              onClick={() => setLogLevel("ERROR")}
+            >
+              Error
+            </button>
+          </div>
+          <div className="code-block">
+            <pre>
+              {[
+                `${formatDateTime(new Date().toISOString())} [INFO] Agent selected for inspection`,
+                `${formatDateTime(new Date().toISOString())} [INFO] Mission assignments: ${
+                  selectedAgent.active_mission_ids.join(", ") || "none"
+                }`,
+                `${formatDateTime(new Date().toISOString())} [INFO] Specialty scope: ${selectedAgent.specialties.join(", ")}`,
+              ].join("\n")}
+            </pre>
+          </div>
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+function AgentRow({
+  agent,
+  onSelect,
+}: {
+  agent: OperationsAgentRecord;
+  onSelect: () => void;
+}) {
+  const stateClass = agent.state.toLowerCase();
+  const specialties = agent.specialties.length > 0 ? agent.specialties.join(", ") : "n/a";
+  return (
+    <tr>
+      <td>
+        <button type="button" className="link-button" onClick={onSelect}>
+          <strong>{agent.name}</strong>
+          <div className="muted">{agent.agent_id}</div>
+        </button>
+      </td>
+      <td>{agent.tier}</td>
+      <td>{agent.pod}</td>
+      <td>
+        <span className={`status-dot ${stateClass}`} aria-hidden="true" />
+        {agent.state}
+      </td>
+      <td>{agent.queue_depth}</td>
+      <td>{agent.workload_pct}%</td>
+      <td title={specialties}>{specialties}</td>
+      <td>{formatDateTime(agent.last_heartbeat_iso)}</td>
+    </tr>
+  );
+}
