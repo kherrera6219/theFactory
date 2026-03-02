@@ -11,11 +11,17 @@ This document defines automated quality gates for theFactory and the specific co
 - `make validate`
 - `make lint`
 - `make test`
+- `make test-ui`
 
 `make test` runs:
 
 - `pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`
 - `python scripts/check_coverage_thresholds.py ...`
+
+`make test-ui` runs:
+
+- `npm run lint` in `apps/mission-control`
+- `npm run test` in `apps/mission-control` (Vitest unit suite)
 
 ## Coverage Policy
 
@@ -39,6 +45,7 @@ This policy is enforced in:
 
 - `Makefile` (`make test`)
 - `.github/workflows/ci.yml` (`Test with Coverage`)
+- `.github/workflows/ci.yml` (`Mission Control Lint`, `Mission Control Unit Tests`)
 
 ## Security and Reliability Expectations for Core Files
 
@@ -55,3 +62,4 @@ The coverage policy above exists to protect enterprise-critical runtime guarante
 
 - Generated `coverage.xml` is used as input for threshold validation.
 - If core thresholds fail, CI fails the build.
+- Mission Control unit tests run in CI as a baseline; integration/e2e expansion remains planned work.

@@ -40,6 +40,17 @@ jobs:
           pip install -r services/audit-worker/requirements.txt
           pip install -r services/semantic-bus-mcp/requirements.txt
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/mission-control/package-lock.json
+
+      - name: Install Mission Control deps
+        run: npm ci
+        working-directory: apps/mission-control
+
       - name: Validate schemas
         run: python scripts/validate_schemas.py
 
@@ -48,6 +59,14 @@ jobs:
 
       - name: Lint
         run: ruff check services tests scripts
+
+      - name: Mission Control Lint
+        run: npm run lint
+        working-directory: apps/mission-control
+
+      - name: Mission Control Unit Tests
+        run: npm run test
+        working-directory: apps/mission-control
 
       - name: Test with Coverage
         run: |

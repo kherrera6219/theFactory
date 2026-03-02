@@ -38,3 +38,76 @@
 
 ### Next Phase
 - P0 target: Mission Control automated test baseline (unit + integration seed, then expand to e2e).
+
+## Phase 2 - Mission Control Test Baseline
+
+### Objective
+- Establish an automated frontend test entrypoint for Mission Control.
+- Add initial tests around critical API client behavior (error handling, auth header wiring, readiness semantics).
+
+### Implementation
+- Added frontend test tooling and scripts:
+  - `apps/mission-control/package.json` (`test`, `test:watch`, `vitest`, `jsdom`)
+  - `apps/mission-control/vitest.config.ts`
+- Added initial unit tests:
+  - `apps/mission-control/app/lib/api-client.test.ts`
+  - Coverage includes request building, API error parsing, operator key precedence, and readiness fallbacks.
+
+### Validation and Debug Sweep
+- `npm run lint` (mission-control)
+  - Result: pass
+- `npm run test` (mission-control)
+  - Result: pass (8 tests)
+- `python -m ruff check services tests scripts`
+  - Result: pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`
+  - Result: pass
+  - Coverage: 88.13%
+- `python scripts/check_coverage_thresholds.py ...`
+  - Result: pass
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`
+  - Result: pass
+
+### Outcome
+- Mission Control now has an automated unit-test baseline and executable CI-ready test command.
+- Remaining work for this track: add integration/e2e journeys for mission lifecycle and operator workflows.
+
+### Next Phase
+- P2 target: resolve Mission Control port/documentation drift and close docs consistency gaps.
+
+## Phase 3 - CI Enforcement for Mission Control Tests
+
+### Objective
+- Ensure frontend lint and unit tests execute automatically in CI.
+- Add a first-class local command for UI test execution.
+
+### Implementation
+- Updated CI workflow:
+  - `.github/workflows/ci.yml`
+  - Added Node setup, `npm ci`, Mission Control lint, and Mission Control unit test steps.
+- Added local UI test command:
+  - `Makefile` (`make test-ui`)
+- Updated quality-gate documentation:
+  - `docs/TESTING_QUALITY_GATES.md`
+
+### Validation and Debug Sweep
+- `npm run lint` (mission-control)
+  - Result: pass
+- `npm run test` (mission-control)
+  - Result: pass (8 tests)
+- `python -m ruff check services tests scripts`
+  - Result: pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`
+  - Result: pass
+  - Coverage: 88.13%
+- `python scripts/check_coverage_thresholds.py ...`
+  - Result: pass
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`
+  - Result: pass
+
+### Outcome
+- Mission Control unit tests are now part of CI and local quality gates.
+- Remaining test gap is integration/e2e mission-control journey coverage.
+
+### Next Phase
+- P2 target: resolve Mission Control port/documentation drift and align runtime docs.

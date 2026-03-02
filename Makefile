@@ -1,4 +1,4 @@
-.PHONY: up down validate lint test test-fast audit sweep openapi predeploy backup dr perf monitor-up monitor-down
+.PHONY: up down validate lint test test-ui test-fast audit sweep openapi predeploy backup dr perf monitor-up monitor-down
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -31,6 +31,9 @@ test:
 		--module-threshold services/orchestrator/orchestrator/agent_personas.py=100 \
 		--module-threshold services/orchestrator/orchestrator/agent_integrations.py=100 \
 		--module-threshold services/orchestrator/orchestrator/agent_registry.py=100
+
+test-ui:
+	cd apps/mission-control && npm run lint && npm run test
 
 test-fast:
 	pytest
