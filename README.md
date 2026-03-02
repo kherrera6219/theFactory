@@ -1,101 +1,227 @@
 # theFactory
 
-Holy Grail application monorepo.
+Local-first implementation of the HolyGrail multi-agent software refinery.
 
-This repository is the active build target for the Holy Grail system: a local-first, agent-driven software refinery with a semantic bus, orchestration layer, and mission control surfaces.
+This monorepo contains the runtime services, frontend, contracts, and operational tooling for a 35-agent orchestration system that turns mission prompts into verified software artifacts through a semantic-bus workflow.
 
-## Monorepo layout
+## What This Application Is
 
-- `services/api-gateway`: External API entry point (FastAPI)
-- `services/orchestrator`: Mission orchestration service (FastAPI)
-- `services/dashboard`: Operational dashboard service (FastAPI + HTML)
-- `services/pod-worker`: Specialist pod routing worker (deployed as podA/podB/podC/podD)
-- `services/audit-worker`: Audit handoff and release-event worker
-- `apps/mission-control`: Next.js user-facing mission console
-- `schemas`: JSON contracts (LogicNode, Refined IR, event envelopes)
-- `protocol`: Semantic bus topic catalog
-- `ledger`: Traceability ledger schema
-- `deploy`: Docker Compose local stack
-- `examples`: Example contract payloads
-- `scripts`: Validation and bootstrap scripts
-- `docs`: Architecture and delivery planning notes
-- `tests`: Service-level test scaffold
+theFactory is a Windows-friendly, Docker-based application stack with:
 
-## Quick start
+- Multi-service runtime (API gateway, orchestrator, workers, dashboard, mission control).
+- Semantic bus event flow over Redis Streams.
+- Mission lifecycle persistence and telemetry in PostgreSQL.
+- 35-agent runtime registry with:
+  - role and workload telemetry,
+  - provider/model recommendations,
+  - complete 8-part persona profiles,
+  - standards-aligned evidence mappings (NIST, OWASP, ISO/IEC).
+- Mission Control UI for operations, agent topology, settings, semantic bus views, and diagnostics.
 
-1. Copy environment file:
+## System Topology
+
+Core services:
+
+- `services/api-gateway` (FastAPI): public API boundary and intake.
+- `services/orchestrator` (FastAPI): mission state machine, pod coordination, operations APIs.
+- `services/pod-worker` (FastAPI worker runtime): pod routing and artifact processing for pod A/B/C/D.
+- `services/audit-worker`: audit stream processing and verification handoff.
+- `services/dashboard` (FastAPI + HTML): lightweight operational dashboard.
+- `apps/mission-control` (Next.js): operator console and runtime control UI.
+
+Data and event plane:
+
+- Redis Streams: mission/event transport and heartbeat/event telemetry.
+- PostgreSQL: missions, events, pod assignments, logicnodes, knowledge, audits, agent heartbeats.
+- Qdrant: reserved data-plane component for vector retrieval activation.
+- Neo4j/object storage: planned optional expansion paths (documented, not primary runtime dependencies today).
+
+## 35-Agent Runtime Model
+
+The orchestrator maintains a canonical 35-agent registry covering:
+
+- User interface tier.
+- Executive tier.
+- Support ring.
+- Pod A/B/C/D manager, audit, and specialist agents.
+
+Each agent now exposes:
+
+- Runtime state (`IDLE`, `ACTIVE`, `RUNNING`, `VERIFYING`, `ERROR`, `PAUSED`).
+- Queue/workload and mission assignment telemetry.
+- LLM recommendation strategy (provider/model/thinking profile + fallback where applicable).
+- `persona_profile` with:
+  - `job_role`
+  - `education_certifications`
+  - `traits_skills`
+  - `methods_procedures`
+  - `tools`
+  - `master_instruction`
+  - `protocol`
+  - `api_configuration`
+  - `standards_alignment` (extension)
+  - `evidence_sources` (extension)
+
+## Key API Surfaces
+
+Gateway (`http://localhost:8100` by default):
+
+- `GET /health`
+- `GET /readyz`
+- `GET /metrics`
+- `POST /v1/missions`
+- `GET /v1/missions`
+- `GET /v1/missions/{mission_id}`
+- `GET /v1/missions/{mission_id}/events`
+- `POST /v1/missions/{mission_id}/state`
+- `GET /v1/operations/summary`
+- `GET /v1/operations/agents`
+- `GET /v1/operations/agent-integrations`
+
+Orchestrator (`http://localhost:8101` by default):
+
+- `GET /health`
+- `GET /readyz`
+- `GET /metrics`
+- `GET /internal/operations/summary`
+- `GET /internal/operations/agents`
+- `GET /internal/operations/agent-integrations`
+
+OpenAPI exports:
+
+- `docs/openapi/api-gateway.v1.json`
+- `docs/openapi/orchestrator.v1.json`
+
+## Mission Control UI
+
+Mission Control (`http://localhost:3100` by default) provides:
+
+- Dashboard and mission lifecycle views.
+- Agent grid and drill-down detail (including full 8-part persona + standards evidence).
+- Semantic bus and logicnode/event views.
+- Runtime settings and local vault-based key management:
+  - `/api/vault`
+  - `/api/vault/test`
+  - `/api/operator/mission-state`
+
+## Repository Layout
+
+- `apps/mission-control`: Next.js operator application.
+- `services/api-gateway`: external API and LLM builder routing.
+- `services/orchestrator`: mission orchestration and operations APIs.
+- `services/pod-worker`: pod stream workers.
+- `services/audit-worker`: audit stream worker.
+- `services/dashboard`: operations status dashboard.
+- `schemas`: message/artifact contracts.
+- `protocol`: semantic-bus topic catalog.
+- `ledger`: traceability ledger schema.
+- `deploy`: Docker Compose stacks.
+- `scripts`: validation, export, audit, DR/perf/debug tooling.
+- `tests`: service and production-foundation tests.
+- `docs`: architecture, standards, runbooks, plans, and audits.
+
+## Quick Start
+
+1. Copy env template:
    - `cp .env.example .env`
-2. Bring up core services:
+2. Start stack:
    - `docker compose -f deploy/docker-compose.yaml up -d --build`
-3. Check health:
-   - API gateway: `http://localhost:8100/health`
-   - API gateway readiness: `http://localhost:8100/readyz`
-   - API gateway metrics: `http://localhost:8100/metrics`
+3. Verify:
+   - Gateway: `http://localhost:8100/health`
    - Orchestrator: `http://localhost:8101/health`
-   - Orchestrator readiness: `http://localhost:8101/readyz`
-   - Orchestrator metrics: `http://localhost:8101/metrics`
    - Dashboard: `http://localhost:8180/health`
    - Mission Control: `http://localhost:3100`
 
-Default host ports are configured in `.env.example` and can be changed in `.env`.
+Default host ports:
 
-## Development commands
+- Gateway: `8100`
+- Orchestrator: `8101`
+- Dashboard: `8180`
+- Mission Control: `3100`
+- Redis: `6380`
+- PostgreSQL: `5433`
+- Qdrant: `6334`
 
-- `make up`: start local stack
-- `make down`: stop stack
-- `make validate`: validate schema JSON files
-- `make test`: run pytest suite with coverage gate (`>=80%` on `services`)
-- `make test-fast`: run pytest suite without coverage reporting
-- `make audit`: run checklist-aligned production audit baseline
-- `make lint`: run ruff checks
-- `make openapi`: export OpenAPI contracts
-- `make predeploy`: run deployment preflight checks
-- `make backup`: create PostgreSQL backup
-- `make dr`: run DR drill script
-- `make perf`: run performance smoke test
-- `make monitor-up`: start Prometheus/Grafana/Loki stack
-- `make monitor-down`: stop monitoring stack
-- `make sweep`: run debug/code sweep script
+## Development Commands
 
-## Security and auth
+Using `make`:
 
-- State mutation endpoint requires `x-api-key` with mutate/admin role:
-  - `POST /v1/missions/{mission_id}/state`
-- Direct orchestrator mission creation is internal-only and requires `x-api-key`:
-  - `POST /missions`
-- Default local keys are configured in `.env.example`:
-  - `admin-key`
-  - `operator-key`
-  - `worker-key`
-  - `viewer-key`
-- Builder preview supports deterministic local mode by default (`LLM_PROVIDER=offline`).
-- To test live LLM preview generation, configure API gateway env values:
-  - `LLM_PROVIDER=openai|anthropic|gemini`
-  - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` as needed
-  - OpenAI thinking controls: `OPENAI_MODEL` (default `gpt-5.3-codex`) and `OPENAI_REASONING_EFFORT`
-  - Anthropic controls: `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`) and `ANTHROPIC_THINKING_MODE`
-  - Gemini controls: `GEMINI_MODEL` (default `gemini-3-flash-preview`), `GEMINI_THINKING_LEVEL`, and `GEMINI_THINKING_BUDGET` (for 2.5 models)
-- Per-agent provider/model recommendations are available at:
-  - `GET /v1/operations/agent-integrations`
+- `make up`: build/start core stack.
+- `make down`: stop stack and remove volumes.
+- `make validate`: validate schema files.
+- `make lint`: run `ruff` on backend/test/scripts.
+- `make test`: run full pytest with global coverage gate (`>= 80%` for `services`).
+- `make test-fast`: run pytest without coverage reporting.
+- `make audit`: run production checklist audit script.
+- `make openapi`: export OpenAPI documents.
+- `make predeploy`: run pre-deploy checks.
+- `make backup`: run PostgreSQL backup script.
+- `make dr`: run DR drill script.
+- `make perf`: run performance smoke script.
+- `make sweep`: run debugging/code sweep script.
+- `make monitor-up` / `make monitor-down`: control monitoring stack.
 
-## Current phase status
+Frontend app commands:
 
-- Phase 1 complete: foundation scaffold + local stack + contracts.
-- Phase 2 complete: intake bus, persistence, lifecycle transitions, protocol envelope validation.
-- Phase 3 complete: pod/audit worker services, specialist routing handoffs, logicnode/knowledge/audit integration.
-- Phase 4 complete: CI + security workflow, auth controls, regression/security/load scaffolds, debug sweep tooling.
-- Phase 5 complete (baseline): runtime hardening (`/readyz`, `/metrics`, mission idempotency, worker reliability hardening).
-- Phase 6 complete (baseline): CI/CD hardening, observability/deploy/DR/perf automation scaffolds.
+- `cd apps/mission-control`
+- `npm install`
+- `npm run dev`
+- `npm run build`
+- `npm run lint`
 
-## Next targets
+## Security, Auth, and Operational Controls
 
-1. Enforce signed release attestations and environment promotion policy in CI.
-2. Add distributed tracing and pager/webhook integrations in observability.
-3. Expand long-duration load qualification and capacity baselines.
+- Mutating mission state requires `x-api-key` with mutate/admin role.
+- Internal orchestrator writes use internal service keys.
+- Mission intake supports `Idempotency-Key` for replay-safe creation semantics.
+- Gateway applies rate limiting and strict security headers.
+- Runtime includes readiness and metrics endpoints.
+- Docker images use non-root runtime users.
+- Production audit automation exists in `scripts/production_review_audit.py`.
 
-## Standards and audit references
+## Provider and Model Governance
 
-- Development standards: `HolyGrail_Development_Standards.docx`
-- Production checklist: `HolyGrail_Production_Review_Checklist.docx`
-- Style guide: `HolyGrail_Style_Guide.docx`
-- In-repo audit report: `docs/PRODUCTION_REVIEW_AUDIT.md`
+Live provider support:
+
+- OpenAI
+- Anthropic
+- Gemini
+- Offline deterministic fallback mode
+
+Provider/model strategy documentation:
+
+- `docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
+
+Persona standards and external evidence mapping:
+
+- `docs/AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
+
+## Documentation Map
+
+Core docs:
+
+- `docs/DOCUMENTATION_INDEX.md`
+- `docs/ARCHITECTURE.md`
+- `docs/ROADMAP.md`
+- `docs/OPERATIONS_RUNBOOK.md`
+- `docs/PRODUCTION_PHASE_PLAN.md`
+- `docs/PRODUCTION_REVIEW_AUDIT.md`
+- `docs/GAP_ANALYSIS.md`
+- `docs/PRODUCTION_STANDARDS_REFERENCES.md`
+
+Agent-specific docs:
+
+- `docs/AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`
+- `docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
+- `docs/AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
+
+## Current Status
+
+- Core phased implementation is complete through production-foundation baseline.
+- Multi-agent telemetry, integrations, and persona standards evidence are active in operations APIs and Mission Control.
+- Remaining maturity work is focused on deeper production hardening (attestation enforcement, tracing, pager integration, long-duration load qualification).
+
+## Notes
+
+- Local Windows mode is supported; the app intentionally does not require a full external user-login system for local operator use.
+- Secrets should remain in `.env` and local vault endpoints; do not commit credentials or provider keys.

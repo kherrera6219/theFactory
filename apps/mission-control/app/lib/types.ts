@@ -137,6 +137,54 @@ export type OperationsAlertRecord = {
 
 export type OperationsAgentState = "IDLE" | "ACTIVE" | "RUNNING" | "VERIFYING" | "ERROR" | "PAUSED";
 
+export type OperationsAgentPersonaProfile = {
+  job_role: {
+    title: string;
+    primary_function: string;
+    scope: string;
+  };
+  education_certifications: string[];
+  traits_skills: string[];
+  methods_procedures: string[];
+  tools: string[];
+  master_instruction: string;
+  protocol: {
+    primary_code: string;
+    primary_name: string;
+    primary_purpose: string;
+    message_format: string;
+    supported_codes: string[];
+    supported_names: string[];
+  };
+  api_configuration: {
+    api_key_env_var: string;
+    api_slot_id: string;
+    context_window_tokens: number;
+    cached_content: string[];
+    model_routing: {
+      provider: string;
+      model: string;
+      [key: string]: unknown;
+    };
+  };
+  standards_alignment: Array<{
+    standard_id: string;
+    framework: string;
+    version: string;
+    role_mapping: string;
+    focus_areas: string[];
+  }>;
+  evidence_sources: Array<{
+    source_id: string;
+    title: string;
+    organization: string;
+    version: string;
+    url: string;
+    last_verified: string;
+    applicability: string;
+  }>;
+};
+
 export type OperationsAgentRecord = {
   index: number;
   agent_id: string;
@@ -152,6 +200,7 @@ export type OperationsAgentRecord = {
   workload_pct: number;
   last_heartbeat_iso: string;
   active_mission_ids: string[];
+  persona_profile: OperationsAgentPersonaProfile;
 };
 
 export type OperationsAgentsSnapshot = {
@@ -187,11 +236,14 @@ export type OperationsAgentIntegrationRecord = {
     model: string;
     [key: string]: unknown;
   };
+  persona_profile: OperationsAgentPersonaProfile;
 };
 
 export type OperationsAgentIntegrationsSnapshot = {
   generated_at: string;
   total_agents: number;
+  persona_profile_framework: string;
+  persona_profile_sections: string[];
   llm_strategy_version: string;
   llm_provider_counts: Record<string, number>;
   llm_model_counts: Record<string, number>;

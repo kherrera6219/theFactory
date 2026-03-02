@@ -40,6 +40,20 @@ Implemented in this phase:
 - Added per-agent LLM provider/model recommendations and thinking profiles:
   - `docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
 
+Also implemented after initial Phase 1 baseline:
+
+- Added full 8-part persona profile generation for all 35 agents:
+  - `services/orchestrator/orchestrator/agent_personas.py`
+- Added standards/evidence extension fields in operations payloads:
+  - `persona_profile.standards_alignment`
+  - `persona_profile.evidence_sources`
+- Added persona metadata fields in integration snapshot:
+  - `persona_profile_framework`
+  - `persona_profile_sections`
+  - `persona_profile_extensions`
+  - `standards_evidence_last_verified`
+- Added frontend rendering in Mission Control agents detail panel for persona + standards evidence.
+
 ## Per-Agent Integration Matrix
 
 Legend:
@@ -85,6 +99,23 @@ Legend:
 | AGENT-33-R | R Specialist | Pod D | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant (reserved) |
 | AGENT-34-JULIA | Julia Specialist | Pod D | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant (reserved) |
 | AGENT-35-MATHEMATICA | Mathematica Specialist | Pod D | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant (reserved) |
+
+## Persona Governance Overlay
+
+All rows above now have a persona layer in runtime API output with:
+
+- job role and scoped responsibilities
+- education and skills profile
+- methods and tool references
+- master instruction and protocol profile
+- API configuration and model routing
+- standards alignment mappings
+- evidence-source links (NIST, OWASP, ISO/IEC)
+
+This governance overlay is machine-readable through:
+
+- `GET /v1/operations/agents`
+- `GET /v1/operations/agent-integrations`
 
 ## Production Standards Recommendations
 

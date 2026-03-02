@@ -4,6 +4,7 @@ from collections import Counter
 from datetime import UTC, datetime
 from typing import Any, Final
 
+from .agent_personas import build_agent_persona_profile
 from .agent_registry import AGENT_REGISTRY, AgentDefinition
 
 _MISSION_STATE_TOPICS: Final[tuple[str, ...]] = (
@@ -291,6 +292,9 @@ def _llm_recommendation_for_agent(agent: AgentDefinition) -> dict[str, Any]:
 
 def build_agent_integration_record(agent: AgentDefinition) -> dict[str, Any]:
     topic_bindings = _topic_bindings_for_agent(agent)
+    protocols = _protocols_for_agent(agent)
+    data_systems = _store_bindings_for_agent(agent)
+    llm_recommendation = _llm_recommendation_for_agent(agent)
     return {
         "index": agent.index,
         "agent_id": agent.agent_id,
@@ -301,13 +305,19 @@ def build_agent_integration_record(agent: AgentDefinition) -> dict[str, Any]:
         "role": agent.role,
         "category": agent.category,
         "specialties": list(agent.specialties),
-        "protocols": _protocols_for_agent(agent),
+        "protocols": protocols,
         "semantic_bus": {
             "publish_topics": topic_bindings["publish"],
             "consume_topics": topic_bindings["consume"],
         },
-        "data_systems": _store_bindings_for_agent(agent),
-        "llm_recommendation": _llm_recommendation_for_agent(agent),
+        "data_systems": data_systems,
+        "llm_recommendation": llm_recommendation,
+        "persona_profile": build_agent_persona_profile(
+            agent,
+            protocols=protocols,
+            llm_recommendation=llm_recommendation,
+            data_systems=data_systems,
+        ),
     }
 
 
@@ -338,6 +348,19 @@ def build_agent_integrations_snapshot() -> dict[str, Any]:
     return {
         "generated_at": datetime.now(UTC).isoformat(),
         "total_agents": len(records),
+        "persona_profile_framework": "8-part-v1",
+        "persona_profile_sections": [
+            "job_role",
+            "education_certifications",
+            "traits_skills",
+            "methods_procedures",
+            "tools",
+            "master_instruction",
+            "protocol",
+            "api_configuration",
+        ],
+        "persona_profile_extensions": ["standards_alignment", "evidence_sources"],
+        "standards_evidence_last_verified": "2026-03-02",
         "protocols": protocols,
         "data_systems": stores,
         "implemented_data_plane": ["redis", "postgresql"],

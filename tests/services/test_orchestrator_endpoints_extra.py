@@ -379,6 +379,35 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert len(payload["agents"]) == 35
     assert payload["runtime"]["consumer_running"] is True
     assert any(record["agent_id"] == "AGENT-01-PM" for record in payload["agents"])
+    persona_sections = {
+        "job_role",
+        "education_certifications",
+        "traits_skills",
+        "methods_procedures",
+        "tools",
+        "master_instruction",
+        "protocol",
+        "api_configuration",
+        "standards_alignment",
+        "evidence_sources",
+    }
+    assert all("persona_profile" in record for record in payload["agents"])
+    assert all(persona_sections.issubset(record["persona_profile"]) for record in payload["agents"])
+    assert len({record["persona_profile"]["master_instruction"] for record in payload["agents"]}) == 35
+    assert all(record["persona_profile"]["standards_alignment"] for record in payload["agents"])
+    assert all(record["persona_profile"]["evidence_sources"] for record in payload["agents"])
+    evidence_urls = [
+        source["url"]
+        for record in payload["agents"]
+        for source in record["persona_profile"]["evidence_sources"]
+    ]
+    assert all(url.startswith("https://") for url in evidence_urls)
+    evidence_orgs = {
+        source["organization"]
+        for record in payload["agents"]
+        for source in record["persona_profile"]["evidence_sources"]
+    }
+    assert {"NIST", "OWASP", "ISO/IEC"}.issubset(evidence_orgs)
 
     events = client.get("/internal/operations/events?limit=5", headers=headers)
     assert events.status_code == 200
@@ -392,6 +421,8 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert integrations.status_code == 200
     integration_payload = integrations.json()
     assert integration_payload["total_agents"] == 35
+    assert integration_payload["persona_profile_framework"] == "8-part-v1"
+    assert "job_role" in integration_payload["persona_profile_sections"]
     assert "redis" in integration_payload["data_systems"]
     assert "postgresql" in integration_payload["data_systems"]
     assert integration_payload["llm_provider_counts"]["openai"] > 0
@@ -399,6 +430,8 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert integration_payload["llm_provider_counts"]["gemini"] > 0
     assert any(record["agent_id"] == "AGENT-01-PM" for record in integration_payload["agents"])
     assert all("llm_recommendation" in record for record in integration_payload["agents"])
+    assert all("persona_profile" in record for record in integration_payload["agents"])
+    assert all("evidence_sources" in record["persona_profile"] for record in integration_payload["agents"])
 
     logicnodes_all = client.get("/internal/operations/logicnodes?limit=5", headers=headers)
     assert logicnodes_all.status_code == 200
