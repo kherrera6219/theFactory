@@ -27,6 +27,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - `docs/DEVELOPER_ONBOARDING_GUIDE.md`
   - `docs/API_INTEGRATION_GUIDE.md`
   - `docs/runbooks/semantic_bus_incident_runbook.md`
+- Core coverage validation utility:
+  - `scripts/check_coverage_thresholds.py`
+- Core agent/runtime test suite expansion:
+  - `tests/services/test_agent_core_unit.py`
+  - targeted branch tests for protocol/runtime, semantic-bus, pod-worker, and audit-worker paths
+- Testing policy documentation:
+  - `docs/TESTING_QUALITY_GATES.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
@@ -34,3 +41,4 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `scripts/debug_sweep.ps1` expanded to validate MCP (`/health`, `/readyz`, `/metrics`) in addition to core services.
 - Worker and MCP shutdown paths hardened for both async and sync Redis client close semantics.
 - `docs/DOCUMENTATION_INDEX.md` updated with new operations/compliance docs.
+- `Makefile` and `.github/workflows/ci.yml` now enforce 100% coverage for core multi-agent communication/runtime modules while preserving global `>= 80%` coverage.

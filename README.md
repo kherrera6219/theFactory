@@ -161,7 +161,7 @@ Using `make`:
 - `make down`: stop stack and remove volumes.
 - `make validate`: validate schema files.
 - `make lint`: run `ruff` on backend/test/scripts.
-- `make test`: run full pytest with global coverage gate (`>= 80%` for `services`).
+- `make test`: run full pytest with global coverage gate (`>= 80%`) plus 100% coverage gates for core multi-agent communication/runtime modules.
 - `make test-fast`: run pytest without coverage reporting.
 - `make audit`: run production checklist audit script.
 - `make openapi`: export OpenAPI documents.
@@ -213,6 +213,7 @@ Core docs:
 
 - `docs/DOCUMENTATION_INDEX.md`
 - `docs/ARCHITECTURE.md`
+- `docs/TESTING_QUALITY_GATES.md`
 - `docs/ROADMAP.md`
 - `docs/OPERATIONS_RUNBOOK.md`
 - `docs/PRODUCTION_PHASE_PLAN.md`
@@ -230,6 +231,7 @@ Agent-specific docs:
 
 - Core phased implementation is complete through production-foundation baseline.
 - Multi-agent telemetry, integrations, and persona standards evidence are active in operations APIs and Mission Control.
+- Core multi-agent communication/runtime files now enforce 100% coverage via CI and `make test`.
 - Remaining maturity work is focused on deeper production hardening (attestation enforcement, tracing, pager integration, long-duration load qualification).
 
 ## Notes

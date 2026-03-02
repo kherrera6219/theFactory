@@ -70,3 +70,62 @@ def test_consumer_keeps_message_unacked_on_runtime_failure(monkeypatch) -> None:
 
     assert app.state.errors == 1
     assert redis_client.acked == []
+
+
+def test_consumer_processes_running_mission_and_acks(monkeypatch) -> None:
+    async def _handle(redis_obj, payload):
+        _ = redis_obj
+        _ = payload
+        return None
+
+    monkeypatch.setattr(pod_worker_main, "_validate_envelope", lambda envelope: None)
+    monkeypatch.setattr(pod_worker_main, "_handle_running_mission", _handle)
+
+    fields = {
+        "envelope": json.dumps({"topic": "cluster.assigned.podA"}),
+        "payload": json.dumps({"event_type": "MISSION_RUNNING", "mission_id": "mission-1"}),
+    }
+    redis_client = FakeWorkerRedis(entries=[("1-0", fields)])
+    app = _build_app(redis_client)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(pod_worker_main._consumer_loop(app))
+
+    assert app.state.processed == 1
+    assert redis_client.acked == ["1-0"]
+
+
+def test_consumer_acks_non_running_events_without_processing(monkeypatch) -> None:
+    monkeypatch.setattr(pod_worker_main, "_validate_envelope", lambda envelope: None)
+    fields = {
+        "envelope": json.dumps({"topic": "cluster.assigned.podA"}),
+        "payload": json.dumps({"event_type": "MISSION_COMPLETE", "mission_id": "mission-1"}),
+    }
+    redis_client = FakeWorkerRedis(entries=[("1-0", fields)])
+    app = _build_app(redis_client)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(pod_worker_main._consumer_loop(app))
+
+    assert app.state.processed == 0
+    assert app.state.errors == 0
+    assert redis_client.acked == ["1-0"]
+
+
+def test_consumer_handles_empty_records_then_cancel(monkeypatch) -> None:
+    monkeypatch.setattr(pod_worker_main, "_validate_envelope", lambda envelope: None)
+
+    class EmptyThenCancelRedis(FakeWorkerRedis):
+        async def xreadgroup(self, **kwargs):
+            self.read_calls += 1
+            if self.read_calls == 1:
+                return []
+            raise asyncio.CancelledError
+
+    redis_client = EmptyThenCancelRedis(entries=[])
+    app = _build_app(redis_client)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(pod_worker_main._consumer_loop(app))
+
+    assert redis_client.acked == []

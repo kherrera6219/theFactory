@@ -26,6 +26,8 @@ CONSUMER_GROUP = os.getenv("POD_WORKER_GROUP", "pod-workers")
 CONSUMER_NAME = os.getenv("POD_WORKER_NAME", f"pod-worker-{uuid.uuid4()}")
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8001")
 SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "worker-key")
+REQUEST_TIMEOUT_SECONDS = float(os.getenv("ORCHESTRATOR_TIMEOUT_SECONDS", "5.0"))
+REQUEST_MAX_RETRIES = int(os.getenv("ORCHESTRATOR_MAX_RETRIES", "3"))
 POD_NAME = os.getenv("POD_NAME", "podA")
 SUPPORTED_LANGUAGES = {
     language.strip().lower()
@@ -178,14 +180,35 @@ async def _request(
     json_body: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
 ) -> httpx.Response:
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        return await client.request(
-            method,
-            f"{ORCHESTRATOR_URL}{path}",
-            json=json_body,
-            params=params,
-            headers={"x-api-key": SERVICE_API_KEY},
-        )
+    if not path.startswith("/"):
+        raise ValueError("request path must start with '/'")
+    request_id = f"pod-{POD_NAME}-{uuid.uuid4()}"
+    last_response: httpx.Response | None = None
+    last_error: Exception | None = None
+
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
+        for attempt in range(1, REQUEST_MAX_RETRIES + 1):
+            try:
+                response = await client.request(
+                    method,
+                    f"{ORCHESTRATOR_URL}{path}",
+                    json=json_body,
+                    params=params,
+                    headers={"x-api-key": SERVICE_API_KEY, "x-request-id": request_id},
+                )
+                last_response = response
+                if response.status_code < 500 and response.status_code != 429:
+                    return response
+            except httpx.HTTPError as exc:
+                last_error = exc
+            if attempt < REQUEST_MAX_RETRIES:
+                await asyncio.sleep(0.1 * attempt)
+
+    if last_response is not None:
+        return last_response
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("request failed without response")
 
 
 async def _has_assignment(mission_id: str) -> bool:

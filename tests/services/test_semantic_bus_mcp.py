@@ -1,7 +1,10 @@
 import asyncio
+import builtins
 import importlib
+import importlib.util
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -166,7 +169,13 @@ def test_parse_datetime_and_recipient_helpers() -> None:
     with pytest.raises(ValueError):
         mcp_main._parse_datetime("2026-03-01T00:00:00")
     assert mcp_main._normalized_recipients(" AGENT-01-PM ") == ["AGENT-01-PM"]
-    assert mcp_main._normalized_recipients(["A", "A", "broadcast"]) == ["A", "broadcast"]
+    assert mcp_main._normalized_recipients(
+        ["AGENT-01-PM", "AGENT-01-PM", "broadcast"]
+    ) == ["AGENT-01-PM", "broadcast"]
+    with pytest.raises(mcp_main.HTTPException):
+        mcp_main._normalized_recipients(["A"])
+    with pytest.raises(mcp_main.HTTPException):
+        mcp_main._normalized_recipients("A")
     with pytest.raises(mcp_main.HTTPException):
         mcp_main._normalized_recipients("   ")
     channels = mcp_main._resolve_channels("alpha", ["broadcast", "AGENT-01-PM"])
@@ -308,3 +317,236 @@ def test_send_message_multi_recipient_route() -> None:
     assert response.status_code == 200
     channels = response.json()["channels"]
     assert "protocol:alpha:broadcast" in channels
+
+
+def test_normalized_recipients_extra_validation_branches(monkeypatch) -> None:
+    with pytest.raises(mcp_main.HTTPException):
+        mcp_main._normalized_recipients([])
+
+    monkeypatch.setattr(mcp_main, "MAX_RECIPIENTS", 1)
+    with pytest.raises(mcp_main.HTTPException):
+        mcp_main._normalized_recipients(["AGENT-01-PM", "AGENT-02-CEO"])
+
+
+def test_write_dlq_no_redis_is_noop() -> None:
+    asyncio.run(mcp_main._write_dlq(None, "alpha", {"sample": True}, "boom"))
+
+
+def test_health_and_readyz_additional_branches() -> None:
+    with TestClient(app) as client:
+        app.state.redis = None
+        app.state.redis_ready = False
+        payload = client.get("/health").json()
+        assert payload["ok"] is False
+
+    class FalseRedis:
+        async def ping(self) -> bool:
+            return False
+
+    with TestClient(app) as client:
+        app.state.redis = FalseRedis()
+        app.state.redis_ready = True
+        response = client.get("/readyz")
+    assert response.status_code == 503
+
+
+def test_metrics_endpoint() -> None:
+    with TestClient(app) as client:
+        response = client.get("/metrics")
+    assert response.status_code == 200
+    assert response.headers["content-type"]
+
+
+def test_send_message_rejects_invalid_sender_id() -> None:
+    payload = _alpha_payload()
+    payload["sender"] = "bad-sender"
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={"x-agent-id": "bad-sender", "x-api-key": "mcp-local-key"},
+            json=payload,
+        )
+    assert response.status_code == 422
+
+
+def test_send_message_request_validation_error() -> None:
+    payload = _alpha_payload()
+    del payload["sender"]
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": "mcp-local-key"},
+            json=payload,
+        )
+    assert response.status_code == 422
+
+
+def test_send_message_protocol_value_error_path(monkeypatch) -> None:
+    payload = _alpha_payload()
+
+    def _raise_value_error(_protocol: str, _payload: dict[str, Any]) -> dict[str, Any]:
+        raise ValueError("unsupported protocol branch")
+
+    monkeypatch.setattr(mcp_main, "_validate_protocol_payload", _raise_value_error)
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": "mcp-local-key"},
+            json=payload,
+        )
+    assert response.status_code == 422
+
+
+def test_lifespan_handles_redis_absent_and_close_paths(monkeypatch) -> None:
+    app_state = SimpleNamespace(state=SimpleNamespace())
+    monkeypatch.setattr(mcp_main, "redis", None)
+
+    async def _run_none():
+        async with mcp_main.lifespan(app_state):
+            assert app_state.state.redis is None
+
+    asyncio.run(_run_none())
+
+    class RedisWithClose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def ping(self) -> bool:
+            return True
+
+        def close(self):
+            async def _close():
+                self.closed = True
+
+            return _close()
+
+    redis_client = RedisWithClose()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    monkeypatch.setattr(mcp_main, "redis", RedisModule)
+    app_state = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run_close():
+        async with mcp_main.lifespan(app_state):
+            pass
+
+    asyncio.run(_run_close())
+    assert redis_client.closed is True
+
+
+def test_lifespan_handles_sync_close(monkeypatch) -> None:
+    class RedisWithSyncClose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def ping(self) -> bool:
+            return True
+
+        def close(self) -> None:
+            self.closed = True
+
+    redis_client = RedisWithSyncClose()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    monkeypatch.setattr(mcp_main, "redis", RedisModule)
+    app_state = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run_close():
+        async with mcp_main.lifespan(app_state):
+            pass
+
+    asyncio.run(_run_close())
+    assert redis_client.closed is True
+
+
+def test_lifespan_handles_aclose(monkeypatch) -> None:
+    class RedisWithAclose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def ping(self) -> bool:
+            return True
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    redis_client = RedisWithAclose()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    monkeypatch.setattr(mcp_main, "redis", RedisModule)
+    app_state = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run():
+        async with mcp_main.lifespan(app_state):
+            pass
+
+    asyncio.run(_run())
+    assert redis_client.closed is True
+
+
+def test_semantic_bus_module_import_fallback_without_redis(monkeypatch) -> None:
+    module_path = ROOT / "services" / "semantic-bus-mcp" / "semantic_bus" / "mcp_server.py"
+    real_import = builtins.__import__
+
+    class _DummyMetric:
+        def labels(self, **_kwargs):
+            return self
+
+        def inc(self):
+            return None
+
+        def observe(self, _value):
+            return None
+
+    def _blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "redis.asyncio":
+            raise ModuleNotFoundError(name)
+        if name == "prometheus_client":
+            def _counter(*_args, **_kwargs):
+                return _DummyMetric()
+
+            def _histogram(*_args, **_kwargs):
+                return _DummyMetric()
+
+            def _generate_latest():
+                return b""
+
+            class _DummyPrometheus:
+                CONTENT_TYPE_LATEST = "text/plain"
+                Counter = staticmethod(_counter)
+                Histogram = staticmethod(_histogram)
+                generate_latest = staticmethod(_generate_latest)
+
+            return _DummyPrometheus
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _blocked_import)
+    spec = importlib.util.spec_from_file_location("semantic_bus.mcp_server_no_redis", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.redis is None
