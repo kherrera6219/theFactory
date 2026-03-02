@@ -1,0 +1,30 @@
+.git
+.github
+.pytest_cache
+.ruff_cache
+coverage.xml
+
+# Python artifacts
+**/__pycache__/
+**/*.py[cod]
+**/*.pyo
+**/*.pyd
+**/.mypy_cache/
+**/.pytest_cache/
+
+# Node artifacts
+**/node_modules/
+**/.next/
+**/npm-debug.log
+**/yarn-error.log
+
+# Local env and OS files
+.env
+.env.*
+!.env.example
+**/.DS_Store
+**/Thumbs.db
+
+# Local backups and generated reports
+backups/
+reports/

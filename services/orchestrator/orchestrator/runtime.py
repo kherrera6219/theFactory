@@ -46,6 +46,7 @@ async def emit_state_event(
         "mission_id": mission.mission_id,
         "state": mission.state.value,
         "event_type": event_type,
+        "requested_target_language": mission.requested_target_language,
         "created_at": mission.created_at,
     }
     await redis_client.xadd(

@@ -42,13 +42,16 @@ jobs:
       - name: Validate schemas
         run: python scripts/validate_schemas.py
 
+      - name: Production Audit (Checklist Baseline)
+        run: python scripts/production_review_audit.py
+
       - name: Lint
         run: ruff check services tests scripts
 
       - name: Test with Coverage
         run: |
           mkdir -p reports
-          pytest --cov=services --cov-report=term-missing --cov-report=xml --junitxml=reports/junit.xml
+          pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80 --junitxml=reports/junit.xml
 
       - name: Upload Test Artifacts
         uses: actions/upload-artifact@v4

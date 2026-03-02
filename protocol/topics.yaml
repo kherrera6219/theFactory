@@ -17,3 +17,5 @@ topics:
   - fusion.requested
   - binary.build.ready
   - incident.runtime.errorlog
+  - agent.heartbeat
+  - agent.state.changed

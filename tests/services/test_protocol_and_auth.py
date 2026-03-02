@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+import json
 import sys
 from pathlib import Path
 
@@ -52,6 +53,11 @@ def _make_settings() -> Settings:
         readonly_api_key="viewer-key",
         extra_api_keys="operator-key=mutate,read",
     )
+
+
+def _with_settings_overrides(**overrides) -> Settings:
+    base = _make_settings()
+    return Settings(**{**base.__dict__, **overrides})
 
 
 def test_gateway_envelope_validation_accepts_valid_contract() -> None:
@@ -125,3 +131,89 @@ def test_auth_dependency_blocks_readonly_for_mutate() -> None:
     dependency = require_roles(settings, {"mutate"})
     with pytest.raises(HTTPException):
         asyncio.run(dependency(x_api_key="viewer-key"))
+
+
+def test_parse_datetime_handles_z_and_requires_timezone() -> None:
+    parsed = orchestrator_protocol._parse_date_time("2026-03-01T00:00:00Z")
+    assert parsed.tzinfo is not None
+
+    with pytest.raises(ValueError):
+        orchestrator_protocol._parse_date_time("2026-03-01T00:00:00")
+
+
+def test_orchestrator_envelope_load_missing_files(tmp_path: Path) -> None:
+    missing_schema = _with_settings_overrides(event_schema_path=tmp_path / "missing-schema.json")
+    with pytest.raises(OrchestratorProtocolError):
+        EnvelopeValidator.load(missing_schema)
+
+    missing_topics = _with_settings_overrides(topics_path=tmp_path / "missing-topics.yaml")
+    with pytest.raises(OrchestratorProtocolError):
+        EnvelopeValidator.load(missing_topics)
+
+
+def test_parse_intake_envelope_paths() -> None:
+    validator = EnvelopeValidator.load(_make_settings())
+
+    built = validator.parse_intake_envelope({}, {"mission_id": "mission-1"})
+    assert built["correlation_id"] == "mission-1"
+    assert built["topic"] == validator.settings.intake_topic
+    assert built["payload_ref"] == "registry://missions/mission-1/intake"
+
+    embedded = {
+        "event_id": "evt-embedded",
+        "topic": validator.settings.intake_topic,
+        "timestamp": "2026-03-01T00:00:00+00:00",
+        "producer": "api-gateway",
+        "correlation_id": "mission-2",
+        "payload_ref": "registry://missions/mission-2/intake",
+        "schema": "missions.intake.v1",
+        "priority": "NORMAL",
+    }
+    parsed = validator.parse_intake_envelope({"envelope": json.dumps(embedded)}, {})
+    assert parsed == embedded
+
+    with pytest.raises(OrchestratorProtocolError):
+        validator.parse_intake_envelope({}, {})
+
+
+def test_orchestrator_envelope_validator_rejects_non_string_field() -> None:
+    validator = EnvelopeValidator.load(_make_settings())
+    envelope = {
+        "event_id": 123,
+        "topic": "intake.feature_contract.created",
+        "timestamp": "2026-03-01T00:00:00+00:00",
+        "producer": "api-gateway",
+        "correlation_id": "mission-1",
+        "payload_ref": "registry://missions/mission-1/intake",
+        "schema": "missions.intake.v1",
+        "priority": "NORMAL",
+    }
+    with pytest.raises(OrchestratorProtocolError):
+        validator.validate(envelope)
+
+
+def test_settings_roles_and_state_topics(monkeypatch) -> None:
+    settings = _with_settings_overrides(
+        admin_api_key="",
+        internal_service_api_key="",
+        readonly_api_key="",
+        extra_api_keys="invalid;operator-key=mutate,read;blank-key=;",
+    )
+    assert settings.api_key_roles == {"operator-key": {"mutate", "read"}}
+
+    monkeypatch.setenv("STATE_TOPIC_RUNNING", "topic.running")
+    monkeypatch.setenv("STATE_TOPIC_VERIFIED", "topic.verified")
+    monkeypatch.setenv("STATE_TOPIC_COMPLETE", "topic.complete")
+    monkeypatch.setenv("STATE_TOPIC_FAILED", "topic.failed")
+    monkeypatch.setenv("STATE_TOPIC_QUEUED", "topic.queued")
+
+    assert settings.topic_for_state("RUNNING") == "topic.running"
+    assert settings.topic_for_state("VERIFIED") == "topic.verified"
+    assert settings.topic_for_state("COMPLETE") == "topic.complete"
+    assert settings.topic_for_state("FAILED") == "topic.failed"
+    assert settings.topic_for_state("UNKNOWN") == "topic.queued"
+
+
+def test_settings_as_bool_none_defaults() -> None:
+    assert orchestrator_settings._as_bool(None, True) is True
+    assert orchestrator_settings._as_bool(None, False) is False

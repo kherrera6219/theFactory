@@ -1,0 +1,350 @@
+from __future__ import annotations
+
+from collections import Counter
+from datetime import UTC, datetime
+from typing import Any, Final
+
+from .agent_registry import AGENT_REGISTRY, AgentDefinition
+
+_MISSION_STATE_TOPICS: Final[tuple[str, ...]] = (
+    "mission.state.queued",
+    "mission.state.running",
+    "mission.state.verified",
+    "mission.state.complete",
+    "mission.state.failed",
+)
+_POD_TOPICS: Final[dict[str, str]] = {
+    "poda": "cluster.assigned.podA",
+    "podb": "cluster.assigned.podB",
+    "podc": "cluster.assigned.podC",
+    "podd": "cluster.assigned.podD",
+}
+_LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
+    "openai_exec": {
+        "provider": "openai",
+        "model": "gpt-5.2-pro",
+        "mode": "thinking",
+        "reasoning_effort": "high",
+        "reason": "Best fit for deep orchestration and multi-step planning.",
+    },
+    "openai_instant_ops": {
+        "provider": "openai",
+        "model": "gpt-5.2",
+        "mode": "thinking",
+        "reasoning_effort": "low",
+        "reason": (
+            "Stable low-latency profile for high-frequency "
+            "operational math and budgeting flows."
+        ),
+    },
+    "openai_codegen": {
+        "provider": "openai",
+        "model": "gpt-5.3-codex",
+        "mode": "thinking",
+        "reasoning_effort": "xhigh",
+        "reason": "Best fit for long-horizon coding and agentic code changes.",
+    },
+    "anthropic_deep_audit": {
+        "provider": "anthropic",
+        "model": "claude-opus-4-6",
+        "mode": "thinking",
+        "thinking_mode": "adaptive",
+        "reason": "Highest-quality analysis for policy, security, and correctness audits.",
+    },
+    "anthropic_general_audit": {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "mode": "thinking",
+        "thinking_mode": "enabled",
+        "thinking_budget_tokens": 8192,
+        "reason": "Strong quality with better latency/cost for routine validation.",
+    },
+    "gemini_ops_fast": {
+        "provider": "gemini",
+        "model": "gemini-3-flash-preview",
+        "mode": "thinking",
+        "thinking_level": "low",
+        "fallback_provider": "openai",
+        "fallback_model": "gpt-5.2",
+        "reason": "Best throughput profile for high-volume operational and routing traffic.",
+    },
+    "gemini_ops_balanced": {
+        "provider": "gemini",
+        "model": "gemini-3-flash-preview",
+        "mode": "thinking",
+        "thinking_level": "medium",
+        "fallback_provider": "openai",
+        "fallback_model": "gpt-5.2",
+        "reason": "Balanced quality/speed for delivery and release coordination.",
+    },
+    "gemini_stem": {
+        "provider": "gemini",
+        "model": "gemini-3.1-pro-preview",
+        "mode": "thinking",
+        "thinking_level": "high",
+        "fallback_provider": "openai",
+        "fallback_model": "gpt-5.2-pro",
+        "reason": "Best for deepest technical and mathematical reasoning workloads.",
+    },
+    "gemini_knowledge": {
+        "provider": "gemini",
+        "model": "gemini-3.1-pro-preview",
+        "mode": "thinking",
+        "thinking_level": "high",
+        "fallback_provider": "anthropic",
+        "fallback_model": "claude-sonnet-4-6",
+        "reason": "Best fit for large-context knowledge indexing, retrieval, and synthesis tasks.",
+    },
+}
+_AGENT_LLM_PROFILE_MAP: Final[dict[str, str]] = {
+    "AGENT-01-PM": "anthropic_general_audit",
+    "AGENT-02-CEO": "openai_exec",
+    "AGENT-03-BROKER": "gemini_ops_fast",
+    "AGENT-04-ACCOUNTANT": "openai_instant_ops",
+    "AGENT-05-SECURITY": "anthropic_deep_audit",
+    "AGENT-06-IS": "gemini_knowledge",
+    "AGENT-07-VC": "openai_codegen",
+    "AGENT-08-COMPLIANCE": "anthropic_deep_audit",
+    "AGENT-09-HW": "gemini_stem",
+    "AGENT-10-TESTER": "anthropic_deep_audit",
+    "AGENT-11-DEPLOY": "gemini_ops_balanced",
+    "AGENT-12-PODA-MGR": "openai_exec",
+    "AGENT-13-PODA-AUDIT": "anthropic_general_audit",
+    "AGENT-14-PYTHON": "openai_codegen",
+    "AGENT-15-JAVASCRIPT": "openai_codegen",
+    "AGENT-16-RUBY": "openai_codegen",
+    "AGENT-17-PHP": "openai_codegen",
+    "AGENT-18-PODB-MGR": "openai_exec",
+    "AGENT-19-PODB-AUDIT": "anthropic_general_audit",
+    "AGENT-20-C": "openai_codegen",
+    "AGENT-21-CPP": "openai_codegen",
+    "AGENT-22-RUST": "openai_codegen",
+    "AGENT-23-ZIG": "openai_codegen",
+    "AGENT-24-PODC-MGR": "openai_exec",
+    "AGENT-25-PODC-AUDIT": "anthropic_general_audit",
+    "AGENT-26-JAVA": "anthropic_general_audit",
+    "AGENT-27-CSHARP": "anthropic_general_audit",
+    "AGENT-28-SCALA": "anthropic_general_audit",
+    "AGENT-29-KOTLIN": "anthropic_general_audit",
+    "AGENT-30-PODD-MGR": "gemini_stem",
+    "AGENT-31-PODD-AUDIT": "anthropic_deep_audit",
+    "AGENT-32-MATLAB": "gemini_stem",
+    "AGENT-33-R": "gemini_stem",
+    "AGENT-34-JULIA": "gemini_stem",
+    "AGENT-35-MATHEMATICA": "gemini_stem",
+}
+
+
+def _normalize_pod_key(value: str) -> str:
+    return value.strip().lower().replace(" ", "")
+
+
+def _pod_topic(agent: AgentDefinition) -> str | None:
+    return _POD_TOPICS.get(_normalize_pod_key(agent.pod))
+
+
+def _protocols_for_agent(agent: AgentDefinition) -> list[str]:
+    if agent.category == "interface":
+        return ["alpha", "omega", "rho"]
+    if agent.category == "executive":
+        return ["alpha", "beta", "delta", "omega", "rho", "sigma"]
+    if agent.category == "support":
+        if agent.short_code == "BROKER":
+            return ["omega", "rho"]
+        if agent.short_code == "IS":
+            return ["omega", "rho", "sigma"]
+        return ["omega", "rho", "sigma"]
+    if agent.category == "pod_manager":
+        return ["alpha", "beta", "delta", "rho"]
+    if agent.category == "pod_audit":
+        return ["delta", "sigma", "rho"]
+    if agent.category == "specialist":
+        return ["beta", "delta", "sigma", "rho"]
+    return ["rho"]
+
+
+def _topic_bindings_for_agent(agent: AgentDefinition) -> dict[str, list[str]]:
+    consume: set[str] = set()
+    publish: set[str] = {"agent.heartbeat", "agent.state.changed"}
+    pod_topic = _pod_topic(agent)
+
+    if agent.category == "interface":
+        consume.update(_MISSION_STATE_TOPICS)
+    elif agent.category == "executive":
+        consume.update(_MISSION_STATE_TOPICS)
+        consume.update({"artifact.rir.verified", "artifact.rir.rejected", "pod.standard.ready"})
+        publish.update(
+            {
+                "fusion.requested",
+                "cluster.assigned.podA",
+                "cluster.assigned.podB",
+                "cluster.assigned.podC",
+                "cluster.assigned.podD",
+            }
+        )
+    elif agent.category == "support":
+        consume.update(_MISSION_STATE_TOPICS)
+        if agent.short_code == "BROKER":
+            publish.add("incident.runtime.errorlog")
+        elif agent.short_code == "TESTER":
+            consume.update(
+                {"artifact.rir.verified", "artifact.rir.rejected", "mission.state.verified"}
+            )
+            publish.add("incident.runtime.errorlog")
+        elif agent.short_code == "DEPLOY":
+            consume.update({"mission.state.complete", "pod.standard.ready"})
+            publish.add("binary.build.ready")
+        elif agent.short_code == "HW":
+            consume.add("cluster.assigned.podB")
+        elif agent.short_code == "IS":
+            consume.update({"artifact.rir.verified", "pod.standard.ready"})
+    elif agent.category == "pod_manager":
+        if pod_topic:
+            consume.add(pod_topic)
+        consume.update({"artifact.rir.verified", "artifact.rir.rejected"})
+        publish.update({"fusion.requested", "pod.standard.ready"})
+    elif agent.category == "pod_audit":
+        if pod_topic:
+            consume.add(pod_topic)
+        consume.add("artifact.rir.submitted")
+        publish.update({"artifact.rir.verified", "artifact.rir.rejected"})
+    elif agent.category == "specialist":
+        if pod_topic:
+            consume.add(pod_topic)
+        consume.add("mission.state.running")
+        publish.add("artifact.rir.submitted")
+
+    return {
+        "publish": sorted(publish),
+        "consume": sorted(consume),
+    }
+
+
+def _store_bindings_for_agent(agent: AgentDefinition) -> list[dict[str, Any]]:
+    stores: list[dict[str, Any]] = [
+        {
+            "name": "redis",
+            "status": "implemented",
+            "usage": [
+                "semantic bus pub/sub and stream transport",
+                "idempotency/cache primitives",
+            ],
+        },
+        {
+            "name": "postgresql",
+            "status": "implemented",
+            "usage": [
+                "mission state and event timeline",
+                "agent telemetry and operational records",
+            ],
+        },
+    ]
+
+    if agent.category in {"specialist", "pod_manager", "pod_audit"} or agent.short_code == "IS":
+        stores.append(
+            {
+                "name": "qdrant",
+                "status": "reserved",
+                "usage": [
+                    "vector-backed knowledge retrieval for refinement and validation",
+                ],
+            }
+        )
+
+    if agent.short_code in {"IS", "SECURITY", "COMPLIANCE"} or agent.category == "pod_audit":
+        stores.append(
+            {
+                "name": "neo4j",
+                "status": "planned_optional",
+                "usage": [
+                    "knowledge graph traversal",
+                    "compliance and provenance relationship analysis",
+                ],
+            }
+        )
+
+    if agent.short_code in {"VC", "DEPLOY", "TESTER"} or agent.category in {
+        "pod_manager",
+        "pod_audit",
+    }:
+        stores.append(
+            {
+                "name": "object_storage",
+                "status": "planned",
+                "usage": [
+                    "large artifact retention for binaries, bundles, and audit evidence",
+                ],
+            }
+        )
+
+    return stores
+
+
+def _llm_recommendation_for_agent(agent: AgentDefinition) -> dict[str, Any]:
+    profile_key = _AGENT_LLM_PROFILE_MAP.get(agent.agent_id, "openai_exec")
+    profile = _LLM_PROFILES.get(profile_key, _LLM_PROFILES["openai_exec"])
+    recommendation = dict(profile)
+    recommendation["profile"] = profile_key
+    recommendation["rank"] = "primary"
+    return recommendation
+
+
+def build_agent_integration_record(agent: AgentDefinition) -> dict[str, Any]:
+    topic_bindings = _topic_bindings_for_agent(agent)
+    return {
+        "index": agent.index,
+        "agent_id": agent.agent_id,
+        "short_code": agent.short_code,
+        "name": agent.name,
+        "tier": agent.tier,
+        "pod": agent.pod,
+        "role": agent.role,
+        "category": agent.category,
+        "specialties": list(agent.specialties),
+        "protocols": _protocols_for_agent(agent),
+        "semantic_bus": {
+            "publish_topics": topic_bindings["publish"],
+            "consume_topics": topic_bindings["consume"],
+        },
+        "data_systems": _store_bindings_for_agent(agent),
+        "llm_recommendation": _llm_recommendation_for_agent(agent),
+    }
+
+
+def build_agent_integrations_snapshot() -> dict[str, Any]:
+    records = [build_agent_integration_record(agent) for agent in AGENT_REGISTRY]
+    protocols = sorted({protocol for record in records for protocol in record["protocols"]})
+    stores = sorted(
+        {
+            store["name"]
+            for record in records
+            for store in record["data_systems"]
+            if isinstance(store, dict) and isinstance(store.get("name"), str)
+        }
+    )
+    provider_counts: Counter[str] = Counter()
+    model_counts: Counter[str] = Counter()
+    for record in records:
+        recommendation = record.get("llm_recommendation")
+        if not isinstance(recommendation, dict):
+            continue
+        provider = recommendation.get("provider")
+        model = recommendation.get("model")
+        if isinstance(provider, str) and provider:
+            provider_counts[provider] += 1
+        if isinstance(model, str) and model:
+            model_counts[model] += 1
+
+    return {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "total_agents": len(records),
+        "protocols": protocols,
+        "data_systems": stores,
+        "implemented_data_plane": ["redis", "postgresql"],
+        "reserved_data_plane": ["qdrant"],
+        "planned_data_plane": ["neo4j", "object_storage"],
+        "llm_strategy_version": "2026-03-02",
+        "llm_provider_counts": dict(sorted(provider_counts.items())),
+        "llm_model_counts": dict(sorted(model_counts.items())),
+        "agents": records,
+    }
