@@ -36,7 +36,7 @@ Data and event plane:
 - PostgreSQL: missions, events, pod assignments, logicnodes, knowledge, audits, agent heartbeats.
 - Qdrant: active knowledge retrieval/index path with PostgreSQL fallback.
 - Neo4j: optional feature-flagged graph adapter for relationship-heavy mission knowledge/audit queries.
-- Object storage: planned optional expansion path for immutable large-artifact retention.
+- Object storage: optional feature-flagged adapter for immutable large-artifact retention.
 
 ## 35-Agent Runtime Model
 
@@ -76,6 +76,7 @@ Gateway (`http://localhost:8100` by default):
 - `GET /v1/missions/{mission_id}`
 - `GET /v1/missions/{mission_id}/events`
 - `GET /v1/missions/{mission_id}/knowledge-graph`
+- `GET /v1/missions/{mission_id}/audit-artifacts`
 - `POST /v1/missions/{mission_id}/state`
 - `GET /v1/operations/summary`
 - `GET /v1/operations/agents`

@@ -40,6 +40,18 @@ class Settings:
     neo4j_password: str = ""
     neo4j_database: str = "neo4j"
     neo4j_timeout_seconds: float = 3.0
+    object_storage_enabled: bool = False
+    object_storage_endpoint: str = "http://minio:9000"
+    object_storage_access_key: str = ""
+    object_storage_secret_key: str = ""
+    object_storage_bucket: str = "mission-audit-artifacts"
+    object_storage_prefix: str = "missions"
+    object_storage_region: str = "us-east-1"
+    object_storage_timeout_seconds: float = 5.0
+    object_storage_retention_days: int = 90
+    object_storage_legal_hold_on_fail: bool = True
+    object_storage_force_path_style: bool = True
+    object_storage_require_tls: bool = False
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -93,6 +105,9 @@ def load_settings() -> Settings:
         qdrant_url=os.getenv("QDRANT_URL", "http://qdrant:6333"),
         qdrant_api_key=os.getenv("QDRANT_API_KEY", ""),
         neo4j_url=os.getenv("NEO4J_URL", "http://neo4j:7474"),
+        object_storage_endpoint=os.getenv("OBJECT_STORAGE_ENDPOINT", "http://minio:9000"),
+        object_storage_access_key=os.getenv("OBJECT_STORAGE_ACCESS_KEY", ""),
+        object_storage_secret_key=os.getenv("OBJECT_STORAGE_SECRET_KEY", ""),
         intake_stream=os.getenv("INTAKE_STREAM", "missions.intake"),
         state_stream=os.getenv("STATE_STREAM", "missions.state"),
         max_stream_len=int(os.getenv("MAX_STREAM_LEN", "20000")),
@@ -125,4 +140,26 @@ def load_settings() -> Settings:
         neo4j_password=os.getenv("NEO4J_PASSWORD", ""),
         neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j",
         neo4j_timeout_seconds=max(0.5, float(os.getenv("NEO4J_TIMEOUT_SECONDS", "3.0"))),
+        object_storage_enabled=_as_bool(os.getenv("OBJECT_STORAGE_ENABLED", "false"), False)
+        and bool(os.getenv("OBJECT_STORAGE_ENDPOINT", "http://minio:9000").strip()),
+        object_storage_bucket=os.getenv("OBJECT_STORAGE_BUCKET", "mission-audit-artifacts").strip()
+        or "mission-audit-artifacts",
+        object_storage_prefix=os.getenv("OBJECT_STORAGE_PREFIX", "missions").strip() or "missions",
+        object_storage_region=os.getenv("OBJECT_STORAGE_REGION", "us-east-1").strip()
+        or "us-east-1",
+        object_storage_timeout_seconds=max(
+            1.0, float(os.getenv("OBJECT_STORAGE_TIMEOUT_SECONDS", "5.0"))
+        ),
+        object_storage_retention_days=max(
+            1, int(os.getenv("OBJECT_STORAGE_RETENTION_DAYS", "90"))
+        ),
+        object_storage_legal_hold_on_fail=_as_bool(
+            os.getenv("OBJECT_STORAGE_LEGAL_HOLD_ON_FAIL", "true"), True
+        ),
+        object_storage_force_path_style=_as_bool(
+            os.getenv("OBJECT_STORAGE_FORCE_PATH_STYLE", "true"), True
+        ),
+        object_storage_require_tls=_as_bool(
+            os.getenv("OBJECT_STORAGE_REQUIRE_TLS", "false"), False
+        ),
     )

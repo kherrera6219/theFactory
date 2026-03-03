@@ -171,6 +171,27 @@ Last updated: 2026-03-03
   - updated endpoint and gateway contract tests.
 - Status: Complete (baseline, 2026-03-03).
 
+## Phase 18: Object-Storage Retention and Legal-Hold Adapter
+
+- Added feature-flagged object-storage adapter:
+  - `services/orchestrator/orchestrator/object_store.py`
+- Added immutable audit artifact mirroring path:
+  - `POST /internal/audit-reports` now mirrors audit report JSON into object storage when enabled.
+- Added retention/legal-hold controls:
+  - retention-until metadata derived from `OBJECT_STORAGE_RETENTION_DAYS`
+  - legal-hold policy activated for failed/rejected audit states when enabled
+  - fallback write behavior for buckets without object-lock support
+- Added artifact retrieval APIs:
+  - `GET /internal/missions/{mission_id}/audit-artifacts`
+  - `GET /v1/missions/{mission_id}/audit-artifacts`
+- Added compose/env and dependency support:
+  - object-storage `OBJECT_STORAGE_*` controls in `.env.example` and compose
+  - `boto3` dependency in orchestrator requirements
+- Added regression coverage:
+  - `tests/services/test_object_store_unit.py`
+  - updated endpoint/gateway regression tests
+- Status: Complete (baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
-1. Optional expansion track: introduce object-storage adapter with retention/legal-hold controls when immutable large-artifact demand exceeds current evidence storage model.
+1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.

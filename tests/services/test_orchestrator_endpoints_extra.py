@@ -107,7 +107,11 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     monkeypatch.setattr(
         app.state,
         "settings",
-        replace(app.state.settings, neo4j_enabled=True),
+        replace(
+            app.state.settings,
+            neo4j_enabled=True,
+            object_storage_enabled=True,
+        ),
         raising=False,
     )
 
@@ -148,6 +152,7 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     qdrant_upserts: list[tuple[object, ...]] = []
     neo4j_knowledge_upserts: list[tuple[object, ...]] = []
     neo4j_audit_upserts: list[tuple[object, ...]] = []
+    object_storage_writes: list[tuple[object, ...]] = []
     monkeypatch.setattr(
         orchestrator_main.qdrant_store,
         "upsert_knowledge",
@@ -169,6 +174,11 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         lambda *args: neo4j_audit_upserts.append(args),
     )
     monkeypatch.setattr(
+        orchestrator_main.object_store,
+        "put_audit_report",
+        lambda *args: object_storage_writes.append(args),
+    )
+    monkeypatch.setattr(
         orchestrator_main.neo4j_store,
         "list_mission_graph",
         lambda *_: [
@@ -176,6 +186,20 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
                 "relation_type": "HAS_KNOWLEDGE",
                 "target_labels": ["Knowledge"],
                 "target_properties": {"knowledge_id": "k-1"},
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        orchestrator_main.object_store,
+        "list_audit_artifacts",
+        lambda *_: [
+            {
+                "bucket": "mission-audit-artifacts",
+                "key": "missions/mission-1/audit-reports/a-1.json",
+                "size_bytes": 123,
+                "etag": "etag123",
+                "last_modified": "2026-03-03T00:00:00+00:00",
+                "url": "http://minio:9000/mission-audit-artifacts/missions/mission-1/audit-reports/a-1.json",
             }
         ],
     )
@@ -272,6 +296,7 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         == 200
     )
     assert neo4j_audit_upserts
+    assert object_storage_writes
     assert (
         client.get(
             "/internal/missions/mission-1/audit-reports?limit=5",
@@ -279,6 +304,12 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         ).status_code
         == 200
     )
+    artifacts_response = client.get(
+        "/internal/missions/mission-1/audit-artifacts?limit=5",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert artifacts_response.status_code == 200
+    assert artifacts_response.json()[0]["key"].endswith("/a-1.json")
     assert (
         client.post(
             "/internal/agents/heartbeat",
@@ -500,8 +531,8 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert "qdrant" in integration_payload["implemented_data_plane"]
     assert integration_payload["reserved_data_plane"] == []
     assert "neo4j" in integration_payload["feature_flagged_data_plane"]
-    assert "neo4j" not in integration_payload["planned_data_plane"]
-    assert "object_storage" in integration_payload["planned_data_plane"]
+    assert "object_storage" in integration_payload["feature_flagged_data_plane"]
+    assert integration_payload["planned_data_plane"] == []
     assert integration_payload["llm_provider_counts"]["openai"] > 0
     assert integration_payload["llm_provider_counts"]["anthropic"] > 0
     assert integration_payload["llm_provider_counts"]["gemini"] > 0

@@ -75,6 +75,6 @@ Phase 14 status (2026-03-03): published explicit disposition matrix in `docs/LEG
 ## Exit Criteria
 - [x] All P0 acceptance criteria passed and documented.
 - [x] At least 80% service coverage maintained with critical-module thresholds intact.
-Current verified baseline (2026-03-03): 86.75% global coverage, all required 100% module thresholds passing.
+Current verified baseline (2026-03-03): 84.95% global coverage, all required 100% module thresholds passing.
 - [x] Mission Control has automated regression protection for core operator journeys.
 - [x] Updated audit report confirms no remaining critical production blockers.
