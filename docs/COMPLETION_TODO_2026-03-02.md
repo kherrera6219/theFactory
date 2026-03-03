@@ -4,9 +4,10 @@
 Reach a defensible **100% production-ready** state based on current canonical documentation and implementation audit.
 
 ## P0 - Production Readiness Blockers
-- [ ] Enforce signed release attestations and promotion gates in CI/CD.
+- [x] Enforce signed release attestations and promotion gates in CI/CD.
 Acceptance: release artifacts are signed, attested, and promotion is blocked without verification.
 Evidence targets: `docs/GAP_ANALYSIS.md`, `docs/PRODUCTION_PHASE_PLAN.md`, `docs/PRODUCTION_REVIEW_AUDIT.md`.
+Phase 7 status (2026-03-03): CI release-trust job now generates/verifies provenance attestation and enforces fail-closed promotion policy.
 
 - [ ] Implement end-to-end distributed tracing plus alert-to-pager/on-call routing.
 Acceptance: traces correlate gateway/orchestrator/workers, alert routes are tested, and runbooks updated.

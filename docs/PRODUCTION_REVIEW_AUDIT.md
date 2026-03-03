@@ -1,6 +1,6 @@
 # Production Review Audit
 
-Last updated: 2026-03-02
+Last updated: 2026-03-03
 
 ## Scope
 
@@ -59,6 +59,11 @@ Last updated: 2026-03-02
 10. Regression validation:
     - Expanded tests to assert persona schema presence, standards/evidence integrity, and authoritative organization coverage.
 
+11. Release trust controls:
+   - Added CI release-trust pipeline for provenance attestation and verification.
+   - Added fail-closed promotion policy and scripted gate evaluation.
+   - Added audit control `REL-001` in `scripts/production_review_audit.py`.
+
 ## Evidence Artifacts
 
 - `docs/AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
@@ -75,7 +80,6 @@ Last updated: 2026-03-02
 ## Remaining Gaps (Architectural / Not Fully Automated Yet)
 
 - End-to-end 35-agent distributed execution with production traffic replay and formal SLO certification.
-- Signed release attestation enforcement and gated promotion policy in CI/CD.
 - Full tracing + on-call paging integration.
 - Long-duration load and resilience qualification under sustained concurrency.
 - Formalized architecture reconciliation for optional Neo4j/object-storage activation pathways.

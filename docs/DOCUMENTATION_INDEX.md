@@ -1,6 +1,6 @@
 # Documentation Index
 
-Last updated: 2026-03-02
+Last updated: 2026-03-03
 
 This index maps the in-repo documentation set for theFactory and reflects the current implementation baseline.
 
@@ -18,6 +18,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `DEPLOYMENT_DR_PLAYBOOK.md`: deployment + disaster recovery operational playbook.
 - `TESTING_QUALITY_GATES.md`: enforced lint/test/coverage policy including core 100% module gates.
 - `PRODUCTION_REVIEW_AUDIT.md`: checklist-aligned production audit updates and outcomes.
+- `RELEASE_TRUST_PROMOTION_GATE.md`: CI attestation, promotion policy, and release-trust evidence flow.
 - `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
 - `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.
 

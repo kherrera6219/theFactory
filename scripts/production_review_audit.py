@@ -169,10 +169,11 @@ def check_operational_docs() -> AuditResult:
 def check_mission_control_typescript_strict() -> AuditResult:
     tsconfig = _read_text(REPO_ROOT / "apps" / "mission-control" / "tsconfig.json")
     page_tsx = REPO_ROOT / "apps" / "mission-control" / "app" / "page.tsx"
+    shell_page_tsx = REPO_ROOT / "apps" / "mission-control" / "app" / "(shell)" / "page.tsx"
     layout_tsx = REPO_ROOT / "apps" / "mission-control" / "app" / "layout.tsx"
     passed = (
         '"strict": true' in tsconfig
-        and page_tsx.exists()
+        and (page_tsx.exists() or shell_page_tsx.exists())
         and layout_tsx.exists()
         and not (REPO_ROOT / "apps" / "mission-control" / "app" / "page.jsx").exists()
     )
@@ -202,6 +203,31 @@ def check_design_tokens() -> AuditResult:
     )
 
 
+def check_release_trust_controls() -> AuditResult:
+    ci_text = _read_text(REPO_ROOT / ".github" / "workflows" / "ci.yml").lower()
+    policy_path = REPO_ROOT / "deploy" / "promotion-policy.json"
+    required_tokens = [
+        "attest-build-provenance",
+        "gh attestation verify",
+        "promotion_gate.py",
+        "promotion-policy.json",
+    ]
+    missing_tokens = [token for token in required_tokens if token not in ci_text]
+    missing_items: list[str] = []
+    if missing_tokens:
+        missing_items.append("workflow tokens missing: " + ", ".join(missing_tokens))
+    if not policy_path.exists():
+        missing_items.append(f"missing policy file: {policy_path}")
+    passed = not missing_items
+    return _result(
+        check_id="REL-001",
+        priority="CRITICAL",
+        description="Release attestation and promotion-gate controls are configured",
+        passed=passed,
+        notes="; ".join(missing_items) if missing_items else "release trust controls present",
+    )
+
+
 def run_audit() -> list[AuditResult]:
     return [
         check_coverage_gate(),
@@ -212,6 +238,7 @@ def run_audit() -> list[AuditResult]:
         check_operational_docs(),
         check_mission_control_typescript_strict(),
         check_design_tokens(),
+        check_release_trust_controls(),
     ]
 
 

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "fail_closed": true,
+  "allowed_ref_patterns": [
+    "^refs/heads/main$",
+    "^refs/tags/v\\d+\\.\\d+\\.\\d+(?:[-+].*)?$"
+  ],
+  "requirements": {
+    "ci_status": "success",
+    "attestation_verified": true
+  }
+}

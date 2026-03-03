@@ -1,6 +1,6 @@
 # Build Roadmap
 
-Last updated: 2026-03-02
+Last updated: 2026-03-03
 
 ## Phase 1: Foundation
 
@@ -61,9 +61,15 @@ Last updated: 2026-03-02
   - ISO/IEC 42001:2023
 - Status: Complete (2026-03-02).
 
+## Phase 8: Release Trust and Promotion Controls
+
+- Signed release-manifest attestation generation and verification in CI.
+- Fail-closed promotion policy enforcement for `main` and semantic version tags.
+- Promotion decision artifacts generated for auditability.
+- Status: Complete (baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
-1. Enforce signed release attestations and artifact promotion policy in CI gates.
-2. Add distributed tracing with alert-to-pager integration.
-3. Activate Qdrant in active retrieval paths and define SLOs.
-4. Validate long-duration load profiles and formalize capacity thresholds.
+1. Add distributed tracing with alert-to-pager integration.
+2. Activate Qdrant in active retrieval paths and define SLOs.
+3. Validate long-duration load profiles and formalize capacity thresholds.

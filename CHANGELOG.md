@@ -14,6 +14,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Mission Control frontend unit test baseline:
   - Vitest + jsdom test tooling in `apps/mission-control`
   - initial API client tests in `apps/mission-control/app/lib/api-client.test.ts`
+- Release trust and promotion controls:
+  - promotion policy in `deploy/promotion-policy.json`
+  - policy evaluator in `scripts/promotion_gate.py`
+  - CI release-trust job with provenance attestation and verification
+  - release trust documentation in `docs/RELEASE_TRUST_PROMOTION_GATE.md`
 - Semantic Bus MCP service (`services/semantic-bus-mcp`) with:
   - six-protocol payload validation (alpha/beta/delta/sigma/omega/rho)
   - `/send`, `/health`, `/readyz`, `/metrics`, and `/dlq` endpoints
@@ -56,3 +61,6 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `README.md` now explicitly distinguishes Mission Control Docker host port (`3100`) from direct Next.js dev port (`3000`).
 - Added operational script unit tests in `tests/scripts/test_production_review_audit.py`.
 - Added performance-smoke script unit tests in `tests/scripts/test_perf_smoke.py`.
+- Added promotion gate unit tests in `tests/scripts/test_promotion_gate.py`.
+- `scripts/production_review_audit.py` now includes critical check `REL-001` for release trust controls.
+- `Makefile` now exposes `make promotion-gate` for local policy evaluation.
