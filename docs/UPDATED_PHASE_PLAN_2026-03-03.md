@@ -72,6 +72,17 @@ Exit Criteria:
 - Optional setup path is idempotent at app runtime level.
 - Global coverage and required core-module thresholds continue passing.
 
+## Phase 25 - Word-Doc Requirement Reconciliation
+Scope:
+- Audit all in-repo Word documents and map requirements to the canonical implementation baseline.
+- Publish a reconciled TODO/backlog with explicit priority and measurable acceptance criteria.
+- Add runtime visibility fields for LangGraph mode in operations/health surfaces for operator diagnostics.
+
+Exit Criteria:
+- Audit report and updated TODO are published in `docs/`.
+- LangGraph runtime mode is visible in health/readiness/operations payloads.
+- Regression tests and quality gates pass.
+
 ## Validation Protocol (applies after each phase)
 1. `python -m ruff check services tests scripts`
 2. `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`
@@ -87,3 +98,4 @@ Exit Criteria:
 4. Phase 22
 5. Phase 23
 6. Phase 24
+7. Phase 25

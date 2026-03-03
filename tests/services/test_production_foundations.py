@@ -621,6 +621,8 @@ def test_orchestrator_readyz_reports_ready(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["ready"] is True
+    assert response.json()["langgraph_enabled"] is False
+    assert response.json()["langgraph_checkpointer"] == "none"
 
 
 def test_orchestrator_readyz_returns_503_when_consumer_not_running(monkeypatch) -> None:
@@ -638,3 +640,5 @@ def test_orchestrator_readyz_returns_503_when_consumer_not_running(monkeypatch) 
 
     assert response.status_code == 503
     assert response.json()["detail"]["consumer_running"] is False
+    assert response.json()["detail"]["langgraph_enabled"] is False
+    assert response.json()["detail"]["langgraph_checkpointer"] == "none"

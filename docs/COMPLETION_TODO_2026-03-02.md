@@ -75,6 +75,11 @@ Acceptance: legacy advanced goals are marked as adopted, deferred, or deprecated
 Evidence targets: `legacy documentation/04_Product_Roadmap_Phasing_Strategy.md`, `docs/ROADMAP.md`.
 Phase 14 status (2026-03-03): published explicit disposition matrix in `docs/LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md` and aligned roadmap references.
 
+- [x] Reconcile in-repo Word-document requirements with canonical implementation backlog.
+Acceptance: all `.docx` artifacts are audited and converted into an actionable prioritized TODO with explicit next phases.
+Evidence targets: `docs/WORD_DOC_AUDIT_2026-03-03.md`, `docs/UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`.
+Phase 25 status (2026-03-03): complete; remaining gaps promoted into canonical roadmap targets.
+
 ## Suggested Execution Order
 1. Finish all P0 items.
 2. Complete remaining P1 data-system activation/reconciliation work.
