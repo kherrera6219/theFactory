@@ -102,6 +102,7 @@ def test_run_audit_returns_expected_checks() -> None:
         "API-002",
         "STY-001",
         "REL-001",
+        "OBS-009",
     ]
 
 
@@ -152,3 +153,55 @@ def test_check_mission_control_typescript_strict_accepts_shell_page(tmp_path, mo
     monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
     result = audit.check_mission_control_typescript_strict()
     assert result.passed is True
+
+
+def test_check_tracing_and_pager_controls_passes(tmp_path, monkeypatch) -> None:
+    _write(
+        tmp_path / "deploy" / "docker-compose.yaml",
+        """
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.59
+  api-gateway:
+    environment:
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+""".strip(),
+    )
+    _write(
+        tmp_path / "deploy" / "docker-compose.monitoring.yaml",
+        """
+services:
+  alertmanager:
+    command:
+      - --config.expand-env
+    environment:
+      PAGER_WEBHOOK_URL: http://localhost:9999/pager
+""".strip(),
+    )
+    _write(
+        tmp_path / "deploy" / "monitoring" / "alertmanager" / "alertmanager.yml",
+        """
+route:
+  routes:
+    - matchers:
+        - severity =~ critical|high
+      receiver: pager
+receivers:
+  - name: pager
+    webhook_configs:
+      - url: ${PAGER_WEBHOOK_URL}
+""".strip(),
+    )
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_tracing_and_pager_controls()
+    assert result.passed is True
+
+
+def test_check_tracing_and_pager_controls_fails_when_missing(tmp_path, monkeypatch) -> None:
+    _write(tmp_path / "deploy" / "docker-compose.yaml", "services: {}")
+    _write(tmp_path / "deploy" / "docker-compose.monitoring.yaml", "services: {}")
+    _write(tmp_path / "deploy" / "monitoring" / "alertmanager" / "alertmanager.yml", "route: {}")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_tracing_and_pager_controls()
+    assert result.passed is False
+    assert "missing jaeger service" in result.notes

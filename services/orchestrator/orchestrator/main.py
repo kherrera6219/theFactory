@@ -38,6 +38,7 @@ from .runtime import (
     start_lifecycle_task,
 )
 from .settings import load_settings
+from .tracing import configure_tracing, current_trace_id
 
 LOGGER = logging.getLogger(__name__)
 
@@ -713,6 +714,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="HolyGrail Orchestrator", version="0.3.0", lifespan=lifespan)
+configure_tracing(app, service_name="orchestrator")
 _initialize_app_state(app)
 
 
@@ -721,6 +723,7 @@ async def _request_metrics(request, call_next):
     started = time.perf_counter()
     method = request.method
     status_code = "500"
+    response: Response | None = None
     try:
         response = await call_next(request)
         status_code = str(response.status_code)
@@ -730,6 +733,10 @@ async def _request_metrics(request, call_next):
         path = route.path if route is not None else request.url.path
         REQUEST_COUNTER.labels(method=method, path=path, status_code=status_code).inc()
         REQUEST_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - started)
+        if response is not None:
+            trace_id = current_trace_id()
+            if trace_id:
+                response.headers["X-Trace-Id"] = trace_id
 
 
 @app.get("/health")

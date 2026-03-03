@@ -39,15 +39,15 @@ Last updated: 2026-03-03
 4. `Medium` Deep production controls not fully enforced.
    - Status: `Partially addressed`.
    - Remaining:
-     - Distributed tracing and pager/on-call integration.
      - Long-duration capacity and resilience qualification.
    - Action taken:
      - Added CI release-trust workflow controls for signed provenance attestation and fail-closed promotion policy enforcement.
+     - Added tracing baseline for gateway/orchestrator with Jaeger OTLP export and pager webhook routing in Alertmanager.
 
 ## Structural Gaps Still Open (Planned)
 
 - Observability:
-  - Add tracing spans and alert routing to incident channels.
+  - Expand tracing coverage beyond baseline mission-path APIs and formalize on-call routing policy.
 - Deployment resilience:
   - Expand rollback orchestration and staged promotion automation.
 - Performance qualification:

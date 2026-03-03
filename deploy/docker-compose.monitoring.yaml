@@ -21,6 +21,9 @@ services:
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
+      - --config.expand-env
+    environment:
+      PAGER_WEBHOOK_URL: ${PAGER_WEBHOOK_URL:-http://host.docker.internal:9999/pager}
     volumes:
       - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     ports:

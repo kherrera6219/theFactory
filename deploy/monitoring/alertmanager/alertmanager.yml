@@ -9,15 +9,15 @@ route:
   repeat_interval: 3h
   routes:
     - matchers:
-        - severity = critical
-      receiver: critical
+        - severity =~ critical|high
+      receiver: pager
 
 receivers:
   - name: default
     webhook_configs:
       - url: http://localhost:9999/alert
         send_resolved: true
-  - name: critical
+  - name: pager
     webhook_configs:
-      - url: http://localhost:9999/critical
+      - url: ${PAGER_WEBHOOK_URL}
         send_resolved: true

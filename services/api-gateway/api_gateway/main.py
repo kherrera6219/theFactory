@@ -17,6 +17,8 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
+from .tracing import configure_tracing, current_trace_id
+
 try:
     import redis.asyncio as redis
 except ModuleNotFoundError:
@@ -690,6 +692,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="HolyGrail API Gateway", version="0.3.0", lifespan=lifespan)
+configure_tracing(app, service_name="api-gateway")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in CORS_ALLOW_ORIGINS.split(",") if origin.strip()],
@@ -753,6 +756,9 @@ async def _security_and_rate_limit(request: Request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     response.headers["Cache-Control"] = "no-store"
+    trace_id = current_trace_id()
+    if trace_id:
+        response.headers["X-Trace-Id"] = trace_id
     for key, value in rate_limit_headers.items():
         response.headers[key] = value
     return response
