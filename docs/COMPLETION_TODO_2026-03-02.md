@@ -24,10 +24,10 @@ Acceptance: schema changes are migration-based, reproducible, and tested on clea
 Evidence targets: `services/orchestrator/orchestrator/storage.py`, `tests/services/test_storage_unit.py`.
 Phase 1 status (2026-03-02): implemented with versioned SQL migrations + checksum tracking in `schema_migrations`.
 
-- [ ] Establish Mission Control automated tests (unit + integration + critical e2e).
+- [x] Establish Mission Control automated tests (unit + integration + critical e2e).
 Acceptance: CI executes UI tests for mission lifecycle, operations views, settings/vault, and error states.
 Evidence targets: `apps/mission-control/package.json`, `docs/TESTING_QUALITY_GATES.md`.
-Phase 2-3 status (2026-03-02): baseline unit test harness added with Vitest and API client tests, and CI now runs Mission Control lint + unit tests; integration/e2e coverage still pending.
+Phase 11 status (2026-03-03): Playwright e2e suite added for mission lifecycle, operations views, settings/vault, and error-state regression flows; CI now runs `npm run test:e2e` after Playwright browser install.
 
 ## P1 - Important Hardening and Completeness
 - [ ] Replace placeholder builder preview UX with functional diff/preview rendering.
@@ -66,8 +66,8 @@ Evidence targets: `legacy documentation/04_Product_Roadmap_Phasing_Strategy.md`,
 3. Close P2 documentation/strategy cleanup after P0/P1 decisions are made.
 
 ## Exit Criteria
-- [ ] All P0 acceptance criteria passed and documented.
+- [x] All P0 acceptance criteria passed and documented.
 - [x] At least 80% service coverage maintained with critical-module thresholds intact.
-Current verified baseline (2026-03-02): 88.13% global coverage, all required 100% module thresholds passing.
-- [ ] Mission Control has automated regression protection for core operator journeys.
-- [ ] Updated audit report confirms no remaining critical production blockers.
+Current verified baseline (2026-03-03): 86.96% global coverage, all required 100% module thresholds passing.
+- [x] Mission Control has automated regression protection for core operator journeys.
+- [x] Updated audit report confirms no remaining critical production blockers.

@@ -74,11 +74,17 @@ Last updated: 2026-03-03
    - Published baseline qualification evidence (`docs/evidence/reliability_qualification_baseline_2026-03-03.json`).
    - Added audit control `PERF-010` in `scripts/production_review_audit.py`.
 
+14. Mission Control e2e regression controls:
+   - Added Playwright e2e suite for mission lifecycle, operations views, settings/vault, and error-state handling.
+   - Added CI execution for Mission Control e2e tests with Chromium provisioning.
+   - Added audit control `UI-011` in `scripts/production_review_audit.py`.
+
 ## Evidence Artifacts
 
 - `docs/AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
 - `docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
 - `tests/services/test_orchestrator_endpoints_extra.py`
+- `apps/mission-control/e2e/mission-control.spec.ts`
 
 ## Runbook Commands
 

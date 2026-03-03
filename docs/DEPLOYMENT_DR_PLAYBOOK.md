@@ -41,3 +41,9 @@ Operational scripts for deployment preflight, backup/restore, and disaster-recov
 - Run sustained-load qualification:
   - `powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1 -InjectOrchestratorRestart`
 - The script runs time-based load, monitors readiness endpoints, injects an orchestrator restart, validates recovery, and emits a JSON evidence artifact.
+
+## Mission Control E2E Regression
+
+- Run Mission Control critical-path e2e suite:
+  - `cd apps/mission-control && npm run test:e2e`
+- Covers mission lifecycle, operations views, settings/vault workflows, and error-state handling.

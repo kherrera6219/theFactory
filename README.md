@@ -168,6 +168,7 @@ Using `make`:
 - `make lint`: run `ruff` on backend/test/scripts.
 - `make test`: run full pytest with global coverage gate (`>= 80%`) plus 100% coverage gates for core multi-agent communication/runtime modules.
 - `make test-ui`: run Mission Control lint + unit tests.
+- `make test-ui-e2e`: run Mission Control Playwright e2e regression suite.
 - `make test-fast`: run pytest without coverage reporting.
 - `make audit`: run production checklist audit script.
 - `make promotion-gate`: evaluate local release promotion policy and write decision artifact.
@@ -188,6 +189,7 @@ Frontend app commands:
 - `npm run build`
 - `npm run lint`
 - `npm run test`
+- `npm run test:e2e`
 
 ## Security, Auth, and Operational Controls
 
@@ -242,7 +244,8 @@ Agent-specific docs:
 - Core phased implementation is complete through production-foundation baseline.
 - Multi-agent telemetry, integrations, and persona standards evidence are active in operations APIs and Mission Control.
 - Core multi-agent communication/runtime files now enforce 100% coverage via CI and `make test`.
-- Remaining maturity work is focused on deeper production hardening (expanded reliability envelopes, resilience certification depth, and broader UI integration/e2e coverage).
+- Mission Control lint, unit, and critical e2e regression coverage are now enforced in CI.
+- Remaining maturity work is focused on deeper production hardening (expanded reliability envelopes, resilience certification depth, and data-plane activation).
 
 ## Notes
 

@@ -100,6 +100,7 @@ def test_run_audit_returns_expected_checks() -> None:
         "COM-003",
         "DOC-005",
         "API-002",
+        "UI-011",
         "STY-001",
         "REL-001",
         "OBS-009",
@@ -154,6 +155,38 @@ def test_check_mission_control_typescript_strict_accepts_shell_page(tmp_path, mo
     monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
     result = audit.check_mission_control_typescript_strict()
     assert result.passed is True
+
+
+def test_check_mission_control_e2e_controls_passes(tmp_path, monkeypatch) -> None:
+    _write(
+        tmp_path / "apps" / "mission-control" / "package.json",
+        '{"scripts":{"test:e2e":"playwright test"}}',
+    )
+    _write(
+        tmp_path / ".github" / "workflows" / "ci.yml",
+        """
+name: CI
+jobs:
+  lint-test:
+    steps:
+      - name: Install Playwright Browser (Chromium)
+        run: npx playwright install --with-deps chromium
+      - name: Mission Control E2E Tests
+        run: npm run test:e2e
+""".strip(),
+    )
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_mission_control_e2e_controls()
+    assert result.passed is True
+
+
+def test_check_mission_control_e2e_controls_fails_when_missing(tmp_path, monkeypatch) -> None:
+    _write(tmp_path / "apps" / "mission-control" / "package.json", '{"scripts":{"test":"vitest"}}')
+    _write(tmp_path / ".github" / "workflows" / "ci.yml", "name: CI")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_mission_control_e2e_controls()
+    assert result.passed is False
+    assert "e2e" in result.notes
 
 
 def test_check_tracing_and_pager_controls_passes(tmp_path, monkeypatch) -> None:

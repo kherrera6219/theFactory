@@ -110,3 +110,5 @@ Last updated: 2026-03-03
    - `powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1 -InjectOrchestratorRestart`
 7. Debug/code sweep:
    - `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`
+8. Mission Control end-to-end regression:
+   - `cd apps/mission-control && npm run test:e2e`

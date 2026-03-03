@@ -44,6 +44,14 @@ Last updated: 2026-03-03
      - Added long-duration reliability qualification tooling with sustained load, failure injection, readiness monitoring, and recovery verification.
      - Published baseline evidence artifact: `docs/evidence/reliability_qualification_baseline_2026-03-03.json`.
 
+5. `Medium` Mission Control regression coverage was limited to unit tests.
+   - Previous state: UI validation focused on TypeScript and Vitest unit coverage without critical-path e2e execution.
+   - Status: `Addressed (baseline)`.
+   - Action taken:
+     - Added Playwright e2e suite for mission lifecycle, operations views, settings/vault, and error states.
+     - Added CI browser provisioning and Mission Control e2e execution.
+     - Added audit control `UI-011` to verify e2e gating remains configured.
+
 ## Structural Gaps Still Open (Planned)
 
 - Observability:

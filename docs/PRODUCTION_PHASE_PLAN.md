@@ -130,3 +130,14 @@ Exit criteria:
 
 - Long-duration load and recovery tests pass target thresholds.
 - Capacity and resilience envelopes are documented and reproducible.
+
+## Phase 11 - Mission Control Integration and E2E Regression
+
+Status: Baseline complete (2026-03-03)
+
+Objective: automate critical operator-journey UI regression coverage.
+
+Exit criteria:
+
+- Mission lifecycle, operations views, settings/vault, and error states are exercised in e2e runs.
+- CI executes Mission Control e2e tests in addition to lint and unit gates.
