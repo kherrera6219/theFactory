@@ -55,13 +55,15 @@ Acceptance: either implemented with tests or formally deferred with documented r
 Evidence targets: `docs/AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`, `docs/ROADMAP.md`.
 
 ## P2 - Documentation and Strategy Alignment
-- [ ] Resolve documentation port/runtime contradictions for Mission Control.
+- [x] Resolve documentation port/runtime contradictions for Mission Control.
 Acceptance: `README.md`, design docs, compose/env defaults all agree on launch URL/port.
-Phase 4 status (2026-03-02): canonical README now documents both valid modes (Docker host `3100`, direct Next dev `3000`); remaining work is updating any legacy/design artifacts still phrased as a single-port assumption.
+Phase 4 status (2026-03-02): canonical README now documents both valid modes (Docker host `3100`, direct Next dev `3000`); remaining work was updating legacy/design artifacts still phrased as a single-port assumption.
+Phase 14 status (2026-03-03): canonical runtime port policy is now explicitly reconciled in `docs/LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md` and linked from canonical roadmap/index docs.
 
-- [ ] Publish explicit legacy-roadmap reconciliation note.
+- [x] Publish explicit legacy-roadmap reconciliation note.
 Acceptance: legacy advanced goals are marked as adopted, deferred, or deprecated in canonical docs.
 Evidence targets: `legacy documentation/04_Product_Roadmap_Phasing_Strategy.md`, `docs/ROADMAP.md`.
+Phase 14 status (2026-03-03): published explicit disposition matrix in `docs/LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md` and aligned roadmap references.
 
 ## Suggested Execution Order
 1. Finish all P0 items.
