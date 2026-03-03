@@ -124,7 +124,17 @@ Last updated: 2026-03-03
   - deprecated (legacy financial projections as execution commitments).
 - Status: Complete (baseline, 2026-03-03).
 
+## Phase 15: Live Dependency Mission-Flow Integration Tests
+
+- Added live integration suite:
+  - `tests/services/test_live_mission_flow_integration.py`
+- Coverage includes:
+  - gateway/orchestrator readiness validation against running runtime,
+  - health verification for Redis/Postgres dependency status,
+  - real mission intake (`POST /v1/missions`) with polling of mission state and event timeline.
+- Tests auto-skip when live stack is unavailable, enabling safe execution in non-runtime environments.
+- Status: Complete (baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
-1. Add real-dependency integration tests for mission intake/state flow across gateway/orchestrator/Redis/Postgres wiring.
-2. Activate Qdrant in active retrieval paths and publish retrieval-path/SLO guidance.
+1. Activate Qdrant in active retrieval paths and publish retrieval-path/SLO guidance.
