@@ -566,6 +566,7 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
         assert client.get("/v1/missions/mission-1/knowledge?limit=3").status_code == 200
         assert client.get("/v1/missions/mission-1/knowledge-graph?limit=3").status_code == 200
         assert client.get("/v1/missions/mission-1/audit-reports?limit=2").status_code == 200
+        assert client.get("/v1/missions/mission-1/audit-artifacts?limit=2").status_code == 200
 
         assert client.get("/v1/operations/summary").status_code == 200
         assert (
@@ -590,6 +591,7 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
     assert ("/internal/missions/mission-1/knowledge", {"limit": 3}) in calls
     assert ("/internal/missions/mission-1/knowledge-graph", {"limit": 3}) in calls
     assert ("/internal/missions/mission-1/audit-reports", {"limit": 2}) in calls
+    assert ("/internal/missions/mission-1/audit-artifacts", {"limit": 2}) in calls
     assert ("/internal/operations/summary", None) in calls
     assert (
         "/internal/operations/agents",
@@ -611,6 +613,7 @@ def test_orchestrator_readyz_reports_ready(monkeypatch) -> None:
     monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
     monkeypatch.setattr(orchestrator_main.qdrant_store, "qdrant_ready", lambda *_: True)
     monkeypatch.setattr(orchestrator_main.neo4j_store, "neo4j_ready", lambda *_: True)
+    monkeypatch.setattr(orchestrator_main.object_store, "object_storage_ready", lambda *_: True)
     with TestClient(orchestrator_app) as client:
         orchestrator_app.state.protocol_ready = True
         orchestrator_app.state.consumer_task = FakeTask(done=False)
@@ -627,6 +630,7 @@ def test_orchestrator_readyz_returns_503_when_consumer_not_running(monkeypatch) 
     monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
     monkeypatch.setattr(orchestrator_main.qdrant_store, "qdrant_ready", lambda *_: True)
     monkeypatch.setattr(orchestrator_main.neo4j_store, "neo4j_ready", lambda *_: True)
+    monkeypatch.setattr(orchestrator_main.object_store, "object_storage_ready", lambda *_: True)
     with TestClient(orchestrator_app) as client:
         orchestrator_app.state.protocol_ready = True
         orchestrator_app.state.consumer_task = FakeTask(done=True)

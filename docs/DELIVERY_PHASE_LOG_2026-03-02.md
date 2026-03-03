@@ -588,3 +588,48 @@
 ### Outcome
 - Neo4j optional graph retrieval path is now implemented behind a feature flag with tested fallback behavior.
 - Remaining optional expansion track: object-storage adapter with retention/legal-hold controls.
+
+## Phase 18 - Object-Storage Retention and Legal-Hold Adapter
+
+### Objective
+- Complete the second optional expansion track by introducing object-storage artifact retention.
+- Add enterprise-oriented retention/legal-hold semantics for immutable audit evidence.
+
+### Implementation
+- Added object-storage adapter:
+  - `services/orchestrator/orchestrator/object_store.py`
+  - S3-compatible client initialization, bucket ensure, readiness check, artifact put/list, and retention/legal-hold metadata policy.
+- Extended orchestrator settings and runtime integration:
+  - `services/orchestrator/orchestrator/settings.py`
+  - `services/orchestrator/orchestrator/main.py`
+  - Added `OBJECT_STORAGE_*` controls (feature flag, endpoint, credentials, bucket/prefix, timeout, retention, legal-hold policy, TLS/path-style hardening).
+  - Added object-storage readiness in `/health`, `/readyz`, and operations runtime snapshots.
+  - `POST /internal/audit-reports` now mirrors audit artifacts to object storage when enabled.
+  - Added `GET /internal/missions/{mission_id}/audit-artifacts`.
+- Added API gateway proxy route:
+  - `GET /v1/missions/{mission_id}/audit-artifacts`
+- Updated runtime config/dependencies:
+  - `.env.example`
+  - `deploy/docker-compose.yaml`
+  - `services/orchestrator/requirements.txt` (`boto3`)
+- Updated integration metadata:
+  - `services/orchestrator/orchestrator/agent_integrations.py`
+  - `object_storage` now tracked as feature-flagged data-plane scope.
+- Added regression coverage:
+  - `tests/services/test_object_store_unit.py`
+  - `tests/services/test_orchestrator_endpoints_extra.py`
+  - `tests/services/test_production_foundations.py`
+- Added phase evidence:
+  - `docs/evidence/phase18_object_storage_validation_2026-03-03.md`
+
+### Validation and Debug Sweep
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest -q tests/services/test_object_store_unit.py tests/services/test_orchestrator_endpoints_extra.py tests/services/test_production_foundations.py -k "object or audit_artifacts or internal_operations_routes or readyz"`: pass (9 tests)
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (`232` tests, `84.95%`)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `python scripts/production_review_audit.py`: pass (`12/12`)
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Object-storage adapter is now available behind feature flag with retention/legal-hold controls for audit artifacts.
+- Optional Neo4j + object-storage expansion tracks are complete in current baseline.

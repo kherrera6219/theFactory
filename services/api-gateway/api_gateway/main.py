@@ -1009,6 +1009,16 @@ async def get_mission_audit_reports(
     )
 
 
+@app.get("/v1/missions/{mission_id}/audit-artifacts")
+async def get_mission_audit_artifacts(
+    mission_id: str, limit: int = Query(default=50, ge=1, le=500)
+) -> list[dict[str, Any]]:
+    return await _proxy_get_internal(
+        f"/internal/missions/{mission_id}/audit-artifacts",
+        params={"limit": limit},
+    )
+
+
 @app.get("/v1/operations/summary")
 async def get_operations_summary() -> dict[str, Any]:
     return await _proxy_get_internal("/internal/operations/summary")
