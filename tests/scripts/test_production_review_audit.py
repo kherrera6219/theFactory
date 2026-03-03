@@ -101,4 +101,54 @@ def test_run_audit_returns_expected_checks() -> None:
         "DOC-005",
         "API-002",
         "STY-001",
+        "REL-001",
     ]
+
+
+def test_check_release_trust_controls_passes_with_required_artifacts(tmp_path, monkeypatch) -> None:
+    _write(
+        tmp_path / ".github" / "workflows" / "ci.yml",
+        """
+name: CI
+jobs:
+  release-trust:
+    steps:
+      - uses: actions/attest-build-provenance@v2
+      - run: gh attestation verify reports/release-manifest.json --repo org/repo
+      - run: |
+          python scripts/promotion_gate.py \
+            --policy-file deploy/promotion-policy.json \
+            --output-file reports/promotion.json
+""".strip(),
+    )
+    _write(
+        tmp_path / "deploy" / "promotion-policy.json",
+        '{"version":1,"fail_closed":true,"allowed_ref_patterns":["^refs/heads/main$"],"requirements":{"ci_status":"success","attestation_verified":true}}',
+    )
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+
+    result = audit.check_release_trust_controls()
+    assert result.passed is True
+
+
+def test_check_release_trust_controls_fails_when_missing(tmp_path, monkeypatch) -> None:
+    _write(tmp_path / ".github" / "workflows" / "ci.yml", "name: CI")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_release_trust_controls()
+    assert result.passed is False
+    assert "missing policy file" in result.notes
+
+
+def test_check_mission_control_typescript_strict_accepts_shell_page(tmp_path, monkeypatch) -> None:
+    _write(tmp_path / "apps" / "mission-control" / "tsconfig.json", '{"strict": true}')
+    _write(
+        tmp_path / "apps" / "mission-control" / "app" / "layout.tsx",
+        "export default function Layout() { return null; }",
+    )
+    _write(
+        tmp_path / "apps" / "mission-control" / "app" / "(shell)" / "page.tsx",
+        "export default function Page() { return null; }",
+    )
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_mission_control_typescript_strict()
+    assert result.passed is True

@@ -170,6 +170,7 @@ Using `make`:
 - `make test-ui`: run Mission Control lint + unit tests.
 - `make test-fast`: run pytest without coverage reporting.
 - `make audit`: run production checklist audit script.
+- `make promotion-gate`: evaluate local release promotion policy and write decision artifact.
 - `make openapi`: export OpenAPI documents.
 - `make predeploy`: run pre-deploy checks.
 - `make backup`: run PostgreSQL backup script.
@@ -225,6 +226,7 @@ Core docs:
 - `docs/OPERATIONS_RUNBOOK.md`
 - `docs/PRODUCTION_PHASE_PLAN.md`
 - `docs/PRODUCTION_REVIEW_AUDIT.md`
+- `docs/RELEASE_TRUST_PROMOTION_GATE.md`
 - `docs/GAP_ANALYSIS.md`
 - `docs/PRODUCTION_STANDARDS_REFERENCES.md`
 

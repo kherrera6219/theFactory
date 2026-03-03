@@ -1,6 +1,6 @@
 # Testing and Quality Gates
 
-Last updated: 2026-03-02
+Last updated: 2026-03-03
 
 ## Purpose
 
@@ -12,6 +12,7 @@ This document defines automated quality gates for theFactory and the specific co
 - `make lint`
 - `make test`
 - `make test-ui`
+- `make promotion-gate`
 
 `make test` runs:
 
@@ -22,6 +23,11 @@ This document defines automated quality gates for theFactory and the specific co
 
 - `npm run lint` in `apps/mission-control`
 - `npm run test` in `apps/mission-control` (Vitest unit suite)
+
+`make promotion-gate` runs:
+
+- `python scripts/promotion_gate.py` using `deploy/promotion-policy.json`
+- writes `reports/promotion-decision.local.json`
 
 ## Coverage Policy
 

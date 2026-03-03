@@ -1,6 +1,6 @@
 # Gap Analysis
 
-Last updated: 2026-03-02
+Last updated: 2026-03-03
 
 ## Scope
 
@@ -39,14 +39,13 @@ Last updated: 2026-03-02
 4. `Medium` Deep production controls not fully enforced.
    - Status: `Partially addressed`.
    - Remaining:
-     - Signed release attestation and promotion-gate enforcement.
      - Distributed tracing and pager/on-call integration.
      - Long-duration capacity and resilience qualification.
+   - Action taken:
+     - Added CI release-trust workflow controls for signed provenance attestation and fail-closed promotion policy enforcement.
 
 ## Structural Gaps Still Open (Planned)
 
-- CI/CD maturity:
-  - Enforce signed artifact attestations and formal promotion policy.
 - Observability:
   - Add tracing spans and alert routing to incident channels.
 - Deployment resilience:

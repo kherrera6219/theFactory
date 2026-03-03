@@ -187,3 +187,40 @@
 ### Outcome
 - Script validation coverage now includes production audit and perf-smoke automation.
 - Remaining script testing gap: backup and DR automation paths.
+
+## Phase 7 - Release Trust and Promotion Controls
+
+### Objective
+- Implement signed provenance attestation and fail-closed promotion gating in CI.
+
+### Implementation
+- Added promotion policy:
+  - `deploy/promotion-policy.json`
+- Added promotion gate evaluator:
+  - `scripts/promotion_gate.py`
+- Updated CI workflow:
+  - `.github/workflows/ci.yml`
+  - Added `release-trust` job to:
+    - create a release manifest from CI artifacts
+    - generate provenance attestation (`actions/attest-build-provenance@v2`)
+    - verify attestation (`gh attestation verify`)
+    - enforce policy with `scripts/promotion_gate.py`
+- Added script tests:
+  - `tests/scripts/test_promotion_gate.py`
+  - updated `tests/scripts/test_production_review_audit.py` for `REL-001`
+- Added local command:
+  - `Makefile` (`make promotion-gate`)
+- Added dedicated runbook doc:
+  - `docs/RELEASE_TRUST_PROMOTION_GATE.md`
+
+### Validation and Debug Sweep
+- `python -m pytest tests/scripts/test_promotion_gate.py tests/scripts/test_production_review_audit.py tests/scripts/test_perf_smoke.py`: pass (17 tests)
+- `npm run lint` / `npm run test` (mission-control): pass
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (88.13%)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Release trust Phase 8 baseline implemented: attestation + promotion gate now enforced in CI for main and release tags.
+- Remaining P0 blockers are tracing/pager integration and long-duration reliability qualification.

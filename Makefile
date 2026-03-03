@@ -1,4 +1,4 @@
-.PHONY: up down validate lint test test-ui test-fast audit sweep openapi predeploy backup dr perf monitor-up monitor-down
+.PHONY: up down validate lint test test-ui test-fast audit promotion-gate sweep openapi predeploy backup dr perf monitor-up monitor-down
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -40,6 +40,14 @@ test-fast:
 
 audit:
 	python scripts/production_review_audit.py
+
+promotion-gate:
+	python scripts/promotion_gate.py \
+		--policy-file deploy/promotion-policy.json \
+		--ref refs/heads/main \
+		--ci-status success \
+		--attestation-verified true \
+		--output-file reports/promotion-decision.local.json
 
 openapi:
 	python scripts/export_openapi.py
