@@ -192,6 +192,22 @@ Last updated: 2026-03-03
   - updated endpoint/gateway regression tests
 - Status: Complete (baseline, 2026-03-03).
 
+## Phase 23: LangGraph Orchestration Adoption (In Progress)
+
+- Added feature-flagged LangGraph lifecycle engine:
+  - `services/orchestrator/orchestrator/langgraph_lifecycle.py`
+- Runtime integration:
+  - `services/orchestrator/orchestrator/runtime.py` now attempts LangGraph execution first and falls back to legacy lifecycle transitions when disabled/unavailable/failing (fail-open configurable).
+- Added environment controls:
+  - `LANGGRAPH_ENABLED`
+  - `LANGGRAPH_FAIL_OPEN`
+  - `LANGGRAPH_CHECKPOINTER`
+  - `LANGGRAPH_THREAD_PREFIX`
+- Added regression coverage:
+  - `tests/services/test_langgraph_lifecycle_unit.py`
+  - updated `tests/services/test_runtime_unit.py`
+- Status: In progress (implementation baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
 1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
@@ -200,3 +216,4 @@ Last updated: 2026-03-03
    - repo diff-review/apply gate for file-level mission outputs,
    - virtualization of Semantic Bus and agent-log high-volume views.
 4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
+5. Complete LangGraph persistence hardening track (Postgres checkpointer + recovery qualification) behind the existing feature flags.

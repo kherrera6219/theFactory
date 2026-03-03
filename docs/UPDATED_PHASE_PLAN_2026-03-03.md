@@ -50,6 +50,17 @@ Exit Criteria:
 - Canonical ADR-style decision set published.
 - Roadmap and reconciliation docs reference one authoritative decision table.
 
+## Phase 23 - LangGraph Orchestration Adoption (Optional but Planned)
+Scope:
+- Add feature-flagged LangGraph mission lifecycle path in orchestrator with fail-open fallback to legacy transitions.
+- Support checkpointer mode selection (`none` and `memory` in baseline), thread-id conventions, and operational logging.
+- Add unit tests for graph execution, fallback behavior, and checkpointer configuration.
+
+Exit Criteria:
+- `LANGGRAPH_ENABLED=true` can drive mission state transitions (`QUEUED -> RUNNING -> VERIFIED -> COMPLETE`) using LangGraph.
+- `LANGGRAPH_FAIL_OPEN=true` safely falls back to legacy lifecycle on graph failure.
+- Regression coverage remains above global threshold and required module thresholds.
+
 ## Validation Protocol (applies after each phase)
 1. `python -m ruff check services tests scripts`
 2. `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`
@@ -63,3 +74,4 @@ Exit Criteria:
 2. Phase 20
 3. Phase 21
 4. Phase 22
+5. Phase 23
