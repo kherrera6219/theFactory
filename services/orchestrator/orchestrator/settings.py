@@ -56,6 +56,9 @@ class Settings:
     langgraph_fail_open: bool = True
     langgraph_checkpointer: str = "none"
     langgraph_thread_prefix: str = "mission"
+    langgraph_checkpointer_postgres_url: str = ""
+    langgraph_checkpointer_setup: bool = False
+    langgraph_checkpoint_namespace: str = ""
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -172,4 +175,11 @@ def load_settings() -> Settings:
         or "none",
         langgraph_thread_prefix=os.getenv("LANGGRAPH_THREAD_PREFIX", "mission").strip()
         or "mission",
+        langgraph_checkpointer_postgres_url=os.getenv(
+            "LANGGRAPH_CHECKPOINTER_POSTGRES_URL", ""
+        ).strip(),
+        langgraph_checkpointer_setup=_as_bool(
+            os.getenv("LANGGRAPH_CHECKPOINTER_SETUP", "false"), False
+        ),
+        langgraph_checkpoint_namespace=os.getenv("LANGGRAPH_CHECKPOINT_NAMESPACE", "").strip(),
     )

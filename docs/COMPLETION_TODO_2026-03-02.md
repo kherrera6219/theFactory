@@ -60,7 +60,9 @@ Phase 17-18 status (2026-03-03): Neo4j and object-storage optional expansion tra
 - [ ] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
 Acceptance: orchestrator can execute mission state transitions through LangGraph when enabled, and fail-open fallback preserves runtime safety.
 Evidence targets: `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `tests/services/test_langgraph_lifecycle_unit.py`, `docs/UPDATED_PHASE_PLAN_2026-03-03.md`.
-Phase 23 status (2026-03-03): implementation baseline added behind `LANGGRAPH_*` feature flags; next step is persistent checkpointing + live recovery qualification.
+Phase 23 status (2026-03-03): implementation baseline added behind `LANGGRAPH_*` feature flags.
+Phase 24 status (2026-03-03): postgres checkpointer baseline added (`LANGGRAPH_CHECKPOINTER=postgres`) with setup/idempotence controls and regression coverage.
+Remaining step: run live recovery qualification using checkpoint persistence under restart/disruption tests.
 
 ## P2 - Documentation and Strategy Alignment
 - [x] Resolve documentation port/runtime contradictions for Mission Control.

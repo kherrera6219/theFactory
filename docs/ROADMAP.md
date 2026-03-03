@@ -208,6 +208,21 @@ Last updated: 2026-03-03
   - updated `tests/services/test_runtime_unit.py`
 - Status: In progress (implementation baseline, 2026-03-03).
 
+## Phase 24: LangGraph Postgres Checkpointer Baseline
+
+- Added Async Postgres checkpointer support for LangGraph lifecycle:
+  - `LANGGRAPH_CHECKPOINTER=postgres`
+  - `LANGGRAPH_CHECKPOINTER_POSTGRES_URL` (optional override)
+  - `LANGGRAPH_CHECKPOINTER_SETUP` (optional one-time setup)
+  - `LANGGRAPH_CHECKPOINT_NAMESPACE`
+- Runtime behavior:
+  - Mission lifecycle graph now supports postgres-backed checkpoint persistence via `AsyncPostgresSaver`.
+  - Checkpointer setup is guarded to run once per app runtime when enabled.
+  - Existing fail-open fallback behavior to legacy lifecycle is preserved.
+- Added regression coverage:
+  - expanded `tests/services/test_langgraph_lifecycle_unit.py` for postgres dependency/usage/setup behavior.
+- Status: Complete (baseline implementation + validation, 2026-03-03).
+
 ## Next Roadmap Targets
 
 1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
@@ -216,4 +231,4 @@ Last updated: 2026-03-03
    - repo diff-review/apply gate for file-level mission outputs,
    - virtualization of Semantic Bus and agent-log high-volume views.
 4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
-5. Complete LangGraph persistence hardening track (Postgres checkpointer + recovery qualification) behind the existing feature flags.
+5. Add live LangGraph checkpoint recovery qualification against Postgres-backed runtime with restart/disruption scenarios.

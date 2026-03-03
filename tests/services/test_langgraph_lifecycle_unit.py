@@ -220,6 +220,123 @@ def test_resolve_checkpointer_memory_mode_singleton(monkeypatch) -> None:
     assert Saver.instances == 1
 
 
+def test_resolve_checkpointer_memory_without_dependency(monkeypatch) -> None:
+    monkeypatch.setattr(langgraph_lifecycle, "InMemorySaver", None)
+    monkeypatch.setattr(langgraph_lifecycle, "_MEMORY_CHECKPOINTER", None)
+    settings = _settings(langgraph_checkpointer="memory")
+    assert langgraph_lifecycle._resolve_checkpointer(settings) is None
+
+
+def test_resolve_checkpointer_unsupported_mode(monkeypatch) -> None:
+    monkeypatch.setattr(langgraph_lifecycle, "_MEMORY_CHECKPOINTER", None)
+    settings = _settings(langgraph_checkpointer="unknown")
+    assert langgraph_lifecycle._resolve_checkpointer(settings) is None
+
+
+def test_build_graph_config_includes_namespace() -> None:
+    settings = _settings(
+        langgraph_thread_prefix="thread",
+        langgraph_checkpoint_namespace="mission-lifecycle",
+    )
+    config = langgraph_lifecycle._build_graph_config(settings, "mission-1")
+    assert config == {
+        "configurable": {
+            "thread_id": "thread:mission-1",
+            "checkpoint_ns": "mission-lifecycle",
+        }
+    }
+
+
+def test_maybe_advance_postgres_mode_dependency_missing(monkeypatch) -> None:
+    monkeypatch.setattr(langgraph_lifecycle, "StateGraph", FakeStateGraph)
+    monkeypatch.setattr(langgraph_lifecycle, "AsyncPostgresSaver", None)
+    advanced = asyncio.run(
+        langgraph_lifecycle.maybe_advance_mission_lifecycle(
+            app=_app_state(),
+            mission_id="mission-1",
+            settings=_settings(langgraph_enabled=True, langgraph_checkpointer="postgres"),
+            validator=object(),
+            emit_state_event_fn=lambda **_kwargs: asyncio.sleep(0),
+        )
+    )
+    assert advanced is False
+
+
+def test_maybe_advance_postgres_mode_uses_checkpointer_and_setup_once(monkeypatch) -> None:
+    class FakeAsyncPostgresSaver:
+        uris: list[str] = []
+        setup_calls = 0
+
+        @classmethod
+        def from_conn_string(cls, conn_string: str) -> "FakeAsyncPostgresSaver":
+            cls.uris.append(conn_string)
+            return cls()
+
+        async def __aenter__(self) -> "FakeAsyncPostgresSaver":
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+        async def setup(self) -> None:
+            FakeAsyncPostgresSaver.setup_calls += 1
+
+    monkeypatch.setattr(langgraph_lifecycle, "StateGraph", FakeStateGraph)
+    monkeypatch.setattr(langgraph_lifecycle, "AsyncPostgresSaver", FakeAsyncPostgresSaver)
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "transition_mission_state",
+        lambda _settings_obj, _mission_id, _expected, new_state, _event: _mission_record(new_state),
+    )
+
+    app = _app_state()
+    settings = _settings(
+        langgraph_enabled=True,
+        langgraph_checkpointer="postgres",
+        langgraph_checkpointer_postgres_url="postgresql://checkpointer:5432/langgraph",
+        langgraph_checkpointer_setup=True,
+        langgraph_checkpoint_namespace="mission-lifecycle",
+    )
+
+    first = asyncio.run(
+        langgraph_lifecycle.maybe_advance_mission_lifecycle(
+            app=app,
+            mission_id="mission-1",
+            settings=settings,
+            validator=object(),
+            emit_state_event_fn=lambda **_kwargs: asyncio.sleep(0),
+        )
+    )
+    second = asyncio.run(
+        langgraph_lifecycle.maybe_advance_mission_lifecycle(
+            app=app,
+            mission_id="mission-1",
+            settings=settings,
+            validator=object(),
+            emit_state_event_fn=lambda **_kwargs: asyncio.sleep(0),
+        )
+    )
+
+    assert first is True
+    assert second is True
+    assert FakeAsyncPostgresSaver.setup_calls == 1
+    assert FakeAsyncPostgresSaver.uris == [
+        "postgresql://checkpointer:5432/langgraph",
+        "postgresql://checkpointer:5432/langgraph",
+    ]
+    assert getattr(app.state, "langgraph_postgres_checkpointer_setup_done", False) is True
+
+    assert FakeStateGraph.last_instance is not None
+    invoke_state, invoke_config = FakeStateGraph.last_instance.compiled.calls[-1]
+    assert invoke_state["mission_id"] == "mission-1"
+    assert invoke_config == {
+        "configurable": {
+            "thread_id": "mission:mission-1",
+            "checkpoint_ns": "mission-lifecycle",
+        }
+    }
+
+
 def test_maybe_advance_fail_open_and_fail_closed(monkeypatch) -> None:
     class RaisingCompiledGraph:
         async def ainvoke(
