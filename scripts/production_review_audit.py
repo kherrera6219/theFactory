@@ -228,6 +228,37 @@ def check_release_trust_controls() -> AuditResult:
     )
 
 
+def check_tracing_and_pager_controls() -> AuditResult:
+    app_compose = _read_text(REPO_ROOT / "deploy" / "docker-compose.yaml").lower()
+    monitoring_compose = _read_text(REPO_ROOT / "deploy" / "docker-compose.monitoring.yaml").lower()
+    alertmanager_config = _read_text(
+        REPO_ROOT / "deploy" / "monitoring" / "alertmanager" / "alertmanager.yml"
+    ).lower()
+
+    missing_items: list[str] = []
+    if "jaeger" not in app_compose:
+        missing_items.append("missing jaeger service in deploy/docker-compose.yaml")
+    if "otel_exporter_otlp_traces_endpoint" not in app_compose:
+        missing_items.append("missing OTEL exporter endpoint wiring in app compose")
+    if "--config.expand-env" not in monitoring_compose:
+        missing_items.append("missing alertmanager env expansion flag")
+    if "pager_webhook_url" not in monitoring_compose:
+        missing_items.append("missing pager webhook env in monitoring compose")
+    if "receiver: pager" not in alertmanager_config:
+        missing_items.append("missing pager receiver route")
+    if "severity =~ critical|high" not in alertmanager_config:
+        missing_items.append("missing high/critical pager matcher")
+
+    passed = not missing_items
+    return _result(
+        check_id="OBS-009",
+        priority="HIGH",
+        description="Distributed tracing and pager alert routing controls are configured",
+        passed=passed,
+        notes="; ".join(missing_items) if missing_items else "tracing and pager controls present",
+    )
+
+
 def run_audit() -> list[AuditResult]:
     return [
         check_coverage_gate(),
@@ -239,6 +270,7 @@ def run_audit() -> list[AuditResult]:
         check_mission_control_typescript_strict(),
         check_design_tokens(),
         check_release_trust_controls(),
+        check_tracing_and_pager_controls(),
     ]
 
 

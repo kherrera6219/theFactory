@@ -68,8 +68,14 @@ Last updated: 2026-03-03
 - Promotion decision artifacts generated for auditability.
 - Status: Complete (baseline, 2026-03-03).
 
+## Phase 9: Observability and Incident Routing
+
+- OpenTelemetry tracing baseline wired for gateway/orchestrator mission-path APIs.
+- Alertmanager pager webhook routing for high/critical alerts via `PAGER_WEBHOOK_URL`.
+- Audit controls include release-trust and observability checks (`REL-001`, `OBS-009`).
+- Status: Complete (baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
-1. Add distributed tracing with alert-to-pager integration.
-2. Activate Qdrant in active retrieval paths and define SLOs.
-3. Validate long-duration load profiles and formalize capacity thresholds.
+1. Activate Qdrant in active retrieval paths and define SLOs.
+2. Validate long-duration load profiles and formalize capacity thresholds.

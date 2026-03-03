@@ -111,6 +111,8 @@ Exit criteria:
 
 ## Phase 9 - Full Observability Integration
 
+Status: Baseline complete (2026-03-03)
+
 Objective: tracing + incident routing maturity.
 
 Exit criteria:

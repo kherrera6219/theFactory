@@ -1,6 +1,6 @@
 # Operations Runbook
 
-Last updated: 2026-03-02
+Last updated: 2026-03-03
 
 ## Core Health Checks
 
@@ -22,8 +22,22 @@ Last updated: 2026-03-02
    - Prometheus: `http://localhost:9090`
    - Grafana: `http://localhost:3001`
    - Loki: `http://localhost:3101`
+   - Alertmanager: `http://localhost:9093`
+   - Jaeger: `http://localhost:16686`
 3. Stop:
    - `docker compose -f deploy/docker-compose.monitoring.yaml down -v`
+
+## Tracing and Pager Checks
+
+1. Verify tracing is enabled for core services:
+   - `curl http://localhost:8100/readyz`
+   - `curl http://localhost:8101/readyz`
+2. Verify Jaeger UI is reachable:
+   - `curl http://localhost:16686`
+3. Verify Alertmanager is healthy:
+   - `curl http://localhost:9093/-/ready`
+4. Verify pager webhook configuration in monitoring stack:
+   - `docker compose -f deploy/docker-compose.monitoring.yaml exec alertmanager printenv PAGER_WEBHOOK_URL`
 
 ## Mission Pipeline Smoke Test
 

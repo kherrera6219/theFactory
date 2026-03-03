@@ -224,3 +224,49 @@
 ### Outcome
 - Release trust Phase 8 baseline implemented: attestation + promotion gate now enforced in CI for main and release tags.
 - Remaining P0 blockers are tracing/pager integration and long-duration reliability qualification.
+
+## Phase 8 - Tracing and Pager Integration
+
+### Objective
+- Implement distributed tracing for core mission path services.
+- Route high/critical alerts to pager webhook targets through Alertmanager.
+
+### Implementation
+- Added tracing baseline modules:
+  - `services/api-gateway/api_gateway/tracing.py`
+  - `services/orchestrator/orchestrator/tracing.py`
+- Enabled tracing in service startup:
+  - `services/api-gateway/api_gateway/main.py`
+  - `services/orchestrator/orchestrator/main.py`
+- Added trace ID response header support (`X-Trace-Id`) on core APIs.
+- Added OpenTelemetry dependencies:
+  - `services/api-gateway/requirements.txt`
+  - `services/orchestrator/requirements.txt`
+- Added tracing env wiring:
+  - `.env.example`
+  - `deploy/docker-compose.yaml`
+- Added pager routing controls:
+  - `deploy/monitoring/alertmanager/alertmanager.yml`
+  - `deploy/docker-compose.monitoring.yaml` (`--config.expand-env`, `PAGER_WEBHOOK_URL`)
+- Added release-audit coverage for observability controls:
+  - `scripts/production_review_audit.py` (`OBS-009`)
+  - `tests/scripts/test_production_review_audit.py`
+- Added tracing helper tests:
+  - `tests/services/test_tracing_unit.py`
+- Added dedicated observability documentation updates:
+  - `docs/OBSERVABILITY_STACK.md`
+  - `docs/OPERATIONS_RUNBOOK.md`
+
+### Validation and Debug Sweep
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest tests/scripts/test_production_review_audit.py tests/scripts/test_promotion_gate.py tests/scripts/test_perf_smoke.py`: pass (18 tests)
+- `python -m pytest tests/services/test_tracing_unit.py`: pass
+- `npm run lint` / `npm run test` (mission-control): pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (86.96%)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `python scripts/production_review_audit.py`: pass (`10/10`)
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Distributed tracing and pager-routing baseline controls are now implemented and audited.
+- Remaining P0 blocker is long-duration reliability qualification.

@@ -3,3 +3,7 @@ uvicorn==0.41.0
 redis==7.2.1
 psycopg[binary]==3.3.3
 prometheus-client==0.24.1
+opentelemetry-api==1.30.0
+opentelemetry-sdk==1.30.0
+opentelemetry-exporter-otlp==1.30.0
+opentelemetry-instrumentation-fastapi==0.51b0

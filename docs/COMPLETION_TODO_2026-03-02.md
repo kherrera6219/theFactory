@@ -9,9 +9,10 @@ Acceptance: release artifacts are signed, attested, and promotion is blocked wit
 Evidence targets: `docs/GAP_ANALYSIS.md`, `docs/PRODUCTION_PHASE_PLAN.md`, `docs/PRODUCTION_REVIEW_AUDIT.md`.
 Phase 7 status (2026-03-03): CI release-trust job now generates/verifies provenance attestation and enforces fail-closed promotion policy.
 
-- [ ] Implement end-to-end distributed tracing plus alert-to-pager/on-call routing.
+- [x] Implement end-to-end distributed tracing plus alert-to-pager/on-call routing.
 Acceptance: traces correlate gateway/orchestrator/workers, alert routes are tested, and runbooks updated.
 Evidence targets: `docs/ROADMAP.md`, `docs/OBSERVABILITY_STACK.md`, `docs/OPERATIONS_RUNBOOK.md`.
+Phase 8 status (2026-03-03): OpenTelemetry tracing baseline enabled for gateway/orchestrator with Jaeger OTLP export, Alertmanager pager routing configured via `PAGER_WEBHOOK_URL`, and audit control `OBS-009` added.
 
 - [ ] Run long-duration load/resilience qualification and publish capacity baselines.
 Acceptance: soak/failure scenarios are executed, thresholds documented, and remediation actions tracked.
