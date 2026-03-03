@@ -436,3 +436,37 @@
 
 ### Next Phase
 - P1 target: add real-dependency mission-flow integration tests and complete data-system roadmap reconciliation.
+
+## Phase 14 - Legacy Roadmap and Port Reconciliation
+
+### Objective
+- Close remaining documentation strategy gaps by publishing explicit legacy-roadmap disposition.
+- Resolve residual Mission Control runtime-port ambiguity between canonical and historical docs.
+
+### Implementation
+- Added reconciliation reference:
+  - `docs/LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md`
+  - Defines canonical Mission Control port policy (`3100` Docker-host, `3000` direct dev).
+  - Maps legacy advanced scope to adopted/deferred/deprecated dispositions.
+- Updated canonical planning/index docs:
+  - `docs/COMPLETION_TODO_2026-03-02.md` (P2 items closed with Phase 14 status)
+  - `docs/ROADMAP.md` (Phase 14 complete + next targets adjusted)
+  - `docs/DOCUMENTATION_INDEX.md` (reconciliation doc indexed)
+  - `docs/GAP_ANALYSIS.md` (legacy-roadmap and port-drift finding addressed)
+  - `README.md` (core docs map includes reconciliation reference)
+- Added phase evidence:
+  - `docs/evidence/phase14_legacy_reconciliation_2026-03-03.md`
+
+### Validation and Debug Sweep
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (`214` tests, `86.96%`)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `python scripts/production_review_audit.py`: pass (`12/12`)
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Legacy roadmap scope and Mission Control port policy are now explicitly reconciled in canonical documentation.
+- P2 documentation/strategy alignment items are closed in baseline.
+
+### Next Phase
+- P1 target: implement real-dependency mission-flow integration tests and finalize data-system roadmap activation/reconciliation.

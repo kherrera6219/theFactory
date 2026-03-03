@@ -67,6 +67,13 @@ Last updated: 2026-03-03
      - Added `-DryRun` execution path and integrity checks to backup/DR scripts.
      - Added PowerShell regression tests in `tests/scripts/test_backup_dr_scripts.py`.
 
+8. `Low` Legacy roadmap and Mission Control runtime-port assumptions were not explicitly reconciled in canonical docs.
+   - Previous state: legacy artifacts implied single-port or advanced-scope commitments without canonical disposition mapping.
+   - Status: `Addressed (baseline)`.
+   - Action taken:
+     - Added canonical reconciliation note with adopted/deferred/deprecated legacy scope mapping.
+     - Documented explicit Mission Control port policy for Docker-host and direct-dev modes.
+
 ## Structural Gaps Still Open (Planned)
 
 - Real-dependency integration tests:

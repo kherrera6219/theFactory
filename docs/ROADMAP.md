@@ -111,8 +111,20 @@ Last updated: 2026-03-03
   - validates backup and DR drills in dry-run mode without live runtime dependency requirements.
 - Status: Complete (baseline, 2026-03-03).
 
+## Phase 14: Legacy Roadmap and Port Reconciliation
+
+- Published canonical reconciliation note:
+  - `docs/LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md`
+- Resolved Mission Control runtime-port ambiguity in canonical planning:
+  - Docker-host default `3100`
+  - direct Next.js dev `3000`
+- Legacy advanced roadmap scope is now explicitly tagged as:
+  - adopted (core phases),
+  - deferred (advanced cloud/marketplace/expansion/R&D items),
+  - deprecated (legacy financial projections as execution commitments).
+- Status: Complete (baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
 1. Add real-dependency integration tests for mission intake/state flow across gateway/orchestrator/Redis/Postgres wiring.
 2. Activate Qdrant in active retrieval paths and publish retrieval-path/SLO guidance.
-3. Publish explicit legacy-roadmap reconciliation and runtime-port alignment note for remaining historical docs.
