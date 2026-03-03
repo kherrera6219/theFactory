@@ -24,6 +24,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - `scripts/reliability_qualification.ps1`
   - baseline evidence in `docs/evidence/reliability_qualification_baseline_2026-03-03.json`
   - reliability runbook in `docs/LONG_DURATION_RELIABILITY_QUALIFICATION.md`
+- Mission Control e2e regression tooling:
+  - Playwright config in `apps/mission-control/playwright.config.ts`
+  - critical-path e2e suite in `apps/mission-control/e2e/mission-control.spec.ts`
 - Semantic Bus MCP service (`services/semantic-bus-mcp`) with:
   - six-protocol payload validation (alpha/beta/delta/sigma/omega/rho)
   - `/send`, `/health`, `/readyz`, `/metrics`, and `/dlq` endpoints
@@ -69,5 +72,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added promotion gate unit tests in `tests/scripts/test_promotion_gate.py`.
 - `scripts/production_review_audit.py` now includes critical check `REL-001` for release trust controls.
 - `scripts/production_review_audit.py` now includes reliability evidence check `PERF-010`.
+- `scripts/production_review_audit.py` now includes Mission Control e2e gate check `UI-011`.
 - `Makefile` now exposes `make promotion-gate` for local policy evaluation.
 - `Makefile` now exposes `make reliability` for sustained-load qualification.
+- `Makefile` now exposes `make test-ui-e2e` for Mission Control Playwright execution.
+- `.github/workflows/ci.yml` now runs Mission Control Playwright e2e tests with Chromium install.

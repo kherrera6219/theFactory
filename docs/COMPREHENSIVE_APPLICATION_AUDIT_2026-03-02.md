@@ -1,5 +1,8 @@
 # theFactory Comprehensive Application Audit (2026-03-02)
 
+> Historical snapshot: this report reflects repository state on 2026-03-02.
+> Current status is tracked in `docs/COMPLETION_TODO_2026-03-02.md`, `docs/ROADMAP.md`, and `docs/DELIVERY_PHASE_LOG_2026-03-02.md`.
+
 ## Scope
 - Audited documentation in repo root, `docs/`, and `legacy documentation/`.
 - Cross-checked documentation claims against current implementation topology and service behavior.

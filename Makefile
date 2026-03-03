@@ -1,4 +1,4 @@
-.PHONY: up down validate lint test test-ui test-fast audit promotion-gate sweep openapi predeploy backup dr perf reliability monitor-up monitor-down
+.PHONY: up down validate lint test test-ui test-ui-e2e test-fast audit promotion-gate sweep openapi predeploy backup dr perf reliability monitor-up monitor-down
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -34,6 +34,9 @@ test:
 
 test-ui:
 	cd apps/mission-control && npm run lint && npm run test
+
+test-ui-e2e:
+	cd apps/mission-control && npm run test:e2e
 
 test-fast:
 	pytest

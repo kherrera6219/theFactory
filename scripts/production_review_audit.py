@@ -190,6 +190,28 @@ def check_mission_control_typescript_strict() -> AuditResult:
     )
 
 
+def check_mission_control_e2e_controls() -> AuditResult:
+    package_json = _read_text(REPO_ROOT / "apps" / "mission-control" / "package.json").lower()
+    ci_text = _read_text(REPO_ROOT / ".github" / "workflows" / "ci.yml").lower()
+
+    missing_items: list[str] = []
+    if '"test:e2e"' not in package_json or "playwright test" not in package_json:
+        missing_items.append("mission-control package.json missing playwright test:e2e script")
+    if "mission control e2e tests" not in ci_text and "npm run test:e2e" not in ci_text:
+        missing_items.append("ci workflow missing mission-control e2e test step")
+    if "playwright install" not in ci_text:
+        missing_items.append("ci workflow missing playwright browser install step")
+
+    passed = not missing_items
+    return _result(
+        check_id="UI-011",
+        priority="HIGH",
+        description="Mission Control critical e2e regression tests run in CI",
+        passed=passed,
+        notes="; ".join(missing_items) if missing_items else "mission-control e2e controls present",
+    )
+
+
 def check_design_tokens() -> AuditResult:
     tokens_json = REPO_ROOT / "assets" / "design-tokens" / "tokens.json"
     tokens_css = REPO_ROOT / "assets" / "design-tokens" / "tokens.css"
@@ -300,6 +322,7 @@ def run_audit() -> list[AuditResult]:
         check_protocol_contract_artifacts(),
         check_operational_docs(),
         check_mission_control_typescript_strict(),
+        check_mission_control_e2e_controls(),
         check_design_tokens(),
         check_release_trust_controls(),
         check_tracing_and_pager_controls(),

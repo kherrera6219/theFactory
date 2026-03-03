@@ -83,7 +83,14 @@ Last updated: 2026-03-03
 - Audit control expanded with reliability evidence verification (`PERF-010`).
 - Status: Complete (baseline, 2026-03-03).
 
+## Phase 11: Mission Control Integration and E2E Regression
+
+- Playwright e2e suite for mission lifecycle, operations views, settings/vault flows, and error states.
+- CI runs Mission Control e2e tests with Chromium browser provisioning.
+- Audit control expanded with Mission Control e2e gate verification (`UI-011`).
+- Status: Complete (baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
-1. Establish Mission Control integration/e2e regression coverage for core operator journeys.
-2. Activate Qdrant in active retrieval paths and define SLOs.
+1. Activate Qdrant in active retrieval paths and define SLOs.
+2. Complete builder preview and repo import production workflows.

@@ -12,6 +12,7 @@ This document defines automated quality gates for theFactory and the specific co
 - `make lint`
 - `make test`
 - `make test-ui`
+- `make test-ui-e2e`
 - `make promotion-gate`
 - `make reliability`
 
@@ -24,6 +25,10 @@ This document defines automated quality gates for theFactory and the specific co
 
 - `npm run lint` in `apps/mission-control`
 - `npm run test` in `apps/mission-control` (Vitest unit suite)
+
+`make test-ui-e2e` runs:
+
+- `npm run test:e2e` in `apps/mission-control` (Playwright critical-path suite)
 
 `make promotion-gate` runs:
 
@@ -57,7 +62,7 @@ This policy is enforced in:
 
 - `Makefile` (`make test`)
 - `.github/workflows/ci.yml` (`Test with Coverage`)
-- `.github/workflows/ci.yml` (`Mission Control Lint`, `Mission Control Unit Tests`)
+- `.github/workflows/ci.yml` (`Mission Control Lint`, `Mission Control Unit Tests`, `Mission Control E2E Tests`)
 
 ## Security and Reliability Expectations for Core Files
 
@@ -74,4 +79,4 @@ The coverage policy above exists to protect enterprise-critical runtime guarante
 
 - Generated `coverage.xml` is used as input for threshold validation.
 - If core thresholds fail, CI fails the build.
-- Mission Control unit tests run in CI as a baseline; integration/e2e expansion remains planned work.
+- Mission Control lint, unit, and e2e tests all run in CI.
