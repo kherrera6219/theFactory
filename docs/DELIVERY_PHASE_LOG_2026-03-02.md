@@ -398,3 +398,41 @@
 
 ### Next Phase
 - P1 target: add real-dependency integration tests for mission intake/state transitions and script regression coverage for backup/DR flows.
+
+## Phase 13 - Backup and DR Script Regression Validation
+
+### Objective
+- Add automated regression coverage for backup and disaster-recovery PowerShell scripts.
+- Harden script behavior with safe testability hooks and clearer failure conditions.
+
+### Implementation
+- Updated backup script:
+  - `scripts/backup_postgres.ps1`
+  - Added `-DryRun` mode for CI-safe execution.
+  - Added deterministic `-Timestamp` support for reproducible test artifacts.
+  - Added backup artifact truncation guardrail (`<64 bytes` fails).
+- Updated DR drill script:
+  - `scripts/dr_drill.ps1`
+  - Added `-DryRun` mode with readiness/DB-query bypass.
+  - Added direct script invocation for backup step (`$PSScriptRoot/backup_postgres.ps1`) to avoid shell-host assumptions.
+  - Added `-Timestamp` passthrough for deterministic test control.
+- Added script regression test suite:
+  - `tests/scripts/test_backup_dr_scripts.py`
+  - Executes PowerShell scripts in dry-run mode and verifies expected backup artifact creation and drill output.
+- Added phase evidence:
+  - `docs/evidence/phase13_script_validation_2026-03-03.md`
+
+### Validation and Debug Sweep
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest tests/scripts/test_backup_dr_scripts.py tests/scripts/test_perf_smoke.py tests/scripts/test_production_review_audit.py`: pass (21 tests)
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (`214` tests, `86.96%`)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `python scripts/production_review_audit.py`: pass (`12/12`)
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Backup and DR script regressions are now automatically detectable in CI-safe dry-run mode.
+- P1 operational-script validation gap is closed in baseline.
+
+### Next Phase
+- P1 target: add real-dependency mission-flow integration tests and complete data-system roadmap reconciliation.

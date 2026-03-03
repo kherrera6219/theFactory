@@ -1,3 +1,8 @@
+param(
+    [switch]$DryRun,
+    [string]$Timestamp
+)
+
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -7,11 +12,21 @@ $started = Get-Date
 Write-Host "== DR drill start =="
 
 Write-Host "[1/4] Validate service readiness"
-curl.exe -sS --fail http://localhost:8100/readyz > $null
-curl.exe -sS --fail http://localhost:8101/readyz > $null
+if ($DryRun) {
+    Write-Host "Dry-run mode enabled. Skipping readiness HTTP checks."
+}
+else {
+    curl.exe -sS --fail http://localhost:8100/readyz > $null
+    curl.exe -sS --fail http://localhost:8101/readyz > $null
+}
 
 Write-Host "[2/4] Create fresh backup"
-powershell -ExecutionPolicy Bypass -File scripts/backup_postgres.ps1
+if ($DryRun) {
+    & "$PSScriptRoot/backup_postgres.ps1" -DryRun -Timestamp $Timestamp
+}
+else {
+    & "$PSScriptRoot/backup_postgres.ps1" -Timestamp $Timestamp
+}
 
 $latestBackup = Get-ChildItem -Path backups -Filter "ulr_*.sql" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $latestBackup) {
@@ -25,7 +40,12 @@ if ($head.Count -eq 0) {
 }
 
 Write-Host "[4/4] Verify mission table readable"
-docker compose -f deploy/docker-compose.yaml exec -T postgres psql -U postgres -d ulr -c "select count(*) as missions from missions;"
+if ($DryRun) {
+    Write-Host "Dry-run mode enabled. Skipping postgres mission-count query."
+}
+else {
+    docker compose -f deploy/docker-compose.yaml exec -T postgres psql -U postgres -d ulr -c "select count(*) as missions from missions;"
+}
 
 $ended = Get-Date
 $duration = [math]::Round(($ended - $started).TotalSeconds, 2)

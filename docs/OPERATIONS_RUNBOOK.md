@@ -100,10 +100,12 @@ Last updated: 2026-03-03
    - `powershell -ExecutionPolicy Bypass -File scripts/pre_deploy_check.ps1`
 2. Backup:
    - `powershell -ExecutionPolicy Bypass -File scripts/backup_postgres.ps1`
+   - dry-run validation: `powershell -ExecutionPolicy Bypass -File scripts/backup_postgres.ps1 -DryRun`
 3. Restore:
    - `powershell -ExecutionPolicy Bypass -File scripts/restore_postgres.ps1 -BackupFile backups/<file>.sql`
 4. DR drill:
    - `powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1`
+   - dry-run validation: `powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1 -DryRun`
 5. Perf smoke:
    - `powershell -ExecutionPolicy Bypass -File scripts/perf_smoke.ps1`
 6. Long-duration reliability qualification:

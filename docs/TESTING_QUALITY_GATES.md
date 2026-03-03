@@ -81,3 +81,4 @@ The coverage policy above exists to protect enterprise-critical runtime guarante
 - Generated `coverage.xml` is used as input for threshold validation.
 - If core thresholds fail, CI fails the build.
 - Mission Control lint, unit, and e2e tests all run in CI.
+- Script regression coverage includes perf/audit plus backup/DR dry-run checks in `tests/scripts/test_backup_dr_scripts.py`.

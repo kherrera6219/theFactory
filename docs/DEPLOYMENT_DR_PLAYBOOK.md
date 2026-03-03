@@ -12,6 +12,8 @@ Operational scripts for deployment preflight, backup/restore, and disaster-recov
 
 - Create PostgreSQL backup:
   - `powershell -ExecutionPolicy Bypass -File scripts/backup_postgres.ps1`
+- CI-safe dry-run backup validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/backup_postgres.ps1 -DryRun`
 - Output location:
   - `backups/ulr_YYYYMMDD_HHMMSS.sql`
 
@@ -24,6 +26,8 @@ Operational scripts for deployment preflight, backup/restore, and disaster-recov
 
 - Execute drill:
   - `powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1`
+- CI-safe dry-run drill validation:
+  - `powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1 -DryRun`
 - Drill validates:
   - service readiness
   - fresh backup creation
