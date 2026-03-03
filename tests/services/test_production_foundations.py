@@ -607,6 +607,7 @@ def test_orchestrator_readyz_reports_ready(monkeypatch) -> None:
         return True, True
 
     monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
+    monkeypatch.setattr(orchestrator_main.qdrant_store, "qdrant_ready", lambda *_: True)
     with TestClient(orchestrator_app) as client:
         orchestrator_app.state.protocol_ready = True
         orchestrator_app.state.consumer_task = FakeTask(done=False)
@@ -621,6 +622,7 @@ def test_orchestrator_readyz_returns_503_when_consumer_not_running(monkeypatch) 
         return True, True
 
     monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
+    monkeypatch.setattr(orchestrator_main.qdrant_store, "qdrant_ready", lambda *_: True)
     with TestClient(orchestrator_app) as client:
         orchestrator_app.state.protocol_ready = True
         orchestrator_app.state.consumer_task = FakeTask(done=True)

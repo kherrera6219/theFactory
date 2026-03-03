@@ -54,6 +54,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - targeted branch tests for protocol/runtime, semantic-bus, pod-worker, and audit-worker paths
 - Testing policy documentation:
   - `docs/TESTING_QUALITY_GATES.md`
+- Qdrant knowledge integration baseline:
+  - `services/orchestrator/orchestrator/qdrant_store.py`
+  - `tests/services/test_qdrant_store_unit.py`
+  - phase evidence in `docs/evidence/phase16_data_system_activation_validation_2026-03-03.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
@@ -77,3 +81,5 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `Makefile` now exposes `make reliability` for sustained-load qualification.
 - `Makefile` now exposes `make test-ui-e2e` for Mission Control Playwright execution.
 - `.github/workflows/ci.yml` now runs Mission Control Playwright e2e tests with Chromium install.
+- Orchestrator internal knowledge endpoints now mirror to and retrieve from Qdrant (with PostgreSQL fallback), and runtime readiness payloads now include Qdrant dependency state.
+- `.env.example` and `deploy/docker-compose.yaml` now expose Qdrant runtime controls (`QDRANT_ENABLED`, `QDRANT_COLLECTION`, `QDRANT_VECTOR_SIZE`, `QDRANT_TIMEOUT_SECONDS`, `QDRANT_API_KEY`).

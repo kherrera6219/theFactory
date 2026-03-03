@@ -51,9 +51,10 @@ Evidence targets: `scripts/`, `.github/workflows/ci.yml`.
 Phase 5-6 status (2026-03-02): unit coverage added for `scripts/production_review_audit.py` and `scripts/perf_smoke.py`; backup/DR script test coverage was pending.
 Phase 13 status (2026-03-03): backup and DR scripts now support `-DryRun` regression paths with CI-testable PowerShell execution coverage in `tests/scripts/test_backup_dr_scripts.py`.
 
-- [ ] Complete data-system roadmap activation/reconciliation (Qdrant active path, Neo4j/object-storage scope decision).
+- [x] Complete data-system roadmap activation/reconciliation (Qdrant active path, Neo4j/object-storage scope decision).
 Acceptance: either implemented with tests or formally deferred with documented rationale.
 Evidence targets: `docs/AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`, `docs/ROADMAP.md`.
+Phase 16 status (2026-03-03): orchestrator knowledge path now actively mirrors/retrieves via Qdrant with tested fallback behavior, runtime readiness visibility, and optional `QDRANT_API_KEY` hardening; Neo4j/object-storage tracks are formally deferred as optional expansion scopes.
 
 ## P2 - Documentation and Strategy Alignment
 - [x] Resolve documentation port/runtime contradictions for Mission Control.
@@ -74,6 +75,6 @@ Phase 14 status (2026-03-03): published explicit disposition matrix in `docs/LEG
 ## Exit Criteria
 - [x] All P0 acceptance criteria passed and documented.
 - [x] At least 80% service coverage maintained with critical-module thresholds intact.
-Current verified baseline (2026-03-03): 86.96% global coverage, all required 100% module thresholds passing.
+Current verified baseline (2026-03-03): 86.75% global coverage, all required 100% module thresholds passing.
 - [x] Mission Control has automated regression protection for core operator journeys.
 - [x] Updated audit report confirms no remaining critical production blockers.

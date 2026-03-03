@@ -135,6 +135,24 @@ Last updated: 2026-03-03
 - Tests auto-skip when live stack is unavailable, enabling safe execution in non-runtime environments.
 - Status: Complete (baseline, 2026-03-03).
 
+## Phase 16: Data-System Activation and Reconciliation
+
+- Activated Qdrant in orchestrator knowledge retrieval flow:
+  - `POST /internal/knowledge` writes to PostgreSQL and mirrors to Qdrant (best effort).
+  - `GET /internal/missions/{mission_id}/knowledge` prefers Qdrant and falls back to PostgreSQL.
+- Expanded runtime visibility:
+  - Qdrant readiness surfaced in `/health`, `/readyz`, and operations runtime snapshots.
+- Added Qdrant security hardening:
+  - optional `QDRANT_API_KEY` support for outbound Qdrant API calls.
+- Added regression coverage:
+  - `tests/services/test_qdrant_store_unit.py`
+  - updated `tests/services/test_orchestrator_endpoints_extra.py`
+  - updated `tests/services/test_production_foundations.py`
+- Reconciled scope decisions:
+  - Neo4j/object storage remain formally deferred optional expansions for current baseline.
+- Status: Complete (baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
-1. Activate Qdrant in active retrieval paths and publish retrieval-path/SLO guidance.
+1. Optional expansion track: introduce Neo4j adapter behind feature flag when relationship-heavy retrieval becomes a runtime requirement.
+2. Optional expansion track: introduce object-storage adapter with retention/legal-hold controls when immutable large-artifact demand exceeds current evidence storage model.

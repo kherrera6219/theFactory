@@ -81,7 +81,15 @@ Last updated: 2026-03-03
      - Added live integration tests for real gateway/orchestrator/Redis/Postgres mission flow.
      - Added runtime-aware skip behavior to keep tests safe in environments without active stack.
 
+10. `Medium` Data-systems reconciliation (Qdrant activation and Neo4j/object-storage scope decision) remained open.
+   - Previous state: Qdrant was listed as reserved and retrieval behavior was primarily PostgreSQL-only.
+   - Status: `Addressed (baseline)`.
+   - Action taken:
+     - Activated orchestrator Qdrant retrieval path with best-effort mirror writes and PostgreSQL fallback.
+     - Added runtime readiness visibility for Qdrant in health/operations surfaces.
+     - Added optional Qdrant API-key support for secure service-to-service requests.
+     - Recorded formal defer decision for Neo4j/object-storage as optional expansion scope.
+
 ## Structural Gaps Still Open (Planned)
 
-- Data-systems reconciliation:
-  - Activate Qdrant retrieval paths and finalize Neo4j/object-storage scope decision with updated canonical docs.
+- None in current canonical production-readiness baseline.

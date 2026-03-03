@@ -138,6 +138,17 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         "list_knowledge",
         lambda *_: [{"mission_id": "mission-1", "knowledge_id": "k-1"}],
     )
+    qdrant_upserts: list[tuple[object, ...]] = []
+    monkeypatch.setattr(
+        orchestrator_main.qdrant_store,
+        "upsert_knowledge",
+        lambda *args: qdrant_upserts.append(args),
+    )
+    monkeypatch.setattr(
+        orchestrator_main.qdrant_store,
+        "list_knowledge",
+        lambda *_: [{"mission_id": "mission-1", "knowledge_id": "k-qdrant"}],
+    )
     monkeypatch.setattr(
         orchestrator_main.storage,
         "upsert_audit_report",
@@ -203,13 +214,13 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         ).status_code
         == 200
     )
-    assert (
-        client.get(
-            "/internal/missions/mission-1/knowledge?limit=5",
-            headers={"x-api-key": "worker-key"},
-        ).status_code
-        == 200
+    knowledge_response = client.get(
+        "/internal/missions/mission-1/knowledge?limit=5",
+        headers={"x-api-key": "worker-key"},
     )
+    assert knowledge_response.status_code == 200
+    assert knowledge_response.json()[0]["knowledge_id"] == "k-qdrant"
+    assert qdrant_upserts
     assert (
         client.post(
             "/internal/audit-reports",
@@ -245,6 +256,26 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         ).status_code
         == 200
     )
+
+
+def test_get_knowledge_falls_back_to_postgres_when_qdrant_returns_empty(monkeypatch) -> None:
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)
+    monkeypatch.setattr(orchestrator_main.qdrant_store, "list_knowledge", lambda *_: [])
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "list_knowledge",
+        lambda *_: [{"mission_id": "mission-1", "knowledge_id": "k-postgres"}],
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/missions/mission-1/knowledge?limit=5",
+        headers={"x-api-key": "worker-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()[0]["knowledge_id"] == "k-postgres"
 
 
 def test_internal_operations_endpoints(monkeypatch) -> None:
@@ -428,6 +459,10 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert "job_role" in integration_payload["persona_profile_sections"]
     assert "redis" in integration_payload["data_systems"]
     assert "postgresql" in integration_payload["data_systems"]
+    assert "qdrant" in integration_payload["implemented_data_plane"]
+    assert integration_payload["reserved_data_plane"] == []
+    assert "neo4j" in integration_payload["planned_data_plane"]
+    assert "object_storage" in integration_payload["planned_data_plane"]
     assert integration_payload["llm_provider_counts"]["openai"] > 0
     assert integration_payload["llm_provider_counts"]["anthropic"] > 0
     assert integration_payload["llm_provider_counts"]["gemini"] > 0

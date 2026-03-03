@@ -34,8 +34,8 @@ Data and event plane:
 
 - Redis Streams: mission/event transport and heartbeat/event telemetry.
 - PostgreSQL: missions, events, pod assignments, logicnodes, knowledge, audits, agent heartbeats.
-- Qdrant: reserved data-plane component for vector retrieval activation.
-- Neo4j/object storage: planned optional expansion paths (documented, not primary runtime dependencies today).
+- Qdrant: active knowledge retrieval/index path with PostgreSQL fallback.
+- Neo4j/object storage: planned optional expansion paths (formally deferred for current production baseline).
 
 ## 35-Agent Runtime Model
 
@@ -246,7 +246,7 @@ Agent-specific docs:
 - Multi-agent telemetry, integrations, and persona standards evidence are active in operations APIs and Mission Control.
 - Core multi-agent communication/runtime files now enforce 100% coverage via CI and `make test`.
 - Mission Control lint, unit, and critical e2e regression coverage are now enforced in CI.
-- Remaining maturity work is focused on deeper production hardening (expanded reliability envelopes, resilience certification depth, and data-plane activation).
+- Remaining maturity work is focused on optional expansion tracks (deeper resilience certification depth, Neo4j graph workloads, and object-storage evidence scaling).
 
 ## Notes
 
