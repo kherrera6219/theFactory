@@ -16,6 +16,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `OPERATIONS_RUNBOOK.md`: health checks, smoke tests, auth checks, and DR operations.
 - `OBSERVABILITY_STACK.md`: monitoring/telemetry stack baseline.
 - `DEPLOYMENT_DR_PLAYBOOK.md`: deployment + disaster recovery operational playbook.
+- `LONG_DURATION_RELIABILITY_QUALIFICATION.md`: sustained-load qualification method, thresholds, and baseline evidence.
 - `TESTING_QUALITY_GATES.md`: enforced lint/test/coverage policy including core 100% module gates.
 - `PRODUCTION_REVIEW_AUDIT.md`: checklist-aligned production audit updates and outcomes.
 - `RELEASE_TRUST_PROMOTION_GATE.md`: CI attestation, promotion policy, and release-trust evidence flow.

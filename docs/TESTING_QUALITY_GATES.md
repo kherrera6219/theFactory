@@ -13,6 +13,7 @@ This document defines automated quality gates for theFactory and the specific co
 - `make test`
 - `make test-ui`
 - `make promotion-gate`
+- `make reliability`
 
 `make test` runs:
 
@@ -28,6 +29,11 @@ This document defines automated quality gates for theFactory and the specific co
 
 - `python scripts/promotion_gate.py` using `deploy/promotion-policy.json`
 - writes `reports/promotion-decision.local.json`
+
+`make reliability` runs:
+
+- `powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1`
+- performs sustained-load qualification with readiness/recovery verification and writes JSON results
 
 ## Coverage Policy
 

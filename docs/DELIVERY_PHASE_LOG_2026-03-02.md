@@ -270,3 +270,45 @@
 ### Outcome
 - Distributed tracing and pager-routing baseline controls are now implemented and audited.
 - Remaining P0 blocker is long-duration reliability qualification.
+
+## Phase 10 - Long-Duration Reliability Qualification
+
+### Objective
+- Execute sustained-load and recovery qualification for the core mission path.
+- Publish reproducible capacity/reliability baseline evidence.
+
+### Implementation
+- Added reliability qualification automation:
+  - `scripts/reliability_qualification.py`
+  - `scripts/reliability_qualification.ps1`
+  - `Makefile` (`make reliability`)
+- Qualification capabilities include:
+  - time-based request generation
+  - readiness monitoring during load
+  - optional failure injection command
+  - post-load recovery probe with consecutive healthy checks
+  - JSON evidence export
+- Added script unit tests:
+  - `tests/scripts/test_reliability_qualification.py`
+- Expanded production audit control coverage:
+  - `scripts/production_review_audit.py` (`PERF-010`)
+  - `tests/scripts/test_production_review_audit.py`
+- Added reliability baseline documentation and evidence:
+  - `docs/LONG_DURATION_RELIABILITY_QUALIFICATION.md`
+  - `docs/evidence/reliability_qualification_baseline_2026-03-03.json`
+
+### Validation and Debug Sweep
+- `python -m ruff check scripts tests`: pass
+- `python -m pytest tests/scripts/test_reliability_qualification.py tests/scripts/test_production_review_audit.py`: pass (18 tests)
+- `python scripts/reliability_qualification.py --duration-seconds 180 ... --failure-command "docker compose -f deploy/docker-compose.yaml restart orchestrator" --output-file docs/evidence/reliability_qualification_baseline_2026-03-03.json`: pass
+  - requests: `270`, success: `100.00%`, p95: `0.051s`
+  - readiness: `72` probes, `2` failed, max consecutive failures `1`
+  - recovery probe: pass in `3` polls
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-fail-under=80`: pass (86.96%)
+- `python scripts/production_review_audit.py`: pass (`11/11`)
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Long-duration reliability qualification baseline is now implemented, executed, and evidenced.
+- Primary remaining delivery blocker is Mission Control integration/e2e regression coverage.

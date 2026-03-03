@@ -35,3 +35,9 @@ Operational scripts for deployment preflight, backup/restore, and disaster-recov
 - Run perf smoke:
   - `powershell -ExecutionPolicy Bypass -File scripts/perf_smoke.ps1`
 - The script fails when success-rate or p95 threshold is not met.
+
+## Long-Duration Reliability Qualification
+
+- Run sustained-load qualification:
+  - `powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1 -InjectOrchestratorRestart`
+- The script runs time-based load, monitors readiness endpoints, injects an orchestrator restart, validates recovery, and emits a JSON evidence artifact.

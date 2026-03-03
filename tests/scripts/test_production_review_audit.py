@@ -103,6 +103,7 @@ def test_run_audit_returns_expected_checks() -> None:
         "STY-001",
         "REL-001",
         "OBS-009",
+        "PERF-010",
     ]
 
 
@@ -205,3 +206,37 @@ def test_check_tracing_and_pager_controls_fails_when_missing(tmp_path, monkeypat
     result = audit.check_tracing_and_pager_controls()
     assert result.passed is False
     assert "missing jaeger service" in result.notes
+
+
+def test_check_long_duration_reliability_controls_passes(tmp_path, monkeypatch) -> None:
+    _write(
+        tmp_path / "Makefile",
+        """
+.PHONY: reliability
+reliability:
+\tpowershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1
+""".strip(),
+    )
+    _write(tmp_path / "scripts" / "reliability_qualification.py", "print('ok')\n")
+    _write(tmp_path / "scripts" / "reliability_qualification.ps1", "Write-Host 'ok'\n")
+    _write(
+        tmp_path / "docs" / "OPERATIONS_RUNBOOK.md",
+        "powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1\n",
+    )
+    _write(tmp_path / "docs" / "LONG_DURATION_RELIABILITY_QUALIFICATION.md", "# Reliability\n")
+    _write(
+        tmp_path / "docs" / "evidence" / "reliability_qualification_baseline_2026-03-03.json",
+        "{}\n",
+    )
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_long_duration_reliability_controls()
+    assert result.passed is True
+
+
+def test_check_long_duration_reliability_controls_fails_when_missing(tmp_path, monkeypatch) -> None:
+    _write(tmp_path / "Makefile", ".PHONY: all\n")
+    _write(tmp_path / "docs" / "OPERATIONS_RUNBOOK.md", "# runbook\n")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_long_duration_reliability_controls()
+    assert result.passed is False
+    assert "missing artifact" in result.notes

@@ -75,7 +75,15 @@ Last updated: 2026-03-03
 - Audit controls include release-trust and observability checks (`REL-001`, `OBS-009`).
 - Status: Complete (baseline, 2026-03-03).
 
+## Phase 10: Long-Duration Reliability Qualification
+
+- Sustained-load qualification automation with readiness monitoring and recovery probe.
+- Optional injected orchestrator restart scenario in qualification flow.
+- Baseline evidence captured in `docs/evidence/reliability_qualification_baseline_2026-03-03.json`.
+- Audit control expanded with reliability evidence verification (`PERF-010`).
+- Status: Complete (baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
-1. Activate Qdrant in active retrieval paths and define SLOs.
-2. Validate long-duration load profiles and formalize capacity thresholds.
+1. Establish Mission Control integration/e2e regression coverage for core operator journeys.
+2. Activate Qdrant in active retrieval paths and define SLOs.

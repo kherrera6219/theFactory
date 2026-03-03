@@ -176,6 +176,7 @@ Using `make`:
 - `make backup`: run PostgreSQL backup script.
 - `make dr`: run DR drill script.
 - `make perf`: run performance smoke script.
+- `make reliability`: run sustained-load reliability qualification with readiness/recovery checks.
 - `make sweep`: run debugging/code sweep script.
 - `make monitor-up` / `make monitor-down`: control monitoring stack.
 
@@ -241,7 +242,7 @@ Agent-specific docs:
 - Core phased implementation is complete through production-foundation baseline.
 - Multi-agent telemetry, integrations, and persona standards evidence are active in operations APIs and Mission Control.
 - Core multi-agent communication/runtime files now enforce 100% coverage via CI and `make test`.
-- Remaining maturity work is focused on deeper production hardening (long-duration load qualification, resilience certification, and broader UI integration/e2e coverage).
+- Remaining maturity work is focused on deeper production hardening (expanded reliability envelopes, resilience certification depth, and broader UI integration/e2e coverage).
 
 ## Notes
 

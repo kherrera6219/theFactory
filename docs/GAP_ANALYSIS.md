@@ -37,12 +37,12 @@ Last updated: 2026-03-03
      - Added `docs/DOCUMENTATION_INDEX.md` for central navigation.
 
 4. `Medium` Deep production controls not fully enforced.
-   - Status: `Partially addressed`.
-   - Remaining:
-     - Long-duration capacity and resilience qualification.
+   - Status: `Addressed (baseline)`.
    - Action taken:
      - Added CI release-trust workflow controls for signed provenance attestation and fail-closed promotion policy enforcement.
      - Added tracing baseline for gateway/orchestrator with Jaeger OTLP export and pager webhook routing in Alertmanager.
+     - Added long-duration reliability qualification tooling with sustained load, failure injection, readiness monitoring, and recovery verification.
+     - Published baseline evidence artifact: `docs/evidence/reliability_qualification_baseline_2026-03-03.json`.
 
 ## Structural Gaps Still Open (Planned)
 
@@ -51,4 +51,4 @@ Last updated: 2026-03-03
 - Deployment resilience:
   - Expand rollback orchestration and staged promotion automation.
 - Performance qualification:
-  - Long-duration load tests with workload-specific capacity baselines.
+  - Expand workload profiles and capacity envelopes beyond current baseline certification scenario.

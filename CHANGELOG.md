@@ -19,6 +19,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - policy evaluator in `scripts/promotion_gate.py`
   - CI release-trust job with provenance attestation and verification
   - release trust documentation in `docs/RELEASE_TRUST_PROMOTION_GATE.md`
+- Long-duration reliability qualification tooling:
+  - `scripts/reliability_qualification.py`
+  - `scripts/reliability_qualification.ps1`
+  - baseline evidence in `docs/evidence/reliability_qualification_baseline_2026-03-03.json`
+  - reliability runbook in `docs/LONG_DURATION_RELIABILITY_QUALIFICATION.md`
 - Semantic Bus MCP service (`services/semantic-bus-mcp`) with:
   - six-protocol payload validation (alpha/beta/delta/sigma/omega/rho)
   - `/send`, `/health`, `/readyz`, `/metrics`, and `/dlq` endpoints
@@ -63,4 +68,6 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added performance-smoke script unit tests in `tests/scripts/test_perf_smoke.py`.
 - Added promotion gate unit tests in `tests/scripts/test_promotion_gate.py`.
 - `scripts/production_review_audit.py` now includes critical check `REL-001` for release trust controls.
+- `scripts/production_review_audit.py` now includes reliability evidence check `PERF-010`.
 - `Makefile` now exposes `make promotion-gate` for local policy evaluation.
+- `Makefile` now exposes `make reliability` for sustained-load qualification.
