@@ -1,0 +1,39 @@
+{
+  "run_timestamp_utc": "2026-03-03T20:04:45.737964+00:00",
+  "duration_seconds": 180.0,
+  "requests_per_second": 1.5,
+  "concurrency": 10,
+  "total_requests": 270,
+  "mission_success_rate_percent": 100.0,
+  "mission_error_count": 0,
+  "mission_status_counts": {
+    "200": 270
+  },
+  "latency_p50_seconds": 0.0461,
+  "latency_p95_seconds": 0.0506,
+  "latency_max_seconds": 0.054,
+  "readiness_checks_total": 72,
+  "readiness_failures_total": 2,
+  "max_consecutive_readiness_failures": 1,
+  "recovery_probe": {
+    "passed": true,
+    "polls": 3
+  },
+  "failure_injection": {
+    "configured": true,
+    "executed": true,
+    "exit_code": 0,
+    "stderr_tail": " Container deploy-orchestrator-1 Restarting \n Container deploy-orchestrator-1 Started \n",
+    "error": null
+  },
+  "thresholds": {
+    "min_success_rate_percent": 99.0,
+    "max_p95_seconds": 2.5,
+    "max_readiness_failures": 30,
+    "max_consecutive_readiness_failures": 8,
+    "recovery_timeout_seconds": 120.0,
+    "recovery_consecutive_successes": 3
+  },
+  "passed": true,
+  "failure_reasons": []
+}

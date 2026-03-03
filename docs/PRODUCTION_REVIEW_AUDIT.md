@@ -69,6 +69,11 @@ Last updated: 2026-03-03
    - Added Alertmanager pager webhook routing for high/critical alerts.
    - Added audit control `OBS-009` in `scripts/production_review_audit.py`.
 
+13. Long-duration reliability qualification controls:
+   - Added sustained-load qualification tooling with readiness probes, optional failure injection, and recovery validation.
+   - Published baseline qualification evidence (`docs/evidence/reliability_qualification_baseline_2026-03-03.json`).
+   - Added audit control `PERF-010` in `scripts/production_review_audit.py`.
+
 ## Evidence Artifacts
 
 - `docs/AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
@@ -86,5 +91,5 @@ Last updated: 2026-03-03
 
 - End-to-end 35-agent distributed execution with production traffic replay and formal SLO certification.
 - Expand tracing coverage beyond current baseline mission paths and formalize recurring on-call drill automation.
-- Long-duration load and resilience qualification under sustained concurrency.
+- Expand long-duration reliability scenarios beyond current baseline profile and publish service-tier envelopes.
 - Formalized architecture reconciliation for optional Neo4j/object-storage activation pathways.

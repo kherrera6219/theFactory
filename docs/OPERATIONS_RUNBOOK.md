@@ -106,5 +106,7 @@ Last updated: 2026-03-03
    - `powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1`
 5. Perf smoke:
    - `powershell -ExecutionPolicy Bypass -File scripts/perf_smoke.ps1`
-6. Debug/code sweep:
+6. Long-duration reliability qualification:
+   - `powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1 -InjectOrchestratorRestart`
+7. Debug/code sweep:
    - `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`

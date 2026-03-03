@@ -259,6 +259,38 @@ def check_tracing_and_pager_controls() -> AuditResult:
     )
 
 
+def check_long_duration_reliability_controls() -> AuditResult:
+    makefile_text = _read_text(REPO_ROOT / "Makefile").lower()
+    runbook_text = _read_text(REPO_ROOT / "docs" / "OPERATIONS_RUNBOOK.md").lower()
+    evidence_dir = REPO_ROOT / "docs" / "evidence"
+    evidence_files = sorted(evidence_dir.glob("reliability_qualification_baseline_*.json"))
+
+    required_paths = [
+        REPO_ROOT / "scripts" / "reliability_qualification.py",
+        REPO_ROOT / "scripts" / "reliability_qualification.ps1",
+        REPO_ROOT / "docs" / "LONG_DURATION_RELIABILITY_QUALIFICATION.md",
+    ]
+    missing_items = [f"missing artifact: {path}" for path in required_paths if not path.exists()]
+    if not evidence_files:
+        missing_items.append("missing reliability evidence report in docs/evidence")
+    if "reliability:" not in makefile_text:
+        missing_items.append("missing make reliability target")
+    if "reliability_qualification.ps1" not in runbook_text:
+        missing_items.append("operations runbook missing reliability qualification command")
+
+    passed = not missing_items
+    notes = "reliability controls and evidence present"
+    if evidence_files and passed:
+        notes = f"reliability controls and evidence present ({evidence_files[-1].name})"
+    return _result(
+        check_id="PERF-010",
+        priority="HIGH",
+        description="Long-duration reliability qualification controls and evidence are configured",
+        passed=passed,
+        notes="; ".join(missing_items) if missing_items else notes,
+    )
+
+
 def run_audit() -> list[AuditResult]:
     return [
         check_coverage_gate(),
@@ -271,6 +303,7 @@ def run_audit() -> list[AuditResult]:
         check_design_tokens(),
         check_release_trust_controls(),
         check_tracing_and_pager_controls(),
+        check_long_duration_reliability_controls(),
     ]
 
 

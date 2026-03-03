@@ -1,4 +1,4 @@
-.PHONY: up down validate lint test test-ui test-fast audit promotion-gate sweep openapi predeploy backup dr perf monitor-up monitor-down
+.PHONY: up down validate lint test test-ui test-fast audit promotion-gate sweep openapi predeploy backup dr perf reliability monitor-up monitor-down
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -63,6 +63,9 @@ dr:
 
 perf:
 	powershell -ExecutionPolicy Bypass -File scripts/perf_smoke.ps1
+
+reliability:
+	powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1
 
 sweep:
 	powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1

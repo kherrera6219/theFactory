@@ -14,9 +14,10 @@ Acceptance: traces correlate gateway/orchestrator/workers, alert routes are test
 Evidence targets: `docs/ROADMAP.md`, `docs/OBSERVABILITY_STACK.md`, `docs/OPERATIONS_RUNBOOK.md`.
 Phase 8 status (2026-03-03): OpenTelemetry tracing baseline enabled for gateway/orchestrator with Jaeger OTLP export, Alertmanager pager routing configured via `PAGER_WEBHOOK_URL`, and audit control `OBS-009` added.
 
-- [ ] Run long-duration load/resilience qualification and publish capacity baselines.
+- [x] Run long-duration load/resilience qualification and publish capacity baselines.
 Acceptance: soak/failure scenarios are executed, thresholds documented, and remediation actions tracked.
 Evidence targets: `docs/GAP_ANALYSIS.md`, `docs/PRODUCTION_PHASE_PLAN.md`.
+Phase 10 status (2026-03-03): sustained-load reliability qualification baseline executed with injected orchestrator restart and recovery verification; evidence stored at `docs/evidence/reliability_qualification_baseline_2026-03-03.json`.
 
 - [x] Add migration framework for schema evolution (versioned migrations + rollback path).
 Acceptance: schema changes are migration-based, reproducible, and tested on clean + upgraded databases.
