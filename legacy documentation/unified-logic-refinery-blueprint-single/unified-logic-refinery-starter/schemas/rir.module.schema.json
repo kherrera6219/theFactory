@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rir.module.schema.json",
+  "title": "RefinedIRModule",
+  "type": "object",
+  "required": [
+    "rir_version",
+    "module",
+    "fns"
+  ],
+  "properties": {
+    "rir_version": {
+      "type": "string"
+    },
+    "module": {
+      "type": "object"
+    },
+    "fns": {
+      "type": "array",
+      "items": {
+        "$ref": "rir.fn.schema.json"
+      }
+    }
+  },
+  "additionalProperties": false
+}

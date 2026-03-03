@@ -1,0 +1,10 @@
+# BLUEPRINT_SPEC.md  
+## Unified Logic Refinery — Master Blueprint Specification
+Version: 1.0.0  
+Last Updated: 2026-01-29
+
+> This file mirrors the blueprint you approved in chat, included here for repo completeness.
+> If you want it expanded further (more detailed ops list, richer schemas, LangGraph config),
+> extend the files in `/schemas`, `/protocol`, and `/services`.
+
+(Refer to the chat-provided master blueprint content.)

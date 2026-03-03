@@ -1,0 +1,1441 @@
+
+holy grail
+/
+Review project and all chat threads project files and documents and then write out the following in the chat thread (3.3 LangGraph Orchestration Specification
+    ∙    Workflow state machines for each agent type
+    ∙    Task routing and scheduling algorithms
+    ∙    Parallel execution strategies
+    ∙    Checkpoint and recovery mechanisms
+    ∙    Monitoring and observability hooks)
+
+5:09 PM
+I'll search the project knowledge and review the project files to gather the necessary information for the LangGraph Orchestration Specification.
+
+
+Searched memory
+Now let me view the project files to get additional context:
+
+
+Viewed 2 files
+Now I have comprehensive knowledge of the system architecture. Let me compile the complete 3.3 LangGraph Orchestration Specification.
+
+3.3 LangGraph Orchestration Specification
+Overview
+LangGraph serves as the "Nervous System" of the Holy Grail Refinery, managing the workflow state machines, task routing, and execution coordination for all 35 agents. Unlike traditional sequential pipelines, LangGraph enables event-driven, parallel execution where agents subscribe to data and act autonomously when their triggers activate.
+
+3.3.1 Workflow State Machines for Each Agent Type
+Executive Tier State Machines
+PM Agent State Machine
+States:
+├── IDLE                    → Awaiting human input
+├── VIBE_CAPTURE            → Processing user request into visual blueprint
+├── PRD_GENERATION          → Creating Product Requirement Document
+├── VISUAL_VERIFICATION     → Using Vision-AI to compare output against original vibe
+├── CORRECTION_DISPATCH     → Sending Visual Correction to Pods
+└── DELIVERY                → Presenting final output to human
+
+Transitions:
+IDLE → VIBE_CAPTURE         : on(user_message)
+VIBE_CAPTURE → PRD_GENERATION : on(blueprint_complete)
+PRD_GENERATION → IDLE       : on(prd_sent_to_ceo)
+IDLE → VISUAL_VERIFICATION  : on(binary_ready_for_review)
+VISUAL_VERIFICATION → DELIVERY : on(visual_match)
+VISUAL_VERIFICATION → CORRECTION_DISPATCH : on(visual_mismatch)
+CORRECTION_DISPATCH → IDLE  : on(correction_sent)
+CEO/Grand Manager State Machine
+States:
+├── MONITORING              → Observing Global State Graph
+├── DECOMPOSITION           → Breaking PRD into Logic Clusters
+├── ASSIGNMENT              → Dispatching clusters to appropriate Pods
+├── FUSION_READY            → All verified LogicNodes received
+├── GRAND_FUSION            → Merging R-IR into Master Logic Stream
+├── OPTIMIZATION_DISPATCH   → Sending to Systems Pod for hardware optimization
+└── HANDOVER                → Transferring to PM for visual verification
+
+Transitions:
+MONITORING → DECOMPOSITION          : on(prd_received)
+DECOMPOSITION → ASSIGNMENT          : on(clusters_ready)
+ASSIGNMENT → MONITORING             : on(assignments_dispatched)
+MONITORING → FUSION_READY           : on(all_pods_verified)
+FUSION_READY → GRAND_FUSION         : on(fusion_initiated)
+GRAND_FUSION → OPTIMIZATION_DISPATCH : on(master_stream_ready)
+OPTIMIZATION_DISPATCH → HANDOVER    : on(binary_optimized)
+HANDOVER → MONITORING               : on(delivered_to_pm)
+Support Ring State Machines
+IS Agent (Intelligence & Standards) State Machine
+States:
+├── INDEXING                → Ingesting new documentation into Knowledge Lake
+├── MONITORING_UPDATES      → Watching for new language releases/standards
+├── QUERY_RESPONSE          → Answering Specialist semantic searches
+├── BROADCAST               → Publishing Sigma Protocol updates to Bus
+└── VERSION_RECONCILIATION  → Resolving conflicts between documentation versions
+
+Transitions:
+MONITORING_UPDATES → INDEXING       : on(new_release_detected)
+INDEXING → BROADCAST                : on(index_complete)
+BROADCAST → MONITORING_UPDATES      : on(broadcast_acknowledged)
+QUERY_RESPONSE → MONITORING_UPDATES : on(response_delivered)
+any → QUERY_RESPONSE                : on(specialist_query)
+VERSION_RECONCILIATION → BROADCAST  : on(conflict_resolved)
+API Broker State Machine
+States:
+├── TRAFFIC_MONITORING      → Observing token usage across all agents
+├── RATE_LIMITING           → Throttling requests to stay within limits
+├── MODEL_ROUTING           → Directing requests to Flash vs Pro models
+├── CONTEXT_CACHING         → Managing cached context for cost reduction
+├── LOAD_BALANCING          → Distributing load across API endpoints
+└── EMERGENCY_THROTTLE      → Hard stop when approaching cost thresholds
+
+Transitions:
+TRAFFIC_MONITORING → RATE_LIMITING    : on(rate_threshold_approaching)
+TRAFFIC_MONITORING → MODEL_ROUTING    : on(request_received)
+MODEL_ROUTING → CONTEXT_CACHING       : on(cache_hit_possible)
+MODEL_ROUTING → LOAD_BALANCING        : on(request_routed)
+LOAD_BALANCING → TRAFFIC_MONITORING   : on(request_complete)
+any → EMERGENCY_THROTTLE              : on(cost_threshold_exceeded)
+EMERGENCY_THROTTLE → TRAFFIC_MONITORING : on(accountant_approval)
+Accountant State Machine
+States:
+├── COST_MONITORING         → Tracking token burn rate across all agents
+├── BUDGET_ENFORCEMENT      → Forcing context resets on inefficient agents
+├── CACHE_OPTIMIZATION      → Identifying context caching opportunities
+├── REPORTING               → Generating cost reports for PM
+└── THRESHOLD_ALERT         → Escalating cost overruns
+
+Transitions:
+COST_MONITORING → BUDGET_ENFORCEMENT  : on(agent_inefficiency_detected)
+COST_MONITORING → CACHE_OPTIMIZATION  : on(cache_opportunity_identified)
+COST_MONITORING → THRESHOLD_ALERT     : on(budget_threshold_exceeded)
+BUDGET_ENFORCEMENT → COST_MONITORING  : on(context_reset_confirmed)
+CACHE_OPTIMIZATION → COST_MONITORING  : on(cache_policy_updated)
+THRESHOLD_ALERT → COST_MONITORING     : on(alert_acknowledged)
+any → REPORTING                       : on(report_requested)
+Security Agent State Machine
+States:
+├── SCANNING                → Continuous vulnerability scanning
+├── ATTACK_SIMULATION       → Running simulated attacks on LogicNodes
+├── PENETRATION_TEST        → Testing merged logic for exploits
+├── THREAT_RESPONSE         → Blocking compromised LogicNodes
+├── COMPLIANCE_CHECK        → Verifying against security standards (ISO-27001)
+└── INCIDENT_REPORTING      → Documenting security events
+
+Transitions:
+SCANNING → ATTACK_SIMULATION         : on(logicnode_submitted)
+ATTACK_SIMULATION → COMPLIANCE_CHECK : on(simulation_passed)
+ATTACK_SIMULATION → THREAT_RESPONSE  : on(vulnerability_detected)
+COMPLIANCE_CHECK → SCANNING          : on(compliance_verified)
+THREAT_RESPONSE → INCIDENT_REPORTING : on(threat_contained)
+INCIDENT_REPORTING → SCANNING        : on(incident_logged)
+any → PENETRATION_TEST               : on(fusion_complete)
+Diplomat Agent State Machine
+States:
+├── API_MONITORING          → Watching external API health
+├── BRIDGE_BUILDING         → Creating secure connections to external services
+├── SCHEMA_TRANSLATION      → Converting external formats to R-IR
+├── RATE_NEGOTIATION        → Managing external API rate limits
+├── FALLBACK_ROUTING        → Switching to backup APIs on failure
+└── DOCUMENTATION_SYNC      → Keeping external API docs in Knowledge Lake
+
+Transitions:
+API_MONITORING → BRIDGE_BUILDING     : on(new_api_integration_requested)
+BRIDGE_BUILDING → SCHEMA_TRANSLATION : on(connection_established)
+SCHEMA_TRANSLATION → API_MONITORING  : on(translation_complete)
+API_MONITORING → FALLBACK_ROUTING    : on(api_failure_detected)
+FALLBACK_ROUTING → API_MONITORING    : on(backup_active)
+any → RATE_NEGOTIATION               : on(rate_limit_approached)
+SRE Agent State Machine
+States:
+├── DEPLOYMENT_PREP         → Preparing deployment artifacts
+├── DEPLOYMENT_ACTIVE       → Executing deployment to target environment
+├── HEALTH_MONITORING       → Watching deployed system metrics
+├── INCIDENT_RESPONSE       → Handling runtime failures
+├── ROLLBACK                → Reverting to previous version
+├── LOG_TRANSLATION         → Converting error logs to LogicNode format
+└── HOTFIX_DISPATCH         → Sending translated errors to CEO for AI-fix
+
+Transitions:
+DEPLOYMENT_PREP → DEPLOYMENT_ACTIVE   : on(binary_received)
+DEPLOYMENT_ACTIVE → HEALTH_MONITORING : on(deployment_complete)
+HEALTH_MONITORING → INCIDENT_RESPONSE : on(anomaly_detected)
+INCIDENT_RESPONSE → ROLLBACK          : on(critical_failure)
+INCIDENT_RESPONSE → LOG_TRANSLATION   : on(error_captured)
+LOG_TRANSLATION → HOTFIX_DISPATCH     : on(logicnode_generated)
+ROLLBACK → HEALTH_MONITORING          : on(rollback_complete)
+Data Architect State Machine
+States:
+├── SCHEMA_MONITORING       → Watching shared database health
+├── MIGRATION_PLANNING      → Designing schema updates
+├── MIGRATION_EXECUTION     → Applying schema changes
+├── BACKUP_MANAGEMENT       → Managing database snapshots
+├── REPLICATION_SYNC        → Ensuring replica consistency
+└── RECOVERY_COORDINATION   → Orchestrating disaster recovery
+
+Transitions:
+SCHEMA_MONITORING → MIGRATION_PLANNING    : on(schema_change_requested)
+MIGRATION_PLANNING → MIGRATION_EXECUTION  : on(migration_approved)
+MIGRATION_EXECUTION → SCHEMA_MONITORING   : on(migration_complete)
+SCHEMA_MONITORING → BACKUP_MANAGEMENT     : on(backup_scheduled)
+any → RECOVERY_COORDINATION               : on(data_loss_detected)
+RECOVERY_COORDINATION → SCHEMA_MONITORING : on(recovery_complete)
+Compliance Agent State Machine
+States:
+├── LICENSE_SCANNING        → Checking source license compatibility
+├── IP_VERIFICATION         → Verifying intellectual property provenance
+├── EXPORT_CONTROL          → Checking ITAR/EAR compliance
+├── AUDIT_TRAIL             → Maintaining chain of custody records
+├── VIOLATION_RESPONSE      → Blocking non-compliant LogicNodes
+└── CERTIFICATION           → Stamping verified LogicNodes
+
+Transitions:
+LICENSE_SCANNING → IP_VERIFICATION    : on(license_cleared)
+LICENSE_SCANNING → VIOLATION_RESPONSE : on(license_conflict)
+IP_VERIFICATION → EXPORT_CONTROL      : on(ip_verified)
+EXPORT_CONTROL → AUDIT_TRAIL          : on(export_cleared)
+AUDIT_TRAIL → CERTIFICATION           : on(trail_complete)
+CERTIFICATION → LICENSE_SCANNING      : on(logicnode_certified)
+VIOLATION_RESPONSE → LICENSE_SCANNING : on(violation_logged)
+Pod Agent State Machines
+Sub-Manager State Machine (Applies to all 4 Pod Sub-Managers)
+States:
+├── AWAITING_ASSIGNMENT     → Waiting for CEO cluster dispatch
+├── TASK_DISTRIBUTION       → Assigning work to 4 Specialists
+├── PROGRESS_MONITORING     → Tracking Specialist extraction progress
+├── REDUNDANCY_DETECTION    → Finding duplicate logic across languages
+├── GROUP_FUSION            → Merging 4 LogicNodes into Group Standard
+├── QC_SUBMISSION           → Sending Group Standard to Pod Audit Agent
+├── REVISION                → Processing Audit rejection feedback
+└── HANDOVER                → Delivering verified Group Blueprint to CEO
+
+Transitions:
+AWAITING_ASSIGNMENT → TASK_DISTRIBUTION    : on(cluster_received)
+TASK_DISTRIBUTION → PROGRESS_MONITORING    : on(tasks_dispatched)
+PROGRESS_MONITORING → REDUNDANCY_DETECTION : on(all_specialists_complete)
+REDUNDANCY_DETECTION → GROUP_FUSION        : on(duplicates_identified)
+GROUP_FUSION → QC_SUBMISSION               : on(group_standard_ready)
+QC_SUBMISSION → REVISION                   : on(audit_rejection)
+QC_SUBMISSION → HANDOVER                   : on(audit_verified)
+REVISION → QC_SUBMISSION                   : on(revision_complete)
+HANDOVER → AWAITING_ASSIGNMENT             : on(blueprint_delivered)
+Audit Agent State Machine (Applies to all 4 Pod Audit Agents)
+States:
+├── AWAITING_SUBMISSION     → Ready to receive LogicNodes
+├── EQUIVALENCE_TESTING     → Running 1,000 simulations
+├── TOLERANCE_EVALUATION    → Checking against 0.0001% threshold
+├── CROSS_REFERENCE         → Verifying against Knowledge Lake standards
+├── CERTIFICATION           → Signing verified LogicNode
+├── REJECTION               → Generating Correction Memo
+└── ESCALATION              → Flagging unresolvable issues to Sub-Manager
+
+Transitions:
+AWAITING_SUBMISSION → EQUIVALENCE_TESTING   : on(logicnode_received)
+EQUIVALENCE_TESTING → TOLERANCE_EVALUATION  : on(simulations_complete)
+TOLERANCE_EVALUATION → CROSS_REFERENCE      : on(tolerance_passed)
+TOLERANCE_EVALUATION → REJECTION            : on(tolerance_failed)
+CROSS_REFERENCE → CERTIFICATION             : on(standards_verified)
+CROSS_REFERENCE → REJECTION                 : on(standards_violated)
+CERTIFICATION → AWAITING_SUBMISSION         : on(logicnode_signed)
+REJECTION → AWAITING_SUBMISSION             : on(correction_memo_sent)
+REJECTION → ESCALATION                      : on(repeated_failure)
+ESCALATION → AWAITING_SUBMISSION            : on(escalation_handled)
+Specialist State Machine (Applies to all 16 Specialists)
+States:
+├── IDLE                    → Awaiting assignment from Sub-Manager
+├── CONTEXT_LOADING         → Querying Knowledge Lake for relevant documentation
+├── CODE_INGESTION          → Loading source library/code
+├── SYNTAX_STRIPPING        → Removing language-specific syntax
+├── LOGICNODE_GENERATION    → Creating R-IR LogicNode
+├── SELF_VALIDATION         → Basic schema compliance check
+├── SUBMISSION              → Sending to Audit Agent
+├── REVISION                → Processing Correction Memo
+└── KNOWLEDGE_UPDATE        → Requesting IS Agent for clarification
+
+Transitions:
+IDLE → CONTEXT_LOADING              : on(assignment_received)
+CONTEXT_LOADING → CODE_INGESTION    : on(context_loaded)
+CODE_INGESTION → SYNTAX_STRIPPING   : on(code_loaded)
+SYNTAX_STRIPPING → LOGICNODE_GENERATION : on(syntax_stripped)
+LOGICNODE_GENERATION → SELF_VALIDATION : on(logicnode_created)
+SELF_VALIDATION → SUBMISSION        : on(schema_valid)
+SELF_VALIDATION → LOGICNODE_GENERATION : on(schema_invalid)
+SUBMISSION → IDLE                   : on(accepted)
+SUBMISSION → REVISION               : on(correction_memo_received)
+REVISION → SUBMISSION               : on(revision_complete)
+any → KNOWLEDGE_UPDATE              : on(documentation_needed)
+KNOWLEDGE_UPDATE → any              : on(knowledge_received)
+3.3.2 Task Routing and Scheduling Algorithms
+Primary Routing Strategy: Event-Driven Bus Pattern
+The Semantic Bus (Redis) serves as the central routing mechanism. Tasks are not assigned directly to agents; instead, agents subscribe to relevant event channels and react autonomously.
+
+Bus Channel Structure
+Channel Hierarchy:
+├── /protocol/alpha         → Directive messages (CEO → downward)
+├── /protocol/beta          → Production messages (Specialists → upward)
+├── /protocol/delta         → Audit messages (QC → lateral)
+├── /protocol/sigma         → Knowledge messages (IS Agent → broadcast)
+├── /protocol/omega         → User messages (PM → human)
+├── /protocol/rho           → Traffic messages (API Broker → all)
+│
+├── /pod/dynamic/*          → Pod A internal communication
+├── /pod/systems/*          → Pod B internal communication
+├── /pod/enterprise/*       → Pod C internal communication
+├── /pod/mathematical/*     → Pod D internal communication
+│
+├── /state/global           → Global State Graph updates
+├── /registry/logicnodes    → LogicNode submission/retrieval
+├── /knowledge/updates      → Knowledge Lake changes
+└── /audit/results          → Audit certification broadcasts
+Task Routing Algorithm
+python
+# Pseudocode for Task Router (runs in CEO context)
+
+def route_task(task: Task, global_state: StateGraph) -> List[Assignment]:
+    """
+    Routes a decomposed task to the appropriate Pod(s)
+    based on the task's paradigm requirements.
+    """
+    assignments = []
+    
+    # Step 1: Analyze task paradigm requirements
+    paradigms = analyze_paradigm_requirements(task)
+    
+    # Step 2: Check Pod availability via State Graph
+    available_pods = get_available_pods(global_state)
+    
+    # Step 3: Priority-based assignment
+    for paradigm in paradigms:
+        if paradigm == "dynamic":
+            if "pod_a" in available_pods:
+                assignments.append(Assignment(
+                    pod="pod_a",
+                    task_cluster=extract_dynamic_cluster(task),
+                    priority=calculate_priority(task, "dynamic"),
+                    deadline=calculate_deadline(task)
+                ))
+        elif paradigm == "systems":
+            if "pod_b" in available_pods:
+                assignments.append(Assignment(
+                    pod="pod_b",
+                    task_cluster=extract_systems_cluster(task),
+                    priority=calculate_priority(task, "systems"),
+                    deadline=calculate_deadline(task)
+                ))
+        # ... similar for enterprise and mathematical
+    
+    # Step 4: Publish assignments to Semantic Bus
+    for assignment in assignments:
+        publish_to_bus(
+            channel=f"/protocol/alpha",
+            message=AlphaProtocolMessage(
+                type="ASSIGNMENT",
+                source="CEO",
+                target=assignment.pod,
+                payload=assignment
+            )
+        )
+    
+    return assignments
+Priority Calculation Algorithm
+python
+def calculate_priority(task: Task, paradigm: str) -> int:
+    """
+    Returns priority score (1-100, higher = more urgent)
+    """
+    base_priority = 50
+    
+    # Urgency modifiers
+    if task.is_blocking_fusion:
+        base_priority += 30
+    if task.has_external_deadline:
+        base_priority += 20
+    if task.is_security_critical:
+        base_priority += 25
+    
+    # Paradigm-specific modifiers
+    if paradigm == "systems" and task.requires_optimization:
+        base_priority += 15  # Systems Pod finishes last in pipeline
+    if paradigm == "dynamic" and task.is_ui_related:
+        base_priority += 10  # Visual verification depends on this
+    
+    # Resource availability modifier
+    pod_load = get_pod_current_load(paradigm)
+    if pod_load > 0.8:
+        base_priority -= 10  # Reduce priority if Pod is overloaded
+    
+    return min(100, max(1, base_priority))
+Scheduling Algorithm: Weighted Fair Queuing with Deadlines
+python
+class TaskScheduler:
+    """
+    Implements Weighted Fair Queuing with EDF (Earliest Deadline First)
+    fallback for deadline-critical tasks.
+    """
+    
+    def __init__(self):
+        self.queues = {
+            "critical": PriorityQueue(),    # Priority 80-100
+            "high": PriorityQueue(),        # Priority 60-79
+            "normal": PriorityQueue(),      # Priority 40-59
+            "low": PriorityQueue(),         # Priority 1-39
+        }
+        self.weights = {
+            "critical": 8,
+            "high": 4,
+            "normal": 2,
+            "low": 1
+        }
+    
+    def enqueue(self, task: Task):
+        if task.priority >= 80:
+            self.queues["critical"].push(task, -task.deadline)  # EDF within critical
+        elif task.priority >= 60:
+            self.queues["high"].push(task, -task.priority)
+        elif task.priority >= 40:
+            self.queues["normal"].push(task, -task.priority)
+        else:
+            self.queues["low"].push(task, -task.priority)
+    
+    def dequeue(self) -> Optional[Task]:
+        """
+        Weighted fair selection across queues.
+        Critical tasks with approaching deadlines always win.
+        """
+        # Check for deadline-critical tasks first
+        if not self.queues["critical"].empty():
+            top_task = self.queues["critical"].peek()
+            if top_task.deadline - current_time() < DEADLINE_THRESHOLD:
+                return self.queues["critical"].pop()
+        
+        # Weighted round-robin across remaining queues
+        total_weight = sum(
+            self.weights[q] for q in self.queues 
+            if not self.queues[q].empty()
+        )
+        
+        if total_weight == 0:
+            return None
+        
+        selection = random.random() * total_weight
+        cumulative = 0
+        
+        for queue_name in ["critical", "high", "normal", "low"]:
+            if not self.queues[queue_name].empty():
+                cumulative += self.weights[queue_name]
+                if selection < cumulative:
+                    return self.queues[queue_name].pop()
+        
+        return None
+```
+
+---
+
+## 3.3.3 Parallel Execution Strategies
+
+### Strategy 1: Pod-Level Parallelism
+
+All 4 Pods operate independently and concurrently. The CEO dispatches clusters to Pods without waiting for previous Pod completions.
+```
+┌────────────────────────────────────────────────────────────────┐
+│                     PARALLEL POD EXECUTION                      │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Time ─────────────────────────────────────────────────────►   │
+│                                                                 │
+│  Pod A: ████████████████░░░░░░░░░░░░░░░░░░░░░░░░ (Dynamic)     │
+│  Pod B: ░░░░████████████████████████░░░░░░░░░░░░ (Systems)     │
+│  Pod C: ██████████████████░░░░░░░░░░░░░░░░░░░░░░ (Enterprise)  │
+│  Pod D: ░░░░░░████████████████░░░░░░░░░░░░░░░░░░ (Mathematical)│
+│                                                                 │
+│  Legend: █ = Active execution  ░ = Waiting/Complete            │
+│                                                                 │
+│  Note: Pods start as soon as their assigned cluster arrives    │
+│        via the Semantic Bus. No synchronization barriers.      │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+Implementation via LangGraph Parallel Branches
+python
+from langgraph.graph import StateGraph, END
+from langgraph.graph.state import CompiledGraph
+
+def build_parallel_pod_graph() -> CompiledGraph:
+    """
+    Creates a LangGraph with parallel Pod execution branches.
+    """
+    workflow = StateGraph(RefineryState)
+    
+    # CEO decomposes the task
+    workflow.add_node("decompose", ceo_decompose_task)
+    
+    # Parallel Pod branches
+    workflow.add_node("pod_a_process", pod_a_extraction)
+    workflow.add_node("pod_b_process", pod_b_extraction)
+    workflow.add_node("pod_c_process", pod_c_extraction)
+    workflow.add_node("pod_d_process", pod_d_extraction)
+    
+    # Convergence point: CEO fusion
+    workflow.add_node("grand_fusion", ceo_fusion)
+    
+    # Conditional routing based on which Pods are needed
+    workflow.add_conditional_edges(
+        "decompose",
+        route_to_pods,
+        {
+            "all": ["pod_a_process", "pod_b_process", 
+                    "pod_c_process", "pod_d_process"],
+            "dynamic_only": ["pod_a_process"],
+            "systems_only": ["pod_b_process"],
+            # ... other combinations
+        }
+    )
+    
+    # All Pod outputs converge to fusion
+    for pod in ["pod_a_process", "pod_b_process", 
+                "pod_c_process", "pod_d_process"]:
+        workflow.add_edge(pod, "grand_fusion")
+    
+    workflow.add_edge("grand_fusion", END)
+    
+    return workflow.compile()
+```
+
+### Strategy 2: Intra-Pod Parallelism (Specialist Level)
+
+Within each Pod, all 4 Specialists execute concurrently on their respective language domains.
+```
+┌────────────────────────────────────────────────────────────────┐
+│                POD A: INTRA-POD PARALLELISM                    │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Sub-Manager dispatches to all Specialists simultaneously:     │
+│                                                                 │
+│  Python Spec:     ████████████████░░░░░░░░                     │
+│  JavaScript Spec: ░░░████████████████████░░░                   │
+│  Ruby Spec:       ████████████░░░░░░░░░░░░░░                   │
+│  PHP Spec:        ░░░░░████████████████░░░░░                   │
+│                                  │                              │
+│                                  ▼                              │
+│                      ┌──────────────────┐                      │
+│                      │ Sub-Manager waits │                      │
+│                      │ for ALL to finish │                      │
+│                      └────────┬─────────┘                      │
+│                               │                                 │
+│                               ▼                                 │
+│                    Redundancy Detection                         │
+│                               │                                 │
+│                               ▼                                 │
+│                    Group Fusion (Serial)                        │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+Specialist Fan-Out/Fan-In Pattern
+python
+async def sub_manager_coordinate_specialists(
+    cluster: TaskCluster,
+    specialists: List[SpecialistAgent]
+) -> GroupStandard:
+    """
+    Fan-out work to all 4 Specialists in parallel,
+    then fan-in results for fusion.
+    """
+    # Fan-out: dispatch to all Specialists concurrently
+    extraction_tasks = [
+        asyncio.create_task(
+            specialist.extract_logicnode(cluster.get_language_specific(spec.language))
+        )
+        for specialist in specialists
+    ]
+    
+    # Fan-in: wait for all to complete
+    logicnodes = await asyncio.gather(*extraction_tasks, return_exceptions=True)
+    
+    # Handle any failures
+    failed_extractions = [
+        (i, result) for i, result in enumerate(logicnodes) 
+        if isinstance(result, Exception)
+    ]
+    
+    if failed_extractions:
+        # Retry failed extractions with exponential backoff
+        logicnodes = await retry_failed_extractions(
+            failed_extractions, specialists, cluster
+        )
+    
+    # Detect redundancies
+    redundant_pairs = detect_redundant_logic(logicnodes)
+    
+    # Fuse into Group Standard
+    group_standard = fuse_logicnodes(logicnodes, redundant_pairs)
+    
+    return group_standard
+```
+
+### Strategy 3: Audit Pipeline Parallelism
+
+Audit Agents process LogicNodes through a parallel pipeline with independent verification stages.
+```
+┌────────────────────────────────────────────────────────────────┐
+│               AUDIT PARALLEL PIPELINE                          │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  LogicNode Submission                                          │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌──────────────────────────────────────────────────────┐     │
+│  │              PARALLEL VERIFICATION STAGES             │     │
+│  │                                                        │     │
+│  │  Stage 1: Equivalence    Stage 2: Standards           │     │
+│  │  Testing (1000 sims)     Cross-Reference              │     │
+│  │       │                        │                      │     │
+│  │       │   ┌────────────────────┤                      │     │
+│  │       │   │                    │                      │     │
+│  │       ▼   ▼                    ▼                      │     │
+│  │    Tolerance           Security Scan                  │     │
+│  │    Check (0.0001%)     (parallel)                     │     │
+│  │       │                    │                          │     │
+│  │       └────────┬───────────┘                          │     │
+│  │                │                                       │     │
+│  └────────────────┼───────────────────────────────────────┘     │
+│                   ▼                                             │
+│            Final Certification / Rejection                      │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+python
+async def parallel_audit_verification(
+    logicnode: LogicNode,
+    knowledge_lake: VectorDB,
+    security_agent: SecurityAgent
+) -> AuditResult:
+    """
+    Run verification stages in parallel where possible.
+    """
+    # Stage 1: Run equivalence tests and standards check in parallel
+    equivalence_task = asyncio.create_task(
+        run_equivalence_tests(logicnode, num_simulations=1000)
+    )
+    standards_task = asyncio.create_task(
+        cross_reference_standards(logicnode, knowledge_lake)
+    )
+    security_task = asyncio.create_task(
+        security_agent.scan_logicnode(logicnode)
+    )
+    
+    # Wait for all parallel stages
+    equivalence_result, standards_result, security_result = await asyncio.gather(
+        equivalence_task, standards_task, security_task
+    )
+    
+    # Stage 2: Tolerance check (depends on equivalence result)
+    tolerance_passed = check_tolerance(
+        equivalence_result, 
+        threshold=0.000001  # 0.0001%
+    )
+    
+    # Final certification decision
+    if (tolerance_passed and 
+        standards_result.compliant and 
+        security_result.secure):
+        return AuditResult(
+            status="CERTIFIED",
+            signature=sign_logicnode(logicnode),
+            timestamp=current_timestamp()
+        )
+    else:
+        return AuditResult(
+            status="REJECTED",
+            correction_memo=generate_correction_memo(
+                equivalence_result, standards_result, security_result
+            )
+        )
+Strategy 4: Bus-Mediated Async Communication
+All inter-agent communication is asynchronous via the Semantic Bus, allowing maximum parallelism.
+
+python
+class SemanticBusParallelHandler:
+    """
+    Handles parallel message processing from the Semantic Bus.
+    """
+    
+    def __init__(self, redis_client: Redis, agent_id: str):
+        self.redis = redis_client
+        self.agent_id = agent_id
+        self.subscriptions = []
+        self.message_handlers = {}
+    
+    async def subscribe(self, channels: List[str]):
+        """Subscribe to multiple channels for parallel processing."""
+        pubsub = self.redis.pubsub()
+        for channel in channels:
+            await pubsub.subscribe(channel)
+            self.subscriptions.append(channel)
+        
+        # Start parallel message handler
+        asyncio.create_task(self._process_messages(pubsub))
+    
+    async def _process_messages(self, pubsub):
+        """Process incoming messages in parallel using a worker pool."""
+        async for message in pubsub.listen():
+            if message['type'] == 'message':
+                # Don't block - spawn handler as separate task
+                asyncio.create_task(
+                    self._handle_message(message['channel'], message['data'])
+                )
+    
+    async def _handle_message(self, channel: str, data: bytes):
+        """Handle individual message without blocking other processing."""
+        parsed = json.loads(data)
+        
+        if channel in self.message_handlers:
+            handler = self.message_handlers[channel]
+            try:
+                await handler(parsed)
+            except Exception as e:
+                await self._log_handler_error(channel, parsed, e)
+```
+
+---
+
+## 3.3.4 Checkpoint and Recovery Mechanisms
+
+### Checkpoint Architecture
+
+The Holy Grail Refinery maintains checkpoints at multiple levels to ensure no work is lost if the system crashes or reboots.
+
+#### Checkpoint Levels
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    CHECKPOINT HIERARCHY                         │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Level 1: Global State Checkpoint (Postgres + LangGraph)       │
+│  ├── Mission progress                                          │
+│  ├── Active assignments                                        │
+│  ├── Pod completion status                                     │
+│  └── Fusion readiness                                          │
+│                                                                 │
+│  Level 2: LogicNode Registry Checkpoint (Redis + Git)          │
+│  ├── All extracted LogicNodes                                  │
+│  ├── Audit signatures                                          │
+│  ├── Group Standards                                           │
+│  └── Version history                                           │
+│                                                                 │
+│  Level 3: Traceability Ledger Checkpoint (SQLite)              │
+│  ├── Chain of custody records                                  │
+│  ├── Source library references                                 │
+│  ├── Agent attribution                                         │
+│  └── Compliance stamps                                         │
+│                                                                 │
+│  Level 4: Agent Context Checkpoint (Redis)                     │
+│  ├── Current agent state                                       │
+│  ├── In-progress work                                          │
+│  ├── Pending messages                                          │
+│  └── Context window snapshots                                  │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+LangGraph State Persistence
+python
+from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.graph import StateGraph
+
+class RefineryCheckpointManager:
+    """
+    Manages checkpoint persistence for the entire Refinery.
+    """
+    
+    def __init__(self, postgres_url: str, redis_client: Redis):
+        self.postgres_saver = PostgresSaver.from_conn_string(postgres_url)
+        self.redis = redis_client
+        self.checkpoint_interval = 30  # seconds
+    
+    def build_checkpointed_graph(self, workflow: StateGraph) -> CompiledGraph:
+        """
+        Compile workflow with automatic checkpointing enabled.
+        """
+        return workflow.compile(checkpointer=self.postgres_saver)
+    
+    async def checkpoint_agent_state(
+        self, 
+        agent_id: str, 
+        state: AgentState
+    ):
+        """
+        Save agent state to Redis for quick recovery.
+        """
+        checkpoint_key = f"checkpoint:agent:{agent_id}"
+        checkpoint_data = {
+            "state": state.to_dict(),
+            "timestamp": current_timestamp(),
+            "version": state.version
+        }
+        
+        # Set with expiration (keep last 24 hours of checkpoints)
+        await self.redis.setex(
+            checkpoint_key,
+            86400,  # 24 hours
+            json.dumps(checkpoint_data)
+        )
+        
+        # Also maintain a rolling history for deeper recovery
+        history_key = f"checkpoint:history:{agent_id}"
+        await self.redis.lpush(history_key, json.dumps(checkpoint_data))
+        await self.redis.ltrim(history_key, 0, 99)  # Keep last 100 checkpoints
+    
+    async def checkpoint_logicnode(
+        self, 
+        logicnode: LogicNode
+    ):
+        """
+        Save LogicNode to registry with Git commit.
+        """
+        # Save to Redis for fast access
+        redis_key = f"logicnode:{logicnode.id}"
+        await self.redis.set(redis_key, logicnode.to_json())
+        
+        # Commit to Git for history
+        git_commit_logicnode(logicnode)
+    
+    async def get_global_checkpoint(self) -> GlobalCheckpoint:
+        """
+        Retrieve the current global state from Postgres.
+        """
+        # LangGraph handles this through its checkpointer
+        latest_checkpoint = await self.postgres_saver.get_latest()
+        return GlobalCheckpoint.from_langgraph(latest_checkpoint)
+Recovery Mechanisms
+Automatic Recovery on Restart
+python
+class RefineryRecoveryManager:
+    """
+    Handles system recovery after crash or restart.
+    """
+    
+    def __init__(
+        self,
+        checkpoint_manager: RefineryCheckpointManager,
+        semantic_bus: SemanticBus,
+        agent_registry: AgentRegistry
+    ):
+        self.checkpoints = checkpoint_manager
+        self.bus = semantic_bus
+        self.agents = agent_registry
+    
+    async def recover(self) -> RecoveryReport:
+        """
+        Full system recovery procedure.
+        """
+        report = RecoveryReport()
+        
+        # Step 1: Load global state from Postgres
+        global_state = await self.checkpoints.get_global_checkpoint()
+        report.global_state_recovered = True
+        report.last_checkpoint_time = global_state.timestamp
+        
+        # Step 2: Identify incomplete work
+        incomplete_assignments = self._identify_incomplete_work(global_state)
+        report.incomplete_assignments = len(incomplete_assignments)
+        
+        # Step 3: Recover agent states from Redis
+        for agent_id in self.agents.all_ids():
+            agent_checkpoint = await self._recover_agent_state(agent_id)
+            if agent_checkpoint:
+                await self.agents.get(agent_id).restore_state(agent_checkpoint)
+                report.agents_recovered.append(agent_id)
+        
+        # Step 4: Recover verified LogicNodes from Registry
+        verified_nodes = await self._recover_logicnodes()
+        report.logicnodes_recovered = len(verified_nodes)
+        
+        # Step 5: Replay incomplete work
+        for assignment in incomplete_assignments:
+            await self._requeue_assignment(assignment)
+            report.assignments_requeued.append(assignment.id)
+        
+        # Step 6: Validate Traceability Ledger integrity
+        ledger_valid = await self._validate_traceability_ledger()
+        report.ledger_integrity = ledger_valid
+        
+        # Step 7: Resume Semantic Bus subscriptions
+        await self._restore_bus_subscriptions()
+        
+        return report
+    
+    def _identify_incomplete_work(
+        self, 
+        global_state: GlobalCheckpoint
+    ) -> List[Assignment]:
+        """
+        Find assignments that were in progress when system stopped.
+        """
+        incomplete = []
+        
+        for assignment in global_state.active_assignments:
+            if assignment.status in ["IN_PROGRESS", "SUBMITTED"]:
+                # Check if corresponding LogicNode exists in Registry
+                logicnode = self.checkpoints.redis.get(
+                    f"logicnode:{assignment.expected_logicnode_id}"
+                )
+                if not logicnode:
+                    incomplete.append(assignment)
+        
+        return incomplete
+    
+    async def _requeue_assignment(self, assignment: Assignment):
+        """
+        Put incomplete assignment back on the Semantic Bus.
+        """
+        await self.bus.publish(
+            channel="/protocol/alpha",
+            message=AlphaProtocolMessage(
+                type="ASSIGNMENT_RECOVERY",
+                source="RECOVERY_MANAGER",
+                target=assignment.pod,
+                payload=assignment,
+                is_recovery=True
+            )
+        )
+Checkpoint Triggers
+python
+CHECKPOINT_TRIGGERS = {
+    # Event-based triggers
+    "logicnode_created": True,       # After every LogicNode creation
+    "logicnode_verified": True,      # After every Audit certification
+    "group_standard_fused": True,    # After every Group fusion
+    "pod_complete": True,            # When a Pod finishes all work
+    "grand_fusion_complete": True,   # After CEO fusion
+    
+    # Time-based triggers
+    "interval_seconds": 30,          # Periodic checkpoint every 30s
+    
+    # State-based triggers
+    "assignment_count_threshold": 5, # Every 5 assignments
+    "logicnode_count_threshold": 10, # Every 10 LogicNodes
+}
+
+async def should_checkpoint(event: Event, state: GlobalState) -> bool:
+    """Determine if a checkpoint should be taken."""
+    
+    # Event-based
+    if event.type in CHECKPOINT_TRIGGERS and CHECKPOINT_TRIGGERS[event.type]:
+        return True
+    
+    # Time-based
+    if (current_time() - state.last_checkpoint_time > 
+        CHECKPOINT_TRIGGERS["interval_seconds"]):
+        return True
+    
+    # State-based
+    if (state.pending_assignments >= 
+        CHECKPOINT_TRIGGERS["assignment_count_threshold"]):
+        return True
+    
+    return False
+Rollback Procedure
+python
+async def rollback_to_checkpoint(
+    target_timestamp: datetime,
+    checkpoint_manager: RefineryCheckpointManager
+) -> RollbackResult:
+    """
+    Roll back the entire system to a previous checkpoint.
+    """
+    result = RollbackResult()
+    
+    # Step 1: Pause all agent activity
+    await pause_all_agents()
+    
+    # Step 2: Find checkpoint at or before target timestamp
+    checkpoint = await checkpoint_manager.find_checkpoint_before(target_timestamp)
+    if not checkpoint:
+        raise CheckpointNotFoundError(f"No checkpoint found before {target_timestamp}")
+    
+    result.target_checkpoint = checkpoint.id
+    result.actual_timestamp = checkpoint.timestamp
+    
+    # Step 3: Restore Global State Graph
+    await checkpoint_manager.postgres_saver.restore(checkpoint.id)
+    result.global_state_restored = True
+    
+    # Step 4: Restore LogicNode Registry to checkpoint state
+    # Git handles this via checkout to commit at checkpoint time
+    await git_checkout_to_timestamp(checkpoint.timestamp)
+    result.registry_restored = True
+    
+    # Step 5: Clear Redis agent states newer than checkpoint
+    await checkpoint_manager.redis.flush_newer_than(checkpoint.timestamp)
+    
+    # Step 6: Restore agent states from checkpoint
+    for agent_id in get_all_agent_ids():
+        agent_checkpoint = await checkpoint_manager.get_agent_checkpoint(
+            agent_id, checkpoint.timestamp
+        )
+        if agent_checkpoint:
+            await restore_agent_state(agent_id, agent_checkpoint)
+    
+    # Step 7: Resume agent activity
+    await resume_all_agents()
+    
+    result.success = True
+    return result
+```
+
+---
+
+## 3.3.5 Monitoring and Observability Hooks
+
+### Observability Architecture
+```
+┌────────────────────────────────────────────────────────────────┐
+│                 OBSERVABILITY STACK                             │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐ │
+│  │   METRICS        │  │    TRACES        │  │    LOGS      │ │
+│  │   (Prometheus)   │  │  (OpenTelemetry) │  │  (Structured)│ │
+│  └────────┬─────────┘  └────────┬─────────┘  └──────┬───────┘ │
+│           │                     │                    │         │
+│           └─────────────────────┼────────────────────┘         │
+│                                 │                              │
+│                                 ▼                              │
+│                    ┌────────────────────────┐                  │
+│                    │  Mission Control UI    │                  │
+│                    │  (Antigravity Map)     │                  │
+│                    └────────────────────────┘                  │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+Metric Collection
+python
+from prometheus_client import Counter, Gauge, Histogram, Summary
+
+# Agent Metrics
+AGENT_STATE_TRANSITIONS = Counter(
+    'refinery_agent_state_transitions_total',
+    'Number of state transitions per agent',
+    ['agent_id', 'agent_type', 'from_state', 'to_state']
+)
+
+AGENT_ACTIVE_TIME = Histogram(
+    'refinery_agent_active_time_seconds',
+    'Time agents spend in active states',
+    ['agent_id', 'agent_type', 'state'],
+    buckets=[0.1, 0.5, 1, 5, 10, 30, 60, 300, 600]
+)
+
+AGENT_QUEUE_DEPTH = Gauge(
+    'refinery_agent_queue_depth',
+    'Number of pending messages per agent',
+    ['agent_id', 'agent_type']
+)
+
+# LogicNode Metrics
+LOGICNODE_CREATED = Counter(
+    'refinery_logicnodes_created_total',
+    'Total LogicNodes created',
+    ['pod', 'specialist', 'domain']
+)
+
+LOGICNODE_VERIFIED = Counter(
+    'refinery_logicnodes_verified_total',
+    'Total LogicNodes that passed audit',
+    ['pod', 'audit_agent']
+)
+
+LOGICNODE_REJECTED = Counter(
+    'refinery_logicnodes_rejected_total',
+    'Total LogicNodes rejected by audit',
+    ['pod', 'audit_agent', 'rejection_reason']
+)
+
+AUDIT_SIMULATION_DURATION = Histogram(
+    'refinery_audit_simulation_duration_seconds',
+    'Time to run equivalence simulations',
+    ['audit_agent'],
+    buckets=[1, 5, 10, 30, 60, 120, 300, 600, 1800]
+)
+
+# Token Economy Metrics
+TOKEN_USAGE = Counter(
+    'refinery_token_usage_total',
+    'Total tokens consumed',
+    ['agent_id', 'model_tier', 'operation']
+)
+
+CONTEXT_CACHE_HITS = Counter(
+    'refinery_context_cache_hits_total',
+    'Cache hits for context retrieval',
+    ['agent_id']
+)
+
+CONTEXT_CACHE_MISSES = Counter(
+    'refinery_context_cache_misses_total',
+    'Cache misses requiring fresh API calls',
+    ['agent_id']
+)
+
+API_COST_DOLLARS = Gauge(
+    'refinery_api_cost_dollars',
+    'Running cost in dollars',
+    ['model_tier', 'time_window']
+)
+
+# Pipeline Metrics
+PIPELINE_LATENCY = Histogram(
+    'refinery_pipeline_latency_seconds',
+    'End-to-end pipeline latency',
+    ['pipeline_stage'],
+    buckets=[1, 5, 10, 30, 60, 300, 600, 1800, 3600]
+)
+
+POD_THROUGHPUT = Gauge(
+    'refinery_pod_throughput_nodes_per_minute',
+    'LogicNodes processed per minute',
+    ['pod']
+)
+Distributed Tracing
+python
+from opentelemetry import trace
+from opentelemetry.trace import SpanKind
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+# Initialize tracer
+trace.set_tracer_provider(TracerProvider())
+tracer = trace.get_tracer("holy-grail-refinery")
+
+# Add OTLP exporter for visualization
+otlp_exporter = OTLPSpanExporter(endpoint="localhost:4317")
+trace.get_tracer_provider().add_span_processor(
+    BatchSpanProcessor(otlp_exporter)
+)
+
+# Trace decorators for key operations
+def trace_logicnode_extraction(func):
+    async def wrapper(self, assignment: Assignment, *args, **kwargs):
+        with tracer.start_as_current_span(
+            "logicnode_extraction",
+            kind=SpanKind.INTERNAL,
+            attributes={
+                "specialist.id": self.agent_id,
+                "specialist.language": self.language,
+                "assignment.id": assignment.id,
+                "assignment.domain": assignment.domain
+            }
+        ) as span:
+            try:
+                result = await func(self, assignment, *args, **kwargs)
+                span.set_attribute("logicnode.id", result.id)
+                span.set_attribute("extraction.success", True)
+                return result
+            except Exception as e:
+                span.set_attribute("extraction.success", False)
+                span.set_attribute("error.message", str(e))
+                span.record_exception(e)
+                raise
+    return wrapper
+
+def trace_audit_verification(func):
+    async def wrapper(self, logicnode: LogicNode, *args, **kwargs):
+        with tracer.start_as_current_span(
+            "audit_verification",
+            kind=SpanKind.INTERNAL,
+            attributes={
+                "audit_agent.id": self.agent_id,
+                "logicnode.id": logicnode.id,
+                "logicnode.domain": logicnode.domain
+            }
+        ) as span:
+            result = await func(self, logicnode, *args, **kwargs)
+            span.set_attribute("audit.result", result.status)
+            span.set_attribute("simulations.passed", result.tests_passed)
+            span.set_attribute("simulations.total", result.tests_total)
+            return result
+    return wrapper
+
+def trace_semantic_bus_message(func):
+    async def wrapper(self, channel: str, message: dict, *args, **kwargs):
+        # Extract or create trace context
+        ctx = extract_trace_context(message.get("trace_context"))
+        
+        with tracer.start_as_current_span(
+            f"bus_message_{message.get('type', 'unknown')}",
+            kind=SpanKind.PRODUCER if "publish" in func.__name__ else SpanKind.CONSUMER,
+            context=ctx,
+            attributes={
+                "messaging.system": "redis",
+                "messaging.destination": channel,
+                "messaging.message_type": message.get("type"),
+                "agent.source": message.get("source"),
+                "agent.target": message.get("target")
+            }
+        ) as span:
+            # Inject trace context into message for propagation
+            message["trace_context"] = inject_trace_context()
+            return await func(self, channel, message, *args, **kwargs)
+    return wrapper
+Mission Control Dashboard Hooks
+python
+class MissionControlObserver:
+    """
+    Provides real-time observability data to the Antigravity Mission Control UI.
+    """
+    
+    def __init__(self, websocket_server: WebSocketServer):
+        self.ws = websocket_server
+        self.subscribers = set()
+    
+    async def broadcast_agent_state_change(
+        self, 
+        agent_id: str, 
+        old_state: str, 
+        new_state: str
+    ):
+        """Push agent state changes to all connected dashboards."""
+        await self.ws.broadcast({
+            "type": "AGENT_STATE_CHANGE",
+            "data": {
+                "agent_id": agent_id,
+                "old_state": old_state,
+                "new_state": new_state,
+                "timestamp": current_timestamp()
+            }
+        })
+    
+    async def broadcast_logicnode_created(self, logicnode: LogicNode):
+        """Notify dashboards of new LogicNode creation."""
+        await self.ws.broadcast({
+            "type": "LOGICNODE_CREATED",
+            "data": {
+                "id": logicnode.id,
+                "specialist": logicnode.created_by,
+                "domain": logicnode.domain,
+                "concept": logicnode.concept,
+                "timestamp": logicnode.created_at
+            }
+        })
+    
+    async def broadcast_audit_result(self, audit_result: AuditResult):
+        """Push audit results to dashboard."""
+        await self.ws.broadcast({
+            "type": "AUDIT_RESULT",
+            "data": {
+                "logicnode_id": audit_result.logicnode_id,
+                "status": audit_result.status,
+                "tests_passed": audit_result.tests_passed,
+                "tests_total": audit_result.tests_total,
+                "tolerance_met": audit_result.tolerance_met,
+                "timestamp": audit_result.timestamp
+            }
+        })
+    
+    async def broadcast_pipeline_progress(self, progress: PipelineProgress):
+        """Send overall pipeline progress update."""
+        await self.ws.broadcast({
+            "type": "PIPELINE_PROGRESS",
+            "data": {
+                "mission_id": progress.mission_id,
+                "stage": progress.current_stage,
+                "percent_complete": progress.percent_complete,
+                "pods_complete": progress.pods_complete,
+                "pods_total": 4,
+                "logicnodes_verified": progress.verified_count,
+                "logicnodes_pending": progress.pending_count,
+                "estimated_completion": progress.eta
+            }
+        })
+    
+    async def broadcast_cost_update(self, cost_data: CostData):
+        """Push token economy updates."""
+        await self.ws.broadcast({
+            "type": "COST_UPDATE",
+            "data": {
+                "total_tokens_used": cost_data.total_tokens,
+                "total_cost_dollars": cost_data.total_cost,
+                "cache_hit_rate": cost_data.cache_hit_rate,
+                "model_usage": {
+                    "flash": cost_data.flash_tokens,
+                    "pro": cost_data.pro_tokens
+                },
+                "by_agent": cost_data.per_agent_breakdown
+            }
+        })
+Health Check Endpoints
+python
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+app = FastAPI()
+
+class HealthStatus(BaseModel):
+    status: str  # "healthy", "degraded", "unhealthy"
+    components: dict
+    last_checkpoint: str
+    uptime_seconds: int
+
+class AgentHealth(BaseModel):
+    agent_id: str
+    status: str
+    current_state: str
+    pending_messages: int
+    last_activity: str
+
+@app.get("/health", response_model=HealthStatus)
+async def health_check():
+    """Overall system health check."""
+    components = {}
+    
+    # Check Semantic Bus (Redis)
+    try:
+        await redis_client.ping()
+        components["semantic_bus"] = "healthy"
+    except:
+        components["semantic_bus"] = "unhealthy"
+    
+    # Check State Graph (Postgres)
+    try:
+        await postgres_client.execute("SELECT 1")
+        components["state_graph"] = "healthy"
+    except:
+        components["state_graph"] = "unhealthy"
+    
+    # Check Knowledge Lake (LlamaIndex)
+    try:
+        await knowledge_lake.health_check()
+        components["knowledge_lake"] = "healthy"
+    except:
+        components["knowledge_lake"] = "unhealthy"
+    
+    # Check Agent Registry
+    active_agents = await agent_registry.count_active()
+    components["agent_registry"] = "healthy" if active_agents == 35 else "degraded"
+    
+    # Determine overall status
+    unhealthy_count = sum(1 for v in components.values() if v == "unhealthy")
+    degraded_count = sum(1 for v in components.values() if v == "degraded")
+    
+    if unhealthy_count > 0:
+        status = "unhealthy"
+    elif degraded_count > 0:
+        status = "degraded"
+    else:
+        status = "healthy"
+    
+    return HealthStatus(
+        status=status,
+        components=components,
+        last_checkpoint=await get_last_checkpoint_time(),
+        uptime_seconds=get_uptime()
+    )
+
+@app.get("/health/agents", response_model=List[AgentHealth])
+async def agent_health_check():
+    """Health status for all 35 agents."""
+    agents = []
+    
+    for agent_id in agent_registry.all_ids():
+        agent = await agent_registry.get(agent_id)
+        agents.append(AgentHealth(
+            agent_id=agent_id,
+            status="healthy" if agent.is_responsive() else "unhealthy",
+            current_state=agent.current_state,
+            pending_messages=await get_agent_queue_depth(agent_id),
+            last_activity=agent.last_activity_time
+        ))
+    
+    return agents
+
+@app.get("/health/pods/{pod_id}")
+async def pod_health_check(pod_id: str):
+    """Detailed health check for a specific Pod."""
+    pod = await get_pod(pod_id)
+    
+    return {
+        "pod_id": pod_id,
+        "sub_manager": await get_agent_health(pod.sub_manager_id),
+        "audit_agent": await get_agent_health(pod.audit_agent_id),
+        "specialists": [
+            await get_agent_health(spec_id) 
+            for spec_id in pod.specialist_ids
+        ],
+        "logicnodes_in_progress": await count_pod_pending_logicnodes(pod_id),
+        "logicnodes_verified": await count_pod_verified_logicnodes(pod_id),
+        "current_throughput": await calculate_pod_throughput(pod_id)
+    }
+Alert Configuration
+yaml
+# alerts.yaml - Prometheus alerting rules
+
+groups:
+  - name: refinery_critical
+    rules:
+      - alert: AgentUnresponsive
+        expr: refinery_agent_last_heartbeat_seconds > 60
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Agent {{ $labels.agent_id }} unresponsive"
+          description: "Agent has not sent heartbeat for over 2 minutes"
+
+      - alert: AuditBacklogCritical
+        expr: refinery_audit_queue_depth > 100
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Audit backlog exceeding threshold"
+          description: "{{ $value }} LogicNodes waiting for audit"
+
+      - alert: TokenBudgetExceeded
+        expr: refinery_api_cost_dollars{time_window="daily"} > 100
+        labels:
+          severity: warning
+        annotations:
+          summary: "Daily token budget exceeded"
+          description: "API costs have reached ${{ $value }}"
+
+  - name: refinery_performance
+    rules:
+      - alert: HighExtractionLatency
+        expr: histogram_quantile(0.95, refinery_agent_active_time_seconds_bucket{state="EXTRACTION"}) > 300
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Extraction latency elevated"
+          description: "P95 extraction time exceeds 5 minutes"
+
+      - alert: LowCacheHitRate
+        expr: rate(refinery_context_cache_hits_total[5m]) / (rate(refinery_context_cache_hits_total[5m]) + rate(refinery_context_cache_misses_total[5m])) < 0.7
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Context cache hit rate below threshold"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}"
+
+      - alert: HighAuditRejectionRate
+        expr: rate(refinery_logicnodes_rejected_total[1h]) / rate(refinery_logicnodes_created_total[1h]) > 0.3
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High LogicNode rejection rate"
+          description: "{{ $value | humanizePercentage }} of LogicNodes rejected in last hour"
+Summary
+The LangGraph Orchestration Specification defines:
+
+35 distinct state machines covering Executive, Support Ring, and Pod agents, each with explicit states, transitions, and trigger conditions.
+Event-driven task routing via the Semantic Bus (Redis) using named protocol channels (Alpha, Beta, Delta, Sigma, Omega, Rho) with priority-based weighted fair queuing.
+Multi-level parallelism including Pod-level concurrent execution, intra-Pod Specialist fan-out/fan-in, and parallel audit verification stages.
+Robust checkpoint/recovery using Postgres for global state, Redis for agent state, Git for LogicNode versioning, and SQLite for traceability, with automatic recovery procedures on restart.
+Comprehensive observability via Prometheus metrics, OpenTelemetry distributed tracing, WebSocket-based Mission Control updates, health check APIs, and configurable alerting rules.
+
+
+
+
+
+
+Claude is AI and can make mistakes. Please double-check responses.
+
+
+
+
+
+
