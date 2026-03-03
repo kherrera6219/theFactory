@@ -40,9 +40,10 @@ Acceptance: live repository ingestion path with robust error handling replaces s
 Evidence targets: `apps/mission-control/app/(shell)/repo/page.tsx`.
 Phase 12 status (2026-03-03): repository intake now calls `/api/repo/import` with GitHub metadata/tree integration, vault/env token support, input validation, file-size caps, and structured error handling; covered by Vitest + Playwright.
 
-- [ ] Add integration tests using real dependencies (Redis/Postgres/service wiring) for mission intake and state flow.
+- [x] Add integration tests using real dependencies (Redis/Postgres/service wiring) for mission intake and state flow.
 Acceptance: at least one full mission path is validated without mocked data-plane backends.
 Evidence targets: `tests/services/`, `coverage.xml`.
+Phase 15 status (2026-03-03): added `tests/services/test_live_mission_flow_integration.py` to validate live gateway/orchestrator readiness plus mission intake/state/event progression against real Redis/Postgres-backed runtime when stack is available.
 
 - [x] Add automated validation for critical operational scripts (backup/DR/perf/audit).
 Acceptance: script regressions are detected by CI smoke tests.
@@ -67,8 +68,8 @@ Phase 14 status (2026-03-03): published explicit disposition matrix in `docs/LEG
 
 ## Suggested Execution Order
 1. Finish all P0 items.
-2. Parallelize P1 UI completion and integration-testing improvements.
-3. Close P2 documentation/strategy cleanup after P0/P1 decisions are made.
+2. Complete remaining P1 data-system activation/reconciliation work.
+3. Re-run full audit and evidence refresh for final completion sign-off.
 
 ## Exit Criteria
 - [x] All P0 acceptance criteria passed and documented.

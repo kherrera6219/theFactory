@@ -74,9 +74,14 @@ Last updated: 2026-03-03
      - Added canonical reconciliation note with adopted/deferred/deprecated legacy scope mapping.
      - Documented explicit Mission Control port policy for Docker-host and direct-dev modes.
 
+9. `Medium` Mission intake/state integration validation was primarily mock-based.
+   - Previous state: mission-flow tests used fake/in-memory dependencies for most backend paths.
+   - Status: `Addressed (baseline)`.
+   - Action taken:
+     - Added live integration tests for real gateway/orchestrator/Redis/Postgres mission flow.
+     - Added runtime-aware skip behavior to keep tests safe in environments without active stack.
+
 ## Structural Gaps Still Open (Planned)
 
-- Real-dependency integration tests:
-  - Expand mission-flow tests that exercise live Redis/Postgres/service wiring instead of mock-heavy paths.
 - Data-systems reconciliation:
   - Activate Qdrant retrieval paths and finalize Neo4j/object-storage scope decision with updated canonical docs.

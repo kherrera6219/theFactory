@@ -470,3 +470,36 @@
 
 ### Next Phase
 - P1 target: implement real-dependency mission-flow integration tests and finalize data-system roadmap activation/reconciliation.
+
+## Phase 15 - Live Mission-Flow Integration Coverage
+
+### Objective
+- Add non-mocked integration validation for mission intake/state flow using real runtime dependencies.
+- Ensure test suite can safely run in both live-stack and non-live-stack environments.
+
+### Implementation
+- Added live integration test suite:
+  - `tests/services/test_live_mission_flow_integration.py`
+- Integration scope:
+  - validates gateway/orchestrator readiness,
+  - verifies Redis/Postgres dependency health via live health payloads,
+  - executes `POST /v1/missions` and polls mission/state event endpoints until live progression is observed.
+- Resilience behavior:
+  - test auto-skips when live runtime stack is unreachable.
+- Added phase evidence:
+  - `docs/evidence/phase15_live_integration_validation_2026-03-03.md`
+
+### Validation and Debug Sweep
+- `python -m pytest -q tests/services/test_live_mission_flow_integration.py`: pass (2 tests)
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (`216` tests, `86.96%`)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `python scripts/production_review_audit.py`: pass (`12/12`)
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Real dependency mission-flow validation is now present and executable.
+- Remaining open backlog is now centered on data-system activation/reconciliation (Qdrant/Neo4j/object-storage scope).
+
+### Next Phase
+- P1 target: complete data-system roadmap activation/reconciliation and publish final implementation/defer decisions with test/evidence updates.
