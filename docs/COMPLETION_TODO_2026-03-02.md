@@ -54,7 +54,8 @@ Phase 13 status (2026-03-03): backup and DR scripts now support `-DryRun` regres
 - [x] Complete data-system roadmap activation/reconciliation (Qdrant active path, Neo4j/object-storage scope decision).
 Acceptance: either implemented with tests or formally deferred with documented rationale.
 Evidence targets: `docs/AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`, `docs/ROADMAP.md`.
-Phase 16 status (2026-03-03): orchestrator knowledge path now actively mirrors/retrieves via Qdrant with tested fallback behavior, runtime readiness visibility, and optional `QDRANT_API_KEY` hardening; Neo4j/object-storage tracks are formally deferred as optional expansion scopes.
+Phase 16 status (2026-03-03): orchestrator knowledge path now actively mirrors/retrieves via Qdrant with tested fallback behavior, runtime readiness visibility, and optional `QDRANT_API_KEY` hardening.
+Phase 17-18 status (2026-03-03): Neo4j and object-storage optional expansion tracks are now implemented behind feature flags with regression coverage and evidence (`phase17_neo4j_feature_flag_validation_2026-03-03.md`, `phase18_object_storage_validation_2026-03-03.md`).
 
 ## P2 - Documentation and Strategy Alignment
 - [x] Resolve documentation port/runtime contradictions for Mission Control.

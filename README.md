@@ -249,7 +249,7 @@ Agent-specific docs:
 - Multi-agent telemetry, integrations, and persona standards evidence are active in operations APIs and Mission Control.
 - Core multi-agent communication/runtime files now enforce 100% coverage via CI and `make test`.
 - Mission Control lint, unit, and critical e2e regression coverage are now enforced in CI.
-- Remaining maturity work is focused on optional expansion tracks (deeper resilience certification depth and object-storage evidence scaling).
+- Remaining maturity work is focused on optional data-plane observability/SLO controls and advanced Mission Control operator UX hardening.
 
 ## Notes
 
