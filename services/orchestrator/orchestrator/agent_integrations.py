@@ -256,7 +256,7 @@ def _store_bindings_for_agent(agent: AgentDefinition) -> list[dict[str, Any]]:
         stores.append(
             {
                 "name": "neo4j",
-                "status": "planned_optional",
+                "status": "feature_flagged",
                 "usage": [
                     "knowledge graph traversal",
                     "compliance and provenance relationship analysis",
@@ -365,7 +365,8 @@ def build_agent_integrations_snapshot() -> dict[str, Any]:
         "data_systems": stores,
         "implemented_data_plane": ["postgresql", "qdrant", "redis"],
         "reserved_data_plane": [],
-        "planned_data_plane": ["neo4j", "object_storage"],
+        "feature_flagged_data_plane": ["neo4j"],
+        "planned_data_plane": ["object_storage"],
         "llm_strategy_version": "2026-03-02",
         "llm_provider_counts": dict(sorted(provider_counts.items())),
         "llm_model_counts": dict(sorted(model_counts.items())),

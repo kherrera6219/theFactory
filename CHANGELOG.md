@@ -58,6 +58,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - `services/orchestrator/orchestrator/qdrant_store.py`
   - `tests/services/test_qdrant_store_unit.py`
   - phase evidence in `docs/evidence/phase16_data_system_activation_validation_2026-03-03.md`
+- Neo4j optional graph integration baseline:
+  - `services/orchestrator/orchestrator/neo4j_store.py`
+  - `tests/services/test_neo4j_store_unit.py`
+  - phase evidence in `docs/evidence/phase17_neo4j_feature_flag_validation_2026-03-03.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
@@ -83,3 +87,5 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `.github/workflows/ci.yml` now runs Mission Control Playwright e2e tests with Chromium install.
 - Orchestrator internal knowledge endpoints now mirror to and retrieve from Qdrant (with PostgreSQL fallback), and runtime readiness payloads now include Qdrant dependency state.
 - `.env.example` and `deploy/docker-compose.yaml` now expose Qdrant runtime controls (`QDRANT_ENABLED`, `QDRANT_COLLECTION`, `QDRANT_VECTOR_SIZE`, `QDRANT_TIMEOUT_SECONDS`, `QDRANT_API_KEY`).
+- Orchestrator now supports feature-flagged Neo4j graph mirroring/query paths with readiness reporting, plus gateway route `GET /v1/missions/{mission_id}/knowledge-graph`.
+- `.env.example` and `deploy/docker-compose.yaml` now expose `NEO4J_*` runtime controls and optional profiled Neo4j service wiring.

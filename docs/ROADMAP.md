@@ -149,10 +149,28 @@ Last updated: 2026-03-03
   - updated `tests/services/test_orchestrator_endpoints_extra.py`
   - updated `tests/services/test_production_foundations.py`
 - Reconciled scope decisions:
-  - Neo4j/object storage remain formally deferred optional expansions for current baseline.
+  - Neo4j/object storage were tagged as optional expansion tracks beyond the core baseline.
+- Status: Complete (baseline, 2026-03-03).
+
+## Phase 17: Neo4j Optional Graph Adapter
+
+- Added feature-flagged Neo4j adapter:
+  - `services/orchestrator/orchestrator/neo4j_store.py`
+- Enabled best-effort mirror writes for graph workloads:
+  - knowledge upserts mirror into Neo4j when `NEO4J_ENABLED=true`
+  - audit report upserts mirror into Neo4j when `NEO4J_ENABLED=true`
+- Added graph retrieval APIs:
+  - `GET /internal/missions/{mission_id}/knowledge-graph`
+  - `GET /v1/missions/{mission_id}/knowledge-graph`
+- Expanded runtime visibility:
+  - Neo4j readiness surfaced in orchestrator health/readiness/operations runtime payloads.
+- Added compose/env scaffolding:
+  - Neo4j service profile and `NEO4J_*` environment controls in compose and `.env.example`.
+- Added regression coverage:
+  - `tests/services/test_neo4j_store_unit.py`
+  - updated endpoint and gateway contract tests.
 - Status: Complete (baseline, 2026-03-03).
 
 ## Next Roadmap Targets
 
-1. Optional expansion track: introduce Neo4j adapter behind feature flag when relationship-heavy retrieval becomes a runtime requirement.
-2. Optional expansion track: introduce object-storage adapter with retention/legal-hold controls when immutable large-artifact demand exceeds current evidence storage model.
+1. Optional expansion track: introduce object-storage adapter with retention/legal-hold controls when immutable large-artifact demand exceeds current evidence storage model.
