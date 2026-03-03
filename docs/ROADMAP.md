@@ -223,6 +223,19 @@ Last updated: 2026-03-03
   - expanded `tests/services/test_langgraph_lifecycle_unit.py` for postgres dependency/usage/setup behavior.
 - Status: Complete (baseline implementation + validation, 2026-03-03).
 
+## Phase 25: Word-Doc Reconciliation and LangGraph Runtime Visibility
+
+- Audited all in-repo Word docs and published reconciled findings:
+  - `docs/WORD_DOC_AUDIT_2026-03-03.md`
+  - `docs/UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`
+- Added LangGraph runtime telemetry visibility in orchestrator runtime surfaces:
+  - `/health`
+  - `/readyz`
+  - `/internal/operations/summary`
+  - `/internal/operations/agents`
+- Added regression assertions for the new runtime fields.
+- Status: Complete (audit + runtime visibility baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
 1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
@@ -232,3 +245,4 @@ Last updated: 2026-03-03
    - virtualization of Semantic Bus and agent-log high-volume views.
 4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
 5. Add live LangGraph checkpoint recovery qualification against Postgres-backed runtime with restart/disruption scenarios.
+6. Implement live transport path (WebSocket/SSE) for mission-critical Mission Control views to reduce polling-only dependency.

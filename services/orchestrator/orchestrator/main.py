@@ -230,6 +230,20 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
+def _langgraph_runtime_payload(app: FastAPI) -> dict[str, Any]:
+    settings = app.state.settings
+    return {
+        "langgraph_enabled": settings.langgraph_enabled,
+        "langgraph_fail_open": settings.langgraph_fail_open,
+        "langgraph_checkpointer": settings.langgraph_checkpointer,
+        "langgraph_checkpointer_setup": settings.langgraph_checkpointer_setup,
+        "langgraph_checkpoint_namespace": settings.langgraph_checkpoint_namespace or None,
+        "langgraph_postgres_checkpointer_setup_done": bool(
+            getattr(app.state, "langgraph_postgres_checkpointer_setup_done", False)
+        ),
+    }
+
+
 async def _emit_agent_telemetry_event(
     app: FastAPI,
     *,
@@ -801,6 +815,7 @@ async def health() -> dict[str, Any]:
         ),
         "protocol_ready": bool(getattr(app.state, "protocol_ready", False)),
         "protocol_error": getattr(app.state, "protocol_error", None),
+        **_langgraph_runtime_payload(app),
     }
 
 
@@ -842,6 +857,7 @@ async def readyz() -> dict[str, Any]:
                 "object_storage_ready": object_storage_ready,
                 "protocol_ready": protocol_ready,
                 "consumer_running": consumer_running,
+                **_langgraph_runtime_payload(app),
             },
         )
 
@@ -855,6 +871,7 @@ async def readyz() -> dict[str, Any]:
         "object_storage_ready": object_storage_ready,
         "protocol_ready": protocol_ready,
         "consumer_running": consumer_running,
+        **_langgraph_runtime_payload(app),
     }
 
 
@@ -1275,6 +1292,7 @@ async def get_operations_summary(
             "object_storage_ready": object_storage_ready,
             "protocol_ready": protocol_ready,
             "consumer_running": consumer_running,
+            **_langgraph_runtime_payload(app),
         },
         "mission_state_counts": state_counts,
         "pod_assignment_counts": pod_counts,
@@ -1340,6 +1358,7 @@ async def get_operations_agents(
         "object_storage_ready": object_storage_ready,
         "protocol_ready": protocol_ready,
         "consumer_running": consumer_running,
+        **_langgraph_runtime_payload(app),
     }
     snapshot = _build_operations_agents_snapshot(
         generated_at=datetime.now(UTC),

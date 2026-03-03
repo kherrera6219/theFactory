@@ -12,6 +12,8 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `UPDATED_PHASE_PLAN_2026-03-03.md`: current post-Phase-18 execution plan and validation protocol.
 - `GAP_ANALYSIS.md`: reviewed gaps, dispositions, and remaining structural work.
 - `LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md`: explicit legacy-scope disposition and Mission Control port-policy reconciliation.
+- `WORD_DOC_AUDIT_2026-03-03.md`: reconciliation audit against all in-repo Word-document requirements.
+- `UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`: prioritized backlog generated from Word-doc audit findings.
 
 ## Operations and Reliability
 
@@ -24,6 +26,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `RELEASE_TRUST_PROMOTION_GATE.md`: CI attestation, promotion policy, and release-trust evidence flow.
 - `evidence/phase23_langgraph_baseline_validation_2026-03-03.md`: LangGraph adoption baseline validation and quality-gate evidence.
 - `evidence/phase24_langgraph_postgres_checkpointer_validation_2026-03-03.md`: Postgres checkpointer baseline validation for LangGraph mission lifecycle.
+- `evidence/phase25_word_doc_audit_and_langgraph_runtime_visibility_2026-03-03.md`: Word-doc audit execution and LangGraph runtime visibility validation.
 - `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
 - `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.
 
