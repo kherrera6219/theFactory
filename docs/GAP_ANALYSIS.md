@@ -60,11 +60,16 @@ Last updated: 2026-03-03
      - Added real GitHub metadata/tree import API with input validation, tokenized access, truncation/large-file handling, and error mapping.
      - Added unit and e2e regression coverage for both pathways.
 
+7. `Medium` Backup and disaster-recovery scripts lacked direct automated regression tests.
+   - Previous state: perf/audit script checks existed, but backup/DR PowerShell flows were untested in automation.
+   - Status: `Addressed (baseline)`.
+   - Action taken:
+     - Added `-DryRun` execution path and integrity checks to backup/DR scripts.
+     - Added PowerShell regression tests in `tests/scripts/test_backup_dr_scripts.py`.
+
 ## Structural Gaps Still Open (Planned)
 
 - Real-dependency integration tests:
   - Expand mission-flow tests that exercise live Redis/Postgres/service wiring instead of mock-heavy paths.
-- Operational script regression depth:
-  - Add direct automated validation for backup and disaster-recovery script workflows.
 - Data-systems reconciliation:
   - Activate Qdrant retrieval paths and finalize Neo4j/object-storage scope decision with updated canonical docs.

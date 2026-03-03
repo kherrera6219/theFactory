@@ -44,10 +44,11 @@ Phase 12 status (2026-03-03): repository intake now calls `/api/repo/import` wit
 Acceptance: at least one full mission path is validated without mocked data-plane backends.
 Evidence targets: `tests/services/`, `coverage.xml`.
 
-- [ ] Add automated validation for critical operational scripts (backup/DR/perf/audit).
+- [x] Add automated validation for critical operational scripts (backup/DR/perf/audit).
 Acceptance: script regressions are detected by CI smoke tests.
 Evidence targets: `scripts/`, `.github/workflows/ci.yml`.
-Phase 5-6 status (2026-03-02): unit coverage added for `scripts/production_review_audit.py` and `scripts/perf_smoke.py`; backup/DR script test coverage is still pending.
+Phase 5-6 status (2026-03-02): unit coverage added for `scripts/production_review_audit.py` and `scripts/perf_smoke.py`; backup/DR script test coverage was pending.
+Phase 13 status (2026-03-03): backup and DR scripts now support `-DryRun` regression paths with CI-testable PowerShell execution coverage in `tests/scripts/test_backup_dr_scripts.py`.
 
 - [ ] Complete data-system roadmap activation/reconciliation (Qdrant active path, Neo4j/object-storage scope decision).
 Acceptance: either implemented with tests or formally deferred with documented rationale.

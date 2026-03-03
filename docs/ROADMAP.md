@@ -100,8 +100,19 @@ Last updated: 2026-03-03
   - Playwright flows for builder diff preview and repo-import mission launch.
 - Status: Complete (baseline, 2026-03-03).
 
+## Phase 13: Operational Script Regression Hardening
+
+- Added dry-run execution support for:
+  - `scripts/backup_postgres.ps1`
+  - `scripts/dr_drill.ps1`
+- Added backup artifact integrity guardrails (missing/truncated backup failure).
+- Added script regression tests:
+  - `tests/scripts/test_backup_dr_scripts.py`
+  - validates backup and DR drills in dry-run mode without live runtime dependency requirements.
+- Status: Complete (baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
 1. Add real-dependency integration tests for mission intake/state flow across gateway/orchestrator/Redis/Postgres wiring.
-2. Add automated regression validation for backup/DR operational scripts.
-3. Activate Qdrant in active retrieval paths and publish retrieval-path/SLO guidance.
+2. Activate Qdrant in active retrieval paths and publish retrieval-path/SLO guidance.
+3. Publish explicit legacy-roadmap reconciliation and runtime-port alignment note for remaining historical docs.
