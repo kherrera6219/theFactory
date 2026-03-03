@@ -28,6 +28,12 @@ class Settings:
     internal_service_api_key: str
     readonly_api_key: str
     extra_api_keys: str
+    qdrant_url: str = "http://qdrant:6333"
+    qdrant_api_key: str = ""
+    qdrant_enabled: bool = True
+    qdrant_collection: str = "mission_knowledge"
+    qdrant_vector_size: int = 64
+    qdrant_timeout_seconds: float = 3.0
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -78,6 +84,8 @@ def load_settings() -> Settings:
     return Settings(
         redis_url=os.getenv("REDIS_URL", "redis://redis:6379/0"),
         postgres_url=os.getenv("POSTGRES_URL", "postgresql://postgres:postgres@postgres:5432/ulr"),
+        qdrant_url=os.getenv("QDRANT_URL", "http://qdrant:6333"),
+        qdrant_api_key=os.getenv("QDRANT_API_KEY", ""),
         intake_stream=os.getenv("INTAKE_STREAM", "missions.intake"),
         state_stream=os.getenv("STATE_STREAM", "missions.state"),
         max_stream_len=int(os.getenv("MAX_STREAM_LEN", "20000")),
@@ -98,4 +106,10 @@ def load_settings() -> Settings:
         internal_service_api_key=os.getenv("INTERNAL_SERVICE_API_KEY", "worker-key"),
         readonly_api_key=os.getenv("ORCHESTRATOR_READONLY_API_KEY", ""),
         extra_api_keys=os.getenv("ORCHESTRATOR_API_KEYS", ""),
+        qdrant_enabled=_as_bool(os.getenv("QDRANT_ENABLED", "true"), True)
+        and bool(os.getenv("QDRANT_URL", "http://qdrant:6333").strip()),
+        qdrant_collection=os.getenv("QDRANT_COLLECTION", "mission_knowledge").strip()
+        or "mission_knowledge",
+        qdrant_vector_size=max(8, int(os.getenv("QDRANT_VECTOR_SIZE", "64"))),
+        qdrant_timeout_seconds=max(0.5, float(os.getenv("QDRANT_TIMEOUT_SECONDS", "3.0"))),
     )

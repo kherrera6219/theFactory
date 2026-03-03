@@ -113,6 +113,11 @@ services:
     environment:
       REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
       QDRANT_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      QDRANT_ENABLED: ${QDRANT_ENABLED:-true}
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-mission_knowledge}
+      QDRANT_VECTOR_SIZE: ${QDRANT_VECTOR_SIZE:-64}
+      QDRANT_TIMEOUT_SECONDS: ${QDRANT_TIMEOUT_SECONDS:-3.0}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ulr}
       INTAKE_STREAM: missions.intake
       INTAKE_TOPIC: intake.feature_contract.created

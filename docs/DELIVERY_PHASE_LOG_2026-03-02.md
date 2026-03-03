@@ -503,3 +503,47 @@
 
 ### Next Phase
 - P1 target: complete data-system roadmap activation/reconciliation and publish final implementation/defer decisions with test/evidence updates.
+
+## Phase 16 - Data-System Activation and Reconciliation
+
+### Objective
+- Close the final P1 backlog item by activating Qdrant in live knowledge retrieval paths.
+- Publish explicit implementation/defer decisions for Neo4j and object-storage scope.
+- Add security hardening and regression coverage for the new Qdrant integration path.
+
+### Implementation
+- Added Qdrant integration module:
+  - `services/orchestrator/orchestrator/qdrant_store.py`
+  - Collection lifecycle guard, mission-filtered retrieval, deterministic vector generation, and payload parsing.
+- Extended orchestrator settings and runtime wiring:
+  - `services/orchestrator/orchestrator/settings.py`
+  - `services/orchestrator/orchestrator/main.py`
+  - Added `QDRANT_ENABLED`, `QDRANT_COLLECTION`, `QDRANT_VECTOR_SIZE`, `QDRANT_TIMEOUT_SECONDS`, and optional `QDRANT_API_KEY`.
+  - `POST /internal/knowledge` now mirrors writes to Qdrant (best effort).
+  - `GET /internal/missions/{mission_id}/knowledge` now prefers Qdrant and falls back to PostgreSQL.
+  - Qdrant readiness now appears in `/health`, `/readyz`, and operations runtime snapshots.
+- Updated agent integration data-plane status:
+  - `services/orchestrator/orchestrator/agent_integrations.py`
+  - Qdrant moved from reserved to implemented; Neo4j/object-storage remain planned.
+- Added regression coverage:
+  - `tests/services/test_qdrant_store_unit.py`
+  - `tests/services/test_orchestrator_endpoints_extra.py`
+  - `tests/services/test_production_foundations.py`
+- Updated runtime config templates:
+  - `.env.example`
+  - `deploy/docker-compose.yaml`
+- Added phase evidence:
+  - `docs/evidence/phase16_data_system_activation_validation_2026-03-03.md`
+
+### Validation and Debug Sweep
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest -q tests/services/test_qdrant_store_unit.py tests/services/test_orchestrator_endpoints_extra.py tests/services/test_agent_core_unit.py`: pass (25 tests)
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (`222` tests, `86.75%`)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `python scripts/production_review_audit.py`: pass (`12/12`)
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Qdrant is now active in the orchestrator knowledge path with tested fallback behavior and enterprise-oriented auth hardening support.
+- Neo4j and object-storage are now formally deferred optional expansion tracks for post-baseline growth.
+- All current completion-todo items are closed for this production-readiness baseline.
