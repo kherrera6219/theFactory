@@ -118,6 +118,62 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
     ],
   ]);
 
+  await page.route("**/api/repo/import", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") {
+      return fulfillJson(route, 405, { detail: "Method not allowed." });
+    }
+    const payload = (request.postDataJSON() as Record<string, unknown>) ?? {};
+    const repoUrl = typeof payload.repo_url === "string" ? payload.repo_url : "";
+    if (!repoUrl.startsWith("https://github.com/")) {
+      return fulfillJson(route, 400, { detail: "Invalid repository URL." });
+    }
+
+    return fulfillJson(route, 200, {
+      repository: {
+        owner: "octo",
+        repo: "sample-platform",
+        branch: "main",
+        default_branch: "main",
+        private: false,
+        html_url: "https://github.com/octo/sample-platform",
+      },
+      files: [
+        {
+          path: "apps/mission-control/app/(shell)/repo/page.tsx",
+          language: "TypeScript",
+          bytes: 12_000,
+          estimated_lines: 260,
+        },
+        {
+          path: "services/api-gateway/api_gateway/main.py",
+          language: "Python",
+          bytes: 9_400,
+          estimated_lines: 210,
+        },
+        {
+          path: "README.md",
+          language: "Markdown",
+          bytes: 1_800,
+          estimated_lines: 40,
+        },
+      ],
+      stats: {
+        total_files: 3,
+        estimated_total_lines: 510,
+        selected_subdirectory: "/",
+        truncated: false,
+        skipped_large_files: 0,
+      },
+      logs: [
+        "Validated repository request payload.",
+        "Resolving metadata for octo/sample-platform.",
+        "Fetched repository tree with 3 entries.",
+        "Selected 3 files from /.",
+      ],
+    });
+  });
+
   await page.route("http://localhost:8100/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -365,6 +421,53 @@ test("settings and vault flows are regression covered", async ({ page }) => {
   await page.getByLabel("API base URL").fill("http://localhost:8100");
   await page.getByRole("button", { name: "Save Runtime Preferences" }).click();
   await expect(page.getByText("Local runtime preferences saved.")).toBeVisible();
+});
+
+test("builder workspace generates actionable diff previews", async ({ page }) => {
+  await setupMissionControlApiMocks(page);
+
+  await page.goto("/builder");
+  await expect(page.getByRole("heading", { name: "Builder Workspace" })).toBeVisible();
+
+  await page
+    .getByLabel("Change request")
+    .fill("Update builder workflow to include stronger risk notes and test guidance.");
+  await page.getByLabel("Constraints (comma-separated)").fill("no schema changes, preserve accessibility");
+  await page.getByRole("button", { name: "Stage Request" }).click();
+
+  await expect(page.getByText(/Preview generated from e2e/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Execution Plan" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "apps/mission-control/app/(shell)/builder/page.tsx",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".code-block pre").first()).toContainText("+    request:");
+});
+
+test("repo intake imports files and launches mission", async ({ page }) => {
+  await setupMissionControlApiMocks(page);
+
+  await page.goto("/repo");
+  await expect(
+    page.getByRole("heading", { name: "Repository Intake and Mission Configuration" }),
+  ).toBeVisible();
+
+  await page.getByLabel("GitHub repository URL").fill("https://github.com/octo/sample-platform");
+  await page.getByRole("button", { name: "Import Repository" }).click();
+
+  await expect(page.getByText("octo/sample-platform", { exact: true })).toBeVisible();
+  await expect(page.getByText("Selected 3 files from /.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Select Top 25" }).click();
+  await expect(page.getByText(/Selected: 3 files - 510 estimated lines/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Analyze" }).click();
+  await page.getByRole("button", { name: "Launch Mission" }).click();
+
+  await expect(page).toHaveURL(/\/missions\/mission-e2e-\d+/);
+  await expect(page.getByRole("heading", { name: /Mission mission-e2e-/i })).toBeVisible();
 });
 
 test("error states surface actionable UI messaging", async ({ page }) => {

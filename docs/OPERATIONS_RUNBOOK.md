@@ -112,3 +112,4 @@ Last updated: 2026-03-03
    - `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`
 8. Mission Control end-to-end regression:
    - `cd apps/mission-control && npm run test:e2e`
+   - validates mission lifecycle, operations persona view, settings/vault, builder preview, repo intake, and error-state handling

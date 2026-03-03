@@ -90,7 +90,18 @@ Last updated: 2026-03-03
 - Audit control expanded with Mission Control e2e gate verification (`UI-011`).
 - Status: Complete (baseline, 2026-03-03).
 
+## Phase 12: Builder and Repository Intake Productionization
+
+- Builder workspace upgraded from placeholder rendering to actionable file-impact and diff preview output.
+- Repository intake upgraded from simulated file lists to real GitHub metadata/tree import flow.
+- New hardening controls include repository URL/branch/subdirectory validation, file-size filtering, max-file clamping, vault/env GitHub token support, and structured error responses.
+- Added regression coverage:
+  - Vitest unit tests for repo import parsing/filtering helpers.
+  - Playwright flows for builder diff preview and repo-import mission launch.
+- Status: Complete (baseline, 2026-03-03).
+
 ## Next Roadmap Targets
 
-1. Activate Qdrant in active retrieval paths and define SLOs.
-2. Complete builder preview and repo import production workflows.
+1. Add real-dependency integration tests for mission intake/state flow across gateway/orchestrator/Redis/Postgres wiring.
+2. Add automated regression validation for backup/DR operational scripts.
+3. Activate Qdrant in active retrieval paths and publish retrieval-path/SLO guidance.

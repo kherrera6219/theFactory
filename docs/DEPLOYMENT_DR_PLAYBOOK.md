@@ -46,4 +46,4 @@ Operational scripts for deployment preflight, backup/restore, and disaster-recov
 
 - Run Mission Control critical-path e2e suite:
   - `cd apps/mission-control && npm run test:e2e`
-- Covers mission lifecycle, operations views, settings/vault workflows, and error-state handling.
+- Covers mission lifecycle, operations views, settings/vault workflows, builder preview, repo intake, and error-state handling.

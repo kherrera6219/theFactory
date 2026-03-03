@@ -11,20 +11,37 @@ import { sanitizeUserText } from "../../lib/security";
 type RepoFile = {
   path: string;
   language: string;
-  lines: number;
+  bytes: number;
+  estimatedLines: number;
   selected: boolean;
 };
 
 type MissionType = "analyze" | "update" | "add_feature" | "refactor";
 
-const SAMPLE_FILES: RepoFile[] = [
-  { path: "src/api/routes.ts", language: "TypeScript", lines: 240, selected: false },
-  { path: "src/api/security.ts", language: "TypeScript", lines: 188, selected: false },
-  { path: "src/agents/planner.py", language: "Python", lines: 314, selected: false },
-  { path: "src/agents/auditor.py", language: "Python", lines: 271, selected: false },
-  { path: "src/runtime/bus.rs", language: "Rust", lines: 211, selected: false },
-  { path: "tests/integration/mission_flow.spec.ts", language: "TypeScript", lines: 176, selected: false },
-];
+type RepoImportResponse = {
+  repository: {
+    owner: string;
+    repo: string;
+    branch: string;
+    default_branch: string;
+    private: boolean;
+    html_url: string;
+  };
+  files: Array<{
+    path: string;
+    language: string;
+    bytes: number;
+    estimated_lines: number;
+  }>;
+  stats: {
+    total_files: number;
+    estimated_total_lines: number;
+    selected_subdirectory: string;
+    truncated: boolean;
+    skipped_large_files: number;
+  };
+  logs: string[];
+};
 
 function isValidGithubUrl(value: string): boolean {
   try {
@@ -35,13 +52,26 @@ function isValidGithubUrl(value: string): boolean {
   }
 }
 
+function formatBytes(value: number): string {
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)} MB`;
+  }
+  if (value >= 1_000) {
+    return `${Math.round(value / 1_000)} KB`;
+  }
+  return `${value} B`;
+}
+
 export default function RepoImportPage() {
   const router = useRouter();
 
   const [repoUrl, setRepoUrl] = useState("");
   const [branch, setBranch] = useState("main");
   const [subdirectory, setSubdirectory] = useState("/");
-  const [files, setFiles] = useState<RepoFile[]>(SAMPLE_FILES);
+  const [maxFiles, setMaxFiles] = useState(300);
+  const [fileFilter, setFileFilter] = useState("");
+  const [files, setFiles] = useState<RepoFile[]>([]);
+  const [importSnapshot, setImportSnapshot] = useState<RepoImportResponse | null>(null);
   const [missionType, setMissionType] = useState<MissionType | null>(null);
   const [description, setDescription] = useState("");
   const [importing, setImporting] = useState(false);
@@ -52,43 +82,85 @@ export default function RepoImportPage() {
 
   const selectedFiles = useMemo(() => files.filter((item) => item.selected), [files]);
   const selectedLines = useMemo(
-    () => selectedFiles.reduce((sum, item) => sum + item.lines, 0),
+    () => selectedFiles.reduce((sum, item) => sum + item.estimatedLines, 0),
     [selectedFiles],
   );
+  const normalizedFilter = sanitizeUserText(fileFilter).toLowerCase();
+  const visibleFiles = useMemo(() => {
+    if (!normalizedFilter) {
+      return files;
+    }
+    return files.filter((item) => item.path.toLowerCase().includes(normalizedFilter));
+  }, [files, normalizedFilter]);
 
   async function importRepository() {
     const normalizedUrl = sanitizeUserText(repoUrl);
     if (!isValidGithubUrl(normalizedUrl)) {
-      setError("Enter a valid https://github.com/... repository URL.");
+      setError("Enter a valid https://github.com/<owner>/<repo> repository URL.");
       return;
     }
+
     setError(null);
     setImporting(true);
     setImportComplete(false);
-    setImportLogs(["Validating repository URL...", "Resolving branch metadata..."]);
+    setImportLogs(["Validating repository request...", "Fetching repository metadata..."]);
+    setImportSnapshot(null);
+    setFiles([]);
 
-    const stagedLogs = [
-      "Cloning repository to local workspace...",
-      "Counting objects...",
-      "Resolving deltas...",
-      "Indexing file tree...",
-      "Repository import complete.",
-    ];
-
-    for (const line of stagedLogs) {
-      await new Promise((resolve) => window.setTimeout(resolve, 300));
-      setImportLogs((current) => [...current, line]);
+    try {
+      const response = await fetch("/api/repo/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repo_url: normalizedUrl,
+          branch: sanitizeUserText(branch),
+          subdirectory: sanitizeUserText(subdirectory) || "/",
+          max_files: maxFiles,
+        }),
+      });
+      const payload = (await response.json()) as RepoImportResponse & { detail?: string };
+      if (!response.ok) {
+        throw new Error(payload.detail || "Repository import request failed.");
+      }
+      setImportSnapshot(payload);
+      setImportLogs(payload.logs);
+      setFiles(
+        payload.files.map((file) => ({
+          path: file.path,
+          language: file.language,
+          bytes: file.bytes,
+          estimatedLines: file.estimated_lines,
+          selected: false,
+        })),
+      );
+      setImportComplete(true);
+    } catch (importError) {
+      setError(
+        importError instanceof Error ? importError.message : "Repository import failed unexpectedly.",
+      );
+      setImportLogs((current) => [...current, "Import failed."]);
+    } finally {
+      setImporting(false);
     }
-
-    setImportComplete(true);
-    setImporting(false);
-    setFiles(SAMPLE_FILES);
   }
 
   function toggleFile(path: string) {
     setFiles((current) =>
       current.map((item) => (item.path === path ? { ...item, selected: !item.selected } : item)),
     );
+  }
+
+  function selectTopFiles(count: number) {
+    setFiles((current) =>
+      current.map((item, index) => ({
+        ...item,
+        selected: index < count,
+      })),
+    );
+  }
+
+  function clearSelection() {
+    setFiles((current) => current.map((item) => ({ ...item, selected: false })));
   }
 
   async function launchRepoMission() {
@@ -120,11 +192,13 @@ export default function RepoImportPage() {
         metadata: {
           source: "repo-import-ui",
           repo_url: sanitizeUserText(repoUrl),
-          branch: sanitizeUserText(branch) || "main",
-          subdirectory: sanitizeUserText(subdirectory) || "/",
+          branch: importSnapshot?.repository.branch || sanitizeUserText(branch) || "main",
+          subdirectory: importSnapshot?.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/",
           mission_type: missionType,
           selected_files: selectedFiles.map((item) => item.path),
           estimated_lines: selectedLines,
+          repository_owner: importSnapshot?.repository.owner,
+          repository_name: importSnapshot?.repository.repo,
         },
       });
       router.push(`/missions/${mission.mission_id}`);
@@ -143,7 +217,7 @@ export default function RepoImportPage() {
       <PageHeader
         eyebrow="GitHub Import"
         title="Repository Intake and Mission Configuration"
-        description="Import a repository, scope files, and launch an analysis/update/refactor mission."
+        description="Import a real GitHub repository tree, scope files, and launch analysis/update/refactor missions."
       />
 
       <Panel title="Step 1: Import Repository" className="step-panel">
@@ -174,12 +248,44 @@ export default function RepoImportPage() {
               placeholder="/"
             />
           </label>
+          <label>
+            Max files
+            <input
+              type="number"
+              min={50}
+              max={800}
+              value={maxFiles}
+              onChange={(event) => setMaxFiles(Math.max(50, Math.min(800, Number(event.target.value) || 300)))}
+            />
+          </label>
         </div>
         <div className="inline-actions">
           <button type="button" onClick={() => void importRepository()} disabled={importing}>
             {importing ? "Importing..." : "Import Repository"}
           </button>
         </div>
+        {importSnapshot && (
+          <ul className="summary-list">
+            <li>
+              <strong>Repository</strong>
+              <span>
+                {importSnapshot.repository.owner}/{importSnapshot.repository.repo}
+              </span>
+            </li>
+            <li>
+              <strong>Branch</strong>
+              <span>{importSnapshot.repository.branch}</span>
+            </li>
+            <li>
+              <strong>Files</strong>
+              <span>{importSnapshot.stats.total_files}</span>
+            </li>
+            <li>
+              <strong>Estimated lines</strong>
+              <span>{importSnapshot.stats.estimated_total_lines}</span>
+            </li>
+          </ul>
+        )}
         {importLogs.length > 0 && (
           <ul className="summary-list">
             {importLogs.map((line) => (
@@ -195,8 +301,22 @@ export default function RepoImportPage() {
         {step2Locked && <p className="muted">Complete Step 1 to unlock file selection.</p>}
         {!step2Locked && (
           <>
+            <div className="inline-actions">
+              <input
+                type="text"
+                value={fileFilter}
+                onChange={(event) => setFileFilter(event.target.value)}
+                placeholder="Filter files by path..."
+              />
+              <button type="button" className="secondary-button" onClick={() => selectTopFiles(25)}>
+                Select Top 25
+              </button>
+              <button type="button" className="secondary-button" onClick={clearSelection}>
+                Clear Selection
+              </button>
+            </div>
             <ul className="repo-file-list">
-              {files.map((file) => (
+              {visibleFiles.map((file) => (
                 <li key={file.path}>
                   <label className="inline-toggle">
                     <input
@@ -205,14 +325,14 @@ export default function RepoImportPage() {
                       onChange={() => toggleFile(file.path)}
                     />
                     <span>
-                      {file.path} - {file.language} - {file.lines} LOC
+                      {file.path} - {file.language} - {formatBytes(file.bytes)} - {file.estimatedLines} LOC
                     </span>
                   </label>
                 </li>
               ))}
             </ul>
             <p className="help-text">
-              Selected: {selectedFiles.length} files - {selectedLines} lines
+              Selected: {selectedFiles.length} files - {selectedLines} estimated lines
             </p>
           </>
         )}
@@ -260,7 +380,7 @@ export default function RepoImportPage() {
               rows={4}
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Describe the requested change or analysis scope."
+              placeholder="Describe requested changes, business constraints, and expected outputs."
             />
             <div className="inline-actions">
               <button type="button" onClick={() => void launchRepoMission()} disabled={launching}>
@@ -275,4 +395,3 @@ export default function RepoImportPage() {
     </div>
   );
 }
-
