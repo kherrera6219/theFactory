@@ -9,6 +9,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `ARCHITECTURE.md`: runtime topology, contracts, and control-plane architecture.
 - `ROADMAP.md`: phased delivery status and current maturity plan.
 - `PRODUCTION_PHASE_PLAN.md`: production hardening phases and exit criteria.
+- `UPDATED_PHASE_PLAN_2026-03-03.md`: current post-Phase-18 execution plan and validation protocol.
 - `GAP_ANALYSIS.md`: reviewed gaps, dispositions, and remaining structural work.
 - `LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md`: explicit legacy-scope disposition and Mission Control port-policy reconciliation.
 

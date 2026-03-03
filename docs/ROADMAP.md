@@ -195,3 +195,8 @@ Last updated: 2026-03-03
 ## Next Roadmap Targets
 
 1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
+2. Add live extended-data-plane integration qualification (`--profile extended-data-plane`) for Neo4j and MinIO paths with skip-safe CI strategy.
+3. Implement advanced Mission Control operator UX gaps from imported design specs:
+   - repo diff-review/apply gate for file-level mission outputs,
+   - virtualization of Semantic Bus and agent-log high-volume views.
+4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).

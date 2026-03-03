@@ -66,6 +66,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - `services/orchestrator/orchestrator/object_store.py`
   - `tests/services/test_object_store_unit.py`
   - phase evidence in `docs/evidence/phase18_object_storage_validation_2026-03-03.md`
+- Post-Phase-18 planning refresh:
+  - `docs/UPDATED_PHASE_PLAN_2026-03-03.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
@@ -95,3 +97,4 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `.env.example` and `deploy/docker-compose.yaml` now expose `NEO4J_*` runtime controls and optional profiled Neo4j service wiring.
 - Orchestrator now supports feature-flagged object-storage audit-artifact mirroring/listing with retention/legal-hold policy metadata and gateway route `GET /v1/missions/{mission_id}/audit-artifacts`.
 - `.env.example` and `deploy/docker-compose.yaml` now expose `OBJECT_STORAGE_*` runtime controls; orchestrator requirements now include `boto3` for S3-compatible adapters.
+- Canonical planning docs refreshed to align with current baseline and identify next execution phases after optional data-plane activation.

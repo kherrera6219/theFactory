@@ -141,3 +141,32 @@ Exit criteria:
 
 - Mission lifecycle, operations views, settings/vault, and error states are exercised in e2e runs.
 - CI executes Mission Control e2e tests in addition to lint and unit gates.
+
+## Current Status Overlay (2026-03-03)
+
+Completed after initial Phase 11 plan:
+
+- Phase 12: Builder and repository intake productionization.
+- Phase 13: Backup/DR script regression hardening.
+- Phase 14: Legacy roadmap and port-policy reconciliation.
+- Phase 15: Live dependency mission-flow integration tests.
+- Phase 16: Qdrant activation and data-system reconciliation.
+- Phase 17: Neo4j feature-flagged graph adapter.
+- Phase 18: Object-storage retention/legal-hold adapter.
+
+## Updated Next Phases
+
+Phase 19 - Optional Data-Plane Observability and SLO Controls
+
+- Add Neo4j/object-storage metrics (latency, error rates, mirror-write success, readiness).
+- Add Prometheus alert rules and runbook mappings for optional adapters.
+
+Phase 20 - Extended Data-Plane Live Qualification
+
+- Add live integration tests using compose `extended-data-plane` profile.
+- Validate recovery behavior for Neo4j/MinIO disruptions and publish reproducible evidence.
+
+Phase 21 - Advanced Mission Control Operator UX
+
+- Implement repo diff-review/apply gate and file-level mission overlay workflow.
+- Add virtualization for Semantic Bus and high-volume agent log streams.
