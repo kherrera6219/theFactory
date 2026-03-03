@@ -30,13 +30,15 @@ Evidence targets: `apps/mission-control/package.json`, `docs/TESTING_QUALITY_GAT
 Phase 11 status (2026-03-03): Playwright e2e suite added for mission lifecycle, operations views, settings/vault, and error-state regression flows; CI now runs `npm run test:e2e` after Playwright browser install.
 
 ## P1 - Important Hardening and Completeness
-- [ ] Replace placeholder builder preview UX with functional diff/preview rendering.
+- [x] Replace placeholder builder preview UX with functional diff/preview rendering.
 Acceptance: builder output is visualized with concrete change preview behavior.
 Evidence targets: `apps/mission-control/app/(shell)/builder/page.tsx`.
+Phase 12 status (2026-03-03): builder workspace now renders concrete file-impact cards and unified diff previews inferred from live preview-plan signals; covered by Playwright regression.
 
-- [ ] Convert repo import simulation into real Git provider integration flow.
+- [x] Convert repo import simulation into real Git provider integration flow.
 Acceptance: live repository ingestion path with robust error handling replaces sample-file simulation.
 Evidence targets: `apps/mission-control/app/(shell)/repo/page.tsx`.
+Phase 12 status (2026-03-03): repository intake now calls `/api/repo/import` with GitHub metadata/tree integration, vault/env token support, input validation, file-size caps, and structured error handling; covered by Vitest + Playwright.
 
 - [ ] Add integration tests using real dependencies (Redis/Postgres/service wiring) for mission intake and state flow.
 Acceptance: at least one full mission path is validated without mocked data-plane backends.

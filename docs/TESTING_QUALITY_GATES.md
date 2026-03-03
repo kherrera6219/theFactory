@@ -29,6 +29,7 @@ This document defines automated quality gates for theFactory and the specific co
 `make test-ui-e2e` runs:
 
 - `npm run test:e2e` in `apps/mission-control` (Playwright critical-path suite)
+- Journey coverage includes mission lifecycle, operations, settings/vault, builder preview, repo intake, and error-state handling.
 
 `make promotion-gate` runs:
 

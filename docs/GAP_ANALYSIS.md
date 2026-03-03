@@ -52,11 +52,19 @@ Last updated: 2026-03-03
      - Added CI browser provisioning and Mission Control e2e execution.
      - Added audit control `UI-011` to verify e2e gating remains configured.
 
+6. `Medium` Builder preview and repository intake UX included placeholder/simulated behaviors.
+   - Previous state: builder showed plan-only placeholder rendering and repo import used sample file simulation.
+   - Status: `Addressed (baseline)`.
+   - Action taken:
+     - Implemented functional diff/file-impact preview rendering in Builder workspace.
+     - Added real GitHub metadata/tree import API with input validation, tokenized access, truncation/large-file handling, and error mapping.
+     - Added unit and e2e regression coverage for both pathways.
+
 ## Structural Gaps Still Open (Planned)
 
-- Observability:
-  - Expand tracing coverage beyond baseline mission-path APIs and formalize on-call routing policy.
-- Deployment resilience:
-  - Expand rollback orchestration and staged promotion automation.
-- Performance qualification:
-  - Expand workload profiles and capacity envelopes beyond current baseline certification scenario.
+- Real-dependency integration tests:
+  - Expand mission-flow tests that exercise live Redis/Postgres/service wiring instead of mock-heavy paths.
+- Operational script regression depth:
+  - Add direct automated validation for backup and disaster-recovery script workflows.
+- Data-systems reconciliation:
+  - Activate Qdrant retrieval paths and finalize Neo4j/object-storage scope decision with updated canonical docs.

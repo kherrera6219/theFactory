@@ -354,3 +354,47 @@
 ### Outcome
 - Mission Control now has CI-enforced critical-path e2e regression coverage.
 - All P0 delivery blockers are closed in current baseline.
+
+## Phase 12 - Builder and Repo Intake Productionization
+
+### Objective
+- Replace placeholder builder preview output with functional diff/impact visualization.
+- Replace simulated repo import flow with live GitHub integration and hardened error handling.
+
+### Implementation
+- Added real repository import API route:
+  - `apps/mission-control/app/api/repo/import/route.ts`
+  - Includes GitHub URL parsing, branch/subdirectory validation, max-file clamping, large-file skipping, token support (`GITHUB_TOKEN` or vault slot `GITHUB-TOKEN`), metadata/tree fetch, and structured error responses.
+- Reworked repo intake page to call live import route:
+  - `apps/mission-control/app/(shell)/repo/page.tsx`
+  - Added import logs, repository summary, scoped file selection, and mission launch metadata from live import data.
+- Reworked builder workspace preview rendering:
+  - `apps/mission-control/app/(shell)/builder/page.tsx`
+  - Added file-impact cards and unified diff preview output based on preview-plan signals.
+- Added Mission Control unit + e2e regression coverage:
+  - `apps/mission-control/app/api/repo/import/route.test.ts`
+  - `apps/mission-control/e2e/mission-control.spec.ts` (builder and repo-intake journey coverage)
+- Added Vitest alias stub for Next server-only imports:
+  - `apps/mission-control/vitest.config.ts`
+  - `apps/mission-control/app/lib/test/server-only.ts`
+- Added repository contributor guide:
+  - `AGENTS.md`
+- Added phase evidence record:
+  - `docs/evidence/phase12_builder_repo_validation_2026-03-03.md`
+
+### Validation and Debug Sweep
+- `npm run lint` (mission-control): pass
+- `npm run test` (mission-control): pass (14 tests)
+- `npm run test:e2e` (mission-control): pass (6 tests)
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (`212` tests, `86.96%`)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `python scripts/production_review_audit.py`: pass (`12/12`)
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Mission Control builder and repo-intake flows now operate with production-grade behavior instead of placeholder simulation.
+- P1 UI realism gaps for builder/repo are closed with regression coverage and hardened error paths.
+
+### Next Phase
+- P1 target: add real-dependency integration tests for mission intake/state transitions and script regression coverage for backup/DR flows.
