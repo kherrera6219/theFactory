@@ -61,6 +61,17 @@ Exit Criteria:
 - `LANGGRAPH_FAIL_OPEN=true` safely falls back to legacy lifecycle on graph failure.
 - Regression coverage remains above global threshold and required module thresholds.
 
+## Phase 24 - LangGraph Postgres Checkpointer Baseline
+Scope:
+- Add Async Postgres checkpointer mode (`LANGGRAPH_CHECKPOINTER=postgres`) with optional one-time setup gate.
+- Add `checkpoint_ns` support through runtime config to isolate mission-lifecycle checkpoints.
+- Validate fail-open behavior and regression coverage for postgres mode.
+
+Exit Criteria:
+- Postgres checkpointer path runs when enabled and dependency is available.
+- Optional setup path is idempotent at app runtime level.
+- Global coverage and required core-module thresholds continue passing.
+
 ## Validation Protocol (applies after each phase)
 1. `python -m ruff check services tests scripts`
 2. `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`
@@ -75,3 +86,4 @@ Exit Criteria:
 3. Phase 21
 4. Phase 22
 5. Phase 23
+6. Phase 24

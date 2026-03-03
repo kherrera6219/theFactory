@@ -18,6 +18,11 @@ except ModuleNotFoundError:
     InMemorySaver = None
 
 try:
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+except ModuleNotFoundError:
+    AsyncPostgresSaver = None
+
+try:
     from langgraph.graph import END, START, StateGraph
 except ModuleNotFoundError:
     END = "__langgraph_end__"
@@ -65,6 +70,14 @@ def _resolve_checkpointer(settings: Settings) -> Any | None:
         settings.langgraph_checkpointer,
     )
     return None
+
+
+def _build_graph_config(settings: Settings, mission_id: str) -> dict[str, Any]:
+    prefix = settings.langgraph_thread_prefix.strip() or "mission"
+    configurable: dict[str, Any] = {"thread_id": f"{prefix}:{mission_id}"}
+    if settings.langgraph_checkpoint_namespace:
+        configurable["checkpoint_ns"] = settings.langgraph_checkpoint_namespace
+    return {"configurable": configurable}
 
 
 async def maybe_advance_mission_lifecycle(
@@ -144,13 +157,33 @@ async def maybe_advance_mission_lifecycle(
     workflow.add_conditional_edges("running_to_verified", _route_next("verified_to_complete"))
     workflow.add_edge("verified_to_complete", END)
 
+    mode = settings.langgraph_checkpointer.strip().lower()
+
     try:
-        graph = workflow.compile(checkpointer=_resolve_checkpointer(settings))
-        prefix = settings.langgraph_thread_prefix.strip() or "mission"
-        await graph.ainvoke(
-            {"mission_id": mission_id, "halted": False},
-            config={"configurable": {"thread_id": f"{prefix}:{mission_id}"}},
-        )
+        initial_state = {"mission_id": mission_id, "halted": False}
+        config = _build_graph_config(settings, mission_id)
+
+        if mode == "postgres":
+            if AsyncPostgresSaver is None:
+                LOGGER.warning(
+                    "LANGGRAPH_CHECKPOINTER=postgres requested, "
+                    "but langgraph-checkpoint-postgres is not installed"
+                )
+                return False
+            checkpoint_url = settings.langgraph_checkpointer_postgres_url or settings.postgres_url
+            async with AsyncPostgresSaver.from_conn_string(checkpoint_url) as checkpointer:
+                setup_done = bool(
+                    getattr(app.state, "langgraph_postgres_checkpointer_setup_done", False)
+                )
+                if settings.langgraph_checkpointer_setup and not setup_done:
+                    await checkpointer.setup()
+                    app.state.langgraph_postgres_checkpointer_setup_done = True
+                graph = workflow.compile(checkpointer=checkpointer)
+                await graph.ainvoke(initial_state, config=config)
+        else:
+            graph = workflow.compile(checkpointer=_resolve_checkpointer(settings))
+            await graph.ainvoke(initial_state, config=config)
+
         return True
     except Exception:
         if settings.langgraph_fail_open:
