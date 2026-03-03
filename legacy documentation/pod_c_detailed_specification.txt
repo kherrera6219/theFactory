@@ -1,0 +1,1501 @@
+POD C: ENTERPRISE POD - CONTINUATION
+====================================
+(Continuing from ENT-011 higher_order_function)
+
+    { "name": "result_function", "type": { "base": "function" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "function types well-formed" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "functions composable" }
+  ],
+  "side_effects": [
+    { "type": "depends_on", "description": "Inherits parameter function effects", "scope": "functional" }
+  ]
+}
+```
+
+
+Domain: ENT-012 (Package & Namespace)
+--------------------------------------
+
+Concept: define_package
+Attribute | Value
+----------|------
+Concept ID | ENT-012-001
+Name | define_package
+Intent | Organize code into logical groupings
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `package com.example;` | Directory-based |
+| C# | `namespace Company.Product { }` | Nested namespaces |
+| Scala | `package com.example` | Can be nested |
+| Kotlin | `package com.example` | Separate from directory |
+
+LogicNode Template:
+```json
+{
+  "domain": "package_namespace",
+  "concept": "define_package",
+  "intent": "Organize code into packages",
+  "inputs": [
+    { "name": "package_name", "type": { "base": "string" }},
+    { "name": "parent_package", "type": { "base": "string" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "package", "type": { "base": "namespace" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "package_name is valid identifier" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "package provides namespace scope" }
+  ],
+  "side_effects": [
+    { "type": "metadata", "description": "Registers package in namespace hierarchy", "scope": "global" }
+  ]
+}
+```
+
+Concept: import_declaration
+Attribute | Value
+----------|------
+Concept ID | ENT-012-002
+Name | import_declaration
+Intent | Make external types accessible
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `import com.example.Class;` | Single or wildcard |
+| C# | `using Company.Product;` | Namespace import |
+| Scala | `import com.example._` | Wildcard with underscore |
+| Kotlin | `import com.example.*` | Wildcard or specific |
+
+LogicNode Template:
+```json
+{
+  "domain": "package_namespace",
+  "concept": "import_declaration",
+  "intent": "Make external types accessible",
+  "inputs": [
+    { "name": "import_path", "type": { "base": "string" }},
+    { "name": "wildcard", "type": { "base": "boolean" }, "optional": true },
+    { "name": "alias", "type": { "base": "string" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "imported_scope", "type": { "base": "namespace" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "import path exists" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "types available without fully qualified names" }
+  ],
+  "side_effects": []
+}
+```
+
+Concept: package_visibility
+Attribute | Value
+----------|------
+Concept ID | ENT-012-003
+Name | package_visibility
+Intent | Control access within package
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Default (no modifier) | Package-private |
+| C# | `internal` keyword | Assembly-level |
+| Scala | `private[package]` | Scoped privacy |
+| Kotlin | `internal` keyword | Module-level |
+
+LogicNode Template:
+```json
+{
+  "domain": "package_namespace",
+  "concept": "package_visibility",
+  "intent": "Control access within package",
+  "inputs": [
+    { "name": "member", "type": { "base": "any" }},
+    { "name": "scope", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "scoped_member", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "scope is valid visibility level" }
+  ],
+  "postconditions": [
+    { "type": "constraint", "expression": "access restricted to scope" }
+  ],
+  "side_effects": []
+}
+```
+
+Concept: module_system
+Attribute | Value
+----------|------
+Concept ID | ENT-012-004
+Name | module_system
+Intent | Explicit module dependencies and exports
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `module com.example { }` | Java 9+ modules |
+| C# | Assembly manifests | Assembly-level |
+| Scala | Not language-level | Build tool concern |
+| Kotlin | Not language-level | Gradle modules |
+
+LogicNode Template:
+```json
+{
+  "domain": "package_namespace",
+  "concept": "module_system",
+  "intent": "Explicit module dependencies",
+  "inputs": [
+    { "name": "module_name", "type": { "base": "string" }},
+    { "name": "exports", "type": { "base": "array", "parameters": [{"base": "string"}] }},
+    { "name": "requires", "type": { "base": "array", "parameters": [{"base": "string"}] }}
+  ],
+  "outputs": [
+    { "name": "module", "type": { "base": "module" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "no circular dependencies" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "module encapsulation enforced" }
+  ],
+  "side_effects": [
+    { "type": "metadata", "description": "Registers module in system", "scope": "global" }
+  ]
+}
+```
+
+Concept: static_import
+Attribute | Value
+----------|------
+Concept ID | ENT-012-005
+Name | static_import
+Intent | Import static members directly
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `import static Class.member;` | Static import |
+| C# | `using static ClassName;` | Static using |
+| Scala | `import Object._` | Import object members |
+| Kotlin | Automatic for object members | Built-in |
+
+LogicNode Template:
+```json
+{
+  "domain": "package_namespace",
+  "concept": "static_import",
+  "intent": "Import static members",
+  "inputs": [
+    { "name": "class_or_object", "type": { "base": "class_type" }},
+    { "name": "member_name", "type": { "base": "string" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "imported_members", "type": { "base": "array" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "members are static/singleton" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "members accessible without qualification" }
+  ],
+  "side_effects": []
+}
+```
+
+
+Domain: ENT-013 (Serialization)
+--------------------------------
+
+Concept: serialize_object
+Attribute | Value
+----------|------
+Concept ID | ENT-013-001
+Name | serialize_object
+Intent | Convert object to byte stream
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `ObjectOutputStream.writeObject()` | Serializable interface |
+| C# | `BinaryFormatter` or JSON | Multiple formats |
+| Scala | Java serialization or custom | Pickling libraries |
+| Kotlin | Java serialization | kotlinx.serialization |
+
+LogicNode Template:
+```json
+{
+  "domain": "serialization",
+  "concept": "serialize_object",
+  "intent": "Convert object to byte stream",
+  "inputs": [
+    { "name": "object", "type": { "base": "reference_type" }},
+    { "name": "format", "type": { "base": "string" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "serialized_data", "type": { "base": "array", "parameters": [{"base": "byte"}] }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "object is serializable" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "data represents object state" }
+  ],
+  "side_effects": [
+    { "type": "file_system_access", "description": "May write to stream", "scope": "io" }
+  ]
+}
+```
+
+Concept: deserialize_object
+Attribute | Value
+----------|------
+Concept ID | ENT-013-002
+Name | deserialize_object
+Intent | Reconstruct object from byte stream
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `ObjectInputStream.readObject()` | Type casting required |
+| C# | `BinaryFormatter.Deserialize()` | Type casting required |
+| Scala | Java deserialization or custom | Unpickling |
+| Kotlin | Java deserialization | kotlinx.serialization |
+
+LogicNode Template:
+```json
+{
+  "domain": "serialization",
+  "concept": "deserialize_object",
+  "intent": "Reconstruct object from bytes",
+  "inputs": [
+    { "name": "serialized_data", "type": { "base": "array", "parameters": [{"base": "byte"}] }},
+    { "name": "target_type", "type": { "base": "class_type" }}
+  ],
+  "outputs": [
+    { "name": "object", "type": { "base": "reference_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "data format valid" },
+    { "type": "predicate", "expression": "target type matches serialized type" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "object state restored" }
+  ],
+  "side_effects": [
+    { "type": "object_allocation", "description": "Creates new object", "scope": "heap" },
+    { "type": "file_system_access", "description": "May read from stream", "scope": "io" }
+  ]
+}
+```
+
+Concept: json_serialization
+Attribute | Value
+----------|------
+Concept ID | ENT-013-003
+Name | json_serialization
+Intent | Convert object to/from JSON
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Jackson, Gson libraries | External libraries |
+| C# | `JsonSerializer` (.NET) | Built-in System.Text.Json |
+| Scala | circe, play-json | Library ecosystem |
+| Kotlin | kotlinx.serialization | Official library |
+
+LogicNode Template:
+```json
+{
+  "domain": "serialization",
+  "concept": "json_serialization",
+  "intent": "Convert object to/from JSON",
+  "inputs": [
+    { "name": "object", "type": { "base": "reference_type" }},
+    { "name": "direction", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "json_string", "type": { "base": "string" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "object has JSON-compatible structure" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "valid JSON produced" }
+  ],
+  "side_effects": [
+    { "type": "reflection_usage", "description": "May use reflection for mapping", "scope": "runtime" }
+  ]
+}
+```
+
+Concept: custom_serialization
+Attribute | Value
+----------|------
+Concept ID | ENT-013-004
+Name | custom_serialization
+Intent | Implement custom serialization logic
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `writeObject/readObject` methods | Serializable customization |
+| C# | `ISerializable` interface | Custom serialization |
+| Scala | Custom read/write methods | Type class pattern |
+| Kotlin | `@Serializer` annotation | kotlinx.serialization |
+
+LogicNode Template:
+```json
+{
+  "domain": "serialization",
+  "concept": "custom_serialization",
+  "intent": "Implement custom serialization",
+  "inputs": [
+    { "name": "write_logic", "type": { "base": "function" }},
+    { "name": "read_logic", "type": { "base": "function" }}
+  ],
+  "outputs": [
+    { "name": "serialization_strategy", "type": { "base": "interface_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "write and read logic are inverse operations" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "custom logic used during serialization" }
+  ],
+  "side_effects": [
+    { "type": "depends_on", "description": "Inherits write/read side effects", "scope": "custom" }
+  ]
+}
+```
+
+Concept: version_compatibility
+Attribute | Value
+----------|------
+Concept ID | ENT-013-005
+Name | version_compatibility
+Intent | Handle serialization across versions
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `serialVersionUID` field | Version control |
+| C# | Version tolerant serialization | DataContract |
+| Scala | Implicit schema evolution | Library-dependent |
+| Kotlin | Schema versioning | kotlinx.serialization |
+
+LogicNode Template:
+```json
+{
+  "domain": "serialization",
+  "concept": "version_compatibility",
+  "intent": "Handle version changes",
+  "inputs": [
+    { "name": "version_id", "type": { "base": "integer" }},
+    { "name": "migration_strategy", "type": { "base": "function" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "versioned_serialization", "type": { "base": "metadata" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "version_id is consistent" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "old data readable with new code" }
+  ],
+  "side_effects": [
+    { "type": "metadata", "description": "Tracks serialization version", "scope": "serialized_data" }
+  ]
+}
+```
+
+
+Domain: ENT-014 (Dependency Injection)
+---------------------------------------
+
+Concept: inject_dependency
+Attribute | Value
+----------|------
+Concept ID | ENT-014-001
+Name | inject_dependency
+Intent | Provide dependencies to object
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `@Inject` annotation | JSR-330 |
+| C# | Constructor injection | DI framework |
+| Scala | Implicit parameters | Language-level |
+| Kotlin | Constructor injection | Koin, Dagger |
+
+LogicNode Template:
+```json
+{
+  "domain": "dependency_injection",
+  "concept": "inject_dependency",
+  "intent": "Provide dependencies to object",
+  "inputs": [
+    { "name": "target_class", "type": { "base": "class_type" }},
+    { "name": "dependencies", "type": { "base": "array", "parameters": [{"base": "any"}] }}
+  ],
+  "outputs": [
+    { "name": "configured_instance", "type": { "base": "reference_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "dependencies satisfy requirements" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "instance fully configured" }
+  ],
+  "side_effects": [
+    { "type": "object_allocation", "description": "Creates configured instance", "scope": "container" }
+  ]
+}
+```
+
+Concept: define_binding
+Attribute | Value
+----------|------
+Concept ID | ENT-014-002
+Name | define_binding
+Intent | Map interface to implementation
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Spring `@Bean` or Guice module | Configuration |
+| C# | `services.AddScoped<I, T>()` | Service registration |
+| Scala | Implicit val/def | Type-driven |
+| Kotlin | Koin module DSL | Declarative |
+
+LogicNode Template:
+```json
+{
+  "domain": "dependency_injection",
+  "concept": "define_binding",
+  "intent": "Map interface to implementation",
+  "inputs": [
+    { "name": "interface_type", "type": { "base": "interface_type" }},
+    { "name": "implementation_type", "type": { "base": "class_type" }},
+    { "name": "scope", "type": { "base": "string" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "binding", "type": { "base": "metadata" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "implementation satisfies interface" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "binding registered in container" }
+  ],
+  "side_effects": [
+    { "type": "metadata", "description": "Registers binding", "scope": "di_container" }
+  ]
+}
+```
+
+Concept: scope_lifetime
+Attribute | Value
+----------|------
+Concept ID | ENT-014-003
+Name | scope_lifetime
+Intent | Control instance lifecycle
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `@Singleton, @Prototype` | Spring scopes |
+| C# | `AddSingleton/Scoped/Transient` | Lifetime options |
+| Scala | Object vs class | Language-level |
+| Kotlin | `single { }` vs `factory { }` | Koin scopes |
+
+LogicNode Template:
+```json
+{
+  "domain": "dependency_injection",
+  "concept": "scope_lifetime",
+  "intent": "Control instance lifecycle",
+  "inputs": [
+    { "name": "binding", "type": { "base": "metadata" }},
+    { "name": "scope_type", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "scoped_binding", "type": { "base": "metadata" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "scope_type is valid" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "lifecycle managed per scope" }
+  ],
+  "side_effects": [
+    { "type": "object_allocation", "description": "Manages instance creation", "scope": "container" }
+  ]
+}
+```
+
+Concept: constructor_injection
+Attribute | Value
+----------|------
+Concept ID | ENT-014-004
+Name | constructor_injection
+Intent | Inject via constructor parameters
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Constructor with `@Inject` | Preferred pattern |
+| C# | Constructor-based DI | .NET standard |
+| Scala | Primary constructor params | Implicit injection |
+| Kotlin | Primary constructor | Explicit or implicit |
+
+LogicNode Template:
+```json
+{
+  "domain": "dependency_injection",
+  "concept": "constructor_injection",
+  "intent": "Inject via constructor",
+  "inputs": [
+    { "name": "target_class", "type": { "base": "class_type" }},
+    { "name": "constructor_params", "type": { "base": "array", "parameters": [{"base": "parameter"}] }}
+  ],
+  "outputs": [
+    { "name": "injection_point", "type": { "base": "metadata" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "all parameters resolvable" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "instance created with dependencies" }
+  ],
+  "side_effects": [
+    { "type": "object_allocation", "description": "Creates instance", "scope": "container" }
+  ]
+}
+```
+
+Concept: property_injection
+Attribute | Value
+----------|------
+Concept ID | ENT-014-005
+Name | property_injection
+Intent | Inject via property setters
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Setter methods with `@Inject` | After construction |
+| C# | Property injection | Less preferred |
+| Scala | Mutable var fields | After construction |
+| Kotlin | `lateinit var` with injection | Deferred injection |
+
+LogicNode Template:
+```json
+{
+  "domain": "dependency_injection",
+  "concept": "property_injection",
+  "intent": "Inject via properties",
+  "inputs": [
+    { "name": "target_instance", "type": { "base": "reference_type" }},
+    { "name": "properties", "type": { "base": "map" }}
+  ],
+  "outputs": [
+    { "name": "configured_instance", "type": { "base": "reference_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "properties are writable" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "properties set with dependencies" }
+  ],
+  "side_effects": [
+    { "type": "state_mutation", "description": "Modifies instance state", "scope": "instance" }
+  ]
+}
+```
+
+
+Domain: ENT-015 (Aspect-Oriented)
+----------------------------------
+
+Concept: define_aspect
+Attribute | Value
+----------|------
+Concept ID | ENT-015-001
+Name | define_aspect
+Intent | Define cross-cutting concern
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | AspectJ `@Aspect` | Compile/load-time weaving |
+| C# | PostSharp, attributes | IL weaving |
+| Scala | Macro annotations | Compile-time |
+| Kotlin | Compiler plugins | Limited AOP |
+
+LogicNode Template:
+```json
+{
+  "domain": "aspect_oriented",
+  "concept": "define_aspect",
+  "intent": "Define cross-cutting concern",
+  "inputs": [
+    { "name": "aspect_name", "type": { "base": "string" }},
+    { "name": "advice", "type": { "base": "function" }},
+    { "name": "pointcut", "type": { "base": "expression" }}
+  ],
+  "outputs": [
+    { "name": "aspect", "type": { "base": "class_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "pointcut is valid expression" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "aspect ready for weaving" }
+  ],
+  "side_effects": [
+    { "type": "metadata", "description": "Registers aspect", "scope": "aop_container" }
+  ]
+}
+```
+
+Concept: pointcut_expression
+Attribute | Value
+----------|------
+Concept ID | ENT-015-002
+Name | pointcut_expression
+Intent | Select join points for advice
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `@Pointcut("execution(* *.*(..))")` | AspectJ syntax |
+| C# | Attribute-based selection | IL pattern matching |
+| Scala | Macro-based selection | Compile-time |
+| Kotlin | Annotation processing | Limited support |
+
+LogicNode Template:
+```json
+{
+  "domain": "aspect_oriented",
+  "concept": "pointcut_expression",
+  "intent": "Select join points",
+  "inputs": [
+    { "name": "expression", "type": { "base": "string" }},
+    { "name": "join_point_type", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "pointcut", "type": { "base": "expression" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "expression syntax valid" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "pointcut matches target join points" }
+  ],
+  "side_effects": []
+}
+```
+
+Concept: before_advice
+Attribute | Value
+----------|------
+Concept ID | ENT-015-003
+Name | before_advice
+Intent | Execute logic before join point
+Pure | Depends on advice
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `@Before("pointcut()")` | AspectJ advice |
+| C# | Custom interceptor | Pre-execution |
+| Scala | Macro transformation | Compile-time |
+| Kotlin | Annotation processor | Code generation |
+
+LogicNode Template:
+```json
+{
+  "domain": "aspect_oriented",
+  "concept": "before_advice",
+  "intent": "Execute before join point",
+  "inputs": [
+    { "name": "advice_logic", "type": { "base": "function" }},
+    { "name": "pointcut", "type": { "base": "expression" }}
+  ],
+  "outputs": [
+    { "name": "before_aspect", "type": { "base": "metadata" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "advice compatible with join point" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "advice runs before method execution" }
+  ],
+  "side_effects": [
+    { "type": "depends_on", "description": "Inherits advice side effects", "scope": "advice" }
+  ]
+}
+```
+
+Concept: after_advice
+Attribute | Value
+----------|------
+Concept ID | ENT-015-004
+Name | after_advice
+Intent | Execute logic after join point
+Pure | Depends on advice
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `@After/@AfterReturning/@AfterThrowing` | Variants |
+| C# | Post-execution interceptor | IL weaving |
+| Scala | Macro transformation | Compile-time |
+| Kotlin | Limited support | Code generation |
+
+LogicNode Template:
+```json
+{
+  "domain": "aspect_oriented",
+  "concept": "after_advice",
+  "intent": "Execute after join point",
+  "inputs": [
+    { "name": "advice_logic", "type": { "base": "function" }},
+    { "name": "pointcut", "type": { "base": "expression" }},
+    { "name": "timing", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "after_aspect", "type": { "base": "metadata" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "timing is after/returning/throwing" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "advice runs at specified time" }
+  ],
+  "side_effects": [
+    { "type": "depends_on", "description": "Inherits advice side effects", "scope": "advice" }
+  ]
+}
+```
+
+Concept: around_advice
+Attribute | Value
+----------|------
+Concept ID | ENT-015-005
+Name | around_advice
+Intent | Wrap join point execution
+Pure | Depends on advice
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `@Around("pointcut()")` | Full control |
+| C# | Intercept attribute | Method wrapping |
+| Scala | Macro transformation | Full control |
+| Kotlin | Proxy-based | Limited |
+
+LogicNode Template:
+```json
+{
+  "domain": "aspect_oriented",
+  "concept": "around_advice",
+  "intent": "Wrap join point execution",
+  "inputs": [
+    { "name": "wrapper_logic", "type": { "base": "function" }},
+    { "name": "pointcut", "type": { "base": "expression" }}
+  ],
+  "outputs": [
+    { "name": "around_aspect", "type": { "base": "metadata" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "wrapper can proceed to join point" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "wrapper controls join point execution" }
+  ],
+  "side_effects": [
+    { "type": "depends_on", "description": "Inherits wrapper side effects", "scope": "wrapper" }
+  ]
+}
+```
+
+
+Domain: ENT-016 (Enterprise Patterns)
+--------------------------------------
+
+Concept: factory_pattern
+Attribute | Value
+----------|------
+Concept ID | ENT-016-001
+Name | factory_pattern
+Intent | Create objects without specifying exact class
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Factory method or abstract factory | Classic pattern |
+| C# | Factory method or abstract factory | Classic pattern |
+| Scala | Companion object apply method | Idiomatic |
+| Kotlin | Companion object functions | Idiomatic |
+
+LogicNode Template:
+```json
+{
+  "domain": "enterprise_patterns",
+  "concept": "factory_pattern",
+  "intent": "Create objects via factory",
+  "inputs": [
+    { "name": "factory_type", "type": { "base": "string" }},
+    { "name": "creation_params", "type": { "base": "map" }}
+  ],
+  "outputs": [
+    { "name": "product", "type": { "base": "reference_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "factory can create product" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "product created and initialized" }
+  ],
+  "side_effects": [
+    { "type": "object_allocation", "description": "Creates product instance", "scope": "heap" }
+  ]
+}
+```
+
+Concept: singleton_pattern
+Attribute | Value
+----------|------
+Concept ID | ENT-016-002
+Name | singleton_pattern
+Intent | Ensure single instance exists
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Static holder or enum | Thread-safe options |
+| C# | Static constructor | Lazy initialization |
+| Scala | Object declaration | Built-in singleton |
+| Kotlin | Object declaration | Built-in singleton |
+
+LogicNode Template:
+```json
+{
+  "domain": "enterprise_patterns",
+  "concept": "singleton_pattern",
+  "intent": "Ensure single instance",
+  "inputs": [
+    { "name": "singleton_class", "type": { "base": "class_type" }}
+  ],
+  "outputs": [
+    { "name": "instance", "type": { "base": "reference_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "class designed as singleton" }
+  ],
+  "postconditions": [
+    { "type": "constraint", "expression": "only one instance exists" }
+  ],
+  "side_effects": [
+    { "type": "object_allocation", "description": "Creates singleton on first access", "scope": "global" }
+  ]
+}
+```
+
+Concept: observer_pattern
+Attribute | Value
+----------|------
+Concept ID | ENT-016-003
+Name | observer_pattern
+Intent | Notify dependents of state changes
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Observable/Observer (deprecated), listeners | Event-driven |
+| C# | Event/delegate system | Language-level |
+| Scala | Reactive libraries | Functional approach |
+| Kotlin | Flow, SharedFlow | Coroutine-based |
+
+LogicNode Template:
+```json
+{
+  "domain": "enterprise_patterns",
+  "concept": "observer_pattern",
+  "intent": "Notify dependents of changes",
+  "inputs": [
+    { "name": "subject", "type": { "base": "reference_type" }},
+    { "name": "observers", "type": { "base": "array", "parameters": [{"base": "reference_type"}] }}
+  ],
+  "outputs": [
+    { "name": "subscription", "type": { "base": "metadata" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "observers implement notification interface" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "observers notified on state change" }
+  ],
+  "side_effects": [
+    { "type": "state_mutation", "description": "Maintains observer list", "scope": "subject" }
+  ]
+}
+```
+
+Concept: builder_pattern
+Attribute | Value
+----------|------
+Concept ID | ENT-016-004
+Name | builder_pattern
+Intent | Construct complex objects step by step
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Builder class with fluent API | Common pattern |
+| C# | Builder class with fluent API | Common pattern |
+| Scala | Case class copy, builder pattern | Multiple approaches |
+| Kotlin | DSL builder functions | Type-safe builders |
+
+LogicNode Template:
+```json
+{
+  "domain": "enterprise_patterns",
+  "concept": "builder_pattern",
+  "intent": "Build complex objects",
+  "inputs": [
+    { "name": "builder_steps", "type": { "base": "array", "parameters": [{"base": "function"}] }}
+  ],
+  "outputs": [
+    { "name": "built_object", "type": { "base": "reference_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "all required fields provided" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "object constructed with all properties" }
+  ],
+  "side_effects": [
+    { "type": "object_allocation", "description": "Creates final object", "scope": "heap" }
+  ]
+}
+```
+
+Concept: repository_pattern
+Attribute | Value
+----------|------
+Concept ID | ENT-016-005
+Name | repository_pattern
+Intent | Abstract data access layer
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Repository interface | Spring Data |
+| C# | Repository interface | Entity Framework |
+| Scala | Repository trait | Type-safe queries |
+| Kotlin | Repository interface | Exposed, Room |
+
+LogicNode Template:
+```json
+{
+  "domain": "enterprise_patterns",
+  "concept": "repository_pattern",
+  "intent": "Abstract data access",
+  "inputs": [
+    { "name": "entity_type", "type": { "base": "class_type" }},
+    { "name": "operations", "type": { "base": "array", "parameters": [{"base": "function"}] }}
+  ],
+  "outputs": [
+    { "name": "repository", "type": { "base": "interface_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "entity_type is persistable" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "data access abstracted" }
+  ],
+  "side_effects": [
+    { "type": "database_access", "description": "Performs database operations", "scope": "data_layer" }
+  ]
+}
+```
+
+
+Domain: ENT-017 (Null Safety)
+------------------------------
+
+Concept: nullable_type
+Attribute | Value
+----------|------
+Concept ID | ENT-017-001
+Name | nullable_type
+Intent | Explicitly allow null values
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `@Nullable` annotation | External tool support |
+| C# | `T?` nullable reference types | C# 8+ |
+| Scala | `Option[T]` | Type-safe alternative |
+| Kotlin | `T?` nullable types | Built-in |
+
+LogicNode Template:
+```json
+{
+  "domain": "null_safety",
+  "concept": "nullable_type",
+  "intent": "Explicitly allow null",
+  "inputs": [
+    { "name": "base_type", "type": { "base": "class_type" }}
+  ],
+  "outputs": [
+    { "name": "nullable_type", "type": { "base": "nullable" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "base_type is reference type" }
+  ],
+  "postconditions": [
+    { "type": "constraint", "expression": "type can hold null value" }
+  ],
+  "side_effects": []
+}
+```
+
+Concept: null_check
+Attribute | Value
+----------|------
+Concept ID | ENT-017-002
+Name | null_check
+Intent | Verify value is not null
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `if (obj != null)` | Manual check |
+| C# | `if (obj != null)` or `?.` | Null-conditional |
+| Scala | Pattern matching on Option | Type-safe |
+| Kotlin | `if (obj != null)` or smart cast | Smart casts |
+
+LogicNode Template:
+```json
+{
+  "domain": "null_safety",
+  "concept": "null_check",
+  "intent": "Verify not null",
+  "inputs": [
+    { "name": "value", "type": { "base": "nullable" }}
+  ],
+  "outputs": [
+    { "name": "is_null", "type": { "base": "boolean" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "result indicates null status" }
+  ],
+  "side_effects": []
+}
+```
+
+Concept: option_type
+Attribute | Value
+----------|------
+Concept ID | ENT-017-003
+Name | option_type
+Intent | Type-safe nullable alternative
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `Optional<T>` | Since Java 8 |
+| C# | Not built-in | Use Option libraries |
+| Scala | `Option[T]` | Core library |
+| Kotlin | Not idiomatic | Use nullable types |
+
+LogicNode Template:
+```json
+{
+  "domain": "null_safety",
+  "concept": "option_type",
+  "intent": "Type-safe nullable",
+  "inputs": [
+    { "name": "value", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "option", "type": { "base": "option_type" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "option contains Some(value) or None" }
+  ],
+  "side_effects": [
+    { "type": "object_allocation", "description": "Creates option wrapper", "scope": "heap" }
+  ]
+}
+```
+
+Concept: elvis_operator
+Attribute | Value
+----------|------
+Concept ID | ENT-017-004
+Name | elvis_operator
+Intent | Provide default for null values
+Pure | Yes
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Not built-in | Use Optional.orElse |
+| C# | `??` null-coalescing | Built-in |
+| Scala | `getOrElse` on Option | Functional |
+| Kotlin | `?:` Elvis operator | Built-in |
+
+LogicNode Template:
+```json
+{
+  "domain": "null_safety",
+  "concept": "elvis_operator",
+  "intent": "Provide default for null",
+  "inputs": [
+    { "name": "nullable_value", "type": { "base": "nullable" }},
+    { "name": "default_value", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "result is never null" }
+  ],
+  "side_effects": []
+}
+```
+
+Concept: safe_navigation
+Attribute | Value
+----------|------
+Concept ID | ENT-017-005
+Name | safe_navigation
+Intent | Chain operations avoiding null checks
+Pure | Depends on operations
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | `Optional.map().orElse()` | Functional chaining |
+| C# | `?.` safe navigation | Built-in |
+| Scala | `Option.map().getOrElse()` | Functional |
+| Kotlin | `?.` safe call operator | Built-in |
+
+LogicNode Template:
+```json
+{
+  "domain": "null_safety",
+  "concept": "safe_navigation",
+  "intent": "Chain operations safely",
+  "inputs": [
+    { "name": "nullable_object", "type": { "base": "nullable" }},
+    { "name": "operations", "type": { "base": "array", "parameters": [{"base": "function"}] }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "nullable" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "null propagates through chain" }
+  ],
+  "side_effects": [
+    { "type": "depends_on", "description": "Inherits operation effects", "scope": "operations" }
+  ]
+}
+```
+
+
+Domain: ENT-018 (Interoperability)
+-----------------------------------
+
+Concept: platform_interop
+Attribute | Value
+----------|------
+Concept ID | ENT-018-001
+Name | platform_interop
+Intent | Call native platform code
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | JNI (Java Native Interface) | C/C++ integration |
+| C# | P/Invoke, COM interop | Windows API access |
+| Scala | JNI via Java | Inherited from JVM |
+| Kotlin | JNI, Kotlin/Native | Multiplatform |
+
+LogicNode Template:
+```json
+{
+  "domain": "interoperability",
+  "concept": "platform_interop",
+  "intent": "Call native platform code",
+  "inputs": [
+    { "name": "native_function", "type": { "base": "string" }},
+    { "name": "arguments", "type": { "base": "array", "parameters": [{"base": "any"}] }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "native library loaded" },
+    { "type": "predicate", "expression": "function signature matches" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "native function executed" }
+  ],
+  "side_effects": [
+    { "type": "ffi_call", "description": "Calls external code", "scope": "native" }
+  ]
+}
+```
+
+Concept: java_csharp_interop
+Attribute | Value
+----------|------
+Concept ID | ENT-018-002
+Name | java_csharp_interop
+Intent | Bridge Java and .NET platforms
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | IKVM, JNBridge | Third-party tools |
+| C# | IKVM, JNBridge | Third-party tools |
+| Scala | Limited, via Java | Indirect |
+| Kotlin | Not applicable | JVM only |
+
+LogicNode Template:
+```json
+{
+  "domain": "interoperability",
+  "concept": "java_csharp_interop",
+  "intent": "Bridge Java and .NET",
+  "inputs": [
+    { "name": "source_platform", "type": { "base": "string" }},
+    { "name": "target_class", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "proxy", "type": { "base": "reference_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "interop bridge available" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "cross-platform calls possible" }
+  ],
+  "side_effects": [
+    { "type": "ffi_call", "description": "Marshals between platforms", "scope": "bridge" }
+  ]
+}
+```
+
+Concept: javascript_interop
+Attribute | Value
+----------|------
+Concept ID | ENT-018-003
+Name | javascript_interop
+Intent | Call JavaScript from JVM/CLR
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | GraalVM, Nashorn (deprecated) | JS engine |
+| C# | Jint, ClearScript | JS interpreter |
+| Scala | Scala.js | Compiles to JS |
+| Kotlin | Kotlin/JS | Compiles to JS |
+
+LogicNode Template:
+```json
+{
+  "domain": "interoperability",
+  "concept": "javascript_interop",
+  "intent": "Call JavaScript code",
+  "inputs": [
+    { "name": "js_code", "type": { "base": "string" }},
+    { "name": "context", "type": { "base": "map" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "JS engine available" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "JS code executed" }
+  ],
+  "side_effects": [
+    { "type": "script_execution", "description": "Executes JS code", "scope": "js_engine" }
+  ]
+}
+```
+
+Concept: foreign_language_binding
+Attribute | Value
+----------|------
+Concept ID | ENT-018-004
+Name | foreign_language_binding
+Intent | Generate bindings for other languages
+Pure | No
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | SWIG, JNI bindings | Code generation |
+| C# | P/Invoke, COM wrappers | Attribute-based |
+| Scala | Native bindings via JNI | Indirect |
+| Kotlin | cinterop (Kotlin/Native) | Direct C interop |
+
+LogicNode Template:
+```json
+{
+  "domain": "interoperability",
+  "concept": "foreign_language_binding",
+  "intent": "Generate language bindings",
+  "inputs": [
+    { "name": "target_language", "type": { "base": "string" }},
+    { "name": "interface_definition", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "binding_code", "type": { "base": "string" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "interface well-defined" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "bindings enable cross-language calls" }
+  ],
+  "side_effects": [
+    { "type": "code_generation", "description": "Generates wrapper code", "scope": "compile_time" }
+  ]
+}
+```
+
+Concept: multiplatform_code
+Attribute | Value
+----------|------
+Concept ID | ENT-018-005
+Name | multiplatform_code
+Intent | Write code targeting multiple platforms
+Pure | Depends on implementation
+
+Language Mappings:
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| Java | Platform checks | Conditional compilation |
+| C# | Conditional compilation | #if directives |
+| Scala | Cross-compilation | Scala.js, Scala Native |
+| Kotlin | Kotlin Multiplatform | expect/actual |
+
+LogicNode Template:
+```json
+{
+  "domain": "interoperability",
+  "concept": "multiplatform_code",
+  "intent": "Target multiple platforms",
+  "inputs": [
+    { "name": "shared_code", "type": { "base": "string" }},
+    { "name": "platform_specific", "type": { "base": "map" }}
+  ],
+  "outputs": [
+    { "name": "platform_builds", "type": { "base": "array", "parameters": [{"base": "artifact"}] }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "platform abstractions defined" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "builds produced for each platform" }
+  ],
+  "side_effects": [
+    { "type": "compilation", "description": "Compiles for multiple targets", "scope": "build_system" }
+  ]
+}
+```
+
+
+POD C SUMMARY
+=============
+
+Total Concepts: 112 concepts across 18 domains
+
+Domain Distribution:
+- ENT-001: Class Definition (6 concepts)
+- ENT-002: Object Lifecycle (5 concepts)
+- ENT-003: Inheritance Patterns (5 concepts)
+- ENT-004: Polymorphism (5 concepts)
+- ENT-005: Encapsulation (5 concepts)
+- ENT-006: Generic Types (5 concepts)
+- ENT-007: Collections Framework (6 concepts)
+- ENT-008: Exception Handling (5 concepts)
+- ENT-009: Reflection & Metadata (5 concepts)
+- ENT-010: Concurrency Models (6 concepts)
+- ENT-011: Lambda & Functional (5 concepts)
+- ENT-012: Package & Namespace (5 concepts)
+- ENT-013: Serialization (5 concepts)
+- ENT-014: Dependency Injection (5 concepts)
+- ENT-015: Aspect-Oriented (5 concepts)
+- ENT-016: Enterprise Patterns (5 concepts)
+- ENT-017: Null Safety (5 concepts)
+- ENT-018: Interoperability (5 concepts)
+
+Language Coverage:
+- Java: Complete coverage across all domains
+- C#: Complete coverage across all domains  
+- Scala: Complete coverage with functional emphasis
+- Kotlin: Complete coverage with modern features
+
+Key Characteristics:
+- Managed runtime environments (JVM, CLR)
+- Object-oriented with functional features
+- Rich type systems with generics
+- Enterprise patterns and frameworks
+- Comprehensive standard libraries
+- Strong tooling and IDE support

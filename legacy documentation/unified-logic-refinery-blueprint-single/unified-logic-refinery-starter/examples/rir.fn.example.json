@@ -1,0 +1,65 @@
+{
+  "fn_id": "FN-EXAMPLE-1",
+  "name": "increment",
+  "purity": "PURE",
+  "inputs": [
+    {
+      "name": "x",
+      "type": "i32"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "y",
+      "type": "i32"
+    }
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "ops": [
+    {
+      "op_id": "OP-1",
+      "opcode": "ADD",
+      "args": [
+        "x",
+        "CONST_1"
+      ],
+      "out": "y"
+    }
+  ],
+  "effects": [],
+  "tests": {
+    "equivalence_vectors": [
+      {
+        "in": {
+          "x": 0
+        },
+        "out": {
+          "y": 1
+        }
+      }
+    ],
+    "properties": []
+  },
+  "provenance": {
+    "sources": [
+      {
+        "kind": "repo",
+        "ref": "repo://example/increment.c#L1-L20",
+        "hash": "sha256:EXAMPLE"
+      }
+    ],
+    "chain_of_custody": [
+      {
+        "agent": "SpecialistX",
+        "action": "MINED",
+        "ts": "2026-01-29T00:00:00Z"
+      },
+      {
+        "agent": "AuditX",
+        "action": "VERIFIED",
+        "ts": "2026-01-29T00:00:10Z"
+      }
+    ]
+  }
+}

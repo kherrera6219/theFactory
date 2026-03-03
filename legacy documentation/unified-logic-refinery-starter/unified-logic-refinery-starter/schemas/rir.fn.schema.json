@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rir.fn.schema.json",
+  "title": "RefinedIRFunction",
+  "type": "object",
+  "required": [
+    "fn_id",
+    "name",
+    "purity",
+    "inputs",
+    "outputs",
+    "preconditions",
+    "postconditions",
+    "ops",
+    "effects",
+    "tests",
+    "provenance"
+  ],
+  "properties": {
+    "fn_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "purity": {
+      "type": "string",
+      "enum": [
+        "PURE",
+        "IMPURE"
+      ]
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "preconditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "postconditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ops": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "op_id",
+          "opcode",
+          "args",
+          "out"
+        ],
+        "properties": {
+          "op_id": {
+            "type": "string"
+          },
+          "opcode": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "out": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "effects": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tests": {
+      "type": "object",
+      "required": [
+        "equivalence_vectors",
+        "properties"
+      ],
+      "properties": {
+        "equivalence_vectors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "in",
+              "out"
+            ],
+            "properties": {
+              "in": {
+                "type": "object"
+              },
+              "out": {
+                "type": "object"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "sources",
+        "chain_of_custody"
+      ],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "ref",
+              "hash"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "docs",
+                  "repo"
+                ]
+              },
+              "ref": {
+                "type": "string"
+              },
+              "hash": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "chain_of_custody": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "agent",
+              "action",
+              "ts"
+            ],
+            "properties": {
+              "agent": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string"
+              },
+              "ts": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

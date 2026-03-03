@@ -1,0 +1,3189 @@
+New chatSearchChatsProjectsArtifactsStarredUKGUKG System OverviewImproving Thinking PatternsInteractive Visualization of Complex Mathematical FrameworkDocumenting Enterprise Data SystemsComprehensive AI-Assisted RFP Evaluation SystemBuilding the Dwellingly Web AppComprehensive Property Search App Expansion PlanRecentsHideStandardizing agent profiles and master documentationFrontend design and UX documentation compilationProgramming language specification podsLangGraph orchestration specificationAgent architecture and communication protocol specificationTechnical vision and market analysis documentationDevelopment artifact documents for Antigravity AI IDEApplication build plan developmentApplication systems and architecture overviewSystem process map and decision diagramBuilding remaining agent personas7 part persona system for 34 agentsCommunication systems documentation artifactsCreating pod DPod C build proceedingPod B communication setupIdea review requestGeneral opinion requestAPI overlay page design and featuresWindows local app with LLM API integration💬 Inside a sleek, modern office…Stinger missile contract outlook comparisonUniversal Knowledge Graph infographic designLayer 7 of the UKG explainedDesktop UKG with cloud LLM integrationRunning UKG as a local desktop applicationUKG coding standards and enterprise best practices checklistUntitledSDK version 0.5.0 completionSDK v0.4 update completionAll chatsKHkevin herreraPro planholy grail/Pod B communication setupreview all project chat thread and files and start on pod b communication like we built pod aJan 29I've reviewed the entire project thread and files. Now I'll build Pod B (Systems Pod) with the same comprehensive structure as Pod A.
+Pod B: Systems Pod - Complete Specification
+Pod B Overview
+Name: Systems Pod
+Paradigm: Systems / Compiled / Low-Level
+Focus: Performance, memory control, hardware access, zero-cost abstractions
+Languages:
+Specialist IDLanguagePrimary DomainB1CBare metal, OS kernels, embeddedB2C++High-performance, game engines, systemsB3RustMemory safety, concurrency, modern systemsB4ZigSimplicity, comptime, C interop
+Pod Personnel:
+
+1 Sub-Manager (Agent 13)
+1 Audit Agent (Agent 14)
+4 Specialists (Agents 15-18)
+
+
+Pod B Domain Registry
+These are the areas of knowledge this Pod owns:
+Domain IDDomain NameDescriptionSYS-001memory_managementAllocation, deallocation, pools, arenas, custom allocatorsSYS-002pointer_operationsRaw pointers, references, pointer arithmetic, dereferencingSYS-003ownership_semanticsMove, copy, borrow, lifetime managementSYS-004stack_operationsStack allocation, stack frames, stack unwindingSYS-005heap_operationsHeap allocation, fragmentation, garbage collection avoidanceSYS-006concurrency_primitivesThreads, mutexes, atomics, condition variables, lock-freeSYS-007low_level_typesBytes, words, bit fields, packed structs, unionsSYS-008compilation_controlInline, attributes, pragmas, compile-time executionSYS-009ffi_interopC ABI, extern declarations, linking, dynamic loadingSYS-010unsafe_operationsUnsafe blocks, transmute, raw memory accessSYS-011zero_cost_abstractionsTemplates, generics, monomorphization, inliningSYS-012hardware_accessRegister manipulation, memory-mapped IO, volatileSYS-013error_propagationResult types, error codes, panic/abortSYS-014resource_managementRAII, destructors, scope guards, deferSYS-015bit_manipulationBitwise ops, shifts, masks, endiannessSYS-016system_callsOS interface, syscalls, kernel interactionSYS-017alignment_controlMemory alignment, padding, packed layoutsSYS-018simd_operationsVector instructions, parallel data processing
+
+Pod B Type Extensions
+Extensions to the base LogicType for systems languages:
+jsonSystemsLogicType extends LogicType {
+  base += 
+    | "pointer"         // Raw pointer (*T)
+    | "owned"           // Owned value (Box<T>, unique_ptr)
+    | "borrowed"        // Reference (&T, &mut T)
+    | "lifetime"        // Lifetime annotation ('a)
+    | "raw_memory"      // Untyped memory region
+    | "register"        // Hardware register
+    | "volatile"        // Volatile memory location
+    | "atomic"          // Atomic type for lock-free ops
+    | "simd_vector"     // SIMD vector type
+    | "union_type"      // C union / Rust union
+    | "packed_struct"   // Packed struct with no padding
+    | "aligned_type"    // Type with specific alignment
+    | "unsafe_cell"     // Interior mutability primitive
+}
+
+Pod B Constraint Extensions
+jsonSystemsConstraint extends Constraint {
+  type +=
+    | "memory_safe"     // Operation doesn't leak or corrupt memory
+    | "no_allocation"   // Operation doesn't allocate heap memory
+    | "stack_only"      // Value lives on stack
+    | "thread_safe"     // Safe for concurrent access
+    | "send"            // Can be sent across threads
+    | "sync"            // Can be shared across threads
+    | "copy"            // Can be bitwise copied
+    | "aligned"         // Has specific memory alignment
+    | "no_panic"        // Cannot panic/abort
+    | "compile_time"    // Can be evaluated at compile time
+    | "zero_size"       // Zero-sized type (marker)
+}
+
+Pod B Side Effect Extensions
+jsonSystemsSideEffect extends SideEffect {
+  type +=
+    | "heap_allocation"     // Allocates on heap
+    | "unsafe_operation"    // Uses unsafe code
+    | "ffi_call"            // Calls foreign function
+    | "system_call"         // Invokes OS syscall
+    | "memory_leak"         // Potentially leaks memory
+    | "race_condition"      // Potential data race
+    | "undefined_behavior"  // May trigger UB
+    | "hardware_access"     // Accesses hardware registers
+    | "panic"               // May panic/abort
+    | "blocking"            // Blocks thread execution
+}
+
+Pod B Concept Catalog
+Domain: SYS-001 (Memory Management)
+
+Concept: allocate_heap
+AttributeValueConcept IDSYS-001-001Nameallocate_heapIntentAllocate memory on the heapPureNo
+Language Mappings:
+LanguageSyntaxNotesCmalloc(size)Returns void*, must freeC++new T or std::make_unique<T>()RAII with smart pointersRustBox::new(value)Owned heap allocationZigallocator.alloc(T, count)Explicit allocator
+LogicNode Template:
+json{
+  "domain": "memory_management",
+  "concept": "allocate_heap",
+  "intent": "Allocate memory on the heap",
+  "inputs": [
+    { "name": "size_bytes", "type": { "base": "integer" }},
+    { "name": "alignment", "type": { "base": "integer" }, "optional": true },
+    { "name": "allocator", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "pointer", "type": { "base": "pointer", "parameters": [{"base": "raw_memory"}] }}
+  ],
+  "preconditions": [
+    { "type": "range", "expression": "size_bytes > 0" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "pointer != null OR error_returned" }
+  ],
+  "side_effects": [
+    { "type": "heap_allocation", "description": "Allocates heap memory", "scope": "global" }
+  ]
+}
+
+Concept: deallocate_heap
+AttributeValueConcept IDSYS-001-002Namedeallocate_heapIntentFree previously allocated heap memoryPureNo
+Language Mappings:
+LanguageSyntaxNotesCfree(ptr)Manual, prone to double-freeC++delete ptr or RAII automaticSmart pointers handle thisRustAutomatic via DropManual with Box::into_raw() + deallocZigallocator.free(slice)Explicit allocator
+LogicNode Template:
+json{
+  "domain": "memory_management",
+  "concept": "deallocate_heap",
+  "intent": "Free previously allocated heap memory",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer" }},
+    { "name": "allocator", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [],
+  "preconditions": [
+    { "type": "predicate", "expression": "pointer was allocated AND not already freed" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "pointer is invalid" }
+  ],
+  "side_effects": [
+    { "type": "heap_allocation", "description": "Frees heap memory", "scope": "global" }
+  ]
+}
+
+Concept: reallocate
+AttributeValueConcept IDSYS-001-003NamereallocateIntentResize previously allocated memory blockPureNo
+Language Mappings:
+LanguageSyntaxNotesCrealloc(ptr, new_size)May move memoryC++Manual realloc or vector resizeRustVec::resize() or manualZigallocator.realloc(old_slice, new_size)
+LogicNode Template:
+json{
+  "domain": "memory_management",
+  "concept": "reallocate",
+  "intent": "Resize previously allocated memory block",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer" }},
+    { "name": "old_size", "type": { "base": "integer" }},
+    { "name": "new_size", "type": { "base": "integer" }},
+    { "name": "allocator", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "new_pointer", "type": { "base": "pointer" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "pointer was allocated" },
+    { "type": "range", "expression": "new_size > 0" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "new_pointer != null OR error_returned" }
+  ],
+  "side_effects": [
+    { "type": "heap_allocation", "description": "May allocate new memory and copy", "scope": "global" }
+  ]
+}
+
+Concept: arena_allocate
+AttributeValueConcept IDSYS-001-004Namearena_allocateIntentAllocate from a memory arena/bump allocatorPureNo
+Language Mappings:
+LanguageSyntaxNotesCCustom arena implementationC++Custom or std::pmr::monotonic_buffer_resourceRustbumpalo crate or customZigstd.heap.ArenaAllocatorBuilt-in
+LogicNode Template:
+json{
+  "domain": "memory_management",
+  "concept": "arena_allocate",
+  "intent": "Allocate from a memory arena/bump allocator",
+  "inputs": [
+    { "name": "arena", "type": { "base": "any" }},
+    { "name": "size_bytes", "type": { "base": "integer" }},
+    { "name": "alignment", "type": { "base": "integer" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "pointer", "type": { "base": "pointer" }}
+  ],
+  "preconditions": [
+    { "type": "range", "expression": "size_bytes > 0" },
+    { "type": "predicate", "expression": "arena has sufficient space" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "heap_allocation", "description": "Bumps arena pointer", "scope": "local" }
+  ]
+}
+
+Concept: arena_reset
+AttributeValueConcept IDSYS-001-005Namearena_resetIntentReset arena allocator, invalidating all allocationsPureNo
+Language Mappings:
+LanguageSyntaxNotesCCustom implementationC++monotonic_buffer_resource::release()Rustarena.reset()Zigarena.deinit(); arena.init()
+LogicNode Template:
+json{
+  "domain": "memory_management",
+  "concept": "arena_reset",
+  "intent": "Reset arena allocator, invalidating all allocations",
+  "inputs": [
+    { "name": "arena", "type": { "base": "any" }}
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "all pointers from arena are invalid" }
+  ],
+  "side_effects": [
+    { "type": "memory_leak", "description": "Does not call destructors", "scope": "local" }
+  ]
+}
+
+Concept: pool_allocate
+AttributeValueConcept IDSYS-001-006Namepool_allocateIntentAllocate fixed-size object from memory poolPureNo
+Language Mappings:
+LanguageSyntaxNotesCCustom pool implementationC++boost::pool or customRusttyped-arena crateZigCustom or std.heap.MemoryPool
+LogicNode Template:
+json{
+  "domain": "memory_management",
+  "concept": "pool_allocate",
+  "intent": "Allocate fixed-size object from memory pool",
+  "inputs": [
+    { "name": "pool", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "pointer", "type": { "base": "pointer" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "pool has free slots" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "heap_allocation", "description": "Marks pool slot as used", "scope": "local" }
+  ]
+}
+
+Concept: pool_deallocate
+AttributeValueConcept IDSYS-001-007Namepool_deallocateIntentReturn object to memory poolPureNo
+Language Mappings:
+LanguageSyntaxNotesCCustom pool implementationC++pool.free(ptr)RustManual or via DropZigpool.destroy(ptr)
+LogicNode Template:
+json{
+  "domain": "memory_management",
+  "concept": "pool_deallocate",
+  "intent": "Return object to memory pool",
+  "inputs": [
+    { "name": "pool", "type": { "base": "any" }},
+    { "name": "pointer", "type": { "base": "pointer" }}
+  ],
+  "outputs": [],
+  "preconditions": [
+    { "type": "predicate", "expression": "pointer was allocated from this pool" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "heap_allocation", "description": "Marks pool slot as free", "scope": "local" }
+  ]
+}
+
+Concept: stack_allocate
+AttributeValueConcept IDSYS-001-008Namestack_allocateIntentAllocate variable-sized array on stackPureNo
+Language Mappings:
+LanguageSyntaxNotesCalloca(size) or VLADangerous, non-portableC++VLA (non-standard) or std::arrayRustLimited, no VLAZig@alloca(T, count)Builtin
+LogicNode Template:
+json{
+  "domain": "memory_management",
+  "concept": "stack_allocate",
+  "intent": "Allocate variable-sized array on stack",
+  "inputs": [
+    { "name": "size_bytes", "type": { "base": "integer" }},
+    { "name": "alignment", "type": { "base": "integer" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "pointer", "type": { "base": "pointer" }}
+  ],
+  "preconditions": [
+    { "type": "range", "expression": "size_bytes > 0 AND size_bytes < stack_limit" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "pointer is stack_only" }
+  ],
+  "side_effects": [
+    { "type": "allocation", "description": "Uses stack space", "scope": "local" }
+  ]
+}
+
+Domain: SYS-002 (Pointer Operations)
+
+Concept: dereference
+AttributeValueConcept IDSYS-002-001NamedereferenceIntentAccess value pointed to by pointerPureYes (if no side effects)
+Language Mappings:
+LanguageSyntaxNotesC*ptrUnsafe, can segfaultC++*ptrUnsafe, can segfaultRust*ptr in unsafe blockRequires unsafeZigptr.*Checked in debug mode
+LogicNode Template:
+json{
+  "domain": "pointer_operations",
+  "concept": "dereference",
+  "intent": "Access value pointed to by pointer",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer", "parameters": [{"base": "any"}] }}
+  ],
+  "outputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "pointer != null AND pointer is valid" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: address_of
+AttributeValueConcept IDSYS-002-002Nameaddress_ofIntentGet memory address of a valuePureYes
+Language Mappings:
+LanguageSyntaxNotesC&valueC++&value or std::addressof(value)Rust&value or &mut valueCreates referenceZig&value
+LogicNode Template:
+json{
+  "domain": "pointer_operations",
+  "concept": "address_of",
+  "intent": "Get memory address of a value",
+  "inputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "pointer", "type": { "base": "pointer", "parameters": [{"base": "any"}] }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "*pointer == value" }
+  ],
+  "side_effects": []
+}
+
+Concept: pointer_arithmetic
+AttributeValueConcept IDSYS-002-003Namepointer_arithmeticIntentAdd/subtract offset from pointerPureYes
+Language Mappings:
+LanguageSyntaxNotesCptr + offsetScales by pointed type sizeC++ptr + offsetRustptr.offset(offset) in unsafeRequires unsafeZigptr + offset
+LogicNode Template:
+json{
+  "domain": "pointer_operations",
+  "concept": "pointer_arithmetic",
+  "intent": "Add/subtract offset from pointer",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer" }},
+    { "name": "offset", "type": { "base": "integer" }},
+    { "name": "operation", "type": { "base": "string" }, "constraints": [{"type": "enum", "expression": "['add', 'subtract']"}] }
+  ],
+  "outputs": [
+    { "name": "new_pointer", "type": { "base": "pointer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: pointer_cast
+AttributeValueConcept IDSYS-002-004Namepointer_castIntentCast pointer from one type to anotherPureYes
+Language Mappings:
+LanguageSyntaxNotesC(T*)ptrUncheckedC++static_cast<T*>(ptr) or reinterpret_cast<T*>(ptr)Rustptr as *const T or ptr.cast::<T>()Requires unsafeZig@ptrCast(*T, ptr)
+LogicNode Template:
+json{
+  "domain": "pointer_operations",
+  "concept": "pointer_cast",
+  "intent": "Cast pointer from one type to another",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer" }},
+    { "name": "target_type", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "new_pointer", "type": { "base": "pointer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "unsafe_operation", "description": "Type safety not guaranteed", "scope": "local" }
+  ]
+}
+
+Concept: null_check
+AttributeValueConcept IDSYS-002-005Namenull_checkIntentCheck if pointer is nullPureYes
+Language Mappings:
+LanguageSyntaxNotesCptr == NULLC++ptr == nullptrRustptr.is_null()Zigptr == null
+LogicNode Template:
+json{
+  "domain": "pointer_operations",
+  "concept": "null_check",
+  "intent": "Check if pointer is null",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer" }}
+  ],
+  "outputs": [
+    { "name": "is_null", "type": { "base": "boolean" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: pointer_compare
+AttributeValueConcept IDSYS-002-006Namepointer_compareIntentCompare two pointers for equality or orderingPureYes
+Language Mappings:
+LanguageSyntaxNotesCptr1 == ptr2, ptr1 < ptr2C++ptr1 == ptr2, std::less<>()(ptr1, ptr2)Rustptr1 == ptr2Zigptr1 == ptr2
+LogicNode Template:
+json{
+  "domain": "pointer_operations",
+  "concept": "pointer_compare",
+  "intent": "Compare two pointers for equality or ordering",
+  "inputs": [
+    { "name": "pointer1", "type": { "base": "pointer" }},
+    { "name": "pointer2", "type": { "base": "pointer" }},
+    { "name": "operation", "type": { "base": "string" }, "constraints": [{"type": "enum", "expression": "['equal', 'not_equal', 'less', 'less_equal', 'greater', 'greater_equal']"}] }
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "boolean" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Domain: SYS-003 (Ownership Semantics)
+
+Concept: move_value
+AttributeValueConcept IDSYS-003-001Namemove_valueIntentTransfer ownership of a valuePureDepends
+Language Mappings:
+LanguageSyntaxNotesCImplicit copyNo move semanticsC++std::move(value)Move constructor calledRustAutomatic on assignmentCore language featureZigImplicit copy for most types
+LogicNode Template:
+json{
+  "domain": "ownership_semantics",
+  "concept": "move_value",
+  "intent": "Transfer ownership of a value",
+  "inputs": [
+    { "name": "source", "type": { "base": "owned" }}
+  ],
+  "outputs": [
+    { "name": "destination", "type": { "base": "owned" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "source is invalid after move" }
+  ],
+  "side_effects": [
+    { "type": "mutation", "description": "Invalidates source", "scope": "local" }
+  ]
+}
+
+Concept: copy_value
+AttributeValueConcept IDSYS-003-002Namecopy_valueIntentCreate a duplicate of a valuePureYes
+Language Mappings:
+LanguageSyntaxNotesCmemcpy() or struct assignmentBitwise copyC++Copy constructorCan be customRust.clone() or implicit for Copy typesExplicitZigImplicit for most types
+LogicNode Template:
+json{
+  "domain": "ownership_semantics",
+  "concept": "copy_value",
+  "intent": "Create a duplicate of a value",
+  "inputs": [
+    { "name": "source", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "copy", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "copy", "expression": "source type implements Copy" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "copy == source AND copy is independent" }
+  ],
+  "side_effects": []
+}
+
+Concept: borrow_immutable
+AttributeValueConcept IDSYS-003-003Nameborrow_immutableIntentCreate immutable reference to valuePureYes
+Language Mappings:
+LanguageSyntaxNotesCconst T*Convention onlyC++const T&Compiler enforcedRust&valueBorrow checker enforcedZig*const T
+LogicNode Template:
+json{
+  "domain": "ownership_semantics",
+  "concept": "borrow_immutable",
+  "intent": "Create immutable reference to value",
+  "inputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "reference", "type": { "base": "borrowed", "parameters": [{"base": "any"}] }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "*reference == value" }
+  ],
+  "side_effects": []
+}
+
+Concept: borrow_mutable
+AttributeValueConcept IDSYS-003-004Nameborrow_mutableIntentCreate mutable reference to valuePureNo
+Language Mappings:
+LanguageSyntaxNotesCT*No enforcementC++T&Compiler enforcedRust&mut valueExclusive, borrow checker enforcedZig*T
+LogicNode Template:
+json{
+  "domain": "ownership_semantics",
+  "concept": "borrow_mutable",
+  "intent": "Create mutable reference to value",
+  "inputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "reference", "type": { "base": "borrowed", "parameters": [{"base": "any"}] }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "no other mutable references exist" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "mutation", "description": "Allows mutation through reference", "scope": "local" }
+  ]
+}
+
+Concept: lifetime_annotation
+AttributeValueConcept IDSYS-003-005Namelifetime_annotationIntentSpecify how long a reference is validPureYes (compile-time only)
+Language Mappings:
+LanguageSyntaxNotesCN/AManual trackingC++N/AManual trackingRust'a, 'staticCompile-time checkedZigN/AManual tracking
+LogicNode Template:
+json{
+  "domain": "ownership_semantics",
+  "concept": "lifetime_annotation",
+  "intent": "Specify how long a reference is valid",
+  "inputs": [
+    { "name": "reference", "type": { "base": "borrowed" }},
+    { "name": "lifetime", "type": { "base": "lifetime" }}
+  ],
+  "outputs": [
+    { "name": "annotated_reference", "type": { "base": "borrowed" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "reference valid for lifetime" }
+  ],
+  "side_effects": []
+}
+
+Concept: drop_value
+AttributeValueConcept IDSYS-003-006Namedrop_valueIntentExplicitly destroy a value and run destructorPureNo
+Language Mappings:
+LanguageSyntaxNotesCManual cleanupC++Destructor called at scope endRAIIRustdrop(value) or automaticZigdefer value.deinit()
+LogicNode Template:
+json{
+  "domain": "ownership_semantics",
+  "concept": "drop_value",
+  "intent": "Explicitly destroy a value and run destructor",
+  "inputs": [
+    { "name": "value", "type": { "base": "owned" }}
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "value is destroyed" }
+  ],
+  "side_effects": [
+    { "type": "heap_allocation", "description": "May free memory", "scope": "global" }
+  ]
+}
+
+Domain: SYS-004 (Stack Operations)
+
+Concept: stack_frame
+AttributeValueConcept IDSYS-004-001Namestack_frameIntentRepresent function's stack framePureNo
+Language Mappings:
+LanguageSyntaxNotesCImplicitC++ImplicitRustImplicitZig@frame() for async
+LogicNode Template:
+json{
+  "domain": "stack_operations",
+  "concept": "stack_frame",
+  "intent": "Represent function's stack frame",
+  "inputs": [],
+  "outputs": [
+    { "name": "frame", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "allocation", "description": "Uses stack space", "scope": "local" }
+  ]
+}
+
+Concept: local_variable
+AttributeValueConcept IDSYS-004-002Namelocal_variableIntentDeclare variable on stackPureYes
+Language Mappings:
+LanguageSyntaxNotesCT var;C++T var;Calls constructorRustlet var: T;Zigvar v: T = undefined;
+LogicNode Template:
+json{
+  "domain": "stack_operations",
+  "concept": "local_variable",
+  "intent": "Declare variable on stack",
+  "inputs": [
+    { "name": "type", "type": { "base": "any" }},
+    { "name": "initial_value", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "variable", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "stack_only", "expression": "variable lives on stack" }
+  ],
+  "side_effects": []
+}
+
+Concept: stack_array
+AttributeValueConcept IDSYS-004-003Namestack_arrayIntentDeclare fixed-size array on stackPureYes
+Language Mappings:
+LanguageSyntaxNotesCT arr[N];C++std::array<T, N>Rust[T; N]Zig[N]T
+LogicNode Template:
+json{
+  "domain": "stack_operations",
+  "concept": "stack_array",
+  "intent": "Declare fixed-size array on stack",
+  "inputs": [
+    { "name": "element_type", "type": { "base": "any" }},
+    { "name": "count", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "array", "type": { "base": "list", "parameters": [{"base": "any"}] }}
+  ],
+  "preconditions": [
+    { "type": "compile_time", "expression": "count is known at compile time" }
+  ],
+  "postconditions": [
+    { "type": "stack_only", "expression": "array lives on stack" }
+  ],
+  "side_effects": []
+}
+
+Concept: return_value
+AttributeValueConcept IDSYS-004-004Namereturn_valueIntentReturn value from functionPureDepends
+Language Mappings:
+LanguageSyntaxNotesCreturn value;Copy or pointerC++return value;May invoke moveRustreturn value; or implicitMove semanticsZigreturn value;
+LogicNode Template:
+json{
+  "domain": "stack_operations",
+  "concept": "return_value",
+  "intent": "Return value from function",
+  "inputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "returned", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "function exits" }
+  ],
+  "side_effects": [
+    { "type": "exception", "description": "Unwinds stack", "scope": "local" }
+  ]
+}
+
+Due to length constraints, I'll provide a summary of remaining domains for Pod B and can continue with full detail if needed.
+Remaining Pod B Domains Summary
+SYS-005 (Heap Operations): heap fragmentation, custom allocators, memory pools
+SYS-006 (Concurrency Primitives): mutexes, atomics, condition variables, thread creation, lock-free structures
+SYS-007 (Low-Level Types): bit fields, packed structs, unions, byte arrays, endianness
+SYS-008 (Compilation Control): inline, const, constexpr, comptime, attributes, pragmas
+SYS-009 (FFI Interop): extern declarations, C ABI, dynamic loading, symbol resolution
+SYS-010 (Unsafe Operations): transmute, union access, raw pointer manipulation, undefined behavior
+SYS-011 (Zero-Cost Abstractions): templates, generics, monomorphization, trait objects
+SYS-012 (Hardware Access): memory-mapped IO, volatile reads/writes, register manipulation
+SYS-013 (Error Propagation): Result types, error codes, panic/abort, stack unwinding
+SYS-014 (Resource Management): RAII, destructors, scope guards, defer
+SYS-015 (Bit Manipulation): bitwise operations, bit shifts, masks, byte swapping
+SYS-016 (System Calls): syscall invocation, OS interface, kernel interaction
+SYS-017 (Alignment Control): memory alignment, padding, packed layouts, align_of
+SYS-018 (SIMD Operations): vector types, intrinsics, parallel data processing
+Total estimated concepts for Pod B: ~110
+Should I continue with full detail for the remaining domains, or proceed to the next step (Pod C or Protocol Definitions)?no we need to finish pod bJan 29You're right. Let me complete Pod B with full detail for all remaining domains.
+
+Domain: SYS-005 (Heap Operations)
+
+Concept: heap_fragmentation_check
+AttributeValueConcept IDSYS-005-001Nameheap_fragmentation_checkIntentAnalyze heap fragmentation levelPureNo
+Language Mappings:
+LanguageSyntaxNotesCCustom implementationC++Custom or allocator-specificRustCustom implementationZigAllocator stats
+LogicNode Template:
+json{
+  "domain": "heap_operations",
+  "concept": "heap_fragmentation_check",
+  "intent": "Analyze heap fragmentation level",
+  "inputs": [
+    { "name": "allocator", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "fragmentation_ratio", "type": { "base": "float" }},
+    { "name": "total_allocated", "type": { "base": "integer" }},
+    { "name": "total_free", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "io", "description": "Queries allocator state", "scope": "local" }
+  ]
+}
+
+Concept: custom_allocator_create
+AttributeValueConcept IDSYS-005-002Namecustom_allocator_createIntentCreate custom memory allocatorPureNo
+Language Mappings:
+LanguageSyntaxNotesCFunction pointers in structC++Custom allocator classRustImplement Allocator traitZigstd.mem.Allocator interfaceNative support
+LogicNode Template:
+json{
+  "domain": "heap_operations",
+  "concept": "custom_allocator_create",
+  "intent": "Create custom memory allocator",
+  "inputs": [
+    { "name": "alloc_fn", "type": { "base": "callable" }},
+    { "name": "dealloc_fn", "type": { "base": "callable" }},
+    { "name": "realloc_fn", "type": { "base": "callable" }, "optional": true },
+    { "name": "state", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "allocator", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: allocator_statistics
+AttributeValueConcept IDSYS-005-003Nameallocator_statisticsIntentGet allocation statistics from allocatorPureNo
+Language Mappings:
+LanguageSyntaxNotesCCustom trackingC++Custom or allocator-specificRustCustom implementationZigBuilt-in allocator stats
+LogicNode Template:
+json{
+  "domain": "heap_operations",
+  "concept": "allocator_statistics",
+  "intent": "Get allocation statistics from allocator",
+  "inputs": [
+    { "name": "allocator", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "allocations", "type": { "base": "integer" }},
+    { "name": "deallocations", "type": { "base": "integer" }},
+    { "name": "bytes_allocated", "type": { "base": "integer" }},
+    { "name": "peak_memory", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "io", "description": "Reads allocator metrics", "scope": "local" }
+  ]
+}
+
+Concept: aligned_allocate
+AttributeValueConcept IDSYS-005-004Namealigned_allocateIntentAllocate memory with specific alignmentPureNo
+Language Mappings:
+LanguageSyntaxNotesCaligned_alloc(alignment, size)C11C++std::aligned_alloc() or operator new with alignRustalloc::alloc::alloc() with LayoutZigallocator.alignedAlloc(T, alignment, count)
+LogicNode Template:
+json{
+  "domain": "heap_operations",
+  "concept": "aligned_allocate",
+  "intent": "Allocate memory with specific alignment",
+  "inputs": [
+    { "name": "size_bytes", "type": { "base": "integer" }},
+    { "name": "alignment", "type": { "base": "integer" }},
+    { "name": "allocator", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "pointer", "type": { "base": "aligned_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "alignment is power of 2" },
+    { "type": "range", "expression": "size_bytes > 0" }
+  ],
+  "postconditions": [
+    { "type": "aligned", "expression": "pointer % alignment == 0" }
+  ],
+  "side_effects": [
+    { "type": "heap_allocation", "description": "Allocates aligned memory", "scope": "global" }
+  ]
+}
+
+Concept: memory_pressure_check
+AttributeValueConcept IDSYS-005-005Namememory_pressure_checkIntentCheck if system is under memory pressurePureNo
+Language Mappings:
+LanguageSyntaxNotesCPlatform-specific APIsC++Platform-specific APIsRustPlatform-specific APIsZigPlatform-specific APIs
+LogicNode Template:
+json{
+  "domain": "heap_operations",
+  "concept": "memory_pressure_check",
+  "intent": "Check if system is under memory pressure",
+  "inputs": [],
+  "outputs": [
+    { "name": "available_bytes", "type": { "base": "integer" }},
+    { "name": "pressure_level", "type": { "base": "string" }, "constraints": [{"type": "enum", "expression": "['low', 'medium', 'high', 'critical']"}] }
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "system_call", "description": "Queries OS memory stats", "scope": "external" }
+  ]
+}
+
+Concept: memory_advise
+AttributeValueConcept IDSYS-005-006Namememory_adviseIntentGive OS hints about memory usage patternsPureNo
+Language Mappings:
+LanguageSyntaxNotesCmadvise() on POSIXC++Platform-specificRustlibc::madvise()ZigPlatform-specific
+LogicNode Template:
+json{
+  "domain": "heap_operations",
+  "concept": "memory_advise",
+  "intent": "Give OS hints about memory usage patterns",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer" }},
+    { "name": "size", "type": { "base": "integer" }},
+    { "name": "advice", "type": { "base": "string" }, "constraints": [{"type": "enum", "expression": "['willneed', 'dontneed', 'sequential', 'random']"}] }
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "system_call", "description": "Advises kernel on memory usage", "scope": "external" }
+  ]
+}
+
+Domain: SYS-006 (Concurrency Primitives)
+
+Concept: thread_create
+AttributeValueConcept IDSYS-006-001Namethread_createIntentSpawn a new OS threadPureNo
+Language Mappings:
+LanguageSyntaxNotesCpthread_create()POSIXC++std::threadRuststd::thread::spawn()Zigstd.Thread.spawn()
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "thread_create",
+  "intent": "Spawn a new OS thread",
+  "inputs": [
+    { "name": "function", "type": { "base": "callable" }},
+    { "name": "arguments", "type": { "base": "any" }, "optional": true },
+    { "name": "stack_size", "type": { "base": "integer" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "thread_handle", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "send", "expression": "arguments are Send" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "system_call", "description": "Creates OS thread", "scope": "global" }
+  ]
+}
+
+Concept: thread_join
+AttributeValueConcept IDSYS-006-002Namethread_joinIntentWait for thread to completePureNo
+Language Mappings:
+LanguageSyntaxNotesCpthread_join()C++thread.join()Rusthandle.join()Zigthread.join()
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "thread_join",
+  "intent": "Wait for thread to complete",
+  "inputs": [
+    { "name": "thread_handle", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "thread is joinable" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "thread has completed" }
+  ],
+  "side_effects": [
+    { "type": "blocking", "description": "Blocks until thread completes", "scope": "local" }
+  ]
+}
+
+Concept: mutex_create
+AttributeValueConcept IDSYS-006-003Namemutex_createIntentCreate a mutual exclusion lockPureNo
+Language Mappings:
+LanguageSyntaxNotesCpthread_mutex_init()C++std::mutexRustMutex::new(data)Contains protected dataZigstd.Thread.Mutex{}
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "mutex_create",
+  "intent": "Create a mutual exclusion lock",
+  "inputs": [
+    { "name": "data", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "mutex", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "allocation", "description": "Allocates mutex", "scope": "local" }
+  ]
+}
+
+Concept: mutex_lock
+AttributeValueConcept IDSYS-006-004Namemutex_lockIntentAcquire exclusive lock on mutexPureNo
+Language Mappings:
+LanguageSyntaxNotesCpthread_mutex_lock()C++mutex.lock()Rustmutex.lock()Returns guardZigmutex.lock()
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "mutex_lock",
+  "intent": "Acquire exclusive lock on mutex",
+  "inputs": [
+    { "name": "mutex", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "guard", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "current thread doesn't hold lock" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "current thread holds exclusive lock" }
+  ],
+  "side_effects": [
+    { "type": "blocking", "description": "Blocks if already locked", "scope": "local" }
+  ]
+}
+
+Concept: mutex_unlock
+AttributeValueConcept IDSYS-006-005Namemutex_unlockIntentRelease mutex lockPureNo
+Language Mappings:
+LanguageSyntaxNotesCpthread_mutex_unlock()C++mutex.unlock()RustDrop guard (automatic)Zigmutex.unlock()
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "mutex_unlock",
+  "intent": "Release mutex lock",
+  "inputs": [
+    { "name": "mutex", "type": { "base": "any" }}
+  ],
+  "outputs": [],
+  "preconditions": [
+    { "type": "predicate", "expression": "current thread holds lock" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "lock is released" }
+  ],
+  "side_effects": [
+    { "type": "mutation", "description": "Releases lock", "scope": "global" }
+  ]
+}
+
+Concept: atomic_load
+AttributeValueConcept IDSYS-006-006Nameatomic_loadIntentAtomically read a valuePureNo
+Language Mappings:
+LanguageSyntaxNotesCatomic_load()C11C++atomic.load()Rustatomic.load(Ordering)Zig@atomicLoad(T, ptr, ordering)
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "atomic_load",
+  "intent": "Atomically read a value",
+  "inputs": [
+    { "name": "atomic", "type": { "base": "atomic" }},
+    { "name": "ordering", "type": { "base": "string" }, "default": "acquire", "constraints": [{"type": "enum", "expression": "['relaxed', 'acquire', 'seq_cst']"}] }
+  ],
+  "outputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: atomic_store
+AttributeValueConcept IDSYS-006-007Nameatomic_storeIntentAtomically write a valuePureNo
+Language Mappings:
+LanguageSyntaxNotesCatomic_store()C11C++atomic.store(value)Rustatomic.store(value, Ordering)Zig@atomicStore(T, ptr, value, ordering)
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "atomic_store",
+  "intent": "Atomically write a value",
+  "inputs": [
+    { "name": "atomic", "type": { "base": "atomic" }},
+    { "name": "value", "type": { "base": "any" }},
+    { "name": "ordering", "type": { "base": "string" }, "default": "release", "constraints": [{"type": "enum", "expression": "['relaxed', 'release', 'seq_cst']"}] }
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "atomic == value" }
+  ],
+  "side_effects": [
+    { "type": "mutation", "description": "Atomically updates value", "scope": "global" }
+  ]
+}
+
+Concept: atomic_compare_exchange
+AttributeValueConcept IDSYS-006-008Nameatomic_compare_exchangeIntentAtomically compare and swap (CAS)PureNo
+Language Mappings:
+LanguageSyntaxNotesCatomic_compare_exchange_strong()C++atomic.compare_exchange_strong()Rustatomic.compare_exchange()Zig@cmpxchgStrong()
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "atomic_compare_exchange",
+  "intent": "Atomically compare and swap (CAS)",
+  "inputs": [
+    { "name": "atomic", "type": { "base": "atomic" }},
+    { "name": "expected", "type": { "base": "any" }},
+    { "name": "desired", "type": { "base": "any" }},
+    { "name": "success_ordering", "type": { "base": "string" }, "default": "seq_cst" },
+    { "name": "failure_ordering", "type": { "base": "string" }, "default": "seq_cst" }
+  ],
+  "outputs": [
+    { "name": "success", "type": { "base": "boolean" }},
+    { "name": "actual_value", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "success == true IMPLIES atomic == desired" },
+    { "type": "predicate", "expression": "success == false IMPLIES actual_value is old value" }
+  ],
+  "side_effects": [
+    { "type": "mutation", "description": "May update atomic", "scope": "global" }
+  ]
+}
+
+Concept: atomic_fetch_add
+AttributeValueConcept IDSYS-006-009Nameatomic_fetch_addIntentAtomically add to value and return old valuePureNo
+Language Mappings:
+LanguageSyntaxNotesCatomic_fetch_add()C++atomic.fetch_add()Rustatomic.fetch_add(value, Ordering)Zig@atomicRmw(Add, ptr, value, ordering)
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "atomic_fetch_add",
+  "intent": "Atomically add to value and return old value",
+  "inputs": [
+    { "name": "atomic", "type": { "base": "atomic" }},
+    { "name": "value", "type": { "base": "integer" }},
+    { "name": "ordering", "type": { "base": "string" }, "default": "seq_cst" }
+  ],
+  "outputs": [
+    { "name": "old_value", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "atomic == old_value + value" }
+  ],
+  "side_effects": [
+    { "type": "mutation", "description": "Atomically increments", "scope": "global" }
+  ]
+}
+
+Concept: condition_variable_create
+AttributeValueConcept IDSYS-006-010Namecondition_variable_createIntentCreate a condition variable for thread coordinationPureNo
+Language Mappings:
+LanguageSyntaxNotesCpthread_cond_init()C++std::condition_variableRustCondvar::new()Zigstd.Thread.Condition{}
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "condition_variable_create",
+  "intent": "Create a condition variable for thread coordination",
+  "inputs": [],
+  "outputs": [
+    { "name": "condvar", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "allocation", "description": "Allocates condition variable", "scope": "local" }
+  ]
+}
+
+Concept: condition_variable_wait
+AttributeValueConcept IDSYS-006-011Namecondition_variable_waitIntentWait on condition variable, releasing mutexPureNo
+Language Mappings:
+LanguageSyntaxNotesCpthread_cond_wait()C++condvar.wait(lock)Rustcondvar.wait(guard)Zigcondition.wait(&mutex)
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "condition_variable_wait",
+  "intent": "Wait on condition variable, releasing mutex",
+  "inputs": [
+    { "name": "condvar", "type": { "base": "any" }},
+    { "name": "mutex_guard", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "guard", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "mutex is locked by current thread" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "mutex is locked by current thread after wake" }
+  ],
+  "side_effects": [
+    { "type": "blocking", "description": "Blocks until signaled", "scope": "local" }
+  ]
+}
+
+Concept: condition_variable_notify
+AttributeValueConcept IDSYS-006-012Namecondition_variable_notifyIntentWake threads waiting on condition variablePureNo
+Language Mappings:
+LanguageSyntaxNotesCpthread_cond_signal() or pthread_cond_broadcast()C++condvar.notify_one() or condvar.notify_all()Rustcondvar.notify_one() or condvar.notify_all()Zigcondition.signal() or condition.broadcast()
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "condition_variable_notify",
+  "intent": "Wake threads waiting on condition variable",
+  "inputs": [
+    { "name": "condvar", "type": { "base": "any" }},
+    { "name": "notify_all", "type": { "base": "boolean" }, "default": false }
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "mutation", "description": "Wakes waiting threads", "scope": "global" }
+  ]
+}
+
+Concept: memory_fence
+AttributeValueConcept IDSYS-006-013Namememory_fenceIntentInsert memory ordering barrierPureNo
+Language Mappings:
+LanguageSyntaxNotesCatomic_thread_fence()C++std::atomic_thread_fence()Ruststd::sync::atomic::fence()Zig@fence(ordering)
+LogicNode Template:
+json{
+  "domain": "concurrency_primitives",
+  "concept": "memory_fence",
+  "intent": "Insert memory ordering barrier",
+  "inputs": [
+    { "name": "ordering", "type": { "base": "string" }, "constraints": [{"type": "enum", "expression": "['acquire', 'release', 'acq_rel', 'seq_cst']"}] }
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "mutation", "description": "Synchronizes memory", "scope": "global" }
+  ]
+}
+
+Domain: SYS-007 (Low-Level Types)
+
+Concept: bitfield_define
+AttributeValueConcept IDSYS-007-001Namebitfield_defineIntentDefine struct with bit-level field sizesPureYes
+Language Mappings:
+LanguageSyntaxNotesCstruct { int field : 3; }C++struct { int field : 3; }RustManual bit manipulationNo native bitfieldsZigpacked struct
+LogicNode Template:
+json{
+  "domain": "low_level_types",
+  "concept": "bitfield_define",
+  "intent": "Define struct with bit-level field sizes",
+  "inputs": [
+    { "name": "fields", "type": { "base": "list", "parameters": [{"base": "tuple"}] }}
+  ],
+  "outputs": [
+    { "name": "bitfield_type", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: packed_struct_define
+AttributeValueConcept IDSYS-007-002Namepacked_struct_defineIntentDefine struct with no padding between fieldsPureYes
+Language Mappings:
+LanguageSyntaxNotesC__attribute__((packed)) or #pragma packC++#pragma pack or [[gnu::packed]]Rust#[repr(packed)]Zigpacked struct
+LogicNode Template:
+json{
+  "domain": "low_level_types",
+  "concept": "packed_struct_define",
+  "intent": "Define struct with no padding between fields",
+  "inputs": [
+    { "name": "fields", "type": { "base": "list", "parameters": [{"base": "tuple"}] }}
+  ],
+  "outputs": [
+    { "name": "packed_type", "type": { "base": "packed_struct" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "sizeof(type) == sum of field sizes" }
+  ],
+  "side_effects": []
+}
+
+Concept: union_define
+AttributeValueConcept IDSYS-007-003Nameunion_defineIntentDefine union type with overlapping fieldsPureYes
+Language Mappings:
+LanguageSyntaxNotesCunion { ... }C++union { ... }Rustunion { ... }Unsafe accessZigunion { ... } or extern union
+LogicNode Template:
+json{
+  "domain": "low_level_types",
+  "concept": "union_define",
+  "intent": "Define union type with overlapping fields",
+  "inputs": [
+    { "name": "fields", "type": { "base": "list", "parameters": [{"base": "tuple"}] }}
+  ],
+  "outputs": [
+    { "name": "union_type", "type": { "base": "union_type" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "sizeof(union) == max field size" }
+  ],
+  "side_effects": []
+}
+
+Concept: union_access
+AttributeValueConcept IDSYS-007-004Nameunion_accessIntentAccess specific variant of unionPureYes
+Language Mappings:
+LanguageSyntaxNotesCunion_val.fieldUndefined if wrong fieldC++union_val.fieldUndefined if wrong fieldRustunion_val.field in unsafeMust be in unsafeZigunion_val.fieldTagged unions are safe
+LogicNode Template:
+json{
+  "domain": "low_level_types",
+  "concept": "union_access",
+  "intent": "Access specific variant of union",
+  "inputs": [
+    { "name": "union_value", "type": { "base": "union_type" }},
+    { "name": "field", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "undefined_behavior", "description": "UB if wrong field accessed", "scope": "local" }
+  ]
+}
+
+Concept: byte_array
+AttributeValueConcept IDSYS-007-005Namebyte_arrayIntentFixed-size array of bytesPureYes
+Language Mappings:
+LanguageSyntaxNotesCuint8_t arr[N] or unsigned char arr[N]C++std::array<uint8_t, N> or std::byte arr[N]Rust[u8; N]Zig[N]u8
+LogicNode Template:
+json{
+  "domain": "low_level_types",
+  "concept": "byte_array",
+  "intent": "Fixed-size array of bytes",
+  "inputs": [
+    { "name": "size", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "array", "type": { "base": "list", "parameters": [{"base": "integer"}] }}
+  ],
+  "preconditions": [
+    { "type": "compile_time", "expression": "size is compile-time constant" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: endianness_swap
+AttributeValueConcept IDSYS-007-006Nameendianness_swapIntentSwap byte order of multi-byte valuePureYes
+Language Mappings:
+LanguageSyntaxNotesChtonl(), ntohl() or manualC++std::byteswap() (C++23)Rustvalue.swap_bytes()Zig@byteSwap(value)
+LogicNode Template:
+json{
+  "domain": "low_level_types",
+  "concept": "endianness_swap",
+  "intent": "Swap byte order of multi-byte value",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "swapped", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: endianness_check
+AttributeValueConcept IDSYS-007-007Nameendianness_checkIntentDetermine system byte orderPureYes (compile-time)
+Language Mappings:
+LanguageSyntaxNotesCCheck BYTE_ORDER macroC++std::endian::native (C++20)Rustcfg!(target_endian = "little")Zig@import("builtin").target.cpu.arch.endian()
+LogicNode Template:
+json{
+  "domain": "low_level_types",
+  "concept": "endianness_check",
+  "intent": "Determine system byte order",
+  "inputs": [],
+  "outputs": [
+    { "name": "endian", "type": { "base": "string" }, "constraints": [{"type": "enum", "expression": "['little', 'big']"}] }
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Domain: SYS-008 (Compilation Control)
+
+Concept: inline_function
+AttributeValueConcept IDSYS-008-001Nameinline_functionIntentHint compiler to inline functionPureYes (compile-time)
+Language Mappings:
+LanguageSyntaxNotesCinline or __attribute__((always_inline))C++inline or [[gnu::always_inline]]Rust#[inline] or #[inline(always)]Ziginline fn
+LogicNode Template:
+json{
+  "domain": "compilation_control",
+  "concept": "inline_function",
+  "intent": "Hint compiler to inline function",
+  "inputs": [
+    { "name": "function", "type": { "base": "callable" }},
+    { "name": "force", "type": { "base": "boolean" }, "default": false }
+  ],
+  "outputs": [
+    { "name": "inlined_function", "type": { "base": "callable" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: const_expression
+AttributeValueConcept IDSYS-008-002Nameconst_expressionIntentEvaluate expression at compile timePureYes
+Language Mappings:
+LanguageSyntaxNotesCconst or enumLimitedC++constexprRustconstZigcomptimePowerful
+LogicNode Template:
+json{
+  "domain": "compilation_control",
+  "concept": "const_expression",
+  "intent": "Evaluate expression at compile time",
+  "inputs": [
+    { "name": "expression", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "const_value", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "compile_time", "expression": "expression is compile-time evaluable" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: comptime_conditional
+AttributeValueConcept IDSYS-008-003Namecomptime_conditionalIntentConditional compilation based on compile-time valuePureYes
+Language Mappings:
+LanguageSyntaxNotesC#if, #ifdefPreprocessorC++if constexprRustcfg!()Zigcomptime if
+LogicNode Template:
+json{
+  "domain": "compilation_control",
+  "concept": "comptime_conditional",
+  "intent": "Conditional compilation based on compile-time value",
+  "inputs": [
+    { "name": "condition", "type": { "base": "boolean" }},
+    { "name": "then_branch", "type": { "base": "any" }},
+    { "name": "else_branch", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "compile_time", "expression": "condition is compile-time constant" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: attribute_add
+AttributeValueConcept IDSYS-008-004Nameattribute_addIntentAdd compiler attribute to declarationPureYes
+Language Mappings:
+LanguageSyntaxNotesC__attribute__((attr))GCC/ClangC++[[attr]]C++11Rust#[attr]ZigBuiltin attributes
+LogicNode Template:
+json{
+  "domain": "compilation_control",
+  "concept": "attribute_add",
+  "intent": "Add compiler attribute to declaration",
+  "inputs": [
+    { "name": "target", "type": { "base": "any" }},
+    { "name": "attribute", "type": { "base": "string" }},
+    { "name": "parameters", "type": { "base": "list" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "attributed", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: noinline_function
+AttributeValueConcept IDSYS-008-005Namenoinline_functionIntentPrevent function inliningPureYes
+Language Mappings:
+LanguageSyntaxNotesC__attribute__((noinline))C++[[gnu::noinline]]Rust#[inline(never)]Zignoinline fn
+LogicNode Template:
+json{
+  "domain": "compilation_control",
+  "concept": "noinline_function",
+  "intent": "Prevent function inlining",
+  "inputs": [
+    { "name": "function", "type": { "base": "callable" }}
+  ],
+  "outputs": [
+    { "name": "noinlined_function", "type": { "base": "callable" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: cold_function
+AttributeValueConcept IDSYS-008-006Namecold_functionIntentMark function as rarely executedPureYes
+Language Mappings:
+LanguageSyntaxNotesC__attribute__((cold))C++[[gnu::cold]]Rust#[cold]Zig@setCold(true)
+LogicNode Template:
+json{
+  "domain": "compilation_control",
+  "concept": "cold_function",
+  "intent": "Mark function as rarely executed",
+  "inputs": [
+    { "name": "function", "type": { "base": "callable" }}
+  ],
+  "outputs": [
+    { "name": "cold_function", "type": { "base": "callable" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Domain: SYS-009 (FFI Interop)
+
+Concept: extern_function
+AttributeValueConcept IDSYS-009-001Nameextern_functionIntentDeclare function with C calling conventionPureYes
+Language Mappings:
+LanguageSyntaxNotesCexternDefaultC++extern "C"Rustextern "C" fnZigexport fn or extern fn
+LogicNode Template:
+json{
+  "domain": "ffi_interop",
+  "concept": "extern_function",
+  "intent": "Declare function with C calling convention",
+  "inputs": [
+    { "name": "function_name", "type": { "base": "string" }},
+    { "name": "parameters", "type": { "base": "list" }},
+    { "name": "return_type", "type": { "base": "any" }},
+    { "name": "library", "type": { "base": "string" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "extern_fn", "type": { "base": "callable" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: call_extern
+AttributeValueConcept IDSYS-009-002Namecall_externIntentCall external C functionPureNo
+Language Mappings:
+LanguageSyntaxNotesCDirect callC++Direct call if extern "C"Rustunsafe { extern_fn() }Requires unsafeZigDirect call
+LogicNode Template:
+json{
+  "domain": "ffi_interop",
+  "concept": "call_extern",
+  "intent": "Call external C function",
+  "inputs": [
+    { "name": "function", "type": { "base": "callable" }},
+    { "name": "arguments", "type": { "base": "list" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "ffi_call", "description": "Calls foreign function", "scope": "external" },
+    { "type": "unsafe_operation", "description": "No safety guarantees", "scope": "local" }
+  ]
+}
+
+Concept: dynamic_library_load
+AttributeValueConcept IDSYS-009-003Namedynamic_library_loadIntentLoad shared library at runtimePureNo
+Language Mappings:
+LanguageSyntaxNotesCdlopen() (POSIX) or LoadLibrary() (Windows)C++Same as CRustlibloading crateZigstd.DynLib.open()
+LogicNode Template:
+json{
+  "domain": "ffi_interop",
+  "concept": "dynamic_library_load",
+  "intent": "Load shared library at runtime",
+  "inputs": [
+    { "name": "path", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "library_handle", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "library exists at path" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "system_call", "description": "Loads dynamic library", "scope": "external" }
+  ]
+}
+
+Concept: dynamic_symbol_lookup
+AttributeValueConcept IDSYS-009-004Namedynamic_symbol_lookupIntentLook up symbol in loaded libraryPureNo
+Language Mappings:
+LanguageSyntaxNotesCdlsym() or GetProcAddress()C++Same as CRustlibrary.get()Ziglib.lookup()
+LogicNode Template:
+json{
+  "domain": "ffi_interop",
+  "concept": "dynamic_symbol_lookup",
+  "intent": "Look up symbol in loaded library",
+  "inputs": [
+    { "name": "library_handle", "type": { "base": "any" }},
+    { "name": "symbol_name", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "symbol", "type": { "base": "option", "parameters": [{"base": "pointer"}] }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "unsafe_operation", "description": "Raw pointer to symbol", "scope": "local" }
+  ]
+}
+
+Concept: c_string_convert
+AttributeValueConcept IDSYS-009-005Namec_string_convertIntentConvert native string to C-compatible null-terminated stringPureYes
+Language Mappings:
+LanguageSyntaxNotesCAlready C stringsC++.c_str()RustCString::new()Zig[*:0]const u8Sentinel-terminated
+LogicNode Template:
+json{
+  "domain": "ffi_interop",
+  "concept": "c_string_convert",
+  "intent": "Convert native string to C-compatible null-terminated string",
+  "inputs": [
+    { "name": "string", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "c_string", "type": { "base": "pointer" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "string does not contain null bytes" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "c_string is null-terminated" }
+  ],
+  "side_effects": [
+    { "type": "allocation", "description": "May allocate memory", "scope": "local" }
+  ]
+}
+
+Domain: SYS-010 (Unsafe Operations)
+
+Concept: unsafe_block
+AttributeValueConcept IDSYS-010-001Nameunsafe_blockIntentMark code block as bypassing safety checksPureDepends
+Language Mappings:
+LanguageSyntaxNotesCEverything is unsafeC++Everything is unsafeRustunsafe { ... }Required for unsafe opsZigMost operations checked in debug
+LogicNode Template:
+json{
+  "domain": "unsafe_operations",
+  "concept": "unsafe_block",
+  "intent": "Mark code block as bypassing safety checks",
+  "inputs": [
+    { "name": "code", "type": { "base": "callable" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "unsafe_operation", "description": "Safety guarantees suspended", "scope": "local" }
+  ]
+}
+
+Concept: transmute
+AttributeValueConcept IDSYS-010-002NametransmuteIntentReinterpret bits of one type as anotherPureYes
+Language Mappings:
+LanguageSyntaxNotesC*(T*)&value or unionC++std::bit_cast<T>() (C++20) or reinterpret_castRuststd::mem::transmute()Very unsafeZig@bitCast(T, value)
+LogicNode Template:
+json{
+  "domain": "unsafe_operations",
+  "concept": "transmute",
+  "intent": "Reinterpret bits of one type as another",
+  "inputs": [
+    { "name": "value", "type": { "base": "any" }},
+    { "name": "target_type", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "transmuted", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "sizeof(source) == sizeof(target)" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "unsafe_operation", "description": "Type safety bypassed", "scope": "local" },
+    { "type": "undefined_behavior", "description": "May trigger UB if invalid", "scope": "local" }
+  ]
+}
+
+Concept: raw_pointer_from_ref
+AttributeValueConcept IDSYS-010-003Nameraw_pointer_from_refIntentConvert reference to raw pointerPureYes
+Language Mappings:
+LanguageSyntaxNotesCNatural conversionC++Natural conversionRust&value as *const T or &mut value as *mut TZigNatural conversion
+LogicNode Template:
+json{
+  "domain": "unsafe_operations",
+  "concept": "raw_pointer_from_ref",
+  "intent": "Convert reference to raw pointer",
+  "inputs": [
+    { "name": "reference", "type": { "base": "borrowed" }}
+  ],
+  "outputs": [
+    { "name": "pointer", "type": { "base": "pointer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "pointer points to same location as reference" }
+  ],
+  "side_effects": []
+}
+
+Concept: uninitialized_value
+AttributeValueConcept IDSYS-010-004Nameuninitialized_valueIntentCreate uninitialized variablePureYes
+Language Mappings:
+LanguageSyntaxNotesCT var; (automatic)UB to read before writeC++T var;UB to read before writeRustMaybeUninit::uninit()Explicit unsafeZigvar v: T = undefined;Explicit
+LogicNode Template:
+json{
+  "domain": "unsafe_operations",
+  "concept": "uninitialized_value",
+  "intent": "Create uninitialized variable",
+  "inputs": [
+    { "name": "type", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "undefined_behavior", "description": "Reading before initialization is UB", "scope": "local" }
+  ]
+}
+
+Concept: assume_init
+AttributeValueConcept IDSYS-010-005Nameassume_initIntentAssert that uninitialized value has been initializedPureYes
+Language Mappings:
+LanguageSyntaxNotesCImplicitC++ImplicitRustmaybe_uninit.assume_init()UnsafeZigImplicit after write
+LogicNode Template:
+json{
+  "domain": "unsafe_operations",
+  "concept": "assume_init",
+  "intent": "Assert that uninitialized value has been initialized",
+  "inputs": [
+    { "name": "uninit_value", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "initialized_value", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "undefined_behavior", "description": "UB if not actually initialized", "scope": "local" }
+  ]
+}
+
+Domain: SYS-011 (Zero-Cost Abstractions)
+
+Concept: generic_function
+AttributeValueConcept IDSYS-011-001Namegeneric_functionIntentDefine function parameterized by typePureYes
+Language Mappings:
+LanguageSyntaxNotesCMacros or _GenericLimitedC++template<typename T>Rustfn<T>Zigfn(comptime T: type)
+LogicNode Template:
+json{
+  "domain": "zero_cost_abstractions",
+  "concept": "generic_function",
+  "intent": "Define function parameterized by type",
+  "inputs": [
+    { "name": "type_parameters", "type": { "base": "list", "parameters": [{"base": "any"}] }},
+    { "name": "function_body", "type": { "base": "callable" }}
+  ],
+  "outputs": [
+    { "name": "generic_fn", "type": { "base": "callable" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: monomorphization
+AttributeValueConcept IDSYS-011-002NamemonomorphizationIntentGenerate concrete function for each type usedPureYes (compile-time)
+Language Mappings:
+LanguageSyntaxNotesCManual duplicationC++Template instantiationAutomaticRustAutomaticZigAutomatic with comptime
+LogicNode Template:
+json{
+  "domain": "zero_cost_abstractions",
+  "concept": "monomorphization",
+  "intent": "Generate concrete function for each type used",
+  "inputs": [
+    { "name": "generic_function", "type": { "base": "callable" }},
+    { "name": "concrete_type", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "specialized_function", "type": { "base": "callable" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: trait_define
+AttributeValueConcept IDSYS-011-003Nametrait_defineIntentDefine interface/trait/conceptPureYes
+Language Mappings:
+LanguageSyntaxNotesCManual via function pointersC++Concepts (C++20) or SFINAERusttraitZigNo direct equivalentDuck typing
+LogicNode Template:
+json{
+  "domain": "zero_cost_abstractions",
+  "concept": "trait_define",
+  "intent": "Define interface/trait/concept",
+  "inputs": [
+    { "name": "name", "type": { "base": "string" }},
+    { "name": "required_methods", "type": { "base": "list", "parameters": [{"base": "tuple"}] }}
+  ],
+  "outputs": [
+    { "name": "trait", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: trait_implement
+AttributeValueConcept IDSYS-011-004Nametrait_implementIntentImplement trait for specific typePureYes
+Language Mappings:
+LanguageSyntaxNotesCManual implementationC++Template specialization or concept satisfactionRustimpl Trait for TypeZigImplicit via duck typing
+LogicNode Template:
+json{
+  "domain": "zero_cost_abstractions",
+  "concept": "trait_implement",
+  "intent": "Implement trait for specific type",
+  "inputs": [
+    { "name": "trait", "type": { "base": "any" }},
+    { "name": "target_type", "type": { "base": "any" }},
+    { "name": "implementations", "type": { "base": "list", "parameters": [{"base": "callable"}] }}
+  ],
+  "outputs": [
+    { "name": "implementation", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: static_dispatch
+AttributeValueConcept IDSYS-011-005Namestatic_dispatchIntentResolve generic call at compile timePureYes
+Language Mappings:
+LanguageSyntaxNotesCDirect callC++Template functionsRustGeneric functions (default)Zigcomptime dispatch
+LogicNode Template:
+json{
+  "domain": "zero_cost_abstractions",
+  "concept": "static_dispatch",
+  "intent": "Resolve generic call at compile time",
+  "inputs": [
+    { "name": "generic_function", "type": { "base": "callable" }},
+    { "name": "concrete_type", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "no_allocation", "expression": "no runtime overhead" }
+  ],
+  "side_effects": []
+}
+
+Concept: dynamic_dispatch
+AttributeValueConcept IDSYS-011-006Namedynamic_dispatchIntentResolve call through vtable at runtimePureNo
+Language Mappings:
+LanguageSyntaxNotesCManual function pointersC++Virtual functionsRustdyn TraitZigManual via function pointers
+LogicNode Template:
+json{
+  "domain": "zero_cost_abstractions",
+  "concept": "dynamic_dispatch",
+  "intent": "Resolve call through vtable at runtime",
+  "inputs": [
+    { "name": "trait_object", "type": { "base": "any" }},
+    { "name": "method", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "allocation", "description": "Vtable lookup overhead", "scope": "local" }
+  ]
+}
+
+Domain: SYS-012 (Hardware Access)
+
+Concept: volatile_read
+AttributeValueConcept IDSYS-012-001Namevolatile_readIntentRead from memory without optimizationPureNo
+Language Mappings:
+LanguageSyntaxNotesCvolatile T* ptr; val = *ptr;C++volatile T* ptr; val = *ptr;Rustptr::read_volatile(ptr)Zig@volatileLoad(T, ptr, ordering)
+LogicNode Template:
+json{
+  "domain": "hardware_access",
+  "concept": "volatile_read",
+  "intent": "Read from memory without optimization",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "volatile" }}
+  ],
+  "outputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "pointer is valid" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "hardware_access", "description": "Memory read not optimized away", "scope": "external" }
+  ]
+}
+
+Concept: volatile_write
+AttributeValueConcept IDSYS-012-002Namevolatile_writeIntentWrite to memory without optimizationPureNo
+Language Mappings:
+LanguageSyntaxNotesCvolatile T* ptr; *ptr = val;C++volatile T* ptr; *ptr = val;Rustptr::write_volatile(ptr, value)Zig@volatileStore(T, ptr, value, ordering)
+LogicNode Template:
+json{
+  "domain": "hardware_access",
+  "concept": "volatile_write",
+  "intent": "Write to memory without optimization",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "volatile" }},
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "outputs": [],
+  "preconditions": [
+    { "type": "predicate", "expression": "pointer is valid" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "hardware_access", "description": "Memory write not optimized away", "scope": "external" }
+  ]
+}
+
+Concept: memory_mapped_io
+AttributeValueConcept IDSYS-012-003Namememory_mapped_ioIntentAccess hardware register via memory addressPureNo
+Language Mappings:
+LanguageSyntaxNotesC#define REG (*(volatile uint32_t*)0x40000000)C++Same as CRustptr::write_volatile(0x40000000 as *mut u32, val)Zig@intToPtr(*volatile u32, 0x40000000).* = val
+LogicNode Template:
+json{
+  "domain": "hardware_access",
+  "concept": "memory_mapped_io",
+  "intent": "Access hardware register via memory address",
+  "inputs": [
+    { "name": "address", "type": { "base": "integer" }},
+    { "name": "operation", "type": { "base": "string" }, "constraints": [{"type": "enum", "expression": "['read', 'write']"}] },
+    { "name": "value", "type": { "base": "any" }, "optional": true }
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "option", "parameters": [{"base": "any"}] }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "hardware_access", "description": "Accesses hardware register", "scope": "external" }
+  ]
+}
+
+Concept: port_io_read
+AttributeValueConcept IDSYS-012-004Nameport_io_readIntentRead from I/O port (x86)PureNo
+Language Mappings:
+LanguageSyntaxNotesCinb(port), inw(port), inl(port)x86 specificC++Same as CRustx86::io::inb(port)Zig@import("std").os.windows.kernel32.inb(port)Platform-specific
+LogicNode Template:
+json{
+  "domain": "hardware_access",
+  "concept": "port_io_read",
+  "intent": "Read from I/O port (x86)",
+  "inputs": [
+    { "name": "port", "type": { "base": "integer" }},
+    { "name": "size", "type": { "base": "string" }, "constraints": [{"type": "enum", "expression": "['byte', 'word', 'dword']"}] }
+  ],
+  "outputs": [
+    { "name": "value", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "hardware_access", "description": "Reads from I/O port", "scope": "external" }
+  ]
+}
+
+Concept: port_io_write
+AttributeValueConcept IDSYS-012-005Nameport_io_writeIntentWrite to I/O port (x86)PureNo
+Language Mappings:
+LanguageSyntaxNotesCoutb(port, value), outw(), outl()x86 specificC++Same as CRustx86::io::outb(port, value)ZigPlatform-specific
+LogicNode Template:
+json{
+  "domain": "hardware_access",
+  "concept": "port_io_write",
+  "intent": "Write to I/O port (x86)",
+  "inputs": [
+    { "name": "port", "type": { "base": "integer" }},
+    { "name": "value", "type": { "base": "integer" }},
+    { "name": "size", "type": { "base": "string" }, "constraints": [{"type": "enum", "expression": "['byte', 'word', 'dword']"}] }
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "hardware_access", "description": "Writes to I/O port", "scope": "external" }
+  ]
+}
+
+Domain: SYS-013 (Error Propagation)
+
+Concept: result_type
+AttributeValueConcept IDSYS-013-001Nameresult_typeIntentType representing success or errorPureYes
+Language Mappings:
+LanguageSyntaxNotesCReturn code + out parametersConventionC++std::expected<T, E> (C++23)RustResult<T, E>Core typeZigError union !T
+LogicNode Template:
+json{
+  "domain": "error_propagation",
+  "concept": "result_type",
+  "intent": "Type representing success or error",
+  "inputs": [
+    { "name": "ok_type", "type": { "base": "any" }},
+    { "name": "err_type", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "result_type", "type": { "base": "result" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: result_ok
+AttributeValueConcept IDSYS-013-002Nameresult_okIntentCreate successful resultPureYes
+Language Mappings:
+LanguageSyntaxNotesCReturn 0 or success codeC++std::expected<T, E>(value)RustOk(value)ZigJust return value
+LogicNode Template:
+json{
+  "domain": "error_propagation",
+  "concept": "result_ok",
+  "intent": "Create successful result",
+  "inputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "result" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: result_err
+AttributeValueConcept IDSYS-013-003Nameresult_errIntentCreate error resultPureYes
+Language Mappings:
+LanguageSyntaxNotesCReturn error codeC++std::unexpected(error)RustErr(error)Zigreturn error.ErrorName
+LogicNode Template:
+json{
+  "domain": "error_propagation",
+  "concept": "result_err",
+  "intent": "Create error result",
+  "inputs": [
+    { "name": "error", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "result" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: result_unwrap
+AttributeValueConcept IDSYS-013-004Nameresult_unwrapIntentExtract value from result, panic if errorPureNo
+Language Mappings:
+LanguageSyntaxNotesCManual checkC++.value() (throws)Rust.unwrap()Panics on errorZigvalue = result!Returns error
+LogicNode Template:
+json{
+  "domain": "error_propagation",
+  "concept": "result_unwrap",
+  "intent": "Extract value from result, panic if error",
+  "inputs": [
+    { "name": "result", "type": { "base": "result" }}
+  ],
+  "outputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "panic", "description": "Panics if result is error", "scope": "local" }
+  ]
+}
+
+Concept: result_propagate
+AttributeValueConcept IDSYS-013-005Nameresult_propagateIntentEarly return on error, extract value on successPureNo
+Language Mappings:
+LanguageSyntaxNotesCif (err) return err;ManualC++Manual or monadicRust? operatorZigtry
+LogicNode Template:
+json{
+  "domain": "error_propagation",
+  "concept": "result_propagate",
+  "intent": "Early return on error, extract value on success",
+  "inputs": [
+    { "name": "result", "type": { "base": "result" }}
+  ],
+  "outputs": [
+    { "name": "value", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "exception", "description": "May return early with error", "scope": "local" }
+  ]
+}
+
+Concept: panic
+AttributeValueConcept IDSYS-013-006NamepanicIntentAbort program with error messagePureNo
+Language Mappings:
+LanguageSyntaxNotesCabort() or assert(false)C++std::terminate() or throwRustpanic!()Can unwindZig@panic()
+LogicNode Template:
+json{
+  "domain": "error_propagation",
+  "concept": "panic",
+  "intent": "Abort program with error message",
+  "inputs": [
+    { "name": "message", "type": { "base": "string" }}
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "panic", "description": "Terminates program", "scope": "global" }
+  ]
+}
+
+Domain: SYS-014 (Resource Management)
+
+Concept: raii_object
+AttributeValueConcept IDSYS-014-001Nameraii_objectIntentObject that cleans up resources in destructorPureNo
+Language Mappings:
+LanguageSyntaxNotesCManual patternC++Constructor/destructorCore patternRustAutomatic via DropZigNo automatic RAIIUse defer
+LogicNode Template:
+json{
+  "domain": "resource_management",
+  "concept": "raii_object",
+  "intent": "Object that cleans up resources in destructor",
+  "inputs": [
+    { "name": "resource", "type": { "base": "any" }},
+    { "name": "cleanup_fn", "type": { "base": "callable" }}
+  ],
+  "outputs": [
+    { "name": "guard", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "cleanup runs when guard destroyed" }
+  ],
+  "side_effects": []
+}
+
+Concept: destructor_define
+AttributeValueConcept IDSYS-014-002Namedestructor_defineIntentDefine cleanup function run at end of object lifetimePureYes
+Language Mappings:
+LanguageSyntaxNotesCN/AManual cleanupC++~ClassName()Rustimpl DropZigNo automaticUse defer
+LogicNode Template:
+json{
+  "domain": "resource_management",
+  "concept": "destructor_define",
+  "intent": "Define cleanup function run at end of object lifetime",
+  "inputs": [
+    { "name": "type", "type": { "base": "any" }},
+    { "name": "cleanup_code", "type": { "base": "callable" }}
+  ],
+  "outputs": [
+    { "name": "type_with_destructor", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: scope_guard
+AttributeValueConcept IDSYS-014-003Namescope_guardIntentRun cleanup code at end of scopePureNo
+Language Mappings:
+LanguageSyntaxNotesCManualC++RAII or GSL finallyRustRAII with DropZigdefer { ... }Native
+LogicNode Template:
+json{
+  "domain": "resource_management",
+  "concept": "scope_guard",
+  "intent": "Run cleanup code at end of scope",
+  "inputs": [
+    { "name": "cleanup_fn", "type": { "base": "callable" }}
+  ],
+  "outputs": [
+    { "name": "guard", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "cleanup runs at scope exit" }
+  ],
+  "side_effects": []
+}
+
+Concept: defer_statement
+AttributeValueConcept IDSYS-014-004Namedefer_statementIntentDefer execution to end of scopePureNo
+Language Mappings:
+LanguageSyntaxNotesCN/AC++Custom RAIIRustCustom RAIIZigdefer expr;Native
+LogicNode Template:
+json{
+  "domain": "resource_management",
+  "concept": "defer_statement",
+  "intent": "Defer execution to end of scope",
+  "inputs": [
+    { "name": "statement", "type": { "base": "callable" }}
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "statement executes at scope exit" }
+  ],
+  "side_effects": []
+}
+
+Concept: resource_leak_check
+AttributeValueConcept IDSYS-014-005Nameresource_leak_checkIntentDetect if resource was not properly cleaned upPureNo
+Language Mappings:
+LanguageSyntaxNotesCValgrind, sanitizersExternal toolsC++Sanitizers, static analysisRustCompile-time via DropZigRuntime safety checksDebug mode
+LogicNode Template:
+json{
+  "domain": "resource_management",
+  "concept": "resource_leak_check",
+  "intent": "Detect if resource was not properly cleaned up",
+  "inputs": [
+    { "name": "resource", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "is_leaked", "type": { "base": "boolean" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "io", "description": "May log leak warnings", "scope": "external" }
+  ]
+}
+
+Domain: SYS-015 (Bit Manipulation)
+
+Concept: bitwise_and
+AttributeValueConcept IDSYS-015-001Namebitwise_andIntentPerform bitwise AND operationPureYes
+Language Mappings:
+LanguageSyntaxNotesCa & bC++a & bRusta & bZiga & b
+LogicNode Template:
+json{
+  "domain": "bit_manipulation",
+  "concept": "bitwise_and",
+  "intent": "Perform bitwise AND operation",
+  "inputs": [
+    { "name": "left", "type": { "base": "integer" }},
+    { "name": "right", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: bitwise_or
+AttributeValueConcept IDSYS-015-002Namebitwise_orIntentPerform bitwise OR operationPureYes
+Language Mappings:
+LanguageSyntaxNotesC`ab`C++`ab`Rust`ab`Zig`ab`
+LogicNode Template:
+json{
+  "domain": "bit_manipulation",
+  "concept": "bitwise_or",
+  "intent": "Perform bitwise OR operation",
+  "inputs": [
+    { "name": "left", "type": { "base": "integer" }},
+    { "name": "right", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: bitwise_xor
+AttributeValueConcept IDSYS-015-003Namebitwise_xorIntentPerform bitwise XOR operationPureYes
+Language Mappings:
+LanguageSyntaxNotesCa ^ bC++a ^ bRusta ^ bZiga ^ b
+LogicNode Template:
+json{
+  "domain": "bit_manipulation",
+  "concept": "bitwise_xor",
+  "intent": "Perform bitwise XOR operation",
+  "inputs": [
+    { "name": "left", "type": { "base": "integer" }},
+    { "name": "right", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: bitwise_not
+AttributeValueConcept IDSYS-015-004Namebitwise_notIntentPerform bitwise NOT (complement)PureYes
+Language Mappings:
+LanguageSyntaxNotesC~aC++~aRust!aZig~a
+LogicNode Template:
+json{
+  "domain": "bit_manipulation",
+  "concept": "bitwise_not",
+  "intent": "Perform bitwise NOT (complement)",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: left_shift
+AttributeValueConcept IDSYS-015-005Nameleft_shiftIntentShift bits leftPureYes
+Language Mappings:
+LanguageSyntaxNotesCvalue << shiftUB if shift >= widthC++value << shiftUB if shift >= widthRustvalue << shiftPanics in debug if overflowZigvalue << shiftDefined behavior
+LogicNode Template:
+json{
+  "domain": "bit_manipulation",
+  "concept": "left_shift",
+  "intent": "Shift bits left",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }},
+    { "name": "shift", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "integer" }}
+  ],
+  "preconditions": [
+    { "type": "range", "expression": "shift >= 0 AND shift < bit_width" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: right_shift
+AttributeValueConcept IDSYS-015-006Nameright_shiftIntentShift bits rightPureYes
+Language Mappings:
+LanguageSyntaxNotesCvalue >> shiftArithmetic or logical depends on signednessC++value >> shiftRustvalue >> shiftPanics in debug if overflowZigvalue >> shiftExplicit arithmetic vs logical
+LogicNode Template:
+json{
+  "domain": "bit_manipulation",
+  "concept": "right_shift",
+  "intent": "Shift bits right",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }},
+    { "name": "shift", "type": { "base": "integer" }},
+    { "name": "arithmetic", "type": { "base": "boolean" }, "default": true }
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "integer" }}
+  ],
+  "preconditions": [
+    { "type": "range", "expression": "shift >= 0 AND shift < bit_width" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+
+Concept: bit_mask_create
+AttributeValueConcept IDSYS-015-007Namebit_mask_createIntentCreate bitmask with specific bits setPureYes
+Language Mappings:
+LanguageSyntaxNotesC(1u << n) - 1 or explicitC++(1u << n) - 1 or bitsetRust(1 << n) - 1Zigstd.math.maxInt(T) >> (bits - n)
+LogicNode Template:
+json{
+  "domain": "bit_manipulation",
+  "concept": "bit_mask_create",
+  "intent": "Create bitmask with specific bits set",
+  "inputs": [
+    { "name": "num_bits", "type": { "base": "integer" }},
+    { "name": "offsetContinueJan 29", "type": { "base": "integer" }, "default": 0 }
+],
+"outputs": [
+{ "name": "mask", "type": { "base": "integer" }}
+],
+"preconditions": [],
+"postconditions": [],
+"side_effects": []
+}
+
+---
+
+**Concept: bit_test**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-015-008 |
+| Name | bit_test |
+| Intent | Check if specific bit is set |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `(value & (1 << n)) != 0` | |
+| C++ | `(value & (1 << n)) != 0` or bitset | |
+| Rust | `(value & (1 << n)) != 0` | |
+| Zig | `(value & (1 << n)) != 0` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "bit_manipulation",
+  "concept": "bit_test",
+  "intent": "Check if specific bit is set",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }},
+    { "name": "bit_position", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "is_set", "type": { "base": "boolean" }}
+  ],
+  "preconditions": [
+    { "type": "range", "expression": "bit_position >= 0 AND bit_position < bit_width" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: bit_set**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-015-009 |
+| Name | bit_set |
+| Intent | Set specific bit to 1 |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `value |= (1 << n)` | |
+| C++ | `value |= (1 << n)` | |
+| Rust | `value |= 1 << n` | |
+| Zig | `value |= (1 << n)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "bit_manipulation",
+  "concept": "bit_set",
+  "intent": "Set specific bit to 1",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }},
+    { "name": "bit_position", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "integer" }}
+  ],
+  "preconditions": [
+    { "type": "range", "expression": "bit_position >= 0 AND bit_position < bit_width" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: bit_clear**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-015-010 |
+| Name | bit_clear |
+| Intent | Clear specific bit to 0 |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `value &= ~(1 << n)` | |
+| C++ | `value &= ~(1 << n)` | |
+| Rust | `value &= !(1 << n)` | |
+| Zig | `value &= ~(1 << n)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "bit_manipulation",
+  "concept": "bit_clear",
+  "intent": "Clear specific bit to 0",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }},
+    { "name": "bit_position", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "integer" }}
+  ],
+  "preconditions": [
+    { "type": "range", "expression": "bit_position >= 0 AND bit_position < bit_width" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: count_ones**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-015-011 |
+| Name | count_ones |
+| Intent | Count number of 1 bits (population count) |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `__builtin_popcount()` (GCC/Clang) | |
+| C++ | `std::popcount()` (C++20) | |
+| Rust | `.count_ones()` | |
+| Zig | `@popCount(value)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "bit_manipulation",
+  "concept": "count_ones",
+  "intent": "Count number of 1 bits (population count)",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "count", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "range", "expression": "count >= 0 AND count <= bit_width" }
+  ],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: leading_zeros**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-015-012 |
+| Name | leading_zeros |
+| Intent | Count leading zero bits |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `__builtin_clz()` (GCC/Clang) | |
+| C++ | `std::countl_zero()` (C++20) | |
+| Rust | `.leading_zeros()` | |
+| Zig | `@clz(value)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "bit_manipulation",
+  "concept": "leading_zeros",
+  "intent": "Count leading zero bits",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "count", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "range", "expression": "count >= 0 AND count <= bit_width" }
+  ],
+  "side_effects": []
+}
+```
+
+---
+
+### Domain: SYS-016 (System Calls)
+
+---
+
+**Concept: syscall_invoke**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-016-001 |
+| Name | syscall_invoke |
+| Intent | Invoke operating system syscall |
+| Pure | No |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `syscall(SYS_number, args...)` | Linux |
+| C++ | Same as C | |
+| Rust | `libc::syscall()` | |
+| Zig | `std.os.linux.syscall()` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "system_calls",
+  "concept": "syscall_invoke",
+  "intent": "Invoke operating system syscall",
+  "inputs": [
+    { "name": "syscall_number", "type": { "base": "integer" }},
+    { "name": "arguments", "type": { "base": "list" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "system_call", "description": "Invokes kernel", "scope": "external" }
+  ]
+}
+```
+
+---
+
+**Concept: process_exit**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-016-002 |
+| Name | process_exit |
+| Intent | Terminate process with exit code |
+| Pure | No |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `exit(code)` | |
+| C++ | `std::exit(code)` | |
+| Rust | `std::process::exit(code)` | |
+| Zig | `std.os.exit(code)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "system_calls",
+  "concept": "process_exit",
+  "intent": "Terminate process with exit code",
+  "inputs": [
+    { "name": "exit_code", "type": { "base": "integer" }}
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "system_call", "description": "Terminates process", "scope": "global" }
+  ]
+}
+```
+
+---
+
+**Concept: signal_handler_register**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-016-003 |
+| Name | signal_handler_register |
+| Intent | Register handler for OS signal |
+| Pure | No |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `signal()` or `sigaction()` | POSIX |
+| C++ | Same as C | |
+| Rust | `signal_hook` crate | |
+| Zig | `std.os.sigaction()` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "system_calls",
+  "concept": "signal_handler_register",
+  "intent": "Register handler for OS signal",
+  "inputs": [
+    { "name": "signal_number", "type": { "base": "integer" }},
+    { "name": "handler", "type": { "base": "callable" }}
+  ],
+  "outputs": [],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "system_call", "description": "Registers signal handler", "scope": "global" }
+  ]
+}
+```
+
+---
+
+**Concept: memory_map**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-016-004 |
+| Name | memory_map |
+| Intent | Map file or device into memory |
+| Pure | No |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `mmap()` | POSIX |
+| C++ | Same as C | |
+| Rust | `memmap2` crate | |
+| Zig | `std.os.mmap()` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "system_calls",
+  "concept": "memory_map",
+  "intent": "Map file or device into memory",
+  "inputs": [
+    { "name": "file_descriptor", "type": { "base": "integer" }},
+    { "name": "size", "type": { "base": "integer" }},
+    { "name": "offset", "type": { "base": "integer" }, "default": 0 },
+    { "name": "protection", "type": { "base": "string" }}
+  ],
+  "outputs": [
+    { "name": "pointer", "type": { "base": "pointer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "system_call", "description": "Maps memory", "scope": "external" }
+  ]
+}
+```
+
+---
+
+**Concept: memory_unmap**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-016-005 |
+| Name | memory_unmap |
+| Intent | Unmap previously mapped memory |
+| Pure | No |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `munmap()` | |
+| C++ | Same as C | |
+| Rust | Drop the mapping | |
+| Zig | `std.os.munmap()` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "system_calls",
+  "concept": "memory_unmap",
+  "intent": "Unmap previously mapped memory",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer" }},
+    { "name": "size", "type": { "base": "integer" }}
+  ],
+  "outputs": [],
+  "preconditions": [
+    { "type": "predicate", "expression": "pointer was mapped" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "system_call", "description": "Unmaps memory", "scope": "external" }
+  ]
+}
+```
+
+---
+
+### Domain: SYS-017 (Alignment Control)
+
+---
+
+**Concept: align_of**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-017-001 |
+| Name | align_of |
+| Intent | Get alignment requirement of type |
+| Pure | Yes (compile-time) |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `_Alignof(T)` (C11) | |
+| C++ | `alignof(T)` | |
+| Rust | `std::mem::align_of::<T>()` | |
+| Zig | `@alignOf(T)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "alignment_control",
+  "concept": "align_of",
+  "intent": "Get alignment requirement of type",
+  "inputs": [
+    { "name": "type", "type": { "base": "any" }}
+  ],
+  "outputs": [
+    { "name": "alignment", "type": { "base": "integer" }}
+  ],
+  "preconditions": [],
+  "postconditions": [
+    { "type": "predicate", "expression": "alignment is power of 2" }
+  ],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: aligned_type_define**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-017-002 |
+| Name | aligned_type_define |
+| Intent | Define type with specific alignment |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `_Alignas(n)` or `__attribute__((aligned(n)))` | |
+| C++ | `alignas(n)` | |
+| Rust | `#[repr(align(n))]` | |
+| Zig | `align(n)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "alignment_control",
+  "concept": "aligned_type_define",
+  "intent": "Define type with specific alignment",
+  "inputs": [
+    { "name": "base_type", "type": { "base": "any" }},
+    { "name": "alignment", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "aligned_type", "type": { "base": "aligned_type" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "alignment is power of 2" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: is_aligned**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-017-003 |
+| Name | is_aligned |
+| Intent | Check if pointer is aligned |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `(uintptr_t)ptr % alignment == 0` | |
+| C++ | `std::bit_cast<uintptr_t>(ptr) % alignment == 0` | |
+| Rust | `ptr.is_aligned()` | |
+| Zig | `@rem(@intFromPtr(ptr), alignment) == 0` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "alignment_control",
+  "concept": "is_aligned",
+  "intent": "Check if pointer is aligned",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer" }},
+    { "name": "alignment", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "is_aligned", "type": { "base": "boolean" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: align_up**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-017-004 |
+| Name | align_up |
+| Intent | Round up to next aligned boundary |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `(value + (alignment - 1)) & ~(alignment - 1)` | |
+| C++ | Same | |
+| Rust | `value.next_multiple_of(alignment)` | |
+| Zig | `std.mem.alignForward(value, alignment)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "alignment_control",
+  "concept": "align_up",
+  "intent": "Round up to next aligned boundary",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }},
+    { "name": "alignment", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "aligned_value", "type": { "base": "integer" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "alignment is power of 2" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "aligned_value >= value" },
+    { "type": "aligned", "expression": "aligned_value % alignment == 0" }
+  ],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: align_down**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-017-005 |
+| Name | align_down |
+| Intent | Round down to aligned boundary |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `value & ~(alignment - 1)` | |
+| C++ | Same | |
+| Rust | Manual calculation | |
+| Zig | `std.mem.alignBackward(value, alignment)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "alignment_control",
+  "concept": "align_down",
+  "intent": "Round down to aligned boundary",
+  "inputs": [
+    { "name": "value", "type": { "base": "integer" }},
+    { "name": "alignment", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "aligned_value", "type": { "base": "integer" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "alignment is power of 2" }
+  ],
+  "postconditions": [
+    { "type": "predicate", "expression": "aligned_value <= value" },
+    { "type": "aligned", "expression": "aligned_value % alignment == 0" }
+  ],
+  "side_effects": []
+}
+```
+
+---
+
+### Domain: SYS-018 (SIMD Operations)
+
+---
+
+**Concept: simd_vector_create**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-018-001 |
+| Name | simd_vector_create |
+| Intent | Create SIMD vector from scalar values |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `__m128 _mm_set_ps()` (intrinsics) | Intel/ARM specific |
+| C++ | Same as C or `std::simd` (C++26) | |
+| Rust | `std::simd` | Nightly |
+| Zig | `@Vector(4, f32)` | Native |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "simd_operations",
+  "concept": "simd_vector_create",
+  "intent": "Create SIMD vector from scalar values",
+  "inputs": [
+    { "name": "element_type", "type": { "base": "any" }},
+    { "name": "lane_count", "type": { "base": "integer" }},
+    { "name": "values", "type": { "base": "list" }}
+  ],
+  "outputs": [
+    { "name": "vector", "type": { "base": "simd_vector" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "length(values) == lane_count" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: simd_add**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-018-002 |
+| Name | simd_add |
+| Intent | Parallel addition of SIMD vectors |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `_mm_add_ps(a, b)` | Intrinsics |
+| C++ | Same or std::simd | |
+| Rust | `a + b` on simd types | |
+| Zig | `a + b` on vector types | Native |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "simd_operations",
+  "concept": "simd_add",
+  "intent": "Parallel addition of SIMD vectors",
+  "inputs": [
+    { "name": "left", "type": { "base": "simd_vector" }},
+    { "name": "right", "type": { "base": "simd_vector" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "simd_vector" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "left and right have same dimensions" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: simd_multiply**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-018-003 |
+| Name | simd_multiply |
+| Intent | Parallel multiplication of SIMD vectors |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `_mm_mul_ps(a, b)` | |
+| C++ | Same or std::simd | |
+| Rust | `a * b` | |
+| Zig | `a * b` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "simd_operations",
+  "concept": "simd_multiply",
+  "intent": "Parallel multiplication of SIMD vectors",
+  "inputs": [
+    { "name": "left", "type": { "base": "simd_vector" }},
+    { "name": "right", "type": { "base": "simd_vector" }}
+  ],
+  "outputs": [
+    { "name": "result", "type": { "base": "simd_vector" }}
+  ],
+  "preconditions": [
+    { "type": "predicate", "expression": "left and right have same dimensions" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: simd_reduce_sum**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-018-004 |
+| Name | simd_reduce_sum |
+| Intent | Sum all lanes of SIMD vector |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | Multiple intrinsics + horizontal adds | |
+| C++ | `std::reduce()` on simd | |
+| Rust | `.reduce_sum()` | |
+| Zig | `@reduce(.Add, vector)` | Native |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "simd_operations",
+  "concept": "simd_reduce_sum",
+  "intent": "Sum all lanes of SIMD vector",
+  "inputs": [
+    { "name": "vector", "type": { "base": "simd_vector" }}
+  ],
+  "outputs": [
+    { "name": "sum", "type": { "base": "any" }}
+  ],
+  "preconditions": [],
+  "postconditions": [],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: simd_load_aligned**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-018-005 |
+| Name | simd_load_aligned |
+| Intent | Load SIMD vector from aligned memory |
+| Pure | Yes |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `_mm_load_ps(ptr)` | Requires alignment |
+| C++ | Same | |
+| Rust | `Simd::from_slice()` with aligned ptr | |
+| Zig | `@load(vector_ptr)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "simd_operations",
+  "concept": "simd_load_aligned",
+  "intent": "Load SIMD vector from aligned memory",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer" }},
+    { "name": "element_type", "type": { "base": "any" }},
+    { "name": "lane_count", "type": { "base": "integer" }}
+  ],
+  "outputs": [
+    { "name": "vector", "type": { "base": "simd_vector" }}
+  ],
+  "preconditions": [
+    { "type": "aligned", "expression": "pointer is properly aligned for SIMD" }
+  ],
+  "postconditions": [],
+  "side_effects": []
+}
+```
+
+---
+
+**Concept: simd_store_aligned**
+
+| Attribute | Value |
+|-----------|-------|
+| Concept ID | SYS-018-006 |
+| Name | simd_store_aligned |
+| Intent | Store SIMD vector to aligned memory |
+| Pure | No |
+
+**Language Mappings:**
+
+| Language | Syntax | Notes |
+|----------|--------|-------|
+| C | `_mm_store_ps(ptr, vec)` | |
+| C++ | Same | |
+| Rust | `vector.copy_to_slice()` | |
+| Zig | `@store(vector_ptr, vector)` | |
+
+**LogicNode Template:**
+```json
+{
+  "domain": "simd_operations",
+  "concept": "simd_store_aligned",
+  "intent": "Store SIMD vector to aligned memory",
+  "inputs": [
+    { "name": "pointer", "type": { "base": "pointer" }},
+    { "name": "vector", "type": { "base": "simd_vector" }}
+  ],
+  "outputs": [],
+  "preconditions": [
+    { "type": "aligned", "expression": "pointer is properly aligned for SIMD" }
+  ],
+  "postconditions": [],
+  "side_effects": [
+    { "type": "mutation", "description": "Writes to memory", "scope": "local" }
+  ]
+}
+```
+
+---
+
+## Pod B Complete Summary
+
+| Domain | Concepts |
+|--------|----------|
+| SYS-001 Memory Management | allocate_heap, deallocate_heap, reallocate, arena_allocate, arena_reset, pool_allocate, pool_deallocate, stack_allocate |
+| SYS-002 Pointer Operations | dereference, address_of, pointer_arithmetic, pointer_cast, null_check, pointer_compare |
+| SYS-003 Ownership Semantics | move_value, copy_value, borrow_immutable, borrow_mutable, lifetime_annotation, drop_value |
+| SYS-004 Stack Operations | stack_frame, local_variable, stack_array, return_value |
+| SYS-005 Heap Operations | heap_fragmentation_check, custom_allocator_create, allocator_statistics, aligned_allocate, memory_pressure_check, memory_advise |
+| SYS-006 Concurrency Primitives | thread_create, thread_join, mutex_create, mutex_lock, mutex_unlock, atomic_load, atomic_store, atomic_compare_exchange, atomic_fetch_add, condition_variable_create, condition_variable_wait, condition_variable_notify, memory_fence |
+| SYS-007 Low-Level Types | bitfield_define, packed_struct_define, union_define, union_access, byte_array, endianness_swap, endianness_check |
+| SYS-008 Compilation Control | inline_function, const_expression, comptime_conditional, attribute_add, noinline_function, cold_function |
+| SYS-009 FFI Interop | extern_function, call_extern, dynamic_library_load, dynamic_symbol_lookup, c_string_convert |
+| SYS-010 Unsafe Operations | unsafe_block, transmute, raw_pointer_from_ref, uninitialized_value, assume_init |
+| SYS-011 Zero-Cost Abstractions | generic_function, monomorphization, trait_define, trait_implement, static_dispatch, dynamic_dispatch |
+| SYS-012 Hardware Access | volatile_read, volatile_write, memory_mapped_io, port_io_read, port_io_write |
+| SYS-013 Error Propagation | result_type, result_ok, result_err, result_unwrap, result_propagate, panic |
+| SYS-014 Resource Management | raii_object, destructor_define, scope_guard, defer_statement, resource_leak_check |
+| SYS-015 Bit Manipulation | bitwise_and, bitwise_or, bitwise_xor, bitwise_not, left_shift, right_shift, bit_mask_create, bit_test, bit_set, bit_clear, count_ones, leading_zeros |
+| SYS-016 System Calls | syscall_invoke, process_exit, signal_handler_register, memory_map, memory_unmap |
+| SYS-017 Alignment Control | align_of, aligned_type_define, is_aligned, align_up, align_down |
+| SYS-018 SIMD Operations | simd_vector_create, simd_add, simd_multiply, simd_reduce_sum, simd_load_aligned, simd_store_aligned |
+
+**Total Pod B Concepts: 112**
+
+---
+
+## Pod B Complete
+
+Pod B (Systems Pod) is now fully specified with all 18 domains and 112 concepts covering C, C++, Rust, and Zig.
+
+Ready to proceed to **Pod C (Enterprise: Java, C#, Go, Swift)** or move to **Step 2: Protocol Definitions**?

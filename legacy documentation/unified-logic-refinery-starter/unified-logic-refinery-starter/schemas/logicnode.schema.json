@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "logicnode.schema.json",
+  "title": "LogicNode",
+  "type": "object",
+  "required": [
+    "node_id",
+    "cmd",
+    "payload",
+    "priority",
+    "intent",
+    "types",
+    "provenance"
+  ],
+  "properties": {
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cmd": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "LOW",
+        "NORMAL",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    "intent": {
+      "type": "string"
+    },
+    "types": {
+      "type": "object",
+      "required": [
+        "in",
+        "out"
+      ],
+      "properties": {
+        "in": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "out": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "source_ref",
+        "snippet_hash",
+        "miner_agent",
+        "timestamp"
+      ],
+      "properties": {
+        "source_ref": {
+          "type": "string"
+        },
+        "snippet_hash": {
+          "type": "string"
+        },
+        "miner_agent": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

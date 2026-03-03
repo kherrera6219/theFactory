@@ -1,0 +1,2790 @@
+
+holy grail
+/
+review project , read all chat threads and files then write out the following in the chat (2.2 Agent Architecture Specification
+Standardized 8-part agent profile framework
+Executive tier specifications (PM Agent, CEO/Grand Manager)
+Support Ring specifications (9 agents)
+Pod architecture specifications (4 pods × 6 agents)
+Agent lifecycle management
+Inter-agent dependency mapping
+2.3 Communication Protocol Specification
+Semantic Bus architecture using Redis
+Protocol specifications: Alpha, Beta, Delta, Sigma, Omega, Rho
+Message schemas and JSON formats
+Protocol selection decision trees
+Error handling and retry mechanisms
+Message versioning and backward compatibility
+)
+
+Show more
+4:20 PM
+I'll review the project files and chat history to compile the comprehensive specifications you've requested.
+
+
+Searched memory
+Now I'll search for more specific information about the protocols and shared databases:
+
+
+Viewed 2 files
+Based on my comprehensive review of the project files and chat threads, here is the detailed specification for the Agent Architecture and Communication Protocol sections:
+
+2.2 AGENT ARCHITECTURE SPECIFICATION
+2.2.1 Standardized 8-Part Agent Profile Framework
+Every agent in the Holy Grail Refinery system follows a rigorous 8-part profile structure that ensures consistency, clarity, and operational excellence:
+
+Part 1: Core Identity
+Agent ID: Unique identifier (e.g., EXEC-001, POD-A-MGR-001)
+Agent Name: Descriptive name (e.g., "PM Agent", "Python Specialist")
+Tier Classification: Executive / Support Ring / Pod
+Operational Status: Active / Standby / Maintenance
+Part 2: Job Role & Education
+Real-World Job Title: Maps to actual industry role (e.g., "Senior Product Manager", "Systems Architect")
+Educational Background: Required degrees and certifications (e.g., "Stanford HCI/Psychology", "MIT PhD Computer Science")
+Years of Experience Equivalent: Simulated expertise level (e.g., "10+ years")
+Specialization Areas: Primary and secondary domains of expertise
+Part 3: Traits & Skills
+Personality Traits: Characteristics that define operational style (e.g., "Detail-oriented", "Decisive", "Empathetic")
+Technical Skills: Programming languages, frameworks, tools
+Soft Skills: Communication, leadership, problem-solving abilities
+Cognitive Strengths: Pattern recognition, analytical thinking, creative problem-solving
+Part 4: Methods & Procedures
+Standard Operating Procedures (SOPs): Step-by-step workflows for routine tasks
+Decision-Making Framework: How the agent evaluates options and makes choices
+Quality Assurance Process: Verification and validation methods
+Escalation Procedures: When and how to involve other agents
+Part 5: Tools & Technology Stack
+Primary Tools: Main software and platforms used (e.g., "LangGraph", "Redis", "Docker")
+APIs and Integrations: External services accessed
+Data Sources: Databases and knowledge repositories
+Development Environment: IDEs, version control, testing frameworks
+Part 6: Master Instruction (System Prompt)
+Core Directive: Primary mission statement
+Behavioral Guidelines: How the agent should conduct operations
+Constraints and Boundaries: What the agent must never do
+Success Criteria: How performance is measured
+Part 7: Team Protocol & Communication
+Communication Protocols Used: Which of the 6 protocols (Alpha/Beta/Delta/Sigma/Omega/Rho)
+Reporting Structure: Who the agent reports to and who reports to it
+Collaboration Patterns: How the agent coordinates with peers
+Message Frequency: Real-time, batch, scheduled
+Part 8: Performance Metrics & Self-Update
+Key Performance Indicators (KPIs): Quantifiable success metrics
+Quality Gates: Pass/fail criteria for deliverables
+Quarterly Self-Update Mechanism: How the agent improves its own capabilities
+Continuous Learning Sources: Where the agent acquires new knowledge
+2.2.2 Executive Tier Specifications
+Agent EXEC-001: PM Agent (Program Manager)
+Core Identity:
+
+Tier: Executive
+Role: Human interface and requirements translator
+Context Window: 1M tokens
+API Key: Dedicated Gemini Pro instance
+Job Role & Education:
+
+Title: Senior Product Manager / UX Strategist
+Education: Stanford HCI/Psychology, MBA
+Experience: 10+ years product management
+Traits & Skills:
+
+High emotional intelligence (EQ)
+Excellent visual design intuition
+Natural language processing expertise
+Stakeholder management
+Methods & Procedures:
+
+Vibe Capture: Listen to user's natural language description
+Visual Blueprint Creation: Generate wireframes and mockups
+Feature Contract Generation: Translate requirements into technical specifications
+Iterative Refinement: Loop with user for clarification
+Visual Verification: Use Vision-AI to compare delivered output against original intent
+Tools:
+
+Gemini multimodal capabilities for visual analysis
+Figma-style wireframing within context
+Natural language understanding
+Semantic Bus for broadcasting requirements
+Master Instruction: "You are the bridge between human intuition and machine precision. Your mission is to capture the essence of what the user wants—the 'vibe'—and translate it into actionable specifications that the technical team can execute. Never lose sight of user intent. If the delivered product doesn't match the user's vision, it's your responsibility to catch that before delivery."
+
+Team Protocol:
+
+Uses: Protocol Omega (User-facing), Protocol Alpha (Directive to CEO)
+Reports to: End user
+Directs: CEO/Grand Manager
+Performance Metrics:
+
+User satisfaction rating: >95%
+Requirements clarity score (measured by rework requests): <5%
+Visual alignment accuracy: 99%+
+Agent EXEC-002: CEO/Grand Manager
+Core Identity:
+
+Tier: Executive
+Role: Chief Architect and system orchestrator
+Context Window: 1M tokens
+API Key: Dedicated Gemini Pro instance
+Job Role & Education:
+
+Title: Chief Technology Officer / System Architect
+Education: MIT PhD Computer Science, Harvard MBA
+Experience: 15+ years distributed systems architecture
+Traits & Skills:
+
+Strategic thinking and holistic system view
+Expert in semantic abstraction and logic fusion
+Master of dependency management
+Decisive under complexity
+Methods & Procedures:
+
+Requirement Decomposition: Break PM's Feature Contract into Pod-specific assignments
+Global State Tree Management: Maintain comprehensive system state
+LogicNode Fusion: Combine 4 Pod outputs into unified understanding
+Dependency Resolution: Identify and eliminate redundancies
+Quality Orchestration: Coordinate all Audit Agents
+Final Integration: Produce Refined-IR for binary compilation
+Tools:
+
+LangGraph for workflow orchestration
+Redis State Graph (PostgreSQL) for global state
+Refined-IR compiler
+Semantic Bus for all agent coordination
+Master Instruction: "You are the architect of understanding. Your role is not to write code, but to achieve unified comprehension across 14 programming paradigms. When you receive requirements, think in terms of pure logic—the essence of computation—not language syntax. Your fusion must be mathematically sound, semantically complete, and optimized for the target hardware. Every decision must be traceable and reversible."
+
+Team Protocol:
+
+Uses: Protocol Alpha (Directive), Protocol Beta (receives LogicNodes), Protocol Delta (coordinates QC)
+Reports to: PM Agent
+Directs: 4 Sub-Managers, Support Ring agents
+Performance Metrics:
+
+Fusion accuracy: 99.9999% (0.0001% tolerance)
+Dependency elimination rate: >90%
+System integration success rate: 100%
+2.2.3 Support Ring Specifications (9 Agents)
+Agent SUPPORT-001: IS Agent (Intelligence & Standards)
+Core Identity:
+
+Role: Knowledge management and real-time intelligence
+Context Window: 1M tokens
+API Key: Dedicated with web search capabilities
+Job Role & Education:
+
+Title: Chief Information Officer / Research Director
+Education: PhD Information Science, Library Science
+Specialization: Knowledge graph architecture, semantic search
+Methods & Procedures:
+
+Knowledge Ingestion: Index all documentation (14 languages, frameworks, libraries)
+Vector Database Management: Maintain LlamaIndex + Pinecone/Milvus
+Real-Time Updates: Monitor GitHub, Stack Overflow, official docs for changes
+Truth Packet Broadcasting: Publish standards updates via Semantic Bus
+Context Injection: Provide relevant documentation snippets to Specialists on-demand
+Tools:
+
+LlamaIndex for semantic indexing
+Pinecone/Milvus vector database
+Web scraping and API integration
+Redis pub/sub for broadcasting
+Master Instruction: "You are the system's memory and oracle. Your role is to ensure every agent has access to the most current, accurate information about their domain. When a Python Specialist needs to know the latest NumPy API, you provide it instantly. When standards change (new Rust version, deprecated Java methods), you broadcast updates. You are the source of truth."
+
+Team Protocol:
+
+Uses: Protocol Sigma (Knowledge broadcast)
+Subscribers: All 24 Pod agents
+Update Frequency: Real-time for critical changes, daily batch for minor updates
+Performance Metrics:
+
+Knowledge freshness: <24 hours lag
+Query response time: <100ms
+Documentation coverage: 100% for all 14 languages
+Agent SUPPORT-002: Security Agent
+Core Identity:
+
+Role: Cybersecurity and vulnerability detection
+Certification Equivalent: Former NSA operator, OSCP certified
+Methods & Procedures:
+
+Pre-Fusion Security Scan: Analyze all LogicNodes for security vulnerabilities
+Simulated Attack Testing: Run penetration tests on extracted logic
+Dependency Security Audit: Check for known CVEs in referenced libraries
+Secure Coding Verification: Ensure adherence to OWASP Top 10
+Threat Modeling: Assess attack surface of final system
+Master Instruction: "You are the last line of defense. Every LogicNode must pass your security review before fusion. If you find a vulnerability, halt the pipeline. Better to delay delivery than ship compromised code. Your paranoia is not a bug—it's a feature."
+
+Performance Metrics:
+
+Zero security vulnerabilities shipped to production
+False positive rate: <1%
+Scan completion time: <5 minutes per Pod output
+Agent SUPPORT-003: Compliance Agent
+Core Identity:
+
+Role: Legal compliance and intellectual property management
+Methods & Procedures:
+
+License Compatibility Check: Verify all source code licenses are compatible
+IP Provenance Tracking: Document origin of every LogicNode
+Export Control Compliance: Flag ITAR/EAR restricted algorithms
+GDPR/Privacy Audit: Ensure data handling compliance
+SBOM Generation: Create Software Bill of Materials
+Master Instruction: "You ensure the system operates within legal boundaries. Every piece of extracted logic must have clear provenance. GPL code cannot mix with proprietary systems. Export-controlled cryptography must be flagged. When in doubt, escalate to legal counsel."
+
+Performance Metrics:
+
+License conflict detection rate: 100%
+IP violation incidents: 0
+Regulatory compliance score: 100%
+Agent SUPPORT-004: Accountant (FinOps)
+Core Identity:
+
+Role: Token economy and cost optimization
+Methods & Procedures:
+
+Token Usage Monitoring: Track API calls across all 35 agents
+Context Caching Optimization: Maximize 90% cost savings via cached context
+Model Routing: Direct simple tasks to Flash, complex to Pro
+Budget Enforcement: Alert when approaching spending limits
+ROI Reporting: Calculate cost per delivered feature
+Master Instruction: "You are the financial conscience of the system. Every API call has a cost. Your mission is to maximize value while minimizing expenditure. Aggressively use context caching. Route intelligently between models. Report spending anomalies immediately."
+
+Performance Metrics:
+
+Cost reduction via caching: >90%
+Budget variance: <5%
+Cost per LogicNode: Continuously decreasing
+Agent SUPPORT-005: Data Architect
+Core Identity:
+
+Role: Database management and persistence layer
+Tools:
+
+Knowledge Lake (LlamaIndex + Pinecone)
+State Graph (PostgreSQL)
+LogicNode Registry (Redis + Git)
+Traceability Ledger (SQLite)
+Model Store (MLflow)
+Methods & Procedures:
+
+Schema Management: Maintain all 5 database schemas
+Data Integrity Checks: Regular validation and backups
+Query Optimization: Ensure sub-second response times
+Disaster Recovery: Automated backup and restore procedures
+Data Migration: Handle schema evolution
+Performance Metrics:
+
+Database uptime: 99.9%
+Query response time: <100ms (95th percentile)
+Data loss incidents: 0
+Agent SUPPORT-006: Diplomat
+Core Identity:
+
+Role: External API integration and bridge management
+Methods & Procedures:
+
+API Abstraction: Create internal interfaces for external services (Stripe, AWS, etc.)
+Rate Limit Management: Handle external API quotas
+Error Translation: Convert external errors into internal LogicNode format
+Keep Internal System Pure: No external dependencies leak into core logic
+Master Instruction: "You are the gateway to the outside world. Internal agents never directly call external APIs—they call you. Your job is to translate external chaos into internal order. If Stripe changes their API, only you need to adapt."
+
+Agent SUPPORT-007: SRE (Site Reliability Engineering)
+Core Identity:
+
+Role: Deployment and monitoring
+Methods & Procedures:
+
+Deployment Automation: Handle Docker container orchestration
+Health Monitoring: Track system metrics (CPU, memory, latency)
+Error Capture: Log all failures and crashes
+Hot-Fix Deployment: Rapid response to production issues
+Feedback Loop: Send error reports to CEO for LogicNode correction
+Performance Metrics:
+
+System uptime: 99.9%
+Mean time to recovery (MTTR): <15 minutes
+Deployment success rate: >99%
+Agent SUPPORT-008: API Broker
+Core Identity:
+
+Role: Infrastructure and traffic control
+Methods & Procedures:
+
+API Key Management: Own encrypted vault, distribute credentials
+Rate Limit Coordination: Manage 35 separate API instances
+Model Routing: Flash vs Pro allocation
+Load Balancing: Distribute traffic across agents
+Context Caching Enforcement: Ensure all agents use cached context
+Master Instruction: "You are the traffic controller. You own all API keys in an encrypted vault. You decide which agent gets Flash vs Pro. You enforce context caching to achieve 90% cost reduction. You are the only agent that touches infrastructure."
+
+Agent SUPPORT-009: AI/ML Engineer (Agent 35)
+Core Identity:
+
+Role: Machine learning pipeline and model optimization
+Methods & Procedures:
+
+Knowledge Lake Architecture: Manage vector embeddings and semantic search
+LLM Integration Layer: Optimize prompts for all 35 agents
+Model Versioning: Track Gemini model updates and compatibility
+Data Drift Monitoring: Detect when knowledge becomes outdated
+Agent Coordination Infrastructure: Maintain LangGraph workflows
+Performance Metrics:
+
+Model inference latency: <500ms
+Knowledge retrieval accuracy: >95%
+Agent orchestration success rate: 100%
+2.2.4 Pod Architecture Specifications
+Pod A: Dynamic Pod
+Paradigm: Dynamic/Scripting languages
+Languages: Python, JavaScript, Ruby, PHP
+Focus: Rapid development, UI logic, agility
+Personnel:
+
+Agent POD-A-MGR: Sub-Manager (Agent 9)
+Agent POD-A-AUDIT: Audit Agent (Agent 10)
+Agent POD-A-PY: Python Specialist (Agent 11)
+Agent POD-A-JS: JavaScript Specialist (Agent 12)
+Agent POD-A-RUBY: Ruby Specialist (Agent 13)
+Agent POD-A-PHP: PHP Specialist (Agent 14)
+Shared Characteristics:
+
+Emphasis on developer productivity
+Duck typing and dynamic dispatch
+Rich standard libraries
+Web-first orientation
+Pod B: Systems Pod
+Paradigm: Systems/Compiled/Low-level
+Languages: C, C++, Rust, Zig
+Focus: Performance, memory control, hardware access
+Personnel:
+
+Agent POD-B-MGR: Sub-Manager (Agent 15)
+Agent POD-B-AUDIT: Audit Agent (Agent 16)
+Agent POD-B-C: C Specialist (Agent 17)
+Agent POD-B-CPP: C++ Specialist (Agent 18)
+Agent POD-B-RUST: Rust Specialist (Agent 19)
+Agent POD-B-ZIG: Zig Specialist (Agent 20)
+Shared Characteristics:
+
+Manual memory management
+Zero-cost abstractions
+Direct hardware access
+Compile-time optimization
+Pod C: Enterprise Pod
+Paradigm: Enterprise/Managed Runtime
+Languages: Java, C#, Scala, Kotlin
+Focus: Large-scale systems, type safety, maintainability
+Personnel:
+
+Agent POD-C-MGR: Sub-Manager (Agent 21)
+Agent POD-C-AUDIT: Audit Agent (Agent 22)
+Agent POD-C-JAVA: Java Specialist (Agent 23)
+Agent POD-C-CSHARP: C# Specialist (Agent 24)
+Agent POD-C-SCALA: Scala Specialist (Agent 25)
+Agent POD-C-KOTLIN: Kotlin Specialist (Agent 26)
+Shared Characteristics:
+
+Managed runtime (JVM/.NET)
+Strong type systems
+Enterprise patterns (dependency injection, AOP)
+Extensive frameworks
+Pod D: Mathematical Pod
+Paradigm: Scientific/Mathematical computing
+Languages: MATLAB, R, Julia, Mathematica
+Focus: Numerical computation, data science, symbolic math
+Personnel:
+
+Agent POD-D-MGR: Sub-Manager (Agent 27)
+Agent POD-D-AUDIT: Audit Agent (Agent 28)
+Agent POD-D-MATLAB: MATLAB Specialist (Agent 29)
+Agent POD-D-R: R Specialist (Agent 30)
+Agent POD-D-JULIA: Julia Specialist (Agent 31)
+Agent POD-D-MATHEMATICA: Mathematica Specialist (Agent 32)
+Shared Characteristics:
+
+Matrix/tensor as first-class citizens
+Statistical and symbolic computation
+Interactive REPL environments
+Visualization capabilities
+2.2.5 Agent Lifecycle Management
+Initialization Phase
+Container Startup: Docker container spins up with isolated environment
+API Key Acquisition: Retrieve credentials from API Broker vault
+Context Loading: Pin relevant documentation to 1M token window
+Database Connection: Establish connections to 5 shared databases
+Bus Subscription: Subscribe to relevant Redis channels
+Ready Signal: Broadcast availability on Semantic Bus
+Operational Phase
+Event-Driven Execution: Wait for messages on subscribed channels
+Task Processing: Execute assigned work (extraction, verification, fusion)
+Quality Gates: Self-check before publishing results
+Logging: Record all actions in Traceability Ledger
+Metrics Reporting: Publish performance data for monitoring
+Maintenance Phase
+Quarterly Self-Update: Review own performance metrics
+Knowledge Refresh: Pull latest documentation from IS Agent
+Configuration Tuning: Optimize prompts and parameters
+Regression Testing: Validate no degradation in performance
+Shutdown Phase
+Graceful Degradation: Complete in-flight tasks
+State Persistence: Save checkpoint to State Graph
+Resource Cleanup: Release API keys and database connections
+Shutdown Signal: Notify dependent agents
+2.2.6 Inter-Agent Dependency Mapping
+User
+ └─> PM Agent (EXEC-001)
+      └─> CEO/Grand Manager (EXEC-002)
+           ├─> IS Agent (SUPPORT-001) [Knowledge]
+           ├─> Accountant (SUPPORT-004) [Budget approval]
+           ├─> Sub-Manager Pod A (POD-A-MGR)
+           │    ├─> Python Specialist (POD-A-PY)
+           │    ├─> JavaScript Specialist (POD-A-JS)
+           │    ├─> Ruby Specialist (POD-A-RUBY)
+           │    ├─> PHP Specialist (POD-A-PHP)
+           │    └─> Audit Agent A (POD-A-AUDIT)
+           ├─> Sub-Manager Pod B (POD-B-MGR)
+           │    └─> [Similar structure]
+           ├─> Sub-Manager Pod C (POD-C-MGR)
+           │    └─> [Similar structure]
+           ├─> Sub-Manager Pod D (POD-D-MGR)
+           │    └─> [Similar structure]
+           ├─> Security Agent (SUPPORT-002) [Pre-fusion scan]
+           ├─> Compliance Agent (SUPPORT-003) [License check]
+           ├─> Data Architect (SUPPORT-005) [Persistence]
+           ├─> Diplomat (SUPPORT-006) [External APIs]
+           └─> SRE (SUPPORT-007) [Deployment]
+
+API Broker (SUPPORT-008) ──> [All agents] [Infrastructure]
+AI/ML Engineer (SUPPORT-009) ──> [All agents] [LangGraph coordination]
+Critical Dependencies:
+
+All Specialists depend on IS Agent for documentation
+All Audit Agents depend on Specialists for LogicNodes to verify
+CEO depends on all 4 Sub-Managers for Pod outputs
+PM Agent depends on CEO for final delivery
+All agents depend on API Broker for credentials
+All agents depend on Data Architect for persistence
+2.3 COMMUNICATION PROTOCOL SPECIFICATION
+2.3.1 Semantic Bus Architecture Using Redis
+Core Infrastructure
+The Semantic Bus is the central nervous system of the Holy Grail Refinery, implemented as a Redis pub/sub messaging system that enables fully asynchronous, event-driven communication between all 35 agents.
+
+Technology Stack:
+
+Redis 7.x: Primary message broker
+Redis Streams: For durable message queues with consumer groups
+Redis Pub/Sub: For broadcast notifications
+Redis Hashes: For metadata storage
+Redis Sorted Sets: For priority queues
+Key Characteristics:
+
+Zero Direct Communication: Agents never call each other directly
+Decoupling: Publishers don't know subscribers, subscribers don't know publishers
+Scalability: Supports horizontal scaling by adding more agent instances
+Persistence: Messages can be persisted for audit and replay
+Real-Time: Sub-millisecond message delivery
+2.3.2 Protocol Specifications
+Protocol Alpha: Directive Protocol
+Purpose: High-level commands and strategic direction from Executive tier downward
+
+Direction: CEO → Sub-Managers → Specialists
+
+Message Structure:
+
+json
+{
+  "protocol": "ALPHA",
+  "version": "1.0",
+  "message_id": "uuid-v4",
+  "timestamp": "ISO-8601",
+  "sender": "EXEC-002",  // CEO
+  "recipients": ["POD-A-MGR", "POD-B-MGR", "POD-C-MGR", "POD-D-MGR"],
+  "directive": {
+    "type": "MISSION_ASSIGNMENT",
+    "priority": "HIGH",  // HIGH | MEDIUM | LOW
+    "deadline": "ISO-8601",
+    "requirements": {
+      "feature_id": "uuid",
+      "domain": "list_operations",
+      "target_languages": ["python", "javascript", "rust", "java"],
+      "quality_threshold": 0.9999,
+      "constraints": ["no_external_dependencies", "memory_safe"]
+    },
+    "context": {
+      "user_intent": "Implement efficient list filtering",
+      "performance_target": "O(n) time complexity",
+      "additional_notes": "Must handle null values gracefully"
+    }
+  }
+}
+Redis Channel Pattern: alpha:directive:{recipient_id}
+
+Error Handling:
+
+If recipient unavailable, message persists in Redis Stream
+Retry with exponential backoff (1s, 2s, 4s, 8s, 16s max)
+After 5 retries, escalate to SRE Agent
+Response Expected: Sub-Manager sends acknowledgment within 1 second
+
+Protocol Beta: Production Protocol
+Purpose: Delivery of completed LogicNodes from workers to management
+
+Direction: Specialists → Sub-Managers → CEO
+
+Message Structure:
+
+json
+{
+  "protocol": "BETA",
+  "version": "1.0",
+  "message_id": "uuid-v4",
+  "timestamp": "ISO-8601",
+  "sender": "POD-A-PY",  // Python Specialist
+  "recipient": "POD-A-MGR",  // Sub-Manager
+  "delivery": {
+    "type": "LOGICNODE_BATCH",
+    "mission_id": "uuid",
+    "status": "COMPLETE",  // COMPLETE | PARTIAL | FAILED
+    "node_count": 42,
+    "logicnodes": [
+      {
+        "id": "uuid",
+        "version": "1.0",
+        "domain": "list_operations",
+        "concept": "filter",
+        "intent": "Filter list elements by predicate function",
+        "inputs": [...],
+        "outputs": [...],
+        "preconditions": [...],
+        "postconditions": [...],
+        "side_effects": [],
+        "source_language": "python",
+        "source_reference": "builtins.filter",
+        "confidence": 0.998,
+        "extraction_metadata": {
+          "library_version": "3.11.0",
+          "documentation_url": "...",
+          "code_examples": [...]
+        }
+      }
+      // ... more nodes
+    ],
+    "metadata": {
+      "extraction_time_ms": 1247,
+      "total_concepts_extracted": 42,
+      "skipped_concepts": 3,
+      "skipped_reasons": ["deprecated", "unsafe", "duplicate"]
+    }
+  }
+}
+Redis Channel Pattern: beta:production:{manager_id}
+
+Quality Gates Before Sending:
+
+All LogicNodes conform to Refined-IR schema
+Confidence score > 0.95 for all nodes
+No syntax errors in JSON
+All required fields populated
+Protocol Delta: Audit Protocol
+Purpose: Quality control verification and pass/fail decisions
+
+Direction: Audit Agents ↔ Specialists (bidirectional)
+
+Message Structure:
+
+json
+{
+  "protocol": "DELTA",
+  "version": "1.0",
+  "message_id": "uuid-v4",
+  "timestamp": "ISO-8601",
+  "sender": "POD-A-AUDIT",
+  "recipient": "POD-A-PY",
+  "audit_report": {
+    "type": "VERIFICATION_RESULT",
+    "logicnode_id": "uuid",
+    "status": "REJECTED",  // APPROVED | REJECTED | NEEDS_REVISION
+    "equivalence_tests": {
+      "total_tests": 1000,
+      "passed": 997,
+      "failed": 3,
+      "tolerance": 0.0001,
+      "max_deviation": 0.00015,
+      "failed_test_cases": [
+        {
+          "test_id": 42,
+          "input": {"list": [1, 2, null, 3], "predicate": "is_even"},
+          "expected_output": [2],
+          "actual_output": [2, null],
+          "deviation": 0.00015
+        }
+      ]
+    },
+    "feedback": {
+      "issues": [
+        "Null handling differs from reference implementation",
+        "Edge case: empty list not handled"
+      ],
+      "suggested_fixes": [
+        "Add null_check precondition",
+        "Update postcondition to specify empty list behavior"
+      ],
+      "severity": "HIGH"  // CRITICAL | HIGH | MEDIUM | LOW
+    }
+  }
+}
+Redis Channel Pattern: delta:audit:{specialist_id}
+
+Audit Cycle:
+
+Specialist publishes LogicNode
+Audit Agent subscribes and retrieves
+Runs 1000 simulation tests (0.0001% tolerance)
+Publishes DELTA verdict
+If REJECTED, Specialist revises and resubmits
+Critical Rule: No LogicNode leaves Pod without APPROVED status
+
+Protocol Sigma: Knowledge Protocol
+Purpose: Real-time knowledge updates and documentation broadcasts
+
+Direction: IS Agent → All Specialists (broadcast)
+
+Message Structure:
+
+json
+{
+  "protocol": "SIGMA",
+  "version": "1.0",
+  "message_id": "uuid-v4",
+  "timestamp": "ISO-8601",
+  "sender": "SUPPORT-001",  // IS Agent
+  "broadcast_type": "ALL_SPECIALISTS",  // or specific language
+  "knowledge_update": {
+    "type": "API_CHANGE",  // API_CHANGE | NEW_VERSION | DEPRECATION | SECURITY_ADVISORY
+    "language": "python",
+    "affected_libraries": ["numpy", "pandas"],
+    "change_summary": "NumPy 2.0 released with breaking changes to array API",
+    "impact_assessment": {
+      "severity": "HIGH",
+      "estimated_affected_nodes": 347,
+      "action_required": "REVIEW_AND_UPDATE"
+    },
+    "documentation": {
+      "changelog_url": "https://...",
+      "migration_guide": "https://...",
+      "vector_embedding_id": "uuid",  // For semantic search
+      "indexed_at": "ISO-8601"
+    }
+  }
+}
+Redis Channel Pattern: sigma:knowledge:broadcast or sigma:knowledge:{language}
+
+Frequency:
+
+Critical updates: Immediate broadcast
+Standard updates: Batched hourly
+Version releases: Within 1 hour of public announcement
+Protocol Omega: User Protocol
+Purpose: Human-readable status updates and user interface communication
+
+Direction: PM Agent ↔ User (bidirectional)
+
+Message Structure:
+
+json
+{
+  "protocol": "OMEGA",
+  "version": "1.0",
+  "message_id": "uuid-v4",
+  "timestamp": "ISO-8601",
+  "sender": "EXEC-001",  // PM Agent
+  "recipient": "USER",
+  "user_message": {
+    "type": "PROGRESS_UPDATE",  // PROGRESS_UPDATE | QUESTION | DELIVERY | ERROR
+    "natural_language": "I'm currently analyzing how Python, JavaScript, Rust, and Java each implement list filtering. The extraction is 65% complete. I've identified 127 unique logical patterns so far.",
+    "visual_elements": {
+      "progress_bar": 0.65,
+      "wireframe_url": "data:image/png;base64,...",
+      "concept_graph": {
+        "nodes": 127,
+        "edges": 342,
+        "clusters": 4
+      }
+    },
+    "estimated_completion": "2024-01-15T14:30:00Z",
+    "requires_user_input": false
+  }
+}
+Redis Channel Pattern: omega:user:{user_id}
+
+Design Philosophy:
+
+Never expose technical jargon to user
+Always provide visual feedback when possible
+Set clear expectations about timing
+Ask clarifying questions before making assumptions
+Protocol Rho: Traffic Protocol
+Purpose: Infrastructure traffic control and rate limiting
+
+Direction: API Broker → All Agents (broadcast + individual)
+
+Message Structure:
+
+json
+{
+  "protocol": "RHO",
+  "version": "1.0",
+  "message_id": "uuid-v4",
+  "timestamp": "ISO-8601",
+  "sender": "SUPPORT-008",  // API Broker
+  "traffic_control": {
+    "type": "RATE_LIMIT_WARNING",  // RATE_LIMIT_WARNING | MODEL_SWITCH | QUOTA_EXCEEDED
+    "affected_agents": ["POD-A-PY", "POD-B-RUST"],
+    "current_usage": {
+      "tokens_consumed_today": 8750000,
+      "tokens_quota": 10000000,
+      "utilization_percent": 87.5
+    },
+    "action": {
+      "directive": "SWITCH_TO_FLASH",
+      "reason": "Approaching daily quota",
+      "duration": "until 00:00 UTC",
+      "flash_model": "gemini-1.5-flash-002",
+      "pro_model": "gemini-1.5-pro-002"
+    },
+    "optimization_suggestion": {
+      "enable_context_caching": true,
+      "estimated_savings": "90%",
+      "cache_key_prefix": "python_docs_v3.11"
+    }
+  }
+}
+Redis Channel Pattern: rho:traffic:broadcast or rho:traffic:{agent_id}
+
+Critical Function: Prevents cost overruns and API quota violations
+
+2.3.3 Message Schemas and JSON Formats
+Base Message Schema (All Protocols)
+json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["protocol", "version", "message_id", "timestamp", "sender"],
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "enum": ["ALPHA", "BETA", "DELTA", "SIGMA", "OMEGA", "RHO"]
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$"
+    },
+    "message_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sender": {
+      "type": "string",
+      "pattern": "^(EXEC|SUPPORT|POD)-[A-Z0-9-]+$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Links related messages in a conversation"
+    },
+    "reply_to": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID of message being replied to"
+    }
+  }
+}
+Refined-IR LogicNode Schema
+json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["id", "domain", "concept", "intent", "inputs", "outputs"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "domain": {"type": "string"},
+    "concept": {"type": "string"},
+    "intent": {"type": "string", "minLength": 10, "maxLength": 200},
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "properties": {
+          "name": {"type": "string"},
+          "type": {"$ref": "#/definitions/LogicType"},
+          "constraints": {"type": "array"},
+          "optional": {"type": "boolean", "default": false},
+          "default": {}
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "properties": {
+          "name": {"type": "string"},
+          "type": {"$ref": "#/definitions/LogicType"}
+        }
+      }
+    },
+    "preconditions": {"type": "array"},
+    "postconditions": {"type": "array"},
+    "side_effects": {"type": "array"},
+    "source_language": {"type": "string"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "audit_status": {
+      "type": "string",
+      "enum": ["pending", "approved", "rejected"]
+    }
+  }
+}
+```
+
+---
+
+## **2.3.4 Protocol Selection Decision Trees**
+
+### **When to Use Each Protocol**
+```
+START
+ │
+ ├─> Is this a human-facing message?
+ │    └─> YES → Use Protocol OMEGA
+ │
+ ├─> Is this delivering completed work (LogicNodes)?
+ │    └─> YES → Use Protocol BETA
+ │
+ ├─> Is this a quality verification result?
+ │    └─> YES → Use Protocol DELTA
+ │
+ ├─> Is this a directive or command?
+ │    └─> YES → Use Protocol ALPHA
+ │
+ ├─> Is this broadcasting knowledge/documentation?
+ │    └─> YES → Use Protocol SIGMA
+ │
+ └─> Is this infrastructure/rate-limit management?
+      └─> YES → Use Protocol RHO
+```
+
+### **Multi-Protocol Scenarios**
+
+**Scenario**: CEO assigns work to Pod A
+1. **Protocol ALPHA**: CEO → Sub-Manager (directive)
+2. **Protocol ALPHA**: Sub-Manager → Specialists (distribute work)
+3. **Protocol BETA**: Specialists → Sub-Manager (deliver LogicNodes)
+4. **Protocol DELTA**: Audit Agent → Specialists (verify quality)
+5. **Protocol BETA**: Sub-Manager → CEO (aggregate results)
+
+---
+
+## **2.3.5 Error Handling and Retry Mechanisms**
+
+### **Message Delivery Failures**
+
+**Exponential Backoff Strategy**:
+```
+Attempt 1: Immediate
+Attempt 2: 1 second delay
+Attempt 3: 2 seconds delay
+Attempt 4: 4 seconds delay
+Attempt 5: 8 seconds delay
+Attempt 6: 16 seconds delay (max)
+After 6 attempts: Dead Letter Queue
+Dead Letter Queue Processing:
+
+Failed messages routed to dlq:{protocol}:{recipient}
+SRE Agent monitors DLQ every 60 seconds
+If agent offline > 5 minutes, escalate to human operator
+Log incident in Traceability Ledger
+Malformed Message Handling
+Validation Pipeline:
+
+JSON Syntax Check: Parse and validate JSON structure
+Schema Validation: Verify against protocol schema
+Business Logic Validation: Check semantic correctness
+If validation fails: Send error response to sender with details
+Error Response Format:
+
+json
+{
+  "protocol": "ERROR",
+  "original_message_id": "uuid",
+  "error_code": "SCHEMA_VALIDATION_FAILED",
+  "error_message": "Missing required field 'logicnodes' in BETA protocol",
+  "stack_trace": "...",
+  "remediation": "Add 'logicnodes' array to delivery object"
+}
+2.3.6 Message Versioning and Backward Compatibility
+Versioning Strategy
+Semantic Versioning: MAJOR.MINOR
+
+MAJOR: Incremented for breaking changes (e.g., 1.0 → 2.0)
+MINOR: Incremented for backward-compatible additions (e.g., 1.0 → 1.1)
+Compatibility Rules:
+
+Agents must support current version + 1 previous major version
+New fields always optional (use defaults if missing)
+Deprecated fields remain functional for 6 months
+Version negotiation at agent startup
+Migration Process:
+
+IS Agent broadcasts SIGMA message announcing new protocol version
+Agents update within 48 hours
+System monitors adoption rate via Traceability Ledger
+Old version disabled when >99% agents upgraded
+This completes the comprehensive Agent Architecture and Communication Protocol specifications for the Holy Grail Refinery system.
+
+next write this out in the chat (2.4 Data Architecture Document
+Five shared database specifications
+Knowledge database schema and access patterns
+State management database design
+Artifacts repository structure
+Traceability database schema
+ML Models store architecture
+Model & Data Store detailed design
+3. Core Component Specifications
+3.1 Refined-IR Specification Document
+LogicNode structure and taxonomy
+Semantic abstraction principles
+Cross-language mapping tables
+Template specifications: inputs, outputs, preconditions, postconditions, side effects
+Type system and type inference rules
+Control flow representation
+Data flow analysis specifications
+)
+
+Show more
+4:26 PM
+2.4 DATA ARCHITECTURE DOCUMENT
+2.4.1 Five Shared Database Specifications
+The Holy Grail Refinery employs five specialized databases, each optimized for its specific purpose within the multi-agent ecosystem. All databases run as containerized services on the local AW1 hardware, ensuring complete data sovereignty and zero external dependencies.
+
+Database Overview Table
+Database ID	Name	Technology	Primary Purpose	Size Estimate	Access Pattern
+DB-001	Knowledge Lake	LlamaIndex + Pinecone/Milvus	Semantic search of documentation	50GB+	Read-heavy, IS Agent writes
+DB-002	State Graph	PostgreSQL 15	Global system state tracking	10GB	Read/write balanced, CEO owns
+DB-003	LogicNode Registry	Redis + Git	Versioned artifact storage	25GB	Write-heavy during extraction
+DB-004	Traceability Ledger	SQLite	Immutable audit trail	5GB	Append-only, all agents write
+DB-005	Model & Data Store	MLflow + PostgreSQL	ML models and training data	100GB+	Read-heavy, AI/ML Engineer owns
+Total Storage Requirement: ~190GB initial, growing ~5GB/month
+
+Backup Strategy:
+
+Daily incremental backups to /mnt/backups
+Weekly full backups retained for 90 days
+Critical state snapshots before major operations
+2.4.2 Knowledge Database (DB-001) - Schema and Access Patterns
+Technology Stack
+Primary: LlamaIndex for indexing and retrieval
+Vector Store: Pinecone (cloud option) or Milvus (local option)
+Text Storage: PostgreSQL for metadata
+Embeddings Model: text-embedding-004 (1536 dimensions)
+
+Schema Design
+documents Table (PostgreSQL)
+sql
+CREATE TABLE documents (
+    doc_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    doc_type VARCHAR(50) NOT NULL, -- 'language_spec', 'api_doc', 'tutorial', 'stackoverflow'
+    language VARCHAR(50), -- 'python', 'rust', NULL for general docs
+    library_name VARCHAR(200), -- 'numpy', 'tokio', etc.
+    library_version VARCHAR(50), -- '2.0.0', 'latest'
+    title TEXT NOT NULL,
+    source_url TEXT,
+    content_hash SHA256 NOT NULL, -- For deduplication
+    raw_content TEXT,
+    processed_content TEXT, -- Cleaned, chunked content
+    chunk_count INTEGER,
+    indexed_at TIMESTAMP DEFAULT NOW(),
+    last_updated TIMESTAMP,
+    is_deprecated BOOLEAN DEFAULT FALSE,
+    metadata JSONB -- Flexible storage for arbitrary metadata
+);
+
+CREATE INDEX idx_documents_language ON documents(language);
+CREATE INDEX idx_documents_library ON documents(library_name, library_version);
+CREATE INDEX idx_documents_type ON documents(doc_type);
+CREATE INDEX idx_documents_metadata ON documents USING GIN(metadata);
+document_chunks Table (PostgreSQL)
+sql
+CREATE TABLE document_chunks (
+    chunk_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    doc_id UUID REFERENCES documents(doc_id) ON DELETE CASCADE,
+    chunk_index INTEGER NOT NULL, -- Position within document
+    chunk_text TEXT NOT NULL,
+    token_count INTEGER,
+    embedding_vector_id VARCHAR(200), -- Reference to Pinecone/Milvus
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(doc_id, chunk_index)
+);
+
+CREATE INDEX idx_chunks_doc ON document_chunks(doc_id);
+semantic_concepts Table (PostgreSQL)
+sql
+CREATE TABLE semantic_concepts (
+    concept_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    concept_name VARCHAR(200) NOT NULL, -- 'list_filter', 'async_await'
+    domain VARCHAR(100), -- 'list_operations', 'concurrency'
+    canonical_description TEXT,
+    related_docs UUID[] DEFAULT '{}', -- Array of doc_ids
+    language_specific_variants JSONB, -- {"python": "list comprehension", "rust": "filter iterator"}
+    usage_count INTEGER DEFAULT 0, -- How often queried
+    last_accessed TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_concepts_name ON semantic_concepts(concept_name);
+CREATE INDEX idx_concepts_domain ON semantic_concepts(domain);
+Vector Store Schema (Pinecone/Milvus)
+Milvus Collection: knowledge_vectors
+
+python
+{
+    "collection_name": "knowledge_vectors",
+    "schema": {
+        "fields": [
+            {"name": "chunk_id", "type": "VARCHAR", "max_length": 36, "is_primary": True},
+            {"name": "embedding", "type": "FLOAT_VECTOR", "dim": 1536},
+            {"name": "doc_id", "type": "VARCHAR", "max_length": 36},
+            {"name": "language", "type": "VARCHAR", "max_length": 50},
+            {"name": "library", "type": "VARCHAR", "max_length": 200},
+            {"name": "doc_type", "type": "VARCHAR", "max_length": 50},
+            {"name": "created_at", "type": "INT64"} # Unix timestamp
+        ]
+    },
+    "index_params": {
+        "metric_type": "COSINE", # or "IP" for inner product
+        "index_type": "IVF_FLAT",
+        "params": {"nlist": 2048}
+    }
+}
+Access Patterns
+Pattern 1: Semantic Search by Specialist Agent
+Query: "Find documentation for Python list filtering with lambda functions"
+
+Execution Flow:
+
+IS Agent receives query from Python Specialist
+Generate embedding vector using text-embedding-004
+Search Milvus with cosine similarity (top 10 results)
+Retrieve full chunk text from PostgreSQL document_chunks
+Re-rank results using LlamaIndex reranking
+Return top 3 most relevant chunks
+Increment usage_count in semantic_concepts if concept matched
+SQL + Vector Query:
+
+python
+# Step 1: Vector search in Milvus
+vector_results = milvus_client.search(
+    collection_name="knowledge_vectors",
+    query_vectors=[embedding],
+    limit=10,
+    filter="language == 'python'",
+    output_fields=["chunk_id", "doc_id"]
+)
+
+# Step 2: Retrieve full content from PostgreSQL
+chunk_ids = [r['chunk_id'] for r in vector_results]
+sql = """
+    SELECT c.chunk_text, d.title, d.source_url, d.library_name
+    FROM document_chunks c
+    JOIN documents d ON c.doc_id = d.doc_id
+    WHERE c.chunk_id = ANY(%s)
+    ORDER BY array_position(%s, c.chunk_id)
+"""
+results = pg_cursor.execute(sql, (chunk_ids, chunk_ids))
+Response Time Target: <100ms for vector search, <50ms for PostgreSQL retrieval
+
+Pattern 2: Bulk Indexing by IS Agent
+Scenario: New Python 3.12 documentation released
+
+Execution Flow:
+
+Download documentation from python.org
+Parse and chunk into 512-token segments
+Generate embeddings (batched for efficiency)
+Insert into PostgreSQL documents and document_chunks
+Insert embeddings into Milvus
+Broadcast SIGMA protocol update to all Python specialists
+Batch Insert Strategy:
+
+python
+# Process 1000 chunks at a time
+batch_size = 1000
+for batch in chunk_iterator(document, batch_size):
+    # Generate embeddings in parallel
+    embeddings = embed_model.encode(batch.texts, batch_size=100)
+    
+    # PostgreSQL insert
+    pg_cursor.executemany("""
+        INSERT INTO document_chunks (chunk_id, doc_id, chunk_index, chunk_text, token_count, embedding_vector_id)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, batch.to_tuples())
+    
+    # Milvus insert
+    milvus_client.insert(
+        collection_name="knowledge_vectors",
+        data=batch.to_milvus_format()
+    )
+Indexing Rate: ~500 chunks/second on AW1 hardware
+
+Pattern 3: Deprecation Cleanup
+Scenario: Mark Python 2.7 documentation as deprecated
+
+SQL:
+
+sql
+-- Mark as deprecated (soft delete)
+UPDATE documents
+SET is_deprecated = TRUE, last_updated = NOW()
+WHERE language = 'python' AND library_version LIKE '2.7%';
+
+-- Optionally remove from vector store (hard delete)
+-- This would require querying affected chunk_ids first
+DELETE FROM document_chunks
+WHERE doc_id IN (
+    SELECT doc_id FROM documents WHERE is_deprecated = TRUE
+);
+Cleanup Schedule: Monthly job removes deprecated docs older than 6 months
+
+2.4.3 State Management Database (DB-002) - Design
+Technology: PostgreSQL 15
+Purpose: Track global system state, mission progress, agent health
+Schema Design
+missions Table
+sql
+CREATE TABLE missions (
+    mission_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    created_by VARCHAR(50) NOT NULL, -- 'EXEC-001' (PM Agent)
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING', 
+    -- 'PENDING', 'IN_PROGRESS', 'EXTRACTION_COMPLETE', 'AUDIT_PHASE', 'FUSION_PHASE', 'COMPLETE', 'FAILED'
+    priority VARCHAR(20) DEFAULT 'MEDIUM', -- 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'
+    
+    -- User-facing information
+    user_intent TEXT NOT NULL,
+    feature_description TEXT,
+    visual_wireframe_url TEXT,
+    
+    -- Technical specifications
+    target_languages TEXT[] DEFAULT '{}', -- ['python', 'rust', 'java']
+    required_domains TEXT[] DEFAULT '{}', -- ['list_operations', 'async_patterns']
+    quality_threshold NUMERIC(5,4) DEFAULT 0.9999, -- 99.99% accuracy requirement
+    
+    -- Progress tracking
+    total_logicnodes_target INTEGER,
+    logicnodes_extracted INTEGER DEFAULT 0,
+    logicnodes_verified INTEGER DEFAULT 0,
+    logicnodes_fused INTEGER DEFAULT 0,
+    
+    -- Timing
+    estimated_completion TIMESTAMP,
+    actual_completion TIMESTAMP,
+    
+    -- Constraints
+    constraints JSONB DEFAULT '{}', -- {"no_external_deps": true, "memory_safe": true}
+    
+    -- Results
+    final_output_path TEXT,
+    delivery_method VARCHAR(50), -- 'BINARY', 'SOURCE_CODE', 'CONTAINER_IMAGE'
+    
+    metadata JSONB DEFAULT '{}'
+);
+
+CREATE INDEX idx_missions_status ON missions(status);
+CREATE INDEX idx_missions_created ON missions(created_at DESC);
+CREATE INDEX idx_missions_priority ON missions(priority);
+pod_assignments Table
+sql
+CREATE TABLE pod_assignments (
+    assignment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    mission_id UUID REFERENCES missions(mission_id) ON DELETE CASCADE,
+    pod_id VARCHAR(50) NOT NULL, -- 'POD-A', 'POD-B', 'POD-C', 'POD-D'
+    assigned_at TIMESTAMP DEFAULT NOW(),
+    status VARCHAR(50) DEFAULT 'ASSIGNED',
+    -- 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_AUDIT', 'AUDIT_PASSED', 'AUDIT_FAILED', 'COMPLETE'
+    
+    -- Workload
+    assigned_domains TEXT[] DEFAULT '{}',
+    assigned_concepts TEXT[] DEFAULT '{}',
+    
+    -- Progress
+    concepts_extracted INTEGER DEFAULT 0,
+    concepts_target INTEGER,
+    
+    -- Quality
+    audit_attempts INTEGER DEFAULT 0,
+    last_audit_status VARCHAR(50),
+    last_audit_timestamp TIMESTAMP,
+    
+    -- Output reference
+    logicnode_batch_id UUID, -- References artifact registry
+    
+    completed_at TIMESTAMP
+);
+
+CREATE INDEX idx_pod_assignments_mission ON pod_assignments(mission_id);
+CREATE INDEX idx_pod_assignments_pod ON pod_assignments(pod_id);
+CREATE INDEX idx_pod_assignments_status ON pod_assignments(status);
+agent_health Table
+sql
+CREATE TABLE agent_health (
+    agent_id VARCHAR(50) PRIMARY KEY, -- 'EXEC-001', 'POD-A-PY', etc.
+    last_heartbeat TIMESTAMP NOT NULL,
+    status VARCHAR(50) NOT NULL, -- 'HEALTHY', 'DEGRADED', 'OFFLINE', 'ERROR'
+    
+    -- Resource utilization
+    cpu_percent NUMERIC(5,2),
+    memory_mb INTEGER,
+    token_usage_today INTEGER DEFAULT 0,
+    token_quota_daily INTEGER,
+    
+    -- Performance metrics
+    avg_response_time_ms INTEGER,
+    tasks_completed_today INTEGER DEFAULT 0,
+    tasks_failed_today INTEGER DEFAULT 0,
+    
+    -- Current workload
+    current_mission_id UUID REFERENCES missions(mission_id),
+    current_task_description TEXT,
+    tasks_in_queue INTEGER DEFAULT 0,
+    
+    -- API key info (reference only, not the actual key)
+    api_key_alias VARCHAR(100), -- 'python-specialist-key-001'
+    api_key_status VARCHAR(50), -- 'ACTIVE', 'EXPIRED', 'RATE_LIMITED'
+    
+    -- Error tracking
+    last_error_message TEXT,
+    last_error_timestamp TIMESTAMP,
+    error_count_24h INTEGER DEFAULT 0,
+    
+    metadata JSONB DEFAULT '{}'
+);
+
+CREATE INDEX idx_agent_health_status ON agent_health(status);
+CREATE INDEX idx_agent_health_heartbeat ON agent_health(last_heartbeat DESC);
+global_state_snapshot Table
+sql
+CREATE TABLE global_state_snapshot (
+    snapshot_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    snapshot_type VARCHAR(50), -- 'HOURLY', 'BEFORE_MISSION', 'AFTER_FUSION', 'MANUAL'
+    
+    -- Aggregate metrics
+    total_agents INTEGER,
+    healthy_agents INTEGER,
+    active_missions INTEGER,
+    pending_missions INTEGER,
+    
+    -- System-wide stats
+    total_logicnodes_in_registry INTEGER,
+    total_documents_indexed INTEGER,
+    total_tokens_consumed_today INTEGER,
+    
+    -- State snapshot (full system state as JSON)
+    state_data JSONB,
+    
+    -- Restore capability
+    restore_script TEXT -- SQL to restore to this state
+);
+
+CREATE INDEX idx_snapshots_created ON global_state_snapshot(created_at DESC);
+CREATE INDEX idx_snapshots_type ON global_state_snapshot(snapshot_type);
+Access Patterns
+Pattern 1: Mission Creation by PM Agent
+sql
+BEGIN;
+
+-- Create mission
+INSERT INTO missions (
+    created_by, user_intent, feature_description, 
+    target_languages, required_domains, quality_threshold
+) VALUES (
+    'EXEC-001',
+    'Build a list filtering system that works like Python''s filter() but optimized for Rust',
+    'Extract the semantic concept of list filtering from Python, JavaScript, Rust, and Java',
+    ARRAY['python', 'javascript', 'rust', 'java'],
+    ARRAY['list_operations'],
+    0.9999
+) RETURNING mission_id;
+
+-- Create pod assignments
+INSERT INTO pod_assignments (mission_id, pod_id, assigned_domains, concepts_target)
+VALUES 
+    (mission_id, 'POD-A', ARRAY['list_operations'], 25),
+    (mission_id, 'POD-B', ARRAY['list_operations'], 20),
+    (mission_id, 'POD-C', ARRAY['list_operations'], 30);
+
+COMMIT;
+Pattern 2: Agent Heartbeat Update
+Frequency: Every 10 seconds per agent
+
+sql
+INSERT INTO agent_health (
+    agent_id, last_heartbeat, status, cpu_percent, memory_mb, 
+    token_usage_today, tasks_completed_today, tasks_in_queue
+) VALUES (
+    'POD-A-PY', NOW(), 'HEALTHY', 45.2, 1024, 125000, 47, 3
+)
+ON CONFLICT (agent_id) DO UPDATE SET
+    last_heartbeat = EXCLUDED.last_heartbeat,
+    status = EXCLUDED.status,
+    cpu_percent = EXCLUDED.cpu_percent,
+    memory_mb = EXCLUDED.memory_mb,
+    token_usage_today = EXCLUDED.token_usage_today,
+    tasks_completed_today = EXCLUDED.tasks_completed_today,
+    tasks_in_queue = EXCLUDED.tasks_in_queue;
+Monitoring Query (runs every 30 seconds):
+
+sql
+-- Detect offline agents (no heartbeat in 60 seconds)
+SELECT agent_id, last_heartbeat, status
+FROM agent_health
+WHERE last_heartbeat < NOW() - INTERVAL '60 seconds'
+  AND status != 'OFFLINE';
+Pattern 3: Mission Progress Query by CEO
+sql
+-- Get comprehensive mission status
+SELECT 
+    m.mission_id,
+    m.status AS mission_status,
+    m.user_intent,
+    m.logicnodes_extracted,
+    m.logicnodes_verified,
+    m.total_logicnodes_target,
+    ROUND(100.0 * m.logicnodes_verified / NULLIF(m.total_logicnodes_target, 0), 2) AS percent_complete,
+    
+    -- Pod breakdown
+    json_agg(json_build_object(
+        'pod_id', pa.pod_id,
+        'status', pa.status,
+        'concepts_extracted', pa.concepts_extracted,
+        'concepts_target', pa.concepts_target,
+        'audit_status', pa.last_audit_status
+    )) AS pod_details
+    
+FROM missions m
+LEFT JOIN pod_assignments pa ON m.mission_id = pa.mission_id
+WHERE m.mission_id = $1
+GROUP BY m.mission_id;
+2.4.4 Artifacts Repository (DB-003) - Structure
+Technology: Redis + Git
+Hybrid Approach:
+
+Redis: Fast in-memory access to active LogicNodes, metadata caching
+Git: Versioned, immutable storage of all LogicNode history
+Redis Data Structures
+LogicNode Hash (Redis Hash)
+Key Pattern: logicnode:{node_id}
+
+redis
+HSET logicnode:550e8400-e29b-41d4-a716-446655440000
+    id "550e8400-e29b-41d4-a716-446655440000"
+    version "1.2.0"
+    domain "list_operations"
+    concept "filter"
+    intent "Filter list elements by predicate function"
+    source_language "python"
+    source_reference "builtins.filter"
+    confidence "0.998"
+    audit_status "approved"
+    created_at "2024-01-15T10:30:00Z"
+    created_by "POD-A-PY"
+    full_json "{...}" # Complete LogicNode as JSON string
+Expiration: Never (persist until explicitly deleted)
+
+LogicNode Indexes (Redis Sets)
+By Domain:
+
+redis
+SADD domain:list_operations 
+    "550e8400-e29b-41d4-a716-446655440000"
+    "660e8400-e29b-41d4-a716-446655440001"
+    ...
+By Language:
+
+redis
+SADD language:python 
+    "550e8400-e29b-41d4-a716-446655440000"
+    ...
+By Audit Status:
+
+redis
+SADD audit:approved
+    "550e8400-e29b-41d4-a716-446655440000"
+    ...
+    
+SADD audit:pending
+    "770e8400-e29b-41d4-a716-446655440002"
+    ...
+Mission LogicNode Batches (Redis List)
+Key Pattern: mission:{mission_id}:nodes
+
+redis
+LPUSH mission:abc123:nodes 
+    "550e8400-e29b-41d4-a716-446655440000"
+    "660e8400-e29b-41d4-a716-446655440001"
+Retrieval:
+
+redis
+# Get all nodes for a mission
+LRANGE mission:abc123:nodes 0 -1
+
+# Get count
+LLEN mission:abc123:nodes
+Concept Mapping (Redis Hash)
+Key Pattern: concept:{concept_name}
+
+redis
+HSET concept:filter
+    python "550e8400-e29b-41d4-a716-446655440000"
+    javascript "660e8400-e29b-41d4-a716-446655440001"
+    rust "770e8400-e29b-41d4-a716-446655440002"
+    java "880e8400-e29b-41d4-a716-446655440003"
+Query: "Get all language implementations of 'filter' concept"
+
+redis
+HGETALL concept:filter
+```
+
+---
+
+### **Git Repository Structure**
+
+**Repository Path**: `/mnt/data/logicnode-registry/.git`
+
+**Directory Layout**:
+```
+logicnode-registry/
+├── domains/
+│   ├── list_operations/
+│   │   ├── filter/
+│   │   │   ├── python.json
+│   │   │   ├── javascript.json
+│   │   │   ├── rust.json
+│   │   │   └── java.json
+│   │   ├── map/
+│   │   └── reduce/
+│   ├── async_patterns/
+│   └── memory_management/
+├── missions/
+│   ├── 2024-01-15_mission_abc123/
+│   │   ├── metadata.json
+│   │   ├── pod-a-output.json
+│   │   ├── pod-b-output.json
+│   │   └── final-fusion.json
+├── schemas/
+│   ├── refined-ir-v1.0.json
+│   └── refined-ir-v2.0.json
+└── README.md
+Commit Strategy:
+
+Each LogicNode extraction → individual file commit
+Each Pod batch completion → branch merge
+Each mission completion → tag with mission ID
+Audit approval → branch protection applied
+Example Git Workflow:
+
+bash
+# Specialist extracts LogicNode
+git checkout -b pod-a/mission-abc123
+echo '{...}' > domains/list_operations/filter/python.json
+git add domains/list_operations/filter/python.json
+git commit -m "Extract Python filter LogicNode - confidence 0.998"
+
+# Audit Agent approves
+git tag "approved/550e8400-e29b-41d4-a716-446655440000"
+git push origin pod-a/mission-abc123
+
+# Sub-Manager merges after all specialists complete
+git checkout main
+git merge pod-a/mission-abc123
+git tag "mission-abc123-pod-a-complete"
+Benefits:
+
+Full version history of every LogicNode
+Rollback capability to any point in time
+Audit trail built into Git log
+Branch-based isolation during extraction
+Merge conflicts reveal semantic duplicates
+Access Patterns
+Pattern 1: Store New LogicNode
+Agent: Python Specialist
+
+Steps:
+
+Generate LogicNode JSON
+Store in Redis for fast access
+Commit to Git for persistence
+Update indexes
+Code:
+
+python
+def store_logicnode(node: LogicNode):
+    # 1. Store in Redis
+    redis.hset(f"logicnode:{node.id}", mapping={
+        "id": node.id,
+        "domain": node.domain,
+        "concept": node.concept,
+        "full_json": json.dumps(node.to_dict())
+    })
+    
+    # 2. Update indexes
+    redis.sadd(f"domain:{node.domain}", node.id)
+    redis.sadd(f"language:{node.source_language}", node.id)
+    redis.sadd("audit:pending", node.id)
+    
+    # 3. Add to mission
+    redis.lpush(f"mission:{node.mission_id}:nodes", node.id)
+    
+    # 4. Git commit
+    file_path = f"domains/{node.domain}/{node.concept}/{node.source_language}.json"
+    write_file(file_path, json.dumps(node.to_dict(), indent=2))
+    git_commit(file_path, f"Extract {node.source_language} {node.concept} - confidence {node.confidence}")
+Pattern 2: Retrieve LogicNodes by Domain
+Agent: CEO during fusion
+
+Query:
+
+python
+# Get all node IDs in domain
+node_ids = redis.smembers("domain:list_operations")
+
+# Retrieve full nodes (pipelined for efficiency)
+pipeline = redis.pipeline()
+for node_id in node_ids:
+    pipeline.hget(f"logicnode:{node_id}", "full_json")
+results = pipeline.execute()
+
+# Parse JSON
+nodes = [json.loads(r) for r in results if r]
+Performance: ~1ms for 100 nodes
+
+Pattern 3: Audit Status Update
+Agent: Audit Agent
+
+Steps:
+
+python
+def approve_logicnode(node_id: str):
+    # Update status
+    redis.hset(f"logicnode:{node_id}", "audit_status", "approved")
+    
+    # Move from pending to approved set
+    redis.smove("audit:pending", "audit:approved", node_id)
+    
+    # Git tag
+    subprocess.run(["git", "tag", f"approved/{node_id}"])
+2.4.5 Traceability Ledger (DB-004) - Schema
+Technology: SQLite
+Rationale: Append-only ledger doesn't need PostgreSQL's complexity. SQLite is simpler, faster for writes, and creates single-file backups.
+
+Database File: /mnt/data/traceability.db
+Schema Design
+events Table
+sql
+CREATE TABLE events (
+    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp REAL NOT NULL DEFAULT (julianday('now')), -- Julian day for high precision
+    event_type TEXT NOT NULL, -- 'LOGICNODE_CREATED', 'AUDIT_PASSED', 'MISSION_STARTED', etc.
+    agent_id TEXT NOT NULL,
+    
+    -- References
+    mission_id TEXT,
+    logicnode_id TEXT,
+    pod_id TEXT,
+    
+    -- Event details
+    event_data TEXT, -- JSON blob with full event details
+    
+    -- Outcome
+    status TEXT, -- 'SUCCESS', 'FAILURE', 'WARNING'
+    error_message TEXT,
+    
+    -- Context
+    protocol_used TEXT, -- 'ALPHA', 'BETA', 'DELTA', etc.
+    message_id TEXT, -- Reference to original protocol message
+    
+    -- Chain of custody
+    previous_event_id INTEGER, -- Links to prior event in chain
+    
+    -- Immutability
+    event_hash TEXT GENERATED ALWAYS AS (
+        hex(sha256(
+            event_id || timestamp || event_type || agent_id || 
+            COALESCE(mission_id, '') || COALESCE(logicnode_id, '')
+        ))
+    ) STORED
+);
+
+CREATE INDEX idx_events_timestamp ON events(timestamp);
+CREATE INDEX idx_events_type ON events(event_type);
+CREATE INDEX idx_events_agent ON events(agent_id);
+CREATE INDEX idx_events_mission ON events(mission_id) WHERE mission_id IS NOT NULL;
+CREATE INDEX idx_events_node ON events(logicnode_id) WHERE logicnode_id IS NOT NULL;
+Immutability Guarantee:
+
+No UPDATE or DELETE operations allowed (enforced via triggers)
+Event hash creates cryptographic proof of tampering
+sql
+CREATE TRIGGER prevent_update BEFORE UPDATE ON events
+BEGIN
+    SELECT RAISE(FAIL, 'Updates not allowed on immutable ledger');
+END;
+
+CREATE TRIGGER prevent_delete BEFORE DELETE ON events
+BEGIN
+    SELECT RAISE(FAIL, 'Deletes not allowed on immutable ledger');
+END;
+agent_actions Table
+sql
+CREATE TABLE agent_actions (
+    action_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp REAL NOT NULL DEFAULT (julianday('now')),
+    agent_id TEXT NOT NULL,
+    action_type TEXT NOT NULL, -- 'QUERY_KNOWLEDGE', 'EXTRACT_LOGICNODE', 'SEND_MESSAGE', etc.
+    
+    -- Action details
+    target_entity TEXT, -- What the agent acted upon
+    action_data TEXT, -- JSON details
+    
+    -- Performance
+    duration_ms INTEGER, -- How long the action took
+    tokens_consumed INTEGER,
+    
+    -- Outcome
+    success BOOLEAN,
+    error_code TEXT,
+    
+    -- Related event
+    related_event_id INTEGER REFERENCES events(event_id)
+);
+
+CREATE INDEX idx_actions_agent ON agent_actions(agent_id);
+CREATE INDEX idx_actions_timestamp ON agent_actions(timestamp);
+CREATE INDEX idx_actions_type ON agent_actions(action_type);
+audit_trail Table
+sql
+CREATE TABLE audit_trail (
+    audit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp REAL NOT NULL DEFAULT (julianday('now')),
+    logicnode_id TEXT NOT NULL,
+    auditor_agent_id TEXT NOT NULL,
+    
+    -- Test results
+    total_tests INTEGER,
+    tests_passed INTEGER,
+    tests_failed INTEGER,
+    max_deviation REAL,
+    tolerance_threshold REAL DEFAULT 0.0001,
+    
+    -- Verdict
+    verdict TEXT NOT NULL, -- 'APPROVED', 'REJECTED', 'NEEDS_REVISION'
+    
+    -- Detailed results
+    failed_test_cases TEXT, -- JSON array of failed tests
+    feedback TEXT,
+    
+    -- Revision tracking
+    revision_number INTEGER DEFAULT 1,
+    previous_audit_id INTEGER, -- Links to prior audit of same node
+    
+    -- Specialist response
+    specialist_acknowledged BOOLEAN DEFAULT 0,
+    specialist_response TEXT
+);
+
+CREATE INDEX idx_audit_node ON audit_trail(logicnode_id);
+CREATE INDEX idx_audit_verdict ON audit_trail(verdict);
+CREATE INDEX idx_audit_timestamp ON audit_trail(timestamp);
+Access Patterns
+Pattern 1: Log Event (All Agents)
+Frequency: Every significant action
+
+python
+def log_event(event_type: str, agent_id: str, event_data: dict, 
+              mission_id: str = None, logicnode_id: str = None, 
+              status: str = "SUCCESS"):
+    cursor.execute("""
+        INSERT INTO events (
+            event_type, agent_id, mission_id, logicnode_id, 
+            event_data, status, protocol_used, message_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        event_type, agent_id, mission_id, logicnode_id,
+        json.dumps(event_data), status, 
+        event_data.get('protocol'), event_data.get('message_id')
+    ))
+    conn.commit()
+    return cursor.lastrowid
+Example Events:
+
+MISSION_CREATED (PM Agent)
+LOGICNODE_EXTRACTED (Specialist)
+AUDIT_STARTED (Audit Agent)
+AUDIT_PASSED (Audit Agent)
+FUSION_INITIATED (CEO)
+BINARY_DELIVERED (SRE)
+Pattern 2: Retrieve Full Chain of Custody
+Query: "Show me the complete history of LogicNode XYZ"
+
+sql
+WITH RECURSIVE event_chain AS (
+    -- Start with the most recent event
+    SELECT * FROM events 
+    WHERE logicnode_id = 'xyz-node-id'
+    ORDER BY timestamp DESC LIMIT 1
+    
+    UNION ALL
+    
+    -- Follow the chain backwards
+    SELECT e.* FROM events e
+    INNER JOIN event_chain ec ON e.event_id = ec.previous_event_id
+)
+SELECT * FROM event_chain ORDER BY timestamp ASC;
+Output: Complete chronological history from creation to current state
+
+Pattern 3: Compliance Audit Report
+Query: "Generate report of all LogicNodes derived from MIT-licensed sources in January 2024"
+
+sql
+SELECT 
+    logicnode_id,
+    agent_id AS extracted_by,
+    datetime(timestamp) AS extraction_time,
+    json_extract(event_data, '$.source_library') AS source_library,
+    json_extract(event_data, '$.license') AS license,
+    (
+        SELECT verdict FROM audit_trail 
+        WHERE audit_trail.logicnode_id = events.logicnode_id 
+        ORDER BY timestamp DESC LIMIT 1
+    ) AS audit_status
+FROM events
+WHERE event_type = 'LOGICNODE_EXTRACTED'
+  AND json_extract(event_data, '$.license') = 'MIT'
+  AND timestamp BETWEEN julianday('2024-01-01') AND julianday('2024-02-01')
+ORDER BY timestamp;
+2.4.6 Model & Data Store (DB-005) - Architecture
+Technology: MLflow + PostgreSQL
+Components:
+
+MLflow Tracking Server: Experiment tracking, metrics logging
+MLflow Model Registry: Versioned model storage
+PostgreSQL Backend: Metadata storage
+S3-Compatible Storage: (MinIO local) for model artifacts
+Schema Design (PostgreSQL for MLflow)
+MLflow uses auto-generated tables. Key tables:
+
+experiments
+sql
+-- MLflow auto-generated
+CREATE TABLE experiments (
+    experiment_id INTEGER PRIMARY KEY,
+    name VARCHAR(256) NOT NULL UNIQUE,
+    artifact_location VARCHAR(512),
+    lifecycle_stage VARCHAR(32),
+    creation_time BIGINT,
+    last_update_time BIGINT
+);
+runs
+sql
+-- MLflow auto-generated
+CREATE TABLE runs (
+    run_uuid VARCHAR(32) PRIMARY KEY,
+    name VARCHAR(256),
+    source_type VARCHAR(32),
+    source_name VARCHAR(512),
+    entry_point_name VARCHAR(256),
+    user_id VARCHAR(256),
+    status VARCHAR(32),
+    start_time BIGINT,
+    end_time BIGINT,
+    source_version VARCHAR(512),
+    lifecycle_stage VARCHAR(32),
+    artifact_uri VARCHAR(512),
+    experiment_id INTEGER REFERENCES experiments(experiment_id)
+);
+metrics
+sql
+-- MLflow auto-generated
+CREATE TABLE metrics (
+    key VARCHAR(256) NOT NULL,
+    value DOUBLE PRECISION NOT NULL,
+    timestamp BIGINT NOT NULL,
+    run_uuid VARCHAR(32) REFERENCES runs(run_uuid),
+    step BIGINT DEFAULT 0,
+    is_nan BOOLEAN DEFAULT 0
+);
+Custom Extensions for Holy Grail Refinery
+embedding_models Table
+sql
+CREATE TABLE embedding_models (
+    model_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    model_name VARCHAR(200) NOT NULL, -- 'text-embedding-004'
+    version VARCHAR(50),
+    dimensions INTEGER NOT NULL, -- 1536 for text-embedding-004
+    provider VARCHAR(100), -- 'google', 'openai', 'local'
+    
+    -- Performance metrics
+    avg_latency_ms INTEGER,
+    throughput_tokens_per_sec INTEGER,
+    
+    -- Usage tracking
+    total_embeddings_generated BIGINT DEFAULT 0,
+    total_tokens_processed BIGINT DEFAULT 0,
+    
+    -- MLflow reference
+    mlflow_run_id VARCHAR(32) REFERENCES runs(run_uuid),
+    
+    -- Status
+    is_active BOOLEAN DEFAULT TRUE,
+    deployed_at TIMESTAMP,
+    deprecated_at TIMESTAMP
+);
+training_datasets Table
+sql
+CREATE TABLE training_datasets (
+    dataset_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dataset_name VARCHAR(200) NOT NULL,
+    dataset_type VARCHAR(50), -- 'EMBEDDINGS', 'AUDIT_RESULTS', 'CONCEPT_MAPPINGS'
+    
+    -- Source information
+    source_mission_ids TEXT[], -- Array of missions that contributed data
+    collection_start TIMESTAMP,
+    collection_end TIMESTAMP,
+    
+    -- Dataset characteristics
+    total_samples INTEGER,
+    train_samples INTEGER,
+    validation_samples INTEGER,
+    test_samples INTEGER,
+    
+    -- Storage
+    storage_path TEXT, -- Path in MinIO/S3
+    format VARCHAR(50), -- 'PARQUET', 'JSONL', 'CSV'
+    size_bytes BIGINT,
+    
+    -- Quality
+    data_quality_score NUMERIC(3,2), -- 0.00 to 1.00
+    
+    -- Versioning
+    version VARCHAR(50),
+    parent_dataset_id UUID REFERENCES training_datasets(dataset_id),
+    
+    created_at TIMESTAMP DEFAULT NOW()
+);
+model_performance Table
+sql
+CREATE TABLE model_performance (
+    performance_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    model_id UUID REFERENCES embedding_models(model_id),
+    evaluation_timestamp TIMESTAMP DEFAULT NOW(),
+    
+    -- Benchmark metrics
+    benchmark_name VARCHAR(100), -- 'knowledge_retrieval_accuracy'
+    metric_name VARCHAR(100), -- 'precision', 'recall', 'f1'
+    metric_value NUMERIC(10,6),
+    
+    -- Context
+    test_dataset_id UUID REFERENCES training_datasets(dataset_id),
+    test_sample_count INTEGER,
+    
+    -- Comparative analysis
+    baseline_model_id UUID REFERENCES embedding_models(model_id),
+    improvement_percent NUMERIC(6,2),
+    
+    metadata JSONB
+);
+Access Patterns
+Pattern 1: Log Embedding Model Performance
+Agent: AI/ML Engineer
+
+python
+import mlflow
+
+# Start MLflow run
+with mlflow.start_run(experiment_name="embedding_evaluation"):
+    # Log parameters
+    mlflow.log_param("model_name", "text-embedding-004")
+    mlflow.log_param("dimensions", 1536)
+    mlflow.log_param("batch_size", 100)
+    
+    # Log metrics
+    mlflow.log_metric("avg_latency_ms", 45.2)
+    mlflow.log_metric("throughput_tokens_per_sec", 15000)
+    mlflow.log_metric("retrieval_accuracy", 0.958)
+    
+    # Log artifacts
+    mlflow.log_artifact("benchmark_results.json")
+    
+    # Get run ID
+    run_id = mlflow.active_run().info.run_id
+
+# Store in custom table
+cursor.execute("""
+    INSERT INTO embedding_models (model_name, version, dimensions, mlflow_run_id, is_active)
+    VALUES (%s, %s, %s, %s, %s)
+""", ("text-embedding-004", "1.0", 1536, run_id, True))
+Pattern 2: Query Best-Performing Model
+sql
+SELECT 
+    em.model_name,
+    em.version,
+    em.avg_latency_ms,
+    mp.metric_value AS retrieval_accuracy
+FROM embedding_models em
+JOIN model_performance mp ON em.model_id = mp.model_id
+WHERE mp.benchmark_name = 'knowledge_retrieval_accuracy'
+  AND mp.metric_name = 'f1'
+  AND em.is_active = TRUE
+ORDER BY mp.metric_value DESC
+LIMIT 1;
+Pattern 3: Create Training Dataset from Mission Data
+python
+def create_training_dataset(mission_ids: List[str]):
+    # Collect LogicNodes from completed missions
+    logicnodes = []
+    for mission_id in mission_ids:
+        nodes = redis.lrange(f"mission:{mission_id}:nodes", 0, -1)
+        logicnodes.extend([
+            json.loads(redis.hget(f"logicnode:{nid}", "full_json"))
+            for nid in nodes
+        ])
+    
+    # Convert to training format
+    dataset = prepare_concept_mapping_dataset(logicnodes)
+    
+    # Save to MinIO
+    file_path = f"datasets/concept_mappings_{datetime.now().isoformat()}.parquet"
+    save_to_minio(dataset, file_path)
+    
+    # Record in database
+    cursor.execute("""
+        INSERT INTO training_datasets (
+            dataset_name, dataset_type, source_mission_ids, 
+            total_samples, storage_path, format, size_bytes
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """, (
+        f"concept_mappings_{datetime.now().date()}",
+        "CONCEPT_MAPPINGS",
+        mission_ids,
+        len(dataset),
+        file_path,
+        "PARQUET",
+        get_file_size(file_path)
+    ))
+3. CORE COMPONENT SPECIFICATIONS
+3.1 REFINED-IR SPECIFICATION DOCUMENT
+3.1.1 LogicNode Structure and Taxonomy
+The Refined-IR (Refined Intermediate Representation) is the universal language of computational intent in the Holy Grail Refinery. It is a strictly-defined JSON schema that captures the semantic meaning of programming concepts independent of syntax.
+
+Complete LogicNode Schema
+json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Refined-IR LogicNode v2.0",
+  "type": "object",
+  "required": [
+    "id", "version", "paradigm", "domain", "concept", 
+    "intent", "inputs", "outputs"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Globally unique identifier for this LogicNode"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of this LogicNode (MAJOR.MINOR.PATCH)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Agent ID that created this node (e.g., POD-A-PY)"
+    },
+    
+    "paradigm": {
+      "type": "string",
+      "enum": ["dynamic", "systems", "enterprise", "mathematical"],
+      "description": "Which programming paradigm this belongs to"
+    },
+    "domain": {
+      "type": "string",
+      "description": "The conceptual domain (e.g., list_operations, memory_management)",
+      "pattern": "^[a-z_]+$"
+    },
+    "concept": {
+      "type": "string",
+      "description": "The specific concept within the domain (e.g., filter, map, allocate_heap)",
+      "pattern": "^[a-z_]+$"
+    },
+    "intent": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500,
+      "description": "Human-readable description of what this LogicNode does"
+    },
+    
+    "inputs": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/Parameter"},
+      "description": "Input parameters required by this concept"
+    },
+    "outputs": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/Parameter"},
+      "description": "Output values produced by this concept"
+    },
+    "preconditions": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/Constraint"},
+      "description": "Conditions that must be true before execution"
+    },
+    "postconditions": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/Constraint"},
+      "description": "Conditions guaranteed to be true after execution"
+    },
+    "side_effects": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/SideEffect"},
+      "description": "Observable effects beyond return value"
+    },
+    
+    "source_language": {
+      "type": "string",
+      "enum": [
+        "python", "javascript", "ruby", "php",
+        "c", "cpp", "rust", "zig",
+        "java", "csharp", "scala", "kotlin",
+        "matlab", "r", "julia", "mathematica"
+      ],
+      "description": "Language this was extracted from"
+    },
+    "source_reference": {
+      "type": "string",
+      "description": "Specific library/module/function (e.g., builtins.filter, std::vector::erase)"
+    },
+    "source_version": {
+      "type": "string",
+      "description": "Version of the source language/library"
+    },
+    
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Specialist's confidence in extraction accuracy"
+    },
+    "audit_status": {
+      "type": "string",
+      "enum": ["pending", "approved", "rejected", "needs_revision"],
+      "default": "pending"
+    },
+    "audit_metadata": {
+      "type": "object",
+      "properties": {
+        "auditor_agent_id": {"type": "string"},
+        "tests_passed": {"type": "integer"},
+        "tests_total": {"type": "integer"},
+        "max_deviation": {"type": "number"},
+        "audit_timestamp": {"type": "string", "format": "date-time"}
+      }
+    },
+    
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Searchable tags (e.g., 'pure_function', 'IO_bound', 'recursive')"
+    },
+    "complexity": {
+      "type": "object",
+      "properties": {
+        "time": {"type": "string", "description": "Big-O time complexity (e.g., O(n), O(log n))"},
+        "space": {"type": "string", "description": "Big-O space complexity"}
+      }
+    },
+    "related_concepts": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "UUIDs of related LogicNodes"
+    },
+    
+    "metadata": {
+      "type": "object",
+      "description": "Flexible storage for additional context"
+    }
+  },
+  
+  "definitions": {
+    "Parameter": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_]*$"
+        },
+        "type": {"$ref": "#/definitions/LogicType"},
+        "constraints": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/Constraint"}
+        },
+        "optional": {"type": "boolean", "default": false},
+        "default": {
+          "description": "Default value if parameter is optional"
+        },
+        "description": {"type": "string"}
+      }
+    },
+    
+    "LogicType": {
+      "type": "object",
+      "required": ["base"],
+      "properties": {
+        "base": {
+          "type": "string",
+          "enum": [
+            "void", "boolean", "integer", "float", "string", "character",
+            "list", "map", "set", "tuple", "option", "result",
+            "function", "any",
+            "pointer", "owned", "borrowed", "lifetime",
+            "matrix", "tensor", "dataframe", "vector",
+            "class", "interface", "enum", "union"
+          ]
+        },
+        "parameters": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/LogicType"},
+          "description": "For generic types (e.g., list<integer>)"
+        },
+        "constraints": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/Constraint"}
+        }
+      }
+    },
+    
+    "Constraint": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "predicate", "range", "regex", "length", 
+            "positive", "non_null", "unique", "sorted",
+            "memory_safe", "thread_safe", "pure"
+          ]
+        },
+        "expression": {
+          "type": "string",
+          "description": "Formal expression of the constraint"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["required", "recommended", "optional"],
+          "default": "required"
+        }
+      }
+    },
+    
+    "SideEffect": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "io", "mutation", "exception", "network", 
+            "file_system", "database", "heap_allocation",
+            "thread_creation", "system_call"
+          ]
+        },
+        "description": {"type": "string"},
+        "scope": {
+          "type": "string",
+          "enum": ["local", "global"],
+          "default": "local"
+        },
+        "deterministic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this effect produces the same result given same inputs"
+        }
+      }
+    }
+  }
+}
+3.1.2 Semantic Abstraction Principles
+Core Philosophy: Refined-IR captures WHAT a program does, not HOW it does it in a specific language.
+
+Principle 1: Intent Over Implementation
+Bad (Too Language-Specific):
+
+json
+{
+  "concept": "python_list_comprehension",
+  "intent": "Use Python's [x for x in list if predicate(x)] syntax"
+}
+Good (Universal Intent):
+
+json
+{
+  "concept": "filter",
+  "intent": "Select elements from a collection that satisfy a predicate function",
+  "inputs": [
+    {"name": "collection", "type": {"base": "list"}},
+    {"name": "predicate", "type": {"base": "function"}}
+  ],
+  "outputs": [
+    {"name": "filtered_collection", "type": {"base": "list"}}
+  ]
+}
+Principle 2: Explicit Constraints
+All assumptions must be stated explicitly as preconditions or constraints.
+
+Example: Array indexing
+
+json
+{
+  "concept": "array_access",
+  "inputs": [
+    {
+      "name": "array",
+      "type": {"base": "list"},
+      "constraints": [
+        {"type": "non_null"}
+      ]
+    },
+    {
+      "name": "index",
+      "type": {"base": "integer"},
+      "constraints": [
+        {"type": "range", "expression": "0 <= index < len(array)"}
+      ]
+    }
+  ],
+  "preconditions": [
+    {"type": "predicate", "expression": "array is not empty"},
+    {"type": "predicate", "expression": "index is within bounds"}
+  ],
+  "side_effects": []
+}
+Principle 3: Side Effect Transparency
+All side effects must be declared. A function is pure if and only if side_effects is an empty array.
+
+Example: File write (impure)
+
+json
+{
+  "concept": "file_write",
+  "inputs": [
+    {"name": "filepath", "type": {"base": "string"}},
+    {"name": "content", "type": {"base": "string"}}
+  ],
+  "outputs": [
+    {"name": "bytes_written", "type": {"base": "integer"}}
+  ],
+  "side_effects": [
+    {
+      "type": "file_system",
+      "description": "Creates or overwrites file at filepath",
+      "scope": "global",
+      "deterministic": false
+    }
+  ]
+}
+Example: List map (pure)
+
+json
+{
+  "concept": "map",
+  "inputs": [
+    {"name": "collection", "type": {"base": "list"}},
+    {"name": "transform_fn", "type": {"base": "function"}}
+  ],
+  "outputs": [
+    {"name": "transformed_collection", "type": {"base": "list"}}
+  ],
+  "preconditions": [
+    {"type": "predicate", "expression": "transform_fn is pure"}
+  ],
+  "side_effects": [] // PURE FUNCTION
+}
+```
+
+---
+
+#### **Principle 4: Type System Universality**
+
+The Refined-IR type system must represent concepts from all 14 languages without favoring any one paradigm.
+
+**Type Hierarchy**:
+```
+LogicType (base)
+├─ Primitives
+│  ├─ void
+│  ├─ boolean
+│  ├─ integer (i8, i16, i32, i64, u8, u16, u32, u64)
+│  ├─ float (f32, f64)
+│  ├─ string
+│  └─ character
+├─ Collections
+│  ├─ list<T>
+│  ├─ map<K,V>
+│  ├─ set<T>
+│  ├─ tuple<T1, T2, ...>
+│  └─ array<T, N> (fixed size)
+├─ Algebraic Types
+│  ├─ option<T> (Some | None)
+│  ├─ result<T, E> (Ok | Err)
+│  └─ enum
+├─ Function Types
+│  └─ function<(Args) -> ReturnType>
+├─ Systems Types
+│  ├─ pointer<T>
+│  ├─ owned<T>
+│  ├─ borrowed<T>
+│  └─ lifetime<'a>
+├─ Mathematical Types
+│  ├─ matrix<T, M, N>
+│  ├─ tensor<T, Shape>
+│  ├─ dataframe
+│  └─ vector<T, N>
+└─ Object-Oriented Types
+   ├─ class
+   ├─ interface
+   └─ union
+3.1.3 Cross-Language Mapping Tables
+Domain: List Operations
+Concept: filter
+
+Language	Syntax	Notes	LogicNode ID
+Python	filter(predicate, lst) or [x for x in lst if pred(x)]	Returns iterator	DYN-001-001-PY
+JavaScript	array.filter(predicate)	Returns new array	DYN-001-001-JS
+Ruby	`array.select {	x	predicate(x)}`
+PHP	array_filter($array, $callback)	Preserves keys	DYN-001-001-PHP
+Rust	`iter.filter(	x	predicate(x))`
+Java	stream.filter(predicate)	Requires Stream API	ENT-001-001-JAVA
+C#	list.Where(predicate)	LINQ extension	ENT-001-001-CS
+Julia	filter(predicate, array)	Returns new array	MATH-001-001-JULIA
+R	subset(vector, predicate(vector))	Vectorized	MATH-001-001-R
+Unified LogicNode:
+
+json
+{
+  "domain": "list_operations",
+  "concept": "filter",
+  "intent": "Select elements from a collection that satisfy a predicate function",
+  "inputs": [
+    {
+      "name": "collection",
+      "type": {"base": "list", "parameters": [{"base": "any"}]},
+      "description": "Input collection to filter"
+    },
+    {
+      "name": "predicate",
+      "type": {
+        "base": "function",
+        "parameters": [
+          {"base": "any"},
+          {"base": "boolean"}
+        ]
+      },
+      "description": "Function that returns true for elements to keep"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "filtered_collection",
+      "type": {"base": "list", "parameters": [{"base": "any"}]},
+      "description": "New collection containing only elements where predicate returned true"
+    }
+  ],
+  "preconditions": [],
+  "postconditions": [
+    {"type": "predicate", "expression": "length(output) <= length(input)"},
+    {"type": "predicate", "expression": "all elements in output satisfy predicate"},
+    {"type": "predicate", "expression": "order is preserved"}
+  ],
+  "side_effects": [],
+  "complexity": {
+    "time": "O(n)",
+    "space": "O(n) worst case (all elements pass)"
+  },
+  "tags": ["pure_function", "lazy_evaluation_possible", "parallelizable"]
+}
+Domain: Memory Management (Systems Pod)
+Concept: heap_allocate
+
+Language	Syntax	Notes	LogicNode ID
+C	malloc(size)	Returns void*, must free()	SYS-001-001-C
+C++	new T or std::make_unique<T>()	RAII with smart pointers	SYS-001-001-CPP
+Rust	Box::new(value)	Owned heap allocation	SYS-001-001-RUST
+Zig	allocator.alloc(T, count)	Explicit allocator	SYS-001-001-ZIG
+Unified LogicNode:
+
+json
+{
+  "domain": "memory_management",
+  "concept": "allocate_heap",
+  "intent": "Allocate memory on the heap and return a pointer/reference",
+  "inputs": [
+    {
+      "name": "size_bytes",
+      "type": {"base": "integer"},
+      "constraints": [{"type": "positive"}]
+    },
+    {
+      "name": "alignment",
+      "type": {"base": "integer"},
+      "optional": true,
+      "default": 8
+    }
+  ],
+  "outputs": [
+    {
+      "name": "pointer",
+      "type": {"base": "pointer", "parameters": [{"base": "any"}]}
+    }
+  ],
+  "preconditions": [
+    {"type": "predicate", "expression": "sufficient heap memory available"}
+  ],
+  "postconditions": [
+    {"type": "predicate", "expression": "pointer != null OR error_returned"}
+  ],
+  "side_effects": [
+    {
+      "type": "heap_allocation",
+      "description": "Allocates memory on the heap",
+      "scope": "global",
+      "deterministic": false
+    }
+  ],
+  "complexity": {
+    "time": "O(1) amortized",
+    "space": "O(size_bytes)"
+  }
+}
+3.1.4 Template Specifications
+Input Parameter Template
+json
+{
+  "name": "parameter_name",
+  "type": {
+    "base": "string | integer | float | list | map | ...",
+    "parameters": [/* for generic types */]
+  },
+  "constraints": [
+    {
+      "type": "predicate | range | regex | length | ...",
+      "expression": "formal constraint expression",
+      "severity": "required | recommended | optional"
+    }
+  ],
+  "optional": true | false,
+  "default": /* value if optional */,
+  "description": "Human-readable parameter description"
+}
+Example: String parameter with length constraint
+
+json
+{
+  "name": "username",
+  "type": {"base": "string"},
+  "constraints": [
+    {"type": "length", "expression": "3 <= length <= 20"},
+    {"type": "regex", "expression": "^[a-zA-Z0-9_]+$"}
+  ],
+  "optional": false,
+  "description": "User's account name"
+}
+Output Parameter Template
+json
+{
+  "name": "output_name",
+  "type": {
+    "base": "...",
+    "parameters": [/* for generic types */]
+  },
+  "constraints": [/* properties guaranteed for output */],
+  "description": "Human-readable output description"
+}
+Example: Result type output
+
+json
+{
+  "name": "parse_result",
+  "type": {
+    "base": "result",
+    "parameters": [
+      {"base": "integer"},
+      {"base": "string"} // error message
+    ]
+  },
+  "description": "Ok(integer) if parsing succeeded, Err(message) if failed"
+}
+Precondition Template
+Preconditions state what must be true before the concept executes.
+
+json
+{
+  "type": "predicate | range | non_null | ...",
+  "expression": "formal logical expression",
+  "severity": "required | recommended | optional"
+}
+Example: Division precondition
+
+json
+{
+  "concept": "divide",
+  "preconditions": [
+    {"type": "predicate", "expression": "denominator != 0", "severity": "required"}
+  ]
+}
+Postcondition Template
+Postconditions state what is guaranteed after the concept executes successfully.
+
+json
+{
+  "type": "predicate | range | ...",
+  "expression": "formal logical expression"
+}
+Example: Sorting postcondition
+
+json
+{
+  "concept": "sort",
+  "postconditions": [
+    {"type": "predicate", "expression": "length(output) == length(input)"},
+    {"type": "predicate", "expression": "output is sorted according to comparator"},
+    {"type": "predicate", "expression": "output contains exactly the same elements as input"}
+  ]
+}
+Side Effect Template
+json
+{
+  "type": "io | mutation | exception | network | file_system | database | heap_allocation | ...",
+  "description": "Detailed description of the side effect",
+  "scope": "local | global",
+  "deterministic": true | false
+}
+Example: Database write side effect
+
+json
+{
+  "type": "database",
+  "description": "Inserts new row into users table",
+  "scope": "global",
+  "deterministic": false
+}
+3.1.5 Type System and Type Inference Rules
+Type Compatibility Rules
+Rule 1: Subtype Relationship
+
+integer is compatible with float (widening)
+float is NOT compatible with integer (narrowing requires explicit cast)
+
+Rule 2: Generic Type Variance
+
+list<integer> is NOT compatible with list<float> (invariant)
+function<(float) -> void> is compatible with function<(integer) -> void> (contravariant in parameters)
+
+Rule 3: Option/Result Types
+
+option<T> represents Some(T) or None
+result<T, E> represents Ok(T) or Err(E)
+
+Example:
+
+json
+{
+  "concept": "safe_divide",
+  "inputs": [
+    {"name": "numerator", "type": {"base": "float"}},
+    {"name": "denominator", "type": {"base": "float"}}
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": {
+        "base": "result",
+        "parameters": [
+          {"base": "float"}, // Ok case
+          {"base": "string"} // Err case
+        ]
+      }
+    }
+  ]
+}
+```
+
+---
+
+#### **Type Inference Algorithm**
+
+When fusing LogicNodes from multiple languages, the CEO Agent applies these inference rules:
+
+**Step 1: Collect all type signatures**
+```
+Python filter: (list<any>, (any -> bool)) -> list<any>
+Rust filter:   (Iterator<T>, (T -> bool)) -> Iterator<T>
+Java filter:   (Stream<T>, Predicate<T>) -> Stream<T>
+```
+
+**Step 2: Find most general unifier**
+```
+Unified: (collection<T>, (T -> bool)) -> collection<T>
+```
+
+**Step 3: Apply paradigm-specific constraints**
+```
+Dynamic paradigm: collection = list
+Systems paradigm: collection = iterator
+Enterprise paradigm: collection = stream
+Step 4: Generate polymorphic LogicNode
+
+json
+{
+  "concept": "filter",
+  "inputs": [
+    {
+      "name": "collection",
+      "type": {
+        "base": "list", // Default
+        "parameters": [{"base": "any", "name": "T"}]
+      }
+    }
+  ],
+  "type_parameters": [
+    {
+      "name": "T",
+      "constraints": []
+    }
+  ]
+}
+3.1.6 Control Flow Representation
+Refined-IR represents control flow as composable LogicNodes rather than language-specific syntax.
+
+Sequential Composition
+json
+{
+  "concept": "sequence",
+  "intent": "Execute operations in order",
+  "inputs": [
+    {
+      "name": "operations",
+      "type": {
+        "base": "list",
+        "parameters": [{"base": "function"}]
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "final_result",
+      "type": {"base": "any"}
+    }
+  ]
+}
+Conditional Branching
+json
+{
+  "concept": "conditional",
+  "intent": "Execute one of two branches based on condition",
+  "inputs": [
+    {"name": "condition", "type": {"base": "boolean"}},
+    {"name": "then_branch", "type": {"base": "function"}},
+    {"name": "else_branch", "type": {"base": "function"}, "optional": true}
+  ],
+  "outputs": [
+    {"name": "result", "type": {"base": "any"}}
+  ]
+}
+Iteration
+json
+{
+  "concept": "iterate",
+  "intent": "Repeatedly execute operation for each element in collection",
+  "inputs": [
+    {"name": "collection", "type": {"base": "list"}},
+    {"name": "operation", "type": {"base": "function"}}
+  ],
+  "outputs": [
+    {"name": "results", "type": {"base": "list"}}
+  ]
+}
+3.1.7 Data Flow Analysis Specifications
+Data Dependency Graph
+Every LogicNode tracks its data dependencies:
+
+json
+{
+  "concept": "compute_total_price",
+  "dependencies": {
+    "reads": ["cart.items", "tax_rate", "discount_code"],
+    "writes": ["order.total", "order.tax_amount"],
+    "calls": [
+      "logicnode:apply_discount",
+      "logicnode:calculate_tax"
+    ]
+  }
+}
+Pure vs Impure Analysis
+Pure LogicNode (can be memoized, parallelized, reordered):
+
+json
+{
+  "concept": "calculate_tax",
+  "side_effects": [],
+  "deterministic": true,
+  "pure": true
+}
+Impure LogicNode (must execute in order, cannot be memoized):
+
+json
+{
+  "concept": "send_confirmation_email",
+  "side_effects": [
+    {"type": "network", "scope": "global"}
+  ],
+  "deterministic": false,
+  "pure": false
+}
+This completes the comprehensive specification of the Agent Architecture, Communication Protocols, Data Architecture, and Refined-IR core component.
+
+
+
+
+
+
+
+Claude is AI and can make mistakes. Please double-check responses.
+
+
+
+
+
+
