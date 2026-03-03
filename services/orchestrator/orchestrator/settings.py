@@ -52,6 +52,10 @@ class Settings:
     object_storage_legal_hold_on_fail: bool = True
     object_storage_force_path_style: bool = True
     object_storage_require_tls: bool = False
+    langgraph_enabled: bool = False
+    langgraph_fail_open: bool = True
+    langgraph_checkpointer: str = "none"
+    langgraph_thread_prefix: str = "mission"
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -162,4 +166,10 @@ def load_settings() -> Settings:
         object_storage_require_tls=_as_bool(
             os.getenv("OBJECT_STORAGE_REQUIRE_TLS", "false"), False
         ),
+        langgraph_enabled=_as_bool(os.getenv("LANGGRAPH_ENABLED", "false"), False),
+        langgraph_fail_open=_as_bool(os.getenv("LANGGRAPH_FAIL_OPEN", "true"), True),
+        langgraph_checkpointer=os.getenv("LANGGRAPH_CHECKPOINTER", "none").strip().lower()
+        or "none",
+        langgraph_thread_prefix=os.getenv("LANGGRAPH_THREAD_PREFIX", "mission").strip()
+        or "mission",
     )

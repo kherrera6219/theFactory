@@ -57,6 +57,11 @@ Evidence targets: `docs/AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`, `docs/ROADMAP.
 Phase 16 status (2026-03-03): orchestrator knowledge path now actively mirrors/retrieves via Qdrant with tested fallback behavior, runtime readiness visibility, and optional `QDRANT_API_KEY` hardening.
 Phase 17-18 status (2026-03-03): Neo4j and object-storage optional expansion tracks are now implemented behind feature flags with regression coverage and evidence (`phase17_neo4j_feature_flag_validation_2026-03-03.md`, `phase18_object_storage_validation_2026-03-03.md`).
 
+- [ ] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
+Acceptance: orchestrator can execute mission state transitions through LangGraph when enabled, and fail-open fallback preserves runtime safety.
+Evidence targets: `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `tests/services/test_langgraph_lifecycle_unit.py`, `docs/UPDATED_PHASE_PLAN_2026-03-03.md`.
+Phase 23 status (2026-03-03): implementation baseline added behind `LANGGRAPH_*` feature flags; next step is persistent checkpointing + live recovery qualification.
+
 ## P2 - Documentation and Strategy Alignment
 - [x] Resolve documentation port/runtime contradictions for Mission Control.
 Acceptance: `README.md`, design docs, compose/env defaults all agree on launch URL/port.

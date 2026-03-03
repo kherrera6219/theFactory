@@ -344,6 +344,29 @@ def test_start_lifecycle_task_cleanup_callback(monkeypatch) -> None:
     assert "mission-cleanup" not in app.state.lifecycle_tasks
 
 
+def test_advance_mission_lifecycle_returns_when_langgraph_handles(monkeypatch) -> None:
+    app = _app_state(lifecycle_tasks={})
+    app.state.settings = Settings(**{**_settings().__dict__, "langgraph_enabled": True})
+
+    async def _langgraph(**_kwargs) -> bool:
+        return True
+
+    async def _sleep(_):
+        raise AssertionError("legacy lifecycle sleep should not execute")
+
+    monkeypatch.setattr(runtime, "maybe_advance_mission_lifecycle", _langgraph)
+    monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
+    monkeypatch.setattr(
+        runtime.storage,
+        "transition_mission_state",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("legacy transition path should not execute")
+        ),
+    )
+
+    asyncio.run(runtime.advance_mission_lifecycle(app, "mission-1"))
+
+
 def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
     app = _app_state(lifecycle_tasks={})
     app.state.settings = _settings()

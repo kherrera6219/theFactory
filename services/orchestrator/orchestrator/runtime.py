@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from pydantic import ValidationError
 
 from . import storage
+from .langgraph_lifecycle import maybe_advance_mission_lifecycle
 from .models import MissionRecord, MissionState
 from .protocol import EnvelopeValidator, ProtocolValidationError
 from .settings import Settings
@@ -182,6 +183,16 @@ def start_lifecycle_task(app: FastAPI, mission_id: str) -> None:
 async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
     settings: Settings = app.state.settings
     validator: EnvelopeValidator = app.state.envelope_validator
+
+    langgraph_handled = await maybe_advance_mission_lifecycle(
+        app=app,
+        mission_id=mission_id,
+        settings=settings,
+        validator=validator,
+        emit_state_event_fn=emit_state_event,
+    )
+    if langgraph_handled:
+        return
 
     transitions = [
         (MissionState.queued, MissionState.running, "MISSION_RUNNING"),
