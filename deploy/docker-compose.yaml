@@ -42,6 +42,29 @@ services:
     volumes:
       - qdrant-data:/qdrant/storage
 
+  neo4j:
+    <<: *common-service
+    image: neo4j:5.26
+    environment:
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-neo4j-password-change-me}
+    ports:
+      - "${NEO4J_HTTP_HOST_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_HOST_PORT:-7687}:7687"
+    volumes:
+      - neo4j-data:/data
+    profiles:
+      - extended-data-plane
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://localhost:7474 >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
   postgres:
     <<: *common-service
     image: postgres:16
@@ -118,6 +141,12 @@ services:
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-mission_knowledge}
       QDRANT_VECTOR_SIZE: ${QDRANT_VECTOR_SIZE:-64}
       QDRANT_TIMEOUT_SECONDS: ${QDRANT_TIMEOUT_SECONDS:-3.0}
+      NEO4J_ENABLED: ${NEO4J_ENABLED:-false}
+      NEO4J_URL: ${NEO4J_URL:-http://neo4j:7474}
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j-password-change-me}
+      NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
+      NEO4J_TIMEOUT_SECONDS: ${NEO4J_TIMEOUT_SECONDS:-3.0}
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ulr}
       INTAKE_STREAM: missions.intake
       INTAKE_TOPIC: intake.feature_contract.created
@@ -468,6 +497,7 @@ services:
 volumes:
   redis-data:
   qdrant-data:
+  neo4j-data:
   postgres-data:
   minio-data:
   milvus-data:

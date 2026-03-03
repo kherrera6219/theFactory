@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -103,6 +104,12 @@ def test_mission_query_endpoints(monkeypatch) -> None:
 def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
     monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)
+    monkeypatch.setattr(
+        app.state,
+        "settings",
+        replace(app.state.settings, neo4j_enabled=True),
+        raising=False,
+    )
 
     responses = [None, _mission(MissionState.failed)]
 
@@ -139,6 +146,8 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         lambda *_: [{"mission_id": "mission-1", "knowledge_id": "k-1"}],
     )
     qdrant_upserts: list[tuple[object, ...]] = []
+    neo4j_knowledge_upserts: list[tuple[object, ...]] = []
+    neo4j_audit_upserts: list[tuple[object, ...]] = []
     monkeypatch.setattr(
         orchestrator_main.qdrant_store,
         "upsert_knowledge",
@@ -148,6 +157,27 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         orchestrator_main.qdrant_store,
         "list_knowledge",
         lambda *_: [{"mission_id": "mission-1", "knowledge_id": "k-qdrant"}],
+    )
+    monkeypatch.setattr(
+        orchestrator_main.neo4j_store,
+        "upsert_knowledge",
+        lambda *args: neo4j_knowledge_upserts.append(args),
+    )
+    monkeypatch.setattr(
+        orchestrator_main.neo4j_store,
+        "upsert_audit_report",
+        lambda *args: neo4j_audit_upserts.append(args),
+    )
+    monkeypatch.setattr(
+        orchestrator_main.neo4j_store,
+        "list_mission_graph",
+        lambda *_: [
+            {
+                "relation_type": "HAS_KNOWLEDGE",
+                "target_labels": ["Knowledge"],
+                "target_properties": {"knowledge_id": "k-1"},
+            }
+        ],
     )
     monkeypatch.setattr(
         orchestrator_main.storage,
@@ -221,6 +251,13 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     assert knowledge_response.status_code == 200
     assert knowledge_response.json()[0]["knowledge_id"] == "k-qdrant"
     assert qdrant_upserts
+    assert neo4j_knowledge_upserts
+    graph_response = client.get(
+        "/internal/missions/mission-1/knowledge-graph?limit=5",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert graph_response.status_code == 200
+    assert graph_response.json()[0]["relation_type"] == "HAS_KNOWLEDGE"
     assert (
         client.post(
             "/internal/audit-reports",
@@ -234,6 +271,7 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         ).status_code
         == 200
     )
+    assert neo4j_audit_upserts
     assert (
         client.get(
             "/internal/missions/mission-1/audit-reports?limit=5",
@@ -461,7 +499,8 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert "postgresql" in integration_payload["data_systems"]
     assert "qdrant" in integration_payload["implemented_data_plane"]
     assert integration_payload["reserved_data_plane"] == []
-    assert "neo4j" in integration_payload["planned_data_plane"]
+    assert "neo4j" in integration_payload["feature_flagged_data_plane"]
+    assert "neo4j" not in integration_payload["planned_data_plane"]
     assert "object_storage" in integration_payload["planned_data_plane"]
     assert integration_payload["llm_provider_counts"]["openai"] > 0
     assert integration_payload["llm_provider_counts"]["anthropic"] > 0

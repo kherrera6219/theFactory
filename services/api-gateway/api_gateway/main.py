@@ -990,6 +990,16 @@ async def get_mission_knowledge(
     )
 
 
+@app.get("/v1/missions/{mission_id}/knowledge-graph")
+async def get_mission_knowledge_graph(
+    mission_id: str, limit: int = Query(default=50, ge=1, le=500)
+) -> list[dict[str, Any]]:
+    return await _proxy_get_internal(
+        f"/internal/missions/{mission_id}/knowledge-graph",
+        params={"limit": limit},
+    )
+
+
 @app.get("/v1/missions/{mission_id}/audit-reports")
 async def get_mission_audit_reports(
     mission_id: str, limit: int = Query(default=50, ge=1, le=500)

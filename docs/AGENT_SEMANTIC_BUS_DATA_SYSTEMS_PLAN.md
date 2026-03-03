@@ -21,7 +21,7 @@ Implemented in `theFactory` now:
 Declared/planned in current docs and code:
 
 - Qdrant is now active in the orchestrator internal knowledge retrieval path with best-effort dual-write from PostgreSQL.
-- Neo4j remains optional/planned for knowledge graph and relationship traversal use cases.
+- Neo4j is now available as a feature-flagged optional adapter for relationship traversal use cases.
 - Object storage remains planned for large immutable artifacts (binaries, audit evidence, large payload bundles).
 
 ## Phase 1 Completed in Repo
@@ -68,7 +68,7 @@ Implemented in this phase:
 Legend:
 
 - Bus Role: semantic-bus direction and protocol ownership.
-- Data Systems: currently expected internal systems for the agent (`redis`, `postgresql`, `qdrant`, `neo4j` planned optional, `object_storage` planned).
+- Data Systems: currently expected internal systems for the agent (`redis`, `postgresql`, `qdrant`, `neo4j` feature_flagged optional, `object_storage` planned).
 - Canonical machine-readable output is available at `/v1/operations/agent-integrations`.
 
 | Agent ID | Name | Pod/Tier | Bus Role | Data Systems |
@@ -77,33 +77,33 @@ Legend:
 | AGENT-02-CEO | CEO Agent | Executive | Alpha/Beta/Delta/Omega/Rho/Sigma; publishes pod assignments/fusion requests; heartbeat producer | redis, postgresql |
 | AGENT-03-BROKER | API Broker | Support Ring | Omega/Rho; traffic/routing directives and runtime incident signaling | redis, postgresql |
 | AGENT-04-ACCOUNTANT | Accountant | Support Ring | Omega/Rho/Sigma; budget telemetry over mission-state streams | redis, postgresql |
-| AGENT-05-SECURITY | Security Agent | Support Ring | Omega/Rho/Sigma; threat/compliance event monitoring | redis, postgresql, neo4j (planned optional) |
-| AGENT-06-IS | IS Agent | Support Ring | Omega/Rho/Sigma; knowledge query/update broker for all pods | redis, postgresql, qdrant, neo4j (planned optional) |
+| AGENT-05-SECURITY | Security Agent | Support Ring | Omega/Rho/Sigma; threat/compliance event monitoring | redis, postgresql, neo4j (feature_flagged optional) |
+| AGENT-06-IS | IS Agent | Support Ring | Omega/Rho/Sigma; knowledge query/update broker for all pods | redis, postgresql, qdrant, neo4j (feature_flagged optional) |
 | AGENT-07-VC | Version Control Agent | Support Ring | Omega/Rho/Sigma; provenance signaling and release trace control | redis, postgresql, object_storage (planned) |
-| AGENT-08-COMPLIANCE | Compliance Agent | Support Ring | Omega/Rho/Sigma; policy and license conformance signals | redis, postgresql, neo4j (planned optional) |
+| AGENT-08-COMPLIANCE | Compliance Agent | Support Ring | Omega/Rho/Sigma; policy and license conformance signals | redis, postgresql, neo4j (feature_flagged optional) |
 | AGENT-09-HW | Hardware-Mapping Injector | Support Ring | Omega/Rho/Sigma; systems-pod optimization event consumer | redis, postgresql |
 | AGENT-10-TESTER | System Integration Tester | Support Ring | Omega/Rho/Sigma; verification and incident signaling | redis, postgresql, object_storage (planned) |
 | AGENT-11-DEPLOY | Deployment Agent | Support Ring | Omega/Rho/Sigma; consumes completion/ready signals, publishes build-ready | redis, postgresql, object_storage (planned) |
 | AGENT-12-PODA-MGR | Pod A Sub-Manager | Pod A | Alpha/Beta/Delta/Rho; consumes podA assignment, publishes fusion/ready | redis, postgresql, qdrant, object_storage (planned) |
-| AGENT-13-PODA-AUDIT | Pod A QC/Audit | Pod A | Delta/Sigma/Rho; verifies submitted artifacts; publish verified/rejected | redis, postgresql, qdrant, neo4j (planned optional), object_storage (planned) |
+| AGENT-13-PODA-AUDIT | Pod A QC/Audit | Pod A | Delta/Sigma/Rho; verifies submitted artifacts; publish verified/rejected | redis, postgresql, qdrant, neo4j (feature_flagged optional), object_storage (planned) |
 | AGENT-14-PYTHON | Python Specialist | Pod A | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-15-JAVASCRIPT | JavaScript Specialist | Pod A | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-16-RUBY | Ruby Specialist | Pod A | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-17-PHP | PHP Specialist | Pod A | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-18-PODB-MGR | Pod B Sub-Manager | Pod B | Alpha/Beta/Delta/Rho; consumes podB assignment, publishes fusion/ready | redis, postgresql, qdrant, object_storage (planned) |
-| AGENT-19-PODB-AUDIT | Pod B QC/Audit | Pod B | Delta/Sigma/Rho; verifies submitted artifacts; publish verified/rejected | redis, postgresql, qdrant, neo4j (planned optional), object_storage (planned) |
+| AGENT-19-PODB-AUDIT | Pod B QC/Audit | Pod B | Delta/Sigma/Rho; verifies submitted artifacts; publish verified/rejected | redis, postgresql, qdrant, neo4j (feature_flagged optional), object_storage (planned) |
 | AGENT-20-C | C Specialist | Pod B | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-21-CPP | C++ Specialist | Pod B | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-22-RUST | Rust Specialist | Pod B | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-23-ZIG | Zig Specialist | Pod B | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-24-PODC-MGR | Pod C Sub-Manager | Pod C | Alpha/Beta/Delta/Rho; consumes podC assignment, publishes fusion/ready | redis, postgresql, qdrant, object_storage (planned) |
-| AGENT-25-PODC-AUDIT | Pod C QC/Audit | Pod C | Delta/Sigma/Rho; verifies submitted artifacts; publish verified/rejected | redis, postgresql, qdrant, neo4j (planned optional), object_storage (planned) |
+| AGENT-25-PODC-AUDIT | Pod C QC/Audit | Pod C | Delta/Sigma/Rho; verifies submitted artifacts; publish verified/rejected | redis, postgresql, qdrant, neo4j (feature_flagged optional), object_storage (planned) |
 | AGENT-26-JAVA | Java Specialist | Pod C | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-27-CSHARP | C# Specialist | Pod C | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-28-SCALA | Scala Specialist | Pod C | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-29-KOTLIN | Kotlin Specialist | Pod C | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-30-PODD-MGR | Pod D Sub-Manager | Pod D | Alpha/Beta/Delta/Rho; consumes podD assignment, publishes fusion/ready | redis, postgresql, qdrant, object_storage (planned) |
-| AGENT-31-PODD-AUDIT | Pod D QC/Audit | Pod D | Delta/Sigma/Rho; verifies submitted artifacts; publish verified/rejected | redis, postgresql, qdrant, neo4j (planned optional), object_storage (planned) |
+| AGENT-31-PODD-AUDIT | Pod D QC/Audit | Pod D | Delta/Sigma/Rho; verifies submitted artifacts; publish verified/rejected | redis, postgresql, qdrant, neo4j (feature_flagged optional), object_storage (planned) |
 | AGENT-32-MATLAB | MATLAB Specialist | Pod D | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-33-R | R Specialist | Pod D | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
 | AGENT-34-JULIA | Julia Specialist | Pod D | Beta/Delta/Sigma/Rho; consume running/assigned, publish RIR submission | redis, postgresql, qdrant |
@@ -140,7 +140,7 @@ PostgreSQL:
 - Implement WAL archiving + base backups for PITR; regularly test restore workflows.
 - Require TLS for service-to-database transport.
 
-Neo4j (planned optional):
+neo4j (feature_flagged optional):
 
 - Use key/uniqueness constraints on graph identifiers before production ingestion.
 - Define and test backup/restore and consistency-check procedures before enabling critical paths.
@@ -166,13 +166,13 @@ Phase 4 (knowledge path activation): `Completed`
 - Orchestrator now writes canonical knowledge to PostgreSQL and mirrors to Qdrant on a best-effort path with fallback read behavior.
 - Qdrant security hardening: optional `QDRANT_API_KEY` auth header support.
 
-Phase 5 (Neo4j and object storage expansion): `Formally Deferred`
+Phase 5 (Neo4j and object storage expansion): `In Progress`
 
-- Decision: keep Neo4j and object storage as optional expansion tracks, not required for current production-readiness baseline.
-- Rationale: current mission lifecycle, audit controls, and reliability gates are met with Redis/PostgreSQL/Qdrant.
-- Trigger to re-open:
-  - relationship traversal requirements exceed SQL + Qdrant capabilities, or
-  - immutable large artifact volume/retention requirements exceed PostgreSQL-backed evidence handling.
+- Neo4j track: `Completed` as feature-flagged optional adapter.
+  - Implemented graph schema/readiness + mission knowledge/audit mirror writes.
+  - Implemented mission graph query endpoint for relationship-heavy retrieval.
+- Object-storage track: `Pending` (next phase).
+  - Scope remains immutable artifact retention with retention/legal-hold controls.
 
 ## Sources
 
@@ -202,4 +202,5 @@ External production references:
 - Neo4j backup/restore: https://neo4j.com/docs/operations-manual/current/backup-restore/
 - Amazon S3 Object Lock: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
 - Amazon S3 consistency model: https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html
+
 

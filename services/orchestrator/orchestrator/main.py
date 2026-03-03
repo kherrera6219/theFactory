@@ -15,7 +15,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
-from . import qdrant_store, storage
+from . import neo4j_store, qdrant_store, storage
 from .agent_integrations import build_agent_integration_record, build_agent_integrations_snapshot
 from .agent_registry import AGENT_REGISTRY, normalize_language
 from .auth import AuthContext, require_roles
@@ -764,6 +764,9 @@ async def health() -> dict[str, Any]:
     qdrant_ready: bool | None = None
     if app.state.settings.qdrant_enabled:
         qdrant_ready = await asyncio.to_thread(qdrant_store.qdrant_ready, app.state.settings)
+    neo4j_ready: bool | None = None
+    if app.state.settings.neo4j_enabled:
+        neo4j_ready = await asyncio.to_thread(neo4j_store.neo4j_ready, app.state.settings)
 
     return {
         "ok": True,
@@ -771,9 +774,11 @@ async def health() -> dict[str, Any]:
         "redis_url": app.state.settings.redis_url,
         "postgres_url": app.state.settings.postgres_url,
         "qdrant_url": app.state.settings.qdrant_url if app.state.settings.qdrant_enabled else None,
+        "neo4j_url": app.state.settings.neo4j_url if app.state.settings.neo4j_enabled else None,
         "redis_healthy": redis_healthy,
         "db_ready": db_ready,
         "qdrant_ready": qdrant_ready,
+        "neo4j_ready": neo4j_ready,
         "mission_count": mission_count,
         "intake_stream": app.state.settings.intake_stream,
         "state_stream": app.state.settings.state_stream,
@@ -795,12 +800,17 @@ async def readyz() -> dict[str, Any]:
     qdrant_ready: bool | None = None
     if app.state.settings.qdrant_enabled:
         qdrant_ready = await asyncio.to_thread(qdrant_store.qdrant_ready, app.state.settings)
+    neo4j_ready: bool | None = None
+    if app.state.settings.neo4j_enabled:
+        neo4j_ready = await asyncio.to_thread(neo4j_store.neo4j_ready, app.state.settings)
     protocol_ready = bool(getattr(app.state, "protocol_ready", False))
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
     ready = redis_ready and db_ready and protocol_ready and consumer_running
     if app.state.settings.qdrant_enabled:
         ready = ready and bool(qdrant_ready)
+    if app.state.settings.neo4j_enabled:
+        ready = ready and bool(neo4j_ready)
     if not ready:
         raise HTTPException(
             status_code=503,
@@ -810,6 +820,7 @@ async def readyz() -> dict[str, Any]:
                 "redis_ready": redis_ready,
                 "db_ready": db_ready,
                 "qdrant_ready": qdrant_ready,
+                "neo4j_ready": neo4j_ready,
                 "protocol_ready": protocol_ready,
                 "consumer_running": consumer_running,
             },
@@ -821,6 +832,7 @@ async def readyz() -> dict[str, Any]:
         "redis_ready": redis_ready,
         "db_ready": db_ready,
         "qdrant_ready": qdrant_ready,
+        "neo4j_ready": neo4j_ready,
         "protocol_ready": protocol_ready,
         "consumer_running": consumer_running,
     }
@@ -1040,6 +1052,23 @@ async def upsert_knowledge(
                 payload.knowledge_id,
                 exc,
             )
+    if app.state.settings.neo4j_enabled:
+        try:
+            await asyncio.to_thread(
+                neo4j_store.upsert_knowledge,
+                app.state.settings,
+                payload.mission_id,
+                payload.knowledge_id,
+                payload.content,
+                created_at,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "failed to upsert neo4j knowledge for mission %s/%s: %s",
+                payload.mission_id,
+                payload.knowledge_id,
+                exc,
+            )
     return record
 
 
@@ -1066,6 +1095,28 @@ async def get_knowledge(
     return await asyncio.to_thread(storage.list_knowledge, app.state.settings, mission_id, limit)
 
 
+@app.get("/internal/missions/{mission_id}/knowledge-graph")
+async def get_knowledge_graph(
+    mission_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> list[dict[str, Any]]:
+    await _ensure_db_ready(app)
+    await _fetch_existing_mission(app, mission_id)
+    if not app.state.settings.neo4j_enabled:
+        return []
+    try:
+        return await asyncio.to_thread(
+            neo4j_store.list_mission_graph,
+            app.state.settings,
+            mission_id,
+            limit,
+        )
+    except Exception as exc:
+        LOGGER.warning("failed to query neo4j graph for mission %s: %s", mission_id, exc)
+        return []
+
+
 @app.post("/internal/audit-reports")
 async def upsert_audit_report(
     payload: AuditReportUpsert,
@@ -1075,7 +1126,7 @@ async def upsert_audit_report(
     await _fetch_existing_mission(app, payload.mission_id)
 
     created_at = payload.created_at or datetime.now(UTC).isoformat()
-    return await asyncio.to_thread(
+    record = await asyncio.to_thread(
         storage.upsert_audit_report,
         app.state.settings,
         payload.mission_id,
@@ -1084,6 +1135,25 @@ async def upsert_audit_report(
         payload.report,
         created_at,
     )
+    if app.state.settings.neo4j_enabled:
+        try:
+            await asyncio.to_thread(
+                neo4j_store.upsert_audit_report,
+                app.state.settings,
+                payload.mission_id,
+                payload.audit_id,
+                payload.status,
+                payload.report,
+                created_at,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "failed to upsert neo4j audit report for mission %s/%s: %s",
+                payload.mission_id,
+                payload.audit_id,
+                exc,
+            )
+    return record
 
 
 @app.get("/internal/missions/{mission_id}/audit-reports")
@@ -1126,6 +1196,7 @@ async def get_operations_summary(
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
     qdrant_ready = await asyncio.to_thread(qdrant_store.qdrant_ready, app.state.settings)
+    neo4j_ready = await asyncio.to_thread(neo4j_store.neo4j_ready, app.state.settings)
 
     return {
         "generated_at": datetime.now(UTC).isoformat(),
@@ -1133,6 +1204,7 @@ async def get_operations_summary(
             "redis_ready": redis_ready,
             "db_ready": db_ready,
             "qdrant_ready": qdrant_ready,
+            "neo4j_ready": neo4j_ready,
             "protocol_ready": protocol_ready,
             "consumer_running": consumer_running,
         },
@@ -1155,6 +1227,7 @@ async def get_operations_agents(
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
     qdrant_ready = await asyncio.to_thread(qdrant_store.qdrant_ready, app.state.settings)
+    neo4j_ready = await asyncio.to_thread(neo4j_store.neo4j_ready, app.state.settings)
 
     missions: list[MissionRecord] = []
     pod_assignments: list[dict[str, Any]] = []
@@ -1192,6 +1265,7 @@ async def get_operations_agents(
         "redis_ready": redis_ready,
         "db_ready": db_ready,
         "qdrant_ready": qdrant_ready,
+        "neo4j_ready": neo4j_ready,
         "protocol_ready": protocol_ready,
         "consumer_running": consumer_running,
     }

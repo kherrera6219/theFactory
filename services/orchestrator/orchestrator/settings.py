@@ -34,6 +34,12 @@ class Settings:
     qdrant_collection: str = "mission_knowledge"
     qdrant_vector_size: int = 64
     qdrant_timeout_seconds: float = 3.0
+    neo4j_url: str = "http://neo4j:7474"
+    neo4j_enabled: bool = False
+    neo4j_username: str = "neo4j"
+    neo4j_password: str = ""
+    neo4j_database: str = "neo4j"
+    neo4j_timeout_seconds: float = 3.0
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -86,6 +92,7 @@ def load_settings() -> Settings:
         postgres_url=os.getenv("POSTGRES_URL", "postgresql://postgres:postgres@postgres:5432/ulr"),
         qdrant_url=os.getenv("QDRANT_URL", "http://qdrant:6333"),
         qdrant_api_key=os.getenv("QDRANT_API_KEY", ""),
+        neo4j_url=os.getenv("NEO4J_URL", "http://neo4j:7474"),
         intake_stream=os.getenv("INTAKE_STREAM", "missions.intake"),
         state_stream=os.getenv("STATE_STREAM", "missions.state"),
         max_stream_len=int(os.getenv("MAX_STREAM_LEN", "20000")),
@@ -112,4 +119,10 @@ def load_settings() -> Settings:
         or "mission_knowledge",
         qdrant_vector_size=max(8, int(os.getenv("QDRANT_VECTOR_SIZE", "64"))),
         qdrant_timeout_seconds=max(0.5, float(os.getenv("QDRANT_TIMEOUT_SECONDS", "3.0"))),
+        neo4j_enabled=_as_bool(os.getenv("NEO4J_ENABLED", "false"), False)
+        and bool(os.getenv("NEO4J_URL", "http://neo4j:7474").strip()),
+        neo4j_username=os.getenv("NEO4J_USERNAME", "neo4j"),
+        neo4j_password=os.getenv("NEO4J_PASSWORD", ""),
+        neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j",
+        neo4j_timeout_seconds=max(0.5, float(os.getenv("NEO4J_TIMEOUT_SECONDS", "3.0"))),
     )

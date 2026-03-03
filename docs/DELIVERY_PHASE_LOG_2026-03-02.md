@@ -547,3 +547,44 @@
 - Qdrant is now active in the orchestrator knowledge path with tested fallback behavior and enterprise-oriented auth hardening support.
 - Neo4j and object-storage are now formally deferred optional expansion tracks for post-baseline growth.
 - All current completion-todo items are closed for this production-readiness baseline.
+
+## Phase 17 - Neo4j Optional Graph Adapter
+
+### Objective
+- Implement the first optional expansion track by introducing a feature-flagged Neo4j graph adapter.
+- Keep baseline runtime stable with fail-soft behavior when Neo4j is disabled or unavailable.
+
+### Implementation
+- Added Neo4j adapter module:
+  - `services/orchestrator/orchestrator/neo4j_store.py`
+  - Supports schema constraints, readiness probe, knowledge/audit upserts, and mission graph listing.
+- Extended orchestrator settings and runtime integration:
+  - `services/orchestrator/orchestrator/settings.py`
+  - `services/orchestrator/orchestrator/main.py`
+  - Added `NEO4J_ENABLED`, `NEO4J_URL`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE`, `NEO4J_TIMEOUT_SECONDS`.
+  - Added Neo4j readiness in `/health`, `/readyz`, and operations runtime snapshots.
+  - `POST /internal/knowledge` and `POST /internal/audit-reports` now mirror writes to Neo4j when enabled.
+  - Added `GET /internal/missions/{mission_id}/knowledge-graph`.
+- Added API gateway proxy route:
+  - `GET /v1/missions/{mission_id}/knowledge-graph`
+- Added compose/env scaffolding:
+  - `.env.example`
+  - `deploy/docker-compose.yaml` (profiled Neo4j service + orchestrator env wiring)
+- Added regression coverage:
+  - `tests/services/test_neo4j_store_unit.py`
+  - `tests/services/test_orchestrator_endpoints_extra.py`
+  - `tests/services/test_production_foundations.py`
+- Added phase evidence:
+  - `docs/evidence/phase17_neo4j_feature_flag_validation_2026-03-03.md`
+
+### Validation and Debug Sweep
+- `python -m ruff check services tests scripts`: pass
+- `python -m pytest -q tests/services/test_neo4j_store_unit.py tests/services/test_orchestrator_endpoints_extra.py tests/services/test_production_foundations.py -k "neo4j or knowledge_graph or readyz or internal_operations_routes or update_state_and_internal_endpoints"`: pass (10 tests)
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (`227` tests, `85.49%`)
+- `python scripts/check_coverage_thresholds.py ...`: pass
+- `python scripts/production_review_audit.py`: pass (`12/12`)
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+
+### Outcome
+- Neo4j optional graph retrieval path is now implemented behind a feature flag with tested fallback behavior.
+- Remaining optional expansion track: object-storage adapter with retention/legal-hold controls.
