@@ -327,6 +327,22 @@ Last updated: 2026-03-04
   - `docs/evidence/phase30_auth_mode_and_dedicated_profile_validation_2026-03-04.md`
 - Status: Complete (execution baseline implemented and validated, 2026-03-04).
 
+## Phase 31: Dedicated-Agent Scheduler Binding Enforcement
+
+- Implemented dedicated-agent scheduler policy in pod-worker runtime:
+  - `AGENT_BINDING` is now parsed and enforced during mission-running handling.
+  - Dedicated workers process missions only when resolved mission agent matches configured binding.
+  - Mission agent resolution supports payload fields, payload metadata, and orchestrator mission metadata fallback.
+- Added dedicated-binding runtime telemetry and visibility:
+  - `pod_worker_binding_skips_total{pod_name,reason}` metric.
+  - pod-worker `/health` now includes `agent_binding`.
+- Added regression coverage:
+  - `tests/services/test_pod_worker_unit.py`
+  - `tests/services/test_runtime_unit.py` (coverage-gate maintenance for required modules).
+- Validation evidence:
+  - `docs/evidence/phase31_dedicated_agent_binding_scheduler_validation_2026-03-04.md`
+- Status: Complete (binding policy implemented and validated, 2026-03-04).
+
 ## Next Roadmap Targets
 
 1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
@@ -335,5 +351,5 @@ Last updated: 2026-03-04
    - repo diff-review/apply gate for file-level mission outputs,
    - virtualization of Semantic Bus and agent-log high-volume views.
 4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
-5. Execute dedicated-agent scheduler routing policy for `AGENT_BINDING` services and controlled canary rollout.
-6. Extend OIDC auth mode beyond mutation endpoint to broader operator/public route policies and runbook playbooks.
+5. Extend OIDC auth mode beyond mutation endpoint to broader operator/public route policies and runbook playbooks.
+6. Run dedicated-agent canary rollout with mission metadata contract instrumentation and rollback guardrails.

@@ -157,6 +157,67 @@ def test_emit_state_event() -> None:
     assert payload["mission_id"] == "mission-1"
 
 
+def test_emit_running_phase_checkpoints_skips_stream_when_redis_unavailable(monkeypatch) -> None:
+    app = _app_state(redis=None, redis_ready=False)
+    mission = _mission_record(MissionState.running)
+    runtime_settings = _settings()
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    inserted: list[str] = []
+    emitted: list[str] = []
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.storage,
+        "insert_mission_event",
+        lambda _settings_obj, _mission_id, _prev, _new, event_type: inserted.append(event_type),
+    )
+
+    async def _emit_state_event(**kwargs):
+        emitted.append(kwargs["event_type"])
+
+    monkeypatch.setattr(runtime, "emit_state_event", _emit_state_event)
+
+    asyncio.run(
+        runtime._emit_running_phase_checkpoints(
+            app=app,
+            settings=runtime_settings,
+            validator=FakeEnvelopeValidator(),
+            mission=mission,
+        )
+    )
+    assert inserted == ["MISSION_GATING", "MISSION_FUSION"]
+    assert emitted == []
+
+
+def test_emit_running_phase_checkpoints_emit_failure_is_swallowed(monkeypatch) -> None:
+    app = _app_state(redis=FakeRedis(), redis_ready=True)
+    mission = _mission_record(MissionState.running)
+    runtime_settings = _settings()
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "insert_mission_event", lambda *_args: None)
+
+    async def _emit_fail(**_kwargs):
+        raise RuntimeError("emit failure")
+
+    monkeypatch.setattr(runtime, "emit_state_event", _emit_fail)
+
+    asyncio.run(
+        runtime._emit_running_phase_checkpoints(
+            app=app,
+            settings=runtime_settings,
+            validator=FakeEnvelopeValidator(),
+            mission=mission,
+        )
+    )
+
+
 def test_ensure_consumer_group_busygroup(monkeypatch) -> None:
     class BusyGroup(runtime.ResponseError):
         pass

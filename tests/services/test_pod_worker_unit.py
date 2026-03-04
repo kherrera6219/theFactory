@@ -53,6 +53,32 @@ def test_parse_date_time() -> None:
         pod_worker_main._parse_date_time("2026-03-01T00:00:00")
 
 
+def test_parse_agent_binding() -> None:
+    binding = pod_worker_main._parse_agent_binding("agent-01-pm, AGENT-02-CEO  AGENT-01-PM")
+    assert binding == ("AGENT-01-PM", "AGENT-02-CEO")
+
+
+def test_agent_id_resolution_helpers() -> None:
+    assert pod_worker_main._normalize_agent_id(" agent-01-pm ") == "AGENT-01-PM"
+    assert pod_worker_main._normalize_agent_id(1) is None
+
+    metadata = {
+        "selected_agent_id": "agent-12-poda-mgr",
+        "agent": {"id": "AGENT-01-PM"},
+    }
+    assert pod_worker_main._agent_id_from_metadata(metadata) == "AGENT-12-PODA-MGR"
+    assert (
+        pod_worker_main._agent_id_from_metadata({"agent": {"id": "agent-01-pm"}})
+        == "AGENT-01-PM"
+    )
+    assert pod_worker_main._agent_id_from_metadata({"agent": "not-a-dict"}) is None
+    assert (
+        pod_worker_main._agent_id_from_payload({"agent_id": "agent-03-broker"})
+        == "AGENT-03-BROKER"
+    )
+    assert pod_worker_main._agent_id_from_payload({"metadata": metadata}) == "AGENT-12-PODA-MGR"
+
+
 def test_validate_envelope_and_build(monkeypatch) -> None:
     schema = {
         "required": [
@@ -222,6 +248,69 @@ def test_has_assignment(monkeypatch) -> None:
     assert asyncio.run(pod_worker_main._has_assignment("mission-1")) is True
 
 
+def test_fetch_mission_agent_id_and_binding_match(monkeypatch) -> None:
+    async def _request_ok(*_args, **_kwargs):
+        return DummyResponse(200, {"metadata": {"agent_id": "agent-12-poda-mgr"}})
+
+    monkeypatch.setattr(pod_worker_main, "_request", _request_ok)
+    assert asyncio.run(pod_worker_main._fetch_mission_agent_id("mission-1")) == "AGENT-12-PODA-MGR"
+
+    async def _request_top_level(*_args, **_kwargs):
+        return DummyResponse(200, {"agent_id": "agent-24-podc-mgr"})
+
+    monkeypatch.setattr(pod_worker_main, "_request", _request_top_level)
+    assert asyncio.run(pod_worker_main._fetch_mission_agent_id("mission-1")) == "AGENT-24-PODC-MGR"
+
+    monkeypatch.setattr(pod_worker_main, "AGENT_BINDING_SET", frozenset({"AGENT-12-PODA-MGR"}))
+    assert (
+        asyncio.run(
+            pod_worker_main._mission_matches_agent_binding(
+                "mission-1",
+                {"metadata": {"agent_id": "AGENT-12-PODA-MGR"}},
+            )
+        )
+        is True
+    )
+
+
+def test_mission_binding_mismatch_and_unresolved(monkeypatch) -> None:
+    monkeypatch.setattr(pod_worker_main, "AGENT_BINDING_SET", frozenset({"AGENT-12-PODA-MGR"}))
+
+    async def _request_not_found(*_args, **_kwargs):
+        return DummyResponse(404)
+
+    monkeypatch.setattr(pod_worker_main, "_request", _request_not_found)
+    assert asyncio.run(pod_worker_main._fetch_mission_agent_id("mission-1")) is None
+    assert (
+        asyncio.run(
+            pod_worker_main._mission_matches_agent_binding(
+                "mission-1",
+                {"metadata": {"agent_id": "AGENT-18-PODB-MGR"}},
+            )
+        )
+        is False
+    )
+    assert asyncio.run(pod_worker_main._mission_matches_agent_binding("mission-1", {})) is False
+
+    monkeypatch.setattr(pod_worker_main, "AGENT_BINDING_SET", frozenset())
+    assert asyncio.run(pod_worker_main._mission_matches_agent_binding("mission-1", {})) is True
+
+    async def _request_not_dict(*_args, **_kwargs):
+        return DummyResponse(200, {"items": []})
+
+    class NotDictResponse(DummyResponse):
+        def json(self):
+            return ["bad-payload"]
+
+    async def _request_bad_json(*_args, **_kwargs):
+        return NotDictResponse(200)
+
+    monkeypatch.setattr(pod_worker_main, "_request", _request_not_dict)
+    assert asyncio.run(pod_worker_main._fetch_mission_agent_id("mission-1")) is None
+    monkeypatch.setattr(pod_worker_main, "_request", _request_bad_json)
+    assert asyncio.run(pod_worker_main._fetch_mission_agent_id("mission-1")) is None
+
+
 def test_request_uses_httpx_client(monkeypatch) -> None:
     class FakeResponse:
         status_code = 200
@@ -331,6 +420,7 @@ def test_handle_running_mission_branches(monkeypatch) -> None:
     monkeypatch.setattr(pod_worker_main, "_has_assignment", _has_assignment_false)
     monkeypatch.setattr(pod_worker_main, "_request", _request)
     monkeypatch.setattr(pod_worker_main, "_publish_event", _publish)
+    monkeypatch.setattr(pod_worker_main, "AGENT_BINDING_SET", frozenset())
 
     asyncio.run(pod_worker_main._handle_running_mission(redis_client, payload))
     assert ("POST", "/internal/pod-assignment") in calls
@@ -387,8 +477,85 @@ def test_handle_running_mission_skips_empty_target_for_non_default_pod(monkeypat
         return False
 
     monkeypatch.setattr(pod_worker_main, "_has_assignment", _has_assignment)
+    monkeypatch.setattr(pod_worker_main, "AGENT_BINDING_SET", frozenset())
     asyncio.run(pod_worker_main._handle_running_mission(redis_client, {"mission_id": "mission-1"}))
     assert called["has_assignment"] is False
+
+
+def test_handle_running_mission_skips_when_binding_mismatch(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    monkeypatch.setattr(pod_worker_main, "AGENT_BINDING_SET", frozenset({"AGENT-12-PODA-MGR"}))
+    called = {"has_assignment": False}
+
+    async def _has_assignment(_mission_id: str) -> bool:
+        called["has_assignment"] = True
+        return False
+
+    monkeypatch.setattr(pod_worker_main, "_has_assignment", _has_assignment)
+    payload = {
+        "mission_id": "mission-1",
+        "requested_target_language": "python",
+        "metadata": {"agent_id": "AGENT-18-PODB-MGR"},
+    }
+    asyncio.run(pod_worker_main._handle_running_mission(redis_client, payload))
+    assert called["has_assignment"] is False
+
+
+def test_handle_running_mission_with_source_extraction(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    payload = {
+        "mission_id": "mission-1",
+        "requested_target_language": "python",
+        "source_code": "def add(a, b):\n    return a + b\n",
+        "state": "RUNNING",
+    }
+    monkeypatch.setattr(pod_worker_main, "AGENT_BINDING_SET", frozenset())
+
+    async def _has_assignment_false(_mission_id: str) -> bool:
+        return False
+
+    calls: list[tuple[str, str, dict[str, Any]]] = []
+
+    async def _request(method: str, path: str, **kwargs):
+        calls.append((method, path, kwargs))
+        return DummyResponse(200, {"ok": True})
+
+    published: list[str] = []
+
+    async def _publish(redis_obj, topic: str, mission_id: str, payload_obj: dict[str, Any]):
+        _ = redis_obj
+        _ = mission_id
+        _ = payload_obj
+        published.append(topic)
+
+    class FakeConcept:
+        concept_id = "dyn-001"
+        domain = "list_operations"
+        concept = "map_collection"
+        intent = "transform"
+        confidence = 0.91
+        source_line = 1
+        evidence = "map pattern"
+
+    class FakeExtractor:
+        def extract(self, source_code: str):
+            _ = source_code
+            return SimpleNamespace(
+                summary={"language": "python", "concepts_found": 1},
+                concepts=[FakeConcept()],
+            )
+
+    monkeypatch.setattr(pod_worker_main, "_has_assignment", _has_assignment_false)
+    monkeypatch.setattr(pod_worker_main, "_request", _request)
+    monkeypatch.setattr(pod_worker_main, "_publish_event", _publish)
+    monkeypatch.setattr(pod_worker_main, "get_extractor", lambda _language: FakeExtractor())
+
+    asyncio.run(pod_worker_main._handle_running_mission(redis_client, payload))
+    assert any(path == "/internal/pod-assignment" for _, path, _ in calls)
+    logicnode_calls = [entry for entry in calls if entry[1] == "/internal/logicnodes"]
+    assert len(logicnode_calls) == 1
+    assert logicnode_calls[0][2]["json_body"]["node_id"].startswith("podA.dyn-001.")
+    assert len(published) == 2
 
 
 def test_health_function() -> None:
@@ -402,6 +569,7 @@ def test_health_function() -> None:
     result = asyncio.run(pod_worker_main.health())
     assert result["ok"] is True
     assert result["processed"] == 3
+    assert "agent_binding" in result
 
 
 def test_readyz_function() -> None:

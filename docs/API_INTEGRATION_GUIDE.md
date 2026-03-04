@@ -43,13 +43,25 @@ Current implementation baseline:
 - `POST /v1/missions/{mission_id}/state` now enforces `AUTH_MODE` policy.
 - In `oidc` and bearer-based `hybrid` requests, gateway validates required role and forwards `INTERNAL_SERVICE_API_KEY` to orchestrator.
 
+## Dedicated-Agent Binding Routing
+
+- Dedicated pod-worker services (compose profile `--profile dedicated-agents`) enforce `AGENT_BINDING`.
+- A dedicated worker only processes missions when resolved mission agent matches its configured binding.
+- Mission agent resolution order:
+  1. state payload keys (`agent_id`, `target_agent_id`, `selected_agent_id`, `assigned_agent_id`)
+  2. mission payload metadata keys (`metadata.agent_id`, `metadata.target_agent_id`, `metadata.selected_agent_id`, `metadata.assigned_agent_id`)
+  3. orchestrator mission metadata fallback (`GET /missions/{mission_id}`)
+
+Recommended intake contract for deterministic dedicated routing:
+- include target agent in mission metadata at creation time.
+
 ## Mission Intake Example
 
 ```bash
 curl -X POST http://localhost:8100/v1/missions \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: sample-1" \
-  -d "{\"prompt\":\"Build a service\",\"requested_target_language\":\"python\",\"metadata\":{\"source\":\"api-guide\"}}"
+  -d "{\"prompt\":\"Build a service\",\"requested_target_language\":\"python\",\"metadata\":{\"source\":\"api-guide\",\"selected_agent_id\":\"AGENT-12-PODA-MGR\"}}"
 ```
 
 ## MCP Send Example
