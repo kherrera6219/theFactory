@@ -1,6 +1,6 @@
 # Documentation Index
 
-Last updated: 2026-03-03
+Last updated: 2026-03-04
 
 This index maps the in-repo documentation set for theFactory and reflects the current implementation baseline.
 
@@ -27,6 +27,8 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `evidence/phase23_langgraph_baseline_validation_2026-03-03.md`: LangGraph adoption baseline validation and quality-gate evidence.
 - `evidence/phase24_langgraph_postgres_checkpointer_validation_2026-03-03.md`: Postgres checkpointer baseline validation for LangGraph mission lifecycle.
 - `evidence/phase25_word_doc_audit_and_langgraph_runtime_visibility_2026-03-03.md`: Word-doc audit execution and LangGraph runtime visibility validation.
+- `evidence/phase26_langgraph_live_recovery_validation_2026-03-03.md`: lifecycle rehydration hardening and live restart qualification summary.
+- `evidence/phase26_langgraph_postgres_live_recovery_qualification_2026-03-03.json`: machine-readable live qualification timings and pass/fail criteria.
 - `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
 - `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.
 

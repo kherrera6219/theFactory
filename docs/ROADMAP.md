@@ -1,6 +1,6 @@
 # Build Roadmap
 
-Last updated: 2026-03-03
+Last updated: 2026-03-04
 
 ## Phase 1: Foundation
 
@@ -192,7 +192,7 @@ Last updated: 2026-03-03
   - updated endpoint/gateway regression tests
 - Status: Complete (baseline, 2026-03-03).
 
-## Phase 23: LangGraph Orchestration Adoption (In Progress)
+## Phase 23: LangGraph Orchestration Adoption
 
 - Added feature-flagged LangGraph lifecycle engine:
   - `services/orchestrator/orchestrator/langgraph_lifecycle.py`
@@ -206,7 +206,7 @@ Last updated: 2026-03-03
 - Added regression coverage:
   - `tests/services/test_langgraph_lifecycle_unit.py`
   - updated `tests/services/test_runtime_unit.py`
-- Status: In progress (implementation baseline, 2026-03-03).
+- Status: Complete (implementation baseline, 2026-03-03).
 
 ## Phase 24: LangGraph Postgres Checkpointer Baseline
 
@@ -236,6 +236,23 @@ Last updated: 2026-03-03
 - Added regression assertions for the new runtime fields.
 - Status: Complete (audit + runtime visibility baseline, 2026-03-03).
 
+## Phase 26: LangGraph Postgres Live Recovery Qualification
+
+- Added startup lifecycle rehydration for in-flight mission states (`QUEUED`, `RUNNING`, `VERIFIED`) after orchestrator restart.
+- Added recovery telemetry fields to runtime payload surfaces:
+  - `lifecycle_recovery_bootstrapped`
+  - `lifecycle_recovery_recovered_count`
+  - `lifecycle_recovery_scanned_count`
+  - `lifecycle_recovery_last_at`
+  - `lifecycle_recovery_last_error`
+- Added live qualification automation:
+  - `scripts/langgraph_postgres_recovery_qualification.py`
+  - `scripts/langgraph_postgres_recovery_qualification.ps1`
+  - `make langgraph-recovery`
+- Validation evidence:
+  - `docs/evidence/phase26_langgraph_postgres_live_recovery_qualification_2026-03-03.json`
+- Status: Complete (live restart/disruption qualification passed, 2026-03-04).
+
 ## Next Roadmap Targets
 
 1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
@@ -244,5 +261,7 @@ Last updated: 2026-03-03
    - repo diff-review/apply gate for file-level mission outputs,
    - virtualization of Semantic Bus and agent-log high-volume views.
 4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
-5. Add live LangGraph checkpoint recovery qualification against Postgres-backed runtime with restart/disruption scenarios.
-6. Implement live transport path (WebSocket/SSE) for mission-critical Mission Control views to reduce polling-only dependency.
+5. Implement live transport path (WebSocket/SSE) for mission-critical Mission Control views to reduce polling-only dependency.
+6. Reconcile 7-phase Smelt-cycle model to runtime lifecycle events with deterministic timeline mapping.
+7. Publish 35-agent runtime topology decision (dedicated-per-agent containers vs condensed workers) with trigger-based migration path.
+8. Publish security-model ADR for API-key model versus JWT/OIDC enterprise token architecture.

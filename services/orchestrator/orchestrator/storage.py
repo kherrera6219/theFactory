@@ -147,6 +147,38 @@ def list_missions(settings: Settings, limit: int) -> list[MissionRecord]:
     return [row_to_mission(row) for row in rows]
 
 
+def list_missions_in_states(
+    settings: Settings,
+    states: list[MissionState] | tuple[MissionState, ...],
+    limit: int,
+) -> list[MissionRecord]:
+    normalized_states = [state.value for state in states if isinstance(state, MissionState)]
+    if not normalized_states:
+        return []
+
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    mission_id,
+                    prompt,
+                    requested_target_language,
+                    metadata_json,
+                    state,
+                    created_at
+                FROM missions
+                WHERE state = ANY(%s)
+                ORDER BY created_at ASC
+                LIMIT %s
+                """,
+                (normalized_states, max(1, int(limit))),
+            )
+            rows = cur.fetchall()
+
+    return [row_to_mission(row) for row in rows]
+
+
 def insert_mission_event(
     settings: Settings,
     mission_id: str,

@@ -1,4 +1,4 @@
-.PHONY: up down validate lint test test-ui test-ui-e2e test-fast audit promotion-gate sweep openapi predeploy backup dr perf reliability monitor-up monitor-down
+.PHONY: up down validate lint test test-ui test-ui-e2e test-fast audit promotion-gate sweep openapi predeploy backup dr perf reliability langgraph-recovery monitor-up monitor-down
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -69,6 +69,9 @@ perf:
 
 reliability:
 	powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1
+
+langgraph-recovery:
+	powershell -ExecutionPolicy Bypass -File scripts/langgraph_postgres_recovery_qualification.ps1
 
 sweep:
 	powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1

@@ -57,12 +57,12 @@ Evidence targets: `docs/AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`, `docs/ROADMAP.
 Phase 16 status (2026-03-03): orchestrator knowledge path now actively mirrors/retrieves via Qdrant with tested fallback behavior, runtime readiness visibility, and optional `QDRANT_API_KEY` hardening.
 Phase 17-18 status (2026-03-03): Neo4j and object-storage optional expansion tracks are now implemented behind feature flags with regression coverage and evidence (`phase17_neo4j_feature_flag_validation_2026-03-03.md`, `phase18_object_storage_validation_2026-03-03.md`).
 
-- [ ] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
+- [x] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
 Acceptance: orchestrator can execute mission state transitions through LangGraph when enabled, and fail-open fallback preserves runtime safety.
 Evidence targets: `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `tests/services/test_langgraph_lifecycle_unit.py`, `docs/UPDATED_PHASE_PLAN_2026-03-03.md`.
 Phase 23 status (2026-03-03): implementation baseline added behind `LANGGRAPH_*` feature flags.
 Phase 24 status (2026-03-03): postgres checkpointer baseline added (`LANGGRAPH_CHECKPOINTER=postgres`) with setup/idempotence controls and regression coverage.
-Remaining step: run live recovery qualification using checkpoint persistence under restart/disruption tests.
+Phase 26 status (2026-03-04): completed live restart/disruption qualification with postgres checkpoint persistence, added startup lifecycle rehydration, and published evidence at `docs/evidence/phase26_langgraph_postgres_live_recovery_qualification_2026-03-03.json`.
 
 ## P2 - Documentation and Strategy Alignment
 - [x] Resolve documentation port/runtime contradictions for Mission Control.
@@ -88,6 +88,6 @@ Phase 25 status (2026-03-03): complete; remaining gaps promoted into canonical r
 ## Exit Criteria
 - [x] All P0 acceptance criteria passed and documented.
 - [x] At least 80% service coverage maintained with critical-module thresholds intact.
-Current verified baseline (2026-03-03): 84.95% global coverage, all required 100% module thresholds passing.
+Current verified baseline (2026-03-04): 85.46% global coverage, all required 100% module thresholds passing.
 - [x] Mission Control has automated regression protection for core operator journeys.
 - [x] Updated audit report confirms no remaining critical production blockers.

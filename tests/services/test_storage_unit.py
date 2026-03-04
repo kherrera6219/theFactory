@@ -175,6 +175,22 @@ def test_upsert_fetch_list_and_count(monkeypatch) -> None:
     assert first_upsert_params[-1] == "1-0"
 
 
+def test_list_missions_in_states(monkeypatch) -> None:
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    row = ("mission-2", "Build API", "python", {"source": "test"}, "RUNNING", now)
+    _patch_db(monkeypatch, [FakeCursor(fetchall_results=[[row]])])
+
+    results = storage.list_missions_in_states(
+        _settings(),
+        [MissionState.running, MissionState.verified],
+        25,
+    )
+    assert len(results) == 1
+    assert results[0].mission_id == "mission-2"
+
+    assert storage.list_missions_in_states(_settings(), [], 25) == []
+
+
 def test_insert_and_list_mission_events(monkeypatch) -> None:
     now = datetime(2026, 3, 1, tzinfo=UTC)
     rows = [
