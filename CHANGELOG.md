@@ -115,6 +115,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - added Prometheus alert rules and Grafana panels for optional data-plane readiness, error-rate, and p95 latency
   - added incident runbook `docs/runbooks/optional_data_plane_incident_runbook.md`
   - validation evidence in `docs/evidence/phase32_optional_data_plane_observability_validation_2026-03-04.md`
+- Phase 33 extended data-plane live qualification:
+  - added live integration suite `tests/services/test_live_extended_data_plane_integration.py`
+  - added skip-safe disruption/recovery qualification flow for temporary Neo4j/MinIO outages
+  - added `make test-live-extended` for local execution
+  - validation evidence in `docs/evidence/phase33_extended_data_plane_live_qualification_validation_2026-03-04.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
@@ -145,3 +150,5 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Orchestrator now supports feature-flagged object-storage audit-artifact mirroring/listing with retention/legal-hold policy metadata and gateway route `GET /v1/missions/{mission_id}/audit-artifacts`.
 - `.env.example` and `deploy/docker-compose.yaml` now expose `OBJECT_STORAGE_*` runtime controls; orchestrator requirements now include `boto3` for S3-compatible adapters.
 - Canonical planning docs refreshed to align with current baseline and identify next execution phases after optional data-plane activation.
+- `deploy/docker-compose.yaml` extended data-plane MinIO image tag updated to a valid release (`RELEASE.2025-09-07T16-13-09Z`) and MinIO healthcheck now uses `curl` (runtime-available) instead of `wget`.
+- `Makefile` now exposes `make test-live-extended` for optional Neo4j/MinIO live qualification.

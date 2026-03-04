@@ -1,4 +1,4 @@
-.PHONY: up down validate lint test test-ui test-ui-e2e test-fast audit promotion-gate sweep openapi predeploy backup dr perf reliability langgraph-recovery monitor-up monitor-down
+.PHONY: up down validate lint test test-ui test-ui-e2e test-fast test-live-extended audit promotion-gate sweep openapi predeploy backup dr perf reliability langgraph-recovery monitor-up monitor-down
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -40,6 +40,9 @@ test-ui-e2e:
 
 test-fast:
 	pytest
+
+test-live-extended:
+	pytest -q tests/services/test_live_extended_data_plane_integration.py
 
 audit:
 	python scripts/production_review_audit.py
