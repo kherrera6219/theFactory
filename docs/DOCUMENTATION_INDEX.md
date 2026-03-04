@@ -39,6 +39,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `evidence/phase31_dedicated_agent_binding_scheduler_validation_2026-03-04.md`: dedicated-agent binding scheduler enforcement and validation sweep evidence.
 - `evidence/phase32_optional_data_plane_observability_validation_2026-03-04.md`: optional adapter observability, alerting, and dashboard validation evidence.
 - `evidence/phase33_extended_data_plane_live_qualification_validation_2026-03-04.md`: live Neo4j/MinIO qualification and disruption-recovery validation evidence.
+- `evidence/phase34_mission_control_advanced_operator_ux_validation_2026-03-04.md`: repo diff-review/apply gate and high-volume UI virtualization validation evidence.
 - `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
 - `runbooks/optional_data_plane_incident_runbook.md`: incident response playbook for Neo4j/object-storage optional adapter degradation.
 - `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.

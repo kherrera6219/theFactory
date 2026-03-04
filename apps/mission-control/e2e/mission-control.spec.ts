@@ -390,8 +390,10 @@ test("operations views render runtime and agent persona detail", async ({ page }
   await page.goto("/agents");
   await expect(page.getByRole("heading", { name: "35-Agent Runtime Control Grid" })).toBeVisible();
   await expect(page.getByText("Total agents")).toBeVisible();
+  await expect(page.getByText(/Windowed rows:/i)).toBeVisible();
   await page.getByRole("button", { name: /Agent One PM/i }).first().click();
   await expect(page.getByRole("heading", { name: /Agent Detail - AGENT-01-PM/i })).toBeVisible();
+  await expect(page.getByText(/log entries \(windowed\)/i)).toBeVisible();
   await expect(page.getByRole("heading", { name: "8-Part Persona Profile" })).toBeVisible();
 });
 
@@ -462,6 +464,11 @@ test("repo intake imports files and launches mission", async ({ page }) => {
 
   await page.getByRole("button", { name: "Select Top 25" }).click();
   await expect(page.getByText(/Selected: 3 files - 510 estimated lines/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Generate Diff Review" }).click();
+  await expect(page.getByRole("heading", { name: "Diff Summary" })).toBeVisible();
+  await page.getByRole("button", { name: "Apply Review Gate" }).click();
+  await expect(page.getByText(/Review gate applied at/i)).toBeVisible();
 
   await page.getByRole("button", { name: "Analyze" }).click();
   await page.getByRole("button", { name: "Launch Mission" }).click();

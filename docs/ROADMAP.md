@@ -383,11 +383,26 @@ Last updated: 2026-03-04
   - `docs/evidence/phase33_extended_data_plane_live_qualification_validation_2026-03-04.md`
 - Status: Complete (extended data-plane live qualification implemented and validated, 2026-03-04).
 
+## Phase 34: Mission Control Advanced Operator UX (Phase 21 Objective)
+
+- Upgraded repository intake to an explicit 4-step operator workflow:
+  - import repository,
+  - file selection with per-file overlays (`include`, `reference`, `exclude`),
+  - generated diff review with explicit apply gate,
+  - mission configuration and launch (locked until gate applied).
+- Added windowed virtualization for high-volume Mission Control views:
+  - Semantic Bus event stream table,
+  - agent roster table,
+  - selected-agent log stream panel.
+- Expanded frontend regression coverage:
+  - updated Playwright journey for repo review gate and apply flow,
+  - assertions for windowed rendering indicators in operations views.
+- Validation evidence:
+  - `docs/evidence/phase34_mission_control_advanced_operator_ux_validation_2026-03-04.md`
+- Status: Complete (Phase 21 objective executed and validated, 2026-03-04).
+
 ## Next Roadmap Targets
 
-1. Implement advanced Mission Control operator UX gaps from imported design specs:
-   - repo diff-review/apply gate for file-level mission outputs,
-   - virtualization of Semantic Bus and agent-log high-volume views.
-2. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
-3. Extend OIDC auth mode beyond mutation endpoint to broader operator/public route policies and runbook playbooks.
-4. Run dedicated-agent canary rollout with mission metadata contract instrumentation and rollback guardrails.
+1. Publish explicit strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution, language expansion).
+2. Extend OIDC auth mode beyond mutation endpoint to broader operator/public route policies and runbook playbooks.
+3. Run dedicated-agent canary rollout with mission metadata contract instrumentation and rollback guardrails.
