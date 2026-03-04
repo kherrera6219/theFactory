@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const displayFont = Space_Grotesk({ subsets: ["latin"], variable: "--font-display" });
-const monoFont = IBM_Plex_Mono({
+const displayFont = Inter({ subsets: ["latin"], variable: "--font-display" });
+const monoFont = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
-  weight: ["400", "500"],
+  weight: ["400", "500", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "Mission Control",
-  description: "HolyGrail mission intake and orchestration view",
+  title: "Holy Grail Refinery — Mission Control",
+  description: "35-agent multi-language refinery — mission intake, orchestration, and operations control.",
 };
 
 type RootLayoutProps = {

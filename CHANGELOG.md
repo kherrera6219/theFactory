@@ -7,6 +7,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- Frontend Style Guide compliance pass:
+  - Typography: `layout.tsx` updated to use Style Guide-specified `Inter` (display) and `JetBrains_Mono` (code) fonts.
+  - Dark mode: `globals.css` rewritten with 31-token CSS variable system — SLATE `#0F172A` background, Refinery Violet `#8B5CF6` accent, SLATE-400 muted text, SLATE-700 borders throughout.
+  - Reconnect banner: new `components/reconnect-banner.tsx` — accessible `role="alert"` component with retrying/stale states, pre-wired into shell layout ready for SSE connection state.
+  - Responsive breakpoints: `globals.css` now includes 1440px (wide desktop) and 1024px (standard desktop) breakpoints per Frontend Design §12.
+  - Safari: `-webkit-backdrop-filter` added alongside `backdrop-filter` on shell header.
+  - Evidence: `docs/evidence/frontend_style_guide_compliance_2026-03-03.md`
+
 - Versioned orchestrator migration framework:
   - `services/orchestrator/orchestrator/migrations.py`
   - `services/orchestrator/orchestrator/migrations/V001_initial_runtime_schema.sql`
@@ -68,6 +76,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - phase evidence in `docs/evidence/phase18_object_storage_validation_2026-03-03.md`
 - Post-Phase-18 planning refresh:
   - `docs/UPDATED_PHASE_PLAN_2026-03-03.md`
+- Mission Control live transport baseline:
+  - API Gateway SSE endpoint `GET /v1/stream/state` with mission filtering, keepalive, and `Last-Event-ID` resume support
+  - frontend EventSource transport integration for mission detail, Semantic Bus, and agent operations views
+  - `tests/services/test_api_gateway_live_stream_unit.py`
+  - phase evidence in `docs/evidence/phase27_mission_control_live_transport_validation_2026-03-04.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
