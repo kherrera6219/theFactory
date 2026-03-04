@@ -18,6 +18,8 @@ from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from redis.exceptions import ResponseError
 
+from .language_extractor import get_extractor
+
 LOGGER = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -55,6 +57,16 @@ TASKS_FAILED = Counter(
 TASK_LATENCY_SECONDS = Histogram(
     "pod_worker_task_latency_seconds",
     "Mission event processing latency for pod worker",
+    ("pod_name",),
+)
+CONCEPTS_EXTRACTED = Counter(
+    "pod_worker_concepts_extracted_total",
+    "Total computational concepts extracted by pod worker",
+    ("pod_name", "language"),
+)
+EXTRACTION_LATENCY = Histogram(
+    "pod_worker_extraction_latency_seconds",
+    "Source code extraction latency for pod worker",
     ("pod_name",),
 )
 
@@ -255,20 +267,65 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
     if assignment_response.status_code >= 400:
         return
 
-    await _request(
-        "POST",
-        "/internal/logicnodes",
-        json_body={
-            "mission_id": mission_id,
-            "node_id": f"{POD_NAME}.core.{mission_id}",
-            "node": {
-                "node_name": f"{POD_NAME}-logicnode-core",
-                "source_language": target_language or "generic",
-                "target_language": target_language or "generic",
-                "payload": {"origin": "pod-worker", "pod_name": POD_NAME},
+    # --- Language extraction --------------------------------------------------
+    source_code = payload.get("source_code", "")
+    extraction_language = target_language or "python"  # default Pod A primary
+    extraction_summary: dict = {"language": extraction_language, "concepts_found": 0}
+
+    if source_code:
+        started = time.perf_counter()
+        extractor = get_extractor(extraction_language)
+        result = extractor.extract(source_code)
+        EXTRACTION_LATENCY.labels(pod_name=POD_NAME).observe(time.perf_counter() - started)
+        CONCEPTS_EXTRACTED.labels(pod_name=POD_NAME, language=extraction_language).inc(
+            len(result.concepts)
+        )
+        extraction_summary = result.summary
+
+        # Create one LogicNode per extracted concept
+        for concept in result.concepts:
+            node_id = f"{POD_NAME}.{concept.concept_id}.{mission_id}"
+            await _request(
+                "POST",
+                "/internal/logicnodes",
+                json_body={
+                    "mission_id": mission_id,
+                    "node_id": node_id,
+                    "node": {
+                        "node_name": f"{concept.domain}.{concept.concept}",
+                        "source_language": extraction_language,
+                        "target_language": target_language or "generic",
+                        "payload": {
+                            "origin": "pod-worker",
+                            "pod_name": POD_NAME,
+                            "concept_id": concept.concept_id,
+                            "domain": concept.domain,
+                            "concept": concept.concept,
+                            "intent": concept.intent,
+                            "confidence": concept.confidence,
+                            "source_line": concept.source_line,
+                            "evidence": concept.evidence,
+                        },
+                    },
+                },
+            )
+    else:
+        # No source code attached — create a stub LogicNode for routing
+        await _request(
+            "POST",
+            "/internal/logicnodes",
+            json_body={
+                "mission_id": mission_id,
+                "node_id": f"{POD_NAME}.core.{mission_id}",
+                "node": {
+                    "node_name": f"{POD_NAME}-logicnode-core",
+                    "source_language": extraction_language,
+                    "target_language": target_language or "generic",
+                    "payload": {"origin": "pod-worker", "pod_name": POD_NAME},
+                },
             },
-        },
-    )
+        )
+
     await _request(
         "POST",
         "/internal/knowledge",
@@ -277,7 +334,11 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             "knowledge_id": f"{POD_NAME}.assignment.{mission_id}",
             "content": {
                 "summary": f"{POD_NAME} accepted mission for specialist routing.",
-                "metadata": {"pod_name": POD_NAME, "source": "pod-worker"},
+                "metadata": {
+                    "pod_name": POD_NAME,
+                    "source": "pod-worker",
+                    "extraction": extraction_summary,
+                },
             },
         },
     )
