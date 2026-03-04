@@ -1,0 +1,396 @@
+"""Language extraction engine — detects computational concepts in source code.
+
+Each ``LanguageExtractor`` scans source text using the concept catalog patterns
+and produces a list of ``ExtractedConcept`` entries compatible with the
+LogicNode schema.
+
+This is a **regex-based static analysis** pass — no AST parsing and no LLM
+calls.  It provides structured data that downstream agents (LangGraph nodes,
+specialist runners) can reason over.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from dataclasses import dataclass, field
+from typing import Final
+
+from .concept_catalog import ConceptPattern, get_patterns
+
+LOGGER = logging.getLogger(__name__)
+
+# Maximum source content length we'll scan (guard against huge files).
+_MAX_SOURCE_LENGTH: Final[int] = 512_000  # ~500 KB
+
+
+@dataclass(frozen=True, slots=True)
+class FunctionInfo:
+    """Detected function/method definition."""
+
+    name: str
+    line: int
+    signature: str
+
+
+@dataclass(frozen=True, slots=True)
+class ClassInfo:
+    """Detected class definition."""
+
+    name: str
+    line: int
+    parents: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ExtractedConcept:
+    """A single concept matched in source code."""
+
+    concept_id: str
+    domain: str
+    concept: str
+    intent: str
+    source_language: str
+    source_line: int
+    confidence: float
+    evidence: str
+
+
+@dataclass
+class ExtractionResult:
+    """Aggregated extraction output for one source file."""
+
+    language: str
+    functions: list[FunctionInfo] = field(default_factory=list)
+    classes: list[ClassInfo] = field(default_factory=list)
+    imports: list[str] = field(default_factory=list)
+    concepts: list[ExtractedConcept] = field(default_factory=list)
+    lines_scanned: int = 0
+    error: str | None = None
+
+    @property
+    def summary(self) -> dict:
+        return {
+            "language": self.language,
+            "functions_found": len(self.functions),
+            "classes_found": len(self.classes),
+            "imports_found": len(self.imports),
+            "concepts_found": len(self.concepts),
+            "lines_scanned": self.lines_scanned,
+            "error": self.error,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Base extractor
+# ---------------------------------------------------------------------------
+
+
+class LanguageExtractor:
+    """Base language extractor using regex-based pattern detection."""
+
+    language: str = "generic"
+
+    # Subclasses override these patterns.
+    _function_pattern: re.Pattern[str] | None = None
+    _class_pattern: re.Pattern[str] | None = None
+    _import_pattern: re.Pattern[str] | None = None
+
+    def extract(self, source: str) -> ExtractionResult:
+        """Run full extraction pipeline on *source* text."""
+        result = ExtractionResult(language=self.language)
+
+        if not source or not source.strip():
+            result.error = "empty source"
+            return result
+
+        if len(source) > _MAX_SOURCE_LENGTH:
+            source = source[:_MAX_SOURCE_LENGTH]
+            LOGGER.warning(
+                "source truncated to %d bytes for %s extraction",
+                _MAX_SOURCE_LENGTH,
+                self.language,
+            )
+
+        lines = source.splitlines()
+        result.lines_scanned = len(lines)
+
+        try:
+            result.functions = self._detect_functions(source, lines)
+            result.classes = self._detect_classes(source, lines)
+            result.imports = self._detect_imports(source)
+            result.concepts = self._detect_concepts(source, lines)
+        except Exception as exc:
+            LOGGER.warning("extraction failed for %s: %s", self.language, exc)
+            result.error = str(exc)
+
+        return result
+
+    # -- structural detection ------------------------------------------------
+
+    def _detect_functions(
+        self, _source: str, lines: list[str]
+    ) -> list[FunctionInfo]:
+        if self._function_pattern is None:
+            return []
+        found: list[FunctionInfo] = []
+        for idx, line in enumerate(lines, start=1):
+            match = self._function_pattern.search(line)
+            if match:
+                name = match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
+                found.append(FunctionInfo(name=name.strip(), line=idx, signature=line.strip()))
+        return found
+
+    def _detect_classes(
+        self, _source: str, lines: list[str]
+    ) -> list[ClassInfo]:
+        if self._class_pattern is None:
+            return []
+        found: list[ClassInfo] = []
+        for idx, line in enumerate(lines, start=1):
+            match = self._class_pattern.search(line)
+            if match:
+                name = match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
+                found.append(ClassInfo(name=name.strip(), line=idx))
+        return found
+
+    def _detect_imports(self, source: str) -> list[str]:
+        if self._import_pattern is None:
+            return []
+        return [m.group(0).strip() for m in self._import_pattern.finditer(source)]
+
+    # -- concept detection ---------------------------------------------------
+
+    def _detect_concepts(
+        self, _source: str, lines: list[str]
+    ) -> list[ExtractedConcept]:
+        patterns = get_patterns(self.language)
+        if not patterns:
+            return []
+
+        found: list[ExtractedConcept] = []
+        seen_ids: set[str] = set()  # deduplicate by concept_id + line
+
+        for idx, line in enumerate(lines, start=1):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or stripped.startswith("//"):
+                continue
+
+            for pattern in patterns:
+                key = f"{pattern.concept_id}:{idx}"
+                if key in seen_ids:
+                    continue
+                try:
+                    if re.search(pattern.regex, stripped, re.IGNORECASE):
+                        evidence = stripped[:120]
+                        found.append(
+                            ExtractedConcept(
+                                concept_id=pattern.concept_id,
+                                domain=pattern.domain,
+                                concept=pattern.concept,
+                                intent=pattern.intent,
+                                source_language=self.language,
+                                source_line=idx,
+                                confidence=_compute_confidence(pattern, stripped),
+                                evidence=evidence,
+                            )
+                        )
+                        seen_ids.add(key)
+                except re.error:
+                    continue
+
+        return found
+
+
+def _compute_confidence(pattern: ConceptPattern, line: str) -> float:
+    """Heuristic confidence score for a pattern match.
+
+    Longer matching evidence and more-specific patterns get higher scores.
+    """
+    base = 0.6
+    # Reward longer patterns (more specific)
+    if len(pattern.regex) > 30:
+        base += 0.1
+    # Reward longer evidence lines (more context)
+    if len(line) > 40:
+        base += 0.05
+    # Penalize very short lines (might be noise)
+    if len(line) < 10:
+        base -= 0.15
+    return round(min(max(base, 0.1), 1.0), 2)
+
+
+# ---------------------------------------------------------------------------
+# Pod A — Dynamic Language Extractors
+# ---------------------------------------------------------------------------
+
+
+class PythonExtractor(LanguageExtractor):
+    language = "python"
+    _function_pattern = re.compile(r"^\s*(?:async\s+)?def\s+(\w+)\s*\(", re.MULTILINE)
+    _class_pattern = re.compile(r"^\s*class\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"^\s*(?:import\s+[\w.]+|from\s+[\w.]+\s+import\s+[\w., ]+)", re.MULTILINE)
+
+
+class JavaScriptExtractor(LanguageExtractor):
+    language = "javascript"
+    _function_pattern = re.compile(
+        r"(?:function\s+(\w+)\s*\(|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)\s*=>|\function))",
+        re.MULTILINE,
+    )
+    _class_pattern = re.compile(r"\bclass\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"(?:import\s+.*\s+from\s+['\"][\w./@-]+['\"]|(?:const|let|var)\s+.*=\s*require\s*\()", re.MULTILINE)
+
+
+class RubyExtractor(LanguageExtractor):
+    language = "ruby"
+    _function_pattern = re.compile(r"^\s*def\s+(\w+)", re.MULTILINE)
+    _class_pattern = re.compile(r"^\s*class\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"^\s*require\s+['\"][\w/.-]+['\"]", re.MULTILINE)
+
+
+class PhpExtractor(LanguageExtractor):
+    language = "php"
+    _function_pattern = re.compile(r"\bfunction\s+(\w+)\s*\(", re.MULTILINE)
+    _class_pattern = re.compile(r"\bclass\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"\b(?:use|require_once|include)\s+[\w\\/.]+", re.MULTILINE)
+
+
+# ---------------------------------------------------------------------------
+# Pod B — Systems Language Extractors
+# ---------------------------------------------------------------------------
+
+
+class CExtractor(LanguageExtractor):
+    language = "c"
+    _function_pattern = re.compile(
+        r"^\s*(?:static\s+)?(?:void|int|char|float|double|long|unsigned|signed|size_t)\s+(\w+)\s*\(",
+        re.MULTILINE,
+    )
+    _class_pattern = re.compile(r"\bstruct\s+(\w+)\s*\{", re.MULTILINE)
+    _import_pattern = re.compile(r"#\s*include\s+[<\"][\w./]+[>\"]", re.MULTILINE)
+
+
+class CppExtractor(LanguageExtractor):
+    language = "cpp"
+    _function_pattern = re.compile(
+        r"^\s*(?:virtual\s+)?(?:static\s+)?(?:void|int|auto|bool|std::\w+|const\s+\w+&?)\s+(\w+)\s*\(",
+        re.MULTILINE,
+    )
+    _class_pattern = re.compile(r"\bclass\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"#\s*include\s+[<\"][\w./]+[>\"]", re.MULTILINE)
+
+
+class RustExtractor(LanguageExtractor):
+    language = "rust"
+    _function_pattern = re.compile(r"^\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)", re.MULTILINE)
+    _class_pattern = re.compile(r"^\s*(?:pub\s+)?(?:struct|enum|trait)\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"^\s*use\s+[\w:]+", re.MULTILINE)
+
+
+# ---------------------------------------------------------------------------
+# Pod C — Enterprise Language Extractors
+# ---------------------------------------------------------------------------
+
+
+class JavaExtractor(LanguageExtractor):
+    language = "java"
+    _function_pattern = re.compile(
+        r"^\s*(?:public|private|protected)\s+(?:static\s+)?(?:final\s+)?(?:void|int|String|boolean|long|double|[\w<>]+)\s+(\w+)\s*\(",
+        re.MULTILINE,
+    )
+    _class_pattern = re.compile(r"\b(?:class|interface)\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"^\s*import\s+[\w.*]+;", re.MULTILINE)
+
+
+class CSharpExtractor(LanguageExtractor):
+    language = "csharp"
+    _function_pattern = re.compile(
+        r"^\s*(?:public|private|protected|internal)\s+(?:static\s+)?(?:async\s+)?(?:void|int|string|bool|Task|[\w<>]+)\s+(\w+)\s*\(",
+        re.MULTILINE,
+    )
+    _class_pattern = re.compile(r"\bclass\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"^\s*using\s+[\w.]+;", re.MULTILINE)
+
+
+class ScalaExtractor(LanguageExtractor):
+    language = "scala"
+    _function_pattern = re.compile(r"^\s*def\s+(\w+)", re.MULTILINE)
+    _class_pattern = re.compile(r"\b(?:class|object|trait|case\s+class)\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"^\s*import\s+[\w._{}]+", re.MULTILINE)
+
+
+class KotlinExtractor(LanguageExtractor):
+    language = "kotlin"
+    _function_pattern = re.compile(r"^\s*(?:suspend\s+)?fun\s+(\w+)", re.MULTILINE)
+    _class_pattern = re.compile(r"\b(?:data\s+)?class\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"^\s*import\s+[\w.]+", re.MULTILINE)
+
+
+# ---------------------------------------------------------------------------
+# Pod D — Mathematical Language Extractors
+# ---------------------------------------------------------------------------
+
+
+class MatlabExtractor(LanguageExtractor):
+    language = "matlab"
+    _function_pattern = re.compile(r"^\s*function\s+(?:[\w,\[\]\s]+=\s*)?(\w+)\s*\(", re.MULTILINE)
+    _class_pattern = re.compile(r"^\s*classdef\s+(\w+)", re.MULTILINE)
+    _import_pattern = None  # MATLAB doesn't have import statements per se
+
+
+class RExtractor(LanguageExtractor):
+    language = "r"
+    _function_pattern = re.compile(r"(\w+)\s*<-\s*function\s*\(", re.MULTILINE)
+    _class_pattern = None
+    _import_pattern = re.compile(r"\blibrary\s*\(\s*[\w.]+\s*\)|\brequire\s*\(\s*[\w.]+\s*\)", re.MULTILINE)
+
+
+class JuliaExtractor(LanguageExtractor):
+    language = "julia"
+    _function_pattern = re.compile(r"^\s*function\s+(\w+)", re.MULTILINE)
+    _class_pattern = re.compile(r"^\s*(?:mutable\s+)?struct\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"^\s*(?:using|import)\s+[\w.]+", re.MULTILINE)
+
+
+class MathematicaExtractor(LanguageExtractor):
+    language = "mathematica"
+    _function_pattern = re.compile(r"(\w+)\s*\[.*?\]\s*:=", re.MULTILINE)
+    _class_pattern = None
+    _import_pattern = re.compile(r"<<\s*[\w`]+|Needs\s*\[", re.MULTILINE)
+
+
+# ---------------------------------------------------------------------------
+# Extractor registry — language name → extractor class
+# ---------------------------------------------------------------------------
+
+_EXTRACTORS: Final[dict[str, type[LanguageExtractor]]] = {
+    "python": PythonExtractor,
+    "javascript": JavaScriptExtractor,
+    "typescript": JavaScriptExtractor,
+    "ruby": RubyExtractor,
+    "php": PhpExtractor,
+    "c": CExtractor,
+    "cpp": CppExtractor,
+    "rust": RustExtractor,
+    "java": JavaExtractor,
+    "csharp": CSharpExtractor,
+    "scala": ScalaExtractor,
+    "kotlin": KotlinExtractor,
+    "matlab": MatlabExtractor,
+    "r": RExtractor,
+    "julia": JuliaExtractor,
+    "mathematica": MathematicaExtractor,
+}
+
+
+def get_extractor(language: str) -> LanguageExtractor:
+    """Return the appropriate extractor for *language*, or a generic one."""
+    normalized = language.strip().lower()
+    cls = _EXTRACTORS.get(normalized, LanguageExtractor)
+    return cls()
+
+
+def supported_languages() -> list[str]:
+    """Return sorted list of languages with dedicated extractors."""
+    return sorted(_EXTRACTORS.keys())

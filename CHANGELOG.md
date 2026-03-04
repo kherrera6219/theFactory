@@ -15,6 +15,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - Safari: `-webkit-backdrop-filter` added alongside `backdrop-filter` on shell header.
   - Evidence: `docs/evidence/frontend_style_guide_compliance_2026-03-03.md`
 
+- Pod A/B/C/D language extraction engine:
+  - `concept_catalog.py`: 169 regex patterns across 16 languages (DYN/SYS/ENT/MATH concept IDs)
+  - `language_extractor.py`: base class + 16 per-language extractors (Python, JS, Ruby, PHP, C, C++, Rust, Java, C#, Scala, Kotlin, MATLAB, R, Julia, Mathematica)
+  - Pod-worker `main.py`: wired extraction into `_handle_running_mission` — creates per-concept LogicNodes with confidence scores and source evidence
+  - Prometheus metrics: `pod_worker_concepts_extracted_total`, `pod_worker_extraction_latency_seconds`
+  - Tests: 38 new tests (extractor accuracy + catalog validation), 32 existing tests pass with no regressions
+  - Evidence: `docs/evidence/pod_language_extraction_2026-03-03.md`
+
 - Versioned orchestrator migration framework:
   - `services/orchestrator/orchestrator/migrations.py`
   - `services/orchestrator/orchestrator/migrations/V001_initial_runtime_schema.sql`
