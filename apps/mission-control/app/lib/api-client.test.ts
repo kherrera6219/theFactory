@@ -3,7 +3,9 @@ import {
   fetchJson,
   getGatewayReadyState,
   getOperatorApiKey,
+  missionStateStreamUrl,
   missionApiUrl,
+  parseLiveStateStreamMessage,
   updateMissionState,
 } from "./api-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,6 +26,38 @@ describe("api-client", () => {
 
   it("builds mission API URLs with default base", () => {
     expect(missionApiUrl("/health")).toBe("http://localhost:8100/health");
+  });
+
+  it("builds mission stream URLs with optional filters", () => {
+    expect(missionStateStreamUrl()).toBe("http://localhost:8100/v1/stream/state");
+    expect(missionStateStreamUrl({ missionId: "mission-1" })).toBe(
+      "http://localhost:8100/v1/stream/state?mission_id=mission-1",
+    );
+    expect(
+      missionStateStreamUrl({
+        missionId: "mission-1",
+        includeAgentEvents: false,
+      }),
+    ).toBe(
+      "http://localhost:8100/v1/stream/state?mission_id=mission-1&include_agent_events=false",
+    );
+  });
+
+  it("parses live stream message payloads", () => {
+    const parsed = parseLiveStateStreamMessage(
+      JSON.stringify({
+        stream_id: "1-0",
+        event_type: "MISSION_RUNNING",
+        mission_id: "mission-1",
+        state: "RUNNING",
+        topic: "fusion.requested",
+        producer: "orchestrator",
+        created_at: "2026-03-04T00:00:00+00:00",
+        payload: { mission_id: "mission-1" },
+      }),
+    );
+    expect(parsed?.event_type).toBe("MISSION_RUNNING");
+    expect(parseLiveStateStreamMessage("not json")).toBeNull();
   });
 
   it("parses successful JSON responses", async () => {

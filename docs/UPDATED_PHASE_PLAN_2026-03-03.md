@@ -6,6 +6,7 @@ Define the post-Phase-18 execution plan from current production baseline to next
 ## Current Validated Baseline
 - Core platform phases through Phase 18 are complete (mission runtime, CI/security, tracing, reliability qualification, UI e2e, Qdrant/Neo4j/object-storage optional adapters).
 - Latest quality gates: global service coverage `85.46%`, required core-module `100%` thresholds passing, production audit `12/12`, debug sweep passing.
+- Execution update (2026-03-04): Phase 27 (Mission Control live SSE transport + polling fallback diagnostics) is complete and validated.
 
 ## Remaining Work (Prioritized)
 
@@ -93,6 +94,17 @@ Exit Criteria:
 - Mission lifecycle reaches `COMPLETE` through orchestrator restart/disruption with postgres checkpointer enabled.
 - Recovery evidence includes pass/fail criteria and timings.
 - Regression tests, coverage thresholds, and debug sweep continue to pass.
+
+## Phase 27 - Mission Control Live Transport Baseline
+Scope:
+- Add API Gateway SSE state-stream endpoint with mission filtering, keepalive, and stream-resume support.
+- Add EventSource-based live transport in Mission Control mission detail, Semantic Bus, and agent operations views.
+- Keep polling fallback active with explicit operator diagnostics (transport mode, stream events, stream errors, fallback ticks).
+
+Exit Criteria:
+- Critical Mission Control views support live push transport without removing polling compatibility.
+- Unit/service/frontend tests cover stream parsing, filtering, and fallback behavior.
+- Full quality-gate and debug sweep validation pass.
 
 ## Validation Protocol (applies after each phase)
 1. `python -m ruff check services tests scripts`

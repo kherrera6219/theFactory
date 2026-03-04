@@ -253,6 +253,26 @@ Last updated: 2026-03-04
   - `docs/evidence/phase26_langgraph_postgres_live_recovery_qualification_2026-03-03.json`
 - Status: Complete (live restart/disruption qualification passed, 2026-03-04).
 
+## Phase 27: Mission Control Live Transport for Critical Views
+
+- Added API Gateway SSE endpoint for live state-stream transport:
+  - `GET /v1/stream/state`
+  - supports mission filtering, optional agent-event inclusion, keepalive, and `Last-Event-ID` resume.
+- Added Mission Control EventSource transport for:
+  - mission detail view,
+  - Semantic Bus view,
+  - agent operations view.
+- Added fallback design:
+  - explicit polling fallback path remains active when stream is unavailable,
+  - UI diagnostics now report transport mode, stream events seen, stream errors, and poll fallback ticks.
+- Added regression coverage:
+  - `tests/services/test_api_gateway_live_stream_unit.py`
+  - updated `tests/services/test_production_foundations.py`
+  - updated `apps/mission-control/app/lib/api-client.test.ts`
+- Validation evidence:
+  - `docs/evidence/phase27_mission_control_live_transport_validation_2026-03-04.md`
+- Status: Complete (live transport baseline validated, 2026-03-04).
+
 ## Next Roadmap Targets
 
 1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
@@ -261,7 +281,6 @@ Last updated: 2026-03-04
    - repo diff-review/apply gate for file-level mission outputs,
    - virtualization of Semantic Bus and agent-log high-volume views.
 4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
-5. Implement live transport path (WebSocket/SSE) for mission-critical Mission Control views to reduce polling-only dependency.
-6. Reconcile 7-phase Smelt-cycle model to runtime lifecycle events with deterministic timeline mapping.
-7. Publish 35-agent runtime topology decision (dedicated-per-agent containers vs condensed workers) with trigger-based migration path.
-8. Publish security-model ADR for API-key model versus JWT/OIDC enterprise token architecture.
+5. Reconcile 7-phase Smelt-cycle model to runtime lifecycle events with deterministic timeline mapping.
+6. Publish 35-agent runtime topology decision (dedicated-per-agent containers vs condensed workers) with trigger-based migration path.
+7. Publish security-model ADR for API-key model versus JWT/OIDC enterprise token architecture.

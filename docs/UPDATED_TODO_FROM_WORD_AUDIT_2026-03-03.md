@@ -8,10 +8,11 @@ Acceptance:
 Status (2026-03-04): complete. Evidence captured at `docs/evidence/phase26_langgraph_postgres_live_recovery_qualification_2026-03-03.json`.
 
 ## P1 - High Impact Product Gaps
-- [ ] Implement live mission transport path (WebSocket/SSE) for Mission Control critical views.
+- [x] Implement live mission transport path (WebSocket/SSE) for Mission Control critical views.
 Acceptance:
 - Mission detail, Semantic Bus view, and agent-state surfaces can run in live push mode.
 - Polling remains as explicit fallback with observability counters.
+Status (2026-03-04): complete. API Gateway SSE endpoint and Mission Control EventSource transport are active with validated polling fallback and diagnostics counters.
 
 - [ ] Reconcile 7-phase Smelt-cycle model to runtime lifecycle events.
 Acceptance:
@@ -41,3 +42,4 @@ Acceptance:
 - [x] Phase 24: Postgres checkpointer baseline for LangGraph lifecycle.
 - [x] Phase 25: Word-doc reconciliation and LangGraph runtime visibility in health/readiness/operations.
 - [x] Phase 26: Lifecycle recovery rehydration and live postgres checkpoint restart qualification.
+- [x] Phase 27: Mission Control live transport baseline with SSE + fallback validation.

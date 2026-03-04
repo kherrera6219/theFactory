@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import logging
@@ -8,12 +9,12 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
@@ -27,6 +28,7 @@ except ModuleNotFoundError:
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8001")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 INTAKE_STREAM = os.getenv("INTAKE_STREAM", "missions.intake")
+STATE_STREAM = os.getenv("STATE_STREAM", "missions.state")
 INTAKE_TOPIC = os.getenv("INTAKE_TOPIC", "intake.feature_contract.created")
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3100")
@@ -36,6 +38,9 @@ IDEMPOTENCY_KEY_PREFIX = "idempotency:missions"
 API_RATE_LIMIT_PER_MINUTE = int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "120"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_KEY_PREFIX = "ratelimit:api-gateway"
+LIVE_STREAM_BLOCK_MS = int(os.getenv("LIVE_STREAM_BLOCK_MS", "5000"))
+LIVE_STREAM_KEEPALIVE_SECONDS = float(os.getenv("LIVE_STREAM_KEEPALIVE_SECONDS", "15"))
+LIVE_STREAM_COUNT = int(os.getenv("LIVE_STREAM_COUNT", "50"))
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "offline").strip().lower()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
@@ -68,6 +73,20 @@ REQUEST_LATENCY = Histogram(
     "api_gateway_http_request_duration_seconds",
     "HTTP request latency in seconds for api-gateway",
     ("method", "path"),
+)
+LIVE_STREAM_CONNECTIONS = Counter(
+    "api_gateway_live_stream_connections_total",
+    "Total SSE live-stream connections accepted by api-gateway",
+)
+LIVE_STREAM_EVENTS = Counter(
+    "api_gateway_live_stream_events_total",
+    "Total events emitted by api-gateway live stream",
+    ("event_type",),
+)
+LIVE_STREAM_ERRORS = Counter(
+    "api_gateway_live_stream_errors_total",
+    "Total errors observed in api-gateway live stream",
+    ("reason",),
 )
 LOGGER = logging.getLogger(__name__)
 
@@ -276,6 +295,133 @@ async def _check_rate_limit(redis_client: Any, identifier: str) -> tuple[bool, i
     retry_after = RATE_LIMIT_WINDOW_SECONDS - int(time.time() % RATE_LIMIT_WINDOW_SECONDS)
     remaining = max(0, API_RATE_LIMIT_PER_MINUTE - current)
     return current > API_RATE_LIMIT_PER_MINUTE, retry_after, remaining
+
+
+def _parse_stream_json(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _decode_state_stream_event(entry_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    payload = _parse_stream_json(fields.get("payload"))
+    envelope = _parse_stream_json(fields.get("envelope"))
+    event_type = str(payload.get("event_type") or fields.get("event_type") or "").strip()
+    mission_id_raw = payload.get("mission_id") or fields.get("mission_id")
+    mission_id = str(mission_id_raw).strip() if mission_id_raw is not None else ""
+    state_raw = payload.get("state") or fields.get("state")
+    state = str(state_raw).strip().upper() if state_raw is not None else ""
+    created_at_raw = payload.get("created_at") or fields.get("created_at")
+    created_at = str(created_at_raw).strip() if created_at_raw is not None else ""
+    topic_raw = envelope.get("topic")
+    topic = str(topic_raw).strip() if topic_raw is not None else ""
+    producer_raw = envelope.get("producer")
+    producer = str(producer_raw).strip() if producer_raw is not None else ""
+    return {
+        "stream_id": entry_id,
+        "event_type": event_type,
+        "mission_id": mission_id or None,
+        "state": state or None,
+        "topic": topic or None,
+        "producer": producer or None,
+        "created_at": created_at or None,
+        "payload": payload,
+    }
+
+
+def _sse_event_block(*, event_name: str, data: dict[str, Any], event_id: str | None = None) -> str:
+    lines: list[str] = []
+    if event_id:
+        lines.append(f"id: {event_id}")
+    lines.append(f"event: {event_name}")
+    lines.append(f"data: {json.dumps(data, separators=(',', ':'))}")
+    return "\n".join(lines) + "\n\n"
+
+
+def _is_stream_event_allowed(
+    event: dict[str, Any],
+    *,
+    mission_id: str | None,
+    include_agent_events: bool,
+) -> bool:
+    event_type = str(event.get("event_type", "")).upper()
+    if not include_agent_events and event_type.startswith("AGENT_"):
+        return False
+    if mission_id and str(event.get("mission_id") or "") != mission_id:
+        return False
+    return True
+
+
+async def _state_stream_sse_generator(
+    redis_client: Any,
+    *,
+    mission_id: str | None,
+    include_agent_events: bool,
+    last_event_id: str | None,
+) -> AsyncIterator[str]:
+    stream_cursor = last_event_id.strip() if isinstance(last_event_id, str) else ""
+    if not stream_cursor:
+        stream_cursor = "$"
+
+    connected_payload = {
+        "stream": INTAKE_STREAM,
+        "state_stream": STATE_STREAM,
+        "mission_id": mission_id,
+        "include_agent_events": include_agent_events,
+    }
+    yield _sse_event_block(
+        event_name="connected",
+        data=connected_payload,
+    )
+
+    last_keepalive = time.monotonic()
+    while True:
+        try:
+            entries = await redis_client.xread(
+                streams={STATE_STREAM: stream_cursor},
+                count=max(1, LIVE_STREAM_COUNT),
+                block=max(100, LIVE_STREAM_BLOCK_MS),
+            )
+            emitted = False
+            for _, records in entries or []:
+                for entry_id, fields in records:
+                    stream_cursor = entry_id
+                    event_payload = _decode_state_stream_event(entry_id, fields)
+                    if not _is_stream_event_allowed(
+                        event_payload,
+                        mission_id=mission_id,
+                        include_agent_events=include_agent_events,
+                    ):
+                        continue
+                    emitted = True
+                    event_type = str(event_payload.get("event_type") or "STREAM_EVENT")
+                    LIVE_STREAM_EVENTS.labels(event_type=event_type).inc()
+                    yield _sse_event_block(
+                        event_name="state_event",
+                        data=event_payload,
+                        event_id=entry_id,
+                    )
+            if emitted:
+                last_keepalive = time.monotonic()
+                continue
+
+            if (time.monotonic() - last_keepalive) >= LIVE_STREAM_KEEPALIVE_SECONDS:
+                last_keepalive = time.monotonic()
+                yield ": keepalive\n\n"
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            LIVE_STREAM_ERRORS.labels(reason="read_failure").inc()
+            LOGGER.warning("state stream sse read failure: %s", exc)
+            error_payload = {"detail": "stream read failure", "error": str(exc)}
+            yield _sse_event_block(event_name="stream_error", data=error_payload)
+            await asyncio.sleep(1.0)
 
 
 def _normalize_builder_text(value: str) -> str:
@@ -724,8 +870,9 @@ async def _security_and_rate_limit(request: Request, call_next):
     rate_limit_headers: dict[str, str] = {}
     path = request.url.path
     is_probe = path in {"/health", "/readyz", "/metrics"}
+    is_stream = path == "/v1/stream/state"
 
-    if API_RATE_LIMIT_PER_MINUTE > 0 and not is_probe:
+    if API_RATE_LIMIT_PER_MINUTE > 0 and not is_probe and not is_stream:
         redis_client = getattr(app.state, "redis", None)
         redis_ready = bool(getattr(app.state, "redis_ready", False))
         if redis_client is not None and redis_ready:
@@ -776,6 +923,7 @@ async def health() -> dict[str, Any]:
         "redis_url": REDIS_URL,
         "redis_healthy": dependency_status["redis_healthy"],
         "intake_stream": INTAKE_STREAM,
+        "state_stream": STATE_STREAM,
         "intake_topic": INTAKE_TOPIC,
     }
 
@@ -803,6 +951,36 @@ async def readyz() -> dict[str, Any]:
 @app.get("/metrics")
 async def metrics() -> Response:
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/v1/stream/state")
+async def stream_state_events(
+    mission_id: str | None = Query(default=None, min_length=1),
+    include_agent_events: bool = Query(default=True),
+    last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
+) -> StreamingResponse:
+    redis_client = getattr(app.state, "redis", None)
+    if redis_client is None:
+        raise HTTPException(status_code=503, detail="redis dependency is not installed")
+    try:
+        app.state.redis_ready = bool(await redis_client.ping())
+    except Exception as exc:
+        app.state.redis_ready = False
+        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+
+    LIVE_STREAM_CONNECTIONS.inc()
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    generator = _state_stream_sse_generator(
+        redis_client,
+        mission_id=mission_id,
+        include_agent_events=include_agent_events,
+        last_event_id=last_event_id,
+    )
+    return StreamingResponse(generator, media_type="text/event-stream", headers=headers)
 
 
 @app.post("/v1/missions")

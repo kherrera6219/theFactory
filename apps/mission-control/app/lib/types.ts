@@ -15,6 +15,17 @@ export type MissionEvent = {
   ts: string;
 };
 
+export type LiveStateStreamEvent = {
+  stream_id: string;
+  event_type: string;
+  mission_id: string | null;
+  state: string | null;
+  topic: string | null;
+  producer: string | null;
+  created_at: string | null;
+  payload: Record<string, unknown>;
+};
+
 export type AgentState = "IDLE" | "ACTIVE" | "RUNNING" | "VERIFYING" | "ERROR" | "PAUSED";
 
 export type AgentRecord = {
