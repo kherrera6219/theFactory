@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { KeyboardShortcuts } from "../components/keyboard-shortcuts";
+import { ReconnectBanner } from "../components/reconnect-banner";
 import { ShellNav } from "../components/shell-nav";
 
 type ShellLayoutProps = {
@@ -11,6 +12,9 @@ type ShellLayoutProps = {
 export default function ShellLayout({ children }: ShellLayoutProps) {
   return (
     <div className="shell">
+      {/* Pre-wired for SSE/WebSocket connection state — hidden until Codex wires live transport */}
+      <ReconnectBanner isVisible={false} status="retrying" />
+
       <aside className="shell-sidebar">
         <div className="shell-brand">
           <p className="eyebrow">HolyGrail</p>
