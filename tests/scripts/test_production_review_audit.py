@@ -104,6 +104,7 @@ def test_run_audit_returns_expected_checks() -> None:
         "STY-001",
         "REL-001",
         "OBS-009",
+        "OBS-010",
         "PERF-010",
     ]
 
@@ -239,6 +240,67 @@ def test_check_tracing_and_pager_controls_fails_when_missing(tmp_path, monkeypat
     result = audit.check_tracing_and_pager_controls()
     assert result.passed is False
     assert "missing jaeger service" in result.notes
+
+
+def test_check_optional_data_plane_observability_controls_passes(tmp_path, monkeypatch) -> None:
+    _write(
+        tmp_path / "deploy" / "monitoring" / "prometheus" / "rules" / "thefactory-alerts.yml",
+        """
+groups:
+  - name: thefactory-optional-data-plane
+    rules:
+      - alert: Neo4jAdapterNotReady
+        annotations:
+          runbook: docs/runbooks/optional_data_plane_incident_runbook.md
+      - alert: ObjectStorageAdapterNotReady
+      - alert: Neo4jMirrorWriteErrorRateHigh
+      - alert: ObjectStorageMirrorWriteErrorRateHigh
+      - alert: Neo4jMirrorWriteLatencyP95High
+      - alert: ObjectStorageMirrorWriteLatencyP95High
+""".strip(),
+    )
+    _write(
+        tmp_path
+        / "deploy"
+        / "monitoring"
+        / "grafana"
+        / "provisioning"
+        / "dashboards"
+        / "json"
+        / "thefactory-overview.json",
+        '{"panels":[{"targets":[{"expr":"orchestrator_optional_adapter_mirror_writes_total"}]}]}',
+    )
+    _write(
+        tmp_path / "docs" / "runbooks" / "optional_data_plane_incident_runbook.md",
+        "# runbook\nNeo4jAdapterNotReady\n",
+    )
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_optional_data_plane_observability_controls()
+    assert result.passed is True
+
+
+def test_check_optional_data_plane_observability_controls_fails_when_missing(
+    tmp_path, monkeypatch
+) -> None:
+    _write(
+        tmp_path / "deploy" / "monitoring" / "prometheus" / "rules" / "thefactory-alerts.yml",
+        "groups: []\n",
+    )
+    _write(
+        tmp_path
+        / "deploy"
+        / "monitoring"
+        / "grafana"
+        / "provisioning"
+        / "dashboards"
+        / "json"
+        / "thefactory-overview.json",
+        '{"panels":[]}',
+    )
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_optional_data_plane_observability_controls()
+    assert result.passed is False
+    assert "missing alert rule" in result.notes
 
 
 def test_check_long_duration_reliability_controls_passes(tmp_path, monkeypatch) -> None:

@@ -343,13 +343,35 @@ Last updated: 2026-03-04
   - `docs/evidence/phase31_dedicated_agent_binding_scheduler_validation_2026-03-04.md`
 - Status: Complete (binding policy implemented and validated, 2026-03-04).
 
+## Phase 32: Optional Data-Plane Observability and SLO Controls
+
+- Added optional-adapter telemetry metrics in orchestrator runtime:
+  - `orchestrator_optional_adapter_enabled{adapter}`
+  - `orchestrator_optional_adapter_ready{adapter}`
+  - `orchestrator_optional_adapter_operations_total{adapter,operation,status}`
+  - `orchestrator_optional_adapter_operation_latency_seconds{adapter,operation}`
+  - `orchestrator_optional_adapter_mirror_writes_total{adapter,artifact,status}`
+  - `orchestrator_optional_adapter_mirror_write_latency_seconds{adapter,artifact}`
+- Instrumented Neo4j and object-storage adapter operations and readiness paths.
+- Instrumented mirror-write paths for:
+  - Neo4j knowledge mirror writes,
+  - Neo4j audit-report mirror writes,
+  - object-storage audit artifact writes.
+- Expanded monitoring controls:
+  - New Prometheus alert group `thefactory-optional-data-plane` with readiness, error-rate, and p95-latency alerts.
+  - New Grafana overview panels for optional adapter readiness, mirror-write error rate, and mirror-write p95 latency.
+- Added runbook:
+  - `docs/runbooks/optional_data_plane_incident_runbook.md`
+- Validation evidence:
+  - `docs/evidence/phase32_optional_data_plane_observability_validation_2026-03-04.md`
+- Status: Complete (observability baseline implemented and validated, 2026-03-04).
+
 ## Next Roadmap Targets
 
-1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
-2. Add live extended-data-plane integration qualification (`--profile extended-data-plane`) for Neo4j and MinIO paths with skip-safe CI strategy.
-3. Implement advanced Mission Control operator UX gaps from imported design specs:
+1. Add live extended-data-plane integration qualification (`--profile extended-data-plane`) for Neo4j and MinIO paths with skip-safe CI strategy.
+2. Implement advanced Mission Control operator UX gaps from imported design specs:
    - repo diff-review/apply gate for file-level mission outputs,
    - virtualization of Semantic Bus and agent-log high-volume views.
-4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
-5. Extend OIDC auth mode beyond mutation endpoint to broader operator/public route policies and runbook playbooks.
-6. Run dedicated-agent canary rollout with mission metadata contract instrumentation and rollback guardrails.
+3. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
+4. Extend OIDC auth mode beyond mutation endpoint to broader operator/public route policies and runbook playbooks.
+5. Run dedicated-agent canary rollout with mission metadata contract instrumentation and rollback guardrails.

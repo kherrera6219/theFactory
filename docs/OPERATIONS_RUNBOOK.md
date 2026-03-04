@@ -1,6 +1,6 @@
 # Operations Runbook
 
-Last updated: 2026-03-03
+Last updated: 2026-03-04
 
 ## Core Health Checks
 
@@ -93,6 +93,17 @@ Last updated: 2026-03-03
 3. Retention policy:
    - Daily backups for 14 days.
    - Weekly backups for 8 weeks.
+
+## Optional Data-Plane Checks
+
+1. Confirm feature flags:
+   - `docker compose -f deploy/docker-compose.yaml exec orchestrator printenv NEO4J_ENABLED OBJECT_STORAGE_ENABLED`
+2. Confirm adapter readiness in health:
+   - `curl http://localhost:8101/health | jq ".neo4j_ready, .object_storage_ready"`
+3. Confirm optional adapter telemetry exists:
+   - `curl http://localhost:8101/metrics | rg "orchestrator_optional_adapter_"`
+4. If adapter alerts fire, follow:
+   - `docs/runbooks/optional_data_plane_incident_runbook.md`
 
 ## Automation Scripts
 

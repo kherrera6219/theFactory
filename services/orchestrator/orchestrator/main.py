@@ -19,6 +19,7 @@ from . import neo4j_store, object_store, qdrant_store, storage
 from .agent_integrations import build_agent_integration_record, build_agent_integrations_snapshot
 from .agent_registry import AGENT_REGISTRY, normalize_language
 from .auth import AuthContext, require_roles
+from .data_plane_metrics import observe_optional_adapter_mirror_write
 from .models import (
     AgentHeartbeatUpsert,
     AuditReportUpsert,
@@ -135,6 +136,27 @@ async def _ensure_db_ready(app: FastAPI) -> tuple[bool, bool]:
     if not db_ready:
         raise HTTPException(status_code=503, detail="orchestrator database is unavailable")
     return redis_ready, db_ready
+
+
+async def _run_optional_mirror_write(
+    *,
+    adapter: str,
+    artifact: str,
+    fn: Any,
+    args: tuple[Any, ...],
+) -> None:
+    started = time.perf_counter()
+    success = False
+    try:
+        await asyncio.to_thread(fn, *args)
+        success = True
+    finally:
+        observe_optional_adapter_mirror_write(
+            adapter=adapter,
+            artifact=artifact,
+            duration_seconds=time.perf_counter() - started,
+            success=success,
+        )
 
 
 async def _fetch_existing_mission(app: FastAPI, mission_id: str) -> MissionRecord:
@@ -1200,13 +1222,17 @@ async def upsert_knowledge(
             )
     if app.state.settings.neo4j_enabled:
         try:
-            await asyncio.to_thread(
-                neo4j_store.upsert_knowledge,
-                app.state.settings,
-                payload.mission_id,
-                payload.knowledge_id,
-                payload.content,
-                created_at,
+            await _run_optional_mirror_write(
+                adapter="neo4j",
+                artifact="knowledge",
+                fn=neo4j_store.upsert_knowledge,
+                args=(
+                    app.state.settings,
+                    payload.mission_id,
+                    payload.knowledge_id,
+                    payload.content,
+                    created_at,
+                ),
             )
         except Exception as exc:
             LOGGER.warning(
@@ -1283,14 +1309,18 @@ async def upsert_audit_report(
     )
     if app.state.settings.neo4j_enabled:
         try:
-            await asyncio.to_thread(
-                neo4j_store.upsert_audit_report,
-                app.state.settings,
-                payload.mission_id,
-                payload.audit_id,
-                payload.status,
-                payload.report,
-                created_at,
+            await _run_optional_mirror_write(
+                adapter="neo4j",
+                artifact="audit_report",
+                fn=neo4j_store.upsert_audit_report,
+                args=(
+                    app.state.settings,
+                    payload.mission_id,
+                    payload.audit_id,
+                    payload.status,
+                    payload.report,
+                    created_at,
+                ),
             )
         except Exception as exc:
             LOGGER.warning(
@@ -1301,14 +1331,18 @@ async def upsert_audit_report(
             )
     if app.state.settings.object_storage_enabled:
         try:
-            await asyncio.to_thread(
-                object_store.put_audit_report,
-                app.state.settings,
-                payload.mission_id,
-                payload.audit_id,
-                payload.status,
-                payload.report,
-                created_at,
+            await _run_optional_mirror_write(
+                adapter="object_storage",
+                artifact="audit_report",
+                fn=object_store.put_audit_report,
+                args=(
+                    app.state.settings,
+                    payload.mission_id,
+                    payload.audit_id,
+                    payload.status,
+                    payload.report,
+                    created_at,
+                ),
             )
         except Exception as exc:
             LOGGER.warning(

@@ -65,3 +65,65 @@ groups:
         annotations:
           summary: Orchestrator 5xx error rate is elevated
           description: 5xx rate is above 0.1 req/s for 10 minutes.
+
+  - name: thefactory-optional-data-plane
+    rules:
+      - alert: Neo4jAdapterNotReady
+        expr: max(orchestrator_optional_adapter_enabled{adapter="neo4j"}) > 0 and max(orchestrator_optional_adapter_ready{adapter="neo4j"}) < 1
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: Neo4j optional adapter is not ready
+          description: Neo4j adapter is enabled but has reported not-ready for 5 minutes.
+          runbook: docs/runbooks/optional_data_plane_incident_runbook.md
+
+      - alert: ObjectStorageAdapterNotReady
+        expr: max(orchestrator_optional_adapter_enabled{adapter="object_storage"}) > 0 and max(orchestrator_optional_adapter_ready{adapter="object_storage"}) < 1
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: Object storage optional adapter is not ready
+          description: Object storage adapter is enabled but has reported not-ready for 5 minutes.
+          runbook: docs/runbooks/optional_data_plane_incident_runbook.md
+
+      - alert: Neo4jMirrorWriteErrorRateHigh
+        expr: (sum(rate(orchestrator_optional_adapter_mirror_writes_total{adapter="neo4j",status="error"}[10m])) / clamp_min(sum(rate(orchestrator_optional_adapter_mirror_writes_total{adapter="neo4j"}[10m])), 0.001)) > 0.05
+        for: 10m
+        labels:
+          severity: high
+        annotations:
+          summary: Neo4j mirror-write error rate is elevated
+          description: Neo4j mirror writes error ratio is above 5% for 10 minutes.
+          runbook: docs/runbooks/optional_data_plane_incident_runbook.md
+
+      - alert: ObjectStorageMirrorWriteErrorRateHigh
+        expr: (sum(rate(orchestrator_optional_adapter_mirror_writes_total{adapter="object_storage",status="error"}[10m])) / clamp_min(sum(rate(orchestrator_optional_adapter_mirror_writes_total{adapter="object_storage"}[10m])), 0.001)) > 0.05
+        for: 10m
+        labels:
+          severity: high
+        annotations:
+          summary: Object storage mirror-write error rate is elevated
+          description: Object storage mirror writes error ratio is above 5% for 10 minutes.
+          runbook: docs/runbooks/optional_data_plane_incident_runbook.md
+
+      - alert: Neo4jMirrorWriteLatencyP95High
+        expr: histogram_quantile(0.95, sum by (le) (rate(orchestrator_optional_adapter_mirror_write_latency_seconds_bucket{adapter="neo4j"}[10m]))) > 0.75
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Neo4j mirror-write latency p95 is elevated
+          description: p95 Neo4j mirror-write latency is above 750ms for 10 minutes.
+          runbook: docs/runbooks/optional_data_plane_incident_runbook.md
+
+      - alert: ObjectStorageMirrorWriteLatencyP95High
+        expr: histogram_quantile(0.95, sum by (le) (rate(orchestrator_optional_adapter_mirror_write_latency_seconds_bucket{adapter="object_storage"}[10m]))) > 1.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Object storage mirror-write latency p95 is elevated
+          description: p95 object storage mirror-write latency is above 1.5s for 10 minutes.
+          runbook: docs/runbooks/optional_data_plane_incident_runbook.md
