@@ -46,6 +46,14 @@ Operational scripts for deployment preflight, backup/restore, and disaster-recov
   - `powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1 -InjectOrchestratorRestart`
 - The script runs time-based load, monitors readiness endpoints, injects an orchestrator restart, validates recovery, and emits a JSON evidence artifact.
 
+## LangGraph Postgres Restart Qualification
+
+- Run live LangGraph checkpoint recovery qualification:
+  - `powershell -ExecutionPolicy Bypass -File scripts/langgraph_postgres_recovery_qualification.ps1`
+- Equivalent make target:
+  - `make langgraph-recovery`
+- The script recreates orchestrator with `LANGGRAPH_ENABLED=true` and `LANGGRAPH_CHECKPOINTER=postgres`, injects restart disruption during mission flow, validates readiness recovery and mission completion, and writes JSON evidence.
+
 ## Mission Control E2E Regression
 
 - Run Mission Control critical-path e2e suite:

@@ -623,6 +623,8 @@ def test_orchestrator_readyz_reports_ready(monkeypatch) -> None:
     assert response.json()["ready"] is True
     assert response.json()["langgraph_enabled"] is False
     assert response.json()["langgraph_checkpointer"] == "none"
+    assert "lifecycle_recovery_bootstrapped" in response.json()
+    assert "lifecycle_recovery_recovered_count" in response.json()
 
 
 def test_orchestrator_readyz_returns_503_when_consumer_not_running(monkeypatch) -> None:
@@ -642,3 +644,5 @@ def test_orchestrator_readyz_returns_503_when_consumer_not_running(monkeypatch) 
     assert response.json()["detail"]["consumer_running"] is False
     assert response.json()["detail"]["langgraph_enabled"] is False
     assert response.json()["detail"]["langgraph_checkpointer"] == "none"
+    assert "lifecycle_recovery_bootstrapped" in response.json()["detail"]
+    assert "lifecycle_recovery_recovered_count" in response.json()["detail"]

@@ -71,6 +71,14 @@ AGENT_AUTOFILL_NON_POD_HEARTBEATS = (
     os.getenv("AGENT_AUTOFILL_NON_POD_HEARTBEATS", "true").strip().lower()
     in {"1", "true", "yes", "on"}
 )
+LIFECYCLE_RECOVERY_RETRY_SECONDS = max(
+    1.0,
+    float(os.getenv("LIFECYCLE_RECOVERY_RETRY_SECONDS", "2.0")),
+)
+LIFECYCLE_RECOVERY_MAX_MISSIONS = max(
+    100,
+    int(os.getenv("LIFECYCLE_RECOVERY_MAX_MISSIONS", "2000")),
+)
 
 
 def _initialize_app_state(app: FastAPI) -> None:
@@ -88,8 +96,20 @@ def _initialize_app_state(app: FastAPI) -> None:
         app.state.self_heal_task = None
     if getattr(app.state, "agent_heartbeat_task", None) is None:
         app.state.agent_heartbeat_task = None
+    if getattr(app.state, "lifecycle_recovery_task", None) is None:
+        app.state.lifecycle_recovery_task = None
     if getattr(app.state, "lifecycle_tasks", None) is None:
         app.state.lifecycle_tasks = {}
+    if getattr(app.state, "lifecycle_recovery_bootstrapped", None) is None:
+        app.state.lifecycle_recovery_bootstrapped = False
+    if getattr(app.state, "lifecycle_recovery_recovered_count", None) is None:
+        app.state.lifecycle_recovery_recovered_count = 0
+    if getattr(app.state, "lifecycle_recovery_scanned_count", None) is None:
+        app.state.lifecycle_recovery_scanned_count = 0
+    if getattr(app.state, "lifecycle_recovery_last_at", None) is None:
+        app.state.lifecycle_recovery_last_at = None
+    if getattr(app.state, "lifecycle_recovery_last_error", None) is None:
+        app.state.lifecycle_recovery_last_error = None
     if getattr(app.state, "startup_lock", None) is None:
         app.state.startup_lock = asyncio.Lock()
     if getattr(app.state, "protocol_ready", None) is None:
@@ -241,7 +261,85 @@ def _langgraph_runtime_payload(app: FastAPI) -> dict[str, Any]:
         "langgraph_postgres_checkpointer_setup_done": bool(
             getattr(app.state, "langgraph_postgres_checkpointer_setup_done", False)
         ),
+        "lifecycle_recovery_bootstrapped": bool(
+            getattr(app.state, "lifecycle_recovery_bootstrapped", False)
+        ),
+        "lifecycle_recovery_recovered_count": int(
+            getattr(app.state, "lifecycle_recovery_recovered_count", 0)
+        ),
+        "lifecycle_recovery_scanned_count": int(
+            getattr(app.state, "lifecycle_recovery_scanned_count", 0)
+        ),
+        "lifecycle_recovery_last_at": getattr(app.state, "lifecycle_recovery_last_at", None),
+        "lifecycle_recovery_last_error": getattr(
+            app.state,
+            "lifecycle_recovery_last_error",
+            None,
+        ),
     }
+
+
+async def _recover_inflight_lifecycle_tasks(app: FastAPI) -> bool:
+    _initialize_app_state(app)
+    settings = app.state.settings
+    if not settings.auto_transition_enabled:
+        app.state.lifecycle_recovery_bootstrapped = True
+        app.state.lifecycle_recovery_recovered_count = 0
+        app.state.lifecycle_recovery_scanned_count = 0
+        app.state.lifecycle_recovery_last_at = datetime.now(UTC).isoformat()
+        app.state.lifecycle_recovery_last_error = None
+        return True
+
+    redis_ready, db_ready = await ensure_runtime_ready(app)
+    protocol_ready = bool(getattr(app.state, "protocol_ready", False))
+    if not db_ready or not protocol_ready:
+        if not db_ready:
+            app.state.lifecycle_recovery_last_error = "database unavailable"
+        elif not protocol_ready:
+            app.state.lifecycle_recovery_last_error = "protocol unavailable"
+        return False
+
+    _ = redis_ready  # keep visible in local flow for easier diagnostics during qualification.
+    recoverable_states = [
+        MissionState.queued,
+        MissionState.running,
+        MissionState.verified,
+    ]
+    missions = await asyncio.to_thread(
+        storage.list_missions_in_states,
+        settings,
+        recoverable_states,
+        LIFECYCLE_RECOVERY_MAX_MISSIONS,
+    )
+
+    recovered = 0
+    for mission in missions:
+        task = app.state.lifecycle_tasks.get(mission.mission_id)
+        if task is not None and not task.done():
+            continue
+        start_lifecycle_task(app, mission.mission_id)
+        recovered += 1
+
+    app.state.lifecycle_recovery_bootstrapped = True
+    app.state.lifecycle_recovery_recovered_count = recovered
+    app.state.lifecycle_recovery_scanned_count = len(missions)
+    app.state.lifecycle_recovery_last_at = datetime.now(UTC).isoformat()
+    app.state.lifecycle_recovery_last_error = None
+    return True
+
+
+async def lifecycle_recovery_loop(app: FastAPI) -> None:
+    while True:
+        try:
+            recovered = await _recover_inflight_lifecycle_tasks(app)
+            if recovered:
+                return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            app.state.lifecycle_recovery_last_error = str(exc)
+            LOGGER.exception("lifecycle recovery loop iteration failed")
+        await asyncio.sleep(LIFECYCLE_RECOVERY_RETRY_SECONDS)
 
 
 async def _emit_agent_telemetry_event(
@@ -689,10 +787,17 @@ async def lifespan(app: FastAPI):
     _initialize_app_state(app)
 
     await ensure_runtime_ready(app)
+    app.state.lifecycle_recovery_task = asyncio.create_task(lifecycle_recovery_loop(app))
     app.state.self_heal_task = asyncio.create_task(runtime_self_heal_loop(app))
     app.state.agent_heartbeat_task = asyncio.create_task(agent_heartbeat_loop(app))
 
     yield
+
+    lifecycle_recovery_task = getattr(app.state, "lifecycle_recovery_task", None)
+    if lifecycle_recovery_task is not None:
+        lifecycle_recovery_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await lifecycle_recovery_task
 
     agent_heartbeat_task = getattr(app.state, "agent_heartbeat_task", None)
     if agent_heartbeat_task is not None:
@@ -714,8 +819,12 @@ async def lifespan(app: FastAPI):
 
     lifecycle_tasks = getattr(app.state, "lifecycle_tasks", {})
     for task in list(lifecycle_tasks.values()):
-        task.cancel()
+        cancel = getattr(task, "cancel", None)
+        if callable(cancel):
+            cancel()
     for task in list(lifecycle_tasks.values()):
+        if not hasattr(task, "__await__"):
+            continue
         with suppress(asyncio.CancelledError):
             await task
 

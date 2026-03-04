@@ -469,6 +469,8 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert summary.json()["runtime"]["consumer_running"] is True
     assert summary.json()["runtime"]["langgraph_enabled"] is False
     assert summary.json()["runtime"]["langgraph_checkpointer"] == "none"
+    assert "lifecycle_recovery_bootstrapped" in summary.json()["runtime"]
+    assert "lifecycle_recovery_recovered_count" in summary.json()["runtime"]
     assert summary.json()["pod_assignment_counts"]["podA"] == 1
 
     agents = client.get(
@@ -482,6 +484,8 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert payload["runtime"]["consumer_running"] is True
     assert payload["runtime"]["langgraph_enabled"] is False
     assert payload["runtime"]["langgraph_checkpointer"] == "none"
+    assert "lifecycle_recovery_bootstrapped" in payload["runtime"]
+    assert "lifecycle_recovery_recovered_count" in payload["runtime"]
     assert any(record["agent_id"] == "AGENT-01-PM" for record in payload["agents"])
     persona_sections = {
         "job_role",

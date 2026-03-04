@@ -5,7 +5,7 @@ Define the post-Phase-18 execution plan from current production baseline to next
 
 ## Current Validated Baseline
 - Core platform phases through Phase 18 are complete (mission runtime, CI/security, tracing, reliability qualification, UI e2e, Qdrant/Neo4j/object-storage optional adapters).
-- Latest quality gates: global service coverage `84.95%`, required core-module `100%` thresholds passing, production audit `12/12`, debug sweep passing.
+- Latest quality gates: global service coverage `85.46%`, required core-module `100%` thresholds passing, production audit `12/12`, debug sweep passing.
 
 ## Remaining Work (Prioritized)
 
@@ -83,6 +83,17 @@ Exit Criteria:
 - LangGraph runtime mode is visible in health/readiness/operations payloads.
 - Regression tests and quality gates pass.
 
+## Phase 26 - LangGraph Live Postgres Recovery Qualification
+Scope:
+- Add startup lifecycle rehydration for in-flight mission records after orchestrator restart.
+- Add lifecycle recovery telemetry fields to health/readiness/operations runtime payloads.
+- Add repeatable live qualification script with orchestrator restart injection while `LANGGRAPH_CHECKPOINTER=postgres` is enabled.
+
+Exit Criteria:
+- Mission lifecycle reaches `COMPLETE` through orchestrator restart/disruption with postgres checkpointer enabled.
+- Recovery evidence includes pass/fail criteria and timings.
+- Regression tests, coverage thresholds, and debug sweep continue to pass.
+
 ## Validation Protocol (applies after each phase)
 1. `python -m ruff check services tests scripts`
 2. `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`
@@ -99,3 +110,4 @@ Exit Criteria:
 5. Phase 23
 6. Phase 24
 7. Phase 25
+8. Phase 26

@@ -1,6 +1,6 @@
 # Testing and Quality Gates
 
-Last updated: 2026-03-03
+Last updated: 2026-03-04
 
 ## Purpose
 
@@ -15,6 +15,7 @@ This document defines automated quality gates for theFactory and the specific co
 - `make test-ui-e2e`
 - `make promotion-gate`
 - `make reliability`
+- `make langgraph-recovery`
 
 `make test` runs:
 
@@ -40,6 +41,11 @@ This document defines automated quality gates for theFactory and the specific co
 
 - `powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1`
 - performs sustained-load qualification with readiness/recovery verification and writes JSON results
+
+`make langgraph-recovery` runs:
+
+- `powershell -ExecutionPolicy Bypass -File scripts/langgraph_postgres_recovery_qualification.ps1`
+- recreates orchestrator with LangGraph postgres checkpointer mode, injects restart disruption, and validates mission completion with JSON evidence output
 
 ## Coverage Policy
 

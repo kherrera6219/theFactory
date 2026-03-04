@@ -1,10 +1,11 @@
 # Updated TODO From Word-Doc Audit (2026-03-03)
 
 ## P0 - Complete Immediately
-- [ ] Run live LangGraph postgres checkpoint recovery qualification.
+- [x] Run live LangGraph postgres checkpoint recovery qualification.
 Acceptance:
 - `LANGGRAPH_ENABLED=true` and `LANGGRAPH_CHECKPOINTER=postgres` mission flow validated through orchestrator restart/disruption.
 - Recovery evidence captured with pass/fail criteria and timings.
+Status (2026-03-04): complete. Evidence captured at `docs/evidence/phase26_langgraph_postgres_live_recovery_qualification_2026-03-03.json`.
 
 ## P1 - High Impact Product Gaps
 - [ ] Implement live mission transport path (WebSocket/SSE) for Mission Control critical views.
@@ -38,4 +39,5 @@ Acceptance:
 ## Completed During This Iteration
 - [x] Phase 23: LangGraph lifecycle baseline (feature-flagged, fail-open fallback).
 - [x] Phase 24: Postgres checkpointer baseline for LangGraph lifecycle.
-- [x] Phase 25 (partial): LangGraph runtime visibility added to `/health`, `/readyz`, and operations snapshots.
+- [x] Phase 25: Word-doc reconciliation and LangGraph runtime visibility in health/readiness/operations.
+- [x] Phase 26: Lifecycle recovery rehydration and live postgres checkpoint restart qualification.

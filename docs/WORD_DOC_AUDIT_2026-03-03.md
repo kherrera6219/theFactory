@@ -29,6 +29,9 @@ Extracted text artifacts are stored under `tmp_docs/docx_audit/`.
 - Full 35-agent runtime isolation gap (persona/registry complete, but runtime topology is still condensed vs. “35 dedicated containers” design narrative).
 - Auth model divergence (design docs reference broader enterprise/JWT-style controls; runtime currently API-key role model).
 
+Update (2026-03-04):
+- P0 LangGraph restart/disruption qualification is now closed with live evidence at `docs/evidence/phase26_langgraph_postgres_live_recovery_qualification_2026-03-03.json`.
+
 ## Action Taken in This Audit Phase
 - Added LangGraph runtime visibility fields to orchestrator health/readiness/operations payloads.
 - Added regression coverage for these fields in orchestrator endpoint tests.
