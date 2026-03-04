@@ -38,6 +38,7 @@ SUPPORTED_LANGUAGES = {
     )
     if language.strip()
 }
+AGENT_BINDING = os.getenv("AGENT_BINDING", "")
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 
@@ -69,10 +70,57 @@ EXTRACTION_LATENCY = Histogram(
     "Source code extraction latency for pod worker",
     ("pod_name",),
 )
+BINDING_SKIPS = Counter(
+    "pod_worker_binding_skips_total",
+    "Total missions skipped because agent binding did not match",
+    ("pod_name", "reason"),
+)
 
 
 class ProtocolValidationError(Exception):
     pass
+
+
+def _parse_agent_binding(raw: str) -> tuple[str, ...]:
+    candidates = re.split(r"[\s,]+", raw.strip())
+    normalized = {candidate.strip().upper() for candidate in candidates if candidate.strip()}
+    return tuple(sorted(normalized))
+
+
+AGENT_BINDINGS = _parse_agent_binding(AGENT_BINDING)
+AGENT_BINDING_SET = frozenset(AGENT_BINDINGS)
+
+
+def _normalize_agent_id(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip().upper()
+    return candidate or None
+
+
+def _agent_id_from_metadata(metadata: Any) -> str | None:
+    if not isinstance(metadata, dict):
+        return None
+    for key in ("agent_id", "target_agent_id", "selected_agent_id", "assigned_agent_id"):
+        normalized = _normalize_agent_id(metadata.get(key))
+        if normalized:
+            return normalized
+
+    nested_agent = metadata.get("agent")
+    if isinstance(nested_agent, dict):
+        for key in ("agent_id", "id"):
+            normalized = _normalize_agent_id(nested_agent.get(key))
+            if normalized:
+                return normalized
+    return None
+
+
+def _agent_id_from_payload(payload: dict[str, Any]) -> str | None:
+    for key in ("agent_id", "target_agent_id", "selected_agent_id", "assigned_agent_id"):
+        normalized = _normalize_agent_id(payload.get(key))
+        if normalized:
+            return normalized
+    return _agent_id_from_metadata(payload.get("metadata"))
 
 
 def _parse_date_time(value: str) -> datetime:
@@ -233,6 +281,37 @@ async def _has_assignment(mission_id: str) -> bool:
     return bool(assignment.get("pod_name"))
 
 
+async def _fetch_mission_agent_id(mission_id: str) -> str | None:
+    response = await _request("GET", f"/missions/{mission_id}")
+    if response.status_code >= 400:
+        return None
+    mission = response.json()
+    if not isinstance(mission, dict):
+        return None
+
+    for key in ("agent_id", "target_agent_id", "selected_agent_id", "assigned_agent_id"):
+        normalized = _normalize_agent_id(mission.get(key))
+        if normalized:
+            return normalized
+    return _agent_id_from_metadata(mission.get("metadata"))
+
+
+async def _mission_matches_agent_binding(mission_id: str, payload: dict[str, Any]) -> bool:
+    if not AGENT_BINDING_SET:
+        return True
+
+    mission_agent_id = _agent_id_from_payload(payload)
+    if mission_agent_id is None:
+        mission_agent_id = await _fetch_mission_agent_id(mission_id)
+    if mission_agent_id is None:
+        BINDING_SKIPS.labels(pod_name=POD_NAME, reason="agent-unresolved").inc()
+        return False
+    if mission_agent_id not in AGENT_BINDING_SET:
+        BINDING_SKIPS.labels(pod_name=POD_NAME, reason="agent-mismatch").inc()
+        return False
+    return True
+
+
 async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, Any]) -> None:
     mission_id = str(payload.get("mission_id", ""))
     if not mission_id:
@@ -243,6 +322,8 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
     if target_language and target_language not in SUPPORTED_LANGUAGES:
         return
     if not target_language and POD_NAME != "podA":
+        return
+    if not await _mission_matches_agent_binding(mission_id, payload):
         return
     if await _has_assignment(mission_id):
         return
@@ -464,6 +545,7 @@ async def health() -> dict[str, Any]:
         "state_stream": STATE_STREAM,
         "group": CONSUMER_GROUP,
         "consumer": CONSUMER_NAME,
+        "agent_binding": list(AGENT_BINDINGS),
         "processed": app.state.processed,
         "errors": app.state.errors,
     }

@@ -82,6 +82,11 @@ Acceptance: gateway `AUTH_MODE` (`api_key|hybrid|oidc`) is implemented with regr
 Evidence targets: `services/api-gateway/api_gateway/main.py`, `tests/services/test_api_gateway_auth_mode_unit.py`, `deploy/docker-compose.yaml`.
 Phase 30 status (2026-03-04): complete. Added gateway auth abstraction plus `--profile dedicated-agents` manager-worker scaffolding.
 
+- [x] Enforce dedicated-agent scheduler routing policy for `AGENT_BINDING` workers.
+Acceptance: pod-worker runtime gates dedicated workers to configured agent IDs with regression coverage and runtime telemetry.
+Evidence targets: `services/pod-worker/pod_worker/main.py`, `tests/services/test_pod_worker_unit.py`, `docs/evidence/phase31_dedicated_agent_binding_scheduler_validation_2026-03-04.md`.
+Phase 31 status (2026-03-04): complete. `AGENT_BINDING` routing policy is enforced with mission metadata fallback resolution and validated quality gates.
+
 - [x] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
 Acceptance: orchestrator can execute mission state transitions through LangGraph when enabled, and fail-open fallback preserves runtime safety.
 Evidence targets: `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `tests/services/test_langgraph_lifecycle_unit.py`, `docs/UPDATED_PHASE_PLAN_2026-03-03.md`.
@@ -113,6 +118,6 @@ Phase 25 status (2026-03-03): complete; remaining gaps promoted into canonical r
 ## Exit Criteria
 - [x] All P0 acceptance criteria passed and documented.
 - [x] At least 80% service coverage maintained with critical-module thresholds intact.
-Current verified baseline (2026-03-04): 85.46% global coverage, all required 100% module thresholds passing.
+Current verified baseline (2026-03-04): 85.79% global coverage, all required 100% module thresholds passing.
 - [x] Mission Control has automated regression protection for core operator journeys.
 - [x] Updated audit report confirms no remaining critical production blockers.

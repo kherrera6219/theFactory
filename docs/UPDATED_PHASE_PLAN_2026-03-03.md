@@ -5,11 +5,12 @@ Define the post-Phase-18 execution plan from current production baseline to next
 
 ## Current Validated Baseline
 - Core platform phases through Phase 18 are complete (mission runtime, CI/security, tracing, reliability qualification, UI e2e, Qdrant/Neo4j/object-storage optional adapters).
-- Latest quality gates: global service coverage `85.46%`, required core-module `100%` thresholds passing, production audit `12/12`, debug sweep passing.
+- Latest quality gates: global service coverage `85.79%`, required core-module `100%` thresholds passing, production audit `12/12`, debug sweep passing.
 - Execution update (2026-03-04): Phase 27 (Mission Control live SSE transport + polling fallback diagnostics) is complete and validated.
 - Execution update (2026-03-04): Phase 28 (Smelt-cycle runtime reconciliation with deterministic 7-phase mapping) is complete and validated.
 - Execution update (2026-03-04): Phase 29 (35-agent topology and security-model ADR decision package) is complete and validated.
 - Execution update (2026-03-04): Phase 30 (auth-mode and dedicated-profile ADR execution baseline) is complete and validated.
+- Execution update (2026-03-04): Phase 31 (dedicated-agent scheduler binding enforcement for `AGENT_BINDING`) is complete and validated.
 
 ## Remaining Work (Prioritized)
 
@@ -141,6 +142,17 @@ Exit Criteria:
 - Gateway mutation route supports auth mode switching with deterministic behavior and tests.
 - Compose provides `--profile dedicated-agents` manager-worker baseline without affecting default runtime.
 - Quality gates and debug sweep pass.
+
+## Phase 31 - Dedicated-Agent Scheduler Binding Enforcement
+Scope:
+- Implement pod-worker scheduler binding policy for `AGENT_BINDING` services in dedicated topology profile.
+- Resolve mission target agent from payload metadata plus orchestrator mission metadata fallback.
+- Add binding skip telemetry and regression tests.
+
+Exit Criteria:
+- Dedicated worker runtime only processes missions with matching bound agent IDs.
+- Binding mismatch/unresolved scenarios are observable via metrics and tests.
+- Global and required-module coverage thresholds, production audit, and debug sweep continue to pass.
 
 ## Validation Protocol (applies after each phase)
 1. `python -m ruff check services tests scripts`

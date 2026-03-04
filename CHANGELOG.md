@@ -103,6 +103,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - dedicated topology compose scaffolding profile (`--profile dedicated-agents`)
   - auth-mode regression suite `tests/services/test_api_gateway_auth_mode_unit.py`
   - validation evidence in `docs/evidence/phase30_auth_mode_and_dedicated_profile_validation_2026-03-04.md`
+- Phase 31 dedicated-agent binding scheduler enforcement:
+  - pod-worker runtime now enforces `AGENT_BINDING` policy for dedicated workers
+  - mission agent resolution supports payload fields, payload metadata, and orchestrator mission metadata fallback
+  - new metric `pod_worker_binding_skips_total{pod_name,reason}` and `/health` visibility for active bindings
+  - regression coverage updates in `tests/services/test_pod_worker_unit.py` and `tests/services/test_runtime_unit.py`
+  - validation evidence in `docs/evidence/phase31_dedicated_agent_binding_scheduler_validation_2026-03-04.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
