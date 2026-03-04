@@ -104,6 +104,8 @@ Last updated: 2026-03-04
    - `curl http://localhost:8101/metrics | rg "orchestrator_optional_adapter_"`
 4. If adapter alerts fire, follow:
    - `docs/runbooks/optional_data_plane_incident_runbook.md`
+5. Run live qualification (when extended profile is active):
+   - `LIVE_ENABLE_DISRUPTION_TESTS=true make test-live-extended`
 
 ## Automation Scripts
 

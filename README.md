@@ -174,6 +174,7 @@ Using `make`:
 - `make test-ui`: run Mission Control lint + unit tests.
 - `make test-ui-e2e`: run Mission Control Playwright e2e regression suite.
 - `make test-fast`: run pytest without coverage reporting.
+- `make test-live-extended`: run live optional Neo4j/MinIO qualification tests (skip-safe when stack/adapters are unavailable).
 - `make audit`: run production checklist audit script.
 - `make promotion-gate`: evaluate local release promotion policy and write decision artifact.
 - `make openapi`: export OpenAPI documents.

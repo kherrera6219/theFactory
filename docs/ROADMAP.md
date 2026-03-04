@@ -366,12 +366,28 @@ Last updated: 2026-03-04
   - `docs/evidence/phase32_optional_data_plane_observability_validation_2026-03-04.md`
 - Status: Complete (observability baseline implemented and validated, 2026-03-04).
 
+## Phase 33: Extended Data-Plane Live Qualification
+
+- Added live extended data-plane qualification suite:
+  - `tests/services/test_live_extended_data_plane_integration.py`
+- Qualification coverage:
+  - end-to-end optional mirror-write roundtrip checks for Neo4j (`knowledge-graph`) and object-storage (`audit-artifacts`),
+  - skip-safe behavior when live stack/adapters are unavailable,
+  - disruption/recovery scenario with temporary Neo4j/MinIO outage and post-recovery verification.
+- Added local execution target:
+  - `make test-live-extended`
+- Resolved runtime qualification blockers:
+  - MinIO image tag corrected to valid release (`RELEASE.2025-09-07T16-13-09Z`),
+  - MinIO healthcheck switched from unavailable `wget` to `curl`.
+- Validation evidence:
+  - `docs/evidence/phase33_extended_data_plane_live_qualification_validation_2026-03-04.md`
+- Status: Complete (extended data-plane live qualification implemented and validated, 2026-03-04).
+
 ## Next Roadmap Targets
 
-1. Add live extended-data-plane integration qualification (`--profile extended-data-plane`) for Neo4j and MinIO paths with skip-safe CI strategy.
-2. Implement advanced Mission Control operator UX gaps from imported design specs:
+1. Implement advanced Mission Control operator UX gaps from imported design specs:
    - repo diff-review/apply gate for file-level mission outputs,
    - virtualization of Semantic Bus and agent-log high-volume views.
-3. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
-4. Extend OIDC auth mode beyond mutation endpoint to broader operator/public route policies and runbook playbooks.
-5. Run dedicated-agent canary rollout with mission metadata contract instrumentation and rollback guardrails.
+2. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
+3. Extend OIDC auth mode beyond mutation endpoint to broader operator/public route policies and runbook playbooks.
+4. Run dedicated-agent canary rollout with mission metadata contract instrumentation and rollback guardrails.

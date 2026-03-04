@@ -92,6 +92,11 @@ Acceptance: readiness, operation latency/error, and mirror-write success/failure
 Evidence targets: `services/orchestrator/orchestrator/data_plane_metrics.py`, `deploy/monitoring/prometheus/rules/thefactory-alerts.yml`, `docs/runbooks/optional_data_plane_incident_runbook.md`, `docs/evidence/phase32_optional_data_plane_observability_validation_2026-03-04.md`.
 Phase 32 status (2026-03-04): complete. Added adapter metrics instrumentation, Grafana/Prometheus observability controls, and incident runbook linkage.
 
+- [x] Add live extended-data-plane qualification for optional Neo4j/object-storage paths.
+Acceptance: live suite validates roundtrip mirror behavior and disruption recovery, while safely skipping when extended stack is unavailable.
+Evidence targets: `tests/services/test_live_extended_data_plane_integration.py`, `deploy/docker-compose.yaml`, `docs/evidence/phase33_extended_data_plane_live_qualification_validation_2026-03-04.md`.
+Phase 33 status (2026-03-04): complete. Added live roundtrip/disruption suite, `make test-live-extended`, and compose hardening fixes for MinIO image/healthcheck.
+
 - [x] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
 Acceptance: orchestrator can execute mission state transitions through LangGraph when enabled, and fail-open fallback preserves runtime safety.
 Evidence targets: `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `tests/services/test_langgraph_lifecycle_unit.py`, `docs/UPDATED_PHASE_PLAN_2026-03-03.md`.
