@@ -1,6 +1,7 @@
 import type {
   BuilderPreviewResponse,
   GatewayHealth,
+  LiveStateStreamEvent,
   MissionEvent,
   MissionRecord,
   OperationsAgentIntegrationsSnapshot,
@@ -76,6 +77,42 @@ export async function fetchJson<T>(input: string, init?: RequestInit): Promise<T
 
 export function missionApiUrl(path: string): string {
   return `${missionApiBase}${path}`;
+}
+
+export function missionStateStreamUrl(params?: {
+  missionId?: string;
+  includeAgentEvents?: boolean;
+}): string {
+  const searchParams = new URLSearchParams();
+  if (params?.missionId) {
+    searchParams.set("mission_id", params.missionId);
+  }
+  if (params?.includeAgentEvents === false) {
+    searchParams.set("include_agent_events", "false");
+  }
+  const query = searchParams.toString();
+  if (!query) {
+    return missionApiUrl("/v1/stream/state");
+  }
+  return missionApiUrl(`/v1/stream/state?${query}`);
+}
+
+export function parseLiveStateStreamMessage(raw: string): LiveStateStreamEvent | null {
+  try {
+    const parsed = JSON.parse(raw) as LiveStateStreamEvent;
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    if (typeof parsed.event_type !== "string" || typeof parsed.stream_id !== "string") {
+      return null;
+    }
+    if (!parsed.payload || typeof parsed.payload !== "object") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 export function getOperatorApiKey(): string | null {

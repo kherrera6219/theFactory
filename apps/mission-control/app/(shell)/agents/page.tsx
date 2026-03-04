@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
-import { getOperationsAgents } from "../../lib/api-client";
+import {
+  getOperationsAgents,
+  missionStateStreamUrl,
+  parseLiveStateStreamMessage,
+} from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import type { OperationsAgentRecord, OperationsAgentsSnapshot } from "../../lib/types";
+
+const POLL_INTERVAL_MS = 2000;
+const STREAM_REFRESH_DEBOUNCE_MS = 500;
 
 export default function AgentsPage() {
   const [tierFilter, setTierFilter] = useState<string>("ALL");
@@ -17,39 +24,104 @@ export default function AgentsPage() {
   const [logLevel, setLogLevel] = useState<"ALL" | "INFO" | "WARNING" | "ERROR">("ALL");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [transportMode, setTransportMode] = useState<"stream" | "poll">("poll");
+  const [streamEventsSeen, setStreamEventsSeen] = useState(0);
+  const [streamErrors, setStreamErrors] = useState(0);
+  const [pollFallbackTicks, setPollFallbackTicks] = useState(0);
+  const lastStreamRefreshRef = useRef(0);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const data = await getOperationsAgents({
+        missionLimit: 2000,
+        assignmentLimit: 2000,
+        eventLimit: 500,
+      });
+      setSnapshot(data);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load agent telemetry.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setError(null);
-      try {
-        const data = await getOperationsAgents({
-          missionLimit: 2000,
-          assignmentLimit: 2000,
-          eventLimit: 500,
-        });
-        if (!cancelled) {
-          setSnapshot(data);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load agent telemetry.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    const startPollingFallback = () => {
+      setTransportMode("poll");
+      void load();
+      const intervalId = window.setInterval(() => {
+        setPollFallbackTicks((count) => count + 1);
+        void load();
+      }, POLL_INTERVAL_MS);
+      return () => window.clearInterval(intervalId);
+    };
+
+    if (typeof window === "undefined" || typeof window.EventSource === "undefined") {
+      return startPollingFallback();
+    }
+
+    const eventSource = new EventSource(
+      missionStateStreamUrl({
+        includeAgentEvents: true,
+      }),
+    );
+    let closeFallback: (() => void) | null = null;
+    let streamOpen = false;
+
+    eventSource.onopen = () => {
+      streamOpen = true;
+      setTransportMode("stream");
+      if (closeFallback) {
+        closeFallback();
+        closeFallback = null;
       }
     };
-    void load();
-    const intervalId = window.setInterval(() => {
-      void load();
-    }, 2000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
+
+    eventSource.onerror = () => {
+      setStreamErrors((count) => count + 1);
+      if (!streamOpen) {
+        if (!closeFallback) {
+          closeFallback = startPollingFallback();
+        }
+        return;
+      }
+      streamOpen = false;
+      eventSource.close();
+      if (!closeFallback) {
+        closeFallback = startPollingFallback();
+      }
     };
-  }, []);
+
+    eventSource.addEventListener("state_event", (streamEvent: MessageEvent<string>) => {
+      const parsed = parseLiveStateStreamMessage(streamEvent.data);
+      if (!parsed) {
+        return;
+      }
+      const eventType = parsed.event_type.toUpperCase();
+      if (!eventType.startsWith("AGENT_") && !eventType.startsWith("MISSION_")) {
+        return;
+      }
+      setStreamEventsSeen((count) => count + 1);
+      const now = Date.now();
+      if ((now - lastStreamRefreshRef.current) < STREAM_REFRESH_DEBOUNCE_MS) {
+        return;
+      }
+      lastStreamRefreshRef.current = now;
+      void load();
+    });
+
+    return () => {
+      eventSource.close();
+      if (closeFallback) {
+        closeFallback();
+      }
+    };
+  }, [load]);
 
   const agents = snapshot?.agents ?? [];
 
@@ -150,6 +222,22 @@ export default function AgentsPage() {
             <li>
               <strong>Consumer task</strong>
               <span>{snapshot?.runtime.consumer_running ? "Running" : "Not running"}</span>
+            </li>
+            <li>
+              <strong>Transport mode</strong>
+              <span>{transportMode}</span>
+            </li>
+            <li>
+              <strong>Stream events</strong>
+              <span>{streamEventsSeen}</span>
+            </li>
+            <li>
+              <strong>Stream errors</strong>
+              <span>{streamErrors}</span>
+            </li>
+            <li>
+              <strong>Poll fallback ticks</strong>
+              <span>{pollFallbackTicks}</span>
             </li>
           </ul>
         )}

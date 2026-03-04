@@ -62,6 +62,9 @@ class FakeRedis:
     async def close(self) -> None:
         return None
 
+    async def xread(self, **_kwargs) -> list[tuple[str, list[tuple[str, dict[str, str]]]]]:
+        return []
+
 
 class FakeTask:
     def __init__(self, *, done: bool = False) -> None:
@@ -129,6 +132,74 @@ def test_gateway_readyz_returns_503_on_dependency_failure(monkeypatch) -> None:
     response = client.get("/readyz")
     assert response.status_code == 503
     assert response.json()["detail"]["ready"] is False
+
+
+def test_gateway_stream_state_endpoint(monkeypatch) -> None:
+    class StreamRedis(FakeRedis):
+        def __init__(self) -> None:
+            super().__init__()
+            self.read_calls = 0
+
+        async def xread(
+            self, **_kwargs
+        ) -> list[tuple[str, list[tuple[str, dict[str, str]]]]]:
+            self.read_calls += 1
+            if self.read_calls == 1:
+                return [
+                    (
+                        "missions.state",
+                        [
+                            (
+                                "1-0",
+                                {
+                                    "event_type": "MISSION_RUNNING",
+                                    "mission_id": "mission-1",
+                                    "state": "RUNNING",
+                                    "created_at": "2026-03-04T00:00:00+00:00",
+                                    "payload": (
+                                        '{"mission_id":"mission-1","event_type":"MISSION_RUNNING",'
+                                        '"state":"RUNNING"}'
+                                    ),
+                                    "envelope": (
+                                        '{"topic":"fusion.requested","producer":"orchestrator"}'
+                                    ),
+                                },
+                            )
+                        ],
+                    )
+                ]
+            raise asyncio.CancelledError
+
+    stream_redis = StreamRedis()
+    with TestClient(api_app) as client:
+        api_app.state.redis = stream_redis
+        api_app.state.redis_ready = True
+
+        with client.stream(
+            "GET",
+            "/v1/stream/state?mission_id=mission-1&include_agent_events=false",
+        ) as response:
+            assert response.status_code == 200
+            body = ""
+            for chunk in response.iter_text():
+                body += chunk
+                if "MISSION_RUNNING" in body:
+                    break
+
+    assert "event: connected" in body
+    assert "event: state_event" in body
+    assert "MISSION_RUNNING" in body
+
+
+def test_gateway_stream_state_endpoint_requires_redis() -> None:
+    with TestClient(api_app) as client:
+        api_app.state.redis = None
+        api_app.state.redis_ready = False
+
+        response = client.get("/v1/stream/state")
+
+    assert response.status_code == 503
+    assert "redis dependency is not installed" in response.json()["detail"]
 
 
 def test_gateway_metrics_endpoint_exposes_prometheus_payload() -> None:

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "../../../components/page-header";
 import { Panel } from "../../../components/panel";
@@ -10,6 +10,8 @@ import {
   getMission,
   getMissionEvents,
   getOperationsAgents,
+  missionStateStreamUrl,
+  parseLiveStateStreamMessage,
   listOperationsLogicNodes,
   updateMissionState,
   updateMissionStateWithVault,
@@ -24,6 +26,7 @@ import type {
 
 const POLL_INTERVAL_MS = 2500;
 const SMELT_PHASES = ["INTAKE", "FETCH", "SMELT", "GATING", "FUSION", "SQUEEZE", "DELIVERY"] as const;
+const STREAM_REFRESH_DEBOUNCE_MS = 500;
 
 function phaseIndexFromState(state: string): number {
   const normalized = normalizeState(state);
@@ -65,8 +68,13 @@ export default function MissionDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [transportMode, setTransportMode] = useState<"stream" | "poll" | "paused">("poll");
+  const [streamEventsSeen, setStreamEventsSeen] = useState(0);
+  const [streamErrors, setStreamErrors] = useState(0);
+  const [pollFallbackTicks, setPollFallbackTicks] = useState(0);
+  const lastStreamRefreshRef = useRef(0);
 
-  async function loadDetails() {
+  const loadDetails = useCallback(async () => {
     if (!missionId) {
       return;
     }
@@ -88,24 +96,93 @@ export default function MissionDetailPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [missionId]);
 
   useEffect(() => {
     setLoading(true);
     void loadDetails();
-  }, [missionId]);
+  }, [missionId, loadDetails]);
 
   useEffect(() => {
-    if (!missionId || pausedMonitor) {
+    if (!missionId) {
       return;
     }
-    const intervalId = window.setInterval(() => {
+    if (pausedMonitor) {
+      setTransportMode("paused");
+      return;
+    }
+
+    const startPollingFallback = () => {
+      setTransportMode("poll");
       void loadDetails();
-    }, POLL_INTERVAL_MS);
-    return () => {
-      window.clearInterval(intervalId);
+      const intervalId = window.setInterval(() => {
+        setPollFallbackTicks((count) => count + 1);
+        void loadDetails();
+      }, POLL_INTERVAL_MS);
+      return () => window.clearInterval(intervalId);
     };
-  }, [missionId, pausedMonitor]);
+
+    if (typeof window === "undefined" || typeof window.EventSource === "undefined") {
+      return startPollingFallback();
+    }
+
+    const streamUrl = missionStateStreamUrl({
+      missionId,
+      includeAgentEvents: true,
+    });
+    const eventSource = new EventSource(streamUrl);
+    let closeFallback: (() => void) | null = null;
+    let streamOpen = false;
+
+    eventSource.onopen = () => {
+      streamOpen = true;
+      setTransportMode("stream");
+      setError(null);
+      if (closeFallback) {
+        closeFallback();
+        closeFallback = null;
+      }
+    };
+
+    eventSource.onerror = () => {
+      setStreamErrors((count) => count + 1);
+      if (!streamOpen) {
+        if (!closeFallback) {
+          closeFallback = startPollingFallback();
+        }
+        return;
+      }
+      streamOpen = false;
+      eventSource.close();
+      if (!closeFallback) {
+        closeFallback = startPollingFallback();
+      }
+    };
+
+    eventSource.addEventListener("state_event", (streamEvent: MessageEvent<string>) => {
+      const parsed = parseLiveStateStreamMessage(streamEvent.data);
+      if (!parsed) {
+        return;
+      }
+      if (parsed.mission_id !== missionId) {
+        return;
+      }
+      setStreamEventsSeen((count) => count + 1);
+      const now = Date.now();
+      if ((now - lastStreamRefreshRef.current) < STREAM_REFRESH_DEBOUNCE_MS) {
+        return;
+      }
+      lastStreamRefreshRef.current = now;
+      void loadDetails();
+    });
+
+    return () => {
+      eventSource.close();
+      if (closeFallback) {
+        closeFallback();
+      }
+    };
+  }, [missionId, pausedMonitor, loadDetails]);
 
   const phaseIndex = phaseIndexFromState(mission?.state ?? "QUEUED");
 
@@ -243,6 +320,22 @@ export default function MissionDetailPage() {
               <div>
                 <dt>Last refresh</dt>
                 <dd>{lastUpdatedAt ? formatTime(lastUpdatedAt) : "n/a"}</dd>
+              </div>
+              <div>
+                <dt>Transport mode</dt>
+                <dd>{transportMode}</dd>
+              </div>
+              <div>
+                <dt>Stream events</dt>
+                <dd>{streamEventsSeen}</dd>
+              </div>
+              <div>
+                <dt>Stream errors</dt>
+                <dd>{streamErrors}</dd>
+              </div>
+              <div>
+                <dt>Poll fallback ticks</dt>
+                <dd>{pollFallbackTicks}</dd>
               </div>
             </dl>
           )}

@@ -57,6 +57,11 @@ Evidence targets: `docs/AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`, `docs/ROADMAP.
 Phase 16 status (2026-03-03): orchestrator knowledge path now actively mirrors/retrieves via Qdrant with tested fallback behavior, runtime readiness visibility, and optional `QDRANT_API_KEY` hardening.
 Phase 17-18 status (2026-03-03): Neo4j and object-storage optional expansion tracks are now implemented behind feature flags with regression coverage and evidence (`phase17_neo4j_feature_flag_validation_2026-03-03.md`, `phase18_object_storage_validation_2026-03-03.md`).
 
+- [x] Implement live mission transport path (WebSocket/SSE) for mission-critical Mission Control surfaces.
+Acceptance: Mission detail, Semantic Bus, and agent-state operations views support push transport with deterministic polling fallback.
+Evidence targets: `services/api-gateway/api_gateway/main.py`, `apps/mission-control/app/(shell)/missions/[id]/page.tsx`, `docs/evidence/phase27_mission_control_live_transport_validation_2026-03-04.md`.
+Phase 27 status (2026-03-04): complete. Added SSE stream endpoint plus EventSource transport integration and fallback diagnostics.
+
 - [x] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
 Acceptance: orchestrator can execute mission state transitions through LangGraph when enabled, and fail-open fallback preserves runtime safety.
 Evidence targets: `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `tests/services/test_langgraph_lifecycle_unit.py`, `docs/UPDATED_PHASE_PLAN_2026-03-03.md`.
