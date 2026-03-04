@@ -81,6 +81,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - frontend EventSource transport integration for mission detail, Semantic Bus, and agent operations views
   - `tests/services/test_api_gateway_live_stream_unit.py`
   - phase evidence in `docs/evidence/phase27_mission_control_live_transport_validation_2026-03-04.md`
+- Smelt-cycle runtime reconciliation baseline:
+  - deterministic lifecycle checkpoint events `MISSION_GATING` and `MISSION_FUSION`
+  - canonical phase mapping policy in `docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`
+  - frontend mapping helper/tests in `apps/mission-control/app/lib/smelt-cycle.ts` and `smelt-cycle.test.ts`
+  - phase evidence in `docs/evidence/phase28_smelt_cycle_runtime_reconciliation_validation_2026-03-04.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.

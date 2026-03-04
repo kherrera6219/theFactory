@@ -62,6 +62,11 @@ Acceptance: Mission detail, Semantic Bus, and agent-state operations views suppo
 Evidence targets: `services/api-gateway/api_gateway/main.py`, `apps/mission-control/app/(shell)/missions/[id]/page.tsx`, `docs/evidence/phase27_mission_control_live_transport_validation_2026-03-04.md`.
 Phase 27 status (2026-03-04): complete. Added SSE stream endpoint plus EventSource transport integration and fallback diagnostics.
 
+- [x] Reconcile 7-phase Smelt-cycle model to runtime lifecycle events with deterministic timeline mapping.
+Acceptance: canonical runtime telemetry supports 7-phase Mission Control progression with test-covered deterministic mapping.
+Evidence targets: `services/orchestrator/orchestrator/runtime.py`, `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `apps/mission-control/app/lib/smelt-cycle.ts`, `docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`.
+Phase 28 status (2026-03-04): complete. Added runtime checkpoint events (`MISSION_GATING`, `MISSION_FUSION`) and deterministic timeline rendering in Mission Control.
+
 - [x] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
 Acceptance: orchestrator can execute mission state transitions through LangGraph when enabled, and fail-open fallback preserves runtime safety.
 Evidence targets: `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `tests/services/test_langgraph_lifecycle_unit.py`, `docs/UPDATED_PHASE_PLAN_2026-03-03.md`.

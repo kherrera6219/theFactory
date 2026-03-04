@@ -389,6 +389,22 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
             new_state
         ),
     )
+    checkpoint_events: list[str] = []
+
+    def _insert_checkpoint(
+        _settings_obj,
+        _mission_id,
+        _previous_state,
+        _new_state,
+        event_type,
+    ) -> None:
+        checkpoint_events.append(event_type)
+
+    monkeypatch.setattr(
+        runtime.storage,
+        "insert_mission_event",
+        _insert_checkpoint,
+    )
     emitted: list[str] = []
 
     async def _emit(**kwargs):
@@ -397,7 +413,14 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
     monkeypatch.setattr(runtime, "emit_state_event", _emit)
 
     asyncio.run(runtime.advance_mission_lifecycle(app, "mission-1"))
-    assert emitted == ["MISSION_RUNNING", "MISSION_VERIFIED", "MISSION_COMPLETE"]
+    assert emitted == [
+        "MISSION_RUNNING",
+        "MISSION_GATING",
+        "MISSION_FUSION",
+        "MISSION_VERIFIED",
+        "MISSION_COMPLETE",
+    ]
+    assert checkpoint_events == ["MISSION_GATING", "MISSION_FUSION"]
 
 
 def test_advance_mission_lifecycle_stops_on_missing_transition(monkeypatch) -> None:

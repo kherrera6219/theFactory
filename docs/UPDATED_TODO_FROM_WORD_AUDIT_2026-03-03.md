@@ -14,10 +14,11 @@ Acceptance:
 - Polling remains as explicit fallback with observability counters.
 Status (2026-03-04): complete. API Gateway SSE endpoint and Mission Control EventSource transport are active with validated polling fallback and diagnostics counters.
 
-- [ ] Reconcile 7-phase Smelt-cycle model to runtime lifecycle events.
+- [x] Reconcile 7-phase Smelt-cycle model to runtime lifecycle events.
 Acceptance:
 - Canonical event schema maps runtime transitions to all seven UI phases or documents intentional phase-collapsing policy.
 - Mission timeline UX has deterministic, test-covered phase progression.
+Status (2026-03-04): complete. Added deterministic `MISSION_GATING` and `MISSION_FUSION` runtime checkpoints in legacy + LangGraph lifecycle paths and published canonical mapping at `docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`.
 
 - [ ] Define and execute 35-agent runtime topology decision.
 Acceptance:
@@ -43,3 +44,4 @@ Acceptance:
 - [x] Phase 25: Word-doc reconciliation and LangGraph runtime visibility in health/readiness/operations.
 - [x] Phase 26: Lifecycle recovery rehydration and live postgres checkpoint restart qualification.
 - [x] Phase 27: Mission Control live transport baseline with SSE + fallback validation.
+- [x] Phase 28: Smelt-cycle runtime reconciliation with deterministic 7-phase timeline mapping.

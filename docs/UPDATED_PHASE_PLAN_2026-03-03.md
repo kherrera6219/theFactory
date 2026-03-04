@@ -7,6 +7,7 @@ Define the post-Phase-18 execution plan from current production baseline to next
 - Core platform phases through Phase 18 are complete (mission runtime, CI/security, tracing, reliability qualification, UI e2e, Qdrant/Neo4j/object-storage optional adapters).
 - Latest quality gates: global service coverage `85.46%`, required core-module `100%` thresholds passing, production audit `12/12`, debug sweep passing.
 - Execution update (2026-03-04): Phase 27 (Mission Control live SSE transport + polling fallback diagnostics) is complete and validated.
+- Execution update (2026-03-04): Phase 28 (Smelt-cycle runtime reconciliation with deterministic 7-phase mapping) is complete and validated.
 
 ## Remaining Work (Prioritized)
 
@@ -105,6 +106,17 @@ Exit Criteria:
 - Critical Mission Control views support live push transport without removing polling compatibility.
 - Unit/service/frontend tests cover stream parsing, filtering, and fallback behavior.
 - Full quality-gate and debug sweep validation pass.
+
+## Phase 28 - Smelt-Cycle Runtime Reconciliation
+Scope:
+- Add deterministic runtime checkpoints for Smelt-cycle mid-phases while preserving canonical mission state machine.
+- Reconcile Mission Control stepper/timeline rendering to mapped runtime events.
+- Publish canonical mapping policy and add regression tests.
+
+Exit Criteria:
+- Mission timeline supports deterministic progression across all seven Smelt-cycle phases.
+- Legacy and LangGraph lifecycle paths both emit checkpoint telemetry.
+- Regression tests, coverage thresholds, and debug sweep continue to pass.
 
 ## Validation Protocol (applies after each phase)
 1. `python -m ruff check services tests scripts`

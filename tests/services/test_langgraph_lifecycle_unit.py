@@ -149,6 +149,22 @@ def test_maybe_advance_executes_graph_and_emits(monkeypatch) -> None:
         "transition_mission_state",
         lambda _settings_obj, _mission_id, _expected, new_state, _event: _mission_record(new_state),
     )
+    checkpoint_events: list[str] = []
+
+    def _insert_checkpoint(
+        _settings_obj,
+        _mission_id,
+        _previous_state,
+        _new_state,
+        event_type,
+    ) -> None:
+        checkpoint_events.append(event_type)
+
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "insert_mission_event",
+        _insert_checkpoint,
+    )
 
     emitted: list[str] = []
 
@@ -170,7 +186,14 @@ def test_maybe_advance_executes_graph_and_emits(monkeypatch) -> None:
         )
     )
     assert advanced is True
-    assert emitted == ["MISSION_RUNNING", "MISSION_VERIFIED", "MISSION_COMPLETE"]
+    assert emitted == [
+        "MISSION_RUNNING",
+        "MISSION_GATING",
+        "MISSION_FUSION",
+        "MISSION_VERIFIED",
+        "MISSION_COMPLETE",
+    ]
+    assert checkpoint_events == ["MISSION_GATING", "MISSION_FUSION"]
 
     assert FakeStateGraph.last_instance is not None
     invoke_state, invoke_config = FakeStateGraph.last_instance.compiled.calls[0]
