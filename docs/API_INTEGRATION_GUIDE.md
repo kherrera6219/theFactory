@@ -1,6 +1,6 @@
 # API Integration Guide
 
-Last updated: 2026-03-02
+Last updated: 2026-03-04
 
 ## Core Endpoints
 
@@ -28,6 +28,18 @@ Semantic Bus MCP base: `http://localhost:8102`
 - MCP message publish uses:
   - `x-api-key` (MCP service key)
   - `x-agent-id` (must match message sender)
+
+### Security ADR Alignment
+
+Canonical auth decision record:
+- `docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`
+
+Accepted runtime policy:
+1. `api_key` mode (current default): API-key auth for local/single-tenant operation.
+2. `hybrid` mode (planned): JWT/OIDC for operator/public API requests plus API-key internal service flows.
+3. `oidc` mode (planned): JWT/OIDC required for operator/public APIs; API keys limited to internal service identity.
+
+Current implementation baseline remains API-key-first; JWT/OIDC is a planned enterprise extension path.
 
 ## Mission Intake Example
 
