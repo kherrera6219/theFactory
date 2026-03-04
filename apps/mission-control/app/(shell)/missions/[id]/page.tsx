@@ -17,6 +17,12 @@ import {
   updateMissionStateWithVault,
 } from "../../../lib/api-client";
 import { formatDateTime, formatTime, humanizeState, normalizeState } from "../../../lib/format";
+import {
+  deriveSmeltPhaseIndex,
+  smeltPhaseFromEventType,
+  smeltPhaseFromIndex,
+  SMELT_PHASES,
+} from "../../../lib/smelt-cycle";
 import type {
   MissionEvent,
   MissionRecord,
@@ -25,17 +31,7 @@ import type {
 } from "../../../lib/types";
 
 const POLL_INTERVAL_MS = 2500;
-const SMELT_PHASES = ["INTAKE", "FETCH", "SMELT", "GATING", "FUSION", "SQUEEZE", "DELIVERY"] as const;
 const STREAM_REFRESH_DEBOUNCE_MS = 500;
-
-function phaseIndexFromState(state: string): number {
-  const normalized = normalizeState(state);
-  if (normalized === "QUEUED") return 0;
-  if (normalized === "RUNNING") return 2;
-  if (normalized === "VERIFIED") return 3;
-  if (normalized === "COMPLETE" || normalized === "FAILED") return 6;
-  return 0;
-}
 
 function isAgentActive(agent: OperationsAgentRecord, missionId: string): boolean {
   const state = normalizeState(agent.state);
@@ -184,8 +180,6 @@ export default function MissionDetailPage() {
     };
   }, [missionId, pausedMonitor, loadDetails]);
 
-  const phaseIndex = phaseIndexFromState(mission?.state ?? "QUEUED");
-
   const verifiedCount = useMemo(
     () =>
       logicNodes.filter((node) => {
@@ -194,6 +188,19 @@ export default function MissionDetailPage() {
       }).length,
     [logicNodes],
   );
+
+  const phaseIndex = useMemo(
+    () =>
+      deriveSmeltPhaseIndex({
+        missionState: mission?.state ?? "QUEUED",
+        events,
+        logicNodeCount: logicNodes.length,
+        verifiedLogicNodeCount: verifiedCount,
+      }),
+    [events, logicNodes.length, mission?.state, verifiedCount],
+  );
+
+  const phaseName = smeltPhaseFromIndex(phaseIndex);
 
   const avgConfidence = useMemo(() => {
     const values = logicNodes.map((node) => nodeConfidence(node)).filter((value): value is number => value !== null);
@@ -310,6 +317,10 @@ export default function MissionDetailPage() {
                 <dd>{humanizeState(mission.state)}</dd>
               </div>
               <div>
+                <dt>Smelt phase</dt>
+                <dd>{phaseName}</dd>
+              </div>
+              <div>
                 <dt>Created</dt>
                 <dd>{formatDateTime(mission.created_at)}</dd>
               </div>
@@ -389,12 +400,15 @@ export default function MissionDetailPage() {
         {events.length === 0 && <p className="muted">No mission events recorded yet.</p>}
         {events.length > 0 && (
           <ul className="summary-list">
-            {events.slice(0, 25).map((event) => (
-              <li key={`${event.event_type}-${event.ts}`}>
-                <strong>{formatTime(event.ts)}</strong>
-                <span>{event.event_type}</span>
-              </li>
-            ))}
+            {events.slice(0, 25).map((event) => {
+              const phaseLabel = smeltPhaseFromEventType(event.event_type);
+              return (
+                <li key={`${event.event_type}-${event.ts}`}>
+                  <strong>{formatTime(event.ts)}</strong>
+                  <span>{phaseLabel ? `${event.event_type} · ${phaseLabel}` : event.event_type}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Panel>

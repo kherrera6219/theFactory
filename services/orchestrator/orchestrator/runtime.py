@@ -29,6 +29,10 @@ except ModuleNotFoundError:
 
 
 LOGGER = logging.getLogger(__name__)
+RUNNING_PHASE_CHECKPOINT_EVENTS: tuple[str, ...] = (
+    "MISSION_GATING",
+    "MISSION_FUSION",
+)
 
 
 def _normalize_metadata(value: Any) -> dict[str, Any]:
@@ -64,6 +68,54 @@ async def emit_state_event(
         maxlen=settings.max_stream_len,
         approximate=True,
     )
+
+
+async def _emit_running_phase_checkpoints(
+    *,
+    app: FastAPI,
+    settings: Settings,
+    validator: EnvelopeValidator,
+    mission: MissionRecord,
+) -> None:
+    for event_type in RUNNING_PHASE_CHECKPOINT_EVENTS:
+        try:
+            await asyncio.to_thread(
+                storage.insert_mission_event,
+                settings,
+                mission.mission_id,
+                MissionState.running,
+                MissionState.running,
+                event_type,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "failed to persist running checkpoint %s for mission %s: %s",
+                event_type,
+                mission.mission_id,
+                exc,
+            )
+            continue
+
+        redis_ready = bool(getattr(app.state, "redis_ready", False))
+        redis_client = getattr(app.state, "redis", None)
+        if not redis_ready or redis_client is None:
+            continue
+
+        try:
+            await emit_state_event(
+                settings=settings,
+                validator=validator,
+                redis_client=redis_client,
+                mission=mission,
+                event_type=event_type,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "failed to emit running checkpoint %s for mission %s: %s",
+                event_type,
+                mission.mission_id,
+                exc,
+            )
 
 
 async def ensure_consumer_group(settings: Settings, redis_client: Any) -> None:
@@ -216,23 +268,29 @@ async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
 
         redis_ready = bool(getattr(app.state, "redis_ready", False))
         redis_client = getattr(app.state, "redis", None)
-        if not redis_ready or redis_client is None:
-            continue
+        if redis_ready and redis_client is not None:
+            try:
+                await emit_state_event(
+                    settings=settings,
+                    validator=validator,
+                    redis_client=redis_client,
+                    mission=record,
+                    event_type=event_type,
+                )
+            except Exception as exc:
+                LOGGER.warning(
+                    "failed to emit transition event %s for mission %s: %s",
+                    event_type,
+                    mission_id,
+                    exc,
+                )
 
-        try:
-            await emit_state_event(
+        if event_type == "MISSION_RUNNING":
+            await _emit_running_phase_checkpoints(
+                app=app,
                 settings=settings,
                 validator=validator,
-                redis_client=redis_client,
                 mission=record,
-                event_type=event_type,
-            )
-        except Exception as exc:
-            LOGGER.warning(
-                "failed to emit transition event %s for mission %s: %s",
-                event_type,
-                mission_id,
-                exc,
             )
 
 

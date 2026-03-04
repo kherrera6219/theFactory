@@ -273,6 +273,26 @@ Last updated: 2026-03-04
   - `docs/evidence/phase27_mission_control_live_transport_validation_2026-03-04.md`
 - Status: Complete (live transport baseline validated, 2026-03-04).
 
+## Phase 28: Smelt-Cycle Runtime Reconciliation
+
+- Added deterministic runtime checkpoint events to complete 7-phase telemetry:
+  - `MISSION_GATING`
+  - `MISSION_FUSION`
+- Checkpoint events are emitted in both lifecycle engines:
+  - legacy runtime transition loop
+  - LangGraph lifecycle path
+- Mission Control phase stepper now derives current phase from event history (with state + LogicNode fallback for older missions).
+- Mission timeline now surfaces phase labels for mapped mission events.
+- Canonical mapping policy published:
+  - `docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`
+- Regression coverage:
+  - `tests/services/test_runtime_unit.py`
+  - `tests/services/test_langgraph_lifecycle_unit.py`
+  - `apps/mission-control/app/lib/smelt-cycle.test.ts`
+- Validation evidence:
+  - `docs/evidence/phase28_smelt_cycle_runtime_reconciliation_validation_2026-03-04.md`
+- Status: Complete (deterministic 7-phase runtime mapping validated, 2026-03-04).
+
 ## Next Roadmap Targets
 
 1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
@@ -281,6 +301,5 @@ Last updated: 2026-03-04
    - repo diff-review/apply gate for file-level mission outputs,
    - virtualization of Semantic Bus and agent-log high-volume views.
 4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
-5. Reconcile 7-phase Smelt-cycle model to runtime lifecycle events with deterministic timeline mapping.
-6. Publish 35-agent runtime topology decision (dedicated-per-agent containers vs condensed workers) with trigger-based migration path.
-7. Publish security-model ADR for API-key model versus JWT/OIDC enterprise token architecture.
+5. Publish 35-agent runtime topology decision (dedicated-per-agent containers vs condensed workers) with trigger-based migration path.
+6. Publish security-model ADR for API-key model versus JWT/OIDC enterprise token architecture.

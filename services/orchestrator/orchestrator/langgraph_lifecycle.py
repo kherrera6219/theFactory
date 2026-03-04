@@ -35,6 +35,10 @@ TRANSITIONS: tuple[tuple[MissionState, MissionState, str], ...] = (
     (MissionState.running, MissionState.verified, "MISSION_VERIFIED"),
     (MissionState.verified, MissionState.complete, "MISSION_COMPLETE"),
 )
+RUNNING_PHASE_CHECKPOINT_EVENTS: tuple[str, ...] = (
+    "MISSION_GATING",
+    "MISSION_FUSION",
+)
 
 _MEMORY_CHECKPOINTER: Any | None = None
 
@@ -112,26 +116,68 @@ async def maybe_advance_mission_lifecycle(
         if record is None:
             return {"mission_id": state["mission_id"], "halted": True}
 
+        async def _emit_running_phase_checkpoints() -> None:
+            for checkpoint_event_type in RUNNING_PHASE_CHECKPOINT_EVENTS:
+                try:
+                    await asyncio.to_thread(
+                        storage.insert_mission_event,
+                        settings,
+                        state["mission_id"],
+                        MissionState.running,
+                        MissionState.running,
+                        checkpoint_event_type,
+                    )
+                except Exception as exc:
+                    LOGGER.warning(
+                        "failed to persist running checkpoint %s for mission %s: %s",
+                        checkpoint_event_type,
+                        state["mission_id"],
+                        exc,
+                    )
+                    continue
+
+                redis_ready = bool(getattr(app.state, "redis_ready", False))
+                redis_client = getattr(app.state, "redis", None)
+                if not redis_ready or redis_client is None or validator is None:
+                    continue
+
+                try:
+                    await emit_state_event_fn(
+                        settings=settings,
+                        validator=validator,
+                        redis_client=redis_client,
+                        mission=record,
+                        event_type=checkpoint_event_type,
+                    )
+                except Exception as exc:
+                    LOGGER.warning(
+                        "failed to emit running checkpoint %s for mission %s: %s",
+                        checkpoint_event_type,
+                        state["mission_id"],
+                        exc,
+                    )
+
         redis_ready = bool(getattr(app.state, "redis_ready", False))
         redis_client = getattr(app.state, "redis", None)
-        if not redis_ready or redis_client is None or validator is None:
-            return {"mission_id": state["mission_id"], "halted": False}
+        if redis_ready and redis_client is not None and validator is not None:
+            try:
+                await emit_state_event_fn(
+                    settings=settings,
+                    validator=validator,
+                    redis_client=redis_client,
+                    mission=record,
+                    event_type=event_type,
+                )
+            except Exception as exc:
+                LOGGER.warning(
+                    "failed to emit transition event %s for mission %s: %s",
+                    event_type,
+                    state["mission_id"],
+                    exc,
+                )
 
-        try:
-            await emit_state_event_fn(
-                settings=settings,
-                validator=validator,
-                redis_client=redis_client,
-                mission=record,
-                event_type=event_type,
-            )
-        except Exception as exc:
-            LOGGER.warning(
-                "failed to emit transition event %s for mission %s: %s",
-                event_type,
-                state["mission_id"],
-                exc,
-            )
+        if event_type == "MISSION_RUNNING":
+            await _emit_running_phase_checkpoints()
         return {"mission_id": state["mission_id"], "halted": False}
 
     def _route_next(next_node: str):
