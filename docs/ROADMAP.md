@@ -306,6 +306,27 @@ Last updated: 2026-03-04
   - `docs/evidence/phase29_topology_and_security_adr_validation_2026-03-04.md`
 - Status: Complete (decision package published, 2026-03-04).
 
+## Phase 30: ADR Execution Baseline (Auth Mode + Dedicated Profile)
+
+- Implemented gateway auth-mode abstraction:
+  - `AUTH_MODE=api_key|hybrid|oidc`
+  - OIDC/JWT bearer validation path with claim-based role enforcement for mutation endpoints.
+  - OIDC and bearer-hybrid mode now forward `INTERNAL_SERVICE_API_KEY` to orchestrator after gateway-side role validation.
+- Added auth runtime controls:
+  - `OIDC_ISSUER_URL`, `OIDC_AUDIENCE`, `OIDC_JWKS_URL`, `OIDC_SHARED_SECRET`,
+  - `OIDC_REQUIRED_ROLE`, claim mapping controls, algorithm controls, and token leeway.
+- Added dedicated topology scaffolding in compose:
+  - `--profile dedicated-agents`
+  - per-pod dedicated manager worker services (`pod-a/b/c/d-dedicated-mgr-worker`) with `AGENT_BINDING`.
+- Added regression coverage:
+  - `tests/services/test_api_gateway_auth_mode_unit.py`
+- Updated security/integration docs:
+  - `docs/API_INTEGRATION_GUIDE.md`
+  - `README.md`
+- Validation evidence:
+  - `docs/evidence/phase30_auth_mode_and_dedicated_profile_validation_2026-03-04.md`
+- Status: Complete (execution baseline implemented and validated, 2026-03-04).
+
 ## Next Roadmap Targets
 
 1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
@@ -314,7 +335,5 @@ Last updated: 2026-03-04
    - repo diff-review/apply gate for file-level mission outputs,
    - virtualization of Semantic Bus and agent-log high-volume views.
 4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
-5. Execute ADR-29A topology triggers in runtime planning:
-   - define dedicated-agent compose profile and scheduler policy scaffolding.
-6. Execute ADR-29B enterprise auth baseline:
-   - add gateway `AUTH_MODE` abstraction and JWT/OIDC validation path with tests.
+5. Execute dedicated-agent scheduler routing policy for `AGENT_BINDING` services and controlled canary rollout.
+6. Extend OIDC auth mode beyond mutation endpoint to broader operator/public route policies and runbook playbooks.

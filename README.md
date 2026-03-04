@@ -29,6 +29,7 @@ Core services:
 - `services/audit-worker`: audit stream processing and verification handoff.
 - `services/dashboard` (FastAPI + HTML): lightweight operational dashboard.
 - `apps/mission-control` (Next.js): operator console and runtime control UI.
+- Optional dedicated manager-worker profile (`--profile dedicated-agents`) for trigger-based topology expansion.
 
 Data and event plane:
 
@@ -197,6 +198,10 @@ Frontend app commands:
 ## Security, Auth, and Operational Controls
 
 - Mutating mission state requires `x-api-key` with mutate/admin role.
+- Gateway auth mode supports:
+  - `AUTH_MODE=api_key` (default),
+  - `AUTH_MODE=hybrid` (JWT/OIDC bearer or API key),
+  - `AUTH_MODE=oidc` (JWT/OIDC bearer required for operator mutations).
 - Internal orchestrator writes use internal service keys.
 - Mission intake supports `Idempotency-Key` for replay-safe creation semantics.
 - Gateway applies rate limiting and strict security headers.

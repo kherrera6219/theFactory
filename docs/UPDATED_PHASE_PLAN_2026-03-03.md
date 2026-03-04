@@ -9,6 +9,7 @@ Define the post-Phase-18 execution plan from current production baseline to next
 - Execution update (2026-03-04): Phase 27 (Mission Control live SSE transport + polling fallback diagnostics) is complete and validated.
 - Execution update (2026-03-04): Phase 28 (Smelt-cycle runtime reconciliation with deterministic 7-phase mapping) is complete and validated.
 - Execution update (2026-03-04): Phase 29 (35-agent topology and security-model ADR decision package) is complete and validated.
+- Execution update (2026-03-04): Phase 30 (auth-mode and dedicated-profile ADR execution baseline) is complete and validated.
 
 ## Remaining Work (Prioritized)
 
@@ -129,6 +130,17 @@ Exit Criteria:
 - ADR documents include rationale, explicit decision, trigger criteria, and implementation path.
 - Canonical backlog/docs reflect completed decision-package status.
 - Validation sweep confirms no regression in quality gates.
+
+## Phase 30 - ADR Execution Baseline
+Scope:
+- Implement API Gateway `AUTH_MODE` abstraction (`api_key`, `hybrid`, `oidc`) with OIDC claim-role enforcement for mutation routes.
+- Add compose dedicated-agent profile scaffolding for trigger-based topology expansion.
+- Add regression tests and integration documentation updates.
+
+Exit Criteria:
+- Gateway mutation route supports auth mode switching with deterministic behavior and tests.
+- Compose provides `--profile dedicated-agents` manager-worker baseline without affecting default runtime.
+- Quality gates and debug sweep pass.
 
 ## Validation Protocol (applies after each phase)
 1. `python -m ruff check services tests scripts`
