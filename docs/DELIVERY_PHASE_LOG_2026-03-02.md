@@ -663,3 +663,43 @@
 ### Outcome
 - Canonical docs now better reflect current implementation reality through Phase 18.
 - Updated phase plan is published with prioritized post-baseline phases (data-plane observability, live qualification, advanced operator UX, strategic deferred-scope decisions).
+
+## Phase 34 - Mission Control Advanced Operator UX (Phase 21 Objective)
+
+### Objective
+- Close the remaining Mission Control UX scope:
+  - repo diff-review/apply gate and file-level overlay workflow,
+  - virtualization/lazy rendering for high-volume Semantic Bus and agent views,
+  - deterministic e2e coverage for the new operator paths.
+
+### Implementation
+- Upgraded repo intake flow:
+  - `apps/mission-control/app/(shell)/repo/page.tsx`
+  - Added 4-step flow with:
+    - file-level overlays (`include`, `reference`, `exclude`),
+    - generated diff-review panel,
+    - explicit review apply gate required before launch.
+- Added windowed virtualization for high-volume Mission Control views:
+  - `apps/mission-control/app/(shell)/semantic-bus/page.tsx`
+  - `apps/mission-control/app/(shell)/agents/page.tsx`
+  - `apps/mission-control/app/globals.css`
+- Updated regression coverage:
+  - `apps/mission-control/e2e/mission-control.spec.ts`
+  - Added assertions for repo review-gate workflow and windowed rendering indicators.
+- Added evidence artifact:
+  - `docs/evidence/phase34_mission_control_advanced_operator_ux_validation_2026-03-04.md`
+
+### Validation and Debug Sweep
+- `npm run lint` (mission-control): pass
+- `npm run test` (mission-control): pass (21 tests)
+- `npm run test:e2e` (mission-control): pass (6 tests)
+- `npm run build` (mission-control): pass
+- `python -m pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80`: pass (`320 passed, 1 skipped`, `86.00%`)
+- `python scripts/check_coverage_thresholds.py --coverage-file coverage.xml --global-threshold 80 --module-threshold ...`: pass
+- `python scripts/production_review_audit.py`: pass (`13/13`)
+- `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`: pass
+- `python -m ruff check services tests scripts`: fail on pre-existing unrelated pod-worker lint debt.
+
+### Outcome
+- Phase 21 advanced Mission Control operator UX scope is complete and validated (executed in this sequence as Phase 34).
+- High-volume Semantic Bus and agent views now use windowed rendering to keep UI interaction responsive.

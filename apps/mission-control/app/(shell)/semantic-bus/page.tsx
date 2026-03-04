@@ -80,6 +80,9 @@ function mapLiveStreamToBusRecord(event: LiveStateStreamEvent): BusEventRecord |
 
 const REFRESH_MS = 2000;
 const STREAM_REFRESH_DEBOUNCE_MS = 500;
+const EVENT_TABLE_HEIGHT_PX = 440;
+const EVENT_ROW_HEIGHT_PX = 44;
+const EVENT_OVERSCAN_ROWS = 8;
 
 export default function SemanticBusPage() {
   const [events, setEvents] = useState<BusEventRecord[]>([]);
@@ -97,6 +100,7 @@ export default function SemanticBusPage() {
   );
   const [query, setQuery] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<BusEventRecord | null>(null);
+  const [eventTableScrollTop, setEventTableScrollTop] = useState(0);
   const lastPollRefreshRef = useRef(0);
 
   const loadEvents = useCallback(async () => {
@@ -229,6 +233,32 @@ export default function SemanticBusPage() {
       });
   }, [events, protocolFilter, query]);
 
+  const virtualizedEvents = useMemo(() => {
+    const totalRows = filteredEvents.length;
+    if (totalRows === 0) {
+      return {
+        rows: [] as BusEventRecord[],
+        startIndex: 0,
+        topSpacerHeight: 0,
+        bottomSpacerHeight: 0,
+      };
+    }
+
+    const visibleRows = Math.ceil(EVENT_TABLE_HEIGHT_PX / EVENT_ROW_HEIGHT_PX);
+    const startIndexRaw = Math.max(
+      0,
+      Math.floor(eventTableScrollTop / EVENT_ROW_HEIGHT_PX) - EVENT_OVERSCAN_ROWS,
+    );
+    const startIndex = Math.min(totalRows - 1, startIndexRaw);
+    const endExclusive = Math.min(totalRows, startIndex + visibleRows + EVENT_OVERSCAN_ROWS * 2);
+    return {
+      rows: filteredEvents.slice(startIndex, endExclusive),
+      startIndex,
+      topSpacerHeight: startIndex * EVENT_ROW_HEIGHT_PX,
+      bottomSpacerHeight: Math.max(0, (totalRows - endExclusive) * EVENT_ROW_HEIGHT_PX),
+    };
+  }, [filteredEvents, eventTableScrollTop]);
+
   const messagesPerSecond = useMemo(() => {
     if (events.length === 0) {
       return 0;
@@ -309,7 +339,14 @@ export default function SemanticBusPage() {
       <Panel title="Event Stream">
         {loading && <p className="muted">Loading recent semantic bus events...</p>}
         {error && <p className="error-box">{error}</p>}
-        <div className="table-wrap">
+        <p className="muted">
+          Rendering {virtualizedEvents.rows.length} of {filteredEvents.length} rows (windowed).
+        </p>
+        <div
+          className="table-wrap virtualized-table-wrap"
+          style={{ maxHeight: `${EVENT_TABLE_HEIGHT_PX}px` }}
+          onScroll={(event) => setEventTableScrollTop(event.currentTarget.scrollTop)}
+        >
           <table className="data-table">
             <caption className="sr-only">
               Semantic bus event stream including protocol, producer, topic, priority, and summary.
@@ -327,8 +364,13 @@ export default function SemanticBusPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredEvents.map((event) => (
-                <tr key={event.id} className="clickable-row" onClick={() => setSelectedEvent(event)}>
+              {virtualizedEvents.topSpacerHeight > 0 && (
+                <tr className="virtual-spacer" aria-hidden="true">
+                  <td colSpan={8} style={{ height: `${virtualizedEvents.topSpacerHeight}px` }} />
+                </tr>
+              )}
+              {virtualizedEvents.rows.map((event) => (
+                <tr key={event.id} className="clickable-row virtualized-row" onClick={() => setSelectedEvent(event)}>
                   <td>{formatDateTime(event.ts)}</td>
                   <td>{event.protocol}</td>
                   <td>{event.producer}</td>
@@ -339,6 +381,11 @@ export default function SemanticBusPage() {
                   <td>{event.summary}</td>
                 </tr>
               ))}
+              {virtualizedEvents.bottomSpacerHeight > 0 && (
+                <tr className="virtual-spacer" aria-hidden="true">
+                  <td colSpan={8} style={{ height: `${virtualizedEvents.bottomSpacerHeight}px` }} />
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

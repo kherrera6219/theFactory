@@ -14,6 +14,45 @@ import type { OperationsAgentRecord, OperationsAgentsSnapshot } from "../../lib/
 
 const POLL_INTERVAL_MS = 2000;
 const STREAM_REFRESH_DEBOUNCE_MS = 500;
+const AGENT_TABLE_HEIGHT_PX = 440;
+const AGENT_TABLE_ROW_HEIGHT_PX = 46;
+const AGENT_TABLE_OVERSCAN_ROWS = 8;
+const AGENT_LOG_HEIGHT_PX = 280;
+const AGENT_LOG_ROW_HEIGHT_PX = 54;
+const AGENT_LOG_OVERSCAN_ROWS = 8;
+const MAX_AGENT_LOG_ENTRIES = 2500;
+
+type AgentLogLevel = "INFO" | "WARNING" | "ERROR";
+
+type AgentLogEntry = {
+  id: string;
+  ts: string;
+  agentId: string;
+  level: AgentLogLevel;
+  eventType: string;
+  message: string;
+};
+
+function mapAgentStateToLevel(agent: OperationsAgentRecord): AgentLogLevel {
+  if (agent.state === "ERROR") {
+    return "ERROR";
+  }
+  if (agent.queue_depth >= 5 || agent.workload_pct >= 85) {
+    return "WARNING";
+  }
+  return "INFO";
+}
+
+function inferEventLevel(eventType: string): AgentLogLevel {
+  const normalized = eventType.toUpperCase();
+  if (normalized.includes("ERROR") || normalized.includes("FAILED")) {
+    return "ERROR";
+  }
+  if (normalized.includes("WARN") || normalized.includes("PAUSED")) {
+    return "WARNING";
+  }
+  return "INFO";
+}
 
 export default function AgentsPage() {
   const [tierFilter, setTierFilter] = useState<string>("ALL");
@@ -22,12 +61,15 @@ export default function AgentsPage() {
   const [snapshot, setSnapshot] = useState<OperationsAgentsSnapshot | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<OperationsAgentRecord | null>(null);
   const [logLevel, setLogLevel] = useState<"ALL" | "INFO" | "WARNING" | "ERROR">("ALL");
+  const [agentLogs, setAgentLogs] = useState<AgentLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [transportMode, setTransportMode] = useState<"stream" | "poll">("poll");
   const [streamEventsSeen, setStreamEventsSeen] = useState(0);
   const [streamErrors, setStreamErrors] = useState(0);
   const [pollFallbackTicks, setPollFallbackTicks] = useState(0);
+  const [agentTableScrollTop, setAgentTableScrollTop] = useState(0);
+  const [agentLogScrollTop, setAgentLogScrollTop] = useState(0);
   const lastStreamRefreshRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -39,6 +81,16 @@ export default function AgentsPage() {
         eventLimit: 500,
       });
       setSnapshot(data);
+      const generatedAt = data.generated_at;
+      const heartbeatLogs: AgentLogEntry[] = data.agents.map((agent) => ({
+        id: `heartbeat-${generatedAt}-${agent.agent_id}`,
+        ts: generatedAt,
+        agentId: agent.agent_id,
+        level: mapAgentStateToLevel(agent),
+        eventType: "AGENT_HEARTBEAT",
+        message: `state=${agent.state} queue=${agent.queue_depth} workload=${agent.workload_pct}%`,
+      }));
+      setAgentLogs((current) => [...heartbeatLogs, ...current].slice(0, MAX_AGENT_LOG_ENTRIES));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load agent telemetry.");
     } finally {
@@ -107,6 +159,30 @@ export default function AgentsPage() {
         return;
       }
       setStreamEventsSeen((count) => count + 1);
+      const payload = parsed.payload;
+      const payloadAgentId =
+        typeof payload.agent_id === "string"
+          ? payload.agent_id
+          : typeof payload.assigned_agent_id === "string"
+            ? payload.assigned_agent_id
+            : "system";
+      const payloadMessage =
+        typeof payload.message === "string"
+          ? payload.message
+          : `${eventType.toLowerCase()} observed via live state stream.`;
+      setAgentLogs((current) =>
+        [
+          {
+            id: `stream-${parsed.stream_id}`,
+            ts: parsed.created_at ?? new Date().toISOString(),
+            agentId: payloadAgentId,
+            level: inferEventLevel(eventType),
+            eventType,
+            message: payloadMessage,
+          },
+          ...current,
+        ].slice(0, MAX_AGENT_LOG_ENTRIES),
+      );
       const now = Date.now();
       if ((now - lastStreamRefreshRef.current) < STREAM_REFRESH_DEBOUNCE_MS) {
         return;
@@ -122,6 +198,10 @@ export default function AgentsPage() {
       }
     };
   }, [load]);
+
+  useEffect(() => {
+    setAgentLogScrollTop(0);
+  }, [selectedAgent?.agent_id, logLevel]);
 
   const agents = snapshot?.agents ?? [];
 
@@ -159,6 +239,96 @@ export default function AgentsPage() {
       }),
     [agents, tierFilter, podFilter, stateFilter],
   );
+
+  const virtualizedAgents = useMemo(() => {
+    const totalRows = filteredAgents.length;
+    if (totalRows === 0) {
+      return {
+        rows: [] as OperationsAgentRecord[],
+        topSpacerHeight: 0,
+        bottomSpacerHeight: 0,
+      };
+    }
+
+    const visibleRows = Math.ceil(AGENT_TABLE_HEIGHT_PX / AGENT_TABLE_ROW_HEIGHT_PX);
+    const startIndexRaw = Math.max(
+      0,
+      Math.floor(agentTableScrollTop / AGENT_TABLE_ROW_HEIGHT_PX) - AGENT_TABLE_OVERSCAN_ROWS,
+    );
+    const startIndex = Math.min(totalRows - 1, startIndexRaw);
+    const endExclusive = Math.min(totalRows, startIndex + visibleRows + AGENT_TABLE_OVERSCAN_ROWS * 2);
+    return {
+      rows: filteredAgents.slice(startIndex, endExclusive),
+      topSpacerHeight: startIndex * AGENT_TABLE_ROW_HEIGHT_PX,
+      bottomSpacerHeight: Math.max(0, (totalRows - endExclusive) * AGENT_TABLE_ROW_HEIGHT_PX),
+    };
+  }, [filteredAgents, agentTableScrollTop]);
+
+  const selectedAgentLogs = useMemo(() => {
+    if (!selectedAgent) {
+      return [] as AgentLogEntry[];
+    }
+    const scoped = agentLogs.filter((entry) => entry.agentId === selectedAgent.agent_id);
+    return scoped.filter((entry) => (logLevel === "ALL" ? true : entry.level === logLevel));
+  }, [agentLogs, selectedAgent, logLevel]);
+
+  const visibleAgentLogs = useMemo(() => {
+    if (!selectedAgent) {
+      return [] as AgentLogEntry[];
+    }
+    if (selectedAgentLogs.length > 0) {
+      return selectedAgentLogs;
+    }
+    return [
+      {
+        id: `fallback-selected-${selectedAgent.agent_id}`,
+        ts: new Date().toISOString(),
+        agentId: selectedAgent.agent_id,
+        level: "INFO" as AgentLogLevel,
+        eventType: "AGENT_SELECTED",
+        message: "Agent selected for inspection.",
+      },
+      {
+        id: `fallback-assignments-${selectedAgent.agent_id}`,
+        ts: new Date().toISOString(),
+        agentId: selectedAgent.agent_id,
+        level: "INFO" as AgentLogLevel,
+        eventType: "AGENT_ASSIGNMENTS",
+        message: `Mission assignments: ${selectedAgent.active_mission_ids.join(", ") || "none"}`,
+      },
+      {
+        id: `fallback-specialties-${selectedAgent.agent_id}`,
+        ts: new Date().toISOString(),
+        agentId: selectedAgent.agent_id,
+        level: "INFO" as AgentLogLevel,
+        eventType: "AGENT_SPECIALTIES",
+        message: `Specialty scope: ${selectedAgent.specialties.join(", ")}`,
+      },
+    ];
+  }, [selectedAgent, selectedAgentLogs]);
+
+  const virtualizedAgentLogs = useMemo(() => {
+    const totalRows = visibleAgentLogs.length;
+    if (totalRows === 0) {
+      return {
+        rows: [] as AgentLogEntry[],
+        topSpacerHeight: 0,
+        bottomSpacerHeight: 0,
+      };
+    }
+    const visibleRows = Math.ceil(AGENT_LOG_HEIGHT_PX / AGENT_LOG_ROW_HEIGHT_PX);
+    const startIndexRaw = Math.max(
+      0,
+      Math.floor(agentLogScrollTop / AGENT_LOG_ROW_HEIGHT_PX) - AGENT_LOG_OVERSCAN_ROWS,
+    );
+    const startIndex = Math.min(totalRows - 1, startIndexRaw);
+    const endExclusive = Math.min(totalRows, startIndex + visibleRows + AGENT_LOG_OVERSCAN_ROWS * 2);
+    return {
+      rows: visibleAgentLogs.slice(startIndex, endExclusive),
+      topSpacerHeight: startIndex * AGENT_LOG_ROW_HEIGHT_PX,
+      bottomSpacerHeight: Math.max(0, (totalRows - endExclusive) * AGENT_LOG_ROW_HEIGHT_PX),
+    };
+  }, [visibleAgentLogs, agentLogScrollTop]);
 
   return (
     <div className="page shell-page">
@@ -282,10 +452,14 @@ export default function AgentsPage() {
 
       <Panel title="Agent Grid">
         <p className="muted">
-          Showing {filteredAgents.length} of {agents.length} agents. Last refresh:{" "}
-          {snapshot ? formatDateTime(snapshot.generated_at) : "n/a"}.
+          Showing {filteredAgents.length} of {agents.length} agents. Windowed rows: {virtualizedAgents.rows.length}.
+          Last refresh: {snapshot ? formatDateTime(snapshot.generated_at) : "n/a"}.
         </p>
-        <div className="table-wrap">
+        <div
+          className="table-wrap virtualized-table-wrap"
+          style={{ maxHeight: `${AGENT_TABLE_HEIGHT_PX}px` }}
+          onScroll={(event) => setAgentTableScrollTop(event.currentTarget.scrollTop)}
+        >
           <table className="data-table">
             <caption className="sr-only">
               Full agent roster with state, queue depth, workload, and specialization.
@@ -303,9 +477,24 @@ export default function AgentsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredAgents.map((agent) => (
-                <AgentRow key={agent.agent_id} agent={agent} onSelect={() => setSelectedAgent(agent)} />
+              {virtualizedAgents.topSpacerHeight > 0 && (
+                <tr className="virtual-spacer" aria-hidden="true">
+                  <td colSpan={8} style={{ height: `${virtualizedAgents.topSpacerHeight}px` }} />
+                </tr>
+              )}
+              {virtualizedAgents.rows.map((agent) => (
+                <AgentRow
+                  key={agent.agent_id}
+                  agent={agent}
+                  onSelect={() => setSelectedAgent(agent)}
+                  rowClassName="virtualized-row"
+                />
               ))}
+              {virtualizedAgents.bottomSpacerHeight > 0 && (
+                <tr className="virtual-spacer" aria-hidden="true">
+                  <td colSpan={8} style={{ height: `${virtualizedAgents.bottomSpacerHeight}px` }} />
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -403,16 +592,40 @@ export default function AgentsPage() {
               Error
             </button>
           </div>
-          <div className="code-block">
-            <pre>
-              {[
-                `${formatDateTime(new Date().toISOString())} [INFO] Agent selected for inspection`,
-                `${formatDateTime(new Date().toISOString())} [INFO] Mission assignments: ${
-                  selectedAgent.active_mission_ids.join(", ") || "none"
-                }`,
-                `${formatDateTime(new Date().toISOString())} [INFO] Specialty scope: ${selectedAgent.specialties.join(", ")}`,
-              ].join("\n")}
-            </pre>
+          <p className="muted">
+            Rendering {virtualizedAgentLogs.rows.length} of {visibleAgentLogs.length} log entries (windowed).
+          </p>
+          <div
+            className="virtual-log-shell"
+            style={{ maxHeight: `${AGENT_LOG_HEIGHT_PX}px` }}
+            onScroll={(event) => setAgentLogScrollTop(event.currentTarget.scrollTop)}
+          >
+            <ul className="virtual-log-list">
+              {virtualizedAgentLogs.topSpacerHeight > 0 && (
+                <li
+                  className="virtual-log-spacer"
+                  aria-hidden="true"
+                  style={{ height: `${virtualizedAgentLogs.topSpacerHeight}px` }}
+                />
+              )}
+              {virtualizedAgentLogs.rows.map((entry) => (
+                <li key={entry.id} className={`virtual-log-item level-${entry.level.toLowerCase()}`}>
+                  <div className="virtual-log-meta">
+                    <strong>{formatDateTime(entry.ts)}</strong>
+                    <span>{entry.level}</span>
+                    <span>{entry.eventType}</span>
+                  </div>
+                  <p>{entry.message}</p>
+                </li>
+              ))}
+              {virtualizedAgentLogs.bottomSpacerHeight > 0 && (
+                <li
+                  className="virtual-log-spacer"
+                  aria-hidden="true"
+                  style={{ height: `${virtualizedAgentLogs.bottomSpacerHeight}px` }}
+                />
+              )}
+            </ul>
           </div>
           <h3 className="section-title">8-Part Persona Profile</h3>
           <dl>
@@ -511,14 +724,16 @@ export default function AgentsPage() {
 function AgentRow({
   agent,
   onSelect,
+  rowClassName,
 }: {
   agent: OperationsAgentRecord;
   onSelect: () => void;
+  rowClassName?: string;
 }) {
   const stateClass = agent.state.toLowerCase();
   const specialties = agent.specialties.length > 0 ? agent.specialties.join(", ") : "n/a";
   return (
-    <tr>
+    <tr className={rowClassName}>
       <td>
         <button type="button" className="link-button" onClick={onSelect}>
           <strong>{agent.name}</strong>

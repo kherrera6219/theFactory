@@ -1,6 +1,6 @@
 # Production Phase Plan
 
-Last updated: 2026-03-03
+Last updated: 2026-03-04
 
 This plan reconciles `C:\software\Holygrail` source design documents with current `theFactory` implementation status and external production standards.
 
@@ -142,7 +142,7 @@ Exit criteria:
 - Mission lifecycle, operations views, settings/vault, and error states are exercised in e2e runs.
 - CI executes Mission Control e2e tests in addition to lint and unit gates.
 
-## Current Status Overlay (2026-03-03)
+## Current Status Overlay (2026-03-04)
 
 Completed after initial Phase 11 plan:
 
@@ -153,20 +153,33 @@ Completed after initial Phase 11 plan:
 - Phase 16: Qdrant activation and data-system reconciliation.
 - Phase 17: Neo4j feature-flagged graph adapter.
 - Phase 18: Object-storage retention/legal-hold adapter.
+- Phase 19 objective: Optional data-plane observability and SLO controls (executed as Phase 32).
+- Phase 20 objective: Extended data-plane live qualification (executed as Phase 33).
+- Phase 21 objective: Advanced Mission Control operator UX (executed as Phase 34).
 
 ## Updated Next Phases
 
-Phase 19 - Optional Data-Plane Observability and SLO Controls
+Phase 22 - Strategic Deferred-Scope Decision Package
 
-- Add Neo4j/object-storage metrics (latency, error rates, mirror-write success, readiness).
-- Add Prometheus alert rules and runbook mappings for optional adapters.
+- Publish canonical ADR-style decision package for deferred strategic scope:
+  - self-update,
+  - cloud multi-tenant operations,
+  - marketplace,
+  - distributed execution,
+  - language expansion.
 
-Phase 20 - Extended Data-Plane Live Qualification
+Phase 23 - LangGraph Orchestration Adoption (Optional but Planned)
 
-- Add live integration tests using compose `extended-data-plane` profile.
-- Validate recovery behavior for Neo4j/MinIO disruptions and publish reproducible evidence.
+- Maintain feature-flagged LangGraph lifecycle path with fail-open guarantees and regression coverage.
 
-Phase 21 - Advanced Mission Control Operator UX
+Phase 24 - LangGraph Postgres Checkpointer Baseline
 
-- Implement repo diff-review/apply gate and file-level mission overlay workflow.
-- Add virtualization for Semantic Bus and high-volume agent log streams.
+- Maintain/extend Postgres-backed checkpointer mode quality with optional setup and namespace controls.
+
+Phase 25 - Word-Doc Requirement Reconciliation
+
+- Maintain canonical requirement reconciliation and runtime visibility alignment.
+
+Phase 26 - LangGraph Live Postgres Recovery Qualification
+
+- Maintain startup lifecycle recovery qualification with disruption/restart evidence.
