@@ -281,6 +281,59 @@ def check_tracing_and_pager_controls() -> AuditResult:
     )
 
 
+def check_optional_data_plane_observability_controls() -> AuditResult:
+    alerts_text = _read_text(
+        REPO_ROOT / "deploy" / "monitoring" / "prometheus" / "rules" / "thefactory-alerts.yml"
+    ).lower()
+    dashboard_text = _read_text(
+        REPO_ROOT
+        / "deploy"
+        / "monitoring"
+        / "grafana"
+        / "provisioning"
+        / "dashboards"
+        / "json"
+        / "thefactory-overview.json"
+    ).lower()
+    runbook_path = REPO_ROOT / "docs" / "runbooks" / "optional_data_plane_incident_runbook.md"
+    runbook_text = _read_text(runbook_path).lower()
+
+    missing_items: list[str] = []
+    required_alerts = [
+        "neo4jadapternotready",
+        "objectstorageadapternotready",
+        "neo4jmirrorwriteerrorratehigh",
+        "objectstoragemirrorwriteerrorratehigh",
+        "neo4jmirrorwritelatencyp95high",
+        "objectstoragemirrorwritelatencyp95high",
+    ]
+    for alert_name in required_alerts:
+        if alert_name not in alerts_text:
+            missing_items.append(f"missing alert rule: {alert_name}")
+
+    if "optional_data_plane_incident_runbook.md" not in alerts_text:
+        missing_items.append("missing runbook mapping in optional data-plane alert annotations")
+    if not runbook_path.exists():
+        missing_items.append(f"missing runbook file: {runbook_path}")
+    if "neo4jadapternotready" not in runbook_text:
+        missing_items.append("runbook missing optional data-plane alert references")
+    if "orchestrator_optional_adapter_mirror_writes_total" not in dashboard_text:
+        missing_items.append("dashboard missing optional data-plane mirror-write metrics")
+
+    passed = not missing_items
+    return _result(
+        check_id="OBS-010",
+        priority="HIGH",
+        description=(
+            "Optional data-plane observability controls (metrics/alerts/runbook) are configured"
+        ),
+        passed=passed,
+        notes="; ".join(missing_items)
+        if missing_items
+        else "optional data-plane observability controls present",
+    )
+
+
 def check_long_duration_reliability_controls() -> AuditResult:
     makefile_text = _read_text(REPO_ROOT / "Makefile").lower()
     runbook_text = _read_text(REPO_ROOT / "docs" / "OPERATIONS_RUNBOOK.md").lower()
@@ -326,6 +379,7 @@ def run_audit() -> list[AuditResult]:
         check_design_tokens(),
         check_release_trust_controls(),
         check_tracing_and_pager_controls(),
+        check_optional_data_plane_observability_controls(),
         check_long_duration_reliability_controls(),
     ]
 

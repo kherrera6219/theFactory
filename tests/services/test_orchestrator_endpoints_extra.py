@@ -310,6 +310,10 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     )
     assert artifacts_response.status_code == 200
     assert artifacts_response.json()[0]["key"].endswith("/a-1.json")
+    metrics_response = client.get("/metrics")
+    assert metrics_response.status_code == 200
+    assert "orchestrator_optional_adapter_mirror_writes_total" in metrics_response.text
+    assert "orchestrator_optional_adapter_mirror_write_latency_seconds" in metrics_response.text
     assert (
         client.post(
             "/internal/agents/heartbeat",

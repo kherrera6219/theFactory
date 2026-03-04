@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
 neo4j_store = importlib.import_module("orchestrator.neo4j_store")
+data_plane_metrics = importlib.import_module("orchestrator.data_plane_metrics")
 Settings = importlib.import_module("orchestrator.settings").Settings
 
 
@@ -69,6 +70,11 @@ def test_ensure_schema_creates_constraints_once(monkeypatch) -> None:
 def test_upsert_knowledge_uses_expected_query_and_payload(monkeypatch) -> None:
     statements: list[tuple[str, dict[str, object] | None]] = []
     monkeypatch.setattr(neo4j_store, "ensure_schema", lambda _settings: None)
+    before = data_plane_metrics.OPTIONAL_ADAPTER_OPERATIONS_TOTAL.labels(
+        adapter="neo4j",
+        operation="upsert_knowledge",
+        status="success",
+    )._value.get()
 
     def _execute(settings: Settings, statement: str, parameters=None):
         _ = settings
@@ -92,6 +98,12 @@ def test_upsert_knowledge_uses_expected_query_and_payload(monkeypatch) -> None:
     assert parameters is not None
     assert parameters["mission_id"] == "mission-1"
     assert parameters["knowledge_id"] == "k-1"
+    after = data_plane_metrics.OPTIONAL_ADAPTER_OPERATIONS_TOTAL.labels(
+        adapter="neo4j",
+        operation="upsert_knowledge",
+        status="success",
+    )._value.get()
+    assert after >= before + 1
 
 
 def test_list_mission_graph_parses_rows(monkeypatch) -> None:
@@ -121,6 +133,10 @@ def test_list_mission_graph_parses_rows(monkeypatch) -> None:
 
 def test_neo4j_ready_returns_false_when_disabled() -> None:
     assert neo4j_store.neo4j_ready(_settings(neo4j_enabled=False)) is False
+    assert (
+        data_plane_metrics.OPTIONAL_ADAPTER_ENABLED.labels(adapter="neo4j")._value.get() == 0
+    )
+    assert data_plane_metrics.OPTIONAL_ADAPTER_READY.labels(adapter="neo4j")._value.get() == 0
 
 
 def test_neo4j_ready_returns_false_on_failure(monkeypatch) -> None:
@@ -131,3 +147,12 @@ def test_neo4j_ready_returns_false_on_failure(monkeypatch) -> None:
     )
 
     assert neo4j_store.neo4j_ready(_settings()) is False
+    assert data_plane_metrics.OPTIONAL_ADAPTER_READY.labels(adapter="neo4j")._value.get() == 0
+
+
+def test_neo4j_ready_sets_ready_on_success(monkeypatch) -> None:
+    monkeypatch.setattr(neo4j_store, "ensure_schema", lambda _settings: None)
+    monkeypatch.setattr(neo4j_store, "_query_rows", lambda *_: [{"ok": 1}])
+    assert neo4j_store.neo4j_ready(_settings()) is True
+    assert data_plane_metrics.OPTIONAL_ADAPTER_ENABLED.labels(adapter="neo4j")._value.get() == 1
+    assert data_plane_metrics.OPTIONAL_ADAPTER_READY.labels(adapter="neo4j")._value.get() == 1

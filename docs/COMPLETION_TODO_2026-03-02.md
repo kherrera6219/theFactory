@@ -87,6 +87,11 @@ Acceptance: pod-worker runtime gates dedicated workers to configured agent IDs w
 Evidence targets: `services/pod-worker/pod_worker/main.py`, `tests/services/test_pod_worker_unit.py`, `docs/evidence/phase31_dedicated_agent_binding_scheduler_validation_2026-03-04.md`.
 Phase 31 status (2026-03-04): complete. `AGENT_BINDING` routing policy is enforced with mission metadata fallback resolution and validated quality gates.
 
+- [x] Add optional data-plane observability and SLO controls for Neo4j/object-storage adapters.
+Acceptance: readiness, operation latency/error, and mirror-write success/failure telemetry are emitted; alerting and runbook mapping are in place.
+Evidence targets: `services/orchestrator/orchestrator/data_plane_metrics.py`, `deploy/monitoring/prometheus/rules/thefactory-alerts.yml`, `docs/runbooks/optional_data_plane_incident_runbook.md`, `docs/evidence/phase32_optional_data_plane_observability_validation_2026-03-04.md`.
+Phase 32 status (2026-03-04): complete. Added adapter metrics instrumentation, Grafana/Prometheus observability controls, and incident runbook linkage.
+
 - [x] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
 Acceptance: orchestrator can execute mission state transitions through LangGraph when enabled, and fail-open fallback preserves runtime safety.
 Evidence targets: `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `tests/services/test_langgraph_lifecycle_unit.py`, `docs/UPDATED_PHASE_PLAN_2026-03-03.md`.
@@ -118,6 +123,6 @@ Phase 25 status (2026-03-03): complete; remaining gaps promoted into canonical r
 ## Exit Criteria
 - [x] All P0 acceptance criteria passed and documented.
 - [x] At least 80% service coverage maintained with critical-module thresholds intact.
-Current verified baseline (2026-03-04): 85.79% global coverage, all required 100% module thresholds passing.
+Current verified baseline (2026-03-04): 86.00% global coverage, all required 100% module thresholds passing.
 - [x] Mission Control has automated regression protection for core operator journeys.
 - [x] Updated audit report confirms no remaining critical production blockers.

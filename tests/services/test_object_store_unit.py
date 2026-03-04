@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
 object_store = importlib.import_module("orchestrator.object_store")
+data_plane_metrics = importlib.import_module("orchestrator.data_plane_metrics")
 Settings = importlib.import_module("orchestrator.settings").Settings
 
 
@@ -101,6 +102,11 @@ def test_put_audit_report_applies_legal_hold_for_failure(monkeypatch) -> None:
     fake = _FakeS3Client()
     monkeypatch.setattr(object_store, "ensure_bucket", lambda _settings: None)
     monkeypatch.setattr(object_store, "_s3_client", lambda _settings: fake)
+    before = data_plane_metrics.OPTIONAL_ADAPTER_OPERATIONS_TOTAL.labels(
+        adapter="object_storage",
+        operation="put_audit_report",
+        status="success",
+    )._value.get()
 
     record = object_store.put_audit_report(
         _settings(object_storage_retention_days=30),
@@ -117,6 +123,12 @@ def test_put_audit_report_applies_legal_hold_for_failure(monkeypatch) -> None:
     assert put_args["ObjectLockLegalHoldStatus"] == "ON"
     assert record["key"].endswith("audit-1.json")
     assert record["legal_hold"] is True
+    after = data_plane_metrics.OPTIONAL_ADAPTER_OPERATIONS_TOTAL.labels(
+        adapter="object_storage",
+        operation="put_audit_report",
+        status="success",
+    )._value.get()
+    assert after >= before + 1
 
 
 def test_list_audit_artifacts_sorts_last_modified(monkeypatch) -> None:
@@ -146,6 +158,14 @@ def test_list_audit_artifacts_sorts_last_modified(monkeypatch) -> None:
 
 def test_object_storage_ready_returns_false_when_disabled() -> None:
     assert object_store.object_storage_ready(_settings(object_storage_enabled=False)) is False
+    assert (
+        data_plane_metrics.OPTIONAL_ADAPTER_ENABLED.labels(adapter="object_storage")._value.get()
+        == 0
+    )
+    assert (
+        data_plane_metrics.OPTIONAL_ADAPTER_READY.labels(adapter="object_storage")._value.get()
+        == 0
+    )
 
 
 def test_object_storage_ready_returns_false_on_errors(monkeypatch) -> None:
@@ -156,3 +176,20 @@ def test_object_storage_ready_returns_false_on_errors(monkeypatch) -> None:
     )
 
     assert object_store.object_storage_ready(_settings()) is False
+    assert (
+        data_plane_metrics.OPTIONAL_ADAPTER_READY.labels(adapter="object_storage")._value.get()
+        == 0
+    )
+
+
+def test_object_storage_ready_sets_ready_on_success(monkeypatch) -> None:
+    monkeypatch.setattr(object_store, "ensure_bucket", lambda _settings: None)
+    assert object_store.object_storage_ready(_settings()) is True
+    assert (
+        data_plane_metrics.OPTIONAL_ADAPTER_ENABLED.labels(adapter="object_storage")._value.get()
+        == 1
+    )
+    assert (
+        data_plane_metrics.OPTIONAL_ADAPTER_READY.labels(adapter="object_storage")._value.get()
+        == 1
+    )

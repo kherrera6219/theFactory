@@ -208,6 +208,7 @@ Frontend app commands:
 - Mission intake supports `Idempotency-Key` for replay-safe creation semantics.
 - Gateway applies rate limiting and strict security headers.
 - Runtime includes readiness and metrics endpoints.
+- Optional data-plane telemetry now emits Neo4j/object-storage readiness, operation, and mirror-write SLO metrics for Prometheus/Grafana.
 - Docker images use non-root runtime users.
 - Production audit automation exists in `scripts/production_review_audit.py`.
 

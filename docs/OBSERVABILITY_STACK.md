@@ -1,6 +1,6 @@
 # Observability Stack
 
-Last updated: 2026-03-03
+Last updated: 2026-03-04
 
 Baseline observability bundle for local production-like validation.
 
@@ -29,6 +29,21 @@ From repo root:
   - `deploy/monitoring/grafana/provisioning/datasources/datasources.yml`
   - `deploy/monitoring/grafana/provisioning/dashboards/dashboards.yml`
   - `deploy/monitoring/grafana/provisioning/dashboards/json/thefactory-overview.json`
+
+## Optional Data-Plane Telemetry
+
+When `NEO4J_ENABLED` and/or `OBJECT_STORAGE_ENABLED` are active, orchestrator now emits:
+
+- `orchestrator_optional_adapter_enabled{adapter}`
+- `orchestrator_optional_adapter_ready{adapter}`
+- `orchestrator_optional_adapter_operations_total{adapter,operation,status}`
+- `orchestrator_optional_adapter_operation_latency_seconds{adapter,operation}`
+- `orchestrator_optional_adapter_mirror_writes_total{adapter,artifact,status}`
+- `orchestrator_optional_adapter_mirror_write_latency_seconds{adapter,artifact}`
+
+Alert rules include adapter readiness, mirror-write error-rate, and p95 latency thresholds with runbook mapping:
+
+- `docs/runbooks/optional_data_plane_incident_runbook.md`
 
 ## Validation
 

@@ -58,6 +58,87 @@
       ],
       "title": "p95 Latency (s)",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "targets": [
+        {
+          "expr": "max(orchestrator_optional_adapter_ready{adapter=\"neo4j\"})",
+          "legendFormat": "neo4j ready",
+          "refId": "A"
+        },
+        {
+          "expr": "max(orchestrator_optional_adapter_ready{adapter=\"object_storage\"})",
+          "legendFormat": "object storage ready",
+          "refId": "B"
+        }
+      ],
+      "title": "Optional Adapter Ready",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "100 * (sum(rate(orchestrator_optional_adapter_mirror_writes_total{adapter=\"neo4j\",status=\"error\"}[5m])) / clamp_min(sum(rate(orchestrator_optional_adapter_mirror_writes_total{adapter=\"neo4j\"}[5m])), 0.001))",
+          "legendFormat": "neo4j error %",
+          "refId": "A"
+        },
+        {
+          "expr": "100 * (sum(rate(orchestrator_optional_adapter_mirror_writes_total{adapter=\"object_storage\",status=\"error\"}[5m])) / clamp_min(sum(rate(orchestrator_optional_adapter_mirror_writes_total{adapter=\"object_storage\"}[5m])), 0.001))",
+          "legendFormat": "object storage error %",
+          "refId": "B"
+        }
+      ],
+      "title": "Mirror Write Error Rate (%)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(orchestrator_optional_adapter_mirror_write_latency_seconds_bucket{adapter=\"neo4j\"}[5m])))",
+          "legendFormat": "neo4j p95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(orchestrator_optional_adapter_mirror_write_latency_seconds_bucket{adapter=\"object_storage\"}[5m])))",
+          "legendFormat": "object storage p95",
+          "refId": "B"
+        }
+      ],
+      "title": "Mirror Write p95 Latency (s)",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
@@ -76,5 +157,5 @@
   },
   "timezone": "browser",
   "title": "theFactory Overview",
-  "version": 1
+  "version": 2
 }

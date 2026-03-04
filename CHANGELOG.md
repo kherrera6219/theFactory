@@ -109,6 +109,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - new metric `pod_worker_binding_skips_total{pod_name,reason}` and `/health` visibility for active bindings
   - regression coverage updates in `tests/services/test_pod_worker_unit.py` and `tests/services/test_runtime_unit.py`
   - validation evidence in `docs/evidence/phase31_dedicated_agent_binding_scheduler_validation_2026-03-04.md`
+- Phase 32 optional data-plane observability and SLO controls:
+  - added optional adapter metrics for Neo4j/object-storage readiness, operations, and mirror writes
+  - added mirror-write telemetry in orchestrator routes for Neo4j/object-storage paths
+  - added Prometheus alert rules and Grafana panels for optional data-plane readiness, error-rate, and p95 latency
+  - added incident runbook `docs/runbooks/optional_data_plane_incident_runbook.md`
+  - validation evidence in `docs/evidence/phase32_optional_data_plane_observability_validation_2026-03-04.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
