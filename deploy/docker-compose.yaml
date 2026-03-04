@@ -220,6 +220,16 @@ services:
       IDEMPOTENCY_TTL_SECONDS: 86400
       API_RATE_LIMIT_PER_MINUTE: 120
       RATE_LIMIT_WINDOW_SECONDS: 60
+      AUTH_MODE: ${AUTH_MODE:-api_key}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL:-}
+      OIDC_SHARED_SECRET: ${OIDC_SHARED_SECRET:-}
+      OIDC_REQUIRED_ROLE: ${OIDC_REQUIRED_ROLE:-mutate}
+      OIDC_ROLE_CLAIMS: ${OIDC_ROLE_CLAIMS:-roles,role,permissions}
+      OIDC_SCOPE_CLAIMS: ${OIDC_SCOPE_CLAIMS:-scope,scp}
+      OIDC_ALLOWED_ALGORITHMS: ${OIDC_ALLOWED_ALGORITHMS:-RS256,HS256}
+      OIDC_LEEWAY_SECONDS: ${OIDC_LEEWAY_SECONDS:-60}
       CORS_ALLOW_ORIGINS: http://localhost:${MISSION_CONTROL_HOST_PORT:-3100}
       LLM_PROVIDER: ${LLM_PROVIDER:-offline}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -482,6 +492,154 @@ services:
       start_period: 30s
     mem_limit: 768m
     cpus: 0.75
+
+  pod-a-dedicated-mgr-worker:
+    <<: *common-service
+    build:
+      context: ..
+      dockerfile: services/pod-worker/Dockerfile
+    profiles:
+      - dedicated-agents
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      STATE_STREAM: missions.state
+      POD_WORKER_GROUP: dedicated-workers-podA
+      POD_WORKER_NAME: dedicated-pod-a-mgr-01
+      POD_NAME: podA
+      SUPPORTED_LANGUAGES: python,typescript,javascript,ruby,php
+      AGENT_BINDING: AGENT-12-PODA-MGR
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key-pod-a}
+    depends_on:
+      redis:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 512m
+    cpus: 0.5
+
+  pod-b-dedicated-mgr-worker:
+    <<: *common-service
+    build:
+      context: ..
+      dockerfile: services/pod-worker/Dockerfile
+    profiles:
+      - dedicated-agents
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      STATE_STREAM: missions.state
+      POD_WORKER_GROUP: dedicated-workers-podB
+      POD_WORKER_NAME: dedicated-pod-b-mgr-01
+      POD_NAME: podB
+      SUPPORTED_LANGUAGES: go,rust,c,cpp,zig
+      AGENT_BINDING: AGENT-18-PODB-MGR
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key-pod-b}
+    depends_on:
+      redis:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 512m
+    cpus: 0.5
+
+  pod-c-dedicated-mgr-worker:
+    <<: *common-service
+    build:
+      context: ..
+      dockerfile: services/pod-worker/Dockerfile
+    profiles:
+      - dedicated-agents
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      STATE_STREAM: missions.state
+      POD_WORKER_GROUP: dedicated-workers-podC
+      POD_WORKER_NAME: dedicated-pod-c-mgr-01
+      POD_NAME: podC
+      SUPPORTED_LANGUAGES: java,csharp,kotlin,scala
+      AGENT_BINDING: AGENT-24-PODC-MGR
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key-pod-c}
+    depends_on:
+      redis:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 512m
+    cpus: 0.5
+
+  pod-d-dedicated-mgr-worker:
+    <<: *common-service
+    build:
+      context: ..
+      dockerfile: services/pod-worker/Dockerfile
+    profiles:
+      - dedicated-agents
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      STATE_STREAM: missions.state
+      POD_WORKER_GROUP: dedicated-workers-podD
+      POD_WORKER_NAME: dedicated-pod-d-mgr-01
+      POD_NAME: podD
+      SUPPORTED_LANGUAGES: haskell,ocaml,julia,r
+      AGENT_BINDING: AGENT-30-PODD-MGR
+      ORCHESTRATOR_URL: http://orchestrator:8001
+      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key-pod-d}
+    depends_on:
+      redis:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    mem_limit: 512m
+    cpus: 0.5
 
   audit-worker:
     <<: *common-service

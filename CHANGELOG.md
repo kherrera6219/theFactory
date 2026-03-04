@@ -98,6 +98,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - topology ADR in `docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`
   - security-model ADR in `docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`
   - decision validation evidence in `docs/evidence/phase29_topology_and_security_adr_validation_2026-03-04.md`
+- Phase 30 ADR execution baseline:
+  - gateway auth mode controls (`AUTH_MODE=api_key|hybrid|oidc`) with OIDC bearer validation path for mutation endpoint authorization
+  - dedicated topology compose scaffolding profile (`--profile dedicated-agents`)
+  - auth-mode regression suite `tests/services/test_api_gateway_auth_mode_unit.py`
+  - validation evidence in `docs/evidence/phase30_auth_mode_and_dedicated_profile_validation_2026-03-04.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.

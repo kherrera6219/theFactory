@@ -35,6 +35,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `evidence/phase27_mission_control_live_transport_validation_2026-03-04.md`: live SSE transport validation for critical Mission Control views.
 - `evidence/phase28_smelt_cycle_runtime_reconciliation_validation_2026-03-04.md`: deterministic 7-phase runtime reconciliation validation.
 - `evidence/phase29_topology_and_security_adr_validation_2026-03-04.md`: topology/security decision-package validation and sweep results.
+- `evidence/phase30_auth_mode_and_dedicated_profile_validation_2026-03-04.md`: auth-mode execution baseline and dedicated-profile scaffolding validation.
 - `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
 - `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.
 

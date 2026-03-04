@@ -25,6 +25,13 @@ try:
 except ModuleNotFoundError:
     redis = None
 
+try:
+    import jwt
+    from jwt import PyJWKClient
+except ModuleNotFoundError:
+    jwt = None
+    PyJWKClient = None
+
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8001")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 INTAKE_STREAM = os.getenv("INTAKE_STREAM", "missions.intake")
@@ -33,6 +40,28 @@ INTAKE_TOPIC = os.getenv("INTAKE_TOPIC", "intake.feature_contract.created")
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3100")
 INTERNAL_SERVICE_API_KEY = os.getenv("INTERNAL_SERVICE_API_KEY", "worker-key")
+AUTH_MODE = os.getenv("AUTH_MODE", "api_key").strip().lower()
+OIDC_ISSUER_URL = os.getenv("OIDC_ISSUER_URL", "").strip()
+OIDC_AUDIENCE = os.getenv("OIDC_AUDIENCE", "").strip()
+OIDC_JWKS_URL = os.getenv("OIDC_JWKS_URL", "").strip()
+OIDC_SHARED_SECRET = os.getenv("OIDC_SHARED_SECRET", "").strip()
+OIDC_REQUIRED_ROLE = os.getenv("OIDC_REQUIRED_ROLE", "mutate").strip().lower() or "mutate"
+OIDC_ROLE_CLAIMS = tuple(
+    claim.strip()
+    for claim in os.getenv("OIDC_ROLE_CLAIMS", "roles,role,permissions").split(",")
+    if claim.strip()
+)
+OIDC_SCOPE_CLAIMS = tuple(
+    claim.strip()
+    for claim in os.getenv("OIDC_SCOPE_CLAIMS", "scope,scp").split(",")
+    if claim.strip()
+)
+OIDC_ALLOWED_ALGORITHMS = [
+    algorithm.strip()
+    for algorithm in os.getenv("OIDC_ALLOWED_ALGORITHMS", "RS256,HS256").split(",")
+    if algorithm.strip()
+]
+OIDC_LEEWAY_SECONDS = max(0.0, float(os.getenv("OIDC_LEEWAY_SECONDS", "60")))
 IDEMPOTENCY_TTL_SECONDS = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "86400"))
 IDEMPOTENCY_KEY_PREFIX = "idempotency:missions"
 API_RATE_LIMIT_PER_MINUTE = int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "120"))
@@ -89,6 +118,11 @@ LIVE_STREAM_ERRORS = Counter(
     ("reason",),
 )
 LOGGER = logging.getLogger(__name__)
+VALID_AUTH_MODES = {"api_key", "hybrid", "oidc"}
+if AUTH_MODE not in VALID_AUTH_MODES:
+    LOGGER.warning("unsupported AUTH_MODE '%s'; defaulting to api_key", AUTH_MODE)
+    AUTH_MODE = "api_key"
+_OIDC_JWKS_CLIENT: Any | None = None
 
 if Path("/app/schemas").exists() and Path("/app/protocol").exists():
     REPO_ROOT = Path("/app")
@@ -422,6 +456,128 @@ async def _state_stream_sse_generator(
             error_payload = {"detail": "stream read failure", "error": str(exc)}
             yield _sse_event_block(event_name="stream_error", data=error_payload)
             await asyncio.sleep(1.0)
+
+
+def _extract_bearer_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.strip().lower() != "bearer":
+        return None
+    candidate = token.strip()
+    return candidate or None
+
+
+def _tokens_from_claim_value(value: Any) -> set[str]:
+    if isinstance(value, str):
+        raw_items = value.replace(",", " ").split()
+        return {item.strip().lower() for item in raw_items if item.strip()}
+    if isinstance(value, list):
+        normalized: set[str] = set()
+        for item in value:
+            if isinstance(item, str) and item.strip():
+                normalized.add(item.strip().lower())
+        return normalized
+    return set()
+
+
+def _claim_includes_required_role(claims: dict[str, Any], required_role: str) -> bool:
+    required = required_role.strip().lower()
+    if not required:
+        return True
+
+    tokens: set[str] = set()
+    for claim_name in OIDC_ROLE_CLAIMS + OIDC_SCOPE_CLAIMS:
+        tokens.update(_tokens_from_claim_value(claims.get(claim_name)))
+
+    return required in tokens
+
+
+def _decode_oidc_token(token: str) -> dict[str, Any]:
+    if jwt is None:
+        raise HTTPException(status_code=503, detail="oidc auth dependencies are unavailable")
+
+    decode_kwargs: dict[str, Any] = {
+        "algorithms": OIDC_ALLOWED_ALGORITHMS or ["RS256"],
+        "leeway": OIDC_LEEWAY_SECONDS,
+        "options": {
+            "verify_aud": bool(OIDC_AUDIENCE),
+            "verify_iss": bool(OIDC_ISSUER_URL),
+        },
+    }
+    if OIDC_AUDIENCE:
+        decode_kwargs["audience"] = OIDC_AUDIENCE
+    if OIDC_ISSUER_URL:
+        decode_kwargs["issuer"] = OIDC_ISSUER_URL
+
+    try:
+        if OIDC_SHARED_SECRET:
+            decoded = jwt.decode(token, OIDC_SHARED_SECRET, **decode_kwargs)
+        else:
+            if PyJWKClient is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="oidc jwks validation is unavailable",
+                )
+            jwks_url = OIDC_JWKS_URL
+            if not jwks_url and OIDC_ISSUER_URL:
+                jwks_url = f"{OIDC_ISSUER_URL.rstrip('/')}/.well-known/jwks.json"
+            if not jwks_url:
+                raise HTTPException(
+                    status_code=503,
+                    detail="oidc jwks configuration is missing",
+                )
+            global _OIDC_JWKS_CLIENT
+            if _OIDC_JWKS_CLIENT is None:
+                _OIDC_JWKS_CLIENT = PyJWKClient(jwks_url)
+            signing_key = _OIDC_JWKS_CLIENT.get_signing_key_from_jwt(token)
+            decoded = jwt.decode(token, signing_key.key, **decode_kwargs)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        LOGGER.warning("oidc bearer token rejected: %s", exc)
+        raise HTTPException(status_code=401, detail="invalid bearer token") from exc
+
+    if not isinstance(decoded, dict):
+        raise HTTPException(status_code=401, detail="invalid bearer token")
+    return decoded
+
+
+def _resolve_mutation_forward_headers(
+    *,
+    x_api_key: str | None,
+    authorization: str | None,
+) -> dict[str, str]:
+    bearer_token = _extract_bearer_token(authorization)
+    mode = AUTH_MODE
+
+    if mode == "api_key":
+        if not x_api_key:
+            raise HTTPException(status_code=401, detail="x-api-key header is required")
+        return {"x-api-key": x_api_key}
+
+    if mode == "hybrid":
+        if bearer_token:
+            claims = _decode_oidc_token(bearer_token)
+            if not _claim_includes_required_role(claims, OIDC_REQUIRED_ROLE):
+                raise HTTPException(status_code=403, detail="insufficient oidc role for endpoint")
+            return {"x-api-key": INTERNAL_SERVICE_API_KEY}
+        if x_api_key:
+            return {"x-api-key": x_api_key}
+        raise HTTPException(
+            status_code=401,
+            detail="authorization bearer token or x-api-key header is required",
+        )
+
+    if mode == "oidc":
+        if not bearer_token:
+            raise HTTPException(status_code=401, detail="authorization bearer token is required")
+        claims = _decode_oidc_token(bearer_token)
+        if not _claim_includes_required_role(claims, OIDC_REQUIRED_ROLE):
+            raise HTTPException(status_code=403, detail="insufficient oidc role for endpoint")
+        return {"x-api-key": INTERNAL_SERVICE_API_KEY}
+
+    raise HTTPException(status_code=500, detail="gateway auth mode configuration error")
 
 
 def _normalize_builder_text(value: str) -> str:
@@ -925,6 +1081,8 @@ async def health() -> dict[str, Any]:
         "intake_stream": INTAKE_STREAM,
         "state_stream": STATE_STREAM,
         "intake_topic": INTAKE_TOPIC,
+        "auth_mode": AUTH_MODE,
+        "oidc_role_required": OIDC_REQUIRED_ROLE if AUTH_MODE != "api_key" else None,
     }
 
 
@@ -1375,16 +1533,19 @@ async def update_mission_state(
     mission_id: str,
     payload: MissionStateUpdate,
     x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> dict[str, Any]:
-    if not x_api_key:
-        raise HTTPException(status_code=401, detail="x-api-key header is required")
+    forward_headers = _resolve_mutation_forward_headers(
+        x_api_key=x_api_key,
+        authorization=authorization,
+    )
 
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
             response = await client.post(
                 f"{ORCHESTRATOR_URL}/missions/{mission_id}/state",
                 json=payload.model_dump(),
-                headers={"x-api-key": x_api_key},
+                headers=forward_headers,
             )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"orchestrator unavailable: {exc}") from exc

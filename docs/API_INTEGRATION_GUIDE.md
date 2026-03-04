@@ -36,10 +36,12 @@ Canonical auth decision record:
 
 Accepted runtime policy:
 1. `api_key` mode (current default): API-key auth for local/single-tenant operation.
-2. `hybrid` mode (planned): JWT/OIDC for operator/public API requests plus API-key internal service flows.
-3. `oidc` mode (planned): JWT/OIDC required for operator/public APIs; API keys limited to internal service identity.
+2. `hybrid` mode: JWT/OIDC bearer token or API key accepted for gateway mutation routes.
+3. `oidc` mode: JWT/OIDC bearer token required for gateway mutation routes; gateway forwards internal service identity downstream.
 
-Current implementation baseline remains API-key-first; JWT/OIDC is a planned enterprise extension path.
+Current implementation baseline:
+- `POST /v1/missions/{mission_id}/state` now enforces `AUTH_MODE` policy.
+- In `oidc` and bearer-based `hybrid` requests, gateway validates required role and forwards `INTERNAL_SERVICE_API_KEY` to orchestrator.
 
 ## Mission Intake Example
 

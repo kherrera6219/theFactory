@@ -77,6 +77,11 @@ Acceptance: explicit decision and implementation path are documented with backwa
 Evidence targets: `docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`, `docs/API_INTEGRATION_GUIDE.md`.
 Phase 29 status (2026-03-04): complete. Dual-mode auth strategy accepted (`api_key`, `hybrid`, `oidc`) with enterprise rollout plan.
 
+- [x] Implement ADR execution baseline for security and topology decisions.
+Acceptance: gateway `AUTH_MODE` (`api_key|hybrid|oidc`) is implemented with regression coverage and dedicated-agent compose profile scaffolding exists for trigger-based expansion.
+Evidence targets: `services/api-gateway/api_gateway/main.py`, `tests/services/test_api_gateway_auth_mode_unit.py`, `deploy/docker-compose.yaml`.
+Phase 30 status (2026-03-04): complete. Added gateway auth abstraction plus `--profile dedicated-agents` manager-worker scaffolding.
+
 - [x] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
 Acceptance: orchestrator can execute mission state transitions through LangGraph when enabled, and fail-open fallback preserves runtime safety.
 Evidence targets: `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `tests/services/test_langgraph_lifecycle_unit.py`, `docs/UPDATED_PHASE_PLAN_2026-03-03.md`.
