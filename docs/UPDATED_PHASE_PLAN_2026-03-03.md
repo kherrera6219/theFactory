@@ -8,6 +8,7 @@ Define the post-Phase-18 execution plan from current production baseline to next
 - Latest quality gates: global service coverage `85.46%`, required core-module `100%` thresholds passing, production audit `12/12`, debug sweep passing.
 - Execution update (2026-03-04): Phase 27 (Mission Control live SSE transport + polling fallback diagnostics) is complete and validated.
 - Execution update (2026-03-04): Phase 28 (Smelt-cycle runtime reconciliation with deterministic 7-phase mapping) is complete and validated.
+- Execution update (2026-03-04): Phase 29 (35-agent topology and security-model ADR decision package) is complete and validated.
 
 ## Remaining Work (Prioritized)
 
@@ -117,6 +118,17 @@ Exit Criteria:
 - Mission timeline supports deterministic progression across all seven Smelt-cycle phases.
 - Legacy and LangGraph lifecycle paths both emit checkpoint telemetry.
 - Regression tests, coverage thresholds, and debug sweep continue to pass.
+
+## Phase 29 - Topology and Security ADR Decision Package
+Scope:
+- Publish canonical decision record for 35-agent runtime topology (condensed baseline vs dedicated-agent expansion).
+- Publish canonical decision record for security model (API-key baseline vs JWT/OIDC enterprise mode).
+- Reconcile roadmap and TODO artifacts to close these Word-doc audit gaps.
+
+Exit Criteria:
+- ADR documents include rationale, explicit decision, trigger criteria, and implementation path.
+- Canonical backlog/docs reflect completed decision-package status.
+- Validation sweep confirms no regression in quality gates.
 
 ## Validation Protocol (applies after each phase)
 1. `python -m ruff check services tests scripts`

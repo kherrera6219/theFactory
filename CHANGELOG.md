@@ -86,6 +86,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - canonical phase mapping policy in `docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`
   - frontend mapping helper/tests in `apps/mission-control/app/lib/smelt-cycle.ts` and `smelt-cycle.test.ts`
   - phase evidence in `docs/evidence/phase28_smelt_cycle_runtime_reconciliation_validation_2026-03-04.md`
+- Phase 29 decision package:
+  - topology ADR in `docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`
+  - security-model ADR in `docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`
+  - decision validation evidence in `docs/evidence/phase29_topology_and_security_adr_validation_2026-03-04.md`
 
 ### Changed
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.

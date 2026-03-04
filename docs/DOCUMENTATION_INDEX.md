@@ -10,10 +10,13 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `ROADMAP.md`: phased delivery status and current maturity plan.
 - `PRODUCTION_PHASE_PLAN.md`: production hardening phases and exit criteria.
 - `UPDATED_PHASE_PLAN_2026-03-03.md`: current post-Phase-18 execution plan and validation protocol.
+- `ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`: canonical decision record for condensed vs dedicated-agent runtime topology.
+- `ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`: canonical security-model decision record for API-key, hybrid, and OIDC modes.
 - `GAP_ANALYSIS.md`: reviewed gaps, dispositions, and remaining structural work.
 - `LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md`: explicit legacy-scope disposition and Mission Control port-policy reconciliation.
 - `WORD_DOC_AUDIT_2026-03-03.md`: reconciliation audit against all in-repo Word-document requirements.
 - `UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`: prioritized backlog generated from Word-doc audit findings.
+- `SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`: deterministic 7-phase Smelt-cycle mapping policy for runtime telemetry.
 
 ## Operations and Reliability
 
@@ -29,6 +32,9 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `evidence/phase25_word_doc_audit_and_langgraph_runtime_visibility_2026-03-03.md`: Word-doc audit execution and LangGraph runtime visibility validation.
 - `evidence/phase26_langgraph_live_recovery_validation_2026-03-03.md`: lifecycle rehydration hardening and live restart qualification summary.
 - `evidence/phase26_langgraph_postgres_live_recovery_qualification_2026-03-03.json`: machine-readable live qualification timings and pass/fail criteria.
+- `evidence/phase27_mission_control_live_transport_validation_2026-03-04.md`: live SSE transport validation for critical Mission Control views.
+- `evidence/phase28_smelt_cycle_runtime_reconciliation_validation_2026-03-04.md`: deterministic 7-phase runtime reconciliation validation.
+- `evidence/phase29_topology_and_security_adr_validation_2026-03-04.md`: topology/security decision-package validation and sweep results.
 - `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
 - `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.
 

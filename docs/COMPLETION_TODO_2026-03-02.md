@@ -67,6 +67,16 @@ Acceptance: canonical runtime telemetry supports 7-phase Mission Control progres
 Evidence targets: `services/orchestrator/orchestrator/runtime.py`, `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `apps/mission-control/app/lib/smelt-cycle.ts`, `docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`.
 Phase 28 status (2026-03-04): complete. Added runtime checkpoint events (`MISSION_GATING`, `MISSION_FUSION`) and deterministic timeline rendering in Mission Control.
 
+- [x] Define and publish 35-agent runtime topology decision (condensed vs dedicated-per-agent execution model).
+Acceptance: adopt/defer decision, trigger criteria, and migration path are documented in canonical ADR form.
+Evidence targets: `docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`, `docs/ROADMAP.md`.
+Phase 29 status (2026-03-04): complete. Hybrid strategy accepted (condensed baseline + trigger-based dedicated expansion path).
+
+- [x] Publish security-model ADR for API-key baseline versus JWT/OIDC enterprise architecture.
+Acceptance: explicit decision and implementation path are documented with backward-compatible rollout policy.
+Evidence targets: `docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`, `docs/API_INTEGRATION_GUIDE.md`.
+Phase 29 status (2026-03-04): complete. Dual-mode auth strategy accepted (`api_key`, `hybrid`, `oidc`) with enterprise rollout plan.
+
 - [x] Adopt LangGraph mission lifecycle orchestration path with production-safe fallback.
 Acceptance: orchestrator can execute mission state transitions through LangGraph when enabled, and fail-open fallback preserves runtime safety.
 Evidence targets: `services/orchestrator/orchestrator/langgraph_lifecycle.py`, `tests/services/test_langgraph_lifecycle_unit.py`, `docs/UPDATED_PHASE_PLAN_2026-03-03.md`.

@@ -293,6 +293,19 @@ Last updated: 2026-03-04
   - `docs/evidence/phase28_smelt_cycle_runtime_reconciliation_validation_2026-03-04.md`
 - Status: Complete (deterministic 7-phase runtime mapping validated, 2026-03-04).
 
+## Phase 29: Topology and Security ADR Decision Package
+
+- Published canonical runtime-topology ADR:
+  - `docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`
+  - Decision: retain condensed worker baseline, activate dedicated-per-agent topology only via trigger-based expansion path.
+- Published canonical security-model ADR:
+  - `docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`
+  - Decision: dual-mode auth strategy (`api_key`, `hybrid`, `oidc`) with JWT/OIDC enterprise path while preserving internal service-key flows.
+- Updated canonical backlog and phase plans to mark these two Word-doc reconciliation gaps as complete.
+- Validation evidence:
+  - `docs/evidence/phase29_topology_and_security_adr_validation_2026-03-04.md`
+- Status: Complete (decision package published, 2026-03-04).
+
 ## Next Roadmap Targets
 
 1. Expand optional data-plane observability (Neo4j and object-storage metrics/alerts) for production SLO tracking.
@@ -301,5 +314,7 @@ Last updated: 2026-03-04
    - repo diff-review/apply gate for file-level mission outputs,
    - virtualization of Semantic Bus and agent-log high-volume views.
 4. Publish explicit Phase 4+ strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution).
-5. Publish 35-agent runtime topology decision (dedicated-per-agent containers vs condensed workers) with trigger-based migration path.
-6. Publish security-model ADR for API-key model versus JWT/OIDC enterprise token architecture.
+5. Execute ADR-29A topology triggers in runtime planning:
+   - define dedicated-agent compose profile and scheduler policy scaffolding.
+6. Execute ADR-29B enterprise auth baseline:
+   - add gateway `AUTH_MODE` abstraction and JWT/OIDC validation path with tests.

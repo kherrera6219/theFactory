@@ -20,14 +20,16 @@ Acceptance:
 - Mission timeline UX has deterministic, test-covered phase progression.
 Status (2026-03-04): complete. Added deterministic `MISSION_GATING` and `MISSION_FUSION` runtime checkpoints in legacy + LangGraph lifecycle paths and published canonical mapping at `docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`.
 
-- [ ] Define and execute 35-agent runtime topology decision.
+- [x] Define and execute 35-agent runtime topology decision.
 Acceptance:
 - Publish adopt/defer decision for dedicated-per-agent containers vs. current condensed worker model.
 - If deferred, include trigger criteria and migration path.
+Status (2026-03-04): complete. Decision package published in `docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md` with trigger criteria and migration plan.
 
-- [ ] Security model reconciliation (API-key vs enterprise token model).
+- [x] Security model reconciliation (API-key vs enterprise token model).
 Acceptance:
 - Publish explicit ADR with implementation plan for JWT/OIDC or formal justification for API-key-first local model.
+Status (2026-03-04): complete. Dual-mode auth ADR published in `docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`.
 
 ## P2 - Medium Priority Completeness
 - [ ] Frontend GAP-* remediation reconciliation (`HolyGrail_Frontend_Design_3.docx` sections 9-12).
@@ -45,3 +47,4 @@ Acceptance:
 - [x] Phase 26: Lifecycle recovery rehydration and live postgres checkpoint restart qualification.
 - [x] Phase 27: Mission Control live transport baseline with SSE + fallback validation.
 - [x] Phase 28: Smelt-cycle runtime reconciliation with deterministic 7-phase timeline mapping.
+- [x] Phase 29: 35-agent topology + security-model ADR decision package.
