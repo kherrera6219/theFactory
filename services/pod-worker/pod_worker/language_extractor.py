@@ -128,29 +128,29 @@ class LanguageExtractor:
 
     # -- structural detection ------------------------------------------------
 
-    def _detect_functions(
-        self, _source: str, lines: list[str]
-    ) -> list[FunctionInfo]:
+    def _detect_functions(self, _source: str, lines: list[str]) -> list[FunctionInfo]:
         if self._function_pattern is None:
             return []
         found: list[FunctionInfo] = []
         for idx, line in enumerate(lines, start=1):
             match = self._function_pattern.search(line)
             if match:
-                name = match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
+                name = (
+                    match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
+                )
                 found.append(FunctionInfo(name=name.strip(), line=idx, signature=line.strip()))
         return found
 
-    def _detect_classes(
-        self, _source: str, lines: list[str]
-    ) -> list[ClassInfo]:
+    def _detect_classes(self, _source: str, lines: list[str]) -> list[ClassInfo]:
         if self._class_pattern is None:
             return []
         found: list[ClassInfo] = []
         for idx, line in enumerate(lines, start=1):
             match = self._class_pattern.search(line)
             if match:
-                name = match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
+                name = (
+                    match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
+                )
                 found.append(ClassInfo(name=name.strip(), line=idx))
         return found
 
@@ -161,9 +161,7 @@ class LanguageExtractor:
 
     # -- concept detection ---------------------------------------------------
 
-    def _detect_concepts(
-        self, _source: str, lines: list[str]
-    ) -> list[ExtractedConcept]:
+    def _detect_concepts(self, _source: str, lines: list[str]) -> list[ExtractedConcept]:
         patterns = get_patterns(self.language)
         if not patterns:
             return []
@@ -229,7 +227,9 @@ class PythonExtractor(LanguageExtractor):
     language = "python"
     _function_pattern = re.compile(r"^\s*(?:async\s+)?def\s+(\w+)\s*\(", re.MULTILINE)
     _class_pattern = re.compile(r"^\s*class\s+(\w+)", re.MULTILINE)
-    _import_pattern = re.compile(r"^\s*(?:import\s+[\w.]+|from\s+[\w.]+\s+import\s+[\w., ]+)", re.MULTILINE)
+    _import_pattern = re.compile(
+        r"^\s*(?:import\s+[\w.]+|from\s+[\w.]+\s+import\s+[\w., ]+)", re.MULTILINE
+    )
 
 
 class JavaScriptExtractor(LanguageExtractor):
@@ -239,7 +239,10 @@ class JavaScriptExtractor(LanguageExtractor):
         re.MULTILINE,
     )
     _class_pattern = re.compile(r"\bclass\s+(\w+)", re.MULTILINE)
-    _import_pattern = re.compile(r"(?:import\s+.*\s+from\s+['\"][\w./@-]+['\"]|(?:const|let|var)\s+.*=\s*require\s*\()", re.MULTILINE)
+    _import_pattern = re.compile(
+        r"(?:import\s+.*\s+from\s+['\"][\w./@-]+['\"]|(?:const|let|var)\s+.*=\s*require\s*\()",
+        re.MULTILINE,
+    )
 
 
 class RubyExtractor(LanguageExtractor):
@@ -343,7 +346,9 @@ class RExtractor(LanguageExtractor):
     language = "r"
     _function_pattern = re.compile(r"(\w+)\s*<-\s*function\s*\(", re.MULTILINE)
     _class_pattern = None
-    _import_pattern = re.compile(r"\blibrary\s*\(\s*[\w.]+\s*\)|\brequire\s*\(\s*[\w.]+\s*\)", re.MULTILINE)
+    _import_pattern = re.compile(
+        r"\blibrary\s*\(\s*[\w.]+\s*\)|\brequire\s*\(\s*[\w.]+\s*\)", re.MULTILINE
+    )
 
 
 class JuliaExtractor(LanguageExtractor):

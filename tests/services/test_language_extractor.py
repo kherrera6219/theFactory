@@ -8,31 +8,18 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "pod-worker"))
 
-from pod_worker.language_extractor import (
-    CExtractor,
-    CppExtractor,
-    CSharpExtractor,
-    ExtractionResult,
+from pod_worker.language_extractor import (  # noqa: E402
     JavaExtractor,
     JavaScriptExtractor,
-    JuliaExtractor,
-    KotlinExtractor,
     MatlabExtractor,
-    MathematicaExtractor,
     PythonExtractor,
-    RExtractor,
-    RubyExtractor,
     RustExtractor,
-    ScalaExtractor,
     get_extractor,
     supported_languages,
 )
-
 
 # ---------------------------------------------------------------------------
 # Pod A — Python
@@ -111,7 +98,7 @@ class TestPythonExtractor:
 # Pod A — JavaScript
 # ---------------------------------------------------------------------------
 
-JS_SAMPLE = '''\
+JS_SAMPLE = """\
 import express from 'express';
 const axios = require('axios');
 
@@ -130,7 +117,7 @@ class ApiService {
         }
     }
 }
-'''
+"""
 
 
 class TestJavaScriptExtractor:
@@ -158,7 +145,7 @@ class TestJavaScriptExtractor:
 # Pod B — Rust
 # ---------------------------------------------------------------------------
 
-RUST_SAMPLE = '''\
+RUST_SAMPLE = """\
 use std::collections::HashMap;
 
 pub struct Config {
@@ -182,7 +169,7 @@ impl Config {
 trait Loadable {
     fn load_from(&mut self, source: &str) -> Option<usize>;
 }
-'''
+"""
 
 
 class TestRustExtractor:
@@ -217,7 +204,7 @@ class TestRustExtractor:
 # Pod C — Java
 # ---------------------------------------------------------------------------
 
-JAVA_SAMPLE = '''\
+JAVA_SAMPLE = """\
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -243,7 +230,7 @@ public class OrderService extends BaseService implements Serializable {
         }
     }
 }
-'''
+"""
 
 
 class TestJavaExtractor:
@@ -276,7 +263,7 @@ class TestJavaExtractor:
 # Pod D — MATLAB
 # ---------------------------------------------------------------------------
 
-MATLAB_SAMPLE = '''\
+MATLAB_SAMPLE = """\
 function result = analyzeData(data)
     A = data' * data;
     eigenvals = eig(A);
@@ -287,7 +274,7 @@ function result = analyzeData(data)
     figure;
     plot(eigenvals);
 end
-'''
+"""
 
 
 class TestMatlabExtractor:

@@ -15,7 +15,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "pod-worker"))
 
-from pod_worker.concept_catalog import (
+from pod_worker.concept_catalog import (  # noqa: E402
     LANGUAGE_PATTERNS,
     ConceptPattern,
     all_languages,
