@@ -20,6 +20,7 @@ from .mission_flow import (
     resolve_specialist_agent_id,
     with_chain_defaults,
 )
+from .mission_flow_v2 import advance_mission_lifecycle_v2
 from .models import MissionRecord, MissionState
 from .protocol import EnvelopeValidator, ProtocolValidationError
 from .settings import Settings
@@ -367,6 +368,20 @@ async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
     settings: Settings = app.state.settings
     validator: EnvelopeValidator = app.state.envelope_validator
 
+    # ---- v2 11-phase engine (feature-flagged) ----
+    if settings.mission_flow_v2_enabled:
+        await advance_mission_lifecycle_v2(
+            app=app,
+            mission_id=mission_id,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event,
+            prepare_chain_fn=_prepare_mission_chain_for_running,
+            completion_check_fn=_completion_artifacts_ready,
+        )
+        return
+
+    # ---- LangGraph engine (feature-flagged) ----
     langgraph_handled = await maybe_advance_mission_lifecycle(
         app=app,
         mission_id=mission_id,
@@ -377,6 +392,7 @@ async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
     if langgraph_handled:
         return
 
+    # ---- Legacy v1.1 engine ----
     transitions = [
         (MissionState.queued, MissionState.running, "MISSION_RUNNING"),
         (MissionState.running, MissionState.verified, "MISSION_VERIFIED"),

@@ -21,6 +21,7 @@ from .mission_flow import (
     resolve_specialist_agent_id,
     with_chain_defaults,
 )
+from .mission_flow_v2 import V2_TRANSITIONS
 from .models import MissionState
 from .settings import Settings
 
@@ -53,6 +54,15 @@ RUNNING_PHASE_CHECKPOINT_EVENTS: tuple[str, ...] = (
     "MISSION_GATING",
     "MISSION_FUSION",
 )
+
+
+def _select_transitions(
+    settings: Any,
+) -> tuple[tuple[MissionState, MissionState, str], ...]:
+    """Return v2 or v1.1 transition table based on feature flag."""
+    if getattr(settings, "mission_flow_v2_enabled", False):
+        return V2_TRANSITIONS
+    return TRANSITIONS
 
 _MEMORY_CHECKPOINTER: Any | None = None
 
@@ -545,20 +555,48 @@ async def maybe_advance_mission_lifecycle(
 
         return _node
 
+    active_transitions = _select_transitions(settings)
+
     workflow = StateGraph(MissionLifecycleState)
     workflow.add_node("ceo_delegate", _ceo_delegate)
     workflow.add_node("pod_manager_delegate", _pod_manager_delegate)
     workflow.add_node("specialist_plan", _specialist_plan)
-    workflow.add_node("queued_to_running", _build_transition_node(0))
-    workflow.add_node("running_to_verified", _build_transition_node(1))
-    workflow.add_node("verified_to_complete", _build_transition_node(2))
+
+    # Build transition nodes dynamically from selected table
+    transition_node_names: list[str] = []
+    for idx, (expected, new, _evt) in enumerate(active_transitions):
+        node_name = f"{expected.value.lower()}_to_{new.value.lower()}"
+        transition_node_names.append(node_name)
+
+        def _make_node(
+            _idx: int = idx,
+            _transitions: Any = active_transitions,
+        ):
+            async def _node(
+                state: MissionLifecycleState,
+            ) -> MissionLifecycleState:
+                es, ns, et = _transitions[_idx]
+                return await _run_transition(state, es, ns, et)
+            return _node
+
+        workflow.add_node(node_name, _make_node())
+
+    # Wire edges: start → delegation chain → transitions → end
     workflow.add_edge(START, "ceo_delegate")
-    workflow.add_conditional_edges("ceo_delegate", _route_next("pod_manager_delegate"))
-    workflow.add_conditional_edges("pod_manager_delegate", _route_next("specialist_plan"))
-    workflow.add_conditional_edges("specialist_plan", _route_next("queued_to_running"))
-    workflow.add_conditional_edges("queued_to_running", _route_next("running_to_verified"))
-    workflow.add_conditional_edges("running_to_verified", _route_next("verified_to_complete"))
-    workflow.add_edge("verified_to_complete", END)
+    workflow.add_conditional_edges(
+        "ceo_delegate", _route_next("pod_manager_delegate")
+    )
+    workflow.add_conditional_edges(
+        "pod_manager_delegate", _route_next("specialist_plan")
+    )
+    workflow.add_conditional_edges(
+        "specialist_plan", _route_next(transition_node_names[0])
+    )
+    for i, name in enumerate(transition_node_names[:-1]):
+        workflow.add_conditional_edges(
+            name, _route_next(transition_node_names[i + 1])
+        )
+    workflow.add_edge(transition_node_names[-1], END)
 
     mode = settings.langgraph_checkpointer.strip().lower()
 
