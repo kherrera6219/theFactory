@@ -1,266 +1,695 @@
-# theFactory
+<div align="center">
 
-Local-first implementation of the HolyGrail multi-agent software refinery.
+# 🏭 theFactory
 
-This monorepo contains the runtime services, frontend, contracts, and operational tooling for a 35-agent orchestration system that turns mission prompts into verified software artifacts through a semantic-bus workflow.
+**HolyGrail Multi-Agent Software Refinery**
 
-## What This Application Is
+*A production-grade, local-first AI orchestration platform that transforms mission prompts into verified software artifacts through a 35-agent delegation chain and semantic-bus workflow.*
 
-theFactory is a Windows-friendly, Docker-based application stack with:
+[![CI](https://github.com/holygrail/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/ci.yml)
+[![Security](https://github.com/holygrail/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/security.yml)
+[![Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen)](docs/evidence/)
+[![Audit](https://img.shields.io/badge/production%20audit-13%2F13-brightgreen)](scripts/production_review_audit.py)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black)](apps/mission-control/package.json)
+[![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#)
 
-- Multi-service runtime (API gateway, orchestrator, workers, dashboard, mission control).
-- Semantic bus event flow over Redis Streams.
-- Mission lifecycle persistence and telemetry in PostgreSQL.
-- 35-agent runtime registry with:
-  - role and workload telemetry,
-  - provider/model recommendations,
-  - complete 8-part persona profiles,
-  - standards-aligned evidence mappings (NIST, OWASP, ISO/IEC).
-- Mission Control UI for operations, agent topology, settings, semantic bus views, and diagnostics.
+</div>
 
-## System Topology
+---
 
-Core services:
+## Table of Contents
 
-- `services/api-gateway` (FastAPI): public API boundary and intake.
-- `services/orchestrator` (FastAPI): mission state machine, pod coordination, operations APIs.
-- `services/semantic-bus-mcp` (FastAPI): protocol validation/routing for alpha-beta-delta-sigma-omega-rho bus messages.
-- `services/pod-worker` (FastAPI worker runtime): pod routing and artifact processing for pod A/B/C/D.
-- `services/audit-worker`: audit stream processing and verification handoff.
-- `services/dashboard` (FastAPI + HTML): lightweight operational dashboard.
-- `apps/mission-control` (Next.js): operator console and runtime control UI.
-- Optional dedicated manager-worker profile (`--profile dedicated-agents`) for trigger-based topology expansion with `AGENT_BINDING` scheduler enforcement.
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [35-Agent Runtime Model](#35-agent-runtime-model)
+- [Mission Lifecycle](#mission-lifecycle)
+- [Language Extraction Engine](#language-extraction-engine)
+- [Services](#services)
+- [API Reference](#api-reference)
+- [Mission Control UI](#mission-control-ui)
+- [Data Systems](#data-systems)
+- [Security & Auth](#security--auth)
+- [Observability](#observability)
+- [Quick Start](#quick-start)
+- [Development](#development)
+- [Testing & Quality Gates](#testing--quality-gates)
+- [Configuration](#configuration)
+- [Deployment Profiles](#deployment-profiles)
+- [Documentation Index](#documentation-index)
 
-Data and event plane:
+---
 
-- Redis Streams: mission/event transport and heartbeat/event telemetry.
-- PostgreSQL: missions, events, pod assignments, logicnodes, knowledge, audits, agent heartbeats.
-- Qdrant: active knowledge retrieval/index path with PostgreSQL fallback.
-- Neo4j: optional feature-flagged graph adapter for relationship-heavy mission knowledge/audit queries.
-- Object storage: optional feature-flagged adapter for immutable large-artifact retention.
+## Overview
+
+**theFactory** is the HolyGrail runtime implementation of a 35-agent multi-agent software refinery. It is designed as a Windows-friendly, Docker-based monorepo that provides:
+
+- **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
+- **Semantic bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
+- **35 specialist agents** — organized across interface, executive, support, and pod-specialist tiers
+- **Language-aware code analysis** — regex-based extraction engine for 16 languages across 4 pod groups
+- **LangGraph-powered state machine** — Postgres-checkpointed mission lifecycle with fail-open fallback
+- **Full production observability** — Prometheus, Grafana, Loki, Jaeger OTLP, Alertmanager
+- **Enterprise-grade security** — dual-mode auth (API key + JWT/OIDC), per-role key isolation, SAST/SCA/secret scanning in CI
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         EXTERNAL CLIENTS                        │
+│               (Mission Control UI / API consumers)              │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │ HTTPS / REST
+┌───────────────────────────▼─────────────────────────────────────┐
+│                        API GATEWAY :8100                        │
+│  Auth (api_key|hybrid|oidc) · Rate limiting · Security headers  │
+│  Idempotency · SSE live transport · OpenAPI contracts           │
+└───────────┬───────────────────────────────────────┬─────────────┘
+            │ internal REST                         │ SSE stream
+┌───────────▼───────────────────────────────────────▼─────────────┐
+│                      ORCHESTRATOR :8101                         │
+│  LangGraph StateGraph · Mission lifecycle · Pod assignment      │
+│  35-agent registry · Operations APIs · Qdrant/Neo4j/S3 plane   │
+└──┬──────┬──────────┬───────────────┬───────────────────────────┘
+   │      │ Redis    │               │
+   │   Streams   ┌──▼────────────────▼──┐
+   │      │      │   SEMANTIC BUS MCP    │
+   │      │      │   :8102               │
+   │      │      │   6-protocol routing  │
+   │      │      └───────────────────────┘
+   │      │
+┌──▼──────▼──────────────────────────────────────────────────────┐
+│                      POD WORKERS                               │
+│  Pod A  (Python/JS/Ruby/PHP)  — Dynamic Languages              │
+│  Pod B  (C/C++/Rust)          — Systems Languages              │
+│  Pod C  (Java/C#/Scala/Kotlin)— Enterprise Languages           │
+│  Pod D  (MATLAB/R/Julia/Mathematica) — Mathematical Languages  │
+│  Each: language extraction → LogicNode creation → KB write     │
+└──────────────────────────┬─────────────────────────────────────┘
+                           │
+┌──────────────────────────▼─────────────────────────────────────┐
+│                     AUDIT WORKER                               │
+│  Verification stream processing · Completion handoff           │
+└────────────────────────────────────────────────────────────────┘
+
+DATA PLANE
+  PostgreSQL :5433  ─ missions, events, assignments, logicnodes, audits
+  Redis :6380       ─ streams, rate limiting, idempotency, heartbeats
+  Qdrant :6334      ─ active knowledge retrieval (PG fallback)
+  Neo4j             ─ optional graph adapter (feature-flagged)
+  MinIO/S3          ─ optional object storage (legal-hold, 90-day retention)
+
+OBSERVABILITY PLANE
+  Prometheus · Grafana · Loki · Promtail · Alertmanager · Jaeger OTLP
+```
+
+### Smelt-Cycle: 7-Phase Mission Progression
+
+| Phase | Event | Description |
+|-------|-------|-------------|
+| 1 | MISSION_INTAKE | Mission received and deduplicated at gateway |
+| 2 | MISSION_QUEUED | Persisted to orchestrator, awaiting scheduling |
+| 3 | MISSION_GATING | Executive tier gates and delegates mission |
+| 4 | MISSION_RUNNING | Pod workers processing language artifacts |
+| 5 | MISSION_FUSION | Results merged, verification initiated |
+| 6 | MISSION_VERIFIED | Audit worker confirms artifact integrity |
+| 7 | MISSION_COMPLETE | Mission closed with full evidence chain |
+
+---
 
 ## 35-Agent Runtime Model
 
-The orchestrator maintains a canonical 35-agent registry covering:
+The orchestrator maintains a canonical registry of **35 specialist agents** organized across four tiers:
 
-- User interface tier.
-- Executive tier.
-- Support ring.
-- Pod A/B/C/D manager, audit, and specialist agents.
+| Tier | Agents | Role |
+|------|--------|------|
+| **Interface** | AGENT-01-PM | Project Manager — mission intake and PM→CEO handoff |
+| **Executive** | AGENT-02-CEO | Chief Executor — mission delegation to pod managers |
+| **Support Ring** | AGENT-03 through AGENT-08 | CTO, Architect, Security, QA, DevOps, Documentation |
+| **Pod A** (Dynamic) | Manager, Audit, Python, JavaScript, Ruby, PHP Specialists | Dynamic language refinery |
+| **Pod B** (Systems) | Manager, Audit, C, C++, Rust Specialists | Systems language refinery |
+| **Pod C** (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | Enterprise language refinery |
+| **Pod D** (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica Specialists | Mathematical language refinery |
 
-Each agent now exposes:
+### Agent Runtime State
 
-- Runtime state (`IDLE`, `ACTIVE`, `RUNNING`, `VERIFYING`, `ERROR`, `PAUSED`).
-- Queue/workload and mission assignment telemetry.
-- LLM recommendation strategy (provider/model/thinking profile + fallback where applicable).
-- `persona_profile` with:
-  - `job_role`
-  - `education_certifications`
-  - `traits_skills`
-  - `methods_procedures`
-  - `tools`
-  - `master_instruction`
-  - `protocol`
-  - `api_configuration`
-  - `standards_alignment` (extension)
-  - `evidence_sources` (extension)
+Each agent exposes:
 
-## Key API Surfaces
+```json
+{
+  "agent_id": "AGENT-01-PM",
+  "state": "IDLE | ACTIVE | RUNNING | VERIFYING | ERROR | PAUSED",
+  "queue_depth": 0,
+  "active_mission_id": null,
+  "llm_recommendation": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "thinking": "standard",
+    "fallback_model": "gpt-4o-mini"
+  },
+  "persona_profile": {
+    "job_role": "...",
+    "education_certifications": "...",
+    "traits_skills": "...",
+    "methods_procedures": "...",
+    "tools": "...",
+    "master_instruction": "...",
+    "protocol": "...",
+    "api_configuration": "...",
+    "standards_alignment": "NIST AI RMF · ISO/IEC 42001 · OWASP ASVS",
+    "evidence_sources": "..."
+  }
+}
+```
 
-Gateway (`http://localhost:8100` by default):
+### LLM Provider Assignment (35 Agents)
 
-- `GET /health`
-- `GET /readyz`
-- `GET /metrics`
-- `POST /v1/missions`
-- `GET /v1/missions`
-- `GET /v1/missions/{mission_id}`
-- `GET /v1/missions/{mission_id}/events`
-- `GET /v1/missions/{mission_id}/knowledge-graph`
-- `GET /v1/missions/{mission_id}/audit-artifacts`
-- `POST /v1/missions/{mission_id}/state`
-- `GET /v1/operations/summary`
-- `GET /v1/operations/agents`
-- `GET /v1/operations/agent-integrations`
+| Provider | Count | Key ENV Variables |
+|----------|-------|-------------------|
+| **Anthropic** | 12 agents | `ANTHROPIC_API_KEY_ARCH`, `ANTHROPIC_API_KEY_PY`, etc. |
+| **OpenAI** | 14 agents | `OPENAI_API_KEY_CEO`, `OPENAI_API_KEY_CTO`, etc. |
+| **Google Gemini** | 9 agents | `GOOGLE_API_KEY_MATLAB`, `GOOGLE_API_KEY_JULIA`, etc. |
 
-Orchestrator (`http://localhost:8101` by default):
+Full matrix: [`docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`](docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md)
 
-- `GET /health`
-- `GET /readyz`
-- `GET /metrics`
-- `GET /internal/operations/summary`
-- `GET /internal/operations/agents`
-- `GET /internal/operations/agent-integrations`
+---
 
-Semantic Bus MCP (`http://localhost:8102` by default):
+## Mission Lifecycle
 
-- `GET /health`
-- `GET /readyz`
-- `GET /metrics`
-- `POST /send`
-- `GET /dlq`
+Missions flow through the orchestrator state machine powered by **LangGraph**:
 
-OpenAPI exports:
+```
+QUEUED ─→ RUNNING ─→ VERIFIED ─→ COMPLETE
+            │                       ↑
+            └──── FAILED ───────────┘
+```
 
-- `docs/openapi/api-gateway.v1.json`
-- `docs/openapi/orchestrator.v1.json`
+- **LangGraph StateGraph** with 3 transition nodes and conditional edges
+- **Postgres checkpointer** (`LANGGRAPH_CHECKPOINTER=postgres`) — survives orchestrator restarts
+- **Memory checkpointer** — baseline/dev mode
+- **`LANGGRAPH_FAIL_OPEN=true`** — safe fallback to legacy lifecycle on graph failure
+- **Startup rehydration** — in-flight missions recovered on restart
+- **Feature-flagged** — `LANGGRAPH_ENABLED=false` by default, zero-risk when disabled
+
+---
+
+## Language Extraction Engine
+
+Pod workers run a static-analysis extraction engine that detects computational concepts in source code before LogicNode creation. No AST parsing or LLM calls required for this phase.
+
+| Pod | Languages | Concept Prefix | Patterns |
+|-----|-----------|---------------|---------|
+| A — Dynamic | Python, JavaScript, Ruby, PHP | `DYN-` | ~68 |
+| B — Systems | C, C++, Rust | `SYS-` | ~36 |
+| C — Enterprise | Java, C#, Scala, Kotlin | `ENT-` | ~35 |
+| D — Mathematical | MATLAB, R, Julia, Mathematica | `MATH-` | ~30 |
+| **Total** | **16 languages** | | **169 patterns** |
+
+Each extracted concept becomes a **LogicNode** with:
+- `concept_id` (e.g. `DYN-006-001` for async function, `SYS-011-001` for Rust `Result<T>`)
+- `confidence` score (0.0–1.0)
+- `source_line` number and evidence snippet
+- `domain`, `intent`, and `language`
+
+---
+
+## Services
+
+| Service | Port | Tech | Description |
+|---------|------|------|-------------|
+| `api-gateway` | 8100 | FastAPI | Public API boundary, auth, rate limiting, SSE transport |
+| `orchestrator` | 8101 | FastAPI | Mission state machine, agent registry, operations APIs |
+| `semantic-bus-mcp` | 8102 | FastAPI | 6-protocol semantic bus with DLQ |
+| `pod-worker` | — | FastAPI | Language-aware pod stream worker (4 pod variants) |
+| `audit-worker` | — | FastAPI | Verification stream processing |
+| `dashboard` | 8180 | FastAPI | Lightweight operational status UI |
+| `mission-control` | 3100 | Next.js 15 | Primary operator console |
+
+---
+
+## API Reference
+
+### Gateway (`http://localhost:8100`)
+
+#### Health & Observability
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Full health with dependency states |
+| `GET` | `/readyz` | Kubernetes-style readiness probe |
+| `GET` | `/metrics` | Prometheus metrics endpoint |
+
+#### Mission Management
+| Method | Path | Auth Required | Description |
+|--------|------|--------------|-------------|
+| `POST` | `/v1/missions` | mutate/admin | Create mission (idempotency key supported) |
+| `GET` | `/v1/missions` | reader+ | List missions with filters |
+| `GET` | `/v1/missions/{id}` | reader+ | Get mission detail |
+| `GET` | `/v1/missions/{id}/events` | reader+ | Mission event stream |
+| `POST` | `/v1/missions/{id}/state` | mutate/admin | Emit state transition event |
+| `GET` | `/v1/missions/{id}/knowledge-graph` | reader+ | Neo4j graph (feature-flagged) |
+| `GET` | `/v1/missions/{id}/audit-artifacts` | reader+ | Object storage artifacts (feature-flagged) |
+
+#### Operations
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/operations/summary` | Runtime health summary |
+| `GET` | `/v1/operations/agents` | All 35 agent runtime states |
+| `GET` | `/v1/operations/agent-integrations` | Agent protocol/LLM/persona profiles |
+
+#### Live Transport
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/stream/state` | SSE stream with `mission_id` filter, `Last-Event-ID` resume, keepalive |
+
+### Semantic Bus MCP (`http://localhost:8102`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/send` | Send validated bus message (alpha/beta/delta/sigma/omega/rho) |
+| `GET` | `/dlq` | Inspect dead-letter queue |
+| `GET` | `/health` · `/readyz` · `/metrics` | Standard probes |
+
+### OpenAPI Exports
+- [`docs/openapi/api-gateway.v1.json`](docs/openapi/api-gateway.v1.json)
+- [`docs/openapi/orchestrator.v1.json`](docs/openapi/orchestrator.v1.json)
+
+---
 
 ## Mission Control UI
 
-Mission Control access:
+**Access:**
+- Docker stack: `http://localhost:3100`
+- Direct dev server: `http://localhost:3000` (`npm run dev`)
 
-- Docker stack default (external host port): `http://localhost:3100`
-- Direct Next.js dev server (`npm run dev`): `http://localhost:3000`
+**Features:**
 
-Mission Control provides:
+| View | Description |
+|------|-------------|
+| Dashboard | Runtime-wide health, mission counts, agent status summary |
+| Missions | Mission table with lifecycle state and phase stepper |
+| Mission Detail | Live event timeline, Smelt-cycle phase stepper (SSE-driven), chain-of-command |
+| Agents | 35-agent roster grid with persona drill-down |
+| Semantic Bus | Live message stream with windowed rendering |
+| Operations | Internal health, readiness, and metrics |
+| Builder | Repository intake (4-step: import → file select → diff review/apply gate → mission config) |
+| Settings / Vault | Provider key management, environment config |
 
-- Dashboard and mission lifecycle views.
-- Agent grid and drill-down detail (including full 8-part persona + standards evidence).
-- Semantic bus and logicnode/event views.
-- Runtime settings and local vault-based key management:
-  - `/api/vault`
-  - `/api/vault/test`
-  - `/api/operator/mission-state`
+**Technology:**
+- Next.js 15 App Router, TypeScript (strict mode)
+- Dark SLATE design system (`#0F172A` base, Refinery Violet `#8B5CF6` accent)
+- Inter (display) + JetBrains Mono (code) fonts per Style Guide
+- 31-token CSS variable system driven by `generated-tokens.css`
+- Responsive: 1440px (wide desktop) + 1024px (standard desktop) + 768px (tablet)
+- SSE live transport with `stream|poll|paused` mode diagnostics
+- Windowed rendering for high-volume agent and semantic bus views
 
-## Repository Layout
+---
 
-- `apps/mission-control`: Next.js operator application.
-- `services/api-gateway`: external API and LLM builder routing.
-- `services/orchestrator`: mission orchestration and operations APIs.
-- `services/pod-worker`: pod stream workers.
-- `services/audit-worker`: audit stream worker.
-- `services/dashboard`: operations status dashboard.
-- `schemas`: message/artifact contracts.
-- `protocol`: semantic-bus topic catalog.
-- `ledger`: traceability ledger schema.
-- `deploy`: Docker Compose stacks.
-- `scripts`: validation, export, audit, DR/perf/debug tooling.
-- `tests`: service and production-foundation tests.
-- `docs`: architecture, standards, runbooks, plans, and audits.
+## Data Systems
+
+| System | Status | Purpose |
+|--------|--------|---------|
+| **PostgreSQL** | ✅ Active | Missions, events, pod assignments, LogicNodes, knowledge, audits, agent heartbeats |
+| **Redis** | ✅ Active | Streams (event bus), rate limiting, idempotency keys, heartbeat telemetry |
+| **Qdrant** | ✅ Active | Live knowledge retrieval and indexing (PostgreSQL fallback) |
+| **Neo4j** | ⚙️ Feature-flagged | Relationship-heavy mission/audit graph queries |
+| **MinIO/S3** | ⚙️ Feature-flagged | Immutable artifact retention, legal-hold, 90-day policy |
+
+**Schema governance:** Versioned SQL migrations with checksum-tracked `schema_migrations` table (`V001_...` naming).
+
+**Traceability Ledger:** `ledger/schema.sql` — artifacts, sources, custody chain, audit runs tables.
+
+---
+
+## Security & Auth
+
+### Authentication Modes
+
+| Mode | `AUTH_MODE` value | Use case |
+|------|-------------------|---------|
+| API Key (default) | `api_key` | Local deployments, CI, service-to-service |
+| Hybrid | `hybrid` | API key or JWT/OIDC bearer accepted |
+| OIDC | `oidc` | JWT/OIDC required for mutations; API key for internal paths |
+
+**ADR:** [`docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md)
+
+### RBAC Roles
+
+| Role | Capabilities |
+|------|-------------|
+| `admin` | Full access including diagnostics |
+| `operator` | Mission mutations + operations reads |
+| `reader` | Read-only mission/operations access |
+| `worker` | Internal pod/audit worker service calls |
+
+### Security Controls
+
+- Rate limiting: 120 req/min per key (Redis sliding-window), `X-RateLimit-*` headers
+- Idempotency: SHA256-keyed mission creation with 24h TTL
+- Security headers: `X-Frame-Options DENY`, `X-Content-Type-Options nosniff`, `Referrer-Policy no-referrer`, `Permissions-Policy`
+- Per-service API key isolation: each worker has its own `SERVICE_API_KEY`
+- SBOM generation: `anchore/sbom-action` → `sbom.spdx.json` in CI
+- Container security: all images run as non-root users
+- SAST: Bandit, Trivy, gitleaks, pip-audit in `security.yml`
+- Dedicated worker binding: `AGENT_BINDING` env var enforces which agent IDs a worker processes
+
+---
+
+## Observability
+
+### Metrics & Alerting
+
+| Component | Details |
+|-----------|---------|
+| **Prometheus** | Scrapes all services + optional data-plane adapters |
+| **Grafana** | Provisioned dashboard with data-plane SLO panels |
+| **Alertmanager** | Pager webhook routing for `severity: critical|high` alerts |
+| **Loki + Promtail** | Centralized log aggregation |
+| **Jaeger** | OTLP distributed traces (api-gateway + orchestrator + pod-worker) |
+
+### Pod Worker Metrics
+
+| Metric | Labels | Description |
+|--------|--------|-------------|
+| `pod_worker_concepts_extracted_total` | `pod_name`, `language` | Concept extraction counter |
+| `pod_worker_extraction_latency_seconds` | `pod_name` | Extraction timing histogram |
+| `pod_worker_binding_skips_total` | `pod_name`, `reason` | Agent binding skip counter |
+| `pod_worker_internal_auth_rejections_total` | `pod_name` | 401/403 rejection counter |
+
+### Data-Plane SLO Alerts
+
+| Alert | Condition |
+|-------|-----------|
+| `Neo4jAdapterNotReady` | Neo4j readiness gauge = 0 |
+| `ObjectStorageAdapterNotReady` | Object storage readiness gauge = 0 |
+| `Neo4jMirrorWriteErrorRateHigh` | Mirror write error rate > 5% |
+| `ObjectStorageMirrorWriteLatencyP95High` | p95 latency > 2s |
+
+Runbook: [`docs/runbooks/optional_data_plane_incident_runbook.md`](docs/runbooks/optional_data_plane_incident_runbook.md)
+
+---
 
 ## Quick Start
 
-1. Copy env template:
-   - `cp .env.example .env`
-2. Start stack:
-   - `docker compose -f deploy/docker-compose.yaml up -d --build`
-3. Verify:
-   - Gateway: `http://localhost:8100/health`
-   - Orchestrator: `http://localhost:8101/health`
-   - Semantic Bus MCP: `http://localhost:8102/health`
-   - Dashboard: `http://localhost:8180/health`
-   - Mission Control: `http://localhost:3100`
+### Prerequisites
+- Docker Desktop (Windows)
+- `make` (via Git Bash or WSL, or run commands directly)
+- Node.js 20+ (for Mission Control development)
+- Python 3.11+ (for backend development)
 
-Default host ports:
+### 1. Environment Setup
 
-- Gateway: `8100`
-- Orchestrator: `8101`
-- Semantic Bus MCP: `8102`
-- Dashboard: `8180`
-- Mission Control: `3100`
-- Redis: `6380`
-- PostgreSQL: `5433`
-- Qdrant: `6334`
+```bash
+cp .env.example .env
+# Edit .env — add provider API keys and service secrets
+```
 
-## Development Commands
+### 2. Start Core Stack
 
-Using `make`:
+```bash
+docker compose -f deploy/docker-compose.yaml up -d --build
+```
 
-- `make up`: build/start core stack.
-- `make down`: stop stack and remove volumes.
-- `make validate`: validate schema files.
-- `make lint`: run `ruff` on backend/test/scripts.
-- `make test`: run full pytest with global coverage gate (`>= 80%`) plus 100% coverage gates for core multi-agent communication/runtime modules.
-- `make test-ui`: run Mission Control lint + unit tests.
-- `make test-ui-e2e`: run Mission Control Playwright e2e regression suite.
-- `make test-fast`: run pytest without coverage reporting.
-- `make test-live-extended`: run live optional Neo4j/MinIO qualification tests (skip-safe when stack/adapters are unavailable).
-- `make audit`: run production checklist audit script.
-- `make promotion-gate`: evaluate local release promotion policy and write decision artifact.
-- `make openapi`: export OpenAPI documents.
-- `make predeploy`: run pre-deploy checks.
-- `make backup`: run PostgreSQL backup script.
-- `make dr`: run DR drill script.
-- `make perf`: run performance smoke script.
-- `make reliability`: run sustained-load reliability qualification with readiness/recovery checks.
-- `make sweep`: run debugging/code sweep script.
-- `make monitor-up` / `make monitor-down`: control monitoring stack.
+### 3. Verify Health
 
-Frontend app commands:
+```bash
+# Gateway
+curl http://localhost:8100/health
 
-- `cd apps/mission-control`
-- `npm install`
-- `npm run dev`
-- `npm run build`
-- `npm run lint`
-- `npm run test`
-- `npm run test:e2e`
+# Orchestrator
+curl http://localhost:8101/health
 
-## Security, Auth, and Operational Controls
+# Semantic Bus MCP
+curl http://localhost:8102/health
 
-- Mutating mission state requires `x-api-key` with mutate/admin role.
-- Gateway auth mode supports:
-  - `AUTH_MODE=api_key` (default),
-  - `AUTH_MODE=hybrid` (JWT/OIDC bearer or API key),
-  - `AUTH_MODE=oidc` (JWT/OIDC bearer required for operator mutations).
-- Dedicated workers (`--profile dedicated-agents`) enforce `AGENT_BINDING` and only process matching mission agent IDs.
-- Mission intake can declare target agent through metadata keys (for example `metadata.agent_id` or `metadata.selected_agent_id`) for dedicated-worker routing.
-- Internal orchestrator writes use internal service keys.
-- Mission intake supports `Idempotency-Key` for replay-safe creation semantics.
-- Gateway applies rate limiting and strict security headers.
-- Runtime includes readiness and metrics endpoints.
-- Optional data-plane telemetry now emits Neo4j/object-storage readiness, operation, and mirror-write SLO metrics for Prometheus/Grafana.
-- Docker images use non-root runtime users.
-- Production audit automation exists in `scripts/production_review_audit.py`.
+# Mission Control UI
+open http://localhost:3100
+```
 
-## Provider and Model Governance
+### 4. Start Monitoring Stack (optional)
 
-Live provider support:
+```bash
+make monitor-up
+# Grafana: http://localhost:3200
+# Prometheus: http://localhost:9090
+```
 
-- OpenAI
-- Anthropic
-- Gemini
-- Offline deterministic fallback mode
+### Default Host Ports
 
-Provider/model strategy documentation:
+| Service | Port |
+|---------|------|
+| API Gateway | `8100` |
+| Orchestrator | `8101` |
+| Semantic Bus MCP | `8102` |
+| Dashboard | `8180` |
+| Mission Control | `3100` |
+| Redis | `6380` |
+| PostgreSQL | `5433` |
+| Qdrant | `6334` |
+| Grafana | `3200` |
+| Prometheus | `9090` |
 
-- `docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
+---
 
-Persona standards and external evidence mapping:
+## Development
 
-- `docs/AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
+### Backend (Python / FastAPI)
 
-## Documentation Map
+```bash
+# Run full test suite with coverage
+make test
 
-Core docs:
+# Lint
+make lint
 
-- `docs/DOCUMENTATION_INDEX.md`
-- `docs/ARCHITECTURE.md`
-- `docs/TESTING_QUALITY_GATES.md`
-- `docs/ROADMAP.md`
-- `docs/OPERATIONS_RUNBOOK.md`
-- `docs/PRODUCTION_PHASE_PLAN.md`
-- `docs/PRODUCTION_REVIEW_AUDIT.md`
-- `docs/RELEASE_TRUST_PROMOTION_GATE.md`
-- `docs/GAP_ANALYSIS.md`
-- `docs/LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md`
-- `docs/PRODUCTION_STANDARDS_REFERENCES.md`
+# Run production audit (13/13 checks)
+make audit
 
-Agent-specific docs:
+# Debug sweep
+make sweep
 
-- `docs/AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`
-- `docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
-- `docs/AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
+# Run performance smoke
+make perf
+
+# Reliability qualification (1-hour sustained load)
+make reliability
+```
+
+### Frontend (Next.js / Mission Control)
+
+```bash
+cd apps/mission-control
+
+npm install
+npm run dev        # Dev server (http://localhost:3000)
+npm run build      # Production build
+npm run lint       # ESLint
+npm run test       # Vitest unit tests
+npm run test:e2e   # Playwright critical-path E2E
+```
+
+### Full Make Reference
+
+| Command | Description |
+|---------|-------------|
+| `make up` | Build and start core stack |
+| `make down` | Stop stack and remove volumes |
+| `make validate` | Validate schema contracts |
+| `make lint` | Ruff on backend, tests, and scripts |
+| `make test` | Pytest with coverage gates (≥80% global, 100% core) |
+| `make test-ui` | Mission Control lint + unit tests |
+| `make test-ui-e2e` | Playwright E2E regression suite |
+| `make test-fast` | Pytest without coverage |
+| `make test-live-extended` | Live Neo4j/MinIO disruption recovery tests |
+| `make audit` | Production checklist audit |
+| `make promotion-gate` | Release promotion policy evaluation |
+| `make openapi` | Export OpenAPI specs |
+| `make predeploy` | Pre-deployment checks |
+| `make backup` | PostgreSQL backup |
+| `make dr` | Disaster-recovery drill |
+| `make perf` | Performance smoke test |
+| `make reliability` | Sustained-load reliability qualification |
+| `make sweep` | Debug/code sweep |
+| `make monitor-up/down` | Start/stop monitoring stack |
+
+---
+
+## Testing & Quality Gates
+
+| Gate | Target | Enforcement |
+|------|--------|-------------|
+| Global Python coverage | ≥ 80% | CI + `make test` |
+| Core module coverage | 100% | `scripts/check_coverage_thresholds.py` |
+| Production audit | 13/13 checks | `scripts/production_review_audit.py` |
+| Frontend lint | 0 errors | CI |
+| Frontend unit tests | all pass | CI (21 tests) |
+| Frontend E2E | all pass | CI (6 Playwright journeys) |
+| Bandit SAST | 0 high/crit | `security.yml` |
+| Trivy container scan | 0 critical | `security.yml` |
+| gitleaks secret scan | 0 findings | `security.yml` |
+| pip-audit SCA | 0 known vulns | `security.yml` |
+| Release attestation | signed provenance | CI release gate |
+
+**Current status:** 320 backend tests · 21 frontend unit tests · 6 E2E tests · 86% coverage
+
+---
+
+## Configuration
+
+### Key Environment Variables
+
+```bash
+# Database
+POSTGRES_USER=hgr
+POSTGRES_PASSWORD=<secret>
+POSTGRES_DB=holygrail
+
+# Redis
+REDIS_URL=redis://:password@redis:6379/0
+
+# API Authentication
+GATEWAY_API_KEY=<mutate-key>
+INTERNAL_SERVICE_API_KEY=<internal-key>
+AUTH_MODE=api_key                  # api_key | hybrid | oidc
+
+# OIDC (when AUTH_MODE=hybrid|oidc)
+OIDC_ISSUER_URL=https://your-idp/.well-known/openid-configuration
+OIDC_AUDIENCE=holygrail-api
+
+# LangGraph
+LANGGRAPH_ENABLED=false            # set true to enable
+LANGGRAPH_CHECKPOINTER=memory      # memory | postgres
+LANGGRAPH_FAIL_OPEN=true
+
+# Feature Flags
+QDRANT_ENABLED=true
+NEO4J_ENABLED=false
+OBJECT_STORAGE_ENABLED=false
+
+# LLM Providers (per-agent keys)
+ANTHROPIC_API_KEY_ARCH=sk-ant-...
+OPENAI_API_KEY_CEO=sk-...
+GOOGLE_API_KEY_MATLAB=...
+
+# Pod Worker
+POD_NAME=podA                      # podA | podB | podC | podD
+SUPPORTED_LANGUAGES=python,javascript,ruby,php
+AGENT_BINDING=                     # e.g. AGENT-14-PY for dedicated mode
+```
+
+Full reference: [`.env.example`](.env.example)
+
+---
+
+## Deployment Profiles
+
+### Default (Condensed Workers)
+
+```bash
+docker compose -f deploy/docker-compose.yaml up -d --build
+```
+
+All pod work runs through shared pod-worker instances. Suitable for development and standard production.
+
+### Dedicated Agents
+
+```bash
+docker compose -f deploy/docker-compose.yaml --profile dedicated-agents up -d --build
+```
+
+Spawns dedicated manager-worker containers per pod with `AGENT_BINDING` enforcement. Each worker only processes missions assigned to its bound agent ID.
+
+**ADR:** [`docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`](docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md)
+
+### Monitoring Stack
+
+```bash
+docker compose -f deploy/docker-compose.monitoring.yaml up -d
+```
+
+Starts Prometheus, Grafana, Loki, Promtail, and Alertmanager.
+
+### Optional Data Plane
+
+```bash
+docker compose -f deploy/docker-compose.yaml --profile extended-data-plane up -d
+```
+
+Adds MinIO object storage and configures Neo4j connection for feature-flagged data-plane adapters.
+
+---
+
+## Repository Layout
+
+```
+theFactory/
+├── apps/
+│   └── mission-control/          # Next.js 15 operator console
+├── services/
+│   ├── api-gateway/              # Public API, SSE transport, auth
+│   ├── orchestrator/             # Mission state machine, agent registry
+│   ├── pod-worker/               # Language extraction + LogicNode workers
+│   ├── audit-worker/             # Verification stream processor
+│   ├── semantic-bus-mcp/         # 6-protocol semantic bus
+│   └── dashboard/                # Lightweight ops status UI
+├── schemas/                      # Event envelope, LogicNode, RIR contracts
+├── protocol/                     # Semantic bus topic catalog
+├── ledger/                       # Traceability ledger schema
+├── assets/design-tokens/         # CSS design token source of truth
+├── deploy/                       # Docker Compose stacks + monitoring config
+├── docs/                         # Architecture, ADRs, runbooks, evidence
+│   ├── ADR_*.md                  # Architectural Decision Records
+│   ├── evidence/                 # Phase validation evidence (34 phases)
+│   └── runbooks/                 # Incident and operational runbooks
+├── scripts/                      # Audit, validation, DR, perf, sweep tools
+└── tests/                        # Backend, security, and script tests
+```
+
+---
+
+## Documentation Index
+
+| Document | Description |
+|----------|-------------|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture and topology |
+| [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md) | Full documentation map |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Product roadmap |
+| [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) | Operational procedures |
+| [`docs/DEPLOYMENT_DR_PLAYBOOK.md`](docs/DEPLOYMENT_DR_PLAYBOOK.md) | Deployment and disaster recovery |
+| [`docs/OBSERVABILITY_STACK.md`](docs/OBSERVABILITY_STACK.md) | Monitoring and alerting guide |
+| [`docs/TESTING_QUALITY_GATES.md`](docs/TESTING_QUALITY_GATES.md) | Test strategy and coverage gates |
+| [`docs/RELEASE_TRUST_PROMOTION_GATE.md`](docs/RELEASE_TRUST_PROMOTION_GATE.md) | Release attestation policy |
+| [`docs/GAP_ANALYSIS.md`](docs/GAP_ANALYSIS.md) | Gap analysis and disposition |
+| [`docs/DEVELOPER_ONBOARDING_GUIDE.md`](docs/DEVELOPER_ONBOARDING_GUIDE.md) | New developer onboarding |
+| [`docs/API_INTEGRATION_GUIDE.md`](docs/API_INTEGRATION_GUIDE.md) | API integration reference |
+| [`docs/DATA_CLASSIFICATION_POLICY.md`](docs/DATA_CLASSIFICATION_POLICY.md) | Data classification policy |
+| [`docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`](docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md) | 7-phase smelt-cycle runtime mapping |
+| [`docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`](docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md) | Agent topology ADR |
+| [`docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md) | Security model ADR |
+| [`AGENTS.md`](AGENTS.md) | AI coding agent developer guidelines |
+| [`CHANGELOG.md`](CHANGELOG.md) | Full change history |
+
+---
 
 ## Current Status
 
-- Core phased implementation is complete through production-foundation baseline.
-- Multi-agent telemetry, integrations, and persona standards evidence are active in operations APIs and Mission Control.
-- Core multi-agent communication/runtime files now enforce 100% coverage via CI and `make test`.
-- Mission Control lint, unit, and critical e2e regression coverage are now enforced in CI.
-- Remaining maturity work is focused on optional data-plane observability/SLO controls and advanced Mission Control operator UX hardening.
+**34 implementation phases complete · ~80% of production checklist**
 
-## Notes
+| Domain | Status |
+|--------|--------|
+| Infrastructure & DevOps | ✅ Complete |
+| Security & Auth | ✅ Complete |
+| Observability | ✅ Complete |
+| Testing & CI | ✅ Complete |
+| Data Systems | ✅ Complete |
+| Mission Control UI | ✅ Complete |
+| Language Extraction Engine | ✅ Complete |
+| LangGraph State Machine | ✅ Complete (state transitions; LLM calls pending) |
+| CEO→Pod Delegation Chain | 🔄 In progress |
+| LLM API Call Wiring | 🔄 Planned |
 
-- Local Windows mode is supported; the app intentionally does not require a full external user-login system for local operator use.
-- Secrets should remain in `.env` and local vault endpoints; do not commit credentials or provider keys.
+---
+
+> **Local-first design:** theFactory is engineered to run fully offline with no external platform dependencies. All secrets stay in `.env` and local vault endpoints. Do not commit credentials or provider keys.
