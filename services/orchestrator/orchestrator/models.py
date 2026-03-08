@@ -9,7 +9,15 @@ from pydantic import BaseModel, Field
 class MissionState(str, Enum):
     intake = "INTAKE"
     queued = "QUEUED"
+    # v2 intermediate states (feature-flagged via MISSION_FLOW_V2_ENABLED)
+    pm_intake = "PM_INTAKE"
+    ceo_delegated = "CEO_DELEGATED"
+    pod_assigned = "POD_ASSIGNED"
+    specialist_assigned = "SPECIALIST_ASSIGNED"
+    # v1.1 + v2 shared states
     running = "RUNNING"
+    gating = "GATING"
+    fusion = "FUSION"
     verified = "VERIFIED"
     complete = "COMPLETE"
     failed = "FAILED"

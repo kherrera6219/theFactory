@@ -59,6 +59,7 @@ class Settings:
     langgraph_checkpointer_postgres_url: str = ""
     langgraph_checkpointer_setup: bool = False
     langgraph_checkpoint_namespace: str = ""
+    mission_flow_v2_enabled: bool = False
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -182,4 +183,7 @@ def load_settings() -> Settings:
             os.getenv("LANGGRAPH_CHECKPOINTER_SETUP", "false"), False
         ),
         langgraph_checkpoint_namespace=os.getenv("LANGGRAPH_CHECKPOINT_NAMESPACE", "").strip(),
+        mission_flow_v2_enabled=_as_bool(
+            os.getenv("MISSION_FLOW_V2_ENABLED", "false"), False
+        ),
     )
