@@ -12,6 +12,9 @@ Update (2026-03-08):
 - v2 adoption design package published at `docs/ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md`.
 - Gateway operator-route OIDC policy now extends beyond mutation endpoint (`/v1/operations/*`, `/v1/stream/state`).
 - Dedicated-agent canary rollout qualification tooling + rollback runbook added (`scripts/dedicated_agent_canary_rollout.py`, `docs/runbooks/dedicated_agent_canary_runbook.md`).
+- Operator-route auth matrix automation added for `api_key|hybrid|oidc` (`scripts/operator_route_auth_matrix_qualification.py`).
+- Multi-language dedicated canary trend automation added (`scripts/dedicated_agent_canary_trend.py`).
+- v1.1 baseline + v2 prototype matrix automation added (`scripts/langgraph_v2_prototype_matrix.py`).
 
 ## P0 - Mission Flow v2 Reconciliation (New)
 - [x] Decide runtime target: adopt `v2` 11-phase/state-machine behavior or formally classify `v2` as aspirational.

@@ -1,0 +1,121 @@
+{
+  "run_timestamp_utc": "2026-03-08T04:30:19.587697+00:00",
+  "gateway_base_url": "http://localhost:8100",
+  "orchestrator_base_url": "http://localhost:8101",
+  "languages": [
+    "python",
+    "rust",
+    "kotlin",
+    "julia"
+  ],
+  "summary": {
+    "total_runs": 4,
+    "passed_runs": 4,
+    "failed_runs": 0,
+    "pass_rate_percent": 100.0,
+    "failed_languages": [],
+    "all_passed": true
+  },
+  "runs": [
+    {
+      "language": "python",
+      "command": [
+        "C:\\Users\\kevin\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe",
+        "scripts/dedicated_agent_canary_rollout.py",
+        "--gateway-base-url",
+        "http://localhost:8100",
+        "--orchestrator-base-url",
+        "http://localhost:8101",
+        "--language",
+        "python",
+        "--timeout-seconds",
+        "90.0",
+        "--poll-seconds",
+        "1.0",
+        "--output-file",
+        "docs\\evidence\\canary-runs\\dedicated_agent_canary_python_20260308T043002Z.json"
+      ],
+      "exit_code": 0,
+      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_python_20260308T043002Z.json",
+      "passed": true,
+      "failure_reasons": [],
+      "stderr_tail": null,
+      "error": null
+    },
+    {
+      "language": "rust",
+      "command": [
+        "C:\\Users\\kevin\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe",
+        "scripts/dedicated_agent_canary_rollout.py",
+        "--gateway-base-url",
+        "http://localhost:8100",
+        "--orchestrator-base-url",
+        "http://localhost:8101",
+        "--language",
+        "rust",
+        "--timeout-seconds",
+        "90.0",
+        "--poll-seconds",
+        "1.0",
+        "--output-file",
+        "docs\\evidence\\canary-runs\\dedicated_agent_canary_rust_20260308T043002Z.json"
+      ],
+      "exit_code": 0,
+      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_rust_20260308T043002Z.json",
+      "passed": true,
+      "failure_reasons": [],
+      "stderr_tail": null,
+      "error": null
+    },
+    {
+      "language": "kotlin",
+      "command": [
+        "C:\\Users\\kevin\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe",
+        "scripts/dedicated_agent_canary_rollout.py",
+        "--gateway-base-url",
+        "http://localhost:8100",
+        "--orchestrator-base-url",
+        "http://localhost:8101",
+        "--language",
+        "kotlin",
+        "--timeout-seconds",
+        "90.0",
+        "--poll-seconds",
+        "1.0",
+        "--output-file",
+        "docs\\evidence\\canary-runs\\dedicated_agent_canary_kotlin_20260308T043002Z.json"
+      ],
+      "exit_code": 0,
+      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_kotlin_20260308T043002Z.json",
+      "passed": true,
+      "failure_reasons": [],
+      "stderr_tail": null,
+      "error": null
+    },
+    {
+      "language": "julia",
+      "command": [
+        "C:\\Users\\kevin\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe",
+        "scripts/dedicated_agent_canary_rollout.py",
+        "--gateway-base-url",
+        "http://localhost:8100",
+        "--orchestrator-base-url",
+        "http://localhost:8101",
+        "--language",
+        "julia",
+        "--timeout-seconds",
+        "90.0",
+        "--poll-seconds",
+        "1.0",
+        "--output-file",
+        "docs\\evidence\\canary-runs\\dedicated_agent_canary_julia_20260308T043002Z.json"
+      ],
+      "exit_code": 0,
+      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_julia_20260308T043002Z.json",
+      "passed": true,
+      "failure_reasons": [],
+      "stderr_tail": null,
+      "error": null
+    }
+  ]
+}

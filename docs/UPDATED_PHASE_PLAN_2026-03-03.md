@@ -18,6 +18,10 @@ Define the post-Phase-18 execution plan from current production baseline to next
   - `scripts/mission_artifact_qualification.py`
   - `scripts/mission_artifact_qualification.ps1`
   - unit coverage in `tests/scripts/test_mission_artifact_qualification.py`
+- Roadmap follow-up qualification automation added:
+  - operator-route auth matrix runner (`scripts/operator_route_auth_matrix_qualification.py`)
+  - multi-language dedicated canary trend runner (`scripts/dedicated_agent_canary_trend.py`)
+  - v1.1 baseline + v2 prototype matrix runner (`scripts/langgraph_v2_prototype_matrix.py`)
 
 ## Next Phases (From Current Baseline)
 
@@ -65,6 +69,7 @@ Status:
 - Execution update (2026-03-08): Phase 35 (artifact runtime integrity qualification) is complete and validated.
 - Execution update (2026-03-08): Phase 36 (v2 mission-flow adoption design package) is complete and validated.
 - Execution update (2026-03-08): Phase 37 (strategic deferred-scope ADR, operator OIDC policy extension, dedicated canary guardrails) is complete and validated.
+- Execution update (2026-03-08): Phase 38 (qualification matrix automation and prototype continuation harnesses) is complete and validated.
 
 ## Remaining Work (Prioritized)
 

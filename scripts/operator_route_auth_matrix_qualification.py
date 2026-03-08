@@ -1,0 +1,563 @@
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import subprocess
+import time
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import httpx
+
+try:
+    import jwt
+except ModuleNotFoundError:
+    jwt = None
+
+MATRIX_AUTH_MODES = ("api_key", "hybrid", "oidc")
+SCENARIOS = ("no_auth", "api_key", "bearer_mutate", "bearer_observe")
+OPERATOR_ENDPOINTS = ("/v1/operations/summary", "/v1/stream/state")
+
+
+@dataclass
+class CommandResult:
+    command: list[str]
+    exit_code: int | None
+    executed: bool
+    stderr_tail: str | None
+    error: str | None
+
+
+@dataclass
+class ReadinessProbe:
+    passed: bool
+    polls: int
+    duration_seconds: float
+    last_status_code: int | None
+    last_error: str | None
+
+
+def _compose_command(compose_file: str, *tail: str) -> list[str]:
+    return ["docker", "compose", "-f", compose_file, *tail]
+
+
+def _gateway_up_command(*, compose_file: str, build_gateway: bool) -> list[str]:
+    command = _compose_command(
+        compose_file,
+        "up",
+        "-d",
+        "--force-recreate",
+        "--no-deps",
+    )
+    if build_gateway:
+        command.append("--build")
+    command.append("api-gateway")
+    return command
+
+
+def _run_command(
+    command: list[str],
+    *,
+    env_overrides: dict[str, str] | None = None,
+) -> CommandResult:
+    env = os.environ.copy()
+    if env_overrides:
+        env.update(env_overrides)
+    try:
+        completed = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+        )
+    except Exception as exc:
+        return CommandResult(
+            command=command,
+            exit_code=None,
+            executed=False,
+            stderr_tail=None,
+            error=repr(exc),
+        )
+    return CommandResult(
+        command=command,
+        exit_code=completed.returncode,
+        executed=True,
+        stderr_tail=completed.stderr[-500:] if completed.stderr else None,
+        error=None,
+    )
+
+
+def _expected_status(auth_mode: str, scenario: str) -> int:
+    mode = auth_mode.strip().lower()
+    if mode == "api_key":
+        return 200
+    if mode == "hybrid":
+        return {
+            "no_auth": 401,
+            "api_key": 200,
+            "bearer_mutate": 403,
+            "bearer_observe": 200,
+        }[scenario]
+    if mode == "oidc":
+        return {
+            "no_auth": 401,
+            "api_key": 401,
+            "bearer_mutate": 403,
+            "bearer_observe": 200,
+        }[scenario]
+    raise ValueError(f"unsupported auth mode: {auth_mode}")
+
+
+def _bool_arg(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise argparse.ArgumentTypeError("expected true/false")
+
+
+def _encode_bearer_token(
+    *,
+    shared_secret: str,
+    role: str,
+    issuer: str,
+    audience: str,
+) -> str:
+    if jwt is None:
+        raise RuntimeError("PyJWT is required for bearer-token matrix checks")
+    now = int(time.time())
+    claims: dict[str, Any] = {
+        "sub": "operator-matrix-test",
+        "iat": now,
+        "exp": now + 600,
+        "roles": [role],
+        "scope": role,
+    }
+    if issuer:
+        claims["iss"] = issuer
+    if audience:
+        claims["aud"] = audience
+    token = jwt.encode(claims, shared_secret, algorithm="HS256")
+    return token.decode("utf-8") if isinstance(token, bytes) else str(token)
+
+
+def _headers_for_scenario(
+    *,
+    scenario: str,
+    operator_api_key: str,
+    shared_secret: str,
+    issuer: str,
+    audience: str,
+    required_role: str,
+    operator_role: str,
+) -> dict[str, str]:
+    if scenario == "no_auth":
+        return {}
+    if scenario == "api_key":
+        return {"x-api-key": operator_api_key}
+    if scenario == "bearer_mutate":
+        token = _encode_bearer_token(
+            shared_secret=shared_secret,
+            role=required_role,
+            issuer=issuer,
+            audience=audience,
+        )
+        return {"Authorization": f"Bearer {token}"}
+    if scenario == "bearer_observe":
+        token = _encode_bearer_token(
+            shared_secret=shared_secret,
+            role=operator_role,
+            issuer=issuer,
+            audience=audience,
+        )
+        return {"Authorization": f"Bearer {token}"}
+    raise ValueError(f"unsupported scenario: {scenario}")
+
+
+async def _wait_ready(
+    client: httpx.AsyncClient,
+    *,
+    ready_url: str,
+    timeout_seconds: float,
+    poll_seconds: float,
+) -> ReadinessProbe:
+    deadline = time.monotonic() + timeout_seconds
+    polls = 0
+    started = time.monotonic()
+    last_status: int | None = None
+    last_error: str | None = None
+    while time.monotonic() < deadline:
+        polls += 1
+        try:
+            response = await client.get(ready_url)
+            last_status = response.status_code
+            if response.status_code < 400:
+                return ReadinessProbe(
+                    passed=True,
+                    polls=polls,
+                    duration_seconds=time.monotonic() - started,
+                    last_status_code=last_status,
+                    last_error=None,
+                )
+            last_error = response.text[:200]
+        except Exception as exc:
+            last_error = repr(exc)
+        await asyncio.sleep(poll_seconds)
+    return ReadinessProbe(
+        passed=False,
+        polls=polls,
+        duration_seconds=time.monotonic() - started,
+        last_status_code=last_status,
+        last_error=last_error,
+    )
+
+
+async def _probe_operator_route(
+    client: httpx.AsyncClient,
+    *,
+    base_url: str,
+    endpoint: str,
+    headers: dict[str, str],
+) -> tuple[int | None, str | None]:
+    url = f"{base_url.rstrip('/')}{endpoint}"
+    try:
+        if endpoint.startswith("/v1/stream/state"):
+            async with client.stream("GET", url, headers=headers) as response:
+                return response.status_code, None
+        response = await client.get(url, headers=headers)
+        return response.status_code, None
+    except Exception as exc:
+        return None, repr(exc)
+
+
+async def _health_mode(client: httpx.AsyncClient, *, base_url: str) -> str | None:
+    try:
+        response = await client.get(f"{base_url.rstrip('/')}/health")
+    except Exception:
+        return None
+    if response.status_code >= 400:
+        return None
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    mode = payload.get("auth_mode")
+    return str(mode).strip().lower() if isinstance(mode, str) else None
+
+
+def _gateway_env_for_mode(args: argparse.Namespace, auth_mode: str) -> dict[str, str]:
+    return {
+        "AUTH_MODE": auth_mode,
+        "OIDC_SHARED_SECRET": args.oidc_shared_secret,
+        "OIDC_ISSUER_URL": args.oidc_issuer_url,
+        "OIDC_AUDIENCE": args.oidc_audience,
+        "OIDC_REQUIRED_ROLE": args.oidc_required_role,
+        "OIDC_OPERATOR_ROLE": args.oidc_operator_role,
+        "OIDC_ENFORCE_OPERATOR_ROUTES": "true" if args.enforce_operator_routes else "false",
+        "OIDC_ALLOWED_ALGORITHMS": "HS256",
+    }
+
+
+def _write_report(path: Path, report: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+
+async def run(args: argparse.Namespace) -> int:
+    base_url = args.base_url.rstrip("/")
+    ready_url = f"{base_url}/readyz"
+    matrix_rows: list[dict[str, Any]] = []
+    compose_steps: list[dict[str, Any]] = []
+
+    timeout = httpx.Timeout(args.http_timeout_seconds, connect=args.http_timeout_seconds)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        initial_mode = await _health_mode(client, base_url=base_url)
+
+        if args.compose_reconfigure and not args.skip_bootstrap:
+            bootstrap_command = _compose_command(
+                args.compose_file,
+                "up",
+                "-d",
+                "redis",
+                "postgres",
+                "qdrant",
+                "orchestrator",
+            )
+            if args.build_gateway:
+                bootstrap_command.append("--build")
+            bootstrap_command.append("api-gateway")
+            bootstrap = _run_command(bootstrap_command)
+            compose_steps.append({"step": "bootstrap", **asdict(bootstrap)})
+            if bootstrap.exit_code != 0:
+                report = {
+                    "run_timestamp_utc": datetime.now(UTC).isoformat(),
+                    "pass": False,
+                    "failure_reasons": [
+                        f"bootstrap command failed with exit code {bootstrap.exit_code}"
+                    ],
+                    "compose_steps": compose_steps,
+                    "matrix_rows": [],
+                }
+                _write_report(Path(args.output_file), report)
+                return 1
+
+        failure_reasons: list[str] = []
+        for auth_mode in args.auth_modes:
+            row_checks: list[dict[str, Any]] = []
+            if args.compose_reconfigure:
+                configure = _run_command(
+                    _gateway_up_command(
+                        compose_file=args.compose_file,
+                        build_gateway=args.build_gateway,
+                    ),
+                    env_overrides=_gateway_env_for_mode(args, auth_mode),
+                )
+                compose_steps.append(
+                    {
+                        "step": f"configure-{auth_mode}",
+                        **asdict(configure),
+                    }
+                )
+                if configure.exit_code != 0:
+                    failure_reasons.append(
+                        f"gateway reconfigure failed for mode={auth_mode} "
+                        f"(exit={configure.exit_code})"
+                    )
+                    matrix_rows.append(
+                        {
+                            "auth_mode": auth_mode,
+                            "ready": asdict(
+                                ReadinessProbe(
+                                    passed=False,
+                                    polls=0,
+                                    duration_seconds=0.0,
+                                    last_status_code=None,
+                                    last_error="compose reconfigure failed",
+                                )
+                            ),
+                            "health_auth_mode": None,
+                            "checks": row_checks,
+                        }
+                    )
+                    continue
+
+            readiness = await _wait_ready(
+                client,
+                ready_url=ready_url,
+                timeout_seconds=args.ready_timeout_seconds,
+                poll_seconds=args.ready_poll_seconds,
+            )
+            observed_mode = await _health_mode(client, base_url=base_url)
+            if not readiness.passed:
+                failure_reasons.append(f"readyz failed for mode={auth_mode}")
+
+            if observed_mode is not None and observed_mode != auth_mode:
+                failure_reasons.append(
+                    f"health auth_mode mismatch for mode={auth_mode} observed={observed_mode}"
+                )
+
+            for endpoint in OPERATOR_ENDPOINTS:
+                for scenario in SCENARIOS:
+                    expected = _expected_status(auth_mode, scenario)
+                    try:
+                        headers = _headers_for_scenario(
+                            scenario=scenario,
+                            operator_api_key=args.operator_api_key,
+                            shared_secret=args.oidc_shared_secret,
+                            issuer=args.oidc_issuer_url,
+                            audience=args.oidc_audience,
+                            required_role=args.oidc_required_role,
+                            operator_role=args.oidc_operator_role,
+                        )
+                    except Exception as exc:
+                        status_code = None
+                        error = repr(exc)
+                    else:
+                        status_code, error = await _probe_operator_route(
+                            client,
+                            base_url=base_url,
+                            endpoint=endpoint,
+                            headers=headers,
+                        )
+                    passed = status_code == expected and error is None
+                    check_row = {
+                        "endpoint": endpoint,
+                        "scenario": scenario,
+                        "expected_status": expected,
+                        "status_code": status_code,
+                        "error": error,
+                        "passed": passed,
+                    }
+                    row_checks.append(check_row)
+                    if not passed:
+                        failure_reasons.append(
+                            f"matrix mismatch mode={auth_mode} endpoint={endpoint} "
+                            f"scenario={scenario} expected={expected} observed={status_code}"
+                        )
+
+            matrix_rows.append(
+                {
+                    "auth_mode": auth_mode,
+                    "ready": asdict(readiness),
+                    "health_auth_mode": observed_mode,
+                    "checks": row_checks,
+                }
+            )
+
+        if (
+            args.compose_reconfigure
+            and args.restore_initial_mode
+            and initial_mode in MATRIX_AUTH_MODES
+        ):
+            restore = _run_command(
+                _gateway_up_command(
+                    compose_file=args.compose_file,
+                    build_gateway=args.build_gateway,
+                ),
+                env_overrides=_gateway_env_for_mode(args, initial_mode),
+            )
+            compose_steps.append({"step": f"restore-{initial_mode}", **asdict(restore)})
+
+    report = {
+        "run_timestamp_utc": datetime.now(UTC).isoformat(),
+        "base_url": base_url,
+        "auth_modes": list(args.auth_modes),
+        "initial_health_auth_mode": initial_mode,
+        "compose_reconfigure": args.compose_reconfigure,
+        "pass": not failure_reasons,
+        "failure_reasons": failure_reasons,
+        "matrix_rows": matrix_rows,
+        "compose_steps": compose_steps,
+    }
+    _write_report(Path(args.output_file), report)
+
+    print("== Operator Route Auth Matrix Qualification ==")
+    print(f"pass={report['pass']}")
+    print(f"modes={','.join(args.auth_modes)}")
+    print(f"output={args.output_file}")
+    if failure_reasons:
+        for reason in failure_reasons:
+            print(f"FAIL: {reason}")
+    else:
+        print("PASS: operator-route auth matrix checks satisfied")
+    return 0 if report["pass"] else 1
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Qualify operator-route auth behavior across api_key, hybrid, and oidc "
+            "gateway deployments."
+        )
+    )
+    parser.add_argument("--base-url", default="http://localhost:8100", help="API gateway URL")
+    parser.add_argument(
+        "--compose-file",
+        default="deploy/docker-compose.yaml",
+        help="Compose file used to reconfigure api-gateway auth mode",
+    )
+    parser.add_argument(
+        "--auth-modes",
+        nargs="+",
+        default=list(MATRIX_AUTH_MODES),
+        choices=list(MATRIX_AUTH_MODES),
+        help="Auth modes to qualify",
+    )
+    parser.add_argument(
+        "--operator-api-key",
+        default="operator-key",
+        help="Operator API key used for api_key and hybrid scenarios",
+    )
+    parser.add_argument(
+        "--oidc-shared-secret",
+        default="dev-oidc-shared-secret",
+        help="Shared secret used to sign HS256 matrix test tokens",
+    )
+    parser.add_argument(
+        "--oidc-required-role",
+        default="mutate",
+        help="Role used for mutation-role bearer scenario",
+    )
+    parser.add_argument(
+        "--oidc-operator-role",
+        default="observe",
+        help="Role used for operator-route bearer scenario",
+    )
+    parser.add_argument(
+        "--oidc-issuer-url",
+        default="",
+        help="Optional OIDC issuer claim",
+    )
+    parser.add_argument(
+        "--oidc-audience",
+        default="",
+        help="Optional OIDC audience claim",
+    )
+    parser.add_argument(
+        "--enforce-operator-routes",
+        type=_bool_arg,
+        default=True,
+        help="Enable operator-route OIDC enforcement during qualification",
+    )
+    parser.add_argument(
+        "--compose-reconfigure",
+        type=_bool_arg,
+        default=True,
+        help="Reconfigure api-gateway per mode via docker compose",
+    )
+    parser.add_argument(
+        "--skip-bootstrap",
+        type=_bool_arg,
+        default=False,
+        help="Skip initial docker compose bootstrap command",
+    )
+    parser.add_argument(
+        "--restore-initial-mode",
+        type=_bool_arg,
+        default=True,
+        help="Restore gateway auth mode observed before matrix execution",
+    )
+    parser.add_argument(
+        "--build-gateway",
+        type=_bool_arg,
+        default=True,
+        help="Build api-gateway image before mode qualification runs",
+    )
+    parser.add_argument(
+        "--ready-timeout-seconds",
+        type=float,
+        default=90.0,
+        help="Gateway readiness timeout",
+    )
+    parser.add_argument(
+        "--ready-poll-seconds",
+        type=float,
+        default=2.0,
+        help="Gateway readiness poll interval",
+    )
+    parser.add_argument(
+        "--http-timeout-seconds",
+        type=float,
+        default=8.0,
+        help="HTTP request timeout",
+    )
+    parser.add_argument(
+        "--output-file",
+        default="docs/evidence/operator_route_oidc_matrix_latest.json",
+        help="Output JSON report path",
+    )
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(run(parse_args())))

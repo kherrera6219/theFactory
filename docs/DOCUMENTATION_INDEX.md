@@ -30,6 +30,9 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `DEPLOYMENT_DR_PLAYBOOK.md`: deployment + disaster recovery operational playbook.
 - `LONG_DURATION_RELIABILITY_QUALIFICATION.md`: sustained-load qualification method, thresholds, and baseline evidence.
 - `../scripts/mission_artifact_qualification.py`: live mission artifact integrity qualification (chain trace + pod assignment + logicnodes).
+- `../scripts/operator_route_auth_matrix_qualification.py`: live operator-route auth matrix qualification across `api_key|hybrid|oidc`.
+- `../scripts/dedicated_agent_canary_trend.py`: repeated multi-language dedicated-agent canary trend qualification.
+- `../scripts/langgraph_v2_prototype_matrix.py`: v1.1 baseline + feature-flagged v2 prototype matrix runner.
 - `TESTING_QUALITY_GATES.md`: enforced lint/test/coverage policy including core 100% module gates.
 - `PRODUCTION_REVIEW_AUDIT.md`: checklist-aligned production audit updates and outcomes.
 - `RELEASE_TRUST_PROMOTION_GATE.md`: CI attestation, promotion policy, and release-trust evidence flow.
@@ -49,11 +52,16 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `evidence/phase35_mission_artifact_runtime_integrity_validation_2026-03-08.md`: mission artifact integrity qualification tooling, tests, and validation sweep outcomes.
 - `evidence/phase36_frontend_budget_a11y_enforcement_2026-03-08.md`: CI Lighthouse budget enforcement, full axe color-contrast validation, and live mission chain/artifact integration proof.
 - `evidence/phase37_strategy_auth_canary_2026-03-08.md`: strategic ADR closure, operator OIDC route policy extension, and dedicated canary guardrail validation.
+- `evidence/phase38_qualification_matrix_automation_2026-03-08.md`: operator auth matrix, canary trend automation, and v2 prototype continuation validation.
+- `evidence/operator_route_oidc_matrix_2026-03-08.json`: live operator-route auth matrix qualification report (`api_key|hybrid|oidc`).
+- `evidence/dedicated_agent_canary_trend_2026-03-08.json`: live multi-language dedicated canary trend qualification report.
+- `evidence/langgraph_v2_prototype_matrix_2026-03-08.json`: v1.1 baseline plus v2 prototype matrix live qualification report.
 - `evidence/mission_artifact_qualification_shared_2026-03-08.json`: shared-topology live artifact qualification result.
 - `evidence/mission_artifact_qualification_dedicated_2026-03-08.json`: dedicated-topology live artifact qualification result.
 - `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
 - `runbooks/optional_data_plane_incident_runbook.md`: incident response playbook for Neo4j/object-storage optional adapter degradation.
 - `runbooks/dedicated_agent_canary_runbook.md`: canary rollout qualification and rollback guardrails for dedicated-agent profile.
+- `runbooks/qualification_matrix_runbook.md`: recurring roadmap qualification matrix execution for auth/canary/prototype tracks.
 - `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.
 
 ## Standards and External References
