@@ -127,6 +127,51 @@ def test_resolve_mutation_headers_oidc_mode_requires_role(monkeypatch) -> None:
             raise AssertionError("expected HTTPException for missing oidc role")
 
 
+def test_require_operator_access_api_key_mode_noop(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
+    api_gateway_main._require_operator_access(x_api_key=None, authorization=None)
+
+
+def test_require_operator_access_oidc_mode_requires_bearer(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
+    with TestClient(api_app):
+        try:
+            api_gateway_main._require_operator_access(x_api_key=None, authorization=None)
+        except HTTPException as exc:
+            assert exc.status_code == 401
+        else:
+            raise AssertionError("expected HTTPException for missing bearer token")
+
+
+def test_require_operator_access_oidc_requires_operator_role(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
+    monkeypatch.setattr(api_gateway_main, "OIDC_OPERATOR_ROLE", "observe")
+    monkeypatch.setattr(
+        api_gateway_main,
+        "_decode_oidc_token",
+        lambda _token: {"roles": ["mutate"]},
+    )
+    with TestClient(api_app):
+        try:
+            api_gateway_main._require_operator_access(
+                x_api_key=None,
+                authorization="Bearer test-token",
+            )
+        except HTTPException as exc:
+            assert exc.status_code == 403
+        else:
+            raise AssertionError("expected HTTPException for missing operator role")
+
+
+def test_require_operator_access_hybrid_allows_api_key(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "hybrid")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
+    api_gateway_main._require_operator_access(x_api_key="operator-key", authorization=None)
+
+
 def test_update_state_forwards_internal_key_in_oidc_mode(monkeypatch) -> None:
     _FakeAsyncClient.captured_headers = []
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
@@ -164,3 +209,40 @@ def test_update_state_forwards_caller_key_in_hybrid_mode(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert _FakeAsyncClient.captured_headers[-1] == {"x-api-key": "operator-key"}
+
+
+def test_operations_summary_requires_oidc_operator_role(monkeypatch) -> None:
+    async def _fake_proxy_get_internal(_path: str, *, params: dict[str, Any] | None = None) -> Any:
+        assert params is None
+        return {"ok": True}
+
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
+    monkeypatch.setattr(api_gateway_main, "OIDC_OPERATOR_ROLE", "observe")
+    monkeypatch.setattr(api_gateway_main, "_proxy_get_internal", _fake_proxy_get_internal)
+    with TestClient(api_app) as client:
+        unauthorized = client.get("/v1/operations/summary")
+        assert unauthorized.status_code == 401
+
+        monkeypatch.setattr(
+            api_gateway_main,
+            "_decode_oidc_token",
+            lambda _token: {"roles": ["read"]},
+        )
+        forbidden = client.get(
+            "/v1/operations/summary",
+            headers={"Authorization": "Bearer test-token"},
+        )
+        assert forbidden.status_code == 403
+
+        monkeypatch.setattr(
+            api_gateway_main,
+            "_decode_oidc_token",
+            lambda _token: {"roles": ["observe"]},
+        )
+        allowed = client.get(
+            "/v1/operations/summary",
+            headers={"Authorization": "Bearer test-token"},
+        )
+        assert allowed.status_code == 200
+        assert allowed.json()["ok"] is True

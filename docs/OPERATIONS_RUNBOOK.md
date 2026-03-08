@@ -55,15 +55,15 @@ Last updated: 2026-03-04
 ## Agent Runtime and Persona Validation
 
 1. Check runtime snapshot includes all agents:
-   - `curl http://localhost:8100/v1/operations/agents | jq ".total_agents"`
+   - `curl -H "x-api-key: operator-key" http://localhost:8100/v1/operations/agents | jq ".total_agents"`
    - expected: `35`
 2. Validate persona profile object exists:
-   - `curl http://localhost:8100/v1/operations/agents | jq ".agents[0].persona_profile | keys"`
+   - `curl -H "x-api-key: operator-key" http://localhost:8100/v1/operations/agents | jq ".agents[0].persona_profile | keys"`
 3. Validate standards/evidence extension fields:
-   - `curl http://localhost:8100/v1/operations/agents | jq ".agents[0].persona_profile.standards_alignment | length"`
-   - `curl http://localhost:8100/v1/operations/agents | jq ".agents[0].persona_profile.evidence_sources | length"`
+   - `curl -H "x-api-key: operator-key" http://localhost:8100/v1/operations/agents | jq ".agents[0].persona_profile.standards_alignment | length"`
+   - `curl -H "x-api-key: operator-key" http://localhost:8100/v1/operations/agents | jq ".agents[0].persona_profile.evidence_sources | length"`
 4. Validate integration metadata:
-   - `curl http://localhost:8100/v1/operations/agent-integrations | jq ".persona_profile_framework, .persona_profile_extensions, .standards_evidence_last_verified"`
+   - `curl -H "x-api-key: operator-key" http://localhost:8100/v1/operations/agent-integrations | jq ".persona_profile_framework, .persona_profile_extensions, .standards_evidence_last_verified"`
 
 ## Auth Checks
 
@@ -71,6 +71,11 @@ Last updated: 2026-03-04
    - `curl -X POST http://localhost:8100/v1/missions/<mission_id>/state -H "x-api-key: operator-key" -H "Content-Type: application/json" -d "{\"new_state\":\"FAILED\",\"expected_state\":\"RUNNING\"}"`
 2. Unauthorized mutation:
    - `curl -X POST http://localhost:8100/v1/missions/<mission_id>/state -H "x-api-key: viewer-key" -H "Content-Type: application/json" -d "{\"new_state\":\"FAILED\"}"`
+3. OIDC operator-route check (`AUTH_MODE=oidc`):
+   - Missing bearer token should fail:
+     - `curl -i http://localhost:8100/v1/operations/summary`
+   - Valid bearer token with `OIDC_OPERATOR_ROLE` should pass:
+     - `curl -i http://localhost:8100/v1/operations/summary -H "Authorization: Bearer <token-with-observe-role>"`
 
 ## Recovery Steps
 
@@ -130,3 +135,6 @@ Last updated: 2026-03-04
    - validates mission lifecycle, operations persona view, settings/vault, builder preview, repo intake, and error-state handling
 9. Live mission-flow integration:
    - `python -m pytest -q tests/services/test_live_mission_flow_integration.py`
+10. Dedicated-agent canary qualification:
+   - `powershell -ExecutionPolicy Bypass -File scripts/dedicated_agent_canary_rollout.ps1`
+   - or `make dedicated-canary`

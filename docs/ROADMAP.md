@@ -1,6 +1,6 @@
 # Build Roadmap
 
-Last updated: 2026-03-04
+Last updated: 2026-03-08
 
 ## Phase 1: Foundation
 
@@ -401,8 +401,48 @@ Last updated: 2026-03-04
   - `docs/evidence/phase34_mission_control_advanced_operator_ux_validation_2026-03-04.md`
 - Status: Complete (Phase 21 objective executed and validated, 2026-03-04).
 
+## Phase 35: Mission Artifact Runtime Integrity Validation
+
+- Added qualification harness and evidence capture for chain-of-command and artifact integrity:
+  - `scripts/mission_artifact_qualification.py`
+  - `scripts/mission_artifact_qualification.ps1`
+- Added regression coverage:
+  - `tests/scripts/test_mission_artifact_qualification.py`
+  - `tests/services/test_live_mission_flow_integration.py`
+- Validation evidence:
+  - `docs/evidence/phase35_mission_artifact_runtime_integrity_validation_2026-03-08.md`
+  - `docs/evidence/mission_artifact_qualification_shared_2026-03-08.json`
+  - `docs/evidence/mission_artifact_qualification_dedicated_2026-03-08.json`
+- Status: Complete (runtime integrity qualification validated, 2026-03-08).
+
+## Phase 36: Frontend Budget and Accessibility Enforcement
+
+- Enforced CI performance budget for Mission Control:
+  - `.github/workflows/ci.yml` runs `npm run build` and `npm run test:perf`.
+  - `apps/mission-control/lighthouserc.json` updated for deterministic desktop budget assertions.
+- Enforced accessibility assertions including color-contrast in e2e:
+  - `apps/mission-control/e2e/mission-control.spec.ts`
+- Added validation evidence:
+  - `docs/evidence/phase36_frontend_budget_a11y_enforcement_2026-03-08.md`
+- Status: Complete (CI perf + accessibility controls validated, 2026-03-08).
+
+## Phase 37: Strategic Decisions, Operator OIDC Policies, and Dedicated Canary
+
+- Published strategic deferred-scope decision package:
+  - `docs/ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md`
+- Extended OIDC route policy beyond mutation endpoints:
+  - operator telemetry routes (`/v1/operations/*`) and live stream (`/v1/stream/state`) now support OIDC/hybrid enforcement controls.
+  - new controls: `OIDC_OPERATOR_ROLE`, `OIDC_ENFORCE_OPERATOR_ROUTES`.
+- Added dedicated-agent canary tooling with rollback guardrails:
+  - `scripts/dedicated_agent_canary_rollout.py`
+  - `scripts/dedicated_agent_canary_rollout.ps1`
+  - `make dedicated-canary`
+  - `docs/runbooks/dedicated_agent_canary_runbook.md`
+  - `tests/scripts/test_dedicated_agent_canary_rollout.py`
+- Status: Complete (governance, route-policy, and canary guardrails implemented, 2026-03-08).
+
 ## Next Roadmap Targets
 
-1. Publish explicit strategic decision package for deferred legacy items (self-update, cloud multi-tenant, marketplace, distributed execution, language expansion).
-2. Extend OIDC auth mode beyond mutation endpoint to broader operator/public route policies and runbook playbooks.
-3. Run dedicated-agent canary rollout with mission metadata contract instrumentation and rollback guardrails.
+1. Expand live-stack OIDC qualification matrix for operator routes across `api_key`, `hybrid`, and `oidc` deployments.
+2. Run repeated dedicated-agent canary qualification over multiple language routes and publish trend evidence.
+3. Continue optional v2 runtime prototyping behind feature flag while preserving canonical v1.1 production default.

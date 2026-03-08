@@ -1,0 +1,97 @@
+import importlib.util
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+MODULE_PATH = ROOT / "scripts" / "dedicated_agent_canary_rollout.py"
+
+spec = importlib.util.spec_from_file_location("dedicated_agent_canary_rollout", MODULE_PATH)
+assert spec is not None and spec.loader is not None
+canary = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = canary
+spec.loader.exec_module(canary)
+
+
+def test_parse_args_defaults(monkeypatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["dedicated_agent_canary_rollout.py"])
+    args = canary.parse_args()
+    assert args.gateway_base_url == "http://localhost:8100"
+    assert args.orchestrator_base_url == "http://localhost:8101"
+    assert args.profile_label == "dedicated-agent-canary"
+    assert args.language == "python"
+    assert args.required_chain_events == [
+        "MISSION_PM_INTAKE",
+        "MISSION_CEO_DELEGATED",
+        "MISSION_POD_MANAGER_ASSIGNED",
+        "MISSION_SPECIALIST_ASSIGNED",
+    ]
+
+
+def test_resolve_expected_pod_manager_defaults_and_mapping() -> None:
+    assert canary._resolve_expected_pod_manager("python") == "AGENT-12-PODA-MGR"
+    assert canary._resolve_expected_pod_manager("rust") == "AGENT-18-PODB-MGR"
+    assert canary._resolve_expected_pod_manager("kotlin") == "AGENT-24-PODC-MGR"
+    assert canary._resolve_expected_pod_manager("julia") == "AGENT-30-PODD-MGR"
+    assert canary._resolve_expected_pod_manager("unknown-language") == "AGENT-12-PODA-MGR"
+
+
+def test_evaluate_canary_result_passes() -> None:
+    passed, failure_reasons, diagnostics = canary._evaluate_canary_result(
+        final_state="COMPLETE",
+        mission_record={
+            "metadata": {
+                "routing_enforced": True,
+                "intake_agent_id": "AGENT-01-PM",
+                "executive_agent_id": "AGENT-02-CEO",
+                "expected_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+            }
+        },
+        chain_trace=[
+            {"event_type": "MISSION_PM_INTAKE"},
+            {"event_type": "MISSION_CEO_DELEGATED"},
+            {"event_type": "MISSION_POD_MANAGER_ASSIGNED"},
+            {"event_type": "MISSION_SPECIALIST_ASSIGNED"},
+        ],
+        pod_assignment={"pod_name": "podA"},
+        logicnodes=[{"node_id": "node-1"}],
+        expected_pod_manager_agent_id="AGENT-12-PODA-MGR",
+        required_chain_events=(
+            "MISSION_PM_INTAKE",
+            "MISSION_CEO_DELEGATED",
+            "MISSION_POD_MANAGER_ASSIGNED",
+            "MISSION_SPECIALIST_ASSIGNED",
+        ),
+    )
+    assert passed is True
+    assert failure_reasons == []
+    assert diagnostics["assignment_present"] is True
+    assert diagnostics["logicnode_count"] == 1
+    assert diagnostics["completion_blocked_events"] == 0
+
+
+def test_evaluate_canary_result_fails_with_guardrail_reasons() -> None:
+    passed, failure_reasons, diagnostics = canary._evaluate_canary_result(
+        final_state="FAILED",
+        mission_record={"metadata": {"routing_enforced": False}},
+        chain_trace=[
+            {"event_type": "MISSION_PM_INTAKE"},
+            {"event_type": "MISSION_COMPLETION_BLOCKED"},
+        ],
+        pod_assignment={},
+        logicnodes=[],
+        expected_pod_manager_agent_id="AGENT-12-PODA-MGR",
+        required_chain_events=(
+            "MISSION_PM_INTAKE",
+            "MISSION_CEO_DELEGATED",
+            "MISSION_POD_MANAGER_ASSIGNED",
+            "MISSION_SPECIALIST_ASSIGNED",
+        ),
+    )
+    assert passed is False
+    assert any("did not reach COMPLETE" in reason for reason in failure_reasons)
+    assert any("routing_enforced metadata flag" in reason for reason in failure_reasons)
+    assert any("missing pod assignment artifact" in reason for reason in failure_reasons)
+    assert any("missing logicnode artifacts" in reason for reason in failure_reasons)
+    assert any("missing required chain events" in reason for reason in failure_reasons)
+    assert any("completion-blocked event detected" in reason for reason in failure_reasons)
+    assert diagnostics["completion_blocked_events"] == 1

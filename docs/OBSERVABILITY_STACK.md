@@ -1,60 +1,286 @@
 # Observability Stack
 
-Last updated: 2026-03-04
+**Last updated:** 2026-03-07
+**Stack:** Prometheus · Grafana · Loki · Promtail · Alertmanager · Jaeger
 
-Baseline observability bundle for local production-like validation.
+---
 
-## Components
+## Table of Contents
 
-- Prometheus (`:9090`) for metrics
-- Alertmanager (`:9093`) for alert routing
-- Grafana (`:3001`) for dashboards
-- Loki (`:3101`) + Promtail for log aggregation
-- Jaeger (`:16686`) for distributed tracing
+- [Component Overview](#component-overview)
+- [Quick Start](#quick-start)
+- [Metrics Catalog](#metrics-catalog)
+- [Alert Rules](#alert-rules)
+- [Distributed Tracing](#distributed-tracing)
+- [Log Aggregation](#log-aggregation)
+- [Dashboards](#dashboards)
+- [Pager / Incident Routing](#pager--incident-routing)
+- [Configuration Files](#configuration-files)
+- [Validation Checklist](#validation-checklist)
 
-## Start and Stop
+---
 
-From repo root:
+## Component Overview
 
-- Start: `docker compose -f deploy/docker-compose.monitoring.yaml up -d`
-- Stop: `docker compose -f deploy/docker-compose.monitoring.yaml down -v`
+| Component | Port | Purpose |
+|-----------|------|---------|
+| **Prometheus** | 9090 | Metrics collection, alerting, TSDB |
+| **Grafana** | 3200 | Dashboards and visualization (admin/admin) |
+| **Alertmanager** | 9093 | Alert routing and pager dispatch |
+| **Loki** | 3101 | Centralized log aggregation |
+| **Promtail** | — | Log shipping agent (runs alongside services) |
+| **Jaeger** | 16686 | Distributed trace collection and search |
 
-## Included Config
+---
 
-- Prometheus scrape config: `deploy/monitoring/prometheus/prometheus.yml`
-- Alert rules: `deploy/monitoring/prometheus/rules/thefactory-alerts.yml`
-- Alertmanager routes: `deploy/monitoring/alertmanager/alertmanager.yml`
-- Release-time tracing endpoint wiring: `deploy/docker-compose.yaml` (`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`)
-- Grafana provisioning:
-  - `deploy/monitoring/grafana/provisioning/datasources/datasources.yml`
-  - `deploy/monitoring/grafana/provisioning/dashboards/dashboards.yml`
-  - `deploy/monitoring/grafana/provisioning/dashboards/json/thefactory-overview.json`
+## Quick Start
 
-## Optional Data-Plane Telemetry
+```bash
+# Start monitoring stack
+docker compose -f deploy/docker-compose.monitoring.yaml up -d
 
-When `NEO4J_ENABLED` and/or `OBJECT_STORAGE_ENABLED` are active, orchestrator now emits:
+# Stop and clean up
+docker compose -f deploy/docker-compose.monitoring.yaml down -v
 
-- `orchestrator_optional_adapter_enabled{adapter}`
-- `orchestrator_optional_adapter_ready{adapter}`
-- `orchestrator_optional_adapter_operations_total{adapter,operation,status}`
-- `orchestrator_optional_adapter_operation_latency_seconds{adapter,operation}`
-- `orchestrator_optional_adapter_mirror_writes_total{adapter,artifact,status}`
-- `orchestrator_optional_adapter_mirror_write_latency_seconds{adapter,artifact}`
+# Via make
+make monitor-up
+make monitor-down
+```
 
-Alert rules include adapter readiness, mirror-write error-rate, and p95 latency thresholds with runbook mapping:
+Verify all components are up:
 
-- `docs/runbooks/optional_data_plane_incident_runbook.md`
+```bash
+# Prometheus
+curl http://localhost:9090/-/ready
 
-## Validation
+# Alertmanager
+curl http://localhost:9093/-/ready
 
-1. Ensure app stack is up: `docker compose -f deploy/docker-compose.yaml up -d`.
-2. Start monitoring stack.
-3. Open Grafana and verify `theFactory Overview` dashboard.
-4. Confirm metrics endpoints:
-   - `http://localhost:8100/metrics`
-   - `http://localhost:8101/metrics`
-5. Confirm tracing endpoint:
-   - Jaeger UI: `http://localhost:16686`
-6. Confirm pager routing configuration:
-   - Alertmanager: `http://localhost:9093`
-   - Verify `PAGER_WEBHOOK_URL` is set in environment for monitoring stack.
+# Grafana
+curl http://localhost:3200/api/health
+
+# Jaeger
+curl http://localhost:16686/
+```
+
+---
+
+## Metrics Catalog
+
+### API Gateway Metrics (`:8100/metrics`)
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `http_requests_total` | Counter | Total HTTP requests by method, path, status |
+| `http_request_duration_seconds` | Histogram | Request latency distribution |
+| `rate_limit_hits_total` | Counter | Rate limit rejections by key |
+| `missions_created_total` | Counter | Mission creation events |
+| `missions_idempotent_hits_total` | Counter | Idempotency cache hits |
+| `sse_connections_active` | Gauge | Active SSE connections |
+| `sse_events_sent_total` | Counter | SSE events dispatched |
+
+### Orchestrator Metrics (`:8101/metrics`)
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `mission_state_transitions_total` | Counter | State machine transitions by state |
+| `pod_assignments_total` | Counter | Pod assignment events by pod |
+| `langgraph_executions_total` | Counter | LangGraph execution count by status |
+| `langgraph_checkpoint_ops_total` | Counter | Checkpoint read/write operations |
+| `agent_heartbeats_total` | Counter | Heartbeat events by agent |
+
+### Optional Data-Plane Metrics (when `NEO4J_ENABLED` or `OBJECT_STORAGE_ENABLED`)
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `orchestrator_optional_adapter_enabled{adapter}` | Gauge | 1 if adapter is configured |
+| `orchestrator_optional_adapter_ready{adapter}` | Gauge | 1 if adapter is reachable |
+| `orchestrator_optional_adapter_operations_total{adapter,operation,status}` | Counter | Operations by adapter and outcome |
+| `orchestrator_optional_adapter_operation_latency_seconds{adapter,operation}` | Histogram | Operation latency |
+| `orchestrator_optional_adapter_mirror_writes_total{adapter,artifact,status}` | Counter | Mirror write outcomes |
+| `orchestrator_optional_adapter_mirror_write_latency_seconds{adapter,artifact}` | Histogram | Mirror write latency |
+
+### Pod Worker Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `pod_worker_concepts_extracted_total{pod_name,language}` | Counter | Concepts extracted per language |
+| `pod_worker_extraction_latency_seconds{pod_name}` | Histogram | Extraction processing time |
+| `pod_worker_binding_skips_total{pod_name,reason}` | Counter | Agent binding mismatches skipped |
+| `pod_worker_internal_auth_rejections_total{pod_name}` | Counter | 401/403 responses from orchestrator |
+
+---
+
+## Alert Rules
+
+Configured in `deploy/monitoring/prometheus/rules/thefactory-alerts.yml`.
+
+### Core Service Alerts
+
+| Alert | Severity | Condition | Runbook |
+|-------|----------|-----------|---------|
+| `GatewayDown` | critical | api-gateway health endpoint unreachable for > 1m | `OPERATIONS_RUNBOOK.md` |
+| `OrchestratorDown` | critical | orchestrator health endpoint unreachable for > 1m | `OPERATIONS_RUNBOOK.md` |
+| `RedisDown` | critical | Redis connection failures for > 1m | `OPERATIONS_RUNBOOK.md` |
+| `PostgresDown` | critical | DB connection failures for > 1m | `OPERATIONS_RUNBOOK.md` |
+| `HighErrorRate` | high | 5xx error rate > 5% for > 2m | `OPERATIONS_RUNBOOK.md` |
+| `HighP95Latency` | high | p95 request latency > 2s for > 5m | `OPERATIONS_RUNBOOK.md` |
+
+### Optional Data-Plane Alerts
+
+| Alert | Severity | Condition | Runbook |
+|-------|----------|-----------|---------|
+| `Neo4jAdapterNotReady` | high | `orchestrator_optional_adapter_ready{adapter="neo4j"} == 0` for > 2m | `optional_data_plane_incident_runbook.md` |
+| `ObjectStorageAdapterNotReady` | high | `orchestrator_optional_adapter_ready{adapter="object_storage"} == 0` for > 2m | `optional_data_plane_incident_runbook.md` |
+| `Neo4jMirrorWriteErrorRateHigh` | high | Mirror write error rate > 5% for > 5m | `optional_data_plane_incident_runbook.md` |
+| `ObjectStorageMirrorWriteErrorRateHigh` | high | Mirror write error rate > 5% for > 5m | `optional_data_plane_incident_runbook.md` |
+| `Neo4jMirrorWriteLatencyP95High` | high | p95 latency > 2s for > 5m | `optional_data_plane_incident_runbook.md` |
+| `ObjectStorageMirrorWriteLatencyP95High` | high | p95 latency > 2s for > 5m | `optional_data_plane_incident_runbook.md` |
+
+All `critical` and `high` alerts route to the pager webhook receiver in Alertmanager.
+
+---
+
+## Distributed Tracing
+
+### Instrumented Services
+
+| Service | Status |
+|---------|--------|
+| api-gateway | ✅ OTel OTLP traces to Jaeger |
+| orchestrator | ✅ OTel OTLP traces to Jaeger |
+| pod-worker | ✅ OTel OTLP traces to Jaeger |
+| audit-worker | 🔄 Planned |
+| semantic-bus-mcp | 🔄 Planned |
+| dashboard | 🔄 Planned |
+
+### OTel Configuration
+
+Each instrumented service sets:
+```bash
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4317
+OTEL_SERVICE_NAME=<service-name>
+```
+
+Configured via `configure_tracing(app, service_name="<name>")` in each service's `main.py`.
+
+### Using Jaeger
+
+1. Open Jaeger UI: `http://localhost:16686`
+2. Select service from dropdown (api-gateway · orchestrator · pod-worker)
+3. Search by `mission_id` tag to trace a specific mission end-to-end
+4. View spans across service boundaries to identify latency contributors
+
+---
+
+## Log Aggregation
+
+### Loki + Promtail
+
+Promtail ships container logs from Docker's log driver to Loki. All service logs are queryable in Grafana via the **Explore → Loki** data source.
+
+**Useful LogQL queries:**
+
+```logql
+# All errors from api-gateway
+{container="api-gateway"} |= "error"
+
+# Mission creation events
+{container="orchestrator"} |= "mission" |= "created"
+
+# Pod worker extraction events
+{container="pod-worker"} |= "extracted"
+
+# All 5xx responses
+{job="theFactory"} |= "HTTP 5"
+```
+
+---
+
+## Dashboards
+
+### theFactory Overview (`thefactory-overview.json`)
+
+The provisioned Grafana dashboard includes:
+
+| Panel | Metric |
+|-------|--------|
+| Request rate (req/s) | `rate(http_requests_total[5m])` |
+| p95 latency | `histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))` |
+| Error rate | `rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])` |
+| Active missions | Mission state gauge |
+| Agent heartbeat age | Latest heartbeat timestamps |
+| Optional data-plane mirror writes | `rate(orchestrator_optional_adapter_mirror_writes_total[5m])` |
+| Pod worker extraction rate | `rate(pod_worker_concepts_extracted_total[5m])` |
+
+### Importing Additional Dashboards
+
+Grafana dashboards are auto-provisioned from:
+`deploy/monitoring/grafana/provisioning/dashboards/json/`
+
+Add new JSON dashboard files there and restart the monitoring stack.
+
+---
+
+## Pager / Incident Routing
+
+### Alert Flow
+
+```
+Prometheus Alert Rules
+       ↓ (fires)
+  Alertmanager
+       ↓ (routes by severity)
+  severity=critical|high → pager receiver
+  severity=low|info     → default receiver (silent/log)
+       ↓
+  PAGER_WEBHOOK_URL (configurable)
+```
+
+### Configuration
+
+Set `PAGER_WEBHOOK_URL` in the monitoring stack environment:
+
+```bash
+# In .env or monitoring compose env
+PAGER_WEBHOOK_URL=https://your-pagerduty-or-slack-webhook-url
+```
+
+Verify routing is configured:
+
+```bash
+docker compose -f deploy/docker-compose.monitoring.yaml exec alertmanager \
+  printenv PAGER_WEBHOOK_URL
+
+curl http://localhost:9093/api/v2/receivers
+```
+
+Alertmanager config: `deploy/monitoring/alertmanager/alertmanager.yml`
+
+---
+
+## Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `deploy/monitoring/prometheus/prometheus.yml` | Scrape targets for all services |
+| `deploy/monitoring/prometheus/rules/thefactory-alerts.yml` | Alert rules |
+| `deploy/monitoring/alertmanager/alertmanager.yml` | Alert routing and receivers |
+| `deploy/monitoring/grafana/provisioning/datasources/datasources.yml` | Prometheus + Loki data sources |
+| `deploy/monitoring/grafana/provisioning/dashboards/dashboards.yml` | Dashboard provisioning config |
+| `deploy/monitoring/grafana/provisioning/dashboards/json/thefactory-overview.json` | Main dashboard |
+
+---
+
+## Validation Checklist
+
+Run after starting the monitoring stack:
+
+- [ ] `curl http://localhost:9090/-/ready` returns `200`
+- [ ] `curl http://localhost:9093/-/ready` returns `200`
+- [ ] Grafana loads at `http://localhost:3200` and shows `theFactory Overview` dashboard
+- [ ] `curl http://localhost:8100/metrics` returns Prometheus-format metrics
+- [ ] `curl http://localhost:8101/metrics` returns Prometheus-format metrics
+- [ ] Jaeger UI at `http://localhost:16686` shows services (api-gateway, orchestrator, pod-worker)
+- [ ] `PAGER_WEBHOOK_URL` is set for pager routing
+- [ ] At least one test alert fired and delivered (use Alertmanager `/api/v2/alerts` to inject)

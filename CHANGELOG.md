@@ -7,6 +7,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- Strategic and mission-flow governance ADR package:
+  - `docs/ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md`
+  - `docs/ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md`
+- Dedicated-agent canary rollout qualification tooling:
+  - `scripts/dedicated_agent_canary_rollout.py`
+  - `scripts/dedicated_agent_canary_rollout.ps1`
+  - `tests/scripts/test_dedicated_agent_canary_rollout.py`
+  - `docs/runbooks/dedicated_agent_canary_runbook.md`
+  - `docs/evidence/phase37_strategy_auth_canary_2026-03-08.md`
 - Mission-flow runtime enforcement package:
   - canonical PM intake normalization and routing metadata at gateway intake
   - orchestrator chain trace persistence and endpoints for per-mission PM -> CEO -> pod/specialist visibility
@@ -146,6 +155,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - validation evidence in `docs/evidence/phase33_extended_data_plane_live_qualification_validation_2026-03-04.md`
 
 ### Changed
+- API Gateway OIDC policy now extends to operator telemetry routes and live stream route:
+  - `/v1/operations/*`
+  - `/v1/stream/state`
+  - new auth controls: `OIDC_OPERATOR_ROLE`, `OIDC_ENFORCE_OPERATOR_ROUTES`
 - Production audit coverage expanded to `14/14` checks with compliance evidence mapping control (`GRC-012`).
 - Mission Control now imports generated local token CSS and syncs tokens during `dev`/`build`.
 - Docker runtime stack rebuilt and validated with Redis TLS port wiring and updated mission-flow enforcement paths.
