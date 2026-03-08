@@ -1,6 +1,6 @@
 # Documentation Index
 
-Last updated: 2026-03-04
+Last updated: 2026-03-07
 
 This index maps the in-repo documentation set for theFactory and reflects the current implementation baseline.
 
@@ -17,6 +17,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `WORD_DOC_AUDIT_2026-03-03.md`: reconciliation audit against all in-repo Word-document requirements.
 - `UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`: prioritized backlog generated from Word-doc audit findings.
 - `SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`: deterministic 7-phase Smelt-cycle mapping policy for runtime telemetry.
+- `MISSION_FLOW_V1_1_CANONICAL_2026-03-07.md`: canonical reconciliation of root mission-flow Word doc aliases to runtime 35-agent IDs and lifecycle behavior.
 
 ## Operations and Reliability
 
