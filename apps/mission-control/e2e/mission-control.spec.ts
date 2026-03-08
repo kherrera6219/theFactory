@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 type MockOptions = {
   failMissionList?: boolean;
@@ -491,4 +492,26 @@ test("error states surface actionable UI messaging", async ({ page }) => {
   await expect(
     page.locator(".error-box", { hasText: /Review mission prompt and retry\./ }),
   ).toBeVisible();
+});
+
+test("accessibility checks pass on mission flow pages", async ({ page }) => {
+  await setupMissionControlApiMocks(page);
+
+  await page.goto("/missions");
+  await expect(page.getByRole("heading", { name: "Mission Intake and Lifecycle" })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".skip-link")).toBeFocused();
+
+  const missionsA11y = await new AxeBuilder({ page })
+    .disableRules(["color-contrast"])
+    .analyze();
+  expect(missionsA11y.violations).toEqual([]);
+
+  await page.getByRole("link", { name: "View Live" }).first().click();
+  await expect(page.getByRole("heading", { name: /Mission mission-seed-001/i })).toBeVisible();
+
+  const detailA11y = await new AxeBuilder({ page })
+    .disableRules(["color-contrast"])
+    .analyze();
+  expect(detailA11y.violations).toEqual([]);
 });

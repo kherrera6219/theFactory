@@ -366,6 +366,29 @@ def check_long_duration_reliability_controls() -> AuditResult:
     )
 
 
+def check_compliance_evidence_mapping() -> AuditResult:
+    mapping_path = REPO_ROOT / "docs" / "COMPLIANCE_EVIDENCE_MAPPING.md"
+    mapping_text = _read_text(mapping_path).lower()
+    missing_items: list[str] = []
+    if not mapping_path.exists():
+        missing_items.append(f"missing mapping document: {mapping_path}")
+    if "soc2" not in mapping_text:
+        missing_items.append("mapping missing soc2 references")
+    if "cmmc" not in mapping_text:
+        missing_items.append("mapping missing cmmc references")
+    if "evidence artifact" not in mapping_text:
+        missing_items.append("mapping missing evidence artifact references")
+
+    passed = not missing_items
+    return _result(
+        check_id="GRC-012",
+        priority="MEDIUM",
+        description="Compliance evidence mapping covers SOC2/CMMC control traceability",
+        passed=passed,
+        notes="; ".join(missing_items) if missing_items else "compliance evidence mapping present",
+    )
+
+
 def run_audit() -> list[AuditResult]:
     return [
         check_coverage_gate(),
@@ -381,6 +404,7 @@ def run_audit() -> list[AuditResult]:
         check_tracing_and_pager_controls(),
         check_optional_data_plane_observability_controls(),
         check_long_duration_reliability_controls(),
+        check_compliance_evidence_mapping(),
     ]
 
 

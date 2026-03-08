@@ -3,6 +3,49 @@
 ## Objective
 Define the post-Phase-18 execution plan from current production baseline to next maturity targets, using current canonical docs and reconciled legacy requirements.
 
+## Execution Update (2026-03-08)
+- Production audit now passes `14/14` controls (includes `GRC-012` compliance evidence mapping).
+- Mission runtime now enforces:
+  - PM intake metadata normalization,
+  - CEO -> pod/specialist chain trace persistence and API/UI visibility,
+  - completion guardrail blocking `COMPLETE` when artifacts are absent.
+- LangGraph delegation path now includes real provider-aware CEO delegation calls (with deterministic fallback).
+- Infrastructure hardening additions are active:
+  - OTel tracing hooks in pod-worker/audit-worker/semantic-bus/dashboard,
+  - Redis TLS wiring in compose + redis config,
+  - container read-only/tmpfs/ulimit hardening for stateless services.
+- New live artifact qualification harness added:
+  - `scripts/mission_artifact_qualification.py`
+  - `scripts/mission_artifact_qualification.ps1`
+  - unit coverage in `tests/scripts/test_mission_artifact_qualification.py`
+
+## Next Phases (From Current Baseline)
+
+## Phase 35 - Dedicated and Shared Live Artifact Qualification Evidence
+Scope:
+- Run `mission_artifact_qualification.py` against both shared default topology and `--profile dedicated-agents`.
+- Capture pass/fail evidence in `docs/evidence/` with mission IDs, chain trace, assignment/logicnode counts.
+
+Exit Criteria:
+- Both profile runs produce `passed=true`.
+- Evidence includes command lines, timestamps, and profile labels.
+
+Status:
+- Complete (executed 2026-03-08).
+- Evidence: `docs/evidence/phase35_mission_artifact_runtime_integrity_validation_2026-03-08.md`,
+  `docs/evidence/mission_artifact_qualification_shared_2026-03-08.json`,
+  `docs/evidence/mission_artifact_qualification_dedicated_2026-03-08.json`.
+
+## Phase 36 - v2 Mission-Flow Adoption Design Package
+Scope:
+- Define explicit migration from canonical v1.1 states to any future v2 state-machine model.
+- Specify API/schema compatibility strategy for mission events and Mission Control timeline rendering.
+- Publish go/no-go criteria for enabling v2 graph path behind feature flag.
+
+Exit Criteria:
+- ADR/design doc includes rollback plan, compatibility matrix, and testing requirements.
+- No ambiguous "active runtime" claims remain in docs.
+
 ## Current Validated Baseline
 - Core platform phases through Phase 18 are complete (mission runtime, CI/security, tracing, reliability qualification, UI e2e, Qdrant/Neo4j/object-storage optional adapters).
 - Latest quality gates: global service coverage `86.00%`, required core-module `100%` thresholds passing, production audit `13/13`, debug sweep passing.

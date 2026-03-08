@@ -65,9 +65,18 @@ def _app_state(**overrides: Any) -> Any:
 
 
 class FakeCompiledGraph:
-    def __init__(self, nodes: dict[str, Any], conditionals: dict[str, Any], end_token: Any) -> None:
+    def __init__(
+        self,
+        nodes: dict[str, Any],
+        conditionals: dict[str, Any],
+        edges: list[tuple[Any, Any]],
+        start_token: Any,
+        end_token: Any,
+    ) -> None:
         self._nodes = nodes
         self._conditionals = conditionals
+        self._edges = edges
+        self._start_token = start_token
         self._end_token = end_token
         self.calls: list[tuple[dict[str, Any], dict[str, Any] | None]] = []
 
@@ -77,7 +86,10 @@ class FakeCompiledGraph:
         config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         self.calls.append((state, config))
-        current = "queued_to_running"
+        start_edges = [end for start, end in self._edges if start == self._start_token]
+        if not start_edges:
+            raise AssertionError("start edge is required for fake graph execution")
+        current = start_edges[0]
         while True:
             state = await self._nodes[current](state)
             if current in self._conditionals:
@@ -98,7 +110,13 @@ class FakeStateGraph:
         self.conditionals: dict[str, Any] = {}
         self.edges: list[tuple[Any, Any]] = []
         self.checkpointer: Any = None
-        self.compiled = FakeCompiledGraph(self.nodes, self.conditionals, langgraph_lifecycle.END)
+        self.compiled = FakeCompiledGraph(
+            self.nodes,
+            self.conditionals,
+            self.edges,
+            langgraph_lifecycle.START,
+            langgraph_lifecycle.END,
+        )
         FakeStateGraph.last_instance = self
 
     def add_node(self, name: str, fn: Any) -> None:
@@ -146,6 +164,23 @@ def test_maybe_advance_executes_graph_and_emits(monkeypatch) -> None:
     monkeypatch.setattr(langgraph_lifecycle, "StateGraph", FakeStateGraph)
     monkeypatch.setattr(
         langgraph_lifecycle.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "update_mission_metadata",
+        lambda *_args: _mission_record(MissionState.queued),
+    )
+    monkeypatch.setattr(langgraph_lifecycle.storage, "insert_mission_event", lambda *_args: None)
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "get_pod_assignment",
+        lambda *_args: {"mission_id": "mission-1", "pod_name": "podA"},
+    )
+    monkeypatch.setattr(langgraph_lifecycle.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
         "transition_mission_state",
         lambda _settings_obj, _mission_id, _expected, new_state, _event: _mission_record(new_state),
     )
@@ -187,13 +222,22 @@ def test_maybe_advance_executes_graph_and_emits(monkeypatch) -> None:
     )
     assert advanced is True
     assert emitted == [
+        "MISSION_CEO_DELEGATED",
+        "MISSION_POD_MANAGER_ASSIGNED",
+        "MISSION_SPECIALIST_ASSIGNED",
         "MISSION_RUNNING",
         "MISSION_GATING",
         "MISSION_FUSION",
         "MISSION_VERIFIED",
         "MISSION_COMPLETE",
     ]
-    assert checkpoint_events == ["MISSION_GATING", "MISSION_FUSION"]
+    assert checkpoint_events == [
+        "MISSION_CEO_DELEGATED",
+        "MISSION_POD_MANAGER_ASSIGNED",
+        "MISSION_SPECIALIST_ASSIGNED",
+        "MISSION_GATING",
+        "MISSION_FUSION",
+    ]
 
     assert FakeStateGraph.last_instance is not None
     invoke_state, invoke_config = FakeStateGraph.last_instance.compiled.calls[0]
@@ -203,6 +247,23 @@ def test_maybe_advance_executes_graph_and_emits(monkeypatch) -> None:
 
 def test_maybe_advance_halts_when_transition_returns_none(monkeypatch) -> None:
     monkeypatch.setattr(langgraph_lifecycle, "StateGraph", FakeStateGraph)
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "update_mission_metadata",
+        lambda *_args: _mission_record(MissionState.queued),
+    )
+    monkeypatch.setattr(langgraph_lifecycle.storage, "insert_mission_event", lambda *_args: None)
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "get_pod_assignment",
+        lambda *_args: {"mission_id": "mission-1", "pod_name": "podA"},
+    )
+    monkeypatch.setattr(langgraph_lifecycle.storage, "list_logicnodes", lambda *_args: [])
     monkeypatch.setattr(
         langgraph_lifecycle.storage,
         "transition_mission_state",
@@ -222,7 +283,11 @@ def test_maybe_advance_halts_when_transition_returns_none(monkeypatch) -> None:
         )
     )
     assert advanced is True
-    assert emitted == []
+    assert emitted == [
+        "MISSION_CEO_DELEGATED",
+        "MISSION_POD_MANAGER_ASSIGNED",
+        "MISSION_SPECIALIST_ASSIGNED",
+    ]
 
 
 def test_resolve_checkpointer_memory_mode_singleton(monkeypatch) -> None:
@@ -308,6 +373,23 @@ def test_maybe_advance_postgres_mode_uses_checkpointer_and_setup_once(monkeypatc
     monkeypatch.setattr(langgraph_lifecycle, "AsyncPostgresSaver", FakeAsyncPostgresSaver)
     monkeypatch.setattr(
         langgraph_lifecycle.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "update_mission_metadata",
+        lambda *_args: _mission_record(MissionState.queued),
+    )
+    monkeypatch.setattr(langgraph_lifecycle.storage, "insert_mission_event", lambda *_args: None)
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "get_pod_assignment",
+        lambda *_args: {"mission_id": "mission-1", "pod_name": "podA"},
+    )
+    monkeypatch.setattr(langgraph_lifecycle.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
         "transition_mission_state",
         lambda _settings_obj, _mission_id, _expected, new_state, _event: _mission_record(new_state),
     )
@@ -377,6 +459,22 @@ def test_maybe_advance_fail_open_and_fail_closed(monkeypatch) -> None:
     monkeypatch.setattr(langgraph_lifecycle, "StateGraph", RaisingStateGraph)
     monkeypatch.setattr(
         langgraph_lifecycle.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "update_mission_metadata",
+        lambda *_args: _mission_record(MissionState.queued),
+    )
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "get_pod_assignment",
+        lambda *_args: {"mission_id": "mission-1", "pod_name": "podA"},
+    )
+    monkeypatch.setattr(langgraph_lifecycle.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
         "transition_mission_state",
         lambda _settings_obj, _mission_id, _expected, new_state, _event: _mission_record(new_state),
     )
@@ -402,3 +500,55 @@ def test_maybe_advance_fail_open_and_fail_closed(monkeypatch) -> None:
                 emit_state_event_fn=lambda **_kwargs: asyncio.sleep(0),
             )
         )
+
+
+def test_maybe_advance_blocks_completion_without_artifacts(monkeypatch) -> None:
+    monkeypatch.setattr(langgraph_lifecycle, "StateGraph", FakeStateGraph)
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "update_mission_metadata",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(langgraph_lifecycle.storage, "get_pod_assignment", lambda *_args: None)
+    monkeypatch.setattr(langgraph_lifecycle.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "transition_mission_state",
+        lambda _settings_obj, _mission_id, _expected, new_state, _event: _mission_record(new_state),
+    )
+
+    inserted_events: list[str] = []
+
+    def _insert_event(
+        _settings_obj,
+        _mission_id,
+        _previous_state,
+        _new_state,
+        event_type,
+    ) -> None:
+        inserted_events.append(event_type)
+
+    monkeypatch.setattr(langgraph_lifecycle.storage, "insert_mission_event", _insert_event)
+    emitted: list[str] = []
+
+    async def _emit(**kwargs) -> None:
+        emitted.append(kwargs["event_type"])
+
+    advanced = asyncio.run(
+        langgraph_lifecycle.maybe_advance_mission_lifecycle(
+            app=_app_state(redis_ready=True, redis=object()),
+            mission_id="mission-1",
+            settings=_settings(langgraph_enabled=True),
+            validator=object(),
+            emit_state_event_fn=_emit,
+        )
+    )
+    assert advanced is True
+    assert "MISSION_COMPLETION_BLOCKED" in emitted
+    assert "MISSION_COMPLETE" not in emitted
+    assert "MISSION_COMPLETION_BLOCKED" in inserted_events

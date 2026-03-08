@@ -445,6 +445,22 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
     monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
     monkeypatch.setattr(
         runtime.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        runtime.storage,
+        "update_mission_metadata",
+        lambda *_args: _mission_record(MissionState.queued),
+    )
+    monkeypatch.setattr(
+        runtime.storage,
+        "get_pod_assignment",
+        lambda *_args: {"mission_id": "mission-1", "pod_name": "podA"},
+    )
+    monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(
+        runtime.storage,
         "transition_mission_state",
         lambda _settings_obj, mission_id, expected_state, new_state, _event_type: _mission_record(
             new_state
@@ -475,17 +491,28 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
 
     asyncio.run(runtime.advance_mission_lifecycle(app, "mission-1"))
     assert emitted == [
+        "MISSION_PM_INTAKE",
+        "MISSION_CEO_DELEGATED",
+        "MISSION_POD_MANAGER_ASSIGNED",
+        "MISSION_SPECIALIST_ASSIGNED",
         "MISSION_RUNNING",
         "MISSION_GATING",
         "MISSION_FUSION",
         "MISSION_VERIFIED",
         "MISSION_COMPLETE",
     ]
-    assert checkpoint_events == ["MISSION_GATING", "MISSION_FUSION"]
+    assert checkpoint_events == [
+        "MISSION_PM_INTAKE",
+        "MISSION_CEO_DELEGATED",
+        "MISSION_POD_MANAGER_ASSIGNED",
+        "MISSION_SPECIALIST_ASSIGNED",
+        "MISSION_GATING",
+        "MISSION_FUSION",
+    ]
 
 
 def test_advance_mission_lifecycle_stops_on_missing_transition(monkeypatch) -> None:
-    app = _app_state(lifecycle_tasks={})
+    app = _app_state(redis_ready=False, lifecycle_tasks={})
     app.state.settings = _settings()
 
     async def _sleep(_):
@@ -496,6 +523,19 @@ def test_advance_mission_lifecycle_stops_on_missing_transition(monkeypatch) -> N
 
     monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
     monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        runtime.storage,
+        "update_mission_metadata",
+        lambda *_args: _mission_record(MissionState.queued),
+    )
+    monkeypatch.setattr(runtime.storage, "insert_mission_event", lambda *_args: None)
+    monkeypatch.setattr(runtime.storage, "get_pod_assignment", lambda *_args: {"pod_name": "podA"})
+    monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [])
     monkeypatch.setattr(runtime.storage, "transition_mission_state", lambda *_: None)
 
     called = {"emit": False}
@@ -520,6 +560,19 @@ def test_advance_mission_lifecycle_skips_emit_when_redis_not_ready(monkeypatch) 
 
     monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
     monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        runtime.storage,
+        "update_mission_metadata",
+        lambda *_args: _mission_record(MissionState.queued),
+    )
+    monkeypatch.setattr(runtime.storage, "insert_mission_event", lambda *_args: None)
+    monkeypatch.setattr(runtime.storage, "get_pod_assignment", lambda *_args: {"pod_name": "podA"})
+    monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [])
     monkeypatch.setattr(
         runtime.storage,
         "transition_mission_state",
@@ -551,6 +604,19 @@ def test_advance_mission_lifecycle_emit_exception_is_swallowed(monkeypatch) -> N
     monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
     monkeypatch.setattr(
         runtime.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        runtime.storage,
+        "update_mission_metadata",
+        lambda *_args: _mission_record(MissionState.queued),
+    )
+    monkeypatch.setattr(runtime.storage, "insert_mission_event", lambda *_args: None)
+    monkeypatch.setattr(runtime.storage, "get_pod_assignment", lambda *_args: {"pod_name": "podA"})
+    monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(
+        runtime.storage,
         "transition_mission_state",
         lambda _settings_obj, mission_id, expected_state, new_state, _event_type: _mission_record(
             new_state
@@ -563,6 +629,63 @@ def test_advance_mission_lifecycle_emit_exception_is_swallowed(monkeypatch) -> N
     )
 
     asyncio.run(runtime.advance_mission_lifecycle(app, "mission-1"))
+
+
+def test_advance_mission_lifecycle_blocks_completion_without_artifacts(monkeypatch) -> None:
+    app = _app_state(redis_ready=True, redis=FakeRedis(), lifecycle_tasks={})
+    app.state.settings = _settings()
+
+    async def _sleep(_):
+        return None
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        runtime.storage,
+        "update_mission_metadata",
+        lambda *_args: _mission_record(MissionState.verified),
+    )
+    monkeypatch.setattr(runtime.storage, "get_pod_assignment", lambda *_args: None)
+    monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(
+        runtime.storage,
+        "transition_mission_state",
+        lambda _settings_obj, mission_id, expected_state, new_state, _event_type: _mission_record(
+            new_state
+        ),
+    )
+
+    inserted_events: list[str] = []
+
+    def _insert_event(
+        _settings_obj,
+        _mission_id,
+        _previous_state,
+        _new_state,
+        event_type,
+    ) -> None:
+        inserted_events.append(event_type)
+
+    monkeypatch.setattr(runtime.storage, "insert_mission_event", _insert_event)
+    emitted: list[str] = []
+
+    async def _emit(**kwargs):
+        emitted.append(kwargs["event_type"])
+
+    monkeypatch.setattr(runtime, "emit_state_event", _emit)
+
+    asyncio.run(runtime.advance_mission_lifecycle(app, "mission-1"))
+    assert "MISSION_COMPLETE" not in emitted
+    assert "MISSION_COMPLETION_BLOCKED" in emitted
+    assert "MISSION_COMPLETION_BLOCKED" in inserted_events
 
 
 def test_ensure_runtime_ready_success(monkeypatch) -> None:

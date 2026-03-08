@@ -8,6 +8,7 @@ import { PageHeader } from "../../../components/page-header";
 import { Panel } from "../../../components/panel";
 import {
   getMission,
+  getMissionChainTrace,
   getMissionEvents,
   getOperationsAgents,
   missionStateStreamUrl,
@@ -25,6 +26,7 @@ import {
 } from "../../../lib/smelt-cycle";
 import type {
   MissionEvent,
+  MissionChainTrace,
   MissionRecord,
   OperationsAgentRecord,
   OperationsLogicNodeRecord,
@@ -58,6 +60,7 @@ export default function MissionDetailPage() {
   const [mission, setMission] = useState<MissionRecord | null>(null);
   const [events, setEvents] = useState<MissionEvent[]>([]);
   const [logicNodes, setLogicNodes] = useState<OperationsLogicNodeRecord[]>([]);
+  const [chainTrace, setChainTrace] = useState<MissionChainTrace | null>(null);
   const [activeAgents, setActiveAgents] = useState<OperationsAgentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [pausedMonitor, setPausedMonitor] = useState(false);
@@ -75,14 +78,16 @@ export default function MissionDetailPage() {
       return;
     }
     try {
-      const [missionData, missionEvents, nodes, agentSnapshot] = await Promise.all([
+      const [missionData, missionEvents, missionChain, nodes, agentSnapshot] = await Promise.all([
         getMission(missionId),
         getMissionEvents(missionId, 60),
+        getMissionChainTrace(missionId),
         listOperationsLogicNodes({ limit: 400, missionId }),
         getOperationsAgents({ missionLimit: 300, assignmentLimit: 300, eventLimit: 200 }),
       ]);
       setMission(missionData);
       setEvents(missionEvents);
+      setChainTrace(missionChain);
       setLogicNodes(nodes);
       setActiveAgents(agentSnapshot.agents.filter((agent) => isAgentActive(agent, missionId)));
       setError(null);
@@ -377,6 +382,50 @@ export default function MissionDetailPage() {
           </div>
         </Panel>
       </div>
+
+      <Panel title="Chain of Command Trace">
+        {!chainTrace && <p className="muted">Chain trace not available yet.</p>}
+        {chainTrace && (
+          <>
+            <dl>
+              <div>
+                <dt>Routing enforced</dt>
+                <dd>{chainTrace.routing_enforced ? "yes" : "no"}</dd>
+              </div>
+              <div>
+                <dt>Routing version</dt>
+                <dd>{chainTrace.routing_version ?? "n/a"}</dd>
+              </div>
+              <div>
+                <dt>Selected agent</dt>
+                <dd>{chainTrace.selected_agent_id ?? "n/a"}</dd>
+              </div>
+              <div>
+                <dt>Pod manager</dt>
+                <dd>{chainTrace.assigned_pod_manager_agent_id ?? "n/a"}</dd>
+              </div>
+              <div>
+                <dt>Specialist</dt>
+                <dd>{chainTrace.assigned_specialist_agent_id ?? "n/a"}</dd>
+              </div>
+            </dl>
+            {chainTrace.events.length === 0 && (
+              <p className="muted">No chain events recorded yet.</p>
+            )}
+            {chainTrace.events.length > 0 && (
+              <ul className="summary-list">
+                {chainTrace.events.slice(0, 20).map((event) => (
+                  <li key={`${event.event_type}-${event.ts}`}>
+                    <strong>{formatTime(event.ts)}</strong>
+                    <span>{event.event_type}</span>
+                    <span className="muted">{event.agent_id ?? "unassigned"}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </Panel>
 
       <Panel title="Active Agents">
         {activeAgents.length === 0 && <p className="muted">No active agents currently assigned.</p>}

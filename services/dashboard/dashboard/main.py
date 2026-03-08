@@ -5,9 +5,12 @@ import httpx
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
+from .tracing import configure_tracing
+
 API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
 
 app = FastAPI(title="HolyGrail Dashboard", version="0.1.0")
+configure_tracing(app, service_name="dashboard")
 
 
 @app.get("/health")

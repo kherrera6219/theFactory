@@ -1,6 +1,6 @@
 # Documentation Index
 
-Last updated: 2026-03-07
+Last updated: 2026-03-08
 
 This index maps the in-repo documentation set for theFactory and reflects the current implementation baseline.
 
@@ -12,12 +12,14 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `UPDATED_PHASE_PLAN_2026-03-03.md`: current post-Phase-18 execution plan and validation protocol.
 - `ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`: canonical decision record for condensed vs dedicated-agent runtime topology.
 - `ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`: canonical security-model decision record for API-key, hybrid, and OIDC modes.
+- `ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md`: canonical status decision for v1.1 production runtime vs v2 roadmap scope.
 - `GAP_ANALYSIS.md`: reviewed gaps, dispositions, and remaining structural work.
 - `LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md`: explicit legacy-scope disposition and Mission Control port-policy reconciliation.
 - `WORD_DOC_AUDIT_2026-03-03.md`: reconciliation audit against all in-repo Word-document requirements.
 - `UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`: prioritized backlog generated from Word-doc audit findings.
 - `SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`: deterministic 7-phase Smelt-cycle mapping policy for runtime telemetry.
 - `MISSION_FLOW_V1_1_CANONICAL_2026-03-07.md`: canonical reconciliation of root mission-flow Word doc aliases to runtime 35-agent IDs and lifecycle behavior.
+- `MISSION_FLOW_V2_COMPARISON_2026-03-08.md`: gap audit comparing `HGR_Mission_Flow_v2.docx` against canonical mission flow and live runtime behavior.
 
 ## Operations and Reliability
 
@@ -25,6 +27,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `OBSERVABILITY_STACK.md`: monitoring/telemetry stack baseline.
 - `DEPLOYMENT_DR_PLAYBOOK.md`: deployment + disaster recovery operational playbook.
 - `LONG_DURATION_RELIABILITY_QUALIFICATION.md`: sustained-load qualification method, thresholds, and baseline evidence.
+- `../scripts/mission_artifact_qualification.py`: live mission artifact integrity qualification (chain trace + pod assignment + logicnodes).
 - `TESTING_QUALITY_GATES.md`: enforced lint/test/coverage policy including core 100% module gates.
 - `PRODUCTION_REVIEW_AUDIT.md`: checklist-aligned production audit updates and outcomes.
 - `RELEASE_TRUST_PROMOTION_GATE.md`: CI attestation, promotion policy, and release-trust evidence flow.
@@ -41,6 +44,9 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `evidence/phase32_optional_data_plane_observability_validation_2026-03-04.md`: optional adapter observability, alerting, and dashboard validation evidence.
 - `evidence/phase33_extended_data_plane_live_qualification_validation_2026-03-04.md`: live Neo4j/MinIO qualification and disruption-recovery validation evidence.
 - `evidence/phase34_mission_control_advanced_operator_ux_validation_2026-03-04.md`: repo diff-review/apply gate and high-volume UI virtualization validation evidence.
+- `evidence/phase35_mission_artifact_runtime_integrity_validation_2026-03-08.md`: mission artifact integrity qualification tooling, tests, and validation sweep outcomes.
+- `evidence/mission_artifact_qualification_shared_2026-03-08.json`: shared-topology live artifact qualification result.
+- `evidence/mission_artifact_qualification_dedicated_2026-03-08.json`: dedicated-topology live artifact qualification result.
 - `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
 - `runbooks/optional_data_plane_incident_runbook.md`: incident response playbook for Neo4j/object-storage optional adapter degradation.
 - `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.

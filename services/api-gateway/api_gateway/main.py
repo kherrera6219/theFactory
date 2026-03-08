@@ -132,6 +132,20 @@ EVENT_SCHEMA_PATH = Path(
     os.getenv("EVENT_SCHEMA_PATH", str(REPO_ROOT / "schemas/event.envelope.schema.json"))
 )
 TOPICS_PATH = Path(os.getenv("TOPICS_PATH", str(REPO_ROOT / "protocol/topics.yaml")))
+PM_AGENT_ID = "AGENT-01-PM"
+CEO_AGENT_ID = "AGENT-02-CEO"
+DEFAULT_POD_MANAGER_AGENT_ID = "AGENT-12-PODA-MGR"
+ROUTING_VERSION = "v1.1"
+_POD_A_LANGUAGES = {"python", "javascript", "typescript", "ruby", "php"}
+_POD_B_LANGUAGES = {"go", "rust", "c", "cpp", "zig"}
+_POD_C_LANGUAGES = {"java", "csharp", "kotlin", "scala"}
+_POD_D_LANGUAGES = {"matlab", "r", "julia", "mathematica", "haskell", "ocaml"}
+POD_MANAGER_BY_LANGUAGE: dict[str, str] = {
+    **{language: "AGENT-12-PODA-MGR" for language in _POD_A_LANGUAGES},
+    **{language: "AGENT-18-PODB-MGR" for language in _POD_B_LANGUAGES},
+    **{language: "AGENT-24-PODC-MGR" for language in _POD_C_LANGUAGES},
+    **{language: "AGENT-30-PODD-MGR" for language in _POD_D_LANGUAGES},
+}
 
 
 class ProtocolValidationError(Exception):
@@ -249,6 +263,82 @@ def _build_envelope(*, correlation_id: str, payload_ref: str) -> dict[str, Any]:
 def _request_hash(payload: MissionCreate) -> str:
     canonical = json.dumps(payload.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _normalize_agent_id(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().upper()
+    return normalized or None
+
+
+def _normalize_language(value: str | None) -> str:
+    return value.strip().lower() if isinstance(value, str) else ""
+
+
+def _resolve_pod_manager_agent(requested_target_language: str | None) -> str:
+    normalized_language = _normalize_language(requested_target_language)
+    return POD_MANAGER_BY_LANGUAGE.get(normalized_language, DEFAULT_POD_MANAGER_AGENT_ID)
+
+
+def _normalize_mission_metadata(
+    metadata: Any,
+    *,
+    requested_target_language: str | None,
+) -> dict[str, Any]:
+    if metadata is None:
+        normalized: dict[str, Any] = {}
+    elif isinstance(metadata, dict):
+        normalized = dict(metadata)
+    else:
+        raise HTTPException(status_code=422, detail="metadata must be an object")
+
+    provided_agent = _normalize_agent_id(
+        normalized.get("agent_id")
+        or normalized.get("selected_agent_id")
+        or normalized.get("target_agent_id")
+        or normalized.get("assigned_agent_id")
+    )
+    if provided_agent is not None and provided_agent != PM_AGENT_ID:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "mission intake must route through AGENT-01-PM; "
+                "set agent_id/selected_agent_id to AGENT-01-PM"
+            ),
+        )
+
+    chain_trace = normalized.get("chain_trace")
+    if isinstance(chain_trace, list):
+        normalized_chain_trace = [record for record in chain_trace if isinstance(record, dict)]
+    else:
+        normalized_chain_trace = []
+
+    if not any(
+        str(record.get("event_type", "")) == "MISSION_PM_INTAKE"
+        for record in normalized_chain_trace
+    ):
+        normalized_chain_trace.append(
+            {
+                "event_type": "MISSION_PM_INTAKE",
+                "agent_id": PM_AGENT_ID,
+                "details": {"source": "api-gateway-intake"},
+            }
+        )
+
+    normalized["routing_version"] = ROUTING_VERSION
+    normalized["routing_enforced"] = True
+    normalized["intake_agent_id"] = PM_AGENT_ID
+    normalized["executive_agent_id"] = CEO_AGENT_ID
+    normalized["expected_pod_manager_agent_id"] = _resolve_pod_manager_agent(
+        requested_target_language
+    )
+    normalized["agent_id"] = PM_AGENT_ID
+    normalized["selected_agent_id"] = PM_AGENT_ID
+    normalized["chain_trace"] = normalized_chain_trace
+    normalized["last_chain_event_type"] = "MISSION_PM_INTAKE"
+    normalized["last_chain_event_at"] = None
+    return normalized
 
 
 def _idempotency_redis_key(idempotency_key: str) -> str:
@@ -1058,6 +1148,9 @@ async def _security_and_rate_limit(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    )
     response.headers["Cache-Control"] = "no-store"
     trace_id = current_trace_id()
     if trace_id:
@@ -1155,6 +1248,16 @@ async def create_mission(
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
 
+    normalized_metadata = _normalize_mission_metadata(
+        payload.metadata,
+        requested_target_language=payload.requested_target_language,
+    )
+    normalized_payload = MissionCreate(
+        prompt=payload.prompt,
+        requested_target_language=payload.requested_target_language,
+        metadata=normalized_metadata,
+    )
+
     idempotency_redis_key: str | None = None
     request_hash: str | None = None
     if idempotency_key is not None:
@@ -1164,7 +1267,7 @@ async def create_mission(
         if len(trimmed_key) > 256:
             raise HTTPException(status_code=400, detail="Idempotency-Key must be <= 256 characters")
 
-        request_hash = _request_hash(payload)
+        request_hash = _request_hash(normalized_payload)
         idempotency_redis_key = _idempotency_redis_key(trimmed_key)
         in_progress_record = {"status": "processing", "request_hash": request_hash}
         acquired = await _save_idempotency_record(
@@ -1209,12 +1312,20 @@ async def create_mission(
     created_at = datetime.now(UTC).isoformat()
     mission_payload = {
         "mission_id": mission_id,
-        "prompt": payload.prompt,
-        "requested_target_language": payload.requested_target_language,
-        "metadata": payload.metadata,
+        "prompt": normalized_payload.prompt,
+        "requested_target_language": normalized_payload.requested_target_language,
+        "metadata": normalized_payload.metadata,
         "created_at": created_at,
         "state": "INTAKE",
     }
+    chain_trace = mission_payload["metadata"].get("chain_trace")
+    if isinstance(chain_trace, list):
+        for entry in chain_trace:
+            if not isinstance(entry, dict):
+                continue
+            if str(entry.get("event_type", "")) == "MISSION_PM_INTAKE" and not entry.get("ts"):
+                entry["ts"] = created_at
+    mission_payload["metadata"]["last_chain_event_at"] = created_at
     payload_ref = f"registry://missions/{mission_id}/intake"
     try:
         envelope = _build_envelope(correlation_id=mission_id, payload_ref=payload_ref)
@@ -1306,6 +1417,11 @@ async def get_mission_events(
 @app.get("/v1/missions/{mission_id}/pod-assignment")
 async def get_mission_pod_assignment(mission_id: str) -> dict[str, Any]:
     return await _proxy_get_internal(f"/internal/missions/{mission_id}/pod-assignment")
+
+
+@app.get("/v1/missions/{mission_id}/chain-trace")
+async def get_mission_chain_trace(mission_id: str) -> dict[str, Any]:
+    return await _proxy_get_internal(f"/internal/missions/{mission_id}/chain-trace")
 
 
 @app.get("/v1/missions/{mission_id}/logicnodes")

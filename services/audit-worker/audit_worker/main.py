@@ -17,6 +17,8 @@ from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from redis.exceptions import ResponseError
 
+from .tracing import configure_tracing
+
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 STATE_STREAM = os.getenv("STATE_STREAM", "missions.state")
 CONSUMER_GROUP = os.getenv("AUDIT_WORKER_GROUP", "audit-workers")
@@ -294,6 +296,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="HolyGrail Audit Worker", version="0.1.0", lifespan=lifespan)
+configure_tracing(app, service_name="audit-worker")
 
 
 @app.get("/health")

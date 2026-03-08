@@ -1,6 +1,7 @@
 import type {
   BuilderPreviewResponse,
   GatewayHealth,
+  MissionChainTrace,
   LiveStateStreamEvent,
   MissionEvent,
   MissionRecord,
@@ -147,6 +148,12 @@ export async function getMission(missionId: string): Promise<MissionRecord> {
 
 export async function getMissionEvents(missionId: string, limit: number): Promise<MissionEvent[]> {
   return fetchJson<MissionEvent[]>(missionApiUrl(`/v1/missions/${missionId}/events?limit=${limit}`), {
+    method: "GET",
+  });
+}
+
+export async function getMissionChainTrace(missionId: string): Promise<MissionChainTrace> {
+  return fetchJson<MissionChainTrace>(missionApiUrl(`/v1/missions/${missionId}/chain-trace`), {
     method: "GET",
   });
 }

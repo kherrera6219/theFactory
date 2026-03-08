@@ -26,6 +26,7 @@ from .models import (
     KnowledgeUpsert,
     LogicNodeUpsert,
     MissionCreate,
+    MissionEvent,
     MissionRecord,
     MissionState,
     MissionStateUpdate,
@@ -173,6 +174,7 @@ def _build_operational_alerts(
     protocol_ready: bool,
     consumer_running: bool,
     state_counts: dict[str, int],
+    blocked_completion_count: int,
     limit: int,
 ) -> list[dict[str, Any]]:
     alerts: list[dict[str, Any]] = []
@@ -248,6 +250,21 @@ def _build_operational_alerts(
                 ),
             }
         )
+    if blocked_completion_count > 0:
+        alerts.append(
+            {
+                "alert_id": "missions-completion-blocked",
+                "severity": "high",
+                "state": "open",
+                "title": "Mission completion blocked by missing artifacts",
+                "source": "mission-lifecycle",
+                "created_at": now,
+                "recommendation": (
+                    "Review mission chain trace and ensure pod assignment or LogicNode "
+                    "evidence exists before completion."
+                ),
+            }
+        )
 
     return alerts[:limit]
 
@@ -270,6 +287,84 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         return None
     return parsed.astimezone(UTC)
+
+
+def _build_mission_chain_trace(
+    *,
+    mission: MissionRecord,
+    pod_assignment: dict[str, Any] | None,
+    logicnodes: list[dict[str, Any]],
+    events: list[MissionEvent],
+) -> dict[str, Any]:
+    metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
+    raw_trace = metadata.get("chain_trace")
+    chain_trace = (
+        [record for record in raw_trace if isinstance(record, dict)]
+        if isinstance(raw_trace, list)
+        else []
+    )
+    has_pod_assigned = any(
+        str(record.get("event_type", "")).upper()
+        in {"MISSION_POD_ASSIGNED", "MISSION_POD_MANAGER_ASSIGNED"}
+        for record in chain_trace
+    )
+    if pod_assignment and not has_pod_assigned:
+        chain_trace.append(
+            {
+                "event_type": "MISSION_POD_ASSIGNED",
+                "agent_id": str(metadata.get("assigned_pod_manager_agent_id", "")),
+                "ts": str(pod_assignment.get("updated_at", mission.created_at)),
+                "details": {"pod_name": pod_assignment.get("pod_name")},
+            }
+        )
+    has_logicnode_event = any(
+        str(record.get("event_type", "")).upper() == "MISSION_LOGICNODE_WRITTEN"
+        for record in chain_trace
+    )
+    if logicnodes and not has_logicnode_event:
+        chain_trace.append(
+            {
+                "event_type": "MISSION_LOGICNODE_WRITTEN",
+                "agent_id": str(metadata.get("assigned_specialist_agent_id", "")),
+                "ts": str(logicnodes[0].get("created_at", mission.created_at)),
+                "details": {"logicnode_count": len(logicnodes)},
+            }
+        )
+    if not any(
+        str(record.get("event_type", "")).upper() == "MISSION_COMPLETION_BLOCKED"
+        for record in chain_trace
+    ):
+        blocked_event = next(
+            (record for record in events if record.event_type == "MISSION_COMPLETION_BLOCKED"),
+            None,
+        )
+        if blocked_event is not None:
+            chain_trace.append(
+                {
+                    "event_type": "MISSION_COMPLETION_BLOCKED",
+                    "agent_id": str(metadata.get("executive_agent_id", "")),
+                    "ts": blocked_event.ts,
+                    "details": {"source": "mission-events"},
+                }
+            )
+
+    chain_trace = sorted(
+        chain_trace,
+        key=lambda record: str(record.get("ts", "")),
+    )
+    return {
+        "mission_id": mission.mission_id,
+        "routing_enforced": bool(metadata.get("routing_enforced", False)),
+        "routing_version": metadata.get("routing_version"),
+        "selected_agent_id": metadata.get("selected_agent_id"),
+        "intake_agent_id": metadata.get("intake_agent_id"),
+        "executive_agent_id": metadata.get("executive_agent_id"),
+        "assigned_pod_manager_agent_id": metadata.get("assigned_pod_manager_agent_id"),
+        "assigned_specialist_agent_id": metadata.get("assigned_specialist_agent_id"),
+        "pod_assignment": pod_assignment,
+        "logicnode_count": len(logicnodes),
+        "events": chain_trace,
+    }
 
 
 def _langgraph_runtime_payload(app: FastAPI) -> dict[str, Any]:
@@ -1156,6 +1251,36 @@ async def get_pod_assignment(
     return record
 
 
+@app.get("/internal/missions/{mission_id}/chain-trace")
+async def get_chain_trace(
+    mission_id: str,
+    event_limit: int = Query(default=200, ge=1, le=1000),
+    logicnode_limit: int = Query(default=200, ge=1, le=2000),
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    await _ensure_db_ready(app)
+    mission = await _fetch_existing_mission(app, mission_id)
+    assignment = await asyncio.to_thread(storage.get_pod_assignment, app.state.settings, mission_id)
+    logicnodes = await asyncio.to_thread(
+        storage.list_logicnodes,
+        app.state.settings,
+        mission_id,
+        logicnode_limit,
+    )
+    events = await asyncio.to_thread(
+        storage.list_mission_events,
+        app.state.settings,
+        mission_id,
+        event_limit,
+    )
+    return _build_mission_chain_trace(
+        mission=mission,
+        pod_assignment=assignment,
+        logicnodes=logicnodes,
+        events=events,
+    )
+
+
 @app.post("/internal/logicnodes")
 async def upsert_logicnode(
     payload: LogicNodeUpsert,
@@ -1586,6 +1711,16 @@ async def get_operations_alerts(
     _initialize_app_state(app)
     redis_ready, db_ready = await ensure_runtime_ready(app)
     state_counts = await asyncio.to_thread(storage.mission_state_counts, app.state.settings)
+    recent_events = await asyncio.to_thread(
+        storage.list_recent_mission_events,
+        app.state.settings,
+        500,
+    )
+    blocked_completion_count = sum(
+        1
+        for event in recent_events
+        if getattr(event, "event_type", "") == "MISSION_COMPLETION_BLOCKED"
+    )
     protocol_ready = bool(getattr(app.state, "protocol_ready", False))
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
@@ -1595,5 +1730,6 @@ async def get_operations_alerts(
         protocol_ready=protocol_ready,
         consumer_running=consumer_running,
         state_counts=state_counts,
+        blocked_completion_count=blocked_completion_count,
         limit=limit,
     )

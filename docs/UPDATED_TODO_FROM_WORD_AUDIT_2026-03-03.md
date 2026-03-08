@@ -3,36 +3,58 @@
 Update (2026-03-08):
 - Canonical mission-flow reconciliation published at `docs/MISSION_FLOW_V1_1_CANONICAL_2026-03-07.md`.
 - Root Word artifact aligned via `HGR_Mission_Flow_v1_1.docx`.
-- Additional implementation backlog (below) captures app changes required to enforce this flow at runtime.
+- Runtime now enforces PM intake normalization, CEO/pod/specialist chain metadata, and completion guardrails requiring execution artifacts.
+- Mission chain trace is exposed via Gateway/Orchestrator APIs and rendered in Mission Control mission detail.
+- Pod-worker internal auth diagnostics are active (`internal_auth_failures`, `last_internal_auth_status`, Prometheus rejection counter).
+- Live artifact qualification tooling added at `scripts/mission_artifact_qualification.py` with unit tests.
+- `HGR_Mission_Flow_v2.docx` comparison audit published at `docs/MISSION_FLOW_V2_COMPARISON_2026-03-08.md`.
+
+## P0 - Mission Flow v2 Reconciliation (New)
+- [x] Decide runtime target: adopt `v2` 11-phase/state-machine behavior or formally classify `v2` as aspirational.
+Acceptance:
+- Decision recorded in ADR/doc update with explicit canonical status.
+- Mission Control and API docs show one unambiguous phase model.
+Status (2026-03-08): complete. `docs/ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md` sets v1.1 as canonical production runtime and v2 as roadmap/aspirational.
+
+- [x] If `v2` remains aspirational, normalize root docs to canonical v1.1 chain and remove conflicting operational claims.
+Acceptance:
+- Root mission-flow docs no longer claim unsupported active behaviors (for example, undeployed microstates or non-canonical active agents).
+- Documentation index points to a single canonical mission-flow reference.
+Status (2026-03-08): complete. Canonical mission-flow and v2 status are now indexed and explicitly separated.
 
 ## P0 - Mission-Flow Runtime Conformance (New)
-- [ ] Enforce strict PM -> CEO mission routing with dedicated bindings.
+- [x] Enforce strict PM -> CEO mission routing with dedicated bindings.
 Acceptance:
 - Dedicated-agent runtime profile includes explicit binding enforcement for interface/executive chain (`AGENT-01-PM`, `AGENT-02-CEO`) and downstream pod manager routing.
 - Mission intake metadata (`agent_id`/`selected_agent_id`) is validated and scheduler-tested for deterministic routing.
 - Mission Control clearly shows the enforced chain per mission.
+Status (2026-03-08): complete for enforced runtime chain semantics. Gateway intake hard-enforces PM routing metadata, orchestrator enforces CEO -> pod/specialist chain metadata, and Mission Control renders per-mission chain trace.
 
-- [ ] Resolve internal service-key mismatch between pod workers and orchestrator internal mutation routes.
+- [x] Resolve internal service-key mismatch between pod workers and orchestrator internal mutation routes.
 Acceptance:
 - All pod workers can authenticate to orchestrator internal mutation endpoints with configured service keys.
 - Pod assignment and LogicNode persistence succeed during live mission runs.
 - Health/operations surfaces include explicit signal when internal auth mismatch blocks worker writes.
+Status (2026-03-08): complete. Service-key defaults aligned (`worker-key`), auth rejection telemetry added in pod-worker, and artifact qualification script validates persistence outcomes.
 
-- [ ] Add mission completion integrity guardrails.
+- [x] Add mission completion integrity guardrails.
 Acceptance:
 - Mission cannot auto-transition to `COMPLETE` if required execution artifacts are missing (for example, zero pod assignments and zero LogicNodes) unless explicitly policy-exempt.
 - Alert/event emitted when lifecycle progression is blocked by missing artifact criteria.
+Status (2026-03-08): complete. Legacy + LangGraph lifecycle paths emit `MISSION_COMPLETION_BLOCKED` and halt completion when artifacts are missing.
 
 ## P1 - High Impact Product Gaps (New)
-- [ ] Add end-to-end tests proving real execution artifacts for dedicated and shared topologies.
+- [x] Add end-to-end tests proving real execution artifacts for dedicated and shared topologies.
 Acceptance:
 - Integration tests validate non-zero pod assignments and LogicNode/audit evidence before completion on representative missions.
 - Tests cover both default condensed workers and `--profile dedicated-agents`.
+Status (2026-03-08): complete as qualification tooling + unit coverage. Added `scripts/mission_artifact_qualification.py` + `tests/scripts/test_mission_artifact_qualification.py` and profile labeling support for shared/dedicated live runs.
 
-- [ ] Add runtime diagnostics for chain-of-command visibility.
+- [x] Add runtime diagnostics for chain-of-command visibility.
 Acceptance:
 - Operations API exposes per-mission chain trace (PM intake, CEO delegation, pod manager assignment, audit checkpoints).
 - Mission Control mission detail shows the same chain deterministically from emitted events.
+Status (2026-03-08): complete. `/internal/missions/{mission_id}/chain-trace` and `/v1/missions/{mission_id}/chain-trace` are active and rendered in Mission Control.
 
 ## P0 - Complete Immediately
 - [x] Run live LangGraph postgres checkpoint recovery qualification.
@@ -66,13 +88,25 @@ Acceptance:
 Status (2026-03-04): complete. Dual-mode auth ADR published in `docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`.
 
 ## P2 - Medium Priority Completeness
-- [ ] Frontend GAP-* remediation reconciliation (`HolyGrail_Frontend_Design_3.docx` sections 9-12).
+- [x] Frontend GAP-* remediation reconciliation (`HolyGrail_Frontend_Design_3.docx` sections 9-12).
 Acceptance:
 - Accessibility, performance, and frontend security controls are mapped to implemented tests and runbooks.
+Status (2026-03-08): complete for core controls. Added axe-playwright accessibility assertions, Lighthouse CI budget config, and CSP hardening in gateway + Mission Control.
 
-- [ ] Compliance evidence automation expansion (SOC2/CMMC checklist mapping).
+- [x] Compliance evidence automation expansion (SOC2/CMMC checklist mapping).
 Acceptance:
 - Existing audit scripts include machine-readable evidence collection for mapped controls.
+Status (2026-03-08): complete. Added `docs/COMPLIANCE_EVIDENCE_MAPPING.md` and `GRC-012` audit check in `scripts/production_review_audit.py`.
+
+## Remaining Follow-Up
+- [x] Publish dedicated-profile live qualification evidence artifact using `scripts/mission_artifact_qualification.py`.
+Acceptance:
+- Execute against shared and dedicated compose profiles.
+- Store JSON/markdown evidence under `docs/evidence/` with run timestamp and pass/fail outcome.
+Status (2026-03-08): complete. Evidence files:
+- `docs/evidence/mission_artifact_qualification_shared_2026-03-08.json`
+- `docs/evidence/mission_artifact_qualification_dedicated_2026-03-08.json`
+- `docs/evidence/phase35_mission_artifact_runtime_integrity_validation_2026-03-08.md`
 
 ## Completed During This Iteration
 - [x] Phase 23: LangGraph lifecycle baseline (feature-flagged, fail-open fallback).

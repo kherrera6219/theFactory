@@ -19,6 +19,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from redis.exceptions import ResponseError
 
 from .language_extractor import get_extractor
+from .tracing import configure_tracing
 
 LOGGER = logging.getLogger(__name__)
 
@@ -75,6 +76,14 @@ BINDING_SKIPS = Counter(
     "Total missions skipped because agent binding did not match",
     ("pod_name", "reason"),
 )
+INTERNAL_AUTH_REJECTIONS = Counter(
+    "pod_worker_internal_auth_rejections_total",
+    "Total orchestrator internal endpoint auth rejections observed by pod worker",
+    ("pod_name",),
+)
+
+INTERNAL_AUTH_FAILURES = 0
+LAST_INTERNAL_AUTH_STATUS: int | None = None
 
 
 class ProtocolValidationError(Exception):
@@ -257,6 +266,11 @@ async def _request(
                     headers={"x-api-key": SERVICE_API_KEY, "x-request-id": request_id},
                 )
                 last_response = response
+                if response.status_code in {401, 403}:
+                    global INTERNAL_AUTH_FAILURES, LAST_INTERNAL_AUTH_STATUS
+                    INTERNAL_AUTH_FAILURES += 1
+                    LAST_INTERNAL_AUTH_STATUS = response.status_code
+                    INTERNAL_AUTH_REJECTIONS.labels(pod_name=POD_NAME).inc()
                 if response.status_code < 500 and response.status_code != 429:
                     return response
             except httpx.HTTPError as exc:
@@ -499,10 +513,13 @@ async def _consumer_loop(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global INTERNAL_AUTH_FAILURES, LAST_INTERNAL_AUTH_STATUS
     app.state.redis = redis.from_url(REDIS_URL, decode_responses=True)
     app.state.consumer_task = None
     app.state.processed = 0
     app.state.errors = 0
+    INTERNAL_AUTH_FAILURES = 0
+    LAST_INTERNAL_AUTH_STATUS = None
 
     await app.state.redis.ping()
     await _ensure_group(app.state.redis)
@@ -526,6 +543,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=f"HolyGrail Pod Worker ({POD_NAME})", version="0.1.0", lifespan=lifespan)
+configure_tracing(app, service_name="pod-worker")
 
 
 @app.get("/health")
@@ -548,6 +566,8 @@ async def health() -> dict[str, Any]:
         "agent_binding": list(AGENT_BINDINGS),
         "processed": app.state.processed,
         "errors": app.state.errors,
+        "internal_auth_failures": INTERNAL_AUTH_FAILURES,
+        "last_internal_auth_status": LAST_INTERNAL_AUTH_STATUS,
     }
 
 
