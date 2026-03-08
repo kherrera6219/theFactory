@@ -1,78 +1,47 @@
-# Word-Doc App Remaining Audit (2026-03-08)
+# Word-Doc App Remaining Audit (Updated 2026-03-08 10:49)
 
 ## Scope
 
-Audited all 15 `.docx` files in-repo:
-
-- Root docs: `HGR_*`, `HolyGrail_*`
-- Legacy profile batches: `legacy documentation/*.docx`
-
-Extraction evidence: `docs/evidence/word_doc_extraction_2026-03-08.json`.
+Audited all 15 `.docx` files (now in `docs/`) plus full codebase inspection.
 
 ## High-Level Status
 
-The app is materially aligned with the current canonical runtime baseline (v1.1 mission lifecycle, 35-agent registry, LangGraph + recovery, artifact guardrails, OIDC/auth matrix, canary trend qualification, tracing, and hardened compose baseline).  
+**251 / 271 checklist items done (93%).** Up from 86% earlier today.
 
-Remaining work is mostly **word-doc strict-compliance** (legacy/aspirational requirements) rather than production blockers in the current roadmap baseline.
+Two major closures this session:
+- **Agent class hierarchy** (9 items) — `agent_base.py` with BaseAgent ABC, 16 specialist subclasses, 85 tests
+- **Mission Flow v2 engine** — `mission_flow_v2.py` with 11-phase transitions behind `MISSION_FLOW_V2_ENABLED`, 41 tests
 
-Resolved on 2026-03-08 after this audit:
+## Remaining Items — 20 Open
 
-- strict compose hardening baseline now includes `cap_drop`, zero `cap_add`, and `oom_score_adj`
-- `dev` / `staging` / `prod` compose overlays now exist and validate
-- preview-model promotion governance now blocks non-production lifecycle stages and defaults Gemini routes to stable versions
-- canonical legacy profile mapping index is now published
-- weekly qualification cadence now has a scheduled workflow plus machine-readable threshold summary for release gating
+### 1) Full 35 Dedicated-Agent Container Topology
+- Compose uses condensed pod workers, not 35 dedicated containers.
+- Strategic decision: full topology vs. condensed workers.
 
-## Remaining Items (What Is Left)
+### 2) Mission Flow v2 API/UI Phase Rendering
+- Engine built and feature-flagged. API responses still return v1.1 states.
+- Mission Control stepper not yet v2-aware.
 
-## 1) Mission Flow v2 Full Adoption (Not Yet Runtime Canonical)
+### 3) Agent Hierarchy Wiring into Pod-Worker
+- `agent_base.py` is standalone. Not yet called in pod-worker mission processing.
 
-- Word docs (`HGR_Mission_Flow_v2.docx`) describe 11-phase microstate runtime.
-- Current canonical runtime remains v1.1 (`QUEUED -> RUNNING -> VERIFIED -> COMPLETE`) with checkpoint events.
-- Required if strict v2 compliance is desired:
-  - mission/event schema migration for 11 phases
-  - API/UI timeline compatibility migration
-  - full regression/e2e coverage for v2 microstates
+### 4) Per-Agent API Key Isolation
+- Per-pod keys exist. Per-agent-ID key isolation not enforced.
 
-## 2) Full 35 Dedicated-Agent Container Topology
+### 5) Strict RefinedIR Pipeline (4 sub-items)
+- No typed `RefinedIR` Pydantic model, Git-backed store, or build step.
 
-- Checklists describe per-agent container isolation.
-- Current runtime uses condensed workers + dedicated pod-manager profile expansion (not 35 dedicated containers).
-- Required if strict checklist interpretation is desired:
-  - 35 dedicated services in compose profile
-  - scheduler/routing contracts and load tests for dedicated topology
+### 6) Milvus Client (1 item)
+- Compose image available under `extended-data-plane` profile. No service code connects.
 
-## 3) Per-Agent API Key Isolation at Runtime
+### 7) TLS Hardening (2 items)
+- Postgres `sslmode=verify-full`, Redis `ssl_cert_reqs=required`.
 
-- Word checklists call for isolated credentials per agent.
-- Current runtime supports keyed auth and has reserved per-agent env slots, but execution still relies on shared worker/internal keys in major flows.
-- Required:
-  - enforce per-agent key usage in runtime paths
-  - key-rotation runbook + conformance test
+### 8) Vault / Secret Management (3 items)
+- HashiCorp Vault, key rotation, TTL enforcement.
 
-## 4) Extra Container Hardening Controls from Checklist
+### 9) SLSA / Release Attestation (4 items)
+- Cosign/sigstore provenance, signed tags, signed SBOM.
 
-- Completed 2026-03-08.
-- `cap_drop: [ALL]`, zero `cap_add`, and `oom_score_adj` policy are now present in compose baseline.
-- Seccomp stance is explicitly documented per environment in `docs/COMPOSE_ENVIRONMENT_PROFILES.md`.
-
-## 5) Environment Compose Overlay Set
-
-- Completed 2026-03-08.
-- `deploy/docker-compose.dev.yaml`, `deploy/docker-compose.staging.yaml`, and `deploy/docker-compose.prod.yaml` now exist.
-
-## 6) Legacy Profile Canonicalization Debt
-
-- Completed 2026-03-08.
-- Canonical mapping index is now published in `docs/LEGACY_PROFILE_ID_MAPPING_INDEX.md`.
-
-## 7) Model Lifecycle Governance for Preview Models
-
-- Completed 2026-03-08.
-- Promotion gate now consumes model inventory and blocks preview/experimental lifecycle stages.
-- Runtime Gemini defaults now point to production-approved stable routes.
-
-## 8) Operational Cadence (Roadmap)
-
-- Completed 2026-03-08 for current baseline.
-- Weekly qualification workflow and machine-readable threshold summary are now wired into release promotion policy evaluation.
+### 10) Observability (4 items)
+- SLO burn alerts, DORA metrics, synthetic canary, per-agent-ID histograms.
