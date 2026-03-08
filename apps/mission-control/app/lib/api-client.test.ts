@@ -2,6 +2,7 @@ import {
   ApiError,
   fetchJson,
   getGatewayReadyState,
+  getMissionChainTrace,
   getOperatorApiKey,
   missionStateStreamUrl,
   missionApiUrl,
@@ -162,5 +163,21 @@ describe("api-client", () => {
   it("keeps ApiError status codes attached", () => {
     const error = new ApiError("failed", 418);
     expect(error.statusCode).toBe(418);
+  });
+
+  it("fetches mission chain trace from gateway", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ mission_id: "mission-1", routing_enforced: true, events: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const payload = await getMissionChainTrace("mission-1");
+    expect(payload.mission_id).toBe("mission-1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8100/v1/missions/mission-1/chain-trace",
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 });

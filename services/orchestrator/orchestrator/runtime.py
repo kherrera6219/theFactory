@@ -11,6 +11,15 @@ from pydantic import ValidationError
 
 from . import storage
 from .langgraph_lifecycle import maybe_advance_mission_lifecycle
+from .mission_flow import (
+    CEO_AGENT_ID,
+    PM_AGENT_ID,
+    append_chain_event,
+    completion_policy_exempt,
+    resolve_pod_manager_agent_id,
+    resolve_specialist_agent_id,
+    with_chain_defaults,
+)
 from .models import MissionRecord, MissionState
 from .protocol import EnvelopeValidator, ProtocolValidationError
 from .settings import Settings
@@ -37,6 +46,128 @@ RUNNING_PHASE_CHECKPOINT_EVENTS: tuple[str, ...] = (
 
 def _normalize_metadata(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+async def _prepare_mission_chain_for_running(
+    *,
+    app: FastAPI,
+    settings: Settings,
+    validator: EnvelopeValidator,
+    mission_id: str,
+) -> bool:
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    pod_manager_agent_id = resolve_pod_manager_agent_id(mission.requested_target_language)
+    specialist_agent_id = resolve_specialist_agent_id(mission.requested_target_language)
+    metadata["assigned_pod_manager_agent_id"] = pod_manager_agent_id
+    metadata["assigned_specialist_agent_id"] = specialist_agent_id
+    metadata["agent_id"] = pod_manager_agent_id
+    metadata["selected_agent_id"] = pod_manager_agent_id
+
+    existing_event_types = {
+        str(entry.get("event_type", ""))
+        for entry in metadata.get("chain_trace", [])
+        if isinstance(entry, dict)
+    }
+    added_event_types: list[str] = []
+
+    if "MISSION_PM_INTAKE" not in existing_event_types:
+        append_chain_event(
+            metadata,
+            event_type="MISSION_PM_INTAKE",
+            agent_id=PM_AGENT_ID,
+            details={"source": "orchestrator-normalization"},
+        )
+        added_event_types.append("MISSION_PM_INTAKE")
+
+    if "MISSION_CEO_DELEGATED" not in existing_event_types:
+        append_chain_event(
+            metadata,
+            event_type="MISSION_CEO_DELEGATED",
+            agent_id=CEO_AGENT_ID,
+            details={"target_agent_id": pod_manager_agent_id},
+        )
+        added_event_types.append("MISSION_CEO_DELEGATED")
+
+    if "MISSION_POD_MANAGER_ASSIGNED" not in existing_event_types:
+        append_chain_event(
+            metadata,
+            event_type="MISSION_POD_MANAGER_ASSIGNED",
+            agent_id=pod_manager_agent_id,
+            details={"specialist_agent_id": specialist_agent_id},
+        )
+        added_event_types.append("MISSION_POD_MANAGER_ASSIGNED")
+
+    if "MISSION_SPECIALIST_ASSIGNED" not in existing_event_types:
+        append_chain_event(
+            metadata,
+            event_type="MISSION_SPECIALIST_ASSIGNED",
+            agent_id=specialist_agent_id,
+            details={"pod_manager_agent_id": pod_manager_agent_id},
+        )
+        added_event_types.append("MISSION_SPECIALIST_ASSIGNED")
+
+    record = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission_id,
+        metadata,
+    )
+    if record is None:
+        return False
+
+    for event_type in added_event_types:
+        await asyncio.to_thread(
+            storage.insert_mission_event,
+            settings,
+            mission_id,
+            MissionState.queued,
+            MissionState.queued,
+            event_type,
+        )
+
+        redis_ready = bool(getattr(app.state, "redis_ready", False))
+        redis_client = getattr(app.state, "redis", None)
+        if not redis_ready or redis_client is None:
+            continue
+        try:
+            await emit_state_event(
+                settings=settings,
+                validator=validator,
+                redis_client=redis_client,
+                mission=record,
+                event_type=event_type,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "failed to emit chain event %s for mission %s: %s",
+                event_type,
+                mission_id,
+                exc,
+            )
+    return True
+
+
+async def _completion_artifacts_ready(
+    *,
+    settings: Settings,
+    mission: MissionRecord,
+) -> tuple[bool, dict[str, Any]]:
+    if completion_policy_exempt(mission.metadata):
+        return True, {"policy_exempt": True}
+
+    assignment = await asyncio.to_thread(storage.get_pod_assignment, settings, mission.mission_id)
+    logicnodes = await asyncio.to_thread(storage.list_logicnodes, settings, mission.mission_id, 1)
+    has_assignment = bool(assignment)
+    has_logicnodes = bool(logicnodes)
+    return has_assignment or has_logicnodes, {
+        "policy_exempt": False,
+        "has_pod_assignment": has_assignment,
+        "logicnode_count": len(logicnodes),
+    }
 
 
 async def emit_state_event(
@@ -253,6 +384,67 @@ async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
     ]
 
     for expected_state, new_state, event_type in transitions:
+        if expected_state == MissionState.queued and new_state == MissionState.running:
+            prepared = await _prepare_mission_chain_for_running(
+                app=app,
+                settings=settings,
+                validator=validator,
+                mission_id=mission_id,
+            )
+            if not prepared:
+                return
+
+        if expected_state == MissionState.verified and new_state == MissionState.complete:
+            mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+            if mission is None:
+                return
+            artifacts_ready, artifact_details = await _completion_artifacts_ready(
+                settings=settings,
+                mission=mission,
+            )
+            if not artifacts_ready:
+                metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+                append_chain_event(
+                    metadata,
+                    event_type="MISSION_COMPLETION_BLOCKED",
+                    agent_id=CEO_AGENT_ID,
+                    details=artifact_details,
+                )
+                updated = await asyncio.to_thread(
+                    storage.update_mission_metadata,
+                    settings,
+                    mission_id,
+                    metadata,
+                )
+                if updated is not None:
+                    mission = updated
+                await asyncio.to_thread(
+                    storage.insert_mission_event,
+                    settings,
+                    mission_id,
+                    MissionState.verified,
+                    MissionState.verified,
+                    "MISSION_COMPLETION_BLOCKED",
+                )
+                redis_ready = bool(getattr(app.state, "redis_ready", False))
+                redis_client = getattr(app.state, "redis", None)
+                if redis_ready and redis_client is not None:
+                    try:
+                        await emit_state_event(
+                            settings=settings,
+                            validator=validator,
+                            redis_client=redis_client,
+                            mission=mission,
+                            event_type="MISSION_COMPLETION_BLOCKED",
+                        )
+                    except Exception as exc:
+                        LOGGER.warning(
+                            "failed to emit completion block event for mission %s: %s",
+                            mission_id,
+                            exc,
+                        )
+                return
+
         await asyncio.sleep(settings.transition_step_seconds)
 
         record = await asyncio.to_thread(

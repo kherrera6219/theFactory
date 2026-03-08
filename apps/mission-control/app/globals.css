@@ -1,35 +1,37 @@
+@import "./generated-tokens.css";
+
 :root {
   /* Style Guide §2 — Primary Palette */
-  --bg: #0f172a; /* SLATE — primary background */
-  --bg-surface: #1e293b; /* SLATE-800 — panel/card surface */
-  --bg-elevated: #253347; /* elevated card, hover targets */
-  --panel: #1e293bcc; /* panel with subtle transparency */
+  --bg: var(--hgr-bg); /* SLATE — primary background */
+  --bg-surface: var(--hgr-bg-surface); /* SLATE-800 — panel/card surface */
+  --bg-elevated: var(--hgr-bg-elevated); /* elevated card, hover targets */
+  --panel: var(--hgr-panel); /* panel with subtle transparency */
 
   /* Typography */
-  --ink: #f1f5f9; /* near-white body text */
-  --ink-muted: #94a3b8; /* SLATE-400 — muted/secondary */
-  --ink-dim: #64748b; /* SLATE-500 — very muted */
+  --ink: var(--hgr-ink); /* near-white body text */
+  --ink-muted: var(--hgr-ink-muted); /* SLATE-400 — muted/secondary */
+  --ink-dim: var(--hgr-ink-dim); /* SLATE-500 — very muted */
 
   /* Refinery Violet accent — Style Guide §2 */
-  --accent: #8b5cf6;
-  --accent-strong: #7c3aed;
-  --accent-dim: #6d28d9;
-  --accent-glow: rgba(139, 92, 246, 0.15);
+  --accent: var(--hgr-accent);
+  --accent-strong: var(--hgr-accent-strong);
+  --accent-dim: var(--hgr-accent-dim);
+  --accent-glow: var(--hgr-accent-glow);
 
   /* System state */
-  --success: #10b981;
-  --success-bg: rgba(16, 185, 129, 0.12);
-  --danger: #ef4444;
-  --danger-bg: rgba(239, 68, 68, 0.12);
-  --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.12);
-  --info: #38bdf8;
-  --info-bg: rgba(56, 189, 248, 0.12);
+  --success: var(--hgr-success);
+  --success-bg: var(--hgr-success-bg);
+  --danger: var(--hgr-danger);
+  --danger-bg: var(--hgr-danger-bg);
+  --warning: var(--hgr-warning);
+  --warning-bg: var(--hgr-warning-bg);
+  --info: var(--hgr-info);
+  --info-bg: var(--hgr-info-bg);
 
   /* Borders and focus rings */
-  --border: #334155; /* SLATE-700 */
-  --border-strong: #475569; /* SLATE-600 */
-  --ring: rgba(139, 92, 246, 0.5);
+  --border: var(--hgr-border); /* SLATE-700 */
+  --border-strong: var(--hgr-border-strong); /* SLATE-600 */
+  --ring: var(--hgr-ring);
 }
 
 * {

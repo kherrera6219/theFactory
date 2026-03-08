@@ -123,6 +123,25 @@ def test_gateway_idempotency_rejects_payload_mismatch() -> None:
         assert "different mission payload" in second.json()["detail"]
 
 
+def test_gateway_mission_intake_rejects_non_pm_agent() -> None:
+    fake_redis = FakeRedis()
+    with TestClient(api_app) as client:
+        api_app.state.redis = fake_redis
+        api_app.state.redis_ready = True
+
+        response = client.post(
+            "/v1/missions",
+            json={
+                "prompt": "Build service C",
+                "requested_target_language": "python",
+                "metadata": {"selected_agent_id": "AGENT-02-CEO"},
+            },
+        )
+
+    assert response.status_code == 422
+    assert "must route through AGENT-01-PM" in response.json()["detail"]
+
+
 def test_gateway_readyz_returns_503_on_dependency_failure(monkeypatch) -> None:
     async def _dependency_status() -> dict[str, bool]:
         return {"orchestrator_healthy": False, "redis_healthy": True}
@@ -216,6 +235,7 @@ def test_gateway_adds_security_headers() -> None:
     assert response.status_code == 200
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
+    assert "default-src 'none'" in response.headers["Content-Security-Policy"]
     assert response.headers["Cache-Control"] == "no-store"
 
 
@@ -625,6 +645,7 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
             "/internal/operations/agents",
             "/internal/operations/agent-integrations",
             "/internal/missions/mission-1/pod-assignment",
+            "/internal/missions/mission-1/chain-trace",
         }:
             return {"path": path, "ok": True}
         return [{"path": path, "params": params}]
@@ -633,6 +654,7 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
 
     with TestClient(api_app) as client:
         assert client.get("/v1/missions/mission-1/pod-assignment").status_code == 200
+        assert client.get("/v1/missions/mission-1/chain-trace").status_code == 200
         assert client.get("/v1/missions/mission-1/logicnodes?limit=4").status_code == 200
         assert client.get("/v1/missions/mission-1/knowledge?limit=3").status_code == 200
         assert client.get("/v1/missions/mission-1/knowledge-graph?limit=3").status_code == 200
@@ -658,6 +680,7 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
         assert client.get("/v1/operations/alerts?limit=6").status_code == 200
 
     assert ("/internal/missions/mission-1/pod-assignment", None) in calls
+    assert ("/internal/missions/mission-1/chain-trace", None) in calls
     assert ("/internal/missions/mission-1/logicnodes", {"limit": 4}) in calls
     assert ("/internal/missions/mission-1/knowledge", {"limit": 3}) in calls
     assert ("/internal/missions/mission-1/knowledge-graph", {"limit": 3}) in calls

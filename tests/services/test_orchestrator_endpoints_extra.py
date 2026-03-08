@@ -141,6 +141,30 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         orchestrator_main.storage,
+        "get_pod_assignment",
+        lambda *_: {
+            "mission_id": "mission-1",
+            "pod_name": "podA",
+            "metadata": {"source": "test"},
+            "assigned_at": "2026-03-01T00:00:00+00:00",
+            "updated_at": "2026-03-01T00:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "list_mission_events",
+        lambda *_: [
+            MissionEvent(
+                mission_id="mission-1",
+                previous_state=MissionState.queued,
+                new_state=MissionState.queued,
+                event_type="MISSION_CEO_DELEGATED",
+                ts="2026-03-01T00:00:00+00:00",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        orchestrator_main.storage,
         "upsert_knowledge",
         lambda *_: {"mission_id": "mission-1", "knowledge_id": "k-1"},
     )
@@ -260,6 +284,12 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         ).status_code
         == 200
     )
+    chain_trace_response = client.get(
+        "/internal/missions/mission-1/chain-trace",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert chain_trace_response.status_code == 200
+    assert chain_trace_response.json()["mission_id"] == "mission-1"
     assert (
         client.post(
             "/internal/knowledge",

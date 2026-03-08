@@ -7,6 +7,30 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- Mission-flow runtime enforcement package:
+  - canonical PM intake normalization and routing metadata at gateway intake
+  - orchestrator chain trace persistence and endpoints for per-mission PM -> CEO -> pod/specialist visibility
+  - LangGraph CEO delegation engine with provider-aware LLM calls plus deterministic fallback routing
+  - completion-integrity guardrails preventing `COMPLETE` without required execution artifacts
+- Mission artifact qualification tooling:
+  - `scripts/mission_artifact_qualification.py`
+  - `scripts/mission_artifact_qualification.ps1`
+  - `tests/scripts/test_mission_artifact_qualification.py`
+  - evidence artifacts for both shared and dedicated profiles:
+    - `docs/evidence/mission_artifact_qualification_shared_2026-03-08.json`
+    - `docs/evidence/mission_artifact_qualification_dedicated_2026-03-08.json`
+- Mission-flow status ADR and phase evidence/docs:
+  - `docs/ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md`
+  - `docs/evidence/phase35_mission_artifact_runtime_integrity_validation_2026-03-08.md`
+- Additional distributed tracing wiring modules:
+  - `services/pod-worker/pod_worker/tracing.py`
+  - `services/audit-worker/audit_worker/tracing.py`
+  - `services/semantic-bus-mcp/semantic_bus/tracing.py`
+  - `services/dashboard/dashboard/tracing.py`
+- Mission Control token sync helper for container-safe styling:
+  - `apps/mission-control/scripts/sync-design-tokens.mjs`
+  - generated `apps/mission-control/app/generated-tokens.css`
+
 - Frontend Style Guide compliance pass:
   - Typography: `layout.tsx` updated to use Style Guide-specified `Inter` (display) and `JetBrains_Mono` (code) fonts.
   - Dark mode: `globals.css` rewritten with 31-token CSS variable system — SLATE `#0F172A` background, Refinery Violet `#8B5CF6` accent, SLATE-400 muted text, SLATE-700 borders throughout.
@@ -122,6 +146,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - validation evidence in `docs/evidence/phase33_extended_data_plane_live_qualification_validation_2026-03-04.md`
 
 ### Changed
+- Production audit coverage expanded to `14/14` checks with compliance evidence mapping control (`GRC-012`).
+- Mission Control now imports generated local token CSS and syncs tokens during `dev`/`build`.
+- Docker runtime stack rebuilt and validated with Redis TLS port wiring and updated mission-flow enforcement paths.
+- Word-doc audit backlog and phase plan documentation updated to mark phase-35 artifact integrity validation complete.
+
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
 - `deploy/docker-compose.yaml` healthchecks migrated from `wget` to runtime-native probes (`python`/`node`) for slim images.
 - `scripts/debug_sweep.ps1` expanded to validate MCP (`/health`, `/readyz`, `/metrics`) in addition to core services.

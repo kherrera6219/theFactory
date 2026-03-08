@@ -18,16 +18,17 @@ services:
       - --requirepass
       - ${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}
     ports:
-      - "${REDIS_HOST_PORT:-6380}:6379"
+      - "${REDIS_HOST_PORT:-6380}:6380"
     volumes:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis/certs:/usr/local/etc/redis/certs:ro
       - redis-data:/data
     mem_limit: 3g
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "redis-cli -a ${REDIS_PASSWORD:-dev-redis-password-change-me-32chars} ping | grep PONG",
+          "redis-cli --tls --insecure -p 6380 -a ${REDIS_PASSWORD:-dev-redis-password-change-me-32chars} ping | grep PONG",
         ]
       interval: 10s
       timeout: 3s
@@ -134,7 +135,7 @@ services:
       context: ..
       dockerfile: services/orchestrator/Dockerfile
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       QDRANT_URL: http://qdrant:6333
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
       QDRANT_ENABLED: ${QDRANT_ENABLED:-true}
@@ -180,6 +181,16 @@ services:
       ORCHESTRATOR_READONLY_API_KEY: ${ORCHESTRATOR_READONLY_API_KEY:-viewer-key}
       ORCHESTRATOR_API_KEYS: ${ORCHESTRATOR_API_KEYS:-operator-key=mutate,read}
       ORCHESTRATOR_PORT: 8001
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-20}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com/v1}
+      ANTHROPIC_TIMEOUT_SECONDS: ${ANTHROPIC_TIMEOUT_SECONDS:-20}
+      ANTHROPIC_VERSION: ${ANTHROPIC_VERSION:-2023-06-01}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
+      GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-20}
       OTEL_TRACING_ENABLED: ${OTEL_TRACING_ENABLED:-true}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://jaeger:4318/v1/traces}
     ports:
@@ -203,6 +214,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 1g
     cpus: 1.0
 
@@ -213,7 +231,7 @@ services:
       dockerfile: services/api-gateway/Dockerfile
     environment:
       ORCHESTRATOR_URL: http://orchestrator:8001
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       INTAKE_STREAM: missions.intake
       INTAKE_TOPIC: intake.feature_contract.created
       MAX_STREAM_LEN: 20000
@@ -272,6 +290,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 768m
     cpus: 0.75
 
@@ -281,7 +306,7 @@ services:
       context: ..
       dockerfile: services/semantic-bus-mcp/Dockerfile
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       MCP_PORT: 8090
       MAX_STREAM_LEN: 20000
       MAX_MESSAGE_BYTES: 1048576
@@ -303,6 +328,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 768m
     cpus: 0.75
 
@@ -363,14 +395,14 @@ services:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podA
       POD_WORKER_NAME: pod-a-01
       POD_NAME: podA
       SUPPORTED_LANGUAGES: python,typescript,javascript,ruby,php
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key-pod-a}
+      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
     depends_on:
       redis:
         condition: service_healthy
@@ -388,6 +420,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 768m
     cpus: 0.75
 
@@ -397,14 +436,14 @@ services:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podB
       POD_WORKER_NAME: pod-b-01
       POD_NAME: podB
       SUPPORTED_LANGUAGES: go,rust,c,cpp,zig
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key-pod-b}
+      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
     depends_on:
       redis:
         condition: service_healthy
@@ -422,6 +461,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 768m
     cpus: 0.75
 
@@ -431,14 +477,14 @@ services:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podC
       POD_WORKER_NAME: pod-c-01
       POD_NAME: podC
       SUPPORTED_LANGUAGES: java,csharp,kotlin,scala
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key-pod-c}
+      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
     depends_on:
       redis:
         condition: service_healthy
@@ -456,6 +502,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 768m
     cpus: 0.75
 
@@ -465,14 +518,14 @@ services:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podD
       POD_WORKER_NAME: pod-d-01
       POD_NAME: podD
       SUPPORTED_LANGUAGES: haskell,ocaml,julia,r
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key-pod-d}
+      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
     depends_on:
       redis:
         condition: service_healthy
@@ -501,7 +554,7 @@ services:
     profiles:
       - dedicated-agents
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: dedicated-workers-podA
       POD_WORKER_NAME: dedicated-pod-a-mgr-01
@@ -509,7 +562,7 @@ services:
       SUPPORTED_LANGUAGES: python,typescript,javascript,ruby,php
       AGENT_BINDING: AGENT-12-PODA-MGR
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key-pod-a}
+      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
     depends_on:
       redis:
         condition: service_healthy
@@ -527,6 +580,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 512m
     cpus: 0.5
 
@@ -538,7 +598,7 @@ services:
     profiles:
       - dedicated-agents
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: dedicated-workers-podB
       POD_WORKER_NAME: dedicated-pod-b-mgr-01
@@ -546,7 +606,7 @@ services:
       SUPPORTED_LANGUAGES: go,rust,c,cpp,zig
       AGENT_BINDING: AGENT-18-PODB-MGR
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key-pod-b}
+      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
     depends_on:
       redis:
         condition: service_healthy
@@ -564,6 +624,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 512m
     cpus: 0.5
 
@@ -575,7 +642,7 @@ services:
     profiles:
       - dedicated-agents
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: dedicated-workers-podC
       POD_WORKER_NAME: dedicated-pod-c-mgr-01
@@ -583,7 +650,7 @@ services:
       SUPPORTED_LANGUAGES: java,csharp,kotlin,scala
       AGENT_BINDING: AGENT-24-PODC-MGR
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key-pod-c}
+      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
     depends_on:
       redis:
         condition: service_healthy
@@ -601,6 +668,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 512m
     cpus: 0.5
 
@@ -612,7 +686,7 @@ services:
     profiles:
       - dedicated-agents
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: dedicated-workers-podD
       POD_WORKER_NAME: dedicated-pod-d-mgr-01
@@ -620,7 +694,7 @@ services:
       SUPPORTED_LANGUAGES: haskell,ocaml,julia,r
       AGENT_BINDING: AGENT-30-PODD-MGR
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key-pod-d}
+      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
     depends_on:
       redis:
         condition: service_healthy
@@ -638,6 +712,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 512m
     cpus: 0.5
 
@@ -647,12 +728,12 @@ services:
       context: ..
       dockerfile: services/audit-worker/Dockerfile
     environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6379/0
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=none
       STATE_STREAM: missions.state
       AUDIT_WORKER_GROUP: audit-workers
       AUDIT_WORKER_NAME: audit-01
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AUDIT_SERVICE_API_KEY:-worker-key-audit}
+      SERVICE_API_KEY: ${AUDIT_SERVICE_API_KEY:-worker-key}
     depends_on:
       redis:
         condition: service_healthy
@@ -670,6 +751,13 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     mem_limit: 768m
     cpus: 0.75
 
@@ -685,3 +773,4 @@ networks:
   hgr-network:
     name: hgr-network
     driver: bridge
+

@@ -16,6 +16,8 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from .tracing import configure_tracing
+
 try:
     import redis.asyncio as redis
 except ModuleNotFoundError:
@@ -255,6 +257,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="HolyGrail Semantic Bus MCP", version="0.1.0", lifespan=lifespan)
+configure_tracing(app, service_name="semantic-bus-mcp")
 
 
 @app.middleware("http")

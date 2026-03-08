@@ -124,6 +124,35 @@ def fetch_mission(settings: Settings, mission_id: str) -> MissionRecord | None:
     return row_to_mission(row)
 
 
+def update_mission_metadata(
+    settings: Settings,
+    mission_id: str,
+    metadata: dict[str, Any],
+) -> MissionRecord | None:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE missions
+                SET metadata_json = %s::jsonb, updated_at = NOW()
+                WHERE mission_id = %s
+                RETURNING
+                    mission_id,
+                    prompt,
+                    requested_target_language,
+                    metadata_json,
+                    state,
+                    created_at
+                """,
+                (json.dumps(metadata), mission_id),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        return None
+    return row_to_mission(row)
+
+
 def list_missions(settings: Settings, limit: int) -> list[MissionRecord]:
     with db_connect(settings) as conn:
         with conn.cursor() as cur:

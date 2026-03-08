@@ -393,6 +393,28 @@ def test_request_returns_last_response_after_retryable_statuses(monkeypatch) -> 
     assert response.status_code == 500
 
 
+def test_request_tracks_internal_auth_rejection(monkeypatch) -> None:
+    class AuthRejectedClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def request(self, *_args, **_kwargs):
+            return DummyResponse(403, {"detail": "forbidden"})
+
+    monkeypatch.setattr(pod_worker_main.httpx, "AsyncClient", lambda timeout: AuthRejectedClient())
+    monkeypatch.setattr(pod_worker_main, "REQUEST_MAX_RETRIES", 1)
+    monkeypatch.setattr(pod_worker_main, "INTERNAL_AUTH_FAILURES", 0)
+    monkeypatch.setattr(pod_worker_main, "LAST_INTERNAL_AUTH_STATUS", None)
+
+    response = asyncio.run(pod_worker_main._request("GET", "/internal/missions/test"))
+    assert response.status_code == 403
+    assert pod_worker_main.INTERNAL_AUTH_FAILURES == 1
+    assert pod_worker_main.LAST_INTERNAL_AUTH_STATUS == 403
+
+
 def test_handle_running_mission_branches(monkeypatch) -> None:
     redis_client = FakeRedis()
     payload = {
@@ -566,9 +588,13 @@ def test_health_function() -> None:
     pod_worker_main.app.state.redis = PingRedis()
     pod_worker_main.app.state.processed = 3
     pod_worker_main.app.state.errors = 1
+    pod_worker_main.INTERNAL_AUTH_FAILURES = 2
+    pod_worker_main.LAST_INTERNAL_AUTH_STATUS = 403
     result = asyncio.run(pod_worker_main.health())
     assert result["ok"] is True
     assert result["processed"] == 3
+    assert result["internal_auth_failures"] == 2
+    assert result["last_internal_auth_status"] == 403
     assert "agent_binding" in result
 
 

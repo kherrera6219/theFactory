@@ -6,9 +6,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "api-gateway"))
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
+sys.path.insert(0, str(ROOT / "services" / "pod-worker"))
+sys.path.insert(0, str(ROOT / "services" / "audit-worker"))
+sys.path.insert(0, str(ROOT / "services" / "semantic-bus-mcp"))
+sys.path.insert(0, str(ROOT / "services" / "dashboard"))
 
 gateway_tracing = importlib.import_module("api_gateway.tracing")
 orchestrator_tracing = importlib.import_module("orchestrator.tracing")
+pod_worker_tracing = importlib.import_module("pod_worker.tracing")
+audit_worker_tracing = importlib.import_module("audit_worker.tracing")
+semantic_bus_tracing = importlib.import_module("semantic_bus.tracing")
+dashboard_tracing = importlib.import_module("dashboard.tracing")
 
 
 class _DummyApp:
@@ -25,6 +33,17 @@ def test_orchestrator_configure_tracing_disabled(monkeypatch) -> None:
     assert orchestrator_tracing.configure_tracing(_DummyApp(), service_name="orchestrator") is False
 
 
+def test_other_services_configure_tracing_disabled(monkeypatch) -> None:
+    monkeypatch.setenv("OTEL_TRACING_ENABLED", "false")
+    assert pod_worker_tracing.configure_tracing(_DummyApp(), service_name="pod-worker") is False
+    assert audit_worker_tracing.configure_tracing(_DummyApp(), service_name="audit-worker") is False
+    assert (
+        semantic_bus_tracing.configure_tracing(_DummyApp(), service_name="semantic-bus-mcp")
+        is False
+    )
+    assert dashboard_tracing.configure_tracing(_DummyApp(), service_name="dashboard") is False
+
+
 def test_current_trace_id_without_span_is_none() -> None:
     trace_id_gateway = gateway_tracing.current_trace_id()
     trace_id_orchestrator = orchestrator_tracing.current_trace_id()
@@ -37,5 +56,9 @@ def test_trace_enabled_parser(monkeypatch) -> None:
     assert gateway_tracing._enabled() is True
     monkeypatch.setenv("OTEL_TRACING_ENABLED", "0")
     assert orchestrator_tracing._enabled() is False
+    assert pod_worker_tracing._enabled() is False
+    assert audit_worker_tracing._enabled() is False
+    assert semantic_bus_tracing._enabled() is False
+    assert dashboard_tracing._enabled() is False
     monkeypatch.delenv("OTEL_TRACING_ENABLED", raising=False)
     assert os.getenv("OTEL_TRACING_ENABLED") is None

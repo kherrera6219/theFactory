@@ -15,6 +15,27 @@ export type MissionEvent = {
   ts: string;
 };
 
+export type MissionChainEvent = {
+  event_type: string;
+  agent_id?: string | null;
+  ts: string;
+  details?: Record<string, unknown>;
+};
+
+export type MissionChainTrace = {
+  mission_id: string;
+  routing_enforced: boolean;
+  routing_version?: string | null;
+  selected_agent_id?: string | null;
+  intake_agent_id?: string | null;
+  executive_agent_id?: string | null;
+  assigned_pod_manager_agent_id?: string | null;
+  assigned_specialist_agent_id?: string | null;
+  pod_assignment?: Record<string, unknown> | null;
+  logicnode_count: number;
+  events: MissionChainEvent[];
+};
+
 export type LiveStateStreamEvent = {
   stream_id: string;
   event_type: string;

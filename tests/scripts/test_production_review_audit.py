@@ -106,6 +106,7 @@ def test_run_audit_returns_expected_checks() -> None:
         "OBS-009",
         "OBS-010",
         "PERF-010",
+        "GRC-012",
     ]
 
 
@@ -335,3 +336,26 @@ def test_check_long_duration_reliability_controls_fails_when_missing(tmp_path, m
     result = audit.check_long_duration_reliability_controls()
     assert result.passed is False
     assert "missing artifact" in result.notes
+
+
+def test_check_compliance_evidence_mapping_passes(tmp_path, monkeypatch) -> None:
+    _write(
+        tmp_path / "docs" / "COMPLIANCE_EVIDENCE_MAPPING.md",
+        """
+# map
+SOC2 controls
+CMMC controls
+evidence artifact references
+""".strip(),
+    )
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_compliance_evidence_mapping()
+    assert result.passed is True
+
+
+def test_check_compliance_evidence_mapping_fails_when_missing(tmp_path, monkeypatch) -> None:
+    _write(tmp_path / "docs" / "COMPLIANCE_EVIDENCE_MAPPING.md", "# map\nSOC2 only\n")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_compliance_evidence_mapping()
+    assert result.passed is False
+    assert "cmmc" in result.notes.lower()

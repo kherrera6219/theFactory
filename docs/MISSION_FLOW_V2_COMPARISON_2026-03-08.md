@@ -6,6 +6,11 @@ Compared:
 - `HGR_Mission_Flow_v1_1.docx` + canonical source `docs/MISSION_FLOW_V1_1_CANONICAL_2026-03-07.md`
 - Live runtime behavior (Gateway/Orchestrator APIs) on 2026-03-08.
 
+## Update (Post-Implementation)
+- Completion integrity guardrails are now implemented in both legacy and LangGraph lifecycle paths.
+- Missions emit `MISSION_COMPLETION_BLOCKED` and halt before `COMPLETE` when both pod-assignment and logicnode artifacts are absent (unless policy-exempt).
+- Chain-of-command trace is now available in runtime APIs and Mission Control mission detail.
+
 ## High-Confidence Findings
 1. `v2` is more detailed but mixes implemented behavior with aspirational behavior.
 2. `v1.1` is aligned to canonical registry IDs and current lifecycle implementation.
@@ -19,7 +24,7 @@ Compared:
 - `v2` introduces non-canonical roles in active flow text (`Data Architect`, `SRE Agent`).
   - Canonical 35-agent registry uses support ring IDs/names in `agent_registry.py` and does not expose those as standalone canonical agent IDs.
 - `v2` implies guaranteed artifact production before completion.
-  - Live operations currently show empty pod-assignment/logicnode surfaces for recent missions while missions can still complete.
+  - Runtime now enforces artifact-gated completion; this mismatch is closed.
 
 ## Live Runtime Evidence (2026-03-08)
 - Gateway health: auth mode `api_key`, orchestrator healthy.
