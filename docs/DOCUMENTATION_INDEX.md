@@ -53,6 +53,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `evidence/phase36_frontend_budget_a11y_enforcement_2026-03-08.md`: CI Lighthouse budget enforcement, full axe color-contrast validation, and live mission chain/artifact integration proof.
 - `evidence/phase37_strategy_auth_canary_2026-03-08.md`: strategic ADR closure, operator OIDC route policy extension, and dedicated canary guardrail validation.
 - `evidence/phase38_qualification_matrix_automation_2026-03-08.md`: operator auth matrix, canary trend automation, and v2 prototype continuation validation.
+- `evidence/phase39_llm_node_wiring_hardening_2026-03-08.md`: LangGraph LLM node depth wiring, tracing entrypoint verification, and compose hardening validation.
 - `evidence/operator_route_oidc_matrix_2026-03-08.json`: live operator-route auth matrix qualification report (`api_key|hybrid|oidc`).
 - `evidence/dedicated_agent_canary_trend_2026-03-08.json`: live multi-language dedicated canary trend qualification report.
 - `evidence/langgraph_v2_prototype_matrix_2026-03-08.json`: v1.1 baseline plus v2 prototype matrix live qualification report.

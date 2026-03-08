@@ -225,6 +225,7 @@ def test_maybe_advance_executes_graph_and_emits(monkeypatch) -> None:
         "MISSION_CEO_DELEGATED",
         "MISSION_POD_MANAGER_ASSIGNED",
         "MISSION_SPECIALIST_ASSIGNED",
+        "MISSION_SPECIALIST_PLANNED",
         "MISSION_RUNNING",
         "MISSION_GATING",
         "MISSION_FUSION",
@@ -235,6 +236,7 @@ def test_maybe_advance_executes_graph_and_emits(monkeypatch) -> None:
         "MISSION_CEO_DELEGATED",
         "MISSION_POD_MANAGER_ASSIGNED",
         "MISSION_SPECIALIST_ASSIGNED",
+        "MISSION_SPECIALIST_PLANNED",
         "MISSION_GATING",
         "MISSION_FUSION",
     ]
@@ -287,6 +289,7 @@ def test_maybe_advance_halts_when_transition_returns_none(monkeypatch) -> None:
         "MISSION_CEO_DELEGATED",
         "MISSION_POD_MANAGER_ASSIGNED",
         "MISSION_SPECIALIST_ASSIGNED",
+        "MISSION_SPECIALIST_PLANNED",
     ]
 
 

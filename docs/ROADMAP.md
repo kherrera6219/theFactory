@@ -466,7 +466,30 @@ Last updated: 2026-03-08
   - `docs/evidence/langgraph_v2_prototype_matrix_2026-03-08.json`
 - Status: Complete (roadmap follow-up automation implemented, 2026-03-08).
 
+## Phase 39: LLM Node Wiring Depth, Tracing Verification, and Compose Hardening
+
+- Extended LangGraph LLM wiring beyond CEO delegation:
+  - pod-manager delegation now executes provider-aware LLM calls with fallback routing.
+  - specialist planning node now executes provider-aware LLM calls with fallback routing.
+  - new chain event: `MISSION_SPECIALIST_PLANNED`.
+  - files:
+    - `services/orchestrator/orchestrator/llm_delegation.py`
+    - `services/orchestrator/orchestrator/langgraph_lifecycle.py`
+    - `tests/services/test_llm_delegation_unit.py`
+    - `tests/services/test_langgraph_lifecycle_unit.py`
+- Added tracing entrypoint wiring verification coverage:
+  - `tests/services/test_tracing_wiring_unit.py`
+  - verifies `configure_tracing(...)` invocation in audit-worker, semantic-bus-mcp, dashboard,
+    and pod-worker entrypoints.
+- Hardened compose baseline with no-new-privileges control:
+  - `deploy/docker-compose.yaml` (`x-common-service.security_opt`)
+- Validation evidence:
+  - `docs/evidence/phase39_llm_node_wiring_hardening_2026-03-08.md`
+- Status: Complete (LLM depth wiring + hardening controls validated, 2026-03-08).
+
 ## Next Roadmap Targets
 
 1. Execute weekly live-stack matrix/canary/prototype runs and publish retained evidence snapshots.
 2. Promote v2 prototype matrix signals into release-policy thresholds after three consecutive successful qualification windows.
+3. Add targeted metrics dashboard panels for `MISSION_SPECIALIST_PLANNED` and LLM route
+   provenance (`primary` vs `fallback`) per mission.

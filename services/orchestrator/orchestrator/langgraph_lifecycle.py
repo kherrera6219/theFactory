@@ -7,7 +7,11 @@ from typing import Any, TypedDict
 from fastapi import FastAPI
 
 from . import storage
-from .llm_delegation import generate_ceo_delegation
+from .llm_delegation import (
+    generate_ceo_delegation,
+    generate_pod_manager_delegation,
+    generate_specialist_plan,
+)
 from .mission_flow import (
     CEO_AGENT_ID,
     PM_AGENT_ID,
@@ -218,26 +222,53 @@ async def maybe_advance_mission_lifecycle(
             delegation.get("pod_manager_agent_id")
             or resolve_pod_manager_agent_id(mission.requested_target_language)
         ).strip().upper()
-        specialist_agent_id = str(
+        default_specialist_agent_id = str(
             delegation.get("specialist_agent_id")
+            or resolve_specialist_agent_id(mission.requested_target_language)
+        ).strip().upper()
+        mission_context = {
+            "mission_id": mission.mission_id,
+            "prompt": mission.prompt,
+            "requested_target_language": mission.requested_target_language,
+            "source": metadata.get("source"),
+            "ceo_delegation": delegation,
+        }
+        pod_manager_delegation = await generate_pod_manager_delegation(
+            mission_context=mission_context,
+            requested_target_language=mission.requested_target_language,
+            pod_manager_agent_id=pod_manager_agent_id,
+            default_specialist_agent_id=default_specialist_agent_id,
+        )
+        specialist_agent_id = str(
+            pod_manager_delegation.get("specialist_agent_id")
+            or default_specialist_agent_id
             or resolve_specialist_agent_id(mission.requested_target_language)
         ).strip().upper()
 
         metadata["assigned_pod_manager_agent_id"] = pod_manager_agent_id
         metadata["assigned_specialist_agent_id"] = specialist_agent_id
+        metadata["pod_manager_delegation"] = pod_manager_delegation
         metadata["selected_agent_id"] = pod_manager_agent_id
         metadata["agent_id"] = pod_manager_agent_id
         append_chain_event(
             metadata,
             event_type="MISSION_POD_MANAGER_ASSIGNED",
             agent_id=pod_manager_agent_id,
-            details={"specialist_agent_id": specialist_agent_id},
+            details={
+                "specialist_agent_id": specialist_agent_id,
+                "source": pod_manager_delegation.get("source"),
+                "model_provider": pod_manager_delegation.get("model_provider"),
+                "model": pod_manager_delegation.get("model"),
+            },
         )
         append_chain_event(
             metadata,
             event_type="MISSION_SPECIALIST_ASSIGNED",
             agent_id=specialist_agent_id,
-            details={"pod_manager_agent_id": pod_manager_agent_id},
+            details={
+                "pod_manager_agent_id": pod_manager_agent_id,
+                "source": pod_manager_delegation.get("source"),
+            },
         )
         updated = await asyncio.to_thread(
             storage.update_mission_metadata,
@@ -257,16 +288,88 @@ async def maybe_advance_mission_lifecycle(
             mission=updated,
             event_type="MISSION_SPECIALIST_ASSIGNED",
         )
+        merged_delegation = dict(delegation) if isinstance(delegation, dict) else {}
+        merged_delegation.update(
+            {
+                "pod_manager_agent_id": pod_manager_agent_id,
+                "specialist_agent_id": specialist_agent_id,
+                "source": pod_manager_delegation.get("source", merged_delegation.get("source")),
+                "model_provider": pod_manager_delegation.get("model_provider"),
+                "model": pod_manager_delegation.get("model"),
+                "pod_manager_delegation": pod_manager_delegation,
+            }
+        )
         return {
             "mission_id": state["mission_id"],
             "halted": False,
-            "delegation": {
+            "delegation": merged_delegation,
+        }
+
+    async def _specialist_plan(state: MissionLifecycleState) -> MissionLifecycleState:
+        mission = await asyncio.to_thread(storage.fetch_mission, settings, state["mission_id"])
+        if mission is None:
+            return {"mission_id": state["mission_id"], "halted": True, "delegation": {}}
+
+        metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+        delegation = state.get("delegation") or {}
+        pod_manager_agent_id = str(
+            delegation.get("pod_manager_agent_id")
+            or metadata.get("assigned_pod_manager_agent_id")
+            or resolve_pod_manager_agent_id(mission.requested_target_language)
+        ).strip().upper()
+        specialist_agent_id = str(
+            delegation.get("specialist_agent_id")
+            or metadata.get("assigned_specialist_agent_id")
+            or resolve_specialist_agent_id(mission.requested_target_language)
+        ).strip().upper()
+
+        mission_context = {
+            "mission_id": mission.mission_id,
+            "prompt": mission.prompt,
+            "requested_target_language": mission.requested_target_language,
+            "source": metadata.get("source"),
+            "ceo_delegation": metadata.get("ceo_delegation"),
+            "pod_manager_delegation": metadata.get("pod_manager_delegation"),
+        }
+        specialist_plan = await generate_specialist_plan(
+            mission_context=mission_context,
+            requested_target_language=mission.requested_target_language,
+            specialist_agent_id=specialist_agent_id,
+            pod_manager_agent_id=pod_manager_agent_id,
+        )
+
+        metadata["specialist_plan"] = specialist_plan
+        append_chain_event(
+            metadata,
+            event_type="MISSION_SPECIALIST_PLANNED",
+            agent_id=specialist_agent_id,
+            details={
                 "pod_manager_agent_id": pod_manager_agent_id,
-                "specialist_agent_id": specialist_agent_id,
-                "source": delegation.get("source", "fallback"),
-                "model_provider": delegation.get("model_provider"),
-                "model": delegation.get("model"),
+                "source": specialist_plan.get("source"),
+                "model_provider": specialist_plan.get("model_provider"),
+                "model": specialist_plan.get("model"),
             },
+        )
+        updated = await asyncio.to_thread(
+            storage.update_mission_metadata,
+            settings,
+            state["mission_id"],
+            metadata,
+        )
+        if updated is None:
+            return {"mission_id": state["mission_id"], "halted": True, "delegation": {}}
+        await _emit_chain_event(
+            mission_id=state["mission_id"],
+            mission=updated,
+            event_type="MISSION_SPECIALIST_PLANNED",
+        )
+
+        merged_delegation = dict(delegation) if isinstance(delegation, dict) else {}
+        merged_delegation["specialist_plan"] = specialist_plan
+        return {
+            "mission_id": state["mission_id"],
+            "halted": False,
+            "delegation": merged_delegation,
         }
 
     async def _run_transition(
@@ -445,12 +548,14 @@ async def maybe_advance_mission_lifecycle(
     workflow = StateGraph(MissionLifecycleState)
     workflow.add_node("ceo_delegate", _ceo_delegate)
     workflow.add_node("pod_manager_delegate", _pod_manager_delegate)
+    workflow.add_node("specialist_plan", _specialist_plan)
     workflow.add_node("queued_to_running", _build_transition_node(0))
     workflow.add_node("running_to_verified", _build_transition_node(1))
     workflow.add_node("verified_to_complete", _build_transition_node(2))
     workflow.add_edge(START, "ceo_delegate")
     workflow.add_conditional_edges("ceo_delegate", _route_next("pod_manager_delegate"))
-    workflow.add_conditional_edges("pod_manager_delegate", _route_next("queued_to_running"))
+    workflow.add_conditional_edges("pod_manager_delegate", _route_next("specialist_plan"))
+    workflow.add_conditional_edges("specialist_plan", _route_next("queued_to_running"))
     workflow.add_conditional_edges("queued_to_running", _route_next("running_to_verified"))
     workflow.add_conditional_edges("running_to_verified", _route_next("verified_to_complete"))
     workflow.add_edge("verified_to_complete", END)

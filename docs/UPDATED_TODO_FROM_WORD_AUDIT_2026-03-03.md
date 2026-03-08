@@ -15,6 +15,12 @@ Update (2026-03-08):
 - Operator-route auth matrix automation added for `api_key|hybrid|oidc` (`scripts/operator_route_auth_matrix_qualification.py`).
 - Multi-language dedicated canary trend automation added (`scripts/dedicated_agent_canary_trend.py`).
 - v1.1 baseline + v2 prototype matrix automation added (`scripts/langgraph_v2_prototype_matrix.py`).
+- LangGraph now executes provider-backed LLM calls at CEO, pod-manager, and specialist stages,
+  including specialist planning event emission (`MISSION_SPECIALIST_PLANNED`).
+- Compose hardening baseline now includes `no-new-privileges` security option at shared service
+  level.
+- OTel tracing entrypoint wiring for audit-worker, semantic-bus-mcp, and dashboard is covered by
+  regression test (`tests/services/test_tracing_wiring_unit.py`).
 
 ## P0 - Mission Flow v2 Reconciliation (New)
 - [x] Decide runtime target: adopt `v2` 11-phase/state-machine behavior or formally classify `v2` as aspirational.
