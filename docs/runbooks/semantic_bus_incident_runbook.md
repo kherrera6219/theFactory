@@ -1,42 +1,177 @@
-# Semantic Bus Incident Runbook
+# Incident Runbook — Semantic Bus
 
-Last updated: 2026-03-02
+**Last updated:** 2026-03-07
+**Applies to:** Semantic Bus MCP service (`:8102`), Redis Streams-based event routing, protocol message failures
+**Impact:** When the semantic bus is degraded, agent-to-agent protocol messages fail or are dropped to the DLQ. Core mission HTTP flow continues unaffected.
 
-## Scope
+---
 
-Operational response for Redis/MCP message-routing incidents.
+## Alert Summary
 
-## Detection Signals
+| Symptom | Severity | Signs |
+|---------|----------|-------|
+| Semantic Bus MCP down | HIGH | `http://localhost:8102/health` returns non-200 or no response |
+| Protocol validation failures | MEDIUM | Messages appear in DLQ (`GET /dlq?protocol=<name>`) |
+| Redis stream stall | HIGH | Consumer group lag growing; agents not receiving messages |
+| DLQ growing | MEDIUM | `/dlq` returns increasing message count across protocols |
 
-- `SemanticBusMcpDown` alert.
-- `PodWorkerDown` or `AuditWorkerDown` alerts.
-- Rising DLQ depth from `/dlq` endpoint.
+---
 
-## Triage Steps
+## Step 1 — Confirm Status
 
-1. Check core service health:
-   - `curl http://localhost:8102/health`
-   - `curl http://localhost:8100/health`
-   - `curl http://localhost:8101/health`
-2. Inspect compose state:
-   - `docker compose -f deploy/docker-compose.yaml ps`
-3. Inspect MCP logs:
-   - `docker compose -f deploy/docker-compose.yaml logs semantic-bus-mcp --tail 200`
-4. Inspect Redis status:
-   - `docker compose -f deploy/docker-compose.yaml logs redis --tail 200`
+```bash
+# Check service health
+curl http://localhost:8102/health
 
-## Recovery Actions
+# Check container status
+docker compose -f deploy/docker-compose.yaml ps semantic-bus-mcp
 
-1. Restart MCP service:
-   - `docker compose -f deploy/docker-compose.yaml restart semantic-bus-mcp`
-2. If Redis unhealthy, restart redis and dependent workers:
-   - `docker compose -f deploy/docker-compose.yaml restart redis pod-a-worker pod-b-worker pod-c-worker pod-d-worker audit-worker`
-3. Validate recovery:
-   - `curl http://localhost:8102/health`
-   - `curl http://localhost:8102/dlq?protocol=alpha`
+# Check recent logs
+docker compose -f deploy/docker-compose.yaml logs semantic-bus-mcp --tail 100
+```
 
-## Post-Incident
+---
 
-- Record incident timeline and root cause.
-- Capture message loss risk window and recovery confirmation.
-- Create follow-up task for automation if manual step was required.
+## Step 2 — Check Redis Streams
+
+```bash
+# List all stream consumer groups
+docker compose -f deploy/docker-compose.yaml exec redis \
+  redis-cli XINFO GROUPS missions.intake
+
+docker compose -f deploy/docker-compose.yaml exec redis \
+  redis-cli XINFO GROUPS missions.state
+
+# Check pending message count (lag)
+docker compose -f deploy/docker-compose.yaml exec redis \
+  redis-cli XPENDING missions.state semantic-bus-group - + 10
+
+# Check stream length
+docker compose -f deploy/docker-compose.yaml exec redis \
+  redis-cli XLEN missions.state
+```
+
+**High lag (> 100 pending)** indicates the semantic bus is not consuming. Restart the consumer.
+
+**Zero-length streams with healthy lag** may indicate the stream keys were flushed — check for Redis restarts.
+
+---
+
+## Step 3 — Check DLQ
+
+```bash
+# Check DLQ for each protocol
+for proto in alpha beta delta sigma omega rho; do
+  echo "=== $proto ==="
+  curl -s "http://localhost:8102/dlq?protocol=$proto" | jq 'length'
+done
+```
+
+### Interpret DLQ Results
+
+| DLQ Count | Likely Cause |
+|-----------|-------------|
+| 0 | No failures — MCP is routing successfully |
+| 1-5 | Isolated message format errors — check sender logic |
+| > 10 | Systematic validation failure — schema or sender mismatch |
+| Growing | MCP consuming but failing — investigate validation errors |
+
+---
+
+## Step 4 — Diagnose Protocol Failures
+
+```bash
+# Inspect DLQ messages for specific protocol
+curl http://localhost:8102/dlq?protocol=alpha | jq '.[0]'
+```
+
+Check for:
+- Missing required fields (`schema_version`, `protocol`, `sender`, `recipient`, `priority`, `payload`)
+- `x-agent-id` header mismatch with message `sender` field
+- Invalid protocol value (must be `alpha|beta|delta|sigma|omega|rho`)
+- Payload not matching protocol schema
+
+Reference: `schemas/event.envelope.schema.json`
+
+---
+
+## Step 5 — Remediate
+
+### Restart Semantic Bus MCP
+
+```bash
+docker compose -f deploy/docker-compose.yaml restart semantic-bus-mcp
+```
+
+After restart:
+```bash
+curl http://localhost:8102/health
+curl http://localhost:8102/readyz
+```
+
+### Drain and Replay DLQ (if messages are valid but routing failed)
+
+```bash
+# Get DLQ messages
+curl http://localhost:8102/dlq?protocol=alpha > /tmp/dlq-alpha.json
+
+# Replay each message
+# Note: Manual replay is a POST to /send with the same payload and correct headers
+```
+
+### Redis Stream Recovery (if stream was flushed or corrupt)
+
+```bash
+# Force consumer group reset (use ONLY if stream is confirmed clean)
+docker compose -f deploy/docker-compose.yaml exec redis \
+  redis-cli XGROUP SETID missions.state semantic-bus-group '$'
+
+# Restart all consumers
+docker compose -f deploy/docker-compose.yaml restart semantic-bus-mcp pod-worker audit-worker
+```
+
+---
+
+## Step 6 — Verify Recovery
+
+```bash
+# Health and readiness
+curl http://localhost:8102/health
+curl http://localhost:8102/readyz
+
+# Send a test message
+curl -X POST http://localhost:8102/send \
+  -H "x-api-key: mcp-local-key" \
+  -H "x-agent-id: AGENT-02-CEO" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "schema_version": "v1",
+    "protocol": "sigma",
+    "sender": "AGENT-02-CEO",
+    "recipient": "AGENT-01-PM",
+    "priority": "low",
+    "payload": {"schema_version": "v1", "priority": "low", "status": "runbook-test"}
+  }'
+
+# Confirm DLQ is clear
+curl http://localhost:8102/dlq?protocol=sigma | jq 'length'
+```
+
+---
+
+## Escalation
+
+If semantic bus does not recover within 15 minutes:
+1. Check Redis cluster health: `docker compose logs redis --tail 200`
+2. Check for memory pressure: `docker stats`
+3. Consider temporary bypass: agents can fall back to direct REST if bus is unavailable
+4. Document the incident and DLQ payload samples for postmortem
+
+---
+
+## Related
+
+- Protocol schemas: `schemas/event.envelope.schema.json`
+- Topic catalog: `protocol/topics.yaml`
+- MCP API docs: `docs/API_INTEGRATION_GUIDE.md#semantic-bus-mcp`
+- Observability: `docs/OBSERVABILITY_STACK.md`

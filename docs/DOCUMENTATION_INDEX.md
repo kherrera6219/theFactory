@@ -13,6 +13,8 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`: canonical decision record for condensed vs dedicated-agent runtime topology.
 - `ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`: canonical security-model decision record for API-key, hybrid, and OIDC modes.
 - `ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md`: canonical status decision for v1.1 production runtime vs v2 roadmap scope.
+- `ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md`: feature-flagged v2 adoption design package with compatibility matrix and rollback plan.
+- `ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md`: canonical deferred-scope governance decisions and trigger criteria.
 - `GAP_ANALYSIS.md`: reviewed gaps, dispositions, and remaining structural work.
 - `LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md`: explicit legacy-scope disposition and Mission Control port-policy reconciliation.
 - `WORD_DOC_AUDIT_2026-03-03.md`: reconciliation audit against all in-repo Word-document requirements.
@@ -46,10 +48,12 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `evidence/phase34_mission_control_advanced_operator_ux_validation_2026-03-04.md`: repo diff-review/apply gate and high-volume UI virtualization validation evidence.
 - `evidence/phase35_mission_artifact_runtime_integrity_validation_2026-03-08.md`: mission artifact integrity qualification tooling, tests, and validation sweep outcomes.
 - `evidence/phase36_frontend_budget_a11y_enforcement_2026-03-08.md`: CI Lighthouse budget enforcement, full axe color-contrast validation, and live mission chain/artifact integration proof.
+- `evidence/phase37_strategy_auth_canary_2026-03-08.md`: strategic ADR closure, operator OIDC route policy extension, and dedicated canary guardrail validation.
 - `evidence/mission_artifact_qualification_shared_2026-03-08.json`: shared-topology live artifact qualification result.
 - `evidence/mission_artifact_qualification_dedicated_2026-03-08.json`: dedicated-topology live artifact qualification result.
 - `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
 - `runbooks/optional_data_plane_incident_runbook.md`: incident response playbook for Neo4j/object-storage optional adapter degradation.
+- `runbooks/dedicated_agent_canary_runbook.md`: canary rollout qualification and rollback guardrails for dedicated-agent profile.
 - `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.
 
 ## Standards and External References

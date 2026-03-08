@@ -46,6 +46,11 @@ Exit Criteria:
 - ADR/design doc includes rollback plan, compatibility matrix, and testing requirements.
 - No ambiguous "active runtime" claims remain in docs.
 
+Status:
+- Complete (executed 2026-03-08).
+- Evidence:
+  - `docs/ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md`
+
 ## Current Validated Baseline
 - Core platform phases through Phase 18 are complete (mission runtime, CI/security, tracing, reliability qualification, UI e2e, Qdrant/Neo4j/object-storage optional adapters).
 - Latest quality gates: global service coverage `86.00%`, required core-module `100%` thresholds passing, production audit `13/13`, debug sweep passing.
@@ -57,6 +62,9 @@ Exit Criteria:
 - Execution update (2026-03-04): Phase 32 (Phase 19 objective: optional data-plane observability and SLO controls) is complete and validated.
 - Execution update (2026-03-04): Phase 33 (Phase 20 objective: extended data-plane live qualification) is complete and validated.
 - Execution update (2026-03-04): Phase 34 (Phase 21 objective: Mission Control advanced operator UX) is complete and validated.
+- Execution update (2026-03-08): Phase 35 (artifact runtime integrity qualification) is complete and validated.
+- Execution update (2026-03-08): Phase 36 (v2 mission-flow adoption design package) is complete and validated.
+- Execution update (2026-03-08): Phase 37 (strategic deferred-scope ADR, operator OIDC policy extension, dedicated canary guardrails) is complete and validated.
 
 ## Remaining Work (Prioritized)
 
@@ -111,6 +119,11 @@ Scope:
 Exit Criteria:
 - Canonical ADR-style decision set published.
 - Roadmap and reconciliation docs reference one authoritative decision table.
+
+Status:
+- Complete (executed 2026-03-08).
+- Evidence:
+  - `docs/ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md`
 
 ## Phase 23 - LangGraph Orchestration Adoption (Optional but Planned)
 Scope:
@@ -220,8 +233,6 @@ Exit Criteria:
 6. Update docs/evidence + phase log + changelog, then commit/push.
 
 ## Recommended Execution Order
-1. Phase 22
-2. Phase 23
-3. Phase 24
-4. Phase 25
-5. Phase 26
+1. Maintain recurring live qualification evidence refresh (shared + dedicated profiles).
+2. Expand live OIDC route-policy integration tests in dedicated staging.
+3. Continue optional v2 runtime prototyping behind feature flag without changing canonical v1.1 production default.

@@ -1,6 +1,6 @@
 # Production Phase Plan
 
-Last updated: 2026-03-04
+Last updated: 2026-03-08
 
 This plan reconciles `C:\software\Holygrail` source design documents with current `theFactory` implementation status and external production standards.
 
@@ -156,17 +156,17 @@ Completed after initial Phase 11 plan:
 - Phase 19 objective: Optional data-plane observability and SLO controls (executed as Phase 32).
 - Phase 20 objective: Extended data-plane live qualification (executed as Phase 33).
 - Phase 21 objective: Advanced Mission Control operator UX (executed as Phase 34).
+- Phase 22 objective: Strategic deferred-scope decision package (executed as Phase 37 governance segment).
+- Phase 35 objective: Dedicated/shared mission artifact qualification evidence (executed).
+- Phase 36 objective: v2 mission-flow adoption design package (executed).
+- Phase 37 objective: operator OIDC route-policy extension and dedicated canary rollout guardrails (executed).
 
 ## Updated Next Phases
 
 Phase 22 - Strategic Deferred-Scope Decision Package
 
-- Publish canonical ADR-style decision package for deferred strategic scope:
-  - self-update,
-  - cloud multi-tenant operations,
-  - marketplace,
-  - distributed execution,
-  - language expansion.
+- Status: Complete (2026-03-08).
+- Evidence: `docs/ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md`.
 
 Phase 23 - LangGraph Orchestration Adoption (Optional but Planned)
 
@@ -183,3 +183,12 @@ Phase 25 - Word-Doc Requirement Reconciliation
 Phase 26 - LangGraph Live Postgres Recovery Qualification
 
 - Maintain startup lifecycle recovery qualification with disruption/restart evidence.
+
+Phase 37 - Operator OIDC and Dedicated Canary Guardrails
+
+- Status: Complete (2026-03-08).
+- Implemented:
+  - operator-route OIDC policy expansion (`/v1/operations/*`, `/v1/stream/state`)
+  - dedicated-agent canary qualification tooling and rollback runbook
+- Evidence:
+  - `docs/evidence/phase37_strategy_auth_canary_2026-03-08.md`

@@ -8,6 +8,10 @@ Update (2026-03-08):
 - Pod-worker internal auth diagnostics are active (`internal_auth_failures`, `last_internal_auth_status`, Prometheus rejection counter).
 - Live artifact qualification tooling added at `scripts/mission_artifact_qualification.py` with unit tests.
 - `HGR_Mission_Flow_v2.docx` comparison audit published at `docs/MISSION_FLOW_V2_COMPARISON_2026-03-08.md`.
+- Strategic deferred-scope ADR package published at `docs/ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md`.
+- v2 adoption design package published at `docs/ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md`.
+- Gateway operator-route OIDC policy now extends beyond mutation endpoint (`/v1/operations/*`, `/v1/stream/state`).
+- Dedicated-agent canary rollout qualification tooling + rollback runbook added (`scripts/dedicated_agent_canary_rollout.py`, `docs/runbooks/dedicated_agent_canary_runbook.md`).
 
 ## P0 - Mission Flow v2 Reconciliation (New)
 - [x] Decide runtime target: adopt `v2` 11-phase/state-machine behavior or formally classify `v2` as aspirational.

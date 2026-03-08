@@ -46,6 +46,11 @@ OIDC_AUDIENCE = os.getenv("OIDC_AUDIENCE", "").strip()
 OIDC_JWKS_URL = os.getenv("OIDC_JWKS_URL", "").strip()
 OIDC_SHARED_SECRET = os.getenv("OIDC_SHARED_SECRET", "").strip()
 OIDC_REQUIRED_ROLE = os.getenv("OIDC_REQUIRED_ROLE", "mutate").strip().lower() or "mutate"
+OIDC_OPERATOR_ROLE = os.getenv("OIDC_OPERATOR_ROLE", "observe").strip().lower() or "observe"
+OIDC_ENFORCE_OPERATOR_ROUTES = (
+    os.getenv("OIDC_ENFORCE_OPERATOR_ROUTES", "true").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
 OIDC_ROLE_CLAIMS = tuple(
     claim.strip()
     for claim in os.getenv("OIDC_ROLE_CLAIMS", "roles,role,permissions").split(",")
@@ -670,6 +675,44 @@ def _resolve_mutation_forward_headers(
     raise HTTPException(status_code=500, detail="gateway auth mode configuration error")
 
 
+def _require_operator_access(
+    *,
+    x_api_key: str | None,
+    authorization: str | None,
+) -> None:
+    if not OIDC_ENFORCE_OPERATOR_ROUTES or AUTH_MODE == "api_key":
+        return
+
+    bearer_token = _extract_bearer_token(authorization)
+    mode = AUTH_MODE
+
+    if mode == "hybrid":
+        if bearer_token:
+            claims = _decode_oidc_token(bearer_token)
+            if not _claim_includes_required_role(claims, OIDC_OPERATOR_ROLE):
+                raise HTTPException(
+                    status_code=403,
+                    detail="insufficient oidc role for operator route",
+                )
+            return
+        if x_api_key:
+            return
+        raise HTTPException(
+            status_code=401,
+            detail="authorization bearer token or x-api-key header is required",
+        )
+
+    if mode == "oidc":
+        if not bearer_token:
+            raise HTTPException(status_code=401, detail="authorization bearer token is required")
+        claims = _decode_oidc_token(bearer_token)
+        if not _claim_includes_required_role(claims, OIDC_OPERATOR_ROLE):
+            raise HTTPException(status_code=403, detail="insufficient oidc role for operator route")
+        return
+
+    raise HTTPException(status_code=500, detail="gateway auth mode configuration error")
+
+
 def _normalize_builder_text(value: str) -> str:
     return " ".join(value.split())
 
@@ -1176,6 +1219,10 @@ async def health() -> dict[str, Any]:
         "intake_topic": INTAKE_TOPIC,
         "auth_mode": AUTH_MODE,
         "oidc_role_required": OIDC_REQUIRED_ROLE if AUTH_MODE != "api_key" else None,
+        "oidc_operator_role_required": (
+            OIDC_OPERATOR_ROLE if AUTH_MODE != "api_key" and OIDC_ENFORCE_OPERATOR_ROUTES else None
+        ),
+        "oidc_enforce_operator_routes": OIDC_ENFORCE_OPERATOR_ROUTES,
     }
 
 
@@ -1209,7 +1256,11 @@ async def stream_state_events(
     mission_id: str | None = Query(default=None, min_length=1),
     include_agent_events: bool = Query(default=True),
     last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> StreamingResponse:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
+
     redis_client = getattr(app.state, "redis", None)
     if redis_client is None:
         raise HTTPException(status_code=503, detail="redis dependency is not installed")
@@ -1472,7 +1523,11 @@ async def get_mission_audit_artifacts(
 
 
 @app.get("/v1/operations/summary")
-async def get_operations_summary() -> dict[str, Any]:
+async def get_operations_summary(
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal("/internal/operations/summary")
 
 
@@ -1481,7 +1536,10 @@ async def get_operations_agents(
     mission_limit: int = Query(default=1000, ge=50, le=5000),
     assignment_limit: int = Query(default=1000, ge=50, le=5000),
     event_limit: int = Query(default=300, ge=50, le=2000),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> dict[str, Any]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
         "/internal/operations/agents",
         params={
@@ -1495,19 +1553,29 @@ async def get_operations_agents(
 @app.get("/v1/operations/events")
 async def get_operations_events(
     limit: int = Query(default=200, ge=1, le=1000),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal("/internal/operations/events", params={"limit": limit})
 
 
 @app.get("/v1/operations/agent-events")
 async def get_operations_agent_events(
     limit: int = Query(default=200, ge=1, le=1000),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal("/internal/operations/agent-events", params={"limit": limit})
 
 
 @app.get("/v1/operations/agent-integrations")
-async def get_operations_agent_integrations() -> dict[str, Any]:
+async def get_operations_agent_integrations(
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal("/internal/operations/agent-integrations")
 
 
@@ -1515,7 +1583,10 @@ async def get_operations_agent_integrations() -> dict[str, Any]:
 async def get_operations_logicnodes(
     limit: int = Query(default=200, ge=1, le=1000),
     mission_id: str | None = Query(default=None),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     params: dict[str, Any] = {"limit": limit}
     if mission_id:
         params["mission_id"] = mission_id
@@ -1525,7 +1596,10 @@ async def get_operations_logicnodes(
 @app.get("/v1/operations/pod-assignments")
 async def get_operations_pod_assignments(
     limit: int = Query(default=200, ge=1, le=1000),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
         "/internal/operations/pod-assignments",
         params={"limit": limit},
@@ -1535,14 +1609,20 @@ async def get_operations_pod_assignments(
 @app.get("/v1/operations/projects")
 async def get_operations_projects(
     limit: int = Query(default=100, ge=1, le=500),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal("/internal/operations/projects", params={"limit": limit})
 
 
 @app.get("/v1/operations/alerts")
 async def get_operations_alerts(
     limit: int = Query(default=50, ge=1, le=200),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal("/internal/operations/alerts", params={"limit": limit})
 
 

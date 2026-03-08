@@ -1,4 +1,4 @@
-.PHONY: up down validate lint test test-ui test-ui-e2e test-fast test-live-extended audit promotion-gate sweep openapi predeploy backup dr perf reliability langgraph-recovery monitor-up monitor-down
+.PHONY: up down validate lint test test-ui test-ui-e2e test-fast test-live-extended audit promotion-gate sweep openapi predeploy backup dr perf reliability langgraph-recovery dedicated-canary monitor-up monitor-down
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -75,6 +75,9 @@ reliability:
 
 langgraph-recovery:
 	powershell -ExecutionPolicy Bypass -File scripts/langgraph_postgres_recovery_qualification.ps1
+
+dedicated-canary:
+	powershell -ExecutionPolicy Bypass -File scripts/dedicated_agent_canary_rollout.ps1
 
 sweep:
 	powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1
