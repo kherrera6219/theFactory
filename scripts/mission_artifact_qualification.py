@@ -163,6 +163,12 @@ def _write_report(path: Path, report: dict[str, Any]) -> None:
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
+def _append_history(path: Path, report: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(report) + "\n")
+
+
 def run(args: argparse.Namespace) -> int:
     gateway_base_url = args.gateway_base_url.rstrip("/")
     orchestrator_base_url = args.orchestrator_base_url.rstrip("/")
@@ -257,6 +263,7 @@ def run(args: argparse.Namespace) -> int:
         "logicnode_count": diagnostics["logicnode_count"],
         "chain_event_types": diagnostics["chain_event_types"],
         "missing_chain_events": diagnostics["missing_chain_events"],
+        "pass": passed,
         "passed": passed,
         "failure_reasons": failure_reasons,
     }
@@ -264,6 +271,8 @@ def run(args: argparse.Namespace) -> int:
     _print_summary(report)
     if args.output_file:
         _write_report(Path(args.output_file), report)
+    if args.history_file:
+        _append_history(Path(args.history_file), report)
     return 0 if passed else 1
 
 
@@ -321,6 +330,11 @@ def parse_args() -> argparse.Namespace:
         nargs="+",
         default=list(DEFAULT_REQUIRED_CHAIN_EVENTS),
         help="Required chain event types",
+    )
+    parser.add_argument(
+        "--history-file",
+        default="",
+        help="Optional JSONL history file for longitudinal qualification tracking",
     )
     parser.add_argument(
         "--output-file",

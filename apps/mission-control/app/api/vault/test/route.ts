@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as VaultTestPayload;
     const slotId = payload.slot_id?.trim() ?? "";
     const provider = payload.provider?.trim() ?? "";
-    const secret = payload.secret?.trim() || (slotId ? getVaultSecret(slotId) : null);
+    const secret = payload.secret?.trim() || (slotId ? await getVaultSecret(slotId) : null);
 
     if (!provider) {
       return NextResponse.json({ detail: "provider is required." }, { status: 400 });
@@ -30,4 +30,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ detail: "Unable to test key." }, { status: 400 });
   }
 }
-

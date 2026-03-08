@@ -1,20 +1,27 @@
 """Tests for mission_flow_v2.py — 11-phase v2 lifecycle engine."""
 from __future__ import annotations
 
+import importlib
+import sys
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from orchestrator.mission_flow_v2 import (
-    V1_TRANSITIONS,
-    V2_EVENT_TO_PHASE,
-    V2_PHASE_ORDER,
-    V2_TRANSITIONS,
-    advance_mission_lifecycle_v2,
-    v2_map_state_to_v1,
-    v2_phase_index,
-)
-from orchestrator.models import MissionState
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
+orchestrator_mission_flow_v2 = importlib.import_module("orchestrator.mission_flow_v2")
+orchestrator_models = importlib.import_module("orchestrator.models")
+
+V1_TRANSITIONS = orchestrator_mission_flow_v2.V1_TRANSITIONS
+V2_EVENT_TO_PHASE = orchestrator_mission_flow_v2.V2_EVENT_TO_PHASE
+V2_PHASE_ORDER = orchestrator_mission_flow_v2.V2_PHASE_ORDER
+V2_TRANSITIONS = orchestrator_mission_flow_v2.V2_TRANSITIONS
+advance_mission_lifecycle_v2 = orchestrator_mission_flow_v2.advance_mission_lifecycle_v2
+v2_map_state_to_v1 = orchestrator_mission_flow_v2.v2_map_state_to_v1
+v2_phase_index = orchestrator_mission_flow_v2.v2_phase_index
+MissionState = orchestrator_models.MissionState
 
 # ------------------------------------------------------------------
 # Transition table structure
@@ -168,6 +175,51 @@ def _make_mission(
     return mission
 
 
+def _make_stateful_storage(mission: MagicMock) -> tuple[dict[str, Any], Any, Any, Any, Any]:
+    transition_log: list[tuple[str, str, str]] = []
+    event_log: list[str] = []
+
+    def fetch_mission(_settings: Any, _mission_id: str) -> MagicMock:
+        return mission
+
+    def update_mission_metadata(
+        _settings: Any,
+        _mission_id: str,
+        metadata: dict[str, Any],
+    ) -> MagicMock:
+        mission.metadata = dict(metadata)
+        return mission
+
+    def transition_mission_state(
+        _settings: Any,
+        _mission_id: str,
+        expected: MissionState,
+        new: MissionState,
+        event: str,
+    ) -> MagicMock:
+        transition_log.append((expected.value, new.value, event))
+        mission.state = new
+        return mission
+
+    def insert_mission_event(
+        _settings: Any,
+        _mission_id: str,
+        _previous_state: MissionState,
+        _new_state: MissionState,
+        event_type: str,
+    ) -> None:
+        event_log.append(event_type)
+
+    state = {"transitions": transition_log, "events": event_log}
+    return (
+        state,
+        fetch_mission,
+        update_mission_metadata,
+        transition_mission_state,
+        insert_mission_event,
+    )
+
+
 class TestAdvanceMissionLifecycleV2:
     @pytest.mark.asyncio
     async def test_full_11_phase_run(self) -> None:
@@ -180,64 +232,98 @@ class TestAdvanceMissionLifecycleV2:
         emit_fn = AsyncMock()
         prepare_fn = AsyncMock(return_value=True)
         completion_fn = AsyncMock(return_value=(True, {}))
-
-        recorded_transitions: list[tuple[str, str, str]] = []
-
-        def mock_transition(
-            _settings: Any,
-            _mid: str,
-            expected: MissionState,
-            new: MissionState,
-            event: str,
-        ) -> MagicMock:
-            recorded_transitions.append(
-                (expected.value, new.value, event)
-            )
-            m = _make_mission(state=new)
-            return m
+        state, fetch_mission, update_metadata, transition_mission_state, insert_mission_event = (
+            _make_stateful_storage(mission)
+        )
 
         with patch(
             "orchestrator.mission_flow_v2.storage"
         ) as mock_storage:
-            mock_storage.transition_mission_state = mock_transition
-            mock_storage.fetch_mission = lambda s, mid: mission
-            mock_storage.update_mission_metadata = (
-                lambda s, mid, meta: mission
-            )
-            mock_storage.insert_mission_event = (
-                lambda *a, **kw: None
-            )
+            mock_storage.transition_mission_state = transition_mission_state
+            mock_storage.fetch_mission = fetch_mission
+            mock_storage.update_mission_metadata = update_metadata
+            mock_storage.insert_mission_event = insert_mission_event
 
-            await advance_mission_lifecycle_v2(
-                app=app,
-                mission_id="test-m1",
-                settings=settings,
-                validator=validator,
-                emit_state_event_fn=emit_fn,
-                prepare_chain_fn=prepare_fn,
-                completion_check_fn=completion_fn,
-            )
+            with patch(
+                "orchestrator.mission_flow_v2.generate_ceo_delegation",
+                AsyncMock(
+                    return_value={
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                        "source": "llm",
+                        "llm_route": "primary",
+                        "model_provider": "anthropic",
+                        "model": "claude-3-5-sonnet",
+                    }
+                ),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_pod_manager_delegation",
+                AsyncMock(
+                    return_value={
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                        "source": "llm",
+                        "llm_route": "primary",
+                        "model_provider": "openai",
+                        "model": "gpt-5.2-mini",
+                    }
+                ),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_specialist_plan",
+                AsyncMock(
+                    return_value={
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "plan_summary": "Implement and verify the requested change.",
+                        "deliverables": ["Patch", "LogicNodes"],
+                        "risk_notes": ["Watch for regression drift."],
+                        "source": "llm",
+                        "llm_route": "primary",
+                        "model_provider": "openai",
+                        "model": "gpt-5.2-mini",
+                    }
+                ),
+            ):
+                await advance_mission_lifecycle_v2(
+                    app=app,
+                    mission_id="test-m1",
+                    settings=settings,
+                    validator=validator,
+                    emit_state_event_fn=emit_fn,
+                    prepare_chain_fn=prepare_fn,
+                    completion_check_fn=completion_fn,
+                )
 
-        assert len(recorded_transitions) == 9
-        assert recorded_transitions[0] == (
+        assert len(state["transitions"]) == 9
+        assert state["transitions"][0] == (
             "QUEUED", "PM_INTAKE", "MISSION_PM_INTAKE"
         )
-        assert recorded_transitions[-1] == (
+        assert state["transitions"][-1] == (
             "VERIFIED", "COMPLETE", "MISSION_COMPLETE"
         )
 
-        # prepare_chain_fn called once (for first transition)
-        prepare_fn.assert_awaited_once()
+        prepare_fn.assert_not_awaited()
         # completion_fn called once (for verified->complete)
         completion_fn.assert_awaited_once()
-        # emit_fn called once per transition
-        assert emit_fn.await_count == 9
+        assert emit_fn.await_count == 10
+        emitted_events = [call.kwargs["event_type"] for call in emit_fn.await_args_list]
+        assert emitted_events[:5] == [
+            "MISSION_PM_INTAKE",
+            "MISSION_CEO_DELEGATED",
+            "MISSION_POD_MANAGER_ASSIGNED",
+            "MISSION_SPECIALIST_ASSIGNED",
+            "MISSION_SPECIALIST_PLANNED",
+        ]
+        assert mission.metadata["ceo_delegation"]["pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
+        assert mission.metadata["specialist_plan"]["specialist_agent_id"] == "AGENT-14-PYTHON"
+        assert "specialist_planned" in mission.metadata["mission_artifacts"]
 
     @pytest.mark.asyncio
-    async def test_stops_on_failed_prepare(self) -> None:
+    async def test_stops_when_pm_intake_persistence_fails(self) -> None:
         app = _make_app_state()
         settings = _make_settings()
         validator = MagicMock()
+        mission = _make_mission()
         emit_fn = AsyncMock()
         prepare_fn = AsyncMock(return_value=False)
         completion_fn = AsyncMock(return_value=(True, {}))
@@ -245,22 +331,27 @@ class TestAdvanceMissionLifecycleV2:
         with patch(
             "orchestrator.mission_flow_v2.storage"
         ) as mock_storage:
-            mock_storage.transition_mission_state = MagicMock(
-                return_value=None
-            )
+            mock_storage.fetch_mission = lambda *_args: mission
+            mock_storage.update_mission_metadata = lambda *_args: None
+            mock_storage.transition_mission_state = MagicMock(return_value=None)
+            mock_storage.insert_mission_event = lambda *args, **kwargs: None
 
-            await advance_mission_lifecycle_v2(
-                app=app,
-                mission_id="test-m1",
-                settings=settings,
-                validator=validator,
-                emit_state_event_fn=emit_fn,
-                prepare_chain_fn=prepare_fn,
-                completion_check_fn=completion_fn,
-            )
+            with patch(
+                "orchestrator.mission_flow_v2.generate_ceo_delegation",
+                AsyncMock(return_value={}),
+            ):
+                await advance_mission_lifecycle_v2(
+                    app=app,
+                    mission_id="test-m1",
+                    settings=settings,
+                    validator=validator,
+                    emit_state_event_fn=emit_fn,
+                    prepare_chain_fn=prepare_fn,
+                    completion_check_fn=completion_fn,
+                )
 
-        # No transitions should have occurred
         mock_storage.transition_mission_state.assert_not_called()
+        prepare_fn.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_stops_on_completion_blocked(self) -> None:
@@ -275,41 +366,59 @@ class TestAdvanceMissionLifecycleV2:
         completion_fn = AsyncMock(
             return_value=(False, {"has_pod_assignment": False})
         )
-
-        transition_count = 0
-
-        def mock_transition(
-            _s: Any, _mid: str,
-            expected: MissionState, new: MissionState, event: str,
-        ) -> MagicMock:
-            nonlocal transition_count
-            transition_count += 1
-            return _make_mission(state=new)
+        state, fetch_mission, update_metadata, transition_mission_state, insert_mission_event = (
+            _make_stateful_storage(mission)
+        )
 
         with patch(
             "orchestrator.mission_flow_v2.storage"
         ) as mock_storage:
-            mock_storage.transition_mission_state = mock_transition
-            mock_storage.fetch_mission = lambda s, mid: mission
-            mock_storage.update_mission_metadata = (
-                lambda s, mid, meta: mission
-            )
-            mock_storage.insert_mission_event = (
-                lambda *a, **kw: None
-            )
+            mock_storage.transition_mission_state = transition_mission_state
+            mock_storage.fetch_mission = fetch_mission
+            mock_storage.update_mission_metadata = update_metadata
+            mock_storage.insert_mission_event = insert_mission_event
 
-            await advance_mission_lifecycle_v2(
-                app=app,
-                mission_id="test-m1",
-                settings=settings,
-                validator=validator,
-                emit_state_event_fn=emit_fn,
-                prepare_chain_fn=prepare_fn,
-                completion_check_fn=completion_fn,
-            )
+            with patch(
+                "orchestrator.mission_flow_v2.generate_ceo_delegation",
+                AsyncMock(
+                    return_value={
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                    }
+                ),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_pod_manager_delegation",
+                AsyncMock(
+                    return_value={
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                    }
+                ),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_specialist_plan",
+                AsyncMock(
+                    return_value={
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "plan_summary": "Fallback plan",
+                        "deliverables": ["Patch"],
+                        "risk_notes": ["Watch"],
+                    }
+                ),
+            ):
+                await advance_mission_lifecycle_v2(
+                    app=app,
+                    mission_id="test-m1",
+                    settings=settings,
+                    validator=validator,
+                    emit_state_event_fn=emit_fn,
+                    prepare_chain_fn=prepare_fn,
+                    completion_check_fn=completion_fn,
+                )
 
-        # 8 transitions (up to VERIFIED), the 9th (COMPLETE) blocked
-        assert transition_count == 8
+        assert len(state["transitions"]) == 8
+        assert "MISSION_COMPLETION_BLOCKED" in mission.metadata["last_chain_event_type"]
+        prepare_fn.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_stops_on_transition_failure(self) -> None:
@@ -322,6 +431,18 @@ class TestAdvanceMissionLifecycleV2:
         completion_fn = AsyncMock(return_value=(True, {}))
 
         call_count = 0
+        mission = _make_mission()
+
+        def fetch_mission(_settings: Any, _mission_id: str) -> MagicMock:
+            return mission
+
+        def update_metadata(
+            _settings: Any,
+            _mission_id: str,
+            metadata: dict[str, Any],
+        ) -> MagicMock:
+            mission.metadata = dict(metadata)
+            return mission
 
         def mock_transition(
             _s: Any, _mid: str,
@@ -331,25 +452,47 @@ class TestAdvanceMissionLifecycleV2:
             call_count += 1
             if call_count >= 3:
                 return None  # fail on 3rd transition
-            return _make_mission(state=new)
+            mission.state = new
+            return mission
 
         with patch(
             "orchestrator.mission_flow_v2.storage"
         ) as mock_storage:
             mock_storage.transition_mission_state = mock_transition
+            mock_storage.fetch_mission = fetch_mission
+            mock_storage.update_mission_metadata = update_metadata
+            mock_storage.insert_mission_event = lambda *args, **kwargs: None
 
-            await advance_mission_lifecycle_v2(
-                app=app,
-                mission_id="test-m1",
-                settings=settings,
-                validator=validator,
-                emit_state_event_fn=emit_fn,
-                prepare_chain_fn=prepare_fn,
-                completion_check_fn=completion_fn,
-            )
+            with patch(
+                "orchestrator.mission_flow_v2.generate_ceo_delegation",
+                AsyncMock(
+                    return_value={
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                    }
+                ),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_pod_manager_delegation",
+                AsyncMock(
+                    return_value={
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                    }
+                ),
+            ):
+                await advance_mission_lifecycle_v2(
+                    app=app,
+                    mission_id="test-m1",
+                    settings=settings,
+                    validator=validator,
+                    emit_state_event_fn=emit_fn,
+                    prepare_chain_fn=prepare_fn,
+                    completion_check_fn=completion_fn,
+                )
 
         assert call_count == 3
         assert emit_fn.await_count == 2  # only 2 successful emits
+        prepare_fn.assert_not_awaited()
 
 
 # ------------------------------------------------------------------

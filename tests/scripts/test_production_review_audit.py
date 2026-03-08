@@ -122,6 +122,8 @@ jobs:
     steps:
       - uses: actions/attest-build-provenance@v2
       - run: gh attestation verify reports/release-manifest.json --repo org/repo
+      - run: cosign sign-blob --yes reports/release-manifest.json
+      - run: cosign verify-blob reports/release-manifest.json
       - run: |
           python scripts/promotion_gate.py \
             --policy-file deploy/promotion-policy.json \

@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const operatorKey = getVaultSecret("OPERATOR-API-KEY");
+    const operatorKey = await getVaultSecret("OPERATOR-API-KEY");
     if (!operatorKey) {
       return NextResponse.json(
         { detail: "Operator API key not found in vault slot OPERATOR-API-KEY." },
@@ -65,4 +65,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

@@ -14,6 +14,8 @@ Define and enforce signed release-trust controls so promotions fail closed unles
    - Builds and uploads `reports/release-manifest.json`.
    - Generates provenance attestation with `actions/attest-build-provenance@v2`.
    - Verifies attestation with `gh attestation verify`.
+   - Signs the release manifest and SBOM blobs with `cosign sign-blob`.
+   - Verifies the resulting cosign certificates and signatures before policy evaluation.
    - Exports a machine-readable agent model inventory.
    - Summarizes qualification evidence against policy thresholds.
    - Evaluates promotion policy using `scripts/promotion_gate.py`.
@@ -36,6 +38,7 @@ Define and enforce signed release-trust controls so promotions fail closed unles
    - `scripts/export_agent_model_inventory.py`
    - `scripts/qualification_gate_summary.py`
    - `.github/workflows/qualification.yml` (weekly qualification cadence)
+   - `scripts/mission_artifact_qualification.py` (chain-of-command evidence)
 
 ## Evidence Artifacts
 
@@ -44,6 +47,8 @@ Define and enforce signed release-trust controls so promotions fail closed unles
   - artifact hash inventory
 - `attestation-verification.txt`:
   - attestation verification output
+- `reports/cosign/*`:
+  - release-manifest and SBOM signatures, certificates, and verification logs
 - `promotion-decision.json`:
   - allow/deny decision and rejection reasons
 - `agent-model-inventory.json`:
@@ -59,6 +64,8 @@ Define and enforce signed release-trust controls so promotions fail closed unles
   - `python scripts/export_agent_model_inventory.py`
 - Rebuild qualification summary locally:
   - `make qualification-summary`
+- Generate live mission artifact evidence locally:
+  - `python scripts/mission_artifact_qualification.py`
 - Run release-trust script tests:
   - `python -m pytest tests/scripts/test_promotion_gate.py`
 

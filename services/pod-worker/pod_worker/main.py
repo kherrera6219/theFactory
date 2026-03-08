@@ -49,27 +49,27 @@ TOPICS_PATH = Path("/app/protocol/topics.yaml")
 TASKS_PROCESSED = Counter(
     "pod_worker_tasks_processed_total",
     "Total mission events processed by pod worker",
-    ("pod_name",),
+    ("pod_name", "agent_id"),
 )
 TASKS_FAILED = Counter(
     "pod_worker_tasks_failed_total",
     "Total mission events failed by pod worker",
-    ("pod_name",),
+    ("pod_name", "agent_id"),
 )
 TASK_LATENCY_SECONDS = Histogram(
     "pod_worker_task_latency_seconds",
     "Mission event processing latency for pod worker",
-    ("pod_name",),
+    ("pod_name", "agent_id"),
 )
 CONCEPTS_EXTRACTED = Counter(
     "pod_worker_concepts_extracted_total",
     "Total computational concepts extracted by pod worker",
-    ("pod_name", "language"),
+    ("pod_name", "agent_id", "language"),
 )
 EXTRACTION_LATENCY = Histogram(
     "pod_worker_extraction_latency_seconds",
     "Source code extraction latency for pod worker",
-    ("pod_name",),
+    ("pod_name", "agent_id"),
 )
 BINDING_SKIPS = Counter(
     "pod_worker_binding_skips_total",
@@ -341,10 +341,16 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
         return
     if await _has_assignment(mission_id):
         return
+    resolved_agent_id = (
+        _agent_id_from_payload(payload)
+        or await _fetch_mission_agent_id(mission_id)
+        or "UNBOUND"
+    )
 
     details = {
         "assigned_by": "pod-worker",
         "pod_name": POD_NAME,
+        "agent_id": resolved_agent_id,
         "supported_languages": sorted(SUPPORTED_LANGUAGES),
         "reason": "language-match",
     }
@@ -371,8 +377,14 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
         started = time.perf_counter()
         extractor = get_extractor(extraction_language)
         result = extractor.extract(source_code)
-        EXTRACTION_LATENCY.labels(pod_name=POD_NAME).observe(time.perf_counter() - started)
-        CONCEPTS_EXTRACTED.labels(pod_name=POD_NAME, language=extraction_language).inc(
+        EXTRACTION_LATENCY.labels(pod_name=POD_NAME, agent_id=resolved_agent_id).observe(
+            time.perf_counter() - started
+        )
+        CONCEPTS_EXTRACTED.labels(
+            pod_name=POD_NAME,
+            agent_id=resolved_agent_id,
+            language=extraction_language,
+        ).inc(
             len(result.concepts)
         )
         extraction_summary = result.summary
@@ -479,6 +491,7 @@ async def _consumer_loop(app: FastAPI) -> None:
             for entry_id, fields in entries:
                 acknowledge = False
                 started = time.perf_counter()
+                agent_id = "UNKNOWN"
                 try:
                     envelope_raw = fields.get("envelope")
                     payload_raw = fields.get("payload")
@@ -488,23 +501,27 @@ async def _consumer_loop(app: FastAPI) -> None:
                     envelope = json.loads(envelope_raw)
                     _validate_envelope(envelope)
                     payload = json.loads(payload_raw)
+                    agent_id = _agent_id_from_payload(payload) or "UNKNOWN"
                     event_type = str(payload.get("event_type", ""))
                     if event_type == "MISSION_RUNNING":
                         await _handle_running_mission(redis_client, payload)
                         app.state.processed += 1
-                        TASKS_PROCESSED.labels(pod_name=POD_NAME).inc()
+                        TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
                     acknowledge = True
                 except (ProtocolValidationError, json.JSONDecodeError, KeyError, TypeError) as exc:
                     app.state.errors += 1
-                    TASKS_FAILED.labels(pod_name=POD_NAME).inc()
+                    TASKS_FAILED.labels(pod_name=POD_NAME, agent_id="UNKNOWN").inc()
                     acknowledge = True
                     LOGGER.warning("discarding invalid state event %s: %s", entry_id, exc)
                 except Exception as exc:
                     app.state.errors += 1
-                    TASKS_FAILED.labels(pod_name=POD_NAME).inc()
+                    TASKS_FAILED.labels(pod_name=POD_NAME, agent_id="UNKNOWN").inc()
                     LOGGER.warning("failed to process state event %s: %s", entry_id, exc)
                 finally:
-                    TASK_LATENCY_SECONDS.labels(pod_name=POD_NAME).observe(
+                    TASK_LATENCY_SECONDS.labels(
+                        pod_name=POD_NAME,
+                        agent_id=agent_id,
+                    ).observe(
                         time.perf_counter() - started
                     )
                     if acknowledge:

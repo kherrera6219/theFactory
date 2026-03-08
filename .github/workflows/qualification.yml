@@ -50,6 +50,13 @@ jobs:
       - name: LangGraph v2 prototype matrix
         run: python scripts/langgraph_v2_prototype_matrix.py --allow-prototype-failure
 
+      - name: Mission artifact qualification
+        run: |
+          python scripts/mission_artifact_qualification.py \
+            --profile-label weekly-qualification \
+            --output-file docs/evidence/mission_artifact_qualification_latest.json \
+            --history-file docs/evidence/mission_artifact_qualification_history.jsonl
+
       - name: Qualification summary
         run: |
           python scripts/qualification_gate_summary.py \
@@ -67,6 +74,8 @@ jobs:
             docs/evidence/dedicated_agent_canary_trend_history.jsonl
             docs/evidence/langgraph_v2_prototype_matrix_latest.json
             docs/evidence/langgraph_v2_prototype_matrix_history.jsonl
+            docs/evidence/mission_artifact_qualification_latest.json
+            docs/evidence/mission_artifact_qualification_history.jsonl
             docs/evidence/qualification_gate_summary_latest.json
           if-no-files-found: error
 

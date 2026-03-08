@@ -101,6 +101,78 @@ def test_mission_query_endpoints(monkeypatch) -> None:
     assert events.json()[0]["event_type"] == "MISSION_RUNNING"
 
 
+def test_build_mission_chain_trace_exposes_route_provenance() -> None:
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={
+            "routing_enforced": True,
+            "routing_version": "v2",
+            "selected_agent_id": "AGENT-14-PYTHON",
+            "assigned_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+            "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+            "ceo_delegation": {
+                "source": "llm",
+                "llm_route": "primary",
+                "model_provider": "anthropic",
+                "model": "claude-3-5-sonnet",
+                "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                "specialist_agent_id": "AGENT-14-PYTHON",
+            },
+            "pod_manager_delegation": {
+                "source": "llm",
+                "llm_route": "primary",
+                "model_provider": "openai",
+                "model": "gpt-5.2-mini",
+                "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                "specialist_agent_id": "AGENT-14-PYTHON",
+            },
+            "specialist_plan": {
+                "source": "fallback",
+                "llm_route": "fallback",
+                "model_provider": "openai",
+                "model": "gpt-5.2-mini",
+                "specialist_agent_id": "AGENT-14-PYTHON",
+                "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                "plan_summary": "Implement and validate the requested change.",
+                "deliverables": ["Patch"],
+                "risk_notes": ["Fallback route used."],
+            },
+            "mission_artifacts": {
+                "specialist_planned": {
+                    "event_type": "MISSION_SPECIALIST_PLANNED",
+                    "agent_id": "AGENT-14-PYTHON",
+                }
+            },
+            "chain_trace": [
+                {
+                    "event_type": "MISSION_SPECIALIST_PLANNED",
+                    "agent_id": "AGENT-14-PYTHON",
+                    "ts": "2026-03-01T00:00:00+00:00",
+                }
+            ],
+        },
+        state=MissionState.running,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    payload = orchestrator_main._build_mission_chain_trace(
+        mission=mission,
+        pod_assignment={"pod_name": "podA"},
+        logicnodes=[{"node_id": "node-1", "created_at": "2026-03-01T00:00:01+00:00"}],
+        events=[],
+    )
+
+    assert payload["route_provenance"]["fallback_used"] is True
+    assert payload["route_provenance"]["ceo"]["target_agent_id"] == "AGENT-12-PODA-MGR"
+    assert payload["route_provenance"]["specialist"]["plan_summary"].startswith("Implement")
+    assert (
+        payload["artifact_summary"]["specialist_planned"]["event_type"]
+        == "MISSION_SPECIALIST_PLANNED"
+    )
+
+
 def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
     monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)

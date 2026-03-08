@@ -235,6 +235,37 @@ jobs:
         run: |
           gh attestation verify reports/release-manifest.json --repo "${{ github.repository }}" > reports/attestation-verification.txt
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.8.1
+
+      - name: Sign release manifest and SBOM
+        run: |
+          mkdir -p reports/cosign
+          cosign sign-blob --yes \
+            --output-signature reports/cosign/release-manifest.sig \
+            --output-certificate reports/cosign/release-manifest.pem \
+            reports/release-manifest.json
+          cosign sign-blob --yes \
+            --output-signature reports/cosign/sbom.sig \
+            --output-certificate reports/cosign/sbom.pem \
+            reports/input-artifacts/sbom/sbom.spdx.json
+
+      - name: Verify cosign signatures
+        run: |
+          COSIGN_IDENTITY_RE="^https://github.com/${{ github.repository }}/.github/workflows/ci.yml@.*$"
+          cosign verify-blob \
+            --certificate reports/cosign/release-manifest.pem \
+            --signature reports/cosign/release-manifest.sig \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp "${COSIGN_IDENTITY_RE}" \
+            reports/release-manifest.json > reports/cosign/release-manifest.verify.txt
+          cosign verify-blob \
+            --certificate reports/cosign/sbom.pem \
+            --signature reports/cosign/sbom.sig \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp "${COSIGN_IDENTITY_RE}" \
+            reports/input-artifacts/sbom/sbom.spdx.json > reports/cosign/sbom.verify.txt
+
       - name: Export agent model inventory
         run: |
           python scripts/export_agent_model_inventory.py \
@@ -267,4 +298,5 @@ jobs:
             reports/agent-model-inventory.json
             reports/qualification-gate-summary.json
             reports/promotion-decision.json
+            reports/cosign
           if-no-files-found: error

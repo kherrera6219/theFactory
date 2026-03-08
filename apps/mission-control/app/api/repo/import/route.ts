@@ -230,7 +230,7 @@ export async function POST(request: Request) {
   }
 
   const maxFiles = clampMaxFiles(payload.max_files);
-  const githubToken = process.env.GITHUB_TOKEN ?? getVaultSecret("GITHUB-TOKEN");
+  const githubToken = process.env.GITHUB_TOKEN ?? (await getVaultSecret("GITHUB-TOKEN"));
   const headers = buildGithubHeaders(githubToken);
   const logs: string[] = [
     "Validated repository request payload.",
