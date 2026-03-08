@@ -1,5 +1,5 @@
 {
-  "run_timestamp_utc": "2026-03-08T04:30:54.223971+00:00",
+  "run_timestamp_utc": "2026-03-08T17:35:56.308095+00:00",
   "config": {
     "base_url": "http://localhost:8100",
     "orchestrator_ready_url": "http://localhost:8101/readyz",
@@ -38,7 +38,7 @@
     ],
     "exit_code": 0,
     "executed": true,
-    "stderr_tail": "ilt \ntime=\"2026-03-07T20:30:34-08:00\" level=warning msg=\"Found orphan containers ([deploy-grafana-1 deploy-promtail-1 deploy-alertmanager-1 deploy-prometheus-1 deploy-loki-1]) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up.\"\n Container deploy-orchestrator-1 Recreate \n Container deploy-orchestrator-1 Recreated \n Container deploy-orchestrator-1 Starting \n Container deploy-orchestrator-1 Started \n",
+    "stderr_tail": "ilt \ntime=\"2026-03-08T10:35:34-07:00\" level=warning msg=\"Found orphan containers ([deploy-grafana-1 deploy-promtail-1 deploy-alertmanager-1 deploy-prometheus-1 deploy-loki-1]) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up.\"\n Container deploy-orchestrator-1 Recreate \n Container deploy-orchestrator-1 Recreated \n Container deploy-orchestrator-1 Starting \n Container deploy-orchestrator-1 Started \n",
     "error": null
   },
   "runtime_payload": {
@@ -58,7 +58,7 @@
     "lifecycle_recovery_bootstrapped": true,
     "lifecycle_recovery_recovered_count": 3,
     "lifecycle_recovery_scanned_count": 3,
-    "lifecycle_recovery_last_at": "2026-03-08T04:30:37.326644+00:00",
+    "lifecycle_recovery_last_at": "2026-03-08T17:35:39.311143+00:00",
     "lifecycle_recovery_last_error": null
   },
   "restart_injection": {
@@ -78,29 +78,31 @@
   "post_restart_readiness": {
     "passed": true,
     "polls": 2,
-    "duration_seconds": 2.0170203999150544,
+    "duration_seconds": 2.0146974000381306,
     "last_status_code": 200,
     "last_error": null
   },
   "mission_probe": {
-    "mission_id": "mission-4cc40973-3d45-49a9-ba02-9dc6f284d19d",
+    "mission_id": "mission-e3387017-b19e-458b-bcd8-4e04f5a65a8f",
     "terminal_state": "COMPLETE",
     "polls": 9,
-    "duration_seconds": 8.21299110003747,
+    "duration_seconds": 8.231073800008744,
     "error": null
   },
-  "post_restart_completion_seconds": 14.633568099932745,
+  "post_restart_completion_seconds": 14.693737199995667,
   "event_validation": {
-    "count": 12,
+    "count": 14,
     "event_types": [
       "MISSION_COMPLETE",
       "MISSION_VERIFIED",
       "MISSION_FUSION",
       "MISSION_GATING",
       "MISSION_RUNNING",
+      "MISSION_SPECIALIST_PLANNED",
       "MISSION_SPECIALIST_ASSIGNED",
       "MISSION_POD_MANAGER_ASSIGNED",
       "MISSION_CEO_DELEGATED",
+      "MISSION_SPECIALIST_PLANNED",
       "MISSION_SPECIALIST_ASSIGNED",
       "MISSION_POD_MANAGER_ASSIGNED",
       "MISSION_CEO_DELEGATED",

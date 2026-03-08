@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "fail_closed": true,
   "allowed_ref_patterns": [
     "^refs/heads/main$",
@@ -7,6 +7,41 @@
   ],
   "requirements": {
     "ci_status": "success",
-    "attestation_verified": true
+    "attestation_verified": true,
+    "model_governance": {
+      "require_inventory": true,
+      "blocked_lifecycle_stages": [
+        "preview",
+        "experimental",
+        "rolling"
+      ],
+      "allowlist_models": []
+    },
+    "qualification_gates": {
+      "required": true,
+      "suites": {
+        "operator_route_oidc_matrix": {
+          "required": true,
+          "min_consecutive_passes": 1,
+          "max_age_days": 8,
+          "latest_file": "docs/evidence/operator_route_oidc_matrix_latest.json",
+          "history_file": "docs/evidence/operator_route_oidc_matrix_history.jsonl"
+        },
+        "dedicated_agent_canary_trend": {
+          "required": true,
+          "min_consecutive_passes": 1,
+          "max_age_days": 8,
+          "latest_file": "docs/evidence/dedicated_agent_canary_trend_latest.json",
+          "history_file": "docs/evidence/dedicated_agent_canary_trend_history.jsonl"
+        },
+        "langgraph_v2_prototype_matrix": {
+          "required": true,
+          "min_consecutive_passes": 1,
+          "max_age_days": 8,
+          "latest_file": "docs/evidence/langgraph_v2_prototype_matrix_latest.json",
+          "history_file": "docs/evidence/langgraph_v2_prototype_matrix_history.jsonl"
+        }
+      }
+    }
   }
 }

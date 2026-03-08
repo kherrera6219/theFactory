@@ -235,6 +235,17 @@ jobs:
         run: |
           gh attestation verify reports/release-manifest.json --repo "${{ github.repository }}" > reports/attestation-verification.txt
 
+      - name: Export agent model inventory
+        run: |
+          python scripts/export_agent_model_inventory.py \
+            --output-file reports/agent-model-inventory.json
+
+      - name: Summarize qualification evidence
+        run: |
+          python scripts/qualification_gate_summary.py \
+            --policy-file deploy/promotion-policy.json \
+            --output-file reports/qualification-gate-summary.json
+
       - name: Evaluate promotion gate policy
         run: |
           python scripts/promotion_gate.py \
@@ -242,6 +253,8 @@ jobs:
             --ref "${{ github.ref }}" \
             --ci-status success \
             --attestation-verified true \
+            --model-inventory-file reports/agent-model-inventory.json \
+            --qualification-summary-file reports/qualification-gate-summary.json \
             --output-file reports/promotion-decision.json
 
       - name: Upload release trust artifacts
@@ -251,5 +264,7 @@ jobs:
           path: |
             reports/release-manifest.json
             reports/attestation-verification.txt
+            reports/agent-model-inventory.json
+            reports/qualification-gate-summary.json
             reports/promotion-decision.json
           if-no-files-found: error

@@ -10,9 +10,27 @@ x-common-service: &common-service
   networks:
     - hgr-network
 
+x-runtime-service-hardening: &runtime-service-hardening
+  cap_drop:
+    - ALL
+  cap_add: []
+  oom_score_adj: ${APP_OOM_SCORE_ADJ:--500}
+
+x-readonly-service-hardening: &readonly-service-hardening
+  read_only: true
+  tmpfs:
+    - /tmp
+  ulimits:
+    nofile:
+      soft: 65536
+      hard: 65536
+
+x-data-service-hardening: &data-service-hardening
+  oom_score_adj: ${DATA_SERVICE_OOM_SCORE_ADJ:--850}
+
 services:
   redis:
-    <<: *common-service
+    <<: [*common-service, *data-service-hardening]
     image: redis:7.2-alpine
     command:
       - redis-server
@@ -38,7 +56,7 @@ services:
       start_period: 30s
 
   qdrant:
-    <<: *common-service
+    <<: [*common-service, *data-service-hardening]
     image: qdrant/qdrant:v1.12.1
     ports:
       - "${QDRANT_HOST_PORT:-6334}:6333"
@@ -46,7 +64,7 @@ services:
       - qdrant-data:/qdrant/storage
 
   neo4j:
-    <<: *common-service
+    <<: [*common-service, *data-service-hardening]
     image: neo4j:5.26
     environment:
       NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-neo4j-password-change-me}
@@ -69,7 +87,7 @@ services:
       start_period: 30s
 
   postgres:
-    <<: *common-service
+    <<: [*common-service, *data-service-hardening]
     image: postgres:16
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -89,7 +107,7 @@ services:
       start_period: 30s
 
   minio:
-    <<: *common-service
+    <<: [*common-service, *data-service-hardening]
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
     environment:
@@ -110,7 +128,7 @@ services:
       start_period: 30s
 
   milvus:
-    <<: *common-service
+    <<: [*common-service, *data-service-hardening]
     image: milvusdb/milvus:v2.4.13
     command: ["milvus", "run", "standalone"]
     ports:
@@ -122,7 +140,7 @@ services:
       - extended-data-plane
 
   jaeger:
-    <<: *common-service
+    <<: [*common-service, *data-service-hardening]
     image: jaegertracing/all-in-one:1.59
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
@@ -132,7 +150,7 @@ services:
       - "${OTLP_HTTP_HOST_PORT:-4318}:4318"
 
   orchestrator:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/orchestrator/Dockerfile
@@ -227,7 +245,7 @@ services:
     cpus: 1.0
 
   api-gateway:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/api-gateway/Dockerfile
@@ -303,7 +321,7 @@ services:
     cpus: 0.75
 
   semantic-bus-mcp:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/semantic-bus-mcp/Dockerfile
@@ -341,7 +359,7 @@ services:
     cpus: 0.75
 
   dashboard:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/dashboard/Dockerfile
@@ -369,7 +387,7 @@ services:
     cpus: 0.5
 
   mission-control:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening]
     build: ../apps/mission-control
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_GATEWAY_HOST_PORT:-8100}
@@ -392,7 +410,7 @@ services:
       start_period: 30s
 
   pod-a-worker:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
@@ -433,7 +451,7 @@ services:
     cpus: 0.75
 
   pod-b-worker:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
@@ -474,7 +492,7 @@ services:
     cpus: 0.75
 
   pod-c-worker:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
@@ -515,7 +533,7 @@ services:
     cpus: 0.75
 
   pod-d-worker:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
@@ -549,7 +567,7 @@ services:
     cpus: 0.75
 
   pod-a-dedicated-mgr-worker:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
@@ -593,7 +611,7 @@ services:
     cpus: 0.5
 
   pod-b-dedicated-mgr-worker:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
@@ -637,7 +655,7 @@ services:
     cpus: 0.5
 
   pod-c-dedicated-mgr-worker:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
@@ -681,7 +699,7 @@ services:
     cpus: 0.5
 
   pod-d-dedicated-mgr-worker:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/pod-worker/Dockerfile
@@ -725,7 +743,7 @@ services:
     cpus: 0.5
 
   audit-worker:
-    <<: *common-service
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
       dockerfile: services/audit-worker/Dockerfile

@@ -97,12 +97,14 @@ def test_run_audit_returns_expected_checks() -> None:
         "SEC-001",
         "SEC-005",
         "INF-007",
+        "INF-008",
         "COM-003",
         "DOC-005",
         "API-002",
         "UI-011",
         "STY-001",
         "REL-001",
+        "REL-002",
         "OBS-009",
         "OBS-010",
         "PERF-010",
@@ -142,6 +144,48 @@ def test_check_release_trust_controls_fails_when_missing(tmp_path, monkeypatch) 
     result = audit.check_release_trust_controls()
     assert result.passed is False
     assert "missing policy file" in result.notes
+
+
+def test_check_compose_environment_profile_controls_passes(tmp_path, monkeypatch) -> None:
+    _write(
+        tmp_path / "deploy" / "docker-compose.yaml",
+        "services:\n  api:\n    cap_drop: [ALL]\n    oom_score_adj: -500\n",
+    )
+    _write(tmp_path / "deploy" / "docker-compose.dev.yaml", "services: {}\n")
+    _write(tmp_path / "deploy" / "docker-compose.staging.yaml", "services: {}\n")
+    _write(tmp_path / "deploy" / "docker-compose.prod.yaml", "services: {}\n")
+    _write(tmp_path / "docs" / "COMPOSE_ENVIRONMENT_PROFILES.md", "# Profiles\n")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+
+    result = audit.check_compose_environment_profile_controls()
+    assert result.passed is True
+
+
+def test_check_model_governance_and_qualification_controls_passes(
+    tmp_path, monkeypatch
+) -> None:
+    _write(
+        tmp_path / ".github" / "workflows" / "ci.yml",
+        (
+            "python scripts/export_agent_model_inventory.py\n"
+            "python scripts/qualification_gate_summary.py\n"
+        ),
+    )
+    _write(
+        tmp_path / ".github" / "workflows" / "qualification.yml",
+        "on:\n  schedule:\n    - cron: '0 8 * * 1'\n",
+    )
+    _write(
+        tmp_path / "deploy" / "promotion-policy.json",
+        '{"version":2,"fail_closed":true,"allowed_ref_patterns":["^refs/heads/main$"],"requirements":{"ci_status":"success","attestation_verified":true,"model_governance":{},"qualification_gates":{}}}',
+    )
+    _write(tmp_path / "scripts" / "export_agent_model_inventory.py", "print('ok')\n")
+    _write(tmp_path / "scripts" / "qualification_gate_summary.py", "print('ok')\n")
+    _write(tmp_path / "docs" / "MODEL_PROMOTION_GOVERNANCE.md", "# Governance\n")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+
+    result = audit.check_model_governance_and_qualification_controls()
+    assert result.passed is True
 
 
 def test_check_mission_control_typescript_strict_accepts_shell_page(tmp_path, monkeypatch) -> None:

@@ -1,0 +1,15 @@
+services:
+  api-gateway:
+    environment:
+      AUTH_MODE: api_key
+      API_RATE_LIMIT_PER_MINUTE: 240
+  orchestrator:
+    environment:
+      LANGGRAPH_ENABLED: "false"
+      LANGGRAPH_CHECKPOINTER: none
+      OBJECT_STORAGE_ENABLED: "false"
+      NEO4J_ENABLED: "false"
+  mission-control:
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_GATEWAY_HOST_PORT:-8100}
+      NEXT_PUBLIC_RUNTIME_ENV: dev

@@ -25,6 +25,7 @@ def test_parse_args_defaults(monkeypatch) -> None:
     assert args.restore_initial_mode is True
     assert args.build_gateway is True
     assert args.output_file == "docs/evidence/operator_route_oidc_matrix_latest.json"
+    assert args.history_file == "docs/evidence/operator_route_oidc_matrix_history.jsonl"
 
 
 def test_expected_status_matrix() -> None:
