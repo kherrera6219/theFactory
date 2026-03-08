@@ -81,25 +81,40 @@ export default function DashboardPage() {
       />
 
       <Panel title="System Health Snapshot">
-        {loading && <p className="muted">Collecting mission data...</p>}
         {error && <p className="error-box">{error}</p>}
-        {!loading && !error && (
+        {!error && (
           <div className="kpi-grid" role="list" aria-label="Mission metrics">
             <article className="kpi-card" role="listitem">
               <h3>Total Missions</h3>
-              <p>{missions.length}</p>
+              {loading ? (
+                <span className="skeleton-line skeleton-metric" aria-hidden="true" />
+              ) : (
+                <p>{missions.length}</p>
+              )}
             </article>
             <article className="kpi-card" role="listitem">
               <h3>Running</h3>
-              <p>{missions.filter((item) => item.state.toUpperCase() === "RUNNING").length}</p>
+              {loading ? (
+                <span className="skeleton-line skeleton-metric" aria-hidden="true" />
+              ) : (
+                <p>{missions.filter((item) => item.state.toUpperCase() === "RUNNING").length}</p>
+              )}
             </article>
             <article className="kpi-card" role="listitem">
               <h3>Verified</h3>
-              <p>{missions.filter((item) => item.state.toUpperCase() === "VERIFIED").length}</p>
+              {loading ? (
+                <span className="skeleton-line skeleton-metric" aria-hidden="true" />
+              ) : (
+                <p>{missions.filter((item) => item.state.toUpperCase() === "VERIFIED").length}</p>
+              )}
             </article>
             <article className="kpi-card" role="listitem">
               <h3>Failed</h3>
-              <p>{missions.filter((item) => item.state.toUpperCase() === "FAILED").length}</p>
+              {loading ? (
+                <span className="skeleton-line skeleton-metric" aria-hidden="true" />
+              ) : (
+                <p>{missions.filter((item) => item.state.toUpperCase() === "FAILED").length}</p>
+              )}
             </article>
           </div>
         )}

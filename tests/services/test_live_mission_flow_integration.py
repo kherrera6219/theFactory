@@ -130,3 +130,78 @@ def test_live_mission_intake_and_state_flow() -> None:
     assert observed_states, "no mission states observed during polling window"
     assert latest_events, "no mission events observed for live mission flow"
     assert any(isinstance(event.get("event_type"), str) for event in latest_events)
+
+
+def test_live_mission_chain_and_artifact_integrity() -> None:
+    _require_live_stack()
+
+    mission_key = f"live-chain-{uuid.uuid4().hex}"
+    create_status, created = _request_json(
+        "POST",
+        f"{GATEWAY_BASE_URL}/v1/missions",
+        payload={
+            "prompt": "Live integration mission for chain and artifact integrity verification.",
+            "requested_target_language": "python",
+            "metadata": {"source": "live-chain-artifact-test"},
+        },
+        headers={"Idempotency-Key": mission_key},
+    )
+    assert create_status == 200
+    assert isinstance(created, dict)
+    mission_id = created.get("mission_id")
+    assert isinstance(mission_id, str) and mission_id
+
+    deadline = time.time() + 60
+    final_state = ""
+    while time.time() < deadline:
+        mission_status, mission_payload = _request_json(
+            "GET",
+            f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}",
+        )
+        assert mission_status == 200
+        assert isinstance(mission_payload, dict)
+        final_state = str(mission_payload.get("state", "")).upper()
+        if final_state in {"COMPLETE", "FAILED"}:
+            break
+        time.sleep(1.0)
+
+    assert final_state == "COMPLETE", f"expected mission COMPLETE, got {final_state or 'unknown'}"
+
+    chain_status, chain_payload = _request_json(
+        "GET",
+        f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}/chain-trace",
+    )
+    assignment_status, assignment_payload = _request_json(
+        "GET",
+        f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}/pod-assignment",
+    )
+    logicnodes_status, logicnodes_payload = _request_json(
+        "GET",
+        f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}/logicnodes?limit=50",
+    )
+    assert chain_status == 200
+    assert assignment_status == 200
+    assert logicnodes_status == 200
+
+    assert isinstance(chain_payload, dict)
+    events = chain_payload.get("events", [])
+    assert isinstance(events, list) and events
+    chain_event_types = {
+        str(event.get("event_type", "")).upper()
+        for event in events
+        if isinstance(event, dict)
+    }
+    required_chain_events = {
+        "MISSION_PM_INTAKE",
+        "MISSION_CEO_DELEGATED",
+        "MISSION_POD_MANAGER_ASSIGNED",
+        "MISSION_SPECIALIST_ASSIGNED",
+    }
+    missing_chain_events = required_chain_events - chain_event_types
+    assert not missing_chain_events, f"missing chain events: {sorted(missing_chain_events)}"
+
+    assert isinstance(assignment_payload, dict)
+    assert str(assignment_payload.get("pod_name", "")).strip(), "missing pod assignment artifact"
+
+    assert isinstance(logicnodes_payload, list)
+    assert len(logicnodes_payload) > 0, "missing logicnode artifacts"

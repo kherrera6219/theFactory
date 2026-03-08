@@ -17,6 +17,7 @@
   --accent-strong: var(--hgr-accent-strong);
   --accent-dim: var(--hgr-accent-dim);
   --accent-glow: var(--hgr-accent-glow);
+  --accent-contrast: #d8b4fe;
 
   /* System state */
   --success: var(--hgr-success);
@@ -310,7 +311,7 @@ button:disabled {
 
 .secondary-button {
   margin-top: 0;
-  color: var(--accent);
+  color: var(--accent-contrast);
   background: transparent;
   border: 1px solid var(--border-strong);
 }
@@ -521,6 +522,12 @@ dd {
   white-space: nowrap;
 }
 
+.mission-item-skeleton-main {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
 .link-button {
   margin: 0;
   padding: 0;
@@ -576,6 +583,39 @@ dd {
   font-family: var(--font-mono), monospace;
   font-size: 1.45rem;
   color: var(--accent);
+}
+
+.skeleton-line {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--bg-elevated) 20%, var(--bg-surface) 50%, var(--bg-elevated) 80%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.3s ease-in-out infinite;
+}
+
+.skeleton-metric {
+  width: min(120px, 65%);
+  height: 1.45rem;
+  margin: 8px 0 2px;
+}
+
+.skeleton-mission-id {
+  width: min(240px, 92%);
+  height: 0.88rem;
+}
+
+.skeleton-mission-meta {
+  width: min(180px, 72%);
+  height: 0.78rem;
+}
+
+.skeleton-button {
+  width: 92px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
 }
 
 .summary-list {
@@ -1211,4 +1251,13 @@ dd {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -20% 0;
+  }
 }
