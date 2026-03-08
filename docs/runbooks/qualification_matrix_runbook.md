@@ -9,6 +9,7 @@ Execute recurring roadmap follow-up qualifications:
 1. Operator-route auth matrix across `api_key`, `hybrid`, and `oidc`.
 2. Dedicated-agent canary trend evidence across multiple language routes.
 3. Optional v2 prototype matrix while preserving v1.1 baseline.
+4. Live mission artifact / chain-of-command qualification.
 
 ## Preconditions
 
@@ -28,7 +29,9 @@ Execute recurring roadmap follow-up qualifications:
 3. v1.1 baseline + v2 prototype matrix:
    - `powershell -ExecutionPolicy Bypass -File scripts/langgraph_v2_prototype_matrix.ps1`
    - or `make langgraph-v2-prototype`
-4. Qualification gate summary:
+4. Mission artifact qualification:
+   - `python scripts/mission_artifact_qualification.py`
+5. Qualification gate summary:
    - `python scripts/qualification_gate_summary.py --policy-file deploy/promotion-policy.json`
    - or `make qualification-summary`
 
@@ -40,7 +43,9 @@ Execute recurring roadmap follow-up qualifications:
 4. `docs/evidence/operator_route_oidc_matrix_history.jsonl`
 5. `docs/evidence/langgraph_v2_prototype_matrix_latest.json`
 6. `docs/evidence/langgraph_v2_prototype_matrix_history.jsonl`
-7. `docs/evidence/qualification_gate_summary_latest.json`
+7. `docs/evidence/mission_artifact_qualification_latest.json`
+8. `docs/evidence/mission_artifact_qualification_history.jsonl`
+9. `docs/evidence/qualification_gate_summary_latest.json`
 
 ## Failure Triage
 
@@ -50,5 +55,7 @@ Execute recurring roadmap follow-up qualifications:
    - inspect per-language report in `docs/evidence/canary-runs`.
 3. Prototype matrix baseline failure:
    - treat as release-risk; run `scripts/debug_sweep.ps1` and `tests/services/test_live_mission_flow_integration.py`.
-4. Qualification summary failure:
+4. Mission artifact qualification failure:
+   - inspect chain trace, pod assignment, and LogicNode evidence for the generated mission.
+5. Qualification summary failure:
    - inspect stale or failed suite entries before re-running `make promotion-gate`

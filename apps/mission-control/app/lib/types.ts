@@ -22,6 +22,22 @@ export type MissionChainEvent = {
   details?: Record<string, unknown>;
 };
 
+export type MissionRouteProvenanceStage = {
+  role: "ceo" | "pod_manager" | "specialist";
+  source?: string | null;
+  llm_route?: string | null;
+  model_provider?: string | null;
+  model?: string | null;
+  target_agent_id?: string | null;
+  specialist_agent_id?: string | null;
+  pod_manager_agent_id?: string | null;
+  rationale?: string | null;
+  plan_summary?: string | null;
+  deliverables?: string[] | null;
+  risk_notes?: string[] | null;
+  mission_source?: string | null;
+};
+
 export type MissionChainTrace = {
   mission_id: string;
   routing_enforced: boolean;
@@ -33,6 +49,13 @@ export type MissionChainTrace = {
   assigned_specialist_agent_id?: string | null;
   pod_assignment?: Record<string, unknown> | null;
   logicnode_count: number;
+  artifact_summary?: Record<string, Record<string, unknown>>;
+  route_provenance?: {
+    ceo?: MissionRouteProvenanceStage | null;
+    pod_manager?: MissionRouteProvenanceStage | null;
+    specialist?: MissionRouteProvenanceStage | null;
+    fallback_used?: boolean;
+  };
   events: MissionChainEvent[];
 };
 

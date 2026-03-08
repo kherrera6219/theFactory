@@ -257,6 +257,8 @@ def check_release_trust_controls() -> AuditResult:
     required_tokens = [
         "attest-build-provenance",
         "gh attestation verify",
+        "cosign sign-blob",
+        "cosign verify-blob",
         "promotion_gate.py",
         "promotion-policy.json",
     ]

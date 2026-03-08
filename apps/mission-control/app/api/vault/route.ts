@@ -11,7 +11,7 @@ type VaultWritePayload = {
 };
 
 export async function GET() {
-  return NextResponse.json({ slots: listVaultSlots() });
+  return NextResponse.json({ slots: await listVaultSlots() });
 }
 
 export async function POST(request: Request) {
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    const saved = upsertVaultSlot(slotId, provider, secret);
+    const saved = await upsertVaultSlot(slotId, provider, secret);
     return NextResponse.json({ slot: saved });
   } catch (error) {
     return NextResponse.json(
@@ -43,10 +43,9 @@ export async function DELETE(request: Request) {
     if (!slotId) {
       return NextResponse.json({ detail: "slot_id is required." }, { status: 400 });
     }
-    const removed = deleteVaultSlot(slotId);
+    const removed = await deleteVaultSlot(slotId);
     return NextResponse.json({ removed });
   } catch {
     return NextResponse.json({ detail: "Unable to delete vault record." }, { status: 400 });
   }
 }
-

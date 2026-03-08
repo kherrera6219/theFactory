@@ -40,6 +40,13 @@
           "max_age_days": 8,
           "latest_file": "docs/evidence/langgraph_v2_prototype_matrix_latest.json",
           "history_file": "docs/evidence/langgraph_v2_prototype_matrix_history.jsonl"
+        },
+        "mission_artifact_qualification": {
+          "required": true,
+          "min_consecutive_passes": 1,
+          "max_age_days": 8,
+          "latest_file": "docs/evidence/mission_artifact_qualification_latest.json",
+          "history_file": "docs/evidence/mission_artifact_qualification_history.jsonl"
         }
       }
     }

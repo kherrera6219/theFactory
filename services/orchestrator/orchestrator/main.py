@@ -289,6 +289,47 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
+def _route_provenance_snapshot(payload: Any, *, role: str) -> dict[str, Any] | None:
+    if not isinstance(payload, dict):
+        return None
+    mission_context = payload.get("mission_context")
+    snapshot = {
+        "role": role,
+        "source": payload.get("source"),
+        "llm_route": payload.get("llm_route"),
+        "model_provider": payload.get("model_provider"),
+        "model": payload.get("model"),
+    }
+    if role == "ceo":
+        snapshot["target_agent_id"] = payload.get("pod_manager_agent_id")
+        snapshot["specialist_agent_id"] = payload.get("specialist_agent_id")
+        snapshot["rationale"] = payload.get("rationale")
+    elif role == "pod_manager":
+        snapshot["target_agent_id"] = payload.get("specialist_agent_id")
+        snapshot["pod_manager_agent_id"] = payload.get("pod_manager_agent_id")
+        snapshot["rationale"] = payload.get("rationale")
+    else:
+        snapshot["specialist_agent_id"] = payload.get("specialist_agent_id")
+        snapshot["pod_manager_agent_id"] = payload.get("pod_manager_agent_id")
+        snapshot["plan_summary"] = payload.get("plan_summary")
+        snapshot["deliverables"] = payload.get("deliverables")
+        snapshot["risk_notes"] = payload.get("risk_notes")
+    if isinstance(mission_context, dict):
+        snapshot["mission_source"] = mission_context.get("source")
+    return snapshot
+
+
+def _artifact_summary(metadata: dict[str, Any]) -> dict[str, Any]:
+    artifacts = metadata.get("mission_artifacts")
+    if not isinstance(artifacts, dict):
+        return {}
+    return {
+        str(stage): artifact
+        for stage, artifact in artifacts.items()
+        if isinstance(stage, str) and isinstance(artifact, dict)
+    }
+
+
 def _build_mission_chain_trace(
     *,
     mission: MissionRecord,
@@ -297,6 +338,9 @@ def _build_mission_chain_trace(
     events: list[MissionEvent],
 ) -> dict[str, Any]:
     metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
+    ceo_delegation = metadata.get("ceo_delegation")
+    pod_manager_delegation = metadata.get("pod_manager_delegation")
+    specialist_plan = metadata.get("specialist_plan")
     raw_trace = metadata.get("chain_trace")
     chain_trace = (
         [record for record in raw_trace if isinstance(record, dict)]
@@ -352,6 +396,16 @@ def _build_mission_chain_trace(
         chain_trace,
         key=lambda record: str(record.get("ts", "")),
     )
+    route_provenance = {
+        "ceo": _route_provenance_snapshot(ceo_delegation, role="ceo"),
+        "pod_manager": _route_provenance_snapshot(pod_manager_delegation, role="pod_manager"),
+        "specialist": _route_provenance_snapshot(specialist_plan, role="specialist"),
+    }
+    route_provenance["fallback_used"] = any(
+        isinstance(snapshot, dict) and snapshot.get("source") == "fallback"
+        for snapshot in route_provenance.values()
+        if snapshot is not None
+    )
     return {
         "mission_id": mission.mission_id,
         "routing_enforced": bool(metadata.get("routing_enforced", False)),
@@ -363,6 +417,8 @@ def _build_mission_chain_trace(
         "assigned_specialist_agent_id": metadata.get("assigned_specialist_agent_id"),
         "pod_assignment": pod_assignment,
         "logicnode_count": len(logicnodes),
+        "artifact_summary": _artifact_summary(metadata),
+        "route_provenance": route_provenance,
         "events": chain_trace,
     }
 

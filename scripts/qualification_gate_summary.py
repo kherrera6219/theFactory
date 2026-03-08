@@ -21,6 +21,10 @@ DEFAULT_SUITES: dict[str, dict[str, Any]] = {
         "latest_file": "docs/evidence/langgraph_v2_prototype_matrix_latest.json",
         "history_file": "docs/evidence/langgraph_v2_prototype_matrix_history.jsonl",
     },
+    "mission_artifact_qualification": {
+        "latest_file": "docs/evidence/mission_artifact_qualification_latest.json",
+        "history_file": "docs/evidence/mission_artifact_qualification_history.jsonl",
+    },
 }
 
 

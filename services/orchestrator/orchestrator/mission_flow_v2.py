@@ -25,17 +25,500 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from . import storage
+from .agent_registry import AGENT_REGISTRY
+from .llm_delegation import (
+    generate_ceo_delegation,
+    generate_pod_manager_delegation,
+    generate_specialist_plan,
+)
 from .mission_flow import (
     CEO_AGENT_ID,
+    PM_AGENT_ID,
     append_chain_event,
+    resolve_pod_manager_agent_id,
+    resolve_specialist_agent_id,
     with_chain_defaults,
 )
 from .models import MissionState
 
 LOGGER = logging.getLogger(__name__)
+VALID_AGENT_IDS = frozenset(agent.agent_id for agent in AGENT_REGISTRY)
+RUNTIME_PHASES = frozenset(
+    {
+        MissionState.running,
+        MissionState.gating,
+        MissionState.fusion,
+        MissionState.verified,
+        MissionState.complete,
+    }
+)
+
+
+def _chain_event_exists(metadata: dict[str, Any], event_type: str) -> bool:
+    return any(
+        isinstance(record, dict) and str(record.get("event_type", "")).upper() == event_type
+        for record in metadata.get("chain_trace", [])
+    )
+
+
+def _record_artifact(
+    metadata: dict[str, Any],
+    *,
+    stage: str,
+    event_type: str,
+    agent_id: str,
+    details: dict[str, Any] | None = None,
+) -> None:
+    artifacts = metadata.get("mission_artifacts")
+    if not isinstance(artifacts, dict):
+        artifacts = {}
+    artifacts[stage] = {
+        "event_type": event_type,
+        "agent_id": agent_id,
+        "recorded_at": datetime.now(UTC).isoformat(),
+        "details": details or {},
+    }
+    metadata["mission_artifacts"] = artifacts
+
+
+def _validate_agent_id(candidate: Any, *, fallback: str) -> str:
+    normalized = str(candidate or "").strip().upper()
+    if normalized in VALID_AGENT_IDS:
+        return normalized
+    return fallback
+
+
+def _mission_context(mission: Any, metadata: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "mission_id": mission.mission_id,
+        "prompt": mission.prompt,
+        "requested_target_language": mission.requested_target_language,
+        "source": metadata.get("source"),
+        "routing_version": metadata.get("routing_version"),
+        "routing_enforced": metadata.get("routing_enforced"),
+    }
+
+
+async def _persist_metadata(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+    metadata: dict[str, Any],
+    emit_event_type: str | None = None,
+    event_state: MissionState | None = None,
+) -> Any | None:
+    record = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission_id,
+        metadata,
+    )
+    if record is None or emit_event_type is None or event_state is None:
+        return record
+
+    await asyncio.to_thread(
+        storage.insert_mission_event,
+        settings,
+        mission_id,
+        event_state,
+        event_state,
+        emit_event_type,
+    )
+
+    redis_ready = bool(getattr(app.state, "redis_ready", False))
+    redis_client = getattr(app.state, "redis", None)
+    if not redis_ready or redis_client is None:
+        return record
+
+    try:
+        await emit_state_event_fn(
+            settings=settings,
+            validator=validator,
+            redis_client=redis_client,
+            mission=record,
+            event_type=emit_event_type,
+        )
+    except Exception as exc:
+        LOGGER.warning(
+            "v2: failed to emit auxiliary event %s for mission %s: %s",
+            emit_event_type,
+            mission_id,
+            exc,
+        )
+    return record
+
+
+async def _prepare_pm_intake(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+) -> bool:
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    metadata["selected_agent_id"] = PM_AGENT_ID
+    metadata["agent_id"] = PM_AGENT_ID
+
+    if not _chain_event_exists(metadata, "MISSION_PM_INTAKE"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_PM_INTAKE",
+            agent_id=PM_AGENT_ID,
+            details={"source": metadata.get("source", "mission-flow-v2")},
+        )
+    _record_artifact(
+        metadata,
+        stage="pm_intake",
+        event_type="MISSION_PM_INTAKE",
+        agent_id=PM_AGENT_ID,
+        details={"source": metadata.get("source", "mission-flow-v2")},
+    )
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission_id,
+            metadata=metadata,
+        )
+        is not None
+    )
+
+
+async def _prepare_ceo_delegation(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+) -> bool:
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    mission_context = _mission_context(mission, metadata)
+    delegation = await generate_ceo_delegation(
+        mission_context=mission_context,
+        requested_target_language=mission.requested_target_language,
+    )
+    pod_manager_agent_id = _validate_agent_id(
+        delegation.get("pod_manager_agent_id"),
+        fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+    )
+    specialist_agent_id = _validate_agent_id(
+        delegation.get("specialist_agent_id"),
+        fallback=resolve_specialist_agent_id(mission.requested_target_language),
+    )
+    normalized = dict(delegation)
+    normalized["pod_manager_agent_id"] = pod_manager_agent_id
+    normalized["specialist_agent_id"] = specialist_agent_id
+
+    metadata["ceo_delegation"] = normalized
+    metadata["selected_agent_id"] = pod_manager_agent_id
+    metadata["agent_id"] = pod_manager_agent_id
+
+    if not _chain_event_exists(metadata, "MISSION_CEO_DELEGATED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_CEO_DELEGATED",
+            agent_id=CEO_AGENT_ID,
+            details={
+                "target_agent_id": pod_manager_agent_id,
+                "specialist_agent_id": specialist_agent_id,
+                "source": normalized.get("source"),
+                "llm_route": normalized.get("llm_route"),
+                "model_provider": normalized.get("model_provider"),
+                "model": normalized.get("model"),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="ceo_delegated",
+        event_type="MISSION_CEO_DELEGATED",
+        agent_id=CEO_AGENT_ID,
+        details={
+            "target_agent_id": pod_manager_agent_id,
+            "specialist_agent_id": specialist_agent_id,
+            "source": normalized.get("source"),
+            "llm_route": normalized.get("llm_route"),
+            "model_provider": normalized.get("model_provider"),
+            "model": normalized.get("model"),
+        },
+    )
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission_id,
+            metadata=metadata,
+        )
+        is not None
+    )
+
+
+async def _prepare_pod_assignment(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+) -> bool:
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    ceo_delegation = (
+        metadata.get("ceo_delegation") if isinstance(metadata.get("ceo_delegation"), dict) else {}
+    )
+    pod_manager_agent_id = _validate_agent_id(
+        ceo_delegation.get("pod_manager_agent_id"),
+        fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+    )
+    default_specialist_agent_id = _validate_agent_id(
+        ceo_delegation.get("specialist_agent_id"),
+        fallback=resolve_specialist_agent_id(mission.requested_target_language),
+    )
+
+    pod_manager_delegation = await generate_pod_manager_delegation(
+        mission_context={
+            **_mission_context(mission, metadata),
+            "ceo_delegation": ceo_delegation,
+        },
+        requested_target_language=mission.requested_target_language,
+        pod_manager_agent_id=pod_manager_agent_id,
+        default_specialist_agent_id=default_specialist_agent_id,
+    )
+    specialist_agent_id = _validate_agent_id(
+        pod_manager_delegation.get("specialist_agent_id"),
+        fallback=default_specialist_agent_id,
+    )
+    normalized = dict(pod_manager_delegation)
+    normalized["pod_manager_agent_id"] = pod_manager_agent_id
+    normalized["specialist_agent_id"] = specialist_agent_id
+
+    metadata["pod_manager_delegation"] = normalized
+    metadata["assigned_pod_manager_agent_id"] = pod_manager_agent_id
+    metadata["assigned_specialist_agent_id"] = specialist_agent_id
+    metadata["selected_agent_id"] = pod_manager_agent_id
+    metadata["agent_id"] = pod_manager_agent_id
+
+    if not _chain_event_exists(metadata, "MISSION_POD_MANAGER_ASSIGNED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_POD_MANAGER_ASSIGNED",
+            agent_id=pod_manager_agent_id,
+            details={
+                "specialist_agent_id": specialist_agent_id,
+                "source": normalized.get("source"),
+                "llm_route": normalized.get("llm_route"),
+                "model_provider": normalized.get("model_provider"),
+                "model": normalized.get("model"),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="pod_assigned",
+        event_type="MISSION_POD_MANAGER_ASSIGNED",
+        agent_id=pod_manager_agent_id,
+        details={
+            "specialist_agent_id": specialist_agent_id,
+            "source": normalized.get("source"),
+            "llm_route": normalized.get("llm_route"),
+            "model_provider": normalized.get("model_provider"),
+            "model": normalized.get("model"),
+        },
+    )
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission_id,
+            metadata=metadata,
+        )
+        is not None
+    )
+
+
+async def _prepare_specialist_assignment(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+) -> bool:
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    pod_manager_agent_id = _validate_agent_id(
+        metadata.get("assigned_pod_manager_agent_id"),
+        fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+    )
+    specialist_agent_id = _validate_agent_id(
+        metadata.get("assigned_specialist_agent_id"),
+        fallback=resolve_specialist_agent_id(mission.requested_target_language),
+    )
+
+    metadata["assigned_pod_manager_agent_id"] = pod_manager_agent_id
+    metadata["assigned_specialist_agent_id"] = specialist_agent_id
+    metadata["selected_agent_id"] = specialist_agent_id
+    metadata["agent_id"] = specialist_agent_id
+
+    if not _chain_event_exists(metadata, "MISSION_SPECIALIST_ASSIGNED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_SPECIALIST_ASSIGNED",
+            agent_id=specialist_agent_id,
+            details={"pod_manager_agent_id": pod_manager_agent_id},
+        )
+    _record_artifact(
+        metadata,
+        stage="specialist_assigned",
+        event_type="MISSION_SPECIALIST_ASSIGNED",
+        agent_id=specialist_agent_id,
+        details={"pod_manager_agent_id": pod_manager_agent_id},
+    )
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission_id,
+            metadata=metadata,
+        )
+        is not None
+    )
+
+
+async def _prepare_specialist_plan(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+) -> bool:
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    pod_manager_agent_id = _validate_agent_id(
+        metadata.get("assigned_pod_manager_agent_id"),
+        fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+    )
+    specialist_agent_id = _validate_agent_id(
+        metadata.get("assigned_specialist_agent_id"),
+        fallback=resolve_specialist_agent_id(mission.requested_target_language),
+    )
+    specialist_plan = await generate_specialist_plan(
+        mission_context={
+            **_mission_context(mission, metadata),
+            "ceo_delegation": metadata.get("ceo_delegation"),
+            "pod_manager_delegation": metadata.get("pod_manager_delegation"),
+        },
+        requested_target_language=mission.requested_target_language,
+        specialist_agent_id=specialist_agent_id,
+        pod_manager_agent_id=pod_manager_agent_id,
+    )
+    normalized = dict(specialist_plan)
+    normalized["specialist_agent_id"] = specialist_agent_id
+    normalized["pod_manager_agent_id"] = pod_manager_agent_id
+    metadata["specialist_plan"] = normalized
+    metadata["selected_agent_id"] = specialist_agent_id
+    metadata["agent_id"] = specialist_agent_id
+
+    should_emit = not _chain_event_exists(metadata, "MISSION_SPECIALIST_PLANNED")
+    if should_emit:
+        append_chain_event(
+            metadata,
+            event_type="MISSION_SPECIALIST_PLANNED",
+            agent_id=specialist_agent_id,
+            details={
+                "pod_manager_agent_id": pod_manager_agent_id,
+                "source": normalized.get("source"),
+                "llm_route": normalized.get("llm_route"),
+                "model_provider": normalized.get("model_provider"),
+                "model": normalized.get("model"),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="specialist_planned",
+        event_type="MISSION_SPECIALIST_PLANNED",
+        agent_id=specialist_agent_id,
+        details={
+            "pod_manager_agent_id": pod_manager_agent_id,
+            "source": normalized.get("source"),
+            "llm_route": normalized.get("llm_route"),
+            "model_provider": normalized.get("model_provider"),
+            "model": normalized.get("model"),
+        },
+    )
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission_id,
+            metadata=metadata,
+            emit_event_type="MISSION_SPECIALIST_PLANNED" if should_emit else None,
+            event_state=MissionState.specialist_assigned if should_emit else None,
+        )
+        is not None
+    )
+
+
+async def _persist_runtime_phase_artifact(
+    *,
+    settings: Any,
+    mission: Any,
+    event_type: str,
+) -> Any:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    selected_agent_id = _validate_agent_id(
+        metadata.get("selected_agent_id"),
+        fallback=metadata.get("assigned_specialist_agent_id") or CEO_AGENT_ID,
+    )
+    _record_artifact(
+        metadata,
+        stage=mission.state.value.lower(),
+        event_type=event_type,
+        agent_id=selected_agent_id,
+        details={"state": mission.state.value},
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission
 
 # ------------------------------------------------------------------
 # V2 transition table (ordered)
@@ -176,23 +659,31 @@ async def advance_mission_lifecycle_v2(
     emit_state_event_fn : callable
         Async function to emit state events to Redis streams.
     prepare_chain_fn : callable
-        Async function that prepares the mission chain metadata
-        (PM intake, CEO delegation, pod/specialist assignment).
+        Legacy compatibility hook. The v2 driver now performs its own
+        PM, CEO, pod-manager, and specialist stage preparation.
     completion_check_fn : callable
         Async function ``(settings, mission) → (bool, dict)``
         that checks whether completion artifacts are ready.
     """
 
+    stage_preparers = {
+        MissionState.queued: _prepare_pm_intake,
+        MissionState.pm_intake: _prepare_ceo_delegation,
+        MissionState.ceo_delegated: _prepare_pod_assignment,
+        MissionState.pod_assigned: _prepare_specialist_assignment,
+        MissionState.specialist_assigned: _prepare_specialist_plan,
+    }
+
+    _ = prepare_chain_fn
+
     for expected_state, new_state, event_type in V2_TRANSITIONS:
-        # Prepare chain metadata on the first v2 transition
-        if (
-            expected_state == MissionState.queued
-            and new_state == MissionState.pm_intake
-        ):
-            prepared = await prepare_chain_fn(
+        preparer = stage_preparers.get(expected_state)
+        if preparer is not None:
+            prepared = await preparer(
                 app=app,
                 settings=settings,
                 validator=validator,
+                emit_state_event_fn=emit_state_event_fn,
                 mission_id=mission_id,
             )
             if not prepared:
@@ -250,6 +741,13 @@ async def advance_mission_lifecycle_v2(
         )
         if record is None:
             return
+
+        if new_state in RUNTIME_PHASES:
+            record = await _persist_runtime_phase_artifact(
+                settings=settings,
+                mission=record,
+                event_type=event_type,
+            )
 
         redis_ready = bool(getattr(app.state, "redis_ready", False))
         redis_client = getattr(app.state, "redis", None)

@@ -31,6 +31,12 @@ It is designed for local-first Windows operation and provides real-time visibili
 ## Environment
 
 - `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8100`)
+- Optional HashiCorp Vault KV backend:
+  - `VAULT_ADDR`
+  - `VAULT_TOKEN` or `VAULT_ROLE_ID` + `VAULT_SECRET_ID`
+  - `VAULT_NAMESPACE`
+  - `VAULT_KV_MOUNT` (default `secret`)
+  - `VAULT_KV_PREFIX` (default `thefactory/mission-control`)
 
 Mission Control expects Gateway routes under:
 

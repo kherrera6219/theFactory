@@ -330,7 +330,8 @@ export default function SettingsPage() {
       <Panel title="API Key Vault Slots">
         {slotError && <p className="error-box">{slotError}</p>}
         <p className="help-text">
-          Provider and GitHub keys are stored server-side in the local vault API and never returned in plaintext.
+          Provider and GitHub keys are stored server-side in the configured vault backend and never
+          returned in plaintext.
         </p>
         <div className="table-wrap">
           <table className="data-table">

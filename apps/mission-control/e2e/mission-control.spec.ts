@@ -249,6 +249,92 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
       return fulfillJson(route, 200, events.slice(0, capped));
     }
 
+    const missionChainTraceMatch = pathname.match(/^\/v1\/missions\/([^/]+)\/chain-trace$/);
+    if (missionChainTraceMatch && request.method() === "GET") {
+      const missionId = decodeURIComponent(missionChainTraceMatch[1]);
+      return fulfillJson(route, 200, {
+        mission_id: missionId,
+        routing_enforced: true,
+        routing_version: "v2",
+        selected_agent_id: "AGENT-14-PYTHON",
+        intake_agent_id: "AGENT-01-PM",
+        executive_agent_id: "AGENT-02-CEO",
+        assigned_pod_manager_agent_id: "AGENT-12-PODA-MGR",
+        assigned_specialist_agent_id: "AGENT-14-PYTHON",
+        pod_assignment: { mission_id: missionId, pod_name: "podA" },
+        logicnode_count: 1,
+        artifact_summary: {
+          pm_intake: {
+            event_type: "MISSION_PM_INTAKE",
+            agent_id: "AGENT-01-PM",
+            recorded_at: "2026-03-03T11:59:05.000Z",
+          },
+          ceo_delegated: {
+            event_type: "MISSION_CEO_DELEGATED",
+            agent_id: "AGENT-02-CEO",
+            recorded_at: "2026-03-03T11:59:10.000Z",
+          },
+          specialist_planned: {
+            event_type: "MISSION_SPECIALIST_PLANNED",
+            agent_id: "AGENT-14-PYTHON",
+            recorded_at: "2026-03-03T11:59:20.000Z",
+          },
+        },
+        route_provenance: {
+          ceo: {
+            role: "ceo",
+            source: "llm",
+            llm_route: "primary",
+            model_provider: "anthropic",
+            model: "claude-3-5-sonnet",
+            target_agent_id: "AGENT-12-PODA-MGR",
+            specialist_agent_id: "AGENT-14-PYTHON",
+            rationale: "Python work routes through Pod A.",
+          },
+          pod_manager: {
+            role: "pod_manager",
+            source: "llm",
+            llm_route: "primary",
+            model_provider: "openai",
+            model: "gpt-5.2-mini",
+            target_agent_id: "AGENT-14-PYTHON",
+            pod_manager_agent_id: "AGENT-12-PODA-MGR",
+            rationale: "Pod A manager confirmed Python specialist.",
+          },
+          specialist: {
+            role: "specialist",
+            source: "fallback",
+            llm_route: "fallback",
+            model_provider: "openai",
+            model: "gpt-5.2-mini",
+            specialist_agent_id: "AGENT-14-PYTHON",
+            pod_manager_agent_id: "AGENT-12-PODA-MGR",
+            plan_summary: "Implement the requested change and publish logicnode evidence.",
+            deliverables: ["Implementation patch", "LogicNode evidence"],
+            risk_notes: ["Fallback route used for deterministic planning."],
+          },
+          fallback_used: true,
+        },
+        events: [
+          {
+            event_type: "MISSION_PM_INTAKE",
+            agent_id: "AGENT-01-PM",
+            ts: "2026-03-03T11:59:05.000Z",
+          },
+          {
+            event_type: "MISSION_CEO_DELEGATED",
+            agent_id: "AGENT-02-CEO",
+            ts: "2026-03-03T11:59:10.000Z",
+          },
+          {
+            event_type: "MISSION_SPECIALIST_PLANNED",
+            agent_id: "AGENT-14-PYTHON",
+            ts: "2026-03-03T11:59:20.000Z",
+          },
+        ],
+      });
+    }
+
     if (pathname === "/v1/operations/agents" && request.method() === "GET") {
       const activeMissionId = missions[0]?.mission_id ?? seedMissionId;
       const agent = {
@@ -377,6 +463,8 @@ test("mission lifecycle journey is covered from intake to live detail", async ({
   await expect(page).toHaveURL(/\/missions\/mission-e2e-\d+/);
   await expect(page.getByRole("heading", { name: /Mission mission-e2e-/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Smelt-Cycle Phase Stepper" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Route Provenance" })).toBeVisible();
+  await expect(page.getByText("CEO Delegation")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Mission Event Log" })).toBeVisible();
 });
 

@@ -7,6 +7,19 @@
   - Feature-flagged via `MISSION_FLOW_V2_ENABLED` (default false)
   - Both legacy and LangGraph paths updated
   - 41 unit tests passing
+- [x] Enforce PM -> CEO -> pod-manager -> specialist delegation artifacts inside Mission Flow v2.
+  - Runtime now persists CEO delegation, pod-manager assignment, specialist assignment, and specialist plan.
+  - `MISSION_SPECIALIST_PLANNED` is emitted before execution and recorded in mission artifacts.
+  - Live `mission_artifact_qualification.py` passed against the running stack.
+- [x] Add Mission Control route-provenance panel and artifact trace rendering.
+  - `/missions/[id]` now renders model/provider/route decisions plus recorded stage artifacts.
+- [x] Extend qualification gating with mission-artifact/chain-of-command evidence.
+  - Weekly qualification now runs `mission_artifact_qualification.py`.
+  - Promotion threshold summary now includes mission artifact evidence.
+- [x] Add cosign-based signing and verification for release manifest and SBOM blobs in CI.
+- [x] Add Mission Control HashiCorp Vault KV backend option with memory fallback.
+  - `vault.ts` supports `VAULT_TOKEN` or AppRole login.
+  - Existing `/api/vault*` routes preserved.
 
 - [x] Implement Agent class hierarchy (BaseAgent with execute/validate/report).
   - `agent_base.py`: BaseAgent ABC, 5 category subclasses, 16 specialist subclasses
@@ -57,8 +70,8 @@
 ## P3 — Infrastructure / Security (Still Open)
 
 - [ ] Postgres `sslmode=verify-full` on all connection strings.
-- [ ] Redis TLS cert validation (`ssl_cert_reqs=required`).
-- [ ] HashiCorp Vault or dynamic secret backend integration.
-- [ ] SLSA provenance level 2+ with cosign/sigstore.
+- [ ] Redis TLS cert validation (`ssl_cert_reqs=required`) across runtime clients.
+- [ ] Dynamic secret rotation / TTL enforcement on top of the new Vault backend.
+- [ ] Signed tags / release provenance expansion beyond current cosign blob signing.
 - [ ] SLO error-budget burn alerts + DORA metrics.
-- [ ] Per-agent-ID labeled Prometheus histograms.
+- [ ] Broaden per-agent-ID Prometheus histograms beyond pod-worker runtime metrics.
