@@ -91,7 +91,7 @@ Status (2026-03-04): complete. Dual-mode auth ADR published in `docs/ADR_SECURIT
 - [x] Frontend GAP-* remediation reconciliation (`HolyGrail_Frontend_Design_3.docx` sections 9-12).
 Acceptance:
 - Accessibility, performance, and frontend security controls are mapped to implemented tests and runbooks.
-Status (2026-03-08): complete for core controls. Added axe-playwright accessibility assertions, Lighthouse CI budget config, and CSP hardening in gateway + Mission Control.
+Status (2026-03-08): complete with enforced CI gate and full assertion coverage. Added axe-playwright accessibility assertions (including color-contrast), Lighthouse CI budget execution in `.github/workflows/ci.yml`, and CSP hardening in gateway + Mission Control with validated `/` and `/missions` budget checks.
 
 - [x] Compliance evidence automation expansion (SOC2/CMMC checklist mapping).
 Acceptance:

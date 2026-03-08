@@ -41,7 +41,7 @@ export default function MissionsPage() {
   const [events, setEvents] = useState<MissionEvent[]>([]);
   const [recentMissions, setRecentMissions] = useState<MissionRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [missionListLoading, setMissionListLoading] = useState(false);
+  const [missionListLoading, setMissionListLoading] = useState(true);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
   const [missionListError, setMissionListError] = useState<string | null>(null);
@@ -257,12 +257,26 @@ export default function MissionsPage() {
           </button>
         }
       >
-        {missionListLoading && <p className="muted">Loading missions...</p>}
+        {missionListLoading && (
+          <ul className="mission-list" aria-label="Loading recent missions">
+            {[0, 1, 2, 3].map((index) => (
+              <li key={`mission-skeleton-${index}`}>
+                <div className="mission-item">
+                  <div className="mission-item-skeleton-main" aria-hidden="true">
+                    <span className="skeleton-line skeleton-mission-id" />
+                    <span className="skeleton-line skeleton-mission-meta" />
+                  </div>
+                  <span className="skeleton-button" aria-hidden="true" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
         {missionListError && <p className="error-box">{missionListError}</p>}
-        {!missionListLoading && recentMissions.length === 0 && (
+        {!missionListLoading && !missionListError && recentMissions.length === 0 && (
           <p className="muted">No recent missions found. Submit your first mission above.</p>
         )}
-        {recentMissions.length > 0 && (
+        {!missionListLoading && recentMissions.length > 0 && (
           <ul className="mission-list">
             {recentMissions.map((item) => {
               const isActive = item.mission_id === selectedMissionId;

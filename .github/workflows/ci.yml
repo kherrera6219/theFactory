@@ -68,6 +68,14 @@ jobs:
         run: npm run test
         working-directory: apps/mission-control
 
+      - name: Mission Control Build
+        run: npm run build
+        working-directory: apps/mission-control
+
+      - name: Mission Control Performance Budget (Lighthouse CI)
+        run: npm run test:perf
+        working-directory: apps/mission-control
+
       - name: Install Playwright Browser (Chromium)
         run: npx playwright install --with-deps chromium
         working-directory: apps/mission-control

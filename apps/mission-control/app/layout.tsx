@@ -3,11 +3,18 @@ import type { ReactNode } from "react";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const displayFont = Inter({ subsets: ["latin"], variable: "--font-display" });
+const displayFont = Inter({
+  subsets: ["latin"],
+  variable: "--font-display",
+  preload: false,
+  display: "optional",
+});
 const monoFont = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
   weight: ["400", "500", "700"],
+  preload: false,
+  display: "optional",
 });
 
 export const metadata: Metadata = {

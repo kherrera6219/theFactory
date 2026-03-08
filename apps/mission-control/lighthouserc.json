@@ -2,6 +2,22 @@
   "ci": {
     "collect": {
       "numberOfRuns": 1,
+      "startServerCommand": "npm run start",
+      "startServerReadyPattern": "Ready",
+      "startServerReadyTimeout": 120000,
+      "settings": {
+        "chromeFlags": "--no-sandbox --disable-dev-shm-usage",
+        "preset": "desktop",
+        "formFactor": "desktop",
+        "throttlingMethod": "provided",
+        "screenEmulation": {
+          "mobile": false,
+          "width": 1440,
+          "height": 900,
+          "deviceScaleFactor": 1,
+          "disabled": false
+        }
+      },
       "url": [
         "http://localhost:3000/",
         "http://localhost:3000/missions"

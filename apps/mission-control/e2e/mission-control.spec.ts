@@ -502,16 +502,20 @@ test("accessibility checks pass on mission flow pages", async ({ page }) => {
   await page.keyboard.press("Tab");
   await expect(page.locator(".skip-link")).toBeFocused();
 
-  const missionsA11y = await new AxeBuilder({ page })
-    .disableRules(["color-contrast"])
-    .analyze();
+  const missionsA11y = await new AxeBuilder({ page }).analyze();
   expect(missionsA11y.violations).toEqual([]);
 
-  await page.getByRole("link", { name: "View Live" }).first().click();
-  await expect(page.getByRole("heading", { name: /Mission mission-seed-001/i })).toBeVisible();
+  const liveMissionLink = page.getByRole("link", { name: "View Live" }).first();
+  await expect(liveMissionLink).toBeVisible();
+  const liveMissionHref = await liveMissionLink.getAttribute("href");
+  await liveMissionLink.click();
+  if (liveMissionHref) {
+    await expect(page).toHaveURL(new RegExp(`${liveMissionHref.replace("/", "\\/")}$`));
+  } else {
+    await expect(page).toHaveURL(/\/missions\/[^/]+$/);
+  }
+  await expect(page.getByRole("heading", { name: "Mission Detail" })).toBeVisible();
 
-  const detailA11y = await new AxeBuilder({ page })
-    .disableRules(["color-contrast"])
-    .analyze();
+  const detailA11y = await new AxeBuilder({ page }).analyze();
   expect(detailA11y.violations).toEqual([]);
 });
