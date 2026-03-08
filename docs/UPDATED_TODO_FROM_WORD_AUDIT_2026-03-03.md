@@ -1,5 +1,39 @@
 # Updated TODO From Word-Doc Audit (2026-03-03)
 
+Update (2026-03-08):
+- Canonical mission-flow reconciliation published at `docs/MISSION_FLOW_V1_1_CANONICAL_2026-03-07.md`.
+- Root Word artifact aligned via `HGR_Mission_Flow_v1_1.docx`.
+- Additional implementation backlog (below) captures app changes required to enforce this flow at runtime.
+
+## P0 - Mission-Flow Runtime Conformance (New)
+- [ ] Enforce strict PM -> CEO mission routing with dedicated bindings.
+Acceptance:
+- Dedicated-agent runtime profile includes explicit binding enforcement for interface/executive chain (`AGENT-01-PM`, `AGENT-02-CEO`) and downstream pod manager routing.
+- Mission intake metadata (`agent_id`/`selected_agent_id`) is validated and scheduler-tested for deterministic routing.
+- Mission Control clearly shows the enforced chain per mission.
+
+- [ ] Resolve internal service-key mismatch between pod workers and orchestrator internal mutation routes.
+Acceptance:
+- All pod workers can authenticate to orchestrator internal mutation endpoints with configured service keys.
+- Pod assignment and LogicNode persistence succeed during live mission runs.
+- Health/operations surfaces include explicit signal when internal auth mismatch blocks worker writes.
+
+- [ ] Add mission completion integrity guardrails.
+Acceptance:
+- Mission cannot auto-transition to `COMPLETE` if required execution artifacts are missing (for example, zero pod assignments and zero LogicNodes) unless explicitly policy-exempt.
+- Alert/event emitted when lifecycle progression is blocked by missing artifact criteria.
+
+## P1 - High Impact Product Gaps (New)
+- [ ] Add end-to-end tests proving real execution artifacts for dedicated and shared topologies.
+Acceptance:
+- Integration tests validate non-zero pod assignments and LogicNode/audit evidence before completion on representative missions.
+- Tests cover both default condensed workers and `--profile dedicated-agents`.
+
+- [ ] Add runtime diagnostics for chain-of-command visibility.
+Acceptance:
+- Operations API exposes per-mission chain trace (PM intake, CEO delegation, pod manager assignment, audit checkpoints).
+- Mission Control mission detail shows the same chain deterministically from emitted events.
+
 ## P0 - Complete Immediately
 - [x] Run live LangGraph postgres checkpoint recovery qualification.
 Acceptance:

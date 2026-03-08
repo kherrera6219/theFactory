@@ -1,0 +1,43 @@
+Mission Flow v1.1 Canonical (2026-03-07)
+Purpose
+This document reconciles HGR_Mission_Flow.docx with the canonical runtime implementation and the 35-agent registry.
+Canonical Mission Chain of Command
+User mission intake enters Gateway (POST /v1/missions) and is normalized/idempotency-checked.
+AGENT-01-PM (interface tier) is the user-facing mission lead and intake translator.
+AGENT-02-CEO (executive tier) decomposes mission scope and orchestrates support + pod execution.
+Pod managers (AGENT-12, 18, 24, 30) coordinate specialists in Pods A-D.
+Pod audit roles (AGENT-13, 19, 25, 31) and support-ring controls validate quality/compliance.
+Orchestrator lifecycle advances mission states and emits timeline events used by Mission Control.
+Completion rolls up through executive/interface surfaces and is presented back to the user.
+Canonical ID Corrections vs Word-Doc Aliases
+Support Ring (critical remap)
+AGENT-03 = API Broker (not IS)
+AGENT-04 = Accountant (not API Broker)
+AGENT-05 = Security Agent (not IS)
+AGENT-06 = IS Agent (not Accountant)
+AGENT-07 = Version Control Agent (not Compliance)
+AGENT-08 = Compliance Agent (not Data Architect)
+AGENT-09 = Hardware-Mapping Injector (not Version Control)
+AGENT-11 = Deployment Agent (DevOps capability is runtime/service behavior, not a separate canonical registry name)
+Pod alias remap
+MGR-POD-A/B/C/D -> AGENT-12/18/24/30
+AGENT-PY/JS/RUBY/PHP -> AGENT-14/15/16/17
+AGENT-C/CPP/RUST/ZIG -> AGENT-20/21/22/23
+AGENT-JAVA/CS/SCALA/KOTLIN -> AGENT-26/27/28/29
+AGENT-MATLAB/R/JULIA/MATH -> AGENT-32/33/34/35
+Audit Model Reconciliation
+The Word document describes four global audit personas (AUDIT-CORRECT, AUDIT-PERF, AUDIT-LEAD, AUDIT-COMP).
+In current implementation these are represented as:
+Pod-level audit ownership (AGENT-13/19/25/31)
+Support controls (AGENT-05 Security, AGENT-08 Compliance, AGENT-10 Tester)
+Audit worker runtime service behavior
+Treat the four audit personas as quality dimensions, not additional canonical registry IDs.
+Runtime Truth for Mission Phases
+Authoritative mission states remain: QUEUED -> RUNNING -> VERIFIED -> COMPLETE.
+Smelt-cycle UX phases are derived from timeline events (including running checkpoints like MISSION_GATING, MISSION_FUSION) and not a separate hardcoded 7-state backend machine.
+Enforcement Requirement for Strict PM -> CEO Routing
+To enforce strict per-agent routing (instead of shared-worker handling):
+Run dedicated profile: --profile dedicated-agents
+Set AGENT_BINDING on dedicated workers
+Pass mission target metadata (agent_id / selected_agent_id) for scheduler matching
+Without dedicated binding, default shared workers can process missions without strict PM->CEO gate enforcement.
