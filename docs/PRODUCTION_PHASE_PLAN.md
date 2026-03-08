@@ -161,6 +161,7 @@ Completed after initial Phase 11 plan:
 - Phase 36 objective: v2 mission-flow adoption design package (executed).
 - Phase 37 objective: operator OIDC route-policy extension and dedicated canary rollout guardrails (executed).
 - Phase 38 objective: qualification matrix automation for OIDC routes, canary trends, and v2 prototype continuation (executed).
+- Phase 39 objective: LangGraph LLM node depth wiring, tracing entrypoint verification, and compose no-new-privileges hardening (executed).
 
 ## Updated Next Phases
 
@@ -207,3 +208,13 @@ Phase 38 - Qualification Matrix Automation and Prototype Continuation
   - `docs/evidence/operator_route_oidc_matrix_2026-03-08.json`
   - `docs/evidence/dedicated_agent_canary_trend_2026-03-08.json`
   - `docs/evidence/langgraph_v2_prototype_matrix_2026-03-08.json`
+
+Phase 39 - LLM Node Wiring Depth and Hardening Verification
+
+- Status: Complete (2026-03-08).
+- Implemented:
+  - provider-aware LLM delegation for CEO, pod-manager, and specialist LangGraph stages
+  - tracing wiring regression checks for audit-worker, semantic-bus-mcp, and dashboard
+  - compose `no-new-privileges` security option at shared service baseline
+- Evidence:
+  - `docs/evidence/phase39_llm_node_wiring_hardening_2026-03-08.md`

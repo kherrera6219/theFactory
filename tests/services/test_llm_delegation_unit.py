@@ -41,7 +41,13 @@ def test_generate_ceo_delegation_falls_back_when_provider_call_missing(monkeypat
         lambda: {"provider": "openai", "model": "gpt"},
     )
 
-    async def _no_result(_model: str, _prompt: str) -> dict[str, Any] | None:
+    async def _no_result(
+        _model: str,
+        _prompt: str,
+        *,
+        call_context: str,
+    ) -> dict[str, Any] | None:
+        assert call_context
         return None
 
     monkeypatch.setattr(llm_delegation, "_call_openai", _no_result)
@@ -62,7 +68,13 @@ def test_generate_ceo_delegation_uses_llm_result(monkeypatch) -> None:
         lambda: {"provider": "anthropic", "model": "claude-sonnet"},
     )
 
-    async def _anthropic(_model: str, _prompt: str) -> dict[str, Any] | None:
+    async def _anthropic(
+        _model: str,
+        _prompt: str,
+        *,
+        call_context: str,
+    ) -> dict[str, Any] | None:
+        assert call_context
         return {
             "pod_manager_agent_id": "AGENT-30-PODD-MGR",
             "specialist_agent_id": "AGENT-34-JULIA",
@@ -79,3 +91,66 @@ def test_generate_ceo_delegation_uses_llm_result(monkeypatch) -> None:
     assert result["source"] == "llm"
     assert result["pod_manager_agent_id"] == "AGENT-30-PODD-MGR"
     assert result["specialist_agent_id"] == "AGENT-34-JULIA"
+
+
+def test_generate_pod_manager_delegation_uses_llm_result(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_agent_recommendation",
+        lambda _agent_id: {"provider": "openai", "model": "gpt-5.2-pro"},
+    )
+
+    async def _openai(
+        _model: str,
+        _prompt: str,
+        *,
+        call_context: str,
+    ) -> dict[str, Any] | None:
+        assert "pod-manager delegation" in call_context
+        return {
+            "specialist_agent_id": "AGENT-22-RUST",
+            "rationale": "Pod B specialist route.",
+        }
+
+    monkeypatch.setattr(llm_delegation, "_call_openai", _openai)
+    result = asyncio.run(
+        llm_delegation.generate_pod_manager_delegation(
+            mission_context={"mission_id": "mission-3"},
+            requested_target_language="rust",
+            pod_manager_agent_id="AGENT-18-PODB-MGR",
+            default_specialist_agent_id="AGENT-22-RUST",
+        )
+    )
+    assert result["source"] == "llm"
+    assert result["pod_manager_agent_id"] == "AGENT-18-PODB-MGR"
+    assert result["specialist_agent_id"] == "AGENT-22-RUST"
+
+
+def test_generate_specialist_plan_falls_back_when_provider_call_missing(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_agent_recommendation",
+        lambda _agent_id: {"provider": "gemini", "model": "gemini-3.1-pro-preview"},
+    )
+
+    async def _no_result(
+        _model: str,
+        _prompt: str,
+        *,
+        call_context: str,
+    ) -> dict[str, Any] | None:
+        assert "specialist planning" in call_context
+        return None
+
+    monkeypatch.setattr(llm_delegation, "_call_gemini", _no_result)
+    result = asyncio.run(
+        llm_delegation.generate_specialist_plan(
+            mission_context={"mission_id": "mission-4", "requested_target_language": "python"},
+            requested_target_language="python",
+            specialist_agent_id="AGENT-14-PYTHON",
+            pod_manager_agent_id="AGENT-12-PODA-MGR",
+        )
+    )
+    assert result["source"] == "fallback"
+    assert result["specialist_agent_id"] == "AGENT-14-PYTHON"
+    assert len(result["deliverables"]) >= 1

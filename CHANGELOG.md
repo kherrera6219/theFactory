@@ -33,6 +33,18 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
     - `docs/evidence/operator_route_oidc_matrix_2026-03-08.json`
     - `docs/evidence/dedicated_agent_canary_trend_2026-03-08.json`
     - `docs/evidence/langgraph_v2_prototype_matrix_2026-03-08.json`
+- LangGraph LLM node-depth wiring package:
+  - pod-manager and specialist provider-backed delegation/planning calls in
+    `services/orchestrator/orchestrator/llm_delegation.py`
+  - specialist planning LangGraph node and chain event wiring in
+    `services/orchestrator/orchestrator/langgraph_lifecycle.py`
+  - unit coverage updates:
+    - `tests/services/test_llm_delegation_unit.py`
+    - `tests/services/test_langgraph_lifecycle_unit.py`
+  - validation evidence:
+    - `docs/evidence/phase39_llm_node_wiring_hardening_2026-03-08.md`
+- Tracing entrypoint wiring regression test:
+  - `tests/services/test_tracing_wiring_unit.py`
 - Mission-flow runtime enforcement package:
   - canonical PM intake normalization and routing metadata at gateway intake
   - orchestrator chain trace persistence and endpoints for per-mission PM -> CEO -> pod/specialist visibility
@@ -184,6 +196,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - `make oidc-matrix`
   - `make dedicated-canary-trend`
   - `make langgraph-v2-prototype`
+- Compose shared service baseline now enforces `security_opt: [no-new-privileges:true]`.
 
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
 - `deploy/docker-compose.yaml` healthchecks migrated from `wget` to runtime-native probes (`python`/`node`) for slim images.
