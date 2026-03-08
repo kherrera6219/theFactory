@@ -441,8 +441,32 @@ Last updated: 2026-03-08
   - `tests/scripts/test_dedicated_agent_canary_rollout.py`
 - Status: Complete (governance, route-policy, and canary guardrails implemented, 2026-03-08).
 
+## Phase 38: Qualification Matrix Automation and Prototype Continuation
+
+- Added operator-route auth matrix qualification automation:
+  - `scripts/operator_route_auth_matrix_qualification.py`
+  - `scripts/operator_route_auth_matrix_qualification.ps1`
+  - `tests/scripts/test_operator_route_auth_matrix_qualification.py`
+  - validates `/v1/operations/summary` and `/v1/stream/state` across `api_key`, `hybrid`, and `oidc`.
+- Added repeated dedicated-agent canary trend automation:
+  - `scripts/dedicated_agent_canary_trend.py`
+  - `scripts/dedicated_agent_canary_trend.ps1`
+  - `tests/scripts/test_dedicated_agent_canary_trend.py`
+  - emits trend summary + JSONL history for multi-language routes.
+- Added optional v2 prototype matrix runner (v1.1 preservation path):
+  - `scripts/langgraph_v2_prototype_matrix.py`
+  - `scripts/langgraph_v2_prototype_matrix.ps1`
+  - `tests/scripts/test_langgraph_v2_prototype_matrix.py`
+  - executes v1.1 baseline qualification in parallel with feature-flagged LangGraph prototype validation.
+- Added runbook + evidence registration:
+  - `docs/runbooks/qualification_matrix_runbook.md`
+  - `docs/evidence/phase38_qualification_matrix_automation_2026-03-08.md`
+  - `docs/evidence/operator_route_oidc_matrix_2026-03-08.json`
+  - `docs/evidence/dedicated_agent_canary_trend_2026-03-08.json`
+  - `docs/evidence/langgraph_v2_prototype_matrix_2026-03-08.json`
+- Status: Complete (roadmap follow-up automation implemented, 2026-03-08).
+
 ## Next Roadmap Targets
 
-1. Expand live-stack OIDC qualification matrix for operator routes across `api_key`, `hybrid`, and `oidc` deployments.
-2. Run repeated dedicated-agent canary qualification over multiple language routes and publish trend evidence.
-3. Continue optional v2 runtime prototyping behind feature flag while preserving canonical v1.1 production default.
+1. Execute weekly live-stack matrix/canary/prototype runs and publish retained evidence snapshots.
+2. Promote v2 prototype matrix signals into release-policy thresholds after three consecutive successful qualification windows.

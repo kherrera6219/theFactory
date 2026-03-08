@@ -16,6 +16,23 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - `tests/scripts/test_dedicated_agent_canary_rollout.py`
   - `docs/runbooks/dedicated_agent_canary_runbook.md`
   - `docs/evidence/phase37_strategy_auth_canary_2026-03-08.md`
+- Qualification matrix automation tooling:
+  - `scripts/operator_route_auth_matrix_qualification.py`
+  - `scripts/operator_route_auth_matrix_qualification.ps1`
+  - `scripts/dedicated_agent_canary_trend.py`
+  - `scripts/dedicated_agent_canary_trend.ps1`
+  - `scripts/langgraph_v2_prototype_matrix.py`
+  - `scripts/langgraph_v2_prototype_matrix.ps1`
+  - script unit coverage:
+    - `tests/scripts/test_operator_route_auth_matrix_qualification.py`
+    - `tests/scripts/test_dedicated_agent_canary_trend.py`
+    - `tests/scripts/test_langgraph_v2_prototype_matrix.py`
+  - runbook/evidence:
+    - `docs/runbooks/qualification_matrix_runbook.md`
+    - `docs/evidence/phase38_qualification_matrix_automation_2026-03-08.md`
+    - `docs/evidence/operator_route_oidc_matrix_2026-03-08.json`
+    - `docs/evidence/dedicated_agent_canary_trend_2026-03-08.json`
+    - `docs/evidence/langgraph_v2_prototype_matrix_2026-03-08.json`
 - Mission-flow runtime enforcement package:
   - canonical PM intake normalization and routing metadata at gateway intake
   - orchestrator chain trace persistence and endpoints for per-mission PM -> CEO -> pod/specialist visibility
@@ -163,6 +180,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Mission Control now imports generated local token CSS and syncs tokens during `dev`/`build`.
 - Docker runtime stack rebuilt and validated with Redis TLS port wiring and updated mission-flow enforcement paths.
 - Word-doc audit backlog and phase plan documentation updated to mark phase-35 artifact integrity validation complete.
+- Makefile now exposes recurring qualification targets:
+  - `make oidc-matrix`
+  - `make dedicated-canary-trend`
+  - `make langgraph-v2-prototype`
 
 - `.env.example` expanded with Redis password, MCP, MinIO, Milvus, Jaeger, and per-worker service key variables.
 - `deploy/docker-compose.yaml` healthchecks migrated from `wget` to runtime-native probes (`python`/`node`) for slim images.

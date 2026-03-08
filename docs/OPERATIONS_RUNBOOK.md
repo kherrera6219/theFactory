@@ -1,6 +1,6 @@
 # Operations Runbook
 
-Last updated: 2026-03-04
+Last updated: 2026-03-08
 
 ## Core Health Checks
 
@@ -138,3 +138,12 @@ Last updated: 2026-03-04
 10. Dedicated-agent canary qualification:
    - `powershell -ExecutionPolicy Bypass -File scripts/dedicated_agent_canary_rollout.ps1`
    - or `make dedicated-canary`
+11. Operator-route auth matrix qualification (`api_key`, `hybrid`, `oidc`):
+   - `powershell -ExecutionPolicy Bypass -File scripts/operator_route_auth_matrix_qualification.ps1`
+   - or `make oidc-matrix`
+12. Dedicated-agent canary trend qualification (multi-language):
+   - `powershell -ExecutionPolicy Bypass -File scripts/dedicated_agent_canary_trend.ps1`
+   - or `make dedicated-canary-trend`
+13. LangGraph v2 prototype matrix (v1.1 baseline + feature-flag prototype):
+   - `powershell -ExecutionPolicy Bypass -File scripts/langgraph_v2_prototype_matrix.ps1`
+   - or `make langgraph-v2-prototype`

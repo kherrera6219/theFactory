@@ -160,6 +160,7 @@ Completed after initial Phase 11 plan:
 - Phase 35 objective: Dedicated/shared mission artifact qualification evidence (executed).
 - Phase 36 objective: v2 mission-flow adoption design package (executed).
 - Phase 37 objective: operator OIDC route-policy extension and dedicated canary rollout guardrails (executed).
+- Phase 38 objective: qualification matrix automation for OIDC routes, canary trends, and v2 prototype continuation (executed).
 
 ## Updated Next Phases
 
@@ -192,3 +193,17 @@ Phase 37 - Operator OIDC and Dedicated Canary Guardrails
   - dedicated-agent canary qualification tooling and rollback runbook
 - Evidence:
   - `docs/evidence/phase37_strategy_auth_canary_2026-03-08.md`
+
+Phase 38 - Qualification Matrix Automation and Prototype Continuation
+
+- Status: Complete (2026-03-08).
+- Implemented:
+  - operator-route auth matrix automation for `api_key|hybrid|oidc`
+  - repeated dedicated-agent canary trend runner with history tracking
+  - v1.1 baseline + v2 prototype matrix execution harness
+  - consolidated runbook for recurring qualification operations
+- Evidence:
+  - `docs/evidence/phase38_qualification_matrix_automation_2026-03-08.md`
+  - `docs/evidence/operator_route_oidc_matrix_2026-03-08.json`
+  - `docs/evidence/dedicated_agent_canary_trend_2026-03-08.json`
+  - `docs/evidence/langgraph_v2_prototype_matrix_2026-03-08.json`

@@ -1,0 +1,27 @@
+{
+  "run_timestamp_utc": "2026-03-08T04:30:19.570896+00:00",
+  "mission_id": "mission-e76f1c44-4e84-4e5c-a742-faf17fb9b6c7",
+  "profile_label": "dedicated-agent-canary",
+  "requested_target_language": "julia",
+  "expected_pod_manager_agent_id": "AGENT-30-PODD-MGR",
+  "final_state": "COMPLETE",
+  "assignment_present": true,
+  "logicnode_count": 1,
+  "chain_event_types": [
+    "MISSION_PM_INTAKE",
+    "MISSION_CEO_DELEGATED",
+    "MISSION_POD_MANAGER_ASSIGNED",
+    "MISSION_SPECIALIST_ASSIGNED",
+    "MISSION_LOGICNODE_WRITTEN"
+  ],
+  "missing_chain_events": [],
+  "routing_enforced": true,
+  "intake_agent_id": "AGENT-01-PM",
+  "executive_agent_id": "AGENT-02-CEO",
+  "observed_expected_pod_manager_agent_id": "AGENT-30-PODD-MGR",
+  "completion_blocked_events": 0,
+  "passed": true,
+  "failure_reasons": [],
+  "rollback_recommended": false,
+  "rollback_reasons": []
+}

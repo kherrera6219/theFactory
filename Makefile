@@ -1,4 +1,4 @@
-.PHONY: up down validate lint test test-ui test-ui-e2e test-fast test-live-extended audit promotion-gate sweep openapi predeploy backup dr perf reliability langgraph-recovery dedicated-canary monitor-up monitor-down
+.PHONY: up down validate lint test test-ui test-ui-e2e test-fast test-live-extended audit promotion-gate sweep openapi predeploy backup dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -78,6 +78,15 @@ langgraph-recovery:
 
 dedicated-canary:
 	powershell -ExecutionPolicy Bypass -File scripts/dedicated_agent_canary_rollout.ps1
+
+dedicated-canary-trend:
+	powershell -ExecutionPolicy Bypass -File scripts/dedicated_agent_canary_trend.ps1
+
+oidc-matrix:
+	powershell -ExecutionPolicy Bypass -File scripts/operator_route_auth_matrix_qualification.ps1
+
+langgraph-v2-prototype:
+	powershell -ExecutionPolicy Bypass -File scripts/langgraph_v2_prototype_matrix.ps1
 
 sweep:
 	powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1
