@@ -164,6 +164,7 @@ def run(args: argparse.Namespace) -> int:
             Path(args.history_file),
             {
                 "run_timestamp_utc": output_payload["run_timestamp_utc"],
+                "pass": summary["all_passed"],
                 "summary": summary,
                 "languages": list(args.languages),
                 "output_file": args.output_file,

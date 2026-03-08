@@ -60,6 +60,12 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+
+
 def _build_baseline_command(
     *,
     python_executable: str,
@@ -177,6 +183,18 @@ def run(args: argparse.Namespace) -> int:
         "runs": [asdict(baseline_run), asdict(prototype_run)],
     }
     _write_json(Path(args.output_file), report)
+    if args.history_file:
+        _append_jsonl(
+            Path(args.history_file),
+            {
+                "run_timestamp_utc": report["run_timestamp_utc"],
+                "pass": report["pass"],
+                "v1_1_baseline_passed": baseline_run.passed,
+                "langgraph_v2_prototype_passed": prototype_run.passed,
+                "failure_reasons": list(report["failure_reasons"]),
+                "output_file": args.output_file,
+            },
+        )
 
     print("== LangGraph v2 Prototype Matrix Qualification ==")
     print(f"baseline_passed={baseline_run.passed}")
@@ -255,6 +273,11 @@ def parse_args() -> argparse.Namespace:
         "--output-file",
         default="docs/evidence/langgraph_v2_prototype_matrix_latest.json",
         help="Output matrix summary report path",
+    )
+    parser.add_argument(
+        "--history-file",
+        default="docs/evidence/langgraph_v2_prototype_matrix_history.jsonl",
+        help="Append-only JSONL history file",
     )
     return parser.parse_args()
 

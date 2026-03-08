@@ -62,7 +62,7 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
     },
     "gemini_ops_fast": {
         "provider": "gemini",
-        "model": "gemini-3-flash-preview",
+        "model": "gemini-2.5-flash",
         "mode": "thinking",
         "thinking_level": "low",
         "fallback_provider": "openai",
@@ -71,7 +71,7 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
     },
     "gemini_ops_balanced": {
         "provider": "gemini",
-        "model": "gemini-3-flash-preview",
+        "model": "gemini-2.5-flash",
         "mode": "thinking",
         "thinking_level": "medium",
         "fallback_provider": "openai",
@@ -80,7 +80,7 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
     },
     "gemini_stem": {
         "provider": "gemini",
-        "model": "gemini-3.1-pro-preview",
+        "model": "gemini-2.5-pro",
         "mode": "thinking",
         "thinking_level": "high",
         "fallback_provider": "openai",
@@ -89,7 +89,7 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
     },
     "gemini_knowledge": {
         "provider": "gemini",
-        "model": "gemini-3.1-pro-preview",
+        "model": "gemini-2.5-pro",
         "mode": "thinking",
         "thinking_level": "high",
         "fallback_provider": "anthropic",

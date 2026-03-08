@@ -1,4 +1,4 @@
-.PHONY: up down validate lint test test-ui test-ui-e2e test-fast test-live-extended audit promotion-gate sweep openapi predeploy backup dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down
+.PHONY: up down validate lint test test-ui test-ui-e2e test-fast test-live-extended audit promotion-gate qualification-summary compose-validate sweep openapi predeploy backup dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -48,12 +48,29 @@ audit:
 	python scripts/production_review_audit.py
 
 promotion-gate:
+	python scripts/export_agent_model_inventory.py \
+		--output-file reports/agent-model-inventory.local.json
+	python scripts/qualification_gate_summary.py \
+		--policy-file deploy/promotion-policy.json \
+		--output-file reports/qualification-gate-summary.local.json
 	python scripts/promotion_gate.py \
 		--policy-file deploy/promotion-policy.json \
 		--ref refs/heads/main \
 		--ci-status success \
 		--attestation-verified true \
+		--model-inventory-file reports/agent-model-inventory.local.json \
+		--qualification-summary-file reports/qualification-gate-summary.local.json \
 		--output-file reports/promotion-decision.local.json
+
+qualification-summary:
+	python scripts/qualification_gate_summary.py \
+		--policy-file deploy/promotion-policy.json \
+		--output-file docs/evidence/qualification_gate_summary_latest.json
+
+compose-validate:
+	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml config
+	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.staging.yaml config
+	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config
 
 openapi:
 	python scripts/export_openapi.py

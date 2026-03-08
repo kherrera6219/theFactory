@@ -36,6 +36,9 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `TESTING_QUALITY_GATES.md`: enforced lint/test/coverage policy including core 100% module gates.
 - `PRODUCTION_REVIEW_AUDIT.md`: checklist-aligned production audit updates and outcomes.
 - `RELEASE_TRUST_PROMOTION_GATE.md`: CI attestation, promotion policy, and release-trust evidence flow.
+- `MODEL_PROMOTION_GOVERNANCE.md`: production model lifecycle rules and release-promotion expectations.
+- `COMPOSE_ENVIRONMENT_PROFILES.md`: `dev` / `staging` / `prod` compose overlay definitions and security deltas.
+- `LEGACY_PROFILE_ID_MAPPING_INDEX.md`: canonical mapping for legacy `*-001` profile aliases.
 - `evidence/phase23_langgraph_baseline_validation_2026-03-03.md`: LangGraph adoption baseline validation and quality-gate evidence.
 - `evidence/phase24_langgraph_postgres_checkpointer_validation_2026-03-03.md`: Postgres checkpointer baseline validation for LangGraph mission lifecycle.
 - `evidence/phase25_word_doc_audit_and_langgraph_runtime_visibility_2026-03-03.md`: Word-doc audit execution and LangGraph runtime visibility validation.

@@ -1,0 +1,76 @@
+name: Weekly Qualification
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+jobs:
+  qualification:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements-dev.txt
+            services/*/requirements.txt
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -r services/api-gateway/requirements.txt
+          pip install -r services/orchestrator/requirements.txt
+          pip install -r services/pod-worker/requirements.txt
+          pip install -r services/audit-worker/requirements.txt
+
+      - name: Start qualification stack
+        run: |
+          docker compose -f deploy/docker-compose.yaml up -d --build \
+            redis postgres qdrant orchestrator api-gateway \
+            pod-a-worker pod-b-worker pod-c-worker pod-d-worker audit-worker
+          docker compose -f deploy/docker-compose.yaml --profile dedicated-agents up -d \
+            pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker \
+            pod-c-dedicated-mgr-worker pod-d-dedicated-mgr-worker
+
+      - name: Operator route auth matrix
+        run: python scripts/operator_route_auth_matrix_qualification.py
+
+      - name: Dedicated-agent canary trend
+        run: python scripts/dedicated_agent_canary_trend.py
+
+      - name: LangGraph v2 prototype matrix
+        run: python scripts/langgraph_v2_prototype_matrix.py --allow-prototype-failure
+
+      - name: Qualification summary
+        run: |
+          python scripts/qualification_gate_summary.py \
+            --policy-file deploy/promotion-policy.json \
+            --output-file docs/evidence/qualification_gate_summary_latest.json
+
+      - name: Upload qualification artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-qualification-artifacts
+          path: |
+            docs/evidence/operator_route_oidc_matrix_latest.json
+            docs/evidence/operator_route_oidc_matrix_history.jsonl
+            docs/evidence/dedicated_agent_canary_trend_latest.json
+            docs/evidence/dedicated_agent_canary_trend_history.jsonl
+            docs/evidence/langgraph_v2_prototype_matrix_latest.json
+            docs/evidence/langgraph_v2_prototype_matrix_history.jsonl
+            docs/evidence/qualification_gate_summary_latest.json
+          if-no-files-found: error
+
+      - name: Shutdown qualification stack
+        if: always()
+        run: |
+          docker compose -f deploy/docker-compose.yaml --profile dedicated-agents down -v

@@ -273,6 +273,12 @@ def _write_report(path: Path, report: dict[str, Any]) -> None:
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+
+
 async def run(args: argparse.Namespace) -> int:
     base_url = args.base_url.rstrip("/")
     ready_url = f"{base_url}/readyz"
@@ -440,6 +446,17 @@ async def run(args: argparse.Namespace) -> int:
         "compose_steps": compose_steps,
     }
     _write_report(Path(args.output_file), report)
+    if args.history_file:
+        _append_jsonl(
+            Path(args.history_file),
+            {
+                "run_timestamp_utc": report["run_timestamp_utc"],
+                "pass": report["pass"],
+                "auth_modes": list(args.auth_modes),
+                "failure_reasons": list(report["failure_reasons"]),
+                "output_file": args.output_file,
+            },
+        )
 
     print("== Operator Route Auth Matrix Qualification ==")
     print(f"pass={report['pass']}")
@@ -555,6 +572,11 @@ def parse_args() -> argparse.Namespace:
         "--output-file",
         default="docs/evidence/operator_route_oidc_matrix_latest.json",
         help="Output JSON report path",
+    )
+    parser.add_argument(
+        "--history-file",
+        default="docs/evidence/operator_route_oidc_matrix_history.jsonl",
+        help="Append-only JSONL history file",
     )
     return parser.parse_args()
 

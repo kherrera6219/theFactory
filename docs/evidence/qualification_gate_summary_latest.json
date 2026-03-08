@@ -1,0 +1,47 @@
+{
+  "generated_at": "2026-03-08T17:36:11.892474+00:00",
+  "policy_version": 2,
+  "passed": true,
+  "failure_reasons": [],
+  "suites": {
+    "operator_route_oidc_matrix": {
+      "required": true,
+      "passed": true,
+      "latest_run_timestamp_utc": "2026-03-08T17:34:50.859085+00:00",
+      "latest_age_days": 0.001,
+      "latest_output_file": "C:\\software\\Holygrail\\theFactory\\docs\\evidence\\operator_route_oidc_matrix_latest.json",
+      "latest_passed": true,
+      "consecutive_passes": 2,
+      "min_consecutive_passes": 1,
+      "max_age_days": 8.0,
+      "history_points": 2,
+      "failure_reasons": []
+    },
+    "dedicated_agent_canary_trend": {
+      "required": true,
+      "passed": true,
+      "latest_run_timestamp_utc": "2026-03-08T17:35:18.299274+00:00",
+      "latest_age_days": 0.001,
+      "latest_output_file": "C:\\software\\Holygrail\\theFactory\\docs\\evidence\\dedicated_agent_canary_trend_latest.json",
+      "latest_passed": true,
+      "consecutive_passes": 3,
+      "min_consecutive_passes": 1,
+      "max_age_days": 8.0,
+      "history_points": 3,
+      "failure_reasons": []
+    },
+    "langgraph_v2_prototype_matrix": {
+      "required": true,
+      "passed": true,
+      "latest_run_timestamp_utc": "2026-03-08T17:35:56.349989+00:00",
+      "latest_age_days": 0.0,
+      "latest_output_file": "C:\\software\\Holygrail\\theFactory\\docs\\evidence\\langgraph_v2_prototype_matrix_latest.json",
+      "latest_passed": true,
+      "consecutive_passes": 2,
+      "min_consecutive_passes": 1,
+      "max_age_days": 8.0,
+      "history_points": 2,
+      "failure_reasons": []
+    }
+  }
+}

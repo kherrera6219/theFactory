@@ -131,6 +131,32 @@ def check_environment_template() -> AuditResult:
     )
 
 
+def check_compose_environment_profile_controls() -> AuditResult:
+    compose_text = _read_text(REPO_ROOT / "deploy" / "docker-compose.yaml").lower()
+    required_paths = [
+        REPO_ROOT / "deploy" / "docker-compose.dev.yaml",
+        REPO_ROOT / "deploy" / "docker-compose.staging.yaml",
+        REPO_ROOT / "deploy" / "docker-compose.prod.yaml",
+        REPO_ROOT / "docs" / "COMPOSE_ENVIRONMENT_PROFILES.md",
+    ]
+    missing_items = [f"missing artifact: {path}" for path in required_paths if not path.exists()]
+    if "cap_drop" not in compose_text:
+        missing_items.append("docker-compose missing cap_drop hardening")
+    if "oom_score_adj" not in compose_text:
+        missing_items.append("docker-compose missing oom_score_adj policy")
+
+    passed = not missing_items
+    return _result(
+        check_id="INF-008",
+        priority="HIGH",
+        description="Compose overlays and container hardening controls are configured",
+        passed=passed,
+        notes="; ".join(missing_items)
+        if missing_items
+        else "compose overlays and hardening controls present",
+    )
+
+
 def check_protocol_contract_artifacts() -> AuditResult:
     required_paths = [
         REPO_ROOT / "protocol" / "topics.yaml",
@@ -247,6 +273,47 @@ def check_release_trust_controls() -> AuditResult:
         description="Release attestation and promotion-gate controls are configured",
         passed=passed,
         notes="; ".join(missing_items) if missing_items else "release trust controls present",
+    )
+
+
+def check_model_governance_and_qualification_controls() -> AuditResult:
+    ci_text = _read_text(REPO_ROOT / ".github" / "workflows" / "ci.yml").lower()
+    qualification_workflow_text = _read_text(
+        REPO_ROOT / ".github" / "workflows" / "qualification.yml"
+    ).lower()
+    policy_text = _read_text(REPO_ROOT / "deploy" / "promotion-policy.json").lower()
+    missing_items: list[str] = []
+
+    required_paths = [
+        REPO_ROOT / "scripts" / "export_agent_model_inventory.py",
+        REPO_ROOT / "scripts" / "qualification_gate_summary.py",
+        REPO_ROOT / "docs" / "MODEL_PROMOTION_GOVERNANCE.md",
+    ]
+    missing_items.extend(
+        [f"missing artifact: {path}" for path in required_paths if not path.exists()]
+    )
+    if "export_agent_model_inventory.py" not in ci_text:
+        missing_items.append("ci workflow missing model inventory export step")
+    if "qualification_gate_summary.py" not in ci_text:
+        missing_items.append("ci workflow missing qualification summary step")
+    if "schedule:" not in qualification_workflow_text or "cron:" not in qualification_workflow_text:
+        missing_items.append("weekly qualification workflow missing schedule trigger")
+    if "model_governance" not in policy_text:
+        missing_items.append("promotion policy missing model governance block")
+    if "qualification_gates" not in policy_text:
+        missing_items.append("promotion policy missing qualification gate thresholds")
+
+    passed = not missing_items
+    return _result(
+        check_id="REL-002",
+        priority="HIGH",
+        description=(
+            "Model governance and qualification-threshold promotion controls are configured"
+        ),
+        passed=passed,
+        notes="; ".join(missing_items)
+        if missing_items
+        else "model governance and qualification controls present",
     )
 
 
@@ -395,12 +462,14 @@ def run_audit() -> list[AuditResult]:
         check_security_workflow(),
         check_non_root_containers(),
         check_environment_template(),
+        check_compose_environment_profile_controls(),
         check_protocol_contract_artifacts(),
         check_operational_docs(),
         check_mission_control_typescript_strict(),
         check_mission_control_e2e_controls(),
         check_design_tokens(),
         check_release_trust_controls(),
+        check_model_governance_and_qualification_controls(),
         check_tracing_and_pager_controls(),
         check_optional_data_plane_observability_controls(),
         check_long_duration_reliability_controls(),

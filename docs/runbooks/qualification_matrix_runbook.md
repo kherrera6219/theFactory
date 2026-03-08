@@ -15,6 +15,7 @@ Execute recurring roadmap follow-up qualifications:
 1. Core stack is reachable (`api-gateway`, `orchestrator`, `redis`, `postgres`, `qdrant`).
 2. `python` and `docker` are available on the host.
 3. `.env` has `OIDC_SHARED_SECRET` if OIDC matrix tokens should match local config.
+4. For dedicated-agent canary runs, start the dedicated manager profile: `docker compose -f deploy/docker-compose.yaml --profile dedicated-agents up -d`
 
 ## Commands
 
@@ -27,13 +28,19 @@ Execute recurring roadmap follow-up qualifications:
 3. v1.1 baseline + v2 prototype matrix:
    - `powershell -ExecutionPolicy Bypass -File scripts/langgraph_v2_prototype_matrix.ps1`
    - or `make langgraph-v2-prototype`
+4. Qualification gate summary:
+   - `python scripts/qualification_gate_summary.py --policy-file deploy/promotion-policy.json`
+   - or `make qualification-summary`
 
 ## Evidence Outputs
 
 1. `docs/evidence/operator_route_oidc_matrix_latest.json`
 2. `docs/evidence/dedicated_agent_canary_trend_latest.json`
 3. `docs/evidence/dedicated_agent_canary_trend_history.jsonl`
-4. `docs/evidence/langgraph_v2_prototype_matrix_latest.json`
+4. `docs/evidence/operator_route_oidc_matrix_history.jsonl`
+5. `docs/evidence/langgraph_v2_prototype_matrix_latest.json`
+6. `docs/evidence/langgraph_v2_prototype_matrix_history.jsonl`
+7. `docs/evidence/qualification_gate_summary_latest.json`
 
 ## Failure Triage
 
@@ -43,3 +50,5 @@ Execute recurring roadmap follow-up qualifications:
    - inspect per-language report in `docs/evidence/canary-runs`.
 3. Prototype matrix baseline failure:
    - treat as release-risk; run `scripts/debug_sweep.ps1` and `tests/services/test_live_mission_flow_integration.py`.
+4. Qualification summary failure:
+   - inspect stale or failed suite entries before re-running `make promotion-gate`

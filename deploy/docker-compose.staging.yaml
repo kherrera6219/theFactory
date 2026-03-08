@@ -1,0 +1,22 @@
+services:
+  api-gateway:
+    environment:
+      AUTH_MODE: hybrid
+      API_RATE_LIMIT_PER_MINUTE: 120
+      OIDC_ENFORCE_OPERATOR_ROUTES: "true"
+  orchestrator:
+    environment:
+      LANGGRAPH_ENABLED: "true"
+      LANGGRAPH_CHECKPOINTER: memory
+      LANGGRAPH_FAIL_OPEN: "true"
+      OBJECT_STORAGE_ENABLED: "true"
+      NEO4J_ENABLED: "true"
+  dashboard:
+    environment:
+      API_GATEWAY_URL: http://api-gateway:8000
+      DASHBOARD_PORT: 8080
+      HGR_RUNTIME_ENV: staging
+  mission-control:
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_GATEWAY_HOST_PORT:-8100}
+      NEXT_PUBLIC_RUNTIME_ENV: staging
