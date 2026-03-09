@@ -228,7 +228,7 @@ async def emit_state_event(
         "state": mission.state.value,
         "event_type": event_type,
         "requested_target_language": mission.requested_target_language,
-        "created_at": mission.created_at,
+        "created_at": mission.created_at.isoformat() if isinstance(mission.created_at, datetime) else str(mission.created_at),
     }
     payload.update(_state_event_agent_routing(mission, event_type))
     await redis_client.xadd(
@@ -240,7 +240,7 @@ async def emit_state_event(
             "event_type": event_type,
             "mission_id": mission.mission_id,
             "state": mission.state.value,
-            "created_at": mission.created_at,
+            "created_at": mission.created_at.isoformat() if isinstance(mission.created_at, datetime) else str(mission.created_at),
         },
         maxlen=settings.max_stream_len,
         approximate=True,
