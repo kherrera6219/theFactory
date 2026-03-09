@@ -81,11 +81,14 @@ Last updated: 2026-03-09
 
 1. Verify strict mode in production overlay:
    - `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config | rg AGENT_SERVICE_KEY_MODE`
-2. Verify pod worker reports configured agent keys:
+2. Generate local dedicated key material for full-topology qualification:
+   - `python scripts/generate_agent_service_keys.py --force`
+   - output: `.env.agent-service-keys.local`
+3. Verify pod worker reports configured agent keys:
    - `docker compose -f deploy/docker-compose.yaml exec pod-a-worker python -c "import json, urllib.request; print(json.loads(urllib.request.urlopen('http://localhost:8201/health').read())['configured_agent_service_keys'])"`
-3. Verify audit worker agent identity:
+4. Verify audit worker agent identity:
    - `docker compose -f deploy/docker-compose.yaml exec audit-worker python -c "import json, urllib.request; payload=json.loads(urllib.request.urlopen('http://localhost:8202/health').read()); print(payload['worker_agent_id'], payload['agent_service_key_mode'])"`
-4. Reference:
+5. Reference:
    - `docs/AGENT_SERVICE_KEY_ISOLATION.md`
 
 ## Dedicated-Agent Topology Checks
@@ -98,6 +101,12 @@ Last updated: 2026-03-09
    - `make dedicated-full-down`
 4. Validate PM/CEO/specialist services exist:
    - `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents config | rg "agent-01-pm|agent-02-ceo|agent-35-mathematica"`
+5. Run strict local full-dedicated qualification:
+   - `docker compose --env-file .env.agent-service-keys.local -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml up -d --build`
+   - `python scripts/mission_artifact_qualification.py --profile-label full-dedicated-strict --output-file docs/evidence/mission_artifact_qualification_full_dedicated_strict_<date>.json --history-file docs/evidence/mission_artifact_qualification_history.jsonl`
+   - `python scripts/dedicated_agent_canary_rollout.py --profile-label full-dedicated-strict --output-file docs/evidence/dedicated_agent_canary_full_dedicated_strict_<date>.json`
+6. Verify dedicated worker consumer groups exist after startup or Redis restart:
+   - `docker exec deploy-orchestrator-1 python -c "import os, redis; r=redis.Redis.from_url(os.environ['REDIS_URL'], decode_responses=True); print(r.xinfo_groups('missions.state'))"`
 
 ## Redis TLS Checks
 
@@ -128,6 +137,7 @@ Last updated: 2026-03-09
 3. Investigate stream consumption stalls:
    - `docker compose -f deploy/docker-compose.yaml exec redis redis-cli XINFO GROUPS missions.intake`
    - `docker compose -f deploy/docker-compose.yaml exec redis redis-cli XINFO GROUPS missions.state`
+   - If Redis was restarted, verify dedicated worker groups were recreated automatically before recycling containers.
 
 ## Disaster Recovery Baseline
 

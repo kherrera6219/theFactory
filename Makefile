@@ -1,4 +1,4 @@
-.PHONY: up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended audit promotion-gate qualification-summary dora-metrics compose-validate sweep openapi predeploy backup dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down
+.PHONY: up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended audit promotion-gate qualification-summary dora-metrics compose-validate sweep openapi predeploy backup dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys
 
 up:
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -8,7 +8,7 @@ down:
 
 up-full-dedicated:
 	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build \
-		redis postgres qdrant orchestrator api-gateway semantic-bus-mcp dashboard mission-control \
+		redis postgres qdrant jaeger orchestrator api-gateway semantic-bus-mcp audit-worker dashboard mission-control \
 		pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker pod-c-dedicated-mgr-worker pod-d-dedicated-mgr-worker \
 		agent-01-pm agent-02-ceo agent-03-broker agent-04-accountant agent-05-security agent-06-is agent-07-vc agent-08-compliance agent-09-hw agent-10-tester agent-11-deploy \
 		agent-13-poda-audit agent-19-podb-audit agent-25-podc-audit agent-31-podd-audit \
@@ -86,6 +86,9 @@ qualification-summary:
 dora-metrics:
 	python scripts/dora_metrics_summary.py \
 		--output-file docs/evidence/dora_metrics_latest.json
+
+agent-keys:
+	python scripts/generate_agent_service_keys.py
 
 compose-validate:
 	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml config

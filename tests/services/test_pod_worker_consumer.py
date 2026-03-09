@@ -129,3 +129,29 @@ def test_consumer_handles_empty_records_then_cancel(monkeypatch) -> None:
         asyncio.run(pod_worker_main._consumer_loop(app))
 
     assert redis_client.acked == []
+
+
+def test_consumer_recreates_missing_group(monkeypatch) -> None:
+    recreated: list[str] = []
+
+    class MissingGroupThenCancelRedis(FakeWorkerRedis):
+        async def xreadgroup(self, **kwargs):
+            self.read_calls += 1
+            if self.read_calls == 1:
+                raise pod_worker_main.ResponseError(
+                    "NOGROUP No such key 'missions.state' "
+                    "or consumer group 'dedicated-workers-podA'"
+                )
+            raise asyncio.CancelledError
+
+    async def _ensure_group(redis_obj) -> None:
+        recreated.append(redis_obj.__class__.__name__)
+
+    monkeypatch.setattr(pod_worker_main, "_ensure_group", _ensure_group)
+    redis_client = MissingGroupThenCancelRedis(entries=[])
+    app = _build_app(redis_client)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(pod_worker_main._consumer_loop(app))
+
+    assert recreated == ["MissingGroupThenCancelRedis"]
