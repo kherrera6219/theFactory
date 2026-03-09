@@ -7,7 +7,10 @@ type VaultEntry = {
   slotId: string;
   provider: VaultProvider;
   secret: string;
+  createdAt: string;
   updatedAt: string;
+  expiresAt: string;
+  ttlSeconds: number;
 };
 
 type CachedToken = {
@@ -18,9 +21,12 @@ type CachedToken = {
 export type VaultSlotRecord = {
   slot_id: string;
   provider: VaultProvider;
-  status: "set" | "missing";
+  status: "set" | "expiring" | "expired" | "missing";
   last_rotated_at: string | null;
   masked_preview: string | null;
+  expires_at: string | null;
+  ttl_seconds: number | null;
+  rotation_due: boolean;
   backend?: VaultBackend;
 };
 
@@ -36,6 +42,18 @@ const VAULT_KV_MOUNT = process.env.VAULT_KV_MOUNT?.trim() || "secret";
 const VAULT_KV_PREFIX =
   process.env.VAULT_KV_PREFIX?.trim().replace(/^\/+|\/+$/g, "") || "thefactory/mission-control";
 const TOKEN_RENEWAL_WINDOW_MS = 60_000;
+const DEFAULT_SLOT_TTL_SECONDS = Math.max(
+  3600,
+  Number(process.env.VAULT_SLOT_TTL_SECONDS?.trim() || "0") ||
+    Math.max(1, Number(process.env.VAULT_SLOT_TTL_DAYS?.trim() || "90")) * 86400,
+);
+const ROTATION_WARNING_SECONDS = Math.max(
+  3600,
+  Number(process.env.VAULT_SLOT_ROTATION_WARNING_SECONDS?.trim() || "0") ||
+    Math.max(1, Number(process.env.VAULT_SLOT_ROTATION_WARNING_DAYS?.trim() || "14")) * 86400,
+);
+const ENFORCE_SLOT_TTL =
+  (process.env.VAULT_ENFORCE_SLOT_TTL?.trim().toLowerCase() ?? "true") !== "false";
 
 function normalizeProvider(value: string): VaultProvider {
   const candidate = value.toLowerCase();
@@ -63,6 +81,56 @@ function getVaultBackend(): VaultBackend {
     return "hashicorp-vault";
   }
   return "memory";
+}
+
+function addSeconds(timestamp: string, seconds: number): string {
+  const base = new Date(timestamp);
+  return new Date(base.getTime() + seconds * 1000).toISOString();
+}
+
+function resolveTtlSeconds(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_SLOT_TTL_SECONDS;
+  }
+  return Math.max(3600, Math.floor(parsed));
+}
+
+function resolveExpiresAt(updatedAt: string, expiresAt?: unknown, ttlSeconds?: unknown): string {
+  if (typeof expiresAt === "string" && expiresAt.trim().length > 0) {
+    return expiresAt;
+  }
+  return addSeconds(updatedAt, resolveTtlSeconds(ttlSeconds));
+}
+
+function isExpired(entry: VaultEntry): boolean {
+  return ENFORCE_SLOT_TTL && Date.parse(entry.expiresAt) <= Date.now();
+}
+
+function isRotationDue(entry: VaultEntry): boolean {
+  return Date.parse(entry.expiresAt) <= Date.now() + ROTATION_WARNING_SECONDS * 1000;
+}
+
+function toSlotRecord(entry: VaultEntry, backend: VaultBackend): VaultSlotRecord {
+  const expired = isExpired(entry);
+  const rotationDue = isRotationDue(entry);
+  const status: VaultSlotRecord["status"] = expired
+    ? "expired"
+    : rotationDue
+      ? "expiring"
+      : "set";
+
+  return {
+    slot_id: entry.slotId,
+    provider: entry.provider,
+    status,
+    last_rotated_at: entry.updatedAt,
+    masked_preview: maskSecret(entry.secret),
+    expires_at: entry.expiresAt,
+    ttl_seconds: entry.ttlSeconds,
+    rotation_due: rotationDue,
+    backend,
+  };
 }
 
 function vaultApiUrl(path: string): string {
@@ -151,14 +219,7 @@ async function resolveVaultToken(): Promise<string> {
 function memoryListVaultSlots(): VaultSlotRecord[] {
   return Array.from(vaultMemory.values())
     .sort((left, right) => left.slotId.localeCompare(right.slotId))
-    .map((item) => ({
-      slot_id: item.slotId,
-      provider: item.provider,
-      status: "set",
-      last_rotated_at: item.updatedAt,
-      masked_preview: maskSecret(item.secret),
-      backend: "memory",
-    }));
+    .map((item) => toSlotRecord(item, "memory"));
 }
 
 function memoryUpsertVaultSlot(slotId: string, provider: string, secret: string): VaultSlotRecord {
@@ -168,21 +229,19 @@ function memoryUpsertVaultSlot(slotId: string, provider: string, secret: string)
     throw new Error("slot_id and secret are required");
   }
 
+  const updatedAt = new Date().toISOString();
+  const ttlSeconds = DEFAULT_SLOT_TTL_SECONDS;
   const entry: VaultEntry = {
     slotId: normalizedSlot,
     provider: normalizeProvider(provider),
     secret: normalizedSecret,
-    updatedAt: new Date().toISOString(),
+    createdAt: updatedAt,
+    updatedAt,
+    expiresAt: addSeconds(updatedAt, ttlSeconds),
+    ttlSeconds,
   };
   vaultMemory.set(normalizedSlot, entry);
-  return {
-    slot_id: entry.slotId,
-    provider: entry.provider,
-    status: "set",
-    last_rotated_at: entry.updatedAt,
-    masked_preview: maskSecret(entry.secret),
-    backend: "memory",
-  };
+  return toSlotRecord(entry, "memory");
 }
 
 function memoryDeleteVaultSlot(slotId: string): boolean {
@@ -191,7 +250,10 @@ function memoryDeleteVaultSlot(slotId: string): boolean {
 
 function memoryGetVaultSecret(slotId: string): string | null {
   const entry = vaultMemory.get(normalizeSlotId(slotId));
-  return entry ? entry.secret : null;
+  if (!entry || isExpired(entry)) {
+    return null;
+  }
+  return entry.secret;
 }
 
 async function vaultReadEntry(slotId: string): Promise<VaultEntry | null> {
@@ -201,7 +263,10 @@ async function vaultReadEntry(slotId: string): Promise<VaultEntry | null> {
       data?: {
         provider?: string;
         secret?: string;
+        created_at?: string;
         updated_at?: string;
+        expires_at?: string;
+        ttl_seconds?: number;
       };
     };
   };
@@ -218,7 +283,10 @@ async function vaultReadEntry(slotId: string): Promise<VaultEntry | null> {
     slotId,
     provider: normalizeProvider(String(data.provider ?? "operator")),
     secret: String(data.secret),
+    createdAt: String(data.created_at ?? data.updated_at ?? new Date().toISOString()),
     updatedAt: String(data.updated_at ?? new Date().toISOString()),
+    expiresAt: resolveExpiresAt(String(data.updated_at ?? new Date().toISOString()), data.expires_at, data.ttl_seconds),
+    ttlSeconds: resolveTtlSeconds(data.ttl_seconds),
   };
 }
 
@@ -243,14 +311,7 @@ async function vaultListVaultSlots(): Promise<VaultSlotRecord[]> {
   return records
     .filter((item): item is VaultEntry => item !== null)
     .sort((left, right) => left.slotId.localeCompare(right.slotId))
-    .map((item) => ({
-      slot_id: item.slotId,
-      provider: item.provider,
-      status: "set",
-      last_rotated_at: item.updatedAt,
-      masked_preview: maskSecret(item.secret),
-      backend: "hashicorp-vault",
-    }));
+    .map((item) => toSlotRecord(item, "hashicorp-vault"));
 }
 
 async function vaultUpsertVaultSlot(
@@ -264,6 +325,7 @@ async function vaultUpsertVaultSlot(
     throw new Error("slot_id and secret are required");
   }
   const updatedAt = new Date().toISOString();
+  const ttlSeconds = DEFAULT_SLOT_TTL_SECONDS;
   const token = await resolveVaultToken();
   await vaultFetchJson(vaultEntryDataPath(normalizedSlot), {
     method: "POST",
@@ -273,18 +335,25 @@ async function vaultUpsertVaultSlot(
         slot_id: normalizedSlot,
         provider: normalizeProvider(provider),
         secret: normalizedSecret,
+        created_at: updatedAt,
         updated_at: updatedAt,
+        expires_at: addSeconds(updatedAt, ttlSeconds),
+        ttl_seconds: ttlSeconds,
       },
     }),
   });
-  return {
-    slot_id: normalizedSlot,
-    provider: normalizeProvider(provider),
-    status: "set",
-    last_rotated_at: updatedAt,
-    masked_preview: maskSecret(normalizedSecret),
-    backend: "hashicorp-vault",
-  };
+  return toSlotRecord(
+    {
+      slotId: normalizedSlot,
+      provider: normalizeProvider(provider),
+      secret: normalizedSecret,
+      createdAt: updatedAt,
+      updatedAt,
+      expiresAt: addSeconds(updatedAt, ttlSeconds),
+      ttlSeconds,
+    },
+    "hashicorp-vault",
+  );
 }
 
 async function vaultDeleteVaultSlot(slotId: string): Promise<boolean> {
@@ -306,7 +375,10 @@ async function vaultDeleteVaultSlot(slotId: string): Promise<boolean> {
 
 async function vaultGetVaultSecret(slotId: string): Promise<string | null> {
   const entry = await vaultReadEntry(normalizeSlotId(slotId));
-  return entry ? entry.secret : null;
+  if (!entry || isExpired(entry)) {
+    return null;
+  }
+  return entry.secret;
 }
 
 export async function listVaultSlots(): Promise<VaultSlotRecord[]> {

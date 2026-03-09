@@ -24,6 +24,7 @@ def _policy() -> dict:
         "requirements": {
             "ci_status": "success",
             "attestation_verified": True,
+            "signed_tag_verified": True,
             "model_governance": {
                 "require_inventory": True,
                 "blocked_lifecycle_stages": ["preview", "experimental", "rolling"],
@@ -46,6 +47,7 @@ def test_evaluate_promotion_allows_main_with_valid_inputs() -> None:
         ref="refs/heads/main",
         ci_status="success",
         attestation_verified=True,
+        signed_tag_verified=False,
         model_inventory={
             "agents": [
                 {
@@ -78,6 +80,7 @@ def test_evaluate_promotion_blocks_invalid_ref() -> None:
         ref="refs/heads/feature/nope",
         ci_status="success",
         attestation_verified=True,
+        signed_tag_verified=False,
         model_inventory={"agents": []},
         qualification_summary={
             "passed": True,
@@ -98,6 +101,7 @@ def test_evaluate_promotion_blocks_missing_attestation() -> None:
         ref="refs/tags/v1.2.3",
         ci_status="success",
         attestation_verified=False,
+        signed_tag_verified=True,
         model_inventory={"agents": []},
         qualification_summary={
             "passed": True,
@@ -118,6 +122,7 @@ def test_evaluate_promotion_blocks_preview_models() -> None:
         ref="refs/heads/main",
         ci_status="success",
         attestation_verified=True,
+        signed_tag_verified=False,
         model_inventory={
             "agents": [
                 {
@@ -150,6 +155,7 @@ def test_evaluate_promotion_blocks_failed_qualification_suite() -> None:
         ref="refs/heads/main",
         ci_status="success",
         attestation_verified=True,
+        signed_tag_verified=False,
         model_inventory={"agents": []},
         qualification_summary={
             "passed": False,
@@ -172,6 +178,27 @@ def test_load_policy_validates_required_keys(tmp_path: Path) -> None:
         raise AssertionError("expected RuntimeError for missing keys")
     except RuntimeError as exc:
         assert "missing key" in str(exc)
+
+
+def test_evaluate_promotion_blocks_unsigned_release_tags() -> None:
+    decision = promotion_gate.evaluate_promotion(
+        policy=_policy(),
+        ref="refs/tags/v1.2.3",
+        ci_status="success",
+        attestation_verified=True,
+        signed_tag_verified=False,
+        model_inventory={"agents": []},
+        qualification_summary={
+            "passed": True,
+            "failure_reasons": [],
+            "suites": {
+                "operator_route_oidc_matrix": {"passed": True},
+                "dedicated_agent_canary_trend": {"passed": True},
+            },
+        },
+    )
+    assert decision.allowed is False
+    assert any("signed release tag verification" in reason for reason in decision.reasons)
 
 
 def test_main_writes_decision_file(tmp_path: Path, monkeypatch) -> None:
@@ -224,6 +251,8 @@ def test_main_writes_decision_file(tmp_path: Path, monkeypatch) -> None:
             "success",
             "--attestation-verified",
             "true",
+            "--signed-tag-verified",
+            "false",
             "--model-inventory-file",
             str(model_inventory),
             "--qualification-summary-file",

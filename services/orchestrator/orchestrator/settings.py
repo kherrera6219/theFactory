@@ -39,6 +39,12 @@ class Settings:
     qdrant_collection: str = "mission_knowledge"
     qdrant_vector_size: int = 64
     qdrant_timeout_seconds: float = 3.0
+    milvus_uri: str = "http://milvus:19530"
+    milvus_token: str = ""
+    milvus_enabled: bool = False
+    milvus_collection: str = "mission_knowledge"
+    milvus_vector_size: int = 64
+    milvus_timeout_seconds: float = 3.0
     neo4j_url: str = "http://neo4j:7474"
     neo4j_enabled: bool = False
     neo4j_username: str = "neo4j"
@@ -65,6 +71,9 @@ class Settings:
     langgraph_checkpointer_setup: bool = False
     langgraph_checkpoint_namespace: str = ""
     mission_flow_v2_enabled: bool = False
+    agent_scaling_enabled: bool = False
+    agent_scaling_max_instances: int = 4
+    agent_scaling_items_per_instance: int = 3
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -148,6 +157,8 @@ def load_settings() -> Settings:
         postgres_url=os.getenv("POSTGRES_URL", "postgresql://postgres:postgres@postgres:5432/ulr"),
         qdrant_url=os.getenv("QDRANT_URL", "http://qdrant:6333"),
         qdrant_api_key=os.getenv("QDRANT_API_KEY", ""),
+        milvus_uri=os.getenv("MILVUS_URI", "http://milvus:19530"),
+        milvus_token=os.getenv("MILVUS_TOKEN", ""),
         neo4j_url=os.getenv("NEO4J_URL", "http://neo4j:7474"),
         object_storage_endpoint=os.getenv("OBJECT_STORAGE_ENDPOINT", "http://minio:9000"),
         object_storage_access_key=os.getenv("OBJECT_STORAGE_ACCESS_KEY", ""),
@@ -178,6 +189,12 @@ def load_settings() -> Settings:
         or "mission_knowledge",
         qdrant_vector_size=max(8, int(os.getenv("QDRANT_VECTOR_SIZE", "64"))),
         qdrant_timeout_seconds=max(0.5, float(os.getenv("QDRANT_TIMEOUT_SECONDS", "3.0"))),
+        milvus_enabled=_as_bool(os.getenv("MILVUS_ENABLED", "false"), False)
+        and bool(os.getenv("MILVUS_URI", "http://milvus:19530").strip()),
+        milvus_collection=os.getenv("MILVUS_COLLECTION", "mission_knowledge").strip()
+        or "mission_knowledge",
+        milvus_vector_size=max(8, int(os.getenv("MILVUS_VECTOR_SIZE", "64"))),
+        milvus_timeout_seconds=max(0.5, float(os.getenv("MILVUS_TIMEOUT_SECONDS", "3.0"))),
         neo4j_enabled=_as_bool(os.getenv("NEO4J_ENABLED", "false"), False)
         and bool(os.getenv("NEO4J_URL", "http://neo4j:7474").strip()),
         neo4j_username=os.getenv("NEO4J_USERNAME", "neo4j"),
@@ -221,5 +238,14 @@ def load_settings() -> Settings:
         langgraph_checkpoint_namespace=os.getenv("LANGGRAPH_CHECKPOINT_NAMESPACE", "").strip(),
         mission_flow_v2_enabled=_as_bool(
             os.getenv("MISSION_FLOW_V2_ENABLED", "false"), False
+        ),
+        agent_scaling_enabled=_as_bool(
+            os.getenv("AGENT_SCALING_ENABLED", "false"), False
+        ),
+        agent_scaling_max_instances=max(
+            1, min(8, int(os.getenv("AGENT_SCALING_MAX_INSTANCES", "4")))
+        ),
+        agent_scaling_items_per_instance=max(
+            1, int(os.getenv("AGENT_SCALING_ITEMS_PER_INSTANCE", "3"))
         ),
     )

@@ -40,14 +40,22 @@ TOPICS_PATH = Path("/app/protocol/topics.yaml")
 TASKS_PROCESSED = Counter(
     "audit_worker_tasks_processed_total",
     "Total mission events processed by audit worker",
+    ("agent_id", "event_type"),
 )
 TASKS_FAILED = Counter(
     "audit_worker_tasks_failed_total",
     "Total mission events failed by audit worker",
+    ("agent_id", "event_type"),
 )
 TASK_LATENCY_SECONDS = Histogram(
     "audit_worker_task_latency_seconds",
     "Mission event processing latency for audit worker",
+    ("agent_id", "event_type"),
+)
+AUDIT_POST_LATENCY_SECONDS = Histogram(
+    "audit_worker_post_audit_latency_seconds",
+    "Latency for audit-worker writes to orchestrator",
+    ("agent_id", "status"),
 )
 
 
@@ -226,6 +234,7 @@ async def _post_audit(mission_id: str, status: str, summary: str, report: dict[s
     normalized_agent_id = _normalize_agent_id(WORKER_AGENT_ID)
     if normalized_agent_id:
         headers["x-agent-id"] = normalized_agent_id
+    started = time.perf_counter()
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         for attempt in range(1, REQUEST_MAX_RETRIES + 1):
             try:
@@ -241,12 +250,19 @@ async def _post_audit(mission_id: str, status: str, summary: str, report: dict[s
                 )
                 last_response = response
                 if response.status_code < 500 and response.status_code != 429:
+                    AUDIT_POST_LATENCY_SECONDS.labels(
+                        agent_id=WORKER_AGENT_ID,
+                        status="success" if response.status_code < 400 else "error",
+                    ).observe(time.perf_counter() - started)
                     return response.status_code < 400
             except httpx.HTTPError:
                 pass
             if attempt < REQUEST_MAX_RETRIES:
                 await asyncio.sleep(0.1 * attempt)
 
+    AUDIT_POST_LATENCY_SECONDS.labels(agent_id=WORKER_AGENT_ID, status="error").observe(
+        time.perf_counter() - started
+    )
     return bool(last_response and last_response.status_code < 400)
 
 
@@ -266,6 +282,7 @@ async def _consumer_loop(app: FastAPI) -> None:
         for _, entries in records:
             for entry_id, fields in entries:
                 started = time.perf_counter()
+                event_type = "UNKNOWN"
                 try:
                     envelope_raw = fields.get("envelope")
                     payload_raw = fields.get("payload")
@@ -325,12 +342,15 @@ async def _consumer_loop(app: FastAPI) -> None:
                         )
 
                     app.state.processed += 1
-                    TASKS_PROCESSED.inc()
+                    TASKS_PROCESSED.labels(agent_id=WORKER_AGENT_ID, event_type=event_type).inc()
                 except Exception:
                     app.state.errors += 1
-                    TASKS_FAILED.inc()
+                    TASKS_FAILED.labels(agent_id=WORKER_AGENT_ID, event_type=event_type).inc()
                 finally:
-                    TASK_LATENCY_SECONDS.observe(time.perf_counter() - started)
+                    TASK_LATENCY_SECONDS.labels(
+                        agent_id=WORKER_AGENT_ID,
+                        event_type=event_type,
+                    ).observe(time.perf_counter() - started)
                     await redis_client.xack(STATE_STREAM, CONSUMER_GROUP, entry_id)
 
 

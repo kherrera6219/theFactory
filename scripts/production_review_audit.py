@@ -76,6 +76,7 @@ def check_security_workflow() -> AuditResult:
 def check_non_root_containers() -> AuditResult:
     dockerfiles = [
         REPO_ROOT / "services" / "api-gateway" / "Dockerfile",
+        REPO_ROOT / "services" / "agent-runtime" / "Dockerfile",
         REPO_ROOT / "services" / "orchestrator" / "Dockerfile",
         REPO_ROOT / "services" / "dashboard" / "Dockerfile",
         REPO_ROOT / "services" / "pod-worker" / "Dockerfile",
@@ -126,7 +127,8 @@ def check_environment_template() -> AuditResult:
     ]
     missing = [name for name in required if f"{name}=" not in env_text]
     redis_tls_hardened = "ssl_cert_reqs=required" in env_text and "ssl_ca_certs=" in env_text
-    passed = not missing and redis_tls_hardened
+    postgres_tls_hardened = "sslmode=verify-full" in env_text and "sslrootcert=" in env_text
+    passed = not missing and redis_tls_hardened and postgres_tls_hardened
     return _result(
         check_id="INF-007",
         priority="CRITICAL",
@@ -137,8 +139,12 @@ def check_environment_template() -> AuditResult:
             if missing
             else (
                 "required variables present"
-                if redis_tls_hardened
-                else "required variables present; REDIS_URL TLS verification not enforced"
+                if redis_tls_hardened and postgres_tls_hardened
+                else (
+                    "required variables present; REDIS_URL TLS verification not enforced"
+                    if not redis_tls_hardened
+                    else "required variables present; POSTGRES_URL verify-full not enforced"
+                )
             )
         ),
     )
@@ -162,6 +168,10 @@ def check_compose_environment_profile_controls() -> AuditResult:
         missing_items.append("docker-compose missing redis tls client verification")
     if "ssl_cert_reqs=none" in compose_text:
         missing_items.append("docker-compose still allows redis insecure tls mode")
+    if "sslmode=verify-full" not in compose_text:
+        missing_items.append("docker-compose missing postgres verify-full wiring")
+    if "./postgres/certs" not in compose_text:
+        missing_items.append("docker-compose missing postgres client/server cert mounts")
     if "agent_service_key_mode: strict" not in prod_compose_text:
         missing_items.append("prod overlay missing strict agent service key mode")
 
@@ -277,10 +287,12 @@ def check_release_trust_controls() -> AuditResult:
     required_tokens = [
         "attest-build-provenance",
         "gh attestation verify",
+        "git tag -v",
         "cosign sign-blob",
         "cosign verify-blob",
         "promotion_gate.py",
         "promotion-policy.json",
+        "--signed-tag-verified",
     ]
     missing_tokens = [token for token in required_tokens if token not in ci_text]
     missing_items: list[str] = []
@@ -288,6 +300,8 @@ def check_release_trust_controls() -> AuditResult:
         missing_items.append("workflow tokens missing: " + ", ".join(missing_tokens))
     if not policy_path.exists():
         missing_items.append(f"missing policy file: {policy_path}")
+    if 'tags:' not in ci_text or '"v*"' not in ci_text:
+        missing_items.append("ci workflow missing release tag push trigger")
     passed = not missing_items
     return _result(
         check_id="REL-001",
@@ -423,6 +437,61 @@ def check_optional_data_plane_observability_controls() -> AuditResult:
     )
 
 
+def check_slo_and_dora_controls() -> AuditResult:
+    alerts_text = _read_text(
+        REPO_ROOT / "deploy" / "monitoring" / "prometheus" / "rules" / "thefactory-alerts.yml"
+    ).lower()
+    dashboard_text = _read_text(
+        REPO_ROOT
+        / "deploy"
+        / "monitoring"
+        / "grafana"
+        / "provisioning"
+        / "dashboards"
+        / "json"
+        / "thefactory-overview.json"
+    ).lower()
+    qualification_workflow_text = _read_text(
+        REPO_ROOT / ".github" / "workflows" / "qualification.yml"
+    ).lower()
+    makefile_text = _read_text(REPO_ROOT / "Makefile").lower()
+
+    missing_items: list[str] = []
+    for alert_name in (
+        "apigatewayerrorbudgetburnfast",
+        "apigatewayerrorbudgetburnslow",
+        "orchestratorerrorbudgetburnfast",
+        "orchestratorerrorbudgetburnslow",
+        "podworkeragentlatencyp99high",
+        "dedicatedagentruntimelatencyp99high",
+        "auditworkeragentlatencyp99high",
+    ):
+        if alert_name not in alerts_text:
+            missing_items.append(f"missing slo alert rule: {alert_name}")
+    if "error budget burn (x)" not in dashboard_text:
+        missing_items.append("grafana dashboard missing error budget burn panel")
+    if "per-agent task p99 (s)" not in dashboard_text:
+        missing_items.append("grafana dashboard missing per-agent latency panel")
+    if "dora_metrics_summary.py" not in qualification_workflow_text:
+        missing_items.append("qualification workflow missing dora metrics summary step")
+    if "dora-metrics:" not in makefile_text:
+        missing_items.append("makefile missing dora-metrics target")
+    if not (REPO_ROOT / "scripts" / "dora_metrics_summary.py").exists():
+        missing_items.append("missing scripts/dora_metrics_summary.py")
+
+    passed = not missing_items
+    return _result(
+        check_id="OBS-011",
+        priority="HIGH",
+        description=(
+            "SLO burn alerts, DORA summary generation, and per-agent latency panels "
+            "are configured"
+        ),
+        passed=passed,
+        notes="; ".join(missing_items) if missing_items else "slo and dora controls present",
+    )
+
+
 def check_long_duration_reliability_controls() -> AuditResult:
     makefile_text = _read_text(REPO_ROOT / "Makefile").lower()
     runbook_text = _read_text(REPO_ROOT / "docs" / "OPERATIONS_RUNBOOK.md").lower()
@@ -494,6 +563,7 @@ def run_audit() -> list[AuditResult]:
         check_model_governance_and_qualification_controls(),
         check_tracing_and_pager_controls(),
         check_optional_data_plane_observability_controls(),
+        check_slo_and_dora_controls(),
         check_long_duration_reliability_controls(),
         check_compliance_evidence_mapping(),
     ]

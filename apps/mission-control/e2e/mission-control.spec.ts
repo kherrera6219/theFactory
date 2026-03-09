@@ -462,7 +462,7 @@ test("mission lifecycle journey is covered from intake to live detail", async ({
 
   await expect(page).toHaveURL(/\/missions\/mission-e2e-\d+/);
   await expect(page.getByRole("heading", { name: /Mission mission-e2e-/i })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Smelt-Cycle Phase Stepper" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mission Phase Stepper" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Route Provenance" })).toBeVisible();
   await expect(page.getByText("CEO Delegation")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Mission Event Log" })).toBeVisible();

@@ -88,6 +88,17 @@ Last updated: 2026-03-09
 4. Reference:
    - `docs/AGENT_SERVICE_KEY_ISOLATION.md`
 
+## Dedicated-Agent Topology Checks
+
+1. Validate the full topology resolves:
+   - `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents config`
+2. Start the full topology:
+   - `make dedicated-full-up`
+3. Stop the full topology:
+   - `make dedicated-full-down`
+4. Validate PM/CEO/specialist services exist:
+   - `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents config | rg "agent-01-pm|agent-02-ceo|agent-35-mathematica"`
+
 ## Redis TLS Checks
 
 1. Verify runtime compose resolved CA-validated Redis URLs:
@@ -96,6 +107,15 @@ Last updated: 2026-03-09
    - `docker compose -f deploy/docker-compose.yaml config | rg "redis-cli --tls --cacert"`
 3. Verify runtime containers received client cert mount:
    - `docker compose -f deploy/docker-compose.yaml config | rg "/run/redis-certs/ca.crt"`
+
+## Postgres TLS Checks
+
+1. Verify compose resolved `verify-full`:
+   - `docker compose -f deploy/docker-compose.yaml config | rg "sslmode=verify-full|sslrootcert=/run/postgres-certs/ca.crt"`
+2. Verify Postgres cert mounts exist:
+   - `docker compose -f deploy/docker-compose.yaml config | rg "/run/postgres-certs|docker-entrypoint-init-tls.sh"`
+3. Regenerate local cert material when required:
+   - `python scripts/generate_postgres_tls_certs.py`
 
 ## Recovery Steps
 
@@ -131,6 +151,8 @@ Last updated: 2026-03-09
    - `docs/runbooks/optional_data_plane_incident_runbook.md`
 5. Run live qualification (when extended profile is active):
    - `LIVE_ENABLE_DISRUPTION_TESTS=true make test-live-extended`
+6. Verify Milvus readiness when enabled:
+   - `curl http://localhost:8101/health | jq ".milvus_uri, .milvus_ready"`
 
 ## Automation Scripts
 
@@ -167,3 +189,5 @@ Last updated: 2026-03-09
 13. LangGraph v2 prototype matrix (v1.1 baseline + feature-flag prototype):
    - `powershell -ExecutionPolicy Bypass -File scripts/langgraph_v2_prototype_matrix.ps1`
    - or `make langgraph-v2-prototype`
+14. DORA metrics summary:
+   - `python scripts/dora_metrics_summary.py --output-file docs/evidence/dora_metrics_latest.json`

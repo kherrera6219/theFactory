@@ -181,6 +181,7 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         "settings",
         replace(
             app.state.settings,
+            milvus_enabled=True,
             neo4j_enabled=True,
             object_storage_enabled=True,
         ),
@@ -246,6 +247,7 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         lambda *_: [{"mission_id": "mission-1", "knowledge_id": "k-1"}],
     )
     qdrant_upserts: list[tuple[object, ...]] = []
+    milvus_upserts: list[tuple[object, ...]] = []
     neo4j_knowledge_upserts: list[tuple[object, ...]] = []
     neo4j_audit_upserts: list[tuple[object, ...]] = []
     object_storage_writes: list[tuple[object, ...]] = []
@@ -258,6 +260,16 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
         orchestrator_main.qdrant_store,
         "list_knowledge",
         lambda *_: [{"mission_id": "mission-1", "knowledge_id": "k-qdrant"}],
+    )
+    monkeypatch.setattr(
+        orchestrator_main.milvus_store,
+        "upsert_knowledge",
+        lambda *args: milvus_upserts.append(args),
+    )
+    monkeypatch.setattr(
+        orchestrator_main.milvus_store,
+        "list_knowledge",
+        lambda *_: [{"mission_id": "mission-1", "knowledge_id": "k-milvus"}],
     )
     monkeypatch.setattr(
         orchestrator_main.neo4j_store,
@@ -377,6 +389,7 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     assert knowledge_response.status_code == 200
     assert knowledge_response.json()[0]["knowledge_id"] == "k-qdrant"
     assert qdrant_upserts
+    assert milvus_upserts
     assert neo4j_knowledge_upserts
     graph_response = client.get(
         "/internal/missions/mission-1/knowledge-graph?limit=5",
@@ -451,6 +464,37 @@ def test_get_knowledge_falls_back_to_postgres_when_qdrant_returns_empty(monkeypa
 
     assert response.status_code == 200
     assert response.json()[0]["knowledge_id"] == "k-postgres"
+
+
+def test_get_knowledge_falls_back_to_milvus_when_qdrant_returns_empty(monkeypatch) -> None:
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)
+    monkeypatch.setattr(
+        app.state,
+        "settings",
+        replace(app.state.settings, milvus_enabled=True),
+        raising=False,
+    )
+    monkeypatch.setattr(orchestrator_main.qdrant_store, "list_knowledge", lambda *_: [])
+    monkeypatch.setattr(
+        orchestrator_main.milvus_store,
+        "list_knowledge",
+        lambda *_: [{"mission_id": "mission-1", "knowledge_id": "k-milvus"}],
+    )
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "list_knowledge",
+        lambda *_: [{"mission_id": "mission-1", "knowledge_id": "k-postgres"}],
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/missions/mission-1/knowledge?limit=5",
+        headers={"x-api-key": "worker-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()[0]["knowledge_id"] == "k-milvus"
 
 
 def test_internal_operations_endpoints(monkeypatch) -> None:
@@ -646,6 +690,7 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert integration_payload["reserved_data_plane"] == []
     assert "neo4j" in integration_payload["feature_flagged_data_plane"]
     assert "object_storage" in integration_payload["feature_flagged_data_plane"]
+    assert "milvus" in integration_payload["feature_flagged_data_plane"]
     assert integration_payload["planned_data_plane"] == []
     assert integration_payload["llm_provider_counts"]["openai"] > 0
     assert integration_payload["llm_provider_counts"]["anthropic"] > 0

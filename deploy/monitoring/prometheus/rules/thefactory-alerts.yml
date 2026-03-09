@@ -66,6 +66,78 @@ groups:
           summary: Orchestrator 5xx error rate is elevated
           description: 5xx rate is above 0.1 req/s for 10 minutes.
 
+  - name: thefactory-slo-burn
+    rules:
+      - alert: ApiGatewayErrorBudgetBurnFast
+        expr: (sum(rate(api_gateway_http_requests_total{status_code=~"5.."}[5m])) / clamp_min(sum(rate(api_gateway_http_requests_total[5m])), 0.001)) > 0.0144
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: API gateway is consuming error budget too quickly
+          description: API gateway 5xx burn rate is above 14.4x the 99.9% availability budget over 5 minutes.
+          runbook: docs/OPERATIONS_RUNBOOK.md
+
+      - alert: ApiGatewayErrorBudgetBurnSlow
+        expr: (sum(rate(api_gateway_http_requests_total{status_code=~"5.."}[1h])) / clamp_min(sum(rate(api_gateway_http_requests_total[1h])), 0.001)) > 0.006
+        for: 30m
+        labels:
+          severity: high
+        annotations:
+          summary: API gateway error budget burn is elevated
+          description: API gateway 5xx burn rate is above 6x the 99.9% availability budget over 1 hour.
+          runbook: docs/OPERATIONS_RUNBOOK.md
+
+      - alert: OrchestratorErrorBudgetBurnFast
+        expr: (sum(rate(orchestrator_http_requests_total{status_code=~"5.."}[5m])) / clamp_min(sum(rate(orchestrator_http_requests_total[5m])), 0.001)) > 0.0144
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Orchestrator is consuming error budget too quickly
+          description: Orchestrator 5xx burn rate is above 14.4x the 99.9% availability budget over 5 minutes.
+          runbook: docs/OPERATIONS_RUNBOOK.md
+
+      - alert: OrchestratorErrorBudgetBurnSlow
+        expr: (sum(rate(orchestrator_http_requests_total{status_code=~"5.."}[1h])) / clamp_min(sum(rate(orchestrator_http_requests_total[1h])), 0.001)) > 0.006
+        for: 30m
+        labels:
+          severity: high
+        annotations:
+          summary: Orchestrator error budget burn is elevated
+          description: Orchestrator 5xx burn rate is above 6x the 99.9% availability budget over 1 hour.
+          runbook: docs/OPERATIONS_RUNBOOK.md
+
+      - alert: PodWorkerAgentLatencyP99High
+        expr: histogram_quantile(0.99, sum by (le, agent_id) (rate(pod_worker_task_latency_seconds_bucket{agent_id!="UNKNOWN"}[10m]))) > 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Pod worker agent latency is elevated
+          description: Pod worker p99 task latency is above 20s for agent {{ $labels.agent_id }}.
+          runbook: docs/OPERATIONS_RUNBOOK.md
+
+      - alert: DedicatedAgentRuntimeLatencyP99High
+        expr: histogram_quantile(0.99, sum by (le, agent_id) (rate(agent_runtime_task_latency_seconds_bucket[10m]))) > 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Dedicated agent runtime latency is elevated
+          description: Dedicated runtime p99 task latency is above 20s for agent {{ $labels.agent_id }}.
+          runbook: docs/OPERATIONS_RUNBOOK.md
+
+      - alert: AuditWorkerAgentLatencyP99High
+        expr: histogram_quantile(0.99, sum by (le, agent_id) (rate(audit_worker_task_latency_seconds_bucket[10m]))) > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Audit worker latency is elevated
+          description: Audit worker p99 task latency is above 10s for agent {{ $labels.agent_id }}.
+          runbook: docs/OPERATIONS_RUNBOOK.md
+
   - name: thefactory-optional-data-plane
     rules:
       - alert: Neo4jAdapterNotReady

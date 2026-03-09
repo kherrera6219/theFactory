@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -28,9 +30,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
           pip install -r services/api-gateway/requirements.txt
+          pip install -r services/agent-runtime/requirements.txt
           pip install -r services/orchestrator/requirements.txt
           pip install -r services/pod-worker/requirements.txt
           pip install -r services/audit-worker/requirements.txt
+
+      - name: Validate schemas and RefinedIR catalog
+        run: |
+          python scripts/validate_schemas.py
+          python scripts/build_refined_ir_catalog.py
 
       - name: Start qualification stack
         run: |
@@ -63,6 +71,11 @@ jobs:
             --policy-file deploy/promotion-policy.json \
             --output-file docs/evidence/qualification_gate_summary_latest.json
 
+      - name: DORA metrics summary
+        run: |
+          python scripts/dora_metrics_summary.py \
+            --output-file docs/evidence/dora_metrics_latest.json
+
       - name: Upload qualification artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -77,6 +90,7 @@ jobs:
             docs/evidence/mission_artifact_qualification_latest.json
             docs/evidence/mission_artifact_qualification_history.jsonl
             docs/evidence/qualification_gate_summary_latest.json
+            docs/evidence/dora_metrics_latest.json
           if-no-files-found: error
 
       - name: Shutdown qualification stack

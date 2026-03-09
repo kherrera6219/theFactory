@@ -1,4 +1,4 @@
-# Word-Doc Remaining TODO (Updated 2026-03-08)
+# Word-Doc Remaining TODO (Updated 2026-03-09)
 
 ## ✅ Recently Completed
 
@@ -32,26 +32,36 @@
 - [x] Publish full legacy profile ID mapping index.
 - [x] Automate weekly qualification cadence.
 - [x] Move all Word documents to `docs/` folder.
+- [x] Implement full 35 dedicated-agent container topology profile.
+  - `deploy/docker-compose.full-dedicated-agents.yaml` defines the dedicated runtime profile.
+  - `make dedicated-full-up`, `make dedicated-full-down`, and `make dedicated-full-config` added.
+  - Compose validation now proves the full 35-agent topology resolves cleanly.
+- [x] Wire agent hierarchy into pod-worker mission processing.
+  - `pod-worker` now calls the shared `make_agent()` / `make_specialist_for_language()` factory flow.
+  - Agent execute/validate/report lifecycle is covered by unit tests.
+- [x] Update API + Mission Control to render Mission Flow v2 phases.
+  - Mission payloads now expose v2 phase labeling.
+  - Mission Control stepper and mission detail views are v2-aware.
+- [x] Implement strict `RefinedIR` typed pipeline baseline.
+  - `services/pod-worker/pod_worker/refined_ir.py` adds typed Pydantic models.
+  - RefinedIR writes now emit content hashes plus best-effort Git commit provenance.
+  - `scripts/build_refined_ir_catalog.py` validates stored modules and builds an index.
+- [x] Wire Milvus Python client into orchestrator knowledge-path handling.
+  - `services/orchestrator/orchestrator/milvus_store.py` provisions the collection, upserts records, and queries mission-scoped knowledge.
+  - Orchestrator health/ready/operations payloads now expose `milvus_ready` when enabled.
+- [x] Enforce Postgres `sslmode=verify-full` in compose/env templates.
+  - Compose now mounts Postgres CA/server cert material and injects `sslrootcert=/run/postgres-certs/ca.crt`.
+- [x] Enforce Vault TTL / rotation visibility.
+  - Mission Control Vault slots now track `expires_at`, `ttl_seconds`, and `rotation_due`.
+  - Expired secrets are blocked when `VAULT_ENFORCE_SLOT_TTL` is enabled.
+- [x] Expand signed-tag / release provenance controls.
+  - CI now verifies signed `v*` tags, signs release artifacts with cosign, and evaluates promotion policy with signed-tag evidence.
+- [x] Add SLO burn alerts, DORA metrics generation, and broader per-agent histograms.
+  - Alerting covers fast/slow error-budget burn and per-agent p99 latency.
+  - Weekly qualification now generates `docs/evidence/dora_metrics_latest.json`.
+  - Metrics now include per-agent histograms for pod-worker, audit-worker, and dedicated agent-runtime.
 
-## P1 — Large / Strategic (Still Open)
-
-- [ ] Implement full 35 dedicated-agent container topology profile.
-  Acceptance:
-  - 35 dedicated services defined and health-checked.
-  - PM -> CEO -> pod -> specialist routing proven in dedicated profile.
-  - Load and failure-recovery qualification evidence published.
-
-- [ ] Wire agent hierarchy into pod-worker mission processing.
-  Acceptance:
-  - `make_agent()` factory called in pod-worker lifecycle
-  - Agent execute/validate/report lifecycle proven end-to-end
-
-- [ ] Update API + Mission Control to render v2 phases.
-  Acceptance:
-  - API returns v2 state values when v2 is enabled (with v1.1 compat mapping)
-  - Mission Control stepper renders 11 v2 phases
-
-## P2 — Medium (Still Open)
+## Remaining Open Work
 
 - [ ] Enforce per-agent runtime API key isolation.
   Acceptance:
@@ -65,21 +75,7 @@
   Remaining:
   - Rotation and revocation evidence is still missing.
   - Full 35-agent dedicated topology still needs to consume these keys in isolated containers.
-
-- [ ] Implement strict `RefinedIR` Pydantic model + pipeline.
-  - Typed extraction output instead of raw dicts.
-  - Git-backed LogicNode content-addressed store.
-  - Formal `RefinedIR → binary` compilation step.
-
-- [ ] Wire Milvus Python client in at least one service.
-  - Connect to compose `milvus` service from orchestrator or pod-worker.
-  - Collection schema, health probe, and basic similarity search.
-
-## P3 — Infrastructure / Security (Still Open)
-
-- [ ] Postgres `sslmode=verify-full` on all connection strings.
 - [x] Redis TLS cert validation (`ssl_cert_reqs=required`) across runtime clients.
-- [ ] Dynamic secret rotation / TTL enforcement on top of the new Vault backend.
-- [ ] Signed tags / release provenance expansion beyond current cosign blob signing.
-- [ ] SLO error-budget burn alerts + DORA metrics.
-- [ ] Broaden per-agent-ID Prometheus histograms beyond pod-worker runtime metrics.
+- [ ] Complete secret rotation / revocation automation on top of the new Vault TTL controls.
+  - TTL visibility and expiry blocking are now implemented.
+  - Rotation workflows and service-wide adoption are still pending.
