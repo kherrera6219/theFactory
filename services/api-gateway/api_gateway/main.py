@@ -18,6 +18,15 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
+from shared_runtime.agent_keys import normalize_agent_id
+from shared_runtime.protocol import (
+    ProtocolValidationError,
+    load_event_schema,
+    load_topics,
+    parse_date_time,
+    validate_envelope,
+)
+
 from .tracing import configure_tracing, current_trace_id
 
 try:
@@ -153,10 +162,6 @@ POD_MANAGER_BY_LANGUAGE: dict[str, str] = {
 }
 
 
-class ProtocolValidationError(Exception):
-    pass
-
-
 class MissionCreate(BaseModel):
     prompt: str = Field(min_length=3)
     requested_target_language: str | None = None
@@ -191,63 +196,24 @@ class BuilderPreviewRequest(BaseModel):
 
 
 def _parse_date_time(value: str) -> datetime:
-    if value.endswith("Z"):
-        value = value.replace("Z", "+00:00")
-    parsed = datetime.fromisoformat(value)
-    if parsed.tzinfo is None:
-        raise ValueError("timestamp must include timezone")
-    return parsed
+    return parse_date_time(value)
 
 
 def _load_event_schema() -> dict[str, Any]:
-    if not EVENT_SCHEMA_PATH.exists():
-        raise ProtocolValidationError(f"event schema not found: {EVENT_SCHEMA_PATH}")
-    return json.loads(EVENT_SCHEMA_PATH.read_text(encoding="utf-8"))
+    return load_event_schema(EVENT_SCHEMA_PATH)
 
 
 def _load_topics() -> set[str]:
-    if not TOPICS_PATH.exists():
-        raise ProtocolValidationError(f"topics file not found: {TOPICS_PATH}")
-    topics: set[str] = set()
-    for raw_line in TOPICS_PATH.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if line.startswith("- "):
-            topics.add(line[2:].strip())
-    if not topics:
-        raise ProtocolValidationError("no topics configured")
-    return topics
+    return load_topics(TOPICS_PATH)
 
 
 def _validate_envelope(envelope: dict[str, Any]) -> None:
-    schema = _load_event_schema()
-    topics = _load_topics()
-    required = schema.get("required", [])
-    properties = schema.get("properties", {})
-
-    missing = [field for field in required if field not in envelope]
-    if missing:
-        raise ProtocolValidationError(f"envelope missing required fields: {', '.join(missing)}")
-
-    if schema.get("additionalProperties") is False:
-        unknown = [field for field in envelope if field not in properties]
-        if unknown:
-            raise ProtocolValidationError(f"unexpected envelope fields: {', '.join(unknown)}")
-
-    if envelope["topic"] not in topics:
-        raise ProtocolValidationError(f"topic '{envelope['topic']}' is not in protocol catalog")
-    if not PAYLOAD_REF_PATTERN.match(str(envelope["payload_ref"])):
-        raise ProtocolValidationError("payload_ref must start with registry://")
-    if envelope.get("priority") not in {"NORMAL", "HIGH"}:
-        raise ProtocolValidationError("priority must be NORMAL or HIGH")
-    try:
-        _parse_date_time(str(envelope["timestamp"]))
-    except Exception as exc:
-        raise ProtocolValidationError(f"invalid timestamp: {exc}") from exc
-
-    for field, spec in properties.items():
-        expected_type = spec.get("type")
-        if field in envelope and expected_type == "string" and not isinstance(envelope[field], str):
-            raise ProtocolValidationError(f"field '{field}' must be string")
+    validate_envelope(
+        envelope,
+        schema=_load_event_schema(),
+        topics=_load_topics(),
+        payload_ref_pattern=PAYLOAD_REF_PATTERN,
+    )
 
 
 def _build_envelope(*, correlation_id: str, payload_ref: str) -> dict[str, Any]:
@@ -271,10 +237,7 @@ def _request_hash(payload: MissionCreate) -> str:
 
 
 def _normalize_agent_id(value: Any) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = value.strip().upper()
-    return normalized or None
+    return normalize_agent_id(value)
 
 
 def _normalize_language(value: str | None) -> str:
