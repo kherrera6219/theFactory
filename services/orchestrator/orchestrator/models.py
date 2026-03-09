@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+# ==============================================================================
+# Domain Models
+# ==============================================================================
 
 
 class MissionState(str, Enum):
@@ -23,12 +28,54 @@ class MissionState(str, Enum):
     failed = "FAILED"
 
 
-class MissionCreate(BaseModel):
-    mission_id: str = Field(min_length=1)
-    prompt: str = Field(min_length=3)
-    requested_target_language: str | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: str | None = None
+# State sets for validation mapping
+V1_STATES: set[MissionState] = {
+    MissionState.intake,
+    MissionState.queued,
+    MissionState.gating,
+    MissionState.running,
+    MissionState.fusion,
+    MissionState.verified,
+    MissionState.complete,
+    MissionState.failed,
+}
+
+V2_STATES: set[MissionState] = {
+    MissionState.intake,
+    MissionState.queued,
+    MissionState.pm_intake,
+    MissionState.ceo_delegated,
+    MissionState.pod_assigned,
+    MissionState.specialist_assigned,
+    MissionState.running,
+    MissionState.fusion,
+    MissionState.verified,
+    MissionState.complete,
+    MissionState.failed,
+}
+
+VALID_TRANSITIONS: dict[MissionState, set[MissionState]] = {
+    MissionState.intake: {MissionState.queued},
+    MissionState.queued: {MissionState.pm_intake, MissionState.gating, MissionState.failed},
+
+    # V2 flow
+    MissionState.pm_intake: {MissionState.ceo_delegated, MissionState.failed},
+    MissionState.ceo_delegated: {MissionState.pod_assigned, MissionState.failed},
+    MissionState.pod_assigned: {MissionState.specialist_assigned, MissionState.failed},
+    MissionState.specialist_assigned: {MissionState.running, MissionState.failed},
+
+    # V1/V2 overlap
+    MissionState.gating: {MissionState.running, MissionState.failed},
+    MissionState.running: {MissionState.fusion, MissionState.failed},
+    MissionState.fusion: {MissionState.verified, MissionState.failed},
+    MissionState.verified: {MissionState.complete, MissionState.failed},
+    MissionState.complete: set(),
+    MissionState.failed: set(),
+}
+
+# ==============================================================================
+# Database & Storage Models
+# ==============================================================================
 
 
 class MissionRecord(BaseModel):
@@ -37,7 +84,7 @@ class MissionRecord(BaseModel):
     requested_target_language: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     state: MissionState
-    created_at: str
+    created_at: datetime
 
 
 class MissionEvent(BaseModel):
@@ -45,7 +92,20 @@ class MissionEvent(BaseModel):
     previous_state: MissionState | None = None
     new_state: MissionState
     event_type: str
-    ts: str
+    ts: datetime
+
+
+# ==============================================================================
+# API Request/Response Models
+# ==============================================================================
+
+
+class MissionCreate(BaseModel):
+    mission_id: str = Field(min_length=1)
+    prompt: str = Field(min_length=3)
+    requested_target_language: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime | None = None
 
 
 class MissionStateUpdate(BaseModel):
@@ -57,21 +117,21 @@ class PodAssignmentUpsert(BaseModel):
     mission_id: str = Field(min_length=1)
     pod_name: str = Field(min_length=1)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    assigned_at: str | None = None
+    assigned_at: datetime | None = None
 
 
 class LogicNodeUpsert(BaseModel):
     mission_id: str = Field(min_length=1)
     node_id: str = Field(min_length=1)
     node: dict[str, Any]
-    created_at: str | None = None
+    created_at: datetime | None = None
 
 
 class KnowledgeUpsert(BaseModel):
     mission_id: str = Field(min_length=1)
     knowledge_id: str = Field(min_length=1)
     content: dict[str, Any] = Field(default_factory=dict)
-    created_at: str | None = None
+    created_at: datetime | None = None
 
 
 class AuditReportUpsert(BaseModel):
@@ -79,7 +139,7 @@ class AuditReportUpsert(BaseModel):
     audit_id: str = Field(min_length=1)
     status: str = Field(min_length=1)
     report: dict[str, Any] = Field(default_factory=dict)
-    created_at: str | None = None
+    created_at: datetime | None = None
 
 
 class AgentHeartbeatUpsert(BaseModel):
@@ -89,4 +149,4 @@ class AgentHeartbeatUpsert(BaseModel):
     workload_pct: int = Field(default=0, ge=0, le=100)
     active_mission_ids: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    last_heartbeat: str | None = None
+    last_heartbeat: datetime | None = None
