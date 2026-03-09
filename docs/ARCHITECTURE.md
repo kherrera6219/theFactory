@@ -1,7 +1,7 @@
 # Architecture — theFactory
 
-**Last updated:** 2026-03-07
-**Status:** Production baseline + all 34 phases complete
+**Last updated:** 2026-03-09
+**Status:** Production baseline with roadmap phases 1-39 complete
 
 ---
 
@@ -32,7 +32,7 @@ The system is organized into three planes:
 | Plane | Components |
 |-------|-----------|
 | **Control Plane** | API Gateway, Orchestrator, Mission Control UI |
-| **Data Plane** | PostgreSQL, Redis, Qdrant, Neo4j (optional), MinIO/S3 (optional) |
+| **Data Plane** | PostgreSQL, Redis, Qdrant, Milvus (optional), Neo4j (optional), MinIO/S3 (optional) |
 | **Observability Plane** | Prometheus, Grafana, Loki, Promtail, Alertmanager, Jaeger |
 
 ---
@@ -42,7 +42,7 @@ The system is organized into three planes:
 ```
 ╔══════════════════════════════════════════════════════════════════╗
 ║                     MISSION CONTROL UI                          ║
-║              Next.js 15 · TypeScript · SSE Transport            ║
+║              Next.js 16 · TypeScript · SSE Transport            ║
 ║   Dashboard · Missions · Agents · Semantic Bus · Builder        ║
 ╚══════════════════════╤═══════════════════════════════════════════╝
                        │ REST + SSE
@@ -57,7 +57,7 @@ The system is organized into three planes:
 ║  FastAPI · LangGraph StateGraph        ║ │
 ║  Postgres checkpointer (optional)      ║ │
 ║  35-agent registry + persona profiles  ║ │
-║  Qdrant/Neo4j/S3 adapter plane         ║ │
+║  Qdrant/Milvus/Neo4j/S3 adapter plane  ║ │
 ║  Operations APIs · OTEL traces         ║ │
 ╚══════════╤═════════════════════════════╝ │
            │ Redis Streams          ╔══════▼══════════════════════╗
@@ -101,7 +101,7 @@ The system is organized into three planes:
 - **Agent registry:** Canonical 35-agent dataset with runtime telemetry + 8-part persona profiles
 - **Pod assignment:** Routes missions to pod streams based on `requested_target_language`
 - **Operations APIs:** `/internal/operations/summary|agents|agent-integrations`
-- **Data-plane adapters:** Qdrant (active), Neo4j (feature-flagged), object storage (feature-flagged)
+- **Data-plane adapters:** Qdrant (active), Milvus/Neo4j/object storage (feature-flagged)
 - **OTel tracing:** Jaeger OTLP export
 
 ### Semantic Bus MCP (`services/semantic-bus-mcp`, `:8102`)
@@ -130,9 +130,15 @@ The system is organized into three planes:
 - **Lightweight status UI:** FastAPI + HTML operational status surface
 - **Health aggregation:** Proxies health from all downstream services
 
+### Agent Runtime (`services/agent-runtime`)
+
+- **Dedicated topology worker:** Consumes mission-state events for a single `WORKER_AGENT_ID`
+- **Profile scope:** Enabled by the full dedicated runtime overlay and per-agent container bindings
+- **Telemetry:** Emits per-agent heartbeats, execution metrics, and OTel traces
+
 ### Mission Control (`apps/mission-control`, `:3100`)
 
-- **Operator console:** Full Next.js 15 App Router application
+- **Operator console:** Full Next.js 16 App Router application
 - **Live transport:** SSE EventSource + polling fallback with `stream|poll|paused` mode indicator
 - **Builder:** 4-step repository intake (import → file select → diff review/apply gate → mission config)
 - **Windowed rendering:** Virtual scrolling for Semantic Bus and agent roster views (high-volume)
@@ -229,6 +235,7 @@ Implementation: `services/pod-worker/pod_worker/concept_catalog.py` · `language
 | PostgreSQL | 5433 | ✅ Active | Primary persistence — 8 databases, versioned migrations |
 | Redis | 6380 | ✅ Active | Streams, rate limiting, idempotency, heartbeats |
 | Qdrant | 6334 | ✅ Active | Knowledge retrieval and vector indexing (PG fallback) |
+| Milvus | 19530 | ⚙️ Feature-flagged | Optional vector-store path for extended retrieval flows |
 | Neo4j | — | ⚙️ Feature-flagged | Graph queries for mission/audit relationships |
 | MinIO/S3 | — | ⚙️ Feature-flagged | Immutable artifact retention (legal-hold, 90-day policy) |
 
@@ -287,6 +294,7 @@ graph.add_conditional_edges("process", route_after_process)
 - `LANGGRAPH_ENABLED=false` (default) — zero-risk, uses legacy lifecycle
 - `LANGGRAPH_CHECKPOINTER=postgres` — Postgres-backed checkpointing
 - `LANGGRAPH_FAIL_OPEN=true` — graceful fallback on graph errors
+- `MISSION_FLOW_V2_ENABLED=false` — optional 11-phase runtime prototype; production remains v1.1 canonical
 
 ---
 
@@ -319,15 +327,13 @@ See [`ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](ADR_SECURITY_MODEL_API_
 | Component | Port | Purpose |
 |-----------|------|---------|
 | Prometheus | 9090 | Metrics collection and alerting |
-| Grafana | 3200 | Dashboards and visualization |
+| Grafana | 3001 | Dashboards and visualization |
 | Alertmanager | 9093 | Alert routing (pager webhook for critical/high) |
 | Loki | 3101 | Log aggregation |
 | Promtail | — | Log shipping agent |
 | Jaeger | 16686 | Distributed trace visualization |
 
-**Instrumented services:** api-gateway · orchestrator · pod-worker (OTel OTLP)
-
-**Pending instrumentation:** audit-worker · semantic-bus-mcp · dashboard *(planned)*
+**Instrumented services:** api-gateway · orchestrator · pod-worker · audit-worker · semantic-bus-mcp · dashboard · agent-runtime (full-dedicated profile)
 
 ---
 
@@ -351,4 +357,4 @@ See [`ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](ADR_SECURITY_MODEL_API_
 | ADR | Decision |
 |-----|---------|
 | [`ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md) | Dual-mode auth: API keys default + JWT/OIDC enterprise path |
-| [`ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`](ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md) | Condensed workers default; dedicated-agent profile deferred pending load evidence |
+| [`ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`](ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md) | Condensed workers default; dedicated-agent profiles are available as optional expansion modes |

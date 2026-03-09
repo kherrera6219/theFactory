@@ -25,7 +25,7 @@
 | Component | Port | Purpose |
 |-----------|------|---------|
 | **Prometheus** | 9090 | Metrics collection, alerting, TSDB |
-| **Grafana** | 3200 | Dashboards and visualization (admin/admin) |
+| **Grafana** | 3001 | Dashboards and visualization (admin/admin) |
 | **Alertmanager** | 9093 | Alert routing and pager dispatch |
 | **Loki** | 3101 | Centralized log aggregation |
 | **Promtail** | — | Log shipping agent (runs alongside services) |
@@ -57,7 +57,7 @@ curl http://localhost:9090/-/ready
 curl http://localhost:9093/-/ready
 
 # Grafana
-curl http://localhost:3200/api/health
+curl http://localhost:3001/api/health
 
 # Jaeger
 curl http://localhost:16686/
@@ -175,6 +175,7 @@ All `critical` and `high` alerts route to the pager webhook receiver in Alertman
 | audit-worker | ✅ OTel OTLP traces to Jaeger |
 | semantic-bus-mcp | ✅ OTel OTLP traces to Jaeger |
 | dashboard | ✅ OTel OTLP traces to Jaeger |
+| agent-runtime | ✅ OTel OTLP traces to Jaeger when the full dedicated profile is active |
 
 ### OTel Configuration
 
@@ -189,7 +190,7 @@ Configured via `configure_tracing(app, service_name="<name>")` in each service's
 ### Using Jaeger
 
 1. Open Jaeger UI: `http://localhost:16686`
-2. Select service from dropdown (api-gateway · orchestrator · pod-worker · audit-worker · semantic-bus-mcp · dashboard)
+2. Select service from dropdown (api-gateway · orchestrator · pod-worker · audit-worker · semantic-bus-mcp · dashboard · agent-runtime)
 3. Search by `mission_id` tag to trace a specific mission end-to-end
 4. View spans across service boundaries to identify latency contributors
 
@@ -308,9 +309,9 @@ Run after starting the monitoring stack:
 
 - [ ] `curl http://localhost:9090/-/ready` returns `200`
 - [ ] `curl http://localhost:9093/-/ready` returns `200`
-- [ ] Grafana loads at `http://localhost:3200` and shows `theFactory Overview` dashboard
+- [ ] Grafana loads at `http://localhost:3001` and shows `theFactory Overview` dashboard
 - [ ] `curl http://localhost:8100/metrics` returns Prometheus-format metrics
 - [ ] `curl http://localhost:8101/metrics` returns Prometheus-format metrics
-- [ ] Jaeger UI at `http://localhost:16686` shows services (api-gateway, orchestrator, pod-worker)
+- [ ] Jaeger UI at `http://localhost:16686` shows the instrumented services for the active profile
 - [ ] `PAGER_WEBHOOK_URL` is set for pager routing
 - [ ] At least one test alert fired and delivered (use Alertmanager `/api/v2/alerts` to inject)

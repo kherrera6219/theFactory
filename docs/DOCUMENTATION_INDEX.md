@@ -1,8 +1,10 @@
 # Documentation Index
 
-Last updated: 2026-03-08
+Last updated: 2026-03-09
 
 This index maps the in-repo documentation set for theFactory and reflects the current implementation baseline.
+
+Canonical living docs use stable filenames without a date suffix. Date-stamped docs are retained for ADRs, audits, evidence, and historical snapshots.
 
 ## Core Product and Architecture
 
@@ -28,6 +30,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 - `OPERATIONS_RUNBOOK.md`: health checks, smoke tests, auth checks, and DR operations.
 - `OBSERVABILITY_STACK.md`: monitoring/telemetry stack baseline.
 - `DEPLOYMENT_DR_PLAYBOOK.md`: deployment + disaster recovery operational playbook.
+- `AGENT_SERVICE_KEY_ISOLATION.md`: per-agent worker key isolation, strict-mode runtime behavior, and remaining security work.
 - `LONG_DURATION_RELIABILITY_QUALIFICATION.md`: sustained-load qualification method, thresholds, and baseline evidence.
 - `../scripts/mission_artifact_qualification.py`: live mission artifact integrity qualification (chain trace + pod assignment + logicnodes).
 - `../scripts/operator_route_auth_matrix_qualification.py`: live operator-route auth matrix qualification across `api_key|hybrid|oidc`.
@@ -102,6 +105,7 @@ This index maps the in-repo documentation set for theFactory and reflects the cu
 2. `ARCHITECTURE.md`
 3. `ROADMAP.md`
 4. `OPERATIONS_RUNBOOK.md`
-5. `AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`
-6. `AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
-7. `AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
+5. `AGENT_SERVICE_KEY_ISOLATION.md`
+6. `AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`
+7. `AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
+8. `AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
