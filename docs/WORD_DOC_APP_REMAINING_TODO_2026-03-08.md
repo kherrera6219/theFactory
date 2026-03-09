@@ -57,6 +57,14 @@
   Acceptance:
   - Each active agent path authenticates with dedicated key material.
   - Key rotation and revocation tested end-to-end.
+  Progress:
+  - Runtime now supports canonical `AGENT_<NN>_<CODE>_SERVICE_API_KEY` variables.
+  - `pod-worker` resolves agent-scoped keys per mission path; `audit-worker` resolves by `WORKER_AGENT_ID`.
+  - Orchestrator now accepts configured agent-scoped service keys automatically.
+  - `deploy/docker-compose.prod.yaml` now sets worker services to `AGENT_SERVICE_KEY_MODE=strict`.
+  Remaining:
+  - Rotation and revocation evidence is still missing.
+  - Full 35-agent dedicated topology still needs to consume these keys in isolated containers.
 
 - [ ] Implement strict `RefinedIR` Pydantic model + pipeline.
   - Typed extraction output instead of raw dicts.
@@ -70,7 +78,7 @@
 ## P3 — Infrastructure / Security (Still Open)
 
 - [ ] Postgres `sslmode=verify-full` on all connection strings.
-- [ ] Redis TLS cert validation (`ssl_cert_reqs=required`) across runtime clients.
+- [x] Redis TLS cert validation (`ssl_cert_reqs=required`) across runtime clients.
 - [ ] Dynamic secret rotation / TTL enforcement on top of the new Vault backend.
 - [ ] Signed tags / release provenance expansion beyond current cosign blob signing.
 - [ ] SLO error-budget burn alerts + DORA metrics.

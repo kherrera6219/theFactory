@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import os
+import re
 import socket
 from dataclasses import dataclass
 from pathlib import Path
 
+from .agent_registry import AGENT_REGISTRY
+
 TRUTHY_VALUES = {"1", "true", "yes", "on"}
+_AGENT_SERVICE_KEY_ENV_PATTERN = re.compile(r"^AGENT_(\d{2})_([A-Z0-9_]+)_SERVICE_API_KEY$")
+_AGENT_REGISTRY_IDS = {agent.agent_id for agent in AGENT_REGISTRY}
 
 
 @dataclass(frozen=True)
@@ -80,6 +85,37 @@ class Settings:
             roles = {role.strip().lower() for role in roles_csv.split(",") if role.strip()}
             if key.strip() and roles:
                 mapping[key.strip()] = roles
+
+        for key in self.agent_service_api_keys.values():
+            if key:
+                mapping[key] = {"worker", "mutate", "internal", "read"}
+
+        return mapping
+
+    @property
+    def agent_service_api_keys(self) -> dict[str, str]:
+        mapping: dict[str, str] = {}
+
+        raw_mapping = os.getenv("AGENT_SERVICE_API_KEYS", "")
+        for entry in (part.strip() for part in raw_mapping.split(";") if part.strip()):
+            if "=" not in entry:
+                continue
+            agent_id, key = entry.split("=", 1)
+            normalized_agent_id = agent_id.strip().upper()
+            normalized_key = key.strip()
+            if normalized_agent_id in _AGENT_REGISTRY_IDS and normalized_key:
+                mapping[normalized_agent_id] = normalized_key
+
+        for env_name, raw_value in os.environ.items():
+            match = _AGENT_SERVICE_KEY_ENV_PATTERN.match(env_name)
+            if not match:
+                continue
+            normalized_key = raw_value.strip()
+            if not normalized_key:
+                continue
+            agent_id = f"AGENT-{match.group(1)}-{match.group(2).replace('_', '-')}"
+            if agent_id in _AGENT_REGISTRY_IDS:
+                mapping[agent_id] = normalized_key
 
         return mapping
 

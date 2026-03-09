@@ -151,11 +151,21 @@ def test_check_release_trust_controls_fails_when_missing(tmp_path, monkeypatch) 
 def test_check_compose_environment_profile_controls_passes(tmp_path, monkeypatch) -> None:
     _write(
         tmp_path / "deploy" / "docker-compose.yaml",
-        "services:\n  api:\n    cap_drop: [ALL]\n    oom_score_adj: -500\n",
+        (
+            "services:\n"
+            "  api:\n"
+            "    cap_drop: [ALL]\n"
+            "    oom_score_adj: -500\n"
+            "    environment:\n"
+            "      REDIS_URL: rediss://redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt\n"
+        ),
     )
     _write(tmp_path / "deploy" / "docker-compose.dev.yaml", "services: {}\n")
     _write(tmp_path / "deploy" / "docker-compose.staging.yaml", "services: {}\n")
-    _write(tmp_path / "deploy" / "docker-compose.prod.yaml", "services: {}\n")
+    _write(
+        tmp_path / "deploy" / "docker-compose.prod.yaml",
+        "services:\n  api:\n    environment:\n      AGENT_SERVICE_KEY_MODE: strict\n",
+    )
     _write(tmp_path / "docs" / "COMPOSE_ENVIRONMENT_PROFILES.md", "# Profiles\n")
     monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
 
@@ -187,6 +197,39 @@ def test_check_model_governance_and_qualification_controls_passes(
     monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
 
     result = audit.check_model_governance_and_qualification_controls()
+    assert result.passed is True
+
+
+def test_check_environment_template_requires_agent_keys_and_redis_tls(
+    tmp_path, monkeypatch
+) -> None:
+    _write(
+        tmp_path / ".env.example",
+        "\n".join(
+            [
+                "REDIS_URL=rediss://redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=deploy/redis/certs/ca.crt",
+                "POSTGRES_USER=postgres",
+                "POSTGRES_PASSWORD=postgres",
+                "POSTGRES_DB=ulr",
+                "DB_NAME_KNOWLEDGE_LAKE=knowledge_lake",
+                "DB_NAME_STATE_GRAPH=state_graph",
+                "DB_NAME_LOGICNODE_REGISTRY=logicnode_registry",
+                "DB_NAME_TRACEABILITY_LEDGER=traceability_ledger",
+                "DB_NAME_MODEL_STORE=model_store",
+                "ANTHROPIC_API_KEY_ARCH=",
+                "ANTHROPIC_API_KEY_PY=",
+                "ANTHROPIC_API_KEY_JS=",
+                "ANTHROPIC_API_KEY_TS=",
+                "AGENT_01_PM_SERVICE_API_KEY=",
+                "AGENT_10_TESTER_SERVICE_API_KEY=",
+                "AGENT_14_PYTHON_SERVICE_API_KEY=",
+                "AGENT_35_MATHEMATICA_SERVICE_API_KEY=",
+            ]
+        ),
+    )
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+
+    result = audit.check_environment_template()
     assert result.passed is True
 
 

@@ -79,6 +79,29 @@ def test_agent_id_resolution_helpers() -> None:
     assert pod_worker_main._agent_id_from_payload({"metadata": metadata}) == "AGENT-12-PODA-MGR"
 
 
+def test_service_api_key_resolution_prefers_agent_specific_values(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT_14_PYTHON_SERVICE_API_KEY", "python-agent-key")
+    monkeypatch.setattr(
+        pod_worker_main,
+        "AGENT_SERVICE_API_KEYS",
+        "AGENT-15-JAVASCRIPT=js-agent-key",
+    )
+    monkeypatch.setattr(pod_worker_main, "AGENT_SERVICE_KEY_MODE", "shared")
+
+    assert pod_worker_main._service_api_key_for_agent("AGENT-14-PYTHON") == "python-agent-key"
+    assert pod_worker_main._service_api_key_for_agent("AGENT-15-JAVASCRIPT") == "js-agent-key"
+    assert pod_worker_main._service_api_key_for_agent("AGENT-12-PODA-MGR") == "worker-key"
+
+
+def test_service_api_key_resolution_raises_in_strict_mode(monkeypatch) -> None:
+    monkeypatch.delenv("AGENT_14_PYTHON_SERVICE_API_KEY", raising=False)
+    monkeypatch.setattr(pod_worker_main, "AGENT_SERVICE_API_KEYS", "")
+    monkeypatch.setattr(pod_worker_main, "AGENT_SERVICE_KEY_MODE", "strict")
+
+    with pytest.raises(RuntimeError):
+        pod_worker_main._service_api_key_for_agent("AGENT-14-PYTHON")
+
+
 def test_validate_envelope_and_build(monkeypatch) -> None:
     schema = {
         "required": [
@@ -312,6 +335,8 @@ def test_mission_binding_mismatch_and_unresolved(monkeypatch) -> None:
 
 
 def test_request_uses_httpx_client(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
     class FakeResponse:
         status_code = 200
 
@@ -322,19 +347,24 @@ def test_request_uses_httpx_client(monkeypatch) -> None:
         async def __aexit__(self, exc_type, exc, tb):
             return None
 
-        async def request(self, *_args, **_kwargs):
+        async def request(self, *_args, **kwargs):
+            captured.update(kwargs)
             return FakeResponse()
 
     monkeypatch.setattr(pod_worker_main.httpx, "AsyncClient", lambda timeout: FakeClient())
+    monkeypatch.setenv("AGENT_14_PYTHON_SERVICE_API_KEY", "python-agent-key")
     response = asyncio.run(
         pod_worker_main._request(
             "POST",
             "/internal/logicnodes",
             json_body={"mission_id": "mission-1"},
             params={"a": 1},
+            agent_id="AGENT-14-PYTHON",
         )
     )
     assert response.status_code == 200
+    assert captured["headers"]["x-api-key"] == "python-agent-key"
+    assert captured["headers"]["x-agent-id"] == "AGENT-14-PYTHON"
 
 
 def test_request_validation_and_retry_error_paths(monkeypatch) -> None:
@@ -596,6 +626,8 @@ def test_health_function() -> None:
     assert result["internal_auth_failures"] == 2
     assert result["last_internal_auth_status"] == 403
     assert "agent_binding" in result
+    assert "agent_service_key_mode" in result
+    assert "configured_agent_service_keys" in result
 
 
 def test_readyz_function() -> None:

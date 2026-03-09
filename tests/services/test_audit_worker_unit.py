@@ -60,6 +60,24 @@ def test_parse_date_time() -> None:
         audit_worker_main._parse_date_time("2026-03-01T00:00:00")
 
 
+def test_service_api_key_resolution_prefers_agent_specific_values(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT_10_TESTER_SERVICE_API_KEY", "tester-agent-key")
+    monkeypatch.setattr(audit_worker_main, "AGENT_SERVICE_API_KEYS", "")
+    monkeypatch.setattr(audit_worker_main, "AGENT_SERVICE_KEY_MODE", "shared")
+
+    assert audit_worker_main._service_api_key_for_agent("AGENT-10-TESTER") == "tester-agent-key"
+    assert audit_worker_main._service_api_key_for_agent("AGENT-31-PODD-AUDIT") == "worker-key"
+
+
+def test_service_api_key_resolution_raises_in_strict_mode(monkeypatch) -> None:
+    monkeypatch.delenv("AGENT_10_TESTER_SERVICE_API_KEY", raising=False)
+    monkeypatch.setattr(audit_worker_main, "AGENT_SERVICE_API_KEYS", "")
+    monkeypatch.setattr(audit_worker_main, "AGENT_SERVICE_KEY_MODE", "strict")
+
+    with pytest.raises(RuntimeError):
+        audit_worker_main._service_api_key_for_agent("AGENT-10-TESTER")
+
+
 def test_loaders_and_validate_envelope_success(monkeypatch, tmp_path: Path) -> None:
     schema_path = tmp_path / "event.envelope.schema.json"
     topics_path = tmp_path / "topics.yaml"
@@ -227,6 +245,8 @@ def test_ensure_group_busygroup_and_error() -> None:
 
 
 def test_post_audit_success_and_failure(monkeypatch) -> None:
+    captured_headers: list[dict[str, Any]] = []
+
     class FakeResponse:
         def __init__(self, status_code: int) -> None:
             self.status_code = status_code
@@ -241,9 +261,11 @@ def test_post_audit_success_and_failure(monkeypatch) -> None:
         async def __aexit__(self, exc_type, exc, tb):
             return None
 
-        async def post(self, *_args: Any, **_kwargs: Any) -> FakeResponse:
+        async def post(self, *_args: Any, **kwargs: Any) -> FakeResponse:
+            captured_headers.append(kwargs.get("headers", {}))
             return FakeResponse(self._status_code)
 
+    monkeypatch.setenv("AGENT_10_TESTER_SERVICE_API_KEY", "tester-agent-key")
     monkeypatch.setattr(audit_worker_main.httpx, "AsyncClient", lambda timeout: FakeClient(200))
     assert (
         asyncio.run(
@@ -256,6 +278,8 @@ def test_post_audit_success_and_failure(monkeypatch) -> None:
         )
         is True
     )
+    assert captured_headers[0]["x-api-key"] == "tester-agent-key"
+    assert captured_headers[0]["x-agent-id"] == "AGENT-10-TESTER"
 
     monkeypatch.setattr(audit_worker_main.httpx, "AsyncClient", lambda timeout: FakeClient(500))
     assert (
@@ -449,6 +473,8 @@ def test_health_and_readyz_branches() -> None:
     payload = asyncio.run(audit_worker_main.health())
     assert payload["ok"] is True
     assert payload["processed"] == 7
+    assert payload["worker_agent_id"] == "AGENT-10-TESTER"
+    assert "agent_service_key_mode" in payload
     assert asyncio.run(audit_worker_main.readyz())["ready"] is True
 
     audit_worker_main.app.state.redis = DownRedis()
