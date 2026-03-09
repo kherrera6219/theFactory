@@ -1,0 +1,163 @@
+HOLY GRAIL REFINERY
+Agent Mission Flow Reference
+Complete end-to-end walkthrough of all 35 agents — from user request to delivered output
+Example Mission: "Build me a Snake game"
+Version 2.0  |  Reviewed Against Full Documentation Suite  |  Confidential — Internal Use Only
+OVERVIEW: THE SMELT-CYCLE
+When a user types "Build me a Snake game," the Holy Grail Refinery activates a precisely orchestrated 11-phase pipeline — the Smelt-Cycle. This is not a single-model request-response pattern. It is a distributed software manufacturing process that routes the mission through 35 specialized agents across multiple tiers, each contributing a defined slice of comprehension, verification, construction, and delivery.
+The pipeline is event-driven and asynchronous. Agents do not poll — they subscribe to the Redis Semantic Bus and activate when their trigger fires. All four language pods run in parallel during extraction. All four QC/Audit agents gate their pod outputs independently before anything reaches the CEO. The system enforces a 0.0001% error tolerance (99.9999% equivalence required) at every verification stage.
+This document traces every phase, identifies every active agent, explains what they produce and consume, and ties the whole flow to the Snake game example.
+What Happens
+The user's message enters the system and the pipeline begins. The Intake phase converts raw human intent — the "vibe" — into a mathematically precise Refined-IR Contract that every downstream agent can act upon without ambiguity. This phase is the only time natural language is the primary medium; from here on, everything flows through structured Refined-IR.
+Active Agents
+Step-by-Step
+User types: "Build me a Snake game"
+PM Agent (AGENT-01) receives the message on Protocol Omega, transitions from IDLE → VIBE_CAPTURE state
+PM analyzes intent: genre (arcade game), platform (defaults to browser if unspecified), scope (classic snake mechanics)
+PM generates the Visual Blueprint — a wireframe sketch of the game layout using Gemini multimodal Vision-AI
+PM generates the Feature Contract: game loop, grid rendering, snake movement, collision detection, food spawning, score tracking, keyboard input, game-over / restart state
+PM sends Feature Contract + Visual Blueprint to CEO via Protocol Omega, transitions to IDLE pending CEO handoff
+CEO (AGENT-02) receives contract, transitions MONITORING → DECOMPOSITION, breaks into Logic Clusters:
+UI/Rendering cluster → Pod A (Dynamic — JS Canvas primary)
+Game loop & state machine → Pod A (JavaScript Specialist primary)
+Performance-critical collision detection → Pod B (Systems — Rust/C memory patterns)
+Business logic & score/state management → Pod C (Enterprise — typed patterns)
+Randomness & grid math for food spawning → Pod D (Mathematical — R/Julia patterns)
+CEO creates the Refined-IR Contract — the ground truth spec all agents will measure output against
+CEO publishes task assignments via Protocol Alpha to all pod Sub-Managers (DECOMPOSITION → ASSIGNMENT state)
+API Broker (AGENT-03) validates and allocates all API keys; context caching activated for documentation-heavy agents
+Output
+Feature Contract + Refined-IR Contract — a complete, language-agnostic specification of everything the Snake game must do. Published to the Semantic Bus. Mission clock starts.
+What Happens
+Before any specialist can extract logic, the Knowledge Lake must be fully stocked with current, accurate documentation for every language and library the mission requires. The Fetch phase runs in parallel with Phase 1 planning — the IS Agent begins indexing the moment the mission scope is known.
+Active Agents
+Step-by-Step
+CEO's Logic Clusters signal which languages and libraries are required for this mission
+IS Agent (AGENT-06) transitions MONITORING_UPDATES → INDEXING, queries the Knowledge Lake:
+Does it already have current docs for HTML5 Canvas, Pygame, Rust ggez/macroquad, Mathematica random functions?
+For any gaps: IS Agent crawls official documentation, GitHub repositories, and reference materials
+Content indexed into Knowledge Lake using LlamaIndex for semantic search
+IS Agent publishes Protocol Sigma broadcasts: "JavaScript Canvas API — ready", "Python Pygame — ready", etc.
+All 16 Specialist Agents subscribe to Sigma and pre-load their 700K-token cached documentation windows
+API Broker monitors all 35 agent key states — no key consumed until validated and rate-limit-clear
+Accountant opens the Snake Game Mission Cost Ledger, logs resource allocations, sets budget alert thresholds
+Output
+Populated Knowledge Lake — all required documentation indexed and searchable. All 16 Specialist context windows pre-loaded. Budget tracking active. System ready for parallel extraction.
+What Happens
+This is the core manufacturing phase. All four pods execute in parallel. Each Specialist receives their Logic Cluster assignment and extracts semantic meaning from source code and documentation, converting it into universal Refined-IR LogicNodes. The Compliance Agent cleans each node as it is produced. Sub-Managers collect and consolidate specialist outputs into Pod Group Standards.
+Active Agents — Pod A (Dynamic Languages)
+Active Agents — Pod B (Systems Languages)
+Active Agents — Pod C (Enterprise Languages)
+Active Agents — Pod D (Mathematical Languages)
+Compliance Agent — Running Continuously in Parallel
+Step-by-Step
+CEO's Alpha broadcast activates all 4 Sub-Managers simultaneously — all pods begin in parallel
+Each Sub-Manager decomposes their cluster and assigns specific extraction tasks to their 4 Specialists
+Each Specialist follows the extraction loop (IDLE → MINING → REFINEMENT → SELF_VERIFICATION → SUBMISSION):
+Queries IS Agent via Protocol Sigma: "What is the idiomatic way to implement game ticks in JavaScript?"
+IS Agent returns documentation chunks from Knowledge Lake within <100ms
+Specialist uses Gemini (Flash-tier for extraction tasks) to strip language syntax and extract pure computational intent
+Specialist generates a Refined-IR LogicNode with: intent, inputs, outputs, preconditions, postconditions, side_effects, complexity class, purity flag, confidence score
+Specialist runs Tier 1 Self-Check — only submits if confidence > 0.90
+Specialist publishes LogicNode to Pod's internal channel via Protocol Beta
+Pod QC/Audit Agent (embedded, runs Tier 2) receives LogicNode, runs 1,000 simulation tests in air-gapped Docker sandbox
+If Tier 2 fails: rejection + error report sent back to Specialist via Protocol Delta → Specialist enters CORRECTION state → re-extracts
+If Tier 2 passes: LogicNode flagged as audit_status: 'verified', forwarded to Sub-Manager
+Compliance Agent intercepts every verified LogicNode via Protocol Delta — checks license, IP provenance, export controls
+Sub-Manager collects all verified+compliant Specialist LogicNodes, runs Tier 3 cross-language check:
+Verifies 4 language implementations of the same concept produce identical Refined-IR
+Checks semantic equivalence across paradigms
+Rejects entire batch if inconsistency found
+Sub-Manager consolidates into Pod Group Standard — a deduplicated, cross-verified set of pod-level LogicNodes
+Sub-Manager submits Group Standard to CEO via Protocol Beta (CONSOLIDATION → DELIVERY state)
+Output
+Pod Group Standards (4 sets, one per pod) — all three quality tiers passed. Compliance-cleared. Confidence-scored. Semantically verified. Ready for grand fusion.
+What Happens
+The CEO — the only agent that has seen the entire Refined-IR Contract from the start — merges all four pods' Group Standards into a single unified Master Logic Stream. Because every node is expressed in Refined-IR, the CEO is assembling a jigsaw puzzle where all pieces are guaranteed to fit. The Data Architect designs the optimal data schema in parallel.
+Active Agents
+Step-by-Step
+CEO transitions FUSION_READY → GRAND_FUSION
+CEO performs cross-paradigm dependency graph analysis — which LogicNodes must execute before others?
+CEO runs Logic Folding:
+If Pod A (JS) and Pod B (Rust) both describe a 2D grid traversal → keep the higher-confidence version
+Cross-pod optimizations identified: Rust's memory layout patterns inform JavaScript typed array usage
+Redundancy elimination target: >90% of duplicate concepts resolved into single canonical LogicNode
+CEO resolves paradigm conflicts: functional immutable state (Scala) reconciled with mutable OOP state (Java)
+CEO assembles Master Logic Stream — ordered sequence of ~50–200 LogicNodes for a Snake game
+Master Logic Stream committed to LogicNode Registry; Global State Graph updated (CEO transitions → OPTIMIZATION_DISPATCH)
+Data Architect simultaneously designs optimal game state schema — 2D array for grid, doubly-linked list for snake body
+Output
+Master Logic Stream — a single, language-agnostic, fully deduplicated set of Refined-IR LogicNodes representing the complete Snake game. Dependencies ordered. Paradigm conflicts resolved. Ready for hardware-specific optimization.
+What Happens
+The Master Logic Stream is abstract — it describes what the game must do, not how the hardware should execute it. The Squeeze phase translates the Refined-IR into platform-optimized code, targeting the user's environment. The Hardware-Mapping Injector tunes the stream for the target platform. The Systems Pod (Pod B) and other specialists then generate the actual code. DevOps bundles the artifact.
+Active Agents
+Step-by-Step
+Hardware Injector receives Master Logic Stream from CEO via Protocol Alpha
+Hardware Injector analyzes target: browser game → HTML5 Canvas + optional WebAssembly
+Hardware Injector annotates each LogicNode with platform directives and passes to code-generating Specialists
+JavaScript Specialist translates each LogicNode to actual code:
+LogicNode: grid_traverse(direction, bounds_check) → Canvas draw loop with boundary detection
+LogicNode: collision_detect(head_pos, body_positions[]) → JavaScript Set-based O(1) lookup
+LogicNode: food_spawn(grid_empty_cells) → Math.random() seeded selection from empty cell array
+LogicNode: score_increment(current_score, delta) → DOM score counter update
+If WASM path selected: Rust Specialist compiles collision functions to WebAssembly, JS Specialist loads WASM module
+C Specialist generates LLVM IR for any native compilation targets
+Deployment Agent (AGENT-11) bundles: HTML + CSS + JS + optional WASM → single deployable artifact
+Version Control Agent commits all generated files with mission_id tags to traceability registry
+Output
+Platform-Optimized Code Artifact — fully generated Snake game code, hardware-tuned, bundled, and version-committed. Not yet tested or verified — that is Phase 6.
+What Happens
+The compiled artifact is subjected to a complete end-to-end test suite derived directly from the original Refined-IR Contract. This is not unit testing in isolation — it is full-system verification. Every test case traces back to a specific LogicNode requirement. Any failure triggers a targeted correction loop back to the responsible agent.
+Active Agents
+Step-by-Step
+System Integration Tester receives the bundled artifact from Deployment Agent
+Tester runs the full test suite — all test cases derived from the original Refined-IR Contract:
+Unit tests: collision detection (all 4 directions, wall boundary, self-collision)
+Integration tests: game loop execution, food spawn after eating, score increment
+End-to-end tests: complete game cycle from start → grow → collision → game over → restart
+Performance benchmarks: render loop latency, memory footprint, load time
+Any test failure: targeted correction request routed back via Protocol Delta to responsible Specialist → Squeeze phase re-runs for affected LogicNodes only
+Security Agent runs penetration tests on the generated game:
+Input sanitization (keyboard event handling)
+Score integrity (can the score be manipulated client-side?)
+If vulnerability found: Security breach report via Delta → CEO routes fix to appropriate Pod
+Compliance Agent performs final license audit of the complete dependency tree
+All three gates must pass before Phase 7 begins — no exceptions
+Output
+Fully Tested, Security-Cleared, Compliance-Verified Artifact — all tests green, security signed off, licenses cleared. One final check remains before delivery.
+What Happens
+Before a single byte is delivered to the user, the PM Agent performs the Visual Verification Loop — the system's unique "looks right" quality gate. Using Gemini multimodal Vision-AI, the PM literally screenshots the running game and compares it against the original Visual Blueprint created in Phase 1. Technical correctness is necessary but not sufficient; the output must also match the human intent.
+Active Agents
+Step-by-Step
+PM Agent receives build_complete notification via Protocol Omega, transitions IDLE → VISUAL_VERIFICATION
+PM renders the Snake game in a headless browser environment
+PM takes a screenshot using Gemini multimodal capabilities
+PM compares screenshot against original Visual Blueprint from Phase 1:
+Does the grid render correctly? Correct proportions, colors, cell size?
+Is the snake visually distinguishable from the food and background?
+Does the score display as expected? Is the game-over screen present?
+Is the overall aesthetic consistent with the original vibe?
+If visual mismatch: PM generates Visual Correction Memo → dispatches via Protocol Alpha to JS Specialist (primary for browser UI) → Squeeze phase re-runs for affected UI LogicNodes → PM re-verifies
+If visual match: PM transitions VISUAL_VERIFICATION → DELIVERY, approves for final deployment
+Output
+Visual Approval — PM has confirmed the delivered output matches the user's original intent. All gates passed. Ready for deployment.
+What Happens
+The final phase closes the loop back to the user. The SRE Agent runs pre-deployment health checks, the Deployment Agent serves the artifact, the PM presents the completion summary, and the Accountant closes the Mission Cost Ledger. All 35 agents return to IDLE state.
+Active Agents
+Step-by-Step
+SRE Agent runs pre-flight health checks on the final artifact
+Deployment Agent delivers the artifact — browser preview served, download link generated
+PM Agent sends completion message to user via Protocol Omega:
+"Your Snake game is ready. Here's a live preview."
+"Included deliverables: Architecture documentation, performance benchmarks, security audit report, compliance/license report."
+"You can download all files or deploy directly to cloud."
+Accountant closes the Mission Cost Ledger — per-agent cost breakdown stored in Traceability Ledger
+API Broker releases all 35 mission key allocations back to idle pool
+All 35 agents return to IDLE state — zero ongoing resource consumption between missions
+SRE continues passive monitoring of the deployed game (Phase 9 below)
+Output
+Delivered Snake Game + Full Documentation Package — the user receives a working, tested, secure, compliant game with complete supporting documentation. Mission complete. All agents idle.
+COMPLETE AGENT ROSTER — ALL 35 AGENTS
+Canonical agent numbering (AGENT-01 through AGENT-35) from the Agent Architecture Specification. Support Ring IDs (SUPPORT-001 through SUPPORT-009) from the full system specification in 8.txt are cross-referenced where applicable.
+SMELT-CYCLE — PHASE SUMMARY
+Holy Grail Refinery  |  Agent Mission Flow Reference v2.0  |  Reviewed Against Full Documentation Suite  |  Confidential
