@@ -15,7 +15,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
-from . import neo4j_store, object_store, qdrant_store, storage
+from . import milvus_store, neo4j_store, object_store, qdrant_store, storage
 from .agent_integrations import build_agent_integration_record, build_agent_integrations_snapshot
 from .agent_registry import AGENT_REGISTRY, normalize_language
 from .auth import AuthContext, require_roles
@@ -1060,6 +1060,9 @@ async def health() -> dict[str, Any]:
     qdrant_ready: bool | None = None
     if app.state.settings.qdrant_enabled:
         qdrant_ready = await asyncio.to_thread(qdrant_store.qdrant_ready, app.state.settings)
+    milvus_ready: bool | None = None
+    if app.state.settings.milvus_enabled:
+        milvus_ready = await asyncio.to_thread(milvus_store.milvus_ready, app.state.settings)
     neo4j_ready: bool | None = None
     if app.state.settings.neo4j_enabled:
         neo4j_ready = await asyncio.to_thread(neo4j_store.neo4j_ready, app.state.settings)
@@ -1075,6 +1078,7 @@ async def health() -> dict[str, Any]:
         "redis_url": app.state.settings.redis_url,
         "postgres_url": app.state.settings.postgres_url,
         "qdrant_url": app.state.settings.qdrant_url if app.state.settings.qdrant_enabled else None,
+        "milvus_uri": app.state.settings.milvus_uri if app.state.settings.milvus_enabled else None,
         "neo4j_url": app.state.settings.neo4j_url if app.state.settings.neo4j_enabled else None,
         "object_storage_endpoint": (
             app.state.settings.object_storage_endpoint
@@ -1084,6 +1088,7 @@ async def health() -> dict[str, Any]:
         "redis_healthy": redis_healthy,
         "db_ready": db_ready,
         "qdrant_ready": qdrant_ready,
+        "milvus_ready": milvus_ready,
         "neo4j_ready": neo4j_ready,
         "object_storage_ready": object_storage_ready,
         "mission_count": mission_count,
@@ -1108,6 +1113,9 @@ async def readyz() -> dict[str, Any]:
     qdrant_ready: bool | None = None
     if app.state.settings.qdrant_enabled:
         qdrant_ready = await asyncio.to_thread(qdrant_store.qdrant_ready, app.state.settings)
+    milvus_ready: bool | None = None
+    if app.state.settings.milvus_enabled:
+        milvus_ready = await asyncio.to_thread(milvus_store.milvus_ready, app.state.settings)
     neo4j_ready: bool | None = None
     if app.state.settings.neo4j_enabled:
         neo4j_ready = await asyncio.to_thread(neo4j_store.neo4j_ready, app.state.settings)
@@ -1122,6 +1130,8 @@ async def readyz() -> dict[str, Any]:
     ready = redis_ready and db_ready and protocol_ready and consumer_running
     if app.state.settings.qdrant_enabled:
         ready = ready and bool(qdrant_ready)
+    if app.state.settings.milvus_enabled:
+        ready = ready and bool(milvus_ready)
     if app.state.settings.neo4j_enabled:
         ready = ready and bool(neo4j_ready)
     if app.state.settings.object_storage_enabled:
@@ -1135,6 +1145,7 @@ async def readyz() -> dict[str, Any]:
                 "redis_ready": redis_ready,
                 "db_ready": db_ready,
                 "qdrant_ready": qdrant_ready,
+                "milvus_ready": milvus_ready,
                 "neo4j_ready": neo4j_ready,
                 "object_storage_ready": object_storage_ready,
                 "protocol_ready": protocol_ready,
@@ -1149,6 +1160,7 @@ async def readyz() -> dict[str, Any]:
         "redis_ready": redis_ready,
         "db_ready": db_ready,
         "qdrant_ready": qdrant_ready,
+        "milvus_ready": milvus_ready,
         "neo4j_ready": neo4j_ready,
         "object_storage_ready": object_storage_ready,
         "protocol_ready": protocol_ready,
@@ -1401,6 +1413,27 @@ async def upsert_knowledge(
                 payload.knowledge_id,
                 exc,
             )
+    if app.state.settings.milvus_enabled:
+        try:
+            await _run_optional_mirror_write(
+                adapter="milvus",
+                artifact="knowledge",
+                fn=milvus_store.upsert_knowledge,
+                args=(
+                    app.state.settings,
+                    payload.mission_id,
+                    payload.knowledge_id,
+                    payload.content,
+                    created_at,
+                ),
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "failed to upsert milvus knowledge for mission %s/%s: %s",
+                payload.mission_id,
+                payload.knowledge_id,
+                exc,
+            )
     if app.state.settings.neo4j_enabled:
         try:
             await _run_optional_mirror_write(
@@ -1445,6 +1478,18 @@ async def get_knowledge(
                 return records
         except Exception as exc:
             LOGGER.warning("failed to query qdrant knowledge for mission %s: %s", mission_id, exc)
+    if app.state.settings.milvus_enabled:
+        try:
+            records = await asyncio.to_thread(
+                milvus_store.list_knowledge,
+                app.state.settings,
+                mission_id,
+                limit,
+            )
+            if records:
+                return records
+        except Exception as exc:
+            LOGGER.warning("failed to query milvus knowledge for mission %s: %s", mission_id, exc)
     return await asyncio.to_thread(storage.list_knowledge, app.state.settings, mission_id, limit)
 
 
@@ -1601,6 +1646,7 @@ async def get_operations_summary(
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
     qdrant_ready = await asyncio.to_thread(qdrant_store.qdrant_ready, app.state.settings)
+    milvus_ready = await asyncio.to_thread(milvus_store.milvus_ready, app.state.settings)
     neo4j_ready = await asyncio.to_thread(neo4j_store.neo4j_ready, app.state.settings)
     object_storage_ready = await asyncio.to_thread(
         object_store.object_storage_ready, app.state.settings
@@ -1612,6 +1658,7 @@ async def get_operations_summary(
             "redis_ready": redis_ready,
             "db_ready": db_ready,
             "qdrant_ready": qdrant_ready,
+            "milvus_ready": milvus_ready,
             "neo4j_ready": neo4j_ready,
             "object_storage_ready": object_storage_ready,
             "protocol_ready": protocol_ready,
@@ -1637,6 +1684,7 @@ async def get_operations_agents(
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
     qdrant_ready = await asyncio.to_thread(qdrant_store.qdrant_ready, app.state.settings)
+    milvus_ready = await asyncio.to_thread(milvus_store.milvus_ready, app.state.settings)
     neo4j_ready = await asyncio.to_thread(neo4j_store.neo4j_ready, app.state.settings)
     object_storage_ready = await asyncio.to_thread(
         object_store.object_storage_ready, app.state.settings
@@ -1678,6 +1726,7 @@ async def get_operations_agents(
         "redis_ready": redis_ready,
         "db_ready": db_ready,
         "qdrant_ready": qdrant_ready,
+        "milvus_ready": milvus_ready,
         "neo4j_ready": neo4j_ready,
         "object_storage_ready": object_storage_ready,
         "protocol_ready": protocol_ready,

@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "fail_closed": true,
   "allowed_ref_patterns": [
     "^refs/heads/main$",
@@ -8,6 +8,7 @@
   "requirements": {
     "ci_status": "success",
     "attestation_verified": true,
+    "signed_tag_verified": true,
     "model_governance": {
       "require_inventory": true,
       "blocked_lifecycle_stages": [

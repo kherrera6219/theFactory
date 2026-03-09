@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager, suppress
@@ -19,7 +20,18 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from redis.exceptions import ResponseError
 
 from .language_extractor import get_extractor
+from .refined_ir import build_refined_ir_module, write_refined_ir_module
 from .tracing import configure_tracing
+
+try:
+    from orchestrator.agent_base import make_agent, make_specialist_for_language
+    from orchestrator.agent_registry import normalize_language
+except ModuleNotFoundError:
+    ORCHESTRATOR_SERVICE_ROOT = Path(__file__).resolve().parents[3] / "services" / "orchestrator"
+    if ORCHESTRATOR_SERVICE_ROOT.exists():
+        sys.path.insert(0, str(ORCHESTRATOR_SERVICE_ROOT))
+    from orchestrator.agent_base import make_agent, make_specialist_for_language
+    from orchestrator.agent_registry import normalize_language
 
 LOGGER = logging.getLogger(__name__)
 AGENT_SERVICE_KEY_ENV_PATTERN = re.compile(r"^AGENT_(\d{2})_([A-Z0-9_]+)_SERVICE_API_KEY$")
@@ -43,6 +55,12 @@ SUPPORTED_LANGUAGES = {
     if language.strip()
 }
 AGENT_BINDING = os.getenv("AGENT_BINDING", "")
+WORKER_AGENT_ID = os.getenv("WORKER_AGENT_ID", "").strip().upper()
+HEARTBEAT_INTERVAL_SECONDS = max(
+    5.0,
+    float(os.getenv("AGENT_HEARTBEAT_INTERVAL_SECONDS", "15.0")),
+)
+REFINED_IR_STORE_PATH = os.getenv("REFINED_IR_STORE_PATH", "").strip()
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 
@@ -73,6 +91,16 @@ EXTRACTION_LATENCY = Histogram(
     "pod_worker_extraction_latency_seconds",
     "Source code extraction latency for pod worker",
     ("pod_name", "agent_id"),
+)
+AGENT_EXECUTION_LATENCY = Histogram(
+    "pod_worker_agent_execution_latency_seconds",
+    "Agent execution latency for pod worker mission handling",
+    ("pod_name", "agent_id", "category"),
+)
+AGENT_HEARTBEAT_ATTEMPTS = Counter(
+    "pod_worker_agent_heartbeat_attempts_total",
+    "Total agent heartbeat attempts emitted by pod worker",
+    ("pod_name", "agent_id", "status"),
 )
 BINDING_SKIPS = Counter(
     "pod_worker_binding_skips_total",
@@ -182,6 +210,134 @@ def _agent_id_from_payload(payload: dict[str, Any]) -> str | None:
         if normalized:
             return normalized
     return _agent_id_from_metadata(payload.get("metadata"))
+
+
+def _effective_worker_agent_id(agent_id: str | None = None) -> str | None:
+    normalized_agent_id = _normalize_agent_id(agent_id)
+    if normalized_agent_id:
+        return normalized_agent_id
+    if WORKER_AGENT_ID:
+        return WORKER_AGENT_ID
+    if len(AGENT_BINDINGS) == 1:
+        return AGENT_BINDINGS[0]
+    return None
+
+
+DEFAULT_POD_MANAGER_AGENT_IDS = {
+    "poda": "AGENT-12-PODA-MGR",
+    "podb": "AGENT-18-PODB-MGR",
+    "podc": "AGENT-24-PODC-MGR",
+    "podd": "AGENT-30-PODD-MGR",
+}
+
+
+def _default_agent_id_for_event(event_type: str, target_language: str | None) -> str | None:
+    effective_agent_id = _effective_worker_agent_id()
+    if effective_agent_id:
+        return effective_agent_id
+
+    normalized_event_type = str(event_type).strip().upper()
+    if normalized_event_type == "MISSION_POD_MANAGER_ASSIGNED":
+        return DEFAULT_POD_MANAGER_AGENT_IDS.get(POD_NAME.strip().lower())
+
+    specialist = make_specialist_for_language(normalize_language(target_language))
+    if specialist is not None:
+        return specialist.agent_id
+    return DEFAULT_POD_MANAGER_AGENT_IDS.get(POD_NAME.strip().lower())
+
+
+def _logicnodes_from_extraction(
+    *,
+    mission_id: str,
+    target_language: str,
+    extraction_language: str,
+    concepts: list[Any],
+) -> list[dict[str, Any]]:
+    logicnodes: list[dict[str, Any]] = []
+    for concept in concepts:
+        concept_id = str(getattr(concept, "concept_id", "") or "core")
+        logicnodes.append(
+            {
+                "node_id": f"{POD_NAME}.{concept_id}.{mission_id}",
+                "concept": str(getattr(concept, "concept", "") or "extracted_intent"),
+                "domain": str(getattr(concept, "domain", "") or "generic"),
+                "language": extraction_language,
+                "agent_id": "",
+                "node": {
+                    "node_name": (
+                        f"{getattr(concept, 'domain', 'generic')}."
+                        f"{getattr(concept, 'concept', 'extracted_intent')}"
+                    ),
+                    "source_language": extraction_language,
+                    "target_language": target_language or "generic",
+                    "payload": {
+                        "origin": "pod-worker",
+                        "pod_name": POD_NAME,
+                        "concept_id": concept_id,
+                        "domain": getattr(concept, "domain", "generic"),
+                        "concept": getattr(concept, "concept", "extracted_intent"),
+                        "intent": getattr(concept, "intent", ""),
+                        "confidence": getattr(concept, "confidence", 0.0),
+                        "source_line": getattr(concept, "source_line", None),
+                        "evidence": getattr(concept, "evidence", ""),
+                    },
+                },
+            }
+        )
+    return logicnodes
+
+
+def _extract_logicnodes_from_agent_result(result: Any) -> list[dict[str, Any]]:
+    logicnodes: list[dict[str, Any]] = []
+    artifacts = getattr(result, "artifacts", [])
+    if not isinstance(artifacts, list):
+        return logicnodes
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            continue
+        if artifact.get("type") != "logicnode_set":
+            continue
+        for node in artifact.get("logicnodes", []):
+            if isinstance(node, dict):
+                logicnodes.append(node)
+    return logicnodes
+
+
+def _safe_to_dict(candidate: Any) -> dict[str, Any]:
+    if hasattr(candidate, "to_dict") and callable(candidate.to_dict):
+        payload = candidate.to_dict()
+        if isinstance(payload, dict):
+            return payload
+    return {}
+
+
+def _run_agent_pipeline(
+    *,
+    mission_id: str,
+    resolved_agent_id: str,
+    payload: dict[str, Any],
+    extracted_logicnodes: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    started = time.perf_counter()
+    agent = make_agent(resolved_agent_id)
+    agent_payload = dict(payload)
+    if extracted_logicnodes is not None:
+        agent_payload["logicnodes"] = extracted_logicnodes
+    result = agent.execute(mission_id, agent_payload)
+    validation = agent.validate(mission_id, getattr(result, "artifacts", []))
+    report = agent.report(mission_id, result, validation)
+    AGENT_EXECUTION_LATENCY.labels(
+        pod_name=POD_NAME,
+        agent_id=resolved_agent_id,
+        category=agent.category,
+    ).observe(time.perf_counter() - started)
+    return {
+        "agent": agent,
+        "result": result,
+        "validation": validation,
+        "report": report,
+        "logicnodes": _extract_logicnodes_from_agent_result(result),
+    }
 
 
 def _parse_date_time(value: str) -> datetime:
@@ -343,6 +499,44 @@ async def _request(
     raise RuntimeError("request failed without response")
 
 
+async def _post_agent_heartbeat(
+    *,
+    agent_id: str | None,
+    mission_id: str | None,
+    state: str,
+    queue_depth: int,
+    workload_pct: int,
+    metadata: dict[str, Any] | None = None,
+) -> bool:
+    effective_agent_id = _effective_worker_agent_id(agent_id)
+    if effective_agent_id is None:
+        return False
+    response = await _request(
+        "POST",
+        "/internal/agents/heartbeat",
+        json_body={
+            "agent_id": effective_agent_id,
+            "state": state,
+            "queue_depth": max(0, queue_depth),
+            "workload_pct": max(0, min(100, workload_pct)),
+            "active_mission_ids": [mission_id] if mission_id else [],
+            "metadata": {
+                "producer": f"pod-worker-{POD_NAME}",
+                "pod_name": POD_NAME,
+                **(metadata or {}),
+            },
+        },
+        agent_id=effective_agent_id,
+    )
+    status = "success" if response.status_code < 400 else "error"
+    AGENT_HEARTBEAT_ATTEMPTS.labels(
+        pod_name=POD_NAME,
+        agent_id=effective_agent_id,
+        status=status,
+    ).inc()
+    return response.status_code < 400
+
+
 async def _has_assignment(mission_id: str) -> bool:
     response = await _request("GET", f"/internal/missions/{mission_id}/pod-assignment")
     if response.status_code == 404:
@@ -353,12 +547,17 @@ async def _has_assignment(mission_id: str) -> bool:
     return bool(assignment.get("pod_name"))
 
 
-async def _fetch_mission_agent_id(mission_id: str) -> str | None:
+async def _fetch_mission_snapshot(mission_id: str) -> dict[str, Any] | None:
     response = await _request("GET", f"/missions/{mission_id}")
     if response.status_code >= 400:
         return None
     mission = response.json()
-    if not isinstance(mission, dict):
+    return mission if isinstance(mission, dict) else None
+
+
+async def _fetch_mission_agent_id(mission_id: str) -> str | None:
+    mission = await _fetch_mission_snapshot(mission_id)
+    if mission is None:
         return None
 
     for key in ("agent_id", "target_agent_id", "selected_agent_id", "assigned_agent_id"):
@@ -384,6 +583,136 @@ async def _mission_matches_agent_binding(mission_id: str, payload: dict[str, Any
     return True
 
 
+def _mission_targets_supported_language(target_language: str) -> bool:
+    if target_language and target_language not in SUPPORTED_LANGUAGES:
+        return False
+    if not target_language and POD_NAME != "podA":
+        return False
+    return True
+
+
+async def _handle_pod_manager_assignment(
+    redis_client: redis.Redis,
+    payload: dict[str, Any],
+) -> None:
+    mission_id = str(payload.get("mission_id", ""))
+    if not mission_id:
+        return
+
+    target = payload.get("requested_target_language")
+    target_language = str(target).lower() if isinstance(target, str) else ""
+    if not _mission_targets_supported_language(target_language):
+        return
+    if not await _mission_matches_agent_binding(mission_id, payload):
+        return
+
+    mission_snapshot = await _fetch_mission_snapshot(mission_id)
+    metadata = mission_snapshot.get("metadata") if isinstance(mission_snapshot, dict) else {}
+    resolved_agent_id = (
+        _agent_id_from_payload(payload)
+        or _agent_id_from_metadata(metadata)
+        or await _fetch_mission_agent_id(mission_id)
+        or _default_agent_id_for_event("MISSION_POD_MANAGER_ASSIGNED", target_language)
+        or "UNBOUND"
+    )
+    if resolved_agent_id == "UNBOUND":
+        return
+
+    await _post_agent_heartbeat(
+        agent_id=resolved_agent_id,
+        mission_id=mission_id,
+        state="RUNNING",
+        queue_depth=1,
+        workload_pct=44,
+        metadata={"event_type": "MISSION_POD_MANAGER_ASSIGNED"},
+    )
+
+    if await _has_assignment(mission_id):
+        return
+
+    details = {
+        "assigned_by": "pod-worker",
+        "pod_name": POD_NAME,
+        "agent_id": resolved_agent_id,
+        "supported_languages": sorted(SUPPORTED_LANGUAGES),
+        "reason": "pod-manager-routing",
+    }
+    assignment_response = await _request(
+        "POST",
+        "/internal/pod-assignment",
+        json_body={
+            "mission_id": mission_id,
+            "pod_name": POD_NAME,
+            "metadata": details,
+        },
+        agent_id=resolved_agent_id,
+    )
+    if assignment_response.status_code == 409:
+        return
+    if assignment_response.status_code >= 400:
+        return
+
+    agent_pipeline = _run_agent_pipeline(
+        mission_id=mission_id,
+        resolved_agent_id=resolved_agent_id,
+        payload={
+            **payload,
+            "pod_manager_agent_id": resolved_agent_id,
+            "specialist_agent_id": (
+                metadata.get("assigned_specialist_agent_id")
+                if isinstance(metadata, dict)
+                else None
+            ),
+            "requested_target_language": target_language,
+        },
+    )
+
+    await _request(
+        "POST",
+        "/internal/knowledge",
+        json_body={
+            "mission_id": mission_id,
+            "knowledge_id": f"{POD_NAME}.pod-manager.{mission_id}",
+            "content": {
+                "summary": _safe_to_dict(agent_pipeline["report"]).get(
+                    "summary",
+                    f"{resolved_agent_id} accepted pod assignment.",
+                ),
+                "metadata": {
+                    "pod_name": POD_NAME,
+                    "source": "pod-worker",
+                    "agent_id": resolved_agent_id,
+                    "agent_category": getattr(agent_pipeline["agent"], "category", "pod_manager"),
+                    "validation": _safe_to_dict(agent_pipeline["validation"]),
+                    "report": _safe_to_dict(agent_pipeline["report"]),
+                },
+            },
+        },
+        agent_id=resolved_agent_id,
+    )
+
+    await _publish_event(
+        redis_client,
+        f"cluster.assigned.{POD_NAME}",
+        mission_id,
+        {
+            "mission_id": mission_id,
+            "pod_name": POD_NAME,
+            "event_type": "MISSION_POD_ASSIGNED",
+            "state": payload.get("state", "POD_ASSIGNED"),
+            "agent_id": resolved_agent_id,
+        },
+    )
+    await _post_agent_heartbeat(
+        agent_id=resolved_agent_id,
+        mission_id=mission_id,
+        state="ACTIVE",
+        queue_depth=0,
+        workload_pct=28,
+        metadata={"event_type": "MISSION_POD_MANAGER_ASSIGNED", "status": "complete"},
+    )
+
+
 async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, Any]) -> None:
     mission_id = str(payload.get("mission_id", ""))
     if not mission_id:
@@ -391,18 +720,30 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
 
     target = payload.get("requested_target_language")
     target_language = str(target).lower() if isinstance(target, str) else ""
-    if target_language and target_language not in SUPPORTED_LANGUAGES:
-        return
-    if not target_language and POD_NAME != "podA":
+    if not _mission_targets_supported_language(target_language):
         return
     if not await _mission_matches_agent_binding(mission_id, payload):
         return
     if await _has_assignment(mission_id):
         return
+    mission_snapshot = await _fetch_mission_snapshot(mission_id)
+    mission_metadata = (
+        mission_snapshot.get("metadata") if isinstance(mission_snapshot, dict) else {}
+    )
     resolved_agent_id = (
         _agent_id_from_payload(payload)
+        or _agent_id_from_metadata(mission_metadata)
         or await _fetch_mission_agent_id(mission_id)
+        or _default_agent_id_for_event("MISSION_RUNNING", target_language)
         or "UNBOUND"
+    )
+    await _post_agent_heartbeat(
+        agent_id=resolved_agent_id,
+        mission_id=mission_id,
+        state="RUNNING",
+        queue_depth=1,
+        workload_pct=56,
+        metadata={"event_type": "MISSION_RUNNING"},
     )
 
     details = {
@@ -431,6 +772,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
     source_code = payload.get("source_code", "")
     extraction_language = target_language or "python"  # default Pod A primary
     extraction_summary: dict = {"language": extraction_language, "concepts_found": 0}
+    extracted_logicnodes: list[dict[str, Any]] = []
 
     if source_code:
         started = time.perf_counter()
@@ -447,49 +789,93 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             len(result.concepts)
         )
         extraction_summary = result.summary
+        extracted_logicnodes = _logicnodes_from_extraction(
+            mission_id=mission_id,
+            target_language=target_language,
+            extraction_language=extraction_language,
+            concepts=result.concepts,
+        )
 
-        # Create one LogicNode per extracted concept
-        for concept in result.concepts:
-            node_id = f"{POD_NAME}.{concept.concept_id}.{mission_id}"
-            await _request(
-                "POST",
-                "/internal/logicnodes",
-                json_body={
-                    "mission_id": mission_id,
-                    "node_id": node_id,
-                    "node": {
-                        "node_name": f"{concept.domain}.{concept.concept}",
-                        "source_language": extraction_language,
-                        "target_language": target_language or "generic",
-                        "payload": {
-                            "origin": "pod-worker",
-                            "pod_name": POD_NAME,
-                            "concept_id": concept.concept_id,
-                            "domain": concept.domain,
-                            "concept": concept.concept,
-                            "intent": concept.intent,
-                            "confidence": concept.confidence,
-                            "source_line": concept.source_line,
-                            "evidence": concept.evidence,
-                        },
-                    },
-                },
-                agent_id=resolved_agent_id,
-            )
-    else:
-        # No source code attached — create a stub LogicNode for routing
-        await _request(
-            "POST",
-            "/internal/logicnodes",
-            json_body={
-                "mission_id": mission_id,
+    if not extracted_logicnodes:
+        extracted_logicnodes = [
+            {
                 "node_id": f"{POD_NAME}.core.{mission_id}",
+                "concept": "routing_stub",
+                "domain": "core",
+                "language": extraction_language,
+                "agent_id": resolved_agent_id,
                 "node": {
                     "node_name": f"{POD_NAME}-logicnode-core",
                     "source_language": extraction_language,
                     "target_language": target_language or "generic",
                     "payload": {"origin": "pod-worker", "pod_name": POD_NAME},
                 },
+            }
+        ]
+
+    for logicnode in extracted_logicnodes:
+        logicnode["agent_id"] = resolved_agent_id
+
+    agent_pipeline = _run_agent_pipeline(
+        mission_id=mission_id,
+        resolved_agent_id=resolved_agent_id,
+        payload={
+            **payload,
+            "source_payload": source_code,
+            "requested_target_language": extraction_language,
+            "agent_id": resolved_agent_id,
+        },
+        extracted_logicnodes=extracted_logicnodes,
+    )
+
+    final_logicnodes = agent_pipeline["logicnodes"] or extracted_logicnodes
+    refined_ir_module = build_refined_ir_module(
+        mission_id=mission_id,
+        agent_id=resolved_agent_id,
+        source_language=extraction_language,
+        target_language=target_language or extraction_language,
+        logicnodes=final_logicnodes,
+        source_ref=f"mission://{mission_id}",
+    )
+    refined_ir_store_record: dict[str, Any] | None = None
+    if REFINED_IR_STORE_PATH:
+        try:
+            store_record = write_refined_ir_module(
+                refined_ir_module,
+                store_root=REFINED_IR_STORE_PATH,
+                mission_id=mission_id,
+                agent_id=resolved_agent_id,
+            )
+            refined_ir_store_record = {
+                "path": store_record.relative_path,
+                "git_commit": store_record.git_commit,
+                "sha256": store_record.sha256,
+            }
+        except Exception as exc:
+            refined_ir_store_record = {"error": str(exc)}
+    for logicnode in final_logicnodes:
+        node_id = str(logicnode.get("node_id", "")).strip() or f"{POD_NAME}.core.{mission_id}"
+        node_payload = logicnode.get("node")
+        if not isinstance(node_payload, dict):
+            node_payload = {
+                "node_name": str(logicnode.get("concept", "extracted_intent")),
+                "source_language": extraction_language,
+                "target_language": target_language or "generic",
+                "payload": {
+                    "origin": "pod-worker",
+                    "pod_name": POD_NAME,
+                    "agent_id": resolved_agent_id,
+                    "domain": logicnode.get("domain", "generic"),
+                    "concept": logicnode.get("concept", "extracted_intent"),
+                },
+            }
+        await _request(
+            "POST",
+            "/internal/logicnodes",
+            json_body={
+                "mission_id": mission_id,
+                "node_id": node_id,
+                "node": node_payload,
             },
             agent_id=resolved_agent_id,
         )
@@ -501,11 +887,21 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             "mission_id": mission_id,
             "knowledge_id": f"{POD_NAME}.assignment.{mission_id}",
             "content": {
-                "summary": f"{POD_NAME} accepted mission for specialist routing.",
+                "summary": _safe_to_dict(agent_pipeline["report"]).get(
+                    "summary",
+                    f"{POD_NAME} accepted mission for specialist routing.",
+                ),
                 "metadata": {
                     "pod_name": POD_NAME,
                     "source": "pod-worker",
                     "extraction": extraction_summary,
+                    "agent_id": resolved_agent_id,
+                    "agent_category": getattr(agent_pipeline["agent"], "category", "specialist"),
+                    "agent_result": _safe_to_dict(agent_pipeline["result"]),
+                    "validation": _safe_to_dict(agent_pipeline["validation"]),
+                    "report": _safe_to_dict(agent_pipeline["report"]),
+                    "refined_ir_module": refined_ir_module.model_dump(by_alias=True),
+                    "refined_ir_store": refined_ir_store_record,
                 },
             },
         },
@@ -521,6 +917,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             "pod_name": POD_NAME,
             "event_type": "MISSION_POD_ASSIGNED",
             "state": payload.get("state", "RUNNING"),
+            "agent_id": resolved_agent_id,
         },
     )
     await _publish_event(
@@ -532,7 +929,16 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             "pod_name": POD_NAME,
             "event_type": "POD_READY",
             "state": payload.get("state", "RUNNING"),
+            "agent_id": resolved_agent_id,
         },
+    )
+    await _post_agent_heartbeat(
+        agent_id=resolved_agent_id,
+        mission_id=mission_id,
+        state="ACTIVE",
+        queue_depth=0,
+        workload_pct=24,
+        metadata={"event_type": "MISSION_RUNNING", "status": "complete"},
     )
 
 
@@ -565,7 +971,11 @@ async def _consumer_loop(app: FastAPI) -> None:
                     payload = json.loads(payload_raw)
                     agent_id = _agent_id_from_payload(payload) or "UNKNOWN"
                     event_type = str(payload.get("event_type", ""))
-                    if event_type == "MISSION_RUNNING":
+                    if event_type == "MISSION_POD_MANAGER_ASSIGNED":
+                        await _handle_pod_manager_assignment(redis_client, payload)
+                        app.state.processed += 1
+                        TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
+                    elif event_type == "MISSION_RUNNING":
                         await _handle_running_mission(redis_client, payload)
                         app.state.processed += 1
                         TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
@@ -590,11 +1000,35 @@ async def _consumer_loop(app: FastAPI) -> None:
                         await redis_client.xack(STATE_STREAM, CONSUMER_GROUP, entry_id)
 
 
+async def _agent_heartbeat_loop(app: FastAPI) -> None:
+    while True:
+        try:
+            effective_agent_id = _effective_worker_agent_id()
+            if effective_agent_id:
+                await _post_agent_heartbeat(
+                    agent_id=effective_agent_id,
+                    mission_id=None,
+                    state="IDLE",
+                    queue_depth=0,
+                    workload_pct=8,
+                    metadata={
+                        "binding": list(AGENT_BINDINGS),
+                        "supported_languages": sorted(SUPPORTED_LANGUAGES),
+                    },
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            LOGGER.warning("failed to emit pod worker heartbeat: %s", exc)
+        await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global INTERNAL_AUTH_FAILURES, LAST_INTERNAL_AUTH_STATUS
     app.state.redis = redis.from_url(REDIS_URL, decode_responses=True)
     app.state.consumer_task = None
+    app.state.heartbeat_task = None
     app.state.processed = 0
     app.state.errors = 0
     INTERNAL_AUTH_FAILURES = 0
@@ -603,6 +1037,7 @@ async def lifespan(app: FastAPI):
     await app.state.redis.ping()
     await _ensure_group(app.state.redis)
     app.state.consumer_task = asyncio.create_task(_consumer_loop(app))
+    app.state.heartbeat_task = asyncio.create_task(_agent_heartbeat_loop(app))
     yield
 
     task = app.state.consumer_task
@@ -610,6 +1045,11 @@ async def lifespan(app: FastAPI):
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task
+    heartbeat_task = app.state.heartbeat_task
+    if heartbeat_task is not None:
+        heartbeat_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await heartbeat_task
     aclose = getattr(app.state.redis, "aclose", None)
     if callable(aclose):
         await aclose()
@@ -642,6 +1082,7 @@ async def health() -> dict[str, Any]:
         "state_stream": STATE_STREAM,
         "group": CONSUMER_GROUP,
         "consumer": CONSUMER_NAME,
+        "worker_agent_id": _effective_worker_agent_id(),
         "agent_binding": list(AGENT_BINDINGS),
         "agent_service_key_mode": AGENT_SERVICE_KEY_MODE,
         "configured_agent_service_keys": len(_configured_agent_service_key_map()),

@@ -543,9 +543,12 @@ class SpecialistAgent(BaseAgent):
         )
         source_payload = payload.get("source_payload", "")
         language = payload.get("requested_target_language", self.language_key)
+        prebuilt_logicnodes = payload.get("logicnodes")
 
-        # Delegate to extraction engine if source payload provided
-        logicnodes = self._extract_logicnodes(mission_id, source_payload, language)
+        if isinstance(prebuilt_logicnodes, list):
+            logicnodes = [node for node in prebuilt_logicnodes if isinstance(node, dict)]
+        else:
+            logicnodes = self._extract_logicnodes(mission_id, source_payload, language)
 
         artifacts = [
             {

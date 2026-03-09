@@ -1,6 +1,6 @@
 # Observability Stack
 
-**Last updated:** 2026-03-07
+**Last updated:** 2026-03-09
 **Stack:** Prometheus · Grafana · Loki · Promtail · Alertmanager · Jaeger
 
 ---
@@ -89,7 +89,7 @@ curl http://localhost:16686/
 | `langgraph_checkpoint_ops_total` | Counter | Checkpoint read/write operations |
 | `agent_heartbeats_total` | Counter | Heartbeat events by agent |
 
-### Optional Data-Plane Metrics (when `NEO4J_ENABLED` or `OBJECT_STORAGE_ENABLED`)
+### Optional Data-Plane Metrics (when `MILVUS_ENABLED`, `NEO4J_ENABLED`, or `OBJECT_STORAGE_ENABLED`)
 
 | Metric | Type | Description |
 |--------|------|-------------|
@@ -104,10 +104,20 @@ curl http://localhost:16686/
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `pod_worker_concepts_extracted_total{pod_name,language}` | Counter | Concepts extracted per language |
-| `pod_worker_extraction_latency_seconds{pod_name}` | Histogram | Extraction processing time |
+| `pod_worker_concepts_extracted_total{pod_name,agent_id,language}` | Counter | Concepts extracted per language |
+| `pod_worker_extraction_latency_seconds{pod_name,agent_id}` | Histogram | Extraction processing time |
+| `pod_worker_task_latency_seconds{pod_name,agent_id}` | Histogram | Per-agent mission handling latency |
 | `pod_worker_binding_skips_total{pod_name,reason}` | Counter | Agent binding mismatches skipped |
 | `pod_worker_internal_auth_rejections_total{pod_name}` | Counter | 401/403 responses from orchestrator |
+
+### Audit Worker / Dedicated Runtime Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `audit_worker_task_latency_seconds{agent_id,event_type}` | Histogram | Per-agent audit-processing latency |
+| `audit_worker_post_audit_latency_seconds{agent_id,status}` | Histogram | Audit write latency to orchestrator |
+| `agent_runtime_task_latency_seconds{agent_id}` | Histogram | Dedicated runtime per-agent latency |
+| `agent_runtime_execution_latency_seconds{agent_id,category}` | Histogram | Dedicated runtime execution latency |
 
 ---
 
@@ -137,6 +147,18 @@ Configured in `deploy/monitoring/prometheus/rules/thefactory-alerts.yml`.
 | `Neo4jMirrorWriteLatencyP95High` | high | p95 latency > 2s for > 5m | `optional_data_plane_incident_runbook.md` |
 | `ObjectStorageMirrorWriteLatencyP95High` | high | p95 latency > 2s for > 5m | `optional_data_plane_incident_runbook.md` |
 
+### SLO / Per-Agent Alerts
+
+| Alert | Severity | Condition | Runbook |
+|-------|----------|-----------|---------|
+| `ApiGatewayErrorBudgetBurnFast` | critical | Fast error-budget burn threshold exceeded | `OPERATIONS_RUNBOOK.md` |
+| `ApiGatewayErrorBudgetBurnSlow` | high | Slow error-budget burn threshold exceeded | `OPERATIONS_RUNBOOK.md` |
+| `OrchestratorErrorBudgetBurnFast` | critical | Fast error-budget burn threshold exceeded | `OPERATIONS_RUNBOOK.md` |
+| `OrchestratorErrorBudgetBurnSlow` | high | Slow error-budget burn threshold exceeded | `OPERATIONS_RUNBOOK.md` |
+| `PodWorkerAgentLatencyP99High` | high | Per-agent pod-worker p99 latency exceeds threshold | `OPERATIONS_RUNBOOK.md` |
+| `DedicatedAgentRuntimeLatencyP99High` | high | Dedicated runtime p99 latency exceeds threshold | `OPERATIONS_RUNBOOK.md` |
+| `AuditWorkerAgentLatencyP99High` | high | Audit worker per-agent p99 latency exceeds threshold | `OPERATIONS_RUNBOOK.md` |
+
 All `critical` and `high` alerts route to the pager webhook receiver in Alertmanager.
 
 ---
@@ -150,9 +172,9 @@ All `critical` and `high` alerts route to the pager webhook receiver in Alertman
 | api-gateway | ✅ OTel OTLP traces to Jaeger |
 | orchestrator | ✅ OTel OTLP traces to Jaeger |
 | pod-worker | ✅ OTel OTLP traces to Jaeger |
-| audit-worker | 🔄 Planned |
-| semantic-bus-mcp | 🔄 Planned |
-| dashboard | 🔄 Planned |
+| audit-worker | ✅ OTel OTLP traces to Jaeger |
+| semantic-bus-mcp | ✅ OTel OTLP traces to Jaeger |
+| dashboard | ✅ OTel OTLP traces to Jaeger |
 
 ### OTel Configuration
 
@@ -167,7 +189,7 @@ Configured via `configure_tracing(app, service_name="<name>")` in each service's
 ### Using Jaeger
 
 1. Open Jaeger UI: `http://localhost:16686`
-2. Select service from dropdown (api-gateway · orchestrator · pod-worker)
+2. Select service from dropdown (api-gateway · orchestrator · pod-worker · audit-worker · semantic-bus-mcp · dashboard)
 3. Search by `mission_id` tag to trace a specific mission end-to-end
 4. View spans across service boundaries to identify latency contributors
 
@@ -208,10 +230,18 @@ The provisioned Grafana dashboard includes:
 | Request rate (req/s) | `rate(http_requests_total[5m])` |
 | p95 latency | `histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))` |
 | Error rate | `rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])` |
+| Error Budget Burn (x) | Fast/slow burn-rate queries for gateway + orchestrator |
 | Active missions | Mission state gauge |
 | Agent heartbeat age | Latest heartbeat timestamps |
 | Optional data-plane mirror writes | `rate(orchestrator_optional_adapter_mirror_writes_total[5m])` |
 | Pod worker extraction rate | `rate(pod_worker_concepts_extracted_total[5m])` |
+| Per-Agent Task p99 (s) | `topk(10, histogram_quantile(0.99, ... pod_worker_task_latency_seconds_bucket ...))` |
+| Dedicated Runtime Agent p99 (s) | `topk(10, histogram_quantile(0.99, ... agent_runtime_task_latency_seconds_bucket ...))` |
+
+### Qualification Evidence
+
+- Weekly qualification emits `docs/evidence/dora_metrics_latest.json`.
+- Promotion and qualification gating consume the same observability evidence set used by CI.
 
 ### Importing Additional Dashboards
 

@@ -45,6 +45,51 @@ scrape_configs:
       - targets:
           - audit-worker:8202
 
+  - job_name: dedicated-agent-runtime
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - agent-01-pm:8210
+          - agent-02-ceo:8210
+          - agent-03-broker:8210
+          - agent-04-accountant:8210
+          - agent-05-security:8210
+          - agent-06-is:8210
+          - agent-07-vc:8210
+          - agent-08-compliance:8210
+          - agent-09-hw:8210
+          - agent-10-tester:8210
+          - agent-11-deploy:8210
+          - agent-13-poda-audit:8210
+          - agent-19-podb-audit:8210
+          - agent-25-podc-audit:8210
+          - agent-31-podd-audit:8210
+
+  - job_name: dedicated-pod-workers
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - pod-a-dedicated-mgr-worker:8201
+          - pod-b-dedicated-mgr-worker:8201
+          - pod-c-dedicated-mgr-worker:8201
+          - pod-d-dedicated-mgr-worker:8201
+          - agent-14-python:8201
+          - agent-15-javascript:8201
+          - agent-16-ruby:8201
+          - agent-17-php:8201
+          - agent-20-c:8201
+          - agent-21-cpp:8201
+          - agent-22-rust:8201
+          - agent-23-zig:8201
+          - agent-26-java:8201
+          - agent-27-csharp:8201
+          - agent-28-scala:8201
+          - agent-29-kotlin:8201
+          - agent-32-matlab:8201
+          - agent-33-r:8201
+          - agent-34-julia:8201
+          - agent-35-mathematica:8201
+
   - job_name: prometheus
     static_configs:
       - targets:

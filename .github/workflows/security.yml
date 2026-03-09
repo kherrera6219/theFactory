@@ -30,6 +30,7 @@ jobs:
       - name: Run pip-audit
         run: |
           pip-audit -r services/api-gateway/requirements.txt
+          pip-audit -r services/agent-runtime/requirements.txt
           pip-audit -r services/orchestrator/requirements.txt
           pip-audit -r services/dashboard/requirements.txt
           pip-audit -r services/pod-worker/requirements.txt

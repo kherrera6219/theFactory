@@ -19,10 +19,8 @@ import {
 } from "../../../lib/api-client";
 import { formatDateTime, formatTime, humanizeState, normalizeState } from "../../../lib/format";
 import {
-  deriveSmeltPhaseIndex,
+  deriveMissionPhaseDescriptor,
   smeltPhaseFromEventType,
-  smeltPhaseFromIndex,
-  SMELT_PHASES,
 } from "../../../lib/smelt-cycle";
 import type {
   MissionEvent,
@@ -203,18 +201,29 @@ export default function MissionDetailPage() {
     [logicNodes],
   );
 
-  const phaseIndex = useMemo(
+  const phaseDescriptor = useMemo(
     () =>
-      deriveSmeltPhaseIndex({
+      deriveMissionPhaseDescriptor({
         missionState: mission?.state ?? "QUEUED",
         events,
         logicNodeCount: logicNodes.length,
         verifiedLogicNodeCount: verifiedCount,
+        routingVersion:
+          chainTrace?.routing_version ??
+          (typeof mission?.metadata?.routing_version === "string"
+            ? mission.metadata.routing_version
+            : null),
       }),
-    [events, logicNodes.length, mission?.state, verifiedCount],
+    [chainTrace?.routing_version, events, logicNodes.length, mission?.metadata, mission?.state, verifiedCount],
   );
 
-  const phaseName = smeltPhaseFromIndex(phaseIndex);
+  const phaseIndex = phaseDescriptor.phaseIndex;
+  const phaseName = phaseDescriptor.phaseName;
+  const phaseLabel = phaseDescriptor.model === "v2" ? "Mission phase" : "Smelt phase";
+  const phaseStepperTitle =
+    phaseDescriptor.model === "v2" ? "Mission Phase Stepper" : "Smelt-Cycle Phase Stepper";
+  const phaseStepperAriaLabel =
+    phaseDescriptor.model === "v2" ? "Mission flow phases" : "Smelt cycle phases";
 
   const avgConfidence = useMemo(() => {
     const values = logicNodes.map((node) => nodeConfidence(node)).filter((value): value is number => value !== null);
@@ -319,9 +328,9 @@ export default function MissionDetailPage() {
         <p className="warning-box">Live refresh paused locally. Click "Resume Monitor" to continue.</p>
       )}
 
-      <Panel title="Smelt-Cycle Phase Stepper">
-        <ol className="phase-stepper" aria-label="Smelt cycle phases">
-          {SMELT_PHASES.map((phase, index) => {
+      <Panel title={phaseStepperTitle}>
+        <ol className="phase-stepper" aria-label={phaseStepperAriaLabel}>
+          {phaseDescriptor.phases.map((phase, index) => {
             const complete = index < phaseIndex;
             const active = index === phaseIndex;
             return (
@@ -348,7 +357,7 @@ export default function MissionDetailPage() {
                 <dd>{humanizeState(mission.state)}</dd>
               </div>
               <div>
-                <dt>Smelt phase</dt>
+                <dt>{phaseLabel}</dt>
                 <dd>{phaseName}</dd>
               </div>
               <div>
@@ -578,11 +587,16 @@ export default function MissionDetailPage() {
         {events.length > 0 && (
           <ul className="summary-list">
             {events.slice(0, 25).map((event) => {
-              const phaseLabel = smeltPhaseFromEventType(event.event_type);
+              const eventPhaseLabel = smeltPhaseFromEventType(
+                event.event_type,
+                phaseDescriptor.model,
+              );
               return (
                 <li key={`${event.event_type}-${event.ts}`}>
                   <strong>{formatTime(event.ts)}</strong>
-                  <span>{phaseLabel ? `${event.event_type} · ${phaseLabel}` : event.event_type}</span>
+                  <span>
+                    {eventPhaseLabel ? `${event.event_type} · ${eventPhaseLabel}` : event.event_type}
+                  </span>
                 </li>
               );
             })}

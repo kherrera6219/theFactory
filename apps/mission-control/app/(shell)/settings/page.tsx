@@ -19,9 +19,12 @@ type LocalPreferences = {
 type VaultSlotRecord = {
   slot_id: string;
   provider: string;
-  status: "set" | "missing";
+  status: "set" | "expiring" | "expired" | "missing";
   last_rotated_at: string | null;
   masked_preview: string | null;
+  expires_at: string | null;
+  ttl_seconds: number | null;
+  rotation_due: boolean;
 };
 
 type SlotRow = {
@@ -29,9 +32,11 @@ type SlotRow = {
   provider: string;
   model: string;
   title: string;
-  status: "set" | "missing";
+  status: "set" | "expiring" | "expired" | "missing";
   lastRotatedAt: string | null;
   maskedPreview: string | null;
+  expiresAt: string | null;
+  rotationDue: boolean;
 };
 
 const DEFAULT_PREFERENCES: LocalPreferences = {
@@ -44,6 +49,13 @@ const DEFAULT_PREFERENCES: LocalPreferences = {
 function parseNumberInput(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function describeVaultStatus(status: SlotRow["status"]): string {
+  if (status === "expiring") return "Expiring";
+  if (status === "expired") return "Expired";
+  if (status === "set") return "Set";
+  return "Missing";
 }
 
 export default function SettingsPage() {
@@ -103,6 +115,8 @@ export default function SettingsPage() {
           status: existing?.status ?? "missing",
           lastRotatedAt: existing?.last_rotated_at ?? null,
           maskedPreview: existing?.masked_preview ?? null,
+          expiresAt: existing?.expires_at ?? null,
+          rotationDue: existing?.rotation_due ?? false,
         };
       }) ?? [];
 
@@ -115,6 +129,8 @@ export default function SettingsPage() {
         status: slotMap.get("OPERATOR-API-KEY")?.status ?? "missing",
         lastRotatedAt: slotMap.get("OPERATOR-API-KEY")?.last_rotated_at ?? null,
         maskedPreview: slotMap.get("OPERATOR-API-KEY")?.masked_preview ?? null,
+        expiresAt: slotMap.get("OPERATOR-API-KEY")?.expires_at ?? null,
+        rotationDue: slotMap.get("OPERATOR-API-KEY")?.rotation_due ?? false,
       },
       {
         slotId: "GITHUB-TOKEN",
@@ -124,6 +140,8 @@ export default function SettingsPage() {
         status: slotMap.get("GITHUB-TOKEN")?.status ?? "missing",
         lastRotatedAt: slotMap.get("GITHUB-TOKEN")?.last_rotated_at ?? null,
         maskedPreview: slotMap.get("GITHUB-TOKEN")?.masked_preview ?? null,
+        expiresAt: slotMap.get("GITHUB-TOKEN")?.expires_at ?? null,
+        rotationDue: slotMap.get("GITHUB-TOKEN")?.rotation_due ?? false,
       },
     ];
 
@@ -344,6 +362,7 @@ export default function SettingsPage() {
                 <th scope="col">Status</th>
                 <th scope="col">Masked</th>
                 <th scope="col">Last Rotated</th>
+                <th scope="col">Expires</th>
                 <th scope="col">Actions</th>
               </tr>
             </thead>
@@ -353,9 +372,10 @@ export default function SettingsPage() {
                   <td>{row.slotId}</td>
                   <td>{row.provider}</td>
                   <td>{row.model}</td>
-                  <td>{row.status === "set" ? "Set" : "Missing"}</td>
+                  <td>{describeVaultStatus(row.status)}</td>
                   <td>{row.maskedPreview ?? "n/a"}</td>
                   <td>{row.lastRotatedAt ? formatDateTime(row.lastRotatedAt) : "n/a"}</td>
+                  <td>{row.expiresAt ? formatDateTime(row.expiresAt) : "n/a"}</td>
                   <td>
                     <button
                       type="button"
@@ -391,7 +411,15 @@ export default function SettingsPage() {
               </li>
               <li>
                 <strong>Status</strong>
-                <span>{selectedSlot.status === "set" ? "Set" : "Missing"}</span>
+                <span>{describeVaultStatus(selectedSlot.status)}</span>
+              </li>
+              <li>
+                <strong>Expires</strong>
+                <span>{selectedSlot.expiresAt ? formatDateTime(selectedSlot.expiresAt) : "n/a"}</span>
+              </li>
+              <li>
+                <strong>Rotation Due</strong>
+                <span>{selectedSlot.rotationDue ? "Yes" : "No"}</span>
               </li>
             </ul>
             <label htmlFor="vault-secret">Secret</label>

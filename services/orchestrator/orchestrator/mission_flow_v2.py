@@ -30,6 +30,11 @@ from typing import Any
 
 from . import storage
 from .agent_registry import AGENT_REGISTRY
+from .agent_scaling import (
+    compute_scaling_decision,
+    embed_scaling_decision,
+    is_scalable_agent,
+)
 from .llm_delegation import (
     generate_ceo_delegation,
     generate_pod_manager_delegation,
@@ -56,6 +61,43 @@ RUNTIME_PHASES = frozenset(
         MissionState.complete,
     }
 )
+
+
+def _setting_bool(settings: Any, name: str, default: bool = False) -> bool:
+    raw = getattr(settings, name, default)
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return bool(raw)
+    if isinstance(raw, str):
+        candidate = raw.strip().lower()
+        if candidate in {"1", "true", "yes", "on"}:
+            return True
+        if candidate in {"0", "false", "no", "off", ""}:
+            return False
+    return default
+
+
+def _setting_int(settings: Any, name: str, default: int) -> int:
+    raw = getattr(settings, name, default)
+    if isinstance(raw, bool):
+        return default
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(raw)
+    if isinstance(raw, str):
+        candidate = raw.strip()
+        if not candidate:
+            return default
+        try:
+            return int(candidate)
+        except ValueError:
+            return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
 
 
 def _chain_event_exists(metadata: dict[str, Any], event_type: str) -> bool:
@@ -479,6 +521,40 @@ async def _prepare_specialist_plan(
             "model": normalized.get("model"),
         },
     )
+
+    # Compute scaling decision when feature is enabled.
+    if _setting_bool(settings, "agent_scaling_enabled", False) and is_scalable_agent(
+        specialist_agent_id
+    ):
+        workload_items = [
+            str(d) for d in normalized.get("deliverables", [])
+        ] or ["default_workload"]
+        scaling = compute_scaling_decision(
+            agent_id=specialist_agent_id,
+            workload_items=workload_items,
+            max_instances=_setting_int(settings, "agent_scaling_max_instances", 4),
+            items_per_instance=_setting_int(settings, "agent_scaling_items_per_instance", 3),
+        )
+        embed_scaling_decision(metadata, scaling)
+        if not _chain_event_exists(metadata, "MISSION_SCALING_DECIDED"):
+            append_chain_event(
+                metadata,
+                event_type="MISSION_SCALING_DECIDED",
+                agent_id=specialist_agent_id,
+                details={
+                    "instance_count": scaling.instance_count,
+                    "reason": scaling.reason,
+                    "scaling_version": scaling.scaling_version,
+                },
+            )
+        _record_artifact(
+            metadata,
+            stage="scaling_decided",
+            event_type="MISSION_SCALING_DECIDED",
+            agent_id=specialist_agent_id,
+            details=scaling.to_dict(),
+        )
+
     return (
         await _persist_metadata(
             app=app,

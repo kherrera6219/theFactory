@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  deriveMissionPhaseDescriptor,
   deriveSmeltPhaseIndex,
+  detectMissionPhaseModel,
   smeltPhaseFromEventType,
   smeltPhaseFromIndex,
   smeltPhaseIndexForEventType,
@@ -23,13 +25,18 @@ describe("smelt-cycle mapping", () => {
     expect(smeltPhaseIndexForEventType("MISSION_QUEUED")).toBe(1);
     expect(smeltPhaseIndexForEventType("MISSION_GATING")).toBe(3);
     expect(smeltPhaseIndexForEventType("MISSION_COMPLETE")).toBe(6);
+    expect(smeltPhaseIndexForEventType("MISSION_PM_INTAKE", "v2")).toBe(2);
     expect(smeltPhaseIndexForEventType("UNKNOWN")).toBeNull();
   });
 
   it("maps event types and indexes to phase names", () => {
     expect(smeltPhaseFromEventType("MISSION_FUSION")).toBe("FUSION");
+    expect(smeltPhaseFromEventType("MISSION_SPECIALIST_ASSIGNED", "v2")).toBe(
+      "SPECIALIST ASSIGNED",
+    );
     expect(smeltPhaseFromEventType("OTHER_EVENT")).toBeNull();
     expect(smeltPhaseFromIndex(5)).toBe("SQUEEZE");
+    expect(smeltPhaseFromIndex(3, "v2")).toBe("CEO DELEGATED");
     expect(smeltPhaseFromIndex(999)).toBe("DELIVERY");
     expect(smeltPhaseFromIndex(-1)).toBe("INTAKE");
   });
@@ -74,5 +81,19 @@ describe("smelt-cycle mapping", () => {
         verifiedLogicNodeCount: 2,
       }),
     ).toBe(4);
+  });
+
+  it("detects and renders the v2 mission flow", () => {
+    const descriptor = deriveMissionPhaseDescriptor({
+      missionState: "CEO_DELEGATED",
+      events: [event("MISSION_PM_INTAKE"), event("MISSION_CEO_DELEGATED")],
+      routingVersion: "v2",
+    });
+
+    expect(detectMissionPhaseModel({ missionState: "CEO_DELEGATED" })).toBe("v2");
+    expect(descriptor.model).toBe("v2");
+    expect(descriptor.phaseIndex).toBe(3);
+    expect(descriptor.phaseName).toBe("CEO DELEGATED");
+    expect(descriptor.phases).toHaveLength(11);
   });
 });

@@ -10,7 +10,23 @@ export const SMELT_PHASES = [
   "DELIVERY",
 ] as const;
 
-const EVENT_TO_PHASE_INDEX: Record<string, number> = {
+export const MISSION_FLOW_V2_PHASES = [
+  "INTAKE",
+  "QUEUED",
+  "PM INTAKE",
+  "CEO DELEGATED",
+  "POD ASSIGNED",
+  "SPECIALIST ASSIGNED",
+  "RUNNING",
+  "GATING",
+  "FUSION",
+  "VERIFIED",
+  "COMPLETE",
+] as const;
+
+export type MissionPhaseModel = "v1" | "v2";
+
+const V1_EVENT_TO_PHASE_INDEX: Record<string, number> = {
   MISSION_QUEUED: 1,
   MISSION_RUNNING: 2,
   MISSION_GATING: 3,
@@ -20,7 +36,7 @@ const EVENT_TO_PHASE_INDEX: Record<string, number> = {
   MISSION_FAILED: 6,
 };
 
-const STATE_TO_PHASE_INDEX: Record<string, number> = {
+const V1_STATE_TO_PHASE_INDEX: Record<string, number> = {
   INTAKE: 0,
   QUEUED: 1,
   RUNNING: 2,
@@ -29,48 +45,156 @@ const STATE_TO_PHASE_INDEX: Record<string, number> = {
   FAILED: 6,
 };
 
+const V2_EVENT_TO_PHASE_INDEX: Record<string, number> = {
+  MISSION_INTAKE: 0,
+  MISSION_QUEUED: 1,
+  MISSION_PM_INTAKE: 2,
+  MISSION_CEO_DELEGATED: 3,
+  MISSION_POD_MANAGER_ASSIGNED: 4,
+  MISSION_POD_ASSIGNED: 4,
+  MISSION_SPECIALIST_ASSIGNED: 5,
+  MISSION_SPECIALIST_PLANNED: 5,
+  MISSION_RUNNING: 6,
+  MISSION_GATING: 7,
+  MISSION_FUSION: 8,
+  MISSION_VERIFIED: 9,
+  MISSION_COMPLETE: 10,
+  MISSION_FAILED: 10,
+};
+
+const V2_STATE_TO_PHASE_INDEX: Record<string, number> = {
+  INTAKE: 0,
+  QUEUED: 1,
+  PM_INTAKE: 2,
+  CEO_DELEGATED: 3,
+  POD_ASSIGNED: 4,
+  SPECIALIST_ASSIGNED: 5,
+  RUNNING: 6,
+  GATING: 7,
+  FUSION: 8,
+  VERIFIED: 9,
+  COMPLETE: 10,
+  FAILED: 10,
+};
+
+const V2_STATE_SET = new Set(Object.keys(V2_STATE_TO_PHASE_INDEX));
+const V2_EVENT_SET = new Set(Object.keys(V2_EVENT_TO_PHASE_INDEX));
+
 function normalizeToken(value: string | null | undefined): string {
   return String(value ?? "").trim().toUpperCase();
 }
 
-export function smeltPhaseIndexForEventType(eventType: string): number | null {
-  const index = EVENT_TO_PHASE_INDEX[normalizeToken(eventType)];
+function phaseMapsForModel(model: MissionPhaseModel): {
+  eventToIndex: Record<string, number>;
+  stateToIndex: Record<string, number>;
+  phases: readonly string[];
+} {
+  if (model === "v2") {
+    return {
+      eventToIndex: V2_EVENT_TO_PHASE_INDEX,
+      stateToIndex: V2_STATE_TO_PHASE_INDEX,
+      phases: MISSION_FLOW_V2_PHASES,
+    };
+  }
+  return {
+    eventToIndex: V1_EVENT_TO_PHASE_INDEX,
+    stateToIndex: V1_STATE_TO_PHASE_INDEX,
+    phases: SMELT_PHASES,
+  };
+}
+
+export function detectMissionPhaseModel(params: {
+  missionState?: string | null;
+  events?: MissionEvent[];
+  routingVersion?: string | null;
+}): MissionPhaseModel {
+  if (normalizeToken(params.routingVersion) === "V2") {
+    return "v2";
+  }
+
+  const missionState = normalizeToken(params.missionState);
+  if (
+    V2_STATE_SET.has(missionState) &&
+    !Object.prototype.hasOwnProperty.call(V1_STATE_TO_PHASE_INDEX, missionState)
+  ) {
+    return "v2";
+  }
+  if (missionState === "PM_INTAKE" || missionState === "CEO_DELEGATED" || missionState === "POD_ASSIGNED" || missionState === "SPECIALIST_ASSIGNED") {
+    return "v2";
+  }
+
+  for (const event of params.events ?? []) {
+    const eventType = normalizeToken(event.event_type);
+    if (V2_EVENT_SET.has(eventType) && !(eventType in V1_EVENT_TO_PHASE_INDEX)) {
+      return "v2";
+    }
+    if (
+      eventType === "MISSION_PM_INTAKE" ||
+      eventType === "MISSION_CEO_DELEGATED" ||
+      eventType === "MISSION_POD_MANAGER_ASSIGNED" ||
+      eventType === "MISSION_SPECIALIST_ASSIGNED" ||
+      eventType === "MISSION_SPECIALIST_PLANNED"
+    ) {
+      return "v2";
+    }
+  }
+  return "v1";
+}
+
+export function smeltPhaseIndexForEventType(
+  eventType: string,
+  model: MissionPhaseModel = "v1",
+): number | null {
+  const { eventToIndex } = phaseMapsForModel(model);
+  const index = eventToIndex[normalizeToken(eventType)];
   return Number.isInteger(index) ? index : null;
 }
 
-export function smeltPhaseFromEventType(eventType: string): string | null {
-  const index = smeltPhaseIndexForEventType(eventType);
+export function smeltPhaseFromEventType(
+  eventType: string,
+  model: MissionPhaseModel = "v1",
+): string | null {
+  const index = smeltPhaseIndexForEventType(eventType, model);
   if (index === null) {
     return null;
   }
-  return SMELT_PHASES[index] ?? null;
+  return phaseMapsForModel(model).phases[index] ?? null;
 }
 
-export function smeltPhaseFromIndex(index: number): string {
+export function smeltPhaseFromIndex(index: number, model: MissionPhaseModel = "v1"): string {
+  const { phases } = phaseMapsForModel(model);
   if (!Number.isFinite(index)) {
-    return SMELT_PHASES[0];
+    return phases[0];
   }
-  const clamped = Math.min(Math.max(0, Math.floor(index)), SMELT_PHASES.length - 1);
-  return SMELT_PHASES[clamped];
+  const clamped = Math.min(Math.max(0, Math.floor(index)), phases.length - 1);
+  return phases[clamped];
 }
 
-export function deriveSmeltPhaseIndex(params: {
+export function deriveMissionPhaseDescriptor(params: {
   missionState?: string | null;
   events?: MissionEvent[];
   logicNodeCount?: number;
   verifiedLogicNodeCount?: number;
-}): number {
+  routingVersion?: string | null;
+}): {
+  model: MissionPhaseModel;
+  phaseIndex: number;
+  phaseName: string;
+  phases: readonly string[];
+} {
+  const model = detectMissionPhaseModel(params);
+  const { eventToIndex, stateToIndex, phases } = phaseMapsForModel(model);
   const missionState = normalizeToken(params.missionState);
-  let phaseIndex = STATE_TO_PHASE_INDEX[missionState] ?? 0;
+  let phaseIndex = stateToIndex[missionState] ?? 0;
 
   for (const event of params.events ?? []) {
-    const mapped = smeltPhaseIndexForEventType(event.event_type);
+    const mapped = eventToIndex[normalizeToken(event.event_type)];
     if (mapped !== null) {
       phaseIndex = Math.max(phaseIndex, mapped);
     }
   }
 
-  if (missionState === "RUNNING") {
+  if (model === "v1" && missionState === "RUNNING") {
     const logicNodeCount = Math.max(0, Number(params.logicNodeCount ?? 0));
     const verifiedLogicNodeCount = Math.max(0, Number(params.verifiedLogicNodeCount ?? 0));
     if (logicNodeCount > 0) {
@@ -81,5 +205,21 @@ export function deriveSmeltPhaseIndex(params: {
     }
   }
 
-  return Math.min(Math.max(0, phaseIndex), SMELT_PHASES.length - 1);
+  phaseIndex = Math.min(Math.max(0, phaseIndex), phases.length - 1);
+  return {
+    model,
+    phaseIndex,
+    phaseName: phases[phaseIndex] ?? phases[0],
+    phases,
+  };
+}
+
+export function deriveSmeltPhaseIndex(params: {
+  missionState?: string | null;
+  events?: MissionEvent[];
+  logicNodeCount?: number;
+  verifiedLogicNodeCount?: number;
+  routingVersion?: string | null;
+}): number {
+  return deriveMissionPhaseDescriptor(params).phaseIndex;
 }

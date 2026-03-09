@@ -139,6 +139,82 @@
       ],
       "title": "Mirror Write p95 Latency (s)",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "(sum(rate(api_gateway_http_requests_total{status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(api_gateway_http_requests_total[5m])), 0.001)) / 0.001",
+          "legendFormat": "gateway burn rate",
+          "refId": "A"
+        },
+        {
+          "expr": "(sum(rate(orchestrator_http_requests_total{status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(orchestrator_http_requests_total[5m])), 0.001)) / 0.001",
+          "legendFormat": "orchestrator burn rate",
+          "refId": "B"
+        }
+      ],
+      "title": "Error Budget Burn (x)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "id": 7,
+      "targets": [
+        {
+          "expr": "topk(10, histogram_quantile(0.99, sum by (le, agent_id) (rate(pod_worker_task_latency_seconds_bucket{agent_id!=\"UNKNOWN\"}[5m]))))",
+          "legendFormat": "{{agent_id}} pod-worker p99",
+          "refId": "A"
+        },
+        {
+          "expr": "topk(10, histogram_quantile(0.99, sum by (le, agent_id) (rate(audit_worker_task_latency_seconds_bucket[5m]))))",
+          "legendFormat": "{{agent_id}} audit-worker p99",
+          "refId": "B"
+        }
+      ],
+      "title": "Per-Agent Task p99 (s)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "id": 8,
+      "targets": [
+        {
+          "expr": "topk(10, histogram_quantile(0.99, sum by (le, agent_id) (rate(agent_runtime_task_latency_seconds_bucket[5m]))))",
+          "legendFormat": "{{agent_id}} dedicated runtime p99",
+          "refId": "A"
+        }
+      ],
+      "title": "Dedicated Runtime Agent p99 (s)",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
@@ -157,5 +233,5 @@
   },
   "timezone": "browser",
   "title": "theFactory Overview",
-  "version": 2
+  "version": 3
 }

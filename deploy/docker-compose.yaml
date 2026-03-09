@@ -31,6 +31,9 @@ x-data-service-hardening: &data-service-hardening
 x-redis-client-certs: &redis-client-certs
   - ./redis/certs:/run/redis-certs:ro
 
+x-postgres-client-certs: &postgres-client-certs
+  - ./postgres/certs:/run/postgres-certs:ro
+
 x-platform-agent-service-keys: &platform-agent-service-keys
   AGENT_01_PM_SERVICE_API_KEY: ${AGENT_01_PM_SERVICE_API_KEY:-}
   AGENT_02_CEO_SERVICE_API_KEY: ${AGENT_02_CEO_SERVICE_API_KEY:-}
@@ -137,6 +140,9 @@ services:
   postgres:
     <<: [*common-service, *data-service-hardening]
     image: postgres:16
+    entrypoint:
+      - /bin/bash
+      - /docker-entrypoint-init-tls.sh
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -144,11 +150,18 @@ services:
     ports:
       - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
+      - ./postgres/entrypoint.sh:/docker-entrypoint-init-tls.sh:ro
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/certs:/run/postgres-certs:ro
       - postgres-data:/var/lib/postgresql/data
     mem_limit: 4g
     mem_reservation: 2g
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ulr}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h localhost -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ulr}",
+        ]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -229,7 +242,13 @@ services:
       OBJECT_STORAGE_LEGAL_HOLD_ON_FAIL: ${OBJECT_STORAGE_LEGAL_HOLD_ON_FAIL:-true}
       OBJECT_STORAGE_FORCE_PATH_STYLE: ${OBJECT_STORAGE_FORCE_PATH_STYLE:-true}
       OBJECT_STORAGE_REQUIRE_TLS: ${OBJECT_STORAGE_REQUIRE_TLS:-false}
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ulr}
+      MILVUS_ENABLED: ${MILVUS_ENABLED:-false}
+      MILVUS_URI: ${MILVUS_URI:-http://milvus:19530}
+      MILVUS_TOKEN: ${MILVUS_TOKEN:-}
+      MILVUS_COLLECTION: ${MILVUS_COLLECTION:-mission_knowledge}
+      MILVUS_VECTOR_SIZE: ${MILVUS_VECTOR_SIZE:-64}
+      MILVUS_TIMEOUT_SECONDS: ${MILVUS_TIMEOUT_SECONDS:-3.0}
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ulr}?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt
       INTAKE_STREAM: missions.intake
       INTAKE_TOPIC: intake.feature_contract.created
       STATE_STREAM: missions.state
@@ -242,7 +261,7 @@ services:
       LANGGRAPH_FAIL_OPEN: ${LANGGRAPH_FAIL_OPEN:-true}
       LANGGRAPH_CHECKPOINTER: ${LANGGRAPH_CHECKPOINTER:-none}
       LANGGRAPH_THREAD_PREFIX: ${LANGGRAPH_THREAD_PREFIX:-mission}
-      LANGGRAPH_CHECKPOINTER_POSTGRES_URL: ${LANGGRAPH_CHECKPOINTER_POSTGRES_URL:-}
+      LANGGRAPH_CHECKPOINTER_POSTGRES_URL: ${LANGGRAPH_CHECKPOINTER_POSTGRES_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ulr}?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt}
       LANGGRAPH_CHECKPOINTER_SETUP: ${LANGGRAPH_CHECKPOINTER_SETUP:-false}
       LANGGRAPH_CHECKPOINT_NAMESPACE: ${LANGGRAPH_CHECKPOINT_NAMESPACE:-}
       ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-admin-key}
@@ -262,7 +281,9 @@ services:
       GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-20}
       OTEL_TRACING_ENABLED: ${OTEL_TRACING_ENABLED:-true}
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://jaeger:4318/v1/traces}
-    volumes: *redis-client-certs
+    volumes:
+      - ./redis/certs:/run/redis-certs:ro
+      - ./postgres/certs:/run/postgres-certs:ro
     ports:
       - "${ORCHESTRATOR_HOST_PORT:-8101}:8001"
     depends_on:
@@ -517,7 +538,7 @@ services:
       POD_WORKER_GROUP: pod-workers-podB
       POD_WORKER_NAME: pod-b-01
       POD_NAME: podB
-      SUPPORTED_LANGUAGES: go,rust,c,cpp,zig
+      SUPPORTED_LANGUAGES: c,cpp,rust,zig
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
       SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
@@ -605,7 +626,7 @@ services:
       POD_WORKER_GROUP: pod-workers-podD
       POD_WORKER_NAME: pod-d-01
       POD_NAME: podD
-      SUPPORTED_LANGUAGES: haskell,ocaml,julia,r
+      SUPPORTED_LANGUAGES: matlab,r,julia,mathematica
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
       SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
@@ -637,6 +658,7 @@ services:
       dockerfile: services/pod-worker/Dockerfile
     profiles:
       - dedicated-agents
+      - full-dedicated-agents
     environment:
       <<: *pod-a-agent-service-keys
       REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
@@ -645,6 +667,7 @@ services:
       POD_WORKER_NAME: dedicated-pod-a-mgr-01
       POD_NAME: podA
       SUPPORTED_LANGUAGES: python,typescript,javascript,ruby,php
+      WORKER_AGENT_ID: AGENT-12-PODA-MGR
       AGENT_BINDING: AGENT-12-PODA-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
@@ -684,6 +707,7 @@ services:
       dockerfile: services/pod-worker/Dockerfile
     profiles:
       - dedicated-agents
+      - full-dedicated-agents
     environment:
       <<: *pod-b-agent-service-keys
       REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
@@ -691,7 +715,8 @@ services:
       POD_WORKER_GROUP: dedicated-workers-podB
       POD_WORKER_NAME: dedicated-pod-b-mgr-01
       POD_NAME: podB
-      SUPPORTED_LANGUAGES: go,rust,c,cpp,zig
+      SUPPORTED_LANGUAGES: c,cpp,rust,zig
+      WORKER_AGENT_ID: AGENT-18-PODB-MGR
       AGENT_BINDING: AGENT-18-PODB-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
@@ -731,6 +756,7 @@ services:
       dockerfile: services/pod-worker/Dockerfile
     profiles:
       - dedicated-agents
+      - full-dedicated-agents
     environment:
       <<: *pod-c-agent-service-keys
       REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
@@ -739,6 +765,7 @@ services:
       POD_WORKER_NAME: dedicated-pod-c-mgr-01
       POD_NAME: podC
       SUPPORTED_LANGUAGES: java,csharp,kotlin,scala
+      WORKER_AGENT_ID: AGENT-24-PODC-MGR
       AGENT_BINDING: AGENT-24-PODC-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
@@ -778,6 +805,7 @@ services:
       dockerfile: services/pod-worker/Dockerfile
     profiles:
       - dedicated-agents
+      - full-dedicated-agents
     environment:
       <<: *pod-d-agent-service-keys
       REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
@@ -785,7 +813,8 @@ services:
       POD_WORKER_GROUP: dedicated-workers-podD
       POD_WORKER_NAME: dedicated-pod-d-mgr-01
       POD_NAME: podD
-      SUPPORTED_LANGUAGES: haskell,ocaml,julia,r
+      SUPPORTED_LANGUAGES: matlab,r,julia,mathematica
+      WORKER_AGENT_ID: AGENT-30-PODD-MGR
       AGENT_BINDING: AGENT-30-PODD-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001

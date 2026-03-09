@@ -16,9 +16,15 @@ describe("vault backend", () => {
     delete process.env.VAULT_NAMESPACE;
     delete process.env.VAULT_KV_MOUNT;
     delete process.env.VAULT_KV_PREFIX;
+    delete process.env.VAULT_SLOT_TTL_SECONDS;
+    delete process.env.VAULT_SLOT_TTL_DAYS;
+    delete process.env.VAULT_SLOT_ROTATION_WARNING_SECONDS;
+    delete process.env.VAULT_SLOT_ROTATION_WARNING_DAYS;
+    delete process.env.VAULT_ENFORCE_SLOT_TTL;
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -37,6 +43,30 @@ describe("vault backend", () => {
       slot_id: "AGENT-01-PM-API-KEY",
       provider: "anthropic",
       backend: "memory",
+      status: "set",
+      rotation_due: false,
+    });
+  });
+
+  it("enforces TTL expiry for in-memory secrets", async () => {
+    process.env.VAULT_SLOT_TTL_SECONDS = "3600";
+    process.env.VAULT_SLOT_ROTATION_WARNING_SECONDS = "600";
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-09T00:00:00.000Z"));
+    const vault = await importVaultModule();
+
+    await vault.upsertVaultSlot("operator-api-key", "operator", "operator-secret-123456");
+    vi.setSystemTime(new Date("2026-03-09T01:01:00.000Z"));
+
+    const secret = await vault.getVaultSecret("OPERATOR-API-KEY");
+    const slots = await vault.listVaultSlots();
+
+    expect(secret).toBeNull();
+    expect(slots[0]).toMatchObject({
+      slot_id: "OPERATOR-API-KEY",
+      status: "expired",
+      rotation_due: true,
     });
   });
 
@@ -44,7 +74,17 @@ describe("vault backend", () => {
     process.env.VAULT_ADDR = "http://vault:8200";
     process.env.VAULT_TOKEN = "root-token";
 
-    const records = new Map<string, { provider: string; secret: string; updated_at: string }>();
+    const records = new Map<
+      string,
+      {
+        provider: string;
+        secret: string;
+        created_at: string;
+        updated_at: string;
+        expires_at: string;
+        ttl_seconds: number;
+      }
+    >();
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
       const url = new URL(String(input));
       const method = init?.method ?? "GET";
@@ -52,12 +92,22 @@ describe("vault backend", () => {
 
       if (method === "POST" && url.pathname.includes("/data/")) {
         const payload = JSON.parse(String(init?.body ?? "{}")) as {
-          data?: { provider?: string; secret?: string; updated_at?: string };
+          data?: {
+            provider?: string;
+            secret?: string;
+            created_at?: string;
+            updated_at?: string;
+            expires_at?: string;
+            ttl_seconds?: number;
+          };
         };
         records.set(slotId, {
           provider: String(payload.data?.provider ?? "operator"),
           secret: String(payload.data?.secret ?? ""),
+          created_at: String(payload.data?.created_at ?? "2026-03-08T00:00:00.000Z"),
           updated_at: String(payload.data?.updated_at ?? "2026-03-08T00:00:00.000Z"),
+          expires_at: String(payload.data?.expires_at ?? "2026-06-06T00:00:00.000Z"),
+          ttl_seconds: Number(payload.data?.ttl_seconds ?? 7_776_000),
         });
         return new Response(JSON.stringify({ data: { version: 1 } }), { status: 200 });
       }
@@ -109,6 +159,8 @@ describe("vault backend", () => {
       slot_id: "GITHUB-TOKEN",
       provider: "github",
       backend: "hashicorp-vault",
+      status: "set",
+      rotation_due: false,
     });
     expect(removed).toBe(true);
     expect(fetchMock).toHaveBeenCalled();

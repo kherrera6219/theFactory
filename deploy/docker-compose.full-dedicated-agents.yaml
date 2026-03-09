@@ -1,0 +1,424 @@
+x-common-service: &common-service
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "100m"
+      max-file: "5"
+  networks:
+    - hgr-network
+
+x-runtime-service-hardening: &runtime-service-hardening
+  cap_drop:
+    - ALL
+  cap_add: []
+  oom_score_adj: ${APP_OOM_SCORE_ADJ:--500}
+
+x-readonly-service-hardening: &readonly-service-hardening
+  read_only: true
+  tmpfs:
+    - /tmp
+  ulimits:
+    nofile:
+      soft: 65536
+      hard: 65536
+
+x-redis-client-certs: &redis-client-certs
+  - ./redis/certs:/run/redis-certs:ro
+
+x-agent-runtime-env: &agent-runtime-env
+  REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+  STATE_STREAM: missions.state
+  ORCHESTRATOR_URL: http://orchestrator:8001
+  SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-worker-key}
+  OTEL_TRACING_ENABLED: ${OTEL_TRACING_ENABLED:-true}
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://jaeger:4318/v1/traces}
+
+x-agent-runtime-template: &agent-runtime-template
+  <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
+  build:
+    context: ..
+    dockerfile: services/agent-runtime/Dockerfile
+  profiles:
+    - full-dedicated-agents
+  volumes: *redis-client-certs
+  depends_on:
+    redis:
+      condition: service_healthy
+    orchestrator:
+      condition: service_healthy
+  healthcheck:
+    test:
+      [
+        "CMD",
+        "python",
+        "-c",
+        "import urllib.request; urllib.request.urlopen('http://localhost:8210/health', timeout=2).read()",
+      ]
+    interval: 10s
+    timeout: 3s
+    retries: 5
+    start_period: 30s
+  mem_limit: 384m
+  cpus: 0.35
+
+x-dedicated-pod-worker-env: &dedicated-pod-worker-env
+  REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+  STATE_STREAM: missions.state
+  AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
+  ORCHESTRATOR_URL: http://orchestrator:8001
+  OTEL_TRACING_ENABLED: ${OTEL_TRACING_ENABLED:-true}
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://jaeger:4318/v1/traces}
+
+x-dedicated-pod-worker-template: &dedicated-pod-worker-template
+  <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
+  build:
+    context: ..
+    dockerfile: services/pod-worker/Dockerfile
+  profiles:
+    - full-dedicated-agents
+  volumes: *redis-client-certs
+  depends_on:
+    redis:
+      condition: service_healthy
+    orchestrator:
+      condition: service_healthy
+  healthcheck:
+    test:
+      [
+        "CMD",
+        "python",
+        "-c",
+        "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+      ]
+    interval: 10s
+    timeout: 3s
+    retries: 5
+    start_period: 30s
+  mem_limit: 384m
+  cpus: 0.35
+
+services:
+  orchestrator:
+    environment:
+      MISSION_FLOW_V2_ENABLED: "true"
+      AGENT_AUTOFILL_NON_POD_HEARTBEATS: "false"
+
+  agent-01-pm:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-01-pm
+      AGENT_RUNTIME_NAME: dedicated-agent-01-pm
+      WORKER_AGENT_ID: AGENT-01-PM
+
+  agent-02-ceo:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-02-ceo
+      AGENT_RUNTIME_NAME: dedicated-agent-02-ceo
+      WORKER_AGENT_ID: AGENT-02-CEO
+
+  agent-03-broker:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-03-broker
+      AGENT_RUNTIME_NAME: dedicated-agent-03-broker
+      WORKER_AGENT_ID: AGENT-03-BROKER
+
+  agent-04-accountant:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-04-accountant
+      AGENT_RUNTIME_NAME: dedicated-agent-04-accountant
+      WORKER_AGENT_ID: AGENT-04-ACCOUNTANT
+
+  agent-05-security:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-05-security
+      AGENT_RUNTIME_NAME: dedicated-agent-05-security
+      WORKER_AGENT_ID: AGENT-05-SECURITY
+
+  agent-06-is:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-06-is
+      AGENT_RUNTIME_NAME: dedicated-agent-06-is
+      WORKER_AGENT_ID: AGENT-06-IS
+
+  agent-07-vc:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-07-vc
+      AGENT_RUNTIME_NAME: dedicated-agent-07-vc
+      WORKER_AGENT_ID: AGENT-07-VC
+
+  agent-08-compliance:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-08-compliance
+      AGENT_RUNTIME_NAME: dedicated-agent-08-compliance
+      WORKER_AGENT_ID: AGENT-08-COMPLIANCE
+
+  agent-09-hw:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-09-hw
+      AGENT_RUNTIME_NAME: dedicated-agent-09-hw
+      WORKER_AGENT_ID: AGENT-09-HW
+
+  agent-10-tester:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-10-tester
+      AGENT_RUNTIME_NAME: dedicated-agent-10-tester
+      WORKER_AGENT_ID: AGENT-10-TESTER
+
+  agent-11-deploy:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-11-deploy
+      AGENT_RUNTIME_NAME: dedicated-agent-11-deploy
+      WORKER_AGENT_ID: AGENT-11-DEPLOY
+
+  agent-13-poda-audit:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-13-poda-audit
+      AGENT_RUNTIME_NAME: dedicated-agent-13-poda-audit
+      WORKER_AGENT_ID: AGENT-13-PODA-AUDIT
+
+  agent-19-podb-audit:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-19-podb-audit
+      AGENT_RUNTIME_NAME: dedicated-agent-19-podb-audit
+      WORKER_AGENT_ID: AGENT-19-PODB-AUDIT
+
+  agent-25-podc-audit:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-25-podc-audit
+      AGENT_RUNTIME_NAME: dedicated-agent-25-podc-audit
+      WORKER_AGENT_ID: AGENT-25-PODC-AUDIT
+
+  agent-31-podd-audit:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-31-podd-audit
+      AGENT_RUNTIME_NAME: dedicated-agent-31-podd-audit
+      WORKER_AGENT_ID: AGENT-31-PODD-AUDIT
+
+  agent-14-python:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-14-python
+      POD_WORKER_NAME: dedicated-agent-14-python
+      POD_NAME: podA
+      SUPPORTED_LANGUAGES: python
+      WORKER_AGENT_ID: AGENT-14-PYTHON
+      AGENT_BINDING: AGENT-14-PYTHON
+      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
+
+  agent-15-javascript:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-15-javascript
+      POD_WORKER_NAME: dedicated-agent-15-javascript
+      POD_NAME: podA
+      SUPPORTED_LANGUAGES: javascript,typescript
+      WORKER_AGENT_ID: AGENT-15-JAVASCRIPT
+      AGENT_BINDING: AGENT-15-JAVASCRIPT
+      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
+
+  agent-16-ruby:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-16-ruby
+      POD_WORKER_NAME: dedicated-agent-16-ruby
+      POD_NAME: podA
+      SUPPORTED_LANGUAGES: ruby
+      WORKER_AGENT_ID: AGENT-16-RUBY
+      AGENT_BINDING: AGENT-16-RUBY
+      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
+
+  agent-17-php:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-17-php
+      POD_WORKER_NAME: dedicated-agent-17-php
+      POD_NAME: podA
+      SUPPORTED_LANGUAGES: php
+      WORKER_AGENT_ID: AGENT-17-PHP
+      AGENT_BINDING: AGENT-17-PHP
+      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
+
+  agent-20-c:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-20-c
+      POD_WORKER_NAME: dedicated-agent-20-c
+      POD_NAME: podB
+      SUPPORTED_LANGUAGES: c
+      WORKER_AGENT_ID: AGENT-20-C
+      AGENT_BINDING: AGENT-20-C
+      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
+
+  agent-21-cpp:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-21-cpp
+      POD_WORKER_NAME: dedicated-agent-21-cpp
+      POD_NAME: podB
+      SUPPORTED_LANGUAGES: cpp,c++
+      WORKER_AGENT_ID: AGENT-21-CPP
+      AGENT_BINDING: AGENT-21-CPP
+      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
+
+  agent-22-rust:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-22-rust
+      POD_WORKER_NAME: dedicated-agent-22-rust
+      POD_NAME: podB
+      SUPPORTED_LANGUAGES: rust
+      WORKER_AGENT_ID: AGENT-22-RUST
+      AGENT_BINDING: AGENT-22-RUST
+      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
+
+  agent-23-zig:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-23-zig
+      POD_WORKER_NAME: dedicated-agent-23-zig
+      POD_NAME: podB
+      SUPPORTED_LANGUAGES: zig
+      WORKER_AGENT_ID: AGENT-23-ZIG
+      AGENT_BINDING: AGENT-23-ZIG
+      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
+
+  agent-26-java:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-26-java
+      POD_WORKER_NAME: dedicated-agent-26-java
+      POD_NAME: podC
+      SUPPORTED_LANGUAGES: java
+      WORKER_AGENT_ID: AGENT-26-JAVA
+      AGENT_BINDING: AGENT-26-JAVA
+      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
+
+  agent-27-csharp:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-27-csharp
+      POD_WORKER_NAME: dedicated-agent-27-csharp
+      POD_NAME: podC
+      SUPPORTED_LANGUAGES: csharp,c#
+      WORKER_AGENT_ID: AGENT-27-CSHARP
+      AGENT_BINDING: AGENT-27-CSHARP
+      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
+
+  agent-28-scala:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-28-scala
+      POD_WORKER_NAME: dedicated-agent-28-scala
+      POD_NAME: podC
+      SUPPORTED_LANGUAGES: scala
+      WORKER_AGENT_ID: AGENT-28-SCALA
+      AGENT_BINDING: AGENT-28-SCALA
+      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
+
+  agent-29-kotlin:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-29-kotlin
+      POD_WORKER_NAME: dedicated-agent-29-kotlin
+      POD_NAME: podC
+      SUPPORTED_LANGUAGES: kotlin
+      WORKER_AGENT_ID: AGENT-29-KOTLIN
+      AGENT_BINDING: AGENT-29-KOTLIN
+      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
+
+  agent-32-matlab:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-32-matlab
+      POD_WORKER_NAME: dedicated-agent-32-matlab
+      POD_NAME: podD
+      SUPPORTED_LANGUAGES: matlab
+      WORKER_AGENT_ID: AGENT-32-MATLAB
+      AGENT_BINDING: AGENT-32-MATLAB
+      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
+
+  agent-33-r:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-33-r
+      POD_WORKER_NAME: dedicated-agent-33-r
+      POD_NAME: podD
+      SUPPORTED_LANGUAGES: r
+      WORKER_AGENT_ID: AGENT-33-R
+      AGENT_BINDING: AGENT-33-R
+      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
+
+  agent-34-julia:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-34-julia
+      POD_WORKER_NAME: dedicated-agent-34-julia
+      POD_NAME: podD
+      SUPPORTED_LANGUAGES: julia
+      WORKER_AGENT_ID: AGENT-34-JULIA
+      AGENT_BINDING: AGENT-34-JULIA
+      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
+
+  agent-35-mathematica:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-35-mathematica
+      POD_WORKER_NAME: dedicated-agent-35-mathematica
+      POD_NAME: podD
+      SUPPORTED_LANGUAGES: mathematica
+      WORKER_AGENT_ID: AGENT-35-MATHEMATICA
+      AGENT_BINDING: AGENT-35-MATHEMATICA
+      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
+
+networks:
+  hgr-network:
+    name: hgr-network
+    driver: bridge

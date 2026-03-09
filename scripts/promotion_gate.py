@@ -16,6 +16,7 @@ class PromotionDecision:
     ref: str
     ci_status: str
     attestation_verified: bool
+    signed_tag_verified: bool
     model_inventory_checked: bool
     qualification_summary_checked: bool
     evaluated_at: str
@@ -29,6 +30,7 @@ class PromotionDecision:
                 "ref": self.ref,
                 "ci_status": self.ci_status,
                 "attestation_verified": self.attestation_verified,
+                "signed_tag_verified": self.signed_tag_verified,
                 "model_inventory_checked": self.model_inventory_checked,
                 "qualification_summary_checked": self.qualification_summary_checked,
                 "evaluated_at": self.evaluated_at,
@@ -39,6 +41,10 @@ class PromotionDecision:
 
 def _as_bool(raw: str) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_release_tag_ref(ref: str) -> bool:
+    return bool(re.match(r"^refs/tags/v\d+\.\d+\.\d+(?:[-+].*)?$", ref.strip()))
 
 
 def load_policy(path: Path) -> dict:
@@ -160,6 +166,7 @@ def evaluate_promotion(
     ref: str,
     ci_status: str,
     attestation_verified: bool,
+    signed_tag_verified: bool = False,
     model_inventory: dict[str, object] | None = None,
     qualification_summary: dict[str, object] | None = None,
 ) -> PromotionDecision:
@@ -178,6 +185,9 @@ def evaluate_promotion(
     required_attestation = bool(requirements.get("attestation_verified", False))
     if required_attestation and not attestation_verified:
         reasons.append("attestation verification is required but not satisfied")
+    require_signed_tag = bool(requirements.get("signed_tag_verified", False))
+    if require_signed_tag and _is_release_tag_ref(ref) and not signed_tag_verified:
+        reasons.append("signed release tag verification is required but not satisfied")
 
     reasons.extend(_evaluate_model_governance(policy, model_inventory))
     reasons.extend(_evaluate_qualification_summary(policy, qualification_summary))
@@ -192,6 +202,7 @@ def evaluate_promotion(
         ref=ref,
         ci_status=ci_status,
         attestation_verified=attestation_verified,
+        signed_tag_verified=signed_tag_verified,
         model_inventory_checked=model_inventory is not None,
         qualification_summary_checked=qualification_summary is not None,
         evaluated_at=datetime.now(UTC).isoformat(),
@@ -211,6 +222,11 @@ def parse_args() -> argparse.Namespace:
         "--attestation-verified",
         required=True,
         help="Whether attestation verification succeeded (true/false).",
+    )
+    parser.add_argument(
+        "--signed-tag-verified",
+        default="false",
+        help="Whether signed release-tag verification succeeded (true/false).",
     )
     parser.add_argument(
         "--output-file",
@@ -238,6 +254,7 @@ def main() -> int:
         ref=args.ref,
         ci_status=args.ci_status,
         attestation_verified=_as_bool(args.attestation_verified),
+        signed_tag_verified=_as_bool(args.signed_tag_verified),
         model_inventory=(
             _load_json(Path(args.model_inventory_file))
             if str(args.model_inventory_file).strip()

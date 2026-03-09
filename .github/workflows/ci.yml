@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - develop
+    tags:
+      - "v*"
   pull_request:
   workflow_dispatch:
 
@@ -19,6 +21,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -34,6 +38,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
           pip install -r services/api-gateway/requirements.txt
+          pip install -r services/agent-runtime/requirements.txt
           pip install -r services/orchestrator/requirements.txt
           pip install -r services/dashboard/requirements.txt
           pip install -r services/pod-worker/requirements.txt
@@ -52,7 +57,9 @@ jobs:
         working-directory: apps/mission-control
 
       - name: Validate schemas
-        run: python scripts/validate_schemas.py
+        run: |
+          python scripts/validate_schemas.py
+          python scripts/build_refined_ir_catalog.py
 
       - name: Production Audit (Checklist Baseline)
         run: python scripts/production_review_audit.py
@@ -118,6 +125,7 @@ jobs:
       matrix:
         service:
           - api-gateway
+          - agent-runtime
           - orchestrator
           - dashboard
           - pod-worker
@@ -177,6 +185,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Initialize signed tag verification artifact
+        run: |
+          mkdir -p reports
+          printf 'signed_tag_verified=false\n' > reports/signed-tag-verification.txt
 
       - name: Download CI artifacts
         uses: actions/download-artifact@v4
@@ -235,6 +250,26 @@ jobs:
         run: |
           gh attestation verify reports/release-manifest.json --repo "${{ github.repository }}" > reports/attestation-verification.txt
 
+      - name: Import release tag verification key
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          RELEASE_TAG_GPG_PUBLIC_KEY: ${{ secrets.RELEASE_TAG_GPG_PUBLIC_KEY }}
+        run: |
+          if [ -z "${RELEASE_TAG_GPG_PUBLIC_KEY}" ]; then
+            echo "Missing RELEASE_TAG_GPG_PUBLIC_KEY secret for release tag verification" >&2
+            exit 1
+          fi
+          printf '%s' "${RELEASE_TAG_GPG_PUBLIC_KEY}" > /tmp/release-tag.asc
+          gpg --batch --import /tmp/release-tag.asc
+
+      - name: Verify signed release tag
+        id: tag_verification
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          mkdir -p reports
+          git tag -v "${GITHUB_REF_NAME}" > reports/signed-tag-verification.txt 2>&1
+          echo "signed_tag_verified=true" >> "${GITHUB_OUTPUT}"
+
       - name: Install cosign
         uses: sigstore/cosign-installer@v3.8.1
 
@@ -278,12 +313,15 @@ jobs:
             --output-file reports/qualification-gate-summary.json
 
       - name: Evaluate promotion gate policy
+        env:
+          SIGNED_TAG_VERIFIED: ${{ steps.tag_verification.outputs.signed_tag_verified || 'false' }}
         run: |
           python scripts/promotion_gate.py \
             --policy-file deploy/promotion-policy.json \
             --ref "${{ github.ref }}" \
             --ci-status success \
             --attestation-verified true \
+            --signed-tag-verified "${SIGNED_TAG_VERIFIED}" \
             --model-inventory-file reports/agent-model-inventory.json \
             --qualification-summary-file reports/qualification-gate-summary.json \
             --output-file reports/promotion-decision.json
@@ -295,6 +333,7 @@ jobs:
           path: |
             reports/release-manifest.json
             reports/attestation-verification.txt
+            reports/signed-tag-verification.txt
             reports/agent-model-inventory.json
             reports/qualification-gate-summary.json
             reports/promotion-decision.json

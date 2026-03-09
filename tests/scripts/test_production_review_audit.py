@@ -56,6 +56,7 @@ def test_check_security_workflow_detects_missing_scanners(tmp_path, monkeypatch)
 def test_check_non_root_containers_passes_for_non_root_users(tmp_path, monkeypatch) -> None:
     dockerfiles = [
         tmp_path / "services" / "api-gateway" / "Dockerfile",
+        tmp_path / "services" / "agent-runtime" / "Dockerfile",
         tmp_path / "services" / "orchestrator" / "Dockerfile",
         tmp_path / "services" / "dashboard" / "Dockerfile",
         tmp_path / "services" / "pod-worker" / "Dockerfile",
@@ -73,6 +74,7 @@ def test_check_non_root_containers_passes_for_non_root_users(tmp_path, monkeypat
 def test_check_non_root_containers_fails_for_root(tmp_path, monkeypatch) -> None:
     dockerfiles = [
         tmp_path / "services" / "api-gateway" / "Dockerfile",
+        tmp_path / "services" / "agent-runtime" / "Dockerfile",
         tmp_path / "services" / "orchestrator" / "Dockerfile",
         tmp_path / "services" / "dashboard" / "Dockerfile",
         tmp_path / "services" / "pod-worker" / "Dockerfile",
@@ -107,6 +109,7 @@ def test_run_audit_returns_expected_checks() -> None:
         "REL-002",
         "OBS-009",
         "OBS-010",
+        "OBS-011",
         "PERF-010",
         "GRC-012",
     ]
@@ -117,22 +120,28 @@ def test_check_release_trust_controls_passes_with_required_artifacts(tmp_path, m
         tmp_path / ".github" / "workflows" / "ci.yml",
         """
 name: CI
+on:
+  push:
+    tags:
+      - "v*"
 jobs:
   release-trust:
     steps:
       - uses: actions/attest-build-provenance@v2
       - run: gh attestation verify reports/release-manifest.json --repo org/repo
+      - run: git tag -v v1.2.3
       - run: cosign sign-blob --yes reports/release-manifest.json
       - run: cosign verify-blob reports/release-manifest.json
       - run: |
           python scripts/promotion_gate.py \
             --policy-file deploy/promotion-policy.json \
+            --signed-tag-verified true \
             --output-file reports/promotion.json
 """.strip(),
     )
     _write(
         tmp_path / "deploy" / "promotion-policy.json",
-        '{"version":1,"fail_closed":true,"allowed_ref_patterns":["^refs/heads/main$"],"requirements":{"ci_status":"success","attestation_verified":true}}',
+        '{"version":1,"fail_closed":true,"allowed_ref_patterns":["^refs/heads/main$"],"requirements":{"ci_status":"success","attestation_verified":true,"signed_tag_verified":true}}',
     )
     monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
 
@@ -156,8 +165,11 @@ def test_check_compose_environment_profile_controls_passes(tmp_path, monkeypatch
             "  api:\n"
             "    cap_drop: [ALL]\n"
             "    oom_score_adj: -500\n"
+            "    volumes:\n"
+            "      - ./postgres/certs:/run/postgres-certs:ro\n"
             "    environment:\n"
             "      REDIS_URL: rediss://redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt\n"
+            "      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/ulr?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt\n"
         ),
     )
     _write(tmp_path / "deploy" / "docker-compose.dev.yaml", "services: {}\n")
@@ -208,6 +220,7 @@ def test_check_environment_template_requires_agent_keys_and_redis_tls(
         "\n".join(
             [
                 "REDIS_URL=rediss://redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=deploy/redis/certs/ca.crt",
+                "POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/ulr?sslmode=verify-full&sslrootcert=deploy/postgres/certs/ca.crt",
                 "POSTGRES_USER=postgres",
                 "POSTGRES_PASSWORD=postgres",
                 "POSTGRES_DB=ulr",
@@ -391,6 +404,73 @@ def test_check_optional_data_plane_observability_controls_fails_when_missing(
     result = audit.check_optional_data_plane_observability_controls()
     assert result.passed is False
     assert "missing alert rule" in result.notes
+
+
+def test_check_slo_and_dora_controls_passes(tmp_path, monkeypatch) -> None:
+    _write(
+        tmp_path / "deploy" / "monitoring" / "prometheus" / "rules" / "thefactory-alerts.yml",
+        """
+groups:
+  - name: slo
+    rules:
+      - alert: ApiGatewayErrorBudgetBurnFast
+      - alert: ApiGatewayErrorBudgetBurnSlow
+      - alert: OrchestratorErrorBudgetBurnFast
+      - alert: OrchestratorErrorBudgetBurnSlow
+      - alert: PodWorkerAgentLatencyP99High
+      - alert: DedicatedAgentRuntimeLatencyP99High
+      - alert: AuditWorkerAgentLatencyP99High
+""".strip(),
+    )
+    _write(
+        tmp_path
+        / "deploy"
+        / "monitoring"
+        / "grafana"
+        / "provisioning"
+        / "dashboards"
+        / "json"
+        / "thefactory-overview.json",
+        '{"panels":[{"title":"Error Budget Burn (x)"},{"title":"Per-Agent Task p99 (s)"}]}',
+    )
+    _write(
+        tmp_path / ".github" / "workflows" / "qualification.yml",
+        "steps:\n  - run: python scripts/dora_metrics_summary.py\n",
+    )
+    _write(
+        tmp_path / "Makefile",
+        ".PHONY: dora-metrics\ndora-metrics:\n\tpython scripts/dora_metrics_summary.py\n",
+    )
+    _write(tmp_path / "scripts" / "dora_metrics_summary.py", "print('ok')\n")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+
+    result = audit.check_slo_and_dora_controls()
+    assert result.passed is True
+
+
+def test_check_slo_and_dora_controls_fails_when_missing(tmp_path, monkeypatch) -> None:
+    _write(
+        tmp_path / "deploy" / "monitoring" / "prometheus" / "rules" / "thefactory-alerts.yml",
+        "groups: []\n",
+    )
+    _write(
+        tmp_path
+        / "deploy"
+        / "monitoring"
+        / "grafana"
+        / "provisioning"
+        / "dashboards"
+        / "json"
+        / "thefactory-overview.json",
+        '{"panels":[]}',
+    )
+    _write(tmp_path / ".github" / "workflows" / "qualification.yml", "steps: []\n")
+    _write(tmp_path / "Makefile", ".PHONY: all\n")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+
+    result = audit.check_slo_and_dora_controls()
+    assert result.passed is False
+    assert "missing slo alert rule" in result.notes
 
 
 def test_check_long_duration_reliability_controls_passes(tmp_path, monkeypatch) -> None:
