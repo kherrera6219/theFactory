@@ -11,7 +11,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen)](docs/evidence/)
 [![Audit](https://img.shields.io/badge/production%20audit-13%2F13-brightgreen)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black)](apps/mission-control/package.json)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
 [![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#)
 
 </div>
@@ -225,7 +225,8 @@ Each extracted concept becomes a **LogicNode** with:
 | `pod-worker` | — | FastAPI | Language-aware pod stream worker (4 pod variants) |
 | `audit-worker` | — | FastAPI | Verification stream processing |
 | `dashboard` | 8180 | FastAPI | Lightweight operational status UI |
-| `mission-control` | 3100 | Next.js 15 | Primary operator console |
+| `agent-runtime` | — | FastAPI | Dedicated single-agent runtime used by the full dedicated topology |
+| `mission-control` | 3100 | Next.js 16 | Primary operator console |
 
 ---
 
@@ -297,7 +298,7 @@ Each extracted concept becomes a **LogicNode** with:
 | Settings / Vault | Provider key management, environment config |
 
 **Technology:**
-- Next.js 15 App Router, TypeScript (strict mode)
+- Next.js 16 App Router, TypeScript (strict mode)
 - Dark SLATE design system (`#0F172A` base, Refinery Violet `#8B5CF6` accent)
 - Inter (display) + JetBrains Mono (code) fonts per Style Guide
 - 31-token CSS variable system driven by `generated-tokens.css`
@@ -314,6 +315,7 @@ Each extracted concept becomes a **LogicNode** with:
 | **PostgreSQL** | ✅ Active | Missions, events, pod assignments, LogicNodes, knowledge, audits, agent heartbeats |
 | **Redis** | ✅ Active | Streams (event bus), rate limiting, idempotency keys, heartbeat telemetry |
 | **Qdrant** | ✅ Active | Live knowledge retrieval and indexing (PostgreSQL fallback) |
+| **Milvus** | ⚙️ Feature-flagged | Optional vector-store path for extended knowledge retrieval |
 | **Neo4j** | ⚙️ Feature-flagged | Relationship-heavy mission/audit graph queries |
 | **MinIO/S3** | ⚙️ Feature-flagged | Immutable artifact retention, legal-hold, 90-day policy |
 
@@ -432,7 +434,7 @@ open http://localhost:3100
 
 ```bash
 make monitor-up
-# Grafana: http://localhost:3200
+# Grafana: http://localhost:3001
 # Prometheus: http://localhost:9090
 ```
 
@@ -448,7 +450,7 @@ make monitor-up
 | Redis | `6380` |
 | PostgreSQL | `5433` |
 | Qdrant | `6334` |
-| Grafana | `3200` |
+| Grafana | `3001` |
 | Prometheus | `9090` |
 
 ---
@@ -603,13 +605,21 @@ Spawns dedicated manager-worker containers per pod with `AGENT_BINDING` enforcem
 
 **ADR:** [`docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`](docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md)
 
+### Full Dedicated Runtime
+
+```bash
+docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
+```
+
+Adds dedicated `agent-runtime` containers for PM, CEO, support, pod-audit, and specialist roles. This profile enables strict per-agent bindings and the full isolated 35-agent runtime topology.
+
 ### Monitoring Stack
 
 ```bash
 docker compose -f deploy/docker-compose.monitoring.yaml up -d
 ```
 
-Starts Prometheus, Grafana, Loki, Promtail, and Alertmanager.
+Starts Prometheus, Grafana, Loki, Promtail, Alertmanager, and Jaeger.
 
 ### Optional Data Plane
 
@@ -617,7 +627,7 @@ Starts Prometheus, Grafana, Loki, Promtail, and Alertmanager.
 docker compose -f deploy/docker-compose.yaml --profile extended-data-plane up -d
 ```
 
-Adds MinIO object storage and configures Neo4j connection for feature-flagged data-plane adapters.
+Adds Milvus, MinIO object storage, and Neo4j connection support for feature-flagged data-plane adapters.
 
 ---
 
@@ -626,14 +636,15 @@ Adds MinIO object storage and configures Neo4j connection for feature-flagged da
 ```
 theFactory/
 ├── apps/
-│   └── mission-control/          # Next.js 15 operator console
+│   └── mission-control/          # Next.js 16 operator console
 ├── services/
 │   ├── api-gateway/              # Public API, SSE transport, auth
 │   ├── orchestrator/             # Mission state machine, agent registry
 │   ├── pod-worker/               # Language extraction + LogicNode workers
 │   ├── audit-worker/             # Verification stream processor
 │   ├── semantic-bus-mcp/         # 6-protocol semantic bus
-│   └── dashboard/                # Lightweight ops status UI
+│   ├── dashboard/                # Lightweight ops status UI
+│   └── agent-runtime/            # Full dedicated single-agent runtime
 ├── schemas/                      # Event envelope, LogicNode, RIR contracts
 ├── protocol/                     # Semantic bus topic catalog
 ├── ledger/                       # Traceability ledger schema
@@ -641,7 +652,7 @@ theFactory/
 ├── deploy/                       # Docker Compose stacks + monitoring config
 ├── docs/                         # Architecture, ADRs, runbooks, evidence
 │   ├── ADR_*.md                  # Architectural Decision Records
-│   ├── evidence/                 # Phase validation evidence (34 phases)
+│   ├── evidence/                 # Phase validation evidence (through phase 39)
 │   └── runbooks/                 # Incident and operational runbooks
 ├── scripts/                      # Audit, validation, DR, perf, sweep tools
 └── tests/                        # Backend, security, and script tests
@@ -661,6 +672,7 @@ theFactory/
 | [`docs/OBSERVABILITY_STACK.md`](docs/OBSERVABILITY_STACK.md) | Monitoring and alerting guide |
 | [`docs/TESTING_QUALITY_GATES.md`](docs/TESTING_QUALITY_GATES.md) | Test strategy and coverage gates |
 | [`docs/RELEASE_TRUST_PROMOTION_GATE.md`](docs/RELEASE_TRUST_PROMOTION_GATE.md) | Release attestation policy |
+| [`docs/AGENT_SERVICE_KEY_ISOLATION.md`](docs/AGENT_SERVICE_KEY_ISOLATION.md) | Per-agent worker key isolation and remaining security work |
 | [`docs/GAP_ANALYSIS.md`](docs/GAP_ANALYSIS.md) | Gap analysis and disposition |
 | [`docs/DEVELOPER_ONBOARDING_GUIDE.md`](docs/DEVELOPER_ONBOARDING_GUIDE.md) | New developer onboarding |
 | [`docs/API_INTEGRATION_GUIDE.md`](docs/API_INTEGRATION_GUIDE.md) | API integration reference |
@@ -675,7 +687,7 @@ theFactory/
 
 ## Current Status
 
-**34 implementation phases complete · ~80% of production checklist**
+**39 implementation phases complete. Remaining roadmap work is focused on operational key rotation, stricter promotion thresholds, and dashboard additions.**
 
 | Domain | Status |
 |--------|--------|
@@ -686,9 +698,14 @@ theFactory/
 | Data Systems | ✅ Complete |
 | Mission Control UI | ✅ Complete |
 | Language Extraction Engine | ✅ Complete |
-| LangGraph State Machine | ✅ Complete (state transitions; LLM calls pending) |
-| CEO→Pod Delegation Chain | 🔄 In progress |
-| LLM API Call Wiring | 🔄 Planned |
+| LangGraph State Machine | ✅ Complete (v1.1 production baseline; v2 available behind feature flags) |
+| CEO→Pod Delegation Chain | ✅ Complete |
+| LLM API Call Wiring | ✅ Complete (provider-aware routing with fallback) |
+
+**Remaining roadmap items:**
+- Vault-backed rotation and revocation automation for per-agent service keys
+- Promotion-gate tightening after sustained weekly qualification evidence
+- Additional Grafana panels for `MISSION_SPECIALIST_PLANNED` and route provenance
 
 ---
 

@@ -137,7 +137,7 @@ curl http://localhost:8180/health
 
 Open in browser:
 - **Mission Control UI:** `http://localhost:3100`
-- **Grafana** (if monitoring started): `http://localhost:3200` (admin/admin)
+- **Grafana** (if monitoring started): `http://localhost:3001` (admin/admin)
 - **Jaeger:** `http://localhost:16686`
 
 ### Submit a Test Mission
@@ -233,7 +233,7 @@ npm run dev
 ```
 
 The frontend uses:
-- **Next.js 15** App Router (TypeScript strict mode)
+- **Next.js 16** App Router (TypeScript strict mode)
 - **Design system:** 31-token CSS variable system via `app/generated-tokens.css`
 - **Live transport:** SSE EventSource client in `lib/sse-client.ts`
 - **State:** React hooks, no global state library

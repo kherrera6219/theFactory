@@ -88,7 +88,7 @@ docker compose -f deploy/docker-compose.monitoring.yaml up -d
 
 Verify:
 - Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3200` (admin/admin on first login)
+- Grafana: `http://localhost:3001` (admin/admin on first login)
 - Alertmanager: `http://localhost:9093`
 - Jaeger: `http://localhost:16686`
 

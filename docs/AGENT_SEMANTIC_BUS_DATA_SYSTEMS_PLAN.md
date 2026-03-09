@@ -18,11 +18,11 @@ Implemented in `theFactory` now:
 - PostgreSQL as the primary mission, event, artifact, and telemetry state store.
 - 35-agent orchestrator registry with live operations snapshots and heartbeat/state telemetry.
 
-Declared/planned in current docs and code:
+Current implementation status in docs and code:
 
 - Qdrant is now active in the orchestrator internal knowledge retrieval path with best-effort dual-write from PostgreSQL.
 - Neo4j is now available as a feature-flagged optional adapter for relationship traversal use cases.
-- Object storage remains planned for large immutable artifacts (binaries, audit evidence, large payload bundles).
+- Object storage is now available as a feature-flagged optional adapter for large immutable artifacts (binaries, audit evidence, large payload bundles).
 
 ## Phase 1 Completed in Repo
 
