@@ -12,6 +12,33 @@ services:
       LANGGRAPH_FAIL_OPEN: "true"
       OBJECT_STORAGE_ENABLED: "true"
       NEO4J_ENABLED: "true"
+  pod-a-worker:
+    environment:
+      AGENT_SERVICE_KEY_MODE: strict
+  pod-b-worker:
+    environment:
+      AGENT_SERVICE_KEY_MODE: strict
+  pod-c-worker:
+    environment:
+      AGENT_SERVICE_KEY_MODE: strict
+  pod-d-worker:
+    environment:
+      AGENT_SERVICE_KEY_MODE: strict
+  pod-a-dedicated-mgr-worker:
+    environment:
+      AGENT_SERVICE_KEY_MODE: strict
+  pod-b-dedicated-mgr-worker:
+    environment:
+      AGENT_SERVICE_KEY_MODE: strict
+  pod-c-dedicated-mgr-worker:
+    environment:
+      AGENT_SERVICE_KEY_MODE: strict
+  pod-d-dedicated-mgr-worker:
+    environment:
+      AGENT_SERVICE_KEY_MODE: strict
+  audit-worker:
+    environment:
+      AGENT_SERVICE_KEY_MODE: strict
   dashboard:
     environment:
       API_GATEWAY_URL: http://api-gateway:8000

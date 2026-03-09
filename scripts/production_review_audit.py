@@ -119,20 +119,34 @@ def check_environment_template() -> AuditResult:
         "ANTHROPIC_API_KEY_PY",
         "ANTHROPIC_API_KEY_JS",
         "ANTHROPIC_API_KEY_TS",
+        "AGENT_01_PM_SERVICE_API_KEY",
+        "AGENT_10_TESTER_SERVICE_API_KEY",
+        "AGENT_14_PYTHON_SERVICE_API_KEY",
+        "AGENT_35_MATHEMATICA_SERVICE_API_KEY",
     ]
     missing = [name for name in required if f"{name}=" not in env_text]
-    passed = not missing
+    redis_tls_hardened = "ssl_cert_reqs=required" in env_text and "ssl_ca_certs=" in env_text
+    passed = not missing and redis_tls_hardened
     return _result(
         check_id="INF-007",
         priority="CRITICAL",
         description="Environment template includes required DB and key variables",
         passed=passed,
-        notes="missing=" + ", ".join(missing) if missing else "required variables present",
+        notes=(
+            "missing=" + ", ".join(missing)
+            if missing
+            else (
+                "required variables present"
+                if redis_tls_hardened
+                else "required variables present; REDIS_URL TLS verification not enforced"
+            )
+        ),
     )
 
 
 def check_compose_environment_profile_controls() -> AuditResult:
     compose_text = _read_text(REPO_ROOT / "deploy" / "docker-compose.yaml").lower()
+    prod_compose_text = _read_text(REPO_ROOT / "deploy" / "docker-compose.prod.yaml").lower()
     required_paths = [
         REPO_ROOT / "deploy" / "docker-compose.dev.yaml",
         REPO_ROOT / "deploy" / "docker-compose.staging.yaml",
@@ -144,6 +158,12 @@ def check_compose_environment_profile_controls() -> AuditResult:
         missing_items.append("docker-compose missing cap_drop hardening")
     if "oom_score_adj" not in compose_text:
         missing_items.append("docker-compose missing oom_score_adj policy")
+    if "ssl_cert_reqs=required" not in compose_text:
+        missing_items.append("docker-compose missing redis tls client verification")
+    if "ssl_cert_reqs=none" in compose_text:
+        missing_items.append("docker-compose still allows redis insecure tls mode")
+    if "agent_service_key_mode: strict" not in prod_compose_text:
+        missing_items.append("prod overlay missing strict agent service key mode")
 
     passed = not missing_items
     return _result(

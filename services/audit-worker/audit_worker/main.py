@@ -25,10 +25,14 @@ CONSUMER_GROUP = os.getenv("AUDIT_WORKER_GROUP", "audit-workers")
 CONSUMER_NAME = os.getenv("AUDIT_WORKER_NAME", f"audit-worker-{uuid.uuid4()}")
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8001")
 SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "worker-key")
+WORKER_AGENT_ID = os.getenv("WORKER_AGENT_ID", "AGENT-10-TESTER").strip().upper()
+AGENT_SERVICE_API_KEYS = os.getenv("AGENT_SERVICE_API_KEYS", "")
+AGENT_SERVICE_KEY_MODE = os.getenv("AGENT_SERVICE_KEY_MODE", "shared").strip().lower() or "shared"
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("ORCHESTRATOR_TIMEOUT_SECONDS", "5.0"))
 REQUEST_MAX_RETRIES = int(os.getenv("ORCHESTRATOR_MAX_RETRIES", "3"))
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
+AGENT_SERVICE_KEY_ENV_PATTERN = re.compile(r"^AGENT_(\d{2})_([A-Z0-9_]+)_SERVICE_API_KEY$")
 
 EVENT_SCHEMA_PATH = Path("/app/schemas/event.envelope.schema.json")
 TOPICS_PATH = Path("/app/protocol/topics.yaml")
@@ -49,6 +53,62 @@ TASK_LATENCY_SECONDS = Histogram(
 
 class ProtocolValidationError(Exception):
     pass
+
+
+def _normalize_agent_id(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip().upper()
+    return candidate or None
+
+
+def _agent_service_key_env_name(agent_id: str) -> str | None:
+    normalized = _normalize_agent_id(agent_id)
+    if normalized is None:
+        return None
+    return f"{normalized.replace('-', '_')}_SERVICE_API_KEY"
+
+
+def _parse_agent_service_key_map(raw: str) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for entry in (part.strip() for part in raw.split(";") if part.strip()):
+        if "=" not in entry:
+            continue
+        agent_id, key = entry.split("=", 1)
+        normalized_agent_id = _normalize_agent_id(agent_id)
+        normalized_key = key.strip()
+        if normalized_agent_id and normalized_key:
+            mapping[normalized_agent_id] = normalized_key
+    return mapping
+
+
+def _configured_agent_service_key_map() -> dict[str, str]:
+    mapping = _parse_agent_service_key_map(AGENT_SERVICE_API_KEYS)
+    for env_name, raw_value in os.environ.items():
+        match = AGENT_SERVICE_KEY_ENV_PATTERN.match(env_name)
+        if not match:
+            continue
+        normalized_key = raw_value.strip()
+        if not normalized_key:
+            continue
+        mapping[f"AGENT-{match.group(1)}-{match.group(2).replace('_', '-')}"] = normalized_key
+    return mapping
+
+
+def _service_api_key_for_agent(agent_id: str | None) -> str:
+    normalized_agent_id = _normalize_agent_id(agent_id)
+    if normalized_agent_id:
+        env_name = _agent_service_key_env_name(normalized_agent_id)
+        if env_name:
+            direct_env_key = os.getenv(env_name, "").strip()
+            if direct_env_key:
+                return direct_env_key
+        mapped_key = _parse_agent_service_key_map(AGENT_SERVICE_API_KEYS).get(normalized_agent_id)
+        if mapped_key:
+            return mapped_key
+        if AGENT_SERVICE_KEY_MODE == "strict":
+            raise RuntimeError(f"missing dedicated service key for {normalized_agent_id}")
+    return SERVICE_API_KEY
 
 
 def _parse_date_time(value: str) -> datetime:
@@ -161,6 +221,11 @@ async def _ensure_group(redis_client: redis.Redis) -> None:
 async def _post_audit(mission_id: str, status: str, summary: str, report: dict[str, Any]) -> bool:
     request_id = f"audit-{uuid.uuid4()}"
     last_response: httpx.Response | None = None
+    api_key = _service_api_key_for_agent(WORKER_AGENT_ID)
+    headers = {"x-api-key": api_key, "x-request-id": request_id}
+    normalized_agent_id = _normalize_agent_id(WORKER_AGENT_ID)
+    if normalized_agent_id:
+        headers["x-agent-id"] = normalized_agent_id
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         for attempt in range(1, REQUEST_MAX_RETRIES + 1):
             try:
@@ -172,7 +237,7 @@ async def _post_audit(mission_id: str, status: str, summary: str, report: dict[s
                         "status": status,
                         "report": {"summary": summary, **report},
                     },
-                    headers={"x-api-key": SERVICE_API_KEY, "x-request-id": request_id},
+                    headers=headers,
                 )
                 last_response = response
                 if response.status_code < 500 and response.status_code != 429:
@@ -311,6 +376,9 @@ async def health() -> dict[str, Any]:
     return {
         "ok": ready,
         "service": "audit-worker",
+        "worker_agent_id": WORKER_AGENT_ID,
+        "agent_service_key_mode": AGENT_SERVICE_KEY_MODE,
+        "configured_agent_service_keys": len(_configured_agent_service_key_map()),
         "state_stream": STATE_STREAM,
         "group": CONSUMER_GROUP,
         "consumer": CONSUMER_NAME,

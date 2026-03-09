@@ -126,6 +126,12 @@ def test_auth_dependency_allows_mutate_role() -> None:
     assert "mutate" in context.roles
 
 
+def test_settings_api_key_roles_include_agent_service_keys(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT_14_PYTHON_SERVICE_API_KEY", "python-agent-key")
+    settings = _make_settings()
+    assert settings.api_key_roles["python-agent-key"] == {"worker", "mutate", "internal", "read"}
+
+
 def test_auth_dependency_blocks_readonly_for_mutate() -> None:
     settings = _make_settings()
     dependency = require_roles(settings, {"mutate"})

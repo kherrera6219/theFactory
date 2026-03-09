@@ -1,6 +1,6 @@
 # Operations Runbook
 
-Last updated: 2026-03-08
+Last updated: 2026-03-09
 
 ## Core Health Checks
 
@@ -76,6 +76,26 @@ Last updated: 2026-03-08
      - `curl -i http://localhost:8100/v1/operations/summary`
    - Valid bearer token with `OIDC_OPERATOR_ROLE` should pass:
      - `curl -i http://localhost:8100/v1/operations/summary -H "Authorization: Bearer <token-with-observe-role>"`
+
+## Agent Service Key Checks
+
+1. Verify strict mode in production overlay:
+   - `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config | rg AGENT_SERVICE_KEY_MODE`
+2. Verify pod worker reports configured agent keys:
+   - `docker compose -f deploy/docker-compose.yaml exec pod-a-worker python -c "import json, urllib.request; print(json.loads(urllib.request.urlopen('http://localhost:8201/health').read())['configured_agent_service_keys'])"`
+3. Verify audit worker agent identity:
+   - `docker compose -f deploy/docker-compose.yaml exec audit-worker python -c "import json, urllib.request; payload=json.loads(urllib.request.urlopen('http://localhost:8202/health').read()); print(payload['worker_agent_id'], payload['agent_service_key_mode'])"`
+4. Reference:
+   - `docs/AGENT_SERVICE_KEY_ISOLATION.md`
+
+## Redis TLS Checks
+
+1. Verify runtime compose resolved CA-validated Redis URLs:
+   - `docker compose -f deploy/docker-compose.yaml config | rg "ssl_cert_reqs=required|ssl_ca_certs"`
+2. Verify Redis server healthcheck uses CA validation:
+   - `docker compose -f deploy/docker-compose.yaml config | rg "redis-cli --tls --cacert"`
+3. Verify runtime containers received client cert mount:
+   - `docker compose -f deploy/docker-compose.yaml config | rg "/run/redis-certs/ca.crt"`
 
 ## Recovery Steps
 

@@ -29,7 +29,13 @@ The major runtime gap is now narrower than the earlier Word-doc audit:
 - `agent_base.py` is standalone. Not yet called in pod-worker mission processing.
 
 ### 4) Per-Agent API Key Isolation
-- Per-pod keys exist. Per-agent-ID key isolation not enforced.
+- Runtime now supports canonical `AGENT_<NN>_<CODE>_SERVICE_API_KEY` variables plus
+  `AGENT_SERVICE_KEY_MODE=shared|strict`.
+- `pod-worker` resolves the active mission `agent_id` to a dedicated key for internal mutation
+  endpoints.
+- `audit-worker` now uses `WORKER_AGENT_ID` and a matching dedicated key for audit writes.
+- Orchestrator accepts configured agent-scoped service keys automatically.
+- Remaining gap: key rotation/revocation evidence and full 35-container isolation.
 
 ### 5) Strict RefinedIR Pipeline (4 sub-items)
 - No typed `RefinedIR` Pydantic model, Git-backed store, or build step.
@@ -39,7 +45,7 @@ The major runtime gap is now narrower than the earlier Word-doc audit:
 
 ### 7) TLS Hardening
 - Postgres `sslmode=verify-full` is still open.
-- Redis server TLS is active, but runtime clients still use `ssl_cert_reqs=none`.
+- Redis runtime clients now use `ssl_cert_reqs=required` with CA validation in compose.
 
 ### 8) Vault / Secret Management
 - HashiCorp Vault KV integration now exists in Mission Control.

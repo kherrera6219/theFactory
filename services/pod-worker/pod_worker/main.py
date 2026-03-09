@@ -22,6 +22,7 @@ from .language_extractor import get_extractor
 from .tracing import configure_tracing
 
 LOGGER = logging.getLogger(__name__)
+AGENT_SERVICE_KEY_ENV_PATTERN = re.compile(r"^AGENT_(\d{2})_([A-Z0-9_]+)_SERVICE_API_KEY$")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 STATE_STREAM = os.getenv("STATE_STREAM", "missions.state")
@@ -29,6 +30,8 @@ CONSUMER_GROUP = os.getenv("POD_WORKER_GROUP", "pod-workers")
 CONSUMER_NAME = os.getenv("POD_WORKER_NAME", f"pod-worker-{uuid.uuid4()}")
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8001")
 SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "worker-key")
+AGENT_SERVICE_API_KEYS = os.getenv("AGENT_SERVICE_API_KEYS", "")
+AGENT_SERVICE_KEY_MODE = os.getenv("AGENT_SERVICE_KEY_MODE", "shared").strip().lower() or "shared"
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("ORCHESTRATOR_TIMEOUT_SECONDS", "5.0"))
 REQUEST_MAX_RETRIES = int(os.getenv("ORCHESTRATOR_MAX_RETRIES", "3"))
 POD_NAME = os.getenv("POD_NAME", "podA")
@@ -105,6 +108,55 @@ def _normalize_agent_id(value: Any) -> str | None:
         return None
     candidate = value.strip().upper()
     return candidate or None
+
+
+def _agent_service_key_env_name(agent_id: str) -> str | None:
+    normalized = _normalize_agent_id(agent_id)
+    if normalized is None:
+        return None
+    return f"{normalized.replace('-', '_')}_SERVICE_API_KEY"
+
+
+def _parse_agent_service_key_map(raw: str) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for entry in (part.strip() for part in raw.split(";") if part.strip()):
+        if "=" not in entry:
+            continue
+        agent_id, key = entry.split("=", 1)
+        normalized_agent_id = _normalize_agent_id(agent_id)
+        normalized_key = key.strip()
+        if normalized_agent_id and normalized_key:
+            mapping[normalized_agent_id] = normalized_key
+    return mapping
+
+
+def _configured_agent_service_key_map() -> dict[str, str]:
+    mapping = _parse_agent_service_key_map(AGENT_SERVICE_API_KEYS)
+    for env_name, raw_value in os.environ.items():
+        match = AGENT_SERVICE_KEY_ENV_PATTERN.match(env_name)
+        if not match:
+            continue
+        normalized_key = raw_value.strip()
+        if not normalized_key:
+            continue
+        mapping[f"AGENT-{match.group(1)}-{match.group(2).replace('_', '-')}"] = normalized_key
+    return mapping
+
+
+def _service_api_key_for_agent(agent_id: str | None) -> str:
+    normalized_agent_id = _normalize_agent_id(agent_id)
+    if normalized_agent_id:
+        env_name = _agent_service_key_env_name(normalized_agent_id)
+        if env_name:
+            direct_env_key = os.getenv(env_name, "").strip()
+            if direct_env_key:
+                return direct_env_key
+        mapped_key = _parse_agent_service_key_map(AGENT_SERVICE_API_KEYS).get(normalized_agent_id)
+        if mapped_key:
+            return mapped_key
+        if AGENT_SERVICE_KEY_MODE == "strict":
+            raise RuntimeError(f"missing dedicated service key for {normalized_agent_id}")
+    return SERVICE_API_KEY
 
 
 def _agent_id_from_metadata(metadata: Any) -> str | None:
@@ -248,12 +300,18 @@ async def _request(
     *,
     json_body: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
+    agent_id: str | None = None,
 ) -> httpx.Response:
     if not path.startswith("/"):
         raise ValueError("request path must start with '/'")
     request_id = f"pod-{POD_NAME}-{uuid.uuid4()}"
     last_response: httpx.Response | None = None
     last_error: Exception | None = None
+    api_key = _service_api_key_for_agent(agent_id)
+    headers = {"x-api-key": api_key, "x-request-id": request_id}
+    normalized_agent_id = _normalize_agent_id(agent_id)
+    if normalized_agent_id:
+        headers["x-agent-id"] = normalized_agent_id
 
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         for attempt in range(1, REQUEST_MAX_RETRIES + 1):
@@ -263,7 +321,7 @@ async def _request(
                     f"{ORCHESTRATOR_URL}{path}",
                     json=json_body,
                     params=params,
-                    headers={"x-api-key": SERVICE_API_KEY, "x-request-id": request_id},
+                    headers=headers,
                 )
                 last_response = response
                 if response.status_code in {401, 403}:
@@ -362,6 +420,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             "pod_name": POD_NAME,
             "metadata": details,
         },
+        agent_id=resolved_agent_id,
     )
     if assignment_response.status_code == 409:
         return
@@ -415,6 +474,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
                         },
                     },
                 },
+                agent_id=resolved_agent_id,
             )
     else:
         # No source code attached — create a stub LogicNode for routing
@@ -431,6 +491,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
                     "payload": {"origin": "pod-worker", "pod_name": POD_NAME},
                 },
             },
+            agent_id=resolved_agent_id,
         )
 
     await _request(
@@ -448,6 +509,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
                 },
             },
         },
+        agent_id=resolved_agent_id,
     )
 
     await _publish_event(
@@ -581,6 +643,8 @@ async def health() -> dict[str, Any]:
         "group": CONSUMER_GROUP,
         "consumer": CONSUMER_NAME,
         "agent_binding": list(AGENT_BINDINGS),
+        "agent_service_key_mode": AGENT_SERVICE_KEY_MODE,
+        "configured_agent_service_keys": len(_configured_agent_service_key_map()),
         "processed": app.state.processed,
         "errors": app.state.errors,
         "internal_auth_failures": INTERNAL_AUTH_FAILURES,
