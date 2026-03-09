@@ -1,0 +1,345 @@
+{
+  "run_timestamp_utc": "2026-03-08T04:29:52.436449+00:00",
+  "base_url": "http://localhost:8100",
+  "auth_modes": [
+    "api_key",
+    "hybrid",
+    "oidc"
+  ],
+  "initial_health_auth_mode": "api_key",
+  "compose_reconfigure": true,
+  "pass": true,
+  "failure_reasons": [],
+  "matrix_rows": [
+    {
+      "auth_mode": "api_key",
+      "ready": {
+        "passed": true,
+        "polls": 2,
+        "duration_seconds": 2.039462700020522,
+        "last_status_code": 200,
+        "last_error": null
+      },
+      "health_auth_mode": "api_key",
+      "checks": [
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "no_auth",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "api_key",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_mutate",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "no_auth",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "api_key",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_mutate",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "auth_mode": "hybrid",
+      "ready": {
+        "passed": true,
+        "polls": 2,
+        "duration_seconds": 2.0392498000292107,
+        "last_status_code": 200,
+        "last_error": null
+      },
+      "health_auth_mode": "hybrid",
+      "checks": [
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "no_auth",
+          "expected_status": 401,
+          "status_code": 401,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "api_key",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_mutate",
+          "expected_status": 403,
+          "status_code": 403,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "no_auth",
+          "expected_status": 401,
+          "status_code": 401,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "api_key",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_mutate",
+          "expected_status": 403,
+          "status_code": 403,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "auth_mode": "oidc",
+      "ready": {
+        "passed": true,
+        "polls": 2,
+        "duration_seconds": 2.0347557000350207,
+        "last_status_code": 200,
+        "last_error": null
+      },
+      "health_auth_mode": "oidc",
+      "checks": [
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "no_auth",
+          "expected_status": 401,
+          "status_code": 401,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "api_key",
+          "expected_status": 401,
+          "status_code": 401,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_mutate",
+          "expected_status": 403,
+          "status_code": 403,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "no_auth",
+          "expected_status": 401,
+          "status_code": 401,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "api_key",
+          "expected_status": 401,
+          "status_code": 401,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_mutate",
+          "expected_status": 403,
+          "status_code": 403,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "compose_steps": [
+    {
+      "step": "bootstrap",
+      "command": [
+        "docker",
+        "compose",
+        "-f",
+        "deploy/docker-compose.yaml",
+        "up",
+        "-d",
+        "redis",
+        "postgres",
+        "qdrant",
+        "orchestrator",
+        "--build",
+        "api-gateway"
+      ],
+      "exit_code": 0,
+      "executed": true,
+      "stderr_tail": "deploy-api-gateway-1 Recreated \n Container deploy-redis-1 Waiting \n Container deploy-postgres-1 Waiting \n Container deploy-redis-1 Healthy \n Container deploy-postgres-1 Healthy \n Container deploy-orchestrator-1 Starting \n Container deploy-orchestrator-1 Started \n Container deploy-orchestrator-1 Waiting \n Container deploy-redis-1 Waiting \n Container deploy-redis-1 Healthy \n Container deploy-orchestrator-1 Healthy \n Container deploy-api-gateway-1 Starting \n Container deploy-api-gateway-1 Started \n",
+      "error": null
+    },
+    {
+      "step": "configure-api_key",
+      "command": [
+        "docker",
+        "compose",
+        "-f",
+        "deploy/docker-compose.yaml",
+        "up",
+        "-d",
+        "--force-recreate",
+        "--no-deps",
+        "--build",
+        "api-gateway"
+      ],
+      "exit_code": 0,
+      "executed": true,
+      "stderr_tail": "y Built \ntime=\"2026-03-07T20:29:28-08:00\" level=warning msg=\"Found orphan containers ([deploy-grafana-1 deploy-promtail-1 deploy-alertmanager-1 deploy-prometheus-1 deploy-loki-1]) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up.\"\n Container deploy-api-gateway-1 Recreate \n Container deploy-api-gateway-1 Recreated \n Container deploy-api-gateway-1 Starting \n Container deploy-api-gateway-1 Started \n",
+      "error": null
+    },
+    {
+      "step": "configure-hybrid",
+      "command": [
+        "docker",
+        "compose",
+        "-f",
+        "deploy/docker-compose.yaml",
+        "up",
+        "-d",
+        "--force-recreate",
+        "--no-deps",
+        "--build",
+        "api-gateway"
+      ],
+      "exit_code": 0,
+      "executed": true,
+      "stderr_tail": "y Built \ntime=\"2026-03-07T20:29:32-08:00\" level=warning msg=\"Found orphan containers ([deploy-grafana-1 deploy-promtail-1 deploy-alertmanager-1 deploy-prometheus-1 deploy-loki-1]) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up.\"\n Container deploy-api-gateway-1 Recreate \n Container deploy-api-gateway-1 Recreated \n Container deploy-api-gateway-1 Starting \n Container deploy-api-gateway-1 Started \n",
+      "error": null
+    },
+    {
+      "step": "configure-oidc",
+      "command": [
+        "docker",
+        "compose",
+        "-f",
+        "deploy/docker-compose.yaml",
+        "up",
+        "-d",
+        "--force-recreate",
+        "--no-deps",
+        "--build",
+        "api-gateway"
+      ],
+      "exit_code": 0,
+      "executed": true,
+      "stderr_tail": "y Built \ntime=\"2026-03-07T20:29:40-08:00\" level=warning msg=\"Found orphan containers ([deploy-grafana-1 deploy-promtail-1 deploy-alertmanager-1 deploy-prometheus-1 deploy-loki-1]) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up.\"\n Container deploy-api-gateway-1 Recreate \n Container deploy-api-gateway-1 Recreated \n Container deploy-api-gateway-1 Starting \n Container deploy-api-gateway-1 Started \n",
+      "error": null
+    },
+    {
+      "step": "restore-api_key",
+      "command": [
+        "docker",
+        "compose",
+        "-f",
+        "deploy/docker-compose.yaml",
+        "up",
+        "-d",
+        "--force-recreate",
+        "--no-deps",
+        "--build",
+        "api-gateway"
+      ],
+      "exit_code": 0,
+      "executed": true,
+      "stderr_tail": "y Built \ntime=\"2026-03-07T20:29:47-08:00\" level=warning msg=\"Found orphan containers ([deploy-grafana-1 deploy-promtail-1 deploy-alertmanager-1 deploy-prometheus-1 deploy-loki-1]) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up.\"\n Container deploy-api-gateway-1 Recreate \n Container deploy-api-gateway-1 Recreated \n Container deploy-api-gateway-1 Starting \n Container deploy-api-gateway-1 Started \n",
+      "error": null
+    }
+  ]
+}

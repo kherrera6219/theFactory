@@ -1,0 +1,54 @@
+{
+  "run_timestamp_utc": "2026-03-08T17:35:56.349989+00:00",
+  "allow_prototype_failure": true,
+  "pass": true,
+  "failure_reasons": [],
+  "v1_1_baseline_passed": true,
+  "langgraph_v2_prototype_passed": true,
+  "runs": [
+    {
+      "name": "v1_1_baseline",
+      "command": [
+        "C:\\Users\\kevin\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe",
+        "scripts/mission_artifact_qualification.py",
+        "--gateway-base-url",
+        "http://localhost:8100",
+        "--orchestrator-base-url",
+        "http://localhost:8101",
+        "--profile-label",
+        "v1_1_baseline",
+        "--timeout-seconds",
+        "90.0",
+        "--poll-seconds",
+        "1.0",
+        "--output-file",
+        "docs\\evidence\\mission_artifact_qualification_v1_1_latest.json"
+      ],
+      "exit_code": 0,
+      "report_path": "docs\\evidence\\mission_artifact_qualification_v1_1_latest.json",
+      "passed": true,
+      "stderr_tail": null,
+      "error": null
+    },
+    {
+      "name": "langgraph_v2_prototype",
+      "command": [
+        "C:\\Users\\kevin\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe",
+        "scripts/langgraph_postgres_recovery_qualification.py",
+        "--base-url",
+        "http://localhost:8100",
+        "--orchestrator-ready-url",
+        "http://localhost:8101/readyz",
+        "--compose-file",
+        "deploy/docker-compose.yaml",
+        "--output-file",
+        "docs\\evidence\\langgraph_postgres_recovery_qualification_latest.json"
+      ],
+      "exit_code": 0,
+      "report_path": "docs\\evidence\\langgraph_postgres_recovery_qualification_latest.json",
+      "passed": true,
+      "stderr_tail": null,
+      "error": null
+    }
+  ]
+}

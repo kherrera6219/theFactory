@@ -1,0 +1,1 @@
+{"run_timestamp_utc":"2026-03-08T17:34:50.859085+00:00","pass":true,"auth_modes":["api_key","hybrid","oidc"],"failure_reasons":[],"output_file":"docs/evidence/operator_route_oidc_matrix_latest.json"}
