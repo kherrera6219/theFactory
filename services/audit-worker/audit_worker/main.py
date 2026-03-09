@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import json
+import logging
 import os
 import re
 import time
@@ -18,6 +19,8 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from redis.exceptions import ResponseError
 
 from .tracing import configure_tracing
+
+LOGGER = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 STATE_STREAM = os.getenv("STATE_STREAM", "missions.state")
@@ -269,13 +272,26 @@ async def _post_audit(mission_id: str, status: str, summary: str, report: dict[s
 async def _consumer_loop(app: FastAPI) -> None:
     redis_client: redis.Redis = app.state.redis
     while True:
-        records = await redis_client.xreadgroup(
-            groupname=CONSUMER_GROUP,
-            consumername=CONSUMER_NAME,
-            streams={STATE_STREAM: ">"},
-            count=20,
-            block=5000,
-        )
+        try:
+            records = await redis_client.xreadgroup(
+                groupname=CONSUMER_GROUP,
+                consumername=CONSUMER_NAME,
+                streams={STATE_STREAM: ">"},
+                count=20,
+                block=5000,
+            )
+        except asyncio.CancelledError:
+            raise
+        except ResponseError as exc:
+            if "NOGROUP" in str(exc):
+                LOGGER.warning(
+                    "state stream group %s missing for %s; recreating",
+                    CONSUMER_GROUP,
+                    STATE_STREAM,
+                )
+                await _ensure_group(redis_client)
+                continue
+            raise
         if not records:
             continue
 

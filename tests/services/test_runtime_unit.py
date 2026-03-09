@@ -145,7 +145,18 @@ def test_normalize_metadata() -> None:
 def test_emit_state_event() -> None:
     redis_client = FakeRedis()
     runtime_settings = _settings()
-    mission = _mission_record(MissionState.running)
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={
+            "source": "test",
+            "assigned_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+            "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+        },
+        state=MissionState.running,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
     asyncio.run(
         runtime.emit_state_event(
             runtime_settings, FakeEnvelopeValidator(), redis_client, mission, "MISSION_RUNNING"
@@ -155,6 +166,10 @@ def test_emit_state_event() -> None:
     stream, payload = redis_client.xadd_calls[0]
     assert stream == runtime_settings.state_stream
     assert payload["mission_id"] == "mission-1"
+    routed = json.loads(payload["payload"])
+    assert routed["agent_id"] == "AGENT-14-PYTHON"
+    assert routed["assigned_pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
+    assert routed["assigned_specialist_agent_id"] == "AGENT-14-PYTHON"
 
 
 def test_emit_running_phase_checkpoints_skips_stream_when_redis_unavailable(monkeypatch) -> None:

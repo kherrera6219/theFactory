@@ -113,6 +113,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-01-pm
       AGENT_RUNTIME_NAME: dedicated-agent-01-pm
       WORKER_AGENT_ID: AGENT-01-PM
+      SERVICE_API_KEY: ${AGENT_01_PM_SERVICE_API_KEY:-worker-key}
 
   agent-02-ceo:
     <<: *agent-runtime-template
@@ -121,6 +122,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-02-ceo
       AGENT_RUNTIME_NAME: dedicated-agent-02-ceo
       WORKER_AGENT_ID: AGENT-02-CEO
+      SERVICE_API_KEY: ${AGENT_02_CEO_SERVICE_API_KEY:-worker-key}
 
   agent-03-broker:
     <<: *agent-runtime-template
@@ -129,6 +131,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-03-broker
       AGENT_RUNTIME_NAME: dedicated-agent-03-broker
       WORKER_AGENT_ID: AGENT-03-BROKER
+      SERVICE_API_KEY: ${AGENT_03_BROKER_SERVICE_API_KEY:-worker-key}
 
   agent-04-accountant:
     <<: *agent-runtime-template
@@ -137,6 +140,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-04-accountant
       AGENT_RUNTIME_NAME: dedicated-agent-04-accountant
       WORKER_AGENT_ID: AGENT-04-ACCOUNTANT
+      SERVICE_API_KEY: ${AGENT_04_ACCOUNTANT_SERVICE_API_KEY:-worker-key}
 
   agent-05-security:
     <<: *agent-runtime-template
@@ -145,6 +149,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-05-security
       AGENT_RUNTIME_NAME: dedicated-agent-05-security
       WORKER_AGENT_ID: AGENT-05-SECURITY
+      SERVICE_API_KEY: ${AGENT_05_SECURITY_SERVICE_API_KEY:-worker-key}
 
   agent-06-is:
     <<: *agent-runtime-template
@@ -153,6 +158,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-06-is
       AGENT_RUNTIME_NAME: dedicated-agent-06-is
       WORKER_AGENT_ID: AGENT-06-IS
+      SERVICE_API_KEY: ${AGENT_06_IS_SERVICE_API_KEY:-worker-key}
 
   agent-07-vc:
     <<: *agent-runtime-template
@@ -161,6 +167,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-07-vc
       AGENT_RUNTIME_NAME: dedicated-agent-07-vc
       WORKER_AGENT_ID: AGENT-07-VC
+      SERVICE_API_KEY: ${AGENT_07_VC_SERVICE_API_KEY:-worker-key}
 
   agent-08-compliance:
     <<: *agent-runtime-template
@@ -169,6 +176,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-08-compliance
       AGENT_RUNTIME_NAME: dedicated-agent-08-compliance
       WORKER_AGENT_ID: AGENT-08-COMPLIANCE
+      SERVICE_API_KEY: ${AGENT_08_COMPLIANCE_SERVICE_API_KEY:-worker-key}
 
   agent-09-hw:
     <<: *agent-runtime-template
@@ -177,6 +185,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-09-hw
       AGENT_RUNTIME_NAME: dedicated-agent-09-hw
       WORKER_AGENT_ID: AGENT-09-HW
+      SERVICE_API_KEY: ${AGENT_09_HW_SERVICE_API_KEY:-worker-key}
 
   agent-10-tester:
     <<: *agent-runtime-template
@@ -185,6 +194,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-10-tester
       AGENT_RUNTIME_NAME: dedicated-agent-10-tester
       WORKER_AGENT_ID: AGENT-10-TESTER
+      SERVICE_API_KEY: ${AGENT_10_TESTER_SERVICE_API_KEY:-worker-key}
 
   agent-11-deploy:
     <<: *agent-runtime-template
@@ -193,6 +203,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-11-deploy
       AGENT_RUNTIME_NAME: dedicated-agent-11-deploy
       WORKER_AGENT_ID: AGENT-11-DEPLOY
+      SERVICE_API_KEY: ${AGENT_11_DEPLOY_SERVICE_API_KEY:-worker-key}
 
   agent-13-poda-audit:
     <<: *agent-runtime-template
@@ -201,6 +212,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-13-poda-audit
       AGENT_RUNTIME_NAME: dedicated-agent-13-poda-audit
       WORKER_AGENT_ID: AGENT-13-PODA-AUDIT
+      SERVICE_API_KEY: ${AGENT_13_PODA_AUDIT_SERVICE_API_KEY:-worker-key}
 
   agent-19-podb-audit:
     <<: *agent-runtime-template
@@ -209,6 +221,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-19-podb-audit
       AGENT_RUNTIME_NAME: dedicated-agent-19-podb-audit
       WORKER_AGENT_ID: AGENT-19-PODB-AUDIT
+      SERVICE_API_KEY: ${AGENT_19_PODB_AUDIT_SERVICE_API_KEY:-worker-key}
 
   agent-25-podc-audit:
     <<: *agent-runtime-template
@@ -217,6 +230,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-25-podc-audit
       AGENT_RUNTIME_NAME: dedicated-agent-25-podc-audit
       WORKER_AGENT_ID: AGENT-25-PODC-AUDIT
+      SERVICE_API_KEY: ${AGENT_25_PODC_AUDIT_SERVICE_API_KEY:-worker-key}
 
   agent-31-podd-audit:
     <<: *agent-runtime-template
@@ -225,6 +239,7 @@ services:
       AGENT_RUNTIME_GROUP: dedicated-agent-31-podd-audit
       AGENT_RUNTIME_NAME: dedicated-agent-31-podd-audit
       WORKER_AGENT_ID: AGENT-31-PODD-AUDIT
+      SERVICE_API_KEY: ${AGENT_31_PODD_AUDIT_SERVICE_API_KEY:-worker-key}
 
   agent-14-python:
     <<: *dedicated-pod-worker-template
@@ -236,7 +251,8 @@ services:
       SUPPORTED_LANGUAGES: python
       WORKER_AGENT_ID: AGENT-14-PYTHON
       AGENT_BINDING: AGENT-14-PYTHON
-      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
+      AGENT_14_PYTHON_SERVICE_API_KEY: ${AGENT_14_PYTHON_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_14_PYTHON_SERVICE_API_KEY:-worker-key}
 
   agent-15-javascript:
     <<: *dedicated-pod-worker-template
@@ -248,7 +264,8 @@ services:
       SUPPORTED_LANGUAGES: javascript,typescript
       WORKER_AGENT_ID: AGENT-15-JAVASCRIPT
       AGENT_BINDING: AGENT-15-JAVASCRIPT
-      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
+      AGENT_15_JAVASCRIPT_SERVICE_API_KEY: ${AGENT_15_JAVASCRIPT_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_15_JAVASCRIPT_SERVICE_API_KEY:-worker-key}
 
   agent-16-ruby:
     <<: *dedicated-pod-worker-template
@@ -260,7 +277,8 @@ services:
       SUPPORTED_LANGUAGES: ruby
       WORKER_AGENT_ID: AGENT-16-RUBY
       AGENT_BINDING: AGENT-16-RUBY
-      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
+      AGENT_16_RUBY_SERVICE_API_KEY: ${AGENT_16_RUBY_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_16_RUBY_SERVICE_API_KEY:-worker-key}
 
   agent-17-php:
     <<: *dedicated-pod-worker-template
@@ -272,7 +290,8 @@ services:
       SUPPORTED_LANGUAGES: php
       WORKER_AGENT_ID: AGENT-17-PHP
       AGENT_BINDING: AGENT-17-PHP
-      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
+      AGENT_17_PHP_SERVICE_API_KEY: ${AGENT_17_PHP_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_17_PHP_SERVICE_API_KEY:-worker-key}
 
   agent-20-c:
     <<: *dedicated-pod-worker-template
@@ -284,7 +303,8 @@ services:
       SUPPORTED_LANGUAGES: c
       WORKER_AGENT_ID: AGENT-20-C
       AGENT_BINDING: AGENT-20-C
-      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
+      AGENT_20_C_SERVICE_API_KEY: ${AGENT_20_C_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_20_C_SERVICE_API_KEY:-worker-key}
 
   agent-21-cpp:
     <<: *dedicated-pod-worker-template
@@ -296,7 +316,8 @@ services:
       SUPPORTED_LANGUAGES: cpp,c++
       WORKER_AGENT_ID: AGENT-21-CPP
       AGENT_BINDING: AGENT-21-CPP
-      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
+      AGENT_21_CPP_SERVICE_API_KEY: ${AGENT_21_CPP_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_21_CPP_SERVICE_API_KEY:-worker-key}
 
   agent-22-rust:
     <<: *dedicated-pod-worker-template
@@ -308,7 +329,8 @@ services:
       SUPPORTED_LANGUAGES: rust
       WORKER_AGENT_ID: AGENT-22-RUST
       AGENT_BINDING: AGENT-22-RUST
-      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
+      AGENT_22_RUST_SERVICE_API_KEY: ${AGENT_22_RUST_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_22_RUST_SERVICE_API_KEY:-worker-key}
 
   agent-23-zig:
     <<: *dedicated-pod-worker-template
@@ -320,7 +342,8 @@ services:
       SUPPORTED_LANGUAGES: zig
       WORKER_AGENT_ID: AGENT-23-ZIG
       AGENT_BINDING: AGENT-23-ZIG
-      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
+      AGENT_23_ZIG_SERVICE_API_KEY: ${AGENT_23_ZIG_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_23_ZIG_SERVICE_API_KEY:-worker-key}
 
   agent-26-java:
     <<: *dedicated-pod-worker-template
@@ -332,7 +355,8 @@ services:
       SUPPORTED_LANGUAGES: java
       WORKER_AGENT_ID: AGENT-26-JAVA
       AGENT_BINDING: AGENT-26-JAVA
-      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
+      AGENT_26_JAVA_SERVICE_API_KEY: ${AGENT_26_JAVA_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_26_JAVA_SERVICE_API_KEY:-worker-key}
 
   agent-27-csharp:
     <<: *dedicated-pod-worker-template
@@ -344,7 +368,8 @@ services:
       SUPPORTED_LANGUAGES: csharp,c#
       WORKER_AGENT_ID: AGENT-27-CSHARP
       AGENT_BINDING: AGENT-27-CSHARP
-      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
+      AGENT_27_CSHARP_SERVICE_API_KEY: ${AGENT_27_CSHARP_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_27_CSHARP_SERVICE_API_KEY:-worker-key}
 
   agent-28-scala:
     <<: *dedicated-pod-worker-template
@@ -356,7 +381,8 @@ services:
       SUPPORTED_LANGUAGES: scala
       WORKER_AGENT_ID: AGENT-28-SCALA
       AGENT_BINDING: AGENT-28-SCALA
-      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
+      AGENT_28_SCALA_SERVICE_API_KEY: ${AGENT_28_SCALA_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_28_SCALA_SERVICE_API_KEY:-worker-key}
 
   agent-29-kotlin:
     <<: *dedicated-pod-worker-template
@@ -368,7 +394,8 @@ services:
       SUPPORTED_LANGUAGES: kotlin
       WORKER_AGENT_ID: AGENT-29-KOTLIN
       AGENT_BINDING: AGENT-29-KOTLIN
-      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
+      AGENT_29_KOTLIN_SERVICE_API_KEY: ${AGENT_29_KOTLIN_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_29_KOTLIN_SERVICE_API_KEY:-worker-key}
 
   agent-32-matlab:
     <<: *dedicated-pod-worker-template
@@ -380,7 +407,8 @@ services:
       SUPPORTED_LANGUAGES: matlab
       WORKER_AGENT_ID: AGENT-32-MATLAB
       AGENT_BINDING: AGENT-32-MATLAB
-      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
+      AGENT_32_MATLAB_SERVICE_API_KEY: ${AGENT_32_MATLAB_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_32_MATLAB_SERVICE_API_KEY:-worker-key}
 
   agent-33-r:
     <<: *dedicated-pod-worker-template
@@ -392,7 +420,8 @@ services:
       SUPPORTED_LANGUAGES: r
       WORKER_AGENT_ID: AGENT-33-R
       AGENT_BINDING: AGENT-33-R
-      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
+      AGENT_33_R_SERVICE_API_KEY: ${AGENT_33_R_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_33_R_SERVICE_API_KEY:-worker-key}
 
   agent-34-julia:
     <<: *dedicated-pod-worker-template
@@ -404,7 +433,8 @@ services:
       SUPPORTED_LANGUAGES: julia
       WORKER_AGENT_ID: AGENT-34-JULIA
       AGENT_BINDING: AGENT-34-JULIA
-      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
+      AGENT_34_JULIA_SERVICE_API_KEY: ${AGENT_34_JULIA_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_34_JULIA_SERVICE_API_KEY:-worker-key}
 
   agent-35-mathematica:
     <<: *dedicated-pod-worker-template
@@ -416,7 +446,8 @@ services:
       SUPPORTED_LANGUAGES: mathematica
       WORKER_AGENT_ID: AGENT-35-MATHEMATICA
       AGENT_BINDING: AGENT-35-MATHEMATICA
-      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
+      AGENT_35_MATHEMATICA_SERVICE_API_KEY: ${AGENT_35_MATHEMATICA_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_35_MATHEMATICA_SERVICE_API_KEY:-worker-key}
 
 networks:
   hgr-network:

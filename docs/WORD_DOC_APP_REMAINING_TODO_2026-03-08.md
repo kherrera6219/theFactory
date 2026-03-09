@@ -72,9 +72,13 @@
   - `pod-worker` resolves agent-scoped keys per mission path; `audit-worker` resolves by `WORKER_AGENT_ID`.
   - Orchestrator now accepts configured agent-scoped service keys automatically.
   - `deploy/docker-compose.prod.yaml` now sets worker services to `AGENT_SERVICE_KEY_MODE=strict`.
+  - `deploy/docker-compose.full-dedicated-agents.yaml` now binds dedicated pod managers and specialists
+    to their own agent-scoped keys.
+  - Local key provisioning now exists via `python scripts/generate_agent_service_keys.py`.
+  - Live strict dedicated qualification passed on 2026-03-09 with non-zero pod assignment and LogicNode evidence.
+  - Dedicated pod-worker and audit-worker consumers now self-heal their Redis stream groups after Redis restarts.
   Remaining:
   - Rotation and revocation evidence is still missing.
-  - Full 35-agent dedicated topology still needs to consume these keys in isolated containers.
 - [x] Redis TLS cert validation (`ssl_cert_reqs=required`) across runtime clients.
 - [ ] Complete secret rotation / revocation automation on top of the new Vault TTL controls.
   - TTL visibility and expiry blocking are now implemented.

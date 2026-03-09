@@ -486,7 +486,7 @@ def test_handle_running_mission_branches(monkeypatch) -> None:
     published.clear()
     monkeypatch.setattr(pod_worker_main, "_request", _request_conflict)
     asyncio.run(pod_worker_main._handle_running_mission(redis_client, payload))
-    assert published == []
+    assert len(published) == 2
 
     asyncio.run(pod_worker_main._handle_running_mission(redis_client, {"mission_id": ""}))
     asyncio.run(
@@ -507,7 +507,9 @@ def test_handle_running_mission_branches(monkeypatch) -> None:
         return True
 
     monkeypatch.setattr(pod_worker_main, "_has_assignment", _has_assignment_true)
+    published.clear()
     asyncio.run(pod_worker_main._handle_running_mission(redis_client, payload))
+    assert len(published) == 2
 
     async def _request_failure(method: str, path: str, **kwargs):
         if path == "/internal/pod-assignment":

@@ -724,8 +724,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
         return
     if not await _mission_matches_agent_binding(mission_id, payload):
         return
-    if await _has_assignment(mission_id):
-        return
+    has_assignment = await _has_assignment(mission_id)
     mission_snapshot = await _fetch_mission_snapshot(mission_id)
     mission_metadata = (
         mission_snapshot.get("metadata") if isinstance(mission_snapshot, dict) else {}
@@ -746,27 +745,26 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
         metadata={"event_type": "MISSION_RUNNING"},
     )
 
-    details = {
-        "assigned_by": "pod-worker",
-        "pod_name": POD_NAME,
-        "agent_id": resolved_agent_id,
-        "supported_languages": sorted(SUPPORTED_LANGUAGES),
-        "reason": "language-match",
-    }
-    assignment_response = await _request(
-        "POST",
-        "/internal/pod-assignment",
-        json_body={
-            "mission_id": mission_id,
+    if not has_assignment:
+        details = {
+            "assigned_by": "pod-worker",
             "pod_name": POD_NAME,
-            "metadata": details,
-        },
-        agent_id=resolved_agent_id,
-    )
-    if assignment_response.status_code == 409:
-        return
-    if assignment_response.status_code >= 400:
-        return
+            "agent_id": resolved_agent_id,
+            "supported_languages": sorted(SUPPORTED_LANGUAGES),
+            "reason": "language-match",
+        }
+        assignment_response = await _request(
+            "POST",
+            "/internal/pod-assignment",
+            json_body={
+                "mission_id": mission_id,
+                "pod_name": POD_NAME,
+                "metadata": details,
+            },
+            agent_id=resolved_agent_id,
+        )
+        if assignment_response.status_code >= 400 and assignment_response.status_code != 409:
+            return
 
     # --- Language extraction --------------------------------------------------
     source_code = payload.get("source_code", "")
@@ -945,13 +943,26 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
 async def _consumer_loop(app: FastAPI) -> None:
     redis_client: redis.Redis = app.state.redis
     while True:
-        records = await redis_client.xreadgroup(
-            groupname=CONSUMER_GROUP,
-            consumername=CONSUMER_NAME,
-            streams={STATE_STREAM: ">"},
-            count=20,
-            block=5000,
-        )
+        try:
+            records = await redis_client.xreadgroup(
+                groupname=CONSUMER_GROUP,
+                consumername=CONSUMER_NAME,
+                streams={STATE_STREAM: ">"},
+                count=20,
+                block=5000,
+            )
+        except asyncio.CancelledError:
+            raise
+        except ResponseError as exc:
+            if "NOGROUP" in str(exc):
+                LOGGER.warning(
+                    "state stream group %s missing for %s; recreating",
+                    CONSUMER_GROUP,
+                    STATE_STREAM,
+                )
+                await _ensure_group(redis_client)
+                continue
+            raise
         if not records:
             continue
 

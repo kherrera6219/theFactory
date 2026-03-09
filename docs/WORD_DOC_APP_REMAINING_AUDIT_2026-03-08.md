@@ -28,7 +28,12 @@ Most of the former Word-doc gaps are now implemented in code and validated:
   endpoints.
 - `audit-worker` now uses `WORKER_AGENT_ID` and a matching dedicated key for audit writes.
 - Orchestrator accepts configured agent-scoped service keys automatically.
-- Remaining gap: provisioning 35 distinct live secrets plus rotation/revocation evidence.
+- The full dedicated compose overlay now binds dedicated pod managers and specialists to their own
+  agent-scoped keys.
+- Local provisioning now exists through `scripts/generate_agent_service_keys.py`.
+- Live strict dedicated qualification passed on 2026-03-09 with pod assignment and LogicNode
+  persistence proven end-to-end.
+- Remaining gap: provisioning 35 production secrets plus rotation/revocation evidence.
 
 ### 2) Enterprise Secret Operations
 - Mission Control now surfaces `expires_at`, `ttl_seconds`, and `rotation_due`.
@@ -36,6 +41,7 @@ Most of the former Word-doc gaps are now implemented in code and validated:
 - Remaining gap: automated rotation workflows and broader service adoption outside Mission Control.
 
 ### 3) Live Rollout Drift
-- The checked-in compose/env templates now carry the TLS and strict-mode settings.
-- Existing long-running local containers may still reflect older env values until the stack is
-  recreated with the updated compose inputs.
+- The strict dedicated local stack was recreated and validated on 2026-03-09.
+- Dedicated worker and audit consumer groups now recreate automatically after Redis restarts.
+- Residual drift risk is limited to environments that have not yet adopted the new compose/env
+  inputs or agent-scoped key material.

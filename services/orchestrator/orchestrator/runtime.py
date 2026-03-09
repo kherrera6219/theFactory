@@ -49,6 +49,50 @@ def _normalize_metadata(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _state_event_agent_routing(mission: MissionRecord, event_type: str) -> dict[str, Any]:
+    metadata = _normalize_metadata(mission.metadata)
+    pod_manager_agent_id = str(
+        metadata.get("assigned_pod_manager_agent_id")
+        or metadata.get("expected_pod_manager_agent_id")
+        or resolve_pod_manager_agent_id(mission.requested_target_language)
+    ).strip()
+    specialist_agent_id = str(
+        metadata.get("assigned_specialist_agent_id")
+        or metadata.get("expected_specialist_agent_id")
+        or resolve_specialist_agent_id(mission.requested_target_language)
+    ).strip()
+
+    routed_agent_id = ""
+    if event_type == "MISSION_PM_INTAKE":
+        routed_agent_id = PM_AGENT_ID
+    elif event_type in {"MISSION_CEO_DELEGATED", "MISSION_COMPLETION_BLOCKED"}:
+        routed_agent_id = CEO_AGENT_ID
+    elif event_type == "MISSION_POD_MANAGER_ASSIGNED":
+        routed_agent_id = pod_manager_agent_id
+    elif event_type in {
+        "MISSION_SPECIALIST_ASSIGNED",
+        "MISSION_SPECIALIST_PLANNED",
+        "MISSION_RUNNING",
+        "MISSION_GATING",
+        "MISSION_FUSION",
+        "MISSION_VERIFIED",
+        "MISSION_COMPLETE",
+        "MISSION_FAILED",
+    }:
+        routed_agent_id = specialist_agent_id
+
+    if not routed_agent_id:
+        return {}
+
+    return {
+        "agent_id": routed_agent_id,
+        "selected_agent_id": routed_agent_id,
+        "target_agent_id": routed_agent_id,
+        "assigned_pod_manager_agent_id": pod_manager_agent_id,
+        "assigned_specialist_agent_id": specialist_agent_id,
+    }
+
+
 async def _prepare_mission_chain_for_running(
     *,
     app: FastAPI,
@@ -186,6 +230,7 @@ async def emit_state_event(
         "requested_target_language": mission.requested_target_language,
         "created_at": mission.created_at,
     }
+    payload.update(_state_event_agent_routing(mission, event_type))
     await redis_client.xadd(
         settings.state_stream,
         {

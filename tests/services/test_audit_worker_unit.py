@@ -458,6 +458,29 @@ def test_consumer_loop_handles_empty_records(monkeypatch) -> None:
     assert redis_client.xack_calls == []
 
 
+def test_consumer_loop_recreates_missing_group(monkeypatch) -> None:
+    redis_client = FakeRedis(
+        responses=[
+            audit_worker_main.ResponseError(
+                "NOGROUP No such key 'missions.state' or consumer group 'audit-workers'"
+            ),
+            asyncio.CancelledError(),
+        ]
+    )
+    recreated: list[FakeRedis] = []
+
+    async def _ensure_group(redis_obj: FakeRedis) -> None:
+        recreated.append(redis_obj)
+
+    monkeypatch.setattr(audit_worker_main, "_ensure_group", _ensure_group)
+    app = SimpleNamespace(state=SimpleNamespace(redis=redis_client, processed=0, errors=0))
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(audit_worker_main._consumer_loop(app))
+
+    assert recreated == [redis_client]
+
+
 def test_health_and_readyz_branches() -> None:
     class PingRedis:
         async def ping(self) -> bool:
