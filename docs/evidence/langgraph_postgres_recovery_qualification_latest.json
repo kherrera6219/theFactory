@@ -1,0 +1,120 @@
+{
+  "run_timestamp_utc": "2026-03-08T17:35:56.308095+00:00",
+  "config": {
+    "base_url": "http://localhost:8100",
+    "orchestrator_ready_url": "http://localhost:8101/readyz",
+    "compose_file": "deploy/docker-compose.yaml",
+    "checkpoint_namespace": "mission-lifecycle-qualification",
+    "checkpointer_postgres_url": "",
+    "transition_step_seconds": 3.0,
+    "restart_after_seconds": 0.5,
+    "mission_timeout_seconds": 180.0,
+    "mission_poll_seconds": 1.0,
+    "ready_timeout_seconds": 120.0,
+    "ready_poll_seconds": 2.0
+  },
+  "langgraph_env": {
+    "LANGGRAPH_ENABLED": "true",
+    "LANGGRAPH_FAIL_OPEN": "true",
+    "LANGGRAPH_CHECKPOINTER": "postgres",
+    "LANGGRAPH_THREAD_PREFIX": "mission",
+    "LANGGRAPH_CHECKPOINTER_SETUP": "true",
+    "LANGGRAPH_CHECKPOINT_NAMESPACE": "mission-lifecycle-qualification",
+    "LANGGRAPH_CHECKPOINTER_POSTGRES_URL": "",
+    "TRANSITION_STEP_SECONDS": "3.0"
+  },
+  "preconfigure": {
+    "command": [
+      "docker",
+      "compose",
+      "-f",
+      "deploy/docker-compose.yaml",
+      "up",
+      "-d",
+      "--build",
+      "--force-recreate",
+      "--no-deps",
+      "orchestrator"
+    ],
+    "exit_code": 0,
+    "executed": true,
+    "stderr_tail": "ilt \ntime=\"2026-03-08T10:35:34-07:00\" level=warning msg=\"Found orphan containers ([deploy-grafana-1 deploy-promtail-1 deploy-alertmanager-1 deploy-prometheus-1 deploy-loki-1]) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up.\"\n Container deploy-orchestrator-1 Recreate \n Container deploy-orchestrator-1 Recreated \n Container deploy-orchestrator-1 Starting \n Container deploy-orchestrator-1 Started \n",
+    "error": null
+  },
+  "runtime_payload": {
+    "redis_ready": true,
+    "db_ready": true,
+    "qdrant_ready": true,
+    "neo4j_ready": false,
+    "object_storage_ready": false,
+    "protocol_ready": true,
+    "consumer_running": true,
+    "langgraph_enabled": true,
+    "langgraph_fail_open": true,
+    "langgraph_checkpointer": "postgres",
+    "langgraph_checkpointer_setup": true,
+    "langgraph_checkpoint_namespace": "mission-lifecycle-qualification",
+    "langgraph_postgres_checkpointer_setup_done": true,
+    "lifecycle_recovery_bootstrapped": true,
+    "lifecycle_recovery_recovered_count": 3,
+    "lifecycle_recovery_scanned_count": 3,
+    "lifecycle_recovery_last_at": "2026-03-08T17:35:39.311143+00:00",
+    "lifecycle_recovery_last_error": null
+  },
+  "restart_injection": {
+    "command": [
+      "docker",
+      "compose",
+      "-f",
+      "deploy/docker-compose.yaml",
+      "restart",
+      "orchestrator"
+    ],
+    "exit_code": 0,
+    "executed": true,
+    "stderr_tail": " Container deploy-orchestrator-1 Restarting \n Container deploy-orchestrator-1 Started \n",
+    "error": null
+  },
+  "post_restart_readiness": {
+    "passed": true,
+    "polls": 2,
+    "duration_seconds": 2.0146974000381306,
+    "last_status_code": 200,
+    "last_error": null
+  },
+  "mission_probe": {
+    "mission_id": "mission-e3387017-b19e-458b-bcd8-4e04f5a65a8f",
+    "terminal_state": "COMPLETE",
+    "polls": 9,
+    "duration_seconds": 8.231073800008744,
+    "error": null
+  },
+  "post_restart_completion_seconds": 14.693737199995667,
+  "event_validation": {
+    "count": 14,
+    "event_types": [
+      "MISSION_COMPLETE",
+      "MISSION_VERIFIED",
+      "MISSION_FUSION",
+      "MISSION_GATING",
+      "MISSION_RUNNING",
+      "MISSION_SPECIALIST_PLANNED",
+      "MISSION_SPECIALIST_ASSIGNED",
+      "MISSION_POD_MANAGER_ASSIGNED",
+      "MISSION_CEO_DELEGATED",
+      "MISSION_SPECIALIST_PLANNED",
+      "MISSION_SPECIALIST_ASSIGNED",
+      "MISSION_POD_MANAGER_ASSIGNED",
+      "MISSION_CEO_DELEGATED",
+      "MISSION_QUEUED"
+    ],
+    "required_event_types": [
+      "MISSION_COMPLETE",
+      "MISSION_RUNNING",
+      "MISSION_VERIFIED"
+    ],
+    "missing_required_event_types": []
+  },
+  "pass": true,
+  "failure_reasons": []
+}
