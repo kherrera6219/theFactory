@@ -38,3 +38,9 @@ out/
 
 # Runtime outputs
 backups/
+
+# Secrets / credentials (populate then encrypt before committing)
+config/agent_api_keys.yaml
+config/agent_api_keys.enc.yaml
+*.age
+*.sops.yaml
