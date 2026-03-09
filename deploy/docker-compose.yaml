@@ -203,6 +203,9 @@ services:
   jaeger:
     <<: [*common-service, *data-service-hardening]
     image: jaegertracing/all-in-one:1.59
+    command:
+      - "--collector.otlp.http.host-port=0.0.0.0:4318"
+      - "--collector.otlp.grpc.host-port=0.0.0.0:4317"
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:

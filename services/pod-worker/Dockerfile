@@ -3,6 +3,7 @@ WORKDIR /app
 COPY services/pod-worker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY services/pod-worker /app
+COPY shared_runtime /app/shared_runtime
 COPY services/orchestrator/orchestrator /app/orchestrator
 COPY schemas /app/schemas
 COPY protocol /app/protocol

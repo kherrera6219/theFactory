@@ -18,6 +18,19 @@ from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from redis.exceptions import ResponseError
 
+from shared_runtime.agent_keys import (
+    configured_agent_service_key_map,
+    normalize_agent_id,
+    service_api_key_for_agent,
+)
+from shared_runtime.protocol import (
+    ProtocolValidationError,
+    load_event_schema,
+    load_topics,
+    parse_date_time,
+    validate_envelope,
+)
+
 from .tracing import configure_tracing
 
 LOGGER = logging.getLogger(__name__)
@@ -35,7 +48,6 @@ REQUEST_TIMEOUT_SECONDS = float(os.getenv("ORCHESTRATOR_TIMEOUT_SECONDS", "5.0")
 REQUEST_MAX_RETRIES = int(os.getenv("ORCHESTRATOR_MAX_RETRIES", "3"))
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
-AGENT_SERVICE_KEY_ENV_PATTERN = re.compile(r"^AGENT_(\d{2})_([A-Z0-9_]+)_SERVICE_API_KEY$")
 
 EVENT_SCHEMA_PATH = Path("/app/schemas/event.envelope.schema.json")
 TOPICS_PATH = Path("/app/protocol/topics.yaml")
@@ -62,15 +74,8 @@ AUDIT_POST_LATENCY_SECONDS = Histogram(
 )
 
 
-class ProtocolValidationError(Exception):
-    pass
-
-
 def _normalize_agent_id(value: Any) -> str | None:
-    if not isinstance(value, str):
-        return None
-    candidate = value.strip().upper()
-    return candidate or None
+    return normalize_agent_id(value)
 
 
 def _agent_service_key_env_name(agent_id: str) -> str | None:
@@ -81,105 +86,41 @@ def _agent_service_key_env_name(agent_id: str) -> str | None:
 
 
 def _parse_agent_service_key_map(raw: str) -> dict[str, str]:
-    mapping: dict[str, str] = {}
-    for entry in (part.strip() for part in raw.split(";") if part.strip()):
-        if "=" not in entry:
-            continue
-        agent_id, key = entry.split("=", 1)
-        normalized_agent_id = _normalize_agent_id(agent_id)
-        normalized_key = key.strip()
-        if normalized_agent_id and normalized_key:
-            mapping[normalized_agent_id] = normalized_key
-    return mapping
+    return configured_agent_service_key_map(raw, env={})
 
 
 def _configured_agent_service_key_map() -> dict[str, str]:
-    mapping = _parse_agent_service_key_map(AGENT_SERVICE_API_KEYS)
-    for env_name, raw_value in os.environ.items():
-        match = AGENT_SERVICE_KEY_ENV_PATTERN.match(env_name)
-        if not match:
-            continue
-        normalized_key = raw_value.strip()
-        if not normalized_key:
-            continue
-        mapping[f"AGENT-{match.group(1)}-{match.group(2).replace('_', '-')}"] = normalized_key
-    return mapping
+    return configured_agent_service_key_map(AGENT_SERVICE_API_KEYS)
 
 
 def _service_api_key_for_agent(agent_id: str | None) -> str:
-    normalized_agent_id = _normalize_agent_id(agent_id)
-    if normalized_agent_id:
-        env_name = _agent_service_key_env_name(normalized_agent_id)
-        if env_name:
-            direct_env_key = os.getenv(env_name, "").strip()
-            if direct_env_key:
-                return direct_env_key
-        mapped_key = _parse_agent_service_key_map(AGENT_SERVICE_API_KEYS).get(normalized_agent_id)
-        if mapped_key:
-            return mapped_key
-        if AGENT_SERVICE_KEY_MODE == "strict":
-            raise RuntimeError(f"missing dedicated service key for {normalized_agent_id}")
-    return SERVICE_API_KEY
+    return service_api_key_for_agent(
+        agent_id,
+        fallback_key=SERVICE_API_KEY,
+        raw_mapping=AGENT_SERVICE_API_KEYS,
+        key_mode=AGENT_SERVICE_KEY_MODE,
+    )
 
 
 def _parse_date_time(value: str) -> datetime:
-    if value.endswith("Z"):
-        value = value.replace("Z", "+00:00")
-    parsed = datetime.fromisoformat(value)
-    if parsed.tzinfo is None:
-        raise ValueError("timestamp must include timezone")
-    return parsed
+    return parse_date_time(value)
 
 
 def _load_event_schema() -> dict[str, Any]:
-    if not EVENT_SCHEMA_PATH.exists():
-        raise ProtocolValidationError(f"event schema not found: {EVENT_SCHEMA_PATH}")
-    return json.loads(EVENT_SCHEMA_PATH.read_text(encoding="utf-8"))
+    return load_event_schema(EVENT_SCHEMA_PATH)
 
 
 def _load_topics() -> set[str]:
-    if not TOPICS_PATH.exists():
-        raise ProtocolValidationError(f"topics file not found: {TOPICS_PATH}")
-    topics: set[str] = set()
-    for raw_line in TOPICS_PATH.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if line.startswith("- "):
-            topics.add(line[2:].strip())
-    if not topics:
-        raise ProtocolValidationError("no topics configured")
-    return topics
+    return load_topics(TOPICS_PATH)
 
 
 def _validate_envelope(envelope: dict[str, Any]) -> None:
-    schema = _load_event_schema()
-    topics = _load_topics()
-    required = schema.get("required", [])
-    properties = schema.get("properties", {})
-    missing = [field for field in required if field not in envelope]
-    if missing:
-        raise ProtocolValidationError(f"missing fields: {', '.join(missing)}")
-    if schema.get("additionalProperties") is False:
-        unknown = [field for field in envelope if field not in properties]
-        if unknown:
-            raise ProtocolValidationError(f"unexpected fields: {', '.join(unknown)}")
-    if envelope.get("topic") not in topics:
-        raise ProtocolValidationError("unknown topic")
-    if not PAYLOAD_REF_PATTERN.match(str(envelope.get("payload_ref", ""))):
-        raise ProtocolValidationError("invalid payload_ref")
-    allowed_priorities = set(properties.get("priority", {}).get("enum", ["NORMAL", "HIGH"]))
-    if envelope.get("priority") not in allowed_priorities:
-        raise ProtocolValidationError(
-            f"priority must be one of: {', '.join(sorted(allowed_priorities))}"
-        )
-    try:
-        _parse_date_time(str(envelope["timestamp"]))
-    except Exception as exc:
-        raise ProtocolValidationError(f"invalid timestamp: {exc}") from exc
-
-    for field, spec in properties.items():
-        expected_type = spec.get("type")
-        if field in envelope and expected_type == "string" and not isinstance(envelope[field], str):
-            raise ProtocolValidationError(f"field '{field}' must be string")
+    validate_envelope(
+        envelope,
+        schema=_load_event_schema(),
+        topics=_load_topics(),
+        payload_ref_pattern=PAYLOAD_REF_PATTERN,
+    )
 
 
 def _build_envelope(
