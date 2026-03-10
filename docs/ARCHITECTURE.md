@@ -3,6 +3,8 @@
 **Last updated:** 2026-03-09
 **Status:** Production baseline with roadmap phases 1-39 complete
 
+Companion diagrams: [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md)
+
 ---
 
 ## Table of Contents
@@ -69,7 +71,7 @@ The system is organized into three planes:
 ╔══════════▼═════════════════════════════════════════════════════╗
 ║                     POD WORKERS                               ║
 ║  Pod A · Python / JavaScript / Ruby / PHP                     ║
-║  Pod B · C / C++ / Rust                                       ║
+║  Pod B · C / C++ / Rust / Zig                                 ║
 ║  Pod C · Java / C# / Scala / Kotlin                           ║
 ║  Pod D · MATLAB / R / Julia / Mathematica                     ║
 ║  Language extraction → LogicNode creation → KB write         ║
@@ -181,9 +183,9 @@ QUEUED ──► RUNNING ──► VERIFIED ──► COMPLETE
 |------|--------|-------|
 | Interface | AGENT-01-PM (Project Manager) | 1 |
 | Executive | AGENT-02-CEO (Chief Executor) | 1 |
-| Support Ring | CTO, Architect, Security, QA, DevOps, Documentation | 6 |
+| Support Ring | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy | 9 |
 | Pod A (Dynamic) | Manager, Audit, Python, JS, Ruby, PHP Specialists | 6 |
-| Pod B (Systems) | Manager, Audit, C, C++, Rust Specialists | 5 |
+| Pod B (Systems) | Manager, Audit, C, C++, Rust, Zig Specialists | 6 |
 | Pod C (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | 6 |
 | Pod D (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica Specialists | 6 |
 | **Total** | | **35** |

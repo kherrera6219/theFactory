@@ -83,7 +83,7 @@
 ┌──▼──────▼──────────────────────────────────────────────────────┐
 │                      POD WORKERS                               │
 │  Pod A  (Python/JS/Ruby/PHP)  — Dynamic Languages              │
-│  Pod B  (C/C++/Rust)          — Systems Languages              │
+│  Pod B  (C/C++/Rust/Zig)      — Systems Languages              │
 │  Pod C  (Java/C#/Scala/Kotlin)— Enterprise Languages           │
 │  Pod D  (MATLAB/R/Julia/Mathematica) — Mathematical Languages  │
 │  Each: language extraction → LogicNode creation → KB write     │
@@ -127,9 +127,9 @@ The orchestrator maintains a canonical registry of **35 specialist agents** orga
 |------|--------|------|
 | **Interface** | AGENT-01-PM | Project Manager — mission intake and PM→CEO handoff |
 | **Executive** | AGENT-02-CEO | Chief Executor — mission delegation to pod managers |
-| **Support Ring** | AGENT-03 through AGENT-08 | CTO, Architect, Security, QA, DevOps, Documentation |
+| **Support Ring** | AGENT-03 through AGENT-11 | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy |
 | **Pod A** (Dynamic) | Manager, Audit, Python, JavaScript, Ruby, PHP Specialists | Dynamic language refinery |
-| **Pod B** (Systems) | Manager, Audit, C, C++, Rust Specialists | Systems language refinery |
+| **Pod B** (Systems) | Manager, Audit, C, C++, Rust, Zig Specialists | Systems language refinery |
 | **Pod C** (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | Enterprise language refinery |
 | **Pod D** (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica Specialists | Mathematical language refinery |
 
@@ -665,6 +665,8 @@ theFactory/
 | Document | Description |
 |----------|-------------|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture and topology |
+| [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md) | System, runtime, deployment, and multi-agent diagrams |
+| [`docs/DIAGRAM_STANDARDS.md`](docs/DIAGRAM_STANDARDS.md) | Enterprise diagram set and standards basis |
 | [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md) | Full documentation map |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Product roadmap |
 | [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) | Operational procedures |

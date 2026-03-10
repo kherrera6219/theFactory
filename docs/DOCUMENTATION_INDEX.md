@@ -9,6 +9,8 @@ Canonical living docs use stable filenames without a date suffix. Date-stamped d
 ## Core Product and Architecture
 
 - `ARCHITECTURE.md`: runtime topology, contracts, and control-plane architecture.
+- `ARCHITECTURE_DIAGRAMS.md`: canonical C4-style, runtime, deployment, and multi-agent diagrams.
+- `DIAGRAM_STANDARDS.md`: required enterprise diagram set and standards rationale for this repository.
 - `ROADMAP.md`: phased delivery status and current maturity plan.
 - `PRODUCTION_PHASE_PLAN.md`: production hardening phases and exit criteria.
 - `UPDATED_PHASE_PLAN_2026-03-03.md`: current post-Phase-18 execution plan and validation protocol.
@@ -103,9 +105,11 @@ Canonical living docs use stable filenames without a date suffix. Date-stamped d
 
 1. `../README.md`
 2. `ARCHITECTURE.md`
-3. `ROADMAP.md`
-4. `OPERATIONS_RUNBOOK.md`
-5. `AGENT_SERVICE_KEY_ISOLATION.md`
-6. `AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`
-7. `AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
-8. `AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
+3. `ARCHITECTURE_DIAGRAMS.md`
+4. `DIAGRAM_STANDARDS.md`
+5. `ROADMAP.md`
+6. `OPERATIONS_RUNBOOK.md`
+7. `AGENT_SERVICE_KEY_ISOLATION.md`
+8. `AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`
+9. `AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
+10. `AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
