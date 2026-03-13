@@ -705,7 +705,14 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             return
 
     # --- Language extraction --------------------------------------------------
-    source_code = payload.get("source_code", "")
+    # source_code may arrive directly in the state-stream event (future) or
+    # be stored in mission metadata (current path: gateway stores it there so
+    # workers can retrieve it via the mission snapshot fetched above).
+    source_code = (
+        payload.get("source_code")
+        or (mission_metadata.get("source_code") if isinstance(mission_metadata, dict) else None)
+        or ""
+    )
     extraction_language = target_language or "python"  # default Pod A primary
     extraction_summary: dict = {"language": extraction_language, "concepts_found": 0}
     extracted_logicnodes: list[dict[str, Any]] = []
