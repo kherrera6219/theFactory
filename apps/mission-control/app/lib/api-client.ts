@@ -161,6 +161,7 @@ export async function getMissionChainTrace(missionId: string): Promise<MissionCh
 export async function createMission(payload: {
   prompt: string;
   requested_target_language: string | null;
+  source_code?: string;
   metadata: Record<string, unknown>;
 }): Promise<MissionRecord> {
   return fetchJson<MissionRecord>(missionApiUrl("/v1/missions"), {

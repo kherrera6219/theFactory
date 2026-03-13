@@ -224,6 +224,25 @@ export default function ChatPage() {
     }
   }
 
+  async function readFilesAsText(fileList: File[]): Promise<string> {
+    if (fileList.length === 0) {
+      return "";
+    }
+    const parts = await Promise.all(
+      fileList.map(
+        (file) =>
+          new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () =>
+              resolve(`// --- ${file.name} ---\n${reader.result as string}`);
+            reader.onerror = () => resolve(`// --- ${file.name} --- (unreadable)`);
+            reader.readAsText(file);
+          }),
+      ),
+    );
+    return parts.join("\n\n");
+  }
+
   async function confirmAndLaunch() {
     if (!contract) {
       return;
@@ -231,9 +250,11 @@ export default function ChatPage() {
     setLaunching(true);
     setError(null);
     try {
+      const sourceCode = await readFilesAsText(files);
       const mission = await createMission({
         prompt: contract.launchPrompt,
         requested_target_language: "python",
+        source_code: sourceCode || undefined,
         metadata: {
           source: "mission-control-chat",
           attached_files: files.map((item) => item.name),
