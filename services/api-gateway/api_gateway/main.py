@@ -165,6 +165,7 @@ POD_MANAGER_BY_LANGUAGE: dict[str, str] = {
 class MissionCreate(BaseModel):
     prompt: str = Field(min_length=3)
     requested_target_language: str | None = None
+    source_code: str | None = Field(default=None, max_length=512_000)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -1266,9 +1267,16 @@ async def create_mission(
         payload.metadata,
         requested_target_language=payload.requested_target_language,
     )
+    # Persist source_code in metadata so pod-workers can retrieve it via the
+    # mission snapshot even when the state-stream event doesn't carry the full
+    # payload.  We only set the key when content is present to avoid bloating
+    # the mission record for text-only missions.
+    if payload.source_code:
+        normalized_metadata["source_code"] = payload.source_code
     normalized_payload = MissionCreate(
         prompt=payload.prompt,
         requested_target_language=payload.requested_target_language,
+        source_code=payload.source_code,
         metadata=normalized_metadata,
     )
 

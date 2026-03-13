@@ -12,11 +12,15 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "pod-worker"))
 
 from pod_worker.language_extractor import (  # noqa: E402
+    GoExtractor,
+    HaskellExtractor,
     JavaExtractor,
     JavaScriptExtractor,
     MatlabExtractor,
+    OCamlExtractor,
     PythonExtractor,
     RustExtractor,
+    ZigExtractor,
     get_extractor,
     supported_languages,
 )
@@ -297,6 +301,319 @@ class TestMatlabExtractor:
 
 
 # ---------------------------------------------------------------------------
+# Pod B — Go
+# ---------------------------------------------------------------------------
+
+GO_SAMPLE = """\
+package main
+
+import (
+    "fmt"
+    "errors"
+)
+
+type Server struct {
+    host string
+    port int
+}
+
+type Handler interface {
+    Handle(req string) error
+}
+
+func NewServer(host string, port int) *Server {
+    return &Server{host: host, port: port}
+}
+
+func (s *Server) Start() error {
+    ch := make(chan string)
+    go func() {
+        ch <- "ready"
+    }()
+    msg := <-ch
+    if err := s.validate(); err != nil {
+        return fmt.Errorf("invalid config: %w", err)
+    }
+    defer s.cleanup()
+    fmt.Println(msg)
+    return nil
+}
+
+func (s *Server) validate() error {
+    if s.port == 0 {
+        return errors.New("port must be non-zero")
+    }
+    return nil
+}
+
+func (s *Server) cleanup() {}
+"""
+
+
+class TestGoExtractor:
+    def setup_method(self):
+        self.extractor = GoExtractor()
+
+    def test_detects_functions(self):
+        result = self.extractor.extract(GO_SAMPLE)
+        names = [f.name for f in result.functions]
+        assert "NewServer" in names
+        assert "Start" in names
+        assert "validate" in names
+
+    def test_detects_struct_and_interface(self):
+        result = self.extractor.extract(GO_SAMPLE)
+        names = [c.name for c in result.classes]
+        assert "Server" in names
+        assert "Handler" in names
+
+    def test_detects_imports(self):
+        result = self.extractor.extract(GO_SAMPLE)
+        assert len(result.imports) >= 1
+
+    def test_detects_concepts(self):
+        result = self.extractor.extract(GO_SAMPLE)
+        concept_ids = {c.concept_id for c in result.concepts}
+        assert "SYS-020-001" in concept_ids  # define_function
+        assert "SYS-020-002" in concept_ids  # goroutine
+        assert "SYS-020-003" in concept_ids  # channel_operation
+        assert "SYS-020-004" in concept_ids  # defer_call
+        assert "SYS-020-005" in concept_ids  # error_check (if err != nil)
+        assert "SYS-020-006" in concept_ids  # define_struct
+        assert "SYS-020-007" in concept_ids  # define_interface
+
+    def test_confidence_in_range(self):
+        result = self.extractor.extract(GO_SAMPLE)
+        for concept in result.concepts:
+            assert 0.0 < concept.confidence <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Pod B — Zig
+# ---------------------------------------------------------------------------
+
+ZIG_SAMPLE = """\
+const std = @import("std");
+const math = @import("math.zig");
+
+const Point = struct {
+    x: f64,
+    y: f64,
+};
+
+const Color = enum {
+    Red,
+    Green,
+    Blue,
+};
+
+pub fn distance(a: Point, b: Point) f64 {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return std.math.sqrt(dx * dx + dy * dy);
+}
+
+pub fn allocBuffer(allocator: std.mem.Allocator, size: usize) ![]u8 {
+    const buf = try allocator.alloc(u8, size);
+    defer allocator.free(buf);
+    comptime var N = 16;
+    _ = N;
+    return buf;
+}
+
+fn printPoint(p: Point) void {
+    std.debug.print("({d}, {d})\\n", .{ p.x, p.y });
+}
+"""
+
+
+class TestZigExtractor:
+    def setup_method(self):
+        self.extractor = ZigExtractor()
+
+    def test_detects_functions(self):
+        result = self.extractor.extract(ZIG_SAMPLE)
+        names = [f.name for f in result.functions]
+        assert "distance" in names
+        assert "allocBuffer" in names
+        assert "printPoint" in names
+
+    def test_detects_struct_and_enum(self):
+        result = self.extractor.extract(ZIG_SAMPLE)
+        names = [c.name for c in result.classes]
+        assert "Point" in names
+        assert "Color" in names
+
+    def test_detects_imports(self):
+        result = self.extractor.extract(ZIG_SAMPLE)
+        assert len(result.imports) >= 2
+
+    def test_detects_concepts(self):
+        result = self.extractor.extract(ZIG_SAMPLE)
+        concept_ids = {c.concept_id for c in result.concepts}
+        assert "SYS-021-001" in concept_ids  # define_function
+        assert "SYS-021-002" in concept_ids  # comptime_eval
+        assert "SYS-021-004" in concept_ids  # define_struct
+        assert "SYS-021-005" in concept_ids  # allocator_usage
+        assert "SYS-021-006" in concept_ids  # import_module
+
+    def test_confidence_in_range(self):
+        result = self.extractor.extract(ZIG_SAMPLE)
+        for concept in result.concepts:
+            assert 0.0 < concept.confidence <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Pod D — Haskell
+# ---------------------------------------------------------------------------
+
+HASKELL_SAMPLE = """\
+module Main where
+
+import Data.List (sort, nub)
+import qualified Data.Map.Strict as Map
+
+data Shape = Circle Double
+           | Rectangle Double Double
+           deriving (Show, Eq)
+
+class Area a where
+    area :: a -> Double
+
+instance Area Shape where
+    area (Circle r)        = pi * r * r
+    area (Rectangle w h)   = w * h
+
+computeAreas :: [Shape] -> [Double]
+computeAreas shapes = map area shapes
+
+largestArea :: [Shape] -> Maybe Double
+largestArea [] = Nothing
+largestArea xs = Just $ maximum $ map area xs
+
+groupByArea :: [Shape] -> Map.Map Double [Shape]
+groupByArea shapes = foldr insert Map.empty shapes
+  where
+    insert s m = Map.insertWith (++) (area s) [s] m
+
+main :: IO ()
+main = do
+    let shapes = [Circle 5.0, Rectangle 3.0 4.0, Circle 2.0]
+    let areas = computeAreas shapes
+    print areas
+"""
+
+
+class TestHaskellExtractor:
+    def setup_method(self):
+        self.extractor = HaskellExtractor()
+
+    def test_detects_functions_via_type_signatures(self):
+        result = self.extractor.extract(HASKELL_SAMPLE)
+        names = [f.name for f in result.functions]
+        assert "computeAreas" in names
+        assert "largestArea" in names
+        assert "groupByArea" in names
+
+    def test_detects_data_types(self):
+        result = self.extractor.extract(HASKELL_SAMPLE)
+        names = [c.name for c in result.classes]
+        assert "Shape" in names
+
+    def test_detects_imports(self):
+        result = self.extractor.extract(HASKELL_SAMPLE)
+        assert len(result.imports) >= 2
+
+    def test_detects_concepts(self):
+        result = self.extractor.extract(HASKELL_SAMPLE)
+        concept_ids = {c.concept_id for c in result.concepts}
+        assert "MATH-009-001" in concept_ids  # type_signature
+        assert "MATH-009-003" in concept_ids  # define_typeclass
+        assert "MATH-009-004" in concept_ids  # typeclass_instance
+        assert "MATH-009-005" in concept_ids  # define_data
+        assert "MATH-009-009" in concept_ids  # import_module
+
+    def test_confidence_in_range(self):
+        result = self.extractor.extract(HASKELL_SAMPLE)
+        for concept in result.concepts:
+            assert 0.0 < concept.confidence <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Pod D — OCaml
+# ---------------------------------------------------------------------------
+
+OCAML_SAMPLE = """\
+open List
+
+type shape =
+  | Circle of float
+  | Rectangle of float * float
+
+module Geometry = struct
+  let pi = 3.14159265358979
+
+  let area = function
+    | Circle r        -> pi *. r *. r
+    | Rectangle (w, h) -> w *. h
+
+  let perimeter = function
+    | Circle r        -> 2.0 *. pi *. r
+    | Rectangle (w, h) -> 2.0 *. (w +. h)
+end
+
+let compute_areas shapes =
+  List.map Geometry.area shapes
+
+let rec total_area shapes =
+  match shapes with
+  | [] -> 0.0
+  | s :: rest -> Geometry.area s +. total_area rest
+
+let () =
+  let shapes = [Circle 5.0; Rectangle 3.0 4.0] in
+  let areas = compute_areas shapes in
+  List.iter (fun a -> Printf.printf "%f\\n" a) areas
+"""
+
+
+class TestOCamlExtractor:
+    def setup_method(self):
+        self.extractor = OCamlExtractor()
+
+    def test_detects_functions(self):
+        result = self.extractor.extract(OCAML_SAMPLE)
+        names = [f.name for f in result.functions]
+        assert "compute_areas" in names
+        assert "total_area" in names
+
+    def test_detects_types_and_modules(self):
+        result = self.extractor.extract(OCAML_SAMPLE)
+        names = [c.name for c in result.classes]
+        assert "shape" in names
+        assert "Geometry" in names
+
+    def test_detects_imports(self):
+        result = self.extractor.extract(OCAML_SAMPLE)
+        assert len(result.imports) >= 1
+
+    def test_detects_concepts(self):
+        result = self.extractor.extract(OCAML_SAMPLE)
+        concept_ids = {c.concept_id for c in result.concepts}
+        assert "MATH-010-001" in concept_ids  # define_function
+        assert "MATH-010-002" in concept_ids  # recursive_function
+        assert "MATH-010-003" in concept_ids  # match_expression
+        assert "MATH-010-004" in concept_ids  # define_type
+        assert "MATH-010-005" in concept_ids  # open_module
+        assert "MATH-010-008" in concept_ids  # define_module
+
+    def test_confidence_in_range(self):
+        result = self.extractor.extract(OCAML_SAMPLE)
+        for concept in result.concepts:
+            assert 0.0 < concept.confidence <= 1.0
+
+
+# ---------------------------------------------------------------------------
 # Registry and utilities
 # ---------------------------------------------------------------------------
 
@@ -307,10 +624,16 @@ class TestExtractorRegistry:
         assert isinstance(get_extractor("rust"), RustExtractor)
         assert isinstance(get_extractor("java"), JavaExtractor)
         assert isinstance(get_extractor("matlab"), MatlabExtractor)
+        assert isinstance(get_extractor("go"), GoExtractor)
+        assert isinstance(get_extractor("zig"), ZigExtractor)
+        assert isinstance(get_extractor("haskell"), HaskellExtractor)
+        assert isinstance(get_extractor("ocaml"), OCamlExtractor)
 
     def test_get_extractor_case_insensitive(self):
         assert isinstance(get_extractor("Python"), PythonExtractor)
         assert isinstance(get_extractor("RUST"), RustExtractor)
+        assert isinstance(get_extractor("Go"), GoExtractor)
+        assert isinstance(get_extractor("ZIG"), ZigExtractor)
 
     def test_get_extractor_unknown_returns_generic(self):
         ext = get_extractor("brainfuck")
@@ -318,11 +641,15 @@ class TestExtractorRegistry:
 
     def test_supported_languages_not_empty(self):
         langs = supported_languages()
-        assert len(langs) >= 15
+        assert len(langs) >= 19
         assert "python" in langs
         assert "rust" in langs
         assert "java" in langs
         assert "matlab" in langs
+        assert "go" in langs
+        assert "zig" in langs
+        assert "haskell" in langs
+        assert "ocaml" in langs
 
     def test_all_extractors_handle_whitespace_only(self):
         for lang in supported_languages():
