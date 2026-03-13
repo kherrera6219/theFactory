@@ -72,7 +72,7 @@ def test_send_message_success() -> None:
         app.state.redis_ready = True
         response = client.post(
             "/send",
-            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
             json=_alpha_payload(),
         )
     assert response.status_code == 200
@@ -89,7 +89,7 @@ def test_send_message_rejects_oversized_payload(monkeypatch) -> None:
         app.state.redis_ready = True
         response = client.post(
             "/send",
-            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
             json={
                 "schema_version": "v1",
                 "protocol": "omega",
@@ -112,7 +112,7 @@ def test_send_message_rejects_sender_mismatch() -> None:
         app.state.redis_ready = True
         response = client.post(
             "/send",
-            headers={"x-agent-id": "AGENT-99-FAKE", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "AGENT-99-FAKE", "x-api-key": mcp_main.MCP_API_KEY},
             json=_alpha_payload(),
         )
     assert response.status_code == 403
@@ -125,7 +125,7 @@ def test_send_message_rejects_invalid_protocol_payload() -> None:
         app.state.redis_ready = True
         response = client.post(
             "/send",
-            headers={"x-agent-id": "AGENT-14-PYTHON", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "AGENT-14-PYTHON", "x-api-key": mcp_main.MCP_API_KEY},
             json={
                 "schema_version": "v1",
                 "protocol": "beta",
@@ -257,7 +257,7 @@ def test_send_message_rejects_invalid_json() -> None:
         app.state.redis_ready = True
         response = client.post(
             "/send",
-            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
             content="{",
         )
     assert response.status_code == 400
@@ -282,7 +282,7 @@ def test_send_message_rejects_when_redis_unavailable() -> None:
         app.state.redis_ready = False
         response = client.post(
             "/send",
-            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
             json=_alpha_payload(),
         )
     assert response.status_code == 503
@@ -296,7 +296,7 @@ def test_send_message_publish_failure_writes_dlq() -> None:
         app.state.redis_ready = True
         response = client.post(
             "/send",
-            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
             json=_alpha_payload(),
         )
     assert response.status_code == 503
@@ -311,7 +311,7 @@ def test_send_message_multi_recipient_route() -> None:
         payload["recipient"] = ["AGENT-12-PODA-MGR", "broadcast", "AGENT-12-PODA-MGR"]
         response = client.post(
             "/send",
-            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
             json=payload,
         )
     assert response.status_code == 200
@@ -365,7 +365,7 @@ def test_send_message_rejects_invalid_sender_id() -> None:
         app.state.redis_ready = True
         response = client.post(
             "/send",
-            headers={"x-agent-id": "bad-sender", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "bad-sender", "x-api-key": mcp_main.MCP_API_KEY},
             json=payload,
         )
     assert response.status_code == 422
@@ -379,7 +379,7 @@ def test_send_message_request_validation_error() -> None:
         app.state.redis_ready = True
         response = client.post(
             "/send",
-            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
             json=payload,
         )
     assert response.status_code == 422
@@ -397,7 +397,7 @@ def test_send_message_protocol_value_error_path(monkeypatch) -> None:
         app.state.redis_ready = True
         response = client.post(
             "/send",
-            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": "mcp-local-key"},
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
             json=payload,
         )
     assert response.status_code == 422

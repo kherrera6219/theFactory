@@ -74,6 +74,7 @@ HEARTBEAT_INTERVAL_SECONDS = max(
 )
 REFINED_IR_STORE_PATH = os.getenv("REFINED_IR_STORE_PATH", "").strip()
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
+POD_DLQ_STREAM = os.getenv("POD_DLQ_STREAM", "factory:dlq:pod-worker")
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 
 EVENT_SCHEMA_PATH = Path("/app/schemas/event.envelope.schema.json")
@@ -388,6 +389,30 @@ async def _ensure_group(redis_client: redis.Redis) -> None:
             raise
 
 
+async def _write_dlq(
+    redis_client: redis.Redis,
+    entry_id: str,
+    fields: dict[str, Any],
+    error: str,
+) -> None:
+    try:
+        await redis_client.xadd(
+            POD_DLQ_STREAM,
+            {
+                "error": error,
+                "entry_id": entry_id,
+                "pod_name": POD_NAME,
+                "envelope": fields.get("envelope", ""),
+                "payload": fields.get("payload", ""),
+                "ts": datetime.now(UTC).isoformat(),
+            },
+            maxlen=MAX_STREAM_LEN,
+            approximate=True,
+        )
+    except Exception as dlq_exc:
+        LOGGER.error("pod-worker failed to write entry %s to DLQ: %s", entry_id, dlq_exc)
+
+
 async def _request(
     method: str,
     path: str,
@@ -428,7 +453,7 @@ async def _request(
             except httpx.HTTPError as exc:
                 last_error = exc
             if attempt < REQUEST_MAX_RETRIES:
-                await asyncio.sleep(0.1 * attempt)
+                await asyncio.sleep(min(2 ** attempt * 0.5, 30.0))
 
     if last_response is not None:
         return last_response
@@ -939,8 +964,9 @@ async def _consumer_loop(app: FastAPI) -> None:
                 except (ProtocolValidationError, json.JSONDecodeError, KeyError, TypeError) as exc:
                     app.state.errors += 1
                     TASKS_FAILED.labels(pod_name=POD_NAME, agent_id="UNKNOWN").inc()
-                    acknowledge = True
                     LOGGER.warning("discarding invalid state event %s: %s", entry_id, exc)
+                    await _write_dlq(redis_client, entry_id, fields, str(exc))
+                    acknowledge = True
                 except Exception as exc:
                     app.state.errors += 1
                     TASKS_FAILED.labels(pod_name=POD_NAME, agent_id="UNKNOWN").inc()
@@ -989,6 +1015,21 @@ async def lifespan(app: FastAPI):
     app.state.errors = 0
     INTERNAL_AUTH_FAILURES = 0
     LAST_INTERNAL_AUTH_STATUS = None
+
+    if AGENT_SERVICE_KEY_MODE == "shared":
+        LOGGER.warning(
+            "AGENT_SERVICE_KEY_MODE is 'shared'; all agents without a dedicated key will use "
+            "the shared SERVICE_API_KEY. Set AGENT_SERVICE_KEY_MODE=strict in production."
+        )
+    if AGENT_BINDING_SET:
+        _known_agent_pattern = re.compile(r"^AGENT-\d{2}-[A-Z0-9-]+$")
+        _invalid_bindings = [aid for aid in AGENT_BINDINGS if not _known_agent_pattern.match(aid)]
+        if _invalid_bindings:
+            LOGGER.warning(
+                "AGENT_BINDING contains unrecognized agent IDs: %s. "
+                "These agents will never match any mission event.",
+                ", ".join(_invalid_bindings),
+            )
 
     await app.state.redis.ping()
     await _ensure_group(app.state.redis)

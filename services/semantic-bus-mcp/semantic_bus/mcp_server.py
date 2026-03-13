@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -27,7 +28,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 MCP_PORT = int(os.getenv("MCP_PORT", "8090"))
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 MAX_MESSAGE_BYTES = int(os.getenv("MAX_MESSAGE_BYTES", "1048576"))
-MCP_API_KEY = os.getenv("MCP_API_KEY", "mcp-local-key").strip()
+_MCP_API_KEY_RAW = os.getenv("MCP_API_KEY", "").strip()
+MCP_API_KEY = _MCP_API_KEY_RAW if _MCP_API_KEY_RAW else secrets.token_hex(32)
 MAX_RECIPIENTS = int(os.getenv("MAX_RECIPIENTS", "32"))
 
 LOGGER = logging.getLogger(__name__)
@@ -233,6 +235,12 @@ async def _write_dlq(redis_client: Any, protocol: str, payload: dict[str, Any], 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not _MCP_API_KEY_RAW:
+        LOGGER.warning(
+            "MCP_API_KEY environment variable is not set. "
+            "A randomly generated session key is in use. "
+            "Set MCP_API_KEY explicitly in production to ensure stable authentication."
+        )
     app.state.redis = None
     app.state.redis_ready = False
     if redis is not None:
