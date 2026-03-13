@@ -291,6 +291,36 @@ class RustExtractor(LanguageExtractor):
     _import_pattern = re.compile(r"^\s*use\s+[\w:]+", re.MULTILINE)
 
 
+class GoExtractor(LanguageExtractor):
+    language = "go"
+    # Matches plain functions and methods (with receiver).
+    _function_pattern = re.compile(
+        r"^\s*func\s+(?:\(\s*\w+\s+\*?\w+\s*\)\s+)?(\w+)\s*\(",
+        re.MULTILINE,
+    )
+    # Matches named struct and interface type declarations.
+    _class_pattern = re.compile(
+        r"^\s*type\s+(\w+)\s+(?:struct|interface)\b",
+        re.MULTILINE,
+    )
+    # Matches single-line and grouped import blocks.
+    _import_pattern = re.compile(
+        r'^\s*import\s+(?:"[\w./]+"|\()',
+        re.MULTILINE,
+    )
+
+
+class ZigExtractor(LanguageExtractor):
+    language = "zig"
+    _function_pattern = re.compile(r"^\s*(?:pub\s+)?fn\s+(\w+)\s*\(", re.MULTILINE)
+    # Matches `const Name = struct {` / `union {` / `enum {` patterns.
+    _class_pattern = re.compile(
+        r"(?:const|var)\s+(\w+)\s*=\s*(?:packed\s+)?(?:struct|union|enum)\s*\{",
+        re.MULTILINE,
+    )
+    _import_pattern = re.compile(r'@import\s*\(\s*"[\w./]+"', re.MULTILINE)
+
+
 # ---------------------------------------------------------------------------
 # Pod C — Enterprise Language Extractors
 # ---------------------------------------------------------------------------
@@ -365,6 +395,30 @@ class MathematicaExtractor(LanguageExtractor):
     _import_pattern = re.compile(r"<<\s*[\w`]+|Needs\s*\[", re.MULTILINE)
 
 
+class HaskellExtractor(LanguageExtractor):
+    language = "haskell"
+    # Type signatures serve as the canonical function declaration marker.
+    _function_pattern = re.compile(r"^(\w+)\s*::\s*\S", re.MULTILINE)
+    # Matches data, newtype, and type alias declarations.
+    _class_pattern = re.compile(r"^\s*(?:data|newtype|type)\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(
+        r"^\s*import\s+(?:qualified\s+)?[\w.]+",
+        re.MULTILINE,
+    )
+
+
+class OCamlExtractor(LanguageExtractor):
+    language = "ocaml"
+    # Matches `let name arg ...` and `let rec name arg ...` top-level bindings.
+    _function_pattern = re.compile(
+        r"^\s*let\s+(?:rec\s+)?(\w+)\s+\w",
+        re.MULTILINE,
+    )
+    # Matches type and module declarations.
+    _class_pattern = re.compile(r"^\s*(?:type|module)\s+(\w+)", re.MULTILINE)
+    _import_pattern = re.compile(r"^\s*open\s+[\w.]+", re.MULTILINE)
+
+
 # ---------------------------------------------------------------------------
 # Extractor registry — language name → extractor class
 # ---------------------------------------------------------------------------
@@ -378,6 +432,8 @@ _EXTRACTORS: Final[dict[str, type[LanguageExtractor]]] = {
     "c": CExtractor,
     "cpp": CppExtractor,
     "rust": RustExtractor,
+    "go": GoExtractor,
+    "zig": ZigExtractor,
     "java": JavaExtractor,
     "csharp": CSharpExtractor,
     "scala": ScalaExtractor,
@@ -386,6 +442,8 @@ _EXTRACTORS: Final[dict[str, type[LanguageExtractor]]] = {
     "r": RExtractor,
     "julia": JuliaExtractor,
     "mathematica": MathematicaExtractor,
+    "haskell": HaskellExtractor,
+    "ocaml": OCamlExtractor,
 }
 
 
