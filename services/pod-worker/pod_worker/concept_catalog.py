@@ -611,6 +611,152 @@ _POD_B_RUST: Final[tuple[ConceptPattern, ...]] = (
     ),
 )
 
+_POD_B_GO: Final[tuple[ConceptPattern, ...]] = (
+    ConceptPattern(
+        "SYS-020-001",
+        "function_patterns",
+        "define_function",
+        "Create named function",
+        r"\bfunc\s+\w+\s*\(",
+    ),
+    ConceptPattern(
+        "SYS-020-002",
+        "concurrency",
+        "goroutine",
+        "Launch goroutine",
+        r"\bgo\s+\w+\s*\(",
+    ),
+    ConceptPattern(
+        "SYS-020-003",
+        "concurrency",
+        "channel_operation",
+        "Create or use channel",
+        r"\bmake\s*\(\s*chan\b|<-\s*\w+|\bclose\s*\(",
+    ),
+    ConceptPattern(
+        "SYS-020-004",
+        "resource_management",
+        "defer_call",
+        "Defer function call to end of scope",
+        r"\bdefer\s+\w+",
+    ),
+    ConceptPattern(
+        "SYS-020-005",
+        "error_handling",
+        "error_check",
+        "Check returned error value",
+        r"\berr\s*!=\s*nil\b",
+    ),
+    ConceptPattern(
+        "SYS-020-006",
+        "type_patterns",
+        "define_struct",
+        "Define struct type",
+        r"\btype\s+\w+\s+struct\b",
+    ),
+    ConceptPattern(
+        "SYS-020-007",
+        "type_patterns",
+        "define_interface",
+        "Define interface type",
+        r"\btype\s+\w+\s+interface\b",
+    ),
+    ConceptPattern(
+        "SYS-020-008",
+        "error_handling",
+        "wrap_error",
+        "Wrap or create error value",
+        r"\berrors\.New\s*\(|fmt\.Errorf\s*\(",
+    ),
+    ConceptPattern(
+        "SYS-020-009",
+        "module_patterns",
+        "import_package",
+        "Import package",
+        r'^\s*import\s+(?:"[\w./]+"|`[\w./]+`|\()',
+    ),
+    ConceptPattern(
+        "SYS-020-010",
+        "collection_patterns",
+        "slice_operation",
+        "Slice or map operation",
+        r"\bappend\s*\(|\bmake\s*\(\s*\[\]|\blen\s*\(",
+    ),
+    ConceptPattern(
+        "SYS-020-011",
+        "serialization",
+        "json_marshal",
+        "Marshal struct to JSON",
+        r"\bjson\.Marshal\s*\(|\bjson\.Unmarshal\s*\(",
+    ),
+)
+
+_POD_B_ZIG: Final[tuple[ConceptPattern, ...]] = (
+    ConceptPattern(
+        "SYS-021-001",
+        "function_patterns",
+        "define_function",
+        "Create named function",
+        r"\bfn\s+\w+\s*\(",
+    ),
+    ConceptPattern(
+        "SYS-021-002",
+        "metaprogramming",
+        "comptime_eval",
+        "Compile-time evaluation",
+        r"\bcomptime\b",
+    ),
+    ConceptPattern(
+        "SYS-021-003",
+        "error_handling",
+        "error_union",
+        "Propagate error with try or error union return",
+        r"\btry\s+\w+|\berror\s*\{|!\s*\w+\s*\{",
+    ),
+    ConceptPattern(
+        "SYS-021-004",
+        "type_patterns",
+        "define_struct",
+        "Define struct type",
+        r"\bstruct\s*\{",
+    ),
+    ConceptPattern(
+        "SYS-021-005",
+        "memory_management",
+        "allocator_usage",
+        "Use allocator for heap memory",
+        r"allocator\.alloc\s*\(|std\.heap\.\w+|\.deinit\s*\(",
+    ),
+    ConceptPattern(
+        "SYS-021-006",
+        "module_patterns",
+        "import_module",
+        "Import Zig module",
+        r'@import\s*\(\s*"[\w./]+"',
+    ),
+    ConceptPattern(
+        "SYS-021-007",
+        "resource_management",
+        "defer_call",
+        "Defer resource cleanup",
+        r"\bdefer\s+\w+",
+    ),
+    ConceptPattern(
+        "SYS-021-008",
+        "type_patterns",
+        "optional_type",
+        "Use optional type",
+        r"\?\s*\w+|\borelse\b|\bif\s+\(\s*\w+\s*\)\s*\|",
+    ),
+    ConceptPattern(
+        "SYS-021-009",
+        "io_operations",
+        "print_output",
+        "Write to stdout",
+        r"std\.debug\.print\s*\(|std\.io\.getStdOut",
+    ),
+)
+
 # ---------------------------------------------------------------------------
 # Pod C — Enterprise Languages (Java, C#, Scala, Kotlin)
 # ---------------------------------------------------------------------------
@@ -945,6 +1091,173 @@ _POD_D_MATHEMATICA: Final[tuple[ConceptPattern, ...]] = (
 )
 
 
+_POD_D_HASKELL: Final[tuple[ConceptPattern, ...]] = (
+    ConceptPattern(
+        "MATH-009-001",
+        "type_patterns",
+        "type_signature",
+        "Declare function type signature",
+        r"\w+\s*::\s*\S",
+    ),
+    ConceptPattern(
+        "MATH-009-002",
+        "pattern_matching",
+        "case_expression",
+        "Pattern match with case ... of",
+        r"\bcase\s+\w+\s+of\b",
+    ),
+    ConceptPattern(
+        "MATH-009-003",
+        "type_patterns",
+        "define_typeclass",
+        "Define type class",
+        r"\bclass\s+\w+.*\bwhere\b",
+    ),
+    ConceptPattern(
+        "MATH-009-004",
+        "type_patterns",
+        "typeclass_instance",
+        "Implement type class instance",
+        r"\binstance\s+\w+.*\bwhere\b",
+    ),
+    ConceptPattern(
+        "MATH-009-005",
+        "type_patterns",
+        "define_data",
+        "Define algebraic data type",
+        r"\bdata\s+\w+",
+    ),
+    ConceptPattern(
+        "MATH-009-006",
+        "function_patterns",
+        "lambda",
+        "Create anonymous lambda function",
+        r"\\\s*\w+\s*->",
+    ),
+    ConceptPattern(
+        "MATH-009-007",
+        "list_operations",
+        "list_comprehension",
+        "List comprehension",
+        r"\[\s*\w+\s*\|",
+    ),
+    ConceptPattern(
+        "MATH-009-008",
+        "async_patterns",
+        "monadic_bind",
+        "Monadic bind (>>=)",
+        r">>=",
+    ),
+    ConceptPattern(
+        "MATH-009-009",
+        "module_patterns",
+        "import_module",
+        "Import module",
+        r"^\s*import\s+(?:qualified\s+)?[\w.]+",
+    ),
+    ConceptPattern(
+        "MATH-009-010",
+        "async_patterns",
+        "do_notation",
+        "Monadic do-notation block",
+        r"\bdo\s*$|\bdo\s*\n",
+    ),
+    ConceptPattern(
+        "MATH-009-011",
+        "function_patterns",
+        "function_composition",
+        "Compose functions with . operator",
+        r"\w+\s+\.\s+\w+",
+    ),
+    ConceptPattern(
+        "MATH-009-012",
+        "function_patterns",
+        "define_function",
+        "Define top-level function",
+        r"^\w+\s+\w+.*=\s*\S",
+    ),
+)
+
+_POD_D_OCAML: Final[tuple[ConceptPattern, ...]] = (
+    ConceptPattern(
+        "MATH-010-001",
+        "function_patterns",
+        "define_function",
+        "Define named function with let binding",
+        r"\blet\s+\w+\s+\w+.*=",
+    ),
+    ConceptPattern(
+        "MATH-010-002",
+        "function_patterns",
+        "recursive_function",
+        "Define recursive function",
+        r"\blet\s+rec\s+\w+",
+    ),
+    ConceptPattern(
+        "MATH-010-003",
+        "pattern_matching",
+        "match_expression",
+        "Pattern match expression",
+        r"\bmatch\s+\w+\s+with\b",
+    ),
+    ConceptPattern(
+        "MATH-010-004",
+        "type_patterns",
+        "define_type",
+        "Define type alias or variant",
+        r"\btype\s+\w+",
+    ),
+    ConceptPattern(
+        "MATH-010-005",
+        "module_patterns",
+        "open_module",
+        "Open module namespace",
+        r"\bopen\s+[\w.]+",
+    ),
+    ConceptPattern(
+        "MATH-010-006",
+        "function_patterns",
+        "pipe_operator",
+        "Pipeline operator |>",
+        r"\|>",
+    ),
+    ConceptPattern(
+        "MATH-010-007",
+        "error_handling",
+        "exception_handling",
+        "Handle exceptions with try ... with",
+        r"\btry\b.*\bwith\b",
+    ),
+    ConceptPattern(
+        "MATH-010-008",
+        "module_patterns",
+        "define_module",
+        "Define module with struct ... end",
+        r"\bmodule\s+\w+\s*=\s*struct\b",
+    ),
+    ConceptPattern(
+        "MATH-010-009",
+        "module_patterns",
+        "functor",
+        "Define or apply functor",
+        r"\bfunctor\s*\(",
+    ),
+    ConceptPattern(
+        "MATH-010-010",
+        "function_patterns",
+        "anonymous_function",
+        "Create anonymous function with fun",
+        r"\bfun\s+\w+\s*->",
+    ),
+    ConceptPattern(
+        "MATH-010-011",
+        "type_patterns",
+        "option_type",
+        "Use option type",
+        r"\bSome\s*\(|\bNone\b|\boption\b",
+    ),
+)
+
 # ---------------------------------------------------------------------------
 # Public lookup — language name → pattern tuple
 # ---------------------------------------------------------------------------
@@ -960,17 +1273,20 @@ LANGUAGE_PATTERNS: Final[dict[str, tuple[ConceptPattern, ...]]] = {
     "c": _POD_B_C,
     "cpp": _POD_B_CPP,
     "rust": _POD_B_RUST,
-    "zig": (),  # Zig patterns reserved — too new for stable regex catalog
+    "go": _POD_B_GO,
+    "zig": _POD_B_ZIG,
     # Pod C — Enterprise
     "java": _POD_C_JAVA,
     "csharp": _POD_C_CSHARP,
     "scala": _POD_C_SCALA,
     "kotlin": _POD_C_KOTLIN,
-    # Pod D — Mathematical
+    # Pod D — Mathematical / Functional
     "matlab": _POD_D_MATLAB,
     "r": _POD_D_R,
     "julia": _POD_D_JULIA,
     "mathematica": _POD_D_MATHEMATICA,
+    "haskell": _POD_D_HASKELL,
+    "ocaml": _POD_D_OCAML,
 }
 
 
