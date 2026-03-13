@@ -162,11 +162,25 @@ POD_MANAGER_BY_LANGUAGE: dict[str, str] = {
 }
 
 
+_METADATA_MAX_BYTES = 4096
+
+
 class MissionCreate(BaseModel):
     prompt: str = Field(min_length=3)
     requested_target_language: str | None = None
     source_code: str | None = Field(default=None, max_length=512_000)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def __get_validators__(cls):
+        yield from super().__get_validators__()
+
+    def model_post_init(self, __context: Any) -> None:
+        serialized = json.dumps(self.metadata, separators=(",", ":"))
+        if len(serialized.encode("utf-8")) > _METADATA_MAX_BYTES:
+            raise ValueError(
+                f"metadata exceeds maximum allowed size of {_METADATA_MAX_BYTES} bytes"
+            )
 
 
 class MissionRecord(BaseModel):
@@ -1301,6 +1315,7 @@ async def create_mission(
         if not acquired:
             existing = await _load_idempotency_record(redis_client, idempotency_redis_key)
             if existing is None:
+                await asyncio.sleep(0.05)
                 acquired = await _save_idempotency_record(
                     redis_client,
                     idempotency_redis_key,
@@ -1360,11 +1375,13 @@ async def create_mission(
     except (ProtocolValidationError, json.JSONDecodeError) as exc:
         if idempotency_redis_key is not None:
             await redis_client.delete(idempotency_redis_key)
-        raise HTTPException(status_code=422, detail=f"invalid protocol envelope: {exc}") from exc
+        LOGGER.error("mission intake protocol envelope validation failed: %s", exc)
+        raise HTTPException(status_code=422, detail="invalid protocol envelope; check mission payload") from exc
     except Exception as exc:
         if idempotency_redis_key is not None:
             await redis_client.delete(idempotency_redis_key)
-        raise HTTPException(status_code=502, detail=f"failed to enqueue mission: {exc}") from exc
+        LOGGER.error("failed to enqueue mission to intake stream: %s", exc)
+        raise HTTPException(status_code=502, detail="failed to enqueue mission; please retry") from exc
 
     if idempotency_redis_key is not None and request_hash is not None:
         try:

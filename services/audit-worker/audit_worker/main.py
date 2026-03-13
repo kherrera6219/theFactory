@@ -47,6 +47,7 @@ AGENT_SERVICE_KEY_MODE = os.getenv("AGENT_SERVICE_KEY_MODE", "shared").strip().l
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("ORCHESTRATOR_TIMEOUT_SECONDS", "5.0"))
 REQUEST_MAX_RETRIES = int(os.getenv("ORCHESTRATOR_MAX_RETRIES", "3"))
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
+AUDIT_DLQ_STREAM = os.getenv("AUDIT_DLQ_STREAM", "factory:dlq:audit-worker")
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 
 EVENT_SCHEMA_PATH = Path("/app/schemas/event.envelope.schema.json")
@@ -170,6 +171,29 @@ async def _ensure_group(redis_client: redis.Redis) -> None:
             raise
 
 
+async def _write_dlq(
+    redis_client: redis.Redis,
+    entry_id: str,
+    fields: dict[str, Any],
+    error: str,
+) -> None:
+    try:
+        await redis_client.xadd(
+            AUDIT_DLQ_STREAM,
+            {
+                "error": error,
+                "entry_id": entry_id,
+                "envelope": fields.get("envelope", ""),
+                "payload": fields.get("payload", ""),
+                "ts": datetime.now(UTC).isoformat(),
+            },
+            maxlen=MAX_STREAM_LEN,
+            approximate=True,
+        )
+    except Exception as dlq_exc:
+        LOGGER.error("audit-worker failed to write entry %s to DLQ: %s", entry_id, dlq_exc)
+
+
 async def _post_audit(mission_id: str, status: str, summary: str, report: dict[str, Any]) -> bool:
     request_id = f"audit-{uuid.uuid4()}"
     last_response: httpx.Response | None = None
@@ -202,7 +226,7 @@ async def _post_audit(mission_id: str, status: str, summary: str, report: dict[s
             except httpx.HTTPError:
                 pass
             if attempt < REQUEST_MAX_RETRIES:
-                await asyncio.sleep(0.1 * attempt)
+                await asyncio.sleep(min(2 ** attempt * 0.5, 30.0))
 
     AUDIT_POST_LATENCY_SECONDS.labels(agent_id=WORKER_AGENT_ID, status="error").observe(
         time.perf_counter() - started
@@ -238,6 +262,7 @@ async def _consumer_loop(app: FastAPI) -> None:
 
         for _, entries in records:
             for entry_id, fields in entries:
+                acknowledge = False
                 started = time.perf_counter()
                 event_type = "UNKNOWN"
                 try:
@@ -300,19 +325,35 @@ async def _consumer_loop(app: FastAPI) -> None:
 
                     app.state.processed += 1
                     TASKS_PROCESSED.labels(agent_id=WORKER_AGENT_ID, event_type=event_type).inc()
-                except Exception:
+                    acknowledge = True
+                except (ProtocolValidationError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+                    # Permanent/malformed failure — route to DLQ and discard
                     app.state.errors += 1
                     TASKS_FAILED.labels(agent_id=WORKER_AGENT_ID, event_type=event_type).inc()
+                    LOGGER.warning("discarding invalid audit event %s: %s", entry_id, exc)
+                    await _write_dlq(redis_client, entry_id, fields, str(exc))
+                    acknowledge = True
+                except Exception as exc:
+                    # Transient failure — do not ack, allow broker to redeliver
+                    app.state.errors += 1
+                    TASKS_FAILED.labels(agent_id=WORKER_AGENT_ID, event_type=event_type).inc()
+                    LOGGER.warning("failed to process audit event %s: %s", entry_id, exc)
                 finally:
                     TASK_LATENCY_SECONDS.labels(
                         agent_id=WORKER_AGENT_ID,
                         event_type=event_type,
                     ).observe(time.perf_counter() - started)
-                    await redis_client.xack(STATE_STREAM, CONSUMER_GROUP, entry_id)
+                    if acknowledge:
+                        await redis_client.xack(STATE_STREAM, CONSUMER_GROUP, entry_id)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if AGENT_SERVICE_KEY_MODE == "shared":
+        LOGGER.warning(
+            "AGENT_SERVICE_KEY_MODE is 'shared'; all agents without a dedicated key will use "
+            "the shared SERVICE_API_KEY. Set AGENT_SERVICE_KEY_MODE=strict in production."
+        )
     app.state.redis = redis.from_url(REDIS_URL, decode_responses=True)
     app.state.consumer_task = None
     app.state.processed = 0
