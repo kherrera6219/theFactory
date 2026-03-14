@@ -1,5 +1,7 @@
 # ADR: v2 Mission-Flow Adoption Design Package (2026-03-08)
 
+Supersession note (2026-03-13): this design package captured the earlier "v1.1 default, v2 gated" migration plan. The current shipped defaults now enable `MISSION_FLOW_V2_ENABLED=true`. Use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for the current runtime-default summary.
+
 Status: Accepted (Design baseline, feature-flag gated)  
 Owner: mission-runtime architecture
 

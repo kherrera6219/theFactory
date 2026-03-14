@@ -1,6 +1,6 @@
 # Gap Analysis
 
-Last updated: 2026-03-03
+Last updated: 2026-03-13
 
 ## Scope
 
@@ -29,12 +29,13 @@ Last updated: 2026-03-03
      - Added `persona_profile.evidence_sources`.
      - Added integration metadata fields indicating profile framework/extensions and evidence verification date.
 
-3. `Medium` Documentation consistency gap after rapid implementation phases.
-   - Previous state: partial mismatch between architecture, roadmap, runbook, and readme detail depth.
+3. `High` Runtime/documentation drift around mission lifecycle defaults.
+   - Previous state: core docs described v1.1 as the default production runtime and v2 as a gated future path.
+   - Current-cycle action:
+     - added `docs/IMPLEMENTATION_STATUS.md` as the current-state source of truth,
+     - aligned README, architecture, index, roadmap, completion, and ADR supersession notes to the shipped `MISSION_FLOW_V2_ENABLED=true` defaults,
+     - updated lifecycle tests so LangGraph-only coverage disables v2 explicitly.
    - Status: `Addressed in this cycle`.
-   - Action taken:
-     - Refreshed root README and core docs set with aligned architecture, roadmap, operations, and audit content.
-     - Added `docs/DOCUMENTATION_INDEX.md` for central navigation.
 
 4. `Medium` Deep production controls not fully enforced.
    - Status: `Addressed (baseline)`.
@@ -44,21 +45,24 @@ Last updated: 2026-03-03
      - Added long-duration reliability qualification tooling with sustained load, failure injection, readiness monitoring, and recovery verification.
      - Published baseline evidence artifact: `docs/evidence/reliability_qualification_baseline_2026-03-03.json`.
 
-5. `Medium` Mission Control regression coverage was limited to unit tests.
+5. `Medium` Mission Control regression coverage existed, but the suite had drifted from the live UI.
    - Previous state: UI validation focused on TypeScript and Vitest unit coverage without critical-path e2e execution.
-   - Status: `Addressed (baseline)`.
-   - Action taken:
-     - Added Playwright e2e suite for mission lifecycle, operations views, settings/vault, and error states.
-     - Added CI browser provisioning and Mission Control e2e execution.
-     - Added audit control `UI-011` to verify e2e gating remains configured.
+   - Current-cycle action:
+     - updated the stale heading assertion to match the live mission-detail page,
+     - re-ran the full Playwright suite successfully.
+   - Status: `Addressed in this cycle`.
 
-6. `Medium` Builder preview and repository intake UX included placeholder/simulated behaviors.
+6. `Medium` Builder preview and repository intake UX still include partially synthetic behavior.
    - Previous state: builder showed plan-only placeholder rendering and repo import used sample file simulation.
-   - Status: `Addressed (baseline)`.
-   - Action taken:
-     - Implemented functional diff/file-impact preview rendering in Builder workspace.
-     - Added real GitHub metadata/tree import API with input validation, tokenized access, truncation/large-file handling, and error mapping.
-     - Added unit and e2e regression coverage for both pathways.
+   - Current observed state:
+     - repo import is real GitHub metadata/tree ingestion,
+     - Builder diff rendering is inferred from preview-plan signals rather than a true patch/apply workflow,
+     - repo review gating remains client-side state.
+   - Status: `Open`.
+   - Required action:
+     - carry real repository context through to mission launch,
+     - replace synthetic diff generation with a true server-side diff/apply contract,
+     - enforce review gating server-side.
 
 7. `Medium` Backup and disaster-recovery scripts lacked direct automated regression tests.
    - Previous state: perf/audit script checks existed, but backup/DR PowerShell flows were untested in automation.
@@ -74,22 +78,45 @@ Last updated: 2026-03-03
      - Added canonical reconciliation note with adopted/deferred/deprecated legacy scope mapping.
      - Documented explicit Mission Control port policy for Docker-host and direct-dev modes.
 
-9. `Medium` Mission intake/state integration validation was primarily mock-based.
+9. `High` Backend mission-flow regression coverage was present but had drifted from the shipped runtime contract.
    - Previous state: mission-flow tests used fake/in-memory dependencies for most backend paths.
-   - Status: `Addressed (baseline)`.
-   - Action taken:
-     - Added live integration tests for real gateway/orchestrator/Redis/Postgres mission flow.
-     - Added runtime-aware skip behavior to keep tests safe in environments without active stack.
+   - Current-cycle action:
+     - fixed the v2 runtime to emit `MISSION_COMPLETION_BLOCKED` consistently,
+     - aligned runtime and LangGraph unit tests with the shipped v2-default behavior,
+     - updated live integration polling to tolerate the queue-first create path until the orchestrator record becomes queryable,
+     - re-ran the full backend suite successfully.
+   - Status: `Addressed in this cycle`.
 
-10. `Medium` Data-systems reconciliation (Qdrant activation and Neo4j/object-storage scope decision) remained open.
+10. `Medium` Mission creation is queue-first and therefore eventually consistent.
+   - Current observed state:
+     - `POST /v1/missions` enqueues to Redis intake and returns before the orchestrator record is always queryable,
+     - immediate follow-up reads can briefly return `404` until the intake consumer persists the mission.
+   - Status: `Open`.
+   - Required action:
+     - either document this as the intended contract everywhere it matters,
+     - or change mission creation to provide read-after-write consistency.
+
+11. `Medium` Data-system implementation is ahead of some operator-facing docs/UI surfaces.
    - Previous state: Qdrant was listed as reserved and retrieval behavior was primarily PostgreSQL-only.
-   - Status: `Addressed (baseline)`.
-   - Action taken:
-     - Activated orchestrator Qdrant retrieval path with best-effort mirror writes and PostgreSQL fallback.
-     - Added runtime readiness visibility for Qdrant in health/operations surfaces.
-     - Added optional Qdrant API-key support for secure service-to-service requests.
-     - Recorded formal defer decision for Neo4j/object-storage as optional expansion scope.
+   - Current observed state:
+     - Qdrant readiness is wired into backend health and operations payloads,
+     - Neo4j/object-storage readiness is also surfaced in orchestrator runtime payloads when enabled,
+     - some Mission Control data-plane copy still presents these adapters as planned rather than active/optional.
+   - Status: `Partially addressed`.
+   - Required action:
+     - align UI copy and architecture docs with the live readiness fields and feature-flagged posture.
+
+12. `Medium` Language-extraction coverage and specialist-routing claims diverged.
+   - Previous state: docs described 16 languages and 169 patterns.
+   - Current observed state: extractor/catalog expose 20 languages and 232 patterns, while specialist routing remains narrower.
+   - Status: `Open`.
+   - Required action:
+     - either expand specialist coverage to match extraction scope,
+     - or reduce docs and marketing claims to the subset with full routing support.
 
 ## Structural Gaps Still Open (Planned)
 
-- None in current canonical production-readiness baseline.
+- Mission-create consistency contract.
+- Builder and repo workflow completion.
+- Audit/data-plane/operator-surface reconciliation.
+- Language routing and extraction reconciliation.

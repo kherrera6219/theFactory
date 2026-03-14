@@ -422,7 +422,13 @@ def test_start_lifecycle_task_cleanup_callback(monkeypatch) -> None:
 
 def test_advance_mission_lifecycle_returns_when_langgraph_handles(monkeypatch) -> None:
     app = _app_state(lifecycle_tasks={})
-    app.state.settings = Settings(**{**_settings().__dict__, "langgraph_enabled": True})
+    app.state.settings = Settings(
+        **{
+            **_settings().__dict__,
+            "langgraph_enabled": True,
+            "mission_flow_v2_enabled": False,
+        }
+    )
 
     async def _langgraph(**_kwargs) -> bool:
         return True
@@ -474,13 +480,6 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
         lambda *_args: {"mission_id": "mission-1", "pod_name": "podA"},
     )
     monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [])
-    monkeypatch.setattr(
-        runtime.storage,
-        "transition_mission_state",
-        lambda _settings_obj, mission_id, expected_state, new_state, _event_type: _mission_record(
-            new_state
-        ),
-    )
     checkpoint_events: list[str] = []
 
     def _insert_checkpoint(
@@ -497,6 +496,22 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
         "insert_mission_event",
         _insert_checkpoint,
     )
+
+    def _transition_mission_state(
+        _settings_obj,
+        mission_id,
+        expected_state,
+        new_state,
+        event_type,
+    ):
+        _insert_checkpoint(_settings_obj, mission_id, expected_state, new_state, event_type)
+        return _mission_record(new_state)
+
+    monkeypatch.setattr(
+        runtime.storage,
+        "transition_mission_state",
+        _transition_mission_state,
+    )
     emitted: list[str] = []
 
     async def _emit(**kwargs):
@@ -510,6 +525,7 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
         "MISSION_CEO_DELEGATED",
         "MISSION_POD_MANAGER_ASSIGNED",
         "MISSION_SPECIALIST_ASSIGNED",
+        "MISSION_SPECIALIST_PLANNED",
         "MISSION_RUNNING",
         "MISSION_GATING",
         "MISSION_FUSION",
@@ -521,8 +537,12 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
         "MISSION_CEO_DELEGATED",
         "MISSION_POD_MANAGER_ASSIGNED",
         "MISSION_SPECIALIST_ASSIGNED",
+        "MISSION_SPECIALIST_PLANNED",
+        "MISSION_RUNNING",
         "MISSION_GATING",
         "MISSION_FUSION",
+        "MISSION_VERIFIED",
+        "MISSION_COMPLETE",
     ]
 
 

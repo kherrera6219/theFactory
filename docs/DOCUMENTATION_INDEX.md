@@ -1,6 +1,6 @@
 # Documentation Index
 
-Last updated: 2026-03-09
+Last updated: 2026-03-13
 
 This index maps the in-repo documentation set for theFactory and reflects the current implementation baseline.
 
@@ -8,6 +8,7 @@ Canonical living docs use stable filenames without a date suffix. Date-stamped d
 
 ## Core Product and Architecture
 
+- `IMPLEMENTATION_STATUS.md`: authoritative current-state snapshot for shipped defaults, validation status, and remaining gaps.
 - `ARCHITECTURE.md`: runtime topology, contracts, and control-plane architecture.
 - `ARCHITECTURE_DIAGRAMS.md`: canonical C4-style, runtime, deployment, and multi-agent diagrams.
 - `DIAGRAM_STANDARDS.md`: required enterprise diagram set and standards rationale for this repository.
@@ -16,10 +17,10 @@ Canonical living docs use stable filenames without a date suffix. Date-stamped d
 - `UPDATED_PHASE_PLAN_2026-03-03.md`: current post-Phase-18 execution plan and validation protocol.
 - `ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`: canonical decision record for condensed vs dedicated-agent runtime topology.
 - `ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`: canonical security-model decision record for API-key, hybrid, and OIDC modes.
-- `ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md`: canonical status decision for v1.1 production runtime vs v2 roadmap scope.
-- `ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md`: feature-flagged v2 adoption design package with compatibility matrix and rollback plan.
+- `ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md`: historical status decision for the earlier v1.1-default position; superseded for current shipped defaults by `IMPLEMENTATION_STATUS.md`.
+- `ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md`: historical v2 adoption design package; current default flag posture is summarized in `IMPLEMENTATION_STATUS.md`.
 - `ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md`: canonical deferred-scope governance decisions and trigger criteria.
-- `GAP_ANALYSIS.md`: reviewed gaps, dispositions, and remaining structural work.
+- `GAP_ANALYSIS.md`: reviewed gaps, current known drift, and remaining structural work.
 - `LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md`: explicit legacy-scope disposition and Mission Control port-policy reconciliation.
 - `WORD_DOC_AUDIT_2026-03-03.md`: reconciliation audit against all in-repo Word-document requirements.
 - `UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`: prioritized backlog generated from Word-doc audit findings.
@@ -104,12 +105,12 @@ Canonical living docs use stable filenames without a date suffix. Date-stamped d
 ## Suggested Read Order
 
 1. `../README.md`
-2. `ARCHITECTURE.md`
-3. `ARCHITECTURE_DIAGRAMS.md`
-4. `DIAGRAM_STANDARDS.md`
-5. `ROADMAP.md`
-6. `OPERATIONS_RUNBOOK.md`
-7. `AGENT_SERVICE_KEY_ISOLATION.md`
-8. `AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`
-9. `AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
-10. `AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`
+2. `IMPLEMENTATION_STATUS.md`
+3. `ARCHITECTURE.md`
+4. `ARCHITECTURE_DIAGRAMS.md`
+5. `DIAGRAM_STANDARDS.md`
+6. `ROADMAP.md`
+7. `OPERATIONS_RUNBOOK.md`
+8. `AGENT_SERVICE_KEY_ISOLATION.md`
+9. `AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`
+10. `AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`

@@ -2,6 +2,8 @@
 
 Last updated: 2026-03-08
 
+Current-state note (2026-03-13): this document remains the implementation phase log. It should not be read as a guarantee that the current repository is fully green or fully converged. For shipped defaults, active validation status, and remaining completion work, use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
+
 ## Phase 1: Foundation
 
 - Monorepo scaffold and local Docker stack.

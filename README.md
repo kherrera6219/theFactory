@@ -4,7 +4,7 @@
 
 **HolyGrail Multi-Agent Software Refinery**
 
-*A production-grade, local-first AI orchestration platform that transforms mission prompts into verified software artifacts through a 35-agent delegation chain and semantic-bus workflow.*
+*A local-first AI orchestration platform with a real multi-service control plane, a 35-agent registry, and a condensed default runtime for mission intake, delegation, language processing, and audit handoff.*
 
 [![CI](https://github.com/holygrail/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/holygrail/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/security.yml)
@@ -21,6 +21,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Implementation Status](docs/IMPLEMENTATION_STATUS.md)
 - [Architecture](#architecture)
 - [35-Agent Runtime Model](#35-agent-runtime-model)
 - [Mission Lifecycle](#mission-lifecycle)
@@ -44,11 +45,13 @@
 
 **theFactory** is the HolyGrail runtime implementation of a 35-agent multi-agent software refinery. It is designed as a Windows-friendly, Docker-based monorepo that provides:
 
+Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
+
 - **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
 - **Semantic bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
-- **35 specialist agents** — organized across interface, executive, support, and pod-specialist tiers
-- **Language-aware code analysis** — regex-based extraction engine for 16 languages across 4 pod groups
-- **LangGraph-powered state machine** — Postgres-checkpointed mission lifecycle with fail-open fallback
+- **35-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
+- **Language-aware code analysis** — regex-based extraction engine for 20 languages across 4 pod groups
+- **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
 - **Full production observability** — Prometheus, Grafana, Loki, Jaeger OTLP, Alertmanager
 - **Enterprise-grade security** — dual-mode auth (API key + JWT/OIDC), per-role key isolation, SAST/SCA/secret scanning in CI
 
@@ -178,7 +181,7 @@ Full matrix: [`docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`](docs/AGENT_L
 
 ## Mission Lifecycle
 
-Missions flow through the orchestrator state machine powered by **LangGraph**:
+External mission states remain:
 
 ```
 QUEUED ─→ RUNNING ─→ VERIFIED ─→ COMPLETE
@@ -186,12 +189,13 @@ QUEUED ─→ RUNNING ─→ VERIFIED ─→ COMPLETE
             └──── FAILED ───────────┘
 ```
 
-- **LangGraph StateGraph** with 3 transition nodes and conditional edges
-- **Postgres checkpointer** (`LANGGRAPH_CHECKPOINTER=postgres`) — survives orchestrator restarts
-- **Memory checkpointer** — baseline/dev mode
-- **`LANGGRAPH_FAIL_OPEN=true`** — safe fallback to legacy lifecycle on graph failure
-- **Startup rehydration** — in-flight missions recovered on restart
-- **Feature-flagged** — `LANGGRAPH_ENABLED=false` by default, zero-risk when disabled
+Lifecycle engine behavior in the shipped defaults:
+
+- **Mission Flow v2 is enabled by default** via `MISSION_FLOW_V2_ENABLED=true`
+- **LangGraph is optional** via `LANGGRAPH_ENABLED=true` and is disabled by default
+- **Legacy lifecycle fallback** remains available when both newer paths are disabled or fail open
+- **Postgres checkpointer** (`LANGGRAPH_CHECKPOINTER=postgres`) is available when LangGraph is enabled
+- **Startup rehydration** exists for in-flight missions
 
 ---
 
@@ -202,10 +206,10 @@ Pod workers run a static-analysis extraction engine that detects computational c
 | Pod | Languages | Concept Prefix | Patterns |
 |-----|-----------|---------------|---------|
 | A — Dynamic | Python, JavaScript, Ruby, PHP | `DYN-` | ~68 |
-| B — Systems | C, C++, Rust | `SYS-` | ~36 |
+| B — Systems | C, C++, Rust, Zig, Go | `SYS-` | ~54 |
 | C — Enterprise | Java, C#, Scala, Kotlin | `ENT-` | ~35 |
-| D — Mathematical | MATLAB, R, Julia, Mathematica | `MATH-` | ~30 |
-| **Total** | **16 languages** | | **169 patterns** |
+| D — Mathematical | MATLAB, R, Julia, Mathematica, Haskell, OCaml | `MATH-` | ~75 |
+| **Total** | **20 languages** | | **232 patterns** |
 
 Each extracted concept becomes a **LogicNode** with:
 - `concept_id` (e.g. `DYN-006-001` for async function, `SYS-011-001` for Rust `Result<T>`)
@@ -526,15 +530,15 @@ npm run test:e2e   # Playwright critical-path E2E
 | Core module coverage | 100% | `scripts/check_coverage_thresholds.py` |
 | Production audit | 13/13 checks | `scripts/production_review_audit.py` |
 | Frontend lint | 0 errors | CI |
-| Frontend unit tests | all pass | CI (21 tests) |
-| Frontend E2E | all pass | CI (6 Playwright journeys) |
+| Frontend unit tests | currently passing | `apps/mission-control` Vitest |
+| Frontend E2E | currently passing | Playwright critical-path regression suite |
 | Bandit SAST | 0 high/crit | `security.yml` |
 | Trivy container scan | 0 critical | `security.yml` |
 | gitleaks secret scan | 0 findings | `security.yml` |
 | pip-audit SCA | 0 known vulns | `security.yml` |
 | Release attestation | signed provenance | CI release gate |
 
-**Current status:** 320 backend tests · 21 frontend unit tests · 6 E2E tests · 86% coverage
+**Current status (2026-03-13):** backend `python -m pytest -q` is green and Mission Control Playwright is green. See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for the remaining product-completion gaps.
 
 ---
 
@@ -544,12 +548,12 @@ npm run test:e2e   # Playwright critical-path E2E
 
 ```bash
 # Database
-POSTGRES_USER=hgr
+POSTGRES_USER=postgres
 POSTGRES_PASSWORD=<secret>
-POSTGRES_DB=holygrail
+POSTGRES_DB=ulr
 
 # Redis
-REDIS_URL=redis://:password@redis:6379/0
+REDIS_URL=rediss://:password@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
 
 # API Authentication
 GATEWAY_API_KEY=<mutate-key>
@@ -560,8 +564,9 @@ AUTH_MODE=api_key                  # api_key | hybrid | oidc
 OIDC_ISSUER_URL=https://your-idp/.well-known/openid-configuration
 OIDC_AUDIENCE=holygrail-api
 
-# LangGraph
-LANGGRAPH_ENABLED=false            # set true to enable
+# Lifecycle
+MISSION_FLOW_V2_ENABLED=true       # shipped default runtime path
+LANGGRAPH_ENABLED=false            # optional alternative lifecycle engine
 LANGGRAPH_CHECKPOINTER=memory      # memory | postgres
 LANGGRAPH_FAIL_OPEN=true
 
@@ -664,6 +669,7 @@ theFactory/
 
 | Document | Description |
 |----------|-------------|
+| [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Current shipped defaults, known gaps, and validation snapshot |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture and topology |
 | [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md) | System, runtime, deployment, and multi-agent diagrams |
 | [`docs/DIAGRAM_STANDARDS.md`](docs/DIAGRAM_STANDARDS.md) | Enterprise diagram set and standards basis |
@@ -689,25 +695,26 @@ theFactory/
 
 ## Current Status
 
-**39 implementation phases complete. Remaining roadmap work is focused on operational key rotation, stricter promotion thresholds, and dashboard additions.**
+**The codebase is substantial and mostly wired, but it is not fully converged today. The shipped defaults, tests, UI assertions, and some dated docs still need reconciliation.**
 
 | Domain | Status |
 |--------|--------|
 | Infrastructure & DevOps | ✅ Complete |
 | Security & Auth | ✅ Complete |
 | Observability | ✅ Complete |
-| Testing & CI | ✅ Complete |
-| Data Systems | ✅ Complete |
-| Mission Control UI | ✅ Complete |
+| Testing & CI | ✅ Backend pytest and Mission Control Playwright are green |
+| Data Systems | ⚠️ Core path complete, optional-adapter/status docs still lag |
+| Mission Control UI | ⚠️ Real operator UI, but builder/repo flows remain partially synthetic |
 | Language Extraction Engine | ✅ Complete |
-| LangGraph State Machine | ✅ Complete (v1.1 production baseline; v2 available behind feature flags) |
-| CEO→Pod Delegation Chain | ✅ Complete |
+| Mission Lifecycle | ⚠️ Multiple engines implemented; queue-first create/read behavior remains eventually consistent |
+| CEO→Pod Delegation Chain | ✅ Complete baseline |
 | LLM API Call Wiring | ✅ Complete (provider-aware routing with fallback) |
 
-**Remaining roadmap items:**
-- Vault-backed rotation and revocation automation for per-agent service keys
-- Promotion-gate tightening after sustained weekly qualification evidence
-- Additional Grafana panels for `MISSION_SPECIALIST_PLANNED` and route provenance
+**Current completion work:**
+- Decide whether mission creation should remain queue-first/eventually consistent or move to read-after-write consistency
+- Replace synthetic builder/repo-review behavior with a true repository diff/apply workflow
+- Align audit/data-plane docs and Mission Control surfaces with the shipped implementation
+- Expand or reduce language-routing claims so docs and runtime specialist coverage match
 
 ---
 
