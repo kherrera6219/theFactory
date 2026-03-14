@@ -34,6 +34,7 @@ SCALABLE_AGENT_IDS: Final[frozenset[str]] = frozenset(
         "AGENT-21-CPP",
         "AGENT-22-RUST",
         "AGENT-23-ZIG",
+        "AGENT-36-GO",
         # Pod C — enterprise languages
         "AGENT-26-JAVA",
         "AGENT-27-CSHARP",
@@ -44,6 +45,8 @@ SCALABLE_AGENT_IDS: Final[frozenset[str]] = frozenset(
         "AGENT-33-R",
         "AGENT-34-JULIA",
         "AGENT-35-MATHEMATICA",
+        "AGENT-37-HASKELL",
+        "AGENT-38-OCAML",
     }
 )
 

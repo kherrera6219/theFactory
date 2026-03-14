@@ -35,8 +35,8 @@ record_partition_result = agent_scaling.record_partition_result
 
 
 class TestIsScalableAgent:
-    def test_all_16_specialists_are_scalable(self) -> None:
-        assert len(SCALABLE_AGENT_IDS) == 16
+    def test_all_19_specialists_are_scalable(self) -> None:
+        assert len(SCALABLE_AGENT_IDS) == 19
 
     @pytest.mark.parametrize(
         "agent_id",
@@ -57,6 +57,9 @@ class TestIsScalableAgent:
             "AGENT-33-R",
             "AGENT-34-JULIA",
             "AGENT-35-MATHEMATICA",
+            "AGENT-36-GO",
+            "AGENT-37-HASKELL",
+            "AGENT-38-OCAML",
         ],
     )
     def test_specialist_is_scalable(self, agent_id: str) -> None:

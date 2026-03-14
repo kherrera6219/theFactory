@@ -143,8 +143,21 @@ export async function listMissions(limit: number): Promise<MissionRecord[]> {
   return fetchJson<MissionRecord[]>(missionApiUrl(`/v1/missions?limit=${limit}`), { method: "GET" });
 }
 
-export async function getMission(missionId: string): Promise<MissionRecord> {
-  return fetchJson<MissionRecord>(missionApiUrl(`/v1/missions/${missionId}`), { method: "GET" });
+export async function getMission(missionId: string, maxRetries = 3): Promise<MissionRecord> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fetchJson<MissionRecord>(missionApiUrl(`/v1/missions/${missionId}`), { method: "GET" });
+    } catch (error) {
+      if (error instanceof ApiError && error.statusCode === 404 && attempt < maxRetries) {
+        attempt++;
+        // Exponential-ish backoff to handle eventual consistency on creation
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+        continue;
+      }
+      throw error;
+    }
+  }
 }
 
 export async function getMissionEvents(missionId: string, limit: number): Promise<MissionEvent[]> {

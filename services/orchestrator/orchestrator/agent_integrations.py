@@ -133,6 +133,9 @@ _AGENT_LLM_PROFILE_MAP: Final[dict[str, str]] = {
     "AGENT-33-R": "gemini_stem",
     "AGENT-34-JULIA": "gemini_stem",
     "AGENT-35-MATHEMATICA": "gemini_stem",
+    "AGENT-36-GO": "openai_codegen",
+    "AGENT-37-HASKELL": "gemini_stem",
+    "AGENT-38-OCAML": "gemini_stem",
 }
 
 

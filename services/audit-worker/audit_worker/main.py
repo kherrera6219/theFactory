@@ -326,7 +326,13 @@ async def _consumer_loop(app: FastAPI) -> None:
                     app.state.processed += 1
                     TASKS_PROCESSED.labels(agent_id=WORKER_AGENT_ID, event_type=event_type).inc()
                     acknowledge = True
-                except (ProtocolValidationError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+                except (
+                    ProtocolValidationError,
+                    json.JSONDecodeError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ) as exc:
                     # Permanent/malformed failure — route to DLQ and discard
                     app.state.errors += 1
                     TASKS_FAILED.labels(agent_id=WORKER_AGENT_ID, event_type=event_type).inc()

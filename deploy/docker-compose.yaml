@@ -542,7 +542,7 @@ services:
       POD_WORKER_GROUP: pod-workers-podB
       POD_WORKER_NAME: pod-b-01
       POD_NAME: podB
-      SUPPORTED_LANGUAGES: c,cpp,rust,zig
+      SUPPORTED_LANGUAGES: c,cpp,rust,zig,go
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
       SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
@@ -630,7 +630,7 @@ services:
       POD_WORKER_GROUP: pod-workers-podD
       POD_WORKER_NAME: pod-d-01
       POD_NAME: podD
-      SUPPORTED_LANGUAGES: matlab,r,julia,mathematica
+      SUPPORTED_LANGUAGES: matlab,r,julia,mathematica,haskell,ocaml
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
       SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}

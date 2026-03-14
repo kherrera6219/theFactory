@@ -4,7 +4,7 @@
 
 **HolyGrail Multi-Agent Software Refinery**
 
-*A local-first AI orchestration platform with a real multi-service control plane, a 35-agent registry, and a condensed default runtime for mission intake, delegation, language processing, and audit handoff.*
+*A local-first AI orchestration platform with a real multi-service control plane, a 38-agent registry, and a condensed default runtime for mission intake, delegation, language processing, and audit handoff.*
 
 [![CI](https://github.com/holygrail/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/holygrail/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/security.yml)
@@ -23,7 +23,7 @@
 - [Overview](#overview)
 - [Implementation Status](docs/IMPLEMENTATION_STATUS.md)
 - [Architecture](#architecture)
-- [35-Agent Runtime Model](#35-agent-runtime-model)
+- [38-Agent Runtime Model](#38-agent-runtime-model)
 - [Mission Lifecycle](#mission-lifecycle)
 - [Language Extraction Engine](#language-extraction-engine)
 - [Services](#services)
@@ -43,13 +43,13 @@
 
 ## Overview
 
-**theFactory** is the HolyGrail runtime implementation of a 35-agent multi-agent software refinery. It is designed as a Windows-friendly, Docker-based monorepo that provides:
+**theFactory** is the HolyGrail runtime implementation of a 38-agent multi-agent software refinery. It is designed as a Windows-friendly, Docker-based monorepo that provides:
 
 Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 
 - **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
 - **Semantic bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
-- **35-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
+- **38-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
 - **Language-aware code analysis** — regex-based extraction engine for 20 languages across 4 pod groups
 - **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
 - **Full production observability** — Prometheus, Grafana, Loki, Jaeger OTLP, Alertmanager
@@ -74,7 +74,7 @@ Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTA
 ┌───────────▼───────────────────────────────────────▼─────────────┐
 │                      ORCHESTRATOR :8101                         │
 │  LangGraph StateGraph · Mission lifecycle · Pod assignment      │
-│  35-agent registry · Operations APIs · Qdrant/Neo4j/S3 plane   │
+│  38-agent registry · Operations APIs · Qdrant/Neo4j/S3 plane   │
 └──┬──────┬──────────┬───────────────┬───────────────────────────┘
    │      │ Redis    │               │
    │   Streams   ┌──▼────────────────▼──┐
@@ -122,9 +122,9 @@ OBSERVABILITY PLANE
 
 ---
 
-## 35-Agent Runtime Model
+## 38-Agent Runtime Model
 
-The orchestrator maintains a canonical registry of **35 specialist agents** organized across four tiers:
+The orchestrator maintains a canonical registry of **38 specialist agents** organized across four tiers:
 
 | Tier | Agents | Role |
 |------|--------|------|
@@ -167,7 +167,7 @@ Each agent exposes:
 }
 ```
 
-### LLM Provider Assignment (35 Agents)
+### LLM Provider Assignment (38 Agents)
 
 | Provider | Count | Key ENV Variables |
 |----------|-------|-------------------|
@@ -206,10 +206,10 @@ Pod workers run a static-analysis extraction engine that detects computational c
 | Pod | Languages | Concept Prefix | Patterns |
 |-----|-----------|---------------|---------|
 | A — Dynamic | Python, JavaScript/TypeScript, Ruby, PHP | `DYN-` | ~68 |
-| B — Systems | C, C++, Rust, Zig | `SYS-` | ~54 |
+| B — Systems | C, C++, Rust, Zig, Go | `SYS-` | ~54 |
 | C — Enterprise | Java, C#, Scala, Kotlin | `ENT-` | ~35 |
-| D — Mathematical | MATLAB, R, Julia, Mathematica | `MATH-` | ~75 |
-| **Total** | **16 languages** (TypeScript aliases to JavaScript specialist) | | **232 patterns** |
+| D — Mathematical | MATLAB, R, Julia, Mathematica, Haskell, OCaml | `MATH-` | ~75 |
+| **Total** | **19 languages** (TypeScript aliases to JavaScript specialist) | | **232 patterns** |
 
 Each extracted concept becomes a **LogicNode** with:
 - `concept_id` (e.g. `DYN-006-001` for async function, `SYS-011-001` for Rust `Result<T>`)
@@ -260,7 +260,7 @@ Each extracted concept becomes a **LogicNode** with:
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/operations/summary` | Runtime health summary |
-| `GET` | `/v1/operations/agents` | All 35 agent runtime states |
+| `GET` | `/v1/operations/agents` | All 38 agent runtime states |
 | `GET` | `/v1/operations/agent-integrations` | Agent protocol/LLM/persona profiles |
 
 #### Live Transport
@@ -295,7 +295,7 @@ Each extracted concept becomes a **LogicNode** with:
 | Dashboard | Runtime-wide health, mission counts, agent status summary |
 | Missions | Mission table with lifecycle state and phase stepper |
 | Mission Detail | Live event timeline, Smelt-cycle phase stepper (SSE-driven), chain-of-command |
-| Agents | 35-agent roster grid with persona drill-down |
+| Agents | 38-agent roster grid with persona drill-down |
 | Semantic Bus | Live message stream with windowed rendering |
 | Operations | Internal health, readiness, and metrics |
 | Builder | Repository intake (4-step: import → file select → diff review/apply gate → mission config) |
@@ -632,7 +632,7 @@ Spawns dedicated manager-worker containers per pod with `AGENT_BINDING` enforcem
 docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
-Adds dedicated `agent-runtime` containers for PM, CEO, support, pod-audit, and specialist roles. This profile enables strict per-agent bindings and the full isolated 35-agent runtime topology.
+Adds dedicated `agent-runtime` containers for PM, CEO, support, pod-audit, and specialist roles. This profile enables strict per-agent bindings and the full isolated 38-agent runtime topology.
 
 ### Monitoring Stack
 

@@ -1376,12 +1376,16 @@ async def create_mission(
         if idempotency_redis_key is not None:
             await redis_client.delete(idempotency_redis_key)
         LOGGER.error("mission intake protocol envelope validation failed: %s", exc)
-        raise HTTPException(status_code=422, detail="invalid protocol envelope; check mission payload") from exc
+        raise HTTPException(
+            status_code=422, detail="invalid protocol envelope; check mission payload"
+        ) from exc
     except Exception as exc:
         if idempotency_redis_key is not None:
             await redis_client.delete(idempotency_redis_key)
         LOGGER.error("failed to enqueue mission to intake stream: %s", exc)
-        raise HTTPException(status_code=502, detail="failed to enqueue mission; please retry") from exc
+        raise HTTPException(
+            status_code=502, detail="failed to enqueue mission; please retry"
+        ) from exc
 
     if idempotency_redis_key is not None and request_hash is not None:
         try:

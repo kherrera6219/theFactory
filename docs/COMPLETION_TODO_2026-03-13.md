@@ -29,15 +29,11 @@ All of the following code-vs-docs mismatches have been fixed:
 
 ### P0 — Highest Priority
 
-#### 1. Mission Create Read-After-Write Consistency
-- **Issue:** `POST /v1/missions` returns before orchestrator persists the record. Immediate `GET` can 404.
-- **Action:** Add synchronous write before response, or document the eventual-consistency contract in the API spec and Mission Control error handling.
-- **Files:** `services/api-gateway/api_gateway/main.py`, `services/orchestrator/orchestrator/runtime.py`
+#### 1. ✅ Mission Create Read-After-Write Consistency
+- **Status:** Completed. Maintained distributed event-driven architecture and added exponential backoff to the UI `getMission` client to gracefully handle eventual-consistency 404s.
 
-#### 2. Gateway Routing for Go / Haskell / OCaml
-- **Issue:** Gateway routes these languages to pod managers, but compose `SUPPORTED_LANGUAGES` omits them — missions are silently dropped.
-- **Action:** Either add these languages to pod-worker compose entries OR remove them from gateway routing code (`_POD_B_LANGUAGES`, `_POD_D_LANGUAGES` in `api_gateway/main.py`).
-- **Files:** `services/api-gateway/api_gateway/main.py` lines 154/156, `deploy/docker-compose.yaml` lines 545/633
+#### 2. ✅ Gateway Routing for Go / Haskell / OCaml
+- **Status:** Completed. Go, Haskell, and OCaml now have fully dedicated specialist agents, are in compose `SUPPORTED_LANGUAGES`, and mapped in the orchestrator.
 
 ### P1 — Important
 

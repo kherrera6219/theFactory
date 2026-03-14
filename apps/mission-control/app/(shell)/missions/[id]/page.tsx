@@ -96,7 +96,7 @@ export default function MissionDetailPage() {
       setEvents(missionEvents);
       setChainTrace(missionChain);
       setLogicNodes(nodes);
-      setActiveAgents(agentSnapshot.agents.filter((agent) => isAgentActive(agent, missionId)));
+      setActiveAgents(agentSnapshot.agents.filter((agent: OperationsAgentRecord) => isAgentActive(agent, missionId)));
       setError(null);
       setLastUpdatedAt(new Date().toISOString());
     } catch (loadError) {
