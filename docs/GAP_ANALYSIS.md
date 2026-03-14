@@ -1,6 +1,6 @@
 # Gap Analysis
 
-Last updated: 2026-03-13
+Last updated: 2026-03-14
 
 ## Scope
 
@@ -52,17 +52,17 @@ Last updated: 2026-03-13
      - re-ran the full Playwright suite successfully.
    - Status: `Addressed in this cycle`.
 
-6. `Medium` Builder preview and repository intake UX still include partially synthetic behavior.
+6. `Medium` Builder preview and repository workflow still include partially synthetic behavior.
    - Previous state: builder showed plan-only placeholder rendering and repo import used sample file simulation.
    - Current observed state:
      - repo import is real GitHub metadata/tree ingestion,
-     - Builder diff rendering is inferred from preview-plan signals rather than a true patch/apply workflow,
-     - repo review gating remains client-side state.
-   - Status: `Open`.
+     - repo review is now server-backed and launch carries real repository `source_code` plus inferred target language,
+     - repo review approval is still local UI state rather than a persisted server-side approval record,
+     - Builder diff rendering is still inferred from preview-plan signals rather than a true patch/apply workflow.
+   - Status: `Partially addressed`.
    - Required action:
-     - carry real repository context through to mission launch,
-     - replace synthetic diff generation with a true server-side diff/apply contract,
-     - enforce review gating server-side.
+     - replace Builder synthetic diff generation with a true server-side diff/apply contract,
+     - decide whether repo approval must become a persisted auditable approval step.
 
 7. `Medium` Backup and disaster-recovery scripts lacked direct automated regression tests.
    - Previous state: perf/audit script checks existed, but backup/DR PowerShell flows were untested in automation.
@@ -90,11 +90,12 @@ Last updated: 2026-03-13
 10. `Medium` Mission creation is queue-first and therefore eventually consistent.
    - Current observed state:
      - `POST /v1/missions` enqueues to Redis intake and returns before the orchestrator record is always queryable,
-     - immediate follow-up reads can briefly return `404` until the intake consumer persists the mission.
-   - Status: `Open`.
+     - immediate follow-up reads can briefly return `404` until the intake consumer persists the mission,
+     - Mission Control now retries this path with bounded backoff so the UI tolerates the current contract.
+   - Status: `Partially addressed`.
    - Required action:
      - either document this as the intended contract everywhere it matters,
-     - or change mission creation to provide read-after-write consistency.
+     - or change mission creation to provide true read-after-write consistency.
 
 11. `Medium` Data-system implementation is ahead of some operator-facing docs/UI surfaces.
    - Previous state: Qdrant was listed as reserved and retrieval behavior was primarily PostgreSQL-only.
@@ -106,17 +107,19 @@ Last updated: 2026-03-13
    - Required action:
      - align UI copy and architecture docs with the live readiness fields and feature-flagged posture.
 
-12. `Medium` Language-extraction coverage and specialist-routing claims diverged.
+12. `Medium` Language-count and routing claims diverged across documentation.
    - Previous state: docs described 16 languages and 169 patterns.
-   - Current observed state: extractor/catalog expose 20 languages and 232 patterns, while specialist routing remains narrower.
-   - Status: `Open`.
+   - Current observed state:
+     - specialist routing now covers 20 language keys, including Go, Haskell, and OCaml,
+     - some current docs still carry older 16-key and 19-key claims,
+     - the remaining gap is now primarily documentation reconciliation, not missing routing support.
+   - Status: `Partially addressed`.
    - Required action:
-     - either expand specialist coverage to match extraction scope,
-     - or reduce docs and marketing claims to the subset with full routing support.
+     - normalize all canonical docs to the current routing matrix and extraction counts.
 
 ## Structural Gaps Still Open (Planned)
 
 - Mission-create consistency contract.
-- Builder and repo workflow completion.
+- Builder workflow completion and repo approval persistence decision.
 - Audit/data-plane/operator-surface reconciliation.
-- Language routing and extraction reconciliation.
+- Language-count and extraction/routing documentation reconciliation.
