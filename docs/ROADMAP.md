@@ -45,7 +45,7 @@ Current-state note (2026-03-13): this document remains the implementation phase 
 - CI/CD supply-chain hardening trajectory.
 - Observability and incident-ops scaffolding.
 - Deployment/DR/performance automation baseline.
-- Status: In progress (baseline scaffold complete, 2026-03-01).
+- Status: Complete (2026-03-01).
 
 ## Phase 7: Agent Persona and Governance Alignment
 

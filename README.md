@@ -9,7 +9,7 @@
 [![CI](https://github.com/holygrail/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/holygrail/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/security.yml)
 [![Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen)](docs/evidence/)
-[![Audit](https://img.shields.io/badge/production%20audit-13%2F13-brightgreen)](scripts/production_review_audit.py)
+[![Audit](https://img.shields.io/badge/production%20audit-17%2F17-brightgreen)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
 [![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#)
@@ -131,7 +131,7 @@ The orchestrator maintains a canonical registry of **35 specialist agents** orga
 | **Interface** | AGENT-01-PM | Project Manager — mission intake and PM→CEO handoff |
 | **Executive** | AGENT-02-CEO | Chief Executor — mission delegation to pod managers |
 | **Support Ring** | AGENT-03 through AGENT-11 | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy |
-| **Pod A** (Dynamic) | Manager, Audit, Python, JavaScript, Ruby, PHP Specialists | Dynamic language refinery |
+| **Pod A** (Dynamic) | Manager, Audit, Python, JavaScript/TypeScript, Ruby, PHP Specialists | Dynamic language refinery |
 | **Pod B** (Systems) | Manager, Audit, C, C++, Rust, Zig Specialists | Systems language refinery |
 | **Pod C** (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | Enterprise language refinery |
 | **Pod D** (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica Specialists | Mathematical language refinery |
@@ -205,11 +205,11 @@ Pod workers run a static-analysis extraction engine that detects computational c
 
 | Pod | Languages | Concept Prefix | Patterns |
 |-----|-----------|---------------|---------|
-| A — Dynamic | Python, JavaScript, Ruby, PHP | `DYN-` | ~68 |
-| B — Systems | C, C++, Rust, Zig, Go | `SYS-` | ~54 |
+| A — Dynamic | Python, JavaScript/TypeScript, Ruby, PHP | `DYN-` | ~68 |
+| B — Systems | C, C++, Rust, Zig | `SYS-` | ~54 |
 | C — Enterprise | Java, C#, Scala, Kotlin | `ENT-` | ~35 |
-| D — Mathematical | MATLAB, R, Julia, Mathematica, Haskell, OCaml | `MATH-` | ~75 |
-| **Total** | **20 languages** | | **232 patterns** |
+| D — Mathematical | MATLAB, R, Julia, Mathematica | `MATH-` | ~75 |
+| **Total** | **16 languages** (TypeScript aliases to JavaScript specialist) | | **232 patterns** |
 
 Each extracted concept becomes a **LogicNode** with:
 - `concept_id` (e.g. `DYN-006-001` for async function, `SYS-011-001` for Rust `Result<T>`)
@@ -346,9 +346,10 @@ Each extracted concept becomes a **LogicNode** with:
 | Role | Capabilities |
 |------|-------------|
 | `admin` | Full access including diagnostics |
-| `operator` | Mission mutations + operations reads |
-| `reader` | Read-only mission/operations access |
+| `mutate` | Mission mutations + operations reads |
+| `read` | Read-only mission/operations access |
 | `worker` | Internal pod/audit worker service calls |
+| `internal` | Internal service-to-service calls |
 
 ### Security Controls
 
@@ -470,7 +471,7 @@ make test
 # Lint
 make lint
 
-# Run production audit (13/13 checks)
+# Run production audit (17/17 checks)
 make audit
 
 # Debug sweep
@@ -556,7 +557,9 @@ POSTGRES_DB=ulr
 REDIS_URL=rediss://:password@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
 
 # API Authentication
-GATEWAY_API_KEY=<mutate-key>
+ORCHESTRATOR_ADMIN_API_KEY=<admin-key>
+ORCHESTRATOR_READONLY_API_KEY=<viewer-key>
+ORCHESTRATOR_API_KEYS=operator-key=mutate,read
 INTERNAL_SERVICE_API_KEY=<internal-key>
 AUTH_MODE=api_key                  # api_key | hybrid | oidc
 
@@ -567,23 +570,36 @@ OIDC_AUDIENCE=holygrail-api
 # Lifecycle
 MISSION_FLOW_V2_ENABLED=true       # shipped default runtime path
 LANGGRAPH_ENABLED=false            # optional alternative lifecycle engine
-LANGGRAPH_CHECKPOINTER=memory      # memory | postgres
+LANGGRAPH_CHECKPOINTER=none        # none | memory | postgres
 LANGGRAPH_FAIL_OPEN=true
 
 # Feature Flags
 QDRANT_ENABLED=true
 NEO4J_ENABLED=false
 OBJECT_STORAGE_ENABLED=false
+MILVUS_ENABLED=false
 
-# LLM Providers (per-agent keys)
+# Observability
+OTEL_TRACING_ENABLED=true
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+
+# LLM Providers
+LLM_PROVIDER=offline               # offline | openai | anthropic | gemini
 ANTHROPIC_API_KEY_ARCH=sk-ant-...
 OPENAI_API_KEY_CEO=sk-...
 GOOGLE_API_KEY_MATLAB=...
 
+# Agent Scaling (experimental)
+AGENT_SCALING_ENABLED=false
+AGENT_SCALING_MAX_INSTANCES=4
+AGENT_SCALING_ITEMS_PER_INSTANCE=3
+
 # Pod Worker
 POD_NAME=podA                      # podA | podB | podC | podD
-SUPPORTED_LANGUAGES=python,javascript,ruby,php
-AGENT_BINDING=                     # e.g. AGENT-14-PY for dedicated mode
+SUPPORTED_LANGUAGES=python,typescript,javascript,ruby,php
+AGENT_BINDING=                     # e.g. AGENT-14-PYTHON for dedicated mode
+AGENT_SERVICE_KEY_MODE=shared      # shared | strict
+MCP_API_KEY=mcp-local-key
 ```
 
 Full reference: [`.env.example`](.env.example)
