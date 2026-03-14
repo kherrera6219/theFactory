@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
-import { createBuilderPreview, createMission } from "../../lib/api-client";
+import { createMission, createRepoReview } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { sanitizeUserText } from "../../lib/security";
-import type { BuilderPreviewResponse } from "../../lib/types";
+import type { RepoReviewResponse } from "../../lib/types";
 
 type RepoFileOverlayAction = "include" | "reference" | "exclude";
 
@@ -77,25 +77,6 @@ function overlayLabel(action: RepoFileOverlayAction): string {
   return "Exclude";
 }
 
-function reviewConstraints(params: {
-  snapshot: RepoImportResponse | null;
-  branch: string;
-  subdirectory: string;
-  selectedFiles: RepoFile[];
-  selectedLines: number;
-}): string[] {
-  const base = [
-    `branch=${params.snapshot?.repository.branch || sanitizeUserText(params.branch) || "main"}`,
-    `subdirectory=${params.snapshot?.stats.selected_subdirectory || sanitizeUserText(params.subdirectory) || "/"}`,
-    `estimated_lines=${params.selectedLines}`,
-  ];
-  const fileScope = params.selectedFiles.slice(0, 40).map(
-    (file) =>
-      `file=${file.path};overlay=${file.overlayAction};language=${file.language};lines=${file.estimatedLines}`,
-  );
-  return [...base, ...fileScope];
-}
-
 export default function RepoImportPage() {
   const router = useRouter();
 
@@ -108,9 +89,10 @@ export default function RepoImportPage() {
   const [importSnapshot, setImportSnapshot] = useState<RepoImportResponse | null>(null);
   const [missionType, setMissionType] = useState<MissionType | null>(null);
   const [description, setDescription] = useState("");
-  const [reviewPreview, setReviewPreview] = useState<BuilderPreviewResponse | null>(null);
+  const [reviewPreview, setReviewPreview] = useState<RepoReviewResponse | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [reviewAppliedAt, setReviewAppliedAt] = useState<string | null>(null);
+  const [reviewAppliedFingerprint, setReviewAppliedFingerprint] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importLogs, setImportLogs] = useState<string[]>([]);
   const [importComplete, setImportComplete] = useState(false);
@@ -143,7 +125,24 @@ export default function RepoImportPage() {
 
   function resetReviewGate() {
     setReviewAppliedAt(null);
+    setReviewAppliedFingerprint(null);
     setReviewPreview(null);
+  }
+
+  function selectMissionType(nextMissionType: MissionType) {
+    if (missionType !== nextMissionType) {
+      resetReviewGate();
+    }
+    setMissionType(nextMissionType);
+    setError(null);
+  }
+
+  function updateMissionDescription(nextDescription: string) {
+    if (description !== nextDescription) {
+      resetReviewGate();
+    }
+    setDescription(nextDescription);
+    setError(null);
   }
 
   async function importRepository() {
@@ -258,40 +257,48 @@ export default function RepoImportPage() {
 
   async function generateReview() {
     if (selectedFiles.length === 0) {
-      setError("Select at least one file before generating diff review.");
+      setError("Select at least one file before generating repository review.");
+      return;
+    }
+    if (!missionType) {
+      setError("Select a mission type before generating repository review.");
+      return;
+    }
+    if (
+      (missionType === "add_feature" || missionType === "update") &&
+      sanitizeUserText(description).length < 3
+    ) {
+      setError("Provide a mission description for Add Feature or Update before review.");
       return;
     }
 
     setError(null);
     setReviewing(true);
     setReviewAppliedAt(null);
-
-    const missionSummary = sanitizeUserText(description);
-    const request = [
-      `Generate a repository mission review for ${sanitizeUserText(repoUrl)}.`,
-      `Selected files: ${selectedFiles.length}.`,
-      `Estimated lines: ${selectedLines}.`,
-      missionType ? `Requested mission type: ${missionType}.` : "Mission type: pending selection.",
-      missionSummary.length > 0
-        ? `Mission objective: ${missionSummary}.`
-        : "Mission objective: validate selected file overlays and scope.",
-    ].join(" ");
+    setReviewAppliedFingerprint(null);
 
     try {
-      const preview = await createBuilderPreview({
-        request,
-        constraints: reviewConstraints({
-          snapshot: importSnapshot,
-          branch,
-          subdirectory,
-          selectedFiles,
-          selectedLines,
-        }),
+      const preview = await createRepoReview({
+        repo_url: sanitizeUserText(repoUrl),
+        branch: importSnapshot?.repository.branch || sanitizeUserText(branch) || "main",
+        subdirectory:
+          importSnapshot?.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/",
+        mission_type: missionType,
+        description: sanitizeUserText(description),
+        selected_files: selectedFiles
+          .filter((file) => file.overlayAction !== "exclude")
+          .map((file) => ({
+            path: file.path,
+            overlay_action: file.overlayAction === "reference" ? "reference" : "include",
+            language: file.language,
+            bytes: file.bytes,
+            estimated_lines: file.estimatedLines,
+          })),
       });
       setReviewPreview(preview);
     } catch (reviewError) {
       setError(
-        reviewError instanceof Error ? reviewError.message : "Unable to generate repository diff review.",
+        reviewError instanceof Error ? reviewError.message : "Unable to generate repository review.",
       );
       setReviewPreview(null);
     } finally {
@@ -306,6 +313,7 @@ export default function RepoImportPage() {
     }
     setError(null);
     setReviewAppliedAt(new Date().toISOString());
+    setReviewAppliedFingerprint(reviewPreview.review_fingerprint);
   }
 
   async function launchRepoMission() {
@@ -317,8 +325,12 @@ export default function RepoImportPage() {
       setError("Select at least one file to include in the mission.");
       return;
     }
-    if (!reviewAppliedAt) {
+    if (!reviewAppliedAt || !reviewAppliedFingerprint) {
       setError("Apply Step 3 review gate before launching the mission.");
+      return;
+    }
+    if (!reviewPreview || reviewPreview.review_fingerprint !== reviewAppliedFingerprint) {
+      setError("Repository review changed after gate approval. Reapply the review gate before launch.");
       return;
     }
     if (
@@ -337,7 +349,8 @@ export default function RepoImportPage() {
         `Run ${missionType} mission for ${selectedFiles.length} files from ${repoUrl}`;
       const mission = await createMission({
         prompt: missionPrompt,
-        requested_target_language: "python",
+        requested_target_language: reviewPreview.requested_target_language,
+        source_code: reviewPreview.source_code,
         metadata: {
           source: "repo-import-ui",
           repo_url: sanitizeUserText(repoUrl),
@@ -345,18 +358,20 @@ export default function RepoImportPage() {
           subdirectory:
             importSnapshot?.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/",
           mission_type: missionType,
-          selected_files: selectedFiles.map((item) => item.path),
-          selected_file_overlays: selectedFiles.map((item) => ({
-            path: item.path,
-            overlay_action: item.overlayAction,
-            estimated_lines: item.estimatedLines,
-            language: item.language,
-          })),
+          selected_file_count: selectedFiles.length,
+          include_file_count: reviewPreview.source_stats.include_files,
+          reference_file_count: reviewPreview.source_stats.reference_files,
           estimated_lines: selectedLines,
           repository_owner: importSnapshot?.repository.owner,
           repository_name: importSnapshot?.repository.repo,
           review_gate_applied_at: reviewAppliedAt,
-          review_request_id: reviewPreview?.request_id,
+          review_request_id: reviewPreview.request_id,
+          review_fingerprint: reviewPreview.review_fingerprint,
+          requested_target_language: reviewPreview.requested_target_language,
+          source_bundle_characters: reviewPreview.source_stats.source_characters,
+          selected_files_preview: reviewPreview.files
+            .slice(0, 12)
+            .map((file) => `${file.overlay_action}:${file.path}`),
         },
       });
       router.push(`/missions/${mission.mission_id}`);
@@ -369,14 +384,19 @@ export default function RepoImportPage() {
 
   const step2Locked = !importComplete;
   const step3Locked = !importComplete || selectedFiles.length === 0;
-  const step4Locked = step3Locked || !reviewAppliedAt;
+  const step4Locked =
+    step3Locked ||
+    !reviewAppliedAt ||
+    !reviewAppliedFingerprint ||
+    !reviewPreview ||
+    reviewPreview.review_fingerprint !== reviewAppliedFingerprint;
 
   return (
     <div className="page shell-page">
       <PageHeader
         eyebrow="GitHub Import"
         title="Repository Intake and Mission Configuration"
-        description="Import repository metadata, layer file-level mission overlays, review generated diff scope, then launch."
+        description="Import repository metadata, layer file-level mission overlays, review real repository scope against fetched file content, then launch."
       />
 
       <Panel title="Step 1: Import Repository" className="step-panel">
@@ -510,10 +530,48 @@ export default function RepoImportPage() {
         )}
       </Panel>
 
-      <Panel title="Step 3: Diff Review and Apply Gate" className={`step-panel ${step3Locked ? "locked" : ""}`}>
-        {step3Locked && <p className="muted">Select at least one file in Step 2 to run diff review.</p>}
+      <Panel title="Step 3: Review Scope and Apply Gate" className={`step-panel ${step3Locked ? "locked" : ""}`}>
+        {step3Locked && <p className="muted">Select at least one file in Step 2 to run repository review.</p>}
         {!step3Locked && (
           <div className="stack-gap">
+            <div className="mission-type-grid">
+              <button
+                type="button"
+                className={`secondary-button ${missionType === "analyze" ? "active-tab" : ""}`}
+                onClick={() => selectMissionType("analyze")}
+              >
+                Analyze
+              </button>
+              <button
+                type="button"
+                className={`secondary-button ${missionType === "update" ? "active-tab" : ""}`}
+                onClick={() => selectMissionType("update")}
+              >
+                Update
+              </button>
+              <button
+                type="button"
+                className={`secondary-button ${missionType === "add_feature" ? "active-tab" : ""}`}
+                onClick={() => selectMissionType("add_feature")}
+              >
+                Add Feature
+              </button>
+              <button
+                type="button"
+                className={`secondary-button ${missionType === "refactor" ? "active-tab" : ""}`}
+                onClick={() => selectMissionType("refactor")}
+              >
+                Refactor
+              </button>
+            </div>
+            <label htmlFor="repo-mission-description">Mission description</label>
+            <textarea
+              id="repo-mission-description"
+              rows={4}
+              value={description}
+              onChange={(event) => updateMissionDescription(event.target.value)}
+              placeholder="Describe requested changes, business constraints, and expected outputs."
+            />
             <ul className="summary-list">
               {selectedFiles.map((file) => (
                 <li key={`${file.path}-overlay`}>
@@ -526,7 +584,7 @@ export default function RepoImportPage() {
             </ul>
             <div className="inline-actions">
               <button type="button" onClick={() => void generateReview()} disabled={reviewing}>
-                {reviewing ? "Generating Review..." : "Generate Diff Review"}
+                {reviewing ? "Generating Review..." : "Generate Repository Review"}
               </button>
               <button
                 type="button"
@@ -547,7 +605,8 @@ export default function RepoImportPage() {
             )}
             {reviewPreview && (
               <div className="stack-gap">
-                <h3 className="section-title">Diff Summary</h3>
+                {reviewPreview.notice && <p className="warning-box">{reviewPreview.notice}</p>}
+                <h3 className="section-title">Review Summary</h3>
                 <ul className="summary-list">
                   {reviewPreview.diff_summary.map((item) => (
                     <li key={item}>
@@ -556,9 +615,20 @@ export default function RepoImportPage() {
                   ))}
                   {reviewPreview.diff_summary.length === 0 && (
                     <li>
-                      <span>No diff summary lines returned by preview service.</span>
+                      <span>No review summary lines returned by the review service.</span>
                     </li>
                   )}
+                </ul>
+                <h3 className="section-title">Repository Scope</h3>
+                <ul className="summary-list">
+                  {reviewPreview.files.map((file) => (
+                    <li key={`${file.overlay_action}-${file.path}`}>
+                      <strong>{file.path}</strong>
+                      <span>
+                        {overlayLabel(file.overlay_action)} - {file.language} - {file.summary}
+                      </span>
+                    </li>
+                  ))}
                 </ul>
                 <h3 className="section-title">Execution Plan</h3>
                 <ul className="summary-list">
@@ -596,48 +666,30 @@ export default function RepoImportPage() {
         )}
       </Panel>
 
-      <Panel title="Step 4: Configure Mission" className={`step-panel ${step4Locked ? "locked" : ""}`}>
-        {step4Locked && <p className="muted">Apply Step 3 review gate to unlock mission configuration and launch.</p>}
+      <Panel title="Step 4: Launch Mission" className={`step-panel ${step4Locked ? "locked" : ""}`}>
+        {step4Locked && <p className="muted">Apply Step 3 review gate to unlock mission launch.</p>}
         {!step4Locked && (
           <>
-            <div className="mission-type-grid">
-              <button
-                type="button"
-                className={`secondary-button ${missionType === "analyze" ? "active-tab" : ""}`}
-                onClick={() => setMissionType("analyze")}
-              >
-                Analyze
-              </button>
-              <button
-                type="button"
-                className={`secondary-button ${missionType === "update" ? "active-tab" : ""}`}
-                onClick={() => setMissionType("update")}
-              >
-                Update
-              </button>
-              <button
-                type="button"
-                className={`secondary-button ${missionType === "add_feature" ? "active-tab" : ""}`}
-                onClick={() => setMissionType("add_feature")}
-              >
-                Add Feature
-              </button>
-              <button
-                type="button"
-                className={`secondary-button ${missionType === "refactor" ? "active-tab" : ""}`}
-                onClick={() => setMissionType("refactor")}
-              >
-                Refactor
-              </button>
-            </div>
-            <label htmlFor="repo-mission-description">Mission description</label>
-            <textarea
-              id="repo-mission-description"
-              rows={4}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Describe requested changes, business constraints, and expected outputs."
-            />
+            <ul className="summary-list">
+              <li>
+                <strong>Mission type</strong>
+                <span>{missionType}</span>
+              </li>
+              <li>
+                <strong>Requested target language</strong>
+                <span>{reviewPreview?.requested_target_language ?? "default specialist fallback"}</span>
+              </li>
+              <li>
+                <strong>Bundled files</strong>
+                <span>
+                  {reviewPreview?.source_stats.bundled_files} / {reviewPreview?.source_stats.selected_files}
+                </span>
+              </li>
+              <li>
+                <strong>Source bundle size</strong>
+                <span>{reviewPreview ? `${reviewPreview.source_stats.source_characters} chars` : "n/a"}</span>
+              </li>
+            </ul>
             <div className="inline-actions">
               <button type="button" onClick={() => void launchRepoMission()} disabled={launching}>
                 {launching ? "Launching..." : "Launch Mission"}

@@ -1,5 +1,7 @@
 # theFactory Completion TODO (2026-03-02)
 
+Historical note (2026-03-13): this checklist is a dated execution snapshot, not the current shipped-status source of truth. Some items marked complete here have since drifted from the live defaults or current test state. For the active completion backlog, use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
+
 ## Goal
 Reach a defensible **100% production-ready** state based on current canonical documentation and implementation audit.
 

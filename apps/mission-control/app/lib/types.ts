@@ -320,3 +320,50 @@ export type BuilderPreviewResponse = {
   test_plan: string[];
   notice?: string;
 };
+
+export type RepoReviewFileRecord = {
+  path: string;
+  overlay_action: "include" | "reference";
+  language: string;
+  requested_language: string | null;
+  bytes: number;
+  estimated_lines: number;
+  summary: string;
+  content_excerpt: string;
+  text_available: boolean;
+  included_in_source: boolean;
+  truncated_in_source: boolean;
+  sha: string | null;
+};
+
+export type RepoReviewResponse = {
+  request_id: string;
+  review_fingerprint: string;
+  source: "repo-review";
+  generated_at: string;
+  repository: {
+    owner: string;
+    repo: string;
+    branch: string;
+    html_url: string;
+    selected_subdirectory: string;
+  };
+  mission_type: "analyze" | "update" | "add_feature" | "refactor";
+  requested_target_language: string | null;
+  source_code: string;
+  source_stats: {
+    selected_files: number;
+    include_files: number;
+    reference_files: number;
+    source_characters: number;
+    bundled_files: number;
+    truncated_files: number;
+    unavailable_files: number;
+  };
+  plan: BuilderPlanItem[];
+  diff_summary: string[];
+  risk_notes: string[];
+  test_plan: string[];
+  files: RepoReviewFileRecord[];
+  notice?: string;
+};

@@ -1,5 +1,7 @@
 # ADR: Mission Flow v2 Runtime Status (2026-03-08)
 
+Supersession note (2026-03-13): this ADR records the earlier v1.1-default decision posture. The current shipped defaults in `.env.example`, compose, and orchestrator settings now enable `MISSION_FLOW_V2_ENABLED=true`. Use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for the current runtime-default summary.
+
 ## Status
 Accepted
 

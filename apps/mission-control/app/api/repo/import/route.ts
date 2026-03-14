@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 
-import { getVaultSecret } from "../../../lib/server/vault";
+import {
+  branchLooksValid,
+  buildGithubHeaders,
+  clampMaxFiles,
+  fetchGithubJson,
+  GithubTreeItem,
+  normalizeSubdirectory,
+  parseGithubRepoUrl,
+  RepoFileRecord,
+  resolveGithubToken,
+  selectRepoFiles,
+} from "../shared";
 
 export const runtime = "nodejs";
 
@@ -9,19 +20,6 @@ type RepoImportRequest = {
   branch?: string;
   subdirectory?: string;
   max_files?: number;
-};
-
-type GithubTreeItem = {
-  path?: string;
-  type?: string;
-  size?: number;
-};
-
-type RepoFileRecord = {
-  path: string;
-  language: string;
-  bytes: number;
-  estimated_lines: number;
 };
 
 type RepoImportResponse = {
@@ -44,162 +42,8 @@ type RepoImportResponse = {
   logs: string[];
 };
 
-const MAX_ALLOWED_FILES = 800;
-const DEFAULT_MAX_FILES = 300;
-const LARGE_FILE_BYTES = 1_500_000;
-
-const LANGUAGE_BY_EXTENSION: Array<[string, string]> = [
-  [".py", "Python"],
-  [".ts", "TypeScript"],
-  [".tsx", "TypeScript"],
-  [".js", "JavaScript"],
-  [".jsx", "JavaScript"],
-  [".java", "Java"],
-  [".go", "Go"],
-  [".rs", "Rust"],
-  [".c", "C"],
-  [".cpp", "C++"],
-  [".cs", "C#"],
-  [".rb", "Ruby"],
-  [".php", "PHP"],
-  [".scala", "Scala"],
-  [".sql", "SQL"],
-  [".sh", "Shell"],
-  [".yaml", "YAML"],
-  [".yml", "YAML"],
-  [".json", "JSON"],
-  [".md", "Markdown"],
-];
-
 function badRequest(detail: string): NextResponse {
   return NextResponse.json({ detail }, { status: 400 });
-}
-
-export function parseGithubRepoUrl(rawUrl: string): { owner: string; repo: string } | null {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl.trim());
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== "https:" || parsed.hostname.toLowerCase() !== "github.com") {
-    return null;
-  }
-  const parts = parsed.pathname
-    .split("/")
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-  if (parts.length < 2) {
-    return null;
-  }
-  const owner = parts[0];
-  const repo = parts[1].replace(/\.git$/i, "");
-  if (!owner || !repo) {
-    return null;
-  }
-  return { owner, repo };
-}
-
-export function normalizeSubdirectory(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed || trimmed === "/") {
-    return "/";
-  }
-  const withoutEdges = trimmed.replace(/^\/+/, "").replace(/\/+$/, "");
-  return withoutEdges.length > 0 ? `/${withoutEdges}` : "/";
-}
-
-export function languageFromPath(path: string): string {
-  const normalized = path.toLowerCase();
-  for (const [extension, language] of LANGUAGE_BY_EXTENSION) {
-    if (normalized.endsWith(extension)) {
-      return language;
-    }
-  }
-  return "Other";
-}
-
-function estimateLines(bytes: number): number {
-  return Math.max(1, Math.round(bytes / 45));
-}
-
-function clampMaxFiles(value: number | undefined): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return DEFAULT_MAX_FILES;
-  }
-  const integerValue = Math.floor(value);
-  return Math.min(Math.max(1, integerValue), MAX_ALLOWED_FILES);
-}
-
-function branchLooksValid(value: string): boolean {
-  return /^[A-Za-z0-9._\/-]{1,120}$/.test(value);
-}
-
-function buildGithubHeaders(token: string | null): HeadersInit {
-  const headers: HeadersInit = {
-    Accept: "application/vnd.github+json",
-    "User-Agent": "theFactory-mission-control-import",
-  };
-  if (token && token.trim().length > 0) {
-    headers.Authorization = `Bearer ${token.trim()}`;
-  }
-  return headers;
-}
-
-export function selectRepoFiles(
-  tree: GithubTreeItem[],
-  subdirectory: string,
-  maxFiles: number,
-): { files: RepoFileRecord[]; skippedLargeFiles: number; truncated: boolean } {
-  const normalizedSubdir = subdirectory === "/" ? "/" : subdirectory.slice(1);
-  const matches: RepoFileRecord[] = [];
-  let skippedLargeFiles = 0;
-
-  for (const item of tree) {
-    if (item.type !== "blob" || typeof item.path !== "string") {
-      continue;
-    }
-    const filePath = item.path.trim();
-    if (!filePath) {
-      continue;
-    }
-    if (normalizedSubdir !== "/" && !filePath.startsWith(`${normalizedSubdir}/`)) {
-      continue;
-    }
-
-    const bytes = typeof item.size === "number" && item.size > 0 ? item.size : 0;
-    if (bytes > LARGE_FILE_BYTES) {
-      skippedLargeFiles += 1;
-      continue;
-    }
-    matches.push({
-      path: filePath,
-      language: languageFromPath(filePath),
-      bytes,
-      estimated_lines: estimateLines(bytes),
-    });
-  }
-
-  matches.sort((left, right) => {
-    if (right.bytes !== left.bytes) {
-      return right.bytes - left.bytes;
-    }
-    return left.path.localeCompare(right.path);
-  });
-
-  return {
-    files: matches.slice(0, maxFiles),
-    skippedLargeFiles,
-    truncated: matches.length > maxFiles,
-  };
-}
-
-async function fetchGithubJson(url: string, headers: HeadersInit): Promise<Response> {
-  return fetch(url, {
-    method: "GET",
-    headers,
-    cache: "no-store",
-  });
 }
 
 export async function POST(request: Request) {
@@ -230,7 +74,7 @@ export async function POST(request: Request) {
   }
 
   const maxFiles = clampMaxFiles(payload.max_files);
-  const githubToken = process.env.GITHUB_TOKEN ?? (await getVaultSecret("GITHUB-TOKEN"));
+  const githubToken = await resolveGithubToken();
   const headers = buildGithubHeaders(githubToken);
   const logs: string[] = [
     "Validated repository request payload.",
@@ -328,3 +172,5 @@ export async function POST(request: Request) {
   };
   return NextResponse.json(response);
 }
+
+export { languageFromPath, normalizeSubdirectory, parseGithubRepoUrl, selectRepoFiles } from "../shared";

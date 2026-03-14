@@ -12,6 +12,7 @@ import type {
   OperationsProjectRecord,
   OperationsSummary,
   PodAssignmentRecord,
+  RepoReviewResponse,
 } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -305,5 +306,26 @@ export async function createBuilderPreview(payload: {
       constraints: payload.constraints,
       view_mode: payload.viewMode,
     }),
+  });
+}
+
+export async function createRepoReview(payload: {
+  repo_url: string;
+  branch: string;
+  subdirectory: string;
+  mission_type: "analyze" | "update" | "add_feature" | "refactor";
+  description: string;
+  selected_files: Array<{
+    path: string;
+    overlay_action: "include" | "reference";
+    language: string;
+    bytes: number;
+    estimated_lines: number;
+  }>;
+}): Promise<RepoReviewResponse> {
+  return fetchJson<RepoReviewResponse>("/api/repo/review", {
+    method: "POST",
+    signal: withTimeout(30_000),
+    body: JSON.stringify(payload),
   });
 }

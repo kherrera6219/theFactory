@@ -3,7 +3,7 @@ import os
 import time
 import uuid
 from typing import Any
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import pytest
@@ -101,10 +101,16 @@ def test_live_mission_intake_and_state_flow() -> None:
     latest_events: list[dict[str, Any]] = []
 
     while time.time() < deadline:
-        mission_status, mission_payload = _request_json(
-            "GET",
-            f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}",
-        )
+        try:
+            mission_status, mission_payload = _request_json(
+                "GET",
+                f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}",
+            )
+        except HTTPError as exc:
+            if exc.code == 404:
+                time.sleep(1.0)
+                continue
+            raise
         assert mission_status == 200
         assert isinstance(mission_payload, dict)
 
@@ -154,10 +160,16 @@ def test_live_mission_chain_and_artifact_integrity() -> None:
     deadline = time.time() + 60
     final_state = ""
     while time.time() < deadline:
-        mission_status, mission_payload = _request_json(
-            "GET",
-            f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}",
-        )
+        try:
+            mission_status, mission_payload = _request_json(
+                "GET",
+                f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}",
+            )
+        except HTTPError as exc:
+            if exc.code == 404:
+                time.sleep(1.0)
+                continue
+            raise
         assert mission_status == 200
         assert isinstance(mission_payload, dict)
         final_state = str(mission_payload.get("state", "")).upper()

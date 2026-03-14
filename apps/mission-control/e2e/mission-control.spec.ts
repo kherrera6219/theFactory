@@ -175,6 +175,102 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
     });
   });
 
+  await page.route("**/api/repo/review", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") {
+      return fulfillJson(route, 405, { detail: "Method not allowed." });
+    }
+    const payload = (request.postDataJSON() as Record<string, unknown>) ?? {};
+    const selectedFiles = Array.isArray(payload.selected_files)
+      ? (payload.selected_files as Array<Record<string, unknown>>)
+      : [];
+    if (selectedFiles.length === 0) {
+      return fulfillJson(route, 400, { detail: "Select files before review." });
+    }
+
+    return fulfillJson(route, 200, {
+      request_id: "repo-review-001",
+      review_fingerprint: "fp-repo-review-001",
+      source: "repo-review",
+      generated_at: new Date().toISOString(),
+      repository: {
+        owner: "octo",
+        repo: "sample-platform",
+        branch: "main",
+        html_url: "https://github.com/octo/sample-platform",
+        selected_subdirectory: "/",
+      },
+      mission_type: typeof payload.mission_type === "string" ? payload.mission_type : "analyze",
+      requested_target_language: "typescript",
+      source_code:
+        "# Repository Source Bundle\nrepository: octo/sample-platform\nbranch: main\n\n## FILE apps/mission-control/app/(shell)/repo/page.tsx\nexport default function RepoPage() {}\n",
+      source_stats: {
+        selected_files: selectedFiles.length,
+        include_files: selectedFiles.filter((item) => item.overlay_action === "include").length,
+        reference_files: selectedFiles.filter((item) => item.overlay_action === "reference").length,
+        source_characters: 164,
+        bundled_files: selectedFiles.length,
+        truncated_files: 0,
+        unavailable_files: 0,
+      },
+      plan: [
+        { title: "Lock Approved Scope", description: "Review fetched repository content before launch." },
+        { title: "Edit Direct Files", description: "Direct-edit scope is apps/mission-control/app/(shell)/repo/page.tsx." },
+      ],
+      diff_summary: [
+        "Reviewed 3 selected files from octo/sample-platform@main.",
+        "Direct-edit scope covers 3 files; 0 files remain reference-only.",
+        "Primary target language resolved to typescript.",
+      ],
+      risk_notes: ["API-facing files are in scope; preserve request/response contracts and error handling."],
+      test_plan: ["Run Mission Control TypeScript and Vitest coverage for the touched UI and route logic."],
+      files: [
+        {
+          path: "apps/mission-control/app/(shell)/repo/page.tsx",
+          overlay_action: "include",
+          language: "TypeScript",
+          requested_language: "typescript",
+          bytes: 12_000,
+          estimated_lines: 260,
+          summary: "Client TypeScript component focused on repository review and mission launch.",
+          content_excerpt: "\"use client\";\n\nexport default function RepoPage() {}",
+          text_available: true,
+          included_in_source: true,
+          truncated_in_source: false,
+          sha: "sha-repo-page",
+        },
+        {
+          path: "services/api-gateway/api_gateway/main.py",
+          overlay_action: "include",
+          language: "Python",
+          requested_language: "python",
+          bytes: 9_400,
+          estimated_lines: 210,
+          summary: "Python service module handling API flow and orchestration.",
+          content_excerpt: "from fastapi import FastAPI",
+          text_available: true,
+          included_in_source: true,
+          truncated_in_source: false,
+          sha: "sha-api-main",
+        },
+        {
+          path: "README.md",
+          overlay_action: "include",
+          language: "Markdown",
+          requested_language: null,
+          bytes: 1_800,
+          estimated_lines: 40,
+          summary: "Documentation file covering repository context and operator guidance.",
+          content_excerpt: "# Sample Platform",
+          text_available: true,
+          included_in_source: true,
+          truncated_in_source: false,
+          sha: "sha-readme",
+        },
+      ],
+    });
+  });
+
   await page.route("http://localhost:8100/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -554,12 +650,13 @@ test("repo intake imports files and launches mission", async ({ page }) => {
   await page.getByRole("button", { name: "Select Top 25" }).click();
   await expect(page.getByText(/Selected: 3 files - 510 estimated lines/)).toBeVisible();
 
-  await page.getByRole("button", { name: "Generate Diff Review" }).click();
-  await expect(page.getByRole("heading", { name: "Diff Summary" })).toBeVisible();
+  await page.getByRole("button", { name: "Analyze" }).click();
+  await page.getByRole("button", { name: "Generate Repository Review" }).click();
+  await expect(page.getByRole("heading", { name: "Review Summary" })).toBeVisible();
   await page.getByRole("button", { name: "Apply Review Gate" }).click();
   await expect(page.getByText(/Review gate applied at/i)).toBeVisible();
 
-  await page.getByRole("button", { name: "Analyze" }).click();
+  await expect(page.getByText("Requested target language")).toBeVisible();
   await page.getByRole("button", { name: "Launch Mission" }).click();
 
   await expect(page).toHaveURL(/\/missions\/mission-e2e-\d+/);
@@ -602,7 +699,7 @@ test("accessibility checks pass on mission flow pages", async ({ page }) => {
   } else {
     await expect(page).toHaveURL(/\/missions\/[^/]+$/);
   }
-  await expect(page.getByRole("heading", { name: "Mission Detail" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Mission mission-/i })).toBeVisible();
 
   const detailA11y = await new AxeBuilder({ page }).analyze();
   expect(detailA11y.violations).toEqual([]);

@@ -1,7 +1,7 @@
 # Architecture — theFactory
 
-**Last updated:** 2026-03-09
-**Status:** Production baseline with roadmap phases 1-39 complete
+**Last updated:** 2026-03-13
+**Status:** Current implementation baseline. Use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for shipped defaults and active gaps.
 
 Companion diagrams: [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md)
 
@@ -27,14 +27,14 @@ Companion diagrams: [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md)
 
 ## System Overview
 
-theFactory is a **35-agent multi-agent software refinery** built on a microservice architecture. Missions (software build requests) enter through the API Gateway, are delegated through an agent hierarchy, processed by language-specialist pod workers, and completed with full audit evidence.
+theFactory is a **35-agent multi-agent software refinery** built on a microservice architecture. Missions (software build requests) enter through the API Gateway, are delegated through an agent hierarchy, processed by language-specialist pod workers, and completed with audit evidence.
 
 The system is organized into three planes:
 
 | Plane | Components |
 |-------|-----------|
 | **Control Plane** | API Gateway, Orchestrator, Mission Control UI |
-| **Data Plane** | PostgreSQL, Redis, Qdrant, Milvus (optional), Neo4j (optional), MinIO/S3 (optional) |
+| **Data Plane** | PostgreSQL, Redis, Qdrant, Neo4j (optional), MinIO/S3 (optional), Milvus (optional) |
 | **Observability Plane** | Prometheus, Grafana, Loki, Promtail, Alertmanager, Jaeger |
 
 ---
@@ -99,7 +99,7 @@ The system is organized into three planes:
 ### Orchestrator (`services/orchestrator`, `:8101`)
 
 - **Mission state machine:** `QUEUED → RUNNING → VERIFIED → COMPLETE | FAILED`
-- **LangGraph integration:** Feature-flagged StateGraph with 3 nodes, conditional edges, fail-open fallback
+- **Lifecycle engines:** shipped defaults currently execute mission-flow v2 first, with optional LangGraph and legacy fallback
 - **Agent registry:** Canonical 35-agent dataset with runtime telemetry + 8-part persona profiles
 - **Pod assignment:** Routes missions to pod streams based on `requested_target_language`
 - **Operations APIs:** `/internal/operations/summary|agents|agent-integrations`
@@ -115,7 +115,7 @@ The system is organized into three planes:
 
 ### Pod Workers (`services/pod-worker`)
 
-- **Language extraction:** Regex-based static analysis (169 patterns, 16 languages)
+- **Language extraction:** Regex-based static analysis (232 patterns, 20 languages)
 - **LogicNode creation:** Per-concept node creation in knowledge base
 - **Agent binding:** `AGENT_BINDING` env var — dedicated workers process only matching missions
 - **Metrics:** `pod_worker_concepts_extracted_total`, `pod_worker_extraction_latency_seconds`, `pod_worker_binding_skips_total`, `pod_worker_internal_auth_rejections_total`
@@ -123,9 +123,9 @@ The system is organized into three planes:
 
 ### Audit Worker (`services/audit-worker`)
 
-- **Verification stream:** Processes `missions.audit` Redis stream
-- **Completion handoff:** Updates mission to `VERIFIED` state with artifact references
-- **Evidence chain:** Writes audit records with full traceability to `audit_artifacts` table
+- **Verification stream:** Processes `missions.state` Redis stream
+- **Completion handoff:** Persists audit reports through orchestrator audit-report APIs
+- **Evidence chain:** Writes audit records to `mission_audit_reports`; object-storage mirroring remains optional
 
 ### Dashboard (`services/dashboard`, `:8180`)
 
@@ -142,7 +142,7 @@ The system is organized into three planes:
 
 - **Operator console:** Full Next.js 16 App Router application
 - **Live transport:** SSE EventSource + polling fallback with `stream|poll|paused` mode indicator
-- **Builder:** 4-step repository intake (import → file select → diff review/apply gate → mission config)
+- **Builder:** 4-step repository intake (import → file select → inferred diff review/apply gate → mission config)
 - **Windowed rendering:** Virtual scrolling for Semantic Bus and agent roster views (high-volume)
 
 ---
@@ -172,6 +172,7 @@ QUEUED ──► RUNNING ──► VERIFIED ──► COMPLETE
 - **Checkpointer:** Postgres (`LANGGRAPH_CHECKPOINTER=postgres`) or memory (default)
 - **Fail-open:** `LANGGRAPH_FAIL_OPEN=true` — graph failure falls back to legacy lifecycle
 - **Startup rehydration:** In-flight missions recovered on orchestrator restart
+- **Default selection:** LangGraph is not the default shipped runtime path while `MISSION_FLOW_V2_ENABLED=true`
 
 ---
 
@@ -219,14 +220,16 @@ Regex-based static analysis — no AST, no LLM required for this stage.
 | Pod | Languages | Concept Prefix | Patterns |
 |-----|-----------|---------------|---------|
 | A — Dynamic | Python, JavaScript, Ruby, PHP | `DYN-` | ~68 |
-| B — Systems | C, C++, Rust | `SYS-` | ~36 |
+| B — Systems | C, C++, Rust, Zig, Go | `SYS-` | ~54 |
 | C — Enterprise | Java, C#, Scala, Kotlin | `ENT-` | ~35 |
-| D — Mathematical | MATLAB, R, Julia, Mathematica | `MATH-` | ~30 |
-| **Total** | **16 languages** | | **169 patterns** |
+| D — Mathematical | MATLAB, R, Julia, Mathematica, Haskell, OCaml | `MATH-` | ~75 |
+| **Total** | **20 languages** | | **232 patterns** |
 
 Concept ID format: `{PREFIX}-{DOMAIN:3d}-{CONCEPT:3d}` — e.g. `DYN-006-001` (async function)
 
 Implementation: `services/pod-worker/pod_worker/concept_catalog.py` · `language_extractor.py`
+
+Specialist routing remains narrower than extraction coverage. Some extracted languages still fall back to a more general specialist path.
 
 ---
 
@@ -234,7 +237,7 @@ Implementation: `services/pod-worker/pod_worker/concept_catalog.py` · `language
 
 | System | Port | Status | Purpose |
 |--------|------|--------|---------|
-| PostgreSQL | 5433 | ✅ Active | Primary persistence — 8 databases, versioned migrations |
+| PostgreSQL | 5433 | ✅ Active | Primary persistence — single application database with versioned migrations |
 | Redis | 6380 | ✅ Active | Streams, rate limiting, idempotency, heartbeats |
 | Qdrant | 6334 | ✅ Active | Knowledge retrieval and vector indexing (PG fallback) |
 | Milvus | 19530 | ⚙️ Feature-flagged | Optional vector-store path for extended retrieval flows |
@@ -243,13 +246,14 @@ Implementation: `services/pod-worker/pod_worker/concept_catalog.py` · `language
 
 ### Database Schema (PostgreSQL)
 
-| Database | Purpose |
-|----------|---------|
-| `knowledge_lake` | Mission-extracted knowledge and LogicNodes |
-| `state_graph` | Mission lifecycle state and events |
-| `logicnode_registry` | Canonical LogicNode records |
-| `traceability_ledger` | Audit artifact and custody chain |
-| `model_store` | ML/embedding model metadata |
+The default compose stack provisions one Postgres database (`POSTGRES_DB`, default `ulr`). Core tables are created by `services/orchestrator/orchestrator/migrations/V001_initial_runtime_schema.sql`, including:
+
+- `missions`
+- `mission_events`
+- `mission_assignments`
+- `logicnodes`
+- `mission_audit_reports`
+- `schema_migrations`
 
 ### Redis Streams
 
@@ -258,8 +262,9 @@ Implementation: `services/pod-worker/pod_worker/concept_catalog.py` · `language
 | `missions.intake` | New mission routing to orchestrator |
 | `missions.state` | Lifecycle state change events |
 | `missions.pod.{A\|B\|C\|D}` | Pod-specific work queues |
-| `missions.audit` | Verification/audit stream |
 | `agents.heartbeats` | Agent telemetry heartbeats |
+
+The default runtime does not use a separate `missions.audit` stream.
 
 ---
 
@@ -296,7 +301,7 @@ graph.add_conditional_edges("process", route_after_process)
 - `LANGGRAPH_ENABLED=false` (default) — zero-risk, uses legacy lifecycle
 - `LANGGRAPH_CHECKPOINTER=postgres` — Postgres-backed checkpointing
 - `LANGGRAPH_FAIL_OPEN=true` — graceful fallback on graph errors
-- `MISSION_FLOW_V2_ENABLED=false` — optional 11-phase runtime prototype; production remains v1.1 canonical
+- `MISSION_FLOW_V2_ENABLED=true` — shipped default runtime path in current compose/env/settings defaults
 
 ---
 

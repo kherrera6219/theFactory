@@ -40,6 +40,7 @@ def _settings(**overrides: Any) -> Settings:
         internal_service_api_key="worker-key",
         readonly_api_key="viewer-key",
         extra_api_keys="",
+        mission_flow_v2_enabled=False,
     )
     return Settings(**{**base.__dict__, **overrides})
 

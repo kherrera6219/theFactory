@@ -803,6 +803,23 @@ async def advance_mission_lifecycle_v2(
                     MissionState.verified,
                     "MISSION_COMPLETION_BLOCKED",
                 )
+                redis_ready = bool(getattr(app.state, "redis_ready", False))
+                redis_client = getattr(app.state, "redis", None)
+                if redis_ready and redis_client is not None:
+                    try:
+                        await emit_state_event_fn(
+                            settings=settings,
+                            validator=validator,
+                            redis_client=redis_client,
+                            mission=mission,
+                            event_type="MISSION_COMPLETION_BLOCKED",
+                        )
+                    except Exception as exc:
+                        LOGGER.warning(
+                            "v2: failed to emit completion block event for mission %s: %s",
+                            mission_id,
+                            exc,
+                        )
                 return
 
         await asyncio.sleep(settings.transition_step_seconds)
