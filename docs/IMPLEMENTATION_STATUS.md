@@ -61,8 +61,8 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Language Extraction Status
 
-- The extractor/catalog currently exposes 20 language keys and 232 regex patterns.
-- Specialist routing is not fully expanded to every extracted language. Some languages still fall back to a general or mapped specialist path.
+- The extractor/catalog currently exposes 16 routable language keys and 232 regex patterns. TypeScript is accepted but aliases to the JavaScript specialist. Go, Haskell, and OCaml are present in gateway routing code but lack compose `SUPPORTED_LANGUAGES` entries and dedicated specialist agents.
+- Specialist routing covers the 16 languages with dedicated specialist agents across four pods.
 
 ## Validation Snapshot
 
