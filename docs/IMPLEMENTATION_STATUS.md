@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-03-13
+Last updated: 2026-03-14
 
 This document is the canonical current-state snapshot for theFactory. Use it as the source of truth for shipped defaults, active runtime behavior, and known gaps. Date-stamped ADRs, roadmap phases, audits, and completion checklists remain useful historical records, but some of them no longer describe the current default runtime exactly.
 
@@ -55,30 +55,36 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 - Mission Control is a real Next.js operator console with missions, operations, semantic-bus, builder, and repo-intake views.
 - The repository import path is real GitHub metadata/tree ingestion.
+- Repository review is now server-backed: Mission Control fetches selected GitHub file content, builds a review artifact with a stable fingerprint, infers `requested_target_language`, and launches repo missions with a real `source_code` bundle.
 - The Builder diff preview is still inferred from preview-plan signals and synthetic diff generation, not a true repository patch/apply workflow.
-- The repo "review gate" is still client-side state, and repo mission launch currently hardcodes `requested_target_language` to `python`.
+- Repo review approval is still UI-local state rather than a persisted server-side approval record.
+- The chat intake page still hardcodes `requested_target_language` to `python`.
 - The databases page and some UX copy still lag live backend readiness details.
 
 ## Language Extraction Status
 
-- The extractor/catalog currently exposes 19 routable language keys and 232 regex patterns. TypeScript is accepted but aliases to the JavaScript specialist. Go, Haskell, and OCaml are now fully supported with dedicated agents and compose routing.
-- Specialist routing covers the 19 languages with dedicated specialist agents across four pods.
+- Specialist routing currently covers 20 language keys across four pods. TypeScript is accepted as a routed key but aliases to the JavaScript specialist.
+- Go, Haskell, and OCaml are now fully supported with dedicated agents and compose routing.
+- Some documentation artifacts still carry older language-count claims and need reconciliation to the current routing matrix.
 
 ## Validation Snapshot
 
-As of 2026-03-13:
+As of 2026-03-14:
 
 - `python -m pytest -q` is green.
+- `apps/mission-control` TypeScript check is green (`npm run lint`).
+- `apps/mission-control` unit tests are green (`npm test`).
 - `apps/mission-control` Playwright is green (`npm run test:e2e`).
-- `apps/mission-control` unit tests were already passing before this convergence pass and no application code changes in this pass affected that path.
 
 The repository should therefore be treated as a substantial and internally consistent baseline, but not yet a fully complete product release.
 
 ## Open Gaps For Completion
 
-1. Decide whether mission creation should remain queue-first/eventually consistent or move to read-after-write consistency. Immediate `GET /v1/missions/{id}` can still briefly return `404` while the intake event is being consumed.
-2. Replace synthetic Builder/repo-review behavior with a true repository-context and diff/apply pipeline.
-3. Align audit/event documentation with the actual `missions.state` and `mission_audit_reports` implementation, or deepen the code to match the older design.
-4. Update Mission Control data-plane surfaces to reflect live optional-adapter readiness.
-5. Reconcile language-extraction coverage with specialist routing and docs.
-6. Either implement a real build/package artifact path or remove stronger-than-implemented "binary ready" semantics.
+1. Decide whether mission creation should remain queue-first/eventually consistent or move to read-after-write consistency. Immediate `GET /v1/missions/{id}` can still briefly return `404` while the intake event is being consumed, although Mission Control now retries that path.
+2. Replace the synthetic Builder preview path with a true repository-context diff/apply pipeline. Repo intake/review/launch is now substantially real, but Builder still is not.
+3. Persist repo review approval server-side if that approval is meant to be an auditable contract rather than UI-only state.
+4. Align audit/event documentation with the actual `missions.state` and `mission_audit_reports` implementation, or deepen the code to match the older design.
+5. Update Mission Control data-plane surfaces to reflect live optional-adapter readiness.
+6. Reconcile language-count and extraction/routing claims across docs with the current 20-key routing matrix.
+7. Either implement a real build/package artifact path or remove stronger-than-implemented "binary ready" semantics.
+8. Remove remaining hardcoded language assumptions from non-repo Mission Control intake paths, especially chat launch.
