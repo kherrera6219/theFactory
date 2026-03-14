@@ -629,8 +629,8 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     )
     assert agents.status_code == 200
     payload = agents.json()
-    assert payload["total_agents"] == 35
-    assert len(payload["agents"]) == 35
+    assert payload["total_agents"] == 38
+    assert len(payload["agents"]) == 38
     assert payload["runtime"]["consumer_running"] is True
     assert payload["runtime"]["langgraph_enabled"] is False
     assert payload["runtime"]["langgraph_checkpointer"] == "none"
@@ -654,7 +654,7 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     master_instructions = {
         record["persona_profile"]["master_instruction"] for record in payload["agents"]
     }
-    assert len(master_instructions) == 35
+    assert len(master_instructions) == 38
     assert all(record["persona_profile"]["standards_alignment"] for record in payload["agents"])
     assert all(record["persona_profile"]["evidence_sources"] for record in payload["agents"])
     evidence_urls = [
@@ -681,7 +681,7 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     integrations = client.get("/internal/operations/agent-integrations", headers=headers)
     assert integrations.status_code == 200
     integration_payload = integrations.json()
-    assert integration_payload["total_agents"] == 35
+    assert integration_payload["total_agents"] == 38
     assert integration_payload["persona_profile_framework"] == "8-part-v1"
     assert "job_role" in integration_payload["persona_profile_sections"]
     assert "redis" in integration_payload["data_systems"]

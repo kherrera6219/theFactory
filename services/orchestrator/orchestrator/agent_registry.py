@@ -384,6 +384,39 @@ AGENT_REGISTRY: Final[tuple[AgentDefinition, ...]] = (
         category="specialist",
         specialties=("mathematica",),
     ),
+    AgentDefinition(
+        index=36,
+        agent_id="AGENT-36-GO",
+        short_code="GO",
+        name="Go Specialist",
+        tier="Refinement Pod",
+        pod="Pod B",
+        role="Extract computational intent from Go workloads",
+        category="specialist",
+        specialties=("go",),
+    ),
+    AgentDefinition(
+        index=37,
+        agent_id="AGENT-37-HASKELL",
+        short_code="HASKELL",
+        name="Haskell Specialist",
+        tier="Refinement Pod",
+        pod="Pod D",
+        role="Extract computational intent from Haskell workloads",
+        category="specialist",
+        specialties=("haskell",),
+    ),
+    AgentDefinition(
+        index=38,
+        agent_id="AGENT-38-OCAML",
+        short_code="OCAML",
+        name="OCaml Specialist",
+        tier="Refinement Pod",
+        pod="Pod D",
+        role="Extract computational intent from OCaml workloads",
+        category="specialist",
+        specialties=("ocaml",),
+    ),
 )
 
 
@@ -397,6 +430,8 @@ LANGUAGE_ALIASES: Final[dict[str, str]] = {
     "rb": "ruby",
     "ruby": "ruby",
     "php": "php",
+    "go": "go",
+    "golang": "go",
     "c": "c",
     "c++": "cpp",
     "cpp": "cpp",
@@ -412,6 +447,10 @@ LANGUAGE_ALIASES: Final[dict[str, str]] = {
     "r": "r",
     "julia": "julia",
     "mathematica": "mathematica",
+    "haskell": "haskell",
+    "hs": "haskell",
+    "ocaml": "ocaml",
+    "ml": "ocaml",
 }
 
 

@@ -30,4 +30,5 @@ def test_main_writes_all_agent_keys(tmp_path: Path, monkeypatch) -> None:
     assert "AGENT_SERVICE_KEY_MODE=strict" in payload
     assert "AGENT_01_PM_SERVICE_API_KEY=" in payload
     assert "AGENT_35_MATHEMATICA_SERVICE_API_KEY=" in payload
-    assert payload.count("_SERVICE_API_KEY=") == 35
+    assert "AGENT_38_OCAML_SERVICE_API_KEY=" in payload
+    assert payload.count("_SERVICE_API_KEY=") == 38

@@ -1,0 +1,56 @@
+E501 Line too long (112 > 100)
+    --> services\api-gateway\api_gateway\main.py:1379:101
+     |
+1377 |             await redis_client.delete(idempotency_redis_key)
+1378 |         LOGGER.error("mission intake protocol envelope validation failed: %s", exc)
+1379 |         raise HTTPException(status_code=422, detail="invalid protocol envelope; check mission payload") from exc
+     |                                                                                                     ^^^^^^^^^^^^
+1380 |     except Exception as exc:
+1381 |         if idempotency_redis_key is not None:
+     |
+
+E501 Line too long (103 > 100)
+    --> services\api-gateway\api_gateway\main.py:1384:101
+     |
+1382 |             await redis_client.delete(idempotency_redis_key)
+1383 |         LOGGER.error("failed to enqueue mission to intake stream: %s", exc)
+1384 |         raise HTTPException(status_code=502, detail="failed to enqueue mission; please retry") from exc
+     |                                                                                                     ^^^
+1385 |
+1386 |     if idempotency_redis_key is not None and request_hash is not None:
+     |
+
+E501 Line too long (111 > 100)
+   --> services\audit-worker\audit_worker\main.py:329:101
+    |
+327 |                     TASKS_PROCESSED.labels(agent_id=WORKER_AGENT_ID, event_type=event_type).inc()
+328 |                     acknowledge = True
+329 |                 except (ProtocolValidationError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+    |                                                                                                     ^^^^^^^^^^^
+330 |                     # Permanent/malformed failure — route to DLQ and discard
+331 |                     app.state.errors += 1
+    |
+
+E501 Line too long (126 > 100)
+   --> services\orchestrator\orchestrator\runtime.py:231:101
+    |
+229 |         "event_type": event_type,
+230 |         "requested_target_language": mission.requested_target_language,
+231 |         "created_at": mission.created_at.isoformat() if isinstance(mission.created_at, datetime) else str(mission.created_at),
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+232 |     }
+233 |     payload.update(_state_event_agent_routing(mission, event_type))
+    |
+
+E501 Line too long (130 > 100)
+   --> services\orchestrator\orchestrator\runtime.py:243:101
+    |
+241 |             "mission_id": mission.mission_id,
+242 |             "state": mission.state.value,
+243 |             "created_at": mission.created_at.isoformat() if isinstance(mission.created_at, datetime) else str(mission.created_at),
+    |                                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+244 |         },
+245 |         maxlen=settings.max_stream_len,
+    |
+
+Found 5 errors.

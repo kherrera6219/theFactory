@@ -15,7 +15,7 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Runtime Topology
 
-- The orchestrator maintains a 35-agent registry with persona and integration metadata.
+- The orchestrator maintains a 38-agent registry with persona and integration metadata.
 - The default deployment is still the condensed topology:
   - API Gateway
   - Orchestrator
@@ -61,8 +61,8 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Language Extraction Status
 
-- The extractor/catalog currently exposes 16 routable language keys and 232 regex patterns. TypeScript is accepted but aliases to the JavaScript specialist. Go, Haskell, and OCaml are present in gateway routing code but lack compose `SUPPORTED_LANGUAGES` entries and dedicated specialist agents.
-- Specialist routing covers the 16 languages with dedicated specialist agents across four pods.
+- The extractor/catalog currently exposes 19 routable language keys and 232 regex patterns. TypeScript is accepted but aliases to the JavaScript specialist. Go, Haskell, and OCaml are now fully supported with dedicated agents and compose routing.
+- Specialist routing covers the 19 languages with dedicated specialist agents across four pods.
 
 ## Validation Snapshot
 

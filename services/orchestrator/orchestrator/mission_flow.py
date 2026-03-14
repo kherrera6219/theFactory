@@ -31,6 +31,7 @@ SPECIALIST_BY_LANGUAGE: dict[str, str] = {
     "cpp": "AGENT-21-CPP",
     "rust": "AGENT-22-RUST",
     "zig": "AGENT-23-ZIG",
+    "go": "AGENT-36-GO",
     "java": "AGENT-26-JAVA",
     "csharp": "AGENT-27-CSHARP",
     "scala": "AGENT-28-SCALA",
@@ -39,6 +40,8 @@ SPECIALIST_BY_LANGUAGE: dict[str, str] = {
     "r": "AGENT-33-R",
     "julia": "AGENT-34-JULIA",
     "mathematica": "AGENT-35-MATHEMATICA",
+    "haskell": "AGENT-37-HASKELL",
+    "ocaml": "AGENT-38-OCAML",
 }
 
 
