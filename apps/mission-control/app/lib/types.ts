@@ -155,6 +155,10 @@ export type OperationsSummary = {
   runtime: {
     redis_ready: boolean;
     db_ready: boolean;
+    qdrant_ready?: boolean | null;
+    milvus_ready?: boolean | null;
+    neo4j_ready?: boolean | null;
+    object_storage_ready?: boolean | null;
     protocol_ready: boolean;
     consumer_running: boolean;
   };
@@ -310,6 +314,27 @@ export type BuilderPlanItem = {
   description: string;
 };
 
+export type BuilderDiffLine = {
+  kind: "context" | "add" | "remove";
+  value: string;
+};
+
+export type BuilderSourceStats = {
+  selected_files: number;
+  source_characters: number;
+  patch_characters: number;
+  high_risk_files: number;
+};
+
+export type BuilderPreviewFile = {
+  path: string;
+  operation: "modify" | "create";
+  risk: "low" | "medium" | "high";
+  summary: string;
+  excerpt?: string;
+  lines: BuilderDiffLine[];
+};
+
 export type BuilderPreviewResponse = {
   request_id: string;
   source: string;
@@ -318,7 +343,23 @@ export type BuilderPreviewResponse = {
   diff_summary: string[];
   risk_notes: string[];
   test_plan: string[];
+  builder_fingerprint?: string;
+  requested_target_language?: string | null;
+  source_code?: string;
+  patch_text?: string;
+  source_stats?: BuilderSourceStats;
+  files?: BuilderPreviewFile[];
   notice?: string;
+};
+
+export type ReviewApprovalReceipt = {
+  approval_id: string;
+  scope: "builder" | "repo";
+  fingerprint: string;
+  approved_at: string;
+  summary: string;
+  receipt_digest: string;
+  record_path: string;
 };
 
 export type RepoReviewFileRecord = {
@@ -367,3 +408,4 @@ export type RepoReviewResponse = {
   files: RepoReviewFileRecord[];
   notice?: string;
 };
+

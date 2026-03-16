@@ -1263,7 +1263,7 @@ async def stream_state_events(
     return StreamingResponse(generator, media_type="text/event-stream", headers=headers)
 
 
-@app.post("/v1/missions")
+@app.post("/v1/missions", status_code=201)
 async def create_mission(
     payload: MissionCreate,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
@@ -1281,10 +1281,8 @@ async def create_mission(
         payload.metadata,
         requested_target_language=payload.requested_target_language,
     )
-    # Persist source_code in metadata so pod-workers can retrieve it via the
-    # mission snapshot even when the state-stream event doesn't carry the full
-    # payload.  We only set the key when content is present to avoid bloating
-    # the mission record for text-only missions.
+    # Persist source_code in metadata so pod-workers can retrieve it directly
+    # from the synchronized mission snapshot after create returns.
     if payload.source_code:
         normalized_metadata["source_code"] = payload.source_code
     normalized_payload = MissionCreate(
@@ -1363,6 +1361,32 @@ async def create_mission(
             if str(entry.get("event_type", "")) == "MISSION_PM_INTAKE" and not entry.get("ts"):
                 entry["ts"] = created_at
     mission_payload["metadata"]["last_chain_event_at"] = created_at
+    try:
+        persisted_record = await _proxy_post_internal(
+            "/missions",
+            json_body={
+                "mission_id": mission_id,
+                "prompt": normalized_payload.prompt,
+                "requested_target_language": normalized_payload.requested_target_language,
+                "metadata": mission_payload["metadata"],
+                "created_at": created_at,
+            },
+        )
+    except Exception:
+        if idempotency_redis_key is not None:
+            await redis_client.delete(idempotency_redis_key)
+        raise
+
+    mission_payload = {
+        **mission_payload,
+        "state": str(persisted_record.get("state", "QUEUED")),
+        "created_at": str(persisted_record.get("created_at", created_at)),
+        "metadata": (
+            persisted_record.get("metadata")
+            if isinstance(persisted_record.get("metadata"), dict)
+            else mission_payload["metadata"]
+        ),
+    }
     payload_ref = f"registry://missions/{mission_id}/intake"
     try:
         envelope = _build_envelope(correlation_id=mission_id, payload_ref=payload_ref)
@@ -1373,19 +1397,9 @@ async def create_mission(
             approximate=True,
         )
     except (ProtocolValidationError, json.JSONDecodeError) as exc:
-        if idempotency_redis_key is not None:
-            await redis_client.delete(idempotency_redis_key)
-        LOGGER.error("mission intake protocol envelope validation failed: %s", exc)
-        raise HTTPException(
-            status_code=422, detail="invalid protocol envelope; check mission payload"
-        ) from exc
+        LOGGER.warning("mission intake telemetry envelope validation failed for %s: %s", mission_id, exc)
     except Exception as exc:
-        if idempotency_redis_key is not None:
-            await redis_client.delete(idempotency_redis_key)
-        LOGGER.error("failed to enqueue mission to intake stream: %s", exc)
-        raise HTTPException(
-            status_code=502, detail="failed to enqueue mission; please retry"
-        ) from exc
+        LOGGER.warning("failed to publish mission intake telemetry for %s: %s", mission_id, exc)
 
     if idempotency_redis_key is not None and request_hash is not None:
         try:
@@ -1437,6 +1451,31 @@ async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None
         raise HTTPException(status_code=502, detail="orchestrator internal auth rejected request")
     if response.status_code >= 400:
         raise HTTPException(status_code=502, detail="orchestrator internal query failed")
+    return response.json()
+
+
+async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> Any:
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            response = await client.post(
+                f"{ORCHESTRATOR_URL}{path}",
+                json=json_body,
+                headers={"x-api-key": INTERNAL_SERVICE_API_KEY},
+            )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"orchestrator unavailable: {exc}") from exc
+    if response.status_code in {401, 403}:
+        raise HTTPException(status_code=502, detail="orchestrator internal auth rejected request")
+    if response.status_code >= 400:
+        try:
+            payload = response.json()
+        except Exception:
+            payload = {}
+        detail = payload.get("detail") if isinstance(payload, dict) else None
+        raise HTTPException(
+            status_code=502,
+            detail=str(detail or "orchestrator internal write failed"),
+        )
     return response.json()
 
 

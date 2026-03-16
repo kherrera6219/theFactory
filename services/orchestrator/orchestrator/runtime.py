@@ -340,6 +340,14 @@ async def consume_intake_stream(app: FastAPI) -> None:
                         payload_json = json.loads(payload_raw)
                         validator.parse_intake_envelope(fields, payload_json)
 
+                        existing = await asyncio.to_thread(
+                            storage.fetch_mission,
+                            settings,
+                            payload_json["mission_id"],
+                        )
+                        if existing is not None:
+                            continue
+
                         mission = MissionRecord(
                             mission_id=payload_json["mission_id"],
                             prompt=payload_json["prompt"],

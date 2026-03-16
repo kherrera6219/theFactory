@@ -274,6 +274,7 @@ def test_consume_intake_stream_happy_path(monkeypatch) -> None:
     lifecycle_calls: list[str] = []
 
     monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: None)
     monkeypatch.setattr(
         runtime.storage,
         "upsert_mission",
@@ -353,6 +354,7 @@ def test_consume_intake_stream_emit_failure_does_not_block_intake(monkeypatch) -
         return fn(*args, **kwargs)
 
     monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: None)
     monkeypatch.setattr(runtime.storage, "upsert_mission", lambda *_args: None)
     monkeypatch.setattr(runtime.storage, "insert_mission_event", lambda *_args: None)
 

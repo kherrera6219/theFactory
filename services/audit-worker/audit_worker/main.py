@@ -311,17 +311,6 @@ async def _consumer_loop(app: FastAPI) -> None:
                                     "status": "FAIL",
                                 },
                             )
-                    elif event_type == "MISSION_COMPLETE":
-                        await _publish_event(
-                            redis_client,
-                            "binary.build.ready",
-                            mission_id,
-                            {
-                                "mission_id": mission_id,
-                                "event_type": "BINARY_READY",
-                                "status": "READY",
-                            },
-                        )
 
                     app.state.processed += 1
                     TASKS_PROCESSED.labels(agent_id=WORKER_AGENT_ID, event_type=event_type).inc()

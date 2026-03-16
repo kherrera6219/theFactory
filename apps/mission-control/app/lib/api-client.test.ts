@@ -1,5 +1,7 @@
 import {
+  approveReviewArtifact,
   ApiError,
+  createBuilderWorkspaceReview,
   fetchJson,
   getGatewayReadyState,
   getMissionChainTrace,
@@ -178,6 +180,73 @@ describe("api-client", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:8100/v1/missions/mission-1/chain-trace",
       expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("posts builder workspace review requests to the local route", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ request_id: "builder-1", source: "workspace-review", generated_at: "2026-03-14T00:00:00.000Z", plan: [], diff_summary: [], risk_notes: [], test_plan: [], files: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await createBuilderWorkspaceReview({
+      request: "Ground builder previews in real files.",
+      constraints: ["preserve accessibility"],
+      viewMode: "desktop",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/builder/review",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          request: "Ground builder previews in real files.",
+          constraints: ["preserve accessibility"],
+          view_mode: "desktop",
+        }),
+      }),
+    );
+  });
+
+  it("posts review approval requests to the local approval route", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          approval_id: "builder-approval-001",
+          scope: "builder",
+          fingerprint: "abc123",
+          approved_at: "2026-03-14T00:00:00.000Z",
+          summary: "Builder review approved.",
+          receipt_digest: "digest-001",
+          record_path: ".runtime/review-approvals/builder-approval-001.json",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+
+    await approveReviewArtifact({
+      scope: "builder",
+      fingerprint: "abc123",
+      summary: "Builder review approved.",
+      metadata: { request_id: "builder-review-001" },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/review/approve",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          scope: "builder",
+          fingerprint: "abc123",
+          summary: "Builder review approved.",
+          metadata: { request_id: "builder-review-001" },
+        }),
+      }),
     );
   });
 });

@@ -19,6 +19,39 @@ type DatabaseCard = {
   lastWrite: string;
 };
 
+function runtimeFlag(
+  summary: OperationsSummary | null,
+  key: "qdrant_ready" | "neo4j_ready" | "object_storage_ready",
+): boolean | null {
+  const value = summary?.runtime[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+function adapterCard(params: {
+  id: string;
+  name: string;
+  engine: string;
+  ready: boolean | null;
+  healthyDetails: string;
+  degradedDetails: string;
+  disabledDetails: string;
+  lastWrite: string;
+}): DatabaseCard {
+  return {
+    id: params.id,
+    name: params.name,
+    engine: params.engine,
+    status: params.ready === null ? "planned" : params.ready ? "healthy" : "degraded",
+    details:
+      params.ready === null
+        ? params.disabledDetails
+        : params.ready
+          ? params.healthyDetails
+          : params.degradedDetails,
+    lastWrite: params.ready === null ? "Optional adapter disabled" : params.lastWrite,
+  };
+}
+
 function buildCards(summary: OperationsSummary | null, health: GatewayHealth | null): DatabaseCard[] {
   const redisHealthy = Boolean(health?.redis_healthy);
   const dbHealthy = Boolean(summary?.runtime.db_ready);
@@ -42,30 +75,36 @@ function buildCards(summary: OperationsSummary | null, health: GatewayHealth | n
       details: dbHealthy ? "Mission and telemetry persistence ready." : "Database dependency unavailable.",
       lastWrite,
     },
-    {
+    adapterCard({
       id: "qdrant",
       name: "Knowledge Vectors",
       engine: "Qdrant",
-      status: "planned",
-      details: "Reserved in architecture plan. Runtime integration pending.",
-      lastWrite: "Pending activation",
-    },
-    {
+      ready: runtimeFlag(summary, "qdrant_ready"),
+      healthyDetails: "Qdrant mirror and retrieval path are active.",
+      degradedDetails: "Qdrant is enabled but not ready.",
+      disabledDetails: "Optional vector adapter is disabled.",
+      lastWrite,
+    }),
+    adapterCard({
       id: "neo4j",
       name: "Traceability Graph",
       engine: "Neo4j",
-      status: "planned",
-      details: "Planned optional datastore for compliance and provenance mapping.",
-      lastWrite: "Pending activation",
-    },
-    {
+      ready: runtimeFlag(summary, "neo4j_ready"),
+      healthyDetails: "Neo4j graph mirror is active for traceability views.",
+      degradedDetails: "Neo4j is enabled but not ready.",
+      disabledDetails: "Optional graph adapter is disabled.",
+      lastWrite,
+    }),
+    adapterCard({
       id: "object-storage",
       name: "Artifact Store",
       engine: "Object Storage",
-      status: "planned",
-      details: "Planned for binary bundles and audit evidence retention.",
-      lastWrite: "Pending activation",
-    },
+      ready: runtimeFlag(summary, "object_storage_ready"),
+      healthyDetails: "Audit artifact retention mirror is active.",
+      degradedDetails: "Object storage is enabled but not ready.",
+      disabledDetails: "Optional object-storage adapter is disabled.",
+      lastWrite,
+    }),
   ];
 }
 
@@ -112,7 +151,7 @@ export default function DatabasesPage() {
       <PageHeader
         eyebrow="Database Health"
         title="Data Plane Status"
-        description="Track all five shared database systems used by the refinery control plane."
+        description="Track the live readiness of the shared data systems used by the refinery control plane."
       />
 
       <Panel title="Health Overview">
@@ -129,6 +168,10 @@ export default function DatabasesPage() {
               <span>{health?.redis_healthy ? "Yes" : "No"}</span>
             </li>
             <li>
+              <strong>Protocol consumer running</strong>
+              <span>{summary?.runtime.consumer_running ? "Yes" : "No"}</span>
+            </li>
+            <li>
               <strong>Generated at</strong>
               <span>{summary ? formatDateTime(summary.generated_at) : "n/a"}</span>
             </li>
@@ -143,7 +186,7 @@ export default function DatabasesPage() {
               <div className="panel-title-row">
                 <h3>{card.name}</h3>
                 <span className={`pill ${card.status}`}>
-                  {card.status === "healthy" ? "Healthy" : card.status === "degraded" ? "Degraded" : "Planned"}
+                  {card.status === "healthy" ? "Healthy" : card.status === "degraded" ? "Degraded" : "Disabled"}
                 </span>
               </div>
               <p className="muted">{card.engine}</p>
@@ -156,4 +199,3 @@ export default function DatabasesPage() {
     </div>
   );
 }
-

@@ -128,6 +128,7 @@ INTERNAL_AUTH_REJECTIONS = Counter(
 
 INTERNAL_AUTH_FAILURES = 0
 LAST_INTERNAL_AUTH_STATUS: int | None = None
+_SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
 
 
 def _parse_agent_binding(raw: str) -> tuple[str, ...]:
@@ -290,6 +291,108 @@ def _safe_to_dict(candidate: Any) -> dict[str, Any]:
         if isinstance(payload, dict):
             return payload
     return {}
+
+
+def _bundle_source_segments(source_code: str) -> list[tuple[str, str]]:
+    matches = list(_SOURCE_BUNDLE_FILE_PATTERN.finditer(source_code))
+    if not matches:
+        return []
+
+    segments: list[tuple[str, str]] = []
+    for index, match in enumerate(matches):
+        path = str(match.group(1)).strip()
+        if not path:
+            continue
+        body_start = match.end()
+        body_end = matches[index + 1].start() if index + 1 < len(matches) else len(source_code)
+        body = source_code[body_start:body_end].lstrip("\r\n")
+        segments.append((path, body))
+    return segments
+
+
+def _subset_source_bundle(source_code: str, assigned_items: list[str]) -> str:
+    if not source_code.strip() or not assigned_items:
+        return source_code
+
+    wanted = {str(item).strip() for item in assigned_items if str(item).strip()}
+    if not wanted:
+        return source_code
+
+    segments = _bundle_source_segments(source_code)
+    if not segments:
+        return source_code
+
+    selected = [(path, body) for path, body in segments if path in wanted]
+    if not selected:
+        return source_code
+
+    rendered: list[str] = []
+    for path, body in selected:
+        block = f"## FILE {path}\n{body.rstrip()}".rstrip()
+        rendered.append(block)
+    return "\n\n".join(rendered).strip() + "\n"
+
+
+def _partition_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    partition = payload.get("partition")
+    return partition if isinstance(partition, dict) else {}
+
+
+def _partition_id(payload: dict[str, Any]) -> str:
+    partition = _partition_payload(payload)
+    return str(partition.get("partition_id", "")).strip()
+
+
+def _partition_items(payload: dict[str, Any]) -> list[str]:
+    partition = _partition_payload(payload)
+    assigned_items = partition.get("assigned_items")
+    if not isinstance(assigned_items, list):
+        return []
+    return [str(item).strip() for item in assigned_items if str(item).strip()]
+
+
+def _apply_partition_suffix(
+    logicnodes: list[dict[str, Any]],
+    partition_id: str,
+) -> list[dict[str, Any]]:
+    if not partition_id:
+        return logicnodes
+
+    updated_logicnodes: list[dict[str, Any]] = []
+    for logicnode in logicnodes:
+        if not isinstance(logicnode, dict):
+            continue
+        updated = dict(logicnode)
+        base_node_id = str(updated.get("node_id", "")).strip() or f"{POD_NAME}.partition.{partition_id}"
+        if not base_node_id.endswith(f".{partition_id}"):
+            updated["node_id"] = f"{base_node_id}.{partition_id}"
+        node_payload = updated.get("node")
+        if isinstance(node_payload, dict):
+            node_payload = dict(node_payload)
+            nested_payload = node_payload.get("payload")
+            if not isinstance(nested_payload, dict):
+                nested_payload = {}
+            else:
+                nested_payload = dict(nested_payload)
+            nested_payload["partition_id"] = partition_id
+            node_payload["payload"] = nested_payload
+            updated["node"] = node_payload
+        updated_logicnodes.append(updated)
+    return updated_logicnodes
+
+
+def _logicnode_report_payload(
+    agent_pipeline: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    result_payload = _safe_to_dict(agent_pipeline.get("result"))
+    artifacts = result_payload.get("artifacts")
+    if not isinstance(artifacts, list):
+        artifacts = []
+    report_payload = _safe_to_dict(agent_pipeline.get("report"))
+    logicnodes = agent_pipeline.get("logicnodes")
+    if not isinstance(logicnodes, list):
+        logicnodes = []
+    return logicnodes, [artifact for artifact in artifacts if isinstance(artifact, dict)], report_payload
 
 
 def _run_agent_pipeline(
@@ -699,6 +802,14 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
         or _default_agent_id_for_event("MISSION_RUNNING", target_language)
         or "UNBOUND"
     )
+    if (
+        isinstance(mission_metadata, dict)
+        and mission_metadata.get("scaling_active") is True
+        and isinstance(mission_metadata.get("scaling_decision"), dict)
+        and int(mission_metadata.get("scaling_decision", {}).get("instance_count", 1)) > 1
+    ):
+        return
+
     await _post_agent_heartbeat(
         agent_id=resolved_agent_id,
         mission_id=mission_id,
@@ -910,6 +1021,235 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
     )
 
 
+async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, Any]) -> None:
+    mission_id = str(payload.get("mission_id", ""))
+    partition_id = _partition_id(payload)
+    if not mission_id or not partition_id:
+        return
+
+    target = payload.get("requested_target_language")
+    target_language = str(target).lower() if isinstance(target, str) else ""
+    if not _mission_targets_supported_language(target_language):
+        return
+    if not await _mission_matches_agent_binding(mission_id, payload):
+        return
+
+    mission_snapshot = await _fetch_mission_snapshot(mission_id)
+    mission_metadata = mission_snapshot.get("metadata") if isinstance(mission_snapshot, dict) else {}
+    resolved_agent_id = (
+        _agent_id_from_payload(payload)
+        or _agent_id_from_metadata(mission_metadata)
+        or await _fetch_mission_agent_id(mission_id)
+        or _default_agent_id_for_event("MISSION_RUNNING", target_language)
+        or "UNBOUND"
+    )
+    if resolved_agent_id == "UNBOUND":
+        return
+
+    await _post_agent_heartbeat(
+        agent_id=resolved_agent_id,
+        mission_id=mission_id,
+        state="RUNNING",
+        queue_depth=1,
+        workload_pct=64,
+        metadata={"event_type": "MISSION_PARTITION_READY", "partition_id": partition_id},
+    )
+
+    source_code = (
+        payload.get("source_code")
+        or (mission_metadata.get("source_code") if isinstance(mission_metadata, dict) else None)
+        or ""
+    )
+    source_code = _subset_source_bundle(source_code, _partition_items(payload))
+    extraction_language = target_language or "python"
+    extraction_summary: dict[str, Any] = {"language": extraction_language, "concepts_found": 0}
+    extracted_logicnodes: list[dict[str, Any]] = []
+
+    if source_code:
+        started = time.perf_counter()
+        extractor = get_extractor(extraction_language)
+        result = extractor.extract(source_code)
+        EXTRACTION_LATENCY.labels(pod_name=POD_NAME, agent_id=resolved_agent_id).observe(
+            time.perf_counter() - started
+        )
+        CONCEPTS_EXTRACTED.labels(
+            pod_name=POD_NAME,
+            agent_id=resolved_agent_id,
+            language=extraction_language,
+        ).inc(len(result.concepts))
+        extraction_summary = result.summary
+        extracted_logicnodes = _logicnodes_from_extraction(
+            mission_id=mission_id,
+            target_language=target_language,
+            extraction_language=extraction_language,
+            concepts=result.concepts,
+        )
+
+    if not extracted_logicnodes:
+        extracted_logicnodes = [
+            {
+                "node_id": f"{POD_NAME}.core.{mission_id}",
+                "concept": "routing_stub",
+                "domain": "core",
+                "language": extraction_language,
+                "agent_id": resolved_agent_id,
+                "node": {
+                    "node_name": f"{POD_NAME}-logicnode-core",
+                    "source_language": extraction_language,
+                    "target_language": target_language or "generic",
+                    "payload": {"origin": "pod-worker", "pod_name": POD_NAME},
+                },
+            }
+        ]
+
+    for logicnode in extracted_logicnodes:
+        logicnode["agent_id"] = resolved_agent_id
+
+    agent_pipeline = _run_agent_pipeline(
+        mission_id=mission_id,
+        resolved_agent_id=resolved_agent_id,
+        payload={
+            **payload,
+            "source_payload": source_code,
+            "requested_target_language": extraction_language,
+            "agent_id": resolved_agent_id,
+            "partition_id": partition_id,
+            "partition_items": _partition_items(payload),
+        },
+        extracted_logicnodes=extracted_logicnodes,
+    )
+
+    final_logicnodes = _apply_partition_suffix(
+        agent_pipeline["logicnodes"] or extracted_logicnodes,
+        partition_id,
+    )
+    refined_ir_module = build_refined_ir_module(
+        mission_id=mission_id,
+        agent_id=resolved_agent_id,
+        source_language=extraction_language,
+        target_language=target_language or extraction_language,
+        logicnodes=final_logicnodes,
+        source_ref=f"mission://{mission_id}/partitions/{partition_id}",
+    )
+    refined_ir_store_record: dict[str, Any] | None = None
+    if REFINED_IR_STORE_PATH:
+        try:
+            store_record = write_refined_ir_module(
+                refined_ir_module,
+                store_root=REFINED_IR_STORE_PATH,
+                mission_id=mission_id,
+                agent_id=resolved_agent_id,
+            )
+            refined_ir_store_record = {
+                "path": store_record.relative_path,
+                "git_commit": store_record.git_commit,
+                "sha256": store_record.sha256,
+            }
+        except Exception as exc:
+            refined_ir_store_record = {"error": str(exc)}
+
+    for logicnode in final_logicnodes:
+        node_id = str(logicnode.get("node_id", "")).strip() or f"{POD_NAME}.core.{mission_id}.{partition_id}"
+        node_payload = logicnode.get("node")
+        if not isinstance(node_payload, dict):
+            node_payload = {
+                "node_name": str(logicnode.get("concept", "extracted_intent")),
+                "source_language": extraction_language,
+                "target_language": target_language or "generic",
+                "payload": {
+                    "origin": "pod-worker",
+                    "pod_name": POD_NAME,
+                    "agent_id": resolved_agent_id,
+                    "partition_id": partition_id,
+                    "domain": logicnode.get("domain", "generic"),
+                    "concept": logicnode.get("concept", "extracted_intent"),
+                },
+            }
+        await _request(
+            "POST",
+            "/internal/logicnodes",
+            json_body={
+                "mission_id": mission_id,
+                "node_id": node_id,
+                "node": node_payload,
+            },
+            agent_id=resolved_agent_id,
+        )
+
+    partition_logicnodes, partition_artifacts, partition_report = _logicnode_report_payload(agent_pipeline)
+    partition_logicnodes = _apply_partition_suffix(partition_logicnodes or final_logicnodes, partition_id)
+
+    await _request(
+        "POST",
+        "/internal/knowledge",
+        json_body={
+            "mission_id": mission_id,
+            "knowledge_id": f"{POD_NAME}.partition.{partition_id}.{mission_id}",
+            "content": {
+                "summary": partition_report.get(
+                    "summary",
+                    f"{POD_NAME} completed partition {partition_id}.",
+                ),
+                "metadata": {
+                    "pod_name": POD_NAME,
+                    "source": "pod-worker",
+                    "partition_id": partition_id,
+                    "assigned_items": _partition_items(payload),
+                    "extraction": extraction_summary,
+                    "agent_id": resolved_agent_id,
+                    "agent_category": getattr(agent_pipeline["agent"], "category", "specialist"),
+                    "agent_result": _safe_to_dict(agent_pipeline["result"]),
+                    "validation": _safe_to_dict(agent_pipeline["validation"]),
+                    "report": partition_report,
+                    "refined_ir_module": refined_ir_module.model_dump(by_alias=True),
+                    "refined_ir_store": refined_ir_store_record,
+                },
+            },
+        },
+        agent_id=resolved_agent_id,
+    )
+
+    await _request(
+        "POST",
+        f"/internal/missions/{mission_id}/partition-results",
+        json_body={
+            "partition_id": partition_id,
+            "instance_index": int(_partition_payload(payload).get("instance_index", 0)),
+            "agent_id": resolved_agent_id,
+            "logicnodes": partition_logicnodes,
+            "artifacts": partition_artifacts,
+            "report": partition_report,
+        },
+        agent_id=resolved_agent_id,
+    )
+
+    await _publish_event(
+        redis_client,
+        "pod.standard.ready",
+        mission_id,
+        {
+            "mission_id": mission_id,
+            "pod_name": POD_NAME,
+            "event_type": "MISSION_PARTITION_COMPLETE",
+            "state": payload.get("state", "RUNNING"),
+            "agent_id": resolved_agent_id,
+            "partition_id": partition_id,
+        },
+    )
+    await _post_agent_heartbeat(
+        agent_id=resolved_agent_id,
+        mission_id=mission_id,
+        state="ACTIVE",
+        queue_depth=0,
+        workload_pct=18,
+        metadata={
+            "event_type": "MISSION_PARTITION_READY",
+            "partition_id": partition_id,
+            "status": "complete",
+        },
+    )
+
+
 async def _consumer_loop(app: FastAPI) -> None:
     redis_client: redis.Redis = app.state.redis
     while True:
@@ -958,6 +1298,10 @@ async def _consumer_loop(app: FastAPI) -> None:
                         TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
                     elif event_type == "MISSION_RUNNING":
                         await _handle_running_mission(redis_client, payload)
+                        app.state.processed += 1
+                        TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
+                    elif event_type == "MISSION_PARTITION_READY":
+                        await _handle_partition_ready(redis_client, payload)
                         app.state.processed += 1
                         TASKS_PROCESSED.labels(pod_name=POD_NAME, agent_id=agent_id).inc()
                     acknowledge = True

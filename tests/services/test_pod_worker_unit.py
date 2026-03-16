@@ -939,3 +939,73 @@ def test_health_when_redis_not_configured() -> None:
     pod_worker_main.app.state.errors = 0
     payload = asyncio.run(pod_worker_main.health())
     assert payload["ok"] is False
+
+
+def test_handle_partition_ready_submits_partition_results(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    payload = {
+        "mission_id": "mission-1",
+        "requested_target_language": "python",
+        "state": "RUNNING",
+        "agent_id": "AGENT-14-PYTHON",
+        "partition": {
+            "partition_id": "p0-test",
+            "instance_index": 0,
+            "assigned_items": ["app.py"],
+        },
+    }
+    monkeypatch.setattr(pod_worker_main, "AGENT_BINDING_SET", frozenset())
+
+    async def _matches(_mission_id: str, _payload: dict[str, Any]) -> bool:
+        return True
+
+    async def _fetch_snapshot(_mission_id: str) -> dict[str, Any]:
+        return {
+            "metadata": {
+                "source_code": "## FILE app.py\nprint('a')\n\n## FILE other.py\nprint('b')\n",
+                "scaling_active": True,
+            }
+        }
+
+    calls: list[tuple[str, str, dict[str, Any]]] = []
+
+    async def _request(method: str, path: str, **kwargs):
+        calls.append((method, path, kwargs))
+        return DummyResponse(200, {"ok": True})
+
+    published: list[str] = []
+
+    async def _publish(_redis_obj, topic: str, _mission_id: str, _payload_obj: dict[str, Any]):
+        published.append(topic)
+
+    class FakeConcept:
+        concept_id = "dyn-001"
+        domain = "list_operations"
+        concept = "map_collection"
+        intent = "transform"
+        confidence = 0.91
+        source_line = 1
+        evidence = "map pattern"
+
+    class FakeExtractor:
+        def extract(self, source_code: str):
+            assert "other.py" not in source_code
+            return SimpleNamespace(
+                summary={"language": "python", "concepts_found": 1},
+                concepts=[FakeConcept()],
+            )
+
+    monkeypatch.setattr(pod_worker_main, "_mission_matches_agent_binding", _matches)
+    monkeypatch.setattr(pod_worker_main, "_fetch_mission_snapshot", _fetch_snapshot)
+    monkeypatch.setattr(pod_worker_main, "_request", _request)
+    monkeypatch.setattr(pod_worker_main, "_publish_event", _publish)
+    monkeypatch.setattr(pod_worker_main, "get_extractor", lambda _language: FakeExtractor())
+
+    asyncio.run(pod_worker_main._handle_partition_ready(redis_client, payload))
+
+    partition_posts = [entry for entry in calls if entry[1] == "/internal/missions/mission-1/partition-results"]
+    assert len(partition_posts) == 1
+    logicnode_posts = [entry for entry in calls if entry[1] == "/internal/logicnodes"]
+    assert logicnode_posts
+    assert logicnode_posts[0][2]["json_body"]["node_id"].endswith(".p0-test")
+    assert published == ["pod.standard.ready"]

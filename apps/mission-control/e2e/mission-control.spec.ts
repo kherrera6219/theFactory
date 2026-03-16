@@ -271,6 +271,92 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
     });
   });
 
+  await page.route("**/api/builder/review", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") {
+      return fulfillJson(route, 405, { detail: "Method not allowed." });
+    }
+    return fulfillJson(route, 200, {
+      request_id: "builder-review-001",
+      source: "workspace-review",
+      generated_at: new Date().toISOString(),
+      builder_fingerprint: "fp-builder-review-001",
+      requested_target_language: "typescript",
+      source_code:
+        "# Builder Workspace Source Bundle\nbuilder_fingerprint: fp-builder-review-001\nrequested_target_language: typescript\n",
+      patch_text:
+        "diff --git a/apps/mission-control/app/(shell)/builder/page.tsx b/apps/mission-control/app/(shell)/builder/page.tsx\n--- a/apps/mission-control/app/(shell)/builder/page.tsx\n+++ b/apps/mission-control/app/(shell)/builder/page.tsx\n@@ -1,1 +1,2 @@\n \"use client\";\n+// builder-intent: Update builder workflow to include stronger risk notes and test guidance.\n",
+      source_stats: {
+        selected_files: 2,
+        source_characters: 512,
+        patch_characters: 287,
+        high_risk_files: 1,
+      },
+      plan: [
+        { title: "Ground Real Files", description: "Review uses local repository files rather than client-side file hints." },
+        { title: "Generate Patch Contract", description: "Prepared a patch contract for 2 files using the current workspace state." },
+        { title: "Launch With Approved Bundle", description: "Use the generated source bundle and approval receipt when creating the mission." },
+      ],
+      diff_summary: [
+        "apps/mission-control/app/(shell)/builder/page.tsx: Modify builder page around grounded UI state.",
+        "services/api-gateway/api_gateway/main.py: Modify Python flow around create_builder_preview.",
+      ],
+      risk_notes: ["services/api-gateway/api_gateway/main.py is high-risk and needs focused validation."],
+      test_plan: ["Validate the grounded file selection before approval."],
+      notice: "Builder review now returns a grounded patch contract and launch bundle; approval is still required before mission execution.",
+      files: [
+        {
+          path: "apps/mission-control/app/(shell)/builder/page.tsx",
+          operation: "modify",
+          risk: "low",
+          summary: "Modify builder page around grounded UI state.",
+          excerpt: "\"use client\";\nexport default function BuilderPage() {",
+          lines: [
+            { kind: "context", value: "@@ grounded preview @@" },
+            { kind: "context", value: "\"use client\";" },
+            { kind: "remove", value: "export default function BuilderPage() {" },
+            { kind: "add", value: "// staged builder change: Update builder workflow to include stronger risk notes and test guidance." },
+            { kind: "add", value: "export default function BuilderPage() {" },
+          ],
+        },
+        {
+          path: "services/api-gateway/api_gateway/main.py",
+          operation: "modify",
+          risk: "high",
+          summary: "Modify Python flow around create_builder_preview.",
+          excerpt: "async def create_builder_preview(payload):",
+          lines: [
+            { kind: "context", value: "@@ grounded preview @@" },
+            { kind: "context", value: "async def create_builder_preview(payload):" },
+            { kind: "remove", value: "    return existing_preview(payload)" },
+            { kind: "add", value: "# staged builder change: Update builder workflow to include stronger risk notes and test guidance." },
+            { kind: "add", value: "    return existing_preview(payload)" },
+          ],
+        },
+      ],
+    });
+  });
+
+  await page.route("**/api/review/approve", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") {
+      return fulfillJson(route, 405, { detail: "Method not allowed." });
+    }
+    const payload = (request.postDataJSON() as Record<string, unknown>) ?? {};
+    const scope = typeof payload.scope === "string" ? payload.scope : "repo";
+    const fingerprint = typeof payload.fingerprint === "string" ? payload.fingerprint : "fp-default";
+
+    return fulfillJson(route, 200, {
+      approval_id: `${scope}-approval-001`,
+      scope,
+      fingerprint,
+      approved_at: new Date().toISOString(),
+      summary: typeof payload.summary === "string" ? payload.summary : "Review approved.",
+      receipt_digest: `${scope}-digest-001`,
+      record_path: `.runtime/review-approvals/${scope}-approval-001.json`,
+    });
+  });
+
   await page.route("http://localhost:8100/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -622,7 +708,7 @@ test("builder workspace generates actionable diff previews", async ({ page }) =>
   await page.getByLabel("Constraints (comma-separated)").fill("no schema changes, preserve accessibility");
   await page.getByRole("button", { name: "Stage Request" }).click();
 
-  await expect(page.getByText(/Preview generated from e2e/i)).toBeVisible();
+  await expect(page.getByText(/Preview generated from workspace-review/i)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Execution Plan" })).toBeVisible();
   await expect(
     page.getByRole("heading", {
@@ -630,7 +716,12 @@ test("builder workspace generates actionable diff previews", async ({ page }) =>
       exact: true,
     }),
   ).toBeVisible();
-  await expect(page.locator(".code-block pre").first()).toContainText("+    request:");
+  await expect(page.getByRole("heading", { name: "Step 2: Review Patch Contract" })).toBeVisible();
+  await expect(page.locator(".code-block pre").last()).toContainText("diff --git a/apps/mission-control/app/(shell)/builder/page.tsx");
+  await page.getByRole("button", { name: "Apply Review Gate" }).click();
+  await expect(page.getByText(/Review gate persisted at/i)).toBeVisible();
+  await page.getByRole("button", { name: "Launch Mission" }).click();
+  await expect(page).toHaveURL(/\/missions\/mission-e2e-\d+/);
 });
 
 test("repo intake imports files and launches mission", async ({ page }) => {
@@ -654,7 +745,7 @@ test("repo intake imports files and launches mission", async ({ page }) => {
   await page.getByRole("button", { name: "Generate Repository Review" }).click();
   await expect(page.getByRole("heading", { name: "Review Summary" })).toBeVisible();
   await page.getByRole("button", { name: "Apply Review Gate" }).click();
-  await expect(page.getByText(/Review gate applied at/i)).toBeVisible();
+  await expect(page.getByText(/Review gate persisted at/i)).toBeVisible();
 
   await expect(page.getByText("Requested target language")).toBeVisible();
   await page.getByRole("button", { name: "Launch Mission" }).click();

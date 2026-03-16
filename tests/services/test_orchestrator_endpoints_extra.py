@@ -724,3 +724,39 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     alerts = client.get("/internal/operations/alerts?limit=5", headers=headers)
     assert alerts.status_code == 200
     assert alerts.json()[0]["alert_id"] == "missions-failed-present"
+
+
+def test_partition_results_endpoint_restarts_lifecycle_when_scaling_complete(monkeypatch) -> None:
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)
+
+    started: list[str] = []
+
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "record_partition_result",
+        lambda *_: MissionRecord(
+            mission_id="mission-1",
+            prompt="Build API",
+            requested_target_language="python",
+            metadata={
+                "scaling_merge_complete": True,
+                "partition_results": {"p0": {"partition_id": "p0"}},
+                "merged_partition_result": {"partition_count": 1},
+            },
+            state=MissionState.running,
+            created_at="2026-03-01T00:00:00+00:00",
+        ),
+    )
+    monkeypatch.setattr(orchestrator_main, "start_lifecycle_task", lambda _app, mission_id: started.append(mission_id))
+
+    client = TestClient(app)
+    response = client.post(
+        "/internal/missions/mission-1/partition-results",
+        headers={"x-api-key": "worker-key"},
+        json={"partition_id": "p0", "agent_id": "AGENT-14-PYTHON", "instance_index": 0},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["scaling_complete"] is True
+    assert started == ["mission-1"]

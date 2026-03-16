@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
-import { createMission, createRepoReview } from "../../lib/api-client";
+import { approveReviewArtifact, createMission, createRepoReview } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { sanitizeUserText } from "../../lib/security";
-import type { RepoReviewResponse } from "../../lib/types";
+import type { RepoReviewResponse, ReviewApprovalReceipt } from "../../lib/types";
 
 type RepoFileOverlayAction = "include" | "reference" | "exclude";
 
@@ -91,8 +91,8 @@ export default function RepoImportPage() {
   const [description, setDescription] = useState("");
   const [reviewPreview, setReviewPreview] = useState<RepoReviewResponse | null>(null);
   const [reviewing, setReviewing] = useState(false);
-  const [reviewAppliedAt, setReviewAppliedAt] = useState<string | null>(null);
-  const [reviewAppliedFingerprint, setReviewAppliedFingerprint] = useState<string | null>(null);
+  const [approvalReceipt, setApprovalReceipt] = useState<ReviewApprovalReceipt | null>(null);
+  const [approving, setApproving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importLogs, setImportLogs] = useState<string[]>([]);
   const [importComplete, setImportComplete] = useState(false);
@@ -124,8 +124,7 @@ export default function RepoImportPage() {
   }, [files, normalizedFilter]);
 
   function resetReviewGate() {
-    setReviewAppliedAt(null);
-    setReviewAppliedFingerprint(null);
+    setApprovalReceipt(null);
     setReviewPreview(null);
   }
 
@@ -274,8 +273,7 @@ export default function RepoImportPage() {
 
     setError(null);
     setReviewing(true);
-    setReviewAppliedAt(null);
-    setReviewAppliedFingerprint(null);
+    setApprovalReceipt(null);
 
     try {
       const preview = await createRepoReview({
@@ -306,14 +304,37 @@ export default function RepoImportPage() {
     }
   }
 
-  function applyReviewGate() {
+  async function applyReviewGate() {
     if (!reviewPreview) {
       setError("Generate and inspect the review output before applying the gate.");
       return;
     }
     setError(null);
-    setReviewAppliedAt(new Date().toISOString());
-    setReviewAppliedFingerprint(reviewPreview.review_fingerprint);
+    setApproving(true);
+    try {
+      const receipt = await approveReviewArtifact({
+        scope: "repo",
+        fingerprint: reviewPreview.review_fingerprint,
+        summary: `Repository review approved for ${reviewPreview.files.length} selected file(s).`,
+        metadata: {
+          request_id: reviewPreview.request_id,
+          repository: reviewPreview.repository,
+          requested_target_language: reviewPreview.requested_target_language,
+          selected_files: reviewPreview.files.map((file) => ({
+            path: file.path,
+            overlay_action: file.overlay_action,
+          })),
+        },
+      });
+      setApprovalReceipt(receipt);
+    } catch (approvalError) {
+      setError(
+        approvalError instanceof Error ? approvalError.message : "Unable to persist repository approval.",
+      );
+      setApprovalReceipt(null);
+    } finally {
+      setApproving(false);
+    }
   }
 
   async function launchRepoMission() {
@@ -325,11 +346,11 @@ export default function RepoImportPage() {
       setError("Select at least one file to include in the mission.");
       return;
     }
-    if (!reviewAppliedAt || !reviewAppliedFingerprint) {
+    if (!approvalReceipt) {
       setError("Apply Step 3 review gate before launching the mission.");
       return;
     }
-    if (!reviewPreview || reviewPreview.review_fingerprint !== reviewAppliedFingerprint) {
+    if (!reviewPreview || reviewPreview.review_fingerprint !== approvalReceipt.fingerprint) {
       setError("Repository review changed after gate approval. Reapply the review gate before launch.");
       return;
     }
@@ -364,7 +385,9 @@ export default function RepoImportPage() {
           estimated_lines: selectedLines,
           repository_owner: importSnapshot?.repository.owner,
           repository_name: importSnapshot?.repository.repo,
-          review_gate_applied_at: reviewAppliedAt,
+          review_gate_applied_at: approvalReceipt.approved_at,
+          review_approval_id: approvalReceipt.approval_id,
+          review_receipt_digest: approvalReceipt.receipt_digest,
           review_request_id: reviewPreview.request_id,
           review_fingerprint: reviewPreview.review_fingerprint,
           requested_target_language: reviewPreview.requested_target_language,
@@ -386,10 +409,9 @@ export default function RepoImportPage() {
   const step3Locked = !importComplete || selectedFiles.length === 0;
   const step4Locked =
     step3Locked ||
-    !reviewAppliedAt ||
-    !reviewAppliedFingerprint ||
+    !approvalReceipt ||
     !reviewPreview ||
-    reviewPreview.review_fingerprint !== reviewAppliedFingerprint;
+    reviewPreview.review_fingerprint !== approvalReceipt.fingerprint;
 
   return (
     <div className="page shell-page">
@@ -589,16 +611,22 @@ export default function RepoImportPage() {
               <button
                 type="button"
                 className="secondary-button"
-                onClick={applyReviewGate}
-                disabled={!reviewPreview}
+                onClick={() => void applyReviewGate()}
+                disabled={!reviewPreview || approving}
               >
-                {reviewAppliedAt ? "Reapply Review Gate" : "Apply Review Gate"}
+                {approving
+                  ? "Applying Review Gate..."
+                  : approvalReceipt
+                    ? "Reapply Review Gate"
+                    : "Apply Review Gate"}
               </button>
             </div>
-            {reviewAppliedAt && (
-              <p className="success-box">Review gate applied at {formatDateTime(reviewAppliedAt)}.</p>
+            {approvalReceipt && (
+              <p className="success-box">
+                Review gate persisted at {formatDateTime(approvalReceipt.approved_at)}.
+              </p>
             )}
-            {!reviewAppliedAt && reviewPreview && (
+            {!approvalReceipt && reviewPreview && (
               <p className="warning-box">
                 Review generated at {formatDateTime(reviewPreview.generated_at)}. Apply gate to unlock mission launch.
               </p>
@@ -678,6 +706,10 @@ export default function RepoImportPage() {
               <li>
                 <strong>Requested target language</strong>
                 <span>{reviewPreview?.requested_target_language ?? "default specialist fallback"}</span>
+              </li>
+              <li>
+                <strong>Approval receipt</strong>
+                <span>{approvalReceipt?.approval_id ?? "n/a"}</span>
               </li>
               <li>
                 <strong>Bundled files</strong>

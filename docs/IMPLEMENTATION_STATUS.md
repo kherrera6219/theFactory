@@ -31,13 +31,16 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 - Canonical external mission states remain `QUEUED -> RUNNING -> VERIFIED -> COMPLETE | FAILED`.
 - Smelt-cycle checkpoint events are still the operator-facing phase model.
-- The shipped default runtime now routes through the v2 lifecycle implementation, even though some older ADRs still describe v1.1 as the default.
+- The shipped default runtime routes through the v2 lifecycle implementation.
+- `POST /v1/missions` now persists through the orchestrator before returning `201 Created`, so the mission record is queryable immediately after create.
+- Dynamic scaling is now wired end-to-end behind `AGENT_SCALING_ENABLED`: the orchestrator computes partition work, emits `mission.partition.ready`, pod-workers execute partitions, results are merged into mission metadata, and lifecycle resumes once all partitions complete.
 
 ### Audit flow
 
 - The audit worker consumes `missions.state`, not a separate `missions.audit` stream.
 - Audit results are persisted through the orchestrator audit-report path into `mission_audit_reports`.
-- The worker publishes verification/build-related events, but the current implementation is not yet a full artifact-packaging pipeline.
+- `MISSION_COMPLETE` now maps to `mission.state.complete`; the runtime no longer claims a bundle artifact exists just because lifecycle reached `COMPLETE`.
+- A real build/package artifact pipeline is still not implemented.
 
 ### Data plane
 
@@ -56,9 +59,9 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 - Mission Control is a real Next.js operator console with missions, operations, semantic-bus, builder, and repo-intake views.
 - The repository import path is real GitHub metadata/tree ingestion.
 - Repository review is now server-backed: Mission Control fetches selected GitHub file content, builds a review artifact with a stable fingerprint, infers `requested_target_language`, and launches repo missions with a real `source_code` bundle.
-- The Builder diff preview is still inferred from preview-plan signals and synthetic diff generation, not a true repository patch/apply workflow.
-- Repo review approval is still UI-local state rather than a persisted server-side approval record.
-- The chat intake page still hardcodes `requested_target_language` to `python`.
+- Builder review is now server-backed against the local workspace: it selects real files, emits a stable `builder_fingerprint`, produces a grounded patch contract plus `source_code` bundle, and can launch missions from that approved artifact.
+- Review approval is now persisted server-side for both Builder and repository review flows via local approval receipt records before mission launch.
+- The chat intake page now infers `requested_target_language` from attached files and prompt hints instead of hardcoding `python`.
 - The databases page and some UX copy still lag live backend readiness details.
 
 ## Language Extraction Status
@@ -80,11 +83,7 @@ The repository should therefore be treated as a substantial and internally consi
 
 ## Open Gaps For Completion
 
-1. Decide whether mission creation should remain queue-first/eventually consistent or move to read-after-write consistency. Immediate `GET /v1/missions/{id}` can still briefly return `404` while the intake event is being consumed, although Mission Control now retries that path.
-2. Replace the synthetic Builder preview path with a true repository-context diff/apply pipeline. Repo intake/review/launch is now substantially real, but Builder still is not.
-3. Persist repo review approval server-side if that approval is meant to be an auditable contract rather than UI-only state.
-4. Align audit/event documentation with the actual `missions.state` and `mission_audit_reports` implementation, or deepen the code to match the older design.
-5. Update Mission Control data-plane surfaces to reflect live optional-adapter readiness.
-6. Reconcile language-count and extraction/routing claims across docs with the current 20-key routing matrix.
-7. Either implement a real build/package artifact path or remove stronger-than-implemented "binary ready" semantics.
-8. Remove remaining hardcoded language assumptions from non-repo Mission Control intake paths, especially chat launch.
+1. Align audit/event documentation with the actual `missions.state`, `mission.state.complete`, and `mission_audit_reports` implementation.
+2. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
+3. Reconcile language-count and extraction/routing claims across docs with the current 20-key routing matrix.
+4. Implement a real build/package artifact path before introducing bundle-ready semantics again.

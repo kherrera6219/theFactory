@@ -83,8 +83,24 @@ class FakeTask:
         return _cancelled().__await__()
 
 
-def test_gateway_idempotency_reuses_initial_result() -> None:
+def _stub_gateway_create(monkeypatch) -> None:
+    async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> dict[str, Any]:
+        assert path == "/missions"
+        return {
+            "mission_id": json_body["mission_id"],
+            "prompt": json_body["prompt"],
+            "requested_target_language": json_body.get("requested_target_language"),
+            "metadata": json_body.get("metadata", {}),
+            "state": "QUEUED",
+            "created_at": json_body["created_at"],
+        }
+
+    monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _proxy_post_internal)
+
+
+def test_gateway_idempotency_reuses_initial_result(monkeypatch) -> None:
     fake_redis = FakeRedis()
+    _stub_gateway_create(monkeypatch)
     with TestClient(api_app) as client:
         api_app.state.redis = fake_redis
         api_app.state.redis_ready = True
@@ -99,14 +115,15 @@ def test_gateway_idempotency_reuses_initial_result() -> None:
         first = client.post("/v1/missions", json=payload, headers=headers)
         second = client.post("/v1/missions", json=payload, headers=headers)
 
-        assert first.status_code == 200
-        assert second.status_code == 200
+        assert first.status_code == 201
+        assert second.status_code == 201
         assert first.json()["mission_id"] == second.json()["mission_id"]
         assert len(fake_redis.xadd_calls) == 1
 
 
-def test_gateway_idempotency_rejects_payload_mismatch() -> None:
+def test_gateway_idempotency_rejects_payload_mismatch(monkeypatch) -> None:
     fake_redis = FakeRedis()
+    _stub_gateway_create(monkeypatch)
     with TestClient(api_app) as client:
         api_app.state.redis = fake_redis
         api_app.state.redis_ready = True
@@ -118,13 +135,14 @@ def test_gateway_idempotency_rejects_payload_mismatch() -> None:
         first = client.post("/v1/missions", json=first_payload, headers=headers)
         second = client.post("/v1/missions", json=second_payload, headers=headers)
 
-        assert first.status_code == 200
+        assert first.status_code == 201
         assert second.status_code == 409
         assert "different mission payload" in second.json()["detail"]
 
 
-def test_gateway_mission_intake_rejects_non_pm_agent() -> None:
+def test_gateway_mission_intake_rejects_non_pm_agent(monkeypatch) -> None:
     fake_redis = FakeRedis()
+    _stub_gateway_create(monkeypatch)
     with TestClient(api_app) as client:
         api_app.state.redis = fake_redis
         api_app.state.redis_ready = True
@@ -241,6 +259,7 @@ def test_gateway_adds_security_headers() -> None:
 
 def test_gateway_rate_limit_blocks_excess_requests(monkeypatch) -> None:
     fake_redis = FakeRedis()
+    _stub_gateway_create(monkeypatch)
     monkeypatch.setattr(api_gateway_main, "API_RATE_LIMIT_PER_MINUTE", 1)
     with TestClient(api_app) as client:
         api_app.state.redis = fake_redis
@@ -254,7 +273,7 @@ def test_gateway_rate_limit_blocks_excess_requests(monkeypatch) -> None:
         first = client.post("/v1/missions", json=payload)
         second = client.post("/v1/missions", json=payload)
 
-    assert first.status_code == 200
+    assert first.status_code == 201
     assert second.status_code == 429
 
 

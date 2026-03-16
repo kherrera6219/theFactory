@@ -330,6 +330,27 @@ def _artifact_summary(metadata: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _scaling_summary(metadata: dict[str, Any]) -> dict[str, Any] | None:
+    decision = metadata.get("scaling_decision")
+    if not isinstance(decision, dict):
+        return None
+
+    partition_results = metadata.get("partition_results")
+    partition_result_count = len(partition_results) if isinstance(partition_results, dict) else 0
+    return {
+        "active": bool(metadata.get("scaling_active", False)),
+        "decision": decision,
+        "partition_result_count": partition_result_count,
+        "partition_events_emitted": bool(metadata.get("scaling_partition_events_emitted", False)),
+        "complete": bool(metadata.get("scaling_merge_complete", False)),
+        "merged_result": (
+            metadata.get("merged_partition_result")
+            if isinstance(metadata.get("merged_partition_result"), dict)
+            else None
+        ),
+    }
+
+
 def _build_mission_chain_trace(
     *,
     mission: MissionRecord,
@@ -418,6 +439,7 @@ def _build_mission_chain_trace(
         "pod_assignment": pod_assignment,
         "logicnode_count": len(logicnodes),
         "artifact_summary": _artifact_summary(metadata),
+        "scaling": _scaling_summary(metadata),
         "route_provenance": route_provenance,
         "events": chain_trace,
     }
@@ -1617,6 +1639,59 @@ async def get_audit_artifacts(
             exc,
         )
         return []
+
+
+@app.post("/internal/missions/{mission_id}/partition-results")
+async def upsert_partition_result(
+    mission_id: str,
+    payload: dict[str, Any],
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    await _ensure_db_ready(app)
+    mission = await _fetch_existing_mission(app, mission_id)
+
+    partition_id = str(payload.get("partition_id", "")).strip()
+    agent_id = str(payload.get("agent_id", "")).strip()
+    if not partition_id or not agent_id:
+        raise HTTPException(status_code=422, detail="partition_id and agent_id are required")
+
+    result_payload = {
+        "partition_id": partition_id,
+        "instance_index": int(payload.get("instance_index", 0)),
+        "agent_id": agent_id,
+        "logicnodes": [node for node in payload.get("logicnodes", []) if isinstance(node, dict)],
+        "artifacts": [artifact for artifact in payload.get("artifacts", []) if isinstance(artifact, dict)],
+        "report": payload.get("report") if isinstance(payload.get("report"), dict) else {},
+        "completed_at": payload.get("completed_at") or datetime.now(UTC).isoformat(),
+    }
+
+    record = await asyncio.to_thread(
+        storage.record_partition_result,
+        app.state.settings,
+        mission_id,
+        result_payload,
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="mission not found")
+
+    metadata = record.metadata if isinstance(record.metadata, dict) else {}
+    if record.state == MissionState.running and bool(metadata.get("scaling_merge_complete")):
+        start_lifecycle_task(app, mission_id)
+
+    partition_results = metadata.get("partition_results")
+    return {
+        "mission_id": mission_id,
+        "state": record.state.value,
+        "partition_id": partition_id,
+        "partition_result_count": len(partition_results) if isinstance(partition_results, dict) else 0,
+        "scaling_complete": bool(metadata.get("scaling_merge_complete", False)),
+        "merged_partition_result": (
+            metadata.get("merged_partition_result")
+            if isinstance(metadata.get("merged_partition_result"), dict)
+            else None
+        ),
+        "target_language": mission.requested_target_language,
+    }
 
 
 @app.post("/internal/agents/heartbeat")
