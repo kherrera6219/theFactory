@@ -197,7 +197,6 @@ def _topic_bindings_for_agent(agent: AgentDefinition) -> dict[str, list[str]]:
             publish.add("incident.runtime.errorlog")
         elif agent.short_code == "DEPLOY":
             consume.update({"mission.state.complete", "pod.standard.ready"})
-            publish.add("binary.build.ready")
         elif agent.short_code == "HW":
             consume.add("cluster.assigned.podB")
         elif agent.short_code == "IS":

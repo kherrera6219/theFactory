@@ -24,16 +24,21 @@ Phase order
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from . import storage
 from .agent_registry import AGENT_REGISTRY
 from .agent_scaling import (
+    all_partitions_complete,
     compute_scaling_decision,
     embed_scaling_decision,
     is_scalable_agent,
+    scaling_decision_from_metadata,
 )
 from .llm_delegation import (
     generate_ceo_delegation,
@@ -61,6 +66,7 @@ RUNTIME_PHASES = frozenset(
         MissionState.complete,
     }
 )
+_SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
 
 
 def _setting_bool(settings: Any, name: str, default: bool = False) -> bool:
@@ -143,6 +149,126 @@ def _mission_context(mission: Any, metadata: dict[str, Any]) -> dict[str, Any]:
         "routing_version": metadata.get("routing_version"),
         "routing_enforced": metadata.get("routing_enforced"),
     }
+
+
+def _workload_items_from_source_bundle(source_code: Any) -> list[str]:
+    if not isinstance(source_code, str) or not source_code.strip():
+        return []
+
+    items: list[str] = []
+    for match in _SOURCE_BUNDLE_FILE_PATTERN.finditer(source_code):
+        candidate = str(match.group(1)).strip()
+        if candidate and candidate not in items:
+            items.append(candidate)
+    return items
+
+
+def _scaling_workload_items(metadata: dict[str, Any], specialist_plan: dict[str, Any]) -> list[str]:
+    source_items = _workload_items_from_source_bundle(metadata.get("source_code"))
+    if source_items:
+        return source_items
+
+    workload_items = [
+        str(item).strip()
+        for item in specialist_plan.get("deliverables", [])
+        if str(item).strip()
+    ]
+    return workload_items or ["default_workload"]
+
+
+async def _emit_partition_work_items(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    mission: Any,
+) -> Any:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    decision = scaling_decision_from_metadata(metadata)
+    if decision is None or decision.instance_count <= 1:
+        return mission
+    if metadata.get("scaling_partition_events_emitted"):
+        return mission
+
+    redis_ready = bool(getattr(app.state, "redis_ready", False))
+    redis_client = getattr(app.state, "redis", None)
+    if not redis_ready or redis_client is None:
+        return mission
+
+    specialist_agent_id = _validate_agent_id(
+        metadata.get("assigned_specialist_agent_id"),
+        fallback=resolve_specialist_agent_id(mission.requested_target_language),
+    )
+    pod_manager_agent_id = _validate_agent_id(
+        metadata.get("assigned_pod_manager_agent_id"),
+        fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+    )
+
+    emitted_count = 0
+    for partition in decision.partitions:
+        envelope = {
+            "event_id": f"evt-{uuid.uuid4()}",
+            "topic": "mission.partition.ready",
+            "timestamp": datetime.now(UTC).isoformat(),
+            "producer": settings.producer_name,
+            "correlation_id": mission.mission_id,
+            "payload_ref": (
+                f"registry://missions/{mission.mission_id}/partitions/{partition.partition_id}"
+            ),
+            "schema": "missions.partition.v1",
+            "priority": settings.default_priority,
+        }
+        try:
+            validator.validate(envelope)
+        except Exception as exc:
+            LOGGER.warning(
+                "v2: failed to validate partition envelope for mission %s/%s: %s",
+                mission.mission_id,
+                partition.partition_id,
+                exc,
+            )
+            return mission
+
+        payload = {
+            "mission_id": mission.mission_id,
+            "state": mission.state.value,
+            "event_type": "MISSION_PARTITION_READY",
+            "requested_target_language": mission.requested_target_language,
+            "agent_id": specialist_agent_id,
+            "selected_agent_id": specialist_agent_id,
+            "assigned_specialist_agent_id": specialist_agent_id,
+            "assigned_pod_manager_agent_id": pod_manager_agent_id,
+            "partition": partition.to_dict(),
+        }
+        await redis_client.xadd(
+            settings.state_stream,
+            {
+                "envelope": json.dumps(envelope),
+                "payload": json.dumps(payload),
+                "event_type": "MISSION_PARTITION_READY",
+                "mission_id": mission.mission_id,
+                "state": mission.state.value,
+                "created_at": (
+                    mission.created_at.isoformat()
+                    if isinstance(mission.created_at, datetime)
+                    else str(mission.created_at)
+                ),
+            },
+            maxlen=settings.max_stream_len,
+            approximate=True,
+        )
+        emitted_count += 1
+
+    metadata["scaling_partition_events_emitted"] = True
+    metadata["scaling_partition_events_emitted_at"] = datetime.now(UTC).isoformat()
+    metadata["scaling_partition_event_count"] = emitted_count
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission
 
 
 async def _persist_metadata(
@@ -526,9 +652,7 @@ async def _prepare_specialist_plan(
     if _setting_bool(settings, "agent_scaling_enabled", False) and is_scalable_agent(
         specialist_agent_id
     ):
-        workload_items = [
-            str(d) for d in normalized.get("deliverables", [])
-        ] or ["default_workload"]
+        workload_items = _scaling_workload_items(metadata, normalized)
         scaling = compute_scaling_decision(
             agent_id=specialist_agent_id,
             workload_items=workload_items,
@@ -536,6 +660,7 @@ async def _prepare_specialist_plan(
             items_per_instance=_setting_int(settings, "agent_scaling_items_per_instance", 3),
         )
         embed_scaling_decision(metadata, scaling)
+        metadata["scaling_partition_events_emitted"] = False
         if not _chain_event_exists(metadata, "MISSION_SCALING_DECIDED"):
             append_chain_event(
                 metadata,
@@ -765,6 +890,23 @@ async def advance_mission_lifecycle_v2(
             if not prepared:
                 return
 
+        if expected_state == MissionState.running and new_state == MissionState.gating:
+            mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+            if mission is None:
+                return
+            metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+            if metadata.get("scaling_active"):
+                if not metadata.get("scaling_partition_events_emitted"):
+                    mission = await _emit_partition_work_items(
+                        app=app,
+                        settings=settings,
+                        validator=validator,
+                        mission=mission,
+                    )
+                    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+                if not all_partitions_complete(metadata):
+                    return
+
         # Completion gate before COMPLETE
         if (
             expected_state == MissionState.verified
@@ -841,6 +983,13 @@ async def advance_mission_lifecycle_v2(
                 mission=record,
                 event_type=event_type,
             )
+            if new_state == MissionState.running:
+                record = await _emit_partition_work_items(
+                    app=app,
+                    settings=settings,
+                    validator=validator,
+                    mission=record,
+                )
 
         redis_ready = bool(getattr(app.state, "redis_ready", False))
         redis_client = getattr(app.state, "redis", None)

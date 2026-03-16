@@ -52,17 +52,14 @@ Last updated: 2026-03-14
      - re-ran the full Playwright suite successfully.
    - Status: `Addressed in this cycle`.
 
-6. `Medium` Builder preview and repository workflow still include partially synthetic behavior.
+6. `Medium` Builder preview and repository workflow previously included partially synthetic behavior.
    - Previous state: builder showed plan-only placeholder rendering and repo import used sample file simulation.
-   - Current observed state:
-     - repo import is real GitHub metadata/tree ingestion,
-     - repo review is now server-backed and launch carries real repository `source_code` plus inferred target language,
-     - repo review approval is still local UI state rather than a persisted server-side approval record,
-     - Builder diff rendering is still inferred from preview-plan signals rather than a true patch/apply workflow.
-   - Status: `Partially addressed`.
-   - Required action:
-     - replace Builder synthetic diff generation with a true server-side diff/apply contract,
-     - decide whether repo approval must become a persisted auditable approval step.
+   - Current-cycle action:
+     - repo import remains real GitHub metadata/tree ingestion,
+     - repo review approval now persists through a server-side approval receipt route,
+     - Builder review now inspects real local workspace files, emits a stable review fingerprint, produces a grounded patch contract plus launchable `source_code` bundle, and launches missions from that approved artifact,
+     - chat intake no longer hardcodes Python and now infers `requested_target_language`.
+   - Status: `Addressed in this cycle`.
 
 7. `Medium` Backup and disaster-recovery scripts lacked direct automated regression tests.
    - Previous state: perf/audit script checks existed, but backup/DR PowerShell flows were untested in automation.
@@ -83,19 +80,19 @@ Last updated: 2026-03-14
    - Current-cycle action:
      - fixed the v2 runtime to emit `MISSION_COMPLETION_BLOCKED` consistently,
      - aligned runtime and LangGraph unit tests with the shipped v2-default behavior,
-     - updated live integration polling to tolerate the queue-first create path until the orchestrator record becomes queryable,
-     - re-ran the full backend suite successfully.
+     - changed gateway mission creation to persist through the orchestrator before returning `201 Created`,
+     - added direct scaling tests for partition-event emission, partition execution, and partition-result ingestion,
+     - re-ran the affected backend suites successfully.
    - Status: `Addressed in this cycle`.
 
-10. `Medium` Mission creation is queue-first and therefore eventually consistent.
-   - Current observed state:
-     - `POST /v1/missions` enqueues to Redis intake and returns before the orchestrator record is always queryable,
-     - immediate follow-up reads can briefly return `404` until the intake consumer persists the mission,
-     - Mission Control now retries this path with bounded backoff so the UI tolerates the current contract.
-   - Status: `Partially addressed`.
-   - Required action:
-     - either document this as the intended contract everywhere it matters,
-     - or change mission creation to provide true read-after-write consistency.
+10. `Medium` Mission creation previously behaved as queue-first/eventually consistent.
+   - Previous state:
+     - `POST /v1/missions` published intake first and record visibility depended on consumer timing,
+     - immediate follow-up reads could briefly return `404`.
+   - Current-cycle action:
+     - gateway mission creation now synchronously persists through the orchestrator before returning,
+     - Mission Control retry logic remains as a defensive fallback rather than a required contract.
+   - Status: `Addressed in this cycle`.
 
 11. `Medium` Data-system implementation is ahead of some operator-facing docs/UI surfaces.
    - Previous state: Qdrant was listed as reserved and retrieval behavior was primarily PostgreSQL-only.
@@ -119,7 +116,6 @@ Last updated: 2026-03-14
 
 ## Structural Gaps Still Open (Planned)
 
-- Mission-create consistency contract.
-- Builder workflow completion and repo approval persistence decision.
 - Audit/data-plane/operator-surface reconciliation.
 - Language-count and extraction/routing documentation reconciliation.
+- Real build/package artifact pipeline.

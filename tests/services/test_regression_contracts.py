@@ -9,7 +9,7 @@ def test_protocol_topics_include_required_runtime_topics() -> None:
         "intake.feature_contract.created",
         "fusion.requested",
         "artifact.rir.verified",
-        "binary.build.ready",
+        "mission.partition.ready",
         "incident.runtime.errorlog",
         "agent.heartbeat",
         "agent.state.changed",

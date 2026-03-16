@@ -322,7 +322,7 @@ def test_consumer_loop_branches(monkeypatch) -> None:
         "payload": json.dumps({"event_type": "MISSION_FAILED", "mission_id": "mission-2"}),
     }
     complete = {
-        "envelope": json.dumps({"topic": "binary.build.ready"}),
+        "envelope": json.dumps({"topic": "mission.state.complete"}),
         "payload": json.dumps({"event_type": "MISSION_COMPLETE", "mission_id": "mission-3"}),
     }
     invalid = {
@@ -362,7 +362,7 @@ def test_consumer_loop_branches(monkeypatch) -> None:
     assert app.state.processed == 3
     assert app.state.errors == 1
     assert len(redis_client.xack_calls) == 4
-    assert published == ["artifact.rir.verified", "artifact.rir.rejected", "binary.build.ready"]
+    assert published == ["artifact.rir.verified", "artifact.rir.rejected"]
 
 
 def test_consumer_loop_handles_missing_fields(monkeypatch) -> None:
@@ -390,7 +390,7 @@ def test_consumer_loop_skips_publish_when_post_audit_returns_false(monkeypatch) 
         "payload": json.dumps({"event_type": "MISSION_FAILED", "mission_id": "mission-2"}),
     }
     complete = {
-        "envelope": json.dumps({"topic": "binary.build.ready"}),
+        "envelope": json.dumps({"topic": "mission.state.complete"}),
         "payload": json.dumps({"event_type": "MISSION_COMPLETE", "mission_id": "mission-3"}),
     }
     redis_client = FakeRedis(
@@ -420,7 +420,7 @@ def test_consumer_loop_skips_publish_when_post_audit_returns_false(monkeypatch) 
 
     assert app.state.processed == 3
     assert app.state.errors == 0
-    assert published == ["binary.build.ready"]
+    assert published == []
 
 
 def test_consumer_loop_processes_unknown_event_without_publish(monkeypatch) -> None:

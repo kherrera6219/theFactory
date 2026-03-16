@@ -720,17 +720,16 @@ theFactory/
 | Observability | ✅ Complete |
 | Testing & CI | ✅ Backend pytest and Mission Control Playwright are green |
 | Data Systems | ⚠️ Core path complete, optional-adapter/status docs still lag |
-| Mission Control UI | ⚠️ Real operator UI, but builder/repo flows remain partially synthetic |
+| Mission Control UI | ✅ Real operator UI with grounded builder, repo-review, and chat launch flows |
 | Language Extraction Engine | ✅ Complete |
-| Mission Lifecycle | ⚠️ Multiple engines implemented; queue-first create/read behavior remains eventually consistent |
+| Mission Lifecycle | ✅ v2 lifecycle is the shipped default, mission creation is synchronous/read-after-write, and scaling fan-out is implemented behind a feature flag |
 | CEO→Pod Delegation Chain | ✅ Complete baseline |
 | LLM API Call Wiring | ✅ Complete (provider-aware routing with fallback) |
 
 **Current completion work:**
-- Decide whether mission creation should remain queue-first/eventually consistent or move to read-after-write consistency
-- Replace synthetic builder/repo-review behavior with a true repository diff/apply workflow
 - Align audit/data-plane docs and Mission Control surfaces with the shipped implementation
 - Expand or reduce language-routing claims so docs and runtime specialist coverage match
+- Implement a real build/package artifact pipeline before claiming bundle-ready artifacts
 
 ---
 

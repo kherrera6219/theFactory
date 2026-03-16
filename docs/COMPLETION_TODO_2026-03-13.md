@@ -27,20 +27,22 @@ All of the following code-vs-docs mismatches have been fixed:
 
 ### P0 — Highest Priority
 
-#### 1. Mission Create Read-After-Write Consistency
-- **Status:** Partially addressed. Mission Control now retries brief eventual-consistency `404` reads via `getMission`, but the backend contract is still queue-first rather than true read-after-write.
-- **Action:** Either keep the queue-first contract and document it consistently, or change mission creation so the mission record is queryable immediately after `POST /v1/missions`.
+#### 1. ✅ Mission Create Read-After-Write Consistency
+- **Status:** Completed (2026-03-15).
+- **Action taken:** `POST /v1/missions` now persists via the orchestrator before returning `201 Created`, so immediate follow-up reads can query the mission record without depending on intake-stream consumption timing.
 
 #### 2. ✅ Gateway Routing for Go / Haskell / OCaml
 - **Status:** Completed. Go, Haskell, and OCaml now have fully dedicated specialist agents, are in compose `SUPPORTED_LANGUAGES`, and mapped in the orchestrator.
 
 ### P1 — Important
 
-#### 3. Builder & Repository Workflow Completion
-- **Status:** Partially addressed.
-- **Issue:** Repository review is now server-backed and repo mission launch carries a real `source_code` bundle plus inferred target language, but Builder diff preview is still inferred/synthetic, repo approval is still UI-local state, and chat launch still hardcodes `requested_target_language: "python"`.
-- **Action:** Implement a true Builder diff/apply contract, decide whether repo approval must be stored server-side, and remove the chat language hardcode.
-- **Files:** `apps/mission-control/app/(shell)/builder/page.tsx`, `apps/mission-control/app/(shell)/repo/page.tsx`, `apps/mission-control/app/(shell)/chat/page.tsx` (line 256)
+#### 3. ✅ Builder, Repository Review, and Chat Intake Contract
+- **Status:** Completed (2026-03-14).
+- **Action taken:**
+  - Builder review now inspects real local workspace files, emits a stable `builder_fingerprint`, produces a grounded patch contract and launchable `source_code` bundle, and launches missions from the approved artifact.
+  - Repository review approval now persists server-side as a local approval receipt record before launch.
+  - Chat intake now infers `requested_target_language` from attached files and prompt hints instead of hardcoding Python.
+- **Files:** `apps/mission-control/app/(shell)/builder/page.tsx`, `apps/mission-control/app/api/builder/review/route.ts`, `apps/mission-control/app/api/review/approve/route.ts`, `apps/mission-control/app/(shell)/repo/page.tsx`, `apps/mission-control/app/(shell)/chat/page.tsx`
 
 #### 4. Audit/Event Documentation Alignment
 - **Status:** Open.
@@ -52,11 +54,10 @@ All of the following code-vs-docs mismatches have been fixed:
 
 #### 5. Audit Worker Artifact Packaging Pipeline
 - **Status:** Open.
-- **Issue:** "Binary ready" semantics in docs are stronger than the actual implementation.
-- **Action:** Implement real build/package path OR remove the overstated claims.
+- **Issue:** The runtime now correctly uses `mission.state.complete` for lifecycle completion, but there is still no real build/package artifact pipeline.
+- **Action:** Implement a real package/bundle writer and only then reintroduce bundle-ready semantics.
 
-#### 6. Dynamic Agent Scaling End-to-End Wiring
-- **Status:** Open.
-- **Issue:** `agent_scaling.py` is complete but `AGENT_SCALING_ENABLED` defaults to false and pod-worker has no partition-claim logic.
-- **Action:** Wire pod-worker to read partition assignments, implement result fusion in orchestrator, add integration tests.
-- **Files:** `services/orchestrator/orchestrator/agent_scaling.py`, `services/orchestrator/orchestrator/mission_flow_v2.py`, `services/pod-worker/pod_worker/main.py`
+#### 6. ✅ Dynamic Agent Scaling End-to-End Wiring
+- **Status:** Completed (2026-03-15).
+- **Action taken:** the orchestrator now emits `mission.partition.ready` work items from v2 specialist plans, pod-workers execute partition-specific work, partition results are persisted and merged in mission metadata, and lifecycle resumes once all partition results complete.
+- **Files:** `services/orchestrator/orchestrator/agent_scaling.py`, `services/orchestrator/orchestrator/mission_flow_v2.py`, `services/orchestrator/orchestrator/main.py`, `services/orchestrator/orchestrator/storage.py`, `services/pod-worker/pod_worker/main.py`

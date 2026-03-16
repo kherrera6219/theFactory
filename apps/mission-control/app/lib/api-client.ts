@@ -13,6 +13,7 @@ import type {
   OperationsSummary,
   PodAssignmentRecord,
   RepoReviewResponse,
+  ReviewApprovalReceipt,
 } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -151,7 +152,7 @@ export async function getMission(missionId: string, maxRetries = 3): Promise<Mis
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 404 && attempt < maxRetries) {
         attempt++;
-        // Exponential-ish backoff to handle eventual consistency on creation
+        // Defensive retry for short-lived propagation gaps after mission creation
         await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
         continue;
       }
@@ -322,6 +323,22 @@ export async function createBuilderPreview(payload: {
   });
 }
 
+export async function createBuilderWorkspaceReview(payload: {
+  request: string;
+  constraints: string[];
+  viewMode?: "desktop" | "tablet" | "mobile";
+}): Promise<BuilderPreviewResponse> {
+  return fetchJson<BuilderPreviewResponse>("/api/builder/review", {
+    method: "POST",
+    signal: withTimeout(30_000),
+    body: JSON.stringify({
+      request: payload.request,
+      constraints: payload.constraints,
+      view_mode: payload.viewMode,
+    }),
+  });
+}
+
 export async function createRepoReview(payload: {
   repo_url: string;
   branch: string;
@@ -337,6 +354,19 @@ export async function createRepoReview(payload: {
   }>;
 }): Promise<RepoReviewResponse> {
   return fetchJson<RepoReviewResponse>("/api/repo/review", {
+    method: "POST",
+    signal: withTimeout(30_000),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function approveReviewArtifact(payload: {
+  scope: "builder" | "repo";
+  fingerprint: string;
+  summary: string;
+  metadata?: Record<string, unknown>;
+}): Promise<ReviewApprovalReceipt> {
+  return fetchJson<ReviewApprovalReceipt>("/api/review/approve", {
     method: "POST",
     signal: withTimeout(30_000),
     body: JSON.stringify(payload),

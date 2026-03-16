@@ -6,6 +6,7 @@ topics:
   - mission.state.verified
   - mission.state.complete
   - mission.state.failed
+  - mission.partition.ready
   - cluster.assigned.podA
   - cluster.assigned.podB
   - cluster.assigned.podC
@@ -15,7 +16,7 @@ topics:
   - artifact.rir.rejected
   - pod.standard.ready
   - fusion.requested
-  - binary.build.ready
+  - artifact.bundle.ready
   - incident.runtime.errorlog
   - agent.heartbeat
   - agent.state.changed

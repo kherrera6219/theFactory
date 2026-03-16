@@ -85,7 +85,7 @@ def test_state_stream_sse_generator_emits_connected_and_filtered_event() -> None
                 "created_at": "2026-03-04T00:00:00+00:00",
             }
         ),
-        "envelope": json.dumps({"topic": "binary.build.ready", "producer": "orchestrator"}),
+        "envelope": json.dumps({"topic": "mission.state.complete", "producer": "orchestrator"}),
     }
     agent_only_fields = {
         "event_type": "AGENT_HEARTBEAT",

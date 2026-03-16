@@ -557,3 +557,66 @@ class TestSettingsV2Flag:
         ):
             settings = load_settings()
             assert settings.mission_flow_v2_enabled is True
+
+
+@pytest.mark.asyncio
+async def test_scaling_emits_partition_events_and_waits_for_results() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    settings.agent_scaling_enabled = True
+    settings.agent_scaling_items_per_instance = 1
+    settings.agent_scaling_max_instances = 4
+    settings.max_stream_len = 100
+    settings.default_priority = "NORMAL"
+    settings.producer_name = "orchestrator"
+    settings.state_stream = "missions.state"
+    validator = MagicMock()
+    validator.validate = MagicMock()
+
+    mission = _make_mission()
+    mission.metadata = {
+        "source_code": "## FILE app.py\nprint('a')\n\n## FILE worker.py\nprint('b')\n",
+    }
+    emit_fn = AsyncMock()
+    completion_fn = AsyncMock(return_value=(True, {}))
+    state, fetch_mission, update_metadata, transition_mission_state, insert_mission_event = (
+        _make_stateful_storage(mission)
+    )
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.transition_mission_state = transition_mission_state
+        mock_storage.fetch_mission = fetch_mission
+        mock_storage.update_mission_metadata = update_metadata
+        mock_storage.insert_mission_event = insert_mission_event
+
+        with patch(
+            "orchestrator.mission_flow_v2.generate_ceo_delegation",
+            AsyncMock(return_value={"pod_manager_agent_id": "AGENT-12-PODA-MGR", "specialist_agent_id": "AGENT-14-PYTHON"}),
+        ), patch(
+            "orchestrator.mission_flow_v2.generate_pod_manager_delegation",
+            AsyncMock(return_value={"pod_manager_agent_id": "AGENT-12-PODA-MGR", "specialist_agent_id": "AGENT-14-PYTHON"}),
+        ), patch(
+            "orchestrator.mission_flow_v2.generate_specialist_plan",
+            AsyncMock(return_value={
+                "specialist_agent_id": "AGENT-14-PYTHON",
+                "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                "plan_summary": "Split work by file.",
+                "deliverables": ["Patch"],
+                "risk_notes": ["Watch"],
+            }),
+        ):
+            await advance_mission_lifecycle_v2(
+                app=app,
+                mission_id="test-m1",
+                settings=settings,
+                validator=validator,
+                emit_state_event_fn=emit_fn,
+                prepare_chain_fn=AsyncMock(return_value=True),
+                completion_check_fn=completion_fn,
+            )
+
+    assert len(state["transitions"]) == 5
+    emitted_events = [call.kwargs["event_type"] for call in emit_fn.await_args_list]
+    assert "MISSION_RUNNING" in emitted_events
+    assert "MISSION_GATING" not in emitted_events
+    assert app.state.redis.xadd.await_count == 2

@@ -114,7 +114,7 @@ class Settings:
         if state_value == "VERIFIED":
             return os.getenv("STATE_TOPIC_VERIFIED", "artifact.rir.verified")
         if state_value == "COMPLETE":
-            return os.getenv("STATE_TOPIC_COMPLETE", "binary.build.ready")
+            return os.getenv("STATE_TOPIC_COMPLETE", "mission.state.complete")
         if state_value == "FAILED":
             return os.getenv("STATE_TOPIC_FAILED", "incident.runtime.errorlog")
         return os.getenv("STATE_TOPIC_QUEUED", self.intake_topic)

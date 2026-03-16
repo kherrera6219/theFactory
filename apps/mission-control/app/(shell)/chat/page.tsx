@@ -7,6 +7,7 @@ import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { createBuilderPreview, createMission } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
+import { inferRequestedTargetLanguage } from "../../lib/language";
 import { sanitizeUserText } from "../../lib/security";
 
 type ChatRole = "user" | "pm";
@@ -251,13 +252,18 @@ export default function ChatPage() {
     setError(null);
     try {
       const sourceCode = await readFilesAsText(files);
+      const requestedTargetLanguage = inferRequestedTargetLanguage({
+        prompt: contract.launchPrompt,
+        filePaths: files.map((file) => file.name),
+      });
       const mission = await createMission({
         prompt: contract.launchPrompt,
-        requested_target_language: "python",
+        requested_target_language: requestedTargetLanguage,
         source_code: sourceCode || undefined,
         metadata: {
           source: "mission-control-chat",
           attached_files: files.map((item) => item.name),
+          inferred_requested_target_language: requestedTargetLanguage,
           contract: {
             title: contract.title,
             languages: contract.languages,
