@@ -159,8 +159,8 @@ def load_settings() -> Settings:
             )
         ),
         topics_path=Path(os.getenv("TOPICS_PATH", str(repo_root / "protocol" / "topics.yaml"))),
-        admin_api_key=os.getenv("ORCHESTRATOR_ADMIN_API_KEY", "admin-key"),
-        internal_service_api_key=os.getenv("INTERNAL_SERVICE_API_KEY", "worker-key"),
+        admin_api_key=os.getenv("ORCHESTRATOR_ADMIN_API_KEY", ""),
+        internal_service_api_key=os.getenv("INTERNAL_SERVICE_API_KEY", ""),
         readonly_api_key=os.getenv("ORCHESTRATOR_READONLY_API_KEY", ""),
         extra_api_keys=os.getenv("ORCHESTRATOR_API_KEYS", ""),
         qdrant_enabled=_as_bool(os.getenv("QDRANT_ENABLED", "true"), True)

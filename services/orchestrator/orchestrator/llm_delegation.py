@@ -35,6 +35,42 @@ GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 
 JSON_OBJECT_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
 
+# Maximum bytes allowed for serialized mission context embedded in prompts.
+# Prevents oversized or adversarially crafted context from consuming the model
+# context window or injecting rogue instructions.
+_PROMPT_CONTEXT_MAX_BYTES = 4096
+
+
+def _safe_context_json(mission_context: dict[str, Any]) -> str:
+    """Serialize mission_context for prompt embedding with a hard size cap.
+
+    Only the fields needed for routing are kept; all others are dropped before
+    serialisation so that user-controlled content (e.g. ``prompt``,
+    ``source_code``) cannot inject instructions into the LLM prompt.
+    """
+    safe_fields = {
+        "mission_id",
+        "requested_target_language",
+        "routing_version",
+        "routing_enforced",
+        "intake_agent_id",
+        "executive_agent_id",
+        "expected_pod_manager_agent_id",
+        "expected_specialist_agent_id",
+        "selected_agent_id",
+        "agent_id",
+    }
+    filtered: dict[str, Any] = {
+        k: v for k, v in mission_context.items() if k in safe_fields
+    }
+    serialized = json.dumps(filtered, sort_keys=True)
+    if len(serialized.encode("utf-8")) > _PROMPT_CONTEXT_MAX_BYTES:
+        # Truncate to safe length rather than embedding unbounded data.
+        serialized = serialized.encode("utf-8")[:_PROMPT_CONTEXT_MAX_BYTES].decode(
+            "utf-8", errors="replace"
+        ) + "...[truncated]"
+    return serialized
+
 
 def _resolve_agent(agent_id: str | None) -> AgentDefinition:
     normalized = str(agent_id or "").strip().upper()
@@ -387,7 +423,7 @@ def _build_prompt(
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         "Return only JSON with keys: pod_manager_agent_id, specialist_agent_id, rationale.\n"
         "Mission context JSON:\n"
-        f"{json.dumps(mission_context, sort_keys=True)}\n"
+        f"{_safe_context_json(mission_context)}\n"
         "Valid pod manager ids: AGENT-12-PODA-MGR, AGENT-18-PODB-MGR, "
         "AGENT-24-PODC-MGR, AGENT-30-PODD-MGR."
     )
@@ -407,7 +443,7 @@ def _build_pod_manager_prompt(
         "Return only JSON with keys: specialist_agent_id, rationale.\n"
         f"Default specialist_agent_id: {default_specialist_agent_id}\n"
         "Mission context JSON:\n"
-        f"{json.dumps(mission_context, sort_keys=True)}"
+        f"{_safe_context_json(mission_context)}"
     )
 
 
@@ -425,7 +461,7 @@ def _build_specialist_prompt(
         "Return only JSON with keys: plan_summary, deliverables, risk_notes.\n"
         "deliverables and risk_notes must be arrays of short strings.\n"
         "Mission context JSON:\n"
-        f"{json.dumps(mission_context, sort_keys=True)}"
+        f"{_safe_context_json(mission_context)}"
     )
 
 
