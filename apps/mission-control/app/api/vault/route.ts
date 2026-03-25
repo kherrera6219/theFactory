@@ -4,17 +4,35 @@ import { deleteVaultSlot, listVaultSlots, upsertVaultSlot } from "../../lib/serv
 
 export const runtime = "nodejs";
 
+// VAULT_ADMIN_KEY must be set server-side; vault routes are denied if absent.
+const VAULT_ADMIN_KEY = process.env.VAULT_ADMIN_KEY?.trim() ?? "";
+
+function isAuthorized(request: Request): boolean {
+  if (!VAULT_ADMIN_KEY) {
+    // No admin key configured — deny all access to prevent accidental exposure.
+    return false;
+  }
+  const header = request.headers.get("x-vault-admin-key")?.trim() ?? "";
+  return header.length > 0 && header === VAULT_ADMIN_KEY;
+}
+
 type VaultWritePayload = {
   slot_id?: string;
   provider?: string;
   secret?: string;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ detail: "Unauthorized." }, { status: 401 });
+  }
   return NextResponse.json({ slots: await listVaultSlots() });
 }
 
 export async function POST(request: Request) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ detail: "Unauthorized." }, { status: 401 });
+  }
   try {
     const payload = (await request.json()) as VaultWritePayload;
     const slotId = payload.slot_id?.trim() ?? "";
@@ -37,6 +55,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ detail: "Unauthorized." }, { status: 401 });
+  }
   try {
     const payload = (await request.json()) as { slot_id?: string };
     const slotId = payload.slot_id?.trim() ?? "";
