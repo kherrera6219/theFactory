@@ -120,7 +120,7 @@ class Settings:
         return os.getenv("STATE_TOPIC_QUEUED", self.intake_topic)
 
 
-def _as_bool(raw: str, default: bool) -> bool:
+def _as_bool(raw: str | None, default: bool) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in TRUTHY_VALUES
