@@ -1,7 +1,15 @@
-FROM python:3.11-slim
-WORKDIR /app
+# Stage 1: install Python dependencies into a virtual environment
+FROM python:3.11-slim AS builder
+RUN python -m venv /opt/venv
+ENV PATH=/opt/venv/bin:$PATH
 COPY services/audit-worker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: lean runtime image — no pip, no build artefacts
+FROM python:3.11-slim
+WORKDIR /app
+ENV PATH=/opt/venv/bin:$PATH
+COPY --from=builder /opt/venv /opt/venv
 COPY services/audit-worker /app
 COPY shared_runtime /app/shared_runtime
 COPY schemas /app/schemas
@@ -9,4 +17,6 @@ COPY protocol /app/protocol
 RUN useradd --system --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
 USER appuser
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8202/health')" || exit 1
 CMD ["uvicorn", "audit_worker.main:app", "--host", "0.0.0.0", "--port", "8202"]

@@ -12,6 +12,11 @@ type ShellLayoutProps = {
 export default function ShellLayout({ children }: ShellLayoutProps) {
   return (
     <div className="shell">
+      {/* Keyboard accessibility: skip repetitive navigation for screen-reader and keyboard users */}
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+
       {/* Pre-wired for SSE/WebSocket connection state — hidden until Codex wires live transport */}
       <ReconnectBanner isVisible={false} status="retrying" />
 
@@ -28,7 +33,7 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
         <header className="shell-header">
           <div className="shell-header-meta">
             <strong>Local Runtime</strong>
-            <span className="muted">Windows host • No external auth mode</span>
+            <span className="muted">Enterprise operator console</span>
           </div>
           <div className="shell-header-actions">
             <Link href="/chat" className="secondary-button shell-link-button">
@@ -44,9 +49,7 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
           {children}
         </main>
         <footer className="shell-statusbar">
-          <span>Redis: Connected</span>
-          <span>DB: Healthy</span>
-          <span>Live Transport: Polling fallback</span>
+          <span>Live Transport: Active</span>
           <span>Ctrl+? for shortcuts</span>
         </footer>
       </div>

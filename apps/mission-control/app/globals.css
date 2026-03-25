@@ -322,10 +322,21 @@ button:disabled {
 }
 
 button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible,
 .shell-nav-item:focus-visible,
-.mission-item-action:focus-visible {
+.mission-item-action:focus-visible,
+.secondary-button:focus-visible,
+.shell-link-button:focus-visible {
   outline: 3px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* Remove the default focus ring where focus-visible is used instead */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
 }
 
 dl {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -34,6 +35,99 @@ GEMINI_BASE_URL = os.getenv(
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 
 JSON_OBJECT_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
+
+# Retry configuration for transient LLM API failures.
+# Retries apply only to network errors and 5xx responses; 4xx errors are not retried.
+_LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
+_LLM_RETRY_BASE_SECONDS = float(os.getenv("LLM_RETRY_BASE_SECONDS", "1.0"))
+
+_RETRYABLE_HTTP_ERRORS = (
+    httpx.TimeoutException,
+    httpx.ConnectError,
+    httpx.RemoteProtocolError,
+)
+
+
+async def _post_with_retry(
+    url: str,
+    *,
+    json_payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout: float,
+    call_context: str,
+    params: dict[str, str] | None = None,
+) -> httpx.Response | None:
+    """POST *url* with exponential-backoff retry on transient failures.
+
+    Returns the response on success (any status code), or ``None`` after all
+    retry attempts are exhausted.  The caller is responsible for checking the
+    status code and treating non-2xx as an error.
+    """
+    delay = _LLM_RETRY_BASE_SECONDS
+    for attempt in range(1, _LLM_MAX_RETRIES + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(url, json=json_payload, headers=headers, params=params)
+            # Retry on 5xx only
+            if response.status_code >= 500:
+                if attempt < _LLM_MAX_RETRIES:
+                    LOGGER.warning(
+                        "%s attempt %d/%d returned %s — retrying in %.1fs",
+                        call_context, attempt, _LLM_MAX_RETRIES,
+                        response.status_code, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    delay *= 2
+                    continue
+            return response
+        except _RETRYABLE_HTTP_ERRORS as exc:
+            if attempt < _LLM_MAX_RETRIES:
+                LOGGER.warning(
+                    "%s attempt %d/%d network error (%s) — retrying in %.1fs",
+                    call_context, attempt, _LLM_MAX_RETRIES, exc, delay,
+                )
+                await asyncio.sleep(delay)
+                delay *= 2
+            else:
+                LOGGER.warning("%s all %d attempts failed: %s", call_context, _LLM_MAX_RETRIES, exc)
+    return None
+
+
+# Maximum bytes allowed for serialized mission context embedded in prompts.
+# Prevents oversized or adversarially crafted context from consuming the model
+# context window or injecting rogue instructions.
+_PROMPT_CONTEXT_MAX_BYTES = 4096
+
+
+def _safe_context_json(mission_context: dict[str, Any]) -> str:
+    """Serialize mission_context for prompt embedding with a hard size cap.
+
+    Only the fields needed for routing are kept; all others are dropped before
+    serialisation so that user-controlled content (e.g. ``prompt``,
+    ``source_code``) cannot inject instructions into the LLM prompt.
+    """
+    safe_fields = {
+        "mission_id",
+        "requested_target_language",
+        "routing_version",
+        "routing_enforced",
+        "intake_agent_id",
+        "executive_agent_id",
+        "expected_pod_manager_agent_id",
+        "expected_specialist_agent_id",
+        "selected_agent_id",
+        "agent_id",
+    }
+    filtered: dict[str, Any] = {
+        k: v for k, v in mission_context.items() if k in safe_fields
+    }
+    serialized = json.dumps(filtered, sort_keys=True)
+    if len(serialized.encode("utf-8")) > _PROMPT_CONTEXT_MAX_BYTES:
+        # Truncate to safe length rather than embedding unbounded data.
+        serialized = serialized.encode("utf-8")[:_PROMPT_CONTEXT_MAX_BYTES].decode(
+            "utf-8", errors="replace"
+        ) + "...[truncated]"
+    return serialized
 
 
 def _resolve_agent(agent_id: str | None) -> AgentDefinition:
@@ -170,15 +264,14 @@ async def _call_openai(
         "reasoning": {"effort": "medium"},
     }
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
-    try:
-        async with httpx.AsyncClient(timeout=OPENAI_TIMEOUT_SECONDS) as client:
-            response = await client.post(
-                f"{OPENAI_BASE_URL}/responses",
-                json=payload,
-                headers=headers,
-            )
-    except Exception as exc:
-        LOGGER.warning("%s openai request failed: %s", call_context, exc)
+    response = await _post_with_retry(
+        f"{OPENAI_BASE_URL}/responses",
+        json_payload=payload,
+        headers=headers,
+        timeout=OPENAI_TIMEOUT_SECONDS,
+        call_context=f"{call_context} openai",
+    )
+    if response is None:
         return None
     if response.status_code >= 400:
         LOGGER.warning("%s openai status=%s", call_context, response.status_code)
@@ -208,15 +301,14 @@ async def _call_anthropic(
         "anthropic-version": ANTHROPIC_VERSION,
         "content-type": "application/json",
     }
-    try:
-        async with httpx.AsyncClient(timeout=ANTHROPIC_TIMEOUT_SECONDS) as client:
-            response = await client.post(
-                f"{ANTHROPIC_BASE_URL}/messages",
-                json=payload,
-                headers=headers,
-            )
-    except Exception as exc:
-        LOGGER.warning("%s anthropic request failed: %s", call_context, exc)
+    response = await _post_with_retry(
+        f"{ANTHROPIC_BASE_URL}/messages",
+        json_payload=payload,
+        headers=headers,
+        timeout=ANTHROPIC_TIMEOUT_SECONDS,
+        call_context=f"{call_context} anthropic",
+    )
+    if response is None:
         return None
     if response.status_code >= 400:
         LOGGER.warning("%s anthropic status=%s", call_context, response.status_code)
@@ -237,16 +329,15 @@ async def _call_gemini(
     if not GEMINI_API_KEY:
         return None
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    try:
-        async with httpx.AsyncClient(timeout=GEMINI_TIMEOUT_SECONDS) as client:
-            response = await client.post(
-                f"{GEMINI_BASE_URL}/models/{model}:generateContent",
-                params={"key": GEMINI_API_KEY},
-                json=payload,
-                headers={"content-type": "application/json"},
-            )
-    except Exception as exc:
-        LOGGER.warning("%s gemini request failed: %s", call_context, exc)
+    response = await _post_with_retry(
+        f"{GEMINI_BASE_URL}/models/{model}:generateContent",
+        json_payload=payload,
+        headers={"content-type": "application/json"},
+        timeout=GEMINI_TIMEOUT_SECONDS,
+        call_context=f"{call_context} gemini",
+        params={"key": GEMINI_API_KEY},
+    )
+    if response is None:
         return None
     if response.status_code >= 400:
         LOGGER.warning("%s gemini status=%s", call_context, response.status_code)
@@ -387,7 +478,7 @@ def _build_prompt(
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         "Return only JSON with keys: pod_manager_agent_id, specialist_agent_id, rationale.\n"
         "Mission context JSON:\n"
-        f"{json.dumps(mission_context, sort_keys=True)}\n"
+        f"{_safe_context_json(mission_context)}\n"
         "Valid pod manager ids: AGENT-12-PODA-MGR, AGENT-18-PODB-MGR, "
         "AGENT-24-PODC-MGR, AGENT-30-PODD-MGR."
     )
@@ -407,7 +498,7 @@ def _build_pod_manager_prompt(
         "Return only JSON with keys: specialist_agent_id, rationale.\n"
         f"Default specialist_agent_id: {default_specialist_agent_id}\n"
         "Mission context JSON:\n"
-        f"{json.dumps(mission_context, sort_keys=True)}"
+        f"{_safe_context_json(mission_context)}"
     )
 
 
@@ -425,7 +516,7 @@ def _build_specialist_prompt(
         "Return only JSON with keys: plan_summary, deliverables, risk_notes.\n"
         "deliverables and risk_notes must be arrays of short strings.\n"
         "Mission context JSON:\n"
-        f"{json.dumps(mission_context, sort_keys=True)}"
+        f"{_safe_context_json(mission_context)}"
     )
 
 

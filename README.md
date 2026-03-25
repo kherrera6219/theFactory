@@ -556,11 +556,14 @@ POSTGRES_DB=ulr
 # Redis
 REDIS_URL=rediss://:password@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
 
-# API Authentication
-ORCHESTRATOR_ADMIN_API_KEY=<admin-key>
-ORCHESTRATOR_READONLY_API_KEY=<viewer-key>
-ORCHESTRATOR_API_KEYS=operator-key=mutate,read
-INTERNAL_SERVICE_API_KEY=<internal-key>
+# API Authentication — generate all keys with: openssl rand -hex 32
+# REQUIRED: no trivial or blank values in production
+ORCHESTRATOR_ADMIN_API_KEY=<generate with openssl rand -hex 32>
+ORCHESTRATOR_READONLY_API_KEY=<generate with openssl rand -hex 32>
+ORCHESTRATOR_API_KEYS=<your-operator-key>=mutate,read
+INTERNAL_SERVICE_API_KEY=<generate with openssl rand -hex 32>
+# Mission Control vault endpoint admin key (apps/mission-control)
+VAULT_ADMIN_KEY=<generate with openssl rand -hex 32>
 AUTH_MODE=api_key                  # api_key | hybrid | oidc
 
 # OIDC (when AUTH_MODE=hybrid|oidc)
