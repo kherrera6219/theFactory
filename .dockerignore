@@ -28,3 +28,30 @@ coverage.xml
 # Local backups and generated reports
 backups/
 reports/
+
+# Secrets and certificates (never in image)
+**/*.pem
+**/*.key
+**/*.crt
+**/secrets/
+
+# Virtual environments
+**/.venv/
+**/venv/
+**/*.egg-info/
+
+# Test outputs and CI tooling
+**/coverage/
+**/htmlcov/
+**/tests/load/
+**/tests/security/
+
+# Documentation source
+docs/
+
+# Editor artefacts
+.idea/
+.vscode/
+**/*.swp
+**/*.log
+**/*.tmp

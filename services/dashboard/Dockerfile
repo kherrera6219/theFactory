@@ -1,7 +1,15 @@
-FROM python:3.11-slim
-WORKDIR /app
+# Stage 1: install Python dependencies into a virtual environment
+FROM python:3.11-slim AS builder
+RUN python -m venv /opt/venv
+ENV PATH=/opt/venv/bin:$PATH
 COPY services/dashboard/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: lean runtime image — no pip, no build artefacts
+FROM python:3.11-slim
+WORKDIR /app
+ENV PATH=/opt/venv/bin:$PATH
+COPY --from=builder /opt/venv /opt/venv
 COPY services/dashboard /app
 RUN useradd --system --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app

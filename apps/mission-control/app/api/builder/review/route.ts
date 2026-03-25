@@ -54,6 +54,30 @@ function workspaceRoot(): string {
   return process.env.THEFACTORY_REPO_ROOT?.trim() || path.resolve(process.cwd(), "..", "..");
 }
 
+// ---------------------------------------------------------------------------
+// collectFiles cache — avoids re-reading the entire workspace on every request.
+// The cache is keyed by workspace root and expires after CACHE_TTL_MS.
+// ---------------------------------------------------------------------------
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+type FileCacheEntry = {
+  files: IndexedFile[];
+  expiresAt: number;
+};
+
+const _fileCache = new Map<string, FileCacheEntry>();
+
+async function collectFilesCached(root: string): Promise<IndexedFile[]> {
+  const now = Date.now();
+  const cached = _fileCache.get(root);
+  if (cached && cached.expiresAt > now) {
+    return cached.files;
+  }
+  const files = await collectFiles(root);
+  _fileCache.set(root, { files, expiresAt: now + CACHE_TTL_MS });
+  return files;
+}
+
 function tokenize(value: string): string[] {
   return value
     .toLowerCase()
@@ -329,7 +353,7 @@ export async function POST(request: Request) {
     ? payload.constraints.map((item) => normalizeText(String(item))).filter((item) => item.length > 0)
     : [];
 
-  const files = await collectFiles(workspaceRoot());
+  const files = await collectFilesCached(workspaceRoot());
   const previewFiles = selectPreviewFiles(files, normalizedRequest, constraints);
   const selectedFiles = previewFiles
     .map((previewFile) => files.find((file) => file.path === previewFile.path))

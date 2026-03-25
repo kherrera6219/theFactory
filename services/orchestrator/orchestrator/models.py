@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -54,6 +54,34 @@ V2_STATES: set[MissionState] = {
     MissionState.failed,
 }
 
+# All valid event_type strings that can appear on a MissionEvent or be emitted
+# by the runtime, mission_flow_v2, or langgraph_lifecycle modules.
+EventType = Literal[
+    # State-transition events (one per MissionState value)
+    "MISSION_INTAKE",
+    "MISSION_QUEUED",
+    "MISSION_PM_INTAKE",
+    "MISSION_CEO_DELEGATED",
+    "MISSION_POD_ASSIGNED",
+    "MISSION_SPECIALIST_ASSIGNED",
+    "MISSION_RUNNING",
+    "MISSION_GATING",
+    "MISSION_FUSION",
+    "MISSION_VERIFIED",
+    "MISSION_COMPLETE",
+    "MISSION_FAILED",
+    # Delegation / planning events
+    "MISSION_POD_MANAGER_ASSIGNED",
+    "MISSION_SPECIALIST_PLANNED",
+    "MISSION_SCALING_DECIDED",
+    # Operational / lifecycle events
+    "MISSION_LOGICNODE_WRITTEN",
+    "MISSION_COMPLETION_BLOCKED",
+    # Agent events
+    "AGENT_STATE_CHANGED",
+]
+
+
 VALID_TRANSITIONS: dict[MissionState, set[MissionState]] = {
     MissionState.intake: {MissionState.queued},
     MissionState.queued: {MissionState.pm_intake, MissionState.gating, MissionState.failed},
@@ -91,7 +119,7 @@ class MissionEvent(BaseModel):
     mission_id: str
     previous_state: MissionState | None = None
     new_state: MissionState
-    event_type: str
+    event_type: EventType
     ts: datetime
 
 
