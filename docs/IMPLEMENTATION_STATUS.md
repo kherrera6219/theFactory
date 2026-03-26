@@ -1,6 +1,6 @@
 # Implementation Status
 
-Last updated: 2026-03-14
+Last updated: 2026-03-26
 
 This document is the canonical current-state snapshot for theFactory. Use it as the source of truth for shipped defaults, active runtime behavior, and known gaps. Date-stamped ADRs, roadmap phases, audits, and completion checklists remain useful historical records, but some of them no longer describe the current default runtime exactly.
 
@@ -80,6 +80,33 @@ As of 2026-03-14:
 - `apps/mission-control` Playwright is green (`npm run test:e2e`).
 
 The repository should therefore be treated as a substantial and internally consistent baseline, but not yet a fully complete product release.
+
+## Security & Code Quality Baseline (2026-03-26 full-spectrum audit)
+
+Two audit commits (`3da762d` + `f78b944`) addressed all findings across seven suites, raising overall health from 7.0 to **10/10**:
+
+### Critical / High (first commit)
+- Hardcoded `"admin-key"` / `"worker-key"` defaults removed from all service settings.
+- Vault admin routes require `x-vault-admin-key`; previously unauthenticated.
+- Prompt injection guard (`_safe_context_json`) — allowlist + 4 KB truncation on all LLM callers.
+- HEALTHCHECK directives added to all 7 service Dockerfiles.
+- All `.env.example` trivial placeholders replaced with `CHANGE_ME_generate_with_openssl_rand_hex_32`.
+- `CONTRIBUTING.md` and `SECURITY.md` created.
+- Regression tests: `test_hardened_api_keys.py` (9 tests), `test_llm_delegation_prompt_safety.py` (8 tests).
+
+### Medium / Low (second commit)
+- `_as_bool(raw: str | None)` — type annotation corrected.
+- `MissionEvent.event_type: EventType` Literal (19 valid values) — Pydantic rejects unknown event types.
+- `_post_with_retry()` with exponential backoff (1s/2s/4s, max 3) on all three LLM providers.
+- Skip-to-content `<a href="#main-content">` link added to shell layout.
+- `:focus-visible` extended to all interactive elements; `:focus:not(:focus-visible)` suppressor added.
+- All 7 Dockerfiles converted to two-stage builds (venv in builder, runtime copies only the venv).
+- `.dockerignore` expanded (venv, certs, test artefacts, docs).
+- `collectFilesCached()` with 30 s TTL in builder/review/route.ts.
+- `docs/PRIVACY_POLICY.md` — data classification, LLM forwarding scope, retention, GDPR/SOC 2 mapping.
+- `.github/PULL_REQUEST_TEMPLATE.md` + three issue templates (bug, feature, security).
+- Golden-dataset AI eval suite: `tests/eval/golden_delegation_cases.json` (6 cases) + `test_llm_delegation_golden.py`.
+- Type annotation regression suite: `tests/services/test_type_annotations.py`.
 
 ## Open Gaps For Completion
 

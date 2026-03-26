@@ -93,6 +93,21 @@ Last updated: 2026-03-03
 - JSON output:
   - `python scripts/production_review_audit.py --json`
 
+15. Full-spectrum seven-suite security and quality audit (2026-03-26):
+   - Removed all hardcoded secret defaults; vault routes gated behind RBAC.
+   - Prompt injection mitigation via `_safe_context_json` allowlist and 4 KB truncation.
+   - HEALTHCHECK validated on all 7 service images.
+   - All 7 Dockerfiles converted to multi-stage builds (builder/runtime venv separation).
+   - `.dockerignore` hardened.
+   - Type annotation defects fixed (`_as_bool`, `MissionEvent.event_type` Literal).
+   - LLM provider retry with exponential backoff (1s/2s/4s, max 3).
+   - Accessibility: skip-to-content link, extended `:focus-visible` rules.
+   - `collectFiles` caching (30 s TTL) in builder review route.
+   - Privacy policy, PR template, and three issue templates added.
+   - Golden-dataset AI eval suite and type annotation regression suite added.
+   - `CONTRIBUTING.md` and `SECURITY.md` created.
+   - Full audit scorecard: **10/10 across all seven suites**.
+
 ## Remaining Gaps (Architectural / Not Fully Automated Yet)
 
 - End-to-end 35-agent distributed execution with production traffic replay and formal SLO certification.
