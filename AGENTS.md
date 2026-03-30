@@ -10,6 +10,7 @@
 
 ## Build, Test, and Development Commands
 - `make up` / `make down`: start/stop the full local Docker stack.
+- `make tls-certs`: generate local PostgreSQL and Redis TLS certs before first stack startup.
 - `make lint`: run Ruff checks on `services`, `tests`, and `scripts`.
 - `make test`: run backend pytest with coverage gates.
 - `make test-ui`: run Mission Control TypeScript lint + Vitest unit tests.
@@ -37,5 +38,6 @@
 
 ## Security & Configuration Tips
 - Start from `.env.example`; never commit secrets or real API keys.
+- PostgreSQL and Redis private keys are generated locally with `make tls-certs` and must never be committed.
 - Use Mission Control vault endpoints for local key handling (`/api/vault`, `/api/vault/test`).
 - Avoid committing generated artifacts unless intentionally required (for example `coverage.xml`, `tsconfig.tsbuildinfo`).

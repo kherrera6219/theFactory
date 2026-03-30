@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +20,7 @@ def _write(path: Path, payload: dict) -> None:
 
 
 def test_build_summary_uses_latest_and_history(tmp_path, monkeypatch) -> None:
+    now = datetime.now(UTC)
     policy = {
         "version": 2,
         "requirements": {
@@ -38,13 +40,13 @@ def test_build_summary_uses_latest_and_history(tmp_path, monkeypatch) -> None:
     _write(
         tmp_path / "docs" / "evidence" / "operator_route_oidc_matrix_latest.json",
         {
-            "run_timestamp_utc": "2026-03-08T04:29:52+00:00",
+            "run_timestamp_utc": (now - timedelta(days=1)).isoformat(),
             "pass": True,
             "failure_reasons": [],
         },
     )
     (tmp_path / "docs" / "evidence" / "operator_route_oidc_matrix_history.jsonl").write_text(
-        '{"run_timestamp_utc":"2026-03-01T04:29:52+00:00","pass":true}\n',
+        json.dumps({"run_timestamp_utc": (now - timedelta(days=2)).isoformat(), "pass": True}) + "\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(summary, "ROOT", tmp_path)

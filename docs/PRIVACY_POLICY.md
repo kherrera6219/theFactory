@@ -1,8 +1,9 @@
 # Privacy Policy — theFactory (HolyGrail Multi-Agent Software Refinery)
 
-**Last updated:** 2026-03-25
-
----
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Draft; legal review required  
+Audience: Operators, maintainers, legal reviewers, and compliance reviewers
 
 ## 1. Overview
 

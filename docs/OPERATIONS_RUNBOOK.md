@@ -1,6 +1,9 @@
 # Operations Runbook
 
-Last updated: 2026-03-09
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, maintainers, and on-call responders
 
 ## Core Health Checks
 
@@ -171,11 +174,18 @@ Last updated: 2026-03-09
 2. Backup:
    - `powershell -ExecutionPolicy Bypass -File scripts/backup_postgres.ps1`
    - dry-run validation: `powershell -ExecutionPolicy Bypass -File scripts/backup_postgres.ps1 -DryRun`
+   - artifact verification:
+     - `python scripts/verify_backup_artifacts.py --backup-file backups/<file>.sql --manifest-file backups/<file>.sql.json --output-file reports/backup-verification.local.json`
+   - outputs:
+     - backup SQL file
+     - `<file>.sql.sha256`
+     - `<file>.sql.json` manifest with timestamp, size, and digest
 3. Restore:
    - `powershell -ExecutionPolicy Bypass -File scripts/restore_postgres.ps1 -BackupFile backups/<file>.sql`
 4. DR drill:
    - `powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1`
    - dry-run validation: `powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1 -DryRun`
+   - latest drill report: `reports/dr-drill-latest.json`
 5. Perf smoke:
    - `powershell -ExecutionPolicy Bypass -File scripts/perf_smoke.ps1`
 6. Long-duration reliability qualification:

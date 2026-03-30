@@ -1,5 +1,10 @@
 # Smelt-Cycle Runtime Mapping (2026-03-04)
 
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Reference  
+Audience: Operators, developers, maintainers, and auditors
+
 ## Objective
 Provide a deterministic mapping from backend lifecycle telemetry to the Mission Control 7-phase Smelt-cycle UX.
 

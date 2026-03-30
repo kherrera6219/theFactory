@@ -319,6 +319,77 @@ class TestAdvanceMissionLifecycleV2:
         assert "specialist_planned" in mission.metadata["mission_artifacts"]
 
     @pytest.mark.asyncio
+    async def test_packages_source_bundle_before_completion(self) -> None:
+        app = _make_app_state()
+        settings = _make_settings()
+        validator = MagicMock()
+
+        mission = _make_mission()
+        mission.metadata = {
+            "source_code": "## FILE app.py\nprint('a')\n",
+            "source": "builder",
+        }
+        emit_fn = AsyncMock()
+        prepare_fn = AsyncMock(return_value=True)
+        completion_fn = AsyncMock(return_value=(True, {}))
+        state, fetch_mission, update_metadata, transition_mission_state, insert_mission_event = (
+            _make_stateful_storage(mission)
+        )
+        build_upserts: list[tuple[Any, ...]] = []
+
+        with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+            mock_storage.transition_mission_state = transition_mission_state
+            mock_storage.fetch_mission = fetch_mission
+            mock_storage.update_mission_metadata = update_metadata
+            mock_storage.insert_mission_event = insert_mission_event
+            mock_storage.upsert_build_artifact = lambda *args: build_upserts.append(args) or {
+                "artifact_id": "source-bundle-package",
+                "status": "SUCCESS",
+            }
+
+            with patch(
+                "orchestrator.mission_flow_v2.generate_ceo_delegation",
+                AsyncMock(
+                    return_value={
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                    }
+                ),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_pod_manager_delegation",
+                AsyncMock(
+                    return_value={
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                    }
+                ),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_specialist_plan",
+                AsyncMock(
+                    return_value={
+                        "specialist_agent_id": "AGENT-14-PYTHON",
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "plan_summary": "Implement and verify the requested change.",
+                        "deliverables": ["Patch"],
+                        "risk_notes": ["Watch for regression drift."],
+                    }
+                ),
+            ):
+                await advance_mission_lifecycle_v2(
+                    app=app,
+                    mission_id="test-m1",
+                    settings=settings,
+                    validator=validator,
+                    emit_state_event_fn=emit_fn,
+                    prepare_chain_fn=prepare_fn,
+                    completion_check_fn=completion_fn,
+                )
+
+        assert build_upserts
+        assert build_upserts[0][2] == "source-bundle-package"
+        assert "build_packaged" in mission.metadata["mission_artifacts"]
+
+    @pytest.mark.asyncio
     async def test_stops_when_pm_intake_persistence_fails(self) -> None:
         app = _make_app_state()
         settings = _make_settings()
@@ -591,19 +662,31 @@ async def test_scaling_emits_partition_events_and_waits_for_results() -> None:
 
         with patch(
             "orchestrator.mission_flow_v2.generate_ceo_delegation",
-            AsyncMock(return_value={"pod_manager_agent_id": "AGENT-12-PODA-MGR", "specialist_agent_id": "AGENT-14-PYTHON"}),
+            AsyncMock(
+                return_value={
+                    "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                    "specialist_agent_id": "AGENT-14-PYTHON",
+                }
+            ),
         ), patch(
             "orchestrator.mission_flow_v2.generate_pod_manager_delegation",
-            AsyncMock(return_value={"pod_manager_agent_id": "AGENT-12-PODA-MGR", "specialist_agent_id": "AGENT-14-PYTHON"}),
+            AsyncMock(
+                return_value={
+                    "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                    "specialist_agent_id": "AGENT-14-PYTHON",
+                }
+            ),
         ), patch(
             "orchestrator.mission_flow_v2.generate_specialist_plan",
-            AsyncMock(return_value={
-                "specialist_agent_id": "AGENT-14-PYTHON",
-                "pod_manager_agent_id": "AGENT-12-PODA-MGR",
-                "plan_summary": "Split work by file.",
-                "deliverables": ["Patch"],
-                "risk_notes": ["Watch"],
-            }),
+            AsyncMock(
+                return_value={
+                    "specialist_agent_id": "AGENT-14-PYTHON",
+                    "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                    "plan_summary": "Split work by file.",
+                    "deliverables": ["Patch"],
+                    "risk_notes": ["Watch"],
+                }
+            ),
         ):
             await advance_mission_lifecycle_v2(
                 app=app,

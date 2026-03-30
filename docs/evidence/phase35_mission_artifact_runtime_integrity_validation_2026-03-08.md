@@ -13,7 +13,7 @@ Close the remaining runtime-proof gap by adding deterministic qualification for:
   - `tests/scripts/test_mission_artifact_qualification.py`
 - Updated canonical docs and backlog status:
   - `docs/ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md`
-  - `docs/UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`
+  - `docs/archive/2026-03-29/historical/UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`
   - `docs/UPDATED_PHASE_PLAN_2026-03-03.md`
 
 ## Validation Commands and Results

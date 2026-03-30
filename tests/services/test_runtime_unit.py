@@ -725,6 +725,119 @@ def test_advance_mission_lifecycle_blocks_completion_without_artifacts(monkeypat
     assert "MISSION_COMPLETION_BLOCKED" in inserted_events
 
 
+def test_completion_artifacts_ready_requires_build_artifact_for_source_bundle(monkeypatch) -> None:
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.storage,
+        "get_pod_assignment",
+        lambda *_args: {"mission_id": "mission-1", "pod_name": "podA"},
+    )
+    monkeypatch.setattr(
+        runtime.storage,
+        "list_logicnodes",
+        lambda *_args: [{"node_id": "node-1"}],
+    )
+    monkeypatch.setattr(runtime.storage, "list_build_artifacts", lambda *_args: [])
+
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={"source_code": "print('a')"},
+        state=MissionState.verified,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    ready, details = asyncio.run(
+        runtime._completion_artifacts_ready(settings=_settings(), mission=mission)
+    )
+    assert ready is False
+    assert details["build_artifact_required"] is True
+    assert details["build_artifact_status"] == "MISSING"
+
+
+def test_advance_mission_lifecycle_packages_build_artifact_for_source_bundle(monkeypatch) -> None:
+    app = _app_state(redis_ready=False, redis=FakeRedis(), lifecycle_tasks={})
+    app.state.settings = _settings()
+
+    verified_metadata = {
+        "source": "builder",
+        "source_code": "## FILE app.py\nprint('a')\n",
+        "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+        "selected_agent_id": "AGENT-14-PYTHON",
+    }
+
+    def _record(state: MissionState) -> MissionRecord:
+        return MissionRecord(
+            mission_id="mission-1",
+            prompt="Build API",
+            requested_target_language="python",
+            metadata=dict(verified_metadata),
+            state=state,
+            created_at="2026-03-01T00:00:00+00:00",
+        )
+
+    async def _sleep(_):
+        return None
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.storage,
+        "fetch_mission",
+        lambda *_args: _record(MissionState.verified),
+    )
+    monkeypatch.setattr(
+        runtime.storage,
+        "update_mission_metadata",
+        lambda _settings_obj, _mission_id, metadata: MissionRecord(
+            mission_id="mission-1",
+            prompt="Build API",
+            requested_target_language="python",
+            metadata=metadata,
+            state=MissionState.verified,
+            created_at="2026-03-01T00:00:00+00:00",
+        ),
+    )
+    monkeypatch.setattr(
+        runtime.storage,
+        "get_pod_assignment",
+        lambda *_args: {"mission_id": "mission-1", "pod_name": "podA"},
+    )
+    monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [{"node_id": "node-1"}])
+    monkeypatch.setattr(
+        runtime.storage,
+        "list_build_artifacts",
+        lambda *_args: [{"artifact_id": "source-bundle-package", "status": "SUCCESS"}],
+    )
+    monkeypatch.setattr(runtime.storage, "insert_mission_event", lambda *_args: None)
+    monkeypatch.setattr(
+        runtime.storage,
+        "transition_mission_state",
+        lambda _settings_obj, _mission_id, _expected_state, new_state, _event_type: _record(
+            new_state
+        ),
+    )
+
+    upserted: list[tuple[Any, ...]] = []
+
+    def _upsert_build_artifact(*args):
+        upserted.append(args)
+        return {"artifact_id": "source-bundle-package", "status": "SUCCESS"}
+
+    monkeypatch.setattr(runtime.storage, "upsert_build_artifact", _upsert_build_artifact)
+
+    asyncio.run(runtime.advance_mission_lifecycle(app, "mission-1"))
+    assert upserted
+    assert upserted[0][2] == "source-bundle-package"
+
+
 def test_ensure_runtime_ready_success(monkeypatch) -> None:
     redis_client = FakeRedis()
     app = _app_state(

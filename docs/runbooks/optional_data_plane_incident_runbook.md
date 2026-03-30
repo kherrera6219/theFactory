@@ -1,6 +1,10 @@
 # Incident Runbook — Optional Data-Plane (Neo4j / Object Storage)
 
-**Last updated:** 2026-03-07
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, developers, maintainers, and auditors
+
 **Applies to:** Alerts `Neo4jAdapterNotReady`, `ObjectStorageAdapterNotReady`, `Neo4jMirrorWriteErrorRateHigh`, `ObjectStorageMirrorWriteErrorRateHigh`, `Neo4jMirrorWriteLatencyP95High`, `ObjectStorageMirrorWriteLatencyP95High`
 **Impact:** Optional — core mission flow is unaffected when these adapters are down. Only graph queries and artifact retention are degraded.
 

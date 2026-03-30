@@ -1,11 +1,9 @@
 # Data Classification Policy
 
-**Last updated:** 2026-03-07
-**Owner:** Security & Compliance
-**Review Cycle:** Quarterly
-**Standards:** NIST SP 800-53 · ISO/IEC 27001 · OWASP ASVS
-
----
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, developers, maintainers, and security reviewers
 
 ## Table of Contents
 

@@ -1,6 +1,9 @@
 # Implementation Status
 
-Last updated: 2026-03-26
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, developers, maintainers, and auditors
 
 This document is the canonical current-state snapshot for theFactory. Use it as the source of truth for shipped defaults, active runtime behavior, and known gaps. Date-stamped ADRs, roadmap phases, audits, and completion checklists remain useful historical records, but some of them no longer describe the current default runtime exactly.
 
@@ -39,13 +42,14 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 - The audit worker consumes `missions.state`, not a separate `missions.audit` stream.
 - Audit results are persisted through the orchestrator audit-report path into `mission_audit_reports`.
-- `MISSION_COMPLETE` now maps to `mission.state.complete`; the runtime no longer claims a bundle artifact exists just because lifecycle reached `COMPLETE`.
-- A real build/package artifact pipeline is still not implemented.
+- `MISSION_COMPLETE` now maps to `mission.state.complete`.
+- Source-bundle missions now package a real build artifact at `VERIFIED`: the orchestrator stores a Postgres-backed build/package record with digest, manifest, verification metadata, and build log before allowing completion.
+- Build-complete semantics are therefore now stronger for supported mission types: `COMPLETE` requires both the existing pod/LogicNode evidence and a successful stored build artifact when `metadata.source_code` is present.
 
 ### Data plane
 
 - PostgreSQL is deployed as a single application database by default (`POSTGRES_DB=ulr`).
-- Primary tables are created by `services/orchestrator/orchestrator/migrations/V001_initial_runtime_schema.sql`.
+- Primary tables are created by versioned migrations in `services/orchestrator/orchestrator/migrations/`, including `mission_build_artifacts` in `V002_build_artifact_runtime_schema.sql`.
 - Redis Streams remain the event backbone:
   - `missions.intake`
   - `missions.state`
@@ -56,12 +60,13 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Mission Control Status
 
-- Mission Control is a real Next.js operator console with missions, operations, semantic-bus, builder, and repo-intake views.
+- Mission Control is a real Next.js operator console with chat, missions, agents, semantic-bus, builder, repo-import, databases, settings, and supporting diagnostics views.
 - The repository import path is real GitHub metadata/tree ingestion.
 - Repository review is now server-backed: Mission Control fetches selected GitHub file content, builds a review artifact with a stable fingerprint, infers `requested_target_language`, and launches repo missions with a real `source_code` bundle.
 - Builder review is now server-backed against the local workspace: it selects real files, emits a stable `builder_fingerprint`, produces a grounded patch contract plus `source_code` bundle, and can launch missions from that approved artifact.
-- Review approval is now persisted server-side for both Builder and repository review flows via local approval receipt records before mission launch.
+- Review approval is now persisted server-side for both Builder and repository review flows through durable orchestrator-backed approval records before mission launch.
 - The chat intake page now infers `requested_target_language` from attached files and prompt hints instead of hardcoding `python`.
+- The mission detail page now surfaces stored build/package artifacts, including status, digest, storage backend, and size.
 - The databases page and some UX copy still lag live backend readiness details.
 
 ## Language Extraction Status
@@ -72,45 +77,34 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Validation Snapshot
 
-As of 2026-03-14:
+As of 2026-03-29:
 
 - `python -m pytest -q` is green.
+- `python -m pytest --cov=services --cov-report=xml --cov-fail-under=80` is green at `81.75%` services coverage (`709 passed, 5 skipped`).
 - `apps/mission-control` TypeScript check is green (`npm run lint`).
-- `apps/mission-control` unit tests are green (`npm test`).
-- `apps/mission-control` Playwright is green (`npm run test:e2e`).
+- `apps/mission-control` unit tests are green (`npm test`, `45` tests).
+- `apps/mission-control` Playwright is green (`npm run test:e2e`, `7` tests).
+- Repository-wide `python -m ruff check services tests scripts` still has documented pre-existing variance in untouched files.
 
 The repository should therefore be treated as a substantial and internally consistent baseline, but not yet a fully complete product release.
 
-## Security & Code Quality Baseline (2026-03-26 full-spectrum audit)
+## Current Hardening Baseline
 
-Two audit commits (`3da762d` + `f78b944`) addressed all findings across seven suites, raising overall health from 7.0 to **10/10**:
+Repo-local hardening work has improved the baseline materially:
 
-### Critical / High (first commit)
-- Hardcoded `"admin-key"` / `"worker-key"` defaults removed from all service settings.
-- Vault admin routes require `x-vault-admin-key`; previously unauthenticated.
-- Prompt injection guard (`_safe_context_json`) — allowlist + 4 KB truncation on all LLM callers.
-- HEALTHCHECK directives added to all 7 service Dockerfiles.
-- All `.env.example` trivial placeholders replaced with `CHANGE_ME_generate_with_openssl_rand_hex_32`.
-- `CONTRIBUTING.md` and `SECURITY.md` created.
-- Regression tests: `test_hardened_api_keys.py` (9 tests), `test_llm_delegation_prompt_safety.py` (8 tests).
+- insecure default compose fallbacks for internal service keys were removed
+- API gateway internal forwarding now fails closed
+- Qdrant and Neo4j outbound URL fetches validate scheme before request
+- LLM delegation retries 429 responses with `Retry-After`
+- service coverage gating is currently green at `>=80%`
+- the current-source docs are reconciled to the 38-agent runtime
 
-### Medium / Low (second commit)
-- `_as_bool(raw: str | None)` — type annotation corrected.
-- `MissionEvent.event_type: EventType` Literal (19 valid values) — Pydantic rejects unknown event types.
-- `_post_with_retry()` with exponential backoff (1s/2s/4s, max 3) on all three LLM providers.
-- Skip-to-content `<a href="#main-content">` link added to shell layout.
-- `:focus-visible` extended to all interactive elements; `:focus:not(:focus-visible)` suppressor added.
-- All 7 Dockerfiles converted to two-stage builds (venv in builder, runtime copies only the venv).
-- `.dockerignore` expanded (venv, certs, test artefacts, docs).
-- `collectFilesCached()` with 30 s TTL in builder/review/route.ts.
-- `docs/PRIVACY_POLICY.md` — data classification, LLM forwarding scope, retention, GDPR/SOC 2 mapping.
-- `.github/PULL_REQUEST_TEMPLATE.md` + three issue templates (bug, feature, security).
-- Golden-dataset AI eval suite: `tests/eval/golden_delegation_cases.json` (6 cases) + `test_llm_delegation_golden.py`.
-- Type annotation regression suite: `tests/services/test_type_annotations.py`.
+Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), and the latest cross-suite repository posture is tracked in [`../reports/master_audit_2026-03-29.md`](../reports/master_audit_2026-03-29.md).
 
 ## Open Gaps For Completion
 
 1. Align audit/event documentation with the actual `missions.state`, `mission.state.complete`, and `mission_audit_reports` implementation.
 2. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
 3. Reconcile language-count and extraction/routing claims across docs with the current 20-key routing matrix.
-4. Implement a real build/package artifact path before introducing bundle-ready semantics again.
+4. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.
+5. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including AI safety governance, shared-state durability, DR evidence, and final release qualification.

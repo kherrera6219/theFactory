@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import ctypes
 import json
+import os
+import shlex
 import statistics
-import subprocess
+import subprocess  # nosec B404 - controlled qualification command execution with explicit argv parsing
 import time
 import uuid
 from dataclasses import asdict, dataclass
@@ -151,7 +154,30 @@ async def _run_recovery_probe(
 
 def _execute_failure_command(command: str) -> InjectionResult:
     try:
-        completed = subprocess.run(command, shell=True, capture_output=True, text=True, check=False)
+        argv = _split_command(command)
+    except ValueError as exc:
+        return InjectionResult(
+            configured=True,
+            executed=False,
+            exit_code=None,
+            stderr_tail=None,
+            error=repr(exc),
+        )
+    if not argv:
+        return InjectionResult(
+            configured=True,
+            executed=False,
+            exit_code=None,
+            stderr_tail=None,
+            error="ValueError('failure command is empty')",
+        )
+    try:
+        completed = subprocess.run(  # nosec B603 - command is parsed into argv and shell=False
+            argv,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     except Exception as exc:
         return InjectionResult(
             configured=True,
@@ -168,6 +194,29 @@ def _execute_failure_command(command: str) -> InjectionResult:
         stderr_tail=stderr_tail,
         error=None,
     )
+
+
+def _split_command(command: str) -> list[str]:
+    if not command.strip():
+        raise ValueError("failure command is empty")
+    if os.name != "nt":
+        return shlex.split(command, posix=True)
+
+    command_line_to_argv = ctypes.windll.shell32.CommandLineToArgvW
+    command_line_to_argv.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(ctypes.c_int)]
+    command_line_to_argv.restype = ctypes.POINTER(ctypes.c_wchar_p)
+    local_free = ctypes.windll.kernel32.LocalFree
+    local_free.argtypes = [ctypes.c_void_p]
+    local_free.restype = ctypes.c_void_p
+
+    argc = ctypes.c_int()
+    argv_ptr = command_line_to_argv(command, ctypes.byref(argc))
+    if not argv_ptr:
+        raise ValueError("failed to parse command line")
+    try:
+        return [argv_ptr[index] for index in range(argc.value)]
+    finally:
+        local_free(argv_ptr)
 
 
 async def _schedule_failure_injection(delay_seconds: float, command: str) -> InjectionResult:

@@ -1,10 +1,16 @@
 # Architecture Diagrams
 
-Last updated: 2026-03-09
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, developers, maintainers, and auditors
 
 This document contains the canonical diagrams for theFactory. It follows the diagram set defined in
 [`DIAGRAM_STANDARDS.md`](DIAGRAM_STANDARDS.md) and is intended to stay aligned with the runtime,
 compose profiles, and agent registry in the codebase.
+
+For the detailed runtime, identity, approval, artifact, and telemetry flows, see
+[`ARCHITECTURE_DATA_FLOWS.md`](ARCHITECTURE_DATA_FLOWS.md).
 
 ## Diagram Catalog
 
@@ -14,7 +20,7 @@ compose profiles, and agent registry in the codebase.
 | Container view | Shows the main runtime services and relationships inside the platform |
 | Mission lifecycle state view | Shows canonical mission-state progression and the optional v2 path |
 | Mission runtime sequence | Shows the end-to-end mission execution path |
-| Multi-agent topology view | Shows the 35-agent hierarchy and delegation structure |
+| Multi-agent topology view | Shows the 38-agent hierarchy and delegation structure |
 | Data and knowledge plane view | Shows streams, persistence, vector stores, graph store, and artifacts |
 | Deployment profile view | Shows the base stack and overlay-based runtime modes |
 | Security and trust-boundary view | Shows auth boundaries, service keys, and TLS-protected internal paths |
@@ -397,3 +403,5 @@ flowchart LR
   change in code.
 - Update the multi-agent topology view whenever `services/orchestrator/orchestrator/agent_registry.py`
   changes.
+
+

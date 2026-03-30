@@ -1,116 +1,131 @@
 # Documentation Index
 
-Last updated: 2026-03-13
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, developers, maintainers, and auditors
 
-This index maps the in-repo documentation set for theFactory and reflects the current implementation baseline.
+This is the master map for theFactory documentation. The live documentation set follows [DOCUMENTATION_STANDARDS.md](DOCUMENTATION_STANDARDS.md) and is organized by user need and operational ownership. Superseded material lives under `docs/archive/`.
 
-Canonical living docs use stable filenames without a date suffix. Date-stamped docs are retained for ADRs, audits, evidence, and historical snapshots.
+## Start Here
 
-## Core Product and Architecture
+1. [../README.md](../README.md)
+2. [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
+3. [ARCHITECTURE.md](ARCHITECTURE.md)
+4. [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md)
+5. [REPOSITORY_BUILD_MAP_2026-03-29.md](REPOSITORY_BUILD_MAP_2026-03-29.md)
+6. [RELEASE_COMPLETION_PLAN.md](RELEASE_COMPLETION_PLAN.md)
 
-- `IMPLEMENTATION_STATUS.md`: authoritative current-state snapshot for shipped defaults, validation status, and remaining gaps.
-- `ARCHITECTURE.md`: runtime topology, contracts, and control-plane architecture.
-- `ARCHITECTURE_DIAGRAMS.md`: canonical C4-style, runtime, deployment, and multi-agent diagrams.
-- `DIAGRAM_STANDARDS.md`: required enterprise diagram set and standards rationale for this repository.
-- `ROADMAP.md`: phased delivery status and current maturity plan.
-- `PRODUCTION_PHASE_PLAN.md`: production hardening phases and exit criteria.
-- `UPDATED_PHASE_PLAN_2026-03-03.md`: current post-Phase-18 execution plan and validation protocol.
-- `ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`: canonical decision record for condensed vs dedicated-agent runtime topology.
-- `ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`: canonical security-model decision record for API-key, hybrid, and OIDC modes.
-- `ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md`: historical status decision for the earlier v1.1-default position; superseded for current shipped defaults by `IMPLEMENTATION_STATUS.md`.
-- `ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md`: historical v2 adoption design package; current default flag posture is summarized in `IMPLEMENTATION_STATUS.md`.
-- `ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md`: canonical deferred-scope governance decisions and trigger criteria.
-- `GAP_ANALYSIS.md`: reviewed gaps, current known drift, and remaining structural work.
-- `LEGACY_ROADMAP_RECONCILIATION_2026-03-03.md`: explicit legacy-scope disposition and Mission Control port-policy reconciliation.
-- `WORD_DOC_AUDIT_2026-03-03.md`: reconciliation audit against all in-repo Word-document requirements.
-- `UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`: prioritized backlog generated from Word-doc audit findings.
-- `SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`: deterministic 7-phase Smelt-cycle mapping policy for runtime telemetry.
-- `MISSION_FLOW_V1_1_CANONICAL_2026-03-07.md`: canonical reconciliation of root mission-flow Word doc aliases to runtime 35-agent IDs and lifecycle behavior.
-- `MISSION_FLOW_V2_COMPARISON_2026-03-08.md`: gap audit comparing `HGR_Mission_Flow_v2.docx` against canonical mission flow and live runtime behavior.
+## Canonical Product and Architecture Docs
 
-## Operations and Reliability
+- [DOCUMENTATION_STANDARDS.md](DOCUMENTATION_STANDARDS.md)
+  - documentation conventions, archive rules, and quality gate
+- [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
+  - shipped defaults, validation snapshot, and remaining blockers
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+  - topology, services, data plane, and lifecycle baseline
+- [ARCHITECTURE_DIAGRAMS.md](ARCHITECTURE_DIAGRAMS.md)
+  - context, container, deployment, runtime, and trust-boundary diagrams
+- [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md)
+  - mission, approval, artifact, identity, and telemetry flows
+- [REPOSITORY_BUILD_MAP_2026-03-29.md](REPOSITORY_BUILD_MAP_2026-03-29.md)
+  - generated full repository tree
+- [ROADMAP.md](ROADMAP.md)
+  - current roadmap and maturity direction
+- [RELEASE_COMPLETION_PLAN.md](RELEASE_COMPLETION_PLAN.md)
+  - production-release phase plan and out-of-band blockers
 
-- `OPERATIONS_RUNBOOK.md`: health checks, smoke tests, auth checks, and DR operations.
-- `OBSERVABILITY_STACK.md`: monitoring/telemetry stack baseline.
-- `DEPLOYMENT_DR_PLAYBOOK.md`: deployment + disaster recovery operational playbook.
-- `AGENT_SERVICE_KEY_ISOLATION.md`: per-agent worker key isolation, strict-mode runtime behavior, and remaining security work.
-- `LONG_DURATION_RELIABILITY_QUALIFICATION.md`: sustained-load qualification method, thresholds, and baseline evidence.
-- `../scripts/mission_artifact_qualification.py`: live mission artifact integrity qualification (chain trace + pod assignment + logicnodes).
-- `../scripts/operator_route_auth_matrix_qualification.py`: live operator-route auth matrix qualification across `api_key|hybrid|oidc`.
-- `../scripts/dedicated_agent_canary_trend.py`: repeated multi-language dedicated-agent canary trend qualification.
-- `../scripts/langgraph_v2_prototype_matrix.py`: v1.1 baseline + feature-flagged v2 prototype matrix runner.
-- `TESTING_QUALITY_GATES.md`: enforced lint/test/coverage policy including core 100% module gates.
-- `PRODUCTION_REVIEW_AUDIT.md`: checklist-aligned production audit updates and outcomes.
-- `RELEASE_TRUST_PROMOTION_GATE.md`: CI attestation, promotion policy, and release-trust evidence flow.
-- `MODEL_PROMOTION_GOVERNANCE.md`: production model lifecycle rules and release-promotion expectations.
-- `COMPOSE_ENVIRONMENT_PROFILES.md`: `dev` / `staging` / `prod` compose overlay definitions and security deltas.
-- `LEGACY_PROFILE_ID_MAPPING_INDEX.md`: canonical mapping for legacy `*-001` profile aliases.
-- `evidence/phase23_langgraph_baseline_validation_2026-03-03.md`: LangGraph adoption baseline validation and quality-gate evidence.
-- `evidence/phase24_langgraph_postgres_checkpointer_validation_2026-03-03.md`: Postgres checkpointer baseline validation for LangGraph mission lifecycle.
-- `evidence/phase25_word_doc_audit_and_langgraph_runtime_visibility_2026-03-03.md`: Word-doc audit execution and LangGraph runtime visibility validation.
-- `evidence/phase26_langgraph_live_recovery_validation_2026-03-03.md`: lifecycle rehydration hardening and live restart qualification summary.
-- `evidence/phase26_langgraph_postgres_live_recovery_qualification_2026-03-03.json`: machine-readable live qualification timings and pass/fail criteria.
-- `evidence/phase27_mission_control_live_transport_validation_2026-03-04.md`: live SSE transport validation for critical Mission Control views.
-- `evidence/phase28_smelt_cycle_runtime_reconciliation_validation_2026-03-04.md`: deterministic 7-phase runtime reconciliation validation.
-- `evidence/phase29_topology_and_security_adr_validation_2026-03-04.md`: topology/security decision-package validation and sweep results.
-- `evidence/phase30_auth_mode_and_dedicated_profile_validation_2026-03-04.md`: auth-mode execution baseline and dedicated-profile scaffolding validation.
-- `evidence/phase31_dedicated_agent_binding_scheduler_validation_2026-03-04.md`: dedicated-agent binding scheduler enforcement and validation sweep evidence.
-- `evidence/phase32_optional_data_plane_observability_validation_2026-03-04.md`: optional adapter observability, alerting, and dashboard validation evidence.
-- `evidence/phase33_extended_data_plane_live_qualification_validation_2026-03-04.md`: live Neo4j/MinIO qualification and disruption-recovery validation evidence.
-- `evidence/phase34_mission_control_advanced_operator_ux_validation_2026-03-04.md`: repo diff-review/apply gate and high-volume UI virtualization validation evidence.
-- `evidence/phase35_mission_artifact_runtime_integrity_validation_2026-03-08.md`: mission artifact integrity qualification tooling, tests, and validation sweep outcomes.
-- `evidence/phase36_frontend_budget_a11y_enforcement_2026-03-08.md`: CI Lighthouse budget enforcement, full axe color-contrast validation, and live mission chain/artifact integration proof.
-- `evidence/phase37_strategy_auth_canary_2026-03-08.md`: strategic ADR closure, operator OIDC route policy extension, and dedicated canary guardrail validation.
-- `evidence/phase38_qualification_matrix_automation_2026-03-08.md`: operator auth matrix, canary trend automation, and v2 prototype continuation validation.
-- `evidence/phase39_llm_node_wiring_hardening_2026-03-08.md`: LangGraph LLM node depth wiring, tracing entrypoint verification, and compose hardening validation.
-- `evidence/operator_route_oidc_matrix_2026-03-08.json`: live operator-route auth matrix qualification report (`api_key|hybrid|oidc`).
-- `evidence/dedicated_agent_canary_trend_2026-03-08.json`: live multi-language dedicated canary trend qualification report.
-- `evidence/langgraph_v2_prototype_matrix_2026-03-08.json`: v1.1 baseline plus v2 prototype matrix live qualification report.
-- `evidence/mission_artifact_qualification_shared_2026-03-08.json`: shared-topology live artifact qualification result.
-- `evidence/mission_artifact_qualification_dedicated_2026-03-08.json`: dedicated-topology live artifact qualification result.
-- `runbooks/semantic_bus_incident_runbook.md`: incident response playbook for MCP/Redis bus failures.
-- `runbooks/optional_data_plane_incident_runbook.md`: incident response playbook for Neo4j/object-storage optional adapter degradation.
-- `runbooks/dedicated_agent_canary_runbook.md`: canary rollout qualification and rollback guardrails for dedicated-agent profile.
-- `runbooks/qualification_matrix_runbook.md`: recurring roadmap qualification matrix execution for auth/canary/prototype tracks.
-- `HGR_BACKEND_CHECKLIST_AUDIT_2026-03-02.md`: backend checklist gap audit and remediation sequence.
+## Developer Documentation
 
-## Standards and External References
+- [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)
+  - day-to-day engineering workflow
+- [DEVELOPER_ONBOARDING_GUIDE.md](DEVELOPER_ONBOARDING_GUIDE.md)
+  - local setup and first-day validation
+- [TESTING_QUALITY_GATES.md](TESTING_QUALITY_GATES.md)
+  - test strategy, thresholds, and release checks
+- [DIAGRAM_STANDARDS.md](DIAGRAM_STANDARDS.md)
+  - required diagram types and conventions
+- [../CONTRIBUTING.md](../CONTRIBUTING.md)
+  - contribution workflow
+- [../CHANGELOG.md](../CHANGELOG.md)
+  - change history
 
-- `PRODUCTION_STANDARDS_REFERENCES.md`: official external standards and technical references.
-- `AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md`: authoritative standards and evidence model for agent personas.
-- `DATA_CLASSIFICATION_POLICY.md`: data handling classes and governance controls.
+## User and Operator Documentation
 
-## Agent and Data-Plane Documentation
+- [user/GETTING_STARTED.md](user/GETTING_STARTED.md)
+  - first-success setup and basic workflows
+- [user/OPERATOR_GUIDE.md](user/OPERATOR_GUIDE.md)
+  - screen-by-screen operator instructions
 
-- `AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`: agent protocol/data-system plan and phased data-plane evolution.
-- `AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`: provider/model strategy by agent and thinking profile.
+## API and Reference Documentation
 
-## UI/UX Planning and Reviews
+- [api/README.md](api/README.md)
+  - API entry point and interactive docs
+- [API_INTEGRATION_GUIDE.md](API_INTEGRATION_GUIDE.md)
+  - auth, examples, rate limits, and integration behavior
+- [openapi/api-gateway.v1.json](openapi/api-gateway.v1.json)
+  - gateway OpenAPI contract
+- [openapi/orchestrator.v1.json](openapi/orchestrator.v1.json)
+  - orchestrator OpenAPI contract
 
-- `UI_UX_WIREFRAME_FRONTEND_MASTER_PLAN.md`: frontend and wireframe completion plan.
-- `UI_UX_PHASE_EXECUTION_LOG_2026-03-01.md`: UI/UX phase implementation log.
-- `UX_USER_STORY_JOURNEY_INTERACTION_REVIEW_2026-03-01.md`: UX journey review and findings.
+## Operations, Security, and Governance
 
-## API Contracts
+- [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md)
+  - operational commands and validation procedures
+- [DEPLOYMENT_DR_PLAYBOOK.md](DEPLOYMENT_DR_PLAYBOOK.md)
+  - deployment and disaster-recovery process
+- [OBSERVABILITY_STACK.md](OBSERVABILITY_STACK.md)
+  - telemetry stack and alerting baseline
+- [RELEASE_TRUST_PROMOTION_GATE.md](RELEASE_TRUST_PROMOTION_GATE.md)
+  - release trust, attestation, and promotion checks
+- [COMPOSE_ENVIRONMENT_PROFILES.md](COMPOSE_ENVIRONMENT_PROFILES.md)
+  - environment profiles and compose behavior
+- [DATA_CLASSIFICATION_POLICY.md](DATA_CLASSIFICATION_POLICY.md)
+  - data handling and classification rules
+- [MODEL_PROMOTION_GOVERNANCE.md](MODEL_PROMOTION_GOVERNANCE.md)
+  - AI model rollout and rollback governance
+- [AGENT_SERVICE_KEY_ISOLATION.md](AGENT_SERVICE_KEY_ISOLATION.md)
+  - internal key isolation and remaining hardening work
+- [PRIVACY_POLICY.md](PRIVACY_POLICY.md)
+  - privacy posture
+- [TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)
+  - usage terms
+- [ACCESSIBILITY_STATEMENT.md](ACCESSIBILITY_STATEMENT.md)
+  - accessibility commitment and gaps
 
-- `openapi/api-gateway.v1.json`: exported API Gateway OpenAPI 3.1 contract.
-- `openapi/orchestrator.v1.json`: exported Orchestrator OpenAPI 3.1 contract.
-- `API_INTEGRATION_GUIDE.md`: authentication, examples, and integration behavior.
+## Standards and Supporting References
 
-## Developer Enablement
+- [PRODUCTION_STANDARDS_REFERENCES.md](PRODUCTION_STANDARDS_REFERENCES.md)
+  - external standards and official references used by this repo
+- [COMPLIANCE_EVIDENCE_MAPPING.md](COMPLIANCE_EVIDENCE_MAPPING.md)
+  - control/evidence mapping
+- [LEGACY_PROFILE_ID_MAPPING_INDEX.md](LEGACY_PROFILE_ID_MAPPING_INDEX.md)
+  - legacy ID reference retained for compatibility analysis
+- [AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md](AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md)
+  - current provider/model matrix reference
+- [AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md](AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md)
+  - persona evidence model reference
+- [AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md](AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md)
+  - semantic bus and data-system reference plan
 
-- `DEVELOPER_ONBOARDING_GUIDE.md`: local setup and first-day validation flow.
-- `../CHANGELOG.md`: implementation change history.
+## ADRs
 
-## Suggested Read Order
+- [ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md](ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md)
+- [ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md](ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md)
+- [ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md](ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md)
+- [ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md](ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md)
+- [ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md](ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md)
 
-1. `../README.md`
-2. `IMPLEMENTATION_STATUS.md`
-3. `ARCHITECTURE.md`
-4. `ARCHITECTURE_DIAGRAMS.md`
-5. `DIAGRAM_STANDARDS.md`
-6. `ROADMAP.md`
-7. `OPERATIONS_RUNBOOK.md`
-8. `AGENT_SERVICE_KEY_ISOLATION.md`
-9. `AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md`
-10. `AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`
+## Evidence and Runbooks
+
+- [evidence/](evidence/)
+  - release qualification, audits, and phase evidence
+- [runbooks/](runbooks/)
+  - incident and recurring qualification procedures
+
+## Archive
+
+- [archive/README.md](archive/README.md)
+  - archive policy and layout
+- `archive/2026-03-29/`
+  - superseded audits, planning artifacts, source `.docx` material, and legacy documentation bundles

@@ -4,6 +4,7 @@ import base64
 import json
 import time
 from typing import Any
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from .data_plane_metrics import (
@@ -30,7 +31,7 @@ def _request_json(
     path: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    url = f"{settings.neo4j_url.rstrip('/')}{path}"
+    url = _validated_http_url(settings.neo4j_url, path, service="neo4j")
     auth = f"{settings.neo4j_username}:{settings.neo4j_password}".encode("utf-8")
     token = base64.b64encode(auth).decode("ascii")
     body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -44,12 +45,21 @@ def _request_json(
             "Authorization": f"Basic {token}",
         },
     )
-    with urlopen(request, timeout=settings.neo4j_timeout_seconds) as response:
+    with urlopen(request, timeout=settings.neo4j_timeout_seconds) as response:  # nosec B310
         raw = response.read().decode("utf-8")
     if not raw:
         return {}
     data = json.loads(raw)
     return data if isinstance(data, dict) else {}
+
+
+def _validated_http_url(base_url: str, path: str, *, service: str) -> str:
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"{service} url must use http or https")
+    if not path.startswith("/"):
+        raise ValueError("request path must start with '/'")
+    return f"{base_url.rstrip('/')}{path}"
 
 
 def _execute_cypher(

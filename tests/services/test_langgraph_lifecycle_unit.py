@@ -556,3 +556,79 @@ def test_maybe_advance_blocks_completion_without_artifacts(monkeypatch) -> None:
     assert "MISSION_COMPLETION_BLOCKED" in emitted
     assert "MISSION_COMPLETE" not in emitted
     assert "MISSION_COMPLETION_BLOCKED" in inserted_events
+
+
+def test_maybe_advance_requires_build_artifact_for_source_bundle(monkeypatch) -> None:
+    monkeypatch.setattr(langgraph_lifecycle, "StateGraph", FakeStateGraph)
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={"source_code": "print('a')"},
+        state=MissionState.verified,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "fetch_mission",
+        lambda *_args: mission,
+    )
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "update_mission_metadata",
+        lambda *_args: mission,
+    )
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "get_pod_assignment",
+        lambda *_args: {"mission_id": "mission-1", "pod_name": "podA"},
+    )
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "list_logicnodes",
+        lambda *_args: [{"node_id": "node-1"}],
+    )
+    monkeypatch.setattr(langgraph_lifecycle.storage, "list_build_artifacts", lambda *_args: [])
+    monkeypatch.setattr(
+        langgraph_lifecycle.storage,
+        "transition_mission_state",
+        lambda _settings_obj, _mission_id, _expected, new_state, _event: MissionRecord(
+            mission_id="mission-1",
+            prompt="Build API",
+            requested_target_language="python",
+            metadata={"source_code": "print('a')"},
+            state=new_state,
+            created_at="2026-03-01T00:00:00+00:00",
+        ),
+    )
+
+    inserted_events: list[str] = []
+
+    def _insert_event(
+        _settings_obj,
+        _mission_id,
+        _previous_state,
+        _new_state,
+        event_type,
+    ) -> None:
+        inserted_events.append(event_type)
+
+    monkeypatch.setattr(langgraph_lifecycle.storage, "insert_mission_event", _insert_event)
+    emitted: list[str] = []
+
+    async def _emit(**kwargs) -> None:
+        emitted.append(kwargs["event_type"])
+
+    advanced = asyncio.run(
+        langgraph_lifecycle.maybe_advance_mission_lifecycle(
+            app=_app_state(redis_ready=True, redis=object()),
+            mission_id="mission-1",
+            settings=_settings(langgraph_enabled=True),
+            validator=object(),
+            emit_state_event_fn=_emit,
+        )
+    )
+    assert advanced is True
+    assert "MISSION_COMPLETION_BLOCKED" in emitted
+    assert "MISSION_COMPLETE" not in emitted
+    assert "MISSION_COMPLETION_BLOCKED" in inserted_events

@@ -1,9 +1,9 @@
 # Developer Onboarding Guide
 
-**Last updated:** 2026-03-07
-**Goal:** A new developer can validate the full stack in under 2 hours.
-
----
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Contributors, maintainers, and new developers
 
 ## Table of Contents
 
@@ -55,8 +55,8 @@ Open `.env` and configure the required values:
 
 ```bash
 # Minimum required for local stack:
-POSTGRES_PASSWORD=localdev
-REDIS_PASSWORD=localdev
+POSTGRES_PASSWORD=CHANGE_ME_local_dev_postgres_password_32chars
+REDIS_PASSWORD=CHANGE_ME_local_dev_redis_password_32chars
 GATEWAY_API_KEY=dev-key-mutate
 INTERNAL_SERVICE_API_KEY=dev-internal-key
 MCP_API_KEY=mcp-local-key
@@ -88,6 +88,14 @@ cd ../..
 ---
 
 ## Stack Setup
+
+### Generate Local TLS Dev Certificates
+
+```bash
+make tls-certs
+```
+
+This generates local-only PostgreSQL and Redis TLS certificates and private keys under `deploy/.local/postgres-certs` and `deploy/.local/redis-certs`. Those private keys are gitignored and must remain local.
 
 ### Start Core Stack
 
@@ -166,7 +174,7 @@ curl http://localhost:8100/v1/missions/<mission_id>
 make test
 ```
 
-Runs pytest with `--cov-fail-under=80` global gate and 100% gates on 8 core files. Expected: **320+ tests, 86% coverage**.
+Runs pytest with `--cov-fail-under=80` global gate and 100% gates on 8 core files. Current baseline: **689 passing backend tests and 81.37% services coverage**.
 
 ### Fast Tests (no coverage)
 
@@ -259,7 +267,7 @@ theFactory/
 │   ├── app/                        ← App Router pages and layouts
 │   │   ├── (shell)/               ← Layout shell (sidebar, header)
 │   │   ├── missions/              ← Mission list + detail views
-│   │   ├── agents/                ← 35-agent roster + detail
+│   │   ├── agents/                ← 38-agent roster + detail
 │   │   ├── semantic-bus/          ← Live semantic bus view
 │   │   ├── builder/               ← Repository intake flow
 │   │   └── settings/              ← Vault and config
@@ -294,7 +302,7 @@ theFactory/
 
 | File | What it does |
 |------|-------------|
-| `services/orchestrator/orchestrator/agent_personas.py` | 35-agent persona profile dataset |
+| `services/orchestrator/orchestrator/agent_personas.py` | 38-agent persona profile dataset |
 | `services/orchestrator/orchestrator/agent_registry.py` | Agent runtime state and registry |
 | `services/orchestrator/orchestrator/runtime.py` | Mission lifecycle state machine |
 | `services/orchestrator/orchestrator/langgraph_lifecycle.py` | LangGraph StateGraph |
@@ -313,7 +321,7 @@ See `.env.example` for all variables. Critical ones:
 |----------|---------|-------------|
 | `AUTH_MODE` | `api_key` | `api_key` \| `hybrid` \| `oidc` |
 | `GATEWAY_API_KEY` | — | Mutate/admin access key |
-| `INTERNAL_SERVICE_API_KEY` | — | Service-to-service key (workers → orchestrator) |
+| `INTERNAL_SERVICE_API_KEY` | — | Service-to-service key used by workers and Mission Control review approval persistence |
 | `LANGGRAPH_ENABLED` | `false` | Enable LangGraph state machine |
 | `LANGGRAPH_CHECKPOINTER` | `memory` | `memory` \| `postgres` |
 | `LANGGRAPH_FAIL_OPEN` | `true` | Fallback to legacy lifecycle on error |
@@ -322,6 +330,7 @@ See `.env.example` for all variables. Critical ones:
 | `NEO4J_ENABLED` | `false` | Enable Neo4j graph adapter |
 | `OBJECT_STORAGE_ENABLED` | `false` | Enable MinIO/S3 adapter |
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8100` | Gateway URL for Mission Control |
+| `ORCHESTRATOR_INTERNAL_BASE_URL` | `http://localhost:8101` | Orchestrator internal URL for Mission Control review approval persistence |
 
 ---
 
@@ -380,10 +389,10 @@ python scripts/check_coverage_thresholds.py
 - [ ] Docker Desktop running, `docker compose ps` shows all services healthy
 - [ ] `curl http://localhost:8100/health` returns `{"status":"healthy"}`
 - [ ] Test mission submitted and polled successfully
-- [ ] `make test` passes — 320+ tests, 86%+ coverage
+- [ ] `make test` passes — services coverage gate stays at or above 80%
 - [ ] `make audit` passes — 13/13 checks
 - [ ] Mission Control UI opens at `http://localhost:3100`
-- [ ] Agent roster shows 35 agents at `http://localhost:8100/v1/operations/agents`
+- [ ] Agent roster shows 38 agents at `http://localhost:8100/v1/operations/agents`
 - [ ] `make lint` passes — 0 ruff errors
 - [ ] Read [`ARCHITECTURE.md`](ARCHITECTURE.md) for system topology
 - [ ] Read [`AGENTS.md`](../AGENTS.md) for AI agent developer guidelines

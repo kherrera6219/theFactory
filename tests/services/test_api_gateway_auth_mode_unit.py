@@ -82,6 +82,7 @@ def test_resolve_mutation_headers_hybrid_mode_allows_api_key(monkeypatch) -> Non
 
 def test_resolve_mutation_headers_hybrid_mode_allows_bearer(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "hybrid")
+    monkeypatch.setattr(api_gateway_main, "INTERNAL_SERVICE_API_KEY", "internal-key")
     monkeypatch.setattr(
         api_gateway_main,
         "_decode_oidc_token",
@@ -92,6 +93,26 @@ def test_resolve_mutation_headers_hybrid_mode_allows_bearer(monkeypatch) -> None
         authorization="Bearer test-token",
     )
     assert headers == {"x-api-key": api_gateway_main.INTERNAL_SERVICE_API_KEY}
+
+
+def test_resolve_mutation_headers_hybrid_mode_requires_internal_key_for_bearer(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "hybrid")
+    monkeypatch.setattr(api_gateway_main, "INTERNAL_SERVICE_API_KEY", "")
+    monkeypatch.setattr(
+        api_gateway_main,
+        "_decode_oidc_token",
+        lambda _token: {"roles": ["mutate"]},
+    )
+    with TestClient(api_app):
+        try:
+            api_gateway_main._resolve_mutation_forward_headers(
+                x_api_key=None,
+                authorization="Bearer test-token",
+            )
+        except HTTPException as exc:
+            assert exc.status_code == 503
+        else:
+            raise AssertionError("expected HTTPException for missing internal service key")
 
 
 def test_resolve_mutation_headers_oidc_mode_requires_bearer(monkeypatch) -> None:
@@ -175,6 +196,7 @@ def test_require_operator_access_hybrid_allows_api_key(monkeypatch) -> None:
 def test_update_state_forwards_internal_key_in_oidc_mode(monkeypatch) -> None:
     _FakeAsyncClient.captured_headers = []
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "INTERNAL_SERVICE_API_KEY", "internal-key")
     monkeypatch.setattr(
         api_gateway_main,
         "_decode_oidc_token",

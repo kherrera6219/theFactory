@@ -1,6 +1,9 @@
 # Long-Duration Reliability Qualification
 
-Last updated: 2026-03-03
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, developers, maintainers, and auditors
 
 ## Purpose
 

@@ -36,4 +36,18 @@ $size = (Get-Item $backupPath).Length
 if ($size -lt 64) {
     throw "backup file appears truncated ($size bytes)"
 }
+$hash = (Get-FileHash -Algorithm SHA256 -Path $backupPath).Hash.ToLowerInvariant()
+$manifestPath = "$backupPath.json"
+$checksumPath = "$backupPath.sha256"
+$manifest = @{
+    backup_file = (Resolve-Path $backupPath).Path
+    generated_at_utc = (Get-Date).ToUniversalTime().ToString("o")
+    dry_run = [bool]$DryRun
+    size_bytes = $size
+    sha256 = $hash
+}
+$manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $manifestPath -Encoding UTF8
+"$hash  $(Split-Path -Leaf $backupPath)" | Set-Content -Path $checksumPath -Encoding UTF8
 Write-Host "Backup complete ($size bytes)"
+Write-Host "Backup SHA-256: $hash"
+Write-Host "Backup manifest: $manifestPath"

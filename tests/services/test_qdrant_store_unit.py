@@ -90,6 +90,19 @@ def test_request_json_sends_api_key_header(monkeypatch) -> None:
     assert headers_seen.get("api-key") == "test-qdrant-key"
 
 
+def test_request_json_rejects_non_http_urls() -> None:
+    try:
+        qdrant_store._request_json(
+            _settings(qdrant_url="file:///tmp/qdrant"),
+            "GET",
+            "/collections/mission_knowledge",
+        )
+    except ValueError as exc:
+        assert "http or https" in str(exc)
+    else:
+        raise AssertionError("expected qdrant url validation failure")
+
+
 def test_upsert_knowledge_builds_qdrant_point_payload(monkeypatch) -> None:
     calls: list[tuple[str, str, dict[str, object] | None]] = []
     monkeypatch.setattr(qdrant_store, "ensure_collection", lambda _settings: None)

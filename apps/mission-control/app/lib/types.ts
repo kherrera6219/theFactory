@@ -38,6 +38,24 @@ export type MissionRouteProvenanceStage = {
   mission_source?: string | null;
 };
 
+export type MissionBuildArtifactRecord = {
+  mission_id: string;
+  artifact_id: string;
+  artifact_type: string;
+  stage: string;
+  status: string;
+  storage_backend: string;
+  storage_ref?: string | null;
+  digest_sha256?: string | null;
+  size_bytes: number;
+  manifest?: Record<string, unknown>;
+  verification?: Record<string, unknown>;
+  build_log?: string;
+  artifact_text?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type MissionChainTrace = {
   mission_id: string;
   routing_enforced: boolean;
@@ -50,6 +68,7 @@ export type MissionChainTrace = {
   pod_assignment?: Record<string, unknown> | null;
   logicnode_count: number;
   artifact_summary?: Record<string, Record<string, unknown>>;
+  build_artifacts?: MissionBuildArtifactRecord[];
   route_provenance?: {
     ceo?: MissionRouteProvenanceStage | null;
     pod_manager?: MissionRouteProvenanceStage | null;

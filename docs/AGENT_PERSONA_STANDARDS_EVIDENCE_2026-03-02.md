@@ -1,5 +1,12 @@
 # Agent Persona Standards Evidence
 
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Reference  
+Audience: Operators, developers, maintainers, and auditors
+
+> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+
 Date: 2026-03-02
 
 ## Purpose
@@ -56,3 +63,5 @@ This data is available in:
 - `GET /internal/operations/agent-integrations`
 - `GET /v1/operations/agents`
 - `GET /v1/operations/agent-integrations`
+
+

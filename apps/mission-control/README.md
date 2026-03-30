@@ -8,7 +8,7 @@ It is designed for local-first Windows operation and provides real-time visibili
 
 - Display global runtime and mission health.
 - Provide mission operations and status workflows.
-- Visualize 35-agent topology and telemetry.
+- Visualize 38-agent topology and telemetry.
 - Render full agent persona profiles with governance evidence.
 - Surface semantic bus and artifact-level observability.
 - Manage local runtime preferences and vault-backed integration secrets.
@@ -19,6 +19,8 @@ It is designed for local-first Windows operation and provides real-time visibili
    - `npm install`
 2. Set environment:
    - `.env.local` (or inherited root env) with `NEXT_PUBLIC_API_BASE_URL`
+   - `ORCHESTRATOR_INTERNAL_BASE_URL` for durable review approval persistence
+   - `INTERNAL_SERVICE_API_KEY` matching the orchestrator internal service key
 3. Start dev server:
    - `npm run dev`
 4. Build production bundle:
@@ -31,6 +33,8 @@ It is designed for local-first Windows operation and provides real-time visibili
 ## Environment
 
 - `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8100`)
+- `ORCHESTRATOR_INTERNAL_BASE_URL` (default `http://localhost:8101`)
+- `INTERNAL_SERVICE_API_KEY` (required for review approval persistence)
 - Optional HashiCorp Vault KV backend:
   - `VAULT_ADDR`
   - `VAULT_TOKEN` or `VAULT_ROLE_ID` + `VAULT_SECRET_ID`
@@ -49,7 +53,7 @@ Mission Control expects Gateway routes under:
 - `/chat`: PM-style intake surface.
 - `/missions`: mission list and controls.
 - `/missions/[id]`: mission cockpit detail.
-- `/agents`: 35-agent runtime grid with persona detail.
+- `/agents`: 38-agent runtime grid with persona detail.
 - `/logicnodes`: artifact explorer.
 - `/semantic-bus`: protocol/event monitor.
 - `/databases`: data-plane status.
@@ -82,6 +86,8 @@ Agent detail includes:
   - DELETE clear slot
 - `/api/vault/test`:
   - validate provider key formats or test checks
+- `/api/review/approve`:
+  - persist review approvals through orchestrator-backed durable storage before mission launch
 - `/api/operator/mission-state`:
   - safely forward mission state transitions using server-side key resolution
 
@@ -90,6 +96,7 @@ Agent detail includes:
 - TypeScript strict mode is enabled.
 - Security headers are set via `next.config.mjs`.
 - API consumption uses timeout-based request guards and resilient parsing.
+- Review approvals fail closed if the orchestrator internal base URL or service API key is missing.
 - Accessibility includes semantic tables, captions, skip-navigation support, and keyboard focus visibility.
 - Local operation mode intentionally avoids external account-login requirements.
 

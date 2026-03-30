@@ -6,6 +6,7 @@ from typing import Any, TypedDict
 
 from fastapi import FastAPI
 
+from . import build_artifacts as build_artifact_support
 from . import storage
 from .llm_delegation import (
     generate_ceo_delegation,
@@ -382,6 +383,53 @@ async def maybe_advance_mission_lifecycle(
             "delegation": merged_delegation,
         }
 
+    async def _ensure_verified_build_artifact(mission: Any) -> Any:
+        if not build_artifact_support.mission_requires_build_artifact(mission.metadata):
+            return mission
+
+        artifact_record = build_artifact_support.build_source_bundle_artifact(
+            mission_id=mission.mission_id,
+            requested_target_language=mission.requested_target_language,
+            metadata=mission.metadata if isinstance(mission.metadata, dict) else {},
+        )
+        await asyncio.to_thread(
+            storage.upsert_build_artifact,
+            settings,
+            mission.mission_id,
+            artifact_record["artifact_id"],
+            artifact_record["artifact_type"],
+            artifact_record["stage"],
+            artifact_record["status"],
+            artifact_record["storage_backend"],
+            artifact_record["storage_ref"],
+            artifact_record["digest_sha256"],
+            artifact_record["size_bytes"],
+            artifact_record["manifest"],
+            artifact_record["verification"],
+            artifact_record["build_log"],
+            artifact_record["artifact_text"],
+            artifact_record["created_at"],
+        )
+
+        metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+        selected_agent_id = str(
+            metadata.get("selected_agent_id")
+            or metadata.get("assigned_specialist_agent_id")
+            or CEO_AGENT_ID
+        ).strip()
+        build_artifact_support.record_build_artifact_metadata(
+            metadata,
+            agent_id=selected_agent_id or CEO_AGENT_ID,
+            artifact_record=artifact_record,
+        )
+        updated = await asyncio.to_thread(
+            storage.update_mission_metadata,
+            settings,
+            mission.mission_id,
+            metadata,
+        )
+        return updated or mission
+
     async def _run_transition(
         state: MissionLifecycleState,
         expected_state: MissionState,
@@ -403,9 +451,35 @@ async def maybe_advance_mission_lifecycle(
                 logicnodes = await asyncio.to_thread(
                     storage.list_logicnodes, settings, state["mission_id"], 1
                 )
-                artifacts_ready = bool(assignment) or bool(logicnodes)
+                build_artifact_required = build_artifact_support.mission_requires_build_artifact(
+                    mission.metadata
+                )
+                build_records = (
+                    await asyncio.to_thread(
+                        storage.list_build_artifacts,
+                        settings,
+                        state["mission_id"],
+                        10,
+                    )
+                    if build_artifact_required
+                    else []
+                )
+                has_successful_build = build_artifact_support.has_successful_build_artifact(
+                    build_records
+                )
+                artifacts_ready = (
+                    has_successful_build and (bool(assignment) or bool(logicnodes))
+                    if build_artifact_required
+                    else bool(assignment) or bool(logicnodes)
+                )
                 artifact_details = {
                     "policy_exempt": False,
+                    "build_artifact_required": build_artifact_required,
+                    "build_artifact_count": len(build_records),
+                    "build_artifact_status": build_artifact_support.latest_build_artifact_status(
+                        build_records
+                    ),
+                    "has_successful_build_artifact": has_successful_build,
                     "has_pod_assignment": bool(assignment),
                     "logicnode_count": len(logicnodes),
                 }
@@ -472,6 +546,16 @@ async def maybe_advance_mission_lifecycle(
                 "halted": True,
                 "delegation": state.get("delegation", {}),
             }
+
+        if new_state == MissionState.verified:
+            try:
+                record = await _ensure_verified_build_artifact(record)
+            except Exception as exc:
+                LOGGER.warning(
+                    "failed to package verified build artifact for mission %s: %s",
+                    state["mission_id"],
+                    exc,
+                )
 
         async def _emit_running_phase_checkpoints() -> None:
             for checkpoint_event_type in RUNNING_PHASE_CHECKPOINT_EVENTS:

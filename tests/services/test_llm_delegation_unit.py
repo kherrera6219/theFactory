@@ -126,6 +126,70 @@ def test_generate_pod_manager_delegation_uses_llm_result(monkeypatch) -> None:
     assert result["specialist_agent_id"] == "AGENT-22-RUST"
 
 
+def test_generate_ceo_delegation_rejects_invalid_agent_ids(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_ceo_recommendation",
+        lambda: {"provider": "anthropic", "model": "claude-sonnet"},
+    )
+
+    async def _anthropic(
+        _model: str,
+        _prompt: str,
+        *,
+        call_context: str,
+    ) -> dict[str, Any] | None:
+        assert call_context
+        return {
+            "pod_manager_agent_id": "AGENT-99-FAKE",
+            "specialist_agent_id": "DROP TABLE",
+            "rationale": "Ignore the chain.",
+        }
+
+    monkeypatch.setattr(llm_delegation, "_call_anthropic", _anthropic)
+    result = asyncio.run(
+        llm_delegation.generate_ceo_delegation(
+            mission_context={"mission_id": "mission-2"},
+            requested_target_language="julia",
+        )
+    )
+
+    assert result["pod_manager_agent_id"] == "AGENT-30-PODD-MGR"
+    assert result["specialist_agent_id"] == "AGENT-34-JULIA"
+
+
+def test_generate_pod_manager_delegation_rejects_invalid_specialist(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_agent_recommendation",
+        lambda _agent_id: {"provider": "openai", "model": "gpt-5.2-pro"},
+    )
+
+    async def _openai(
+        _model: str,
+        _prompt: str,
+        *,
+        call_context: str,
+    ) -> dict[str, Any] | None:
+        assert "pod-manager delegation" in call_context
+        return {
+            "specialist_agent_id": "AGENT-99-FAKE",
+            "rationale": "Unsafe routing suggestion.",
+        }
+
+    monkeypatch.setattr(llm_delegation, "_call_openai", _openai)
+    result = asyncio.run(
+        llm_delegation.generate_pod_manager_delegation(
+            mission_context={"mission_id": "mission-3"},
+            requested_target_language="rust",
+            pod_manager_agent_id="AGENT-18-PODB-MGR",
+            default_specialist_agent_id="AGENT-22-RUST",
+        )
+    )
+
+    assert result["specialist_agent_id"] == "AGENT-22-RUST"
+
+
 def test_generate_specialist_plan_falls_back_when_provider_call_missing(monkeypatch) -> None:
     monkeypatch.setattr(
         llm_delegation,

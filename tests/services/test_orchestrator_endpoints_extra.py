@@ -4,6 +4,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -45,6 +46,18 @@ async def _db_ready(_: object) -> tuple[bool, bool]:
 
 async def _fetch(_: object, mission_id: str) -> MissionRecord:
     return _mission()
+
+
+@pytest.fixture(autouse=True)
+def _override_auth_dependencies():
+    auth_context = orchestrator_main.AuthContext(
+        api_key="test-worker-key",
+        roles={"admin", "internal", "mutate", "read", "worker"},
+    )
+    app.dependency_overrides[orchestrator_main.MUTATION_AUTH] = lambda: auth_context
+    app.dependency_overrides[orchestrator_main.INTERNAL_AUTH] = lambda: auth_context
+    yield
+    app.dependency_overrides.clear()
 
 
 def test_create_mission_endpoint(monkeypatch) -> None:
@@ -99,6 +112,62 @@ def test_mission_query_endpoints(monkeypatch) -> None:
     events = client.get("/missions/mission-1/events?limit=10")
     assert events.status_code == 200
     assert events.json()[0]["event_type"] == "MISSION_RUNNING"
+
+
+def test_review_approval_internal_endpoints(monkeypatch) -> None:
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "upsert_review_approval",
+        lambda *_args: {
+            "approval_id": "repo-approval-f1234567890abcdef",
+            "scope": "repo",
+            "fingerprint": "f1234567890abcdef",
+            "summary": "Repository review approved for mission launch.",
+            "metadata": {"request_id": "repo-review-001"},
+            "receipt_digest": "digest-001",
+            "storage_backend": "postgres",
+            "approved_at": "2026-03-29T00:00:00+00:00",
+            "updated_at": "2026-03-29T00:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "get_review_approval",
+        lambda *_args: {
+            "approval_id": "repo-approval-f1234567890abcdef",
+            "scope": "repo",
+            "fingerprint": "f1234567890abcdef",
+            "summary": "Repository review approved for mission launch.",
+            "metadata": {"request_id": "repo-review-001"},
+            "receipt_digest": "digest-001",
+            "storage_backend": "postgres",
+            "approved_at": "2026-03-29T00:00:00+00:00",
+            "updated_at": "2026-03-29T00:00:00+00:00",
+        },
+    )
+
+    client = TestClient(app)
+    created = client.post(
+        "/internal/review-approvals",
+        headers={"x-api-key": "worker-key"},
+        json={
+            "scope": "repo",
+            "fingerprint": "f1234567890abcdef",
+            "summary": "Repository review approved for mission launch.",
+            "metadata": {"request_id": "repo-review-001"},
+        },
+    )
+    assert created.status_code == 200
+    assert created.json()["storage_backend"] == "postgres"
+    assert created.json()["record_path"].startswith("orchestrator://review-approvals/")
+
+    fetched = client.get(
+        "/internal/review-approvals/repo-approval-f1234567890abcdef",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert fetched.status_code == 200
+    assert fetched.json()["receipt_digest"] == "digest-001"
 
 
 def test_build_mission_chain_trace_exposes_route_provenance() -> None:
@@ -323,6 +392,50 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         orchestrator_main.storage,
+        "list_build_artifacts",
+        lambda *_: [
+            {
+                "mission_id": "mission-1",
+                "artifact_id": "source-bundle-package",
+                "artifact_type": "source_bundle_package",
+                "stage": "package",
+                "status": "SUCCESS",
+                "storage_backend": "database",
+                "storage_ref": "database://missions/mission-1/build-artifacts/source-bundle-package",
+                "digest_sha256": "abc123",
+                "size_bytes": 123,
+                "manifest": {"file_count": 1},
+                "verification": {"verified": True},
+                "build_log": "build complete",
+                "artifact_text": None,
+                "created_at": "2026-03-01T00:00:00+00:00",
+                "updated_at": "2026-03-01T00:00:00+00:00",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "get_build_artifact",
+        lambda *_: {
+            "mission_id": "mission-1",
+            "artifact_id": "source-bundle-package",
+            "artifact_type": "source_bundle_package",
+            "stage": "package",
+            "status": "SUCCESS",
+            "storage_backend": "database",
+            "storage_ref": "database://missions/mission-1/build-artifacts/source-bundle-package",
+            "digest_sha256": "abc123",
+            "size_bytes": 123,
+            "manifest": {"file_count": 1},
+            "verification": {"verified": True},
+            "build_log": "build complete",
+            "artifact_text": "## FILE app.py\nprint('a')\n",
+            "created_at": "2026-03-01T00:00:00+00:00",
+            "updated_at": "2026-03-01T00:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(
+        orchestrator_main.storage,
         "upsert_agent_heartbeat",
         lambda *_: {
             "agent_id": "AGENT-01-PM",
@@ -375,6 +488,10 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     assert chain_trace_response.status_code == 200
     assert chain_trace_response.json()["mission_id"] == "mission-1"
     assert (
+        chain_trace_response.json()["build_artifacts"][0]["artifact_id"]
+        == "source-bundle-package"
+    )
+    assert (
         client.post(
             "/internal/knowledge",
             headers={"x-api-key": "worker-key"},
@@ -425,6 +542,18 @@ def test_update_state_and_internal_endpoints(monkeypatch) -> None:
     )
     assert artifacts_response.status_code == 200
     assert artifacts_response.json()[0]["key"].endswith("/a-1.json")
+    build_artifacts_response = client.get(
+        "/internal/missions/mission-1/build-artifacts?limit=5",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert build_artifacts_response.status_code == 200
+    assert build_artifacts_response.json()[0]["artifact_id"] == "source-bundle-package"
+    build_artifact_response = client.get(
+        "/internal/missions/mission-1/build-artifacts/source-bundle-package",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert build_artifact_response.status_code == 200
+    assert build_artifact_response.json()["artifact_text"].startswith("## FILE app.py")
     metrics_response = client.get("/metrics")
     assert metrics_response.status_code == 200
     assert "orchestrator_optional_adapter_mirror_writes_total" in metrics_response.text
@@ -748,7 +877,11 @@ def test_partition_results_endpoint_restarts_lifecycle_when_scaling_complete(mon
             created_at="2026-03-01T00:00:00+00:00",
         ),
     )
-    monkeypatch.setattr(orchestrator_main, "start_lifecycle_task", lambda _app, mission_id: started.append(mission_id))
+    monkeypatch.setattr(
+        orchestrator_main,
+        "start_lifecycle_task",
+        lambda _app, mission_id: started.append(mission_id),
+    )
 
     client = TestClient(app)
     response = client.post(

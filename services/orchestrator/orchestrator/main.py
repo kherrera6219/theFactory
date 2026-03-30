@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -25,12 +26,15 @@ from .models import (
     AuditReportUpsert,
     KnowledgeUpsert,
     LogicNodeUpsert,
+    MissionBuildArtifactRecord,
     MissionCreate,
     MissionEvent,
     MissionRecord,
     MissionState,
     MissionStateUpdate,
     PodAssignmentUpsert,
+    ReviewApprovalRecord,
+    ReviewApprovalUpsert,
 )
 from .protocol import EnvelopeValidator, ProtocolValidationError
 from .runtime import (
@@ -81,6 +85,31 @@ LIFECYCLE_RECOVERY_MAX_MISSIONS = max(
     100,
     int(os.getenv("LIFECYCLE_RECOVERY_MAX_MISSIONS", "2000")),
 )
+REVIEW_APPROVAL_STORAGE_BACKEND = "postgres"
+
+
+def _sanitize_review_text(value: str, max_length: int) -> str:
+    return (
+        str(value)
+        .replace("\u0000", "")
+        .replace("\r", " ")
+        .replace("\n", " ")
+        .strip()[:max_length]
+    )
+
+
+def _review_approval_id(scope: str, fingerprint: str) -> str:
+    return f"{scope}-approval-{fingerprint[:24].lower()}"
+
+
+def _review_approval_digest(record: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def _review_approval_record_path(approval_id: str) -> str:
+    return f"orchestrator://review-approvals/{approval_id}"
 
 
 def _initialize_app_state(app: FastAPI) -> None:
@@ -357,6 +386,7 @@ def _build_mission_chain_trace(
     pod_assignment: dict[str, Any] | None,
     logicnodes: list[dict[str, Any]],
     events: list[MissionEvent],
+    build_artifacts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
     ceo_delegation = metadata.get("ceo_delegation")
@@ -439,6 +469,7 @@ def _build_mission_chain_trace(
         "pod_assignment": pod_assignment,
         "logicnode_count": len(logicnodes),
         "artifact_summary": _artifact_summary(metadata),
+        "build_artifacts": build_artifacts or [],
         "scaling": _scaling_summary(metadata),
         "route_provenance": route_provenance,
         "events": chain_trace,
@@ -1036,11 +1067,24 @@ configure_tracing(app, service_name="orchestrator")
 _initialize_app_state(app)
 
 
+def _request_correlation_id(request) -> str:
+    header = (
+        request.headers.get("x-request-id")
+        or request.headers.get("x-correlation-id")
+        or ""
+    ).strip()
+    if header:
+        return header[:128]
+    return uuid.uuid4().hex
+
+
 @app.middleware("http")
 async def _request_metrics(request, call_next):
     started = time.perf_counter()
     method = request.method
     status_code = "500"
+    correlation_id = _request_correlation_id(request)
+    request.state.correlation_id = correlation_id
     response: Response | None = None
     try:
         response = await call_next(request)
@@ -1052,6 +1096,7 @@ async def _request_metrics(request, call_next):
         REQUEST_COUNTER.labels(method=method, path=path, status_code=status_code).inc()
         REQUEST_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - started)
         if response is not None:
+            response.headers["X-Correlation-Id"] = correlation_id
             trace_id = current_trace_id()
             if trace_id:
                 response.headers["X-Trace-Id"] = trace_id
@@ -1346,6 +1391,7 @@ async def get_chain_trace(
     mission_id: str,
     event_limit: int = Query(default=200, ge=1, le=1000),
     logicnode_limit: int = Query(default=200, ge=1, le=2000),
+    build_artifact_limit: int = Query(default=20, ge=1, le=200),
     _: AuthContext = INTERNAL_AUTH_DEP,
 ) -> dict[str, Any]:
     await _ensure_db_ready(app)
@@ -1363,11 +1409,18 @@ async def get_chain_trace(
         mission_id,
         event_limit,
     )
+    build_artifacts = await asyncio.to_thread(
+        storage.list_build_artifacts,
+        app.state.settings,
+        mission_id,
+        build_artifact_limit,
+    )
     return _build_mission_chain_trace(
         mission=mission,
         pod_assignment=assignment,
         logicnodes=logicnodes,
         events=events,
+        build_artifacts=build_artifacts,
     )
 
 
@@ -1602,6 +1655,63 @@ async def upsert_audit_report(
     return record
 
 
+@app.post("/internal/review-approvals")
+async def create_review_approval(
+    payload: ReviewApprovalUpsert,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    await _ensure_db_ready(app)
+    scope = payload.scope
+    fingerprint = _sanitize_review_text(payload.fingerprint, 200)
+    summary = _sanitize_review_text(payload.summary, 400)
+    if len(fingerprint) < 12:
+        raise HTTPException(status_code=400, detail="fingerprint must be at least 12 characters")
+    if len(summary) < 3:
+        raise HTTPException(status_code=400, detail="summary must be at least 3 characters")
+
+    approval_id = _review_approval_id(scope, fingerprint)
+    approved_at = datetime.now(UTC).isoformat()
+    record_without_digest = {
+        "approval_id": approval_id,
+        "scope": scope,
+        "fingerprint": fingerprint,
+        "summary": summary,
+        "metadata": payload.metadata,
+        "storage_backend": REVIEW_APPROVAL_STORAGE_BACKEND,
+        "approved_at": approved_at,
+    }
+    receipt_digest = _review_approval_digest(record_without_digest)
+    record = await asyncio.to_thread(
+        storage.upsert_review_approval,
+        app.state.settings,
+        approval_id,
+        scope,
+        fingerprint,
+        summary,
+        payload.metadata,
+        receipt_digest,
+        REVIEW_APPROVAL_STORAGE_BACKEND,
+        approved_at,
+    )
+    validated = ReviewApprovalRecord(**record).model_dump(mode="json")
+    validated["record_path"] = _review_approval_record_path(approval_id)
+    return validated
+
+
+@app.get("/internal/review-approvals/{approval_id}")
+async def get_review_approval(
+    approval_id: str,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    await _ensure_db_ready(app)
+    record = await asyncio.to_thread(storage.get_review_approval, app.state.settings, approval_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="review approval not found")
+    validated = ReviewApprovalRecord(**record).model_dump(mode="json")
+    validated["record_path"] = _review_approval_record_path(approval_id)
+    return validated
+
+
 @app.get("/internal/missions/{mission_id}/audit-reports")
 async def get_audit_reports(
     mission_id: str,
@@ -1641,6 +1751,42 @@ async def get_audit_artifacts(
         return []
 
 
+@app.get("/internal/missions/{mission_id}/build-artifacts")
+async def get_build_artifacts(
+    mission_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> list[MissionBuildArtifactRecord]:
+    await _ensure_db_ready(app)
+    await _fetch_existing_mission(app, mission_id)
+    records = await asyncio.to_thread(
+        storage.list_build_artifacts,
+        app.state.settings,
+        mission_id,
+        limit,
+    )
+    return [MissionBuildArtifactRecord(**record) for record in records]
+
+
+@app.get("/internal/missions/{mission_id}/build-artifacts/{artifact_id}")
+async def get_build_artifact(
+    mission_id: str,
+    artifact_id: str,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> MissionBuildArtifactRecord:
+    await _ensure_db_ready(app)
+    await _fetch_existing_mission(app, mission_id)
+    record = await asyncio.to_thread(
+        storage.get_build_artifact,
+        app.state.settings,
+        mission_id,
+        artifact_id,
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="build artifact not found")
+    return MissionBuildArtifactRecord(**record)
+
+
 @app.post("/internal/missions/{mission_id}/partition-results")
 async def upsert_partition_result(
     mission_id: str,
@@ -1660,7 +1806,9 @@ async def upsert_partition_result(
         "instance_index": int(payload.get("instance_index", 0)),
         "agent_id": agent_id,
         "logicnodes": [node for node in payload.get("logicnodes", []) if isinstance(node, dict)],
-        "artifacts": [artifact for artifact in payload.get("artifacts", []) if isinstance(artifact, dict)],
+        "artifacts": [
+            artifact for artifact in payload.get("artifacts", []) if isinstance(artifact, dict)
+        ],
         "report": payload.get("report") if isinstance(payload.get("report"), dict) else {},
         "completed_at": payload.get("completed_at") or datetime.now(UTC).isoformat(),
     }
@@ -1683,7 +1831,9 @@ async def upsert_partition_result(
         "mission_id": mission_id,
         "state": record.state.value,
         "partition_id": partition_id,
-        "partition_result_count": len(partition_results) if isinstance(partition_results, dict) else 0,
+        "partition_result_count": (
+            len(partition_results) if isinstance(partition_results, dict) else 0
+        ),
         "scaling_complete": bool(metadata.get("scaling_merge_complete", False)),
         "merged_partition_result": (
             metadata.get("merged_partition_result")

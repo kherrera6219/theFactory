@@ -1,6 +1,9 @@
 # Agent Service Key Isolation
 
-Last updated: 2026-03-09
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Maintainers, operators, and security reviewers
 
 ## Purpose
 

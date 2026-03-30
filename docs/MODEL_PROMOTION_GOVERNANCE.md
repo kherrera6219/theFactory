@@ -1,6 +1,9 @@
 # Model Promotion Governance
 
-Last updated: 2026-03-08
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Maintainers, AI operators, and release reviewers
 
 ## Purpose
 
