@@ -15,9 +15,11 @@ from orchestrator.models import MissionRecord, MissionState  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _override_internal_auth():
-    orchestrator_app.dependency_overrides[orchestrator_main.INTERNAL_AUTH] = lambda: orchestrator_main.AuthContext(
-        api_key="test-internal-key",
-        roles={"internal", "worker", "mutate", "read"},
+    orchestrator_app.dependency_overrides[orchestrator_main.INTERNAL_AUTH] = (
+        lambda: orchestrator_main.AuthContext(
+            api_key="test-internal-key",
+            roles={"internal", "worker", "mutate", "read"},
+        )
     )
     yield
     orchestrator_app.dependency_overrides.clear()

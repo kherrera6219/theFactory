@@ -28,6 +28,7 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+.claude/worktrees/
 
 # Logs and runtime
 *.log

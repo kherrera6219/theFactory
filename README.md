@@ -527,7 +527,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | `make down` | Stop stack and remove volumes |
 | `make validate` | Validate schema contracts |
 | `make lint` | Ruff on backend, tests, and scripts |
-| `make test` | Pytest with coverage gates (≥80% global, 100% core) |
+| `make test` | Pytest with coverage gates (≥80% global, strict per-module floors on critical runtime files) |
 | `make test-ui` | Mission Control lint + unit tests |
 | `make test-ui-e2e` | Playwright E2E regression suite |
 | `make test-fast` | Pytest without coverage |
@@ -553,7 +553,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | Gate | Target | Enforcement |
 |------|--------|-------------|
 | Global Python coverage | ≥ 80% | CI + `make test` |
-| Core module coverage | 100% | `scripts/check_coverage_thresholds.py` |
+| Critical module coverage | Strict per-file floors (`60%`–`100%`) | `scripts/check_coverage_thresholds.py` |
 | Production audit | 13/13 checks | `scripts/production_review_audit.py` |
 | Frontend lint | 0 errors | CI |
 | Frontend unit tests | currently passing | `apps/mission-control` Vitest |

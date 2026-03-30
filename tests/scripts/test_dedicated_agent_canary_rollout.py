@@ -35,6 +35,16 @@ def test_resolve_expected_pod_manager_defaults_and_mapping() -> None:
     assert canary._resolve_expected_pod_manager("unknown-language") == "AGENT-12-PODA-MGR"
 
 
+def test_validate_http_url_rejects_non_http_schemes() -> None:
+    assert canary._validate_http_url("https://example.test/readyz") == "https://example.test/readyz"
+    try:
+        canary._validate_http_url("file:///tmp/test.json")
+    except ValueError as exc:
+        assert "unsupported URL" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for non-http URL")
+
+
 def test_evaluate_canary_result_passes() -> None:
     passed, failure_reasons, diagnostics = canary._evaluate_canary_result(
         final_state="COMPLETE",
