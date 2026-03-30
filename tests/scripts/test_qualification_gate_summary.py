@@ -46,7 +46,13 @@ def test_build_summary_uses_latest_and_history(tmp_path, monkeypatch) -> None:
         },
     )
     (tmp_path / "docs" / "evidence" / "operator_route_oidc_matrix_history.jsonl").write_text(
-        json.dumps({"run_timestamp_utc": (now - timedelta(days=2)).isoformat(), "pass": True}) + "\n",
+        json.dumps(
+            {
+                "run_timestamp_utc": (now - timedelta(days=2)).isoformat(),
+                "pass": True,
+            }
+        )
+        + "\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(summary, "ROOT", tmp_path)

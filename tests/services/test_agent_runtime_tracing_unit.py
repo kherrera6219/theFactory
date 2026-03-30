@@ -67,7 +67,10 @@ def _install_fake_otel(monkeypatch, *, fail_fastapi: bool = False, fail_httpx: b
 
     trace_module = ModuleType("opentelemetry.trace")
     trace_module.get_tracer_provider = lambda: provider_state["provider"]
-    trace_module.set_tracer_provider = lambda provider: provider_state.__setitem__("provider", provider)
+    trace_module.set_tracer_provider = lambda provider: provider_state.__setitem__(
+        "provider",
+        provider,
+    )
     trace_module.get_current_span = lambda: SimpleNamespace(
         get_span_context=lambda: SimpleNamespace(is_valid=True, trace_id=0x1234)
     )
@@ -78,7 +81,9 @@ def _install_fake_otel(monkeypatch, *, fail_fastapi: bool = False, fail_httpx: b
         "opentelemetry.exporter": ModuleType("opentelemetry.exporter"),
         "opentelemetry.exporter.otlp": ModuleType("opentelemetry.exporter.otlp"),
         "opentelemetry.exporter.otlp.proto": ModuleType("opentelemetry.exporter.otlp.proto"),
-        "opentelemetry.exporter.otlp.proto.http": ModuleType("opentelemetry.exporter.otlp.proto.http"),
+        "opentelemetry.exporter.otlp.proto.http": ModuleType(
+            "opentelemetry.exporter.otlp.proto.http"
+        ),
         "opentelemetry.exporter.otlp.proto.http.trace_exporter": ModuleType(
             "opentelemetry.exporter.otlp.proto.http.trace_exporter"
         ),
@@ -135,9 +140,27 @@ def test_configure_tracing_logs_instrumentation_failures(monkeypatch, caplog) ->
     _install_fake_otel(monkeypatch, fail_fastapi=True, fail_httpx=True)
 
     with caplog.at_level(logging.WARNING):
-        assert gateway_tracing.configure_tracing(_DummyApp(), service_name="api-gateway") is True
-        assert agent_runtime_tracing.configure_tracing(_DummyApp(), service_name="agent-runtime") is True
-        assert orchestrator_tracing.configure_tracing(_DummyApp(), service_name="orchestrator") is True
+        assert (
+            gateway_tracing.configure_tracing(
+                _DummyApp(),
+                service_name="api-gateway",
+            )
+            is True
+        )
+        assert (
+            agent_runtime_tracing.configure_tracing(
+                _DummyApp(),
+                service_name="agent-runtime",
+            )
+            is True
+        )
+        assert (
+            orchestrator_tracing.configure_tracing(
+                _DummyApp(),
+                service_name="orchestrator",
+            )
+            is True
+        )
 
     assert "fastapi tracing instrumentation skipped" in caplog.text
     assert "httpx tracing instrumentation skipped" in caplog.text

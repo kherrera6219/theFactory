@@ -28,7 +28,7 @@
 ## Testing Guidelines
 - Frameworks: `pytest` (backend/scripts), `vitest` (UI unit), `playwright` (UI e2e).
 - Naming: Python `test_*.py`; UI unit `*.test.ts`; e2e `*.spec.ts`.
-- Coverage policy: backend global `>=80%` plus enforced `100%` thresholds for critical runtime files via `scripts/check_coverage_thresholds.py`.
+- Coverage policy: backend global `>=80%` plus enforced per-module floors for critical runtime files via `scripts/check_coverage_thresholds.py` (`100%` on protocol/persona/registry layers, lower maintained floors on large worker/runtime modules).
 - Before merge, run at least: `make lint`, `make test`, `make test-ui`, `make test-ui-e2e`, and `make audit`.
 
 ## Commit & Pull Request Guidelines

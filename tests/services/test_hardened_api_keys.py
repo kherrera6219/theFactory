@@ -10,10 +10,8 @@ Coverage target: critical auth regression — settings.api_key_roles behaviour.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from unittest.mock import patch
-
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # Orchestrator settings
@@ -25,7 +23,6 @@ class TestOrchestratorApiKeyHardening:
     def _make_settings(self, admin="", internal="", readonly="", extra=""):
         """Build a minimal Settings dataclass with controlled key values."""
         from services.orchestrator.orchestrator.settings import Settings
-        from pathlib import Path
 
         return Settings(
             redis_url="redis://localhost:6379/0",
@@ -107,12 +104,13 @@ class TestApiGatewayInternalKeyHardening:
 
     def test_internal_service_api_key_default_is_empty(self):
         """When INTERNAL_SERVICE_API_KEY is unset the resolved value must be ''."""
-        env_without_key = {k: v for k, v in os.environ.items()
-                          if k != "INTERNAL_SERVICE_API_KEY"}
+        env_without_key = {
+            k: v for k, v in os.environ.items() if k != "INTERNAL_SERVICE_API_KEY"
+        }
         with patch.dict(os.environ, env_without_key, clear=True):
             # Re-read the module-level constant by importing fresh
-            import importlib
             import sys
+
             # Remove cached module to force re-evaluation of module-level constants
             if "api_gateway.main" in sys.modules:
                 del sys.modules["api_gateway.main"]

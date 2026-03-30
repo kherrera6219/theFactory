@@ -248,7 +248,9 @@ def test_fetch_helpers_and_safe_to_dict(monkeypatch) -> None:
     assert asyncio.run(agent_runtime_main._fetch_mission_snapshot("mission-1")) == {
         "mission_id": "mission-1"
     }
-    assert asyncio.run(agent_runtime_main._fetch_pod_assignment("mission-1")) == {"pod_name": "podA"}
+    assert asyncio.run(agent_runtime_main._fetch_pod_assignment("mission-1")) == {
+        "pod_name": "podA"
+    }
     assert asyncio.run(agent_runtime_main._fetch_logicnodes("mission-1")) == [{"node_id": "n-1"}]
 
     async def _bad_request(method, path, **kwargs):
@@ -319,14 +321,45 @@ def test_post_agent_heartbeat_and_persist_pipeline_output(monkeypatch) -> None:
 @pytest.mark.parametrize(
     ("payload", "mission_payload", "pod_assignment", "expected"),
     [
-        ({}, {"mission_id": "mission-1", "requested_target_language": "python"}, {"pod_name": "poda"}, False),
-        ({"mission_id": "mission-1", "event_type": "MISSION_FAILED"}, {"mission_id": "mission-1", "requested_target_language": "python"}, {"pod_name": "poda"}, False),
-        ({"mission_id": "mission-1", "event_type": "MISSION_RUNNING"}, None, {"pod_name": "poda"}, False),
-        ({"mission_id": "mission-1", "event_type": "MISSION_RUNNING"}, {"mission_id": "mission-1", "requested_target_language": "python"}, {"pod_name": "poda"}, False),
-        ({"mission_id": "mission-1", "event_type": "MISSION_VERIFIED"}, {"mission_id": "mission-1", "requested_target_language": "python"}, {"pod_name": "podb"}, False),
+        (
+            {},
+            {"mission_id": "mission-1", "requested_target_language": "python"},
+            {"pod_name": "poda"},
+            False,
+        ),
+        (
+            {"mission_id": "mission-1", "event_type": "MISSION_FAILED"},
+            {"mission_id": "mission-1", "requested_target_language": "python"},
+            {"pod_name": "poda"},
+            False,
+        ),
+        (
+            {"mission_id": "mission-1", "event_type": "MISSION_RUNNING"},
+            None,
+            {"pod_name": "poda"},
+            False,
+        ),
+        (
+            {"mission_id": "mission-1", "event_type": "MISSION_RUNNING"},
+            {"mission_id": "mission-1", "requested_target_language": "python"},
+            {"pod_name": "poda"},
+            False,
+        ),
+        (
+            {"mission_id": "mission-1", "event_type": "MISSION_VERIFIED"},
+            {"mission_id": "mission-1", "requested_target_language": "python"},
+            {"pod_name": "podb"},
+            False,
+        ),
     ],
 )
-def test_process_event_short_circuits(monkeypatch, payload, mission_payload, pod_assignment, expected) -> None:
+def test_process_event_short_circuits(
+    monkeypatch,
+    payload,
+    mission_payload,
+    pod_assignment,
+    expected,
+) -> None:
     worker_id = "AGENT-09-HW" if mission_payload else "AGENT-03-BROKER"
     if payload.get("event_type") == "MISSION_VERIFIED":
         worker_id = "AGENT-13-PODA-AUDIT"
@@ -340,9 +373,21 @@ def test_process_event_short_circuits(monkeypatch, payload, mission_payload, pod
 
     monkeypatch.setattr(agent_runtime_main, "_fetch_mission_snapshot", _fetch_mission_snapshot)
     monkeypatch.setattr(agent_runtime_main, "_fetch_pod_assignment", _fetch_pod_assignment)
-    monkeypatch.setattr(agent_runtime_main, "_fetch_logicnodes", lambda _mission_id: asyncio.sleep(0, result=[]))
-    monkeypatch.setattr(agent_runtime_main, "_post_agent_heartbeat", lambda **_: asyncio.sleep(0, result=True))
-    monkeypatch.setattr(agent_runtime_main, "_persist_pipeline_output", lambda **_: asyncio.sleep(0))
+    monkeypatch.setattr(
+        agent_runtime_main,
+        "_fetch_logicnodes",
+        lambda _mission_id: asyncio.sleep(0, result=[]),
+    )
+    monkeypatch.setattr(
+        agent_runtime_main,
+        "_post_agent_heartbeat",
+        lambda **_: asyncio.sleep(0, result=True),
+    )
+    monkeypatch.setattr(
+        agent_runtime_main,
+        "_persist_pipeline_output",
+        lambda **_: asyncio.sleep(0),
+    )
 
     assert asyncio.run(agent_runtime_main._process_event(payload)) is expected
 

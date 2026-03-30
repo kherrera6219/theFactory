@@ -209,16 +209,21 @@ def check_operational_docs() -> AuditResult:
         REPO_ROOT / "docs" / "OPERATIONS_RUNBOOK.md",
         REPO_ROOT / "docs" / "DEPLOYMENT_DR_PLAYBOOK.md",
         REPO_ROOT / "docs" / "OBSERVABILITY_STACK.md",
-        REPO_ROOT / "docs" / "GAP_ANALYSIS.md",
+        REPO_ROOT / "docs" / "IMPLEMENTATION_STATUS.md",
+        REPO_ROOT / "docs" / "RELEASE_COMPLETION_PLAN.md",
     ]
     missing = [str(path) for path in required_docs if not path.exists()]
     passed = not missing
     return _result(
         check_id="DOC-005",
         priority="HIGH",
-        description="Operational runbooks and gap-analysis docs exist",
+        description="Operational runbooks and release-status docs exist",
         passed=passed,
-        notes="missing=" + ", ".join(missing) if missing else "required operations docs present",
+        notes=(
+            "missing=" + ", ".join(missing)
+            if missing
+            else "required operations and release-status docs present"
+        ),
     )
 
 

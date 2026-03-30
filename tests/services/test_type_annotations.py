@@ -12,9 +12,12 @@ from __future__ import annotations
 
 import pytest
 
-from services.orchestrator.orchestrator.models import EventType, MissionEvent, MissionState
+from services.orchestrator.orchestrator.models import (
+    EventType,
+    MissionEvent,
+    MissionState,
+)
 from services.orchestrator.orchestrator.settings import _as_bool
-
 
 # ---------------------------------------------------------------------------
 # _as_bool: must accept None (previously annotated as str, not str | None)
@@ -45,7 +48,8 @@ class TestAsBool:
 # ---------------------------------------------------------------------------
 
 def _make_event(event_type: str) -> MissionEvent:
-    from datetime import datetime, UTC
+    from datetime import UTC, datetime
+
     return MissionEvent(
         mission_id="test-123",
         previous_state=None,
@@ -62,9 +66,10 @@ class TestMissionEventType:
 
     def test_all_state_transition_events_are_valid(self):
         """Every MISSION_{STATE} string must be in the EventType Literal."""
+        import typing
+
         state_events = [f"MISSION_{s.value}" for s in MissionState]
         # Get the valid values from the Literal type
-        import typing
         valid: tuple[str, ...] = typing.get_args(EventType)
         for ev in state_events:
             assert ev in valid, (
@@ -73,6 +78,7 @@ class TestMissionEventType:
 
     def test_invalid_event_type_rejected_by_pydantic(self):
         import pydantic
+
         with pytest.raises((pydantic.ValidationError, ValueError)):
             _make_event("NOT_A_REAL_EVENT_TYPE_XYZ")
 

@@ -7,8 +7,9 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
+
+import httpx
 
 HTTP_TIMEOUT_SECONDS = 10.0
 PM_AGENT_ID = "AGENT-01-PM"
@@ -34,6 +35,13 @@ POD_MANAGER_BY_LANGUAGE: dict[str, str] = {
 DEFAULT_POD_MANAGER_AGENT_ID = "AGENT-12-PODA-MGR"
 
 
+def _validate_http_url(url: str) -> str:
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"unsupported URL for qualification request: {url}")
+    return url
+
+
 def _request_json(
     method: str,
     url: str,
@@ -44,19 +52,15 @@ def _request_json(
     request_headers = {"Accept": "application/json"}
     if headers:
         request_headers.update(headers)
-    body: bytes | None = None
-    if payload is not None:
-        body = json.dumps(payload).encode("utf-8")
-        request_headers.setdefault("Content-Type", "application/json")
-
-    request = Request(url, data=body, method=method, headers=request_headers)
-    try:
-        with urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
-            status = int(response.status)
-            raw = response.read().decode("utf-8")
-    except HTTPError as exc:
-        status = int(exc.code)
-        raw = exc.read().decode("utf-8") if exc.fp is not None else ""
+    response = httpx.request(
+        method,
+        _validate_http_url(url),
+        json=payload,
+        headers=request_headers,
+        timeout=HTTP_TIMEOUT_SECONDS,
+    )
+    status = int(response.status_code)
+    raw = response.text
     if not raw:
         return status, None
     try:
@@ -223,7 +227,7 @@ def run(args: argparse.Namespace) -> int:
         orchestrator_ready_status, orchestrator_ready_payload = _request_json(
             "GET", f"{orchestrator_base_url}/readyz"
         )
-    except (URLError, TimeoutError, OSError) as exc:
+    except (httpx.HTTPError, TimeoutError, OSError, ValueError) as exc:
         print(f"FAIL: live stack not reachable ({exc})")
         return 2
 

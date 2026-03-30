@@ -49,6 +49,19 @@ def test_extract_chain_records_supports_endpoint_payload_shape() -> None:
     assert len(records) == 2
 
 
+def test_validate_http_url_rejects_non_http_schemes() -> None:
+    assert (
+        qualification._validate_http_url("http://localhost:8100/readyz")
+        == "http://localhost:8100/readyz"
+    )
+    try:
+        qualification._validate_http_url("file:///tmp/test.json")
+    except ValueError as exc:
+        assert "unsupported URL" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for non-http URL")
+
+
 def test_evaluate_result_passes_with_required_artifacts() -> None:
     passed, failure_reasons, diagnostics = qualification._evaluate_result(
         final_state="COMPLETE",

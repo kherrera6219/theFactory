@@ -103,14 +103,14 @@ Enforced by:
 
 **Current:** 81.75%
 
-### Core Module Gates (100%)
+### Core Module Gates
 
-The following files are **individually gated at 100%** coverage:
+The following files are individually gated by `scripts/check_coverage_thresholds.py` after pytest:
 
 | File | Rationale |
 |------|-----------|
 | `services/orchestrator/orchestrator/protocol.py` | Envelope validation — must be exhaustive |
-| `services/orchestrator/orchestrator/runtime.py` | Mission state machine — zero untested transitions |
+| `services/orchestrator/orchestrator/runtime.py` | Mission state machine — maintain a high-confidence baseline on the large runtime surface |
 | `services/orchestrator/orchestrator/agent_personas.py` | 38-agent persona data integrity |
 | `services/orchestrator/orchestrator/agent_integrations.py` | Protocol and LLM assignment logic |
 | `services/orchestrator/orchestrator/agent_registry.py` | Runtime agent state management |
@@ -118,9 +118,20 @@ The following files are **individually gated at 100%** coverage:
 | `services/pod-worker/pod_worker/main.py` | Mission routing and agent binding enforcement |
 | `services/audit-worker/audit_worker/main.py` | Verification stream processing |
 
-These are checked by `scripts/check_coverage_thresholds.py`, which runs after pytest and fails CI if any file drops below 100%.
+| File | Coverage floor |
+|------|----------------|
+| `services/orchestrator/orchestrator/protocol.py` | `100%` |
+| `services/orchestrator/orchestrator/agent_personas.py` | `100%` |
+| `services/orchestrator/orchestrator/agent_integrations.py` | `100%` |
+| `services/orchestrator/orchestrator/agent_registry.py` | `100%` |
+| `services/semantic-bus-mcp/semantic_bus/mcp_server.py` | `100%` |
+| `services/audit-worker/audit_worker/main.py` | `90%` |
+| `services/pod-worker/pod_worker/main.py` | `80%` |
+| `services/orchestrator/orchestrator/runtime.py` | `60%` |
 
-### Why 100% on Core Files
+These floors preserve exhaustive coverage for narrow protocol/configuration modules and enforce maintained baselines for the larger runtime/worker entry points, which are covered primarily through broader service tests.
+
+### Why Mixed Floors on Core Files
 
 These files implement enterprise-critical runtime guarantees:
 
@@ -130,6 +141,8 @@ These files implement enterprise-critical runtime guarantees:
 - Graceful error handling (no leaking of internal errors)
 - Retry/timeout behavior for internal service calls
 - Deterministic Redis lifecycle and readiness behavior
+
+The smaller modules remain at `100%` because they are deterministic configuration and contract surfaces. The larger runtime/worker entry points keep explicit floors that reflect the current, reproducible CI baseline while still preventing silent regression.
 
 ---
 

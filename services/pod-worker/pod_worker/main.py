@@ -363,7 +363,9 @@ def _apply_partition_suffix(
         if not isinstance(logicnode, dict):
             continue
         updated = dict(logicnode)
-        base_node_id = str(updated.get("node_id", "")).strip() or f"{POD_NAME}.partition.{partition_id}"
+        base_node_id = str(updated.get("node_id", "")).strip() or (
+            f"{POD_NAME}.partition.{partition_id}"
+        )
         if not base_node_id.endswith(f".{partition_id}"):
             updated["node_id"] = f"{base_node_id}.{partition_id}"
         node_payload = updated.get("node")
@@ -392,7 +394,10 @@ def _logicnode_report_payload(
     logicnodes = agent_pipeline.get("logicnodes")
     if not isinstance(logicnodes, list):
         logicnodes = []
-    return logicnodes, [artifact for artifact in artifacts if isinstance(artifact, dict)], report_payload
+    filtered_artifacts = [
+        artifact for artifact in artifacts if isinstance(artifact, dict)
+    ]
+    return logicnodes, filtered_artifacts, report_payload
 
 
 def _run_agent_pipeline(
@@ -1035,7 +1040,11 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
         return
 
     mission_snapshot = await _fetch_mission_snapshot(mission_id)
-    mission_metadata = mission_snapshot.get("metadata") if isinstance(mission_snapshot, dict) else {}
+    mission_metadata = (
+        mission_snapshot.get("metadata")
+        if isinstance(mission_snapshot, dict)
+        else {}
+    )
     resolved_agent_id = (
         _agent_id_from_payload(payload)
         or _agent_id_from_metadata(mission_metadata)
@@ -1149,7 +1158,9 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
             refined_ir_store_record = {"error": str(exc)}
 
     for logicnode in final_logicnodes:
-        node_id = str(logicnode.get("node_id", "")).strip() or f"{POD_NAME}.core.{mission_id}.{partition_id}"
+        node_id = str(logicnode.get("node_id", "")).strip() or (
+            f"{POD_NAME}.core.{mission_id}.{partition_id}"
+        )
         node_payload = logicnode.get("node")
         if not isinstance(node_payload, dict):
             node_payload = {
@@ -1176,8 +1187,15 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
             agent_id=resolved_agent_id,
         )
 
-    partition_logicnodes, partition_artifacts, partition_report = _logicnode_report_payload(agent_pipeline)
-    partition_logicnodes = _apply_partition_suffix(partition_logicnodes or final_logicnodes, partition_id)
+    (
+        partition_logicnodes,
+        partition_artifacts,
+        partition_report,
+    ) = _logicnode_report_payload(agent_pipeline)
+    partition_logicnodes = _apply_partition_suffix(
+        partition_logicnodes or final_logicnodes,
+        partition_id,
+    )
 
     await _request(
         "POST",

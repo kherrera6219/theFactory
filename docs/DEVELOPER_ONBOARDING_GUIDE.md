@@ -174,7 +174,7 @@ curl http://localhost:8100/v1/missions/<mission_id>
 make test
 ```
 
-Runs pytest with `--cov-fail-under=80` global gate and 100% gates on 8 core files. Current baseline: **689 passing backend tests and 81.37% services coverage**.
+Runs pytest with `--cov-fail-under=80` global gate plus `scripts/check_coverage_thresholds.py` for critical per-module floors. Current baseline: **709 passing backend tests, 5 skipped, and 81.76% services coverage**.
 
 ### Fast Tests (no coverage)
 

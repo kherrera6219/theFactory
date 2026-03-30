@@ -1003,7 +1003,11 @@ def test_handle_partition_ready_submits_partition_results(monkeypatch) -> None:
 
     asyncio.run(pod_worker_main._handle_partition_ready(redis_client, payload))
 
-    partition_posts = [entry for entry in calls if entry[1] == "/internal/missions/mission-1/partition-results"]
+    partition_posts = [
+        entry
+        for entry in calls
+        if entry[1] == "/internal/missions/mission-1/partition-results"
+    ]
     assert len(partition_posts) == 1
     logicnode_posts = [entry for entry in calls if entry[1] == "/internal/logicnodes"]
     assert logicnode_posts
