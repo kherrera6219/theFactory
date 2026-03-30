@@ -25,6 +25,15 @@ from typing import Any
 
 import pytest
 
+from services.orchestrator.orchestrator.llm_delegation import (
+    _fallback_delegation,
+    _safe_context_json,
+)
+from services.orchestrator.orchestrator.mission_flow import (
+    resolve_pod_manager_agent_id,
+    resolve_specialist_agent_id,
+)
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -34,17 +43,6 @@ GOLDEN_PATH = Path(__file__).parent / "golden_delegation_cases.json"
 
 def _load_cases() -> list[dict[str, Any]]:
     return json.loads(GOLDEN_PATH.read_text())
-
-
-# ---------------------------------------------------------------------------
-# Import the functions under test
-# ---------------------------------------------------------------------------
-
-from services.orchestrator.orchestrator.llm_delegation import _fallback_delegation  # noqa: E402
-from services.orchestrator.orchestrator.mission_flow import (  # noqa: E402
-    resolve_pod_manager_agent_id,
-    resolve_specialist_agent_id,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -77,13 +75,6 @@ def test_fallback_delegation_matches_golden(case: dict[str, Any]) -> None:
         f"not in allowed set {case['tolerance_specialist']}"
     )
     assert result["source"] == "fallback"
-
-
-# ---------------------------------------------------------------------------
-# Prompt-injection resilience: safe context must strip forbidden fields
-# ---------------------------------------------------------------------------
-
-from services.orchestrator.orchestrator.llm_delegation import _safe_context_json  # noqa: E402
 
 
 @pytest.mark.parametrize("case", _load_cases(), ids=[c["id"] for c in _load_cases()])

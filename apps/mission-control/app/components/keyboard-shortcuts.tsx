@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 type ShortcutEntry = {
@@ -26,6 +26,10 @@ export function KeyboardShortcuts() {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const dialogTitleId = useId();
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -105,16 +109,74 @@ export function KeyboardShortcuts() {
     };
   }, [open, pathname, router]);
 
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus();
+
+    function onDialogKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusable || focusable.length === 0) {
+        event.preventDefault();
+        closeButtonRef.current?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    window.addEventListener("keydown", onDialogKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onDialogKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [open]);
+
   if (!open) {
     return null;
   }
 
   return (
-    <div className="shortcut-sheet-backdrop" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
-      <div className="shortcut-sheet">
+    <div
+      className="shortcut-sheet-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={dialogTitleId}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          setOpen(false);
+        }
+      }}
+    >
+      <div ref={dialogRef} className="shortcut-sheet">
         <div className="panel-title-row">
-          <h2>Keyboard Shortcuts</h2>
-          <button type="button" className="secondary-button" onClick={() => setOpen(false)}>
+          <h2 id={dialogTitleId}>Keyboard Shortcuts</h2>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            className="secondary-button"
+            onClick={() => setOpen(false)}
+          >
             Close
           </button>
         </div>
@@ -130,4 +192,3 @@ export function KeyboardShortcuts() {
     </div>
   );
 }
-

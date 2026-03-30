@@ -5,16 +5,18 @@ on:
     - cron: "0 8 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   qualification:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@v5

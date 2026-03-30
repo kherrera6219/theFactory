@@ -1,5 +1,7 @@
 # ADR - 35-Agent Runtime Topology (2026-03-04)
 
+> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+
 ## Status
 Accepted
 
@@ -34,3 +36,5 @@ Any one of:
 ## Consequences
 - Near-term: no runtime disruption; documentation and governance align with actual deployed topology.
 - Medium-term: clear, measurable activation path for full isolation when justified.
+
+

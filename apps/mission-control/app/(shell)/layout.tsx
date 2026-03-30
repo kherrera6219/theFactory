@@ -12,11 +12,6 @@ type ShellLayoutProps = {
 export default function ShellLayout({ children }: ShellLayoutProps) {
   return (
     <div className="shell">
-      {/* Keyboard accessibility: skip repetitive navigation for screen-reader and keyboard users */}
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
-
       {/* Pre-wired for SSE/WebSocket connection state — hidden until Codex wires live transport */}
       <ReconnectBanner isVisible={false} status="retrying" />
 

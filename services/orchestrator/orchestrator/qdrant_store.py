@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from typing import Any
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from .settings import Settings
@@ -24,7 +25,7 @@ def _request_json(
     path: str,
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    url = f"{settings.qdrant_url.rstrip('/')}{path}"
+    url = _validated_http_url(settings.qdrant_url, path, service="qdrant")
     body: bytes | None = None
     headers = {"Accept": "application/json", "Content-Type": "application/json"}
     if settings.qdrant_api_key:
@@ -33,12 +34,21 @@ def _request_json(
         body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
     request = Request(url, data=body, method=method, headers=headers)
-    with urlopen(request, timeout=settings.qdrant_timeout_seconds) as response:
+    with urlopen(request, timeout=settings.qdrant_timeout_seconds) as response:  # nosec B310
         raw = response.read().decode("utf-8")
     if not raw:
         return {}
     data = json.loads(raw)
     return data if isinstance(data, dict) else {}
+
+
+def _validated_http_url(base_url: str, path: str, *, service: str) -> str:
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"{service} url must use http or https")
+    if not path.startswith("/"):
+        raise ValueError("request path must start with '/'")
+    return f"{base_url.rstrip('/')}{path}"
 
 
 def _vector_for_content(

@@ -1,5 +1,12 @@
 # Agent LLM Provider and Model Matrix
 
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Reference  
+Audience: Operators, developers, maintainers, and auditors
+
+> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+
 Date: 2026-03-08
 
 ## Objective
@@ -123,3 +130,5 @@ Google Gemini (official):
 - https://ai.google.dev/gemini-api/docs/changelog
 - https://ai.google.dev/gemini-api/docs/pricing
 - https://developers.google.com/gemini-code-assist/docs/models
+
+

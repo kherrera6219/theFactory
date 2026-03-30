@@ -353,7 +353,7 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
       approved_at: new Date().toISOString(),
       summary: typeof payload.summary === "string" ? payload.summary : "Review approved.",
       receipt_digest: `${scope}-digest-001`,
-      record_path: `.runtime/review-approvals/${scope}-approval-001.json`,
+      record_path: `orchestrator://review-approvals/${scope}-approval-001`,
     });
   });
 
@@ -659,7 +659,7 @@ test("operations views render runtime and agent persona detail", async ({ page }
   await expect(page.getByText("Gateway readiness")).toBeVisible();
 
   await page.goto("/agents");
-  await expect(page.getByRole("heading", { name: "35-Agent Runtime Control Grid" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "38-Agent Runtime Control Grid" })).toBeVisible();
   await expect(page.getByText("Total agents")).toBeVisible();
   await expect(page.getByText(/Windowed rows:/i)).toBeVisible();
   await page.getByRole("button", { name: /Agent One PM/i }).first().click();

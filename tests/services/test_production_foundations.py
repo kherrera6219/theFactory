@@ -171,6 +171,18 @@ def test_gateway_readyz_returns_503_on_dependency_failure(monkeypatch) -> None:
     assert response.json()["detail"]["ready"] is False
 
 
+def test_gateway_echoes_correlation_id_header(monkeypatch) -> None:
+    async def _dependency_status() -> dict[str, bool]:
+        return {"orchestrator_healthy": True, "redis_healthy": True}
+
+    monkeypatch.setattr(api_gateway_main, "_dependency_status", _dependency_status)
+    client = TestClient(api_app)
+    response = client.get("/health", headers={"x-request-id": "gateway-correlation-123"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Correlation-Id"] == "gateway-correlation-123"
+
+
 def test_gateway_stream_state_endpoint(monkeypatch) -> None:
     class StreamRedis(FakeRedis):
         def __init__(self) -> None:
@@ -237,6 +249,19 @@ def test_gateway_stream_state_endpoint_requires_redis() -> None:
 
     assert response.status_code == 503
     assert "redis dependency is not installed" in response.json()["detail"]
+
+
+def test_orchestrator_echoes_correlation_id_header(monkeypatch) -> None:
+    async def _runtime_ready(_: object) -> tuple[bool, bool]:
+        return True, True
+
+    monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
+    monkeypatch.setattr(orchestrator_main.storage, "count_missions", lambda *_: 0)
+    client = TestClient(orchestrator_app)
+    response = client.get("/health", headers={"x-request-id": "orchestrator-correlation-123"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Correlation-Id"] == "orchestrator-correlation-123"
 
 
 def test_gateway_metrics_endpoint_exposes_prometheus_payload() -> None:
@@ -665,6 +690,7 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
             "/internal/operations/agent-integrations",
             "/internal/missions/mission-1/pod-assignment",
             "/internal/missions/mission-1/chain-trace",
+            "/internal/missions/mission-1/build-artifacts/source-bundle-package",
         }:
             return {"path": path, "ok": True}
         return [{"path": path, "params": params}]
@@ -679,6 +705,11 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
         assert client.get("/v1/missions/mission-1/knowledge-graph?limit=3").status_code == 200
         assert client.get("/v1/missions/mission-1/audit-reports?limit=2").status_code == 200
         assert client.get("/v1/missions/mission-1/audit-artifacts?limit=2").status_code == 200
+        assert client.get("/v1/missions/mission-1/build-artifacts?limit=2").status_code == 200
+        assert (
+            client.get("/v1/missions/mission-1/build-artifacts/source-bundle-package").status_code
+            == 200
+        )
 
         assert client.get("/v1/operations/summary").status_code == 200
         assert (
@@ -705,6 +736,8 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
     assert ("/internal/missions/mission-1/knowledge-graph", {"limit": 3}) in calls
     assert ("/internal/missions/mission-1/audit-reports", {"limit": 2}) in calls
     assert ("/internal/missions/mission-1/audit-artifacts", {"limit": 2}) in calls
+    assert ("/internal/missions/mission-1/build-artifacts", {"limit": 2}) in calls
+    assert ("/internal/missions/mission-1/build-artifacts/source-bundle-package", None) in calls
     assert ("/internal/operations/summary", None) in calls
     assert (
         "/internal/operations/agents",

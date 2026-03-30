@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -10,6 +11,16 @@ import orchestrator.main as orchestrator_main  # noqa: E402
 from orchestrator import storage  # noqa: E402
 from orchestrator.main import app as orchestrator_app  # noqa: E402
 from orchestrator.models import MissionRecord, MissionState  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _override_internal_auth():
+    orchestrator_app.dependency_overrides[orchestrator_main.INTERNAL_AUTH] = lambda: orchestrator_main.AuthContext(
+        api_key="test-internal-key",
+        roles={"internal", "worker", "mutate", "read"},
+    )
+    yield
+    orchestrator_app.dependency_overrides.clear()
 
 
 async def _mock_db_ready(_: object) -> tuple[bool, bool]:

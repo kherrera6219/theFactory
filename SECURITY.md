@@ -67,6 +67,12 @@ The following security scans run on every push and pull request:
 | Secret detection | Gitleaks | Full git history |
 | SBOM | Syft/anchore | Full repository |
 
+Release promotion also depends on signed provenance and policy evaluation:
+
+- CI release-trust job verifies artifact attestations before promotion.
+- `make release-evidence-verify` validates the local release-trust evidence bundle structure.
+- Production repository settings should require CI, security, and release-trust checks before merge/promotion.
+
 ### Network Security
 
 - TLS enforced on Redis and PostgreSQL connections.
@@ -87,6 +93,7 @@ The following security scans run on every push and pull request:
 - The in-memory vault backend (default when `VAULT_ADDR` is not set) is **not suitable for production** — secrets are lost on process restart.
 - The `LANGGRAPH_FAIL_OPEN=true` default allows mission flow to proceed even if the LangGraph checkpointer is unavailable. Set to `false` in production if checkpoint integrity is required.
 - Agent API key isolation (`AGENT_SERVICE_KEY_MODE=strict`) is available but not the default — consider enabling for production deployments.
+- Git history cleanup for previously committed TLS key material must be completed outside the working tree before a production release is considered trustworthy.
 
 ---
 

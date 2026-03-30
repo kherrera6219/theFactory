@@ -1,6 +1,9 @@
 # Release Trust and Promotion Gate
 
-Last updated: 2026-03-08
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Maintainers, release owners, and auditors
 
 ## Purpose
 
@@ -37,6 +40,7 @@ Define and enforce signed release-trust controls so promotions fail closed unles
 4. Supporting gate inputs:
    - `scripts/export_agent_model_inventory.py`
    - `scripts/qualification_gate_summary.py`
+   - `scripts/verify_release_evidence.py`
    - `.github/workflows/qualification.yml` (weekly qualification cadence)
    - `scripts/mission_artifact_qualification.py` (chain-of-command evidence)
 
@@ -60,6 +64,8 @@ Define and enforce signed release-trust controls so promotions fail closed unles
 
 - Evaluate policy locally:
   - `make promotion-gate`
+- Verify local release-trust evidence structure:
+  - `make release-evidence-verify`
 - Export model inventory locally:
   - `python scripts/export_agent_model_inventory.py`
 - Rebuild qualification summary locally:
@@ -73,3 +79,12 @@ Define and enforce signed release-trust controls so promotions fail closed unles
 
 - `scripts/production_review_audit.py` includes `REL-001` (critical):
   - verifies attestation + promotion-gate workflow controls and policy file presence.
+
+## Repository Administration Requirements
+
+These controls are required for a production release but must be configured in GitHub repository settings rather than source code alone:
+
+- branch protection on `main` and release branches/tags
+- required status checks for CI, security, and release-trust jobs
+- secret scanning and push protection enabled at the repository/org level
+- private-key history cleanup and secret rotation completed for previously committed TLS materials

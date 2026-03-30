@@ -29,10 +29,10 @@ x-data-service-hardening: &data-service-hardening
   oom_score_adj: ${DATA_SERVICE_OOM_SCORE_ADJ:--850}
 
 x-redis-client-certs: &redis-client-certs
-  - ./redis/certs:/run/redis-certs:ro
+  - ./.local/redis-certs:/run/redis-certs:ro
 
 x-postgres-client-certs: &postgres-client-certs
-  - ./postgres/certs:/run/postgres-certs:ro
+  - ./.local/postgres-certs:/run/postgres-certs:ro
 
 x-platform-agent-service-keys: &platform-agent-service-keys
   AGENT_01_PM_SERVICE_API_KEY: ${AGENT_01_PM_SERVICE_API_KEY:-}
@@ -87,19 +87,19 @@ services:
       - redis-server
       - /usr/local/etc/redis/redis.conf
       - --requirepass
-      - ${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}
+      - ${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}
     ports:
       - "${REDIS_HOST_PORT:-6380}:6380"
     volumes:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
-      - ./redis/certs:/usr/local/etc/redis/certs:ro
+      - ./.local/redis-certs:/usr/local/etc/redis/certs:ro
       - redis-data:/data
     mem_limit: 3g
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "redis-cli --tls --cacert /usr/local/etc/redis/certs/ca.crt -p 6380 -a ${REDIS_PASSWORD:-dev-redis-password-change-me-32chars} ping | grep PONG",
+          "redis-cli --tls --cacert /usr/local/etc/redis/certs/ca.crt -p 6380 -a ${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars} ping | grep PONG",
         ]
       interval: 10s
       timeout: 3s
@@ -118,7 +118,7 @@ services:
     <<: [*common-service, *data-service-hardening]
     image: neo4j:5.26
     environment:
-      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-neo4j-password-change-me}
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-CHANGE_ME_local_dev_neo4j_password}
     ports:
       - "${NEO4J_HTTP_HOST_PORT:-7474}:7474"
       - "${NEO4J_BOLT_HOST_PORT:-7687}:7687"
@@ -144,7 +144,7 @@ services:
       - /bin/bash
       - /docker-entrypoint-init-tls.sh
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-ulr}
     ports:
@@ -152,7 +152,7 @@ services:
     volumes:
       - ./postgres/entrypoint.sh:/docker-entrypoint-init-tls.sh:ro
       - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ./postgres/certs:/run/postgres-certs:ro
+      - ./.local/postgres-certs:/run/postgres-certs:ro
       - postgres-data:/var/lib/postgresql/data
     mem_limit: 4g
     mem_reservation: 2g
@@ -172,8 +172,8 @@ services:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-CHANGE_ME_local_dev_minio_root_user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-CHANGE_ME_local_dev_minio_root_password_32chars}
     ports:
       - "${MINIO_HOST_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
@@ -220,7 +220,7 @@ services:
       dockerfile: services/orchestrator/Dockerfile
     environment:
       <<: [*platform-agent-service-keys, *pod-a-agent-service-keys, *pod-b-agent-service-keys, *pod-c-agent-service-keys, *pod-d-agent-service-keys]
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       QDRANT_URL: http://qdrant:6333
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
       QDRANT_ENABLED: ${QDRANT_ENABLED:-true}
@@ -230,13 +230,13 @@ services:
       NEO4J_ENABLED: ${NEO4J_ENABLED:-false}
       NEO4J_URL: ${NEO4J_URL:-http://neo4j:7474}
       NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j-password-change-me}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-CHANGE_ME_local_dev_neo4j_password}
       NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
       NEO4J_TIMEOUT_SECONDS: ${NEO4J_TIMEOUT_SECONDS:-3.0}
       OBJECT_STORAGE_ENABLED: ${OBJECT_STORAGE_ENABLED:-false}
       OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-http://minio:9000}
-      OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-minioadmin}
-      OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-minioadmin123}
+      OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-CHANGE_ME_local_dev_object_storage_access_key}
+      OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-CHANGE_ME_local_dev_object_storage_secret_key_32chars}
       OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-mission-audit-artifacts}
       OBJECT_STORAGE_PREFIX: ${OBJECT_STORAGE_PREFIX:-missions}
       OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
@@ -251,7 +251,7 @@ services:
       MILVUS_COLLECTION: ${MILVUS_COLLECTION:-mission_knowledge}
       MILVUS_VECTOR_SIZE: ${MILVUS_VECTOR_SIZE:-64}
       MILVUS_TIMEOUT_SECONDS: ${MILVUS_TIMEOUT_SECONDS:-3.0}
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ulr}?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}@postgres:5432/${POSTGRES_DB:-ulr}?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt
       INTAKE_STREAM: missions.intake
       INTAKE_TOPIC: intake.feature_contract.created
       STATE_STREAM: missions.state
@@ -265,13 +265,13 @@ services:
       LANGGRAPH_FAIL_OPEN: ${LANGGRAPH_FAIL_OPEN:-true}
       LANGGRAPH_CHECKPOINTER: ${LANGGRAPH_CHECKPOINTER:-none}
       LANGGRAPH_THREAD_PREFIX: ${LANGGRAPH_THREAD_PREFIX:-mission}
-      LANGGRAPH_CHECKPOINTER_POSTGRES_URL: ${LANGGRAPH_CHECKPOINTER_POSTGRES_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ulr}?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt}
+      LANGGRAPH_CHECKPOINTER_POSTGRES_URL: ${LANGGRAPH_CHECKPOINTER_POSTGRES_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}@postgres:5432/${POSTGRES_DB:-ulr}?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt}
       LANGGRAPH_CHECKPOINTER_SETUP: ${LANGGRAPH_CHECKPOINTER_SETUP:-false}
       LANGGRAPH_CHECKPOINT_NAMESPACE: ${LANGGRAPH_CHECKPOINT_NAMESPACE:-}
       ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-admin-key}
-      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-worker-key}
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
       ORCHESTRATOR_READONLY_API_KEY: ${ORCHESTRATOR_READONLY_API_KEY:-viewer-key}
-      ORCHESTRATOR_API_KEYS: ${ORCHESTRATOR_API_KEYS:-operator-key=mutate,read}
+      ORCHESTRATOR_API_KEYS: ${ORCHESTRATOR_API_KEYS:-}
       ORCHESTRATOR_PORT: 8001
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
@@ -326,7 +326,7 @@ services:
       dockerfile: services/api-gateway/Dockerfile
     environment:
       ORCHESTRATOR_URL: http://orchestrator:8001
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       INTAKE_STREAM: missions.intake
       INTAKE_TOPIC: intake.feature_contract.created
       MAX_STREAM_LEN: 20000
@@ -402,11 +402,11 @@ services:
       context: ..
       dockerfile: services/semantic-bus-mcp/Dockerfile
     environment:
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       MCP_PORT: 8090
       MAX_STREAM_LEN: 20000
       MAX_MESSAGE_BYTES: 1048576
-      MCP_API_KEY: ${MCP_API_KEY:-mcp-local-key}
+      MCP_API_KEY: ${MCP_API_KEY:-}
     volumes: *redis-client-certs
     ports:
       - "${MCP_HOST_PORT:-8102}:8090"
@@ -468,6 +468,8 @@ services:
     build: ../apps/mission-control
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_GATEWAY_HOST_PORT:-8100}
+      ORCHESTRATOR_INTERNAL_BASE_URL: http://orchestrator:8001
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
     ports:
       - "${MISSION_CONTROL_HOST_PORT:-3100}:3000"
     depends_on:
@@ -493,7 +495,7 @@ services:
       dockerfile: services/pod-worker/Dockerfile
     environment:
       <<: *pod-a-agent-service-keys
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podA
       POD_WORKER_NAME: pod-a-01
@@ -501,7 +503,7 @@ services:
       SUPPORTED_LANGUAGES: python,typescript,javascript,ruby,php
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -537,7 +539,7 @@ services:
       dockerfile: services/pod-worker/Dockerfile
     environment:
       <<: *pod-b-agent-service-keys
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podB
       POD_WORKER_NAME: pod-b-01
@@ -545,7 +547,7 @@ services:
       SUPPORTED_LANGUAGES: c,cpp,rust,zig,go
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -581,7 +583,7 @@ services:
       dockerfile: services/pod-worker/Dockerfile
     environment:
       <<: *pod-c-agent-service-keys
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podC
       POD_WORKER_NAME: pod-c-01
@@ -589,7 +591,7 @@ services:
       SUPPORTED_LANGUAGES: java,csharp,kotlin,scala
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -625,7 +627,7 @@ services:
       dockerfile: services/pod-worker/Dockerfile
     environment:
       <<: *pod-d-agent-service-keys
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: pod-workers-podD
       POD_WORKER_NAME: pod-d-01
@@ -633,7 +635,7 @@ services:
       SUPPORTED_LANGUAGES: matlab,r,julia,mathematica,haskell,ocaml
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -665,7 +667,7 @@ services:
       - full-dedicated-agents
     environment:
       <<: *pod-a-agent-service-keys
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: dedicated-workers-podA
       POD_WORKER_NAME: dedicated-pod-a-mgr-01
@@ -675,7 +677,7 @@ services:
       AGENT_BINDING: AGENT-12-PODA-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AGENT_12_PODA_MGR_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_12_PODA_MGR_SERVICE_API_KEY:-}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -714,7 +716,7 @@ services:
       - full-dedicated-agents
     environment:
       <<: *pod-b-agent-service-keys
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: dedicated-workers-podB
       POD_WORKER_NAME: dedicated-pod-b-mgr-01
@@ -724,7 +726,7 @@ services:
       AGENT_BINDING: AGENT-18-PODB-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AGENT_18_PODB_MGR_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_18_PODB_MGR_SERVICE_API_KEY:-}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -763,7 +765,7 @@ services:
       - full-dedicated-agents
     environment:
       <<: *pod-c-agent-service-keys
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: dedicated-workers-podC
       POD_WORKER_NAME: dedicated-pod-c-mgr-01
@@ -773,7 +775,7 @@ services:
       AGENT_BINDING: AGENT-24-PODC-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AGENT_24_PODC_MGR_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_24_PODC_MGR_SERVICE_API_KEY:-}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -812,7 +814,7 @@ services:
       - full-dedicated-agents
     environment:
       <<: *pod-d-agent-service-keys
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       STATE_STREAM: missions.state
       POD_WORKER_GROUP: dedicated-workers-podD
       POD_WORKER_NAME: dedicated-pod-d-mgr-01
@@ -822,7 +824,7 @@ services:
       AGENT_BINDING: AGENT-30-PODD-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AGENT_30_PODD_MGR_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AGENT_30_PODD_MGR_SERVICE_API_KEY:-}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -858,14 +860,14 @@ services:
       dockerfile: services/audit-worker/Dockerfile
     environment:
       <<: *platform-agent-service-keys
-      REDIS_URL: rediss://:${REDIS_PASSWORD:-dev-redis-password-change-me-32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
+      REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       STATE_STREAM: missions.state
       AUDIT_WORKER_GROUP: audit-workers
       AUDIT_WORKER_NAME: audit-01
       WORKER_AGENT_ID: AGENT-10-TESTER
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AUDIT_SERVICE_API_KEY:-worker-key}
+      SERVICE_API_KEY: ${AUDIT_SERVICE_API_KEY:-}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -906,4 +908,5 @@ networks:
   hgr-network:
     name: hgr-network
     driver: bridge
+
 

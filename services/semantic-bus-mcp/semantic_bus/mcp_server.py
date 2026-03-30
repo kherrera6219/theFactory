@@ -247,7 +247,8 @@ async def lifespan(app: FastAPI):
         try:
             app.state.redis = redis.from_url(REDIS_URL, decode_responses=True)
             app.state.redis_ready = bool(await app.state.redis.ping())
-        except Exception:
+        except Exception as exc:
+            LOGGER.warning("semantic-bus-mcp failed to initialize redis client: %s", exc)
             app.state.redis = None
             app.state.redis_ready = False
     yield
@@ -292,7 +293,8 @@ async def health() -> dict[str, Any]:
         try:
             redis_ready = bool(await redis_client.ping())
             app.state.redis_ready = redis_ready
-        except Exception:
+        except Exception as exc:
+            LOGGER.warning("semantic-bus-mcp redis ping failed during health check: %s", exc)
             redis_ready = False
             app.state.redis_ready = False
     return {

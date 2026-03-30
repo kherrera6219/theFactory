@@ -49,6 +49,23 @@ else {
 
 $ended = Get-Date
 $duration = [math]::Round(($ended - $started).TotalSeconds, 2)
+$reportDir = Join-Path $root "reports"
+New-Item -ItemType Directory -Path $reportDir -Force > $null
+$reportPath = Join-Path $reportDir "dr-drill-latest.json"
+$manifestPath = "$($latestBackup.FullName).json"
+$report = @{
+    started_at_utc = $started.ToUniversalTime().ToString("o")
+    completed_at_utc = $ended.ToUniversalTime().ToString("o")
+    duration_seconds = $duration
+    dry_run = [bool]$DryRun
+    passed = $true
+    rto_target_minutes = 30
+    rpo_target_hours = 24
+    latest_backup = $latestBackup.FullName
+    latest_backup_manifest = $(if (Test-Path $manifestPath) { $manifestPath } else { $null })
+}
+$report | ConvertTo-Json -Depth 4 | Set-Content -Path $reportPath -Encoding UTF8
 
 Write-Host "DR drill complete. Duration: $duration sec"
 Write-Host "Latest backup: $($latestBackup.FullName)"
+Write-Host "DR report: $reportPath"

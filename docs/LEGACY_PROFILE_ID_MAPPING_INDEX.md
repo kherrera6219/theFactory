@@ -1,10 +1,15 @@
 # Legacy Profile ID Mapping Index
 
-Last updated: 2026-03-08
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Reference  
+Audience: Operators, developers, maintainers, and auditors
+
+> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
 
 ## Canonical Rule
 
-- Runtime authority is the 35-agent registry in `services/orchestrator/orchestrator/agent_registry.py`.
+- Runtime authority is the 38-agent registry in `services/orchestrator/orchestrator/agent_registry.py`.
 - Legacy `*-001` profile IDs are documentation aliases only and must not be emitted in mission metadata or scheduler bindings.
 
 ## Direct Alias Mappings
@@ -50,7 +55,9 @@ Last updated: 2026-03-08
 
 | Legacy alias | Disposition | Notes |
 |---|---|---|
-| `AGENT-GO-001` | No dedicated canonical specialist | Go currently routes through Pod B worker capability, not a dedicated registry ID |
-| `SPECIALIST-AI-001` | Deprecated design placeholder | Not part of the canonical 35-agent runtime |
+| `AGENT-GO-001` | `AGENT-36-GO` | Canonical Go specialist in the 38-agent runtime |
+| `SPECIALIST-AI-001` | Deprecated design placeholder | Not part of the canonical 38-agent runtime |
 | `EXEC-001`, `EXEC-002`, `SUPPORT-001`..`SUPPORT-009` | Ambiguous numeric aliases | Replace with the named canonical `AGENT-xx-*` IDs only |
 | `LN-*`, `TASK-*`, `M-*`, `SYS-*`, `ENT-*`, `MATH-*` | Non-agent identifiers | Artifact, example, or domain IDs; not runtime profile IDs |
+
+

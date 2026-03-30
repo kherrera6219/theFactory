@@ -28,10 +28,13 @@ export class ApiError extends Error {
   }
 }
 
-function withTimeout(timeoutMs: number): AbortSignal {
+function withTimeout(timeoutMs: number): { signal: AbortSignal; cleanup: () => void } {
   const controller = new AbortController();
-  setTimeout(() => controller.abort(), timeoutMs);
-  return controller.signal;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  return {
+    signal: controller.signal,
+    cleanup: () => clearTimeout(timeoutId),
+  };
 }
 
 async function parseError(response: Response): Promise<string> {
@@ -61,21 +64,31 @@ async function parseError(response: Response): Promise<string> {
   return `Request failed with status ${response.status}`;
 }
 
-export async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, {
-    ...init,
-    signal: init?.signal ?? withTimeout(DEFAULT_TIMEOUT_MS),
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
+type FetchJsonInit = RequestInit & {
+  timeoutMs?: number;
+};
 
-  if (!response.ok) {
-    throw new ApiError(await parseError(response), response.status);
+export async function fetchJson<T>(input: string, init?: FetchJsonInit): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...requestInit } = init ?? {};
+  const timeout = requestInit.signal ? null : withTimeout(timeoutMs);
+  try {
+    const response = await fetch(input, {
+      ...requestInit,
+      signal: requestInit.signal ?? timeout?.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(requestInit.headers ?? {}),
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new ApiError(await parseError(response), response.status);
+    }
+    return (await response.json()) as T;
+  } finally {
+    timeout?.cleanup();
   }
-  return (await response.json()) as T;
 }
 
 export function missionApiUrl(path: string): string {
@@ -330,7 +343,7 @@ export async function createBuilderWorkspaceReview(payload: {
 }): Promise<BuilderPreviewResponse> {
   return fetchJson<BuilderPreviewResponse>("/api/builder/review", {
     method: "POST",
-    signal: withTimeout(30_000),
+    timeoutMs: 30_000,
     body: JSON.stringify({
       request: payload.request,
       constraints: payload.constraints,
@@ -355,7 +368,7 @@ export async function createRepoReview(payload: {
 }): Promise<RepoReviewResponse> {
   return fetchJson<RepoReviewResponse>("/api/repo/review", {
     method: "POST",
-    signal: withTimeout(30_000),
+    timeoutMs: 30_000,
     body: JSON.stringify(payload),
   });
 }
@@ -368,7 +381,7 @@ export async function approveReviewArtifact(payload: {
 }): Promise<ReviewApprovalReceipt> {
   return fetchJson<ReviewApprovalReceipt>("/api/review/approve", {
     method: "POST",
-    signal: withTimeout(30_000),
+    timeoutMs: 30_000,
     body: JSON.stringify(payload),
   });
 }

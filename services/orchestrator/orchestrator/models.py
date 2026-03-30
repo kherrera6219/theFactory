@@ -170,6 +170,43 @@ class AuditReportUpsert(BaseModel):
     created_at: datetime | None = None
 
 
+class ReviewApprovalUpsert(BaseModel):
+    scope: Literal["builder", "repo"]
+    fingerprint: str = Field(min_length=12, max_length=200)
+    summary: str = Field(min_length=3, max_length=400)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ReviewApprovalRecord(BaseModel):
+    approval_id: str
+    scope: Literal["builder", "repo"]
+    fingerprint: str
+    summary: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    receipt_digest: str
+    storage_backend: str
+    approved_at: datetime
+    updated_at: datetime
+
+
+class MissionBuildArtifactRecord(BaseModel):
+    mission_id: str
+    artifact_id: str
+    artifact_type: str
+    stage: str
+    status: str
+    storage_backend: str
+    storage_ref: str | None = None
+    digest_sha256: str | None = None
+    size_bytes: int = Field(default=0, ge=0)
+    manifest: dict[str, Any] = Field(default_factory=dict)
+    verification: dict[str, Any] = Field(default_factory=dict)
+    build_log: str = ""
+    artifact_text: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class AgentHeartbeatUpsert(BaseModel):
     agent_id: str = Field(min_length=1)
     state: str = Field(min_length=1)

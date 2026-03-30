@@ -6,10 +6,10 @@
 
 ## Word-Doc Audit Execution
 - Extracted all `.docx` files to text artifacts using local conversion script.
-- Output directory: `tmp_docs/docx_audit/`
+- Output directory: `docs/archive/2026-03-29/legacy-workspace/tmp_docs/`
 - Total files extracted: `12`
-- Canonical audit report: `docs/WORD_DOC_AUDIT_2026-03-03.md`
-- Reconciled backlog: `docs/UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`
+- Canonical audit report: `docs/archive/2026-03-29/historical/WORD_DOC_AUDIT_2026-03-03.md`
+- Reconciled backlog: `docs/archive/2026-03-29/historical/UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`
 
 ## Implementation
 - Updated `services/orchestrator/orchestrator/main.py`:

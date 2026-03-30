@@ -7,6 +7,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Added
+- Documentation governance and archive package:
+  - canonical documentation standard in `docs/DOCUMENTATION_STANDARDS.md`
+  - canonical data-flow coverage in `docs/ARCHITECTURE_DATA_FLOWS.md`
+  - developer and operator guides in `docs/DEVELOPER_GUIDE.md` and `docs/user/OPERATOR_GUIDE.md`
+  - archive index in `docs/archive/README.md`
+  - repository-tree generator in `scripts/generate_build_map.py` with generated output in `docs/REPOSITORY_BUILD_MAP_2026-03-29.md`
+  - documentation maintenance tooling:
+    - `scripts/normalize_document_headers.py`
+    - `scripts/validate_documentation.py`
 - Strategic and mission-flow governance ADR package:
   - `docs/ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md`
   - `docs/ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md`

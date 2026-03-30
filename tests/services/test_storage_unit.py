@@ -125,7 +125,7 @@ def test_ensure_db_schema_executes_queries(monkeypatch) -> None:
     assert len(cursor.executed) >= 3
     assert "schema_migrations" in cursor.executed[0][0]
     assert "SELECT version, checksum FROM schema_migrations" in cursor.executed[1][0]
-    assert cursor.executed[-1][1][0] == "001"
+    assert cursor.executed[-1][1][0] == "003"
 
 
 def test_row_and_json_helpers() -> None:
@@ -141,6 +141,46 @@ def test_row_and_json_helpers() -> None:
     record = storage.row_to_mission(row)
     assert record.mission_id == "mission-1"
     assert record.state == MissionState.queued
+
+
+def test_review_approval_roundtrip(monkeypatch) -> None:
+    now = datetime(2026, 3, 29, tzinfo=UTC)
+    row = (
+        "repo-approval-f1234567890abcde",
+        "repo",
+        "f1234567890abcdef",
+        "Repository review approved for mission launch.",
+        {"request_id": "repo-review-001"},
+        "digest-001",
+        "postgres",
+        now,
+        now,
+    )
+    _patch_db(
+        monkeypatch,
+        [
+            FakeCursor(fetchone_results=[row]),
+            FakeCursor(fetchone_results=[row]),
+        ],
+    )
+
+    created = storage.upsert_review_approval(
+        _settings(),
+        "repo-approval-f1234567890abcde",
+        "repo",
+        "f1234567890abcdef",
+        "Repository review approved for mission launch.",
+        {"request_id": "repo-review-001"},
+        "digest-001",
+        "postgres",
+        "2026-03-29T00:00:00+00:00",
+    )
+    fetched = storage.get_review_approval(_settings(), "repo-approval-f1234567890abcde")
+
+    assert created["approval_id"] == "repo-approval-f1234567890abcde"
+    assert created["storage_backend"] == "postgres"
+    assert fetched is not None
+    assert fetched["receipt_digest"] == "digest-001"
 
 
 def test_upsert_fetch_list_and_count(monkeypatch) -> None:
@@ -371,6 +411,64 @@ def test_logicnode_knowledge_and_audit_roundtrip(monkeypatch) -> None:
     )
     assert audit["audit_id"] == "a-1"
     assert storage.list_audit_reports(settings, "mission-1", 10)[0]["audit_id"] == "a-1"
+
+
+def test_build_artifact_roundtrip(monkeypatch) -> None:
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    artifact_row = (
+        "mission-1",
+        "source-bundle-package",
+        "source_bundle_package",
+        "package",
+        "SUCCESS",
+        "database",
+        "database://missions/mission-1/build-artifacts/source-bundle-package",
+        "abc123",
+        128,
+        {"file_count": 1},
+        {"verified": True},
+        "build complete",
+        "print('ok')",
+        now,
+        now,
+    )
+    _patch_db(
+        monkeypatch,
+        [
+            FakeCursor(fetchone_results=[artifact_row]),
+            FakeCursor(fetchall_results=[[artifact_row]]),
+            FakeCursor(fetchone_results=[artifact_row]),
+        ],
+    )
+    settings = _settings()
+
+    artifact = storage.upsert_build_artifact(
+        settings,
+        "mission-1",
+        "source-bundle-package",
+        "source_bundle_package",
+        "package",
+        "SUCCESS",
+        "database",
+        "database://missions/mission-1/build-artifacts/source-bundle-package",
+        "abc123",
+        128,
+        {"file_count": 1},
+        {"verified": True},
+        "build complete",
+        "print('ok')",
+        now.isoformat(),
+    )
+    assert artifact["artifact_id"] == "source-bundle-package"
+    assert artifact["artifact_text"] == "print('ok')"
+
+    listed = storage.list_build_artifacts(settings, "mission-1", 10)
+    assert listed[0]["artifact_id"] == "source-bundle-package"
+    assert listed[0]["artifact_text"] is None
+
+    found = storage.get_build_artifact(settings, "mission-1", "source-bundle-package")
+    assert found is not None
+    assert found["digest_sha256"] == "abc123"
 
 
 def test_storage_operations_views_and_summaries(monkeypatch) -> None:

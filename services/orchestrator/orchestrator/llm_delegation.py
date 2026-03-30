@@ -13,6 +13,8 @@ from .agent_integrations import build_agent_integration_record
 from .agent_registry import AGENT_REGISTRY, AgentDefinition
 from .mission_flow import (
     CEO_AGENT_ID,
+    POD_MANAGER_BY_LANGUAGE,
+    SPECIALIST_BY_LANGUAGE,
     resolve_pod_manager_agent_id,
     resolve_specialist_agent_id,
 )
@@ -35,6 +37,16 @@ GEMINI_BASE_URL = os.getenv(
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 
 JSON_OBJECT_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
+_CONTROL_CHAR_PATTERN = re.compile(r"[\u0000-\u001F\u007F]")
+_LANGUAGE_PATTERN = re.compile(r"^[a-z0-9#+-]{1,32}$")
+_ROUTING_VERSION_PATTERN = re.compile(r"^[a-z0-9._-]{1,32}$")
+_EMAIL_PATTERN = re.compile(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}")
+_SECRET_LIKE_PATTERN = re.compile(
+    r"(sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})"
+)
+_VALID_AGENT_IDS = {agent.agent_id for agent in AGENT_REGISTRY}
+_VALID_POD_MANAGER_IDS = set(POD_MANAGER_BY_LANGUAGE.values())
+_VALID_SPECIALIST_IDS = set(SPECIALIST_BY_LANGUAGE.values())
 
 # Retry configuration for transient LLM API failures.
 # Retries apply only to network errors and 5xx responses; 4xx errors are not retried.
@@ -46,6 +58,17 @@ _RETRYABLE_HTTP_ERRORS = (
     httpx.ConnectError,
     httpx.RemoteProtocolError,
 )
+
+
+def _retry_delay_for_response(response: httpx.Response, default_delay: float) -> float:
+    retry_after = response.headers.get("Retry-After")
+    if retry_after is None:
+        return default_delay
+    try:
+        parsed_delay = float(retry_after)
+    except ValueError:
+        return default_delay
+    return max(default_delay, parsed_delay)
 
 
 async def _post_with_retry(
@@ -68,15 +91,19 @@ async def _post_with_retry(
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(url, json=json_payload, headers=headers, params=params)
-            # Retry on 5xx only
-            if response.status_code >= 500:
+            # Retry on 429 and 5xx responses only.
+            if response.status_code == 429 or response.status_code >= 500:
                 if attempt < _LLM_MAX_RETRIES:
+                    retry_delay = _retry_delay_for_response(response, delay)
                     LOGGER.warning(
                         "%s attempt %d/%d returned %s — retrying in %.1fs",
-                        call_context, attempt, _LLM_MAX_RETRIES,
-                        response.status_code, delay,
+                        call_context,
+                        attempt,
+                        _LLM_MAX_RETRIES,
+                        response.status_code,
+                        retry_delay,
                     )
-                    await asyncio.sleep(delay)
+                    await asyncio.sleep(retry_delay)
                     delay *= 2
                     continue
             return response
@@ -99,6 +126,35 @@ async def _post_with_retry(
 _PROMPT_CONTEXT_MAX_BYTES = 4096
 
 
+def _clean_text(value: Any, *, max_length: int = 160) -> str:
+    text = _CONTROL_CHAR_PATTERN.sub(" ", str(value)).strip()
+    text = _EMAIL_PATTERN.sub("[redacted-email]", text)
+    text = _SECRET_LIKE_PATTERN.sub("[redacted-secret]", text)
+    return text[:max_length]
+
+
+def _sanitize_context_value(key: str, value: Any) -> Any:
+    if key == "routing_enforced":
+        return bool(value)
+    if key == "requested_target_language":
+        language = _clean_text(value, max_length=32).lower()
+        return language if _LANGUAGE_PATTERN.fullmatch(language) else "general"
+    if key == "routing_version":
+        version = _clean_text(value, max_length=32).lower()
+        return version if _ROUTING_VERSION_PATTERN.fullmatch(version) else "unknown"
+    if key in {
+        "intake_agent_id",
+        "executive_agent_id",
+        "expected_pod_manager_agent_id",
+        "expected_specialist_agent_id",
+        "selected_agent_id",
+        "agent_id",
+    }:
+        candidate = _clean_text(value, max_length=32).upper()
+        return candidate if candidate in _VALID_AGENT_IDS else None
+    return _clean_text(value, max_length=96)
+
+
 def _safe_context_json(mission_context: dict[str, Any]) -> str:
     """Serialize mission_context for prompt embedding with a hard size cap.
 
@@ -118,9 +174,13 @@ def _safe_context_json(mission_context: dict[str, Any]) -> str:
         "selected_agent_id",
         "agent_id",
     }
-    filtered: dict[str, Any] = {
-        k: v for k, v in mission_context.items() if k in safe_fields
-    }
+    filtered: dict[str, Any] = {}
+    for key in safe_fields:
+        if key not in mission_context:
+            continue
+        sanitized = _sanitize_context_value(key, mission_context.get(key))
+        if sanitized is not None:
+            filtered[key] = sanitized
     serialized = json.dumps(filtered, sort_keys=True)
     if len(serialized.encode("utf-8")) > _PROMPT_CONTEXT_MAX_BYTES:
         # Truncate to safe length rather than embedding unbounded data.
@@ -244,10 +304,15 @@ def _extract_decision_payload(raw_text: str | None) -> dict[str, Any] | None:
 def _normalize_text_list(value: Any, *, limit: int = 5) -> list[str]:
     items: list[str] = []
     if isinstance(value, str) and value.strip():
-        items = [value.strip()]
+        items = [_clean_text(value)]
     elif isinstance(value, list):
-        items = [str(item).strip() for item in value if str(item).strip()]
+        items = [_clean_text(item) for item in value if _clean_text(item)]
     return items[:limit]
+
+
+def _normalize_agent_choice(raw_value: Any, *, allowed_ids: set[str], fallback: str) -> str:
+    candidate = _clean_text(raw_value, max_length=32).upper()
+    return candidate if candidate in allowed_ids else fallback
 
 
 async def _call_openai(
@@ -547,16 +612,25 @@ async def generate_ceo_delegation(
             recommendation=recommendation,
         )
 
-    pod_manager_agent_id = str(parsed.get("pod_manager_agent_id", "")).strip().upper()
-    specialist_agent_id = str(parsed.get("specialist_agent_id", "")).strip().upper()
-    if not pod_manager_agent_id:
-        pod_manager_agent_id = resolve_pod_manager_agent_id(requested_target_language)
-    if not specialist_agent_id:
-        specialist_agent_id = resolve_specialist_agent_id(requested_target_language)
+    pod_manager_fallback = resolve_pod_manager_agent_id(requested_target_language)
+    specialist_fallback = resolve_specialist_agent_id(requested_target_language)
+    pod_manager_agent_id = _normalize_agent_choice(
+        parsed.get("pod_manager_agent_id"),
+        allowed_ids=_VALID_POD_MANAGER_IDS,
+        fallback=pod_manager_fallback,
+    )
+    specialist_agent_id = _normalize_agent_choice(
+        parsed.get("specialist_agent_id"),
+        allowed_ids=_VALID_SPECIALIST_IDS,
+        fallback=specialist_fallback,
+    )
     return {
         "pod_manager_agent_id": pod_manager_agent_id,
         "specialist_agent_id": specialist_agent_id,
-        "rationale": str(parsed.get("rationale", "Delegation synthesized from mission context.")),
+        "rationale": _clean_text(
+            parsed.get("rationale", "Delegation synthesized from mission context."),
+            max_length=240,
+        ),
         "source": "llm",
         "llm_route": llm_route,
         "model_provider": resolved_provider,
@@ -603,18 +677,21 @@ async def generate_pod_manager_delegation(
             recommendation=recommendation,
         )
 
-    specialist_agent_id = str(parsed.get("specialist_agent_id", "")).strip().upper()
-    if not specialist_agent_id:
-        specialist_agent_id = fallback_specialist
+    specialist_agent_id = _normalize_agent_choice(
+        parsed.get("specialist_agent_id"),
+        allowed_ids=_VALID_SPECIALIST_IDS,
+        fallback=fallback_specialist,
+    )
 
     return {
         "pod_manager_agent_id": normalized_pod_manager_agent_id,
         "specialist_agent_id": specialist_agent_id,
-        "rationale": str(
+        "rationale": _clean_text(
             parsed.get(
                 "rationale",
                 "Pod manager confirmed specialist routing from mission context.",
-            )
+            ),
+            max_length=240,
         ),
         "source": "llm",
         "llm_route": llm_route,
@@ -663,7 +740,7 @@ async def generate_specialist_plan(
             recommendation=recommendation,
         )
 
-    plan_summary = str(parsed.get("plan_summary", "")).strip()
+    plan_summary = _clean_text(parsed.get("plan_summary", ""), max_length=280)
     if not plan_summary:
         plan_summary = "Specialist execution plan generated from mission context."
 

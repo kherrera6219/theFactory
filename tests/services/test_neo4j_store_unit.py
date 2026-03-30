@@ -67,6 +67,19 @@ def test_ensure_schema_creates_constraints_once(monkeypatch) -> None:
     assert "audit_composite_unique" in calls[2]
 
 
+def test_request_json_rejects_non_http_urls() -> None:
+    try:
+        neo4j_store._request_json(
+            _settings(neo4j_url="file:///tmp/neo4j"),
+            "/db/neo4j/tx/commit",
+            {"statements": []},
+        )
+    except ValueError as exc:
+        assert "http or https" in str(exc)
+    else:
+        raise AssertionError("expected neo4j url validation failure")
+
+
 def test_upsert_knowledge_uses_expected_query_and_payload(monkeypatch) -> None:
     statements: list[tuple[str, dict[str, object] | None]] = []
     monkeypatch.setattr(neo4j_store, "ensure_schema", lambda _settings: None)

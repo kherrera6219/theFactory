@@ -334,7 +334,7 @@ export default function AgentsPage() {
     <div className="page shell-page">
       <PageHeader
         eyebrow="Agents"
-        title="35-Agent Runtime Control Grid"
+        title="38-Agent Runtime Control Grid"
         description="Track the full multi-agent topology, runtime health, and mission workload distribution."
       />
 

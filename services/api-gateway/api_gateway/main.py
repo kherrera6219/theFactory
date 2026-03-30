@@ -84,6 +84,20 @@ RATE_LIMIT_KEY_PREFIX = "ratelimit:api-gateway"
 LIVE_STREAM_BLOCK_MS = int(os.getenv("LIVE_STREAM_BLOCK_MS", "5000"))
 LIVE_STREAM_KEEPALIVE_SECONDS = float(os.getenv("LIVE_STREAM_KEEPALIVE_SECONDS", "15"))
 LIVE_STREAM_COUNT = int(os.getenv("LIVE_STREAM_COUNT", "50"))
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+CORS_ALLOW_HEADERS = [
+    "Accept",
+    "Authorization",
+    "Content-Type",
+    "Idempotency-Key",
+    "X-API-Key",
+]
+CORS_EXPOSE_HEADERS = [
+    "Retry-After",
+    "X-RateLimit-Limit",
+    "X-RateLimit-Remaining",
+    "X-Trace-Id",
+]
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "offline").strip().lower()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
@@ -634,7 +648,7 @@ def _resolve_mutation_forward_headers(
             claims = _decode_oidc_token(bearer_token)
             if not _claim_includes_required_role(claims, OIDC_REQUIRED_ROLE):
                 raise HTTPException(status_code=403, detail="insufficient oidc role for endpoint")
-            return {"x-api-key": INTERNAL_SERVICE_API_KEY}
+            return {"x-api-key": _require_internal_service_api_key()}
         if x_api_key:
             return {"x-api-key": x_api_key}
         raise HTTPException(
@@ -648,9 +662,21 @@ def _resolve_mutation_forward_headers(
         claims = _decode_oidc_token(bearer_token)
         if not _claim_includes_required_role(claims, OIDC_REQUIRED_ROLE):
             raise HTTPException(status_code=403, detail="insufficient oidc role for endpoint")
-        return {"x-api-key": INTERNAL_SERVICE_API_KEY}
+        return {"x-api-key": _require_internal_service_api_key()}
 
     raise HTTPException(status_code=500, detail="gateway auth mode configuration error")
+
+
+def _require_internal_service_api_key() -> str:
+    configured_key = INTERNAL_SERVICE_API_KEY.strip()
+    if configured_key:
+        return configured_key
+
+    LOGGER.error(
+        "INTERNAL_SERVICE_API_KEY is required for internal gateway forwarding when AUTH_MODE=%s",
+        AUTH_MODE,
+    )
+    raise HTTPException(status_code=503, detail="gateway internal auth is not configured")
 
 
 def _require_operator_access(
@@ -1110,9 +1136,21 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in CORS_ALLOW_ORIGINS.split(",") if origin.strip()],
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=CORS_ALLOW_METHODS,
+    allow_headers=CORS_ALLOW_HEADERS,
+    expose_headers=CORS_EXPOSE_HEADERS,
 )
+
+
+def _request_correlation_id(request: Request) -> str:
+    header = (
+        request.headers.get("x-request-id")
+        or request.headers.get("x-correlation-id")
+        or ""
+    ).strip()
+    if header:
+        return header[:128]
+    return uuid.uuid4().hex
 
 
 @app.middleware("http")
@@ -1136,6 +1174,8 @@ async def _security_and_rate_limit(request: Request, call_next):
     response: Response
     rate_limit_headers: dict[str, str] = {}
     path = request.url.path
+    correlation_id = _request_correlation_id(request)
+    request.state.correlation_id = correlation_id
     is_probe = path in {"/health", "/readyz", "/metrics"}
     is_stream = path == "/v1/stream/state"
 
@@ -1155,6 +1195,7 @@ async def _security_and_rate_limit(request: Request, call_next):
                             "Retry-After": str(retry_after),
                             "X-RateLimit-Limit": str(API_RATE_LIMIT_PER_MINUTE),
                             "X-RateLimit-Remaining": "0",
+                            "X-Correlation-Id": correlation_id,
                         },
                     )
                 rate_limit_headers = {
@@ -1173,6 +1214,7 @@ async def _security_and_rate_limit(request: Request, call_next):
         "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
     )
     response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Correlation-Id"] = correlation_id
     trace_id = current_trace_id()
     if trace_id:
         response.headers["X-Trace-Id"] = trace_id
@@ -1397,7 +1439,11 @@ async def create_mission(
             approximate=True,
         )
     except (ProtocolValidationError, json.JSONDecodeError) as exc:
-        LOGGER.warning("mission intake telemetry envelope validation failed for %s: %s", mission_id, exc)
+        LOGGER.warning(
+            "mission intake telemetry envelope validation failed for %s: %s",
+            mission_id,
+            exc,
+        )
     except Exception as exc:
         LOGGER.warning("failed to publish mission intake telemetry for %s: %s", mission_id, exc)
 
@@ -1427,7 +1473,8 @@ async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
         async with httpx.AsyncClient(timeout=4.0) as client:
             response = await client.get(f"{ORCHESTRATOR_URL}{path}", params=params)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"orchestrator unavailable: {exc}") from exc
+        LOGGER.warning("orchestrator query failed for %s: %s", path, exc)
+        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code == 404:
         raise HTTPException(status_code=404, detail="resource not found")
     if response.status_code >= 400:
@@ -1436,15 +1483,17 @@ async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
 
 
 async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None) -> Any:
+    internal_key = _require_internal_service_api_key()
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
             response = await client.get(
                 f"{ORCHESTRATOR_URL}{path}",
                 params=params,
-                headers={"x-api-key": INTERNAL_SERVICE_API_KEY},
+                headers={"x-api-key": internal_key},
             )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"orchestrator unavailable: {exc}") from exc
+        LOGGER.warning("orchestrator internal query failed for %s: %s", path, exc)
+        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code == 404:
         raise HTTPException(status_code=404, detail="resource not found")
     if response.status_code in {401, 403}:
@@ -1455,15 +1504,17 @@ async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None
 
 
 async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> Any:
+    internal_key = _require_internal_service_api_key()
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
             response = await client.post(
                 f"{ORCHESTRATOR_URL}{path}",
                 json=json_body,
-                headers={"x-api-key": INTERNAL_SERVICE_API_KEY},
+                headers={"x-api-key": internal_key},
             )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"orchestrator unavailable: {exc}") from exc
+        LOGGER.warning("orchestrator internal mutation failed for %s: %s", path, exc)
+        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code in {401, 403}:
         raise HTTPException(status_code=502, detail="orchestrator internal auth rejected request")
     if response.status_code >= 400:
@@ -1550,6 +1601,26 @@ async def get_mission_audit_artifacts(
     return await _proxy_get_internal(
         f"/internal/missions/{mission_id}/audit-artifacts",
         params={"limit": limit},
+    )
+
+
+@app.get("/v1/missions/{mission_id}/build-artifacts")
+async def get_mission_build_artifacts(
+    mission_id: str, limit: int = Query(default=50, ge=1, le=500)
+) -> list[dict[str, Any]]:
+    return await _proxy_get_internal(
+        f"/internal/missions/{mission_id}/build-artifacts",
+        params={"limit": limit},
+    )
+
+
+@app.get("/v1/missions/{mission_id}/build-artifacts/{artifact_id}")
+async def get_mission_build_artifact(
+    mission_id: str,
+    artifact_id: str,
+) -> dict[str, Any]:
+    return await _proxy_get_internal(
+        f"/internal/missions/{mission_id}/build-artifacts/{artifact_id}",
     )
 
 
@@ -1775,7 +1846,8 @@ async def update_mission_state(
                 headers=forward_headers,
             )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"orchestrator unavailable: {exc}") from exc
+        LOGGER.exception("orchestrator mission state update failed for mission %s", mission_id)
+        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
 
     if response.status_code in {401, 403}:
         raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))

@@ -1,6 +1,10 @@
 # Incident Runbook — Semantic Bus
 
-**Last updated:** 2026-03-07
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, developers, maintainers, and auditors
+
 **Applies to:** Semantic Bus MCP service (`:8102`), Redis Streams-based event routing, protocol message failures
 **Impact:** When the semantic bus is degraded, agent-to-agent protocol messages fail or are dropped to the DLQ. Core mission HTTP flow continues unaffected.
 

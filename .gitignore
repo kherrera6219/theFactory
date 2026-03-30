@@ -15,6 +15,7 @@ htmlcov/
 node_modules/
 .next/
 dist/
+*.tsbuildinfo
 
 # Env and local
 .env
@@ -44,3 +45,4 @@ config/agent_api_keys.yaml
 config/agent_api_keys.enc.yaml
 *.age
 *.sops.yaml
+deploy/.local/

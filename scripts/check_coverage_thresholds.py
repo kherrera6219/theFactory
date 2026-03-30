@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import argparse
 import sys
-import xml.etree.ElementTree as ET
 from pathlib import PurePosixPath
+
+from defusedxml import ElementTree as ET
 
 
 def _normalize(path: str) -> str:

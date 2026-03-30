@@ -101,9 +101,9 @@ export default function ProjectsPage() {
               <h3>{template.title}</h3>
               <p>{template.summary}</p>
               <p className="muted">Category: {template.category}</p>
-              <button type="button" className="secondary-button">
-                Start from Template
-              </button>
+              <p className="muted" aria-live="polite">
+                Template launch is not wired in Mission Control yet.
+              </p>
             </li>
           ))}
         </ul>

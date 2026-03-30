@@ -1,8 +1,13 @@
 # Build Roadmap
 
-Last updated: 2026-03-08
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Historical reference  
+Audience: Operators, developers, maintainers, and auditors
 
-Current-state note (2026-03-13): this document remains the implementation phase log. It should not be read as a guarantee that the current repository is fully green or fully converged. For shipped defaults, active validation status, and remaining completion work, use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).
+> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+
+Current-state note (2026-03-29): this document remains the implementation phase log. It should not be read as a guarantee that the current repository is fully green or fully converged. For shipped defaults and active validation status, use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md). For the remaining release sequence and phase gates, use [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md).
 
 ## Phase 1: Foundation
 
@@ -228,8 +233,8 @@ Current-state note (2026-03-13): this document remains the implementation phase 
 ## Phase 25: Word-Doc Reconciliation and LangGraph Runtime Visibility
 
 - Audited all in-repo Word docs and published reconciled findings:
-  - `docs/WORD_DOC_AUDIT_2026-03-03.md`
-  - `docs/UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`
+  - `docs/archive/2026-03-29/historical/WORD_DOC_AUDIT_2026-03-03.md`
+  - `docs/archive/2026-03-29/historical/UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`
 - Added LangGraph runtime telemetry visibility in orchestrator runtime surfaces:
   - `/health`
   - `/readyz`

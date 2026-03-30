@@ -1,6 +1,10 @@
 # API Integration Guide
 
-**Last updated:** 2026-03-07
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Integrators, developers, and operators
+
 **Base URLs:** Gateway `http://localhost:8100` · Semantic Bus MCP `http://localhost:8102`
 **OpenAPI specs:** [`docs/openapi/api-gateway.v1.json`](openapi/api-gateway.v1.json) · [`docs/openapi/orchestrator.v1.json`](openapi/orchestrator.v1.json)
 
@@ -49,6 +53,16 @@ x-api-key: your-operator-key
 Content-Type: application/json
 ```
 
+### Correlation IDs
+
+Public and internal HTTP paths accept either `x-request-id` or `x-correlation-id`. The gateway and orchestrator echo the resolved value back as `X-Correlation-Id` so operators can trace a request across services and logs.
+
+```http
+GET /v1/missions HTTP/1.1
+x-api-key: your-reader-key
+x-request-id: req-12345
+```
+
 ### JWT/OIDC Bearer (hybrid or oidc mode)
 
 ```http
@@ -80,6 +94,7 @@ X-RateLimit-Limit: 120
 X-RateLimit-Remaining: 0
 X-RateLimit-Reset: 1709856000
 Retry-After: 60
+X-Correlation-Id: req-12345
 ```
 
 ---
@@ -197,6 +212,51 @@ x-api-key: <any-key>
 
 Returns object storage artifact references. Returns `501 Not Implemented` if `OBJECT_STORAGE_ENABLED=false`.
 
+### Get Build Artifacts
+
+```http
+GET /v1/missions/{mission_id}/build-artifacts
+x-api-key: <any-key>
+```
+
+Returns the stored build/package artifacts for the mission. For the current shipped implementation, source-bundle missions create a Postgres-backed `source_bundle_package` artifact at `VERIFIED`.
+
+Example response:
+
+```json
+[
+  {
+    "mission_id": "mission-uuid",
+    "artifact_id": "source-bundle-package",
+    "artifact_type": "source_bundle_package",
+    "stage": "package",
+    "status": "SUCCESS",
+    "storage_backend": "database",
+    "storage_ref": "database://missions/mission-uuid/build-artifacts/source-bundle-package",
+    "digest_sha256": "sha256-hex",
+    "size_bytes": 1824,
+    "manifest": {
+      "manifest_version": "build-artifact.v1",
+      "file_count": 3
+    },
+    "verification": {
+      "verified": true,
+      "verification_method": "sha256"
+    },
+    "build_log": "package started..."
+  }
+]
+```
+
+### Get Build Artifact Detail
+
+```http
+GET /v1/missions/{mission_id}/build-artifacts/{artifact_id}
+x-api-key: <any-key>
+```
+
+Returns the artifact detail record, including `artifact_text` for the current Postgres-backed source-bundle implementation.
+
 ---
 
 ## Operations API
@@ -210,7 +270,7 @@ x-api-key: <any-key>
 
 Returns system-wide health: mission counts by state, agent counts by state, uptime.
 
-### Agent Registry (all 35 agents)
+### Agent Registry (all 38 agents)
 
 ```http
 GET /v1/operations/agents
@@ -220,7 +280,7 @@ x-api-key: <any-key>
 **Response structure:**
 ```json
 {
-  "total_agents": 35,
+  "total_agents": 38,
   "agents": [
     {
       "agent_id": "AGENT-01-PM",
@@ -446,3 +506,5 @@ mission_id = create_mission("Build a REST API", "python")
 result = wait_for_completion(mission_id)
 print(f"Mission {mission_id}: {result['state']}")
 ```
+
+

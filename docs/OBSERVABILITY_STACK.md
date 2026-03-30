@@ -1,9 +1,9 @@
 # Observability Stack
 
-**Last updated:** 2026-03-09
-**Stack:** Prometheus · Grafana · Loki · Promtail · Alertmanager · Jaeger
-
----
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, maintainers, and SRE/DevOps reviewers
 
 ## Table of Contents
 

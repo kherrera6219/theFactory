@@ -8,8 +8,8 @@
 
 [![CI](https://github.com/holygrail/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/holygrail/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/security.yml)
-[![Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen)](docs/evidence/)
-[![Audit](https://img.shields.io/badge/production%20audit-17%2F17-brightgreen)](scripts/production_review_audit.py)
+[![Coverage](https://img.shields.io/badge/coverage-81.75%25-brightgreen)](docs/TESTING_QUALITY_GATES.md)
+[![Audit](https://img.shields.io/badge/production%20audit-13%2F13-brightgreen)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
 [![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#)
@@ -50,10 +50,12 @@ Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTA
 - **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
 - **Semantic bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
 - **38-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
-- **Language-aware code analysis** — regex-based extraction engine for 20 languages across 4 pod groups
+- **Language-aware code analysis** — regex-based extraction engine for 20 routed language keys across 4 pod groups
 - **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
+- **Durable review and artifact flow** — builder/repo approvals persist through the orchestrator and source-bundle missions store a verified build/package artifact before completion
 - **Full production observability** — Prometheus, Grafana, Loki, Jaeger OTLP, Alertmanager
 - **Enterprise-grade security** — dual-mode auth (API key + JWT/OIDC), per-role key isolation, SAST/SCA/secret scanning in CI
+- **Docs-as-code baseline** — canonical architecture, operator, developer, API, archive, and repository-map documentation lives under `docs/`
 
 ---
 
@@ -86,9 +88,10 @@ Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTA
 ┌──▼──────▼──────────────────────────────────────────────────────┐
 │                      POD WORKERS                               │
 │  Pod A  (Python/JS/Ruby/PHP)  — Dynamic Languages              │
-│  Pod B  (C/C++/Rust/Zig)      — Systems Languages              │
+│  Pod B  (C/C++/Rust/Zig/Go)   — Systems Languages              │
 │  Pod C  (Java/C#/Scala/Kotlin)— Enterprise Languages           │
-│  Pod D  (MATLAB/R/Julia/Mathematica) — Mathematical Languages  │
+│  Pod D  (MATLAB/R/Julia/Mathematica/Haskell/OCaml)             │
+│                          — Mathematical Languages              │
 │  Each: language extraction → LogicNode creation → KB write     │
 └──────────────────────────┬─────────────────────────────────────┘
                            │
@@ -132,9 +135,9 @@ The orchestrator maintains a canonical registry of **38 specialist agents** orga
 | **Executive** | AGENT-02-CEO | Chief Executor — mission delegation to pod managers |
 | **Support Ring** | AGENT-03 through AGENT-11 | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy |
 | **Pod A** (Dynamic) | Manager, Audit, Python, JavaScript/TypeScript, Ruby, PHP Specialists | Dynamic language refinery |
-| **Pod B** (Systems) | Manager, Audit, C, C++, Rust, Zig Specialists | Systems language refinery |
+| **Pod B** (Systems) | Manager, Audit, C, C++, Rust, Zig, Go Specialists | Systems language refinery |
 | **Pod C** (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | Enterprise language refinery |
-| **Pod D** (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica Specialists | Mathematical language refinery |
+| **Pod D** (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica, Haskell, OCaml Specialists | Mathematical language refinery |
 
 ### Agent Runtime State
 
@@ -167,15 +170,21 @@ Each agent exposes:
 }
 ```
 
-### LLM Provider Assignment (38 Agents)
+### LLM Provider Assignment
 
-| Provider | Count | Key ENV Variables |
-|----------|-------|-------------------|
-| **Anthropic** | 12 agents | `ANTHROPIC_API_KEY_ARCH`, `ANTHROPIC_API_KEY_PY`, etc. |
-| **OpenAI** | 14 agents | `OPENAI_API_KEY_CEO`, `OPENAI_API_KEY_CTO`, etc. |
-| **Google Gemini** | 9 agents | `GOOGLE_API_KEY_MATLAB`, `GOOGLE_API_KEY_JULIA`, etc. |
+Runtime persona and delegation metadata currently support provider-aware recommendations across:
 
-Full matrix: [`docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`](docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md)
+- **Anthropic**
+- **OpenAI**
+- **Google Gemini**
+
+The live runtime exposes recommended provider/model metadata through:
+
+- `GET /internal/operations/agent-integrations`
+- `GET /v1/operations/agent-integrations`
+
+Reference matrix: [`docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`](docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md)  
+Historical note: that matrix is retained as a reference document and still contains some historically-scoped planning language.
 
 ---
 
@@ -209,7 +218,7 @@ Pod workers run a static-analysis extraction engine that detects computational c
 | B — Systems | C, C++, Rust, Zig, Go | `SYS-` | ~54 |
 | C — Enterprise | Java, C#, Scala, Kotlin | `ENT-` | ~35 |
 | D — Mathematical | MATLAB, R, Julia, Mathematica, Haskell, OCaml | `MATH-` | ~75 |
-| **Total** | **19 languages** (TypeScript aliases to JavaScript specialist) | | **232 patterns** |
+| **Total** | **20 routed language keys** (19 specialist implementations; TypeScript aliases to JavaScript) | | **232 patterns** |
 
 Each extracted concept becomes a **LogicNode** with:
 - `concept_id` (e.g. `DYN-006-001` for async function, `SYS-011-001` for Rust `Result<T>`)
@@ -292,14 +301,16 @@ Each extracted concept becomes a **LogicNode** with:
 
 | View | Description |
 |------|-------------|
-| Dashboard | Runtime-wide health, mission counts, agent status summary |
+| Home / Dashboard | Runtime-wide health, mission counts, and operator launch context |
+| Chat | PM-agent intake conversation with attached-file language inference |
 | Missions | Mission table with lifecycle state and phase stepper |
 | Mission Detail | Live event timeline, Smelt-cycle phase stepper (SSE-driven), chain-of-command |
 | Agents | 38-agent roster grid with persona drill-down |
 | Semantic Bus | Live message stream with windowed rendering |
-| Operations | Internal health, readiness, and metrics |
-| Builder | Repository intake (4-step: import → file select → diff review/apply gate → mission config) |
-| Settings / Vault | Provider key management, environment config |
+| Builder | Grounded local-workspace review with patch contract, approval gate, and mission launch bundle |
+| Repo Import | GitHub import, review gate, and mission scoping with bundled source context |
+| Databases | Shared data-system readiness and diagnostics |
+| Settings | Provider key management, vault-backed secrets, and local environment controls |
 
 **Technology:**
 - Next.js 16 App Router, TypeScript (strict mode)
@@ -413,13 +424,21 @@ cp .env.example .env
 # Edit .env — add provider API keys and service secrets
 ```
 
-### 2. Start Core Stack
+### 2. Generate Local TLS Dev Certificates
+
+```bash
+make tls-certs
+```
+
+This generates local-only PostgreSQL and Redis TLS material under `deploy/.local/postgres-certs` and `deploy/.local/redis-certs`. Private keys are intentionally gitignored and must not be committed.
+
+### 3. Start Core Stack
 
 ```bash
 docker compose -f deploy/docker-compose.yaml up -d --build
 ```
 
-### 3. Verify Health
+### 4. Verify Health
 
 ```bash
 # Gateway
@@ -435,7 +454,7 @@ curl http://localhost:8102/health
 open http://localhost:3100
 ```
 
-### 4. Start Monitoring Stack (optional)
+### 5. Start Monitoring Stack (optional)
 
 ```bash
 make monitor-up
@@ -471,7 +490,7 @@ make test
 # Lint
 make lint
 
-# Run production audit (17/17 checks)
+# Run production audit (13/13 checks)
 make audit
 
 # Debug sweep
@@ -482,6 +501,9 @@ make perf
 
 # Reliability qualification (1-hour sustained load)
 make reliability
+
+# Documentation validation
+python scripts/validate_documentation.py
 ```
 
 ### Frontend (Next.js / Mission Control)
@@ -512,9 +534,12 @@ npm run test:e2e   # Playwright critical-path E2E
 | `make test-live-extended` | Live Neo4j/MinIO disruption recovery tests |
 | `make audit` | Production checklist audit |
 | `make promotion-gate` | Release promotion policy evaluation |
+| `make release-evidence-verify` | Validate local release-trust evidence bundle |
+| `make eval-ai` | Run the focused AI regression gate |
 | `make openapi` | Export OpenAPI specs |
 | `make predeploy` | Pre-deployment checks |
 | `make backup` | PostgreSQL backup |
+| `make backup-verify` | Validate backup manifest and checksum evidence |
 | `make dr` | Disaster-recovery drill |
 | `make perf` | Performance smoke test |
 | `make reliability` | Sustained-load reliability qualification |
@@ -539,7 +564,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | pip-audit SCA | 0 known vulns | `security.yml` |
 | Release attestation | signed provenance | CI release gate |
 
-**Current status (2026-03-13):** backend `python -m pytest -q` is green and Mission Control Playwright is green. See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for the remaining product-completion gaps.
+**Current status (2026-03-29):** backend `python -m pytest -q` is green, services coverage is `81.75%`, Mission Control unit tests are green (`45` tests), and Mission Control Playwright is green (`7` journeys). See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for the remaining product-completion gaps and out-of-band blockers.
 
 ---
 
@@ -674,11 +699,14 @@ theFactory/
 ├── ledger/                       # Traceability ledger schema
 ├── assets/design-tokens/         # CSS design token source of truth
 ├── deploy/                       # Docker Compose stacks + monitoring config
-├── docs/                         # Architecture, ADRs, runbooks, evidence
+├── docs/                         # Canonical live documentation
 │   ├── ADR_*.md                  # Architectural Decision Records
-│   ├── evidence/                 # Phase validation evidence (through phase 39)
-│   └── runbooks/                 # Incident and operational runbooks
-├── scripts/                      # Audit, validation, DR, perf, sweep tools
+│   ├── api/                      # API entry point and interactive-doc guidance
+│   ├── user/                     # Operator/tutorial documentation
+│   ├── evidence/                 # Qualification and release evidence (through phase 45)
+│   ├── runbooks/                 # Incident and operational runbooks
+│   └── archive/                  # Superseded and source-material documentation
+├── scripts/                      # Audit, validation, DR, perf, sweep, and docs maintenance tools
 └── tests/                        # Backend, security, and script tests
 ```
 
@@ -691,8 +719,12 @@ theFactory/
 | [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Current shipped defaults, known gaps, and validation snapshot |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture and topology |
 | [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md) | System, runtime, deployment, and multi-agent diagrams |
+| [`docs/ARCHITECTURE_DATA_FLOWS.md`](docs/ARCHITECTURE_DATA_FLOWS.md) | Mission, approval, artifact, identity, and telemetry flows |
+| [`docs/REPOSITORY_BUILD_MAP_2026-03-29.md`](docs/REPOSITORY_BUILD_MAP_2026-03-29.md) | Generated complete repository file and folder map |
+| [`docs/DOCUMENTATION_STANDARDS.md`](docs/DOCUMENTATION_STANDARDS.md) | Documentation quality, versioning, and archive rules |
 | [`docs/DIAGRAM_STANDARDS.md`](docs/DIAGRAM_STANDARDS.md) | Enterprise diagram set and standards basis |
 | [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md) | Full documentation map |
+| [`docs/api/README.md`](docs/api/README.md) | API entry point, Swagger locations, and versioned OpenAPI files |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Product roadmap |
 | [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) | Operational procedures |
 | [`docs/DEPLOYMENT_DR_PLAYBOOK.md`](docs/DEPLOYMENT_DR_PLAYBOOK.md) | Deployment and disaster recovery |
@@ -700,11 +732,13 @@ theFactory/
 | [`docs/TESTING_QUALITY_GATES.md`](docs/TESTING_QUALITY_GATES.md) | Test strategy and coverage gates |
 | [`docs/RELEASE_TRUST_PROMOTION_GATE.md`](docs/RELEASE_TRUST_PROMOTION_GATE.md) | Release attestation policy |
 | [`docs/AGENT_SERVICE_KEY_ISOLATION.md`](docs/AGENT_SERVICE_KEY_ISOLATION.md) | Per-agent worker key isolation and remaining security work |
-| [`docs/GAP_ANALYSIS.md`](docs/GAP_ANALYSIS.md) | Gap analysis and disposition |
+| [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md) | Day-to-day engineering workflow |
 | [`docs/DEVELOPER_ONBOARDING_GUIDE.md`](docs/DEVELOPER_ONBOARDING_GUIDE.md) | New developer onboarding |
+| [`docs/user/GETTING_STARTED.md`](docs/user/GETTING_STARTED.md) | First-success local startup and operator onboarding |
+| [`docs/user/OPERATOR_GUIDE.md`](docs/user/OPERATOR_GUIDE.md) | Mission Control operator instructions |
 | [`docs/API_INTEGRATION_GUIDE.md`](docs/API_INTEGRATION_GUIDE.md) | API integration reference |
 | [`docs/DATA_CLASSIFICATION_POLICY.md`](docs/DATA_CLASSIFICATION_POLICY.md) | Data classification policy |
-| [`docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`](docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md) | 7-phase smelt-cycle runtime mapping |
+| [`docs/archive/README.md`](docs/archive/README.md) | Archive policy and archived source-material index |
 | [`docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md`](docs/ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md) | Agent topology ADR |
 | [`docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](docs/ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md) | Security model ADR |
 | [`AGENTS.md`](AGENTS.md) | AI coding agent developer guidelines |
@@ -714,25 +748,26 @@ theFactory/
 
 ## Current Status
 
-**The codebase is substantial and mostly wired, but it is not fully converged today. The shipped defaults, tests, UI assertions, and some dated docs still need reconciliation.**
+**The repo-local application work is now converged to a canonical documentation and validation baseline. Remaining release blockers are out-of-band governance, production-environment, and legal/policy actions rather than missing repository implementation.**
 
 | Domain | Status |
 |--------|--------|
-| Infrastructure & DevOps | ✅ Complete |
-| Security & Auth | ✅ Complete |
-| Observability | ✅ Complete |
-| Testing & CI | ✅ Backend pytest and Mission Control Playwright are green |
-| Data Systems | ⚠️ Core path complete, optional-adapter/status docs still lag |
-| Mission Control UI | ✅ Real operator UI with grounded builder, repo-review, and chat launch flows |
-| Language Extraction Engine | ✅ Complete |
-| Mission Lifecycle | ✅ v2 lifecycle is the shipped default, mission creation is synchronous/read-after-write, and scaling fan-out is implemented behind a feature flag |
+| Infrastructure & DevOps | ✅ Repo-local implementation baseline complete; production-host enforcement remains out-of-band |
+| Security & Auth | ✅ Fail-closed repo-local baseline; key-history scrub and host-policy enforcement remain |
+| Observability | ✅ Core telemetry stack, docs, and runbooks are in place |
+| Testing & CI | ✅ Backend pytest, frontend unit tests, Playwright, AI eval gate, and docs validation are in place |
+| Data Systems | ✅ Core path complete; current-source docs now match shipped readiness |
+| Mission Control UI | ✅ Real operator UI with grounded builder, repo-review, chat launch, and artifact views |
+| Language Extraction Engine | ✅ 20 routed language keys across 4 pods |
+| Mission Lifecycle | ✅ v2 lifecycle is the shipped default, mission creation is synchronous/read-after-write, and source-bundle artifact gating is enforced |
 | CEO→Pod Delegation Chain | ✅ Complete baseline |
-| LLM API Call Wiring | ✅ Complete (provider-aware routing with fallback) |
+| LLM API Call Wiring | ✅ Complete baseline with provider-aware routing and fallback |
 
-**Current completion work:**
-- Align audit/data-plane docs and Mission Control surfaces with the shipped implementation
-- Expand or reduce language-routing claims so docs and runtime specialist coverage match
-- Implement a real build/package artifact pipeline before claiming bundle-ready artifacts
+**Remaining out-of-band completion work:**
+- Scrub previously committed key material from git history and rotate affected secrets or certificates
+- Enforce branch protection, secret scanning, and attestation verification in the repository host
+- Produce production-environment DR evidence and retention operations in the target deployment
+- Approve legal and policy documents before external publication
 
 ---
 

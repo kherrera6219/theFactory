@@ -1,12 +1,12 @@
-.PHONY: up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended audit promotion-gate qualification-summary dora-metrics compose-validate sweep openapi predeploy backup dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys
+.PHONY: up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai audit promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs
 
-up:
+up: tls-certs
 	docker compose -f deploy/docker-compose.yaml up -d --build
 
 down:
 	docker compose -f deploy/docker-compose.yaml down -v
 
-up-full-dedicated:
+up-full-dedicated: tls-certs
 	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build \
 		redis postgres qdrant jaeger orchestrator api-gateway semantic-bus-mcp audit-worker dashboard mission-control \
 		pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker pod-c-dedicated-mgr-worker pod-d-dedicated-mgr-worker \
@@ -59,6 +59,9 @@ test-fast:
 test-live-extended:
 	pytest -q tests/services/test_live_extended_data_plane_integration.py
 
+eval-ai:
+	pytest -q tests/eval/test_llm_delegation_golden.py
+
 audit:
 	python scripts/production_review_audit.py
 
@@ -78,6 +81,12 @@ promotion-gate:
 		--qualification-summary-file reports/qualification-gate-summary.local.json \
 		--output-file reports/promotion-decision.local.json
 
+release-evidence-verify:
+	python scripts/verify_release_evidence.py \
+		--release-manifest-file reports/release-manifest.json \
+		--attestation-verification-file reports/attestation-verification.txt \
+		--promotion-decision-file reports/promotion-decision.json
+
 qualification-summary:
 	python scripts/qualification_gate_summary.py \
 		--policy-file deploy/promotion-policy.json \
@@ -89,6 +98,9 @@ dora-metrics:
 
 agent-keys:
 	python scripts/generate_agent_service_keys.py
+
+tls-certs:
+	powershell -ExecutionPolicy Bypass -File scripts/generate_dev_tls_certs.ps1
 
 compose-validate:
 	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml config
@@ -104,6 +116,18 @@ predeploy:
 
 backup:
 	powershell -ExecutionPolicy Bypass -File scripts/backup_postgres.ps1
+
+backup-verify:
+ifndef BACKUP_FILE
+	$(error BACKUP_FILE is required, for example BACKUP_FILE=backups/ulr_20260329_000000.sql)
+endif
+ifndef MANIFEST_FILE
+	$(error MANIFEST_FILE is required, for example MANIFEST_FILE=backups/ulr_20260329_000000.sql.json)
+endif
+	python scripts/verify_backup_artifacts.py \
+		--backup-file "$(BACKUP_FILE)" \
+		--manifest-file "$(MANIFEST_FILE)" \
+		--output-file reports/backup-verification.local.json
 
 dr:
 	powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1

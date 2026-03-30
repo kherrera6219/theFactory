@@ -133,3 +133,29 @@ def test_run_writes_output_file(monkeypatch, tmp_path) -> None:
     exit_code = asyncio.run(reliability.run(args))
     assert exit_code == 0
     assert output_file.exists()
+
+
+def test_execute_failure_command_uses_argv_without_shell(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class _CompletedProcess:
+        returncode = 0
+        stderr = ""
+
+    def _run(argv, *, capture_output, text, check):
+        captured["argv"] = argv
+        captured["capture_output"] = capture_output
+        captured["text"] = text
+        captured["check"] = check
+        return _CompletedProcess()
+
+    monkeypatch.setattr(reliability.subprocess, "run", _run)
+
+    result = reliability._execute_failure_command('python -c "print(1)"')
+
+    assert result.executed is True
+    assert result.exit_code == 0
+    assert captured["argv"] == ["python", "-c", "print(1)"]
+    assert captured["capture_output"] is True
+    assert captured["text"] is True
+    assert captured["check"] is False

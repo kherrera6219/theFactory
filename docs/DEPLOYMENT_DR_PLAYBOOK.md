@@ -1,10 +1,9 @@
 # Deployment, Backup & Disaster Recovery Playbook
 
-**Last updated:** 2026-03-07
-**Owner:** Operations
-**RTO Target:** 30 minutes | **RPO Target:** 24 hours (daily backup) | **MTTR Target:** 15 minutes
-
----
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, maintainers, incident responders, and release owners
 
 ## Table of Contents
 

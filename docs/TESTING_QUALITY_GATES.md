@@ -1,9 +1,9 @@
 # Testing & Quality Gates
 
-**Last updated:** 2026-03-07
-**Current results:** 320 backend tests · 21 frontend unit tests · 6 E2E tests · 86% coverage · 13/13 audit checks
-
----
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, developers, maintainers, and auditors
 
 ## Table of Contents
 
@@ -24,19 +24,19 @@
 
 ```
         ┌─────────────────────┐
-        │   E2E (Playwright)  │  6 journeys — mission lifecycle,
-        │       6 tests       │  operations, vault, builder, intake, errors
+        │   E2E (Playwright)  │  7 journeys — mission lifecycle,
+        │       7 tests       │  operations, vault, builder, intake, errors, a11y
         └─────────────────────┘
        ┌───────────────────────────┐
        │  Integration Tests        │  Live mission flow, Neo4j/MinIO
        │  (skip-safe when offline) │  disruption recovery
        └───────────────────────────┘
       ┌─────────────────────────────────┐
-      │  Frontend Unit Tests (Vitest)   │  21 tests — components,
-      │                                 │  API client, SSE client, helpers
+      │  Frontend Unit Tests (Vitest)   │  45 tests — API routes,
+      │                                 │  API client, vault flows, helpers
       └─────────────────────────────────┘
      ┌───────────────────────────────────────┐
-     │  Backend Unit & Service Tests (pytest) │  320+ tests across all services,
+     │  Backend Unit & Service Tests (pytest) │  709 passing tests across all services,
      │                                        │  extraction engine, concept catalog,
      │                                        │  auth, bindings, DR scripts
      └───────────────────────────────────────┘
@@ -77,6 +77,9 @@ make test-ui
 # E2E regression suite (requires running stack at localhost:8100 + localhost:3100)
 make test-ui-e2e
 
+# Focused AI evaluation gate
+make eval-ai
+
 # Direct commands
 cd apps/mission-control
 npm run lint
@@ -98,7 +101,7 @@ Enforced by:
 - `make test` — `pytest --cov-fail-under=80`
 - `ci.yml` — `Test with Coverage` step
 
-**Current:** 86.00%
+**Current:** 81.75%
 
 ### Core Module Gates (100%)
 
@@ -108,7 +111,7 @@ The following files are **individually gated at 100%** coverage:
 |------|-----------|
 | `services/orchestrator/orchestrator/protocol.py` | Envelope validation — must be exhaustive |
 | `services/orchestrator/orchestrator/runtime.py` | Mission state machine — zero untested transitions |
-| `services/orchestrator/orchestrator/agent_personas.py` | 35-agent persona data integrity |
+| `services/orchestrator/orchestrator/agent_personas.py` | 38-agent persona data integrity |
 | `services/orchestrator/orchestrator/agent_integrations.py` | Protocol and LLM assignment logic |
 | `services/orchestrator/orchestrator/agent_registry.py` | Runtime agent state management |
 | `services/semantic-bus-mcp/semantic_bus/mcp_server.py` | 6-protocol routing and DLQ |
@@ -132,7 +135,7 @@ These files implement enterprise-critical runtime guarantees:
 
 ## Frontend Testing
 
-### Vitest Unit Tests (21 tests)
+### Vitest Unit Tests (45 tests)
 
 Located in `apps/mission-control/` alongside components. Cover:
 - API client request/response handling
@@ -140,18 +143,29 @@ Located in `apps/mission-control/` alongside components. Cover:
 - `smelt-cycle.ts` — 7-phase lifecycle mapping
 - Component render output for key views
 
-### Playwright E2E (6 journeys)
+### Playwright E2E (7 journeys)
 
 Located in `apps/mission-control/e2e/`.
 
 | Journey | What is Tested |
 |---------|---------------|
 | Mission lifecycle | Create → poll → state transitions → completion |
-| Operations views | Agent roster (35 agents), summary stats |
+| Operations views | Agent roster (38 agents), summary stats |
 | Settings / Vault | Key storage, retrieval, vault API |
 | Builder preview | Diff rendering, file selection |
 | Repository intake | GitHub metadata import, file tree selection |
 | Error states | Auth failure (401/403), service unavailable (503), not found |
+| Accessibility regression | Mission flow pages pass keyboard and landmark checks |
+
+### AI Eval Regression
+
+The release baseline includes a focused AI regression gate for delegation and prompt-safety behavior:
+
+```bash
+make eval-ai
+# Windows fallback when make is unavailable
+python -m pytest -q tests/eval/test_llm_delegation_golden.py
+```
 
 **Run in CI:** Playwright browsers installed via `playwright install --with-deps chromium` in `.github/workflows/ci.yml`.
 

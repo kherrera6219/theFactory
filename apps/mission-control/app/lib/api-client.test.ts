@@ -83,6 +83,22 @@ describe("api-client", () => {
     expect(call[1]?.headers).toMatchObject({ "Content-Type": "application/json" });
   });
 
+  it("clears the request timeout after fetch resolves", async () => {
+    const clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout");
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await fetchJson<{ ok: boolean }>("http://example.com/health", {
+      method: "GET",
+    });
+
+    expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("maps 429 responses to friendly ApiError messages", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response("{}", {
@@ -220,7 +236,7 @@ describe("api-client", () => {
           approved_at: "2026-03-14T00:00:00.000Z",
           summary: "Builder review approved.",
           receipt_digest: "digest-001",
-          record_path: ".runtime/review-approvals/builder-approval-001.json",
+          record_path: "orchestrator://review-approvals/builder-approval-001",
         }),
         {
           status: 200,

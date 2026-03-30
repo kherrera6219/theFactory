@@ -11,6 +11,7 @@ import pytest
 GATEWAY_BASE_URL = os.getenv("LIVE_GATEWAY_URL", "http://localhost:8100").rstrip("/")
 ORCHESTRATOR_BASE_URL = os.getenv("LIVE_ORCHESTRATOR_URL", "http://localhost:8101").rstrip("/")
 HTTP_TIMEOUT_SECONDS = float(os.getenv("LIVE_HTTP_TIMEOUT_SECONDS", "4.0"))
+LIVE_STACK_ENABLED = os.getenv("LIVE_STACK_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _request_json(
@@ -38,6 +39,8 @@ def _request_json(
 
 
 def _require_live_stack() -> None:
+    if not LIVE_STACK_ENABLED:
+        pytest.skip("Live stack tests are opt-in; set LIVE_STACK_ENABLED=1 to run them.")
     try:
         gateway_status, gateway_ready = _request_json("GET", f"{GATEWAY_BASE_URL}/readyz")
         orchestrator_status, orchestrator_ready = _request_json(

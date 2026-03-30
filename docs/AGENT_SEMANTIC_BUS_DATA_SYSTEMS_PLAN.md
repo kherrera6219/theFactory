@@ -1,5 +1,12 @@
 # Agent Semantic Bus and Data Systems Plan
 
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Reference  
+Audience: Operators, developers, maintainers, and auditors
+
+> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+
 Date: 2026-03-03
 
 ## Scope
@@ -203,6 +210,8 @@ External production references:
 - Neo4j backup/restore: https://neo4j.com/docs/operations-manual/current/backup-restore/
 - Amazon S3 Object Lock: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
 - Amazon S3 consistency model: https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html
+
+
 
 
 

@@ -1,7 +1,9 @@
 # Architecture — theFactory
 
-**Last updated:** 2026-03-13
-**Status:** Current implementation baseline. Use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) for shipped defaults and active gaps.
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
+Audience: Operators, developers, maintainers, and auditors
 
 Companion diagrams: [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md)
 
@@ -13,7 +15,7 @@ Companion diagrams: [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md)
 - [Runtime Topology](#runtime-topology)
 - [Service Responsibilities](#service-responsibilities)
 - [Mission Lifecycle](#mission-lifecycle)
-- [35-Agent Model](#35-agent-model)
+- [38-Agent Model](#38-agent-model)
 - [Language Extraction Engine](#language-extraction-engine)
 - [Data Plane](#data-plane)
 - [Event Bus Architecture](#event-bus-architecture)
@@ -27,7 +29,7 @@ Companion diagrams: [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md)
 
 ## System Overview
 
-theFactory is a **35-agent multi-agent software refinery** built on a microservice architecture. Missions (software build requests) enter through the API Gateway, are delegated through an agent hierarchy, processed by language-specialist pod workers, and completed with audit evidence.
+theFactory is a **38-agent multi-agent software refinery** built on a microservice architecture. Missions (software build requests) enter through the API Gateway, are delegated through an agent hierarchy, processed by language-specialist pod workers, and completed with audit evidence.
 
 The system is organized into three planes:
 
@@ -45,7 +47,7 @@ The system is organized into three planes:
 ╔══════════════════════════════════════════════════════════════════╗
 ║                     MISSION CONTROL UI                          ║
 ║              Next.js 16 · TypeScript · SSE Transport            ║
-║   Dashboard · Missions · Agents · Semantic Bus · Builder        ║
+║ Home · Chat · Missions · Agents · Semantic Bus · Builder/Repo   ║
 ╚══════════════════════╤═══════════════════════════════════════════╝
                        │ REST + SSE
 ╔══════════════════════▼═══════════════════════════════════════════╗
@@ -58,7 +60,7 @@ The system is organized into three planes:
 ║         ORCHESTRATOR :8101             ║ │
 ║  FastAPI · LangGraph StateGraph        ║ │
 ║  Postgres checkpointer (optional)      ║ │
-║  35-agent registry + persona profiles  ║ │
+║  38-agent registry + persona profiles  ║ │
 ║  Qdrant/Milvus/Neo4j/S3 adapter plane  ║ │
 ║  Operations APIs · OTEL traces         ║ │
 ╚══════════╤═════════════════════════════╝ │
@@ -71,9 +73,9 @@ The system is organized into three planes:
 ╔══════════▼═════════════════════════════════════════════════════╗
 ║                     POD WORKERS                               ║
 ║  Pod A · Python / JavaScript / Ruby / PHP                     ║
-║  Pod B · C / C++ / Rust / Zig                                 ║
+║  Pod B · C / C++ / Rust / Zig / Go                            ║
 ║  Pod C · Java / C# / Scala / Kotlin                           ║
-║  Pod D · MATLAB / R / Julia / Mathematica                     ║
+║  Pod D · MATLAB / R / Julia / Mathematica / Haskell / OCaml   ║
 ║  Language extraction → LogicNode creation → KB write         ║
 ╚══════════════════════════════════════════════════════════════╝
 ╔══════════════════════════════════════════════════════════════╗
@@ -92,6 +94,7 @@ The system is organized into three planes:
 - **Auth enforcement:** `AUTH_MODE=api_key|hybrid|oidc`, per-role key validation (admin/operator/reader/worker)
 - **Rate limiting:** 120 req/min sliding window per API key (Redis)
 - **Live transport:** `GET /v1/stream/state` — SSE with `mission_id` filter, `Last-Event-ID` resume, keepalive
+- **Correlation propagation:** accepts `x-request-id|x-correlation-id` and returns `X-Correlation-Id` on proxied responses
 - **Security headers:** `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`
 - **OTel tracing:** Jaeger OTLP export
 - **Proxy:** Forwards `GET /v1/operations/*` to orchestrator internal APIs
@@ -100,8 +103,10 @@ The system is organized into three planes:
 
 - **Mission state machine:** `QUEUED → RUNNING → VERIFIED → COMPLETE | FAILED`
 - **Lifecycle engines:** shipped defaults currently execute mission-flow v2 first, with optional LangGraph and legacy fallback
-- **Agent registry:** Canonical 35-agent dataset with runtime telemetry + 8-part persona profiles
+- **Agent registry:** Canonical 38-agent dataset with runtime telemetry + 8-part persona profiles
 - **Pod assignment:** Routes missions to pod streams based on `requested_target_language`
+- **Build/package artifacts:** source-bundle missions package a durable Postgres-backed build artifact at `VERIFIED` with digest, manifest, build log, and retrieval metadata
+- **Durable review approvals:** Builder and repo review approvals persist as orchestrator-backed approval records rather than local filesystem receipts
 - **Operations APIs:** `/internal/operations/summary|agents|agent-integrations`
 - **Data-plane adapters:** Qdrant (active), Milvus/Neo4j/object storage (feature-flagged)
 - **OTel tracing:** Jaeger OTLP export
@@ -141,8 +146,9 @@ The system is organized into three planes:
 ### Mission Control (`apps/mission-control`, `:3100`)
 
 - **Operator console:** Full Next.js 16 App Router application
+- **Primary operator surfaces:** Home/dashboard, chat intake, missions, agents, semantic bus, databases, repo import, and settings
+- **Grounded review flows:** Workspace builder review and GitHub repo review with durable approval records and mission launch bundles
 - **Live transport:** SSE EventSource + polling fallback with `stream|poll|paused` mode indicator
-- **Builder:** 4-step repository intake (import → file select → inferred diff review/apply gate → mission config)
 - **Windowed rendering:** Virtual scrolling for Semantic Bus and agent roster views (high-volume)
 
 ---
@@ -173,10 +179,11 @@ QUEUED ──► RUNNING ──► VERIFIED ──► COMPLETE
 - **Fail-open:** `LANGGRAPH_FAIL_OPEN=true` — graph failure falls back to legacy lifecycle
 - **Startup rehydration:** In-flight missions recovered on orchestrator restart
 - **Default selection:** LangGraph is not the default shipped runtime path while `MISSION_FLOW_V2_ENABLED=true`
+- **Completion gate:** when mission metadata includes `source_code`, `COMPLETE` requires both orchestration evidence and a successful stored build artifact
 
 ---
 
-## 35-Agent Model
+## 38-Agent Model
 
 ### Tier Structure
 
@@ -186,10 +193,10 @@ QUEUED ──► RUNNING ──► VERIFIED ──► COMPLETE
 | Executive | AGENT-02-CEO (Chief Executor) | 1 |
 | Support Ring | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy | 9 |
 | Pod A (Dynamic) | Manager, Audit, Python, JS, Ruby, PHP Specialists | 6 |
-| Pod B (Systems) | Manager, Audit, C, C++, Rust, Zig Specialists | 6 |
+| Pod B (Systems) | Manager, Audit, C, C++, Rust, Zig, Go Specialists | 7 |
 | Pod C (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | 6 |
-| Pod D (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica Specialists | 6 |
-| **Total** | | **35** |
+| Pod D (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica, Haskell, OCaml Specialists | 8 |
+| **Total** | | **38** |
 
 ### Agent Runtime State Model
 
@@ -246,13 +253,16 @@ Specialist routing remains narrower than extraction coverage. Some extracted lan
 
 ### Database Schema (PostgreSQL)
 
-The default compose stack provisions one Postgres database (`POSTGRES_DB`, default `ulr`). Core tables are created by `services/orchestrator/orchestrator/migrations/V001_initial_runtime_schema.sql`, including:
+The default compose stack provisions one Postgres database (`POSTGRES_DB`, default `ulr`). Core tables are created by versioned migrations under `services/orchestrator/orchestrator/migrations/`, including:
 
 - `missions`
-- `mission_events`
-- `mission_assignments`
-- `logicnodes`
+- `mission_state_events`
+- `mission_pod_assignments`
+- `mission_logicnodes`
+- `mission_knowledge`
 - `mission_audit_reports`
+- `mission_build_artifacts`
+- `review_approvals`
 - `schema_migrations`
 
 ### Redis Streams
