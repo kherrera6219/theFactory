@@ -49,6 +49,7 @@ INTAKE_TOPIC = os.getenv("INTAKE_TOPIC", "intake.feature_contract.created")
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3100")
 INTERNAL_SERVICE_API_KEY = os.getenv("INTERNAL_SERVICE_API_KEY", "")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
 AUTH_MODE = os.getenv("AUTH_MODE", "api_key").strip().lower()
 OIDC_ISSUER_URL = os.getenv("OIDC_ISSUER_URL", "").strip()
 OIDC_AUDIENCE = os.getenv("OIDC_AUDIENCE", "").strip()
@@ -148,8 +149,20 @@ LIVE_STREAM_ERRORS = Counter(
 LOGGER = logging.getLogger(__name__)
 VALID_AUTH_MODES = {"api_key", "hybrid", "oidc"}
 if AUTH_MODE not in VALID_AUTH_MODES:
-    LOGGER.warning("unsupported AUTH_MODE '%s'; defaulting to api_key", AUTH_MODE)
+    _invalid_auth_mode_msg = (
+        f"Invalid AUTH_MODE '{AUTH_MODE}'. "
+        f"Valid values: {', '.join(sorted(VALID_AUTH_MODES))}. "
+        f"Falling back to api_key."
+    )
+    if ENVIRONMENT == "production":
+        raise RuntimeError(
+            f"Invalid AUTH_MODE '{AUTH_MODE}' in production. "
+            f"Valid values: {', '.join(sorted(VALID_AUTH_MODES))}. "
+            f"Set AUTH_MODE to a valid value before starting the service."
+        )
+    LOGGER.error(_invalid_auth_mode_msg)
     AUTH_MODE = "api_key"
+LOGGER.info("api-gateway auth mode active: %s (environment=%s)", AUTH_MODE, ENVIRONMENT)
 _OIDC_JWKS_CLIENT: Any | None = None
 
 if Path("/app/schemas").exists() and Path("/app/protocol").exists():
