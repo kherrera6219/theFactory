@@ -58,6 +58,17 @@ DLQ_WRITES = Counter(
     "Total dead-letter writes by MCP",
     ("protocol",),
 )
+MESSAGES_DEDUPLICATED = Counter(
+    "semantic_bus_mcp_messages_deduplicated_total",
+    "Total duplicate messages rejected by MCP",
+    ("protocol",),
+)
+# 2026 best practice: backpressure threshold — 503 when queue exceeds limit
+BACKPRESSURE_QUEUE_LIMIT = int(os.getenv("MCP_BACKPRESSURE_LIMIT", "10000"))
+# Message deduplication TTL — correlation_id seen within this window = duplicate
+MESSAGE_DEDUP_TTL_SECONDS = int(os.getenv("MCP_DEDUP_TTL_SECONDS", "300"))
+# Message TTL — streams older than this age (seconds) are pruned (via XTRIM approximate)
+MESSAGE_TTL_SECONDS = int(os.getenv("MCP_MESSAGE_TTL_SECONDS", "3600"))
 
 
 def _parse_datetime(value: str) -> datetime:
@@ -417,6 +428,51 @@ async def send_message(
     redis_client = getattr(app.state, "redis", None)
     if redis_client is None or not bool(getattr(app.state, "redis_ready", False)):
         raise HTTPException(status_code=503, detail="redis unavailable")
+
+    # 2026 best practice: message deduplication via Redis SET NX EX
+    dedup_key = f"mcp:dedup:{envelope.correlation_id}"
+    try:
+        already_seen = not await redis_client.set(
+            dedup_key, "1", nx=True, ex=MESSAGE_DEDUP_TTL_SECONDS
+        )
+        if already_seen:
+            MESSAGES_DEDUPLICATED.labels(protocol=payload.protocol).inc()
+            LOGGER.info(
+                "semantic-bus-mcp: duplicate message rejected correlation_id=%s",
+                envelope.correlation_id,
+            )
+            # Return 200 (idempotent) rather than 409 — clients shouldn't error on dedup
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "message_id": envelope.message_id,
+                    "schema_version": payload.schema_version,
+                    "protocol": payload.protocol,
+                    "channels": channels,
+                    "queued_at": envelope.timestamp,
+                    "deduplicated": True,
+                },
+            )
+    except Exception:
+        LOGGER.warning("semantic-bus-mcp: dedup check failed, proceeding without dedup guard")
+
+    # 2026 best practice: backpressure — check queue depth before accepting more
+    try:
+        queue_depth = await redis_client.xlen(channels[0]) if channels else 0
+        if queue_depth > BACKPRESSURE_QUEUE_LIMIT:
+            LOGGER.warning(
+                "semantic-bus-mcp: backpressure triggered queue_depth=%d limit=%d",
+                queue_depth, BACKPRESSURE_QUEUE_LIMIT,
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="queue backpressure limit exceeded; retry later",
+                headers={"Retry-After": "5"},
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # backpressure check is best-effort
 
     try:
         for channel in channels:
