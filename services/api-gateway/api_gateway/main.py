@@ -1154,19 +1154,41 @@ def _request_correlation_id(request: Request) -> str:
 
 
 @app.middleware("http")
-async def _request_metrics(request, call_next):
+async def _request_metrics_and_audit(request: Request, call_next):
+    """Combined metrics + structured audit log middleware.
+
+    2026 best practice (OWASP API Security): log every request with
+    method, path, status, duration, trace-id, and sanitised identity.
+    No secrets or request bodies are logged.
+    """
     started = time.perf_counter()
     method = request.method
     status_code = "500"
+    trace_id = current_trace_id()
     try:
         response = await call_next(request)
         status_code = str(response.status_code)
         return response
     finally:
+        elapsed_ms = (time.perf_counter() - started) * 1000
         route = request.scope.get("route")
         path = route.path if route is not None else request.url.path
         REQUEST_COUNTER.labels(method=method, path=path, status_code=status_code).inc()
-        REQUEST_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - started)
+        REQUEST_LATENCY.labels(method=method, path=path).observe(elapsed_ms / 1000)
+        # Structured audit log — no secrets, no bodies
+        _client_ip = (request.client.host if request.client else "unknown")
+        LOGGER.info(
+            "audit",
+            extra={
+                "audit": True,
+                "method": method,
+                "path": path,
+                "status": status_code,
+                "duration_ms": round(elapsed_ms, 2),
+                "trace_id": trace_id or "",
+                "client_ip_hash": hashlib.sha256(_client_ip.encode()).hexdigest()[:16],
+            },
+        )
 
 
 @app.middleware("http")

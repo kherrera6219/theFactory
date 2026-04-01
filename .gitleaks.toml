@@ -1,0 +1,75 @@
+# gitleaks.toml — theFactory secret scanning configuration
+# 2026 best practice: block on detect (exit-code 1), no reporting-only mode in CI
+title = "theFactory gitleaks config"
+
+[extend]
+useDefault = true
+
+# ─── theFactory-specific patterns ───────────────────────────────────────────
+
+[[rules]]
+id = "thefactory-internal-service-key"
+description = "theFactory INTERNAL_SERVICE_API_KEY pattern"
+regex = '''(?i)(internal.?service.?api.?key|INTERNAL_SERVICE_API_KEY)\s*[:=]\s*['"]?([a-f0-9]{32,64})['"]?'''
+entropy = 3.5
+keywords = ["internal_service_api_key", "internal-service-api-key"]
+tags = ["thefactory", "api-key"]
+
+[[rules]]
+id = "thefactory-agent-service-key"
+description = "theFactory AGENT_XX_*_SERVICE_API_KEY pattern"
+regex = '''AGENT_\d{2}_[A-Z0-9_]+_SERVICE_API_KEY\s*[:=]\s*['"]?([a-f0-9]{16,})['"]?'''
+entropy = 3.5
+keywords = ["_service_api_key"]
+tags = ["thefactory", "agent-key"]
+
+[[rules]]
+id = "thefactory-orchestrator-admin-key"
+description = "theFactory orchestrator admin/readonly API key"
+regex = '''(?i)(orchestrator.?admin.?api.?key|orchestrator.?readonly.?api.?key)\s*[:=]\s*['"]?([a-f0-9]{32,64})['"]?'''
+entropy = 3.5
+keywords = ["orchestrator_admin_api_key", "orchestrator_readonly_api_key"]
+tags = ["thefactory", "api-key"]
+
+[[rules]]
+id = "thefactory-vault-admin-key"
+description = "theFactory VAULT_ADMIN_KEY"
+regex = '''VAULT_ADMIN_KEY\s*[:=]\s*['"]?([a-f0-9]{32,64})['"]?'''
+entropy = 3.5
+keywords = ["vault_admin_key"]
+tags = ["thefactory", "vault"]
+
+[[rules]]
+id = "thefactory-pod-service-key"
+description = "theFactory POD_[A-D]_SERVICE_API_KEY"
+regex = '''POD_[A-D]_SERVICE_API_KEY\s*[:=]\s*['"]?([a-f0-9]{16,})['"]?'''
+entropy = 3.5
+keywords = ["pod_a_service_api_key", "pod_b_service_api_key", "pod_c_service_api_key", "pod_d_service_api_key"]
+tags = ["thefactory", "pod-key"]
+
+# ─── Allowlist: legitimate placeholder patterns in example/template files ───
+
+[allowlist]
+description = "Allow CHANGE_ME placeholders and example values"
+regexes = [
+    "CHANGE_ME",
+    "your_.*_here",
+    "example_.*_key",
+    "<REPLACE_ME>",
+]
+paths = [
+    ".env.example",
+    ".env.template",
+    "docs/",
+    "README.md",
+    "CONTRIBUTING.md",
+    "AGENTS.md",
+]
+stopwords = [
+    "CHANGE_ME",
+    "REPLACE_ME",
+    "example",
+    "placeholder",
+    "template",
+    "your_key_here",
+]

@@ -1,50 +1,123 @@
+# docker-compose.prod.yaml — production overrides
+#
+# Applied on top of docker-compose.yaml:
+#   docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d
+#
+# The base compose already supplies:
+#   - CPU limits (cpus:) and memory limits (mem_limit:) per service
+#   - Healthcheck blocks (liveness + readiness probe)
+#   - read_only: true, cap_drop: ALL, ulimits, tmpfs: /tmp
+#   - restart: unless-stopped
+#
+# This overlay activates production security posture:
+#   - PII detection (redact mode)
+#   - Prompt injection guard (block mode)
+#   - Tighter circuit breaker thresholds for agent-runtime
+#   - Lower backpressure limit for semantic bus
+#   - OIDC auth enforcement
+#   - Reduced log verbosity
+
 services:
   api-gateway:
     environment:
+      # --- auth ---
       AUTH_MODE: oidc
       API_RATE_LIMIT_PER_MINUTE: 60
       OIDC_ENFORCE_OPERATOR_ROUTES: "true"
+      # --- Phase 2 security features ---
+      PII_GUARD_MODE: redact         # redact PII in mission prompts at intake
+      PROMPT_GUARD_MODE: block       # block prompt injection attempts in prod
+      # --- observability ---
+      LOG_LEVEL: WARNING
+      AUDIT_LOG_ENABLED: "true"
+
   orchestrator:
     environment:
+      # --- LangGraph production settings ---
       LANGGRAPH_ENABLED: "true"
       LANGGRAPH_CHECKPOINTER: postgres
       LANGGRAPH_CHECKPOINTER_SETUP: "true"
       LANGGRAPH_FAIL_OPEN: "true"
+      # --- storage ---
       OBJECT_STORAGE_ENABLED: "true"
       NEO4J_ENABLED: "true"
+      # --- Phase 2 security features ---
+      PROMPT_GUARD_MODE: block
+      PII_GUARD_MODE: redact
+      # --- observability ---
+      LOG_LEVEL: WARNING
+
+  semantic-bus-mcp:
+    environment:
+      # Phase 3 — lower backpressure limit in prod to protect downstream consumers
+      MCP_BACKPRESSURE_LIMIT: "5000"
+      # Longer dedup TTL in prod (10 minutes) — prevents replay across retries
+      MESSAGE_DEDUP_TTL_SECONDS: "600"
+      LOG_LEVEL: WARNING
+
   pod-a-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
+      LOG_LEVEL: WARNING
+
   pod-b-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
+      LOG_LEVEL: WARNING
+
   pod-c-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
+      LOG_LEVEL: WARNING
+
   pod-d-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
+      LOG_LEVEL: WARNING
+
   pod-a-dedicated-mgr-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
+      # Phase 3 — tighter circuit breaker for prod (3 failures → open, 60s recovery)
+      CIRCUIT_FAILURE_THRESHOLD: "3"
+      CIRCUIT_RECOVERY_SECONDS: "60"
+      LOG_LEVEL: WARNING
+
   pod-b-dedicated-mgr-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
+      CIRCUIT_FAILURE_THRESHOLD: "3"
+      CIRCUIT_RECOVERY_SECONDS: "60"
+      LOG_LEVEL: WARNING
+
   pod-c-dedicated-mgr-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
+      CIRCUIT_FAILURE_THRESHOLD: "3"
+      CIRCUIT_RECOVERY_SECONDS: "60"
+      LOG_LEVEL: WARNING
+
   pod-d-dedicated-mgr-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
+      CIRCUIT_FAILURE_THRESHOLD: "3"
+      CIRCUIT_RECOVERY_SECONDS: "60"
+      LOG_LEVEL: WARNING
+
   audit-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
+      LOG_LEVEL: WARNING
+
   dashboard:
     environment:
       API_GATEWAY_URL: http://api-gateway:8000
       DASHBOARD_PORT: 8080
       HGR_RUNTIME_ENV: production
+
   mission-control:
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_GATEWAY_HOST_PORT:-8100}
       NEXT_PUBLIC_RUNTIME_ENV: production
+      # Phase 2 — HMAC-signed approvals (secret must be set in .env for prod)
+      APPROVAL_TTL_SECONDS: "86400"

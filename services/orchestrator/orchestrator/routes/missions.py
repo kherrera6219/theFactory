@@ -1,0 +1,147 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+from datetime import UTC, datetime
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Query, Request
+
+from .. import storage
+from ..auth import AuthContext
+from ..models import (
+    MissionCreate,
+    MissionRecord,
+    MissionState,
+    MissionStateUpdate,
+)
+from ._deps import INTERNAL_AUTH_DEP, MUTATION_AUTH_DEP
+
+LOGGER = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+@router.post("/missions")
+async def create_mission(
+    request: Request,
+    payload: MissionCreate,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> MissionRecord:
+    import orchestrator.main as _main
+
+    app = request.app
+    redis_ready, _ = await _main._ensure_db_ready(app)
+    redis_client = getattr(app.state, "redis", None)
+
+    record = MissionRecord(
+        mission_id=payload.mission_id,
+        prompt=payload.prompt,
+        requested_target_language=payload.requested_target_language,
+        metadata=payload.metadata,
+        state=MissionState.queued,
+        created_at=payload.created_at or datetime.now(UTC).isoformat(),
+    )
+
+    await asyncio.to_thread(storage.upsert_mission, app.state.settings, record, None)
+    await asyncio.to_thread(
+        storage.insert_mission_event,
+        app.state.settings,
+        record.mission_id,
+        MissionState.intake,
+        MissionState.queued,
+        "MISSION_QUEUED",
+    )
+
+    if redis_ready and redis_client is not None and app.state.protocol_ready:
+        try:
+            await _main.emit_state_event(
+                app.state.settings,
+                app.state.envelope_validator,
+                redis_client,
+                record,
+                "MISSION_QUEUED",
+            )
+        except Exception as exc:
+            LOGGER.warning("failed to emit queued state event for %s: %s", record.mission_id, exc)
+
+    _main.start_lifecycle_task(app, record.mission_id)
+    return record
+
+
+@router.get("/missions/{mission_id}")
+async def get_mission(request: Request, mission_id: str) -> MissionRecord:
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    return await _main._fetch_existing_mission(app, mission_id)
+
+
+@router.get("/missions")
+async def list_missions(
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=200),
+) -> list[MissionRecord]:
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    return await asyncio.to_thread(storage.list_missions, app.state.settings, limit)
+
+
+@router.get("/missions/{mission_id}/events")
+async def get_mission_events(
+    request: Request,
+    mission_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+) -> list[dict[str, Any]]:
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    await _main._fetch_existing_mission(app, mission_id)
+    events = await asyncio.to_thread(
+        storage.list_mission_events, app.state.settings, mission_id, limit
+    )
+    return [event.model_dump() for event in events]
+
+
+@router.post("/missions/{mission_id}/state")
+async def update_mission_state(
+    request: Request,
+    mission_id: str,
+    payload: MissionStateUpdate,
+    _: AuthContext = MUTATION_AUTH_DEP,
+) -> MissionRecord:
+    import orchestrator.main as _main
+
+    app = request.app
+    redis_ready, _ = await _main._ensure_db_ready(app)
+    redis_client = getattr(app.state, "redis", None)
+
+    event_type = f"MISSION_{payload.new_state.value}"
+    record = await asyncio.to_thread(
+        storage.transition_mission_state,
+        app.state.settings,
+        mission_id,
+        payload.expected_state,
+        payload.new_state,
+        event_type,
+    )
+    if record is None:
+        raise HTTPException(status_code=409, detail="state transition rejected")
+
+    if redis_ready and redis_client is not None and app.state.protocol_ready:
+        try:
+            await _main.emit_state_event(
+                app.state.settings,
+                app.state.envelope_validator,
+                redis_client,
+                record,
+                event_type,
+            )
+        except Exception as exc:
+            LOGGER.warning("failed to emit state event for %s: %s", record.mission_id, exc)
+
+    return record

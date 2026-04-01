@@ -1,10 +1,51 @@
 from __future__ import annotations
 
+import logging
+import math
 import os
 import re
 from typing import Any, Mapping
 
 AGENT_SERVICE_KEY_ENV_PATTERN = re.compile(r"^AGENT_(\d{2})_([A-Z0-9_]+)_SERVICE_API_KEY$")
+
+LOGGER = logging.getLogger(__name__)
+
+# 2026 best practice: minimum key entropy and length to guard against weak keys
+_MIN_KEY_LENGTH = 16
+_MIN_KEY_ENTROPY = 3.0
+
+
+def _shannon_entropy(value: str) -> float:
+    """Compute Shannon entropy of *value* in bits per character."""
+    if not value:
+        return 0.0
+    freq: dict[str, int] = {}
+    for ch in value:
+        freq[ch] = freq.get(ch, 0) + 1
+    total = len(value)
+    return -sum((count / total) * math.log2(count / total) for count in freq.values())
+
+
+def validate_key_strength(key: str, agent_id: str | None = None) -> bool:
+    """Return True if *key* meets minimum strength requirements; log warnings otherwise.
+
+    Does NOT raise — callers decide whether to fail-closed or warn-only.
+    """
+    label = agent_id or "<unknown>"
+    if len(key) < _MIN_KEY_LENGTH:
+        LOGGER.warning(
+            "agent key for %s is too short (%d chars; minimum %d)",
+            label, len(key), _MIN_KEY_LENGTH,
+        )
+        return False
+    entropy = _shannon_entropy(key)
+    if entropy < _MIN_KEY_ENTROPY:
+        LOGGER.warning(
+            "agent key for %s has low entropy (%.2f bits; minimum %.1f)",
+            label, entropy, _MIN_KEY_ENTROPY,
+        )
+        return False
+    return True
 
 
 def normalize_agent_id(value: Any) -> str | None:
@@ -79,6 +120,8 @@ def service_api_key_for_agent(
         if env_name:
             direct_env_key = env_mapping.get(env_name, "").strip()
             if direct_env_key:
+                validate_key_strength(direct_env_key, normalized_agent_id)
+                LOGGER.debug("key resolved via env var for agent %s", normalized_agent_id)
                 return direct_env_key
         mapped_key = configured_agent_service_key_map(
             raw_mapping,
@@ -86,7 +129,11 @@ def service_api_key_for_agent(
             allowed_agent_ids=allowed_agent_ids,
         ).get(normalized_agent_id)
         if mapped_key:
+            validate_key_strength(mapped_key, normalized_agent_id)
+            LOGGER.debug("key resolved via mapping for agent %s", normalized_agent_id)
             return mapped_key
         if (key_mode.strip().lower() or "shared") == "strict":
             raise RuntimeError(f"missing dedicated service key for {normalized_agent_id}")
+    validate_key_strength(fallback_key, "fallback")
+    LOGGER.debug("using fallback key for agent %s", normalized_agent_id or "<none>")
     return fallback_key

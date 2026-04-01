@@ -6,6 +6,64 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Phase 3 (continued) — Orchestrator Decomposition (2026-03-31)
+
+#### Added
+- `services/orchestrator/orchestrator/routes/` — new routes package splitting the 2065-line `main.py` into focused modules:
+  - `routes/missions.py` (147 lines) — mission CRUD and state transition routes
+  - `routes/internal.py` (605 lines) — all `/internal/*` routes: pod assignment, chain trace, logicnodes, knowledge, audit reports, review approvals, build artifacts, partition results, agent heartbeat
+  - `routes/operations.py` (263 lines) — all `/internal/operations/*` routes: summary, agents snapshot, events, alerts, projects
+  - `routes/_deps.py` (16 lines) — shared `INTERNAL_AUTH_DEP` / `MUTATION_AUTH_DEP` Depends wrappers
+
+#### Changed
+- `services/orchestrator/orchestrator/main.py` — reduced from 2065 to 1250 lines via extraction; retains all helpers, lifespan, background tasks, middleware, health/readyz/metrics, and `app.include_router()` wiring. No functional changes.
+
+### Phase 4 — Production Hardening (2026-03-31)
+
+#### Changed
+- `deploy/docker-compose.prod.yaml` — comprehensive production overlay: activates `PII_GUARD_MODE=redact` and `PROMPT_GUARD_MODE=block` for api-gateway and orchestrator; tightens circuit breaker to 3 failures / 60s recovery for all dedicated agent workers; reduces semantic bus backpressure limit to 5 000 and extends dedup TTL to 600s; sets `LOG_LEVEL=WARNING` across all services; adds `AUDIT_LOG_ENABLED=true`
+- `.github/workflows/ci.yml` — added CycloneDX JSON SBOM generation alongside existing SPDX JSON (both formats uploaded as CI artifacts); SLSA provenance already generated via `actions/attest-build-provenance@v2`
+
+### Phase 3 — Intelligence Layer Upgrade (2026-03-31)
+
+#### Added
+- `services/pod-worker/pod_worker/ast_extractor.py` — AST-based Python extraction using the built-in `ast` module; provides `AstFunctionInfo`, `AstClassInfo`, `AstImportInfo`, and `AstExtractionResult` with accurate function/class/import detection, type annotation extraction, decorator capture, and docstring harvesting; graceful fallback on SyntaxError
+- `tests/services/test_ast_extractor.py` — 36 unit tests covering function/class/import extraction, async detection, decorator capture, edge cases, and frozen-dataclass immutability
+- `tests/services/test_circuit_breaker.py` — 18 unit tests for the CLOSED→OPEN→HALF-OPEN circuit breaker state machine in agent-runtime
+- `tests/services/test_semantic_bus_dedup.py` — 8 integration tests for message deduplication (Redis SET NX EX on `correlation_id`) and backpressure (503 + `Retry-After: 5` when queue > limit), including graceful-degradation coverage
+
+#### Changed
+- `services/agent-runtime/agent_runtime/main.py` — added `_CircuitBreaker` class (CLOSED/OPEN/HALF states, configurable `CIRCUIT_FAILURE_THRESHOLD` and `CIRCUIT_RECOVERY_SECONDS`); integrated into `_request()` to fail-fast when orchestrator is unreachable; added `AGENT_CIRCUIT_OPEN` Prometheus counter
+- `services/semantic-bus-mcp/semantic_bus/mcp_server.py` — added message deduplication via Redis SET NX EX keyed on `correlation_id` (idempotent 200 response with `"deduplicated": true`); added backpressure check via `xlen` against `BACKPRESSURE_QUEUE_LIMIT` (default 10 000) with `Retry-After: 5` header; added `MESSAGES_DEDUPLICATED` Prometheus counter
+
+### Phase 2 — Security Hardening (2026-03-31)
+
+#### Added
+- `shared_runtime/pii_guard.py` — PII detection and redaction module; patterns for SSN, credit card, email, phone (US + intl), JWT tokens, hex/base64 API keys, password KV pairs, IP addresses; overlap-aware deduplication; `detect_pii`, `redact_pii`, `has_pii`, `scan_dict_for_pii`, `safe_context_json_redact`
+- `shared_runtime/prompt_guard.py` — prompt injection detection and sanitization; patterns for system-tag delimiter smuggling, INST-tag injection, human-turn injection, role override, jailbreak keywords, agent-ID injection, prompt extraction, and base64 content; `check_prompt` returns `InjectionResult` with risk level; `sanitize_prompt` strips known attack vectors
+- `tests/services/test_pii_guard.py` — 22 unit tests for all PII detection, redaction, and dict-scanning paths
+- `tests/services/test_prompt_guard.py` — 17 unit tests covering all injection patterns, sanitization, and risk-level escalation
+- `apps/mission-control/e2e/mission-control-extended.spec.ts` — 13 Playwright E2E tests covering mission failure path, full v2 lifecycle, vault/settings, agents grid, semantic bus monitor, accessibility, and databases page
+- `tests/eval/golden_delegation_cases.json` — expanded from 6 to 30 golden delegation cases including all language specialists, 6 adversarial injection cases, and 3 regression/isolation cases
+- `docs/runbooks/dr_validation_runbook.md` — DR drill runbook for PostgreSQL backup/restore, full cold-start, orchestrator failure + LangGraph checkpoint recovery, and Redis stream recovery
+
+#### Changed
+- `shared_runtime/protocol.py` — added `ReplayDetectedError`, in-process `_InProcessReplayGuard` with lazy-eviction TTL, and `check_replay()` public function for event replay detection
+- `services/api-gateway/api_gateway/main.py` — added structured audit log middleware emitting `{audit, method, path, status, duration_ms, trace_id, client_ip_hash}` as structured JSON on every request
+- `apps/mission-control/app/api/review/approve/route.ts` — HMAC-SHA256 signature on approval records; `issued_at` / `expires_at` / `hmac_digest` fields sent to orchestrator; configurable `APPROVAL_HMAC_SECRET` and `APPROVAL_TTL_SECONDS`
+- `.env.example` — added `APPROVAL_HMAC_SECRET`, `APPROVAL_TTL_SECONDS`, `PII_GUARD_MODE`, `PROMPT_GUARD_MODE`
+
+### Phase 0 — Secret Hygiene & Supply Chain Baseline (2026-03-31)
+
+#### Added
+- `.gitleaks.toml` — custom gitleaks config with theFactory-specific API key patterns and CHANGE_ME allowlist
+- `.pre-commit-config.yaml` — pre-commit hooks: gitleaks (staged secret scan), ruff lint+format, YAML/JSON validation, large-file guard, private-key detection, no-commit-to-main
+- `scripts/rotate_secrets.sh` — secret rotation helper: generates 32-char hex keys for all rotatable env vars, validates .env.example is clean, checks git history via gitleaks
+- `shared_runtime/agent_keys.py` — Shannon entropy validation (`validate_key_strength`) and structured key-access logging; keys below 16 chars or 3.0 bits/char emit warnings
+
+#### Changed
+- `.github/workflows/security.yml` — added Python + Node license scanning (blocks GPL/AGPL in transitive deps), hardened gitleaks to full history scan with custom `.gitleaks.toml`, added `.env.example` real-secret verification step
+
 ### Added
 - Documentation governance and archive package:
   - canonical documentation standard in `docs/DOCUMENTATION_STANDARDS.md`

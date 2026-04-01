@@ -1,0 +1,53 @@
+# .pre-commit-config.yaml — theFactory pre-commit hooks
+# 2026 standard: block secrets and lint issues before they reach CI
+# Install: pip install pre-commit && pre-commit install
+# Run all: pre-commit run --all-files
+repos:
+  # ─── Secret scanning (highest priority — blocks first) ──────────────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        name: gitleaks — secret scan (staged files)
+        args: ["protect", "--staged", "--config=.gitleaks.toml", "--verbose"]
+
+  # ─── Python linting (ruff) ──────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.6
+    hooks:
+      - id: ruff
+        name: ruff lint
+        args: ["--fix"]
+        files: "^(services|shared_runtime|tests|scripts)/.*\\.py$"
+      - id: ruff-format
+        name: ruff format
+        files: "^(services|shared_runtime|tests|scripts)/.*\\.py$"
+
+  # ─── General file hygiene ───────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: "\\.(md|rst|txt)$"
+      - id: end-of-file-fixer
+        exclude: "\\.(md|rst)$"
+      - id: check-yaml
+        args: ["--unsafe"]
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: detect-private-key
+        name: detect-private-key (extra guard)
+      - id: no-commit-to-branch
+        args: ["--branch", "main"]
+
+  # ─── TypeScript / JS (frontend) ─────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: eslint-mission-control
+        name: eslint mission-control
+        language: system
+        entry: bash -c 'cd apps/mission-control && npm run lint -- --max-warnings 0'
+        files: "^apps/mission-control/.*\\.(ts|tsx|js|jsx)$"
+        pass_filenames: false

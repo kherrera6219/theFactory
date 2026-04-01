@@ -1,3 +1,4 @@
+import { createHmac } from "crypto";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -5,6 +6,13 @@ export const runtime = "nodejs";
 const ORCHESTRATOR_INTERNAL_BASE_URL =
   process.env.ORCHESTRATOR_INTERNAL_BASE_URL?.trim() || "http://localhost:8101";
 const INTERNAL_SERVICE_API_KEY = process.env.INTERNAL_SERVICE_API_KEY?.trim() || "";
+// 2026 best practice: HMAC signing on approval records for tamper-evidence
+const APPROVAL_HMAC_SECRET = process.env.APPROVAL_HMAC_SECRET?.trim() || "";
+// 2026 best practice: approvals expire after TTL to prevent stale grants
+const APPROVAL_TTL_SECONDS = parseInt(
+  process.env.APPROVAL_TTL_SECONDS?.trim() || "86400",
+  10,
+);
 
 type ReviewApprovalRequest = {
   scope?: "builder" | "repo";
@@ -18,6 +26,22 @@ function sanitizeText(value: string | undefined, maxLength: number): string {
     .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "")
     .trim()
     .slice(0, maxLength);
+}
+
+/**
+ * Compute HMAC-SHA256 digest over approval record fields.
+ * Provides tamper-evidence — any mutation of scope/fingerprint/summary
+ * will produce a different digest, detectable at verification time.
+ */
+function computeApprovalHmac(
+  scope: string,
+  fingerprint: string,
+  summary: string,
+  issuedAt: string,
+): string | null {
+  if (!APPROVAL_HMAC_SECRET) return null;
+  const payload = `${scope}:${fingerprint}:${summary}:${issuedAt}`;
+  return createHmac("sha256", APPROVAL_HMAC_SECRET).update(payload).digest("hex");
 }
 
 export async function POST(request: Request) {
@@ -50,6 +74,11 @@ export async function POST(request: Request) {
     );
   }
 
+  const issuedAt = new Date().toISOString();
+  const hmacDigest = computeApprovalHmac(scope, fingerprint, summary, issuedAt);
+  const safeMetadata =
+    payload.metadata && typeof payload.metadata === "object" ? payload.metadata : {};
+
   try {
     const upstream = await fetch(`${ORCHESTRATOR_INTERNAL_BASE_URL}/internal/review-approvals`, {
       method: "POST",
@@ -61,7 +90,10 @@ export async function POST(request: Request) {
         scope,
         fingerprint,
         summary,
-        metadata: payload.metadata && typeof payload.metadata === "object" ? payload.metadata : {},
+        issued_at: issuedAt,
+        expires_at: new Date(Date.now() + APPROVAL_TTL_SECONDS * 1000).toISOString(),
+        hmac_digest: hmacDigest,
+        metadata: safeMetadata,
       }),
       cache: "no-store",
     });
