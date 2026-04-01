@@ -87,6 +87,68 @@ AGENT_HEARTBEAT_ATTEMPTS = Counter(
     "Total heartbeat attempts emitted by dedicated agent runtime",
     ("agent_id", "status"),
 )
+AGENT_CIRCUIT_OPEN = Counter(
+    "agent_runtime_circuit_open_total",
+    "Total circuit breaker trips for dedicated agent runtime",
+    ("agent_id",),
+)
+
+
+# ---------------------------------------------------------------------------
+# Circuit breaker (2026 best practice: fail-fast when orchestrator unreachable)
+# ---------------------------------------------------------------------------
+
+class _CircuitBreaker:
+    """Simple half-open circuit breaker for orchestrator connectivity.
+
+    States:
+        CLOSED  — normal operation
+        OPEN    — orchestrator unreachable; reject requests immediately
+        HALF    — test probe allowed; close if probe succeeds
+
+    Recovery: after RECOVERY_SECONDS in OPEN state, move to HALF to probe.
+    """
+
+    CLOSED = "CLOSED"
+    OPEN = "OPEN"
+    HALF = "HALF"
+
+    FAILURE_THRESHOLD = int(os.getenv("CIRCUIT_FAILURE_THRESHOLD", "5"))
+    RECOVERY_SECONDS = float(os.getenv("CIRCUIT_RECOVERY_SECONDS", "30.0"))
+
+    def __init__(self) -> None:
+        self.state = self.CLOSED
+        self._failures = 0
+        self._opened_at: float = 0.0
+
+    def record_success(self) -> None:
+        self._failures = 0
+        self.state = self.CLOSED
+
+    def record_failure(self) -> None:
+        self._failures += 1
+        if self._failures >= self.FAILURE_THRESHOLD:
+            if self.state != self.OPEN:
+                LOGGER.warning(
+                    "circuit breaker OPEN after %d consecutive failures for agent %s",
+                    self._failures,
+                    WORKER_AGENT_ID or "<unknown>",
+                )
+                AGENT_CIRCUIT_OPEN.labels(agent_id=WORKER_AGENT_ID or "unknown").inc()
+            self.state = self.OPEN
+            self._opened_at = time.time()
+
+    def is_open(self) -> bool:
+        if self.state == self.OPEN:
+            if time.time() - self._opened_at >= self.RECOVERY_SECONDS:
+                LOGGER.info("circuit breaker entering HALF-OPEN for probe")
+                self.state = self.HALF
+                return False
+            return True
+        return False
+
+
+_CIRCUIT: _CircuitBreaker = _CircuitBreaker()
 
 
 def _worker_agent():
@@ -123,8 +185,18 @@ async def _request(
     json_body: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
 ) -> httpx.Response:
+    """Make an HTTP request to the orchestrator, honouring the circuit breaker.
+
+    2026 best practice: fail-fast when orchestrator is unreachable to prevent
+    cascade failures across all agent workers.
+    """
     if not path.startswith("/"):
         raise ValueError("request path must start with '/'")
+    if _CIRCUIT.is_open():
+        raise RuntimeError(
+            f"circuit breaker OPEN — orchestrator unreachable; retry after "
+            f"{_CircuitBreaker.RECOVERY_SECONDS}s"
+        )
     request_id = f"agent-runtime-{uuid.uuid4()}"
     headers = {
         "x-api-key": SERVICE_API_KEY,
@@ -145,9 +217,12 @@ async def _request(
                 )
                 last_response = response
                 if response.status_code < 500 and response.status_code != 429:
+                    _CIRCUIT.record_success()
                     return response
+                _CIRCUIT.record_failure()
             except httpx.HTTPError as exc:
                 last_error = exc
+                _CIRCUIT.record_failure()
             if attempt < REQUEST_MAX_RETRIES:
                 await asyncio.sleep(0.1 * attempt)
     if last_response is not None:

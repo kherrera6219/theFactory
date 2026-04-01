@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from re import Pattern
 from typing import Any
 
+LOGGER = logging.getLogger(__name__)
+
 
 class ProtocolValidationError(Exception):
     pass
+
+
+class ReplayDetectedError(ProtocolValidationError):
+    """Raised when an event_id has already been processed (replay attack detected)."""
 
 
 def parse_date_time(value: str) -> datetime:
@@ -72,3 +79,53 @@ def validate_envelope(
         expected_type = spec.get("type")
         if field in envelope and expected_type == "string" and not isinstance(envelope[field], str):
             raise ProtocolValidationError(f"field '{field}' must be string")
+
+
+# ---------------------------------------------------------------------------
+# In-process replay detection (single-node, no Redis dependency)
+# For distributed replay detection, use RedisReplayGuard in your service.
+# ---------------------------------------------------------------------------
+
+class _InProcessReplayGuard:
+    """Simple TTL-based in-process replay guard.
+
+    Suitable for single-process use. For multi-instance deployments, pair
+    this with a Redis SET NX EX guard (RedisReplayGuard pattern).
+    """
+
+    def __init__(self, max_entries: int = 100_000) -> None:
+        self._seen: dict[str, float] = {}
+        self._max_entries = max_entries
+
+    def check_and_record(self, event_id: str, *, ttl_seconds: float = 300.0) -> None:
+        """Raise ReplayDetectedError if *event_id* was recently seen.
+
+        2026 best practice: 5-minute TTL covers typical distributed clock skew.
+        """
+        import time
+        now = time.monotonic()
+        # Evict expired entries (lazy cleanup)
+        if len(self._seen) >= self._max_entries:
+            expired = [k for k, ts in self._seen.items() if now - ts > ttl_seconds]
+            for k in expired:
+                del self._seen[k]
+
+        if event_id in self._seen:
+            age = now - self._seen[event_id]
+            if age < ttl_seconds:
+                LOGGER.warning("replay detected for event_id=%s (age=%.1fs)", event_id, age)
+                raise ReplayDetectedError(f"duplicate event_id: {event_id}")
+
+        self._seen[event_id] = now
+
+
+# Module-level singleton for convenience (process-local)
+_DEFAULT_REPLAY_GUARD = _InProcessReplayGuard()
+
+
+def check_replay(event_id: str, *, ttl_seconds: float = 300.0) -> None:
+    """Check *event_id* against the module-level replay guard.
+
+    Raises ReplayDetectedError if the event was already seen within TTL.
+    """
+    _DEFAULT_REPLAY_GUARD.check_and_record(event_id, ttl_seconds=ttl_seconds)

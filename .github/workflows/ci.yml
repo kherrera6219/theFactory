@@ -170,11 +170,21 @@ jobs:
           output-file: sbom.spdx.json
           format: spdx-json
 
+      # 2026 best practice: generate both SPDX and CycloneDX formats (SLSA compliance)
+      - name: Generate SBOM (CycloneDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          output-file: sbom.cdx.json
+          format: cyclonedx-json
+
       - name: Upload SBOM
         uses: actions/upload-artifact@v4
         with:
           name: sbom
-          path: sbom.spdx.json
+          path: |
+            sbom.spdx.json
+            sbom.cdx.json
           if-no-files-found: error
 
   release-trust:

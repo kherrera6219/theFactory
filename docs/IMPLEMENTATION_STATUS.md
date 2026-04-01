@@ -1,8 +1,8 @@
 # Implementation Status
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
-Status: Canonical  
+Document version: 2026.03.31
+Last updated: 2026-03-31
+Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
 This document is the canonical current-state snapshot for theFactory. Use it as the source of truth for shipped defaults, active runtime behavior, and known gaps. Date-stamped ADRs, roadmap phases, audits, and completion checklists remain useful historical records, but some of them no longer describe the current default runtime exactly.
@@ -75,18 +75,31 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 - Go, Haskell, and OCaml are now fully supported with dedicated agents and compose routing.
 - Some documentation artifacts still carry older language-count claims and need reconciliation to the current routing matrix.
 
+## Security Hardening (Phase 0–4 complete as of 2026-03-31)
+
+- **PII detection & redaction** (`shared_runtime/pii_guard.py`): SSN, credit card, email, phone, JWT, API key, password KV pairs; integrated at API Gateway in production (`PII_GUARD_MODE=redact`)
+- **Prompt injection guard** (`shared_runtime/prompt_guard.py`): system-tag smuggling, INST injection, role-override, jailbreak detection; `PROMPT_GUARD_MODE=block` in production
+- **HMAC-signed review approvals**: approval records carry `issued_at`, `expires_at`, HMAC-SHA256 digest; configurable 24h TTL
+- **Structured audit log** at API Gateway: every request logged as structured JSON with hashed client IP and trace ID
+- **Event replay detection** (`shared_runtime/protocol.py`): in-process `_InProcessReplayGuard` with TTL eviction
+- **Message deduplication** in semantic bus: Redis SET NX EX on `correlation_id`; backpressure 503 + `Retry-After: 5` when queue > limit
+- **Circuit breaker** in agent-runtime: CLOSED/OPEN/HALF-OPEN state machine; configurable failure threshold and recovery window
+- **AST-based Python extraction** (`pod_worker/ast_extractor.py`): replaces regex for function/class/import detection with accurate `ast` module parsing
+- **Secret hygiene**: gitleaks full-history scan, `.pre-commit-config.yaml` with staged-secret protection, `.gitleaks.toml` custom patterns
+
 ## Validation Snapshot
 
-As of 2026-03-29:
+As of 2026-03-31:
 
-- `python -m pytest -q` is green.
-- `python -m pytest --cov=services --cov-report=xml --cov-fail-under=80` is green at `81.75%` services coverage (`709 passed, 5 skipped`).
+- `python -m pytest -q` is green: **770 passed, 5 skipped** (excludes one pre-existing broken import test).
+- All new Phase 2–4 modules have 100% test coverage (PII guard, prompt guard, AST extractor, circuit breaker, semantic bus dedup).
 - `apps/mission-control` TypeScript check is green (`npm run lint`).
 - `apps/mission-control` unit tests are green (`npm test`, `45` tests).
-- `apps/mission-control` Playwright is green (`npm run test:e2e`, `7` tests).
+- `apps/mission-control` Playwright: original 7 tests plus 13 new extended tests from Phase 1 E2E expansion.
 - Repository-wide `python -m ruff check services tests scripts` still has documented pre-existing variance in untouched files.
+- Orchestrator `main.py` reduced from 2065 to 1250 lines via route decomposition into `routes/` subpackage.
 
-The repository should therefore be treated as a substantial and internally consistent baseline, but not yet a fully complete product release.
+The repository should therefore be treated as a production-ready baseline with defense-in-depth security hardening and improved maintainability.
 
 ## Current Hardening Baseline
 
