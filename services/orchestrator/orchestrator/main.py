@@ -2033,6 +2033,44 @@ async def get_operations_projects(
     return await asyncio.to_thread(storage.summarize_projects, app.state.settings, limit)
 
 
+@app.get("/internal/dlq/intake")
+async def get_intake_dlq(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    _initialize_app_state(app)
+    settings = app.state.settings
+    redis_client = getattr(app.state, "redis", None)
+    redis_ready = bool(getattr(app.state, "redis_ready", False))
+    if redis_client is None or not redis_ready:
+        raise HTTPException(status_code=503, detail="redis unavailable")
+    stream = settings.intake_dlq_stream
+    try:
+        entries = await redis_client.xrevrange(stream, count=min(max(limit, 1), 200))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"failed to read DLQ: {exc}") from exc
+    sliced = entries[offset : offset + limit]
+    items = []
+    for entry_id, fields in sliced:
+        items.append(
+            {
+                "entry_id": entry_id,
+                "error": fields.get("error", ""),
+                "original_entry_id": fields.get("entry_id", ""),
+                "payload": fields.get("payload", ""),
+                "envelope": fields.get("envelope", ""),
+                "ts": fields.get("ts", ""),
+            }
+        )
+    return {
+        "stream": stream,
+        "count": len(items),
+        "offset": offset,
+        "items": items,
+    }
+
+
 @app.get("/internal/operations/alerts")
 async def get_operations_alerts(
     limit: int = Query(default=50, ge=1, le=200),
