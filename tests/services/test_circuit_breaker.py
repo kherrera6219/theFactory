@@ -1,19 +1,17 @@
 """Tests for agent_runtime circuit breaker — Phase 3."""
 from __future__ import annotations
 
+import importlib
 import sys
 import time
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "agent-runtime"))
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
 # Import the class directly (not the module-level singleton)
-from agent_runtime.main import _CircuitBreaker
-
+_CircuitBreaker = importlib.import_module("agent_runtime.main")._CircuitBreaker
 
 # ---------------------------------------------------------------------------
 # State transitions

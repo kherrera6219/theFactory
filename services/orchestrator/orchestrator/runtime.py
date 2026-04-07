@@ -391,6 +391,35 @@ async def ensure_consumer_group(settings: Settings, redis_client: Any) -> None:
             raise
 
 
+async def _write_intake_dlq(
+    settings: Settings,
+    redis_client: Any,
+    entry_id: str,
+    fields: dict[str, Any],
+    error: str,
+) -> None:
+    try:
+        await redis_client.xadd(
+            settings.intake_dlq_stream,
+            {
+                "error": error,
+                "entry_id": entry_id,
+                "envelope": fields.get("envelope", ""),
+                "payload": fields.get("payload", ""),
+                "ts": datetime.now(UTC).isoformat(),
+            },
+            maxlen=settings.intake_dlq_max_len,
+            approximate=True,
+        )
+    except Exception as dlq_exc:
+        LOGGER.error(
+            "failed to write intake entry %s to DLQ %s: %s",
+            entry_id,
+            settings.intake_dlq_stream,
+            dlq_exc,
+        )
+
+
 async def consume_intake_stream(app: FastAPI) -> None:
     settings: Settings = app.state.settings
     validator: EnvelopeValidator = app.state.envelope_validator
@@ -468,6 +497,13 @@ async def consume_intake_stream(app: FastAPI) -> None:
                         ValueError,
                     ) as exc:
                         LOGGER.warning("discarding invalid intake event %s: %s", entry_id, exc)
+                        await _write_intake_dlq(
+                            settings,
+                            redis_client,
+                            entry_id,
+                            fields,
+                            str(exc),
+                        )
                     finally:
                         await redis_client.xack(
                             settings.intake_stream,

@@ -5,7 +5,6 @@ from __future__ import annotations
 # import resolves correctly.  Tests patch orchestrator.main.INTERNAL_AUTH /
 # orchestrator.main.MUTATION_AUTH and FastAPI's dependency_overrides uses
 # the callable object as the key, so both must refer to the same objects.
-
 from fastapi import Depends
 
 # Lazy re-export so other modules can do: from .routes._deps import INTERNAL_AUTH_DEP

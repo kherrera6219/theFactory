@@ -1,8 +1,6 @@
 """Tests for shared_runtime/pii_guard.py — Phase 2 security hardening."""
 from __future__ import annotations
 
-import pytest
-
 from shared_runtime.pii_guard import (
     detect_pii,
     has_pii,
@@ -27,13 +25,21 @@ class TestDetectPii:
 
     def test_detects_jwt(self):
         # Pass the JWT directly — avoid "Token:" prefix which triggers PASSWORD_KV first
-        jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0In0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        jwt = (
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+            "eyJzdWIiOiIxMjM0In0."
+            "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        )
         matches = detect_pii(jwt)
         assert any(m.pii_type == "JWT_TOKEN" for m in matches)
 
     def test_detects_jwt_with_bearer_prefix(self):
         # The "Authorization:" prefix triggers PASSWORD_KV — JWT should still appear in scan_dict
-        jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0In0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        jwt = (
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+            "eyJzdWIiOiIxMjM0In0."
+            "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        )
         data = {"auth_header": f"Bearer {jwt}"}
         results = scan_dict_for_pii(data)
         # At minimum PASSWORD_KV or JWT_TOKEN should be detected

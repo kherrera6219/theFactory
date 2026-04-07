@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -111,12 +110,20 @@ class TestMessageDeduplication:
             headers = {"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY}
 
             # First send — accepted
-            r1 = client.post("/send", headers=headers, json=_alpha_payload(correlation_id="corr-dup-001"))
+            r1 = client.post(
+                "/send",
+                headers=headers,
+                json=_alpha_payload(correlation_id="corr-dup-001"),
+            )
             assert r1.status_code == 200
             assert r1.json().get("deduplicated") is not True
 
             # Second send with same correlation_id — deduplicated
-            r2 = client.post("/send", headers=headers, json=_alpha_payload(correlation_id="corr-dup-001"))
+            r2 = client.post(
+                "/send",
+                headers=headers,
+                json=_alpha_payload(correlation_id="corr-dup-001"),
+            )
             assert r2.status_code == 200
             assert r2.json().get("deduplicated") is True
 

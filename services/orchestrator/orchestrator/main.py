@@ -12,33 +12,23 @@ from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from . import milvus_store, neo4j_store, object_store, qdrant_store, storage
-from .agent_integrations import build_agent_integration_record, build_agent_integrations_snapshot
+from .agent_integrations import build_agent_integration_record
 from .agent_registry import AGENT_REGISTRY, normalize_language
-from .auth import AuthContext, require_roles
+from .auth import require_roles
 from .data_plane_metrics import observe_optional_adapter_mirror_write
 from .models import (
     AgentHeartbeatUpsert,
-    AuditReportUpsert,
-    KnowledgeUpsert,
-    LogicNodeUpsert,
-    MissionBuildArtifactRecord,
-    MissionCreate,
     MissionEvent,
     MissionRecord,
     MissionState,
-    MissionStateUpdate,
-    PodAssignmentUpsert,
-    ReviewApprovalRecord,
-    ReviewApprovalUpsert,
 )
 from .protocol import EnvelopeValidator, ProtocolValidationError
 from .runtime import (
-    emit_state_event,
     ensure_runtime_ready,
     runtime_self_heal_loop,
     start_lifecycle_task,
@@ -1241,10 +1231,11 @@ async def metrics() -> Response:
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-from .routes.missions import router as missions_router  # noqa: E402
 from .routes.internal import router as internal_router  # noqa: E402
+from .routes.missions import router as missions_router  # noqa: E402
 from .routes.operations import router as operations_router  # noqa: E402
 
 app.include_router(missions_router)
 app.include_router(internal_router)
 app.include_router(operations_router)
+
