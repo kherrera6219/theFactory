@@ -7,17 +7,17 @@
  * All API calls are mocked via Playwright route interception —
  * no live backend is required for these tests.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
 // ─── shared helpers ──────────────────────────────────────────────────────────
 
 async function fulfillJson(
-  route: Parameters<Parameters<ReturnType<typeof test.beforeEach>>[0]>[0]["page"]["route"]extends (...args: infer A) => unknown ? A[1] : never,
+  route: Route,
   status: number,
   body: unknown,
 ): Promise<void> {
-  await (route as { fulfill: (opts: object) => Promise<void> }).fulfill({
+  await route.fulfill({
     status,
     contentType: "application/json",
     body: JSON.stringify(body),
@@ -38,13 +38,10 @@ test.describe("Mission failure path", () => {
     };
 
     await page.route("**/v1/missions**", async (route) => {
-      if (route.request().method() === "GET") {
-        return fulfillJson(route, 200, {
-          missions: [failedMission],
-          total: 1,
-          page: 1,
-          page_size: 20,
-        });
+      const request = route.request();
+      const url = new URL(request.url());
+      if (request.method() === "GET" && url.pathname === "/v1/missions") {
+        return fulfillJson(route, 200, [failedMission]);
       }
       return route.continue();
     });
@@ -57,21 +54,19 @@ test.describe("Mission failure path", () => {
     await expect(page.locator("text=FAILED").first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test("mission creation with empty prompt shows validation error", async ({ page }) => {
-    await page.route("**/v1/missions", async (route) => {
-      if (route.request().method() === "POST") {
-        return fulfillJson(route, 422, { detail: "prompt: at least 3 characters required" });
-      }
-      return route.continue();
-    });
-
+  test("mission creation keeps launch disabled until prompt is valid", async ({ page }) => {
     await page.goto("/missions");
     const submitBtn = page.getByRole("button", { name: /launch|submit|create/i }).first();
-    if (await submitBtn.isVisible()) {
-      await submitBtn.click();
-      // Should not navigate away — form should show inline error or stay on page
-      await expect(page).toHaveURL(/missions/);
-    }
+    const promptField = page.getByLabel("Mission prompt");
+
+    await expect(submitBtn).toBeDisabled();
+
+    await promptField.fill("hi");
+    await expect(page.getByText("Prompt is too short. Add enough context before submission.")).toBeVisible();
+    await expect(submitBtn).toBeDisabled();
+
+    await promptField.fill("Build a resilient intake validation flow.");
+    await expect(submitBtn).toBeEnabled();
   });
 
   test("API gateway 503 shows user-friendly error banner", async ({ page }) => {

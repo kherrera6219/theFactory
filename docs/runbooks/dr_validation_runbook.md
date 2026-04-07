@@ -1,8 +1,11 @@
 # Disaster Recovery Validation Runbook
 
-**Version:** 1.0
-**Date:** 2026-03-31
-**Owner:** Platform Engineering
+Document version: 2026.04.07  
+Last updated: 2026-04-07  
+Status: Canonical  
+Audience: Platform Engineering, maintainers, and on-call responders
+
+**Owner:** Platform Engineering  
 **Review Cycle:** Quarterly
 
 ---

@@ -29,6 +29,9 @@ from .models import (
 )
 from .protocol import EnvelopeValidator, ProtocolValidationError
 from .runtime import (
+    emit_state_event as _emit_state_event,
+)
+from .runtime import (
     ensure_runtime_ready,
     runtime_self_heal_loop,
     start_lifecycle_task,
@@ -76,6 +79,7 @@ LIFECYCLE_RECOVERY_MAX_MISSIONS = max(
     int(os.getenv("LIFECYCLE_RECOVERY_MAX_MISSIONS", "2000")),
 )
 REVIEW_APPROVAL_STORAGE_BACKEND = "postgres"
+emit_state_event = _emit_state_event
 
 
 def _sanitize_review_text(value: str, max_length: int) -> str:

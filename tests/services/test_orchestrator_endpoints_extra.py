@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
 orchestrator_main = importlib.import_module("orchestrator.main")
+orchestrator_auth = importlib.import_module("orchestrator.auth")
 orchestrator_models = importlib.import_module("orchestrator.models")
 
 MissionEvent = orchestrator_models.MissionEvent
@@ -50,7 +51,7 @@ async def _fetch(_: object, mission_id: str) -> MissionRecord:
 
 @pytest.fixture(autouse=True)
 def _override_auth_dependencies():
-    auth_context = orchestrator_main.AuthContext(
+    auth_context = orchestrator_auth.AuthContext(
         api_key="test-worker-key",
         roles={"admin", "internal", "mutate", "read", "worker"},
     )
