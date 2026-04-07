@@ -1,5 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const webServerEnv = Object.entries(process.env).reduce<Record<string, string>>(
+  (accumulator, [key, value]) => {
+    if (key !== "NO_COLOR" && typeof value === "string") {
+      accumulator[key] = value;
+    }
+    return accumulator;
+  },
+  {},
+);
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
@@ -15,6 +25,7 @@ export default defineConfig({
   },
   webServer: {
     command: "npm run dev -- --hostname 127.0.0.1 --port 3000",
+    env: webServerEnv,
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
