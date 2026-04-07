@@ -1,4 +1,9 @@
 /** @type {import('next').NextConfig} */
+const devScriptSources =
+  process.env.NODE_ENV === "production"
+    ? ["'self'", "'unsafe-inline'"]
+    : ["'self'", "'unsafe-inline'", "'unsafe-eval'"];
+
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -20,7 +25,7 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
+              `script-src ${devScriptSources.join(" ")}`,
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
               "img-src 'self' data: blob:",

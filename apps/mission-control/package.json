@@ -10,8 +10,8 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "test:perf": "lhci autorun --config=./lighthouserc.json"
+    "test:e2e": "node scripts/run-npm-exec-clean-env.mjs playwright test",
+    "test:perf": "node scripts/run-npm-exec-clean-env.mjs lhci autorun --config=./lighthouserc.json"
   },
   "overrides": {
     "lodash": "4.18.1",

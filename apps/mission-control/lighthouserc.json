@@ -2,7 +2,7 @@
   "ci": {
     "collect": {
       "numberOfRuns": 1,
-      "startServerCommand": "npm run start -- --hostname 127.0.0.1 --port 3000",
+      "startServerCommand": "npm run start -- --hostname localhost --port 3000",
       "startServerReadyPattern": "Ready",
       "startServerReadyTimeout": 120000,
       "settings": {
@@ -19,8 +19,8 @@
         }
       },
       "url": [
-        "http://127.0.0.1:3000/",
-        "http://127.0.0.1:3000/missions"
+        "http://localhost:3000/",
+        "http://localhost:3000/missions"
       ]
     },
     "assert": {
