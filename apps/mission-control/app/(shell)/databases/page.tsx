@@ -55,8 +55,9 @@ function adapterCard(params: {
 function buildCards(summary: OperationsSummary | null, health: GatewayHealth | null): DatabaseCard[] {
   const redisHealthy = Boolean(health?.redis_healthy);
   const dbHealthy = Boolean(summary?.runtime.db_ready);
-  const generatedAt = summary?.generated_at ?? new Date().toISOString();
-  const lastWrite = formatDateTime(generatedAt);
+  const lastWrite = summary?.generated_at
+    ? formatDateTime(summary.generated_at)
+    : "Awaiting runtime sample";
 
   return [
     {

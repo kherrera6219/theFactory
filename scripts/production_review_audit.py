@@ -170,7 +170,7 @@ def check_compose_environment_profile_controls() -> AuditResult:
         missing_items.append("docker-compose still allows redis insecure tls mode")
     if "sslmode=verify-full" not in compose_text:
         missing_items.append("docker-compose missing postgres verify-full wiring")
-    if "./postgres/certs" not in compose_text:
+    if "./.local/postgres-certs" not in compose_text:
         missing_items.append("docker-compose missing postgres client/server cert mounts")
     if "agent_service_key_mode: strict" not in prod_compose_text:
         missing_items.append("prod overlay missing strict agent service key mode")

@@ -166,7 +166,7 @@ def test_check_compose_environment_profile_controls_passes(tmp_path, monkeypatch
             "    cap_drop: [ALL]\n"
             "    oom_score_adj: -500\n"
             "    volumes:\n"
-            "      - ./postgres/certs:/run/postgres-certs:ro\n"
+            "      - ./.local/postgres-certs:/run/postgres-certs:ro\n"
             "    environment:\n"
             "      REDIS_URL: rediss://redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt\n"
             "      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/ulr?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt\n"
