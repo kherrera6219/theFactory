@@ -28,7 +28,22 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 MCP_PORT = int(os.getenv("MCP_PORT", "8090"))
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 MAX_MESSAGE_BYTES = int(os.getenv("MAX_MESSAGE_BYTES", "1048576"))
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
 _MCP_API_KEY_RAW = os.getenv("MCP_API_KEY", "").strip()
+if not _MCP_API_KEY_RAW:
+    if ENVIRONMENT == "production":
+        raise RuntimeError(
+            "MCP_API_KEY must be explicitly set in production. "
+            "Generate a stable value with: openssl rand -hex 32. "
+            "Auto-generation is not permitted in production because the key "
+            "changes on every container restart, silently breaking all clients."
+        )
+    # Development: auto-generate but log loudly so operators notice.
+    _MCP_API_KEY_DEV_WARNING = (
+        "MCP_API_KEY is not set. A random session key has been generated. "
+        "This key will change on every restart. Set MCP_API_KEY explicitly "
+        "in .env (see .env.example) to avoid breaking clients on restart."
+    )
 MCP_API_KEY = _MCP_API_KEY_RAW if _MCP_API_KEY_RAW else secrets.token_hex(32)
 MAX_RECIPIENTS = int(os.getenv("MAX_RECIPIENTS", "32"))
 
@@ -247,11 +262,12 @@ async def _write_dlq(redis_client: Any, protocol: str, payload: dict[str, Any], 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not _MCP_API_KEY_RAW:
-        LOGGER.warning(
-            "MCP_API_KEY environment variable is not set. "
-            "A randomly generated session key is in use. "
-            "Set MCP_API_KEY explicitly in production to ensure stable authentication."
-        )
+        LOGGER.error(_MCP_API_KEY_DEV_WARNING)
+    LOGGER.info(
+        "semantic-bus-mcp starting (environment=%s, mcp_api_key_set=%s)",
+        ENVIRONMENT,
+        bool(_MCP_API_KEY_RAW),
+    )
     app.state.redis = None
     app.state.redis_ready = False
     if redis is not None:

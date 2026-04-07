@@ -1,6 +1,7 @@
 """Tests for pod_worker/ast_extractor.py — AST-based Python extraction."""
 from __future__ import annotations
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -9,13 +10,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "pod-worker"))
 
-from pod_worker.ast_extractor import (
-    AstClassInfo,
-    AstExtractionResult,
-    AstFunctionInfo,
-    AstImportInfo,
-    extract_python_ast,
-)
+ast_extractor = importlib.import_module("pod_worker.ast_extractor")
+AstClassInfo = ast_extractor.AstClassInfo
+AstExtractionResult = ast_extractor.AstExtractionResult
+AstFunctionInfo = ast_extractor.AstFunctionInfo
+extract_python_ast = ast_extractor.extract_python_ast
 
 # ---------------------------------------------------------------------------
 # Helpers

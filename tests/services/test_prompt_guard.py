@@ -1,8 +1,6 @@
 """Tests for shared_runtime/prompt_guard.py — Phase 2 security hardening."""
 from __future__ import annotations
 
-import pytest
-
 from shared_runtime.prompt_guard import InjectionResult, check_prompt, sanitize_prompt
 
 

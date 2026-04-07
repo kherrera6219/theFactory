@@ -74,6 +74,8 @@ class Settings:
     agent_scaling_enabled: bool = False
     agent_scaling_max_instances: int = 4
     agent_scaling_items_per_instance: int = 3
+    intake_dlq_stream: str = "factory:dlq:intake-stream"
+    intake_dlq_max_len: int = 1000
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -228,4 +230,7 @@ def load_settings() -> Settings:
         agent_scaling_items_per_instance=max(
             1, int(os.getenv("AGENT_SCALING_ITEMS_PER_INSTANCE", "3"))
         ),
+        intake_dlq_stream=os.getenv("INTAKE_DLQ_STREAM", "factory:dlq:intake-stream").strip()
+        or "factory:dlq:intake-stream",
+        intake_dlq_max_len=max(100, int(os.getenv("INTAKE_DLQ_MAX_LEN", "1000"))),
     )
