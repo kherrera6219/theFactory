@@ -50,7 +50,7 @@ tags = ["thefactory", "pod-key"]
 # ─── Allowlist: legitimate placeholder patterns in example/template files ───
 
 [allowlist]
-description = "Allow CHANGE_ME placeholders and example values"
+description = "Allow CHANGE_ME placeholders, example values, and test fixtures"
 regexes = [
     "CHANGE_ME",
     "your_.*_here",
@@ -64,6 +64,12 @@ paths = [
     "README.md",
     "CONTRIBUTING.md",
     "AGENTS.md",
+    # Test fixtures intentionally contain fake API-key-shaped strings
+    "tests/",
+    "apps/mission-control/app/lib/server/vault.test.ts",
+    "apps/mission-control/app/api/vault/route.test.ts",
+    "apps/mission-control/app/api/vault/test/route.test.ts",
+    "apps/mission-control/e2e/",
 ]
 stopwords = [
     "CHANGE_ME",
@@ -72,4 +78,8 @@ stopwords = [
     "placeholder",
     "template",
     "your_key_here",
+    # Fake key suffixes used in unit/E2E test fixtures
+    "test-123456",
+    "e2e-secret",
+    "test_123456",
 ]
