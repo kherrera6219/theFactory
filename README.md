@@ -9,7 +9,7 @@
 [![CI](https://github.com/holygrail/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/holygrail/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/security.yml)
 [![Coverage](https://img.shields.io/badge/coverage-81.75%25-brightgreen)](docs/TESTING_QUALITY_GATES.md)
-[![Audit](https://img.shields.io/badge/production%20audit-13%2F13-brightgreen)](scripts/production_review_audit.py)
+[![Audit](https://img.shields.io/badge/production%20audit-17%2F17-brightgreen)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
 [![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#)
@@ -111,7 +111,11 @@ OBSERVABILITY PLANE
   Prometheus · Grafana · Loki · Promtail · Alertmanager · Jaeger OTLP
 ```
 
-### Smelt-Cycle: 7-Phase Mission Progression
+### Smelt-Cycle: Operator-Visible Checkpoint Events
+
+The operator-facing mission model surfaces 7 key checkpoint events. These map to the condensed smelt-cycle phase model visible in Mission Control and audit reports.
+
+> **Note:** The shipped default runtime is the **11-phase Mission Flow v2 engine** (`mission_flow_v2.py`). It expands the coarse `QUEUED → RUNNING → VERIFIED → COMPLETE` arc into 11 internal phases that include PM intake, CEO delegation, pod assignment, and specialist assignment steps before RUNNING. The 7 events below are the operator-visible subset of those phases.
 
 | Phase | Event | Description |
 |-------|-------|-------------|
@@ -260,10 +264,22 @@ Each extracted concept becomes a **LogicNode** with:
 | `POST` | `/v1/missions` | mutate/admin | Create mission (idempotency key supported) |
 | `GET` | `/v1/missions` | reader+ | List missions with filters |
 | `GET` | `/v1/missions/{id}` | reader+ | Get mission detail |
-| `GET` | `/v1/missions/{id}/events` | reader+ | Mission event stream |
+| `GET` | `/v1/missions/{id}/events` | reader+ | Mission event log |
 | `POST` | `/v1/missions/{id}/state` | mutate/admin | Emit state transition event |
-| `GET` | `/v1/missions/{id}/knowledge-graph` | reader+ | Neo4j graph (feature-flagged) |
+| `GET` | `/v1/missions/{id}/pod-assignment` | reader+ | Active pod assignment record |
+| `GET` | `/v1/missions/{id}/chain-trace` | reader+ | Agent chain-of-command trace |
+| `GET` | `/v1/missions/{id}/logicnodes` | reader+ | Extracted LogicNode records |
+| `GET` | `/v1/missions/{id}/knowledge` | reader+ | Knowledge records for mission |
+| `GET` | `/v1/missions/{id}/audit-reports` | reader+ | Audit report records |
 | `GET` | `/v1/missions/{id}/audit-artifacts` | reader+ | Object storage artifacts (feature-flagged) |
+| `GET` | `/v1/missions/{id}/knowledge-graph` | reader+ | Neo4j graph (feature-flagged) |
+| `GET` | `/v1/missions/{id}/build-artifacts` | reader+ | Build/package artifact records |
+| `GET` | `/v1/missions/{id}/build-artifacts/{artifact_id}` | reader+ | Single build artifact detail |
+
+#### Builder
+| Method | Path | Auth Required | Description |
+|--------|------|--------------|-------------|
+| `POST` | `/v1/builder/preview` | mutate/admin | LLM-grounded builder preview (OpenAI/Anthropic/Gemini) |
 
 #### Operations
 | Method | Path | Description |
@@ -271,6 +287,12 @@ Each extracted concept becomes a **LogicNode** with:
 | `GET` | `/v1/operations/summary` | Runtime health summary |
 | `GET` | `/v1/operations/agents` | All 38 agent runtime states |
 | `GET` | `/v1/operations/agent-integrations` | Agent protocol/LLM/persona profiles |
+| `GET` | `/v1/operations/events` | Recent mission events across all missions |
+| `GET` | `/v1/operations/agent-events` | Recent agent-scoped events |
+| `GET` | `/v1/operations/logicnodes` | Recent LogicNode records across all missions |
+| `GET` | `/v1/operations/pod-assignments` | Active pod assignments |
+| `GET` | `/v1/operations/projects` | Project-level mission groupings |
+| `GET` | `/v1/operations/alerts` | Active runtime alerts |
 
 #### Live Transport
 | Method | Path | Description |
@@ -490,7 +512,7 @@ make test
 # Lint
 make lint
 
-# Run production audit (13/13 checks)
+# Run production audit (17/17 checks)
 make audit
 
 # Debug sweep
@@ -554,7 +576,7 @@ npm run test:e2e   # Playwright critical-path E2E
 |------|--------|-------------|
 | Global Python coverage | ≥ 80% | CI + `make test` |
 | Critical module coverage | Strict per-file floors (`60%`–`100%`) | `scripts/check_coverage_thresholds.py` |
-| Production audit | 13/13 checks | `scripts/production_review_audit.py` |
+| Production audit | 17/17 checks | `scripts/production_review_audit.py` |
 | Frontend lint | 0 errors | CI |
 | Frontend unit tests | currently passing | `apps/mission-control` Vitest |
 | Frontend E2E | currently passing | Playwright critical-path regression suite |
@@ -564,7 +586,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | pip-audit SCA | 0 known vulns | `security.yml` |
 | Release attestation | signed provenance | CI release gate |
 
-**Current status (2026-03-29):** backend `python -m pytest -q` is green, services coverage is `81.75%`, Mission Control unit tests are green (`45` tests), and Mission Control Playwright is green (`7` journeys). See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for the remaining product-completion gaps and out-of-band blockers.
+**Current status (2026-03-31):** backend `python -m pytest -q` is green (`770 passed, 5 skipped`), services coverage is `81.75%`, Mission Control unit tests are green (`45` tests), and Mission Control Playwright is green (`20` journeys — 7 original + 13 from Phase 1 E2E expansion). See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for the remaining product-completion gaps and out-of-band blockers.
 
 ---
 
