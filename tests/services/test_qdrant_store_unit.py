@@ -1,6 +1,9 @@
 import importlib
+import json
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
@@ -103,6 +106,46 @@ def test_request_json_rejects_non_http_urls() -> None:
         raise AssertionError("expected qdrant url validation failure")
 
 
+def test_request_json_rejects_paths_without_leading_slash() -> None:
+    with pytest.raises(ValueError, match="must start"):
+        qdrant_store._request_json(_settings(), "GET", "collections/mission_knowledge")
+
+
+def test_request_json_returns_empty_for_blank_and_non_dict_bodies(monkeypatch) -> None:
+    class _Response:
+        def __init__(self, body: bytes) -> None:
+            self._body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            _ = exc_type, exc, tb
+            return False
+
+        def read(self) -> bytes:
+            return self._body
+
+    bodies = iter([b"", b"[]"])
+    monkeypatch.setattr(qdrant_store, "urlopen", lambda *_args, **_kwargs: _Response(next(bodies)))
+
+    assert qdrant_store._request_json(_settings(), "GET", "/collections/mission_knowledge") == {}
+    assert qdrant_store._request_json(_settings(), "GET", "/collections/mission_knowledge") == {}
+
+
+def test_vector_for_content_is_stable_and_respects_size() -> None:
+    settings = _settings(qdrant_vector_size=4)
+    first = qdrant_store._vector_for_content(settings, "mission-1", "knowledge-1", {"x": 1})
+    second = qdrant_store._vector_for_content(settings, "mission-1", "knowledge-1", {"x": 1})
+    assert first == second
+    assert len(first) == 4
+
+
+def test_point_payload_to_record_handles_invalid_content_types() -> None:
+    assert qdrant_store._point_payload_to_record({"content": "{not-json}"})["content"] == {}
+    assert qdrant_store._point_payload_to_record({"content": 123})["content"] == {}
+
+
 def test_upsert_knowledge_builds_qdrant_point_payload(monkeypatch) -> None:
     calls: list[tuple[str, str, dict[str, object] | None]] = []
     monkeypatch.setattr(qdrant_store, "ensure_collection", lambda _settings: None)
@@ -174,6 +217,32 @@ def test_list_knowledge_parses_points_and_sorts_by_created_at(monkeypatch) -> No
     assert records[1]["content"] == {"value": "old"}
 
 
+def test_list_knowledge_fills_missing_ids_and_skips_bad_points(monkeypatch) -> None:
+    monkeypatch.setattr(qdrant_store, "ensure_collection", lambda _settings: None)
+    monkeypatch.setattr(
+        qdrant_store,
+        "_request_json",
+        lambda *_args, **_kwargs: {
+            "result": {
+                "points": [
+                    {"id": "mission-1:k-1", "payload": {"content": json.dumps({"value": 1})}},
+                    {"id": "mission-1:k-2", "payload": "bad-payload"},
+                    "bad-point",
+                ]
+            }
+        },
+    )
+
+    assert qdrant_store.list_knowledge(_settings(), "mission-1", 10) == [
+        {
+            "mission_id": "mission-1",
+            "knowledge_id": "mission-1:k-1",
+            "content": {"value": 1},
+            "created_at": "",
+        }
+    ]
+
+
 def test_qdrant_ready_returns_false_on_failure(monkeypatch) -> None:
     monkeypatch.setattr(
         qdrant_store,
@@ -182,3 +251,12 @@ def test_qdrant_ready_returns_false_on_failure(monkeypatch) -> None:
     )
 
     assert qdrant_store.qdrant_ready(_settings()) is False
+
+
+def test_qdrant_ready_returns_false_when_disabled() -> None:
+    assert qdrant_store.qdrant_ready(_settings(qdrant_enabled=False)) is False
+
+
+def test_qdrant_ready_returns_true_on_success(monkeypatch) -> None:
+    monkeypatch.setattr(qdrant_store, "ensure_collection", lambda _settings: None)
+    assert qdrant_store.qdrant_ready(_settings()) is True

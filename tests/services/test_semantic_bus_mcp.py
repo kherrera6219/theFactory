@@ -550,3 +550,98 @@ def test_semantic_bus_module_import_fallback_without_redis(monkeypatch) -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.redis is None
+
+
+def test_semantic_bus_module_import_enforces_explicit_production_api_key(monkeypatch) -> None:
+    module_path = ROOT / "services" / "semantic-bus-mcp" / "semantic_bus" / "mcp_server.py"
+    module_name = "semantic_bus.mcp_server_production_guard"
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("MCP_API_KEY", raising=False)
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    with pytest.raises(RuntimeError, match="MCP_API_KEY must be explicitly set in production"):
+        spec.loader.exec_module(module)
+
+
+def test_semantic_bus_module_import_accepts_explicit_api_key_without_warning(monkeypatch) -> None:
+    module_path = ROOT / "services" / "semantic-bus-mcp" / "semantic_bus" / "mcp_server.py"
+    module_name = "semantic_bus.mcp_server_with_explicit_key"
+    real_import = builtins.__import__
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("MCP_API_KEY", "stable-test-key")
+    sys.modules.pop(module_name, None)
+
+    class _DummyMetric:
+        def labels(self, **_kwargs):
+            return self
+
+        def inc(self):
+            return None
+
+        def observe(self, _value):
+            return None
+
+    def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "prometheus_client":
+            def _counter(*_args, **_kwargs):
+                return _DummyMetric()
+
+            def _histogram(*_args, **_kwargs):
+                return _DummyMetric()
+
+            def _generate_latest():
+                return b""
+
+            class _DummyPrometheus:
+                CONTENT_TYPE_LATEST = "text/plain"
+                Counter = staticmethod(_counter)
+                Histogram = staticmethod(_histogram)
+                generate_latest = staticmethod(_generate_latest)
+
+            return _DummyPrometheus
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _patched_import)
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    messages: list[str] = []
+
+    def _capture(message: str, *args) -> None:
+        messages.append(message % args if args else message)
+
+    monkeypatch.setattr(module.LOGGER, "error", _capture)
+
+    class RedisWithAclose:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def ping(self) -> bool:
+            return True
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    redis_client = RedisWithAclose()
+
+    class RedisModule:
+        @staticmethod
+        def from_url(url: str, decode_responses: bool = True):
+            _ = url
+            _ = decode_responses
+            return redis_client
+
+    monkeypatch.setattr(module, "redis", RedisModule)
+    app_state = SimpleNamespace(state=SimpleNamespace())
+
+    async def _run() -> None:
+        async with module.lifespan(app_state):
+            assert app_state.state.redis_ready is True
+
+    asyncio.run(_run())
+    assert messages == []
+    assert redis_client.closed is True

@@ -2,6 +2,7 @@ import importlib
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -85,6 +86,15 @@ class FakeConn:
 
     def __exit__(self, exc_type, exc, tb) -> bool:
         return False
+
+
+class FakeTxnConn(FakeConn):
+    def __init__(self, cursor: FakeCursor) -> None:
+        super().__init__(cursor)
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def _patch_db(monkeypatch, cursors: list[FakeCursor]) -> list[FakeCursor]:
@@ -469,6 +479,129 @@ def test_build_artifact_roundtrip(monkeypatch) -> None:
     found = storage.get_build_artifact(settings, "mission-1", "source-bundle-package")
     assert found is not None
     assert found["digest_sha256"] == "abc123"
+
+
+def test_get_build_artifact_returns_none_when_missing(monkeypatch) -> None:
+    _patch_db(monkeypatch, [FakeCursor(fetchone_results=[None])])
+    assert storage.get_build_artifact(_settings(), "mission-1", "missing") is None
+
+
+def test_locked_mission_metadata_update_branches(monkeypatch) -> None:
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    row = ("mission-1", "Build API", "python", {"source": "test"}, "QUEUED", now)
+    updated_row = ("mission-1", "Build API", "python", {"updated": True}, "QUEUED", now)
+
+    missing_conn = FakeTxnConn(FakeCursor(fetchone_results=[None]))
+    fallback_conn = FakeTxnConn(FakeCursor(fetchone_results=[row, updated_row]))
+    none_update_conn = FakeTxnConn(FakeCursor(fetchone_results=[row, None]))
+    queue = [missing_conn, fallback_conn, none_update_conn]
+
+    monkeypatch.setattr(
+        storage,
+        "psycopg",
+        SimpleNamespace(connect=lambda *_args, **_kwargs: queue.pop(0)),
+    )
+
+    assert storage._locked_mission_metadata_update(_settings(), "missing", lambda *_: {}) is None
+    assert missing_conn.closed is True
+
+    updated = storage._locked_mission_metadata_update(
+        _settings(),
+        "mission-1",
+        lambda metadata, _mission: ["not-a-dict", metadata],
+    )
+    assert updated is not None
+    assert updated.metadata == {"updated": True}
+    assert fallback_conn.closed is True
+
+    assert (
+        storage._locked_mission_metadata_update(
+            _settings(),
+            "mission-1",
+            lambda metadata, _mission: metadata,
+        )
+        is None
+    )
+    assert none_update_conn.closed is True
+
+
+def test_locked_mission_metadata_update_requires_psycopg(monkeypatch) -> None:
+    monkeypatch.setattr(storage, "psycopg", None)
+    with pytest.raises(RuntimeError, match="psycopg"):
+        storage._locked_mission_metadata_update(_settings(), "mission-1", lambda *_: {})
+
+
+def test_record_partition_result_updates_counts_and_merge(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+    merged_result = SimpleNamespace(
+        merged_at="2026-03-01T01:00:00+00:00",
+        to_dict=lambda: {"logicnodes": [{"node_id": "merged"}]},
+    )
+
+    def _locked_update(_settings_obj, _mission_id, updater):
+        metadata = {
+            "partition_results": {
+                "part-1": {
+                    "partition_id": "part-1",
+                    "instance_index": 0,
+                    "agent_id": "AGENT-14-PYTHON",
+                    "logicnodes": [{"node_id": "n1"}],
+                    "artifacts": [{"artifact_id": "a1"}],
+                    "report": {"status": "ok"},
+                    "completed_at": "2026-03-01T00:00:00+00:00",
+                }
+            }
+        }
+        mission = _mission_record()
+        captured["metadata"] = updater(metadata, mission)
+        return mission
+
+    monkeypatch.setattr(storage, "_locked_mission_metadata_update", _locked_update)
+    monkeypatch.setattr(storage, "all_partitions_complete", lambda _metadata: True)
+    monkeypatch.setattr(storage, "merge_partition_results", lambda _results: merged_result)
+
+    record = storage.record_partition_result(
+        _settings(),
+        "mission-1",
+        {
+            "partition_id": "part-2",
+            "instance_index": 1,
+            "agent_id": "AGENT-14-PYTHON",
+            "logicnodes": [{"node_id": "n2"}, "skip"],
+            "artifacts": [{"artifact_id": "a2"}, "skip"],
+            "report": {"status": "ok"},
+            "completed_at": "2026-03-01T01:00:00+00:00",
+        },
+    )
+
+    assert record is not None
+    assert captured["metadata"]["partition_result_count"] == 2
+    assert captured["metadata"]["scaling_merge_complete"] is True
+    assert captured["metadata"]["merged_partition_result"] == {
+        "logicnodes": [{"node_id": "merged"}]
+    }
+    assert captured["metadata"]["scaling_completed_at"] == "2026-03-01T01:00:00+00:00"
+
+
+def test_record_partition_result_marks_merge_incomplete(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def _locked_update(_settings_obj, _mission_id, updater):
+        metadata = {"partition_results": {}}
+        captured["metadata"] = updater(metadata, _mission_record())
+        return _mission_record()
+
+    monkeypatch.setattr(storage, "_locked_mission_metadata_update", _locked_update)
+    monkeypatch.setattr(storage, "all_partitions_complete", lambda _metadata: False)
+
+    storage.record_partition_result(
+        _settings(),
+        "mission-1",
+        {"partition_id": "part-1", "completed_at": "2026-03-01T00:00:00+00:00"},
+    )
+
+    assert captured["metadata"]["scaling_merge_complete"] is False
+    assert captured["metadata"]["last_partition_result_at"] == "2026-03-01T00:00:00+00:00"
 
 
 def test_storage_operations_views_and_summaries(monkeypatch) -> None:
