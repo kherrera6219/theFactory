@@ -204,7 +204,7 @@ Runs 6 Playwright critical-path journeys: mission lifecycle · operations views 
 make audit
 ```
 
-All 13 checks should pass: `13/13 checks passed`.
+All 17 checks should pass: `17/17 checks passed`.
 
 ### Lint Backend
 
@@ -390,7 +390,7 @@ python scripts/check_coverage_thresholds.py
 - [ ] `curl http://localhost:8100/health` returns `{"status":"healthy"}`
 - [ ] Test mission submitted and polled successfully
 - [ ] `make test` passes — services coverage gate stays at or above 80%
-- [ ] `make audit` passes — 13/13 checks
+- [ ] `make audit` passes — 17/17 checks
 - [ ] Mission Control UI opens at `http://localhost:3100`
 - [ ] Agent roster shows 38 agents at `http://localhost:8100/v1/operations/agents`
 - [ ] `make lint` passes — 0 ruff errors
