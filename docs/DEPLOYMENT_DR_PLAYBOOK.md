@@ -39,7 +39,7 @@ This validates:
 Also run:
 
 ```bash
-make audit          # All 13/13 production audit checks must pass
+make audit          # All 17/17 production audit checks must pass
 make promotion-gate # Promotion policy must yield APPROVED
 ```
 

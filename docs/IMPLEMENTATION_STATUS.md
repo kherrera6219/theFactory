@@ -72,7 +72,7 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 ## Language Extraction Status
 
 - Specialist routing currently covers 20 language keys across four pods. TypeScript is accepted as a routed key but aliases to the JavaScript specialist.
-- Go, Haskell, and OCaml are now fully supported with dedicated agents and compose routing.
+- Go, Haskell, and OCaml are registered in the agent registry and supported by the language extraction engine. However, the `up-full-dedicated` Makefile target and the `full-dedicated-agents` compose profile do not currently launch dedicated agent containers for Go (`AGENT-23-ZIG` ends Pod B), Haskell, or OCaml — those specialist containers remain absent from the dedicated topology command. Pod A–D shared workers handle these languages via the normal `SUPPORTED_LANGUAGES` routing.
 - Some documentation artifacts still carry older language-count claims and need reconciliation to the current routing matrix.
 
 ## Security Hardening (Phase 0–4 complete as of 2026-03-31)
