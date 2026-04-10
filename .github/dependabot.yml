@@ -1,0 +1,93 @@
+version: 2
+updates:
+  # Python microservices — one entry per service to get per-service PRs
+  - package-ecosystem: pip
+    directory: /services/api-gateway
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, security]
+
+  - package-ecosystem: pip
+    directory: /services/agent-runtime
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, security]
+
+  - package-ecosystem: pip
+    directory: /services/orchestrator
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, security]
+
+  - package-ecosystem: pip
+    directory: /services/dashboard
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, security]
+
+  - package-ecosystem: pip
+    directory: /services/pod-worker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, security]
+
+  - package-ecosystem: pip
+    directory: /services/audit-worker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, security]
+
+  - package-ecosystem: pip
+    directory: /services/semantic-bus-mcp
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, security]
+
+  # Root Python dev tooling (pytest, ruff, bandit, etc.)
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, security]
+
+  # Next.js / Mission Control frontend
+  - package-ecosystem: npm
+    directory: /apps/mission-control
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels: [dependencies, security]
+    # Keep major version bumps separate — Next.js, React, TypeScript
+    groups:
+      next-ecosystem:
+        patterns: [next, react, react-dom, "@types/react*"]
+      playwright:
+        patterns: ["@playwright/*", "@axe-core/playwright"]
+      vitest:
+        patterns: [vitest, jsdom]
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: [dependencies, security]
