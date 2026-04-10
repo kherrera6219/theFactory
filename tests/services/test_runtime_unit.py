@@ -172,6 +172,170 @@ def test_emit_state_event() -> None:
     assert routed["assigned_specialist_agent_id"] == "AGENT-14-PYTHON"
 
 
+def test_state_event_agent_routing_covers_role_mapping() -> None:
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={},
+        state=MissionState.running,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    assert (
+        runtime._state_event_agent_routing(mission, "MISSION_PM_INTAKE")["agent_id"]
+        == "AGENT-01-PM"
+    )
+    assert (
+        runtime._state_event_agent_routing(mission, "MISSION_CEO_DELEGATED")["agent_id"]
+        == "AGENT-02-CEO"
+    )
+    assert (
+        runtime._state_event_agent_routing(mission, "MISSION_POD_MANAGER_ASSIGNED")["agent_id"]
+        == "AGENT-12-PODA-MGR"
+    )
+    assert (
+        runtime._state_event_agent_routing(mission, "MISSION_RUNNING")["agent_id"]
+        == "AGENT-14-PYTHON"
+    )
+    assert runtime._state_event_agent_routing(mission, "UNKNOWN_EVENT") == {}
+
+
+def test_prepare_mission_chain_for_running_returns_false_when_mission_missing(monkeypatch) -> None:
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: None)
+
+    prepared = asyncio.run(
+        runtime._prepare_mission_chain_for_running(
+            app=_app_state(),
+            settings=_settings(),
+            validator=FakeEnvelopeValidator(),
+            mission_id="missing",
+        )
+    )
+    assert prepared is False
+
+
+def test_prepare_mission_chain_for_running_updates_metadata_and_emits(monkeypatch) -> None:
+    app = _app_state(redis=FakeRedis(), redis_ready=True)
+    inserted_events: list[str] = []
+    emitted_events: list[str] = []
+    updated_metadata: dict[str, Any] = {}
+
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={},
+        state=MissionState.queued,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    def _update_metadata(_settings_obj, _mission_id, metadata):
+        updated_metadata.update(metadata)
+        return MissionRecord(
+            mission_id="mission-1",
+            prompt="Build API",
+            requested_target_language="python",
+            metadata=metadata,
+            state=MissionState.queued,
+            created_at="2026-03-01T00:00:00+00:00",
+        )
+
+    async def _emit(**kwargs):
+        emitted_events.append(kwargs["event_type"])
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: mission)
+    monkeypatch.setattr(runtime.storage, "update_mission_metadata", _update_metadata)
+    monkeypatch.setattr(
+        runtime.storage,
+        "insert_mission_event",
+        lambda _settings_obj, _mission_id, _prev, _new, event_type: inserted_events.append(
+            event_type
+        ),
+    )
+    monkeypatch.setattr(runtime, "emit_state_event", _emit)
+
+    prepared = asyncio.run(
+        runtime._prepare_mission_chain_for_running(
+            app=app,
+            settings=_settings(),
+            validator=FakeEnvelopeValidator(),
+            mission_id="mission-1",
+        )
+    )
+
+    assert prepared is True
+    assert updated_metadata["assigned_pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
+    assert updated_metadata["assigned_specialist_agent_id"] == "AGENT-14-PYTHON"
+    assert inserted_events == [
+        "MISSION_PM_INTAKE",
+        "MISSION_CEO_DELEGATED",
+        "MISSION_POD_MANAGER_ASSIGNED",
+        "MISSION_SPECIALIST_ASSIGNED",
+    ]
+    assert emitted_events == inserted_events
+
+
+def test_prepare_mission_chain_for_running_handles_existing_events_and_emit_failures(
+    monkeypatch,
+) -> None:
+    app = _app_state(redis=FakeRedis(), redis_ready=True)
+    inserted_events: list[str] = []
+
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={
+            "chain_trace": [
+                {"event_type": "MISSION_PM_INTAKE"},
+                {"event_type": "MISSION_CEO_DELEGATED"},
+            ]
+        },
+        state=MissionState.queued,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: mission)
+    monkeypatch.setattr(runtime.storage, "update_mission_metadata", lambda *_args: mission)
+    monkeypatch.setattr(
+        runtime.storage,
+        "insert_mission_event",
+        lambda _settings_obj, _mission_id, _prev, _new, event_type: inserted_events.append(
+            event_type
+        ),
+    )
+
+    async def _emit_fail(**_kwargs):
+        raise RuntimeError("emit down")
+
+    monkeypatch.setattr(runtime, "emit_state_event", _emit_fail)
+
+    prepared = asyncio.run(
+        runtime._prepare_mission_chain_for_running(
+            app=app,
+            settings=_settings(),
+            validator=FakeEnvelopeValidator(),
+            mission_id="mission-1",
+        )
+    )
+
+    assert prepared is True
+    assert inserted_events == ["MISSION_POD_MANAGER_ASSIGNED", "MISSION_SPECIALIST_ASSIGNED"]
+
+
 def test_emit_running_phase_checkpoints_skips_stream_when_redis_unavailable(monkeypatch) -> None:
     app = _app_state(redis=None, redis_ready=False)
     mission = _mission_record(MissionState.running)
@@ -757,6 +921,70 @@ def test_completion_artifacts_ready_requires_build_artifact_for_source_bundle(mo
     assert ready is False
     assert details["build_artifact_required"] is True
     assert details["build_artifact_status"] == "MISSING"
+
+
+def test_completion_artifacts_ready_short_circuits_for_policy_exemption(monkeypatch) -> None:
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={"policy_exempt": True},
+        state=MissionState.verified,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    monkeypatch.setattr(runtime, "completion_policy_exempt", lambda _metadata: True)
+    ready, details = asyncio.run(
+        runtime._completion_artifacts_ready(settings=_settings(), mission=mission)
+    )
+    assert ready is True
+    assert details == {"policy_exempt": True}
+
+
+def test_completion_artifacts_ready_accepts_assignment_without_build_requirement(
+    monkeypatch,
+) -> None:
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime, "completion_policy_exempt", lambda _metadata: False)
+    monkeypatch.setattr(runtime.storage, "get_pod_assignment", lambda *_args: {"pod_name": "podA"})
+    monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(
+        runtime.build_artifact_support,
+        "mission_requires_build_artifact",
+        lambda _metadata: False,
+    )
+
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={},
+        state=MissionState.verified,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    ready, details = asyncio.run(
+        runtime._completion_artifacts_ready(settings=_settings(), mission=mission)
+    )
+    assert ready is True
+    assert details["build_artifact_required"] is False
+    assert details["has_pod_assignment"] is True
+
+
+def test_ensure_verified_build_artifact_returns_original_when_not_required(monkeypatch) -> None:
+    mission = _mission_record(MissionState.verified)
+    monkeypatch.setattr(
+        runtime.build_artifact_support,
+        "mission_requires_build_artifact",
+        lambda _metadata: False,
+    )
+    assert (
+        asyncio.run(runtime._ensure_verified_build_artifact(settings=_settings(), mission=mission))
+        is mission
+    )
 
 
 def test_advance_mission_lifecycle_packages_build_artifact_for_source_bundle(monkeypatch) -> None:

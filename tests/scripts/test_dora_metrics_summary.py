@@ -74,16 +74,19 @@ def test_load_qualification_histories_reads_history_files(tmp_path, monkeypatch)
 
 
 def test_load_deployments_filters_non_release_tags(monkeypatch) -> None:
+    recent_tag = datetime.now(UTC).replace(microsecond=0)
+    previous_commit = recent_tag.replace(hour=max(0, recent_tag.hour - 1))
+
     def _run_git(*args: str) -> str:
         if args[:2] == ("for-each-ref", "--sort=-creatordate"):
             return "\n".join(
                 [
-                    "v1.0.0|2026-03-09T00:00:00+00:00|abc123",
-                    "scratch|2026-03-08T00:00:00+00:00|zzz999",
+                    f"v1.0.0|{recent_tag.isoformat()}|abc123",
+                    f"scratch|{previous_commit.isoformat()}|zzz999",
                 ]
             )
         if args[:3] == ("show", "-s", "--format=%cI"):
-            return "2026-03-08T00:00:00+00:00\n"
+            return f"{previous_commit.isoformat()}\n"
         raise AssertionError(f"unexpected git args: {args}")
 
     monkeypatch.setattr(dora_metrics_summary, "_run_git", _run_git)

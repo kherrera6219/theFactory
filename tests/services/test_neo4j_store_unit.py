@@ -1,4 +1,5 @@
 import importlib
+import json
 import sys
 from pathlib import Path
 
@@ -80,6 +81,116 @@ def test_request_json_rejects_non_http_urls() -> None:
         raise AssertionError("expected neo4j url validation failure")
 
 
+def test_validated_http_url_rejects_missing_slash() -> None:
+    try:
+        neo4j_store._validated_http_url(
+            "https://neo4j.example",
+            "db/neo4j/tx/commit",
+            service="neo4j",
+        )
+    except ValueError as exc:
+        assert "must start with '/'" in str(exc)
+    else:
+        raise AssertionError("expected path validation failure")
+
+
+def test_request_json_builds_basic_auth_and_parses_dict(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+        @staticmethod
+        def read() -> bytes:
+            return b'{"results": [], "errors": []}'
+
+    def _urlopen(request, timeout: float):
+        captured["full_url"] = request.full_url
+        captured["timeout"] = timeout
+        captured["authorization"] = request.get_header("Authorization")
+        captured["content_type"] = request.get_header("Content-type")
+        captured["body"] = request.data
+        return _Response()
+
+    monkeypatch.setattr(neo4j_store, "urlopen", _urlopen)
+    payload = {"statements": [{"statement": "RETURN 1"}]}
+    result = neo4j_store._request_json(_settings(), "/db/neo4j/tx/commit", payload)
+
+    assert result == {"results": [], "errors": []}
+    assert captured["full_url"] == "http://neo4j:7474/db/neo4j/tx/commit"
+    assert captured["timeout"] == 1.0
+    assert str(captured["authorization"]).startswith("Basic ")
+    assert captured["content_type"] == "application/json"
+    assert json.loads(captured["body"].decode("utf-8")) == payload
+
+
+def test_request_json_returns_empty_for_blank_or_non_dict_response(monkeypatch) -> None:
+    class _Response:
+        def __init__(self, body: bytes) -> None:
+            self._body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+        def read(self) -> bytes:
+            return self._body
+
+    bodies = iter([b"", b"[]"])
+    monkeypatch.setattr(neo4j_store, "urlopen", lambda *_args, **_kwargs: _Response(next(bodies)))
+
+    assert (
+        neo4j_store._request_json(_settings(), "/db/neo4j/tx/commit", {"statements": []}) == {}
+    )
+    assert (
+        neo4j_store._request_json(_settings(), "/db/neo4j/tx/commit", {"statements": []}) == {}
+    )
+
+
+def test_execute_cypher_raises_for_neo4j_errors(monkeypatch) -> None:
+    monkeypatch.setattr(
+        neo4j_store,
+        "_request_json",
+        lambda *_args, **_kwargs: {"errors": [{"code": "Neo.ClientError", "message": "boom"}]},
+    )
+
+    try:
+        neo4j_store._execute_cypher(_settings(), "RETURN 1")
+    except RuntimeError as exc:
+        assert "Neo.ClientError: boom" in str(exc)
+    else:
+        raise AssertionError("expected neo4j error")
+
+
+def test_query_rows_skips_malformed_entries(monkeypatch) -> None:
+    monkeypatch.setattr(
+        neo4j_store,
+        "_execute_cypher",
+        lambda *_args, **_kwargs: [
+            {
+                "columns": ["kind", "value"],
+                "data": [
+                    {"row": ["alpha", 1]},
+                    {"row": "not-a-list"},
+                    "not-a-dict",
+                    {"row": ["beta"]},
+                ],
+            }
+        ],
+    )
+
+    assert neo4j_store._query_rows(_settings(), "RETURN 1") == [
+        {"kind": "alpha", "value": 1},
+        {"kind": "beta"},
+    ]
+
+
 def test_upsert_knowledge_uses_expected_query_and_payload(monkeypatch) -> None:
     statements: list[tuple[str, dict[str, object] | None]] = []
     monkeypatch.setattr(neo4j_store, "ensure_schema", lambda _settings: None)
@@ -119,6 +230,33 @@ def test_upsert_knowledge_uses_expected_query_and_payload(monkeypatch) -> None:
     assert after >= before + 1
 
 
+def test_upsert_audit_report_uses_expected_payload(monkeypatch) -> None:
+    statements: list[tuple[str, dict[str, object] | None]] = []
+    monkeypatch.setattr(neo4j_store, "ensure_schema", lambda _settings: None)
+
+    def _execute(settings: Settings, statement: str, parameters=None):
+        _ = settings
+        statements.append((statement, parameters))
+        return []
+
+    monkeypatch.setattr(neo4j_store, "_execute_cypher", _execute)
+
+    neo4j_store.upsert_audit_report(
+        _settings(),
+        "mission-1",
+        "audit-1",
+        "PASS",
+        {"score": 100},
+        "2026-03-03T00:00:00+00:00",
+    )
+
+    statement, parameters = statements[0]
+    assert "MERGE (a:AuditReport" in statement
+    assert parameters is not None
+    assert parameters["status"] == "PASS"
+    assert json.loads(parameters["report_json"]) == {"score": 100}
+
+
 def test_list_mission_graph_parses_rows(monkeypatch) -> None:
     monkeypatch.setattr(neo4j_store, "ensure_schema", lambda _settings: None)
     monkeypatch.setattr(
@@ -142,6 +280,30 @@ def test_list_mission_graph_parses_rows(monkeypatch) -> None:
 
     assert rows[0]["relation_type"] == "HAS_KNOWLEDGE"
     assert rows[1]["target_properties"]["audit_id"] == "a-1"
+
+
+def test_list_mission_graph_filters_invalid_row_shapes(monkeypatch) -> None:
+    monkeypatch.setattr(neo4j_store, "ensure_schema", lambda _settings: None)
+    monkeypatch.setattr(
+        neo4j_store,
+        "_query_rows",
+        lambda *_: [
+            {
+                "relation_type": "HAS_KNOWLEDGE",
+                "target_labels": "bad-shape",
+                "target_properties": "bad-shape",
+            },
+            "not-a-dict",
+        ],
+    )
+
+    assert neo4j_store.list_mission_graph(_settings(), "mission-1", 999) == [
+        {
+            "relation_type": "HAS_KNOWLEDGE",
+            "target_labels": [],
+            "target_properties": {},
+        }
+    ]
 
 
 def test_neo4j_ready_returns_false_when_disabled() -> None:
@@ -169,3 +331,9 @@ def test_neo4j_ready_sets_ready_on_success(monkeypatch) -> None:
     assert neo4j_store.neo4j_ready(_settings()) is True
     assert data_plane_metrics.OPTIONAL_ADAPTER_ENABLED.labels(adapter="neo4j")._value.get() == 1
     assert data_plane_metrics.OPTIONAL_ADAPTER_READY.labels(adapter="neo4j")._value.get() == 1
+
+
+def test_neo4j_ready_returns_false_when_probe_not_ok(monkeypatch) -> None:
+    monkeypatch.setattr(neo4j_store, "ensure_schema", lambda _settings: None)
+    monkeypatch.setattr(neo4j_store, "_query_rows", lambda *_: [{"ok": 0}])
+    assert neo4j_store.neo4j_ready(_settings()) is False

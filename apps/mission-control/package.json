@@ -14,13 +14,14 @@
     "test:perf": "node scripts/run-npm-exec-clean-env.mjs lhci autorun --config=./lighthouserc.json"
   },
   "overrides": {
+    "basic-ftp": "5.2.2",
     "lodash": "4.18.1",
     "lodash-es": "4.18.1",
     "tmp": "0.2.5",
     "vite": "7.3.2"
   },
   "dependencies": {
-    "next": "^16.2.1",
+    "next": "^16.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
