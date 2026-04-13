@@ -251,10 +251,10 @@ PASS / PARTIAL / FAIL
 
 | Drill | Frequency | Last Run | Next Due | Status |
 |-------|-----------|----------|----------|--------|
-| 1 — PG Backup/Restore | Monthly | — | 2026-04-30 | NOT RUN |
-| 2 — Cold Start | Before each release | — | Before next tag | NOT RUN |
-| 3 — Checkpoint Recovery | Quarterly | — | 2026-06-30 | NOT RUN |
-| 4 — Redis Recovery | Quarterly | — | 2026-06-30 | NOT RUN |
+| 1 — PG Backup/Restore | Monthly | 2026-04-12 (dry-run) | 2026-05-12 | DRY-RUN PASS — see `docs/evidence/dr/drill_001_postgres_backup_restore.md` |
+| 2 — Cold Start | Before each release | — | Before next tag | NOT RUN — requires live Docker environment |
+| 3 — Checkpoint Recovery | Quarterly | — | 2026-06-30 | NOT RUN — requires live orchestrator + LangGraph |
+| 4 — Redis Recovery | Quarterly | — | 2026-06-30 | NOT RUN — requires live Redis + stream replay |
 
 ---
 

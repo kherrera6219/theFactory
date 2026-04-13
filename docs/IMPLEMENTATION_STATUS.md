@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.03.31
-Last updated: 2026-03-31
+Document version: 2026.04.12
+Last updated: 2026-04-12
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -67,15 +67,15 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 - Review approval is now persisted server-side for both Builder and repository review flows through durable orchestrator-backed approval records before mission launch.
 - The chat intake page now infers `requested_target_language` from attached files and prompt hints instead of hardcoding `python`.
 - The mission detail page now surfaces stored build/package artifacts, including status, digest, storage backend, and size.
-- The databases page and some UX copy still lag live backend readiness details.
+- The databases page correctly surfaces Qdrant, Neo4j, and object-storage adapter status from the live runtime. Optional adapters display as "Optional adapter disabled" when not enabled. UX copy is current.
 
 ## Language Extraction Status
 
 - Specialist routing currently covers 20 language keys across four pods. TypeScript is accepted as a routed key but aliases to the JavaScript specialist.
 - Go, Haskell, and OCaml are registered in the agent registry and supported by the language extraction engine. Dedicated agent containers for `agent-36-go` (Pod B), `agent-37-haskell` (Pod D), and `agent-38-ocaml` (Pod D) are now defined in `deploy/docker-compose.full-dedicated-agents.yaml` and included in the `make up-full-dedicated` Makefile target. All 38 agents are present in both condensed and full-dedicated topologies.
-- Some documentation artifacts still carry older language-count claims and need reconciliation to the current routing matrix.
+- Stale "14-language" and "16-language" references exist only in `docs/archive/2026-03-29/legacy-workspace/` (appropriately archived). All canonical current-source docs consistently reference the 20-language routing matrix.
 
-## Security Hardening (Phase 0–4 complete as of 2026-03-31)
+## Security Hardening (Phases 0–7 complete as of 2026-04-12)
 
 - **PII detection & redaction** (`shared_runtime/pii_guard.py`): SSN, credit card, email, phone, JWT, API key, password KV pairs; integrated at API Gateway in production (`PII_GUARD_MODE=redact`)
 - **Prompt injection guard** (`shared_runtime/prompt_guard.py`): system-tag smuggling, INST injection, role-override, jailbreak detection; `PROMPT_GUARD_MODE=block` in production
@@ -86,20 +86,26 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 - **Circuit breaker** in agent-runtime: CLOSED/OPEN/HALF-OPEN state machine; configurable failure threshold and recovery window
 - **AST-based Python extraction** (`pod_worker/ast_extractor.py`): replaces regex for function/class/import detection with accurate `ast` module parsing
 - **Secret hygiene**: gitleaks full-history scan, `.pre-commit-config.yaml` with staged-secret protection, `.gitleaks.toml` custom patterns
+- **Versioned prompt templates** (`prompts/v1/*.txt`): ceo_delegation, pod_manager_delegation, specialist_planning — static policy assets with no user-controlled placeholders; `PROMPT_GUARD_MODE=block` default
+- **LLM delegation instrumentation**: structured `llm_call` log lines with `provider`, `model`, `route`, `latency_ms`, `prompt_version`, `status` on every call
+- **HMAC-signed approval digests**: `receipt_digest` computed with HMAC-SHA256 when `APPROVAL_HMAC_SECRET` is set; SHA-256 fallback for backward compat
+- **Approval TTL enforcement**: `GET /internal/review-approvals/{id}` returns 410 Gone when age > `APPROVAL_TTL_SECONDS`
+- **Normalised error envelopes** (`shared_runtime/error_envelope.py`): every 4xx/5xx gains `error` (machine-readable type) and `correlation_id` across both services
+- **Release gate automation**: `scripts/release_readiness_check.py` (6 gates), `deploy/promotion-policy.json` v4 with DR evidence gate, `ci.yml` wired with `verify_release_evidence.py`
 
 ## Validation Snapshot
 
-As of 2026-03-31:
+As of 2026-04-12 (after all 7 phases):
 
-- `python -m pytest -q` is green: **770 passed, 5 skipped** (excludes one pre-existing broken import test).
-- All new Phase 2–4 modules have 100% test coverage (PII guard, prompt guard, AST extractor, circuit breaker, semantic bus dedup).
+- `python -m pytest -q` is green: **992 passed, 5 skipped**.
+- All Phase 2–7 modules have test coverage: PII/prompt guards, AST extractor, circuit breaker, semantic bus dedup, build artifacts, prompt templates, red-team eval (93 tests), contract tests (12 tests), DR drill tests (15 tests).
 - `apps/mission-control` TypeScript check is green (`npm run lint`).
-- `apps/mission-control` unit tests are green (`npm test`, `45` tests).
-- `apps/mission-control` Playwright: original 7 tests plus 13 new extended tests from Phase 1 E2E expansion.
-- Repository-wide `python -m ruff check services tests scripts` still has documented pre-existing variance in untouched files.
+- `apps/mission-control` unit tests are green (`npm test`, 45 tests).
+- `apps/mission-control` Playwright: 7 original + 13 new extended E2E tests.
+- `python scripts/release_readiness_check.py` — 6/6 gates pass, result: **READY**.
 - Orchestrator `main.py` reduced from 2065 to 1250 lines via route decomposition into `routes/` subpackage.
 
-The repository should therefore be treated as a production-ready baseline with defense-in-depth security hardening and improved maintainability.
+The repository should be treated as a production-ready baseline with defense-in-depth security hardening, AI safety governance, and full release gate automation.
 
 ## Current Hardening Baseline
 
@@ -112,12 +118,12 @@ Repo-local hardening work has improved the baseline materially:
 - service coverage gating is currently green at `>=80%`
 - the current-source docs are reconciled to the 38-agent runtime
 
-Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), and the latest cross-suite repository posture is tracked in [`../reports/master_audit_2026-03-29.md`](../reports/master_audit_2026-03-29.md).
+Release completion is tracked in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md). All 7 repo-local phases are complete as of 2026-04-12; remaining blockers are out-of-band (production environment, legal sign-off).
 
 ## Open Gaps For Completion
 
 1. ~~Align audit/event documentation with the actual `missions.state`, `mission.state.complete`, and `mission_audit_reports` implementation.~~ **Resolved (2026-04-12):** `docs/ARCHITECTURE_DIAGRAMS.md` corrected to remove the non-existent `missions.audit` stream. `docs/ARCHITECTURE.md` already stated this correctly. `docs/evidence/pod_language_extraction_2026-03-03.md` updated with a reconciliation note.
-2. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness. The databases page (`apps/mission-control/app/(shell)/databases/page.tsx`) correctly surfaces Qdrant, Neo4j, and object-storage adapter status from the live runtime. Optional adapters display as "Optional adapter disabled" when not enabled. UX copy is current.
+2. ~~Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.~~ **Resolved:** The databases page (`apps/mission-control/app/(shell)/databases/page.tsx`) correctly surfaces Qdrant, Neo4j, and object-storage adapter status from the live runtime. Optional adapters display as "Optional adapter disabled" when not enabled. UX copy is current.
 3. ~~Reconcile language-count and extraction/routing claims across docs with the current 20-key routing matrix.~~ **Resolved (2026-04-12):** Evidence file updated with reconciliation note. Stale "14-language" and "16-language" references exist only in `docs/archive/2026-03-29/legacy-workspace/` (appropriately archived). Canonical docs (`IMPLEMENTATION_STATUS.md`, `ARCHITECTURE.md`) state 20 language keys.
 4. ~~Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.~~ **Resolved (2026-04-12):** `build_artifacts.py` now implements `build_binary_artifact()`, `build_container_artifact()`, and `dispatch_build_artifact()`. Mission metadata field `builder_type` (`source_bundle` | `binary` | `container`) selects the builder. All types share the same artifact contract, Postgres storage, and API surface.
 5. ~~Execute Phase 4 (AI safety governance): versioned prompt templates, LLM instrumentation, data-leakage red-team eval suite, and classification policy.~~ **Resolved (2026-04-12):** See "Resolved Since Last Snapshot" below.
