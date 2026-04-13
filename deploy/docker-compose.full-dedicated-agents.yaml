@@ -449,6 +449,45 @@ services:
       AGENT_35_MATHEMATICA_SERVICE_API_KEY: ${AGENT_35_MATHEMATICA_SERVICE_API_KEY:-}
       SERVICE_API_KEY: ${AGENT_35_MATHEMATICA_SERVICE_API_KEY:-}
 
+  agent-36-go:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-36-go
+      POD_WORKER_NAME: dedicated-agent-36-go
+      POD_NAME: podB
+      SUPPORTED_LANGUAGES: go
+      WORKER_AGENT_ID: AGENT-36-GO
+      AGENT_BINDING: AGENT-36-GO
+      AGENT_36_GO_SERVICE_API_KEY: ${AGENT_36_GO_SERVICE_API_KEY:-}
+      SERVICE_API_KEY: ${AGENT_36_GO_SERVICE_API_KEY:-}
+
+  agent-37-haskell:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-37-haskell
+      POD_WORKER_NAME: dedicated-agent-37-haskell
+      POD_NAME: podD
+      SUPPORTED_LANGUAGES: haskell
+      WORKER_AGENT_ID: AGENT-37-HASKELL
+      AGENT_BINDING: AGENT-37-HASKELL
+      AGENT_37_HASKELL_SERVICE_API_KEY: ${AGENT_37_HASKELL_SERVICE_API_KEY:-}
+      SERVICE_API_KEY: ${AGENT_37_HASKELL_SERVICE_API_KEY:-}
+
+  agent-38-ocaml:
+    <<: *dedicated-pod-worker-template
+    environment:
+      <<: *dedicated-pod-worker-env
+      POD_WORKER_GROUP: dedicated-agent-38-ocaml
+      POD_WORKER_NAME: dedicated-agent-38-ocaml
+      POD_NAME: podD
+      SUPPORTED_LANGUAGES: ocaml
+      WORKER_AGENT_ID: AGENT-38-OCAML
+      AGENT_BINDING: AGENT-38-OCAML
+      AGENT_38_OCAML_SERVICE_API_KEY: ${AGENT_38_OCAML_SERVICE_API_KEY:-}
+      SERVICE_API_KEY: ${AGENT_38_OCAML_SERVICE_API_KEY:-}
+
 networks:
   hgr-network:
     name: hgr-network
