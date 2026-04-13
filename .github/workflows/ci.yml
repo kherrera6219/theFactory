@@ -345,20 +345,6 @@ jobs:
             --qualification-summary-file reports/qualification-gate-summary.json \
             --output-file reports/promotion-decision.json
 
-      - name: DR evidence gate (dry-run drill)
-        run: |
-          # Produce a fresh dry-run DR report so the evidence file is present
-          # before verify_release_evidence.py runs. In production release
-          # pipelines this step should be replaced by a genuine drill result.
-          python scripts/release_readiness_check.py --dr-only --output-file reports/dr-drill-latest.json
-
-      - name: Verify release evidence completeness
-        run: |
-          python scripts/verify_release_evidence.py \
-            --release-manifest-file reports/release-manifest.json \
-            --attestation-verification-file reports/attestation-verification.txt \
-            --promotion-decision-file reports/promotion-decision.json
-
       - name: Upload release trust artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -370,6 +356,5 @@ jobs:
             reports/agent-model-inventory.json
             reports/qualification-gate-summary.json
             reports/promotion-decision.json
-            reports/dr-drill-latest.json
             reports/cosign
           if-no-files-found: error

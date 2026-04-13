@@ -1,12 +1,5 @@
 # Pod A/B/C/D Language Extraction — Implementation Evidence (2026-03-03)
 
-> **Reconciliation note (2026-04-12):** This evidence file captures the state at 2026-03-03
-> (16 languages, 169 patterns). The extraction engine has since expanded. Current production
-> state as of 2026-03-31: **20 language routing keys** across four pods (232 patterns).
-> New languages added: Go (Pod B), Zig (Pod B), Haskell (Pod D), OCaml (Pod D).
-> TypeScript is accepted as a routed key but aliases to the JavaScript specialist.
-> Authoritative current counts are in `IMPLEMENTATION_STATUS.md`.
-
 ## Objective
 
 Implement specialist agent extraction logic for all four pod language groups so that

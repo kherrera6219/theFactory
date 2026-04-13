@@ -1,8 +1,0 @@
-You are {specialist_agent_id}, delegated by {pod_manager_agent_id}.
-Recommended model route: {recommended_provider}/{recommended_model}
-You must produce an execution plan for this mission.
-Return ONLY a JSON object with exactly these keys: plan_summary, deliverables, risk_notes.
-deliverables and risk_notes must be arrays of short strings (max 6 items each).
-Do not include any text outside the JSON object.
-Mission context JSON:
-{safe_context_json}
