@@ -121,7 +121,8 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 3. ~~Reconcile language-count and extraction/routing claims across docs with the current 20-key routing matrix.~~ **Resolved (2026-04-12):** Evidence file updated with reconciliation note. Stale "14-language" and "16-language" references exist only in `docs/archive/2026-03-29/legacy-workspace/` (appropriately archived). Canonical docs (`IMPLEMENTATION_STATUS.md`, `ARCHITECTURE.md`) state 20 language keys.
 4. ~~Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.~~ **Resolved (2026-04-12):** `build_artifacts.py` now implements `build_binary_artifact()`, `build_container_artifact()`, and `dispatch_build_artifact()`. Mission metadata field `builder_type` (`source_bundle` | `binary` | `container`) selects the builder. All types share the same artifact contract, Postgres storage, and API surface.
 5. ~~Execute Phase 4 (AI safety governance): versioned prompt templates, LLM instrumentation, data-leakage red-team eval suite, and classification policy.~~ **Resolved (2026-04-12):** See "Resolved Since Last Snapshot" below.
-6. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including shared-state durability (Phase 5), DR evidence, and final release qualification.
+6. ~~Execute Phase 5 (shared-state durability): wire APPROVAL_HMAC_SECRET, add approval TTL enforcement, normalise HTTP error envelopes, add contract tests.~~ **Resolved (2026-04-12):** See "Resolved Since Last Snapshot" below.
+7. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including DR evidence and final release qualification.
 
 ## Resolved Since Last Snapshot
 
@@ -137,3 +138,9 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
   - Red-team eval suite expanded: `tests/eval/test_llm_delegation_golden.py` now covers 12-field forbidden-context list, PII redaction (email, API-key patterns), Unicode/homoglyph rejection, control-character stripping, context size cap, and all three prompt templates. Total eval test count: 93.
   - `docs/DATA_CLASSIFICATION_POLICY.md` updated with LLM delegation data controls section — maps every mission metadata field to PUBLIC/INTERNAL/CONFIDENTIAL/RESTRICTED and documents all enforcement points.
   - `docs/MODEL_PROMOTION_GOVERNANCE.md` updated with full 5-gate promotion lifecycle: capability eval, prompt compatibility, red-team verification, security sign-off, and staged rollout. Rollback procedure documented.
+- **2026-04-12 (Phase 5 — Shared-State Durability):**
+  - `APPROVAL_HMAC_SECRET` wired into `settings.py` (`approval_hmac_secret`) and `_review_approval_digest()`. When the secret is set, the `receipt_digest` field is computed with HMAC-SHA256 (authenticated); when unset it falls back to plain SHA256 for backward compatibility.
+  - `APPROVAL_TTL_SECONDS` wired into `settings.py` (`approval_ttl_seconds`, minimum 60 s). `GET /internal/review-approvals/{id}` now returns HTTP 410 Gone with error-envelope body when the record age exceeds the TTL.
+  - `shared_runtime/error_envelope.py` added: `install_error_handlers(app)` registers FastAPI exception handlers that add `error` (machine-readable type, e.g. `not_found`, `gone`, `validation_error`) and `correlation_id` alongside the standard `detail` field. Existing tests that assert `body["detail"]` continue to pass — the new fields are purely additive.
+  - Both services wired: `install_error_handlers(app)` called in `orchestrator/main.py` and `api-gateway/main.py` immediately after app creation.
+  - `tests/contract/test_api_contracts.py` added (12 tests): error envelope shape for 404/400/422/410, review approval create/retrieve/not-found/HMAC-vs-SHA256, `_error_type()` mapping for all common status codes. All pass.
