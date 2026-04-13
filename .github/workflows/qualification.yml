@@ -73,6 +73,12 @@ jobs:
             --policy-file deploy/promotion-policy.json \
             --output-file docs/evidence/qualification_gate_summary_latest.json
 
+      - name: DR evidence drill (dry-run)
+        run: |
+          python scripts/release_readiness_check.py \
+            --dr-only \
+            --output-file reports/dr-drill-latest.json
+
       - name: DORA metrics summary
         run: |
           python scripts/dora_metrics_summary.py \
