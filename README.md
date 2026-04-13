@@ -433,20 +433,44 @@ Runbook: [`docs/runbooks/optional_data_plane_incident_runbook.md`](docs/runbooks
 
 ## Quick Start
 
-### Prerequisites
+### Option A — One-Click Launcher (Windows, recommended)
+
+Double-click **`Launch-TheFactory.bat`** at the repo root.
+
+On first run it will:
+1. Generate `.env` with CSPRNG-backed secrets (no manual editing required for local dev)
+2. Generate local TLS certificates via Docker + Alpine/openssl
+3. Build and start the full stack (`docker compose up -d --build`)
+4. Poll for readiness and open Mission Control in your browser
+
+```
+# Or from PowerShell directly:
+.\Launch-TheFactory.ps1               # condensed stack (~8 containers)
+.\Launch-TheFactory.ps1 -FullDedicated  # full 38-agent dedicated topology
+.\Launch-TheFactory.ps1 -Down           # stop and remove the stack
+```
+
+> **Requires:** Docker Desktop running. No other local tools needed for the launch itself.
+
+---
+
+### Option B — Manual Setup
+
+#### Prerequisites
 - Docker Desktop (Windows)
 - `make` (via Git Bash or WSL, or run commands directly)
 - Node.js 20+ (for Mission Control development)
 - Python 3.11+ (for backend development)
 
-### 1. Environment Setup
+#### 1. Environment Setup
 
 ```bash
 cp .env.example .env
-# Edit .env — add provider API keys and service secrets
+# Edit .env — replace all CHANGE_ME_* values with secrets generated via:
+# openssl rand -hex 32
 ```
 
-### 2. Generate Local TLS Dev Certificates
+#### 2. Generate Local TLS Dev Certificates
 
 ```bash
 make tls-certs
@@ -454,13 +478,14 @@ make tls-certs
 
 This generates local-only PostgreSQL and Redis TLS material under `deploy/.local/postgres-certs` and `deploy/.local/redis-certs`. Private keys are intentionally gitignored and must not be committed.
 
-### 3. Start Core Stack
+#### 3. Start Core Stack
 
 ```bash
-docker compose -f deploy/docker-compose.yaml up -d --build
+make up
+# or: docker compose -f deploy/docker-compose.yaml up -d --build
 ```
 
-### 4. Verify Health
+#### 4. Verify Health
 
 ```bash
 # Gateway
@@ -476,7 +501,7 @@ curl http://localhost:8102/health
 open http://localhost:3100
 ```
 
-### 5. Start Monitoring Stack (optional)
+#### 5. Start Monitoring Stack (optional)
 
 ```bash
 make monitor-up
@@ -545,8 +570,10 @@ npm run test:e2e   # Playwright critical-path E2E
 
 | Command | Description |
 |---------|-------------|
-| `make up` | Build and start core stack |
-| `make down` | Stop stack and remove volumes |
+| `make up` | Build and start condensed stack (~8 containers) |
+| `make up-full-dedicated` | Start full 38-agent dedicated topology |
+| `make down` | Stop condensed stack and remove volumes |
+| `make down-full-dedicated` | Stop full-dedicated stack and remove volumes |
 | `make validate` | Validate schema contracts |
 | `make lint` | Ruff on backend, tests, and scripts |
 | `make test` | Pytest with coverage gates (≥80% global, strict per-module floors on critical runtime files) |
@@ -586,7 +613,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | pip-audit SCA | 0 known vulns | `security.yml` |
 | Release attestation | signed provenance | CI release gate |
 
-**Current status (2026-03-31):** backend `python -m pytest -q` is green (`770 passed, 5 skipped`), services coverage is `81.75%`, Mission Control unit tests are green (`45` tests), and Mission Control Playwright is green (`20` journeys — 7 original + 13 from Phase 1 E2E expansion). See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for the remaining product-completion gaps and out-of-band blockers.
+**Current status (2026-04-12):** backend `python -m pytest -q` is green (`770 passed, 5 skipped`), services coverage is `81.75%`, Mission Control unit tests are green (`45` tests), and Mission Control Playwright is green (`20` journeys). Since the 2026-03-31 baseline: dedicated topology gap closed (Go/Haskell/OCaml containers added), one-click launcher added, and documentation drift resolved. See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for remaining open items and out-of-band blockers.
 
 ---
 
@@ -679,10 +706,14 @@ Spawns dedicated manager-worker containers per pod with `AGENT_BINDING` enforcem
 ### Full Dedicated Runtime
 
 ```bash
+make up-full-dedicated
+# or:
 docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
-Adds dedicated `agent-runtime` containers for PM, CEO, support, pod-audit, and specialist roles. This profile enables strict per-agent bindings and the full isolated 38-agent runtime topology.
+Adds dedicated `agent-runtime` containers for all 38 agents: PM, CEO, support ring (agents 03–11), pod-audit agents, and all language specialists including Go (AGENT-36), Haskell (AGENT-37), and OCaml (AGENT-38). Each worker enforces `AGENT_BINDING` to process only its assigned agent ID.
+
+> **RAM:** ~12 GB recommended for the full 38-container topology.
 
 ### Monitoring Stack
 
@@ -706,6 +737,8 @@ Adds Milvus, MinIO object storage, and Neo4j connection support for feature-flag
 
 ```
 theFactory/
+├── Launch-TheFactory.bat         # Double-click launcher (Windows)
+├── Launch-TheFactory.ps1         # One-click launcher script (auto-env, TLS, stack, browser)
 ├── apps/
 │   └── mission-control/          # Next.js 16 operator console
 ├── services/
