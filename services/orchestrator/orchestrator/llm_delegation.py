@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Any
 
 import httpx
@@ -18,6 +19,7 @@ from .mission_flow import (
     resolve_pod_manager_agent_id,
     resolve_specialist_agent_id,
 )
+from .prompt_loader import PROMPT_VERSION, render_prompt
 
 LOGGER = logging.getLogger(__name__)
 
@@ -438,14 +440,28 @@ async def _call_with_recommendation(
     provider = str(recommendation.get("provider", "openai")).strip().lower()
     model = str(recommendation.get("model", "gpt-5.2-pro")).strip()
 
+    t0 = time.monotonic()
     parsed = await _call_provider(
         provider=provider,
         model=model,
         prompt=prompt,
         call_context=call_context,
     )
+    latency_ms = round((time.monotonic() - t0) * 1000)
+
     if isinstance(parsed, dict):
+        LOGGER.info(
+            "llm_call provider=%s model=%s route=primary context=%s "
+            "latency_ms=%d prompt_version=%s status=success",
+            provider, model, call_context, latency_ms, PROMPT_VERSION,
+        )
         return parsed, provider, model, "primary"
+
+    LOGGER.warning(
+        "llm_call provider=%s model=%s route=primary context=%s "
+        "latency_ms=%d prompt_version=%s status=no_result — trying fallback",
+        provider, model, call_context, latency_ms, PROMPT_VERSION,
+    )
 
     fallback_provider = str(recommendation.get("fallback_provider", "")).strip().lower()
     fallback_model = str(recommendation.get("fallback_model", "")).strip()
@@ -455,14 +471,30 @@ async def _call_with_recommendation(
     if fallback_provider == provider and fallback_model == model:
         return None, provider, model, "primary"
 
+    t1 = time.monotonic()
     fallback = await _call_provider(
         provider=fallback_provider,
         model=fallback_model,
         prompt=prompt,
         call_context=f"{call_context} (fallback)",
     )
+    fallback_latency_ms = round((time.monotonic() - t1) * 1000)
+
     if isinstance(fallback, dict):
+        LOGGER.info(
+            "llm_call provider=%s model=%s route=fallback context=%s "
+            "latency_ms=%d prompt_version=%s status=success",
+            fallback_provider, fallback_model, call_context,
+            fallback_latency_ms, PROMPT_VERSION,
+        )
         return fallback, fallback_provider, fallback_model, "fallback"
+
+    LOGGER.warning(
+        "llm_call provider=%s model=%s route=fallback context=%s "
+        "latency_ms=%d prompt_version=%s status=no_result — using deterministic fallback",
+        fallback_provider, fallback_model, call_context,
+        fallback_latency_ms, PROMPT_VERSION,
+    )
     return None, provider, model, "primary"
 
 
@@ -538,14 +570,11 @@ def _build_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
-    return (
-        "You are AGENT-02-CEO in a strict chain-of-command runtime.\n"
-        f"Recommended model route: {recommended_provider}/{recommended_model}\n"
-        "Return only JSON with keys: pod_manager_agent_id, specialist_agent_id, rationale.\n"
-        "Mission context JSON:\n"
-        f"{_safe_context_json(mission_context)}\n"
-        "Valid pod manager ids: AGENT-12-PODA-MGR, AGENT-18-PODB-MGR, "
-        "AGENT-24-PODC-MGR, AGENT-30-PODD-MGR."
+    return render_prompt(
+        "ceo_delegation",
+        recommended_provider=recommended_provider,
+        recommended_model=recommended_model,
+        safe_context_json=_safe_context_json(mission_context),
     )
 
 
@@ -557,13 +586,13 @@ def _build_pod_manager_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
-    return (
-        f"You are {pod_manager_agent_id} (pod manager) in a strict delegation chain.\n"
-        f"Recommended model route: {recommended_provider}/{recommended_model}\n"
-        "Return only JSON with keys: specialist_agent_id, rationale.\n"
-        f"Default specialist_agent_id: {default_specialist_agent_id}\n"
-        "Mission context JSON:\n"
-        f"{_safe_context_json(mission_context)}"
+    return render_prompt(
+        "pod_manager_delegation",
+        pod_manager_agent_id=pod_manager_agent_id,
+        recommended_provider=recommended_provider,
+        recommended_model=recommended_model,
+        default_specialist_agent_id=default_specialist_agent_id,
+        safe_context_json=_safe_context_json(mission_context),
     )
 
 
@@ -575,13 +604,13 @@ def _build_specialist_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
-    return (
-        f"You are {specialist_agent_id}, delegated by {pod_manager_agent_id}.\n"
-        f"Recommended model route: {recommended_provider}/{recommended_model}\n"
-        "Return only JSON with keys: plan_summary, deliverables, risk_notes.\n"
-        "deliverables and risk_notes must be arrays of short strings.\n"
-        "Mission context JSON:\n"
-        f"{_safe_context_json(mission_context)}"
+    return render_prompt(
+        "specialist_planning",
+        specialist_agent_id=specialist_agent_id,
+        pod_manager_agent_id=pod_manager_agent_id,
+        recommended_provider=recommended_provider,
+        recommended_model=recommended_model,
+        safe_context_json=_safe_context_json(mission_context),
     )
 
 
