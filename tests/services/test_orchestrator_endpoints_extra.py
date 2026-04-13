@@ -117,6 +117,9 @@ def test_mission_query_endpoints(monkeypatch) -> None:
 
 def test_review_approval_internal_endpoints(monkeypatch) -> None:
     monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    from datetime import UTC, datetime as _dt
+
+    _now = _dt.now(UTC).isoformat()
     monkeypatch.setattr(
         orchestrator_main.storage,
         "upsert_review_approval",
@@ -128,8 +131,8 @@ def test_review_approval_internal_endpoints(monkeypatch) -> None:
             "metadata": {"request_id": "repo-review-001"},
             "receipt_digest": "digest-001",
             "storage_backend": "postgres",
-            "approved_at": "2026-03-29T00:00:00+00:00",
-            "updated_at": "2026-03-29T00:00:00+00:00",
+            "approved_at": _now,
+            "updated_at": _now,
         },
     )
     monkeypatch.setattr(
@@ -143,8 +146,8 @@ def test_review_approval_internal_endpoints(monkeypatch) -> None:
             "metadata": {"request_id": "repo-review-001"},
             "receipt_digest": "digest-001",
             "storage_backend": "postgres",
-            "approved_at": "2026-03-29T00:00:00+00:00",
-            "updated_at": "2026-03-29T00:00:00+00:00",
+            "approved_at": _now,
+            "updated_at": _now,
         },
     )
 
