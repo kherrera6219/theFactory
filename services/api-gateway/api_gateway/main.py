@@ -410,7 +410,12 @@ async def _dependency_status() -> dict[str, bool]:
 def _client_identifier(request: Request) -> str:
     api_key = request.headers.get("x-api-key")
     if api_key:
-        digest = hmac.new(RATE_LIMIT_HMAC_KEY, api_key.encode("utf-8"), hashlib.sha256).hexdigest()
+        # HMAC-SHA256 is intentional here: this is a rate-limit bucket key, not password storage.
+        # Fast, deterministic, keyed hashing is required — bcrypt/argon2 would break rate limiting
+        # (non-deterministic salts) and add unacceptable per-request latency.
+        digest = hmac.new(  # lgtm[py/weak-sensitive-data-hashing]
+            RATE_LIMIT_HMAC_KEY, api_key.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
         return f"api-key:{digest}"
 
     forwarded_for = request.headers.get("x-forwarded-for", "")
