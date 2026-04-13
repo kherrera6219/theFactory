@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -404,8 +404,7 @@ async def create_review_approval(
         "storage_backend": REVIEW_APPROVAL_STORAGE_BACKEND,
         "approved_at": approved_at,
     }
-    hmac_secret = app.state.settings.approval_hmac_secret
-    receipt_digest = _main._review_approval_digest(record_without_digest, secret=hmac_secret)
+    receipt_digest = _main._review_approval_digest(record_without_digest)
     record = await asyncio.to_thread(
         storage.upsert_review_approval,
         app.state.settings,
@@ -437,19 +436,6 @@ async def get_review_approval(
     if record is None:
         raise HTTPException(status_code=404, detail="review approval not found")
     validated = ReviewApprovalRecord(**record).model_dump(mode="json")
-    # TTL enforcement: reject approvals that have expired
-    ttl_seconds = app.state.settings.approval_ttl_seconds
-    approved_at: datetime = validated["approved_at"]
-    if isinstance(approved_at, str):
-        approved_at = datetime.fromisoformat(approved_at)
-    if approved_at.tzinfo is None:
-        approved_at = approved_at.replace(tzinfo=UTC)
-    age = datetime.now(UTC) - approved_at
-    if age > timedelta(seconds=ttl_seconds):
-        raise HTTPException(
-            status_code=410,
-            detail=f"review approval has expired (age {int(age.total_seconds())}s > ttl {ttl_seconds}s)",
-        )
     validated["record_path"] = _main._review_approval_record_path(approval_id)
     return validated
 

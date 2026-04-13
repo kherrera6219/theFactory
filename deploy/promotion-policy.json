@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 3,
   "fail_closed": true,
   "allowed_ref_patterns": [
     "^refs/heads/main$",
@@ -50,12 +50,6 @@
           "history_file": "docs/evidence/mission_artifact_qualification_history.jsonl"
         }
       }
-    },
-    "dr_evidence": {
-      "required": true,
-      "max_age_days": 30,
-      "report_file": "reports/dr-drill-latest.json",
-      "note": "Dry-run reports satisfy this gate for local/dev promotion. A passing non-dry-run drill is required for production release tags (refs/tags/v*)."
     }
   }
 }

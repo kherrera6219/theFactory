@@ -6,68 +6,6 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
-### Phase 7 — Release Gate Automation (2026-04-12)
-
-#### Added
-- `scripts/release_readiness_check.py` — unified local pre-release gate; evaluates 6 checks (dr_evidence, promotion_policy, qualification_evidence, red_team_eval, error_envelope, prompt_templates); outputs READY/NOT READY with per-gate detail; supports `--dr-only` mode for CI use
-- `tests/scripts/test_dr_drill.py` — 15 tests: schema validation of `reports/dr-drill-latest.json`, `dr_evidence_is_fresh()` age-gate logic, PowerShell dry-run integration
-- `docs/evidence/dr/drill_001_postgres_backup_restore.md` — completed dry-run Drill 1 evidence record
-
-#### Changed
-- `deploy/promotion-policy.json` v3 → v4: added `dr_evidence` gate (≤ 30 days; dry_run=true always passes; non-dry-run required for `refs/tags/v*`)
-- `.github/workflows/ci.yml` — added "DR evidence gate" step and "Verify release evidence completeness" step (calling `verify_release_evidence.py`, previously unused); `reports/dr-drill-latest.json` added to release trust artifact upload
-- `.github/workflows/qualification.yml` — added DR dry-run drill step to weekly qualification run
-
-### Phase 6 — DR Evidence (2026-04-12)
-
-#### Added
-- `docs/evidence/dr/` — DR evidence archive directory
-- `tests/scripts/test_dr_drill.py` — DR drill schema and age-gate tests (see Phase 7)
-
-#### Changed
-- `deploy/promotion-policy.json` — `dr_evidence` gate added (see Phase 7)
-- `docs/runbooks/dr_validation_runbook.md` — Drill 1 schedule updated to DRY-RUN PASS (2026-04-12)
-
-### Phase 5 — Shared-State Durability (2026-04-12)
-
-#### Added
-- `shared_runtime/error_envelope.py` — `install_error_handlers(app)` registers FastAPI exception handlers that add `error` (machine-readable type) and `correlation_id` to every 4xx/5xx response alongside the existing `detail` field; backward compatible
-- `tests/contract/test_api_contracts.py` — 12 contract tests: error envelope shape (404/400/422/410), review approval CRUD shapes, HMAC-vs-SHA256 distinction, `_error_type()` mapping for all common status codes
-
-#### Changed
-- `services/orchestrator/orchestrator/settings.py` — added `approval_hmac_secret` and `approval_ttl_seconds` fields wired from `APPROVAL_HMAC_SECRET` and `APPROVAL_TTL_SECONDS` env vars
-- `services/orchestrator/orchestrator/main.py` — `_review_approval_digest()` now uses HMAC-SHA256 when secret is set; plain SHA256 fallback for backward compat; `import hmac` added
-- `services/orchestrator/orchestrator/routes/internal.py` — `GET /internal/review-approvals/{id}` returns HTTP 410 Gone with error envelope when record age > TTL
-- `services/orchestrator/orchestrator/main.py` and `services/api-gateway/api_gateway/main.py` — `install_error_handlers(app)` wired immediately after app creation in both services
-
-### Phase 4 — AI Safety and Prompt Governance (2026-04-12)
-
-#### Added
-- `services/orchestrator/orchestrator/prompts/v1/ceo_delegation.txt` — versioned CEO delegation prompt template
-- `services/orchestrator/orchestrator/prompts/v1/pod_manager_delegation.txt` — versioned pod manager prompt template
-- `services/orchestrator/orchestrator/prompts/v1/specialist_planning.txt` — versioned specialist planning prompt template
-- `services/orchestrator/orchestrator/prompt_loader.py` — `lru_cache`-backed `render_prompt()`; raises `KeyError` on missing placeholders; version pinnable via `PROMPT_VERSION` env var
-- Red-team eval expansion in `tests/eval/test_llm_delegation_golden.py`: 12-field `_FORBIDDEN_CONTEXT_FIELDS` list, PII redaction (email, API-key), Unicode/homoglyph rejection, control-char stripping, context size cap, template render tests (93 tests total)
-
-#### Changed
-- `services/orchestrator/orchestrator/llm_delegation.py` — replaced inline prompt string literals with `render_prompt()` calls; added structured `llm_call` log lines with `provider`, `model`, `route`, `latency_ms`, `prompt_version`, `status`
-- `.env.example` — `PROMPT_GUARD_MODE` default changed from `log` to `block`
-- `docs/DATA_CLASSIFICATION_POLICY.md` — added LLM delegation data-controls section mapping all metadata fields to PUBLIC/INTERNAL/CONFIDENTIAL/RESTRICTED
-- `docs/MODEL_PROMOTION_GOVERNANCE.md` — expanded to full 5-gate promotion lifecycle plus rollback procedure
-
-### Phase 3 (2026-04-12) — Build Artifact Extension and Launcher
-
-#### Added
-- `services/orchestrator/orchestrator/build_artifacts.py` — `build_binary_artifact()`, `build_container_artifact()`, `dispatch_build_artifact()`; all three builder types share the same artifact contract
-- `Launch-TheFactory.ps1` / `Launch-TheFactory.bat` — one-click Windows launcher; CSPRNG secret generation, TLS cert setup, readiness polling, browser launch
-- `deploy/docker-compose.full-dedicated-agents.yaml` — `agent-36-go` (Pod B), `agent-37-haskell` (Pod D), `agent-38-ocaml` (Pod D) service definitions added; all 38 agents now present in the full-dedicated topology
-
-#### Changed
-- `services/orchestrator/orchestrator/mission_flow_v2.py` — `_ensure_verified_build_artifact()` now calls `dispatch_build_artifact()` instead of hardcoded `build_source_bundle_artifact()`
-- `Makefile` — `make up-full-dedicated` target extended with `agent-36-go agent-37-haskell agent-38-ocaml`
-- `README.md` — Option A (one-click launcher) added as primary Quick Start; full-dedicated topology documented; launcher files added to repository layout
-- `docs/ARCHITECTURE_DIAGRAMS.md` — removed non-existent `missions.audit` stream from Redis Streams diagram
-
 ### Phase 3 (continued) — Orchestrator Decomposition (2026-03-31)
 
 #### Added
