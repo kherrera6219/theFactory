@@ -433,44 +433,20 @@ Runbook: [`docs/runbooks/optional_data_plane_incident_runbook.md`](docs/runbooks
 
 ## Quick Start
 
-### Option A — One-Click Launcher (Windows, recommended)
-
-Double-click **`Launch-TheFactory.bat`** at the repo root.
-
-On first run it will:
-1. Generate `.env` with CSPRNG-backed secrets (no manual editing required for local dev)
-2. Generate local TLS certificates via Docker + Alpine/openssl
-3. Build and start the full stack (`docker compose up -d --build`)
-4. Poll for readiness and open Mission Control in your browser
-
-```
-# Or from PowerShell directly:
-.\Launch-TheFactory.ps1               # condensed stack (~8 containers)
-.\Launch-TheFactory.ps1 -FullDedicated  # full 38-agent dedicated topology
-.\Launch-TheFactory.ps1 -Down           # stop and remove the stack
-```
-
-> **Requires:** Docker Desktop running. No other local tools needed for the launch itself.
-
----
-
-### Option B — Manual Setup
-
-#### Prerequisites
+### Prerequisites
 - Docker Desktop (Windows)
 - `make` (via Git Bash or WSL, or run commands directly)
 - Node.js 20+ (for Mission Control development)
 - Python 3.11+ (for backend development)
 
-#### 1. Environment Setup
+### 1. Environment Setup
 
 ```bash
 cp .env.example .env
-# Edit .env — replace all CHANGE_ME_* values with secrets generated via:
-# openssl rand -hex 32
+# Edit .env — add provider API keys and service secrets
 ```
 
-#### 2. Generate Local TLS Dev Certificates
+### 2. Generate Local TLS Dev Certificates
 
 ```bash
 make tls-certs
@@ -478,14 +454,13 @@ make tls-certs
 
 This generates local-only PostgreSQL and Redis TLS material under `deploy/.local/postgres-certs` and `deploy/.local/redis-certs`. Private keys are intentionally gitignored and must not be committed.
 
-#### 3. Start Core Stack
+### 3. Start Core Stack
 
 ```bash
-make up
-# or: docker compose -f deploy/docker-compose.yaml up -d --build
+docker compose -f deploy/docker-compose.yaml up -d --build
 ```
 
-#### 4. Verify Health
+### 4. Verify Health
 
 ```bash
 # Gateway
@@ -501,7 +476,7 @@ curl http://localhost:8102/health
 open http://localhost:3100
 ```
 
-#### 5. Start Monitoring Stack (optional)
+### 5. Start Monitoring Stack (optional)
 
 ```bash
 make monitor-up
@@ -570,10 +545,8 @@ npm run test:e2e   # Playwright critical-path E2E
 
 | Command | Description |
 |---------|-------------|
-| `make up` | Build and start condensed stack (~8 containers) |
-| `make up-full-dedicated` | Start full 38-agent dedicated topology |
-| `make down` | Stop condensed stack and remove volumes |
-| `make down-full-dedicated` | Stop full-dedicated stack and remove volumes |
+| `make up` | Build and start core stack |
+| `make down` | Stop stack and remove volumes |
 | `make validate` | Validate schema contracts |
 | `make lint` | Ruff on backend, tests, and scripts |
 | `make test` | Pytest with coverage gates (≥80% global, strict per-module floors on critical runtime files) |
@@ -613,7 +586,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | pip-audit SCA | 0 known vulns | `security.yml` |
 | Release attestation | signed provenance | CI release gate |
 
-**Current status (2026-04-12):** backend `python -m pytest -q` is green (`992 passed, 5 skipped`), services coverage is `≥81%`, Mission Control unit tests are green (`45` tests), and Mission Control Playwright is green (`20` journeys). `python scripts/release_readiness_check.py` reports **6/6 gates READY**. Phases 1–7 complete: dedicated topology (all 38 agents), one-click launcher, build artifact extension, AI safety governance (prompt templates, red-team eval), shared-state durability (HMAC approvals, error envelopes, contract tests), DR evidence gate, and release gate automation. See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for out-of-band blockers.
+**Current status (2026-03-31):** backend `python -m pytest -q` is green (`770 passed, 5 skipped`), services coverage is `81.75%`, Mission Control unit tests are green (`45` tests), and Mission Control Playwright is green (`20` journeys — 7 original + 13 from Phase 1 E2E expansion). See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for the remaining product-completion gaps and out-of-band blockers.
 
 ---
 
@@ -706,14 +679,10 @@ Spawns dedicated manager-worker containers per pod with `AGENT_BINDING` enforcem
 ### Full Dedicated Runtime
 
 ```bash
-make up-full-dedicated
-# or:
 docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
-Adds dedicated `agent-runtime` containers for all 38 agents: PM, CEO, support ring (agents 03–11), pod-audit agents, and all language specialists including Go (AGENT-36), Haskell (AGENT-37), and OCaml (AGENT-38). Each worker enforces `AGENT_BINDING` to process only its assigned agent ID.
-
-> **RAM:** ~12 GB recommended for the full 38-container topology.
+Adds dedicated `agent-runtime` containers for PM, CEO, support, pod-audit, and specialist roles. This profile enables strict per-agent bindings and the full isolated 38-agent runtime topology.
 
 ### Monitoring Stack
 
@@ -737,8 +706,6 @@ Adds Milvus, MinIO object storage, and Neo4j connection support for feature-flag
 
 ```
 theFactory/
-├── Launch-TheFactory.bat         # Double-click launcher (Windows)
-├── Launch-TheFactory.ps1         # One-click launcher script (auto-env, TLS, stack, browser)
 ├── apps/
 │   └── mission-control/          # Next.js 16 operator console
 ├── services/
@@ -807,18 +774,16 @@ theFactory/
 
 | Domain | Status |
 |--------|--------|
-| Infrastructure & DevOps | ✅ All 38 agent containers defined; one-click launcher; DR evidence gate in promotion policy |
-| Security & Auth | ✅ Fail-closed; HMAC-signed approvals; approval TTL (410 Gone); normalised error envelopes |
-| AI Safety / Prompt Governance | ✅ Versioned prompt templates; `PROMPT_GUARD_MODE=block`; red-team eval (93 tests) |
-| Release Gates | ✅ `release_readiness_check.py` (6 gates READY); `verify_release_evidence.py` wired in CI |
-| Observability | ✅ Structured LLM instrumentation (provider/model/route/latency_ms/prompt_version/status) |
-| Testing & CI | ✅ 992 pytest tests; 12 contract tests; 15 DR drill tests; 93 eval tests; Playwright (20 journeys) |
-| Data Systems | ✅ Binary/container builder types; dispatch_build_artifact(); same artifact contract for all types |
+| Infrastructure & DevOps | ✅ Repo-local implementation baseline complete; production-host enforcement remains out-of-band |
+| Security & Auth | ✅ Fail-closed repo-local baseline; key-history scrub and host-policy enforcement remain |
+| Observability | ✅ Core telemetry stack, docs, and runbooks are in place |
+| Testing & CI | ✅ Backend pytest, frontend unit tests, Playwright, AI eval gate, and docs validation are in place |
+| Data Systems | ✅ Core path complete; current-source docs now match shipped readiness |
 | Mission Control UI | ✅ Real operator UI with grounded builder, repo-review, chat launch, and artifact views |
-| Language Extraction Engine | ✅ 20 routed language keys across 4 pods; all 38 agents in both topologies |
-| Mission Lifecycle | ✅ v2 lifecycle shipped default; source-bundle, binary, and container artifact gating enforced |
-| CEO→Pod Delegation Chain | ✅ Complete with versioned prompt templates and structured LLM audit trail |
-| LLM API Call Wiring | ✅ Provider-aware routing, fallback, latency instrumentation, and prompt version tracking |
+| Language Extraction Engine | ✅ 20 routed language keys across 4 pods |
+| Mission Lifecycle | ✅ v2 lifecycle is the shipped default, mission creation is synchronous/read-after-write, and source-bundle artifact gating is enforced |
+| CEO→Pod Delegation Chain | ✅ Complete baseline |
+| LLM API Call Wiring | ✅ Complete baseline with provider-aware routing and fallback |
 
 **Remaining out-of-band completion work:**
 - Scrub previously committed key material from git history and rotate affected secrets or certificates

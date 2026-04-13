@@ -1,8 +1,8 @@
 # Data Classification Policy
 
-Document version: 2026.04.12
-Last updated: 2026-04-12
-Status: Canonical
+Document version: 2026.03.29  
+Last updated: 2026-03-29  
+Status: Canonical  
 Audience: Operators, developers, maintainers, and security reviewers
 
 ## Table of Contents
@@ -186,52 +186,3 @@ Security incidents should be reported to the platform owner immediately and docu
 | **ISO/IEC 27001** | A.8.2 (classification), A.8.3 (handling), A.9.4 (access control) | Baseline implemented |
 | **OWASP ASVS** | V8 (data protection), V9 (communication security) | Baseline implemented |
 | **SOC2 CC6** | Logical and physical access controls | Partial — RBAC implemented; formal evidence mapping pending |
-
----
-
-## LLM Delegation Data Controls (Phase 4 — 2026-04-12)
-
-This section maps data fields to classification levels and documents the enforcement points that prevent CONFIDENTIAL/RESTRICTED data from reaching LLM API calls.
-
-### Field Classification for LLM Routing
-
-| Field | Level | May appear in LLM prompt? |
-|---|---|---|
-| `prompt` | CONFIDENTIAL | **No** |
-| `source_code` | CONFIDENTIAL | **No** |
-| `user_input`, `raw_prompt` | CONFIDENTIAL | **No** |
-| `chain_trace` | CONFIDENTIAL | **No** |
-| `description` | CONFIDENTIAL | **No** |
-| `binary_ref`, `binary_digest` | CONFIDENTIAL | **No** |
-| `image_ref`, `image_digest` | CONFIDENTIAL | **No** |
-| `builder_fingerprint`, `review_fingerprint` | RESTRICTED | **No** |
-| `mission_id` | INTERNAL | Yes — after PII redaction |
-| `requested_target_language` | INTERNAL | Yes — after character-class validation |
-| `routing_version`, `builder_type`, `priority`, `pod` | INTERNAL | Yes |
-| Agent IDs (e.g., `AGENT-14-PYTHON`) | PUBLIC | Yes — these are registry constants |
-
-### Enforcement: `_safe_context_json`
-
-`services/orchestrator/orchestrator/llm_delegation.py` — `_safe_context_json()` implements a hard whitelist: only the INTERNAL routing fields above may pass to LLM prompts.  Enforcement is:
-
-1. **Whitelist copy** — only fields in `_SAFE_FIELDS` are included; all others are silently dropped.
-2. **`_clean_text()` sanitisation** — each value is run through PII redaction (email, API-key patterns), Unicode normalisation (NFKC), and control-character stripping.
-3. **Language validation** — `requested_target_language` is matched against `[a-z0-9#+-]+`; non-matching values are replaced with `"general"`.
-4. **Size cap** — output is truncated to `_PROMPT_CONTEXT_MAX_BYTES` (4 096 bytes).
-
-### Enforcement: Prompt Templates
-
-All three templates in `prompts/v1/` (`ceo_delegation.txt`, `pod_manager_delegation.txt`, `specialist_planning.txt`) accept only routing-metadata placeholders. They do not accept `{prompt}`, `{source_code}`, or any CONFIDENTIAL placeholder.  Missing placeholders raise `KeyError` rather than silently producing a malformed prompt.
-
-### Enforcement: Prompt and PII Guards
-
-| Guard | Env var | Production default | Effect |
-|---|---|---|---|
-| Prompt injection guard | `PROMPT_GUARD_MODE` | `block` | Rejects prompts with detected injection patterns before intake |
-| PII guard | `PII_GUARD_MODE` | `redact` | Masks PII in CONFIDENTIAL fields before persistence |
-
-### Red-Team Regression Coverage
-
-`tests/eval/test_llm_delegation_golden.py` includes parametrised tests that verify every field in the forbidden list is absent from `_safe_context_json` output after each code change.  These tests must remain green as a pre-merge gate for any change to `llm_delegation.py`, `prompt_loader.py`, or the prompt templates.
-
-See `MODEL_PROMOTION_GOVERNANCE.md` for the full model/template promotion checklist.
