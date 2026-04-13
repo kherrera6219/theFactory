@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
+from shared_runtime.error_envelope import install_error_handlers
 
 from shared_runtime.agent_keys import normalize_agent_id
 from shared_runtime.protocol import (
@@ -1145,6 +1146,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="HolyGrail API Gateway", version="0.3.0", lifespan=lifespan)
 configure_tracing(app, service_name="api-gateway")
+install_error_handlers(app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in CORS_ALLOW_ORIGINS.split(",") if origin.strip()],

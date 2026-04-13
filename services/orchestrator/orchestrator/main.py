@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -15,6 +16,8 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+
+from shared_runtime.error_envelope import install_error_handlers
 
 from . import milvus_store, neo4j_store, object_store, qdrant_store, storage
 from .agent_integrations import build_agent_integration_record
@@ -96,10 +99,21 @@ def _review_approval_id(scope: str, fingerprint: str) -> str:
     return f"{scope}-approval-{fingerprint[:24].lower()}"
 
 
-def _review_approval_digest(record: dict[str, Any]) -> str:
-    return hashlib.sha256(
-        json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+def _review_approval_digest(record: dict[str, Any], secret: str = "") -> str:
+    """Return a tamper-evident digest of *record*.
+
+    When *secret* is provided (``APPROVAL_HMAC_SECRET`` is set) this returns an
+    HMAC-SHA256 hex digest so the digest is also authenticated — an attacker who
+    can read the database row cannot forge a valid digest without the secret.
+
+    When *secret* is empty (default, offline/dev mode) this falls back to plain
+    SHA256 for backward compatibility with records stored before the secret was
+    configured.
+    """
+    canonical = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    if secret:
+        return hmac.new(secret.encode("utf-8"), canonical, hashlib.sha256).hexdigest()
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _review_approval_record_path(approval_id: str) -> str:
@@ -1059,6 +1073,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="HolyGrail Orchestrator", version="0.3.0", lifespan=lifespan)
 configure_tracing(app, service_name="orchestrator")
 _initialize_app_state(app)
+install_error_handlers(app)
 
 
 def _request_correlation_id(request) -> str:
