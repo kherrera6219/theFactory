@@ -117,7 +117,12 @@ export function normalizeSubdirectory(value: string): string {
   if (!trimmed || trimmed === "/") {
     return "/";
   }
-  const withoutEdges = trimmed.replace(/^\/+/, "").replace(/\/+$/, "");
+  // Avoid regex on uncontrolled data — strip leading/trailing slashes with index arithmetic
+  let start = 0;
+  while (start < trimmed.length && trimmed[start] === "/") start++;
+  let end = trimmed.length;
+  while (end > start && trimmed[end - 1] === "/") end--;
+  const withoutEdges = trimmed.slice(start, end);
   return withoutEdges.length > 0 ? `/${withoutEdges}` : "/";
 }
 
@@ -228,7 +233,16 @@ export function selectRepoFiles(
   };
 }
 
+const GITHUB_API_BASE = "https://api.github.com/";
+
+function assertGithubApiUrl(url: string): void {
+  if (!url.startsWith(GITHUB_API_BASE)) {
+    throw new GithubApiError(400, `Request URL must point to the GitHub API (${GITHUB_API_BASE}).`);
+  }
+}
+
 export async function fetchGithubJson(url: string, headers: HeadersInit): Promise<Response> {
+  assertGithubApiUrl(url);
   return fetch(url, {
     method: "GET",
     headers,
@@ -237,6 +251,7 @@ export async function fetchGithubJson(url: string, headers: HeadersInit): Promis
 }
 
 export async function fetchGithubText(url: string, headers: HeadersInit): Promise<Response> {
+  assertGithubApiUrl(url);
   return fetch(url, {
     method: "GET",
     headers,

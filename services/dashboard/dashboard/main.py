@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Any
 
@@ -6,6 +7,8 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 from .tracing import configure_tracing
+
+LOGGER = logging.getLogger(__name__)
 
 API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
 
@@ -29,7 +32,8 @@ async def snapshot() -> dict[str, Any]:
             "api_gateway": response.json(),
         }
     except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+        LOGGER.warning("dashboard snapshot failed: %s", exc)
+        return {"ok": False, "error": "internal error"}
 
 
 @app.get("/", response_class=HTMLResponse)
