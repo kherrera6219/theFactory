@@ -39,7 +39,7 @@ if not _MCP_API_KEY_RAW:
             "changes on every container restart, silently breaking all clients."
         )
     # Development: auto-generate but log loudly so operators notice.
-    _MCP_API_KEY_DEV_WARNING = (
+    _DEV_SESSION_NOTICE = (
         "MCP_API_KEY is not set. A random session key has been generated. "
         "This key will change on every restart. Set MCP_API_KEY explicitly "
         "in .env (see .env.example) to avoid breaking clients on restart."
@@ -262,7 +262,7 @@ async def _write_dlq(redis_client: Any, protocol: str, payload: dict[str, Any], 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not _MCP_API_KEY_RAW:
-        LOGGER.error(_MCP_API_KEY_DEV_WARNING)
+        LOGGER.error(_DEV_SESSION_NOTICE)
     LOGGER.info(
         "semantic-bus-mcp starting (environment=%s, mcp_api_key_set=%s)",
         ENVIRONMENT,

@@ -120,6 +120,7 @@ def main() -> int:
     payload = build_inventory()
     output_path = Path(args.output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    # payload contains only governance metadata (model names, lifecycle, agent IDs) — no credentials
     output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {args.output_file}")
     return 0
