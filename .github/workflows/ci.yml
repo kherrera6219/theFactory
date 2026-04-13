@@ -216,6 +216,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: reports/input-artifacts
+        timeout-minutes: 5
+        retry-on-error: true
 
       - name: Build release manifest
         run: |
