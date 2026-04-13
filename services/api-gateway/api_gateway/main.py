@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -82,6 +83,7 @@ IDEMPOTENCY_KEY_PREFIX = "idempotency:missions"
 API_RATE_LIMIT_PER_MINUTE = int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "120"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_KEY_PREFIX = "ratelimit:api-gateway"
+RATE_LIMIT_HMAC_KEY = os.getenv("RATE_LIMIT_HMAC_KEY", "ratelimit-default").encode()
 LIVE_STREAM_BLOCK_MS = int(os.getenv("LIVE_STREAM_BLOCK_MS", "5000"))
 LIVE_STREAM_KEEPALIVE_SECONDS = float(os.getenv("LIVE_STREAM_KEEPALIVE_SECONDS", "15"))
 LIVE_STREAM_COUNT = int(os.getenv("LIVE_STREAM_COUNT", "50"))
@@ -408,7 +410,8 @@ async def _dependency_status() -> dict[str, bool]:
 def _client_identifier(request: Request) -> str:
     api_key = request.headers.get("x-api-key")
     if api_key:
-        return f"api-key:{hashlib.sha256(api_key.encode('utf-8')).hexdigest()}"
+        digest = hmac.new(RATE_LIMIT_HMAC_KEY, api_key.encode("utf-8"), hashlib.sha256).hexdigest()
+        return f"api-key:{digest}"
 
     forwarded_for = request.headers.get("x-forwarded-for", "")
     if forwarded_for:
@@ -553,7 +556,7 @@ async def _state_stream_sse_generator(
         except Exception as exc:
             LIVE_STREAM_ERRORS.labels(reason="read_failure").inc()
             LOGGER.warning("state stream sse read failure: %s", exc)
-            error_payload = {"detail": "stream read failure", "error": str(exc)}
+            error_payload = {"detail": "stream read failure"}
             yield _sse_event_block(event_name="stream_error", data=error_payload)
             await asyncio.sleep(1.0)
 
