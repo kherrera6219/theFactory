@@ -1,11 +1,11 @@
 {
-  "rpo_target_hours": 24,
-  "passed": true,
+  "latest_backup_manifest": "C:\\software\\Holygrail\\theFactory\\.claude\\worktrees\\strange-lederberg\\backups\\ulr_20990101_1dcb7d98.sql.json",
   "dry_run": true,
-  "started_at_utc": "2026-04-10T17:10:29.1444995Z",
-  "rto_target_minutes": 30,
-  "latest_backup": "C:\\software\\Holygrail\\theFactory\\backups\\ulr_20990101_54e3fd87.sql",
-  "latest_backup_manifest": "C:\\software\\Holygrail\\theFactory\\backups\\ulr_20990101_54e3fd87.sql.json",
-  "duration_seconds": 0.05,
-  "completed_at_utc": "2026-04-10T17:10:29.1949872Z"
+  "passed": true,
+  "completed_at_utc": "2026-04-13T02:21:06.9682013Z",
+  "latest_backup": "C:\\software\\Holygrail\\theFactory\\.claude\\worktrees\\strange-lederberg\\backups\\ulr_20990101_1dcb7d98.sql",
+  "duration_seconds": 0.06,
+  "rpo_target_hours": 24,
+  "started_at_utc": "2026-04-13T02:21:06.9073363Z",
+  "rto_target_minutes": 30
 }
