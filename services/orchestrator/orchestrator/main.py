@@ -1136,16 +1136,6 @@ async def health() -> dict[str, Any]:
     return {
         "ok": True,
         "service": "orchestrator",
-        "redis_url": app.state.settings.redis_url,
-        "postgres_url": app.state.settings.postgres_url,
-        "qdrant_url": app.state.settings.qdrant_url if app.state.settings.qdrant_enabled else None,
-        "milvus_uri": app.state.settings.milvus_uri if app.state.settings.milvus_enabled else None,
-        "neo4j_url": app.state.settings.neo4j_url if app.state.settings.neo4j_enabled else None,
-        "object_storage_endpoint": (
-            app.state.settings.object_storage_endpoint
-            if app.state.settings.object_storage_enabled
-            else None
-        ),
         "redis_healthy": redis_healthy,
         "db_ready": db_ready,
         "qdrant_ready": qdrant_ready,

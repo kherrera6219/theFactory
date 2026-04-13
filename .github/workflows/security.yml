@@ -43,7 +43,7 @@ jobs:
           pip-audit -r services/semantic-bus-mcp/requirements.txt
 
       - name: Run Bandit SAST
-        run: bandit -r services scripts shared_runtime -ll --exit-zero-on-skips
+        run: bandit -r services scripts shared_runtime -ll
 
       - name: License scan (block copyleft)
         # 2026 best practice: prevent GPL/AGPL from entering transitive deps
