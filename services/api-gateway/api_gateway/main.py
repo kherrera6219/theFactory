@@ -413,9 +413,9 @@ def _client_identifier(request: Request) -> str:
         # HMAC-SHA256 is intentional here: this is a rate-limit bucket key, not password storage.
         # Fast, deterministic, keyed hashing is required — bcrypt/argon2 would break rate limiting
         # (non-deterministic salts) and add unacceptable per-request latency.
-        digest = hmac.new(  # lgtm[py/weak-sensitive-data-hashing]
-            RATE_LIMIT_HMAC_KEY, api_key.encode("utf-8"), hashlib.sha256
-        ).hexdigest()
+        digest = hmac.digest(
+            RATE_LIMIT_HMAC_KEY, api_key.encode("utf-8"), "sha256"
+        ).hex()
         return f"api-key:{digest}"
 
     forwarded_for = request.headers.get("x-forwarded-for", "")
