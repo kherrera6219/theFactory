@@ -613,7 +613,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | pip-audit SCA | 0 known vulns | `security.yml` |
 | Release attestation | signed provenance | CI release gate |
 
-**Current status (2026-04-12):** backend `python -m pytest -q` is green (`770 passed, 5 skipped`), services coverage is `81.75%`, Mission Control unit tests are green (`45` tests), and Mission Control Playwright is green (`20` journeys). Since the 2026-03-31 baseline: dedicated topology gap closed (Go/Haskell/OCaml containers added), one-click launcher added, and documentation drift resolved. See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for remaining open items and out-of-band blockers.
+**Current status (2026-04-12):** backend `python -m pytest -q` is green (`992 passed, 5 skipped`), services coverage is `≥81%`, Mission Control unit tests are green (`45` tests), and Mission Control Playwright is green (`20` journeys). `python scripts/release_readiness_check.py` reports **6/6 gates READY**. Phases 1–7 complete: dedicated topology (all 38 agents), one-click launcher, build artifact extension, AI safety governance (prompt templates, red-team eval), shared-state durability (HMAC approvals, error envelopes, contract tests), DR evidence gate, and release gate automation. See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for out-of-band blockers.
 
 ---
 
@@ -807,16 +807,18 @@ theFactory/
 
 | Domain | Status |
 |--------|--------|
-| Infrastructure & DevOps | ✅ Repo-local implementation baseline complete; production-host enforcement remains out-of-band |
-| Security & Auth | ✅ Fail-closed repo-local baseline; key-history scrub and host-policy enforcement remain |
-| Observability | ✅ Core telemetry stack, docs, and runbooks are in place |
-| Testing & CI | ✅ Backend pytest, frontend unit tests, Playwright, AI eval gate, and docs validation are in place |
-| Data Systems | ✅ Core path complete; current-source docs now match shipped readiness |
+| Infrastructure & DevOps | ✅ All 38 agent containers defined; one-click launcher; DR evidence gate in promotion policy |
+| Security & Auth | ✅ Fail-closed; HMAC-signed approvals; approval TTL (410 Gone); normalised error envelopes |
+| AI Safety / Prompt Governance | ✅ Versioned prompt templates; `PROMPT_GUARD_MODE=block`; red-team eval (93 tests) |
+| Release Gates | ✅ `release_readiness_check.py` (6 gates READY); `verify_release_evidence.py` wired in CI |
+| Observability | ✅ Structured LLM instrumentation (provider/model/route/latency_ms/prompt_version/status) |
+| Testing & CI | ✅ 992 pytest tests; 12 contract tests; 15 DR drill tests; 93 eval tests; Playwright (20 journeys) |
+| Data Systems | ✅ Binary/container builder types; dispatch_build_artifact(); same artifact contract for all types |
 | Mission Control UI | ✅ Real operator UI with grounded builder, repo-review, chat launch, and artifact views |
-| Language Extraction Engine | ✅ 20 routed language keys across 4 pods |
-| Mission Lifecycle | ✅ v2 lifecycle is the shipped default, mission creation is synchronous/read-after-write, and source-bundle artifact gating is enforced |
-| CEO→Pod Delegation Chain | ✅ Complete baseline |
-| LLM API Call Wiring | ✅ Complete baseline with provider-aware routing and fallback |
+| Language Extraction Engine | ✅ 20 routed language keys across 4 pods; all 38 agents in both topologies |
+| Mission Lifecycle | ✅ v2 lifecycle shipped default; source-bundle, binary, and container artifact gating enforced |
+| CEO→Pod Delegation Chain | ✅ Complete with versioned prompt templates and structured LLM audit trail |
+| LLM API Call Wiring | ✅ Provider-aware routing, fallback, latency instrumentation, and prompt version tracking |
 
 **Remaining out-of-band completion work:**
 - Scrub previously committed key material from git history and rotate affected secrets or certificates
