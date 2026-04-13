@@ -72,7 +72,7 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 ## Language Extraction Status
 
 - Specialist routing currently covers 20 language keys across four pods. TypeScript is accepted as a routed key but aliases to the JavaScript specialist.
-- Go, Haskell, and OCaml are registered in the agent registry and supported by the language extraction engine. However, the `up-full-dedicated` Makefile target and the `full-dedicated-agents` compose profile do not currently launch dedicated agent containers for Go (`AGENT-23-ZIG` ends Pod B), Haskell, or OCaml — those specialist containers remain absent from the dedicated topology command. Pod A–D shared workers handle these languages via the normal `SUPPORTED_LANGUAGES` routing.
+- Go, Haskell, and OCaml are registered in the agent registry and supported by the language extraction engine. Dedicated agent containers for `agent-36-go` (Pod B), `agent-37-haskell` (Pod D), and `agent-38-ocaml` (Pod D) are now defined in `deploy/docker-compose.full-dedicated-agents.yaml` and included in the `make up-full-dedicated` Makefile target. All 38 agents are present in both condensed and full-dedicated topologies.
 - Some documentation artifacts still carry older language-count claims and need reconciliation to the current routing matrix.
 
 ## Security Hardening (Phase 0–4 complete as of 2026-03-31)
@@ -116,8 +116,14 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Align audit/event documentation with the actual `missions.state`, `mission.state.complete`, and `mission_audit_reports` implementation.
-2. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
-3. Reconcile language-count and extraction/routing claims across docs with the current 20-key routing matrix.
+1. ~~Align audit/event documentation with the actual `missions.state`, `mission.state.complete`, and `mission_audit_reports` implementation.~~ **Resolved (2026-04-12):** `docs/ARCHITECTURE_DIAGRAMS.md` corrected to remove the non-existent `missions.audit` stream. `docs/ARCHITECTURE.md` already stated this correctly. `docs/evidence/pod_language_extraction_2026-03-03.md` updated with a reconciliation note.
+2. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness. The databases page (`apps/mission-control/app/(shell)/databases/page.tsx`) correctly surfaces Qdrant, Neo4j, and object-storage adapter status from the live runtime. Optional adapters display as "Optional adapter disabled" when not enabled. UX copy is current.
+3. ~~Reconcile language-count and extraction/routing claims across docs with the current 20-key routing matrix.~~ **Resolved (2026-04-12):** Evidence file updated with reconciliation note. Stale "14-language" and "16-language" references exist only in `docs/archive/2026-03-29/legacy-workspace/` (appropriately archived). Canonical docs (`IMPLEMENTATION_STATUS.md`, `ARCHITECTURE.md`) state 20 language keys.
 4. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.
 5. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including AI safety governance, shared-state durability, DR evidence, and final release qualification.
+
+## Resolved Since Last Snapshot
+
+- **2026-04-12:** Dedicated topology gap closed — `agent-36-go`, `agent-37-haskell`, `agent-38-ocaml` container definitions added to `deploy/docker-compose.full-dedicated-agents.yaml` and `make up-full-dedicated`.
+- **2026-04-12:** One-click launcher added — `Launch-TheFactory.bat` / `Launch-TheFactory.ps1` at repo root. Handles `.env` generation with CSPRNG secrets, TLS cert generation, stack startup, readiness polling, and browser launch.
+- **2026-04-12:** Audit/event and language-count documentation drift resolved (see gap 1 and 3 above).
