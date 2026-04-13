@@ -731,7 +731,7 @@ async def _ensure_verified_build_artifact(
     if not build_artifact_support.mission_requires_build_artifact(mission.metadata):
         return mission
 
-    artifact_record = build_artifact_support.dispatch_build_artifact(
+    artifact_record = build_artifact_support.build_source_bundle_artifact(
         mission_id=mission.mission_id,
         requested_target_language=mission.requested_target_language,
         metadata=mission.metadata if isinstance(mission.metadata, dict) else {},

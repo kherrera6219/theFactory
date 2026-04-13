@@ -76,9 +76,6 @@ class Settings:
     agent_scaling_items_per_instance: int = 3
     intake_dlq_stream: str = "factory:dlq:intake-stream"
     intake_dlq_max_len: int = 1000
-    # Review approval durability settings
-    approval_hmac_secret: str = ""
-    approval_ttl_seconds: int = 86400
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -236,6 +233,4 @@ def load_settings() -> Settings:
         intake_dlq_stream=os.getenv("INTAKE_DLQ_STREAM", "factory:dlq:intake-stream").strip()
         or "factory:dlq:intake-stream",
         intake_dlq_max_len=max(100, int(os.getenv("INTAKE_DLQ_MAX_LEN", "1000"))),
-        approval_hmac_secret=os.getenv("APPROVAL_HMAC_SECRET", "").strip(),
-        approval_ttl_seconds=max(60, int(os.getenv("APPROVAL_TTL_SECONDS", "86400"))),
     )
