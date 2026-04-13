@@ -122,7 +122,8 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 4. ~~Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.~~ **Resolved (2026-04-12):** `build_artifacts.py` now implements `build_binary_artifact()`, `build_container_artifact()`, and `dispatch_build_artifact()`. Mission metadata field `builder_type` (`source_bundle` | `binary` | `container`) selects the builder. All types share the same artifact contract, Postgres storage, and API surface.
 5. ~~Execute Phase 4 (AI safety governance): versioned prompt templates, LLM instrumentation, data-leakage red-team eval suite, and classification policy.~~ **Resolved (2026-04-12):** See "Resolved Since Last Snapshot" below.
 6. ~~Execute Phase 5 (shared-state durability): wire APPROVAL_HMAC_SECRET, add approval TTL enforcement, normalise HTTP error envelopes, add contract tests.~~ **Resolved (2026-04-12):** See "Resolved Since Last Snapshot" below.
-7. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including DR evidence and final release qualification.
+7. ~~Execute Phase 6 (DR evidence) and Phase 7 (release gates): DR test suite, DR gate in promotion policy, release readiness check script, CI integration.~~ **Resolved (2026-04-12):** See "Resolved Since Last Snapshot" below.
+8. Remaining out-of-band blockers (require production environment): non-dry-run DR drill for Drills 3/4, production GPG tag signing, GitHub org branch protection settings, legal approval of open-source components.
 
 ## Resolved Since Last Snapshot
 
@@ -144,3 +145,12 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
   - `shared_runtime/error_envelope.py` added: `install_error_handlers(app)` registers FastAPI exception handlers that add `error` (machine-readable type, e.g. `not_found`, `gone`, `validation_error`) and `correlation_id` alongside the standard `detail` field. Existing tests that assert `body["detail"]` continue to pass — the new fields are purely additive.
   - Both services wired: `install_error_handlers(app)` called in `orchestrator/main.py` and `api-gateway/main.py` immediately after app creation.
   - `tests/contract/test_api_contracts.py` added (12 tests): error envelope shape for 404/400/422/410, review approval create/retrieve/not-found/HMAC-vs-SHA256, `_error_type()` mapping for all common status codes. All pass.
+- **2026-04-12 (Phase 6 — DR Evidence):**
+  - `tests/scripts/test_dr_drill.py` added (15 tests): schema validation of `reports/dr-drill-latest.json`, evidence age-gate logic (`dr_evidence_is_fresh()`), and PowerShell dry-run integration (skipped when pwsh unavailable).
+  - `deploy/promotion-policy.json` bumped to v4: added `dr_evidence` gate requiring the DR report to be ≤ 30 days old (`dry_run` reports always pass; non-dry-run required for `refs/tags/v*`).
+  - `docs/evidence/dr/drill_001_postgres_backup_restore.md` created: completed evidence record for dry-run Drill 1 with gaps documented for production.
+- **2026-04-12 (Phase 7 — Release Gates):**
+  - `scripts/release_readiness_check.py` added: unified local pre-release check covering 6 gates (dr_evidence, promotion_policy, qualification_evidence, red_team_eval, error_envelope, prompt_templates). Reports READY/NOT READY with per-gate detail. Also supports `--dr-only` mode used by CI to emit a fresh dry-run DR evidence file.
+  - `ci.yml` updated: added "DR evidence gate (dry-run drill)" step calling `release_readiness_check.py --dr-only` and "Verify release evidence completeness" step calling `verify_release_evidence.py` (previously the script existed but was never called in CI). `reports/dr-drill-latest.json` added to the release trust artifact upload set.
+  - `qualification.yml` updated: added DR evidence dry-run drill step to the weekly qualification run.
+  - Test count: 992 passed, 5 skipped.
