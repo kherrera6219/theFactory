@@ -112,7 +112,7 @@ jobs:
             --module-threshold services/orchestrator/orchestrator/agent_registry.py=100
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-artifacts-py${{ matrix.python-version }}
           path: |
@@ -179,7 +179,7 @@ jobs:
           format: cyclonedx-json
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: |
@@ -254,7 +254,7 @@ jobs:
           PY
 
       - name: Upload release manifest artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-manifest
           path: reports/release-manifest.json
@@ -360,7 +360,7 @@ jobs:
             --promotion-decision-file reports/promotion-decision.json
 
       - name: Upload release trust artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-trust-artifacts
           path: |
