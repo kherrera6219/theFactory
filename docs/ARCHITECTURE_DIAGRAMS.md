@@ -320,7 +320,7 @@ flowchart LR
     Audit["Audit Worker"]
     AgentRT["Agent Runtime"]
 
-    Redis["Redis Streams\nmissions.intake\nmissions.state\nmissions.pod.*\nmissions.audit\nagents.heartbeats"]
+    Redis["Redis Streams\nmissions.intake\nmissions.state\nmissions.pod.*\nagents.heartbeats"]
     PG["PostgreSQL\nmissions, events, assignments,\nlogicnodes, audits, traceability"]
     Qdrant["Qdrant\nactive knowledge retrieval"]
     Milvus["Milvus optional\nextended retrieval path"]
