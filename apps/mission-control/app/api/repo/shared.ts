@@ -233,25 +233,17 @@ export function selectRepoFiles(
   };
 }
 
-const GITHUB_API_HOSTNAME = "api.github.com";
+const GITHUB_API_BASE = "https://api.github.com/";
 
 function assertGithubApiUrl(url: string): void {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    throw new GithubApiError(400, "Request URL must be a valid absolute URL.");
+    throw new GithubApiError(400, "Request URL is not a valid URL.");
   }
-
-  const isHttps = parsed.protocol === "https:";
-  const isGithubApiHost = parsed.hostname.toLowerCase() === GITHUB_API_HOSTNAME;
-  const hasExplicitPort = parsed.port !== "";
-
-  if (!isHttps || !isGithubApiHost || hasExplicitPort) {
-    throw new GithubApiError(
-      400,
-      `Request URL must target https://${GITHUB_API_HOSTNAME}/ with no explicit port.`,
-    );
+  if (parsed.protocol !== "https:" || parsed.hostname !== "api.github.com") {
+    throw new GithubApiError(400, `Request URL must point to the GitHub API (${GITHUB_API_BASE}).`);
   }
 }
 
