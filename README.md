@@ -318,6 +318,7 @@ Each extracted concept becomes a **LogicNode** with:
 **Access:**
 - Docker stack: `http://localhost:3100`
 - Direct dev server: `http://localhost:3000` (`npm run dev`)
+- Privileged Mission Control routes require an operator unlock session established with `MISSION_CONTROL_ADMIN_KEY`.
 
 **Features:**
 
@@ -329,8 +330,8 @@ Each extracted concept becomes a **LogicNode** with:
 | Mission Detail | Live event timeline, Smelt-cycle phase stepper (SSE-driven), chain-of-command |
 | Agents | 38-agent roster grid with persona drill-down |
 | Semantic Bus | Live message stream with windowed rendering |
-| Builder | Grounded local-workspace review with patch contract, approval gate, and mission launch bundle |
-| Repo Import | GitHub import, review gate, and mission scoping with bundled source context |
+| Builder | Grounded local-workspace review with patch contract, durable approval gate, launch-time approval verification, and mission launch bundle |
+| Repo Import | GitHub import, review gate, launch-time approval verification, and mission scoping with bundled source context |
 | Databases | Shared data-system readiness and diagnostics |
 | Settings | Provider key management, vault-backed secrets, and local environment controls |
 
@@ -341,6 +342,7 @@ Each extracted concept becomes a **LogicNode** with:
 - 31-token CSS variable system driven by `generated-tokens.css`
 - Responsive: 1440px (wide desktop) + 1024px (standard desktop) + 768px (tablet)
 - SSE live transport with `stream|poll|paused` mode diagnostics
+- Signed `HttpOnly` operator session cookie for sensitive Mission Control server routes
 - Windowed rendering for high-volume agent and semantic bus views
 
 ---
@@ -586,7 +588,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | pip-audit SCA | 0 known vulns | `security.yml` |
 | Release attestation | signed provenance | CI release gate |
 
-**Current status (2026-03-31):** backend `python -m pytest -q` is green (`770 passed, 5 skipped`), services coverage is `81.75%`, Mission Control unit tests are green (`45` tests), and Mission Control Playwright is green (`20` journeys — 7 original + 13 from Phase 1 E2E expansion). See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for the remaining product-completion gaps and out-of-band blockers.
+**Current status (2026-04-14):** backend `python -m pytest -q` is green (`770 passed, 5 skipped`), services coverage is `81.75%`, Mission Control unit tests are green (`53` tests), and Mission Control Playwright is green (`20` journeys — 7 original + 13 from Phase 1 E2E expansion). See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for the remaining product-completion gaps and out-of-band blockers.
 
 ---
 
@@ -609,7 +611,19 @@ ORCHESTRATOR_ADMIN_API_KEY=<generate with openssl rand -hex 32>
 ORCHESTRATOR_READONLY_API_KEY=<generate with openssl rand -hex 32>
 ORCHESTRATOR_API_KEYS=<your-operator-key>=mutate,read
 INTERNAL_SERVICE_API_KEY=<generate with openssl rand -hex 32>
-# Mission Control vault endpoint admin key (apps/mission-control)
+
+# Mission Control operator unlock + session (apps/mission-control)
+MISSION_CONTROL_ADMIN_KEY=<generate with openssl rand -hex 32>
+MISSION_CONTROL_SESSION_SECRET=<generate with openssl rand -hex 32>
+MISSION_CONTROL_SESSION_TTL_SECONDS=28800
+MISSION_CONTROL_SESSION_SECURE=false
+
+# Mission Control durable review approval validation (apps/mission-control)
+ORCHESTRATOR_INTERNAL_BASE_URL=http://localhost:8101
+APPROVAL_HMAC_SECRET=<generate with openssl rand -hex 32>
+APPROVAL_TTL_SECONDS=86400
+
+# Mission Control vault endpoint break-glass key for scripted /api/vault access (optional)
 VAULT_ADMIN_KEY=<generate with openssl rand -hex 32>
 AUTH_MODE=api_key                  # api_key | hybrid | oidc
 

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
+import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
 import {
   branchLooksValid,
   buildGithubHeaders,
@@ -572,6 +573,10 @@ async function mapWithConcurrency<T, R>(
 }
 
 export async function POST(request: Request) {
+  const unauthorized = requireOperatorRequestSession(request);
+  if (unauthorized) {
+    return unauthorized;
+  }
   let payload: RepoReviewRequest;
   try {
     payload = (await request.json()) as RepoReviewRequest;

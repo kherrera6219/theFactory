@@ -1,59 +1,25 @@
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
-const TRUSTED_FETCH_SITES = new Set(["", "same-origin", "same-site", "none"]);
+import { timingSafeEqual } from "node:crypto";
 
-function parseUrl(value: string | null): URL | null {
-  if (!value) {
-    return null;
-  }
-  try {
-    return new URL(value);
-  } catch {
-    return null;
-  }
-}
+import { hasOperatorSession } from "../../lib/server/operator-session";
 
-function isLocalHost(hostname: string): boolean {
-  return LOCAL_HOSTS.has(hostname.trim().toLowerCase());
-}
-
-function normalizedPort(url: URL): string {
-  if (url.port) {
-    return url.port;
-  }
-  return url.protocol === "https:" ? "443" : "80";
-}
-
-function isTrustedLocalBrowserRequest(request: Request): boolean {
-  const requestUrl = parseUrl(request.url);
-  const originUrl =
-    parseUrl(request.headers.get("origin")) ?? parseUrl(request.headers.get("referer"));
-  const fetchSite = request.headers.get("sec-fetch-site")?.trim().toLowerCase() ?? "";
-
-  if (!requestUrl || !originUrl) {
+function safeEqual(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left, "utf-8");
+  const rightBuffer = Buffer.from(right, "utf-8");
+  if (leftBuffer.length !== rightBuffer.length) {
     return false;
   }
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
 
-  if (!isLocalHost(requestUrl.hostname) || !isLocalHost(originUrl.hostname)) {
+function hasValidVaultAdminHeader(request: Request): boolean {
+  const adminKey = process.env.VAULT_ADMIN_KEY?.trim() ?? "";
+  const headerValue = request.headers.get("x-vault-admin-key")?.trim() ?? "";
+  if (!adminKey || !headerValue) {
     return false;
   }
-
-  if (
-    originUrl.protocol !== requestUrl.protocol ||
-    normalizedPort(originUrl) !== normalizedPort(requestUrl)
-  ) {
-    return false;
-  }
-
-  return TRUSTED_FETCH_SITES.has(fetchSite);
+  return safeEqual(adminKey, headerValue);
 }
 
 export function isAuthorizedVaultRequest(request: Request): boolean {
-  const adminKey = process.env.VAULT_ADMIN_KEY?.trim() ?? "";
-  const header = request.headers.get("x-vault-admin-key")?.trim() ?? "";
-
-  if (adminKey && header.length > 0 && header === adminKey) {
-    return true;
-  }
-
-  return isTrustedLocalBrowserRequest(request);
+  return hasValidVaultAdminHeader(request) || hasOperatorSession(request);
 }

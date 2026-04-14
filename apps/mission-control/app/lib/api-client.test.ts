@@ -5,11 +5,10 @@ import {
   fetchJson,
   getGatewayReadyState,
   getMissionChainTrace,
-  getOperatorApiKey,
   missionStateStreamUrl,
   missionApiUrl,
   parseLiveStateStreamMessage,
-  updateMissionState,
+  verifyReviewApproval,
 } from "./api-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,8 +17,6 @@ describe("api-client", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
-    window.localStorage.clear();
-    window.sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -111,44 +108,6 @@ describe("api-client", () => {
       expect.objectContaining({
         message: "Rate limit exceeded. Retry shortly.",
         statusCode: 429,
-      }),
-    );
-  });
-
-  it("prefers session operator key over local storage and trims values", () => {
-    window.localStorage.setItem("mission-control:operator-api-key", " local-key ");
-    window.sessionStorage.setItem("mission-control:operator-api-key", " session-key ");
-
-    expect(getOperatorApiKey()).toBe("session-key");
-  });
-
-  it("attaches operator key and expected_state when updating mission state", async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    await updateMissionState({
-      missionId: "mission-123",
-      newState: "COMPLETE",
-      expectedState: "VERIFIED",
-      operatorApiKey: "operator-key",
-    });
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("http://localhost:8100/v1/missions/mission-123/state");
-    expect(init?.method).toBe("POST");
-    expect(init?.headers).toMatchObject({
-      "Content-Type": "application/json",
-      "x-api-key": "operator-key",
-    });
-    expect(init?.body).toBe(
-      JSON.stringify({
-        new_state: "COMPLETE",
-        expected_state: "VERIFIED",
       }),
     );
   });
@@ -261,6 +220,45 @@ describe("api-client", () => {
           fingerprint: "abc123",
           summary: "Builder review approved.",
           metadata: { request_id: "builder-review-001" },
+        }),
+      }),
+    );
+  });
+
+  it("posts review approval verification requests to the local route", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          valid: true,
+          approval_id: "builder-approval-001",
+          scope: "builder",
+          fingerprint: "abc123",
+          approved_at: "2026-03-14T00:00:00.000Z",
+          expires_at: "2026-03-15T00:00:00.000Z",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+
+    await verifyReviewApproval({
+      scope: "builder",
+      approvalId: "builder-approval-001",
+      fingerprint: "abc123",
+      receiptDigest: "digest-001",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/review/verify",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          scope: "builder",
+          approval_id: "builder-approval-001",
+          fingerprint: "abc123",
+          receipt_digest: "digest-001",
         }),
       }),
     );

@@ -730,6 +730,8 @@ def upsert_review_approval(
     receipt_digest: str,
     storage_backend: str,
     approved_at: str,
+    expires_at: str | None,
+    hmac_digest: str | None,
 ) -> dict[str, Any]:
     with db_connect(settings) as conn:
         with conn.cursor() as cur:
@@ -744,6 +746,8 @@ def upsert_review_approval(
                     receipt_digest,
                     storage_backend,
                     approved_at,
+                    expires_at,
+                    hmac_digest,
                     updated_at
                 )
                 VALUES (
@@ -755,6 +759,8 @@ def upsert_review_approval(
                     %s,
                     %s,
                     %s::timestamptz,
+                    %s::timestamptz,
+                    %s,
                     NOW()
                 )
                 ON CONFLICT (approval_id) DO UPDATE SET
@@ -765,6 +771,8 @@ def upsert_review_approval(
                     receipt_digest = EXCLUDED.receipt_digest,
                     storage_backend = EXCLUDED.storage_backend,
                     approved_at = EXCLUDED.approved_at,
+                    expires_at = EXCLUDED.expires_at,
+                    hmac_digest = EXCLUDED.hmac_digest,
                     updated_at = NOW()
                 RETURNING
                     approval_id,
@@ -775,6 +783,8 @@ def upsert_review_approval(
                     receipt_digest,
                     storage_backend,
                     approved_at,
+                    expires_at,
+                    hmac_digest,
                     updated_at
                 """,
                 (
@@ -786,6 +796,8 @@ def upsert_review_approval(
                     receipt_digest,
                     storage_backend,
                     approved_at,
+                    expires_at,
+                    hmac_digest,
                 ),
             )
             row = cur.fetchone()
@@ -799,7 +811,9 @@ def upsert_review_approval(
         "receipt_digest": row[5],
         "storage_backend": row[6],
         "approved_at": _to_iso(row[7]),
-        "updated_at": _to_iso(row[8]),
+        "expires_at": _to_iso(row[8]) if row[8] is not None else None,
+        "hmac_digest": row[9],
+        "updated_at": _to_iso(row[10]),
     }
 
 
@@ -817,6 +831,8 @@ def get_review_approval(settings: Settings, approval_id: str) -> dict[str, Any] 
                     receipt_digest,
                     storage_backend,
                     approved_at,
+                    expires_at,
+                    hmac_digest,
                     updated_at
                 FROM review_approvals
                 WHERE approval_id = %s
@@ -837,7 +853,9 @@ def get_review_approval(settings: Settings, approval_id: str) -> dict[str, Any] 
         "receipt_digest": row[5],
         "storage_backend": row[6],
         "approved_at": _to_iso(row[7]),
-        "updated_at": _to_iso(row[8]),
+        "expires_at": _to_iso(row[8]) if row[8] is not None else None,
+        "hmac_digest": row[9],
+        "updated_at": _to_iso(row[10]),
     }
 
 

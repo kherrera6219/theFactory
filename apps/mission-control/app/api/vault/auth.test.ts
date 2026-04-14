@@ -1,33 +1,35 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { isAuthorizedVaultRequest } from "./auth";
+import {
+  createOperatorSessionToken,
+  OPERATOR_SESSION_COOKIE_NAME,
+} from "../../lib/server/operator-session";
 
 describe("vault request authorization", () => {
   afterEach(() => {
     delete process.env.VAULT_ADMIN_KEY;
+    delete process.env.MISSION_CONTROL_ADMIN_KEY;
+    delete process.env.MISSION_CONTROL_SESSION_SECRET;
   });
 
-  it("allows trusted local browser requests across localhost aliases on the same port", () => {
+  it("accepts a valid operator session cookie", () => {
+    process.env.MISSION_CONTROL_ADMIN_KEY = "mission-control-admin-secret";
+    process.env.MISSION_CONTROL_SESSION_SECRET = "mission-control-session-secret";
+    const cookie = `${OPERATOR_SESSION_COOKIE_NAME}=${createOperatorSessionToken()}`;
     const request = new Request("http://127.0.0.1:3000/api/vault", {
       method: "POST",
       headers: {
-        Origin: "http://localhost:3000",
-        Referer: "http://localhost:3000/settings",
-        "Sec-Fetch-Site": "same-origin",
+        Cookie: cookie,
       },
     });
 
     expect(isAuthorizedVaultRequest(request)).toBe(true);
   });
 
-  it("rejects cross-origin requests without an admin header", () => {
+  it("rejects requests without a valid session or admin header", () => {
     const request = new Request("http://127.0.0.1:3000/api/vault", {
       method: "POST",
-      headers: {
-        Origin: "https://attacker.example",
-        Referer: "https://attacker.example/steal",
-        "Sec-Fetch-Site": "cross-site",
-      },
     });
 
     expect(isAuthorizedVaultRequest(request)).toBe(false);

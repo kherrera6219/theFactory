@@ -9,6 +9,7 @@ import {
   approveReviewArtifact,
   createBuilderWorkspaceReview,
   createMission,
+  verifyReviewApproval,
 } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { sanitizeUserText } from "../../lib/security";
@@ -130,6 +131,12 @@ export default function BuilderPage() {
     setLaunching(true);
     setError(null);
     try {
+      await verifyReviewApproval({
+        scope: "builder",
+        approvalId: approval.approval_id,
+        fingerprint: approval.fingerprint,
+        receiptDigest: approval.receipt_digest,
+      });
       const mission = await createMission({
         prompt: sanitized,
         requested_target_language: preview.requested_target_language ?? null,
@@ -153,6 +160,9 @@ export default function BuilderPage() {
       });
       router.push(`/missions/${mission.mission_id}`);
     } catch (launchError) {
+      if (launchError instanceof Error && /approval/i.test(launchError.message)) {
+        setApproval(null);
+      }
       setError(launchError instanceof Error ? launchError.message : "Unable to launch Builder mission.");
     } finally {
       setLaunching(false);

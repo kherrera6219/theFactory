@@ -5,6 +5,7 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 
 import { inferRequestedTargetLanguage } from "../../../lib/language";
+import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
 import type { BuilderDiffLine, BuilderPreviewFile, BuilderPreviewResponse } from "../../../lib/types";
 
 export const runtime = "nodejs";
@@ -337,6 +338,10 @@ function buildSourceBundle(params: {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = requireOperatorRequestSession(request);
+  if (unauthorized) {
+    return unauthorized;
+  }
   let payload: BuilderReviewRequest;
   try {
     payload = (await request.json()) as BuilderReviewRequest;

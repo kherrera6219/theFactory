@@ -1,18 +1,17 @@
-import { createHmac } from "crypto";
 import { NextResponse } from "next/server";
+
+import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
+import {
+  computeApprovalHmacDigest,
+  getApprovalHmacSecret,
+  getApprovalTtlSeconds,
+} from "../../../lib/server/review-approvals";
 
 export const runtime = "nodejs";
 
 const ORCHESTRATOR_INTERNAL_BASE_URL =
   process.env.ORCHESTRATOR_INTERNAL_BASE_URL?.trim() || "http://localhost:8101";
 const INTERNAL_SERVICE_API_KEY = process.env.INTERNAL_SERVICE_API_KEY?.trim() || "";
-// 2026 best practice: HMAC signing on approval records for tamper-evidence
-const APPROVAL_HMAC_SECRET = process.env.APPROVAL_HMAC_SECRET?.trim() || "";
-// 2026 best practice: approvals expire after TTL to prevent stale grants
-const APPROVAL_TTL_SECONDS = parseInt(
-  process.env.APPROVAL_TTL_SECONDS?.trim() || "86400",
-  10,
-);
 
 type ReviewApprovalRequest = {
   scope?: "builder" | "repo";
@@ -28,23 +27,11 @@ function sanitizeText(value: string | undefined, maxLength: number): string {
     .slice(0, maxLength);
 }
 
-/**
- * Compute HMAC-SHA256 digest over approval record fields.
- * Provides tamper-evidence — any mutation of scope/fingerprint/summary
- * will produce a different digest, detectable at verification time.
- */
-function computeApprovalHmac(
-  scope: string,
-  fingerprint: string,
-  summary: string,
-  issuedAt: string,
-): string | null {
-  if (!APPROVAL_HMAC_SECRET) return null;
-  const payload = `${scope}:${fingerprint}:${summary}:${issuedAt}`;
-  return createHmac("sha256", APPROVAL_HMAC_SECRET).update(payload).digest("hex");
-}
-
 export async function POST(request: Request) {
+  const unauthorized = requireOperatorRequestSession(request);
+  if (unauthorized) {
+    return unauthorized;
+  }
   let payload: ReviewApprovalRequest;
   try {
     payload = (await request.json()) as ReviewApprovalRequest;
@@ -73,9 +60,20 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
+  if (!getApprovalHmacSecret()) {
+    return NextResponse.json(
+      { detail: "APPROVAL_HMAC_SECRET is required for review approval persistence." },
+      { status: 503 },
+    );
+  }
 
-  const issuedAt = new Date().toISOString();
-  const hmacDigest = computeApprovalHmac(scope, fingerprint, summary, issuedAt);
+  const approvedAt = new Date().toISOString();
+  const hmacDigest = computeApprovalHmacDigest({
+    scope,
+    fingerprint,
+    summary,
+    approvedAt,
+  });
   const safeMetadata =
     payload.metadata && typeof payload.metadata === "object" ? payload.metadata : {};
 
@@ -90,8 +88,8 @@ export async function POST(request: Request) {
         scope,
         fingerprint,
         summary,
-        issued_at: issuedAt,
-        expires_at: new Date(Date.now() + APPROVAL_TTL_SECONDS * 1000).toISOString(),
+        approved_at: approvedAt,
+        expires_at: new Date(Date.now() + getApprovalTtlSeconds() * 1000).toISOString(),
         hmac_digest: hmacDigest,
         metadata: safeMetadata,
       }),

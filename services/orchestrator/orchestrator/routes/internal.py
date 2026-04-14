@@ -394,7 +394,7 @@ async def create_review_approval(
         raise HTTPException(status_code=400, detail="summary must be at least 3 characters")
 
     approval_id = _main._review_approval_id(scope, fingerprint)
-    approved_at = datetime.now(UTC).isoformat()
+    approved_at = (payload.approved_at or datetime.now(UTC)).isoformat()
     record_without_digest = {
         "approval_id": approval_id,
         "scope": scope,
@@ -403,6 +403,8 @@ async def create_review_approval(
         "metadata": payload.metadata,
         "storage_backend": REVIEW_APPROVAL_STORAGE_BACKEND,
         "approved_at": approved_at,
+        "expires_at": payload.expires_at.isoformat() if payload.expires_at else None,
+        "hmac_digest": payload.hmac_digest,
     }
     receipt_digest = _main._review_approval_digest(record_without_digest)
     record = await asyncio.to_thread(
@@ -416,6 +418,8 @@ async def create_review_approval(
         receipt_digest,
         REVIEW_APPROVAL_STORAGE_BACKEND,
         approved_at,
+        payload.expires_at.isoformat() if payload.expires_at else None,
+        payload.hmac_digest,
     )
     validated = ReviewApprovalRecord(**record).model_dump(mode="json")
     validated["record_path"] = _main._review_approval_record_path(approval_id)

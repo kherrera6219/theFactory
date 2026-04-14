@@ -87,6 +87,17 @@ a {
   gap: 18px;
 }
 
+.unlock-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.unlock-panel {
+  width: min(480px, 92vw);
+}
+
 .shell {
   min-height: 100vh;
   display: grid;

@@ -1,7 +1,7 @@
 # Architecture Data Flows
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.04.14  
+Last updated: 2026-04-14  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -47,6 +47,7 @@ flowchart LR
 Key properties:
 
 - The gateway owns public intake concerns such as auth, idempotency, rate limiting, and correlation IDs.
+- The gateway reserves a `mission_id` against each idempotency key before the internal create call and reconciles ambiguous upstream failures against that reserved identifier on retry.
 - The orchestrator owns mission state, agent routing, approval persistence, build-artifact persistence, and internal operations views.
 - Redis Streams connect the orchestrator, pod workers, semantic bus, audit worker, and optional dedicated runtime containers.
 
@@ -57,16 +58,21 @@ sequenceDiagram
     participant Operator
     participant MissionControl
     participant ReviewRoute as /api/review/approve
+    participant VerifyRoute as /api/review/verify
     participant Orchestrator
     participant Postgres
     participant Gateway
 
     Operator->>MissionControl: Approve builder or repo review
-    MissionControl->>ReviewRoute: POST approval request
+    MissionControl->>ReviewRoute: POST approval request (operator session)
     ReviewRoute->>Orchestrator: POST /internal/review-approvals
     Orchestrator->>Postgres: upsert review_approvals row
     Orchestrator-->>ReviewRoute: approval_id + record_path
     ReviewRoute-->>MissionControl: durable approval record
+    MissionControl->>VerifyRoute: POST approval verification request
+    VerifyRoute->>Orchestrator: GET /internal/review-approvals/{approval_id}
+    Orchestrator-->>VerifyRoute: stored approval record
+    VerifyRoute-->>MissionControl: valid / expired / integrity failure
     MissionControl->>Gateway: POST /v1/missions with approved bundle
     Gateway->>Orchestrator: create mission
 ```
@@ -74,7 +80,8 @@ sequenceDiagram
 Key properties:
 
 - Review approvals are durable runtime records, not local filesystem receipts.
-- Mission Control depends on `ORCHESTRATOR_INTERNAL_BASE_URL` and `INTERNAL_SERVICE_API_KEY` for the approval persistence step.
+- Mission Control signs approval receipts with `APPROVAL_HMAC_SECRET`, persists expiry metadata, and re-validates the stored record before launch.
+- Mission Control depends on `ORCHESTRATOR_INTERNAL_BASE_URL`, `INTERNAL_SERVICE_API_KEY`, and `APPROVAL_HMAC_SECRET` for the approval persistence and verification steps.
 - Approved builder/repo bundles become part of mission metadata and drive later artifact packaging.
 
 ## Build Artifact Packaging and Retrieval Flow
@@ -109,12 +116,15 @@ flowchart TB
     User["Operator / API Client"]
     IdP["OIDC Provider (optional)"]
     MissionControl["Mission Control"]
+    UnlockRoute["/api/session/unlock"]
     Gateway["API Gateway"]
     Orchestrator["Orchestrator"]
     Workers["Workers / Internal services"]
 
     User -->|x-api-key or Bearer token| Gateway
     User --> MissionControl
+    User -->|MISSION_CONTROL_ADMIN_KEY| UnlockRoute
+    UnlockRoute -->|signed HttpOnly operator session cookie| User
     MissionControl -->|public API calls| Gateway
     Gateway -. hybrid/oidc validation .-> IdP
     MissionControl -->|INTERNAL_SERVICE_API_KEY| Orchestrator
@@ -125,6 +135,7 @@ flowchart TB
 Key properties:
 
 - Public mutations terminate at the gateway and are controlled by `AUTH_MODE`.
+- Sensitive Mission Control server routes are guarded by the signed operator session cookie rather than by browser-controlled request headers.
 - Internal worker and Mission Control approval-persistence flows use `INTERNAL_SERVICE_API_KEY`.
 - The gateway and orchestrator both accept `x-request-id` or `x-correlation-id` and echo `X-Correlation-Id`.
 

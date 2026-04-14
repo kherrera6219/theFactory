@@ -4,12 +4,18 @@ import os from "node:os";
 import path from "node:path";
 
 import { POST, selectPreviewFiles } from "./route";
+import {
+  createOperatorSessionToken,
+  OPERATOR_SESSION_COOKIE_NAME,
+} from "../../../lib/server/operator-session";
 
 describe("builder review route", () => {
   let tempRoot: string | null = null;
 
   afterEach(async () => {
     delete process.env.THEFACTORY_REPO_ROOT;
+    delete process.env.MISSION_CONTROL_ADMIN_KEY;
+    delete process.env.MISSION_CONTROL_SESSION_SECRET;
     if (tempRoot) {
       await rm(tempRoot, { recursive: true, force: true });
       tempRoot = null;
@@ -58,11 +64,14 @@ describe("builder review route", () => {
       "def create_builder_preview(payload):\n    return {'ok': True}\n",
       "utf8",
     );
+    process.env.MISSION_CONTROL_ADMIN_KEY = "mission-control-admin-secret";
+    process.env.MISSION_CONTROL_SESSION_SECRET = "mission-control-session-secret";
+    const cookie = `${OPERATOR_SESSION_COOKIE_NAME}=${createOperatorSessionToken()}`;
 
     const response = await POST(
       new Request("http://localhost/api/builder/review", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Cookie: cookie },
         body: JSON.stringify({
           request: "Update builder preview to show grounded repository diffs.",
           constraints: ["preserve accessibility"],

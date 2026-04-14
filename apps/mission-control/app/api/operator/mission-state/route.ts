@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
 import { getVaultSecret } from "../../../lib/server/vault";
 
 export const runtime = "nodejs";
@@ -14,6 +15,10 @@ type MissionStatePayload = {
 };
 
 export async function POST(request: Request) {
+  const unauthorized = requireOperatorRequestSession(request);
+  if (unauthorized) {
+    return unauthorized;
+  }
   try {
     const payload = (await request.json()) as MissionStatePayload;
     const missionId = payload.mission_id?.trim() ?? "";

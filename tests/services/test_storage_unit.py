@@ -135,7 +135,7 @@ def test_ensure_db_schema_executes_queries(monkeypatch) -> None:
     assert len(cursor.executed) >= 3
     assert "schema_migrations" in cursor.executed[0][0]
     assert "SELECT version, checksum FROM schema_migrations" in cursor.executed[1][0]
-    assert cursor.executed[-1][1][0] == "003"
+    assert cursor.executed[-1][1][0] == "004"
 
 
 def test_row_and_json_helpers() -> None:
@@ -165,6 +165,8 @@ def test_review_approval_roundtrip(monkeypatch) -> None:
         "postgres",
         now,
         now,
+        "hmac-001",
+        now,
     )
     _patch_db(
         monkeypatch,
@@ -184,11 +186,15 @@ def test_review_approval_roundtrip(monkeypatch) -> None:
         "digest-001",
         "postgres",
         "2026-03-29T00:00:00+00:00",
+        "2026-03-30T00:00:00+00:00",
+        "hmac-001",
     )
     fetched = storage.get_review_approval(_settings(), "repo-approval-f1234567890abcde")
 
     assert created["approval_id"] == "repo-approval-f1234567890abcde"
     assert created["storage_backend"] == "postgres"
+    assert created["expires_at"] == "2026-03-29T00:00:00+00:00"
+    assert created["hmac_digest"] == "hmac-001"
     assert fetched is not None
     assert fetched["receipt_digest"] == "digest-001"
 

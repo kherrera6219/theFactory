@@ -13,14 +13,14 @@ type VaultWritePayload = {
 
 export async function GET(request: Request) {
   if (!isAuthorizedVaultRequest(request)) {
-    return NextResponse.json({ detail: "Unauthorized." }, { status: 401 });
+    return NextResponse.json({ detail: "Operator authentication required." }, { status: 401 });
   }
   return NextResponse.json({ slots: await listVaultSlots() });
 }
 
 export async function POST(request: Request) {
   if (!isAuthorizedVaultRequest(request)) {
-    return NextResponse.json({ detail: "Unauthorized." }, { status: 401 });
+    return NextResponse.json({ detail: "Operator authentication required." }, { status: 401 });
   }
   try {
     const payload = (await request.json()) as VaultWritePayload;
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   if (!isAuthorizedVaultRequest(request)) {
-    return NextResponse.json({ detail: "Unauthorized." }, { status: 401 });
+    return NextResponse.json({ detail: "Operator authentication required." }, { status: 401 });
   }
   try {
     const payload = (await request.json()) as { slot_id?: string };

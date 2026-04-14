@@ -1,16 +1,27 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createOperatorSessionToken,
+  OPERATOR_SESSION_COOKIE_NAME,
+} from "../../../lib/server/operator-session";
+
 describe("review approval route", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.resetModules();
+    delete process.env.MISSION_CONTROL_ADMIN_KEY;
+    delete process.env.MISSION_CONTROL_SESSION_SECRET;
     delete process.env.INTERNAL_SERVICE_API_KEY;
     delete process.env.ORCHESTRATOR_INTERNAL_BASE_URL;
+    delete process.env.APPROVAL_HMAC_SECRET;
   });
 
   it("persists an approval receipt through orchestrator storage", async () => {
+    process.env.MISSION_CONTROL_ADMIN_KEY = "mission-control-admin-secret";
+    process.env.MISSION_CONTROL_SESSION_SECRET = "mission-control-session-secret";
     process.env.INTERNAL_SERVICE_API_KEY = "internal-test-key";
     process.env.ORCHESTRATOR_INTERNAL_BASE_URL = "http://orchestrator:8001";
+    process.env.APPROVAL_HMAC_SECRET = "approval-hmac-secret";
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -29,11 +40,12 @@ describe("review approval route", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     const { POST } = await import("./route");
+    const cookie = `${OPERATOR_SESSION_COOKIE_NAME}=${createOperatorSessionToken()}`;
 
     const response = await POST(
       new Request("http://localhost/api/review/approve", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Cookie: cookie },
         body: JSON.stringify({
           scope: "repo",
           fingerprint: "f1234567890abcdef",
@@ -65,12 +77,16 @@ describe("review approval route", () => {
   });
 
   it("fails closed when the internal service key is missing", async () => {
+    process.env.MISSION_CONTROL_ADMIN_KEY = "mission-control-admin-secret";
+    process.env.MISSION_CONTROL_SESSION_SECRET = "mission-control-session-secret";
+    process.env.APPROVAL_HMAC_SECRET = "approval-hmac-secret";
     const { POST } = await import("./route");
+    const cookie = `${OPERATOR_SESSION_COOKIE_NAME}=${createOperatorSessionToken()}`;
 
     const response = await POST(
       new Request("http://localhost/api/review/approve", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Cookie: cookie },
         body: JSON.stringify({
           scope: "builder",
           fingerprint: "builder-fingerprint-1234",

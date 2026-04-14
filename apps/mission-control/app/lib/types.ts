@@ -376,9 +376,19 @@ export type ReviewApprovalReceipt = {
   scope: "builder" | "repo";
   fingerprint: string;
   approved_at: string;
+  expires_at?: string | null;
   summary: string;
   receipt_digest: string;
   record_path: string;
+};
+
+export type ReviewApprovalVerificationResult = {
+  valid: boolean;
+  approval_id: string;
+  scope: "builder" | "repo";
+  fingerprint: string;
+  approved_at: string;
+  expires_at: string | null;
 };
 
 export type RepoReviewFileRecord = {
