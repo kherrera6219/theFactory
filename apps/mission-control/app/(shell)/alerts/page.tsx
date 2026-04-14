@@ -84,6 +84,7 @@ export default function AlertsPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="Alerts"
         title="Incident and Alert Center"
         description="Review current operational alerts, acknowledge ownership, and guide remediation actions."
@@ -96,6 +97,9 @@ export default function AlertsPage() {
       </Panel>
 
       <Panel title="Active and Recent Alerts">
+        {!loading && !error && alerts.length === 0 && (
+          <p className="muted">No active alerts. All systems are operating normally.</p>
+        )}
         <ul className="card-list">
           {alerts.map((alert) => (
             <li key={alert.id} className={`info-card alert-${alert.severity}`}>

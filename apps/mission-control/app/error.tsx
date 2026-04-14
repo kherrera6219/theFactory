@@ -7,7 +7,7 @@ type RootErrorProps = {
 
 export default function RootError({ error, reset }: RootErrorProps) {
   return (
-    <main className="page shell-page">
+    <div className="page shell-page">
       <section className="panel">
         <h1>Application Error</h1>
         <p className="error-box">{error.message || "Unexpected application failure."}</p>
@@ -15,6 +15,6 @@ export default function RootError({ error, reset }: RootErrorProps) {
           Retry Application
         </button>
       </section>
-    </main>
+    </div>
   );
 }

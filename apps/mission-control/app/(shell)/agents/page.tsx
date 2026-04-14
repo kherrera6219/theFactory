@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
@@ -333,6 +334,7 @@ export default function AgentsPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="Agents"
         title="38-Agent Runtime Control Grid"
         description="Track the full multi-agent topology, runtime health, and mission workload distribution."
@@ -379,23 +381,45 @@ export default function AgentsPage() {
           <ul className="summary-list">
             <li>
               <strong>Redis</strong>
-              <span>{snapshot?.runtime.redis_ready ? "Healthy" : "Unavailable"}</span>
+              <span
+                className={`connection-chip ${snapshot?.runtime.redis_ready ? "live" : "stale"}`}
+                role="status"
+              >
+                {snapshot?.runtime.redis_ready ? "Healthy" : "Unavailable"}
+              </span>
             </li>
             <li>
               <strong>Database</strong>
-              <span>{snapshot?.runtime.db_ready ? "Ready" : "Unavailable"}</span>
+              <span
+                className={`connection-chip ${snapshot?.runtime.db_ready ? "live" : "stale"}`}
+                role="status"
+              >
+                {snapshot?.runtime.db_ready ? "Ready" : "Unavailable"}
+              </span>
             </li>
             <li>
               <strong>Protocol validation</strong>
-              <span>{snapshot?.runtime.protocol_ready ? "Ready" : "Unavailable"}</span>
+              <span
+                className={`connection-chip ${snapshot?.runtime.protocol_ready ? "live" : "stale"}`}
+                role="status"
+              >
+                {snapshot?.runtime.protocol_ready ? "Ready" : "Unavailable"}
+              </span>
             </li>
             <li>
               <strong>Consumer task</strong>
-              <span>{snapshot?.runtime.consumer_running ? "Running" : "Not running"}</span>
+              <span
+                className={`connection-chip ${snapshot?.runtime.consumer_running ? "live" : "stale"}`}
+                role="status"
+              >
+                {snapshot?.runtime.consumer_running ? "Running" : "Not running"}
+              </span>
             </li>
             <li>
               <strong>Transport mode</strong>
-              <span>{transportMode}</span>
+              <span className={`connection-chip ${transportMode === "stream" ? "live" : "retrying"}`}>
+                {transportMode}
+              </span>
             </li>
             <li>
               <strong>Stream events</strong>
@@ -403,11 +427,11 @@ export default function AgentsPage() {
             </li>
             <li>
               <strong>Stream errors</strong>
-              <span>{streamErrors}</span>
+              <span>{streamErrors > 0 ? streamErrors : "—"}</span>
             </li>
             <li>
               <strong>Poll fallback ticks</strong>
-              <span>{pollFallbackTicks}</span>
+              <span>{pollFallbackTicks > 0 ? pollFallbackTicks : "—"}</span>
             </li>
           </ul>
         )}
@@ -498,8 +522,17 @@ export default function AgentsPage() {
             </tbody>
           </table>
         </div>
-        {filteredAgents.length === 0 && !loading && (
-          <p className="muted">No agents match the selected filters.</p>
+        {filteredAgents.length === 0 && !loading && agents.length === 0 && (
+          <p className="muted">
+            No agents found. Ensure the backend gateway is running and reachable, then{" "}
+            <Link href="/settings" className="shell-link-button" style={{ color: "var(--accent-contrast)", textDecoration: "underline" }}>
+              check Settings
+            </Link>{" "}
+            to verify the API base URL.
+          </p>
+        )}
+        {filteredAgents.length === 0 && !loading && agents.length > 0 && (
+          <p className="muted">No agents match the selected filters. Try clearing one or more filters above.</p>
         )}
       </Panel>
 
