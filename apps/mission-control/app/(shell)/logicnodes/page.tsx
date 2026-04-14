@@ -89,6 +89,7 @@ export default function LogicNodesPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="LogicNodes"
         title="LogicNode Explorer"
         description="Review extracted logic artifacts, verification confidence, and source lineage for each mission."

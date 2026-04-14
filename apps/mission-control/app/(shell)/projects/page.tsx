@@ -52,6 +52,7 @@ export default function ProjectsPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="Projects"
         title="Projects and Templates"
         description="Manage active refinery projects, resume paused workstreams, and launch standardized template workflows."

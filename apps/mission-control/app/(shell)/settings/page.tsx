@@ -282,6 +282,7 @@ export default function SettingsPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="Settings"
         title="Local Runtime and Integrations"
         description="Configure API endpoints, execution limits, and local integration credentials for enterprise operations."
@@ -296,6 +297,14 @@ export default function SettingsPage() {
               value={preferences.apiBaseUrl}
               onChange={(event) => updatePreference("apiBaseUrl", event.target.value)}
             />
+            {preferences.apiBaseUrl &&
+              !preferences.apiBaseUrl.startsWith("https://") &&
+              !preferences.apiBaseUrl.startsWith("http://localhost") &&
+              !preferences.apiBaseUrl.startsWith("http://127.0.0.1") && (
+                <p className="warning-box" style={{ marginTop: "6px" }}>
+                  Non-HTTPS URLs are not recommended outside local development.
+                </p>
+              )}
           </label>
           <label>
             Max parallel agents

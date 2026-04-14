@@ -271,6 +271,7 @@ export default function SemanticBusPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="Semantic Bus"
         title="Protocol Event Monitor"
         description="Inspect envelope traffic by protocol, topic, producer, and priority to detect routing anomalies."

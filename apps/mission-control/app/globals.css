@@ -99,7 +99,8 @@ a {
 }
 
 .shell {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 280px 1fr;
 }
@@ -156,6 +157,10 @@ a {
 
 .shell-main-column {
   min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .shell-header {
@@ -179,10 +184,15 @@ a {
 
 .shell-header-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
 }
 
 .shell-main {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
   padding-bottom: 24px;
 }
 
@@ -246,6 +256,26 @@ h2 {
   display: flex;
   justify-content: space-between;
   gap: 16px;
+}
+
+.page-header-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 0 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.page-header-compact-main {
+  display: grid;
+  gap: 2px;
+}
+
+.page-header-compact h1 {
+  font-size: 1.3rem;
+  margin: 2px 0 0;
 }
 
 .page-hero-main {
@@ -582,6 +612,9 @@ dd {
 }
 
 .kpi-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
@@ -656,6 +689,19 @@ dd {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  overflow: hidden;
+}
+
+.summary-list li > span,
+.summary-list li > .connection-chip {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.summary-list li > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shortcut-grid {
@@ -827,6 +873,8 @@ dd {
   font-size: 0.76rem;
   text-transform: uppercase;
   border: 1px solid var(--border);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .pill.open {
@@ -956,6 +1004,32 @@ dd {
   background: var(--bg-elevated);
   color: var(--ink-muted);
   text-align: center;
+}
+
+.file-input-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 150ms, background 150ms;
+}
+
+.file-input-label:hover {
+  background: var(--bg-surface);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.file-input-label:focus-within {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .chip-list {
