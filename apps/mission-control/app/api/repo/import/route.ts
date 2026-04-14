@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
 import {
   branchLooksValid,
   buildGithubHeaders,
@@ -48,6 +49,10 @@ function badRequest(detail: string): NextResponse {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = requireOperatorRequestSession(request);
+  if (unauthorized) {
+    return unauthorized;
+  }
   let payload: RepoImportRequest;
   try {
     payload = (await request.json()) as RepoImportRequest;

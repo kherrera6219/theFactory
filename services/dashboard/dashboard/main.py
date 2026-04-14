@@ -33,7 +33,7 @@ async def snapshot() -> dict[str, Any]:
         }
     except Exception as exc:
         LOGGER.warning("dashboard snapshot failed: %s", exc)
-        return {"ok": False, "error": "snapshot unavailable"}
+        return {"ok": False, "error": f"snapshot unavailable: {exc}"}
 
 
 @app.get("/", response_class=HTMLResponse)

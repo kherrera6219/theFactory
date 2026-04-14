@@ -13,7 +13,7 @@ type VaultTestPayload = {
 
 export async function POST(request: Request) {
   if (!isAuthorizedVaultRequest(request)) {
-    return NextResponse.json({ detail: "Unauthorized." }, { status: 401 });
+    return NextResponse.json({ detail: "Operator authentication required." }, { status: 401 });
   }
   try {
     const payload = (await request.json()) as VaultTestPayload;

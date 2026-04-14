@@ -1,14 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "./route";
+import {
+  createOperatorSessionToken,
+  OPERATOR_SESSION_COOKIE_NAME,
+} from "../../../lib/server/operator-session";
 
 describe("repo review route", () => {
   beforeEach(() => {
     process.env.GITHUB_TOKEN = "ghp-test-token";
+    process.env.MISSION_CONTROL_ADMIN_KEY = "mission-control-admin-secret";
+    process.env.MISSION_CONTROL_SESSION_SECRET = "mission-control-session-secret";
   });
 
   afterEach(() => {
     delete process.env.GITHUB_TOKEN;
+    delete process.env.MISSION_CONTROL_ADMIN_KEY;
+    delete process.env.MISSION_CONTROL_SESSION_SECRET;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -50,11 +58,12 @@ describe("repo review route", () => {
         ),
       );
     vi.stubGlobal("fetch", fetchMock);
+    const cookie = `${OPERATOR_SESSION_COOKIE_NAME}=${createOperatorSessionToken()}`;
 
     const response = await POST(
       new Request("http://localhost/api/repo/review", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Cookie: cookie },
         body: JSON.stringify({
           repo_url: "https://github.com/octo/sample-platform",
           branch: "main",
@@ -109,10 +118,11 @@ describe("repo review route", () => {
   });
 
   it("rejects update reviews without a description", async () => {
+    const cookie = `${OPERATOR_SESSION_COOKIE_NAME}=${createOperatorSessionToken()}`;
     const response = await POST(
       new Request("http://localhost/api/repo/review", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Cookie: cookie },
         body: JSON.stringify({
           repo_url: "https://github.com/octo/sample-platform",
           branch: "main",

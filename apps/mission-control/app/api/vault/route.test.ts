@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  createOperatorSessionToken,
+  OPERATOR_SESSION_COOKIE_NAME,
+} from "../../lib/server/operator-session";
+
 const listVaultSlots = vi.fn();
 const upsertVaultSlot = vi.fn();
 const deleteVaultSlot = vi.fn();
@@ -17,18 +22,21 @@ describe("vault route authorization", () => {
     deleteVaultSlot.mockReset();
     vi.resetModules();
     delete process.env.VAULT_ADMIN_KEY;
+    delete process.env.MISSION_CONTROL_ADMIN_KEY;
+    delete process.env.MISSION_CONTROL_SESSION_SECRET;
   });
 
-  it("allows same-origin local browser reads", async () => {
+  it("allows authenticated operator reads", async () => {
+    process.env.MISSION_CONTROL_ADMIN_KEY = "mission-control-admin-secret";
+    process.env.MISSION_CONTROL_SESSION_SECRET = "mission-control-session-secret";
     listVaultSlots.mockResolvedValue([{ slot_id: "AGENT-01-PM-API-KEY" }]);
     const { GET } = await import("./route");
+    const cookie = `${OPERATOR_SESSION_COOKIE_NAME}=${createOperatorSessionToken()}`;
 
     const response = await GET(
       new Request("http://127.0.0.1:3000/api/vault", {
         headers: {
-          Origin: "http://127.0.0.1:3000",
-          Referer: "http://127.0.0.1:3000/settings",
-          "Sec-Fetch-Site": "same-origin",
+          Cookie: cookie,
         },
       }),
     );
@@ -38,7 +46,7 @@ describe("vault route authorization", () => {
     expect(payload.slots).toEqual([{ slot_id: "AGENT-01-PM-API-KEY" }]);
   });
 
-  it("rejects cross-origin writes without a trusted origin or admin key", async () => {
+  it("rejects writes without operator authentication", async () => {
     const { POST } = await import("./route");
 
     const response = await POST(
@@ -46,9 +54,6 @@ describe("vault route authorization", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Origin: "https://attacker.example",
-          Referer: "https://attacker.example/steal",
-          "Sec-Fetch-Site": "cross-site",
         },
         body: JSON.stringify({
           slot_id: "AGENT-01-PM-API-KEY",

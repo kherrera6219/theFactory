@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
-import { approveReviewArtifact, createMission, createRepoReview } from "../../lib/api-client";
+import {
+  approveReviewArtifact,
+  createMission,
+  createRepoReview,
+  verifyReviewApproval,
+} from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { sanitizeUserText } from "../../lib/security";
 import type { RepoReviewResponse, ReviewApprovalReceipt } from "../../lib/types";
@@ -365,6 +370,12 @@ export default function RepoImportPage() {
     setError(null);
     setLaunching(true);
     try {
+      await verifyReviewApproval({
+        scope: "repo",
+        approvalId: approvalReceipt.approval_id,
+        fingerprint: approvalReceipt.fingerprint,
+        receiptDigest: approvalReceipt.receipt_digest,
+      });
       const missionPrompt =
         sanitizeUserText(description) ||
         `Run ${missionType} mission for ${selectedFiles.length} files from ${repoUrl}`;
@@ -399,6 +410,9 @@ export default function RepoImportPage() {
       });
       router.push(`/missions/${mission.mission_id}`);
     } catch (launchError) {
+      if (launchError instanceof Error && /approval/i.test(launchError.message)) {
+        setApprovalReceipt(null);
+      }
       setError(launchError instanceof Error ? launchError.message : "Unable to launch repo mission.");
     } finally {
       setLaunching(false);

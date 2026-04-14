@@ -37,13 +37,16 @@ We will acknowledge receipt within **48 hours** and aim to provide an initial as
 
 - All API Gateway and Orchestrator endpoints require an `x-api-key` header.
 - Supported auth modes: `api_key`, `hybrid` (OIDC + API key fallback), `oidc`.
-- Vault endpoints (`/api/vault`) require an additional `x-vault-admin-key` header.
+- Sensitive Mission Control server routes require a signed `HttpOnly` operator session established through `/api/session/unlock`.
+- Vault endpoints (`/api/vault`) accept either a valid Mission Control operator session or an `x-vault-admin-key` header for scripted break-glass access.
+- Builder and repo review approvals are HMAC-signed, stored durably, and re-validated for integrity and expiry before mission launch.
 - No hardcoded or trivially guessable default keys are accepted in production; the process will reject empty admin/worker keys at startup.
 
 ### Secret Management
 
 - All credentials are injected via environment variables — never hardcoded.
 - Generate all API keys with: `openssl rand -hex 32`
+- Mission Control production deployments should use distinct values for `MISSION_CONTROL_ADMIN_KEY`, `MISSION_CONTROL_SESSION_SECRET`, and `VAULT_ADMIN_KEY`.
 - Optional Hashicorp Vault integration is supported for LLM provider key rotation.
 - `.env` files are gitignored. `.env.example` contains only `CHANGE_ME_*` placeholders.
 

@@ -14,7 +14,6 @@ import {
   missionStateStreamUrl,
   parseLiveStateStreamMessage,
   listOperationsLogicNodes,
-  updateMissionState,
   updateMissionStateWithVault,
 } from "../../../lib/api-client";
 import { formatDateTime, formatTime, humanizeState, normalizeState } from "../../../lib/format";
@@ -267,25 +266,17 @@ export default function MissionDetailPage() {
     }
     setActionError(null);
     try {
-      try {
-        await updateMissionStateWithVault({
-          missionId: mission.mission_id,
-          newState: "FAILED",
-          expectedState: mission.state,
-        });
-      } catch {
-        await updateMissionState({
-          missionId: mission.mission_id,
-          newState: "FAILED",
-          expectedState: mission.state,
-        });
-      }
+      await updateMissionStateWithVault({
+        missionId: mission.mission_id,
+        newState: "FAILED",
+        expectedState: mission.state,
+      });
       await loadDetails();
     } catch (requestError) {
       setActionError(
         requestError instanceof Error
           ? requestError.message
-          : "Mission state update failed. Confirm operator API key in Settings.",
+          : "Mission state update failed.",
       );
     }
   }

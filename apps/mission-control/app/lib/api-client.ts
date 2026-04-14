@@ -14,6 +14,7 @@ import type {
   PodAssignmentRecord,
   RepoReviewResponse,
   ReviewApprovalReceipt,
+  ReviewApprovalVerificationResult,
 } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -131,21 +132,6 @@ export function parseLiveStateStreamMessage(raw: string): LiveStateStreamEvent |
   }
 }
 
-export function getOperatorApiKey(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const sessionKey = window.sessionStorage.getItem("mission-control:operator-api-key");
-  if (sessionKey && sessionKey.trim().length > 0) {
-    return sessionKey.trim();
-  }
-  const localKey = window.localStorage.getItem("mission-control:operator-api-key");
-  if (localKey && localKey.trim().length > 0) {
-    return localKey.trim();
-  }
-  return null;
-}
-
 export function buildIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `mission-control-${crypto.randomUUID()}`;
@@ -198,27 +184,6 @@ export async function createMission(payload: {
       "Idempotency-Key": buildIdempotencyKey(),
     },
     body: JSON.stringify(payload),
-  });
-}
-
-export async function updateMissionState(payload: {
-  missionId: string;
-  newState: string;
-  expectedState?: string;
-  operatorApiKey?: string;
-}): Promise<Record<string, unknown>> {
-  const headers: Record<string, string> = {};
-  const resolvedKey = payload.operatorApiKey ?? getOperatorApiKey();
-  if (resolvedKey) {
-    headers["x-api-key"] = resolvedKey;
-  }
-  return fetchJson<Record<string, unknown>>(missionApiUrl(`/v1/missions/${payload.missionId}/state`), {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      new_state: payload.newState,
-      expected_state: payload.expectedState,
-    }),
   });
 }
 
@@ -383,5 +348,23 @@ export async function approveReviewArtifact(payload: {
     method: "POST",
     timeoutMs: 30_000,
     body: JSON.stringify(payload),
+  });
+}
+
+export async function verifyReviewApproval(payload: {
+  scope: "builder" | "repo";
+  approvalId: string;
+  fingerprint: string;
+  receiptDigest: string;
+}): Promise<ReviewApprovalVerificationResult> {
+  return fetchJson<ReviewApprovalVerificationResult>("/api/review/verify", {
+    method: "POST",
+    timeoutMs: 30_000,
+    body: JSON.stringify({
+      scope: payload.scope,
+      approval_id: payload.approvalId,
+      fingerprint: payload.fingerprint,
+      receipt_digest: payload.receiptDigest,
+    }),
   });
 }

@@ -385,6 +385,33 @@ async def _save_idempotency_record(
     return bool(saved)
 
 
+async def _reconcile_idempotent_mission(
+    redis_client: Any,
+    redis_key: str,
+    request_hash: str,
+    mission_id: str,
+) -> MissionRecord | None:
+    try:
+        existing_mission = await _proxy_get(f"/missions/{mission_id}")
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return None
+        raise
+
+    mission_record = MissionRecord(**existing_mission)
+    await _save_idempotency_record(
+        redis_client,
+        redis_key,
+        {
+            "status": "completed",
+            "request_hash": request_hash,
+            "mission_id": mission_id,
+            "mission": mission_record.model_dump(mode="json"),
+        },
+    )
+    return mission_record
+
+
 async def _dependency_status() -> dict[str, bool]:
     redis_client = getattr(app.state, "redis", None)
     orchestrator_healthy = False
@@ -1379,6 +1406,7 @@ async def create_mission(
 
     idempotency_redis_key: str | None = None
     request_hash: str | None = None
+    mission_id = f"mission-{uuid.uuid4()}"
     if idempotency_key is not None:
         trimmed_key = idempotency_key.strip()
         if not trimmed_key:
@@ -1388,7 +1416,11 @@ async def create_mission(
 
         request_hash = _request_hash(normalized_payload)
         idempotency_redis_key = _idempotency_redis_key(trimmed_key)
-        in_progress_record = {"status": "processing", "request_hash": request_hash}
+        in_progress_record = {
+            "status": "processing",
+            "request_hash": request_hash,
+            "mission_id": mission_id,
+        }
         acquired = await _save_idempotency_record(
             redis_client,
             idempotency_redis_key,
@@ -1423,12 +1455,32 @@ async def create_mission(
                     existing.get("mission"), dict
                 ):
                     return MissionRecord(**existing["mission"])
-                raise HTTPException(
-                    status_code=409,
-                    detail="request with this Idempotency-Key is in progress",
-                )
+                existing_mission_id = str(existing.get("mission_id") or "").strip()
+                if existing.get("status") == "upstream_unknown" and existing_mission_id:
+                    reconciled = await _reconcile_idempotent_mission(
+                        redis_client,
+                        idempotency_redis_key,
+                        request_hash,
+                        existing_mission_id,
+                    )
+                    if reconciled is not None:
+                        return reconciled
+                    mission_id = existing_mission_id
+                    await _save_idempotency_record(
+                        redis_client,
+                        idempotency_redis_key,
+                        {
+                            "status": "processing",
+                            "request_hash": request_hash,
+                            "mission_id": mission_id,
+                        },
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="request with this Idempotency-Key is in progress",
+                    )
 
-    mission_id = f"mission-{uuid.uuid4()}"
     created_at = datetime.now(UTC).isoformat()
     mission_payload = {
         "mission_id": mission_id,
@@ -1457,9 +1509,18 @@ async def create_mission(
                 "created_at": created_at,
             },
         )
-    except Exception:
+    except Exception as exc:
         if idempotency_redis_key is not None:
-            await redis_client.delete(idempotency_redis_key)
+            await _save_idempotency_record(
+                redis_client,
+                idempotency_redis_key,
+                {
+                    "status": "upstream_unknown",
+                    "request_hash": request_hash,
+                    "mission_id": mission_id,
+                    "last_error": str(exc),
+                },
+            )
         raise
 
     mission_payload = {
@@ -1498,6 +1559,7 @@ async def create_mission(
                 {
                     "status": "completed",
                     "request_hash": request_hash,
+                    "mission_id": mission_id,
                     "mission": mission_payload,
                 },
             )

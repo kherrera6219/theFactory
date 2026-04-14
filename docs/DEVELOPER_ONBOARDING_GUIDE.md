@@ -331,6 +331,11 @@ See `.env.example` for all variables. Critical ones:
 | `OBJECT_STORAGE_ENABLED` | `false` | Enable MinIO/S3 adapter |
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8100` | Gateway URL for Mission Control |
 | `ORCHESTRATOR_INTERNAL_BASE_URL` | `http://localhost:8101` | Orchestrator internal URL for Mission Control review approval persistence |
+| `APPROVAL_HMAC_SECRET` | — | HMAC secret used by Mission Control to sign and verify durable review approvals |
+| `APPROVAL_TTL_SECONDS` | `86400` | Review approval lifetime in seconds |
+| `MISSION_CONTROL_ADMIN_KEY` | — | Local operator unlock key for privileged Mission Control routes |
+| `MISSION_CONTROL_SESSION_SECRET` | — | Signing secret for Mission Control operator sessions |
+| `MISSION_CONTROL_SESSION_TTL_SECONDS` | `28800` | Mission Control operator session lifetime in seconds |
 
 ---
 

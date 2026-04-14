@@ -1,7 +1,7 @@
 # Getting Started
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.04.14  
+Last updated: 2026-04-14  
 Status: Canonical  
 Audience: Operators and developers
 
@@ -24,19 +24,22 @@ From the repository root:
 docker compose -f deploy/docker-compose.yaml up -d
 ```
 
-Mission Control runs at `http://localhost:3000`.
+Mission Control runs at `http://localhost:3100` in the Docker stack.
+
+If you run the Next.js app directly with `npm run dev`, Mission Control runs at `http://localhost:3000`.
 
 The API Gateway runs at `http://localhost:8100`.
 
 ## First Success Path
 
-1. Open Mission Control at `http://localhost:3000`.
-2. Visit `Settings` and confirm any required provider or GitHub credentials are loaded.
-3. Open `Chat` if you want PM-style mission intake from a prompt and optional attached files.
-4. Open `Builder` if you want a grounded local-workspace review before launch.
-5. Open `Repo Import` if you want to review selected GitHub files and turn that review into a mission bundle.
-6. Launch the mission and switch to `Missions` or the mission detail page to watch live state changes.
-7. For source-bundle missions, confirm the `Build Artifacts` section on the mission detail page shows a successful packaged artifact before treating the mission as release-ready.
+1. Open Mission Control at `http://localhost:3100`.
+2. Unlock Mission Control with `MISSION_CONTROL_ADMIN_KEY`.
+3. Visit `Settings` and confirm any required provider or GitHub credentials are loaded.
+4. Open `Chat` if you want PM-style mission intake from a prompt and optional attached files.
+5. Open `Builder` if you want a grounded local-workspace review before launch.
+6. Open `Repo Import` if you want to review selected GitHub files and turn that review into a mission bundle.
+7. Launch the mission and switch to `Missions` or the mission detail page to watch live state changes.
+8. For source-bundle missions, confirm the `Build Artifacts` section on the mission detail page shows a successful packaged artifact before treating the mission as release-ready.
 
 ## Main Screens
 
@@ -57,14 +60,16 @@ Two review flows are intentionally gated before mission execution:
 - `Builder review`: packages a local workspace preview and produces a review fingerprint
 - `Repo review`: fetches selected GitHub files, builds a grounded source bundle, and produces a review fingerprint
 
-Both flows require a durable approval record before the final mission launch step.
+Both flows require an active operator session and a durable approval record before the final mission launch step. Mission Control re-validates the stored approval receipt immediately before launch and rejects expired or tampered approvals.
 
 ## Troubleshooting
 
 - If Mission Control loads but data panels fail, check `http://localhost:8100/health`.
 - If agent or mission live updates stall, verify the gateway SSE endpoint at `http://localhost:8100/v1/stream/state`.
 - If review flows fail, confirm required API keys are present in `Settings`.
-- If review approvals fail, confirm `ORCHESTRATOR_INTERNAL_BASE_URL` and `INTERNAL_SERVICE_API_KEY` are set for Mission Control.
+- If Mission Control cannot be unlocked, confirm `MISSION_CONTROL_ADMIN_KEY` and `MISSION_CONTROL_SESSION_SECRET` are set for the Mission Control process.
+- If review approvals fail, confirm `ORCHESTRATOR_INTERNAL_BASE_URL`, `INTERNAL_SERVICE_API_KEY`, and `APPROVAL_HMAC_SECRET` are set for Mission Control.
+- If scripted vault access fails, confirm the request includes `x-vault-admin-key` and that `VAULT_ADMIN_KEY` is configured.
 - If startup fails after the recent auth hardening changes, confirm service API keys are explicitly set in your environment instead of relying on Compose fallbacks.
 - If a source-bundle mission remains `VERIFIED` and does not advance to `COMPLETE`, inspect the mission detail `Build Artifacts` section or call `GET /v1/missions/{mission_id}/build-artifacts` to confirm packaging status.
 

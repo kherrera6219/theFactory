@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   languageFromPath,
+  POST,
   normalizeSubdirectory,
   parseGithubRepoUrl,
   selectRepoFiles,
@@ -83,5 +84,25 @@ describe("repo import route helpers", () => {
     ]);
     expect(selection.truncated).toBe(false);
     expect(selection.skippedLargeFiles).toBe(0);
+  });
+
+  it("rejects repository intake without an operator session", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/repo/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repo_url: "https://github.com/octo/sample-platform",
+          branch: "main",
+          subdirectory: "/",
+          max_files: 10,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      detail: expect.stringContaining("operator session"),
+    });
   });
 });

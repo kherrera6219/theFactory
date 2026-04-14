@@ -174,6 +174,9 @@ class ReviewApprovalUpsert(BaseModel):
     scope: Literal["builder", "repo"]
     fingerprint: str = Field(min_length=12, max_length=200)
     summary: str = Field(min_length=3, max_length=400)
+    approved_at: datetime | None = None
+    expires_at: datetime | None = None
+    hmac_digest: str | None = Field(default=None, min_length=16, max_length=128)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -186,6 +189,8 @@ class ReviewApprovalRecord(BaseModel):
     receipt_digest: str
     storage_backend: str
     approved_at: datetime
+    expires_at: datetime | None = None
+    hmac_digest: str | None = None
     updated_at: datetime
 
 

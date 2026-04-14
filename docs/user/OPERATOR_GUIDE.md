@@ -1,7 +1,7 @@
 # Mission Control Operator Guide
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.04.14  
+Last updated: 2026-04-14  
 Status: Canonical  
 Audience: Operators, reviewers, and technical users
 
@@ -23,12 +23,20 @@ This guide explains how to use theFactory through Mission Control for the main o
   - event and protocol traffic inspection
 - `Databases`
   - data-plane readiness and adapter status
+- `Builder`
+  - grounded local-workspace review and mission launch flow
 - `Repo Import`
   - grounded GitHub review and mission launch flow
 - `Settings`
   - preferences, vault slots, and integration state
 
 ## Common Operator Workflows
+
+### Unlock Mission Control
+
+1. Open Mission Control.
+2. Enter `MISSION_CONTROL_ADMIN_KEY` on the unlock screen.
+3. Continue into the shell once the operator session is established.
 
 ### Launch a mission from Chat
 
@@ -44,7 +52,7 @@ This guide explains how to use theFactory through Mission Control for the main o
 2. Select the local files to ground the review.
 3. Review the generated patch contract and fingerprint.
 4. Approve the review.
-5. Launch the mission bundle.
+5. Launch the mission bundle after Mission Control verifies the stored approval receipt.
 
 ### Launch a mission from Repo Import
 
@@ -52,7 +60,7 @@ This guide explains how to use theFactory through Mission Control for the main o
 2. Select the repository and files to review.
 3. Confirm the generated review summary and fingerprint.
 4. Approve the review.
-5. Launch the mission bundle.
+5. Launch the mission bundle after Mission Control verifies the stored approval receipt.
 
 ## Reviewing Mission State
 
@@ -76,14 +84,20 @@ Use `Settings` to:
 
 Review approvals depend on Mission Control being configured with:
 
+- `MISSION_CONTROL_ADMIN_KEY`
+- `MISSION_CONTROL_SESSION_SECRET`
 - `ORCHESTRATOR_INTERNAL_BASE_URL`
 - `INTERNAL_SERVICE_API_KEY`
+- `APPROVAL_HMAC_SECRET`
+
+For browser-based operator workflows, Mission Control uses the signed operator session cookie rather than trusting origin or referrer headers. For scripted vault administration, `/api/vault` also accepts `x-vault-admin-key` when `VAULT_ADMIN_KEY` is configured.
 
 ## Troubleshooting
 
 - If data panels fail to load, check the gateway health endpoint.
 - If live mission updates stall, verify the gateway SSE endpoint.
-- If review approvals fail, verify the internal orchestrator URL and service key.
+- If the unlock screen rejects a valid-looking key, verify `MISSION_CONTROL_ADMIN_KEY` and `MISSION_CONTROL_SESSION_SECRET`.
+- If review approvals fail, verify the internal orchestrator URL, service key, and approval HMAC secret.
 - If a mission remains `VERIFIED`, inspect the build artifact state before treating it as complete.
 
 ## Related References

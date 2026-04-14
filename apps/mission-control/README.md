@@ -21,6 +21,8 @@ It is designed for local-first Windows operation and provides real-time visibili
    - `.env.local` (or inherited root env) with `NEXT_PUBLIC_API_BASE_URL`
    - `ORCHESTRATOR_INTERNAL_BASE_URL` for durable review approval persistence
    - `INTERNAL_SERVICE_API_KEY` matching the orchestrator internal service key
+   - `APPROVAL_HMAC_SECRET` for signed approval records and launch-time integrity checks
+   - `MISSION_CONTROL_ADMIN_KEY` and `MISSION_CONTROL_SESSION_SECRET` for the operator unlock/session flow
 3. Start dev server:
    - `npm run dev`
 4. Build production bundle:
@@ -35,6 +37,13 @@ It is designed for local-first Windows operation and provides real-time visibili
 - `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8100`)
 - `ORCHESTRATOR_INTERNAL_BASE_URL` (default `http://localhost:8101`)
 - `INTERNAL_SERVICE_API_KEY` (required for review approval persistence)
+- `APPROVAL_HMAC_SECRET` (required for review approval signing and verification)
+- `APPROVAL_TTL_SECONDS` (default `86400`)
+- `MISSION_CONTROL_ADMIN_KEY` (required to unlock privileged Mission Control routes)
+- `MISSION_CONTROL_SESSION_SECRET` (recommended distinct signing secret for operator sessions)
+- `MISSION_CONTROL_SESSION_TTL_SECONDS` (default `28800`)
+- `MISSION_CONTROL_SESSION_SECURE` (`true` for HTTPS production deployments)
+- `VAULT_ADMIN_KEY` (optional break-glass header auth for scripted `/api/vault` access)
 - Optional HashiCorp Vault KV backend:
   - `VAULT_ADDR`
   - `VAULT_TOKEN` or `VAULT_ROLE_ID` + `VAULT_SECRET_ID`
@@ -88,6 +97,8 @@ Agent detail includes:
   - validate provider key formats or test checks
 - `/api/review/approve`:
   - persist review approvals through orchestrator-backed durable storage before mission launch
+- `/api/review/verify`:
+  - re-validate approval integrity and expiry before the mission launch call is sent
 - `/api/operator/mission-state`:
   - safely forward mission state transitions using server-side key resolution
 
@@ -96,9 +107,10 @@ Agent detail includes:
 - TypeScript strict mode is enabled.
 - Security headers are set via `next.config.mjs`.
 - API consumption uses timeout-based request guards and resilient parsing.
-- Review approvals fail closed if the orchestrator internal base URL or service API key is missing.
+- Mission Control privileged routes fail closed without a valid signed operator session.
+- Review approvals fail closed if the orchestrator internal base URL, service API key, or approval HMAC secret is missing.
 - Accessibility includes semantic tables, captions, skip-navigation support, and keyboard focus visibility.
-- Local operation mode intentionally avoids external account-login requirements.
+- Local operation mode intentionally avoids external account-login requirements, but still requires the local operator unlock key.
 
 ## Related Backend Endpoints
 

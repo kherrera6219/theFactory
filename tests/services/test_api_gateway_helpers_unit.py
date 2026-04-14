@@ -21,17 +21,22 @@ class _MemoryRedis:
     def __init__(self, *, get_value: Any = None, set_result: Any = True) -> None:
         self.get_value = get_value
         self.set_result = set_result
+        self.store: dict[str, str] = {}
         self.set_calls: list[tuple[str, str, int | None, bool]] = []
         self.incr_count = 0
         self.expire_calls: list[tuple[str, int]] = []
         self.deleted: list[str] = []
         self.xadd_calls: list[tuple[str, dict[str, str], int | None, bool]] = []
 
-    async def get(self, _key: str) -> Any:
-        return self.get_value
+    async def get(self, key: str) -> Any:
+        return self.store.get(key, self.get_value)
 
     async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> Any:
+        if nx and key in self.store:
+            self.set_calls.append((key, value, ex, nx))
+            return False
         self.set_calls.append((key, value, ex, nx))
+        self.store[key] = value
         return self.set_result
 
     async def incr(self, _key: str) -> int:
@@ -47,6 +52,7 @@ class _MemoryRedis:
 
     async def delete(self, key: str) -> int:
         self.deleted.append(key)
+        self.store.pop(key, None)
         return 1
 
     async def xadd(
@@ -148,6 +154,63 @@ def test_idempotency_helpers_cover_decode_and_save_paths() -> None:
     )
     assert valid.set_calls[0][2] == api_gateway_main.IDEMPOTENCY_TTL_SECONDS
     assert valid.set_calls[0][3] is True
+
+
+def test_create_mission_reconciles_unknown_idempotent_writes(monkeypatch) -> None:
+    redis_client = _MemoryRedis()
+    monkeypatch.setattr(api_gateway_main.app.state, "redis", redis_client, raising=False)
+    monkeypatch.setattr(api_gateway_main.app.state, "redis_ready", True, raising=False)
+
+    async def _failing_proxy_post_internal(*_args: Any, **_kwargs: Any) -> Any:
+        raise HTTPException(status_code=502, detail="orchestrator unavailable")
+
+    monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _failing_proxy_post_internal)
+    payload = api_gateway_main.MissionCreate(
+        prompt="Harden Mission Control auth boundary",
+        requested_target_language="typescript",
+        metadata={},
+        source_code=None,
+    )
+
+    with pytest.raises(HTTPException, match="orchestrator unavailable"):
+        asyncio.run(api_gateway_main.create_mission(payload, idempotency_key="idem-1"))
+
+    redis_key = api_gateway_main._idempotency_redis_key("idem-1")
+    stored_record = asyncio.run(api_gateway_main._load_idempotency_record(redis_client, redis_key))
+    assert stored_record is not None
+    assert stored_record["status"] == "upstream_unknown"
+    mission_id = stored_record["mission_id"]
+
+    async def _unexpected_proxy_post_internal(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("create_mission should reconcile from orchestrator before retrying")
+
+    async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
+        assert params is None
+        assert path == f"/missions/{mission_id}"
+        return {
+            "mission_id": mission_id,
+            "prompt": payload.prompt,
+            "requested_target_language": payload.requested_target_language,
+            "metadata": api_gateway_main._normalize_mission_metadata(
+                payload.metadata,
+                requested_target_language=payload.requested_target_language,
+            ),
+            "state": "QUEUED",
+            "created_at": "2026-04-14T00:00:00+00:00",
+        }
+
+    monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _unexpected_proxy_post_internal)
+    monkeypatch.setattr(api_gateway_main, "_proxy_get", _proxy_get)
+
+    result = asyncio.run(api_gateway_main.create_mission(payload, idempotency_key="idem-1"))
+
+    assert result.mission_id == mission_id
+    completed_record = asyncio.run(
+        api_gateway_main._load_idempotency_record(redis_client, redis_key)
+    )
+    assert completed_record is not None
+    assert completed_record["status"] == "completed"
+    assert completed_record["mission_id"] == mission_id
 
 
 def test_dependency_status_covers_http_and_redis_failure_paths(monkeypatch) -> None:
