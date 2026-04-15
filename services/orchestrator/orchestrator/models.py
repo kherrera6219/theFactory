@@ -83,18 +83,34 @@ EventType = Literal[
 
 
 VALID_TRANSITIONS: dict[MissionState, set[MissionState]] = {
+    # Common entry point
     MissionState.intake: {MissionState.queued},
-    MissionState.queued: {MissionState.pm_intake, MissionState.gating, MissionState.failed},
+    # V1 direct: queued → running; V2: queued → pm_intake; legacy: queued → gating
+    MissionState.queued: {
+        MissionState.pm_intake,
+        MissionState.gating,
+        MissionState.running,
+        MissionState.failed,
+    },
 
-    # V2 flow
+    # V2-only routing chain
     MissionState.pm_intake: {MissionState.ceo_delegated, MissionState.failed},
     MissionState.ceo_delegated: {MissionState.pod_assigned, MissionState.failed},
     MissionState.pod_assigned: {MissionState.specialist_assigned, MissionState.failed},
     MissionState.specialist_assigned: {MissionState.running, MissionState.failed},
 
-    # V1/V2 overlap
-    MissionState.gating: {MissionState.running, MissionState.failed},
-    MissionState.running: {MissionState.fusion, MissionState.failed},
+    # V1: queued → gating → running; V2: ... → running → gating → fusion
+    # Both directions are valid; the active engine determines the path used.
+    MissionState.gating: {MissionState.running, MissionState.fusion, MissionState.failed},
+    # V1 direct: running → verified; V2: running → gating → fusion → verified
+    MissionState.running: {
+        MissionState.gating,
+        MissionState.fusion,
+        MissionState.verified,
+        MissionState.failed,
+    },
+
+    # Shared terminal path
     MissionState.fusion: {MissionState.verified, MissionState.failed},
     MissionState.verified: {MissionState.complete, MissionState.failed},
     MissionState.complete: set(),

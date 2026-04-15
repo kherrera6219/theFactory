@@ -14,6 +14,9 @@ sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
 orchestrator_main = importlib.import_module("orchestrator.main")
 orchestrator_models = importlib.import_module("orchestrator.models")
+orchestrator_heartbeat = importlib.import_module("orchestrator.heartbeat_service")
+orchestrator_internal = importlib.import_module("orchestrator.routes.internal")
+orchestrator_operations = importlib.import_module("orchestrator.routes.operations")
 
 MissionEvent = orchestrator_models.MissionEvent
 MissionRecord = orchestrator_models.MissionRecord
@@ -39,14 +42,14 @@ def _mission(
 
 
 def test_parse_iso_datetime_and_route_summary_helpers() -> None:
-    assert orchestrator_main._parse_iso_datetime(None) is None
-    assert orchestrator_main._parse_iso_datetime("bad") is None
-    assert orchestrator_main._parse_iso_datetime("2026-03-01T00:00:00") is None
-    parsed = orchestrator_main._parse_iso_datetime("2026-03-01T00:00:00Z")
+    assert orchestrator_operations._parse_iso_datetime(None) is None
+    assert orchestrator_operations._parse_iso_datetime("bad") is None
+    assert orchestrator_operations._parse_iso_datetime("2026-03-01T00:00:00") is None
+    parsed = orchestrator_operations._parse_iso_datetime("2026-03-01T00:00:00Z")
     assert parsed == datetime(2026, 3, 1, 0, 0, tzinfo=UTC)
 
-    assert orchestrator_main._route_provenance_snapshot("bad", role="ceo") is None
-    ceo_snapshot = orchestrator_main._route_provenance_snapshot(
+    assert orchestrator_internal._route_provenance_snapshot("bad", role="ceo") is None
+    ceo_snapshot = orchestrator_internal._route_provenance_snapshot(
         {
             "source": "llm",
             "llm_route": "primary",
@@ -62,7 +65,7 @@ def test_parse_iso_datetime_and_route_summary_helpers() -> None:
     assert ceo_snapshot["target_agent_id"] == "AGENT-12-PODA-MGR"
     assert ceo_snapshot["mission_source"] == "repo-review"
 
-    pod_manager_snapshot = orchestrator_main._route_provenance_snapshot(
+    pod_manager_snapshot = orchestrator_internal._route_provenance_snapshot(
         {
             "source": "llm",
             "llm_route": "primary",
@@ -76,7 +79,7 @@ def test_parse_iso_datetime_and_route_summary_helpers() -> None:
     )
     assert pod_manager_snapshot["target_agent_id"] == "AGENT-14-PYTHON"
 
-    specialist_snapshot = orchestrator_main._route_provenance_snapshot(
+    specialist_snapshot = orchestrator_internal._route_provenance_snapshot(
         {
             "source": "fallback",
             "llm_route": "fallback",
@@ -92,13 +95,13 @@ def test_parse_iso_datetime_and_route_summary_helpers() -> None:
     )
     assert specialist_snapshot["plan_summary"] == "Implement patch"
 
-    assert orchestrator_main._artifact_summary({"mission_artifacts": "bad"}) == {}
-    assert orchestrator_main._artifact_summary(
+    assert orchestrator_internal._artifact_summary({"mission_artifacts": "bad"}) == {}
+    assert orchestrator_internal._artifact_summary(
         {"mission_artifacts": {"good": {"event_type": "MISSION_RUNNING"}, 3: {"bad": True}}}
     ) == {"good": {"event_type": "MISSION_RUNNING"}}
 
-    assert orchestrator_main._scaling_summary({}) is None
-    scaling = orchestrator_main._scaling_summary(
+    assert orchestrator_internal._scaling_summary({}) is None
+    scaling = orchestrator_internal._scaling_summary(
         {
             "scaling_active": True,
             "scaling_decision": {"partition_count": 2},
@@ -147,7 +150,7 @@ def test_build_mission_chain_trace_appends_derived_events_and_sorts() -> None:
         },
     )
 
-    payload = orchestrator_main._build_mission_chain_trace(
+    payload = orchestrator_internal._build_mission_chain_trace(
         mission=mission,
         pod_assignment={"pod_name": "podA", "updated_at": "2026-03-01T00:00:03+00:00"},
         logicnodes=[{"node_id": "node-1", "created_at": "2026-03-01T00:00:02+00:00"}],
@@ -297,7 +300,7 @@ def test_readyz_covers_optional_dependency_failures(monkeypatch) -> None:
 
 
 def test_build_non_pod_heartbeat_payloads_routes_support_agents() -> None:
-    payloads = orchestrator_main._build_non_pod_heartbeat_payloads(
+    payloads = orchestrator_heartbeat._build_non_pod_heartbeat_payloads(
         runtime={
             "redis_ready": True,
             "db_ready": True,
@@ -363,7 +366,7 @@ def test_emit_agent_telemetry_event_publishes_error_priority_payload() -> None:
     }
 
     asyncio.run(
-        orchestrator_main._emit_agent_telemetry_event(
+        orchestrator_heartbeat._emit_agent_telemetry_event(
             app,
             record=record,
             event_type="AGENT_STATE_CHANGED",
@@ -389,7 +392,7 @@ def test_upsert_agent_heartbeat_handles_emit_failures(monkeypatch) -> None:
     async def _emit(*_args: Any, **_kwargs: Any) -> None:
         raise RuntimeError("stream unavailable")
 
-    monkeypatch.setattr(orchestrator_main, "_emit_agent_telemetry_event", _emit)
+    monkeypatch.setattr(orchestrator_heartbeat, "_emit_agent_telemetry_event", _emit)
 
     record = asyncio.run(
         orchestrator_main._upsert_agent_heartbeat(

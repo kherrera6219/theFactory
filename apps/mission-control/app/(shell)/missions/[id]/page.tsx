@@ -11,6 +11,7 @@ import {
   getMissionChainTrace,
   getMissionEvents,
   getOperationsAgents,
+  listMissionAuditReports,
   missionStateStreamUrl,
   parseLiveStateStreamMessage,
   listOperationsLogicNodes,
@@ -26,6 +27,7 @@ import type {
   MissionChainTrace,
   MissionRecord,
   OperationsAgentRecord,
+  OperationsAuditReportRecord,
   OperationsLogicNodeRecord,
 } from "../../../lib/types";
 
@@ -68,6 +70,7 @@ export default function MissionDetailPage() {
   const [logicNodes, setLogicNodes] = useState<OperationsLogicNodeRecord[]>([]);
   const [chainTrace, setChainTrace] = useState<MissionChainTrace | null>(null);
   const [activeAgents, setActiveAgents] = useState<OperationsAgentRecord[]>([]);
+  const [auditReports, setAuditReports] = useState<OperationsAuditReportRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [pausedMonitor, setPausedMonitor] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,18 +87,20 @@ export default function MissionDetailPage() {
       return;
     }
     try {
-      const [missionData, missionEvents, missionChain, nodes, agentSnapshot] = await Promise.all([
+      const [missionData, missionEvents, missionChain, nodes, agentSnapshot, reports] = await Promise.all([
         getMission(missionId),
         getMissionEvents(missionId, 60),
         getMissionChainTrace(missionId),
         listOperationsLogicNodes({ limit: 400, missionId }),
         getOperationsAgents({ missionLimit: 300, assignmentLimit: 300, eventLimit: 200 }),
+        listMissionAuditReports(missionId, 50).catch(() => [] as OperationsAuditReportRecord[]),
       ]);
       setMission(missionData);
       setEvents(missionEvents);
       setChainTrace(missionChain);
       setLogicNodes(nodes);
       setActiveAgents(agentSnapshot.agents.filter((agent: OperationsAgentRecord) => isAgentActive(agent, missionId)));
+      setAuditReports(reports);
       setError(null);
       setLastUpdatedAt(new Date().toISOString());
     } catch (loadError) {
@@ -215,6 +220,13 @@ export default function MissionDetailPage() {
       }),
     [chainTrace?.routing_version, events, logicNodes.length, mission?.metadata, mission?.state, verifiedCount],
   );
+
+  const lifecycleEngine = useMemo(() => {
+    if (phaseDescriptor.model === "v2") return "MissionFlow V2";
+    const rv = (chainTrace?.routing_version ?? "").toLowerCase();
+    if (rv.includes("langgraph")) return "LangGraph";
+    return "Legacy V1";
+  }, [phaseDescriptor.model, chainTrace?.routing_version]);
 
   const phaseIndex = phaseDescriptor.phaseIndex;
   const phaseName = phaseDescriptor.phaseName;
@@ -350,6 +362,23 @@ export default function MissionDetailPage() {
               <div>
                 <dt>Status</dt>
                 <dd>{humanizeState(mission.state)}</dd>
+              </div>
+              <div>
+                <dt>Lifecycle engine</dt>
+                <dd>
+                  <span
+                    className={`connection-chip ${
+                      lifecycleEngine === "MissionFlow V2"
+                        ? "live"
+                        : lifecycleEngine === "LangGraph"
+                          ? "retrying"
+                          : "stale"
+                    }`}
+                    title={`Active lifecycle engine: ${lifecycleEngine}`}
+                  >
+                    {lifecycleEngine}
+                  </span>
+                </dd>
               </div>
               <div>
                 <dt>{phaseLabel}</dt>
@@ -614,6 +643,72 @@ export default function MissionDetailPage() {
                 </dl>
               </li>
             ))}
+          </ul>
+        )}
+      </Panel>
+
+      <Panel title="Audit Evidence">
+        {auditReports.length === 0 && (
+          <p className="muted">No audit reports recorded for this mission yet.</p>
+        )}
+        {auditReports.length > 0 && (
+          <ul className="card-list">
+            {auditReports.map((report) => {
+              const summary =
+                typeof report.report.summary === "string"
+                  ? report.report.summary
+                  : null;
+              const findings =
+                Array.isArray(report.report.findings) ? report.report.findings : [];
+              const score =
+                typeof report.report.score === "number" ? report.report.score : null;
+              return (
+                <li key={report.audit_id} className="info-card">
+                  <h3>{report.audit_id}</h3>
+                  <dl>
+                    <div>
+                      <dt>Status</dt>
+                      <dd>
+                        <span
+                          className={`connection-chip ${
+                            report.status === "PASSED"
+                              ? "live"
+                              : report.status === "FAILED"
+                                ? "stale"
+                                : "retrying"
+                          }`}
+                        >
+                          {report.status}
+                        </span>
+                      </dd>
+                    </div>
+                    {score !== null && (
+                      <div>
+                        <dt>Score</dt>
+                        <dd>{score}</dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt>Recorded</dt>
+                      <dd>{formatDateTime(report.created_at)}</dd>
+                    </div>
+                  </dl>
+                  {summary && <p>{summary}</p>}
+                  {findings.length > 0 && (
+                    <>
+                      <p className="muted">Findings</p>
+                      <ul className="summary-list">
+                        {(findings as unknown[]).slice(0, 10).map((finding, idx) => (
+                          <li key={`${report.audit_id}-finding-${idx}`}>
+                            <span>{typeof finding === "string" ? finding : JSON.stringify(finding)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </Panel>
