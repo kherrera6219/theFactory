@@ -272,6 +272,8 @@ def _logicnodes_from_extraction(
                         "confidence": getattr(concept, "confidence", 0.0),
                         "source_line": getattr(concept, "source_line", None),
                         "evidence": getattr(concept, "evidence", ""),
+                        "extraction_method": getattr(concept, "extraction_method", "regex"),
+                        "source_range": getattr(concept, "source_range", None),
                     },
                 },
             }

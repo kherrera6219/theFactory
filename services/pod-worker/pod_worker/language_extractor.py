@@ -54,6 +54,9 @@ class ExtractedConcept:
     source_line: int
     confidence: float
     evidence: str
+    # Provenance fields — populated by the extractor, forwarded to LogicNode payload.
+    extraction_method: str = "regex"  # "regex" | "ast"
+    source_range: tuple[int, int] | None = None  # (start_line, end_line); None = single-line
 
 
 @dataclass
@@ -135,8 +138,11 @@ class LanguageExtractor:
         for idx, line in enumerate(lines, start=1):
             match = self._function_pattern.search(line)
             if match:
-                name = (
-                    match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
+                # Patterns with alternating groups (e.g. JS) may have None in some groups;
+                # take the first non-None captured group, falling back to the whole match.
+                name = next(
+                    (g for g in match.groups() if g is not None),
+                    match.group(0),
                 )
                 found.append(FunctionInfo(name=name.strip(), line=idx, signature=line.strip()))
         return found
@@ -269,7 +275,7 @@ class PythonAstExtractor(PythonExtractor):
 class JavaScriptExtractor(LanguageExtractor):
     language = "javascript"
     _function_pattern = re.compile(
-        r"(?:function\s+(\w+)\s*\(|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)\s*=>|\function))",
+        r"(?:function\s+(\w+)\s*\(|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)\s*=>|function))",
         re.MULTILINE,
     )
     _class_pattern = re.compile(r"\bclass\s+(\w+)", re.MULTILINE)
