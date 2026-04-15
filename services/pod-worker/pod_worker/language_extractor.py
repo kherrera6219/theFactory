@@ -239,36 +239,65 @@ class PythonExtractor(LanguageExtractor):
 
 
 class PythonAstExtractor(PythonExtractor):
-    """Uses Python's built-in ``ast`` module for structural accuracy.
+    """Python extractor that uses AST for accurate structural analysis.
 
-    Regex still runs first via ``super().extract()`` to populate concepts
-    (LogicNodes).  AST then replaces the structural fields — functions,
-    classes, and imports — with zero-false-positive equivalents.  On
-    ``SyntaxError`` the regex result is returned unchanged.
+    Augments (does not replace) the regex concept detection:
+    - AST provides zero-false-positive function/class/import extraction with
+      base classes, type annotations, async detection, and decorator info.
+    - Regex concept patterns still run unchanged for downstream LogicNode production.
+    - Falls back transparently to regex-only on syntax errors.
+
+    Enable via ``PYTHON_AST_EXTRACTOR_ENABLED=true``.
     """
 
     def extract(self, source: str) -> ExtractionResult:
-        result = super().extract(source)  # regex runs first — always produces concepts
+        # Run the full regex pipeline first — this produces the concepts that
+        # feed LogicNodes and is always the source of truth for concept detection.
+        result = super().extract(source)
+
+        # Attempt AST-based structural enrichment.
         try:
-            from .ast_extractor import extract_python_ast
+            from .ast_extractor import extract_python_ast  # local import avoids circular dep
         except ImportError:
+            LOGGER.warning("ast_extractor not available; using regex-only extraction")
             return result
+
         ast_result = extract_python_ast(source)
         if not ast_result.success:
+            LOGGER.debug(
+                "Python AST parse failed (%s) — regex structural info retained",
+                ast_result.parse_error,
+            )
             return result
+
+        # Replace structural fields with AST-derived versions (more accurate).
         result.functions = [
             FunctionInfo(name=f.name, line=f.line, signature=f.signature)
             for f in ast_result.functions
         ]
         result.classes = [
-            ClassInfo(name=c.name, line=c.line, parents=c.bases)
+            ClassInfo(
+                name=c.name,
+                line=c.line,
+                parents=c.bases,
+            )
             for c in ast_result.classes
         ]
         result.imports = [
-            f"from {i.module} import {', '.join(i.names)}" if i.is_from
-            else f"import {', '.join(i.names)}"
+            (
+                f"from {i.module} import {', '.join(i.names)}"
+                if i.is_from
+                else f"import {', '.join(i.names)}"
+            )
             for i in ast_result.imports
         ]
+
+        LOGGER.debug(
+            "AST enrichment applied: %d functions, %d classes, %d imports",
+            len(result.functions),
+            len(result.classes),
+            len(result.imports),
+        )
         return result
 
 

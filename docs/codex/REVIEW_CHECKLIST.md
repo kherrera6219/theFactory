@@ -1,50 +1,67 @@
-# Code Review Checklist — theFactory / Holy Grail Refinery
+# PR Review Checklist — theFactory / Holy Grail Refinery
 
-Use this checklist when reviewing or self-reviewing a PR.
+Use this checklist for every pull request. The author fills it out; the reviewer verifies it.
 
 ---
 
-## Author checklist (complete before requesting review)
+## Author checklist
 
-- [ ] All Definition of Done items satisfied
-- [ ] `make validate` passes locally (ruff + schema validation + pytest + npm lint/test)
-- [ ] PR description explains *why*, not just *what*
-- [ ] Breaking changes clearly flagged
-- [ ] Sensitive files excluded (`.env`, `*.key`, `deploy/.local/`)
+### Tests & CI
+- [ ] `make lint` passes
+- [ ] `make test` passes
+- [ ] `make test-ui` passes
+- [ ] `make test-ui-e2e` passes, or the waiver is recorded below
+- [ ] `make validate` passes when the change touches schema/runtime-sensitive areas
+
+### Code correctness
+- [ ] Every touched file was read before it was changed
+- [ ] The diff matches the task and does not introduce unrelated scope
+- [ ] Edge cases and failure paths are handled explicitly
+
+### Extractors
+- [ ] Fixture comparison included for extractor changes
+- [ ] Golden extractor tests pass
+- [ ] Extraction method / fallback behavior stays accurate
+
+### Orchestrator / Runtime
+- [ ] Lifecycle event and state transition behavior remains consistent
+- [ ] Topology/runtime metadata remains accurate
+- [ ] Internal write paths still respect auth and persistence boundaries
+
+### Mission Control / Frontend
+- [ ] UI types match backend payloads
+- [ ] No fictional topology, agent count, or mocked production state is introduced
+- [ ] Accessibility/status affordances remain intact where UI changed
+
+### Security
+- [ ] No new secrets in code or config
+- [ ] Auth checks are not bypassed or weakened
+- [ ] Replay/dedup/circuit-breaker controls remain intact where applicable
+
+### Documentation
+- [ ] Relevant docs reflect the behavior change
+- [ ] `AGENTS.md` updated if architecture/topology/lifecycle changed
+- [ ] No new doc-to-code contradiction introduced
+
+---
 
 ## Reviewer checklist
 
-### Correctness
-- [ ] Logic matches stated intent
-- [ ] Edge cases handled (empty lists, null fields, network errors)
-- [ ] No silent swallowing of exceptions without logging
-
-### Security
-- [ ] No new secrets in code or comments
-- [ ] Auth boundaries respected — internal routes use `INTERNAL_AUTH_DEP`
-- [ ] User input validated at system boundaries
-
-### Architecture fitness
-- [ ] Follows existing module boundaries (no new cross-cutting imports)
-- [ ] New modules added to `__init__.py` where appropriate
-- [ ] No duplicated logic that should be centralised
-
-### TypeScript / Frontend
-- [ ] New API response fields reflected in `types.ts`
-- [ ] No hardcoded counts or topology-specific copy
-- [ ] Accessibility: `aria-*` attributes on interactive/status elements
-
-### Tests
-- [ ] Test coverage added for new code paths
-- [ ] Mocks at correct module level (avoid patching re-exported names)
-- [ ] No tests that only test the mock
+- [ ] Diff is consistent with the stated intent
+- [ ] Tests cover the changed code paths
+- [ ] The Definition of Done in `docs/codex/DEFINITION_OF_DONE.md` is satisfied
+- [ ] No conflict markers, dead code, or accidental debug scaffolding remain
 
 ---
 
 ## Waiver log
 
-If a checklist item is waived, record it here with justification.
+If any item above is waived, record it here with a reason.
 
-| PR | Item waived | Reason | Author |
-|----|-------------|--------|--------|
-|    |             |        |        |
+| Item waived | Reason | Approved by |
+|---|---|---|
+| | | |
+
+---
+
+*Derived from `AGENTS.md §6` and `docs/codex/DEFINITION_OF_DONE.md`.*

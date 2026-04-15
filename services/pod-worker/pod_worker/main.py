@@ -85,6 +85,7 @@ def _get_extractor(language: str):  # type: ignore[return]
     return get_extractor(language)
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 POD_DLQ_STREAM = os.getenv("POD_DLQ_STREAM", "factory:dlq:pod-worker")
+PYTHON_AST_EXTRACTOR_ENABLED = os.getenv("PYTHON_AST_EXTRACTOR_ENABLED", "false").strip().lower() == "true"
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 
 EVENT_SCHEMA_PATH = Path("/app/schemas/event.envelope.schema.json")
@@ -139,6 +140,17 @@ INTERNAL_AUTH_REJECTIONS = Counter(
 INTERNAL_AUTH_FAILURES = 0
 LAST_INTERNAL_AUTH_STATUS: int | None = None
 _SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
+
+
+def _get_extractor(language: str):
+    """Return the appropriate extractor for *language*.
+
+    Uses PythonAstExtractor when PYTHON_AST_EXTRACTOR_ENABLED is true and the
+    target language is Python.  All other languages use the standard registry.
+    """
+    if language == "python" and PYTHON_AST_EXTRACTOR_ENABLED:
+        return PythonAstExtractor()
+    return get_extractor(language)
 
 
 def _parse_agent_binding(raw: str) -> tuple[str, ...]:

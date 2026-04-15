@@ -1,4 +1,5 @@
 .PHONY: up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai audit promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs
+# validate: full pre-merge gate — lint + schema check + pytest + UI lint/test
 
 up: tls-certs
 	docker compose -f deploy/docker-compose.yaml up -d --build
@@ -27,8 +28,11 @@ monitor-down:
 	docker compose -f deploy/docker-compose.monitoring.yaml down -v
 
 validate:
+	ruff check services tests scripts
 	python scripts/validate_schemas.py
 	python scripts/build_refined_ir_catalog.py
+	pytest --tb=short -q
+	cd apps/mission-control && npm run lint && npm run test
 
 lint:
 	ruff check services tests scripts
