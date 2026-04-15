@@ -2,20 +2,352 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
 
 from .. import milvus_store, neo4j_store, object_store, qdrant_store, storage
-from ..agent_integrations import build_agent_integrations_snapshot
+from ..agent_integrations import build_agent_integration_record, build_agent_integrations_snapshot
+from ..agent_registry import AGENT_REGISTRY, normalize_language
 from ..auth import AuthContext
+from ..heartbeat_service import (
+    AGENT_HEARTBEAT_STALE_SECONDS,
+    _state_for_agent,
+    _workload_for_agent,
+)
 from ..models import MissionRecord
 from ._deps import INTERNAL_AUTH_DEP
 
 LOGGER = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Operations snapshot helpers (moved from main.py)
+# ---------------------------------------------------------------------------
+
+
+def _normalize_pod_name(value: str) -> str:
+    return value.strip().lower().replace(" ", "").replace("-", "").replace("_", "")
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    candidate = value
+    if candidate.endswith("Z"):
+        candidate = candidate[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(UTC)
+
+
+def _build_operational_alerts(
+    *,
+    redis_ready: bool,
+    db_ready: bool,
+    protocol_ready: bool,
+    consumer_running: bool,
+    state_counts: dict[str, int],
+    blocked_completion_count: int,
+    limit: int,
+) -> list[dict[str, Any]]:
+    alerts: list[dict[str, Any]] = []
+    now = datetime.now(UTC).isoformat()
+
+    if not redis_ready:
+        alerts.append(
+            {
+                "alert_id": "runtime-redis-unavailable",
+                "severity": "critical",
+                "state": "open",
+                "title": "Redis unavailable",
+                "source": "orchestrator-runtime",
+                "created_at": now,
+                "recommendation": (
+                    "Restore Redis connectivity before accepting new mission intake load."
+                ),
+            }
+        )
+    if not db_ready:
+        alerts.append(
+            {
+                "alert_id": "runtime-db-unavailable",
+                "severity": "critical",
+                "state": "open",
+                "title": "Postgres unavailable",
+                "source": "orchestrator-runtime",
+                "created_at": now,
+                "recommendation": (
+                    "Restore database access before mission lifecycle transitions continue."
+                ),
+            }
+        )
+    if not protocol_ready:
+        alerts.append(
+            {
+                "alert_id": "runtime-protocol-not-ready",
+                "severity": "high",
+                "state": "open",
+                "title": "Protocol validator not ready",
+                "source": "orchestrator-runtime",
+                "created_at": now,
+                "recommendation": "Verify protocol/topic definitions and schema loading paths.",
+            }
+        )
+    if not consumer_running:
+        alerts.append(
+            {
+                "alert_id": "runtime-consumer-not-running",
+                "severity": "high",
+                "state": "open",
+                "title": "Intake consumer not running",
+                "source": "orchestrator-runtime",
+                "created_at": now,
+                "recommendation": (
+                    "Restart the intake consumer group and inspect runtime self-heal logs."
+                ),
+            }
+        )
+
+    failed_count = int(state_counts.get("FAILED", 0))
+    if failed_count > 0:
+        alerts.append(
+            {
+                "alert_id": "missions-failed-present",
+                "severity": "medium",
+                "state": "open",
+                "title": "Failed missions present",
+                "source": "mission-lifecycle",
+                "created_at": now,
+                "recommendation": (
+                    f"Review {failed_count} failed mission(s) and replay or remediate as needed."
+                ),
+            }
+        )
+    if blocked_completion_count > 0:
+        alerts.append(
+            {
+                "alert_id": "missions-completion-blocked",
+                "severity": "high",
+                "state": "open",
+                "title": "Mission completion blocked by missing artifacts",
+                "source": "mission-lifecycle",
+                "created_at": now,
+                "recommendation": (
+                    "Review mission chain trace and ensure pod assignment or LogicNode "
+                    "evidence exists before completion."
+                ),
+            }
+        )
+
+    return alerts[:limit]
+
+
+def _build_operations_agents_snapshot(
+    *,
+    generated_at: datetime,
+    runtime: dict[str, bool],
+    missions: list[MissionRecord],
+    pod_assignments: list[dict[str, Any]],
+    recent_events: list[Any],
+    agent_heartbeats: list[dict[str, Any]],
+) -> dict[str, Any]:
+    from ..models import MissionState  # local import avoids re-declaring at module level
+
+    active_states = {MissionState.queued, MissionState.running, MissionState.verified}
+    active_missions = [mission for mission in missions if mission.state in active_states]
+    active_mission_ids = {mission.mission_id for mission in active_missions}
+    verified_mission_ids = {
+        mission.mission_id for mission in missions if mission.state == MissionState.verified
+    }
+    complete_mission_ids = {
+        mission.mission_id for mission in missions if mission.state == MissionState.complete
+    }
+    mission_by_id = {mission.mission_id: mission for mission in missions}
+
+    assignment_by_mission: dict[str, str] = {}
+    active_ids_by_pod: dict[str, list[str]] = defaultdict(list)
+    for assignment in pod_assignments:
+        mission_id = str(assignment.get("mission_id", ""))
+        pod_key = _normalize_pod_name(str(assignment.get("pod_name", "")))
+        if not mission_id or not pod_key:
+            continue
+        assignment_by_mission[mission_id] = pod_key
+        if mission_id in active_mission_ids:
+            active_ids_by_pod[pod_key].append(mission_id)
+
+    specialist_lookup: dict[tuple[str, str], str] = {}
+    specialist_missions: dict[str, list[str]] = {}
+    for agent in AGENT_REGISTRY:
+        if agent.category != "specialist":
+            continue
+        specialist_missions[agent.agent_id] = []
+        pod_key = _normalize_pod_name(agent.pod)
+        for specialty in agent.specialties:
+            specialist_lookup[(pod_key, normalize_language(specialty))] = agent.agent_id
+
+    for mission_id in sorted(active_mission_ids):
+        pod_key = assignment_by_mission.get(mission_id)
+        if not pod_key:
+            continue
+        mission = mission_by_id.get(mission_id)
+        if mission is None:
+            continue
+        normalized_language = normalize_language(mission.requested_target_language)
+        specialist_id = specialist_lookup.get((pod_key, normalized_language))
+        if specialist_id is None and pod_key == "poda":
+            specialist_id = "AGENT-14-PYTHON"
+        if specialist_id is not None:
+            specialist_missions.setdefault(specialist_id, []).append(mission_id)
+
+    pod_active_counts = {pod: len(ids) for pod, ids in active_ids_by_pod.items()}
+    recent_complete_events = 0
+    for event in recent_events:
+        if hasattr(event, "new_state"):
+            new_state = getattr(event, "new_state", "")
+            candidate = getattr(new_state, "value", new_state)
+        elif isinstance(event, dict):
+            candidate = event.get("new_state", "")
+        else:
+            candidate = ""
+        if str(candidate).upper() == "COMPLETE":
+            recent_complete_events += 1
+    deployment_backlog = max(len(complete_mission_ids), recent_complete_events)
+
+    sorted_active_ids = sorted(active_mission_ids)
+    sorted_verified_ids = sorted(verified_mission_ids)
+    sorted_complete_ids = sorted(complete_mission_ids)
+    heartbeat_map = {
+        str(record.get("agent_id", "")): record
+        for record in agent_heartbeats
+        if isinstance(record, dict) and str(record.get("agent_id", ""))
+    }
+    integration_map = {
+        record["agent_id"]: record
+        for record in (build_agent_integration_record(agent) for agent in AGENT_REGISTRY)
+    }
+
+    agents_payload: list[dict[str, Any]] = []
+    for agent in AGENT_REGISTRY:
+        pod_key = _normalize_pod_name(agent.pod)
+        live_record = heartbeat_map.get(agent.agent_id)
+        integration_record = integration_map.get(agent.agent_id, {})
+        persona_profile = integration_record.get("persona_profile", {})
+        heartbeat_age_seconds: int | None = None
+        heartbeat_source = "heuristic"
+
+        if agent.category in {"interface", "executive"}:
+            queue_depth = len(active_mission_ids)
+            related_missions = sorted_active_ids
+        elif agent.category == "support":
+            if agent.short_code == "HW":
+                related_missions = sorted(active_ids_by_pod.get("podb", []))
+                queue_depth = len(related_missions)
+            elif agent.short_code == "TESTER":
+                related_missions = sorted_verified_ids
+                queue_depth = len(related_missions)
+            elif agent.short_code == "DEPLOY":
+                related_missions = sorted_complete_ids
+                queue_depth = deployment_backlog
+            else:
+                related_missions = sorted_active_ids
+                queue_depth = len(related_missions)
+        elif agent.category in {"pod_manager", "pod_audit"}:
+            related_missions = sorted(active_ids_by_pod.get(pod_key, []))
+            queue_depth = len(related_missions)
+        else:
+            related_missions = sorted(specialist_missions.get(agent.agent_id, []))
+            queue_depth = len(related_missions)
+
+        if live_record is not None:
+            heartbeat_source = "live"
+            state = str(live_record.get("state", "IDLE")).upper()
+            queue_depth = max(0, int(live_record.get("queue_depth", 0)))
+            workload_pct = min(100, max(0, int(live_record.get("workload_pct", 0))))
+            live_missions = live_record.get("active_mission_ids", [])
+            if isinstance(live_missions, list):
+                related_missions = [
+                    mission_id
+                    for mission_id in (str(value) for value in live_missions)
+                    if mission_id
+                ][:25]
+            heartbeat_iso = str(live_record.get("last_heartbeat", generated_at.isoformat()))
+            heartbeat_dt = _parse_iso_datetime(heartbeat_iso)
+            if heartbeat_dt is not None:
+                heartbeat_age_seconds = max(0, int((generated_at - heartbeat_dt).total_seconds()))
+                if heartbeat_age_seconds > AGENT_HEARTBEAT_STALE_SECONDS:
+                    heartbeat_source = "stale"
+                    if state not in {"ERROR", "PAUSED"}:
+                        state = "PAUSED"
+        else:
+            state = _state_for_agent(
+                category=agent.category,
+                short_code=agent.short_code,
+                queue_depth=queue_depth,
+                runtime=runtime,
+            )
+            workload_pct = _workload_for_agent(
+                category=agent.category,
+                state=state,
+                queue_depth=queue_depth,
+            )
+            heartbeat_iso = (generated_at - timedelta(seconds=(agent.index % 9) * 3)).isoformat()
+            heartbeat_age_seconds = None
+
+        agents_payload.append(
+            {
+                "index": agent.index,
+                "agent_id": agent.agent_id,
+                "short_code": agent.short_code,
+                "name": agent.name,
+                "tier": agent.tier,
+                "pod": agent.pod,
+                "role": agent.role,
+                "category": agent.category,
+                "specialties": list(agent.specialties),
+                "state": state,
+                "queue_depth": queue_depth,
+                "workload_pct": workload_pct,
+                "last_heartbeat_iso": heartbeat_iso,
+                "active_mission_ids": related_missions[:25],
+                "runtime_class": agent.runtime_class,
+                "heartbeat_source": heartbeat_source,
+                "heartbeat_age_seconds": heartbeat_age_seconds,
+                "persona_profile": persona_profile if isinstance(persona_profile, dict) else {},
+            }
+        )
+
+    state_counts: dict[str, int] = defaultdict(int)
+    tier_counts: dict[str, int] = defaultdict(int)
+    pod_counts: dict[str, int] = defaultdict(int)
+    for record in agents_payload:
+        state_counts[str(record["state"])] += 1
+        tier_counts[str(record["tier"])] += 1
+        pod_counts[str(record["pod"])] += 1
+
+    return {
+        "generated_at": generated_at.isoformat(),
+        "total_agents": len(agents_payload),
+        "runtime": runtime,
+        "mission_backlog": {
+            "active": len(active_mission_ids),
+            "verified": len(verified_mission_ids),
+            "complete": len(complete_mission_ids),
+            "assigned_active": sum(pod_active_counts.values()),
+        },
+        "tier_counts": dict(sorted(tier_counts.items())),
+        "pod_counts": dict(sorted(pod_counts.items())),
+        "state_counts": dict(sorted(state_counts.items())),
+        "agents": agents_payload,
+    }
 
 
 @router.get("/internal/operations/summary")
@@ -131,7 +463,7 @@ async def get_operations_agents(
         "consumer_running": consumer_running,
         **_main._langgraph_runtime_payload(app),
     }
-    snapshot = _main._build_operations_agents_snapshot(
+    snapshot = _build_operations_agents_snapshot(
         generated_at=datetime.now(UTC),
         runtime=runtime,
         missions=missions,
@@ -252,7 +584,7 @@ async def get_operations_alerts(
     protocol_ready = bool(getattr(app.state, "protocol_ready", False))
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
-    return _main._build_operational_alerts(
+    return _build_operational_alerts(
         redis_ready=redis_ready,
         db_ready=db_ready,
         protocol_ready=protocol_ready,

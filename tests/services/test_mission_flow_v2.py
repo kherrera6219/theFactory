@@ -703,3 +703,61 @@ async def test_scaling_emits_partition_events_and_waits_for_results() -> None:
     assert "MISSION_RUNNING" in emitted_events
     assert "MISSION_GATING" not in emitted_events
     assert app.state.redis.xadd.await_count == 2
+
+
+# ---------------------------------------------------------------------------
+# VALID_TRANSITIONS centralization contract
+# ---------------------------------------------------------------------------
+
+
+class TestValidTransitionsContract:
+    """Assert V2_TRANSITIONS (and V1_TRANSITIONS) only use state pairs that are
+    listed in models.VALID_TRANSITIONS, making that dict the single source of
+    truth for allowable state machine moves."""
+
+    VALID_TRANSITIONS = orchestrator_models.VALID_TRANSITIONS
+
+    def test_v2_transitions_respect_valid_transitions(self):
+        """Every (from, to) pair in V2_TRANSITIONS must be in VALID_TRANSITIONS."""
+        violations: list[str] = []
+        for from_state, to_state, event_type in V2_TRANSITIONS:
+            allowed = self.VALID_TRANSITIONS.get(from_state, set())
+            if to_state not in allowed:
+                violations.append(
+                    f"V2_TRANSITIONS has {from_state.value!r} → {to_state.value!r} "
+                    f"(event {event_type!r}) but VALID_TRANSITIONS does not permit it"
+                )
+        assert not violations, "\n".join(violations)
+
+    def test_v1_transitions_respect_valid_transitions(self):
+        """Every (from, to) pair in V1_TRANSITIONS must be in VALID_TRANSITIONS."""
+        violations: list[str] = []
+        for from_state, to_state, event_type in V1_TRANSITIONS:
+            allowed = self.VALID_TRANSITIONS.get(from_state, set())
+            if to_state not in allowed:
+                violations.append(
+                    f"V1_TRANSITIONS has {from_state.value!r} → {to_state.value!r} "
+                    f"(event {event_type!r}) but VALID_TRANSITIONS does not permit it"
+                )
+        assert not violations, "\n".join(violations)
+
+    def test_valid_transitions_covers_all_mission_states(self):
+        """Every MissionState must appear as a key in VALID_TRANSITIONS."""
+        missing = [
+            state
+            for state in MissionState
+            if state not in self.VALID_TRANSITIONS
+        ]
+        assert not missing, f"States not in VALID_TRANSITIONS: {[s.value for s in missing]}"
+
+    def test_valid_transitions_target_states_are_known(self):
+        """Every destination state in VALID_TRANSITIONS must be a valid MissionState."""
+        known = set(MissionState)
+        bad: list[str] = []
+        for from_state, to_states in self.VALID_TRANSITIONS.items():
+            for to_state in to_states:
+                if to_state not in known:
+                    bad.append(
+                        f"VALID_TRANSITIONS[{from_state.value!r}] contains unknown state {to_state!r}"
+                    )
+        assert not bad, "\n".join(bad)

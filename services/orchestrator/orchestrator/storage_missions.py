@@ -1,0 +1,448 @@
+"""storage_missions.py — Mission CRUD, state-event log, and partition-result recording."""
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from .agent_scaling import (
+    PartitionResult as ScalingPartitionResult,
+)
+from .agent_scaling import (
+    all_partitions_complete,
+    merge_partition_results,
+)
+from .agent_scaling import (
+    record_partition_result as embed_partition_result,
+)
+from .models import MissionEvent, MissionRecord, MissionState
+from .settings import Settings
+from .storage_core import _json_to_dict, _to_iso, db_connect, psycopg
+
+
+def row_to_mission(row: Any) -> MissionRecord:
+    return MissionRecord(
+        mission_id=row[0],
+        prompt=row[1],
+        requested_target_language=row[2],
+        metadata=_json_to_dict(row[3]),
+        state=MissionState(row[4]),
+        created_at=_to_iso(row[5]),
+    )
+
+
+def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: str | None) -> None:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO missions (
+                    mission_id,
+                    prompt,
+                    requested_target_language,
+                    metadata_json,
+                    state,
+                    created_at,
+                    updated_at,
+                    source_stream_id
+                )
+                VALUES (%s, %s, %s, %s::jsonb, %s, %s::timestamptz, NOW(), %s)
+                ON CONFLICT (mission_id) DO UPDATE SET
+                    prompt = EXCLUDED.prompt,
+                    requested_target_language = EXCLUDED.requested_target_language,
+                    metadata_json = EXCLUDED.metadata_json,
+                    state = EXCLUDED.state,
+                    updated_at = NOW(),
+                    source_stream_id = EXCLUDED.source_stream_id;
+                """,
+                (
+                    record.mission_id,
+                    record.prompt,
+                    record.requested_target_language,
+                    json.dumps(record.metadata),
+                    record.state.value,
+                    record.created_at,
+                    source_stream_id,
+                ),
+            )
+
+
+def fetch_mission(settings: Settings, mission_id: str) -> MissionRecord | None:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    mission_id,
+                    prompt,
+                    requested_target_language,
+                    metadata_json,
+                    state,
+                    created_at
+                FROM missions
+                WHERE mission_id = %s
+                """,
+                (mission_id,),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        return None
+    return row_to_mission(row)
+
+
+def update_mission_metadata(
+    settings: Settings,
+    mission_id: str,
+    metadata: dict[str, Any],
+) -> MissionRecord | None:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE missions
+                SET metadata_json = %s::jsonb, updated_at = NOW()
+                WHERE mission_id = %s
+                RETURNING
+                    mission_id,
+                    prompt,
+                    requested_target_language,
+                    metadata_json,
+                    state,
+                    created_at
+                """,
+                (json.dumps(metadata), mission_id),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        return None
+    return row_to_mission(row)
+
+
+def list_missions(settings: Settings, limit: int) -> list[MissionRecord]:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    mission_id,
+                    prompt,
+                    requested_target_language,
+                    metadata_json,
+                    state,
+                    created_at
+                FROM missions
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cur.fetchall()
+
+    return [row_to_mission(row) for row in rows]
+
+
+def list_missions_in_states(
+    settings: Settings,
+    states: list[MissionState] | tuple[MissionState, ...],
+    limit: int,
+) -> list[MissionRecord]:
+    normalized_states = [state.value for state in states if isinstance(state, MissionState)]
+    if not normalized_states:
+        return []
+
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    mission_id,
+                    prompt,
+                    requested_target_language,
+                    metadata_json,
+                    state,
+                    created_at
+                FROM missions
+                WHERE state = ANY(%s)
+                ORDER BY created_at ASC
+                LIMIT %s
+                """,
+                (normalized_states, max(1, int(limit))),
+            )
+            rows = cur.fetchall()
+
+    return [row_to_mission(row) for row in rows]
+
+
+def insert_mission_event(
+    settings: Settings,
+    mission_id: str,
+    previous_state: MissionState | None,
+    new_state: MissionState,
+    event_type: str,
+) -> None:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO mission_state_events (mission_id, previous_state, new_state, event_type)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (
+                    mission_id,
+                    previous_state.value if previous_state else None,
+                    new_state.value,
+                    event_type,
+                ),
+            )
+
+
+def list_mission_events(settings: Settings, mission_id: str, limit: int) -> list[MissionEvent]:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT mission_id, previous_state, new_state, event_type, ts
+                FROM mission_state_events
+                WHERE mission_id = %s
+                ORDER BY ts DESC
+                LIMIT %s
+                """,
+                (mission_id, limit),
+            )
+            rows = cur.fetchall()
+
+    events: list[MissionEvent] = []
+    for row in rows:
+        previous_state = MissionState(row[1]) if row[1] else None
+        events.append(
+            MissionEvent(
+                mission_id=row[0],
+                previous_state=previous_state,
+                new_state=MissionState(row[2]),
+                event_type=row[3],
+                ts=_to_iso(row[4]),
+            )
+        )
+    return events
+
+
+def list_recent_mission_events(settings: Settings, limit: int) -> list[MissionEvent]:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT mission_id, previous_state, new_state, event_type, ts
+                FROM mission_state_events
+                ORDER BY ts DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cur.fetchall()
+
+    events: list[MissionEvent] = []
+    for row in rows:
+        previous_state = MissionState(row[1]) if row[1] else None
+        events.append(
+            MissionEvent(
+                mission_id=row[0],
+                previous_state=previous_state,
+                new_state=MissionState(row[2]),
+                event_type=row[3],
+                ts=_to_iso(row[4]),
+            )
+        )
+    return events
+
+
+def transition_mission_state(
+    settings: Settings,
+    mission_id: str,
+    expected_state: MissionState | None,
+    new_state: MissionState,
+    event_type: str,
+) -> MissionRecord | None:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            if expected_state is None:
+                cur.execute(
+                    """
+                    UPDATE missions
+                    SET state = %s, updated_at = NOW()
+                    WHERE mission_id = %s
+                    RETURNING
+                        mission_id,
+                        prompt,
+                        requested_target_language,
+                        metadata_json,
+                        state,
+                        created_at
+                    """,
+                    (new_state.value, mission_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE missions
+                    SET state = %s, updated_at = NOW()
+                    WHERE mission_id = %s AND state = %s
+                    RETURNING
+                        mission_id,
+                        prompt,
+                        requested_target_language,
+                        metadata_json,
+                        state,
+                        created_at
+                    """,
+                    (new_state.value, mission_id, expected_state.value),
+                )
+            row = cur.fetchone()
+
+    if not row:
+        return None
+
+    record = row_to_mission(row)
+    insert_mission_event(settings, mission_id, expected_state, new_state, event_type)
+    return record
+
+
+def count_missions(settings: Settings) -> int:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM missions")
+            row = cur.fetchone()
+    return int(row[0] if row else 0)
+
+
+def mission_state_counts(settings: Settings) -> dict[str, int]:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT state, COUNT(*)
+                FROM missions
+                GROUP BY state
+                """
+            )
+            rows = cur.fetchall()
+
+    return {str(row[0]): int(row[1]) for row in rows}
+
+
+def _locked_mission_metadata_update(
+    settings: Settings,
+    mission_id: str,
+    updater: Any,
+) -> MissionRecord | None:
+    if psycopg is None:
+        raise RuntimeError("psycopg dependency is not installed")
+
+    conn = psycopg.connect(settings.postgres_url, autocommit=False)
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        mission_id,
+                        prompt,
+                        requested_target_language,
+                        metadata_json,
+                        state,
+                        created_at
+                    FROM missions
+                    WHERE mission_id = %s
+                    FOR UPDATE
+                    """,
+                    (mission_id,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return None
+
+                mission = row_to_mission(row)
+                metadata = dict(mission.metadata) if isinstance(mission.metadata, dict) else {}
+                updated_metadata = updater(metadata, mission)
+                if not isinstance(updated_metadata, dict):
+                    updated_metadata = metadata
+
+                cur.execute(
+                    """
+                    UPDATE missions
+                    SET metadata_json = %s::jsonb, updated_at = NOW()
+                    WHERE mission_id = %s
+                    RETURNING
+                        mission_id,
+                        prompt,
+                        requested_target_language,
+                        metadata_json,
+                        state,
+                        created_at
+                    """,
+                    (json.dumps(updated_metadata), mission_id),
+                )
+                updated_row = cur.fetchone()
+                if updated_row is None:
+                    return None
+        return row_to_mission(updated_row)
+    finally:
+        conn.close()
+
+
+def record_partition_result(
+    settings: Settings,
+    mission_id: str,
+    result: dict[str, Any],
+) -> MissionRecord | None:
+    partition_result = ScalingPartitionResult(
+        partition_id=str(result.get("partition_id", "")),
+        instance_index=int(result.get("instance_index", 0)),
+        agent_id=str(result.get("agent_id", "")),
+        logicnodes=[node for node in result.get("logicnodes", []) if isinstance(node, dict)],
+        artifacts=[
+            artifact for artifact in result.get("artifacts", []) if isinstance(artifact, dict)
+        ],
+        report=result.get("report") if isinstance(result.get("report"), dict) else {},
+        completed_at=str(result.get("completed_at", "")),
+    )
+
+    def _update(metadata: dict[str, Any], _mission: MissionRecord) -> dict[str, Any]:
+        embed_partition_result(metadata, partition_result)
+        metadata["last_partition_result_at"] = partition_result.completed_at
+        partition_results = metadata.get("partition_results")
+        if isinstance(partition_results, dict):
+            metadata["partition_result_count"] = len(partition_results)
+
+        if all_partitions_complete(metadata):
+            results: list[ScalingPartitionResult] = []
+            for raw in (metadata.get("partition_results") or {}).values():
+                if not isinstance(raw, dict):
+                    continue
+                results.append(
+                    ScalingPartitionResult(
+                        partition_id=str(raw.get("partition_id", "")),
+                        instance_index=int(raw.get("instance_index", 0)),
+                        agent_id=str(raw.get("agent_id", "")),
+                        logicnodes=[
+                            node for node in raw.get("logicnodes", []) if isinstance(node, dict)
+                        ],
+                        artifacts=[
+                            artifact
+                            for artifact in raw.get("artifacts", [])
+                            if isinstance(artifact, dict)
+                        ],
+                        report=raw.get("report") if isinstance(raw.get("report"), dict) else {},
+                        completed_at=str(raw.get("completed_at", "")),
+                    )
+                )
+            merged = merge_partition_results(results)
+            metadata["merged_partition_result"] = merged.to_dict()
+            metadata["scaling_merge_complete"] = True
+            metadata["scaling_completed_at"] = merged.merged_at
+        else:
+            metadata["scaling_merge_complete"] = False
+
+        return metadata
+
+    return _locked_mission_metadata_update(settings, mission_id, _update)

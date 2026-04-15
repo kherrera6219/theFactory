@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 orchestrator_main = importlib.import_module("orchestrator.main")
 orchestrator_auth = importlib.import_module("orchestrator.auth")
 orchestrator_models = importlib.import_module("orchestrator.models")
+orchestrator_internal = importlib.import_module("orchestrator.routes.internal")
 
 MissionEvent = orchestrator_models.MissionEvent
 MissionRecord = orchestrator_models.MissionRecord
@@ -227,7 +228,7 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
         created_at="2026-03-01T00:00:00+00:00",
     )
 
-    payload = orchestrator_main._build_mission_chain_trace(
+    payload = orchestrator_internal._build_mission_chain_trace(
         mission=mission,
         pod_assignment={"pod_name": "podA"},
         logicnodes=[{"node_id": "node-1", "created_at": "2026-03-01T00:00:01+00:00"}],

@@ -56,6 +56,7 @@ function inferEventLevel(eventType: string): AgentLogLevel {
 }
 
 export default function AgentsPage() {
+  const [viewMode, setViewMode] = useState<"runtime" | "conceptual">("runtime");
   const [tierFilter, setTierFilter] = useState<string>("ALL");
   const [podFilter, setPodFilter] = useState<string>("ALL");
   const [stateFilter, setStateFilter] = useState<string>("ALL");
@@ -227,6 +228,16 @@ export default function AgentsPage() {
   const filteredAgents = useMemo(
     () =>
       agents.filter((agent) => {
+        if (viewMode === "runtime") {
+          // Active Runtime: show only agents with confirmed live heartbeats.
+          // Use heartbeat_source when available; fall back to runtime_class.
+          const src = agent.heartbeat_source;
+          if (src != null) {
+            if (src !== "live") return false;
+          } else if (agent.runtime_class !== "shared_worker") {
+            return false;
+          }
+        }
         if (tierFilter !== "ALL" && agent.tier !== tierFilter) {
           return false;
         }
@@ -238,7 +249,7 @@ export default function AgentsPage() {
         }
         return true;
       }),
-    [agents, tierFilter, podFilter, stateFilter],
+    [agents, viewMode, tierFilter, podFilter, stateFilter],
   );
 
   const virtualizedAgents = useMemo(() => {
@@ -341,6 +352,25 @@ export default function AgentsPage() {
       />
 
       <Panel title="Filters">
+        <div className="inline-actions" style={{ marginBottom: "0.75rem" }}>
+          <span className="muted">View mode</span>
+          <button
+            type="button"
+            className={`secondary-button ${viewMode === "runtime" ? "active-tab" : ""}`}
+            onClick={() => setViewMode("runtime")}
+            title="Show only agents with confirmed live heartbeats"
+          >
+            Active Runtime
+          </button>
+          <button
+            type="button"
+            className={`secondary-button ${viewMode === "conceptual" ? "active-tab" : ""}`}
+            onClick={() => setViewMode("conceptual")}
+            title="Show full agent registry including synthesized and stale entries"
+          >
+            Conceptual Architecture
+          </button>
+        </div>
         <div className="filters-grid">
           <label>
             Tier
@@ -377,6 +407,35 @@ export default function AgentsPage() {
 
       <Panel title="Runtime Dependencies">
         {error && <p className="error-box">{error}</p>}
+        {!error && snapshot && (
+          <div role="alert" aria-live="polite">
+            {!snapshot.runtime.consumer_running && (
+              <p className="warning-box">
+                Consumer task is not running — mission intake is paused. New missions will not be processed until the consumer restarts.
+              </p>
+            )}
+            {!snapshot.runtime.protocol_ready && (
+              <p className="warning-box">
+                Protocol validation is unavailable — mission envelope validation is disabled.
+              </p>
+            )}
+            {!snapshot.runtime.redis_ready && (
+              <p className="warning-box">
+                Redis is unavailable — event streaming and state bus features are degraded.
+              </p>
+            )}
+            {!snapshot.runtime.db_ready && (
+              <p className="error-box">
+                Database is unavailable — all mission operations are blocked.
+              </p>
+            )}
+            {snapshot.runtime.langgraph_enabled === false && (
+              <p className="warning-box">
+                LangGraph is disabled (LANGGRAPH_ENABLED=false) — missions will use the legacy runtime path.
+              </p>
+            )}
+          </div>
+        )}
         {!error && (
           <ul className="summary-list">
             <li>
@@ -812,9 +871,12 @@ function AgentRow({
       <td>
         <span
           className={`connection-chip ${RUNTIME_CLASS_CHIP_CLASS[runtimeClass as AgentRuntimeClass] ?? "stale"}`}
-          title={runtimeClass}
+          title={`runtime_class=${runtimeClass}${agent.heartbeat_source ? ` heartbeat_source=${agent.heartbeat_source}` : ""}`}
         >
           {RUNTIME_CLASS_LABELS[runtimeClass as AgentRuntimeClass] ?? runtimeClass}
+          {agent.heartbeat_source && agent.heartbeat_source !== "live" && (
+            <span style={{ marginLeft: "0.25em", opacity: 0.75 }}>({agent.heartbeat_source})</span>
+          )}
         </span>
       </td>
       <td>{formatDateTime(agent.last_heartbeat_iso)}</td>
