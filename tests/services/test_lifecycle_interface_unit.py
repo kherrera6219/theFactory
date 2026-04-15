@@ -250,6 +250,134 @@ class TestLegacyV1Engine:
 
 
 # ---------------------------------------------------------------------------
+# Event schema equivalence — item 13
+# ---------------------------------------------------------------------------
+
+
+class TestEventSchemaEquivalence:
+    """Assert that all three engine adapters emit events with identical schema.
+
+    Strategy:
+      1. Verify each engine routes emissions through the canonical
+         ``runtime.emit_state_event`` function (structurally, via AST).
+      2. Lock down ``emit_state_event``'s own kwarg signature so a future
+         refactor cannot silently change the envelope contract.
+      3. Verify that the event-type strings directly present in
+         LegacyV1Engine.advance (the only engine that embeds them inline)
+         are members of the canonical ``models.EventType`` literal.
+    """
+
+    def test_legacy_engine_calls_emit_state_event_directly(self) -> None:
+        """LegacyV1Engine.advance must call emit_state_event in its body."""
+        import ast as _ast
+        import inspect
+        import textwrap
+
+        src = textwrap.dedent(inspect.getsource(LegacyV1Engine.advance))
+        tree = _ast.parse(src)
+        emit_calls = sum(
+            1
+            for node in _ast.walk(tree)
+            if isinstance(node, _ast.Call)
+            and isinstance(node.func, _ast.Attribute)
+            and node.func.attr == "emit_state_event"
+        )
+        assert emit_calls > 0, (
+            "LegacyV1Engine.advance must call emit_state_event directly; found 0 calls"
+        )
+
+    def test_v2_engine_delegates_via_emit_state_event_fn_callback(self) -> None:
+        """MissionFlowV2Engine must pass emit_state_event as a callback (kwarg)."""
+        import ast as _ast
+        import inspect
+        import textwrap
+
+        src = textwrap.dedent(inspect.getsource(MissionFlowV2Engine.advance))
+        tree = _ast.parse(src)
+        # The engine passes emit_state_event as a kwarg named emit_state_event_fn
+        emit_fn_kwargs = [
+            kw.arg
+            for node in _ast.walk(tree)
+            if isinstance(node, _ast.Call)
+            for kw in node.keywords
+            if kw.arg == "emit_state_event_fn"
+        ]
+        assert len(emit_fn_kwargs) >= 1, (
+            "MissionFlowV2Engine.advance must pass emit_state_event_fn= kwarg "
+            "to delegate event emission through the canonical function"
+        )
+
+    def test_langgraph_engine_delegates_via_emit_state_event_fn_callback(self) -> None:
+        """LangGraphEngine must pass emit_state_event as a callback (kwarg)."""
+        import ast as _ast
+        import inspect
+        import textwrap
+
+        src = textwrap.dedent(inspect.getsource(LangGraphEngine.advance))
+        tree = _ast.parse(src)
+        emit_fn_kwargs = [
+            kw.arg
+            for node in _ast.walk(tree)
+            if isinstance(node, _ast.Call)
+            for kw in node.keywords
+            if kw.arg == "emit_state_event_fn"
+        ]
+        assert len(emit_fn_kwargs) >= 1, (
+            "LangGraphEngine.advance must pass emit_state_event_fn= kwarg "
+            "to delegate event emission through the canonical function"
+        )
+
+    def test_emit_state_event_signature_is_canonical(self) -> None:
+        """emit_state_event must have the locked-down kwarg schema all engines rely on.
+
+        If this signature changes, all engine adapters must be reviewed.
+        """
+        import inspect
+        import orchestrator.runtime as _rt
+
+        sig = inspect.signature(_rt.emit_state_event)
+        params = set(sig.parameters.keys())
+        expected = {"settings", "validator", "redis_client", "mission", "event_type"}
+        assert params == expected, (
+            f"emit_state_event signature changed — engine event schema may diverge. "
+            f"Got params={params!r}, expected={expected!r}. "
+            "Update all three engine adapters before changing this signature."
+        )
+
+    def test_legacy_inline_event_types_are_in_canonical_event_type_set(self) -> None:
+        """Event-type string literals in LegacyV1Engine.advance must be valid EventType values."""
+        import ast as _ast
+        import inspect
+        import textwrap
+        import typing
+
+        orchestrator_models = importlib.import_module("orchestrator.models")
+        valid_event_types: frozenset[str] = frozenset(
+            typing.get_args(orchestrator_models.EventType)
+        )
+
+        src = textwrap.dedent(inspect.getsource(LegacyV1Engine.advance))
+        tree = _ast.parse(src)
+        # Collect string constants that look like MISSION_* or AGENT_* event types
+        inline_event_types = {
+            node.value
+            for node in _ast.walk(tree)
+            if isinstance(node, _ast.Constant)
+            and isinstance(node.value, str)
+            and (node.value.startswith("MISSION_") or node.value.startswith("AGENT_"))
+        }
+        assert inline_event_types, (
+            "LegacyV1Engine.advance has no MISSION_*/AGENT_* string literals — "
+            "cannot verify event-type schema."
+        )
+        unknown = inline_event_types - valid_event_types
+        assert not unknown, (
+            f"LegacyV1Engine.advance uses event types not in models.EventType: {unknown!r}. "
+            "Add them to EventType or correct the engine."
+        )
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
