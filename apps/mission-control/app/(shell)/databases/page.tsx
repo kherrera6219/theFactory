@@ -150,6 +150,7 @@ export default function DatabasesPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="Database Health"
         title="Data Plane Status"
         description="Track the live readiness of the shared data systems used by the refinery control plane."

@@ -430,6 +430,7 @@ export default function RepoImportPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="GitHub Import"
         title="Repository Intake and Mission Configuration"
         description="Import repository metadata, layer file-level mission overlays, review real repository scope against fetched file content, then launch."

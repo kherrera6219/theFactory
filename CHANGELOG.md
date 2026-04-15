@@ -6,6 +6,31 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Mission Control UI — Enterprise Hardening (2026-04-14)
+
+#### Fixed
+- **Scroll layout (Critical):** Shell grid container now sets `height: 100vh; overflow: hidden` and the main column sets `overflow-y: auto; height: 100vh` — eliminating the dead-space-on-scroll bug where the sticky sidebar created a phantom document scroll offset
+- **Horizontal overflow (High):** Added `flex-wrap: wrap` to `.shell-header-actions`; `flex-shrink: 0; white-space: nowrap` to `.summary-list li` value spans and `.pill` badges; `overflow-x: hidden` to `.shell-main`; prevents button/badge/status text clipping at viewport edge
+- **404 not-found renders in shell (High):** Moved `app/not-found.tsx` → `app/(shell)/not-found.tsx` so Next.js wraps 404 pages inside the sidebar/header shell chrome. Changed `<main>` → `<div>` to avoid duplicate landmark; demoted `<h1>` → `<h2>`
+- **KPI cards blank on error (High):** Removed `{!error && ...}` guard around `.kpi-grid`; metric cards now render with `0` values when the API errors rather than disappearing entirely
+- **Duplicate nav actions (Medium):** Removed redundant "New Mission / Mission Center" buttons from `dashboard/page.tsx` `PageHeader` — they already exist in the persistent shell header on every page
+- **File input unstyled (Medium):** Chat page `<input type="file">` now wrapped in a styled `<label className="file-input-label">` with full dark-theme styling, hover state, and proper `:focus-within` ring; native input visually hidden but accessible
+- **Root error.tsx `<main>` duplicate (Low):** Changed `app/error.tsx` wrapper from `<main>` to `<div>` for consistency with `(shell)/error.tsx`
+- **Temp file removed:** Deleted `apps/mission-control/temp_extract.py` and added `temp_*.py / *.pyc / __pycache__/` to `.gitignore`
+
+#### Added
+- **Color-coded status badges (High):** Runtime Health rows in `dashboard/page.tsx` and Runtime Dependencies in `agents/page.tsx` now use existing `.connection-chip.live/.stale/.retrying` classes with `role="status"` and `aria-label` attributes instead of plain text
+- **Compact PageHeader variant (Medium):** `PageHeader` component now accepts a `compact` boolean prop; renders a slim border-bottom bar (1.3rem h1, no panel chrome) on all operational pages (Agents, Chat, Missions, LogicNodes, Semantic Bus, Databases, Repo, Settings, Alerts, Builder, Performance, Projects). Home/Launch Pad keeps the full hero panel
+- **Dynamic shell header title (Medium):** New `ShellHeaderMeta` client component uses `usePathname()` + `NAV_ITEMS` lookup to display the active page name in the header (e.g., "Local Runtime — Agents") instead of the hardcoded static subtitle
+- **HTTPS warning in Settings (Low-Medium):** API base URL input now shows a `.warning-box` when the configured value is non-HTTPS and non-localhost
+- **Actionable empty states (Medium):** "Top Mission States" (dashboard) shows "Launch your first mission →" link; Agents Grid distinguishes "no agents found" (backend link to Settings) vs "no agents match filters" (filter hint); Alerts "Active and Recent Alerts" shows "All systems operating normally" when empty
+
+#### Changed
+- **Performance page KPI grid semantic HTML:** Changed from `<div role="list"><article role="listitem">` to `<ul><li>` (correct semantic list markup); `.kpi-grid` CSS updated with `list-style: none; margin: 0; padding: 0`
+- **Alerts and other pages:** Added `compact` to all PageHeader uses that were missing it (alerts, builder, performance, projects)
+
+---
+
 ### Phase 3 (continued) — Orchestrator Decomposition (2026-03-31)
 
 #### Added
