@@ -380,6 +380,7 @@ async def get_operations_summary(
 
     return {
         "generated_at": datetime.now(UTC).isoformat(),
+        "topology_mode": app.state.settings.topology_mode,
         "runtime": {
             "redis_ready": redis_ready,
             "db_ready": db_ready,

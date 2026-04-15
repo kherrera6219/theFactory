@@ -173,6 +173,8 @@ export type PodAssignmentRecord = {
   updated_at: string;
 };
 
+export type TopologyMode = "condensed" | "dedicated" | "full-dedicated";
+
 export type OperationsSummary = {
   generated_at: string;
   topology_mode: TopologyMode;

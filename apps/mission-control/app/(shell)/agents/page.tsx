@@ -475,6 +475,12 @@ export default function AgentsPage() {
               </span>
             </li>
             <li>
+              <strong>Topology mode</strong>
+              <span className={`connection-chip ${snapshot?.topology_mode === "full-dedicated" ? "live" : snapshot?.topology_mode === "dedicated" ? "retrying" : "stale"}`}>
+                {snapshot?.topology_mode ?? "condensed"}
+              </span>
+            </li>
+            <li>
               <strong>Transport mode</strong>
               <span className={`connection-chip ${transportMode === "stream" ? "live" : "retrying"}`}>
                 {transportMode}
@@ -567,6 +573,7 @@ export default function AgentsPage() {
                 <th scope="col">Agent</th>
                 <th scope="col">Tier</th>
                 <th scope="col">Pod</th>
+                <th scope="col">Runtime</th>
                 <th scope="col">State</th>
                 <th scope="col">Queue</th>
                 <th scope="col">Workload</th>
@@ -830,8 +837,8 @@ export default function AgentsPage() {
 }
 
 const RUNTIME_CLASS_LABELS: Record<AgentRuntimeClass, string> = {
-  shared_worker: "shared",
-  synthesized_heartbeat: "synth",
+  shared_worker: "Worker",
+  synthesized_heartbeat: "Synthetic",
 };
 
 const RUNTIME_CLASS_CHIP_CLASS: Record<AgentRuntimeClass, string> = {
@@ -861,6 +868,14 @@ function AgentRow({
       </td>
       <td>{agent.tier}</td>
       <td>{agent.pod}</td>
+      <td>
+        <span
+          className={`connection-chip ${RUNTIME_CLASS_CHIP_CLASS[runtimeClass] ?? "stale"}`}
+          title={runtimeClass}
+        >
+          {RUNTIME_CLASS_LABELS[runtimeClass] ?? runtimeClass}
+        </span>
+      </td>
       <td>
         <span className={`status-dot ${stateClass}`} aria-hidden="true" />
         {agent.state}

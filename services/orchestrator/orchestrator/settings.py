@@ -76,6 +76,11 @@ class Settings:
     agent_scaling_items_per_instance: int = 3
     intake_dlq_stream: str = "factory:dlq:intake-stream"
     intake_dlq_max_len: int = 1000
+    # topology_mode describes which compose profile is active:
+    #   "condensed"       — default; shared pod workers, synthesized non-pod heartbeats
+    #   "dedicated"       — dedicated-agents profile; one container per pod manager
+    #   "full-dedicated"  — full-dedicated-agents profile; one container per language specialist
+    topology_mode: str = "condensed"
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -233,4 +238,5 @@ def load_settings() -> Settings:
         intake_dlq_stream=os.getenv("INTAKE_DLQ_STREAM", "factory:dlq:intake-stream").strip()
         or "factory:dlq:intake-stream",
         intake_dlq_max_len=max(100, int(os.getenv("INTAKE_DLQ_MAX_LEN", "1000"))),
+        topology_mode=os.getenv("TOPOLOGY_MODE", "condensed").strip().lower() or "condensed",
     )
