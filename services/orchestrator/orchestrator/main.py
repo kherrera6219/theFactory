@@ -971,6 +971,7 @@ def _build_operations_agents_snapshot(
                 "workload_pct": workload_pct,
                 "last_heartbeat_iso": heartbeat_iso,
                 "active_mission_ids": related_missions[:25],
+                "runtime_class": agent.runtime_class,
                 "heartbeat_source": heartbeat_source,
                 "heartbeat_age_seconds": heartbeat_age_seconds,
                 "persona_profile": persona_profile if isinstance(persona_profile, dict) else {},

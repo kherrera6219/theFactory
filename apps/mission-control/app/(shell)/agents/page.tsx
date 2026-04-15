@@ -11,7 +11,7 @@ import {
   parseLiveStateStreamMessage,
 } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
-import type { OperationsAgentRecord, OperationsAgentsSnapshot } from "../../lib/types";
+import type { AgentRuntimeClass, OperationsAgentRecord, OperationsAgentsSnapshot } from "../../lib/types";
 
 const POLL_INTERVAL_MS = 2000;
 const STREAM_REFRESH_DEBOUNCE_MS = 500;
@@ -336,8 +336,8 @@ export default function AgentsPage() {
       <PageHeader
         compact
         eyebrow="Agents"
-        title="38-Agent Runtime Control Grid"
-        description="Track the full multi-agent topology, runtime health, and mission workload distribution."
+        title="Agent Runtime Control Grid"
+        description="Track the active agent topology, runtime health, and mission workload distribution."
       />
 
       <Panel title="Filters">
@@ -433,6 +433,21 @@ export default function AgentsPage() {
               <strong>Poll fallback ticks</strong>
               <span>{pollFallbackTicks > 0 ? pollFallbackTicks : "—"}</span>
             </li>
+            <li>
+              <strong>Topology mode</strong>
+              <span
+                className={`connection-chip ${
+                  snapshot?.topology_mode === "full-dedicated"
+                    ? "live"
+                    : snapshot?.topology_mode === "dedicated"
+                      ? "retrying"
+                      : "stale"
+                }`}
+                role="status"
+              >
+                {snapshot?.topology_mode ?? "condensed"}
+              </span>
+            </li>
           </ul>
         )}
       </Panel>
@@ -497,13 +512,14 @@ export default function AgentsPage() {
                 <th scope="col">Queue</th>
                 <th scope="col">Workload</th>
                 <th scope="col">Specialties</th>
+                <th scope="col">Runtime</th>
                 <th scope="col">Last heartbeat</th>
               </tr>
             </thead>
             <tbody>
               {virtualizedAgents.topSpacerHeight > 0 && (
                 <tr className="virtual-spacer" aria-hidden="true">
-                  <td colSpan={8} style={{ height: `${virtualizedAgents.topSpacerHeight}px` }} />
+                  <td colSpan={9} style={{ height: `${virtualizedAgents.topSpacerHeight}px` }} />
                 </tr>
               )}
               {virtualizedAgents.rows.map((agent) => (
@@ -516,7 +532,7 @@ export default function AgentsPage() {
               ))}
               {virtualizedAgents.bottomSpacerHeight > 0 && (
                 <tr className="virtual-spacer" aria-hidden="true">
-                  <td colSpan={8} style={{ height: `${virtualizedAgents.bottomSpacerHeight}px` }} />
+                  <td colSpan={9} style={{ height: `${virtualizedAgents.bottomSpacerHeight}px` }} />
                 </tr>
               )}
             </tbody>
@@ -754,6 +770,16 @@ export default function AgentsPage() {
   );
 }
 
+const RUNTIME_CLASS_LABELS: Record<AgentRuntimeClass, string> = {
+  shared_worker: "shared",
+  synthesized_heartbeat: "synth",
+};
+
+const RUNTIME_CLASS_CHIP_CLASS: Record<AgentRuntimeClass, string> = {
+  shared_worker: "live",
+  synthesized_heartbeat: "stale",
+};
+
 function AgentRow({
   agent,
   onSelect,
@@ -765,6 +791,7 @@ function AgentRow({
 }) {
   const stateClass = agent.state.toLowerCase();
   const specialties = agent.specialties.length > 0 ? agent.specialties.join(", ") : "n/a";
+  const runtimeClass = agent.runtime_class ?? "synthesized_heartbeat";
   return (
     <tr className={rowClassName}>
       <td>
@@ -782,6 +809,14 @@ function AgentRow({
       <td>{agent.queue_depth}</td>
       <td>{agent.workload_pct}%</td>
       <td title={specialties}>{specialties}</td>
+      <td>
+        <span
+          className={`connection-chip ${RUNTIME_CLASS_CHIP_CLASS[runtimeClass as AgentRuntimeClass] ?? "stale"}`}
+          title={runtimeClass}
+        >
+          {RUNTIME_CLASS_LABELS[runtimeClass as AgentRuntimeClass] ?? runtimeClass}
+        </span>
+      </td>
       <td>{formatDateTime(agent.last_heartbeat_iso)}</td>
     </tr>
   );

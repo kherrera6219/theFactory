@@ -91,6 +91,10 @@ export type LiveStateStreamEvent = {
 
 export type AgentState = "IDLE" | "ACTIVE" | "RUNNING" | "VERIFYING" | "ERROR" | "PAUSED";
 
+export type AgentRuntimeClass = "shared_worker" | "synthesized_heartbeat";
+
+export type TopologyMode = "condensed" | "dedicated" | "full-dedicated";
+
 export type AgentRecord = {
   id: string;
   name: string;
@@ -171,6 +175,7 @@ export type PodAssignmentRecord = {
 
 export type OperationsSummary = {
   generated_at: string;
+  topology_mode: TopologyMode;
   runtime: {
     redis_ready: boolean;
     db_ready: boolean;
@@ -278,12 +283,14 @@ export type OperationsAgentRecord = {
   workload_pct: number;
   last_heartbeat_iso: string;
   active_mission_ids: string[];
+  runtime_class: AgentRuntimeClass;
   persona_profile: OperationsAgentPersonaProfile;
 };
 
 export type OperationsAgentsSnapshot = {
   generated_at: string;
   total_agents: number;
+  topology_mode?: TopologyMode;
   runtime: {
     redis_ready: boolean;
     db_ready: boolean;
