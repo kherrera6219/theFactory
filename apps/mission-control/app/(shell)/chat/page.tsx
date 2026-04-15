@@ -283,6 +283,7 @@ export default function ChatPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="PM Agent Chat"
         title="Mission Intake Conversation"
         description="Describe your request in natural language, attach source files, and confirm the generated feature contract."
@@ -330,15 +331,20 @@ export default function ChatPage() {
         >
           Drag and drop files here, or choose files below.
         </div>
-        <input
-          type="file"
-          multiple
-          onChange={(event) => {
-            if (event.target.files) {
-              addFiles(event.target.files);
-            }
-          }}
-        />
+        <label className="file-input-label">
+          <span>Choose files</span>
+          <input
+            type="file"
+            multiple
+            className="sr-only"
+            aria-label="Choose files to attach"
+            onChange={(event) => {
+              if (event.target.files) {
+                addFiles(event.target.files);
+              }
+            }}
+          />
+        </label>
         {fileChips.length > 0 && (
           <ul className="chip-list" aria-label="Attached files">
             {fileChips.map((chip) => (

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { KeyboardShortcuts } from "../components/keyboard-shortcuts";
 import { LogoutButton } from "../components/logout-button";
 import { ReconnectBanner } from "../components/reconnect-banner";
+import { ShellHeaderMeta } from "../components/shell-header-meta";
 import { ShellNav } from "../components/shell-nav";
 import {
   getOperatorSessionFromCookieValue,
@@ -39,10 +40,7 @@ export default async function ShellLayout({ children }: ShellLayoutProps) {
 
       <div className="shell-main-column">
         <header className="shell-header">
-          <div className="shell-header-meta">
-            <strong>Local Runtime</strong>
-            <span className="muted">Enterprise operator console</span>
-          </div>
+          <ShellHeaderMeta />
           <div className="shell-header-actions">
             <Link href="/chat" className="secondary-button shell-link-button">
               New Mission

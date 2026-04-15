@@ -203,6 +203,7 @@ export default function MissionsPage() {
       </p>
 
       <PageHeader
+        compact
         eyebrow="Missions"
         title="Mission Intake and Lifecycle"
         description="Submit new refinery missions, monitor transition states, and recover safely from runtime interruptions."

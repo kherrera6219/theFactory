@@ -68,77 +68,90 @@ export default function DashboardPage() {
         eyebrow="Home"
         title="Launch Pad"
         description="Open mission control and assess system health before launching the next mission."
-        actions={
-          <div className="inline-actions">
-            <Link href="/chat" className="secondary-button shell-link-button">
-              New Mission
-            </Link>
-            <Link href="/missions" className="secondary-button shell-link-button">
-              Mission Center
-            </Link>
-          </div>
-        }
       />
 
       <Panel title="System Health Snapshot">
         {error && <p className="error-box">{error}</p>}
-        {!error && (
-          <div className="kpi-grid" role="list" aria-label="Mission metrics">
-            <article className="kpi-card" role="listitem">
-              <h3>Total Missions</h3>
-              {loading ? (
-                <span className="skeleton-line skeleton-metric" aria-hidden="true" />
-              ) : (
-                <p>{missions.length}</p>
-              )}
-            </article>
-            <article className="kpi-card" role="listitem">
-              <h3>Running</h3>
-              {loading ? (
-                <span className="skeleton-line skeleton-metric" aria-hidden="true" />
-              ) : (
-                <p>{missions.filter((item) => item.state.toUpperCase() === "RUNNING").length}</p>
-              )}
-            </article>
-            <article className="kpi-card" role="listitem">
-              <h3>Verified</h3>
-              {loading ? (
-                <span className="skeleton-line skeleton-metric" aria-hidden="true" />
-              ) : (
-                <p>{missions.filter((item) => item.state.toUpperCase() === "VERIFIED").length}</p>
-              )}
-            </article>
-            <article className="kpi-card" role="listitem">
-              <h3>Failed</h3>
-              {loading ? (
-                <span className="skeleton-line skeleton-metric" aria-hidden="true" />
-              ) : (
-                <p>{missions.filter((item) => item.state.toUpperCase() === "FAILED").length}</p>
-              )}
-            </article>
-          </div>
-        )}
+        <div className="kpi-grid" role="list" aria-label="Mission metrics">
+          <article className="kpi-card" role="listitem">
+            <h3>Total Missions</h3>
+            {loading ? (
+              <span className="skeleton-line skeleton-metric" aria-hidden="true" />
+            ) : (
+              <p>{error ? 0 : missions.length}</p>
+            )}
+          </article>
+          <article className="kpi-card" role="listitem">
+            <h3>Running</h3>
+            {loading ? (
+              <span className="skeleton-line skeleton-metric" aria-hidden="true" />
+            ) : (
+              <p>{error ? 0 : missions.filter((item) => item.state.toUpperCase() === "RUNNING").length}</p>
+            )}
+          </article>
+          <article className="kpi-card" role="listitem">
+            <h3>Verified</h3>
+            {loading ? (
+              <span className="skeleton-line skeleton-metric" aria-hidden="true" />
+            ) : (
+              <p>{error ? 0 : missions.filter((item) => item.state.toUpperCase() === "VERIFIED").length}</p>
+            )}
+          </article>
+          <article className="kpi-card" role="listitem">
+            <h3>Failed</h3>
+            {loading ? (
+              <span className="skeleton-line skeleton-metric" aria-hidden="true" />
+            ) : (
+              <p>{error ? 0 : missions.filter((item) => item.state.toUpperCase() === "FAILED").length}</p>
+            )}
+          </article>
+        </div>
       </Panel>
 
       <Panel title="Runtime Health">
         <ul className="summary-list">
           <li>
             <strong>Gateway readiness</strong>
-            <span>{readyState?.ready ? "Ready" : readyState?.detail ?? "Unavailable"}</span>
+            <span
+              className={`connection-chip ${readyState?.ready ? "live" : "stale"}`}
+              role="status"
+              aria-label={`Gateway readiness: ${readyState?.ready ? "Ready" : readyState?.detail ?? "Unavailable"}`}
+            >
+              {readyState?.ready ? "Ready" : readyState?.detail ?? "Unavailable"}
+            </span>
           </li>
           <li>
             <strong>Redis</strong>
-            <span>{health?.redis_healthy ? "Healthy" : "Unavailable"}</span>
+            <span
+              className={`connection-chip ${health?.redis_healthy ? "live" : "stale"}`}
+              role="status"
+              aria-label={`Redis: ${health?.redis_healthy ? "Healthy" : "Unavailable"}`}
+            >
+              {health?.redis_healthy ? "Healthy" : "Unavailable"}
+            </span>
           </li>
           <li>
             <strong>Orchestrator</strong>
-            <span>{health?.orchestrator_healthy ? "Healthy" : "Unavailable"}</span>
+            <span
+              className={`connection-chip ${health?.orchestrator_healthy ? "live" : "stale"}`}
+              role="status"
+              aria-label={`Orchestrator: ${health?.orchestrator_healthy ? "Healthy" : "Unavailable"}`}
+            >
+              {health?.orchestrator_healthy ? "Healthy" : "Unavailable"}
+            </span>
           </li>
         </ul>
       </Panel>
 
       <Panel title="Top Mission States">
-        {stateSummary.length === 0 && <p className="muted">No mission state data available yet.</p>}
+        {stateSummary.length === 0 && (
+          <p className="muted">
+            No mission data yet.{" "}
+            <Link href="/chat" className="shell-link-button" style={{ color: "var(--accent-contrast)", textDecoration: "underline" }}>
+              Launch your first mission →
+            </Link>
+          </p>
+        )}
         {stateSummary.length > 0 && (
           <ul className="summary-list">
             {stateSummary.map(([state, count]) => (

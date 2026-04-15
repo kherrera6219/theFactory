@@ -180,6 +180,7 @@ export default function BuilderPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="Builder"
         title="Builder Workspace"
         description="Compose natural-language change requests, inspect grounded patch contracts, apply review approval, and launch an execution-ready mission bundle."

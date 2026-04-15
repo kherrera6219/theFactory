@@ -88,6 +88,7 @@ export default function PerformancePage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="Performance"
         title="Runtime Capacity and Latency"
         description="Track throughput, queue lag, and dependency health to keep refinery operations within enterprise SLO targets."
@@ -97,15 +98,15 @@ export default function PerformancePage() {
         {loading && <p className="muted">Collecting runtime metrics...</p>}
         {error && <p className="error-box">{error}</p>}
         {!loading && !error && (
-          <div className="kpi-grid" role="list">
+          <ul className="kpi-grid" aria-label="Runtime metrics">
             {metrics.map((metric) => (
-              <article key={metric.title} className="kpi-card" role="listitem">
+              <li key={metric.title} className="kpi-card">
                 <h3>{metric.title}</h3>
                 <p>{metric.value}</p>
                 <span className="muted">{metric.trend}</span>
-              </article>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </Panel>
 
