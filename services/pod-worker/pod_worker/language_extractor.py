@@ -232,6 +232,40 @@ class PythonExtractor(LanguageExtractor):
     )
 
 
+class PythonAstExtractor(PythonExtractor):
+    """Uses Python's built-in ``ast`` module for structural accuracy.
+
+    Regex still runs first via ``super().extract()`` to populate concepts
+    (LogicNodes).  AST then replaces the structural fields — functions,
+    classes, and imports — with zero-false-positive equivalents.  On
+    ``SyntaxError`` the regex result is returned unchanged.
+    """
+
+    def extract(self, source: str) -> ExtractionResult:
+        result = super().extract(source)  # regex runs first — always produces concepts
+        try:
+            from .ast_extractor import extract_python_ast
+        except ImportError:
+            return result
+        ast_result = extract_python_ast(source)
+        if not ast_result.success:
+            return result
+        result.functions = [
+            FunctionInfo(name=f.name, line=f.line, signature=f.signature)
+            for f in ast_result.functions
+        ]
+        result.classes = [
+            ClassInfo(name=c.name, line=c.line, parents=c.bases)
+            for c in ast_result.classes
+        ]
+        result.imports = [
+            f"from {i.module} import {', '.join(i.names)}" if i.is_from
+            else f"import {', '.join(i.names)}"
+            for i in ast_result.imports
+        ]
+        return result
+
+
 class JavaScriptExtractor(LanguageExtractor):
     language = "javascript"
     _function_pattern = re.compile(

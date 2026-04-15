@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from . import build_artifacts as build_artifact_support
 from . import storage
-from .langgraph_lifecycle import maybe_advance_mission_lifecycle
+from .lifecycle_interface import get_lifecycle_engine
 from .mission_flow import (
     CEO_AGENT_ID,
     PM_AGENT_ID,
@@ -21,7 +21,6 @@ from .mission_flow import (
     resolve_specialist_agent_id,
     with_chain_defaults,
 )
-from .mission_flow_v2 import advance_mission_lifecycle_v2
 from .models import MissionRecord, MissionState
 from .protocol import EnvelopeValidator, ProtocolValidationError
 from .settings import Settings
@@ -538,153 +537,8 @@ def start_lifecycle_task(app: FastAPI, mission_id: str) -> None:
 
 async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
     settings: Settings = app.state.settings
-    validator: EnvelopeValidator = app.state.envelope_validator
-
-    # ---- v2 11-phase engine (feature-flagged) ----
-    if settings.mission_flow_v2_enabled:
-        await advance_mission_lifecycle_v2(
-            app=app,
-            mission_id=mission_id,
-            settings=settings,
-            validator=validator,
-            emit_state_event_fn=emit_state_event,
-            prepare_chain_fn=_prepare_mission_chain_for_running,
-            completion_check_fn=_completion_artifacts_ready,
-        )
-        return
-
-    # ---- LangGraph engine (feature-flagged) ----
-    langgraph_handled = await maybe_advance_mission_lifecycle(
-        app=app,
-        mission_id=mission_id,
-        settings=settings,
-        validator=validator,
-        emit_state_event_fn=emit_state_event,
-    )
-    if langgraph_handled:
-        return
-
-    # ---- Legacy v1.1 engine ----
-    transitions = [
-        (MissionState.queued, MissionState.running, "MISSION_RUNNING"),
-        (MissionState.running, MissionState.verified, "MISSION_VERIFIED"),
-        (MissionState.verified, MissionState.complete, "MISSION_COMPLETE"),
-    ]
-
-    for expected_state, new_state, event_type in transitions:
-        if expected_state == MissionState.queued and new_state == MissionState.running:
-            prepared = await _prepare_mission_chain_for_running(
-                app=app,
-                settings=settings,
-                validator=validator,
-                mission_id=mission_id,
-            )
-            if not prepared:
-                return
-
-        if expected_state == MissionState.verified and new_state == MissionState.complete:
-            mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
-            if mission is None:
-                return
-            artifacts_ready, artifact_details = await _completion_artifacts_ready(
-                settings=settings,
-                mission=mission,
-            )
-            if not artifacts_ready:
-                metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
-                append_chain_event(
-                    metadata,
-                    event_type="MISSION_COMPLETION_BLOCKED",
-                    agent_id=CEO_AGENT_ID,
-                    details=artifact_details,
-                )
-                updated = await asyncio.to_thread(
-                    storage.update_mission_metadata,
-                    settings,
-                    mission_id,
-                    metadata,
-                )
-                if updated is not None:
-                    mission = updated
-                await asyncio.to_thread(
-                    storage.insert_mission_event,
-                    settings,
-                    mission_id,
-                    MissionState.verified,
-                    MissionState.verified,
-                    "MISSION_COMPLETION_BLOCKED",
-                )
-                redis_ready = bool(getattr(app.state, "redis_ready", False))
-                redis_client = getattr(app.state, "redis", None)
-                if redis_ready and redis_client is not None:
-                    try:
-                        await emit_state_event(
-                            settings=settings,
-                            validator=validator,
-                            redis_client=redis_client,
-                            mission=mission,
-                            event_type="MISSION_COMPLETION_BLOCKED",
-                        )
-                    except Exception as exc:
-                        LOGGER.warning(
-                            "failed to emit completion block event for mission %s: %s",
-                            mission_id,
-                            exc,
-                        )
-                return
-
-        await asyncio.sleep(settings.transition_step_seconds)
-
-        record = await asyncio.to_thread(
-            storage.transition_mission_state,
-            settings,
-            mission_id,
-            expected_state,
-            new_state,
-            event_type,
-        )
-        if record is None:
-            return
-
-        if new_state == MissionState.verified:
-            try:
-                record = await _ensure_verified_build_artifact(
-                    settings=settings,
-                    mission=record,
-                )
-            except Exception as exc:
-                LOGGER.warning(
-                    "failed to package verified build artifact for mission %s: %s",
-                    mission_id,
-                    exc,
-                )
-
-        redis_ready = bool(getattr(app.state, "redis_ready", False))
-        redis_client = getattr(app.state, "redis", None)
-        if redis_ready and redis_client is not None:
-            try:
-                await emit_state_event(
-                    settings=settings,
-                    validator=validator,
-                    redis_client=redis_client,
-                    mission=record,
-                    event_type=event_type,
-                )
-            except Exception as exc:
-                LOGGER.warning(
-                    "failed to emit transition event %s for mission %s: %s",
-                    event_type,
-                    mission_id,
-                    exc,
-                )
-
-        if event_type == "MISSION_RUNNING":
-            await _emit_running_phase_checkpoints(
-                app=app,
-                settings=settings,
-                validator=validator,
-                mission=record,
-            )
+    engine = get_lifecycle_engine(settings)
+    await engine.advance(app, mission_id)
 
 
 async def ensure_runtime_ready(app: FastAPI) -> tuple[bool, bool]:

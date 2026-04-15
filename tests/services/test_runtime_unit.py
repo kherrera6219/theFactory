@@ -602,7 +602,11 @@ def test_advance_mission_lifecycle_returns_when_langgraph_handles(monkeypatch) -
     async def _sleep(_):
         raise AssertionError("legacy lifecycle sleep should not execute")
 
-    monkeypatch.setattr(runtime, "maybe_advance_mission_lifecycle", _langgraph)
+    # maybe_advance_mission_lifecycle is now called inside LangGraphEngine.advance()
+    # via a lazy import; patch at the langgraph_lifecycle module level.
+    import orchestrator.langgraph_lifecycle as _llc
+
+    monkeypatch.setattr(_llc, "maybe_advance_mission_lifecycle", _langgraph)
     monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
     monkeypatch.setattr(
         runtime.storage,
