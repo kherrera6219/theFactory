@@ -15,6 +15,8 @@ This guide explains how to use theFactory through Mission Control for the main o
   - PM-style mission intake from a prompt and attachments
 - `Missions`
   - mission list, state, and navigation to mission detail
+- `Projects`
+  - per-project audit timeline across missions and agents
 - `Agents`
   - 38-agent runtime topology and persona drill-down
 - `LogicNodes`
@@ -73,6 +75,17 @@ Use the mission detail page to inspect:
 - logicnode and related runtime evidence
 
 Source-bundle missions should not be treated as release-ready until the `Build Artifacts` section shows successful packaging.
+
+## Reviewing Project Audit History
+
+Use `Projects` when you need to answer:
+
+- which agents touched a project
+- what each agent wrote or persisted
+- which tool or HTTP path was used
+- when an execution started, completed, or failed
+
+The project audit timeline is backed by append-only orchestrator audit events. Each row is keyed by `project_id` and includes the related mission, agent, service, object type, tool name, and execution duration when available.
 
 ## Secrets and Integrations
 

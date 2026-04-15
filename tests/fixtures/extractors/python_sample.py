@@ -2,8 +2,6 @@
 
 This file must NOT be edited without updating the expected values in the golden test.
 """
-import json
-from pathlib import Path
 from typing import Optional
 
 

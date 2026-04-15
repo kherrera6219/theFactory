@@ -13,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import importlib
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -174,7 +173,9 @@ class TestLangGraphEngine:
         async def _mock_maybe(*args: Any, **kwargs: Any) -> bool:
             return True  # LangGraph handled it
 
-        async def _mock_legacy_advance(self_inner: Any, _app: Any, mid: str) -> None:  # pragma: no cover
+        async def _mock_legacy_advance(
+            self_inner: Any, _app: Any, mid: str
+        ) -> None:  # pragma: no cover
             legacy_calls.append(mid)
 
         with (
@@ -333,6 +334,7 @@ class TestEventSchemaEquivalence:
         If this signature changes, all engine adapters must be reviewed.
         """
         import inspect
+
         import orchestrator.runtime as _rt
 
         sig = inspect.signature(_rt.emit_state_event)

@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from .. import storage
+from ..audit_events import record_audit_event
 from ..auth import AuthContext
 from ..models import (
     MissionCreate,
@@ -15,6 +16,7 @@ from ..models import (
     MissionState,
     MissionStateUpdate,
 )
+from ..project_identity import resolve_project_id, with_project_identity
 from ._deps import INTERNAL_AUTH_DEP, MUTATION_AUTH_DEP
 
 LOGGER = logging.getLogger(__name__)
@@ -33,12 +35,15 @@ async def create_mission(
     app = request.app
     redis_ready, _ = await _main._ensure_db_ready(app)
     redis_client = getattr(app.state, "redis", None)
+    metadata = with_project_identity(payload.metadata, mission_id=payload.mission_id)
+    project_id = payload.project_id or resolve_project_id(metadata, mission_id=payload.mission_id)
 
     record = MissionRecord(
         mission_id=payload.mission_id,
         prompt=payload.prompt,
         requested_target_language=payload.requested_target_language,
-        metadata=payload.metadata,
+        metadata=metadata,
+        project_id=project_id,
         state=MissionState.queued,
         created_at=payload.created_at or datetime.now(UTC).isoformat(),
     )
@@ -64,6 +69,25 @@ async def create_mission(
             )
         except Exception as exc:
             LOGGER.warning("failed to emit queued state event for %s: %s", record.mission_id, exc)
+
+    await record_audit_event(
+        app,
+        mission_id=record.mission_id,
+        mission=record,
+        agent_id=str(
+            metadata.get("agent_id") or metadata.get("selected_agent_id") or "AGENT-01-PM"
+        ),
+        service_name="orchestrator",
+        event_type="MISSION_CREATED",
+        object_type="mission",
+        object_id=record.mission_id,
+        payload_summary={
+            "project_id": project_id,
+            "requested_target_language": record.requested_target_language,
+            "source": metadata.get("source"),
+            "project_name": metadata.get("project_name"),
+        },
+    )
 
     _main.start_lifecycle_task(app, record.mission_id)
     return record
@@ -143,5 +167,28 @@ async def update_mission_state(
             )
         except Exception as exc:
             LOGGER.warning("failed to emit state event for %s: %s", record.mission_id, exc)
+
+    await record_audit_event(
+        app,
+        mission_id=record.mission_id,
+        mission=record,
+        agent_id=(
+            str(
+                record.metadata.get("agent_id")
+                or record.metadata.get("selected_agent_id")
+                or "SYSTEM"
+            )
+            if isinstance(record.metadata, dict)
+            else "SYSTEM"
+        ),
+        service_name="orchestrator",
+        event_type="MISSION_STATE_UPDATED",
+        object_type="mission_state",
+        object_id=record.mission_id,
+        payload_summary={
+            "new_state": payload.new_state.value,
+            "expected_state": payload.expected_state.value if payload.expected_state else None,
+        },
+    )
 
     return record

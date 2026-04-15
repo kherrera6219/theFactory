@@ -83,9 +83,10 @@ def _get_extractor(language: str):  # type: ignore[return]
     if language == "python" and PYTHON_AST_EXTRACTOR_ENABLED:
         return PythonAstExtractor()
     return get_extractor(language)
+
+
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 POD_DLQ_STREAM = os.getenv("POD_DLQ_STREAM", "factory:dlq:pod-worker")
-PYTHON_AST_EXTRACTOR_ENABLED = os.getenv("PYTHON_AST_EXTRACTOR_ENABLED", "false").strip().lower() == "true"
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 
 EVENT_SCHEMA_PATH = Path("/app/schemas/event.envelope.schema.json")
@@ -317,6 +318,50 @@ def _safe_to_dict(candidate: Any) -> dict[str, Any]:
     return {}
 
 
+def _summarize_value(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        compact = " ".join(value.split())
+        return compact if len(compact) <= 240 else f"{compact[:240]}..."
+    if isinstance(value, dict):
+        items = list(value.items())[:8]
+        summary = {str(key): _summarize_value(item) for key, item in items}
+        if len(value) > 8:
+            summary["_truncated_keys"] = len(value) - 8
+        return summary
+    if isinstance(value, list):
+        summary = [_summarize_value(item) for item in value[:8]]
+        if len(value) > 8:
+            summary.append({"_truncated_items": len(value) - 8})
+        return summary
+    return str(value)
+
+
+def _summarize_mapping(value: Any) -> dict[str, Any]:
+    return _summarize_value(value) if isinstance(value, dict) else {}
+
+
+def _mission_id_for_request(
+    path: str,
+    *,
+    json_body: dict[str, Any] | None,
+    params: dict[str, Any] | None,
+) -> str | None:
+    if isinstance(json_body, dict):
+        mission_id = str(json_body.get("mission_id", "")).strip()
+        if mission_id:
+            return mission_id
+    if isinstance(params, dict):
+        mission_id = str(params.get("mission_id", "")).strip()
+        if mission_id:
+            return mission_id
+    match = re.search(r"/missions/([^/]+)", path)
+    if match:
+        return str(match.group(1)).strip()
+    return None
+
+
 def _bundle_source_segments(source_code: str) -> list[tuple[str, str]]:
     matches = list(_SOURCE_BUNDLE_FILE_PATTERN.finditer(source_code))
     if not matches:
@@ -545,6 +590,58 @@ async def _write_dlq(
         LOGGER.error("pod-worker failed to write entry %s to DLQ: %s", entry_id, dlq_exc)
 
 
+async def _emit_audit_event(
+    *,
+    mission_id: str | None,
+    agent_id: str | None,
+    event_type: str,
+    status: str = "SUCCESS",
+    object_type: str | None = None,
+    object_id: str | None = None,
+    tool_name: str | None = None,
+    started_at: str | None = None,
+    ended_at: str | None = None,
+    payload_summary: dict[str, Any] | None = None,
+) -> None:
+    if not mission_id:
+        return
+    effective_agent_id = _effective_worker_agent_id(agent_id) or agent_id or "POD-WORKER"
+    try:
+        response = await _request(
+            "POST",
+            "/internal/audit-events",
+            json_body={
+                "mission_id": mission_id,
+                "agent_id": effective_agent_id,
+                "service_name": f"pod-worker-{POD_NAME}",
+                "event_type": event_type,
+                "status": status,
+                "object_type": object_type,
+                "object_id": object_id,
+                "tool_name": tool_name,
+                "started_at": started_at or datetime.now(UTC).isoformat(),
+                "ended_at": ended_at or datetime.now(UTC).isoformat(),
+                "payload_summary": _summarize_mapping(payload_summary),
+            },
+            agent_id=effective_agent_id,
+            emit_audit=False,
+        )
+        if response.status_code >= 400:
+            LOGGER.warning(
+                "pod-worker failed to persist audit event %s for mission %s: %s",
+                event_type,
+                mission_id,
+                response.status_code,
+            )
+    except Exception as exc:
+        LOGGER.warning(
+            "pod-worker failed to emit audit event %s for mission %s: %s",
+            event_type,
+            mission_id,
+            exc,
+        )
+
+
 async def _request(
     method: str,
     path: str,
@@ -552,9 +649,11 @@ async def _request(
     json_body: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
     agent_id: str | None = None,
+    emit_audit: bool = True,
 ) -> httpx.Response:
     if not path.startswith("/"):
         raise ValueError("request path must start with '/'")
+    started_at = datetime.now(UTC).isoformat()
     request_id = f"pod-{POD_NAME}-{uuid.uuid4()}"
     last_response: httpx.Response | None = None
     last_error: Exception | None = None
@@ -588,6 +687,23 @@ async def _request(
                 await asyncio.sleep(min(2 ** attempt * 0.5, 30.0))
 
     if last_response is not None:
+        if emit_audit and path != "/internal/audit-events":
+            await _emit_audit_event(
+                mission_id=_mission_id_for_request(path, json_body=json_body, params=params),
+                agent_id=agent_id,
+                event_type="TOOL_HTTP_REQUEST",
+                status="SUCCESS" if last_response.status_code < 400 else "ERROR",
+                object_type="http_request",
+                object_id=path,
+                tool_name="orchestrator_api",
+                started_at=started_at,
+                ended_at=datetime.now(UTC).isoformat(),
+                payload_summary={
+                    "method": method,
+                    "path": path,
+                    "status_code": last_response.status_code,
+                },
+            )
         return last_response
     if last_error is not None:
         raise last_error
@@ -747,18 +863,59 @@ async def _handle_pod_manager_assignment(
     if assignment_response.status_code >= 400:
         return
 
-    agent_pipeline = _run_agent_pipeline(
+    execution_started_at = datetime.now(UTC).isoformat()
+    await _emit_audit_event(
         mission_id=mission_id,
-        resolved_agent_id=resolved_agent_id,
-        payload={
-            **payload,
-            "pod_manager_agent_id": resolved_agent_id,
-            "specialist_agent_id": (
-                metadata.get("assigned_specialist_agent_id")
-                if isinstance(metadata, dict)
-                else None
-            ),
-            "requested_target_language": target_language,
+        agent_id=resolved_agent_id,
+        event_type="AGENT_EXECUTION_STARTED",
+        status="STARTED",
+        object_type="agent_execution",
+        object_id=resolved_agent_id,
+        payload_summary={
+            "agent_id": resolved_agent_id,
+            "event_type": "MISSION_POD_MANAGER_ASSIGNED",
+        },
+    )
+    try:
+        agent_pipeline = _run_agent_pipeline(
+            mission_id=mission_id,
+            resolved_agent_id=resolved_agent_id,
+            payload={
+                **payload,
+                "pod_manager_agent_id": resolved_agent_id,
+                "specialist_agent_id": (
+                    metadata.get("assigned_specialist_agent_id")
+                    if isinstance(metadata, dict)
+                    else None
+                ),
+                "requested_target_language": target_language,
+            },
+        )
+    except Exception as exc:
+        await _emit_audit_event(
+            mission_id=mission_id,
+            agent_id=resolved_agent_id,
+            event_type="AGENT_EXECUTION_COMPLETED",
+            status="ERROR",
+            object_type="agent_execution",
+            object_id=resolved_agent_id,
+            started_at=execution_started_at,
+            ended_at=datetime.now(UTC).isoformat(),
+            payload_summary={"agent_id": resolved_agent_id, "error": str(exc)},
+        )
+        raise
+    await _emit_audit_event(
+        mission_id=mission_id,
+        agent_id=resolved_agent_id,
+        event_type="AGENT_EXECUTION_COMPLETED",
+        object_type="agent_execution",
+        object_id=resolved_agent_id,
+        started_at=execution_started_at,
+        ended_at=datetime.now(UTC).isoformat(),
+        payload_summary={
+            "agent_id": resolved_agent_id,
+            "category": getattr(agent_pipeline["agent"], "category", "pod_manager"),
+            "validation": _summarize_mapping(_safe_to_dict(agent_pipeline["validation"])),
         },
     )
 
@@ -784,6 +941,14 @@ async def _handle_pod_manager_assignment(
             },
         },
         agent_id=resolved_agent_id,
+    )
+    await _emit_audit_event(
+        mission_id=mission_id,
+        agent_id=resolved_agent_id,
+        event_type="AGENT_REPORT_PERSISTED",
+        object_type="knowledge",
+        object_id=f"{POD_NAME}.pod-manager.{mission_id}",
+        payload_summary={"agent_id": resolved_agent_id, "category": "pod_manager"},
     )
 
     await _publish_event(
@@ -924,17 +1089,41 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
     for logicnode in extracted_logicnodes:
         logicnode["agent_id"] = resolved_agent_id
 
-    agent_pipeline = _run_agent_pipeline(
+    execution_started_at = datetime.now(UTC).isoformat()
+    await _emit_audit_event(
         mission_id=mission_id,
-        resolved_agent_id=resolved_agent_id,
-        payload={
-            **payload,
-            "source_payload": source_code,
-            "requested_target_language": extraction_language,
-            "agent_id": resolved_agent_id,
-        },
-        extracted_logicnodes=extracted_logicnodes,
+        agent_id=resolved_agent_id,
+        event_type="AGENT_EXECUTION_STARTED",
+        status="STARTED",
+        object_type="agent_execution",
+        object_id=resolved_agent_id,
+        payload_summary={"agent_id": resolved_agent_id, "event_type": "MISSION_RUNNING"},
     )
+    try:
+        agent_pipeline = _run_agent_pipeline(
+            mission_id=mission_id,
+            resolved_agent_id=resolved_agent_id,
+            payload={
+                **payload,
+                "source_payload": source_code,
+                "requested_target_language": extraction_language,
+                "agent_id": resolved_agent_id,
+            },
+            extracted_logicnodes=extracted_logicnodes,
+        )
+    except Exception as exc:
+        await _emit_audit_event(
+            mission_id=mission_id,
+            agent_id=resolved_agent_id,
+            event_type="AGENT_EXECUTION_COMPLETED",
+            status="ERROR",
+            object_type="agent_execution",
+            object_id=resolved_agent_id,
+            started_at=execution_started_at,
+            ended_at=datetime.now(UTC).isoformat(),
+            payload_summary={"agent_id": resolved_agent_id, "error": str(exc)},
+        )
+        raise
 
     final_logicnodes = agent_pipeline["logicnodes"] or extracted_logicnodes
     refined_ir_module = build_refined_ir_module(
@@ -961,6 +1150,16 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             }
         except Exception as exc:
             refined_ir_store_record = {"error": str(exc)}
+    if refined_ir_store_record is not None:
+        await _emit_audit_event(
+            mission_id=mission_id,
+            agent_id=resolved_agent_id,
+            event_type="TOOL_REFINED_IR_WRITTEN",
+            object_type="refined_ir",
+            object_id=mission_id,
+            tool_name="refined_ir",
+            payload_summary=refined_ir_store_record,
+        )
     for logicnode in final_logicnodes:
         node_id = str(logicnode.get("node_id", "")).strip() or f"{POD_NAME}.core.{mission_id}"
         node_payload = logicnode.get("node")
@@ -1014,6 +1213,35 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             },
         },
         agent_id=resolved_agent_id,
+    )
+    await _emit_audit_event(
+        mission_id=mission_id,
+        agent_id=resolved_agent_id,
+        event_type="AGENT_REPORT_PERSISTED",
+        object_type="knowledge",
+        object_id=f"{POD_NAME}.assignment.{mission_id}",
+        payload_summary={
+            "agent_id": resolved_agent_id,
+            "logicnode_count": len(final_logicnodes),
+            "artifact_count": len(
+                _safe_to_dict(agent_pipeline["result"]).get("artifacts", []) or []
+            ),
+        },
+    )
+    await _emit_audit_event(
+        mission_id=mission_id,
+        agent_id=resolved_agent_id,
+        event_type="AGENT_EXECUTION_COMPLETED",
+        object_type="agent_execution",
+        object_id=resolved_agent_id,
+        started_at=execution_started_at,
+        ended_at=datetime.now(UTC).isoformat(),
+        payload_summary={
+            "agent_id": resolved_agent_id,
+            "category": getattr(agent_pipeline["agent"], "category", "specialist"),
+            "logicnode_count": len(final_logicnodes),
+            "validation": _summarize_mapping(_safe_to_dict(agent_pipeline["validation"])),
+        },
     )
 
     await _publish_event(
@@ -1138,19 +1366,51 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
     for logicnode in extracted_logicnodes:
         logicnode["agent_id"] = resolved_agent_id
 
-    agent_pipeline = _run_agent_pipeline(
+    execution_started_at = datetime.now(UTC).isoformat()
+    await _emit_audit_event(
         mission_id=mission_id,
-        resolved_agent_id=resolved_agent_id,
-        payload={
-            **payload,
-            "source_payload": source_code,
-            "requested_target_language": extraction_language,
+        agent_id=resolved_agent_id,
+        event_type="AGENT_EXECUTION_STARTED",
+        status="STARTED",
+        object_type="agent_execution",
+        object_id=resolved_agent_id,
+        payload_summary={
             "agent_id": resolved_agent_id,
+            "event_type": "MISSION_PARTITION_READY",
             "partition_id": partition_id,
-            "partition_items": _partition_items(payload),
         },
-        extracted_logicnodes=extracted_logicnodes,
     )
+    try:
+        agent_pipeline = _run_agent_pipeline(
+            mission_id=mission_id,
+            resolved_agent_id=resolved_agent_id,
+            payload={
+                **payload,
+                "source_payload": source_code,
+                "requested_target_language": extraction_language,
+                "agent_id": resolved_agent_id,
+                "partition_id": partition_id,
+                "partition_items": _partition_items(payload),
+            },
+            extracted_logicnodes=extracted_logicnodes,
+        )
+    except Exception as exc:
+        await _emit_audit_event(
+            mission_id=mission_id,
+            agent_id=resolved_agent_id,
+            event_type="AGENT_EXECUTION_COMPLETED",
+            status="ERROR",
+            object_type="agent_execution",
+            object_id=resolved_agent_id,
+            started_at=execution_started_at,
+            ended_at=datetime.now(UTC).isoformat(),
+            payload_summary={
+                "agent_id": resolved_agent_id,
+                "partition_id": partition_id,
+                "error": str(exc),
+            },
+        )
+        raise
 
     final_logicnodes = _apply_partition_suffix(
         agent_pipeline["logicnodes"] or extracted_logicnodes,
@@ -1180,6 +1440,16 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
             }
         except Exception as exc:
             refined_ir_store_record = {"error": str(exc)}
+    if refined_ir_store_record is not None:
+        await _emit_audit_event(
+            mission_id=mission_id,
+            agent_id=resolved_agent_id,
+            event_type="TOOL_REFINED_IR_WRITTEN",
+            object_type="refined_ir",
+            object_id=f"{mission_id}:{partition_id}",
+            tool_name="refined_ir",
+            payload_summary=refined_ir_store_record,
+        )
 
     for logicnode in final_logicnodes:
         node_id = str(logicnode.get("node_id", "")).strip() or (
@@ -1250,6 +1520,18 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
         },
         agent_id=resolved_agent_id,
     )
+    await _emit_audit_event(
+        mission_id=mission_id,
+        agent_id=resolved_agent_id,
+        event_type="AGENT_REPORT_PERSISTED",
+        object_type="knowledge",
+        object_id=f"{POD_NAME}.partition.{partition_id}.{mission_id}",
+        payload_summary={
+            "agent_id": resolved_agent_id,
+            "partition_id": partition_id,
+            "artifact_count": len(partition_artifacts),
+        },
+    )
 
     await _request(
         "POST",
@@ -1263,6 +1545,22 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
             "report": partition_report,
         },
         agent_id=resolved_agent_id,
+    )
+    await _emit_audit_event(
+        mission_id=mission_id,
+        agent_id=resolved_agent_id,
+        event_type="AGENT_EXECUTION_COMPLETED",
+        object_type="agent_execution",
+        object_id=resolved_agent_id,
+        started_at=execution_started_at,
+        ended_at=datetime.now(UTC).isoformat(),
+        payload_summary={
+            "agent_id": resolved_agent_id,
+            "partition_id": partition_id,
+            "logicnode_count": len(partition_logicnodes),
+            "artifact_count": len(partition_artifacts),
+            "validation": _summarize_mapping(_safe_to_dict(agent_pipeline["validation"])),
+        },
     )
 
     await _publish_event(

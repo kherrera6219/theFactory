@@ -8,8 +8,10 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from .. import milvus_store, neo4j_store, object_store, qdrant_store, storage
+from ..audit_events import record_audit_event, summarize_mapping
 from ..auth import AuthContext
 from ..models import (
+    AgentActionEventUpsert,
     AgentHeartbeatUpsert,
     AuditReportUpsert,
     KnowledgeUpsert,
@@ -199,6 +201,40 @@ def _build_mission_chain_trace(
     }
 
 
+def _agent_id_from_value(candidate: Any) -> str | None:
+    normalized = str(candidate or "").strip().upper()
+    return normalized or None
+
+
+def _agent_id_from_metadata(metadata: Any) -> str | None:
+    if not isinstance(metadata, dict):
+        return None
+    for key in (
+        "agent_id",
+        "selected_agent_id",
+        "assigned_agent_id",
+        "assigned_specialist_agent_id",
+        "assigned_pod_manager_agent_id",
+        "target_agent_id",
+    ):
+        normalized = _agent_id_from_value(metadata.get(key))
+        if normalized:
+            return normalized
+    return None
+
+
+def _agent_id_from_node(node: Any) -> str | None:
+    if not isinstance(node, dict):
+        return None
+    normalized = _agent_id_from_value(node.get("agent_id"))
+    if normalized:
+        return normalized
+    nested = node.get("payload")
+    if isinstance(nested, dict):
+        return _agent_id_from_metadata(nested)
+    return None
+
+
 @router.post("/internal/pod-assignment")
 async def upsert_pod_assignment(
     request: Request,
@@ -209,11 +245,11 @@ async def upsert_pod_assignment(
 
     app = request.app
     await _main._ensure_db_ready(app)
-    await _main._fetch_existing_mission(app, payload.mission_id)
+    mission = await _main._fetch_existing_mission(app, payload.mission_id)
 
     assigned_at = payload.assigned_at or datetime.now(UTC).isoformat()
     try:
-        return await asyncio.to_thread(
+        record = await asyncio.to_thread(
             storage.upsert_pod_assignment,
             app.state.settings,
             payload.mission_id,
@@ -221,6 +257,25 @@ async def upsert_pod_assignment(
             payload.metadata,
             assigned_at,
         )
+        await record_audit_event(
+            app,
+            mission_id=payload.mission_id,
+            mission=mission,
+            agent_id=(
+                _agent_id_from_metadata(payload.metadata)
+                or _agent_id_from_metadata(mission.metadata)
+                or "SYSTEM"
+            ),
+            service_name="orchestrator",
+            event_type="MISSION_POD_ASSIGNMENT_WRITTEN",
+            object_type="pod_assignment",
+            object_id=payload.pod_name,
+            payload_summary={
+                "pod_name": payload.pod_name,
+                "metadata": summarize_mapping(payload.metadata),
+            },
+        )
+        return record
     except storage.PodAssignmentConflictError as exc:
         raise HTTPException(
             status_code=409,
@@ -290,6 +345,59 @@ async def get_chain_trace(
     )
 
 
+@router.post("/internal/audit-events")
+async def create_audit_event(
+    request: Request,
+    payload: AgentActionEventUpsert,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, payload.mission_id)
+    return await record_audit_event(
+        app,
+        mission_id=payload.mission_id,
+        mission=mission,
+        agent_id=payload.agent_id,
+        service_name=payload.service_name,
+        event_type=payload.event_type,
+        status=payload.status,
+        object_type=payload.object_type,
+        object_id=payload.object_id,
+        tool_name=payload.tool_name,
+        correlation_id=payload.correlation_id,
+        parent_event_id=payload.parent_event_id,
+        started_at=payload.started_at.isoformat() if payload.started_at else None,
+        ended_at=payload.ended_at.isoformat() if payload.ended_at else None,
+        payload_summary=payload.payload_summary,
+        content_hash_source=payload.payload_summary,
+        content_sha256_value=payload.content_sha256,
+        blob_ref=payload.blob_ref,
+    ) or {}
+
+
+@router.get("/internal/missions/{mission_id}/audit-events")
+async def get_mission_audit_events(
+    request: Request,
+    mission_id: str,
+    limit: int = Query(default=100, ge=1, le=1000),
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> list[dict[str, Any]]:
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    await _main._fetch_existing_mission(app, mission_id)
+    return await asyncio.to_thread(
+        storage.list_mission_agent_action_events,
+        app.state.settings,
+        mission_id,
+        limit,
+    )
+
+
 @router.post("/internal/logicnodes")
 async def upsert_logicnode(
     request: Request,
@@ -300,10 +408,10 @@ async def upsert_logicnode(
 
     app = request.app
     await _main._ensure_db_ready(app)
-    await _main._fetch_existing_mission(app, payload.mission_id)
+    mission = await _main._fetch_existing_mission(app, payload.mission_id)
 
     created_at = payload.created_at or datetime.now(UTC).isoformat()
-    return await asyncio.to_thread(
+    record = await asyncio.to_thread(
         storage.upsert_logicnode,
         app.state.settings,
         payload.mission_id,
@@ -311,6 +419,25 @@ async def upsert_logicnode(
         payload.node,
         created_at,
     )
+    await record_audit_event(
+        app,
+        mission_id=payload.mission_id,
+        mission=mission,
+        agent_id=(
+            _agent_id_from_node(payload.node)
+            or _agent_id_from_metadata(mission.metadata)
+            or "SYSTEM"
+        ),
+        service_name="orchestrator",
+        event_type="MISSION_LOGICNODE_WRITTEN",
+        object_type="logicnode",
+        object_id=payload.node_id,
+        payload_summary={
+            "node_id": payload.node_id,
+            "node": summarize_mapping(payload.node),
+        },
+    )
+    return record
 
 
 @router.get("/internal/missions/{mission_id}/logicnodes")
@@ -338,7 +465,7 @@ async def upsert_knowledge(
 
     app = request.app
     await _main._ensure_db_ready(app)
-    await _main._fetch_existing_mission(app, payload.mission_id)
+    mission = await _main._fetch_existing_mission(app, payload.mission_id)
 
     created_at = payload.created_at or datetime.now(UTC).isoformat()
     record = await asyncio.to_thread(
@@ -408,6 +535,27 @@ async def upsert_knowledge(
                 payload.knowledge_id,
                 exc,
             )
+    await record_audit_event(
+        app,
+        mission_id=payload.mission_id,
+        mission=mission,
+        agent_id=(
+            _agent_id_from_metadata(payload.content.get("metadata"))
+            if isinstance(payload.content, dict)
+            else None
+        )
+        or _agent_id_from_metadata(mission.metadata)
+        or "SYSTEM",
+        service_name="orchestrator",
+        event_type="MISSION_KNOWLEDGE_WRITTEN",
+        object_type="knowledge",
+        object_id=payload.knowledge_id,
+        payload_summary={
+            "knowledge_id": payload.knowledge_id,
+            "content": summarize_mapping(payload.content),
+        },
+        content_hash_source=payload.content,
+    )
     return record
 
 
@@ -486,7 +634,7 @@ async def upsert_audit_report(
 
     app = request.app
     await _main._ensure_db_ready(app)
-    await _main._fetch_existing_mission(app, payload.mission_id)
+    mission = await _main._fetch_existing_mission(app, payload.mission_id)
 
     created_at = payload.created_at or datetime.now(UTC).isoformat()
     record = await asyncio.to_thread(
@@ -542,6 +690,29 @@ async def upsert_audit_report(
                 payload.audit_id,
                 exc,
             )
+    await record_audit_event(
+        app,
+        mission_id=payload.mission_id,
+        mission=mission,
+        agent_id=(
+            _agent_id_from_metadata(payload.report)
+            or _agent_id_from_metadata(
+                payload.report.get("result") if isinstance(payload.report, dict) else None
+            )
+            or _agent_id_from_metadata(mission.metadata)
+            or "SYSTEM"
+        ),
+        service_name="orchestrator",
+        event_type="MISSION_AUDIT_REPORT_WRITTEN",
+        object_type="audit_report",
+        object_id=payload.audit_id,
+        payload_summary={
+            "audit_id": payload.audit_id,
+            "status": payload.status,
+            "report": summarize_mapping(payload.report),
+        },
+        content_hash_source=payload.report,
+    )
     return record
 
 
@@ -747,6 +918,25 @@ async def upsert_partition_result(
     metadata = record.metadata if isinstance(record.metadata, dict) else {}
     if record.state == MissionState.running and bool(metadata.get("scaling_merge_complete")):
         _main.start_lifecycle_task(app, mission_id)
+    await record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=record,
+        agent_id=agent_id,
+        service_name="orchestrator",
+        event_type="MISSION_PARTITION_RESULT_RECORDED",
+        object_type="partition_result",
+        object_id=partition_id,
+        payload_summary={
+            "partition_id": partition_id,
+            "instance_index": result_payload["instance_index"],
+            "logicnode_count": len(result_payload["logicnodes"]),
+            "artifact_count": len(result_payload["artifacts"]),
+            "report": summarize_mapping(result_payload["report"]),
+            "scaling_complete": bool(metadata.get("scaling_merge_complete", False)),
+        },
+        content_hash_source=result_payload,
+    )
 
     partition_results = metadata.get("partition_results")
     return {
@@ -776,4 +966,29 @@ async def upsert_agent_heartbeat(
 
     app = request.app
     await _main._ensure_db_ready(app)
-    return await _main._upsert_agent_heartbeat(app, payload, emit_stream_event=True)
+    record = await _main._upsert_agent_heartbeat(app, payload, emit_stream_event=True)
+    if record.get("state_changed") or payload.active_mission_ids:
+        for mission_id in payload.active_mission_ids[:10]:
+            try:
+                mission = await _main._fetch_existing_mission(app, mission_id)
+            except HTTPException:
+                continue
+            await record_audit_event(
+                app,
+                mission_id=mission_id,
+                mission=mission,
+                agent_id=payload.agent_id,
+                service_name="orchestrator",
+                event_type="AGENT_HEARTBEAT_UPDATED",
+                status="SUCCESS",
+                object_type="heartbeat",
+                object_id=payload.agent_id,
+                payload_summary={
+                    "state": payload.state,
+                    "queue_depth": payload.queue_depth,
+                    "workload_pct": payload.workload_pct,
+                    "metadata": summarize_mapping(payload.metadata),
+                    "state_changed": bool(record.get("state_changed")),
+                },
+            )
+    return record

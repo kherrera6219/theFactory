@@ -48,9 +48,9 @@ class MissionFlowV2Engine:
     """
 
     async def advance(self, app: FastAPI, mission_id: str) -> None:
-        from .mission_flow_v2 import advance_mission_lifecycle_v2
         # Lazy import to avoid circular dep: lifecycle_interface ← runtime ← lifecycle_interface
         from . import runtime as _rt  # noqa: PLC0415
+        from .mission_flow_v2 import advance_mission_lifecycle_v2
 
         settings = app.state.settings
         validator = app.state.envelope_validator
@@ -75,8 +75,8 @@ class LangGraphEngine:
     """
 
     async def advance(self, app: FastAPI, mission_id: str) -> None:
-        from .langgraph_lifecycle import maybe_advance_mission_lifecycle
         from . import runtime as _rt  # noqa: PLC0415
+        from .langgraph_lifecycle import maybe_advance_mission_lifecycle
 
         settings = app.state.settings
         validator = app.state.envelope_validator

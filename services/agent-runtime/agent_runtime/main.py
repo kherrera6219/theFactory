@@ -10,7 +10,7 @@ import sys
 import time
 import uuid
 from contextlib import asynccontextmanager, suppress
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -178,12 +178,62 @@ def _validate_envelope(envelope: dict[str, Any]) -> None:
     )
 
 
+async def _emit_audit_event(
+    *,
+    mission_id: str | None,
+    event_type: str,
+    status: str = "SUCCESS",
+    object_type: str | None = None,
+    object_id: str | None = None,
+    tool_name: str | None = None,
+    started_at: str | None = None,
+    ended_at: str | None = None,
+    payload_summary: dict[str, Any] | None = None,
+) -> None:
+    if not mission_id:
+        return
+    try:
+        response = await _request(
+            "POST",
+            "/internal/audit-events",
+            json_body={
+                "mission_id": mission_id,
+                "agent_id": WORKER_AGENT_ID or "AGENT-RUNTIME",
+                "service_name": "agent-runtime",
+                "event_type": event_type,
+                "status": status,
+                "object_type": object_type,
+                "object_id": object_id,
+                "tool_name": tool_name,
+                "started_at": started_at or datetime.now(UTC).isoformat(),
+                "ended_at": ended_at or datetime.now(UTC).isoformat(),
+                "payload_summary": _summarize_mapping(payload_summary),
+            },
+            emit_audit=False,
+        )
+        if response.status_code >= 400:
+            LOGGER.warning(
+                "agent-runtime failed to persist audit event %s for mission %s: %s",
+                event_type,
+                mission_id,
+                response.status_code,
+            )
+    except Exception as exc:
+        LOGGER.warning(
+            "agent-runtime failed to emit audit event %s for mission %s: %s",
+            event_type,
+            mission_id,
+            exc,
+        )
+
+
 async def _request(
     method: str,
     path: str,
     *,
     json_body: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
+    emit_audit: bool = True,
 ) -> httpx.Response:
     """Make an HTTP request to the orchestrator, honouring the circuit breaker.
 
@@ -197,6 +247,7 @@ async def _request(
             f"circuit breaker OPEN — orchestrator unreachable; retry after "
             f"{_CircuitBreaker.RECOVERY_SECONDS}s"
         )
+    started_at = datetime.now(UTC).isoformat()
     request_id = f"agent-runtime-{uuid.uuid4()}"
     headers = {
         "x-api-key": SERVICE_API_KEY,
@@ -226,6 +277,22 @@ async def _request(
             if attempt < REQUEST_MAX_RETRIES:
                 await asyncio.sleep(0.1 * attempt)
     if last_response is not None:
+        if emit_audit and path != "/internal/audit-events":
+            await _emit_audit_event(
+                mission_id=_mission_id_for_request(path, json_body=json_body, params=params),
+                event_type="TOOL_HTTP_REQUEST",
+                status="SUCCESS" if last_response.status_code < 400 else "ERROR",
+                object_type="http_request",
+                object_id=path,
+                tool_name="orchestrator_api",
+                started_at=started_at,
+                ended_at=datetime.now(UTC).isoformat(),
+                payload_summary={
+                    "method": method,
+                    "path": path,
+                    "status_code": last_response.status_code,
+                },
+            )
         return last_response
     if last_error is not None:
         raise last_error
@@ -266,6 +333,50 @@ def _safe_to_dict(candidate: Any) -> dict[str, Any]:
         if isinstance(payload, dict):
             return payload
     return {}
+
+
+def _summarize_value(value: Any) -> Any:
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        compact = " ".join(value.split())
+        return compact if len(compact) <= 240 else f"{compact[:240]}..."
+    if isinstance(value, dict):
+        items = list(value.items())[:8]
+        summary = {str(key): _summarize_value(item) for key, item in items}
+        if len(value) > 8:
+            summary["_truncated_keys"] = len(value) - 8
+        return summary
+    if isinstance(value, list):
+        summary = [_summarize_value(item) for item in value[:8]]
+        if len(value) > 8:
+            summary.append({"_truncated_items": len(value) - 8})
+        return summary
+    return str(value)
+
+
+def _summarize_mapping(value: Any) -> dict[str, Any]:
+    return _summarize_value(value) if isinstance(value, dict) else {}
+
+
+def _mission_id_for_request(
+    path: str,
+    *,
+    json_body: dict[str, Any] | None,
+    params: dict[str, Any] | None,
+) -> str | None:
+    if isinstance(json_body, dict):
+        mission_id = str(json_body.get("mission_id", "")).strip()
+        if mission_id:
+            return mission_id
+    if isinstance(params, dict):
+        mission_id = str(params.get("mission_id", "")).strip()
+        if mission_id:
+            return mission_id
+    match = re.search(r"/missions/([^/]+)", path)
+    if match:
+        return str(match.group(1)).strip()
+    return None
 
 
 def _event_types_for_agent(agent: Any) -> set[str]:
@@ -366,6 +477,13 @@ async def _persist_pipeline_output(
                 },
             },
         )
+        await _emit_audit_event(
+            mission_id=mission_id,
+            event_type="AGENT_REPORT_PERSISTED",
+            object_type="audit_report",
+            object_id=f"{agent.agent_id}.{mission_id}",
+            payload_summary={"agent_id": agent.agent_id, "category": agent.category},
+        )
         return
 
     await _request(
@@ -385,6 +503,13 @@ async def _persist_pipeline_output(
                 },
             },
         },
+    )
+    await _emit_audit_event(
+        mission_id=mission_id,
+        event_type="AGENT_REPORT_PERSISTED",
+        object_type="knowledge",
+        object_id=f"{agent.agent_id}.{mission_id}",
+        payload_summary={"agent_id": agent.agent_id, "category": agent.category},
     )
 
 
@@ -415,16 +540,52 @@ async def _process_event(payload: dict[str, Any]) -> bool:
         mission_id=mission_id,
         metadata={"event_type": event_type, "category": agent.category},
     )
-    pipeline = _run_agent_pipeline(
-        agent,
+    execution_started_at = datetime.now(UTC).isoformat()
+    await _emit_audit_event(
         mission_id=mission_id,
-        payload={
-            "event_type": event_type,
-            "mission": mission,
-            "requested_target_language": target_language,
-            "logicnodes": logicnodes,
-            "pod_assignment": pod_assignment,
-            "rationale": payload.get("event_type", ""),
+        event_type="AGENT_EXECUTION_STARTED",
+        status="STARTED",
+        object_type="agent_execution",
+        object_id=agent.agent_id,
+        payload_summary={"agent_id": agent.agent_id, "event_type": event_type},
+    )
+    try:
+        pipeline = _run_agent_pipeline(
+            agent,
+            mission_id=mission_id,
+            payload={
+                "event_type": event_type,
+                "mission": mission,
+                "requested_target_language": target_language,
+                "logicnodes": logicnodes,
+                "pod_assignment": pod_assignment,
+                "rationale": payload.get("event_type", ""),
+            },
+        )
+    except Exception as exc:
+        await _emit_audit_event(
+            mission_id=mission_id,
+            event_type="AGENT_EXECUTION_COMPLETED",
+            status="ERROR",
+            object_type="agent_execution",
+            object_id=agent.agent_id,
+            started_at=execution_started_at,
+            ended_at=datetime.now(UTC).isoformat(),
+            payload_summary={"agent_id": agent.agent_id, "error": str(exc)},
+        )
+        raise
+    await _emit_audit_event(
+        mission_id=mission_id,
+        event_type="AGENT_EXECUTION_COMPLETED",
+        object_type="agent_execution",
+        object_id=agent.agent_id,
+        started_at=execution_started_at,
+        ended_at=datetime.now(UTC).isoformat(),
+        payload_summary={
+            "agent_id": agent.agent_id,
+            "category": agent.category,
+            "artifact_count": len(_safe_to_dict(pipeline["result"]).get("artifacts", []) or []),
+            "validation": _summarize_mapping(_safe_to_dict(pipeline["validation"])),
         },
     )
     await _persist_pipeline_output(agent=agent, mission_id=mission_id, pipeline=pipeline)

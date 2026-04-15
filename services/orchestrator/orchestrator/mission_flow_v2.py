@@ -41,6 +41,7 @@ from .agent_scaling import (
     is_scalable_agent,
     scaling_decision_from_metadata,
 )
+from .audit_events import record_audit_event
 from .llm_delegation import (
     generate_ceo_delegation,
     generate_pod_manager_delegation,
@@ -429,6 +430,26 @@ async def _prepare_ceo_delegation(
             "model": normalized.get("model"),
         },
     )
+    await record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=mission,
+        agent_id=CEO_AGENT_ID,
+        service_name="orchestrator",
+        event_type="AGENT_DELEGATION_PLANNED",
+        object_type="delegation",
+        object_id="ceo",
+        tool_name="llm_delegation",
+        payload_summary={
+            "source": normalized.get("source"),
+            "llm_route": normalized.get("llm_route"),
+            "model_provider": normalized.get("model_provider"),
+            "model": normalized.get("model"),
+            "pod_manager_agent_id": pod_manager_agent_id,
+            "specialist_agent_id": specialist_agent_id,
+        },
+        content_hash_source=normalized,
+    )
     return (
         await _persist_metadata(
             app=app,
@@ -515,6 +536,26 @@ async def _prepare_pod_assignment(
             "model_provider": normalized.get("model_provider"),
             "model": normalized.get("model"),
         },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=mission,
+        agent_id=pod_manager_agent_id,
+        service_name="orchestrator",
+        event_type="AGENT_DELEGATION_PLANNED",
+        object_type="delegation",
+        object_id="pod_manager",
+        tool_name="llm_delegation",
+        payload_summary={
+            "source": normalized.get("source"),
+            "llm_route": normalized.get("llm_route"),
+            "model_provider": normalized.get("model_provider"),
+            "model": normalized.get("model"),
+            "pod_manager_agent_id": pod_manager_agent_id,
+            "specialist_agent_id": specialist_agent_id,
+        },
+        content_hash_source=normalized,
     )
     return (
         await _persist_metadata(
@@ -648,6 +689,26 @@ async def _prepare_specialist_plan(
             "model": normalized.get("model"),
         },
     )
+    await record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=mission,
+        agent_id=specialist_agent_id,
+        service_name="orchestrator",
+        event_type="AGENT_PLAN_GENERATED",
+        object_type="plan",
+        object_id="specialist",
+        tool_name="llm_delegation",
+        payload_summary={
+            "source": normalized.get("source"),
+            "llm_route": normalized.get("llm_route"),
+            "model_provider": normalized.get("model_provider"),
+            "model": normalized.get("model"),
+            "deliverable_count": len(normalized.get("deliverables", []) or []),
+            "risk_note_count": len(normalized.get("risk_notes", []) or []),
+        },
+        content_hash_source=normalized,
+    )
 
     # Compute scaling decision when feature is enabled.
     if _setting_bool(settings, "agent_scaling_enabled", False) and is_scalable_agent(
@@ -679,6 +740,18 @@ async def _prepare_specialist_plan(
             event_type="MISSION_SCALING_DECIDED",
             agent_id=specialist_agent_id,
             details=scaling.to_dict(),
+        )
+        await record_audit_event(
+            app,
+            mission_id=mission_id,
+            mission=mission,
+            agent_id=specialist_agent_id,
+            service_name="orchestrator",
+            event_type="MISSION_SCALING_DECIDED",
+            object_type="scaling_plan",
+            object_id=specialist_agent_id,
+            payload_summary=scaling.to_dict(),
+            content_hash_source=scaling.to_dict(),
         )
 
     return (
@@ -725,6 +798,7 @@ async def _persist_runtime_phase_artifact(
 
 async def _ensure_verified_build_artifact(
     *,
+    app: Any,
     settings: Any,
     mission: Any,
 ) -> Any:
@@ -753,6 +827,31 @@ async def _ensure_verified_build_artifact(
         artifact_record["build_log"],
         artifact_record["artifact_text"],
         artifact_record["created_at"],
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id=str(
+            (
+                mission.metadata.get("selected_agent_id")
+                if isinstance(mission.metadata, dict)
+                else None
+            )
+            or CEO_AGENT_ID
+        ),
+        service_name="orchestrator",
+        event_type="MISSION_BUILD_ARTIFACT_WRITTEN",
+        object_type="build_artifact",
+        object_id=str(artifact_record["artifact_id"]),
+        payload_summary={
+            "artifact_type": artifact_record["artifact_type"],
+            "stage": artifact_record["stage"],
+            "status": artifact_record["status"],
+            "digest_sha256": artifact_record["digest_sha256"],
+            "size_bytes": artifact_record["size_bytes"],
+        },
+        content_hash_source=artifact_record,
     )
 
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
@@ -1041,6 +1140,7 @@ async def advance_mission_lifecycle_v2(
             if new_state == MissionState.verified:
                 try:
                     record = await _ensure_verified_build_artifact(
+                        app=app,
                         settings=settings,
                         mission=record,
                     )

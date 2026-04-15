@@ -4,6 +4,7 @@ export type MissionRecord = {
   state: string;
   requested_target_language: string | null;
   metadata?: Record<string, unknown>;
+  project_id?: string | null;
   created_at: string;
 };
 
@@ -173,8 +174,6 @@ export type PodAssignmentRecord = {
   updated_at: string;
 };
 
-export type TopologyMode = "condensed" | "dedicated" | "full-dedicated";
-
 export type OperationsSummary = {
   generated_at: string;
   topology_mode: TopologyMode;
@@ -202,12 +201,39 @@ export type OperationsLogicNodeRecord = {
 
 export type OperationsProjectRecord = {
   project_id: string;
+  project_name?: string;
   source: string;
   mission_count: number;
   failed_count: number;
   complete_count: number;
   status: "active" | "paused" | "completed";
   last_updated_at: string;
+};
+
+export type OperationsAuditEventRecord = {
+  event_id: string;
+  project_id: string;
+  mission_id: string;
+  agent_id: string;
+  service_name: string;
+  event_type: string;
+  status: string;
+  object_type?: string | null;
+  object_id?: string | null;
+  tool_name?: string | null;
+  trace_id?: string | null;
+  span_id?: string | null;
+  correlation_id?: string | null;
+  parent_event_id?: string | null;
+  started_at: string;
+  ended_at?: string | null;
+  duration_ms?: number | null;
+  payload_summary?: Record<string, unknown>;
+  content_sha256?: string | null;
+  blob_ref?: string | null;
+  prev_event_digest_sha256?: string | null;
+  event_digest_sha256: string;
+  created_at: string;
 };
 
 export type OperationsAlertRecord = {

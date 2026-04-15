@@ -1,5 +1,10 @@
 # Definition of Done — theFactory / Holy Grail Refinery
 
+Document version: 2026.04.14  
+Last updated: 2026-04-14  
+Status: Canonical  
+Audience: Developers, reviewers, and maintainers
+
 A change is done only when every applicable item below is satisfied for the modified scope.
 
 ---

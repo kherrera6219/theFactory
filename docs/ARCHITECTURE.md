@@ -1,7 +1,7 @@
 # Architecture — theFactory
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.04.14  
+Last updated: 2026-04-14  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -103,11 +103,13 @@ The system is organized into three planes:
 
 - **Mission state machine:** `QUEUED → RUNNING → VERIFIED → COMPLETE | FAILED`
 - **Lifecycle engines:** shipped defaults currently execute mission-flow v2 first, with optional LangGraph and legacy fallback
+- **Project identity:** every mission now carries a durable `project_id` resolved at intake and persisted on the mission record
 - **Agent registry:** Canonical 38-agent dataset with runtime telemetry + 8-part persona profiles
 - **Pod assignment:** Routes missions to pod streams based on `requested_target_language`
 - **Build/package artifacts:** source-bundle missions package a durable Postgres-backed build artifact at `VERIFIED` with digest, manifest, build log, and retrieval metadata
 - **Durable review approvals:** Builder and repo review approvals persist as orchestrator-backed approval records rather than local filesystem receipts
-- **Operations APIs:** `/internal/operations/summary|agents|agent-integrations`
+- **Agent action ledger:** append-only `agent_action_events` records execution starts/completions, tool usage, persisted outputs, mission mutations, and trace correlation per project, mission, and agent
+- **Operations APIs:** `/internal/operations/summary|agents|agent-integrations|projects/{project_id}/audit-events`
 - **Data-plane adapters:** Qdrant (active), Milvus/Neo4j/object storage (feature-flagged)
 - **OTel tracing:** Jaeger OTLP export
 
@@ -146,8 +148,9 @@ The system is organized into three planes:
 ### Mission Control (`apps/mission-control`, `:3100`)
 
 - **Operator console:** Full Next.js 16 App Router application
-- **Primary operator surfaces:** Home/dashboard, chat intake, missions, agents, semantic bus, databases, repo import, and settings
+- **Primary operator surfaces:** Home/dashboard, chat intake, missions, projects, agents, semantic bus, databases, repo import, and settings
 - **Grounded review flows:** Workspace builder review and GitHub repo review with durable approval records and mission launch bundles
+- **Project audit timeline:** `Projects` shows per-project audit history with event, mission, agent, service, tool, and duration drill-down backed by the gateway/orchestrator audit APIs
 - **Live transport:** SSE EventSource + polling fallback with `stream|poll|paused` mode indicator
 - **Windowed rendering:** Virtual scrolling for Semantic Bus and agent roster views (high-volume)
 

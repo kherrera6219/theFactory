@@ -1,5 +1,10 @@
 # Python AST vs Regex Extractor Comparison
 
+Document version: 2026.04.14  
+Last updated: 2026-04-14  
+Status: Review Artifact  
+Audience: Developers, reviewers, and maintainers
+
 **Date:** 2026-04-14  
 **Fixture:** `tests/fixtures/extractors/python_sample.py`  
 **Extractor versions:** `PythonExtractor` (regex) · `PythonAstExtractor` (AST-augmented)

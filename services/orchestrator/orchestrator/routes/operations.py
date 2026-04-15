@@ -560,6 +560,31 @@ async def get_operations_projects(
     return await asyncio.to_thread(storage.summarize_projects, app.state.settings, limit)
 
 
+@router.get("/internal/operations/projects/{project_id}/audit-events")
+async def get_project_audit_events(
+    request: Request,
+    project_id: str,
+    limit: int = Query(default=200, ge=1, le=1000),
+    mission_id: str | None = Query(default=None, min_length=1),
+    agent_id: str | None = Query(default=None, min_length=1),
+    tool_name: str | None = Query(default=None, min_length=1),
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> list[dict[str, Any]]:
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    return await asyncio.to_thread(
+        storage.list_project_agent_action_events,
+        app.state.settings,
+        project_id,
+        limit,
+        mission_id=mission_id,
+        agent_id=agent_id,
+        tool_name=tool_name,
+    )
+
+
 @router.get("/internal/operations/alerts")
 async def get_operations_alerts(
     request: Request,

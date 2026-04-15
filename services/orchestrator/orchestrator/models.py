@@ -127,6 +127,7 @@ class MissionRecord(BaseModel):
     prompt: str
     requested_target_language: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    project_id: str | None = None
     state: MissionState
     created_at: datetime
 
@@ -149,6 +150,7 @@ class MissionCreate(BaseModel):
     prompt: str = Field(min_length=3)
     requested_target_language: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    project_id: str | None = None
     created_at: datetime | None = None
 
 
@@ -184,6 +186,54 @@ class AuditReportUpsert(BaseModel):
     status: str = Field(min_length=1)
     report: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime | None = None
+
+
+class AgentActionEventUpsert(BaseModel):
+    event_id: str | None = None
+    mission_id: str = Field(min_length=1)
+    project_id: str | None = None
+    agent_id: str = Field(min_length=1)
+    service_name: str = Field(min_length=1)
+    event_type: str = Field(min_length=1)
+    status: str = Field(default="SUCCESS", min_length=1)
+    object_type: str | None = None
+    object_id: str | None = None
+    tool_name: str | None = None
+    trace_id: str | None = None
+    span_id: str | None = None
+    correlation_id: str | None = None
+    parent_event_id: str | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    payload_summary: dict[str, Any] = Field(default_factory=dict)
+    content_sha256: str | None = None
+    blob_ref: str | None = None
+
+
+class AgentActionEventRecord(BaseModel):
+    event_id: str
+    project_id: str
+    mission_id: str
+    agent_id: str
+    service_name: str
+    event_type: str
+    status: str
+    object_type: str | None = None
+    object_id: str | None = None
+    tool_name: str | None = None
+    trace_id: str | None = None
+    span_id: str | None = None
+    correlation_id: str | None = None
+    parent_event_id: str | None = None
+    started_at: datetime
+    ended_at: datetime | None = None
+    duration_ms: int | None = None
+    payload_summary: dict[str, Any] = Field(default_factory=dict)
+    content_sha256: str | None = None
+    blob_ref: str | None = None
+    prev_event_digest_sha256: str | None = None
+    event_digest_sha256: str
+    created_at: datetime
 
 
 class ReviewApprovalUpsert(BaseModel):

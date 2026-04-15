@@ -15,22 +15,46 @@ from .agent_scaling import (
     record_partition_result as embed_partition_result,
 )
 from .models import MissionEvent, MissionRecord, MissionState
+from .project_identity import resolve_project_id, with_project_identity
 from .settings import Settings
 from .storage_core import _json_to_dict, _to_iso, db_connect, psycopg
 
+MISSION_SELECT = """
+    mission_id,
+    prompt,
+    requested_target_language,
+    metadata_json,
+    project_id,
+    state,
+    created_at
+"""
+
 
 def row_to_mission(row: Any) -> MissionRecord:
+    metadata = _json_to_dict(row[3])
+    has_project_id = len(row) >= 7
+    project_id_index = 4 if has_project_id else None
+    state_index = 5 if has_project_id else 4
+    created_at_index = 6 if has_project_id else 5
     return MissionRecord(
         mission_id=row[0],
         prompt=row[1],
         requested_target_language=row[2],
-        metadata=_json_to_dict(row[3]),
-        state=MissionState(row[4]),
-        created_at=_to_iso(row[5]),
+        metadata=metadata,
+        project_id=str(
+            (row[project_id_index] if project_id_index is not None else None)
+            or resolve_project_id(metadata, mission_id=row[0])
+        ),
+        state=MissionState(row[state_index]),
+        created_at=_to_iso(row[created_at_index]),
     )
 
 
 def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: str | None) -> None:
+    metadata = with_project_identity(record.metadata, mission_id=record.mission_id)
+    project_id = str(
+        record.project_id or resolve_project_id(metadata, mission_id=record.mission_id)
+    )
     with db_connect(settings) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -40,16 +64,18 @@ def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: 
                     prompt,
                     requested_target_language,
                     metadata_json,
+                    project_id,
                     state,
                     created_at,
                     updated_at,
                     source_stream_id
                 )
-                VALUES (%s, %s, %s, %s::jsonb, %s, %s::timestamptz, NOW(), %s)
+                VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s::timestamptz, NOW(), %s)
                 ON CONFLICT (mission_id) DO UPDATE SET
                     prompt = EXCLUDED.prompt,
                     requested_target_language = EXCLUDED.requested_target_language,
                     metadata_json = EXCLUDED.metadata_json,
+                    project_id = EXCLUDED.project_id,
                     state = EXCLUDED.state,
                     updated_at = NOW(),
                     source_stream_id = EXCLUDED.source_stream_id;
@@ -58,7 +84,8 @@ def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: 
                     record.mission_id,
                     record.prompt,
                     record.requested_target_language,
-                    json.dumps(record.metadata),
+                    json.dumps(metadata),
+                    project_id,
                     record.state.value,
                     record.created_at,
                     source_stream_id,
@@ -72,12 +99,9 @@ def fetch_mission(settings: Settings, mission_id: str) -> MissionRecord | None:
             cur.execute(
                 """
                 SELECT
-                    mission_id,
-                    prompt,
-                    requested_target_language,
-                    metadata_json,
-                    state,
-                    created_at
+                    """
+                + MISSION_SELECT
+                + """
                 FROM missions
                 WHERE mission_id = %s
                 """,
@@ -95,22 +119,21 @@ def update_mission_metadata(
     mission_id: str,
     metadata: dict[str, Any],
 ) -> MissionRecord | None:
+    normalized_metadata = with_project_identity(metadata, mission_id=mission_id)
+    project_id = resolve_project_id(normalized_metadata, mission_id=mission_id)
     with db_connect(settings) as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 UPDATE missions
-                SET metadata_json = %s::jsonb, updated_at = NOW()
+                SET metadata_json = %s::jsonb, project_id = %s, updated_at = NOW()
                 WHERE mission_id = %s
                 RETURNING
-                    mission_id,
-                    prompt,
-                    requested_target_language,
-                    metadata_json,
-                    state,
-                    created_at
+                    """
+                + MISSION_SELECT
+                + """
                 """,
-                (json.dumps(metadata), mission_id),
+                (json.dumps(normalized_metadata), project_id, mission_id),
             )
             row = cur.fetchone()
 
@@ -125,12 +148,9 @@ def list_missions(settings: Settings, limit: int) -> list[MissionRecord]:
             cur.execute(
                 """
                 SELECT
-                    mission_id,
-                    prompt,
-                    requested_target_language,
-                    metadata_json,
-                    state,
-                    created_at
+                    """
+                + MISSION_SELECT
+                + """
                 FROM missions
                 ORDER BY created_at DESC
                 LIMIT %s
@@ -156,12 +176,9 @@ def list_missions_in_states(
             cur.execute(
                 """
                 SELECT
-                    mission_id,
-                    prompt,
-                    requested_target_language,
-                    metadata_json,
-                    state,
-                    created_at
+                    """
+                + MISSION_SELECT
+                + """
                 FROM missions
                 WHERE state = ANY(%s)
                 ORDER BY created_at ASC
@@ -272,12 +289,9 @@ def transition_mission_state(
                     SET state = %s, updated_at = NOW()
                     WHERE mission_id = %s
                     RETURNING
-                        mission_id,
-                        prompt,
-                        requested_target_language,
-                        metadata_json,
-                        state,
-                        created_at
+                        """
+                    + MISSION_SELECT
+                    + """
                     """,
                     (new_state.value, mission_id),
                 )
@@ -288,12 +302,9 @@ def transition_mission_state(
                     SET state = %s, updated_at = NOW()
                     WHERE mission_id = %s AND state = %s
                     RETURNING
-                        mission_id,
-                        prompt,
-                        requested_target_language,
-                        metadata_json,
-                        state,
-                        created_at
+                        """
+                    + MISSION_SELECT
+                    + """
                     """,
                     (new_state.value, mission_id, expected_state.value),
                 )
@@ -345,12 +356,9 @@ def _locked_mission_metadata_update(
                 cur.execute(
                     """
                     SELECT
-                        mission_id,
-                        prompt,
-                        requested_target_language,
-                        metadata_json,
-                        state,
-                        created_at
+                        """
+                    + MISSION_SELECT
+                    + """
                     FROM missions
                     WHERE mission_id = %s
                     FOR UPDATE
@@ -370,17 +378,18 @@ def _locked_mission_metadata_update(
                 cur.execute(
                     """
                     UPDATE missions
-                    SET metadata_json = %s::jsonb, updated_at = NOW()
+                    SET metadata_json = %s::jsonb, project_id = %s, updated_at = NOW()
                     WHERE mission_id = %s
                     RETURNING
-                        mission_id,
-                        prompt,
-                        requested_target_language,
-                        metadata_json,
-                        state,
-                        created_at
+                        """
+                    + MISSION_SELECT
+                    + """
                     """,
-                    (json.dumps(updated_metadata), mission_id),
+                    (
+                        json.dumps(with_project_identity(updated_metadata, mission_id=mission_id)),
+                        resolve_project_id(updated_metadata, mission_id=mission_id),
+                        mission_id,
+                    ),
                 )
                 updated_row = cur.fetchone()
                 if updated_row is None:

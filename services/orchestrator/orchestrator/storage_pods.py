@@ -111,13 +111,26 @@ def summarize_projects(settings: Settings, limit: int) -> list[dict[str, Any]]:
             cur.execute(
                 """
                 SELECT
-                    COALESCE(NULLIF(metadata_json->>'source', ''), 'unknown') AS project_source,
+                    project_id,
+                    COALESCE(
+                        NULLIF(metadata_json->>'project_name', ''),
+                        NULLIF(metadata_json->>'source', ''),
+                        project_id
+                    ) AS project_name,
+                    COALESCE(NULLIF(metadata_json->>'source', ''), project_id) AS project_source,
                     COUNT(*) AS mission_count,
                     MAX(updated_at) AS last_updated_at,
                     SUM(CASE WHEN state = 'FAILED' THEN 1 ELSE 0 END) AS failed_count,
                     SUM(CASE WHEN state = 'COMPLETE' THEN 1 ELSE 0 END) AS complete_count
                 FROM missions
-                GROUP BY project_source
+                GROUP BY
+                    project_id,
+                    COALESCE(
+                        NULLIF(metadata_json->>'project_name', ''),
+                        NULLIF(metadata_json->>'source', ''),
+                        project_id
+                    ),
+                    COALESCE(NULLIF(metadata_json->>'source', ''), project_id)
                 ORDER BY last_updated_at DESC
                 LIMIT %s
                 """,
@@ -127,10 +140,22 @@ def summarize_projects(settings: Settings, limit: int) -> list[dict[str, Any]]:
 
     summarized: list[dict[str, Any]] = []
     for row in rows:
-        source = str(row[0])
-        mission_count = int(row[1])
-        failed_count = int(row[3] or 0)
-        complete_count = int(row[4] or 0)
+        if len(row) >= 7:
+            project_id = str(row[0] or "project-unknown")
+            project_name = str(row[1] or project_id)
+            source = str(row[2] or project_name)
+            mission_count = int(row[3])
+            last_updated_at = row[4]
+            failed_count = int(row[5] or 0)
+            complete_count = int(row[6] or 0)
+        else:
+            source = str(row[0] or "unknown")
+            project_id = f"project-{source}"
+            project_name = source
+            mission_count = int(row[1])
+            last_updated_at = row[2]
+            failed_count = int(row[3] or 0)
+            complete_count = int(row[4] or 0)
         if failed_count > 0:
             status = "paused"
         elif mission_count > 0 and mission_count == complete_count:
@@ -139,13 +164,14 @@ def summarize_projects(settings: Settings, limit: int) -> list[dict[str, Any]]:
             status = "active"
         summarized.append(
             {
-                "project_id": f"project-{source}",
+                "project_id": project_id,
+                "project_name": project_name,
                 "source": source,
                 "mission_count": mission_count,
                 "failed_count": failed_count,
                 "complete_count": complete_count,
                 "status": status,
-                "last_updated_at": _to_iso(row[2]),
+                "last_updated_at": _to_iso(last_updated_at),
             }
         )
     return summarized

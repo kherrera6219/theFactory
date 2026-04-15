@@ -758,6 +758,7 @@ class TestValidTransitionsContract:
             for to_state in to_states:
                 if to_state not in known:
                     bad.append(
-                        f"VALID_TRANSITIONS[{from_state.value!r}] contains unknown state {to_state!r}"
+                        "VALID_TRANSITIONS["
+                        f"{from_state.value!r}] contains unknown state {to_state!r}"
                     )
         assert not bad, "\n".join(bad)

@@ -58,3 +58,16 @@ def current_trace_id() -> str | None:
     if context is None or not context.is_valid:
         return None
     return f"{context.trace_id:032x}"
+
+
+def current_span_id() -> str | None:
+    try:
+        from opentelemetry import trace
+    except Exception:
+        return None
+
+    span = trace.get_current_span()
+    context = span.get_span_context()
+    if context is None or not context.is_valid:
+        return None
+    return f"{context.span_id:016x}"

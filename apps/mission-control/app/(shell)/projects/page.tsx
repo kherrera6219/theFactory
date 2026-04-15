@@ -4,15 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
-import { listOperationsProjects } from "../../lib/api-client";
+import { listOperationsProjects, listProjectAuditEvents } from "../../lib/api-client";
 import { formatDateTime, humanizeState } from "../../lib/format";
 import { TEMPLATE_CATALOG } from "../../lib/template-catalog";
-import type { OperationsProjectRecord } from "../../lib/types";
+import type { OperationsAuditEventRecord, OperationsProjectRecord } from "../../lib/types";
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<OperationsProjectRecord[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [auditEvents, setAuditEvents] = useState<OperationsAuditEventRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [auditError, setAuditError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +53,53 @@ export default function ProjectsPage() {
     [projects],
   );
 
+  useEffect(() => {
+    if (!sortedProjects.length) {
+      setSelectedProjectId(null);
+      return;
+    }
+    setSelectedProjectId((current) =>
+      current && sortedProjects.some((project) => project.project_id === current)
+        ? current
+        : sortedProjects[0].project_id,
+    );
+  }, [sortedProjects]);
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setAuditEvents([]);
+      setAuditError(null);
+      setAuditLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const loadAudit = async () => {
+      setAuditLoading(true);
+      setAuditError(null);
+      try {
+        const events = await listProjectAuditEvents({ projectId: selectedProjectId, limit: 200 });
+        if (!cancelled) {
+          setAuditEvents(events);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setAuditError(loadError instanceof Error ? loadError.message : "Unable to load project audit events.");
+          setAuditEvents([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setAuditLoading(false);
+        }
+      }
+    };
+    void loadAudit();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProjectId]);
+
+  const selectedProject = sortedProjects.find((project) => project.project_id === selectedProjectId) ?? null;
+
   return (
     <div className="page shell-page">
       <PageHeader
@@ -79,9 +130,14 @@ export default function ProjectsPage() {
             </thead>
             <tbody>
               {sortedProjects.map((project) => (
-                <tr key={project.project_id}>
+                <tr
+                  key={project.project_id}
+                  data-selected={project.project_id === selectedProjectId ? "true" : undefined}
+                  onClick={() => setSelectedProjectId(project.project_id)}
+                  style={{ cursor: "pointer" }}
+                >
                   <td>{project.project_id}</td>
-                  <td>{project.source}</td>
+                  <td>{project.project_name ?? project.source}</td>
                   <td>{humanizeState(project.status)}</td>
                   <td>{project.mission_count}</td>
                   <td>{project.failed_count}</td>
@@ -93,6 +149,57 @@ export default function ProjectsPage() {
           </table>
         </div>
         {!loading && sortedProjects.length === 0 && <p className="muted">No projects available yet.</p>}
+      </Panel>
+
+      <Panel
+        title={selectedProject ? `Audit Timeline: ${selectedProject.project_name ?? selectedProject.project_id}` : "Audit Timeline"}
+      >
+        {auditLoading && <p className="muted">Loading project audit trail...</p>}
+        {auditError && <p className="error-box">{auditError}</p>}
+        {!auditLoading && !auditError && selectedProject && (
+          <p className="muted">
+            Showing the latest {auditEvents.length} recorded agent actions for <strong>{selectedProject.project_id}</strong>.
+          </p>
+        )}
+        <div className="table-wrap">
+          <table className="data-table">
+            <caption className="sr-only">
+              Project audit log with event type, mission, agent, service, tool, and timing details.
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">When</th>
+                <th scope="col">Event</th>
+                <th scope="col">Mission</th>
+                <th scope="col">Agent</th>
+                <th scope="col">Service</th>
+                <th scope="col">Tool</th>
+                <th scope="col">Object</th>
+                <th scope="col">Duration</th>
+              </tr>
+            </thead>
+            <tbody>
+              {auditEvents.map((event) => (
+                <tr key={event.event_id}>
+                  <td>{formatDateTime(event.created_at)}</td>
+                  <td>
+                    <strong>{event.event_type}</strong>
+                    <div className="muted">{humanizeState(event.status)}</div>
+                  </td>
+                  <td>{event.mission_id}</td>
+                  <td>{event.agent_id}</td>
+                  <td>{event.service_name}</td>
+                  <td>{event.tool_name ?? "—"}</td>
+                  <td>{event.object_id ?? event.object_type ?? "—"}</td>
+                  <td>{typeof event.duration_ms === "number" ? `${event.duration_ms} ms` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!auditLoading && !auditError && selectedProject && auditEvents.length === 0 && (
+          <p className="muted">No audit events recorded for this project yet.</p>
+        )}
       </Panel>
 
       <Panel title="Template Catalog">
