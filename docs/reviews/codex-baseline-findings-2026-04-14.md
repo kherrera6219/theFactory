@@ -1,4 +1,10 @@
 # Codex Baseline Findings — theFactory
+
+Document version: 2026.04.14  
+Last updated: 2026-04-14  
+Status: Review Artifact  
+Audience: Developers, reviewers, and maintainers
+
 ## Review Date: 2026-04-14
 ## Reviewer: Claude Code (read-only pass)
 ## Branch: main (validated from worktree claude/determined-haslett)

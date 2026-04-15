@@ -217,6 +217,7 @@ class MissionRecord(BaseModel):
     prompt: str
     requested_target_language: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    project_id: str | None = None
     state: str
     created_at: str
 
@@ -288,6 +289,23 @@ def _normalize_language(value: str | None) -> str:
     return value.strip().lower() if isinstance(value, str) else ""
 
 
+def _normalize_project_id(value: Any, *, fallback: str) -> str:
+    candidate = re.sub(r"[^a-z0-9._-]+", "-", str(value or "").strip().lower()).strip("-.")
+    if not candidate:
+        return fallback
+    return candidate if candidate.startswith("project-") else f"project-{candidate}"
+
+
+def _resolve_project_id(metadata: dict[str, Any], *, mission_id: str) -> str:
+    explicit = metadata.get("project_id")
+    if isinstance(explicit, str) and explicit.strip():
+        return _normalize_project_id(explicit, fallback="project-unknown")
+    source = metadata.get("source")
+    if isinstance(source, str) and source.strip():
+        return _normalize_project_id(source, fallback="project-unknown")
+    return "project-unknown"
+
+
 def _resolve_pod_manager_agent(requested_target_language: str | None) -> str:
     normalized_language = _normalize_language(requested_target_language)
     return POD_MANAGER_BY_LANGUAGE.get(normalized_language, DEFAULT_POD_MANAGER_AGENT_ID)
@@ -296,6 +314,7 @@ def _resolve_pod_manager_agent(requested_target_language: str | None) -> str:
 def _normalize_mission_metadata(
     metadata: Any,
     *,
+    mission_id: str | None = None,
     requested_target_language: str | None,
 ) -> dict[str, Any]:
     if metadata is None:
@@ -347,6 +366,14 @@ def _normalize_mission_metadata(
     )
     normalized["agent_id"] = PM_AGENT_ID
     normalized["selected_agent_id"] = PM_AGENT_ID
+    normalized["project_id"] = _resolve_project_id(
+        normalized,
+        mission_id=mission_id or "mission-pending",
+    )
+    if "project_name" not in normalized:
+        source = normalized.get("source")
+        if isinstance(source, str) and source.strip():
+            normalized["project_name"] = source.strip()
     normalized["chain_trace"] = normalized_chain_trace
     normalized["last_chain_event_type"] = "MISSION_PM_INTAKE"
     normalized["last_chain_event_at"] = None
@@ -1389,8 +1416,10 @@ async def create_mission(
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
 
+    provisional_mission_id = f"mission-{uuid.uuid4()}"
     normalized_metadata = _normalize_mission_metadata(
         payload.metadata,
+        mission_id=provisional_mission_id,
         requested_target_language=payload.requested_target_language,
     )
     # Persist source_code in metadata so pod-workers can retrieve it directly
@@ -1406,7 +1435,7 @@ async def create_mission(
 
     idempotency_redis_key: str | None = None
     request_hash: str | None = None
-    mission_id = f"mission-{uuid.uuid4()}"
+    mission_id = provisional_mission_id
     if idempotency_key is not None:
         trimmed_key = idempotency_key.strip()
         if not trimmed_key:
@@ -1487,6 +1516,7 @@ async def create_mission(
         "prompt": normalized_payload.prompt,
         "requested_target_language": normalized_payload.requested_target_language,
         "metadata": normalized_payload.metadata,
+        "project_id": normalized_payload.metadata.get("project_id"),
         "created_at": created_at,
         "state": "INTAKE",
     }
@@ -1506,6 +1536,7 @@ async def create_mission(
                 "prompt": normalized_payload.prompt,
                 "requested_target_language": normalized_payload.requested_target_language,
                 "metadata": mission_payload["metadata"],
+                "project_id": mission_payload["project_id"],
                 "created_at": created_at,
             },
         )
@@ -1531,6 +1562,12 @@ async def create_mission(
             persisted_record.get("metadata")
             if isinstance(persisted_record.get("metadata"), dict)
             else mission_payload["metadata"]
+        ),
+        "project_id": str(
+            persisted_record.get("project_id")
+            or mission_payload["metadata"].get("project_id")
+            or mission_payload["project_id"]
+            or _resolve_project_id(mission_payload["metadata"], mission_id=mission_id)
         ),
     }
     payload_ref = f"registry://missions/{mission_id}/intake"
@@ -1709,6 +1746,16 @@ async def get_mission_audit_artifacts(
     )
 
 
+@app.get("/v1/missions/{mission_id}/audit-events")
+async def get_mission_audit_events(
+    mission_id: str, limit: int = Query(default=100, ge=1, le=1000)
+) -> list[dict[str, Any]]:
+    return await _proxy_get_internal(
+        f"/internal/missions/{mission_id}/audit-events",
+        params={"limit": limit},
+    )
+
+
 @app.get("/v1/missions/{mission_id}/build-artifacts")
 async def get_mission_build_artifacts(
     mission_id: str, limit: int = Query(default=50, ge=1, le=500)
@@ -1821,6 +1868,30 @@ async def get_operations_projects(
 ) -> list[dict[str, Any]]:
     _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal("/internal/operations/projects", params={"limit": limit})
+
+
+@app.get("/v1/operations/projects/{project_id}/audit-events")
+async def get_project_audit_events(
+    project_id: str,
+    limit: int = Query(default=200, ge=1, le=1000),
+    mission_id: str | None = Query(default=None),
+    agent_id: str | None = Query(default=None),
+    tool_name: str | None = Query(default=None),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> list[dict[str, Any]]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
+    params: dict[str, Any] = {"limit": limit}
+    if mission_id:
+        params["mission_id"] = mission_id
+    if agent_id:
+        params["agent_id"] = agent_id
+    if tool_name:
+        params["tool_name"] = tool_name
+    return await _proxy_get_internal(
+        f"/internal/operations/projects/{project_id}/audit-events",
+        params=params,
+    )
 
 
 @app.get("/v1/operations/alerts")

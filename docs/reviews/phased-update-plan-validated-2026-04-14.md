@@ -1,4 +1,10 @@
 # theFactory — Validated Phased Update Plan
+
+Document version: 2026.04.14  
+Last updated: 2026-04-14  
+Status: Review Artifact  
+Audience: Developers, reviewers, and maintainers
+
 ## Version: Code-Validated
 ## Date: 2026-04-14
 ## Based on: HGR_Phased_Update_Plan.docx + codex-baseline-findings-2026-04-14.md

@@ -37,12 +37,17 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 - Smelt-cycle checkpoint events are still the operator-facing phase model.
 - The shipped default runtime routes through the v2 lifecycle implementation.
 - `POST /v1/missions` now persists through the orchestrator before returning `201 Created`, so the mission record is queryable immediately after create.
+- Mission intake now resolves and persists a durable `project_id`; reporting no longer depends on deriving a fake project boundary from `metadata.source`.
 - Dynamic scaling is now wired end-to-end behind `AGENT_SCALING_ENABLED`: the orchestrator computes partition work, emits `mission.partition.ready`, pod-workers execute partitions, results are merged into mission metadata, and lifecycle resumes once all partitions complete.
 
 ### Audit flow
 
 - The audit worker consumes `missions.state`, not a separate `missions.audit` stream.
 - Audit results are persisted through the orchestrator audit-report path into `mission_audit_reports`.
+- The orchestrator now maintains an append-only `agent_action_events` ledger keyed by `project_id`, `mission_id`, and `agent_id`.
+- Audit events capture mission creation/state updates, pod assignment, LogicNode writes, knowledge writes, audit reports, partition results, agent execution start/end, and worker tool/HTTP usage.
+- Audit rows carry `trace_id`, `span_id`, per-project digest chaining, payload summaries, and optional content hashes or blob references.
+- New operator-facing APIs exist at `/v1/missions/{mission_id}/audit-events` and `/v1/operations/projects/{project_id}/audit-events`.
 - `MISSION_COMPLETE` now maps to `mission.state.complete`.
 - Source-bundle missions now package a real build artifact at `VERIFIED`: the orchestrator stores a Postgres-backed build/package record with digest, manifest, verification metadata, and build log before allowing completion.
 - Build-complete semantics are therefore now stronger for supported mission types: `COMPLETE` requires both the existing pod/LogicNode evidence and a successful stored build artifact when `metadata.source_code` is present.
@@ -62,6 +67,7 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 ## Mission Control Status
 
 - Mission Control is a real Next.js operator console with chat, missions, agents, semantic-bus, builder, repo-import, databases, settings, and supporting diagnostics views.
+- Mission Control now includes a `Projects` audit surface that renders the per-project agent action timeline from the gateway/orchestrator audit APIs.
 - The repository import path is real GitHub metadata/tree ingestion.
 - Repository review is now server-backed: Mission Control fetches selected GitHub file content, builds a review artifact with a stable fingerprint, infers `requested_target_language`, and launches repo missions with a real `source_code` bundle.
 - Builder review is now server-backed against the local workspace: it selects real files, emits a stable `builder_fingerprint`, produces a grounded patch contract plus `source_code` bundle, and can launch missions from that approved artifact.
@@ -127,6 +133,11 @@ As of 2026-04-14:
 - `apps/mission-control` Playwright: original 7 tests plus 13 new extended tests from Phase 1 E2E expansion.
 - Repository-wide `python -m ruff check services tests scripts` still has documented pre-existing variance in untouched files.
 - Orchestrator `main.py` reduced from **2065 → 423 lines** via route decomposition (Phase 3) and domain module extraction (Phase 5).
+- Targeted post-audit-rollout verification is green:
+  - `python -m ruff check services tests scripts`
+  - `python -m pytest -q tests/services/test_api_gateway_helpers_unit.py tests/services/test_storage_unit.py tests/services/test_orchestrator_endpoints_extra.py tests/services/test_runtime_unit.py tests/services/test_lifecycle_interface_unit.py tests/services/test_mission_flow_v2.py tests/services/test_orchestrator_main_helpers_unit.py tests/services/test_language_extractor_golden.py`
+  - `npm --prefix apps/mission-control run lint`
+  - `npm --prefix apps/mission-control run test`
 
 The repository should therefore be treated as a production-ready baseline with defense-in-depth security hardening and improved maintainability.
 

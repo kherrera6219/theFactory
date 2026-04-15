@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import time
 import uuid
+from collections import defaultdict
 from contextlib import asynccontextmanager, suppress
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -14,18 +16,21 @@ from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from . import milvus_store, neo4j_store, object_store, qdrant_store, storage
-from .agent_registry import AGENT_REGISTRY, normalize_language  # noqa: F401  (used by callers via _main)
+from .agent_integrations import build_agent_integration_record
+from .agent_registry import (  # noqa: F401  (used by callers via _main)
+    AGENT_REGISTRY,
+    normalize_language,
+)
 from .auth import require_roles
 from .data_plane_metrics import observe_optional_adapter_mirror_write
 from .heartbeat_service import (
+    AGENT_AUTOFILL_NON_POD_HEARTBEATS,
+    AGENT_HEARTBEAT_INTERVAL_SECONDS,
     AGENT_HEARTBEAT_STALE_SECONDS,  # noqa: F401
-    _upsert_agent_heartbeat,
-    agent_heartbeat_loop,
 )
 from .lifecycle_recovery import lifecycle_recovery_loop
 from .models import (
     AgentHeartbeatUpsert,  # noqa: F401
-    MissionEvent,
     MissionRecord,
     MissionState,
 )
@@ -43,7 +48,7 @@ from .runtime import (
 from .runtime import (
     ensure_runtime_ready,
     runtime_self_heal_loop,
-    start_lifecycle_task,
+    start_lifecycle_task,  # noqa: F401  (re-exported for route modules)
 )
 from .settings import load_settings
 from .tracing import configure_tracing, current_trace_id
@@ -432,6 +437,23 @@ def _workload_for_agent(*, category: str, state: str, queue_depth: int) -> int:
     }
     base = {"RUNNING": 42, "VERIFYING": 36, "ACTIVE": 34}.get(state, 28)
     return min(100, base + queue_depth * multipliers.get(category, 10))
+
+
+def _normalize_pod_name(value: str) -> str:
+    return value.strip().lower().replace(" ", "").replace("-", "").replace("_", "")
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(UTC)
 
 
 def _build_operations_agents_snapshot(

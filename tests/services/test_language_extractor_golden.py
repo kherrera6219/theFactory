@@ -48,7 +48,14 @@ class TestPythonRegexGolden:
 
     def test_function_names(self):
         names = {f.name for f in self.result.functions}
-        assert names == {"__init__", "process", "validate", "log_event", "fetch_mission", "_internal_helper"}
+        assert names == {
+            "__init__",
+            "process",
+            "validate",
+            "log_event",
+            "fetch_mission",
+            "_internal_helper",
+        }
 
     def test_class_names(self):
         assert {c.name for c in self.result.classes} == {"DataProcessor", "AuditLogger"}

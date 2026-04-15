@@ -23,6 +23,13 @@ class DummyResponse:
         return self._payload
 
 
+@pytest.fixture(autouse=True)
+def reset_agent_runtime_circuit() -> None:
+    agent_runtime_main._CIRCUIT.state = agent_runtime_main._CircuitBreaker.CLOSED
+    agent_runtime_main._CIRCUIT._failures = 0
+    agent_runtime_main._CIRCUIT._opened_at = 0.0
+
+
 def test_event_types_for_agent_roles() -> None:
     pm = agent_runtime_main.make_agent("AGENT-01-PM")
     ceo = agent_runtime_main.make_agent("AGENT-02-CEO")

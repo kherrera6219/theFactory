@@ -17,8 +17,12 @@ storage_agents      — Agent heartbeats and runtime event log
 from __future__ import annotations
 
 from .storage_agents import (
+    create_agent_action_event,
     get_agent_heartbeat,
+    insert_agent_action_event,
     list_agent_heartbeats,
+    list_mission_agent_action_events,
+    list_project_agent_action_events,
     list_recent_agent_events,
     upsert_agent_heartbeat,
 )
@@ -112,8 +116,12 @@ __all__ = [
     "list_build_artifacts",
     "get_build_artifact",
     # agents
+    "create_agent_action_event",
     "upsert_agent_heartbeat",
     "get_agent_heartbeat",
     "list_agent_heartbeats",
     "list_recent_agent_events",
+    "insert_agent_action_event",
+    "list_mission_agent_action_events",
+    "list_project_agent_action_events",
 ]

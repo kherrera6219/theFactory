@@ -8,6 +8,7 @@ import type {
   OperationsAgentIntegrationsSnapshot,
   OperationsAgentsSnapshot,
   OperationsAlertRecord,
+  OperationsAuditEventRecord,
   OperationsAuditReportRecord,
   OperationsLogicNodeRecord,
   OperationsProjectRecord,
@@ -281,6 +282,29 @@ export async function listOperationsProjects(limit: number): Promise<OperationsP
   });
 }
 
+export async function listProjectAuditEvents(params: {
+  projectId: string;
+  limit: number;
+  missionId?: string;
+  agentId?: string;
+  toolName?: string;
+}): Promise<OperationsAuditEventRecord[]> {
+  const searchParams = new URLSearchParams({ limit: String(params.limit) });
+  if (params.missionId) {
+    searchParams.set("mission_id", params.missionId);
+  }
+  if (params.agentId) {
+    searchParams.set("agent_id", params.agentId);
+  }
+  if (params.toolName) {
+    searchParams.set("tool_name", params.toolName);
+  }
+  return fetchJson<OperationsAuditEventRecord[]>(
+    missionApiUrl(`/v1/operations/projects/${params.projectId}/audit-events?${searchParams.toString()}`),
+    { method: "GET" },
+  );
+}
+
 export async function listOperationsAlerts(limit: number): Promise<OperationsAlertRecord[]> {
   return fetchJson<OperationsAlertRecord[]>(missionApiUrl(`/v1/operations/alerts?limit=${limit}`), {
     method: "GET",
@@ -292,7 +316,17 @@ export async function listMissionAuditReports(
   limit = 50,
 ): Promise<OperationsAuditReportRecord[]> {
   return fetchJson<OperationsAuditReportRecord[]>(
-    missionApiUrl(`/internal/missions/${missionId}/audit-reports?limit=${limit}`),
+    missionApiUrl(`/v1/missions/${missionId}/audit-reports?limit=${limit}`),
+    { method: "GET" },
+  );
+}
+
+export async function listMissionAuditEvents(
+  missionId: string,
+  limit = 100,
+): Promise<OperationsAuditEventRecord[]> {
+  return fetchJson<OperationsAuditEventRecord[]>(
+    missionApiUrl(`/v1/missions/${missionId}/audit-events?limit=${limit}`),
     { method: "GET" },
   );
 }

@@ -1,5 +1,10 @@
 # PR Review Checklist — theFactory / Holy Grail Refinery
 
+Document version: 2026.04.14  
+Last updated: 2026-04-14  
+Status: Canonical  
+Audience: Authors, reviewers, and maintainers
+
 Use this checklist for every pull request. The author fills it out; the reviewer verifies it.
 
 ---

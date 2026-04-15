@@ -13,6 +13,12 @@ sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 storage = importlib.import_module("orchestrator.storage")
 orchestrator_models = importlib.import_module("orchestrator.models")
 orchestrator_settings = importlib.import_module("orchestrator.settings")
+storage_agents = importlib.import_module("orchestrator.storage_agents")
+storage_artifacts = importlib.import_module("orchestrator.storage_artifacts")
+storage_core = importlib.import_module("orchestrator.storage_core")
+storage_logicnodes = importlib.import_module("orchestrator.storage_logicnodes")
+storage_missions = importlib.import_module("orchestrator.storage_missions")
+storage_pods = importlib.import_module("orchestrator.storage_pods")
 
 MissionRecord = orchestrator_models.MissionRecord
 MissionState = orchestrator_models.MissionState
@@ -106,7 +112,16 @@ def _patch_db(monkeypatch, cursors: list[FakeCursor]) -> list[FakeCursor]:
         used.append(cursor)
         return FakeConn(cursor)
 
-    monkeypatch.setattr(storage, "db_connect", _db_connect)
+    for module in (
+        storage,
+        storage_core,
+        storage_missions,
+        storage_pods,
+        storage_logicnodes,
+        storage_artifacts,
+        storage_agents,
+    ):
+        monkeypatch.setattr(module, "db_connect", _db_connect)
     return used
 
 
@@ -122,7 +137,7 @@ def _mission_record(state: MissionState = MissionState.queued) -> MissionRecord:
 
 
 def test_db_connect_raises_when_psycopg_missing(monkeypatch) -> None:
-    monkeypatch.setattr(storage, "psycopg", None)
+    monkeypatch.setattr(storage_core, "psycopg", None)
     with pytest.raises(RuntimeError):
         storage.db_connect(_settings())
 
@@ -135,7 +150,7 @@ def test_ensure_db_schema_executes_queries(monkeypatch) -> None:
     assert len(cursor.executed) >= 3
     assert "schema_migrations" in cursor.executed[0][0]
     assert "SELECT version, checksum FROM schema_migrations" in cursor.executed[1][0]
-    assert cursor.executed[-1][1][0] == "004"
+    assert cursor.executed[-1][1][0] == "005"
 
 
 def test_row_and_json_helpers() -> None:
@@ -296,7 +311,7 @@ def test_transition_mission_state_success_and_noop(monkeypatch) -> None:
     ) -> None:
         calls.append((previous_state, new_state, event_type))
 
-    monkeypatch.setattr(storage, "insert_mission_event", _insert_event)
+    monkeypatch.setattr(storage_missions, "insert_mission_event", _insert_event)
     settings = _settings()
 
     record = storage.transition_mission_state(
@@ -342,7 +357,7 @@ def test_pod_assignment_success_and_conflict(monkeypatch) -> None:
     assert success["pod_name"] == "podA"
 
     monkeypatch.setattr(
-        storage,
+        storage_pods,
         "get_pod_assignment",
         lambda *_: {
             "mission_id": "mission-1",
@@ -361,7 +376,7 @@ def test_pod_assignment_success_and_conflict(monkeypatch) -> None:
             "2026-03-01T00:00:00+00:00",
         )
 
-    monkeypatch.setattr(storage, "get_pod_assignment", lambda *_: None)
+    monkeypatch.setattr(storage_pods, "get_pod_assignment", lambda *_: None)
     with pytest.raises(RuntimeError):
         storage.upsert_pod_assignment(
             settings,
@@ -503,15 +518,20 @@ def test_locked_mission_metadata_update_branches(monkeypatch) -> None:
     queue = [missing_conn, fallback_conn, none_update_conn]
 
     monkeypatch.setattr(
-        storage,
+        storage_missions,
         "psycopg",
         SimpleNamespace(connect=lambda *_args, **_kwargs: queue.pop(0)),
     )
 
-    assert storage._locked_mission_metadata_update(_settings(), "missing", lambda *_: {}) is None
+    assert (
+        storage_missions._locked_mission_metadata_update(
+            _settings(), "missing", lambda *_: {}
+        )
+        is None
+    )
     assert missing_conn.closed is True
 
-    updated = storage._locked_mission_metadata_update(
+    updated = storage_missions._locked_mission_metadata_update(
         _settings(),
         "mission-1",
         lambda metadata, _mission: ["not-a-dict", metadata],
@@ -521,7 +541,7 @@ def test_locked_mission_metadata_update_branches(monkeypatch) -> None:
     assert fallback_conn.closed is True
 
     assert (
-        storage._locked_mission_metadata_update(
+        storage_missions._locked_mission_metadata_update(
             _settings(),
             "mission-1",
             lambda metadata, _mission: metadata,
@@ -532,9 +552,11 @@ def test_locked_mission_metadata_update_branches(monkeypatch) -> None:
 
 
 def test_locked_mission_metadata_update_requires_psycopg(monkeypatch) -> None:
-    monkeypatch.setattr(storage, "psycopg", None)
+    monkeypatch.setattr(storage_missions, "psycopg", None)
     with pytest.raises(RuntimeError, match="psycopg"):
-        storage._locked_mission_metadata_update(_settings(), "mission-1", lambda *_: {})
+        storage_missions._locked_mission_metadata_update(
+            _settings(), "mission-1", lambda *_: {}
+        )
 
 
 def test_record_partition_result_updates_counts_and_merge(monkeypatch) -> None:
@@ -562,9 +584,9 @@ def test_record_partition_result_updates_counts_and_merge(monkeypatch) -> None:
         captured["metadata"] = updater(metadata, mission)
         return mission
 
-    monkeypatch.setattr(storage, "_locked_mission_metadata_update", _locked_update)
-    monkeypatch.setattr(storage, "all_partitions_complete", lambda _metadata: True)
-    monkeypatch.setattr(storage, "merge_partition_results", lambda _results: merged_result)
+    monkeypatch.setattr(storage_missions, "_locked_mission_metadata_update", _locked_update)
+    monkeypatch.setattr(storage_missions, "all_partitions_complete", lambda _metadata: True)
+    monkeypatch.setattr(storage_missions, "merge_partition_results", lambda _results: merged_result)
 
     record = storage.record_partition_result(
         _settings(),
@@ -597,8 +619,8 @@ def test_record_partition_result_marks_merge_incomplete(monkeypatch) -> None:
         captured["metadata"] = updater(metadata, _mission_record())
         return _mission_record()
 
-    monkeypatch.setattr(storage, "_locked_mission_metadata_update", _locked_update)
-    monkeypatch.setattr(storage, "all_partitions_complete", lambda _metadata: False)
+    monkeypatch.setattr(storage_missions, "_locked_mission_metadata_update", _locked_update)
+    monkeypatch.setattr(storage_missions, "all_partitions_complete", lambda _metadata: False)
 
     storage.record_partition_result(
         _settings(),
