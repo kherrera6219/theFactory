@@ -54,6 +54,9 @@ class ExtractedConcept:
     source_line: int
     confidence: float
     evidence: str
+    # Provenance fields — populated by the extractor, forwarded to LogicNode payload.
+    extraction_method: str = "regex"  # "regex" | "ast"
+    source_range: tuple[int, int] | None = None  # (start_line, end_line); None = single-line
 
 
 @dataclass
@@ -135,8 +138,11 @@ class LanguageExtractor:
         for idx, line in enumerate(lines, start=1):
             match = self._function_pattern.search(line)
             if match:
-                name = (
-                    match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
+                # Patterns with alternating groups (e.g. JS) may have None in some groups;
+                # take the first non-None captured group, falling back to the whole match.
+                name = next(
+                    (g for g in match.groups() if g is not None),
+                    match.group(0),
                 )
                 found.append(FunctionInfo(name=name.strip(), line=idx, signature=line.strip()))
         return found
@@ -232,10 +238,44 @@ class PythonExtractor(LanguageExtractor):
     )
 
 
+class PythonAstExtractor(PythonExtractor):
+    """Uses Python's built-in ``ast`` module for structural accuracy.
+
+    Regex still runs first via ``super().extract()`` to populate concepts
+    (LogicNodes).  AST then replaces the structural fields — functions,
+    classes, and imports — with zero-false-positive equivalents.  On
+    ``SyntaxError`` the regex result is returned unchanged.
+    """
+
+    def extract(self, source: str) -> ExtractionResult:
+        result = super().extract(source)  # regex runs first — always produces concepts
+        try:
+            from .ast_extractor import extract_python_ast
+        except ImportError:
+            return result
+        ast_result = extract_python_ast(source)
+        if not ast_result.success:
+            return result
+        result.functions = [
+            FunctionInfo(name=f.name, line=f.line, signature=f.signature)
+            for f in ast_result.functions
+        ]
+        result.classes = [
+            ClassInfo(name=c.name, line=c.line, parents=c.bases)
+            for c in ast_result.classes
+        ]
+        result.imports = [
+            f"from {i.module} import {', '.join(i.names)}" if i.is_from
+            else f"import {', '.join(i.names)}"
+            for i in ast_result.imports
+        ]
+        return result
+
+
 class JavaScriptExtractor(LanguageExtractor):
     language = "javascript"
     _function_pattern = re.compile(
-        r"(?:function\s+(\w+)\s*\(|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)\s*=>|\function))",
+        r"(?:function\s+(\w+)\s*\(|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)\s*=>|function))",
         re.MULTILINE,
     )
     _class_pattern = re.compile(r"\bclass\s+(\w+)", re.MULTILINE)

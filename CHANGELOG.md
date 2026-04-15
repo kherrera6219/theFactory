@@ -6,6 +6,55 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Phase 7 — Extractor Provenance and Tooling (2026-04-14)
+
+#### Added
+- `services/pod-worker/pod_worker/js_ast_extractor.py` — JS/TypeScript AST extractor using `ast_grep`/`tree-sitter` fallback; extracts functions, classes, imports with `is_async` and return-type metadata
+- `services/pod-worker/pod_worker/java_ast_extractor.py` — Java AST extractor; method/class/import extraction with modifier and annotation capture
+- `tests/fixtures/extractors/` — externalized fixture corpus with `python_sample.py`, `js_sample.js`, and `java_sample.java` for cross-extractor golden tests
+- `tests/services/test_language_extractor_golden.py` — golden regression tests locking function/class/concept extraction output for Python, JS, and Java fixtures
+- `reports/ast_vs_regex_comparison.json` — static comparison report: `PythonExtractor` (regex) vs `extract_python_ast` (AST) on Python fixture; both agree on all 6 functions and 2 classes; documents AST-exclusive (`is_async`, return types) and regex-exclusive (concept catalog, parse-resilience) capabilities
+- `TestEventSchemaEquivalence` in `tests/services/test_lifecycle_interface_unit.py` — 5 new AST-inspection tests asserting identical event-emission schema across all three lifecycle engine adapters: direct `emit_state_event` call (LegacyV1), `emit_state_event_fn=` kwarg delegation (V2 + LangGraph), locked-down function signature, and canonical `EventType` membership for all inline event-type literals
+
+#### Changed
+- `ExtractedConcept` dataclass — added `extraction_method: Literal["ast", "regex"]` and `source_range: dict[str, int] | None` provenance fields
+- `pod_worker/main.py` `_handle_running_mission` — LogicNode payloads now include `extraction_method` and `source_range` from `ExtractedConcept`
+
+---
+
+### Phase 6 — Mission Control UI Enhancements (2026-04-14)
+
+#### Added
+- **Active Runtime vs Conceptual Architecture toggle** (`agents/page.tsx`): `viewMode` state with toggle buttons in the Filters panel; Runtime mode filters agents to `heartbeat_source === "live"` (falls back to `runtime_class === "shared_worker"`); Conceptual mode shows the full 38-agent registry
+- **Lifecycle engine badge** (`missions/[id]/page.tsx`): `lifecycleEngine` derived value maps `phaseDescriptor.model === "v2"` → MissionFlow V2, `routing_version.includes("langgraph")` → LangGraph, else → Legacy V1; rendered as a color-coded `.connection-chip` in Mission Signals panel
+- **Audit Evidence panel** (`missions/[id]/page.tsx`): fetches `/internal/missions/{id}/audit-reports` via new `listMissionAuditReports` API client function; renders status chip, score, summary, and findings list; `.catch(() => [])` ensures page loads even on auth failure
+- **Feature flag warning banners** (`agents/page.tsx`): `role="alert"` warning block in Runtime Dependencies panel; warns when `consumer_running`, `protocol_ready`, `redis_ready`, or `db_ready` are falsy; error-level banner when `db_ready` is false; info banner when `langgraph_enabled === false`
+
+#### Changed
+- `apps/mission-control/app/lib/types.ts` — added `AgentHeartbeatSource` type; added `heartbeat_age_seconds` and `heartbeat_source` to `OperationsAgentRecord`; extended `OperationsAgentsSnapshot.runtime` with `langgraph_enabled`, `langgraph_fail_open`, `langgraph_checkpointer`; added `OperationsAuditReportRecord` type
+- `apps/mission-control/app/lib/api-client.ts` — added `listMissionAuditReports(missionId, limit)` function
+
+---
+
+### Phase 5 — Orchestrator Decomposition (2026-04-14)
+
+#### Added
+- `services/orchestrator/orchestrator/lifecycle_interface.py` — `LifecycleEngine` Protocol; `MissionFlowV2Engine`, `LangGraphEngine`, `LegacyV1Engine` adapters; `get_lifecycle_engine(settings)` factory replacing inline `if/elif/else` branch in `runtime.py`
+- `services/orchestrator/orchestrator/heartbeat_service.py` — extracted `_build_non_pod_heartbeat_payloads`, `_emit_agent_telemetry_event`, `agent_heartbeat_loop`, `AGENT_HEARTBEAT_STALE_SECONDS`
+- `services/orchestrator/orchestrator/review_policy.py` — extracted all review approval validation, HMAC-verification, and TTL-check logic
+- `services/orchestrator/orchestrator/lifecycle_recovery.py` — extracted `_recover_inflight_lifecycle_tasks`
+- `services/orchestrator/orchestrator/storage/` — 6-module façade package: `missions.py`, `agents.py`, `artifacts.py`, `knowledge.py`, `audit.py`, `scaling.py`; `storage.py` becomes a thin re-export shim for backward compatibility
+- `tests/services/test_lifecycle_interface_unit.py` — 14 unit tests for `LifecycleEngine` protocol satisfaction, `get_lifecycle_engine` factory flag logic, `MissionFlowV2Engine` delegation, `LangGraphEngine` fall-through, `LegacyV1Engine` event-type regression guard
+
+#### Changed
+- `services/orchestrator/orchestrator/main.py` — reduced from **1250 to 423 lines**; retains lifespan, middleware, router wiring, and health/readyz/metrics only
+- `services/orchestrator/orchestrator/models.py` — now the single source of truth for `VALID_TRANSITIONS`; duplicate copy removed from `mission_flow_v2.py`
+- `tests/services/test_orchestrator_lifecycle_recovery_unit.py` — updated to import from `orchestrator.lifecycle_recovery` (moved from `main.py`)
+- `tests/services/test_orchestrator_main_helpers_unit.py` — updated to import from `orchestrator.heartbeat_service`, `orchestrator.routes.internal`, and `orchestrator.routes.operations` (functions moved from `main.py`)
+- `tests/services/test_orchestrator_endpoints_extra.py` — updated to import `_build_mission_chain_trace` from `orchestrator.routes.internal`
+
+---
+
 ### Mission Control UI — Enterprise Hardening (2026-04-14)
 
 #### Fixed
