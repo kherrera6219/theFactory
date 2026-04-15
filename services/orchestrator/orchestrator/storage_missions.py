@@ -19,14 +19,116 @@ from .project_identity import resolve_project_id, with_project_identity
 from .settings import Settings
 from .storage_core import _json_to_dict, _to_iso, db_connect, psycopg
 
-MISSION_SELECT = """
-    mission_id,
-    prompt,
-    requested_target_language,
-    metadata_json,
-    project_id,
-    state,
-    created_at
+FETCH_MISSION_SQL = """
+    SELECT
+        mission_id,
+        prompt,
+        requested_target_language,
+        metadata_json,
+        project_id,
+        state,
+        created_at
+    FROM missions
+    WHERE mission_id = %s
+"""
+
+UPDATE_MISSION_METADATA_SQL = """
+    UPDATE missions
+    SET metadata_json = %s::jsonb, project_id = %s, updated_at = NOW()
+    WHERE mission_id = %s
+    RETURNING
+        mission_id,
+        prompt,
+        requested_target_language,
+        metadata_json,
+        project_id,
+        state,
+        created_at
+"""
+
+LIST_MISSIONS_SQL = """
+    SELECT
+        mission_id,
+        prompt,
+        requested_target_language,
+        metadata_json,
+        project_id,
+        state,
+        created_at
+    FROM missions
+    ORDER BY created_at DESC
+    LIMIT %s
+"""
+
+LIST_MISSIONS_IN_STATES_SQL = """
+    SELECT
+        mission_id,
+        prompt,
+        requested_target_language,
+        metadata_json,
+        project_id,
+        state,
+        created_at
+    FROM missions
+    WHERE state = ANY(%s)
+    ORDER BY created_at ASC
+    LIMIT %s
+"""
+
+TRANSITION_MISSION_STATE_SQL = """
+    UPDATE missions
+    SET state = %s, updated_at = NOW()
+    WHERE mission_id = %s
+    RETURNING
+        mission_id,
+        prompt,
+        requested_target_language,
+        metadata_json,
+        project_id,
+        state,
+        created_at
+"""
+
+TRANSITION_MISSION_STATE_IF_MATCH_SQL = """
+    UPDATE missions
+    SET state = %s, updated_at = NOW()
+    WHERE mission_id = %s AND state = %s
+    RETURNING
+        mission_id,
+        prompt,
+        requested_target_language,
+        metadata_json,
+        project_id,
+        state,
+        created_at
+"""
+
+LOCKED_FETCH_MISSION_SQL = """
+    SELECT
+        mission_id,
+        prompt,
+        requested_target_language,
+        metadata_json,
+        project_id,
+        state,
+        created_at
+    FROM missions
+    WHERE mission_id = %s
+    FOR UPDATE
+"""
+
+LOCKED_UPDATE_MISSION_METADATA_SQL = """
+    UPDATE missions
+    SET metadata_json = %s::jsonb, project_id = %s, updated_at = NOW()
+    WHERE mission_id = %s
+    RETURNING
+        mission_id,
+        prompt,
+        requested_target_language,
+        metadata_json,
+        project_id,
+        state,
+        created_at
 """
 
 
@@ -96,17 +198,7 @@ def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: 
 def fetch_mission(settings: Settings, mission_id: str) -> MissionRecord | None:
     with db_connect(settings) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    """
-                + MISSION_SELECT
-                + """
-                FROM missions
-                WHERE mission_id = %s
-                """,
-                (mission_id,),
-            )
+            cur.execute(FETCH_MISSION_SQL, (mission_id,))
             row = cur.fetchone()
 
     if not row:
@@ -124,15 +216,7 @@ def update_mission_metadata(
     with db_connect(settings) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
-                UPDATE missions
-                SET metadata_json = %s::jsonb, project_id = %s, updated_at = NOW()
-                WHERE mission_id = %s
-                RETURNING
-                    """
-                + MISSION_SELECT
-                + """
-                """,
+                UPDATE_MISSION_METADATA_SQL,
                 (json.dumps(normalized_metadata), project_id, mission_id),
             )
             row = cur.fetchone()
@@ -145,18 +229,7 @@ def update_mission_metadata(
 def list_missions(settings: Settings, limit: int) -> list[MissionRecord]:
     with db_connect(settings) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    """
-                + MISSION_SELECT
-                + """
-                FROM missions
-                ORDER BY created_at DESC
-                LIMIT %s
-                """,
-                (limit,),
-            )
+            cur.execute(LIST_MISSIONS_SQL, (limit,))
             rows = cur.fetchall()
 
     return [row_to_mission(row) for row in rows]
@@ -173,19 +246,7 @@ def list_missions_in_states(
 
     with db_connect(settings) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    """
-                + MISSION_SELECT
-                + """
-                FROM missions
-                WHERE state = ANY(%s)
-                ORDER BY created_at ASC
-                LIMIT %s
-                """,
-                (normalized_states, max(1, int(limit))),
-            )
+            cur.execute(LIST_MISSIONS_IN_STATES_SQL, (normalized_states, max(1, int(limit))))
             rows = cur.fetchall()
 
     return [row_to_mission(row) for row in rows]
@@ -283,29 +344,10 @@ def transition_mission_state(
     with db_connect(settings) as conn:
         with conn.cursor() as cur:
             if expected_state is None:
-                cur.execute(
-                    """
-                    UPDATE missions
-                    SET state = %s, updated_at = NOW()
-                    WHERE mission_id = %s
-                    RETURNING
-                        """
-                    + MISSION_SELECT
-                    + """
-                    """,
-                    (new_state.value, mission_id),
-                )
+                cur.execute(TRANSITION_MISSION_STATE_SQL, (new_state.value, mission_id))
             else:
                 cur.execute(
-                    """
-                    UPDATE missions
-                    SET state = %s, updated_at = NOW()
-                    WHERE mission_id = %s AND state = %s
-                    RETURNING
-                        """
-                    + MISSION_SELECT
-                    + """
-                    """,
+                    TRANSITION_MISSION_STATE_IF_MATCH_SQL,
                     (new_state.value, mission_id, expected_state.value),
                 )
             row = cur.fetchone()
@@ -353,18 +395,7 @@ def _locked_mission_metadata_update(
     try:
         with conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        """
-                    + MISSION_SELECT
-                    + """
-                    FROM missions
-                    WHERE mission_id = %s
-                    FOR UPDATE
-                    """,
-                    (mission_id,),
-                )
+                cur.execute(LOCKED_FETCH_MISSION_SQL, (mission_id,))
                 row = cur.fetchone()
                 if row is None:
                     return None
@@ -376,15 +407,7 @@ def _locked_mission_metadata_update(
                     updated_metadata = metadata
 
                 cur.execute(
-                    """
-                    UPDATE missions
-                    SET metadata_json = %s::jsonb, project_id = %s, updated_at = NOW()
-                    WHERE mission_id = %s
-                    RETURNING
-                        """
-                    + MISSION_SELECT
-                    + """
-                    """,
+                    LOCKED_UPDATE_MISSION_METADATA_SQL,
                     (
                         json.dumps(with_project_identity(updated_metadata, mission_id=mission_id)),
                         resolve_project_id(updated_metadata, mission_id=mission_id),

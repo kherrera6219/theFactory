@@ -561,20 +561,7 @@ def list_project_agent_action_events(
     agent_id: str | None = None,
     tool_name: str | None = None,
 ) -> list[dict[str, Any]]:
-    filters = ["project_id = %s"]
-    params: list[Any] = [project_id]
-    if mission_id:
-        filters.append("mission_id = %s")
-        params.append(mission_id)
-    if agent_id:
-        filters.append("agent_id = %s")
-        params.append(agent_id)
-    if tool_name:
-        filters.append("tool_name = %s")
-        params.append(tool_name)
-    params.append(limit)
-    where_clause = " AND ".join(filters)
-    query = f"""
+    query = """
         SELECT
             event_id,
             project_id,
@@ -600,12 +587,27 @@ def list_project_agent_action_events(
             event_digest_sha256,
             created_at
         FROM agent_action_events
-        WHERE {where_clause}
+        WHERE project_id = %s
+          AND (%s IS NULL OR mission_id = %s)
+          AND (%s IS NULL OR agent_id = %s)
+          AND (%s IS NULL OR tool_name = %s)
         ORDER BY created_at DESC, event_id DESC
         LIMIT %s
     """
     with db_connect(settings) as conn:
         with conn.cursor() as cur:
-            cur.execute(query, tuple(params))
+            cur.execute(
+                query,
+                (
+                    project_id,
+                    mission_id,
+                    mission_id,
+                    agent_id,
+                    agent_id,
+                    tool_name,
+                    tool_name,
+                    limit,
+                ),
+            )
             rows = cur.fetchall()
     return [_row_to_agent_action_event(row) for row in rows]
