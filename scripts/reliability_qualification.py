@@ -7,7 +7,7 @@ import json
 import os
 import shlex
 import statistics
-import subprocess  # nosec B404 - controlled qualification command execution with explicit argv parsing
+import subprocess  # nosec B404
 import time
 import uuid
 from dataclasses import asdict, dataclass
@@ -172,7 +172,9 @@ def _execute_failure_command(command: str) -> InjectionResult:
             error="ValueError('failure command is empty')",
         )
     try:
-        completed = subprocess.run(  # nosec B603 - command is parsed into argv and shell=False
+        # Reliability qualification executes only explicit argv-parsed commands.
+        # Command is parsed into argv and executed with shell=False.
+        completed = subprocess.run(  # nosec B603
             argv,
             capture_output=True,
             text=True,
