@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
 orchestrator_main = importlib.import_module("orchestrator.main")
 orchestrator_models = importlib.import_module("orchestrator.models")
+orchestrator_lifecycle = importlib.import_module("orchestrator.lifecycle_recovery")
 
 MissionRecord = orchestrator_models.MissionRecord
 MissionState = orchestrator_models.MissionState
@@ -37,7 +38,7 @@ def test_recover_inflight_marks_bootstrapped_when_auto_transition_disabled() -> 
     app.state.lifecycle_recovery_bootstrapped = False
     app.state.lifecycle_recovery_last_error = "stale"
 
-    recovered = asyncio.run(orchestrator_main._recover_inflight_lifecycle_tasks(app))
+    recovered = asyncio.run(orchestrator_lifecycle._recover_inflight_lifecycle_tasks(app))
 
     assert recovered is True
     assert app.state.lifecycle_recovery_bootstrapped is True
@@ -54,9 +55,9 @@ def test_recover_inflight_returns_false_when_runtime_not_ready(monkeypatch) -> N
     async def _runtime_not_ready(_app):
         return False, False
 
-    monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_not_ready)
+    monkeypatch.setattr(orchestrator_lifecycle, "ensure_runtime_ready", _runtime_not_ready)
 
-    recovered = asyncio.run(orchestrator_main._recover_inflight_lifecycle_tasks(app))
+    recovered = asyncio.run(orchestrator_lifecycle._recover_inflight_lifecycle_tasks(app))
 
     assert recovered is False
     assert app.state.lifecycle_recovery_bootstrapped is not True
@@ -71,9 +72,9 @@ def test_recover_inflight_returns_false_when_protocol_unavailable(monkeypatch) -
     async def _runtime_ready(_app):
         return True, True
 
-    monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
+    monkeypatch.setattr(orchestrator_lifecycle, "ensure_runtime_ready", _runtime_ready)
 
-    recovered = asyncio.run(orchestrator_main._recover_inflight_lifecycle_tasks(app))
+    recovered = asyncio.run(orchestrator_lifecycle._recover_inflight_lifecycle_tasks(app))
 
     assert recovered is False
     assert app.state.lifecycle_recovery_last_error == "protocol unavailable"
@@ -87,7 +88,7 @@ def test_recover_inflight_starts_lifecycle_for_pending_missions(monkeypatch) -> 
     async def _runtime_ready(_app):
         return True, True
 
-    monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
+    monkeypatch.setattr(orchestrator_lifecycle, "ensure_runtime_ready", _runtime_ready)
     monkeypatch.setattr(
         orchestrator_main.storage,
         "list_missions_in_states",
@@ -100,12 +101,12 @@ def test_recover_inflight_starts_lifecycle_for_pending_missions(monkeypatch) -> 
 
     started: list[str] = []
     monkeypatch.setattr(
-        orchestrator_main,
+        orchestrator_lifecycle,
         "start_lifecycle_task",
         lambda _app, mission_id: started.append(mission_id),
     )
 
-    recovered = asyncio.run(orchestrator_main._recover_inflight_lifecycle_tasks(app))
+    recovered = asyncio.run(orchestrator_lifecycle._recover_inflight_lifecycle_tasks(app))
 
     assert recovered is True
     assert started == ["mission-2", "mission-3"]
@@ -128,10 +129,10 @@ def test_lifecycle_recovery_loop_retries_until_success(monkeypatch) -> None:
         sleeps.append(seconds)
         return None
 
-    monkeypatch.setattr(orchestrator_main, "_recover_inflight_lifecycle_tasks", _recover)
-    monkeypatch.setattr(orchestrator_main.asyncio, "sleep", _sleep)
+    monkeypatch.setattr(orchestrator_lifecycle, "_recover_inflight_lifecycle_tasks", _recover)
+    monkeypatch.setattr(orchestrator_lifecycle.asyncio, "sleep", _sleep)
 
-    asyncio.run(orchestrator_main.lifecycle_recovery_loop(SimpleNamespace(state=SimpleNamespace())))
+    asyncio.run(orchestrator_lifecycle.lifecycle_recovery_loop(SimpleNamespace(state=SimpleNamespace())))
 
     assert attempts["count"] == 2
     assert sleeps == [orchestrator_main.LIFECYCLE_RECOVERY_RETRY_SECONDS]

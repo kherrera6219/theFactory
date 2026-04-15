@@ -91,6 +91,10 @@ export type LiveStateStreamEvent = {
 
 export type AgentState = "IDLE" | "ACTIVE" | "RUNNING" | "VERIFYING" | "ERROR" | "PAUSED";
 
+export type AgentRuntimeClass = "shared_worker" | "synthesized_heartbeat";
+
+export type TopologyMode = "condensed" | "dedicated" | "full-dedicated";
+
 export type AgentRecord = {
   id: string;
   name: string;
@@ -171,6 +175,7 @@ export type PodAssignmentRecord = {
 
 export type OperationsSummary = {
   generated_at: string;
+  topology_mode: TopologyMode;
   runtime: {
     redis_ready: boolean;
     db_ready: boolean;
@@ -263,6 +268,8 @@ export type OperationsAgentPersonaProfile = {
   }>;
 };
 
+export type AgentHeartbeatSource = "live" | "stale" | "heuristic";
+
 export type OperationsAgentRecord = {
   index: number;
   agent_id: string;
@@ -277,18 +284,25 @@ export type OperationsAgentRecord = {
   queue_depth: number;
   workload_pct: number;
   last_heartbeat_iso: string;
+  heartbeat_age_seconds?: number | null;
+  heartbeat_source?: AgentHeartbeatSource | null;
   active_mission_ids: string[];
+  runtime_class: AgentRuntimeClass;
   persona_profile: OperationsAgentPersonaProfile;
 };
 
 export type OperationsAgentsSnapshot = {
   generated_at: string;
   total_agents: number;
+  topology_mode?: TopologyMode;
   runtime: {
     redis_ready: boolean;
     db_ready: boolean;
     protocol_ready: boolean;
     consumer_running: boolean;
+    langgraph_enabled?: boolean | null;
+    langgraph_fail_open?: boolean | null;
+    langgraph_checkpointer?: string | null;
   };
   mission_backlog: {
     active: number;
@@ -301,6 +315,14 @@ export type OperationsAgentsSnapshot = {
   state_counts: Record<string, number>;
   agents: OperationsAgentRecord[];
   runtime_error?: string;
+};
+
+export type OperationsAuditReportRecord = {
+  mission_id: string;
+  audit_id: string;
+  status: string;
+  report: Record<string, unknown>;
+  created_at: string;
 };
 
 export type OperationsAgentIntegrationRecord = {

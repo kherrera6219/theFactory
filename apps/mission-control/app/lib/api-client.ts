@@ -8,6 +8,7 @@ import type {
   OperationsAgentIntegrationsSnapshot,
   OperationsAgentsSnapshot,
   OperationsAlertRecord,
+  OperationsAuditReportRecord,
   OperationsLogicNodeRecord,
   OperationsProjectRecord,
   OperationsSummary,
@@ -284,6 +285,16 @@ export async function listOperationsAlerts(limit: number): Promise<OperationsAle
   return fetchJson<OperationsAlertRecord[]>(missionApiUrl(`/v1/operations/alerts?limit=${limit}`), {
     method: "GET",
   });
+}
+
+export async function listMissionAuditReports(
+  missionId: string,
+  limit = 50,
+): Promise<OperationsAuditReportRecord[]> {
+  return fetchJson<OperationsAuditReportRecord[]>(
+    missionApiUrl(`/internal/missions/${missionId}/audit-reports?limit=${limit}`),
+    { method: "GET" },
+  );
 }
 
 export async function createBuilderPreview(payload: {

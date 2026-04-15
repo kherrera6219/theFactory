@@ -1,0 +1,95 @@
+{
+  "generated_at": "2026-04-15T04:48:47.937006+00:00",
+  "fixture": "tests/fixtures/extractors/python_sample.py",
+  "fixture_lines": 37,
+  "regex_extractor": {
+    "extractor_class": "PythonExtractor",
+    "functions_found": 6,
+    "classes_found": 2,
+    "imports_found": 3,
+    "concepts_found": 14,
+    "lines_scanned": 37,
+    "function_names": [
+      "__init__",
+      "_internal_helper",
+      "fetch_mission",
+      "log_event",
+      "process",
+      "validate"
+    ],
+    "class_names": [
+      "AuditLogger",
+      "DataProcessor"
+    ],
+    "imports": [
+      "import json",
+      "from pathlib import Path",
+      "from typing import Optional"
+    ]
+  },
+  "ast_extractor": {
+    "extractor_class": "AstExtractionResult (extract_python_ast)",
+    "functions_found": 6,
+    "classes_found": 2,
+    "imports_found": 3,
+    "function_names": [
+      "__init__",
+      "_internal_helper",
+      "fetch_mission",
+      "log_event",
+      "process",
+      "validate"
+    ],
+    "class_names": [
+      "AuditLogger",
+      "DataProcessor"
+    ],
+    "async_functions": [
+      "fetch_mission"
+    ],
+    "functions_with_return_types": [
+      "__init__",
+      "process",
+      "validate",
+      "log_event",
+      "fetch_mission",
+      "_internal_helper"
+    ],
+    "class_bases": {
+      "AuditLogger": [
+        "DataProcessor"
+      ]
+    }
+  },
+  "diff": {
+    "functions_in_regex_only": [],
+    "functions_in_ast_only": [],
+    "classes_in_regex_only": [],
+    "classes_in_ast_only": [],
+    "agreement_on_functions": [
+      "__init__",
+      "_internal_helper",
+      "fetch_mission",
+      "log_event",
+      "process",
+      "validate"
+    ],
+    "agreement_on_classes": [
+      "AuditLogger",
+      "DataProcessor"
+    ]
+  },
+  "ast_exclusive_fields": {
+    "is_async": "AST detects async/await; regex does not",
+    "return_annotation": "AST extracts return type hints; regex does not",
+    "arg_types": "AST extracts parameter type annotations; regex does not",
+    "bases": "AST extracts class inheritance chains; regex captures parents partially",
+    "decorators": "AST captures decorators accurately; regex may miss chained/complex decorators"
+  },
+  "regex_exclusive_advantages": {
+    "concept_catalog": "Regex runs concept-pattern matching for domains beyond structure",
+    "language_agnostic": "Regex works for all 20+ supported languages without a parser",
+    "parse_resilience": "Regex does not fail on syntax errors in source files"
+  },
+  "recommendation": "Run ast_extractor first for Python source; fall back to regex on SyntaxError. For all other languages and for concept extraction, use regex (PythonExtractor/language-specific subclass)."
+}

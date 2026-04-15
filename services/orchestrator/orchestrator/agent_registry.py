@@ -15,6 +15,14 @@ class AgentDefinition:
     role: str
     category: str
     specialties: tuple[str, ...] = ()
+    # Derived in __post_init__ — not set by callers.
+    runtime_class: str = "synthesized_heartbeat"
+
+    def __post_init__(self) -> None:
+        # specialist / pod_manager / pod_audit agents run as shared pod-worker containers.
+        # All other tiers (interface, executive, support) are synthesized heartbeats.
+        if self.category in {"specialist", "pod_manager", "pod_audit"}:
+            object.__setattr__(self, "runtime_class", "shared_worker")
 
 
 AGENT_REGISTRY: Final[tuple[AgentDefinition, ...]] = (

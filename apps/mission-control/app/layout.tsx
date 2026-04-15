@@ -19,7 +19,7 @@ const monoFont = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Holy Grail Refinery — Mission Control",
-  description: "38-agent multi-language refinery — mission intake, orchestration, and operator control.",
+  description: "Multi-agent AI software manufacturing system — mission intake, orchestration, and operator control.",
 };
 
 type RootLayoutProps = {

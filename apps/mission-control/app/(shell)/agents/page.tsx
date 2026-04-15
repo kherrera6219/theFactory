@@ -11,7 +11,7 @@ import {
   parseLiveStateStreamMessage,
 } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
-import type { OperationsAgentRecord, OperationsAgentsSnapshot } from "../../lib/types";
+import type { AgentRuntimeClass, OperationsAgentRecord, OperationsAgentsSnapshot } from "../../lib/types";
 
 const POLL_INTERVAL_MS = 2000;
 const STREAM_REFRESH_DEBOUNCE_MS = 500;
@@ -56,6 +56,7 @@ function inferEventLevel(eventType: string): AgentLogLevel {
 }
 
 export default function AgentsPage() {
+  const [viewMode, setViewMode] = useState<"runtime" | "conceptual">("runtime");
   const [tierFilter, setTierFilter] = useState<string>("ALL");
   const [podFilter, setPodFilter] = useState<string>("ALL");
   const [stateFilter, setStateFilter] = useState<string>("ALL");
@@ -227,6 +228,16 @@ export default function AgentsPage() {
   const filteredAgents = useMemo(
     () =>
       agents.filter((agent) => {
+        if (viewMode === "runtime") {
+          // Active Runtime: show only agents with confirmed live heartbeats.
+          // Use heartbeat_source when available; fall back to runtime_class.
+          const src = agent.heartbeat_source;
+          if (src != null) {
+            if (src !== "live") return false;
+          } else if (agent.runtime_class !== "shared_worker") {
+            return false;
+          }
+        }
         if (tierFilter !== "ALL" && agent.tier !== tierFilter) {
           return false;
         }
@@ -238,7 +249,7 @@ export default function AgentsPage() {
         }
         return true;
       }),
-    [agents, tierFilter, podFilter, stateFilter],
+    [agents, viewMode, tierFilter, podFilter, stateFilter],
   );
 
   const virtualizedAgents = useMemo(() => {
@@ -336,11 +347,30 @@ export default function AgentsPage() {
       <PageHeader
         compact
         eyebrow="Agents"
-        title="38-Agent Runtime Control Grid"
-        description="Track the full multi-agent topology, runtime health, and mission workload distribution."
+        title="Agent Runtime Control Grid"
+        description="Track the active agent topology, runtime health, and mission workload distribution."
       />
 
       <Panel title="Filters">
+        <div className="inline-actions" style={{ marginBottom: "0.75rem" }}>
+          <span className="muted">View mode</span>
+          <button
+            type="button"
+            className={`secondary-button ${viewMode === "runtime" ? "active-tab" : ""}`}
+            onClick={() => setViewMode("runtime")}
+            title="Show only agents with confirmed live heartbeats"
+          >
+            Active Runtime
+          </button>
+          <button
+            type="button"
+            className={`secondary-button ${viewMode === "conceptual" ? "active-tab" : ""}`}
+            onClick={() => setViewMode("conceptual")}
+            title="Show full agent registry including synthesized and stale entries"
+          >
+            Conceptual Architecture
+          </button>
+        </div>
         <div className="filters-grid">
           <label>
             Tier
@@ -377,6 +407,35 @@ export default function AgentsPage() {
 
       <Panel title="Runtime Dependencies">
         {error && <p className="error-box">{error}</p>}
+        {!error && snapshot && (
+          <div role="alert" aria-live="polite">
+            {!snapshot.runtime.consumer_running && (
+              <p className="warning-box">
+                Consumer task is not running — mission intake is paused. New missions will not be processed until the consumer restarts.
+              </p>
+            )}
+            {!snapshot.runtime.protocol_ready && (
+              <p className="warning-box">
+                Protocol validation is unavailable — mission envelope validation is disabled.
+              </p>
+            )}
+            {!snapshot.runtime.redis_ready && (
+              <p className="warning-box">
+                Redis is unavailable — event streaming and state bus features are degraded.
+              </p>
+            )}
+            {!snapshot.runtime.db_ready && (
+              <p className="error-box">
+                Database is unavailable — all mission operations are blocked.
+              </p>
+            )}
+            {snapshot.runtime.langgraph_enabled === false && (
+              <p className="warning-box">
+                LangGraph is disabled (LANGGRAPH_ENABLED=false) — missions will use the legacy runtime path.
+              </p>
+            )}
+          </div>
+        )}
         {!error && (
           <ul className="summary-list">
             <li>
@@ -432,6 +491,21 @@ export default function AgentsPage() {
             <li>
               <strong>Poll fallback ticks</strong>
               <span>{pollFallbackTicks > 0 ? pollFallbackTicks : "—"}</span>
+            </li>
+            <li>
+              <strong>Topology mode</strong>
+              <span
+                className={`connection-chip ${
+                  snapshot?.topology_mode === "full-dedicated"
+                    ? "live"
+                    : snapshot?.topology_mode === "dedicated"
+                      ? "retrying"
+                      : "stale"
+                }`}
+                role="status"
+              >
+                {snapshot?.topology_mode ?? "condensed"}
+              </span>
             </li>
           </ul>
         )}
@@ -497,13 +571,14 @@ export default function AgentsPage() {
                 <th scope="col">Queue</th>
                 <th scope="col">Workload</th>
                 <th scope="col">Specialties</th>
+                <th scope="col">Runtime</th>
                 <th scope="col">Last heartbeat</th>
               </tr>
             </thead>
             <tbody>
               {virtualizedAgents.topSpacerHeight > 0 && (
                 <tr className="virtual-spacer" aria-hidden="true">
-                  <td colSpan={8} style={{ height: `${virtualizedAgents.topSpacerHeight}px` }} />
+                  <td colSpan={9} style={{ height: `${virtualizedAgents.topSpacerHeight}px` }} />
                 </tr>
               )}
               {virtualizedAgents.rows.map((agent) => (
@@ -516,7 +591,7 @@ export default function AgentsPage() {
               ))}
               {virtualizedAgents.bottomSpacerHeight > 0 && (
                 <tr className="virtual-spacer" aria-hidden="true">
-                  <td colSpan={8} style={{ height: `${virtualizedAgents.bottomSpacerHeight}px` }} />
+                  <td colSpan={9} style={{ height: `${virtualizedAgents.bottomSpacerHeight}px` }} />
                 </tr>
               )}
             </tbody>
@@ -754,6 +829,16 @@ export default function AgentsPage() {
   );
 }
 
+const RUNTIME_CLASS_LABELS: Record<AgentRuntimeClass, string> = {
+  shared_worker: "shared",
+  synthesized_heartbeat: "synth",
+};
+
+const RUNTIME_CLASS_CHIP_CLASS: Record<AgentRuntimeClass, string> = {
+  shared_worker: "live",
+  synthesized_heartbeat: "stale",
+};
+
 function AgentRow({
   agent,
   onSelect,
@@ -765,6 +850,7 @@ function AgentRow({
 }) {
   const stateClass = agent.state.toLowerCase();
   const specialties = agent.specialties.length > 0 ? agent.specialties.join(", ") : "n/a";
+  const runtimeClass = agent.runtime_class ?? "synthesized_heartbeat";
   return (
     <tr className={rowClassName}>
       <td>
@@ -782,6 +868,17 @@ function AgentRow({
       <td>{agent.queue_depth}</td>
       <td>{agent.workload_pct}%</td>
       <td title={specialties}>{specialties}</td>
+      <td>
+        <span
+          className={`connection-chip ${RUNTIME_CLASS_CHIP_CLASS[runtimeClass as AgentRuntimeClass] ?? "stale"}`}
+          title={`runtime_class=${runtimeClass}${agent.heartbeat_source ? ` heartbeat_source=${agent.heartbeat_source}` : ""}`}
+        >
+          {RUNTIME_CLASS_LABELS[runtimeClass as AgentRuntimeClass] ?? runtimeClass}
+          {agent.heartbeat_source && agent.heartbeat_source !== "live" && (
+            <span style={{ marginLeft: "0.25em", opacity: 0.75 }}>({agent.heartbeat_source})</span>
+          )}
+        </span>
+      </td>
       <td>{formatDateTime(agent.last_heartbeat_iso)}</td>
     </tr>
   );

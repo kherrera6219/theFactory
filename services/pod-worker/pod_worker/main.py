@@ -32,7 +32,7 @@ from shared_runtime.protocol import (
     validate_envelope,
 )
 
-from .language_extractor import get_extractor
+from .language_extractor import PythonAstExtractor, get_extractor
 from .refined_ir import build_refined_ir_module, write_refined_ir_module
 from .tracing import configure_tracing
 
@@ -73,6 +73,16 @@ HEARTBEAT_INTERVAL_SECONDS = max(
     float(os.getenv("AGENT_HEARTBEAT_INTERVAL_SECONDS", "15.0")),
 )
 REFINED_IR_STORE_PATH = os.getenv("REFINED_IR_STORE_PATH", "").strip()
+PYTHON_AST_EXTRACTOR_ENABLED = (
+    os.getenv("PYTHON_AST_EXTRACTOR_ENABLED", "false").strip().lower() == "true"
+)
+
+
+def _get_extractor(language: str):  # type: ignore[return]
+    """Return extractor for *language*, using AST extractor for Python when enabled."""
+    if language == "python" and PYTHON_AST_EXTRACTOR_ENABLED:
+        return PythonAstExtractor()
+    return get_extractor(language)
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 POD_DLQ_STREAM = os.getenv("POD_DLQ_STREAM", "factory:dlq:pod-worker")
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
@@ -262,6 +272,8 @@ def _logicnodes_from_extraction(
                         "confidence": getattr(concept, "confidence", 0.0),
                         "source_line": getattr(concept, "source_line", None),
                         "evidence": getattr(concept, "evidence", ""),
+                        "extraction_method": getattr(concept, "extraction_method", "regex"),
+                        "source_range": getattr(concept, "source_range", None),
                     },
                 },
             }
@@ -860,7 +872,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
 
     if source_code:
         started = time.perf_counter()
-        extractor = get_extractor(extraction_language)
+        extractor = _get_extractor(extraction_language)
         result = extractor.extract(source_code)
         EXTRACTION_LATENCY.labels(pod_name=POD_NAME, agent_id=resolved_agent_id).observe(
             time.perf_counter() - started
@@ -1076,7 +1088,7 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
 
     if source_code:
         started = time.perf_counter()
-        extractor = get_extractor(extraction_language)
+        extractor = _get_extractor(extraction_language)
         result = extractor.extract(source_code)
         EXTRACTION_LATENCY.labels(pod_name=POD_NAME, agent_id=resolved_agent_id).observe(
             time.perf_counter() - started
