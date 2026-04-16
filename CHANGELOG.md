@@ -6,6 +6,17 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Settings & Vault — Offline Resilience (2026-04-16)
+
+#### Fixed
+- **Settings page: agent API key slots invisible when orchestrator offline (Critical):** `loadVaultAndAgents` previously used `Promise.all` causing both the agent-integrations fetch and the vault fetch to fail atomically when port 8100 is unreachable. Replaced with `Promise.allSettled` so the vault API loads independently. All 35 agent vault slots now appear even when the orchestrator is not running.
+- **Settings page: vault table only showed 2 rows offline:** Added `STATIC_AGENT_SLOTS` constant (all 35 agents with provider/model from `config/agent_api_keys.yaml`) used as fallback when `snapshot` is null. Agent rows are now built from the live orchestrator snapshot when available, or the static roster otherwise.
+- **Settings page: opaque "Failed to fetch" error:** Error banner now clearly distinguishes orchestrator-offline vs actual vault API failures. An amber warning banner reads: *"Orchestrator offline (port 8100 unreachable) — showing static agent roster. Vault keys can still be saved."*
+- **Databases page: "Failed to fetch" with no context (High):** Health Overview panel previously surfaced the raw browser `TypeError` when port 8100 was unreachable. Now detects network errors specifically and shows an actionable amber banner: *"Orchestrator unreachable at port 8100. Start the Docker stack to see live database health."*
+- **Vault persistence lost on every server restart (High):** No `.env.local` existed, so `MISSION_CONTROL_ADMIN_KEY` was unset and the vault fell back to ephemeral in-memory mode. Created `apps/mission-control/.env.local` with freshly generated AES-256-GCM keys (`MISSION_CONTROL_ADMIN_KEY`, `APPROVAL_HMAC_SECRET`, `MISSION_CONTROL_SESSION_SECRET`, `VAULT_ADMIN_KEY`). After a server restart the vault persists to `~/.thefactory/vault.json`.
+
+---
+
 ### Phase 7 — Extractor Provenance and Tooling (2026-04-14)
 
 #### Added

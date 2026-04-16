@@ -1,11 +1,20 @@
 # Implementation Status
 
-Document version: 2026.04.15
-Last updated: 2026-04-15
+Document version: 2026.04.16
+Last updated: 2026-04-16
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
 This document is the canonical current-state snapshot for theFactory. Use it as the source of truth for shipped defaults, active runtime behavior, current qualification status, and known follow-up work. Date-stamped ADRs, roadmap phases, audits, and completion checklists remain useful historical records, but some of them no longer describe the current default runtime exactly.
+
+## Mission Control UI — Vault and Settings (2026-04-16)
+
+- **API Key Vault Slots table** in `/settings` now populates all 35 agent slots offline via a static roster fallback. The orchestrator does not need to be running to enter or save API keys.
+- **Vault persistence** is active when `MISSION_CONTROL_ADMIN_KEY` is set to a 64-hex-char value in `apps/mission-control/.env.local`. Keys are stored as AES-256-GCM ciphertext in `~/.thefactory/vault.json`. The server must be restarted after `.env.local` changes.
+- **Vault backend selection** (from `vault.ts`): HashiCorp Vault if `VAULT_ADDR` is set, local-encrypted file if `MISSION_CONTROL_ADMIN_KEY` is valid, in-memory fallback otherwise.
+- **Databases page** now shows an actionable amber banner ("Start the Docker stack") instead of a raw "Failed to fetch" when the orchestrator is unreachable.
+
+---
 
 ## Shipped Defaults
 
