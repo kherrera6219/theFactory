@@ -218,11 +218,11 @@ Pod workers run a regex-first static-analysis extraction engine that detects com
 
 | Pod | Languages | Concept Prefix | Patterns |
 |-----|-----------|---------------|---------|
-| A — Dynamic | Python, JavaScript/TypeScript, Ruby, PHP | `DYN-` | ~68 |
-| B — Systems | C, C++, Rust, Zig, Go | `SYS-` | ~54 |
-| C — Enterprise | Java, C#, Scala, Kotlin | `ENT-` | ~35 |
-| D — Mathematical | MATLAB, R, Julia, Mathematica, Haskell, OCaml | `MATH-` | ~75 |
-| **Total** | **20 routed language keys** (19 specialist implementations; TypeScript aliases to JavaScript) | | **232 patterns** |
+| A — Dynamic | Python, JavaScript/TypeScript, Ruby, PHP | `DYN-` | 68 |
+| B — Systems | C, C++, Rust, Zig, Go | `SYS-` | 56 |
+| C — Enterprise | Java, C#, Scala, Kotlin | `ENT-` | 35 |
+| D — Mathematical | MATLAB, R, Julia, Mathematica, Haskell, OCaml | `MATH-` | 53 |
+| **Total** | **20 routed language keys** (19 specialist implementations; TypeScript aliases to JavaScript) | | **212 patterns** |
 
 Each extracted concept becomes a **LogicNode** with:
 - `concept_id` (e.g. `DYN-006-001` for async function, `SYS-011-001` for Rust `Result<T>`)

@@ -38,6 +38,11 @@ Thumbs.db
 build/
 out/
 
+# CI-generated reports (uploaded as artifacts, not committed)
+coverage.xml
+ruff_errors.txt
+apps/mission-control/lint_errors.txt
+
 # Runtime outputs
 backups/
 
