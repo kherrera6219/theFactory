@@ -166,8 +166,10 @@ def test_check_compose_environment_profile_controls_passes(tmp_path, monkeypatch
             "    cap_drop: [ALL]\n"
             "    oom_score_adj: -500\n"
             "    volumes:\n"
+            "      - ./redis/entrypoint.sh:/usr/local/bin/docker-entrypoint-init-tls.sh:ro\n"
             "      - ./.local/postgres-certs:/run/postgres-certs:ro\n"
             "    environment:\n"
+            "      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}\n"
             "      REDIS_URL: rediss://redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt\n"
             "      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/ulr?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt\n"
         ),
@@ -175,10 +177,28 @@ def test_check_compose_environment_profile_controls_passes(tmp_path, monkeypatch
     _write(tmp_path / "deploy" / "docker-compose.dev.yaml", "services: {}\n")
     _write(tmp_path / "deploy" / "docker-compose.staging.yaml", "services: {}\n")
     _write(
+        tmp_path / "deploy" / "docker-compose.full-dedicated-agents.yaml",
+        (
+            "x-redis-client-certs:\n"
+            "  - ./.local/redis-certs:/run/redis-certs:ro\n"
+            "services:\n"
+            "  agent-36-go:\n"
+            "    image: local\n"
+            "  agent-37-haskell:\n"
+            "    image: local\n"
+            "  agent-38-ocaml:\n"
+            "    image: local\n"
+        ),
+    )
+    _write(
         tmp_path / "deploy" / "docker-compose.prod.yaml",
         "services:\n  api:\n    environment:\n      AGENT_SERVICE_KEY_MODE: strict\n",
     )
     _write(tmp_path / "docs" / "COMPOSE_ENVIRONMENT_PROFILES.md", "# Profiles\n")
+    _write(
+        tmp_path / "Makefile",
+        "up-full-dedicated:\n\tdocker compose up agent-36-go agent-37-haskell agent-38-ocaml\n",
+    )
     monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
 
     result = audit.check_compose_environment_profile_controls()
@@ -237,6 +257,9 @@ def test_check_environment_template_requires_agent_keys_and_redis_tls(
                 "AGENT_10_TESTER_SERVICE_API_KEY=",
                 "AGENT_14_PYTHON_SERVICE_API_KEY=",
                 "AGENT_35_MATHEMATICA_SERVICE_API_KEY=",
+                "AGENT_36_GO_SERVICE_API_KEY=",
+                "AGENT_37_HASKELL_SERVICE_API_KEY=",
+                "AGENT_38_OCAML_SERVICE_API_KEY=",
             ]
         ),
     )

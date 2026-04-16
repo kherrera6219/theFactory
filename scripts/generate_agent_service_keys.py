@@ -17,7 +17,7 @@ def _env_name(agent_id: str) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate a local ignored env file with per-agent service API keys."
+        description="Generate a local ignored env file with per-agent and internal service API keys."
     )
     parser.add_argument(
         "--output-file",
@@ -56,6 +56,7 @@ def main() -> int:
         "# Generated local per-agent service keys",
         "# Do not commit this file.",
         f"AGENT_SERVICE_KEY_MODE={args.mode}",
+        f"INTERNAL_SERVICE_API_KEY=hgr-internal-{secrets.token_urlsafe(args.key_length_bytes)}",
         "",
     ]
 

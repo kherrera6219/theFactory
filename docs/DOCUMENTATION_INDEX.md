@@ -1,7 +1,7 @@
 # Documentation Index
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.04.15  
+Last updated: 2026-04-15  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -21,7 +21,7 @@ This is the master map for theFactory documentation. The live documentation set 
 - [DOCUMENTATION_STANDARDS.md](DOCUMENTATION_STANDARDS.md)
   - documentation conventions, archive rules, and quality gate
 - [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
-  - shipped defaults, validation snapshot, and remaining blockers
+  - shipped defaults, validation snapshot, and current follow-up work
 - [ARCHITECTURE.md](ARCHITECTURE.md)
   - topology, services, data plane, and lifecycle baseline
 - [ARCHITECTURE_DIAGRAMS.md](ARCHITECTURE_DIAGRAMS.md)
@@ -34,6 +34,10 @@ This is the master map for theFactory documentation. The live documentation set 
   - current roadmap and maturity direction
 - [RELEASE_COMPLETION_PLAN.md](RELEASE_COMPLETION_PLAN.md)
   - production-release phase plan and out-of-band blockers
+- [reviews/end-to-end-review-2026-04-15.md](reviews/end-to-end-review-2026-04-15.md)
+  - latest end-to-end review closeout with resolved findings and live qualification evidence
+- [reviews/review-todo-action-plan-2026-04-15.md](reviews/review-todo-action-plan-2026-04-15.md)
+  - phase-based remediation closeout and remaining hardening follow-up
 
 ## Developer Documentation
 

@@ -28,7 +28,13 @@ def test_main_writes_all_agent_keys(tmp_path: Path, monkeypatch) -> None:
     payload = output_file.read_text(encoding="utf-8")
 
     assert "AGENT_SERVICE_KEY_MODE=strict" in payload
+    assert "INTERNAL_SERVICE_API_KEY=" in payload
     assert "AGENT_01_PM_SERVICE_API_KEY=" in payload
     assert "AGENT_35_MATHEMATICA_SERVICE_API_KEY=" in payload
     assert "AGENT_38_OCAML_SERVICE_API_KEY=" in payload
-    assert payload.count("_SERVICE_API_KEY=") == 38
+    agent_key_lines = [
+        line
+        for line in payload.splitlines()
+        if line.startswith("AGENT_") and "_SERVICE_API_KEY=" in line
+    ]
+    assert len(agent_key_lines) == 38

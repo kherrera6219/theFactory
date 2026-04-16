@@ -1,7 +1,7 @@
 # Operations Runbook
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.04.15  
+Last updated: 2026-04-15  
 Status: Canonical  
 Audience: Operators, maintainers, and on-call responders
 
@@ -59,7 +59,7 @@ Audience: Operators, maintainers, and on-call responders
 
 1. Check runtime snapshot includes all agents:
    - `curl -H "x-api-key: operator-key" http://localhost:8100/v1/operations/agents | jq ".total_agents"`
-   - expected: `35`
+   - expected: `38`
 2. Validate persona profile object exists:
    - `curl -H "x-api-key: operator-key" http://localhost:8100/v1/operations/agents | jq ".agents[0].persona_profile | keys"`
 3. Validate standards/evidence extension fields:
@@ -87,6 +87,7 @@ Audience: Operators, maintainers, and on-call responders
 2. Generate local dedicated key material for full-topology qualification:
    - `python scripts/generate_agent_service_keys.py --force`
    - output: `.env.agent-service-keys.local`
+   - includes `INTERNAL_SERVICE_API_KEY` plus per-agent service keys for strict dedicated launches
 3. Verify pod worker reports configured agent keys:
    - `docker compose -f deploy/docker-compose.yaml exec pod-a-worker python -c "import json, urllib.request; print(json.loads(urllib.request.urlopen('http://localhost:8201/health').read())['configured_agent_service_keys'])"`
 4. Verify audit worker agent identity:
@@ -99,17 +100,19 @@ Audience: Operators, maintainers, and on-call responders
 1. Validate the full topology resolves:
    - `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents config`
 2. Start the full topology:
-   - `make dedicated-full-up`
+   - `make up-full-dedicated`
 3. Stop the full topology:
-   - `make dedicated-full-down`
+   - `make down-full-dedicated`
 4. Validate PM/CEO/specialist services exist:
-   - `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents config | rg "agent-01-pm|agent-02-ceo|agent-35-mathematica"`
+   - `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents config | rg "agent-01-pm|agent-02-ceo|agent-35-mathematica|agent-36-go|agent-37-haskell|agent-38-ocaml"`
 5. Run strict local full-dedicated qualification:
-   - `docker compose --env-file .env.agent-service-keys.local -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml up -d --build`
+   - `docker compose --env-file .env.agent-service-keys.local -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build`
    - `python scripts/mission_artifact_qualification.py --profile-label full-dedicated-strict --output-file docs/evidence/mission_artifact_qualification_full_dedicated_strict_<date>.json --history-file docs/evidence/mission_artifact_qualification_history.jsonl`
    - `python scripts/dedicated_agent_canary_rollout.py --profile-label full-dedicated-strict --output-file docs/evidence/dedicated_agent_canary_full_dedicated_strict_<date>.json`
 6. Verify dedicated worker consumer groups exist after startup or Redis restart:
    - `docker exec deploy-orchestrator-1 python -c "import os, redis; r=redis.Redis.from_url(os.environ['REDIS_URL'], decode_responses=True); print(r.xinfo_groups('missions.state'))"`
+7. Current dedicated coverage note:
+   - The overlay now provisions dedicated PM/CEO/support/pod-audit containers plus specialist workers across the full 38-agent runtime, including Go, Haskell, and OCaml.
 
 ## Redis TLS Checks
 
@@ -134,10 +137,15 @@ Audience: Operators, maintainers, and on-call responders
 1. Restart stack:
    - `docker compose -f deploy/docker-compose.yaml down`
    - `docker compose -f deploy/docker-compose.yaml up -d --build`
-2. Investigate Postgres or migration failures:
+2. Recreate containers after TLS material or cert-mount changes:
+   - `make tls-certs`
+   - `docker compose -f deploy/docker-compose.yaml down -v`
+   - `docker compose -f deploy/docker-compose.yaml up -d --build`
+   - for the dedicated overlay: `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build --force-recreate`
+3. Investigate Postgres or migration failures:
    - `docker compose -f deploy/docker-compose.yaml logs orchestrator --tail 200`
    - `docker compose -f deploy/docker-compose.yaml logs postgres --tail 200`
-3. Investigate stream consumption stalls:
+4. Investigate stream consumption stalls:
    - `docker compose -f deploy/docker-compose.yaml exec redis redis-cli XINFO GROUPS missions.intake`
    - `docker compose -f deploy/docker-compose.yaml exec redis redis-cli XINFO GROUPS missions.state`
    - If Redis was restarted, verify dedicated worker groups were recreated automatically before recycling containers.

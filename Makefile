@@ -14,9 +14,9 @@ up-full-dedicated: tls-certs
 		agent-01-pm agent-02-ceo agent-03-broker agent-04-accountant agent-05-security agent-06-is agent-07-vc agent-08-compliance agent-09-hw agent-10-tester agent-11-deploy \
 		agent-13-poda-audit agent-19-podb-audit agent-25-podc-audit agent-31-podd-audit \
 		agent-14-python agent-15-javascript agent-16-ruby agent-17-php \
-		agent-20-c agent-21-cpp agent-22-rust agent-23-zig \
+		agent-20-c agent-21-cpp agent-22-rust agent-23-zig agent-36-go \
 		agent-26-java agent-27-csharp agent-28-scala agent-29-kotlin \
-		agent-32-matlab agent-33-r agent-34-julia agent-35-mathematica
+		agent-32-matlab agent-33-r agent-34-julia agent-35-mathematica agent-37-haskell agent-38-ocaml
 
 down-full-dedicated:
 	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents down -v

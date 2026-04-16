@@ -122,7 +122,7 @@ The system is organized into three planes:
 
 ### Pod Workers (`services/pod-worker`)
 
-- **Language extraction:** Regex-based static analysis (232 patterns, 20 languages)
+- **Language extraction:** Regex-first static analysis (232 patterns, 20 routed language keys) with optional Python AST structural extraction behind `PYTHON_AST_EXTRACTOR_ENABLED`
 - **LogicNode creation:** Per-concept node creation in knowledge base
 - **Agent binding:** `AGENT_BINDING` env var — dedicated workers process only matching missions
 - **Metrics:** `pod_worker_concepts_extracted_total`, `pod_worker_extraction_latency_seconds`, `pod_worker_binding_skips_total`, `pod_worker_internal_auth_rejections_total`
@@ -225,7 +225,7 @@ Implementation: `services/orchestrator/orchestrator/agent_personas.py`
 
 ## Language Extraction Engine
 
-Regex-based static analysis — no AST, no LLM required for this stage.
+Regex-first static analysis with no LLM required for this stage. Python can switch to AST-backed structural extraction behind `PYTHON_AST_EXTRACTOR_ENABLED=true`; JavaScript/TypeScript and Java AST modules remain stubbed and are not part of the shipped runtime path.
 
 | Pod | Languages | Concept Prefix | Patterns |
 |-----|-----------|---------------|---------|
@@ -233,7 +233,7 @@ Regex-based static analysis — no AST, no LLM required for this stage.
 | B — Systems | C, C++, Rust, Zig, Go | `SYS-` | ~54 |
 | C — Enterprise | Java, C#, Scala, Kotlin | `ENT-` | ~35 |
 | D — Mathematical | MATLAB, R, Julia, Mathematica, Haskell, OCaml | `MATH-` | ~75 |
-| **Total** | **20 languages** | | **232 patterns** |
+| **Total** | **20 routed language keys** (TypeScript aliases to JavaScript) | | **232 patterns** |
 
 Concept ID format: `{PREFIX}-{DOMAIN:3d}-{CONCEPT:3d}` — e.g. `DYN-006-001` (async function)
 

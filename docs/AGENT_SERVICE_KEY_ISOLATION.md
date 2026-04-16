@@ -1,7 +1,7 @@
 # Agent Service Key Isolation
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.04.15  
+Last updated: 2026-04-15  
 Status: Canonical  
 Audience: Maintainers, operators, and security reviewers
 
@@ -50,20 +50,27 @@ rejects the mutation path if the active agent has no dedicated key.
   - `python scripts/generate_agent_service_keys.py`
 - Default output:
   - `.env.agent-service-keys.local`
+- Generated env entries include:
+  - `AGENT_SERVICE_KEY_MODE`
+  - `INTERNAL_SERVICE_API_KEY`
+  - `AGENT_<NN>_<CODE>_SERVICE_API_KEY` for every canonical agent
 - Use it with the strict full dedicated stack:
-  - `docker compose --env-file .env.agent-service-keys.local -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml up -d --build`
+  - `docker compose --env-file .env.agent-service-keys.local -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build`
 
 ## Live Qualification Evidence
 
 - Strict full-dedicated qualification passed on 2026-03-09:
   - `docs/evidence/mission_artifact_qualification_full_dedicated_strict_2026-03-09.json`
   - `docs/evidence/dedicated_agent_canary_full_dedicated_strict_2026-03-09.json`
-- The full dedicated Redis stream now exposes all dedicated worker groups, including:
+- Strict full-dedicated qualification was refreshed on 2026-04-15 after the dedicated Go/Haskell/OCaml worker addition and gateway internal-auth wiring fix:
+  - `docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json`
+  - `docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`
+- The current full dedicated topology provisions all dedicated worker groups, including:
   - `dedicated-workers-podA`
   - `dedicated-workers-podB`
   - `dedicated-workers-podC`
   - `dedicated-workers-podD`
-  - `dedicated-agent-14-python` through `dedicated-agent-35-mathematica`
+  - `dedicated-agent-14-python` through `dedicated-agent-38-ocaml`
 
 ## Remaining Work
 

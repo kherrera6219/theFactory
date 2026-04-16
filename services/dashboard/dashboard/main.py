@@ -79,7 +79,7 @@ def index() -> str:
     <div class='card'>
       <h1>HolyGrail Operations Dashboard</h1>
       <p>
-        This is the initial operations shell. Mission Control UI will live in
+        This is the lightweight operations shell. The primary Mission Control UI lives in
         <code>apps/mission-control</code>.
       </p>
       <button onclick='loadSnapshot()'>Load API Snapshot</button>

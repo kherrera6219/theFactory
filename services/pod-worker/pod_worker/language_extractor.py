@@ -4,9 +4,9 @@ Each ``LanguageExtractor`` scans source text using the concept catalog patterns
 and produces a list of ``ExtractedConcept`` entries compatible with the
 LogicNode schema.
 
-This is a **regex-based static analysis** pass — no AST parsing and no LLM
-calls.  It provides structured data that downstream agents (LangGraph nodes,
-specialist runners) can reason over.
+This is a **regex-first static analysis** pass. Python can switch to an
+AST-backed structural extractor when enabled, while the default shipped path
+still avoids LLM calls and keeps the other languages on the regex pipeline.
 """
 
 from __future__ import annotations

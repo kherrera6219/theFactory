@@ -255,7 +255,7 @@ def run(args: argparse.Namespace) -> int:
         payload=mission_request,
         headers={"Idempotency-Key": mission_key},
     )
-    if create_status != 200 or not isinstance(create_payload, dict):
+    if create_status not in {200, 201} or not isinstance(create_payload, dict):
         print(f"FAIL: mission creation failed (status={create_status})")
         return 1
 

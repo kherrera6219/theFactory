@@ -1,6 +1,7 @@
 import importlib.util
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "scripts" / "dedicated_agent_canary_rollout.py"
@@ -105,3 +106,71 @@ def test_evaluate_canary_result_fails_with_guardrail_reasons() -> None:
     assert any("missing required chain events" in reason for reason in failure_reasons)
     assert any("completion-blocked event detected" in reason for reason in failure_reasons)
     assert diagnostics["completion_blocked_events"] == 1
+
+
+def test_run_accepts_201_created_for_mission_creation(tmp_path, monkeypatch) -> None:
+    responses = iter(
+        [
+            (200, {"ready": True}),
+            (200, {"ready": True}),
+            (201, {"mission_id": "mission-123"}),
+            (
+                200,
+                {
+                    "events": [
+                        {"event_type": "MISSION_PM_INTAKE"},
+                        {"event_type": "MISSION_CEO_DELEGATED"},
+                        {"event_type": "MISSION_POD_MANAGER_ASSIGNED"},
+                        {"event_type": "MISSION_SPECIALIST_ASSIGNED"},
+                    ]
+                },
+            ),
+            (200, {"pod_name": "podA"}),
+            (200, [{"node_id": "n-1"}]),
+        ]
+    )
+
+    def fake_request_json(method: str, url: str, **kwargs):  # type: ignore[no-untyped-def]
+        return next(responses)
+
+    monkeypatch.setattr(canary, "_request_json", fake_request_json)
+    monkeypatch.setattr(
+        canary,
+        "_wait_for_terminal_state",
+        lambda **kwargs: (
+            "COMPLETE",
+            {
+                "mission_id": "mission-123",
+                "state": "COMPLETE",
+                "metadata": {
+                    "routing_enforced": True,
+                    "intake_agent_id": "AGENT-01-PM",
+                    "executive_agent_id": "AGENT-02-CEO",
+                    "expected_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                },
+            },
+        ),
+    )
+
+    output_file = tmp_path / "canary.json"
+    args = SimpleNamespace(
+        gateway_base_url="http://localhost:8100",
+        orchestrator_base_url="http://localhost:8101",
+        prompt="Build a policy API",
+        language="python",
+        source="test",
+        profile_label="dedicated-agent-canary-test",
+        timeout_seconds=1.0,
+        poll_seconds=0.01,
+        expected_pod_manager_agent_id="AGENT-12-PODA-MGR",
+        required_chain_events=[
+            "MISSION_PM_INTAKE",
+            "MISSION_CEO_DELEGATED",
+            "MISSION_POD_MANAGER_ASSIGNED",
+            "MISSION_SPECIALIST_ASSIGNED",
+        ],
+        output_file=output_file,
+    )
+
+    assert canary.run(args) == 0
+    assert output_file.exists()

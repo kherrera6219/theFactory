@@ -1,6 +1,7 @@
 import importlib.util
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "scripts" / "mission_artifact_qualification.py"
@@ -107,3 +108,62 @@ def test_evaluate_result_fails_missing_artifacts_and_chain() -> None:
     assert any("missing required chain events" in reason for reason in failure_reasons)
     assert diagnostics["assignment_present"] is False
     assert diagnostics["logicnode_count"] == 0
+
+
+def test_run_accepts_201_created_for_mission_creation(tmp_path, monkeypatch) -> None:
+    responses = iter(
+        [
+            (200, {"ready": True}),
+            (200, {"ready": True}),
+            (201, {"mission_id": "mission-123"}),
+            (200, [{"event_type": "MISSION_PM_INTAKE"}]),
+            (
+                200,
+                {
+                    "events": [
+                        {"event_type": "MISSION_PM_INTAKE"},
+                        {"event_type": "MISSION_CEO_DELEGATED"},
+                        {"event_type": "MISSION_POD_MANAGER_ASSIGNED"},
+                        {"event_type": "MISSION_SPECIALIST_ASSIGNED"},
+                    ]
+                },
+            ),
+            (200, {"pod_name": "podA"}),
+            (200, [{"node_id": "n-1"}]),
+        ]
+    )
+
+    def fake_request_json(method: str, url: str, **kwargs):  # type: ignore[no-untyped-def]
+        return next(responses)
+
+    monkeypatch.setattr(qualification, "_request_json", fake_request_json)
+    monkeypatch.setattr(
+        qualification,
+        "_wait_for_terminal_state",
+        lambda **kwargs: ("COMPLETE", {"mission_id": "mission-123", "state": "COMPLETE"}),
+    )
+
+    output_file = tmp_path / "qualification.json"
+    history_file = tmp_path / "qualification-history.jsonl"
+    args = SimpleNamespace(
+        gateway_base_url="http://localhost:8100",
+        orchestrator_base_url="http://localhost:8101",
+        prompt="Build a policy API",
+        language="python",
+        source="test",
+        profile_label="full-dedicated-test",
+        timeout_seconds=1.0,
+        poll_seconds=0.01,
+        required_chain_events=[
+            "MISSION_PM_INTAKE",
+            "MISSION_CEO_DELEGATED",
+            "MISSION_POD_MANAGER_ASSIGNED",
+            "MISSION_SPECIALIST_ASSIGNED",
+        ],
+        output_file=output_file,
+        history_file=history_file,
+    )
+
+    assert qualification.run(args) == 0
+    assert output_file.exists()
+    assert history_file.exists()

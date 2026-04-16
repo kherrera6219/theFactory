@@ -1,7 +1,7 @@
 # Developer Onboarding Guide
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.04.15  
+Last updated: 2026-04-15  
 Status: Canonical  
 Audience: Contributors, maintainers, and new developers
 
@@ -96,6 +96,13 @@ make tls-certs
 ```
 
 This generates local-only PostgreSQL and Redis TLS certificates and private keys under `deploy/.local/postgres-certs` and `deploy/.local/redis-certs`. Those private keys are gitignored and must remain local.
+
+If you already started the stack before regenerating certs or after a cert-path change, recreate the affected containers so Docker refreshes the bind mounts:
+
+```bash
+docker compose -f deploy/docker-compose.yaml down -v
+docker compose -f deploy/docker-compose.yaml up -d --build
+```
 
 ### Start Core Stack
 
@@ -350,6 +357,8 @@ docker compose -f deploy/docker-compose.yaml logs redis --tail 50
 
 Most common cause: port 6380 already in use. Update `REDIS_PORT` in `.env`.
 
+If the logs mention missing files under `/usr/local/etc/redis/certs` or `/run/redis-certs`, regenerate local TLS material with `make tls-certs` and recreate the stack so old bind mounts are discarded.
+
 ### Gateway Returns 503
 
 Orchestrator or Redis is not healthy. Check:
@@ -366,6 +375,8 @@ docker compose -f deploy/docker-compose.yaml logs orchestrator --tail 200 | grep
 ```
 
 If migrations fail, the orchestrator will exit. Check for SQL errors or permission issues.
+
+If Postgres logs mention missing files under `/run/postgres-certs`, regenerate local TLS material with `make tls-certs` and recreate the stack so the updated cert mount is applied.
 
 ### Frontend API Errors (CORS / 404)
 
