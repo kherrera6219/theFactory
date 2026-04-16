@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { OperatorUnlockForm } from "../../components/operator-unlock-form";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { getOperationsAgentIntegrations } from "../../lib/api-client";
@@ -465,6 +466,14 @@ export default function SettingsPage() {
         )}
         {slotMessage && <p className="success-box">{slotMessage}</p>}
         {slotError && <p className="error-box">{slotError}</p>}
+      </Panel>
+
+      <Panel title="Operator Admin Session">
+        <p className="help-text">
+          Create a short-lived operator session using the <code>MISSION_CONTROL_ADMIN_KEY</code> set
+          in your environment. This is only required for protected admin operations.
+        </p>
+        <OperatorUnlockForm />
       </Panel>
 
       <Panel

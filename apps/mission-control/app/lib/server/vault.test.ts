@@ -1,3 +1,6 @@
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type VaultModule = typeof import("./vault");
@@ -21,6 +24,8 @@ describe("vault backend", () => {
     delete process.env.VAULT_SLOT_ROTATION_WARNING_SECONDS;
     delete process.env.VAULT_SLOT_ROTATION_WARNING_DAYS;
     delete process.env.VAULT_ENFORCE_SLOT_TTL;
+    delete process.env.MISSION_CONTROL_ADMIN_KEY;
+    delete process.env.VAULT_DATA_PATH;
   });
 
   afterEach(() => {
@@ -68,6 +73,41 @@ describe("vault backend", () => {
       status: "expired",
       rotation_due: true,
     });
+  });
+
+  it("encrypts secrets at rest and persists to file when MISSION_CONTROL_ADMIN_KEY is configured", async () => {
+    // 64 hex chars = 32 bytes for AES-256-GCM
+    const tempFile = join(tmpdir(), `vault-test-${Date.now()}.json`);
+    process.env.MISSION_CONTROL_ADMIN_KEY = "a".repeat(64);
+    process.env.VAULT_DATA_PATH = tempFile;
+
+    try {
+      const vault = await importVaultModule();
+
+      const saved = await vault.upsertVaultSlot("agent-01-pm-api-key", "anthropic", "sk-ant-test-123456");
+      expect(saved.backend).toBe("local-encrypted");
+
+      // Secret is readable from the in-memory cache
+      const secret = await vault.getVaultSecret("AGENT-01-PM-API-KEY");
+      expect(secret).toBe("sk-ant-test-123456");
+
+      // File was written — secret must not appear in plaintext on disk
+      expect(existsSync(tempFile)).toBe(true);
+      const raw = readFileSync(tempFile, "utf8");
+      expect(raw).not.toContain("sk-ant-test-123456");
+
+      const parsed = JSON.parse(raw) as {
+        version: number;
+        entries: Record<string, { secret: { iv: string; authTag: string; ciphertext: string } }>;
+      };
+      expect(parsed.version).toBe(1);
+      const storedEntry = parsed.entries["AGENT-01-PM-API-KEY"];
+      expect(storedEntry.secret).toHaveProperty("iv");
+      expect(storedEntry.secret).toHaveProperty("authTag");
+      expect(storedEntry.secret).toHaveProperty("ciphertext");
+    } finally {
+      if (existsSync(tempFile)) rmSync(tempFile);
+    }
   });
 
   it("uses HashiCorp Vault KV when Vault env is configured", async () => {

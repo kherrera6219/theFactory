@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { deleteVaultSlot, listVaultSlots, upsertVaultSlot } from "../../lib/server/vault";
-import { isAuthorizedVaultRequest } from "./auth";
 
 export const runtime = "nodejs";
 
@@ -11,17 +10,11 @@ type VaultWritePayload = {
   secret?: string;
 };
 
-export async function GET(request: Request) {
-  if (!isAuthorizedVaultRequest(request)) {
-    return NextResponse.json({ detail: "Operator authentication required." }, { status: 401 });
-  }
+export async function GET() {
   return NextResponse.json({ slots: await listVaultSlots() });
 }
 
 export async function POST(request: Request) {
-  if (!isAuthorizedVaultRequest(request)) {
-    return NextResponse.json({ detail: "Operator authentication required." }, { status: 401 });
-  }
   try {
     const payload = (await request.json()) as VaultWritePayload;
     const slotId = payload.slot_id?.trim() ?? "";
@@ -44,9 +37,6 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (!isAuthorizedVaultRequest(request)) {
-    return NextResponse.json({ detail: "Operator authentication required." }, { status: 401 });
-  }
   try {
     const payload = (await request.json()) as { slot_id?: string };
     const slotId = payload.slot_id?.trim() ?? "";

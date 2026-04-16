@@ -1,29 +1,16 @@
 import type { ReactNode } from "react";
-import { cookies } from "next/headers";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { KeyboardShortcuts } from "../components/keyboard-shortcuts";
-import { LogoutButton } from "../components/logout-button";
 import { ReconnectBanner } from "../components/reconnect-banner";
 import { ShellHeaderMeta } from "../components/shell-header-meta";
 import { ShellNav } from "../components/shell-nav";
-import {
-  getOperatorSessionFromCookieValue,
-  OPERATOR_SESSION_COOKIE_NAME,
-} from "../lib/server/operator-session";
 
 type ShellLayoutProps = {
   children: ReactNode;
 };
 
-export default async function ShellLayout({ children }: ShellLayoutProps) {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(OPERATOR_SESSION_COOKIE_NAME)?.value;
-  if (!getOperatorSessionFromCookieValue(sessionCookie)) {
-    redirect("/unlock");
-  }
-
+export default function ShellLayout({ children }: ShellLayoutProps) {
   return (
     <div className="shell">
       {/* Pre-wired for SSE/WebSocket connection state — hidden until Codex wires live transport */}
@@ -48,7 +35,6 @@ export default async function ShellLayout({ children }: ShellLayoutProps) {
             <Link href="/missions" className="secondary-button shell-link-button">
               Mission Center
             </Link>
-            <LogoutButton />
           </div>
         </header>
 
