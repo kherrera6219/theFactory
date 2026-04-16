@@ -613,13 +613,26 @@ async def _ensure_group(redis_client: redis.Redis) -> None:
 async def _consumer_loop(app: FastAPI) -> None:
     redis_client: redis.Redis = app.state.redis
     while True:
-        records = await redis_client.xreadgroup(
-            groupname=CONSUMER_GROUP,
-            consumername=CONSUMER_NAME,
-            streams={STATE_STREAM: ">"},
-            count=20,
-            block=5000,
-        )
+        try:
+            records = await redis_client.xreadgroup(
+                groupname=CONSUMER_GROUP,
+                consumername=CONSUMER_NAME,
+                streams={STATE_STREAM: ">"},
+                count=20,
+                block=5000,
+            )
+        except asyncio.CancelledError:
+            raise
+        except ResponseError as exc:
+            if "NOGROUP" in str(exc):
+                LOGGER.warning(
+                    "state stream group %s missing for %s; recreating",
+                    CONSUMER_GROUP,
+                    STATE_STREAM,
+                )
+                await _ensure_group(redis_client)
+                continue
+            raise
         if not records:
             continue
 
@@ -675,6 +688,7 @@ async def _heartbeat_loop(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _worker_agent()
     app.state.redis = redis.from_url(REDIS_URL, decode_responses=True)
     app.state.consumer_task = None
     app.state.heartbeat_task = None

@@ -303,7 +303,7 @@ def _resolve_project_id(metadata: dict[str, Any], *, mission_id: str) -> str:
     source = metadata.get("source")
     if isinstance(source, str) and source.strip():
         return _normalize_project_id(source, fallback="project-unknown")
-    return "project-unknown"
+    return _normalize_project_id(mission_id, fallback="project-unknown")
 
 
 def _resolve_pod_manager_agent(requested_target_language: str | None) -> str:
@@ -366,10 +366,21 @@ def _normalize_mission_metadata(
     )
     normalized["agent_id"] = PM_AGENT_ID
     normalized["selected_agent_id"] = PM_AGENT_ID
-    normalized["project_id"] = _resolve_project_id(
-        normalized,
-        mission_id=mission_id or "mission-pending",
-    )
+    explicit_project_id = normalized.get("project_id")
+    if isinstance(explicit_project_id, str) and explicit_project_id.strip():
+        normalized["project_id"] = _normalize_project_id(
+            explicit_project_id,
+            fallback="project-unknown",
+        )
+    else:
+        source = normalized.get("source")
+        if isinstance(source, str) and source.strip():
+            normalized["project_id"] = _normalize_project_id(
+                source,
+                fallback="project-unknown",
+            )
+        else:
+            normalized.pop("project_id", None)
     if "project_name" not in normalized:
         source = normalized.get("source")
         if isinstance(source, str) and source.strip():
@@ -426,6 +437,11 @@ async def _reconcile_idempotent_mission(
         raise
 
     mission_record = MissionRecord(**existing_mission)
+    if not mission_record.project_id:
+        mission_record.project_id = _resolve_project_id(
+            mission_record.metadata,
+            mission_id=mission_record.mission_id,
+        )
     await _save_idempotency_record(
         redis_client,
         redis_key,

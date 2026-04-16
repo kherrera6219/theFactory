@@ -1,6 +1,8 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
+import { attachOperatorSession } from "./test-helpers";
+
 type MockOptions = {
   failMissionList?: boolean;
   failMissionCreate?: boolean;
@@ -357,7 +359,32 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
     });
   });
 
-  await page.route("http://localhost:8100/**", async (route) => {
+  await page.route("**/api/review/verify", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") {
+      return fulfillJson(route, 405, { detail: "Method not allowed." });
+    }
+    const payload = (request.postDataJSON() as Record<string, unknown>) ?? {};
+    const scope = typeof payload.scope === "string" ? payload.scope : "repo";
+    const fingerprint = typeof payload.fingerprint === "string" ? payload.fingerprint : "fp-default";
+
+    return fulfillJson(route, 200, {
+      scope,
+      approval_id:
+        typeof payload.approval_id === "string"
+          ? payload.approval_id
+          : `${scope}-approval-001`,
+      fingerprint,
+      receipt_digest:
+        typeof payload.receipt_digest === "string"
+          ? payload.receipt_digest
+          : `${scope}-digest-001`,
+      verified: true,
+      verified_at: new Date().toISOString(),
+    });
+  });
+
+  await page.route(/http:\/\/(?:localhost|127\.0\.0\.1):8100\/.*/, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const pathname = url.pathname;
@@ -533,6 +560,8 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
         queue_depth: 1,
         workload_pct: 60,
         last_heartbeat_iso: new Date().toISOString(),
+        runtime_class: "shared_worker",
+        heartbeat_source: "live",
         active_mission_ids: [activeMissionId],
         persona_profile: personaProfile("AGENT-01-PM"),
       };
@@ -630,6 +659,10 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
   });
 }
 
+test.beforeEach(async ({ page }) => {
+  await attachOperatorSession(page);
+});
+
 test("mission lifecycle journey is covered from intake to live detail", async ({ page }) => {
   await setupMissionControlApiMocks(page);
 
@@ -659,7 +692,7 @@ test("operations views render runtime and agent persona detail", async ({ page }
   await expect(page.getByText("Gateway readiness")).toBeVisible();
 
   await page.goto("/agents");
-  await expect(page.getByRole("heading", { name: "38-Agent Runtime Control Grid" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agent Runtime Control Grid" })).toBeVisible();
   await expect(page.getByText("Total agents")).toBeVisible();
   await expect(page.getByText(/Windowed rows:/i)).toBeVisible();
   await page.getByRole("button", { name: /Agent One PM/i }).first().click();

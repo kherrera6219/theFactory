@@ -17,7 +17,10 @@ def _env_name(agent_id: str) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate a local ignored env file with per-agent and internal service API keys."
+        description=(
+            "Generate a local ignored env file with per-agent "
+            "and internal service API keys."
+        )
     )
     parser.add_argument(
         "--output-file",

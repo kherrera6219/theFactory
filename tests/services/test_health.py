@@ -31,4 +31,5 @@ def test_dashboard_health() -> None:
     client = TestClient(dashboard_app)
     response = client.get("/health")
     assert response.status_code == 200
+    assert response.json()["ok"] is True
     assert response.json()["service"] == "dashboard"

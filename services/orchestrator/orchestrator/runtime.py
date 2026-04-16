@@ -511,8 +511,20 @@ async def consume_intake_stream(app: FastAPI) -> None:
                         )
         except asyncio.CancelledError:
             raise
+        except ResponseError as exc:
+            if "NOGROUP" in str(exc):
+                LOGGER.warning(
+                    "intake stream group %s missing for %s; recreating",
+                    settings.consumer_group,
+                    settings.intake_stream,
+                )
+                await ensure_consumer_group(settings, redis_client)
+                app.state.redis_ready = True
+                continue
+            raise
         except Exception:
             app.state.redis_ready = False
+            LOGGER.exception("intake consumer loop failed; retrying")
             await asyncio.sleep(1.0)
 
 

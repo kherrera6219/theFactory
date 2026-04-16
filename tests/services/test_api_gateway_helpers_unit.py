@@ -103,12 +103,14 @@ def _request(
 def test_normalize_mission_metadata_covers_none_existing_pm_trace_and_invalid_inputs() -> None:
     normalized = api_gateway_main._normalize_mission_metadata(
         None,
+        mission_id="mission-123",
         requested_target_language="python",
     )
 
     assert normalized["agent_id"] == api_gateway_main.PM_AGENT_ID
     assert normalized["selected_agent_id"] == api_gateway_main.PM_AGENT_ID
     assert normalized["expected_pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
+    assert "project_id" not in normalized
     assert normalized["chain_trace"][0]["event_type"] == "MISSION_PM_INTAKE"
 
     preserved = api_gateway_main._normalize_mission_metadata(
@@ -154,6 +156,19 @@ def test_idempotency_helpers_cover_decode_and_save_paths() -> None:
     )
     assert valid.set_calls[0][2] == api_gateway_main.IDEMPOTENCY_TTL_SECONDS
     assert valid.set_calls[0][3] is True
+
+
+def test_resolve_project_id_falls_back_to_mission_id() -> None:
+    assert (
+        api_gateway_main._resolve_project_id({}, mission_id="mission-456")
+        == "project-mission-456"
+    )
+    assert (
+        api_gateway_main._resolve_project_id(
+            {"source": "Mission Control Builder"}, mission_id="mission-456"
+        )
+        == "project-mission-control-builder"
+    )
 
 
 def test_create_mission_reconciles_unknown_idempotent_writes(monkeypatch) -> None:
@@ -205,6 +220,7 @@ def test_create_mission_reconciles_unknown_idempotent_writes(monkeypatch) -> Non
     result = asyncio.run(api_gateway_main.create_mission(payload, idempotency_key="idem-1"))
 
     assert result.mission_id == mission_id
+    assert result.project_id == f"project-{mission_id}"
     completed_record = asyncio.run(
         api_gateway_main._load_idempotency_record(redis_client, redis_key)
     )
