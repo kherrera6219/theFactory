@@ -1,7 +1,12 @@
 import "server-only";
 
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+
 type VaultProvider = "openai" | "anthropic" | "gemini" | "github" | "operator";
-type VaultBackend = "memory" | "hashicorp-vault";
+type VaultBackend = "memory" | "local-encrypted" | "hashicorp-vault";
 
 type VaultEntry = {
   slotId: string;
@@ -18,6 +23,19 @@ type CachedToken = {
   expiresAt: number;
 };
 
+type EncryptedBlob = {
+  iv: string;
+  authTag: string;
+  ciphertext: string;
+};
+
+type VaultFileEntry = Omit<VaultEntry, "secret"> & { secret: EncryptedBlob };
+
+type VaultFileData = {
+  version: number;
+  entries: Record<string, VaultFileEntry>;
+};
+
 export type VaultSlotRecord = {
   slot_id: string;
   provider: VaultProvider;
@@ -30,7 +48,10 @@ export type VaultSlotRecord = {
   backend?: VaultBackend;
 };
 
+// In-memory fallback (no persistence, no encryption)
 const vaultMemory = new Map<string, VaultEntry>();
+// Local encrypted file cache — loaded once on first access
+let localVaultMemory: Map<string, VaultEntry> | null = null;
 let cachedVaultToken: CachedToken | null = null;
 
 const VAULT_ADDR = process.env.VAULT_ADDR?.trim() ?? "";
@@ -54,6 +75,18 @@ const ROTATION_WARNING_SECONDS = Math.max(
 );
 const ENFORCE_SLOT_TTL =
   (process.env.VAULT_ENFORCE_SLOT_TTL?.trim().toLowerCase() ?? "true") !== "false";
+
+// Local encrypted file backend — uses MISSION_CONTROL_ADMIN_KEY for AES-256-GCM
+const VAULT_ENCRYPTION_KEY = process.env.MISSION_CONTROL_ADMIN_KEY?.trim() ?? "";
+const VAULT_DATA_FILE =
+  process.env.VAULT_DATA_PATH?.trim() || join(homedir(), ".thefactory", "vault.json");
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function isValidEncryptionKey(key: string): boolean {
+  // Must be exactly 64 hex chars (32 bytes for AES-256)
+  return /^[0-9a-f]{64}$/i.test(key);
+}
 
 function normalizeProvider(value: string): VaultProvider {
   const candidate = value.toLowerCase();
@@ -79,6 +112,9 @@ function maskSecret(secret: string): string {
 function getVaultBackend(): VaultBackend {
   if (VAULT_ADDR && (VAULT_TOKEN || (VAULT_ROLE_ID && VAULT_SECRET_ID))) {
     return "hashicorp-vault";
+  }
+  if (isValidEncryptionKey(VAULT_ENCRYPTION_KEY)) {
+    return "local-encrypted";
   }
   return "memory";
 }
@@ -132,6 +168,158 @@ function toSlotRecord(entry: VaultEntry, backend: VaultBackend): VaultSlotRecord
     backend,
   };
 }
+
+// ─── AES-256-GCM encryption ───────────────────────────────────────────────────
+
+function encryptSecret(plaintext: string, keyHex: string): EncryptedBlob {
+  const key = Buffer.from(keyHex, "hex"); // 32 bytes
+  const iv = randomBytes(12); // 96-bit IV — GCM recommended size
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  return {
+    iv: iv.toString("hex"),
+    authTag: cipher.getAuthTag().toString("hex"),
+    ciphertext: ciphertext.toString("hex"),
+  };
+}
+
+function decryptSecret(blob: EncryptedBlob, keyHex: string): string {
+  const key = Buffer.from(keyHex, "hex");
+  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(blob.iv, "hex"));
+  decipher.setAuthTag(Buffer.from(blob.authTag, "hex"));
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(blob.ciphertext, "hex")),
+    decipher.final(),
+  ]);
+  return plaintext.toString("utf8");
+}
+
+// ─── Local encrypted file backend ─────────────────────────────────────────────
+
+function readLocalVaultFile(): Map<string, VaultEntry> {
+  const map = new Map<string, VaultEntry>();
+  try {
+    if (!existsSync(VAULT_DATA_FILE)) return map;
+    const raw = readFileSync(VAULT_DATA_FILE, "utf8");
+    const data = JSON.parse(raw) as VaultFileData;
+    for (const [slotId, entry] of Object.entries(data.entries ?? {})) {
+      try {
+        const secret = decryptSecret(entry.secret, VAULT_ENCRYPTION_KEY);
+        map.set(slotId, { ...entry, secret });
+      } catch {
+        // Entry encrypted with a different key — skip silently
+      }
+    }
+  } catch {
+    // File missing or malformed — start with an empty vault
+  }
+  return map;
+}
+
+function writeLocalVaultFile(memory: Map<string, VaultEntry>): void {
+  const entries: Record<string, VaultFileEntry> = {};
+  for (const [slotId, entry] of memory) {
+    entries[slotId] = { ...entry, secret: encryptSecret(entry.secret, VAULT_ENCRYPTION_KEY) };
+  }
+  const dir = dirname(VAULT_DATA_FILE);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+  writeFileSync(VAULT_DATA_FILE, JSON.stringify({ version: 1, entries }, null, 2), "utf8");
+}
+
+function getLocalVaultMemory(): Map<string, VaultEntry> {
+  if (localVaultMemory === null) {
+    localVaultMemory = readLocalVaultFile();
+  }
+  return localVaultMemory;
+}
+
+function localListVaultSlots(): VaultSlotRecord[] {
+  return Array.from(getLocalVaultMemory().values())
+    .sort((a, b) => a.slotId.localeCompare(b.slotId))
+    .map((item) => toSlotRecord(item, "local-encrypted"));
+}
+
+function localUpsertVaultSlot(slotId: string, provider: string, secret: string): VaultSlotRecord {
+  const normalizedSlot = normalizeSlotId(slotId);
+  const normalizedSecret = secret.trim();
+  if (!normalizedSlot || !normalizedSecret) {
+    throw new Error("slot_id and secret are required");
+  }
+  const updatedAt = new Date().toISOString();
+  const ttlSeconds = DEFAULT_SLOT_TTL_SECONDS;
+  const existing = getLocalVaultMemory().get(normalizedSlot);
+  const entry: VaultEntry = {
+    slotId: normalizedSlot,
+    provider: normalizeProvider(provider),
+    secret: normalizedSecret,
+    createdAt: existing?.createdAt ?? updatedAt,
+    updatedAt,
+    expiresAt: addSeconds(updatedAt, ttlSeconds),
+    ttlSeconds,
+  };
+  getLocalVaultMemory().set(normalizedSlot, entry);
+  writeLocalVaultFile(getLocalVaultMemory());
+  return toSlotRecord(entry, "local-encrypted");
+}
+
+function localDeleteVaultSlot(slotId: string): boolean {
+  const normalizedSlot = normalizeSlotId(slotId);
+  const removed = getLocalVaultMemory().delete(normalizedSlot);
+  if (removed) writeLocalVaultFile(getLocalVaultMemory());
+  return removed;
+}
+
+function localGetVaultSecret(slotId: string): string | null {
+  const entry = getLocalVaultMemory().get(normalizeSlotId(slotId));
+  if (!entry || isExpired(entry)) return null;
+  return entry.secret;
+}
+
+// ─── In-memory backend (fallback — no persistence, no encryption) ──────────────
+
+function memoryListVaultSlots(): VaultSlotRecord[] {
+  return Array.from(vaultMemory.values())
+    .sort((left, right) => left.slotId.localeCompare(right.slotId))
+    .map((item) => toSlotRecord(item, "memory"));
+}
+
+function memoryUpsertVaultSlot(slotId: string, provider: string, secret: string): VaultSlotRecord {
+  const normalizedSlot = normalizeSlotId(slotId);
+  const normalizedSecret = secret.trim();
+  if (!normalizedSlot || !normalizedSecret) {
+    throw new Error("slot_id and secret are required");
+  }
+
+  const updatedAt = new Date().toISOString();
+  const ttlSeconds = DEFAULT_SLOT_TTL_SECONDS;
+  const entry: VaultEntry = {
+    slotId: normalizedSlot,
+    provider: normalizeProvider(provider),
+    secret: normalizedSecret,
+    createdAt: updatedAt,
+    updatedAt,
+    expiresAt: addSeconds(updatedAt, ttlSeconds),
+    ttlSeconds,
+  };
+  vaultMemory.set(normalizedSlot, entry);
+  return toSlotRecord(entry, "memory");
+}
+
+function memoryDeleteVaultSlot(slotId: string): boolean {
+  return vaultMemory.delete(normalizeSlotId(slotId));
+}
+
+function memoryGetVaultSecret(slotId: string): string | null {
+  const entry = vaultMemory.get(normalizeSlotId(slotId));
+  if (!entry || isExpired(entry)) {
+    return null;
+  }
+  return entry.secret;
+}
+
+// ─── HashiCorp Vault backend ───────────────────────────────────────────────────
 
 function vaultApiUrl(path: string): string {
   return `${VAULT_ADDR.replace(/\/+$/, "")}${path}`;
@@ -214,46 +402,6 @@ async function resolveVaultToken(): Promise<string> {
     expiresAt: Date.now() + Math.max(60, leaseDurationSeconds) * 1000,
   };
   return token;
-}
-
-function memoryListVaultSlots(): VaultSlotRecord[] {
-  return Array.from(vaultMemory.values())
-    .sort((left, right) => left.slotId.localeCompare(right.slotId))
-    .map((item) => toSlotRecord(item, "memory"));
-}
-
-function memoryUpsertVaultSlot(slotId: string, provider: string, secret: string): VaultSlotRecord {
-  const normalizedSlot = normalizeSlotId(slotId);
-  const normalizedSecret = secret.trim();
-  if (!normalizedSlot || !normalizedSecret) {
-    throw new Error("slot_id and secret are required");
-  }
-
-  const updatedAt = new Date().toISOString();
-  const ttlSeconds = DEFAULT_SLOT_TTL_SECONDS;
-  const entry: VaultEntry = {
-    slotId: normalizedSlot,
-    provider: normalizeProvider(provider),
-    secret: normalizedSecret,
-    createdAt: updatedAt,
-    updatedAt,
-    expiresAt: addSeconds(updatedAt, ttlSeconds),
-    ttlSeconds,
-  };
-  vaultMemory.set(normalizedSlot, entry);
-  return toSlotRecord(entry, "memory");
-}
-
-function memoryDeleteVaultSlot(slotId: string): boolean {
-  return vaultMemory.delete(normalizeSlotId(slotId));
-}
-
-function memoryGetVaultSecret(slotId: string): string | null {
-  const entry = vaultMemory.get(normalizeSlotId(slotId));
-  if (!entry || isExpired(entry)) {
-    return null;
-  }
-  return entry.secret;
 }
 
 async function vaultReadEntry(slotId: string): Promise<VaultEntry | null> {
@@ -381,11 +529,13 @@ async function vaultGetVaultSecret(slotId: string): Promise<string | null> {
   return entry.secret;
 }
 
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 export async function listVaultSlots(): Promise<VaultSlotRecord[]> {
-  if (getVaultBackend() === "memory") {
-    return memoryListVaultSlots();
-  }
-  return vaultListVaultSlots();
+  const backend = getVaultBackend();
+  if (backend === "local-encrypted") return localListVaultSlots();
+  if (backend === "hashicorp-vault") return vaultListVaultSlots();
+  return memoryListVaultSlots();
 }
 
 export async function upsertVaultSlot(
@@ -393,24 +543,24 @@ export async function upsertVaultSlot(
   provider: string,
   secret: string,
 ): Promise<VaultSlotRecord> {
-  if (getVaultBackend() === "memory") {
-    return memoryUpsertVaultSlot(slotId, provider, secret);
-  }
-  return vaultUpsertVaultSlot(slotId, provider, secret);
+  const backend = getVaultBackend();
+  if (backend === "local-encrypted") return localUpsertVaultSlot(slotId, provider, secret);
+  if (backend === "hashicorp-vault") return vaultUpsertVaultSlot(slotId, provider, secret);
+  return memoryUpsertVaultSlot(slotId, provider, secret);
 }
 
 export async function deleteVaultSlot(slotId: string): Promise<boolean> {
-  if (getVaultBackend() === "memory") {
-    return memoryDeleteVaultSlot(slotId);
-  }
-  return vaultDeleteVaultSlot(slotId);
+  const backend = getVaultBackend();
+  if (backend === "local-encrypted") return localDeleteVaultSlot(slotId);
+  if (backend === "hashicorp-vault") return vaultDeleteVaultSlot(slotId);
+  return memoryDeleteVaultSlot(slotId);
 }
 
 export async function getVaultSecret(slotId: string): Promise<string | null> {
-  if (getVaultBackend() === "memory") {
-    return memoryGetVaultSecret(slotId);
-  }
-  return vaultGetVaultSecret(slotId);
+  const backend = getVaultBackend();
+  if (backend === "local-encrypted") return localGetVaultSecret(slotId);
+  if (backend === "hashicorp-vault") return vaultGetVaultSecret(slotId);
+  return memoryGetVaultSecret(slotId);
 }
 
 export function testSecret(provider: string, secret: string): { valid: boolean; reason: string } {
