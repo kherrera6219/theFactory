@@ -114,27 +114,46 @@ export default function DatabasesPage() {
   const [health, setHealth] = useState<GatewayHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [orchestratorOffline, setOrchestratorOffline] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      try {
-        const [summaryData, healthData] = await Promise.all([getOperationsSummary(), getGatewayHealth()]);
-        if (!cancelled) {
-          setSummary(summaryData);
-          setHealth(healthData);
-          setError(null);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Unable to load database health.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      const [summaryResult, healthResult] = await Promise.allSettled([
+        getOperationsSummary(),
+        getGatewayHealth(),
+      ]);
+
+      if (cancelled) return;
+
+      const isNetworkError = (r: PromiseSettledResult<unknown>) =>
+        r.status === "rejected" &&
+        r.reason instanceof Error &&
+        (r.reason.message === "Failed to fetch" || r.reason.message.includes("NetworkError"));
+
+      if (isNetworkError(summaryResult) || isNetworkError(healthResult)) {
+        setOrchestratorOffline(true);
+        setError(null);
+        setLoading(false);
+        return;
       }
+
+      setOrchestratorOffline(false);
+
+      if (summaryResult.status === "fulfilled") {
+        setSummary(summaryResult.value);
+      }
+      if (healthResult.status === "fulfilled") {
+        setHealth(healthResult.value);
+      }
+
+      const firstError =
+        summaryResult.status === "rejected" ? summaryResult.reason :
+        healthResult.status === "rejected" ? healthResult.reason : null;
+
+      setError(firstError instanceof Error ? firstError.message : firstError ? "Unable to load database health." : null);
+      setLoading(false);
     };
 
     void load();
@@ -158,8 +177,13 @@ export default function DatabasesPage() {
 
       <Panel title="Health Overview">
         {loading && <p className="muted">Collecting database diagnostics...</p>}
+        {orchestratorOffline && (
+          <p className="warning-box">
+            Orchestrator unreachable at port 8100. Start the Docker stack to see live database health.
+          </p>
+        )}
         {error && <p className="error-box">{error}</p>}
-        {!loading && !error && (
+        {!loading && !orchestratorOffline && !error && (
           <ul className="summary-list">
             <li>
               <strong>Runtime database ready</strong>
