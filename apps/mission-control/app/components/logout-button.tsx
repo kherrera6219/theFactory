@@ -15,7 +15,7 @@ export function LogoutButton() {
         headers: { "Content-Type": "application/json" },
       });
     } finally {
-      router.push("/unlock");
+      router.push("/settings");
       router.refresh();
       setSubmitting(false);
     }
