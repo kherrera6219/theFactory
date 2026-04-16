@@ -124,6 +124,9 @@ def check_environment_template() -> AuditResult:
         "AGENT_10_TESTER_SERVICE_API_KEY",
         "AGENT_14_PYTHON_SERVICE_API_KEY",
         "AGENT_35_MATHEMATICA_SERVICE_API_KEY",
+        "AGENT_36_GO_SERVICE_API_KEY",
+        "AGENT_37_HASKELL_SERVICE_API_KEY",
+        "AGENT_38_OCAML_SERVICE_API_KEY",
     ]
     missing = [name for name in required if f"{name}=" not in env_text]
     redis_tls_hardened = "ssl_cert_reqs=required" in env_text and "ssl_ca_certs=" in env_text
@@ -152,11 +155,16 @@ def check_environment_template() -> AuditResult:
 
 def check_compose_environment_profile_controls() -> AuditResult:
     compose_text = _read_text(REPO_ROOT / "deploy" / "docker-compose.yaml").lower()
+    full_dedicated_compose_text = _read_text(
+        REPO_ROOT / "deploy" / "docker-compose.full-dedicated-agents.yaml"
+    ).lower()
     prod_compose_text = _read_text(REPO_ROOT / "deploy" / "docker-compose.prod.yaml").lower()
+    makefile_text = _read_text(REPO_ROOT / "Makefile").lower()
     required_paths = [
         REPO_ROOT / "deploy" / "docker-compose.dev.yaml",
         REPO_ROOT / "deploy" / "docker-compose.staging.yaml",
         REPO_ROOT / "deploy" / "docker-compose.prod.yaml",
+        REPO_ROOT / "deploy" / "docker-compose.full-dedicated-agents.yaml",
         REPO_ROOT / "docs" / "COMPOSE_ENVIRONMENT_PROFILES.md",
     ]
     missing_items = [f"missing artifact: {path}" for path in required_paths if not path.exists()]
@@ -172,14 +180,30 @@ def check_compose_environment_profile_controls() -> AuditResult:
         missing_items.append("docker-compose missing postgres verify-full wiring")
     if "./.local/postgres-certs" not in compose_text:
         missing_items.append("docker-compose missing postgres client/server cert mounts")
+    if "./redis/entrypoint.sh:/usr/local/bin/docker-entrypoint-init-tls.sh:ro" not in compose_text:
+        missing_items.append("docker-compose missing redis tls staging entrypoint")
+    if "internal_service_api_key: ${internal_service_api_key:-}" not in compose_text:
+        missing_items.append("docker-compose missing INTERNAL_SERVICE_API_KEY wiring for internal callers")
     if "agent_service_key_mode: strict" not in prod_compose_text:
         missing_items.append("prod overlay missing strict agent service key mode")
+    if "./.local/redis-certs:/run/redis-certs:ro" not in full_dedicated_compose_text:
+        missing_items.append("full dedicated overlay missing redis client cert mount parity")
+    if "./redis/certs:/run/redis-certs:ro" in full_dedicated_compose_text:
+        missing_items.append("full dedicated overlay still uses stale redis cert mount path")
+    if "dev-redis-password-change-me-32chars" in full_dedicated_compose_text:
+        missing_items.append("full dedicated overlay still uses stale redis password default")
+    for service_name in ("agent-36-go:", "agent-37-haskell:", "agent-38-ocaml:"):
+        if service_name not in full_dedicated_compose_text:
+            missing_items.append(f"full dedicated overlay missing {service_name[:-1]} service")
+    for service_name in ("agent-36-go", "agent-37-haskell", "agent-38-ocaml"):
+        if service_name not in makefile_text:
+            missing_items.append(f"make up-full-dedicated missing {service_name}")
 
     passed = not missing_items
     return _result(
         check_id="INF-008",
         priority="HIGH",
-        description="Compose overlays and container hardening controls are configured",
+        description="Compose overlays, hardening controls, and full dedicated topology wiring are configured",
         passed=passed,
         notes="; ".join(missing_items)
         if missing_items

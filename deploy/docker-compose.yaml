@@ -62,6 +62,7 @@ x-pod-b-agent-service-keys: &pod-b-agent-service-keys
   AGENT_21_CPP_SERVICE_API_KEY: ${AGENT_21_CPP_SERVICE_API_KEY:-}
   AGENT_22_RUST_SERVICE_API_KEY: ${AGENT_22_RUST_SERVICE_API_KEY:-}
   AGENT_23_ZIG_SERVICE_API_KEY: ${AGENT_23_ZIG_SERVICE_API_KEY:-}
+  AGENT_36_GO_SERVICE_API_KEY: ${AGENT_36_GO_SERVICE_API_KEY:-}
 
 x-pod-c-agent-service-keys: &pod-c-agent-service-keys
   AGENT_24_PODC_MGR_SERVICE_API_KEY: ${AGENT_24_PODC_MGR_SERVICE_API_KEY:-}
@@ -78,11 +79,16 @@ x-pod-d-agent-service-keys: &pod-d-agent-service-keys
   AGENT_33_R_SERVICE_API_KEY: ${AGENT_33_R_SERVICE_API_KEY:-}
   AGENT_34_JULIA_SERVICE_API_KEY: ${AGENT_34_JULIA_SERVICE_API_KEY:-}
   AGENT_35_MATHEMATICA_SERVICE_API_KEY: ${AGENT_35_MATHEMATICA_SERVICE_API_KEY:-}
+  AGENT_37_HASKELL_SERVICE_API_KEY: ${AGENT_37_HASKELL_SERVICE_API_KEY:-}
+  AGENT_38_OCAML_SERVICE_API_KEY: ${AGENT_38_OCAML_SERVICE_API_KEY:-}
 
 services:
   redis:
     <<: [*common-service, *data-service-hardening]
     image: redis:7.2-alpine
+    entrypoint:
+      - /bin/sh
+      - /usr/local/bin/docker-entrypoint-init-tls.sh
     command:
       - redis-server
       - /usr/local/etc/redis/redis.conf
@@ -92,6 +98,7 @@ services:
       - "${REDIS_HOST_PORT:-6380}:6380"
     volumes:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis/entrypoint.sh:/usr/local/bin/docker-entrypoint-init-tls.sh:ro
       - ./.local/redis-certs:/usr/local/etc/redis/certs:ro
       - redis-data:/data
     mem_limit: 3g
@@ -336,6 +343,7 @@ services:
       API_RATE_LIMIT_PER_MINUTE: 120
       RATE_LIMIT_WINDOW_SECONDS: 60
       AUTH_MODE: ${AUTH_MODE:-api_key}
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}

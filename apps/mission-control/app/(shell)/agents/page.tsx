@@ -431,7 +431,7 @@ export default function AgentsPage() {
             )}
             {snapshot.runtime.langgraph_enabled === false && (
               <p className="warning-box">
-                LangGraph is disabled (LANGGRAPH_ENABLED=false) — missions will use the legacy runtime path.
+                LangGraph is disabled (LANGGRAPH_ENABLED=false) — Mission Flow V2 remains the default runtime path while legacy stays available only as a compatibility fallback.
               </p>
             )}
           </div>

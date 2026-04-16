@@ -50,7 +50,7 @@ Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTA
 - **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
 - **Semantic bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
 - **38-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
-- **Language-aware code analysis** — regex-based extraction engine for 20 routed language keys across 4 pod groups
+- **Language-aware code analysis** — regex-first extraction engine for 20 routed language keys across 4 pod groups, with optional Python AST structural extraction behind a feature flag
 - **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
 - **Durable review and artifact flow** — builder/repo approvals persist through the orchestrator and source-bundle missions store a verified build/package artifact before completion
 - **Full production observability** — Prometheus, Grafana, Loki, Jaeger OTLP, Alertmanager
@@ -214,7 +214,7 @@ Lifecycle engine behavior in the shipped defaults:
 
 ## Language Extraction Engine
 
-Pod workers run a static-analysis extraction engine that detects computational concepts in source code before LogicNode creation. No AST parsing or LLM calls required for this phase.
+Pod workers run a regex-first static-analysis extraction engine that detects computational concepts in source code before LogicNode creation. Python can switch to AST-backed structural extraction with `PYTHON_AST_EXTRACTOR_ENABLED=true`; JavaScript/TypeScript and Java AST modules are present only as stubs. No LLM calls are required for this phase.
 
 | Pod | Languages | Concept Prefix | Patterns |
 |-----|-----------|---------------|---------|
@@ -696,7 +696,7 @@ Spawns dedicated manager-worker containers per pod with `AGENT_BINDING` enforcem
 docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
-Adds dedicated `agent-runtime` containers for PM, CEO, support, pod-audit, and specialist roles. This profile enables strict per-agent bindings and the full isolated 38-agent runtime topology.
+Adds dedicated `agent-runtime` containers for PM, CEO, support, and pod-audit roles plus dedicated specialist workers for all 20 routed language keys, including Go, Haskell, and OCaml. The overlay now provisions the full isolated 38-agent runtime topology on top of the shared baseline stack.
 
 ### Monitoring Stack
 
