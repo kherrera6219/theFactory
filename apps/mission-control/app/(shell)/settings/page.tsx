@@ -10,6 +10,46 @@ import { formatDateTime } from "../../lib/format";
 import { clampNumber, isAllowedLocalApiBase, safeJsonParse } from "../../lib/security";
 import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
 
+// Static agent registry — used as fallback when the orchestrator is offline so the
+// vault slot table always shows all expected rows for key entry.
+const STATIC_AGENT_SLOTS: Array<{ agentId: string; name: string; provider: string; model: string }> = [
+  { agentId: "AGENT-01-PM", name: "PM Agent", provider: "anthropic", model: "claude-sonnet-4-6" },
+  { agentId: "AGENT-02-CEO", name: "CEO Agent", provider: "openai", model: "gpt-5.2-pro" },
+  { agentId: "AGENT-03-BROKER", name: "API Broker", provider: "gemini", model: "gemini-2.5-flash" },
+  { agentId: "AGENT-04-ACCOUNTANT", name: "Accountant", provider: "openai", model: "gpt-5.2" },
+  { agentId: "AGENT-05-SECURITY", name: "Security Agent", provider: "anthropic", model: "claude-opus-4-6" },
+  { agentId: "AGENT-06-IS", name: "IS Agent", provider: "gemini", model: "gemini-2.5-pro" },
+  { agentId: "AGENT-07-VC", name: "Version Control Agent", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-08-COMPLIANCE", name: "Compliance Agent", provider: "anthropic", model: "claude-opus-4-6" },
+  { agentId: "AGENT-09-HW", name: "Hardware-Mapping Injector", provider: "gemini", model: "gemini-2.5-pro" },
+  { agentId: "AGENT-10-TESTER", name: "System Integration Tester", provider: "anthropic", model: "claude-opus-4-6" },
+  { agentId: "AGENT-11-DEPLOY", name: "Deployment Agent", provider: "gemini", model: "gemini-2.5-flash" },
+  { agentId: "AGENT-12-PODA-MGR", name: "Pod A Sub-Manager", provider: "openai", model: "gpt-5.2-pro" },
+  { agentId: "AGENT-13-PODA-AUDIT", name: "Pod A QC/Audit", provider: "anthropic", model: "claude-sonnet-4-6" },
+  { agentId: "AGENT-14-PYTHON", name: "Python Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-15-JAVASCRIPT", name: "JavaScript Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-16-RUBY", name: "Ruby Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-17-PHP", name: "PHP Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-18-PODB-MGR", name: "Pod B Sub-Manager", provider: "openai", model: "gpt-5.2-pro" },
+  { agentId: "AGENT-19-PODB-AUDIT", name: "Pod B QC/Audit", provider: "anthropic", model: "claude-sonnet-4-6" },
+  { agentId: "AGENT-20-C", name: "C Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-21-CPP", name: "C++ Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-22-RUST", name: "Rust Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-23-ZIG", name: "Zig Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-24-PODC-MGR", name: "Pod C Sub-Manager", provider: "openai", model: "gpt-5.2-pro" },
+  { agentId: "AGENT-25-PODC-AUDIT", name: "Pod C QC/Audit", provider: "anthropic", model: "claude-sonnet-4-6" },
+  { agentId: "AGENT-26-JAVA", name: "Java Specialist", provider: "anthropic", model: "claude-sonnet-4-6" },
+  { agentId: "AGENT-27-CSHARP", name: "C# Specialist", provider: "anthropic", model: "claude-sonnet-4-6" },
+  { agentId: "AGENT-28-SCALA", name: "Scala Specialist", provider: "anthropic", model: "claude-sonnet-4-6" },
+  { agentId: "AGENT-29-KOTLIN", name: "Kotlin Specialist", provider: "anthropic", model: "claude-sonnet-4-6" },
+  { agentId: "AGENT-30-PODD-MGR", name: "Pod D Sub-Manager", provider: "gemini", model: "gemini-2.5-pro" },
+  { agentId: "AGENT-31-PODD-AUDIT", name: "Pod D QC/Audit", provider: "anthropic", model: "claude-opus-4-6" },
+  { agentId: "AGENT-32-MATLAB", name: "MATLAB Specialist", provider: "gemini", model: "gemini-2.5-pro" },
+  { agentId: "AGENT-33-R", name: "R Specialist", provider: "gemini", model: "gemini-2.5-pro" },
+  { agentId: "AGENT-34-JULIA", name: "Julia Specialist", provider: "gemini", model: "gemini-2.5-pro" },
+  { agentId: "AGENT-35-MATHEMATICA", name: "Mathematica Specialist", provider: "gemini", model: "gemini-2.5-pro" },
+];
+
 type LocalPreferences = {
   apiBaseUrl: string;
   maxParallelAgents: number;
@@ -70,6 +110,7 @@ export default function SettingsPage() {
   const [slotError, setSlotError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [orchestratorOffline, setOrchestratorOffline] = useState(false);
 
   useEffect(() => {
     const raw = window.localStorage.getItem("mission-control:preferences");
@@ -81,16 +122,23 @@ export default function SettingsPage() {
 
   async function loadVaultAndAgents() {
     setSlotError(null);
-    try {
-      const [integrations, vaultResponse] = await Promise.all([
-        getOperationsAgentIntegrations(),
-        fetch("/api/vault", { method: "GET", cache: "no-store" }),
-      ]);
-      const vaultPayload = (await vaultResponse.json()) as { slots?: VaultSlotRecord[] };
-      setSnapshot(integrations);
+    setOrchestratorOffline(false);
+    const [integrationsResult, vaultResult] = await Promise.allSettled([
+      getOperationsAgentIntegrations(),
+      fetch("/api/vault", { method: "GET", cache: "no-store" }),
+    ]);
+
+    if (integrationsResult.status === "fulfilled") {
+      setSnapshot(integrationsResult.value);
+    } else {
+      setOrchestratorOffline(true);
+    }
+
+    if (vaultResult.status === "fulfilled") {
+      const vaultPayload = (await vaultResult.value.json()) as { slots?: VaultSlotRecord[] };
       setVaultSlots(Array.isArray(vaultPayload.slots) ? vaultPayload.slots : []);
-    } catch (loadError) {
-      setSlotError(loadError instanceof Error ? loadError.message : "Unable to load vault metadata.");
+    } else {
+      setSlotError(vaultResult.reason instanceof Error ? vaultResult.reason.message : "Unable to load vault metadata.");
     }
   }
 
@@ -104,22 +152,30 @@ export default function SettingsPage() {
       slotMap.set(slot.slot_id.toUpperCase(), slot);
     });
 
-    const agentRows =
-      snapshot?.agents.map((agent) => {
-        const slotId = `${agent.agent_id}-API-KEY`;
-        const existing = slotMap.get(slotId);
-        return {
-          slotId,
+    const agentSource = snapshot
+      ? snapshot.agents.map((agent) => ({
+          agentId: agent.agent_id,
+          name: agent.name,
           provider: String(agent.llm_recommendation.provider ?? "operator"),
           model: String(agent.llm_recommendation.model ?? "n/a"),
-          title: `${agent.agent_id} (${agent.name})`,
-          status: existing?.status ?? "missing",
-          lastRotatedAt: existing?.last_rotated_at ?? null,
-          maskedPreview: existing?.masked_preview ?? null,
-          expiresAt: existing?.expires_at ?? null,
-          rotationDue: existing?.rotation_due ?? false,
-        };
-      }) ?? [];
+        }))
+      : STATIC_AGENT_SLOTS;
+
+    const agentRows = agentSource.map((agent) => {
+      const slotId = `${agent.agentId}-API-KEY`;
+      const existing = slotMap.get(slotId.toUpperCase());
+      return {
+        slotId,
+        provider: agent.provider,
+        model: agent.model,
+        title: `${agent.agentId} (${agent.name})`,
+        status: existing?.status ?? ("missing" as const),
+        lastRotatedAt: existing?.last_rotated_at ?? null,
+        maskedPreview: existing?.masked_preview ?? null,
+        expiresAt: existing?.expires_at ?? null,
+        rotationDue: existing?.rotation_due ?? false,
+      };
+    });
 
     const extraSlots: SlotRow[] = [
       {
@@ -356,6 +412,11 @@ export default function SettingsPage() {
       </Panel>
 
       <Panel title="API Key Vault Slots">
+        {orchestratorOffline && (
+          <p className="warning-box">
+            Orchestrator offline (port 8100 unreachable) — showing static agent roster. Vault keys can still be saved.
+          </p>
+        )}
         {slotError && <p className="error-box">{slotError}</p>}
         <p className="help-text">
           Provider and GitHub keys are stored server-side in the configured vault backend and never
