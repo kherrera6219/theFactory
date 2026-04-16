@@ -143,6 +143,32 @@ def test_consumer_acks_invalid_message(monkeypatch) -> None:
     assert redis_client.acked == ["1-0"]
 
 
+def test_consumer_recreates_missing_group(monkeypatch) -> None:
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def xreadgroup(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise agent_runtime_main.ResponseError("NOGROUP no such key")
+            raise asyncio.CancelledError
+
+    recreated: list[bool] = []
+
+    async def _ensure_group(_redis):
+        recreated.append(True)
+
+    monkeypatch.setattr(agent_runtime_main, "_ensure_group", _ensure_group)
+    redis_client = FakeRedis()
+    app = SimpleNamespace(state=SimpleNamespace(redis=redis_client, processed=0, errors=0))
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(agent_runtime_main._consumer_loop(app))
+
+    assert recreated == [True]
+
+
 def test_health_payload(monkeypatch) -> None:
     monkeypatch.setattr(agent_runtime_main, "WORKER_AGENT_ID", "AGENT-01-PM")
 
@@ -528,6 +554,7 @@ async def test_lifespan_initializes_and_closes(monkeypatch) -> None:
             self.closed = True
 
     redis_client = FakeRedis()
+    monkeypatch.setattr(agent_runtime_main, "WORKER_AGENT_ID", "AGENT-03-BROKER")
     monkeypatch.setattr(agent_runtime_main.redis, "from_url", lambda *args, **kwargs: redis_client)
     monkeypatch.setattr(agent_runtime_main, "_ensure_group", lambda _redis: asyncio.sleep(0))
 
@@ -547,6 +574,16 @@ async def test_lifespan_initializes_and_closes(monkeypatch) -> None:
         assert app.state.heartbeat_task is not None
 
     assert redis_client.closed is True
+
+
+@pytest.mark.asyncio
+async def test_lifespan_requires_worker_agent_binding(monkeypatch) -> None:
+    monkeypatch.setattr(agent_runtime_main, "WORKER_AGENT_ID", "")
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with pytest.raises(RuntimeError, match="WORKER_AGENT_ID is required"):
+        async with agent_runtime_main.lifespan(app):
+            pass
 
 
 def test_health_and_readyz_failure_paths(monkeypatch) -> None:

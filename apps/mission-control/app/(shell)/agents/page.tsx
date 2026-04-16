@@ -498,21 +498,6 @@ export default function AgentsPage() {
               <strong>Poll fallback ticks</strong>
               <span>{pollFallbackTicks > 0 ? pollFallbackTicks : "—"}</span>
             </li>
-            <li>
-              <strong>Topology mode</strong>
-              <span
-                className={`connection-chip ${
-                  snapshot?.topology_mode === "full-dedicated"
-                    ? "live"
-                    : snapshot?.topology_mode === "dedicated"
-                      ? "retrying"
-                      : "stale"
-                }`}
-                role="status"
-              >
-                {snapshot?.topology_mode ?? "condensed"}
-              </span>
-            </li>
           </ul>
         )}
       </Panel>
@@ -573,7 +558,6 @@ export default function AgentsPage() {
                 <th scope="col">Agent</th>
                 <th scope="col">Tier</th>
                 <th scope="col">Pod</th>
-                <th scope="col">Runtime</th>
                 <th scope="col">State</th>
                 <th scope="col">Queue</th>
                 <th scope="col">Workload</th>
@@ -868,14 +852,6 @@ function AgentRow({
       </td>
       <td>{agent.tier}</td>
       <td>{agent.pod}</td>
-      <td>
-        <span
-          className={`connection-chip ${RUNTIME_CLASS_CHIP_CLASS[runtimeClass] ?? "stale"}`}
-          title={runtimeClass}
-        >
-          {RUNTIME_CLASS_LABELS[runtimeClass] ?? runtimeClass}
-        </span>
-      </td>
       <td>
         <span className={`status-dot ${stateClass}`} aria-hidden="true" />
         {agent.state}

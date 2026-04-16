@@ -183,7 +183,10 @@ def check_compose_environment_profile_controls() -> AuditResult:
     if "./redis/entrypoint.sh:/usr/local/bin/docker-entrypoint-init-tls.sh:ro" not in compose_text:
         missing_items.append("docker-compose missing redis tls staging entrypoint")
     if "internal_service_api_key: ${internal_service_api_key:-}" not in compose_text:
-        missing_items.append("docker-compose missing INTERNAL_SERVICE_API_KEY wiring for internal callers")
+        missing_items.append(
+            "docker-compose missing INTERNAL_SERVICE_API_KEY "
+            "wiring for internal callers"
+        )
     if "agent_service_key_mode: strict" not in prod_compose_text:
         missing_items.append("prod overlay missing strict agent service key mode")
     if "./.local/redis-certs:/run/redis-certs:ro" not in full_dedicated_compose_text:
@@ -203,7 +206,10 @@ def check_compose_environment_profile_controls() -> AuditResult:
     return _result(
         check_id="INF-008",
         priority="HIGH",
-        description="Compose overlays, hardening controls, and full dedicated topology wiring are configured",
+        description=(
+            "Compose overlays, hardening controls, and full dedicated "
+            "topology wiring are configured"
+        ),
         passed=passed,
         notes="; ".join(missing_items)
         if missing_items

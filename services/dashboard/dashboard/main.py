@@ -17,8 +17,8 @@ configure_tracing(app, service_name="dashboard")
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"ok": "true", "service": "dashboard"}
+def health() -> dict[str, bool | str]:
+    return {"ok": True, "service": "dashboard"}
 
 
 @app.get("/snapshot")

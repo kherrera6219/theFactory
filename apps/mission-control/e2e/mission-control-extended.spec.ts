@@ -7,8 +7,10 @@
  * All API calls are mocked via Playwright route interception —
  * no live backend is required for these tests.
  */
-import { expect, test, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+
+import { attachOperatorSession } from "./test-helpers";
 
 // ─── shared helpers ──────────────────────────────────────────────────────────
 
@@ -23,6 +25,10 @@ async function fulfillJson(
     body: JSON.stringify(body),
   });
 }
+
+test.beforeEach(async ({ page }) => {
+  await attachOperatorSession(page);
+});
 
 // ─── Test suite: failure paths ───────────────────────────────────────────────
 

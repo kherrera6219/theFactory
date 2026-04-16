@@ -1,5 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const testMissionControlAdminKey =
+  process.env.MISSION_CONTROL_ADMIN_KEY ?? "mission-control-admin-key-for-tests";
+const testMissionControlSessionSecret =
+  process.env.MISSION_CONTROL_SESSION_SECRET ??
+  "mission-control-session-secret-for-tests";
+
 const webServerEnv = Object.entries(process.env).reduce<Record<string, string>>(
   (accumulator, [key, value]) => {
     if (key !== "NO_COLOR" && typeof value === "string") {
@@ -9,6 +15,14 @@ const webServerEnv = Object.entries(process.env).reduce<Record<string, string>>(
   },
   {},
 );
+
+webServerEnv.MISSION_CONTROL_ADMIN_KEY ??= testMissionControlAdminKey;
+webServerEnv.MISSION_CONTROL_SESSION_SECRET ??= testMissionControlSessionSecret;
+webServerEnv.MISSION_CONTROL_SESSION_SECURE ??= "false";
+webServerEnv.MISSION_API_BASE_URL = "http://localhost:8100";
+webServerEnv.NEXT_PUBLIC_API_BASE_URL = "http://localhost:8100";
+
+const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_SERVER === "true";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -27,7 +41,7 @@ export default defineConfig({
     command: "npm run dev -- --hostname 127.0.0.1 --port 3000",
     env: webServerEnv,
     url: "http://127.0.0.1:3000",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer,
     timeout: 120_000,
   },
   projects: [

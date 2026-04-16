@@ -499,6 +499,25 @@ def test_consume_intake_stream_empty_then_cancel() -> None:
     assert redis_client.xack_calls == []
 
 
+def test_consume_intake_stream_recreates_missing_group(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    redis_client.xreadgroup_responses = [runtime.ResponseError("NOGROUP no such key")]
+    app = _app_state(redis=redis_client, lifecycle_tasks={})
+
+    recreated: list[bool] = []
+
+    async def _ensure_group(_settings, _redis) -> None:
+        recreated.append(True)
+
+    monkeypatch.setattr(runtime, "ensure_consumer_group", _ensure_group)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+    assert recreated == [True]
+    assert app.state.redis_ready is True
+
+
 def test_consume_intake_stream_emit_failure_does_not_block_intake(monkeypatch) -> None:
     redis_client = FakeRedis()
     payload = {

@@ -467,19 +467,19 @@ dd {
 }
 
 .connection-chip.live {
-  color: var(--success);
+  color: #d1fae5;
   background: var(--success-bg);
   border-color: var(--success);
 }
 
 .connection-chip.retrying {
-  color: var(--warning);
+  color: #fef3c7;
   background: var(--warning-bg);
   border-color: var(--warning);
 }
 
 .connection-chip.stale {
-  color: var(--danger);
+  color: #fee2e2;
   background: var(--danger-bg);
   border-color: var(--danger);
 }
