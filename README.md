@@ -4,12 +4,12 @@
 
 **HolyGrail Multi-Agent Software Refinery**
 
-*A local-first AI orchestration platform with a real multi-service control plane, a 38-agent registry, and a condensed default runtime for mission intake, delegation, language processing, and audit handoff.*
+*A local-first AI orchestration platform with a real multi-service control plane, a 38-agent registry, a condensed default runtime, and a validated strict full-dedicated topology for mission intake, delegation, language processing, and audit handoff.*
 
-[![CI](https://github.com/holygrail/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/ci.yml)
-[![Security](https://github.com/holygrail/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/holygrail/theFactory/actions/workflows/security.yml)
-[![Coverage](https://img.shields.io/badge/coverage-81.75%25-brightgreen)](docs/TESTING_QUALITY_GATES.md)
-[![Audit](https://img.shields.io/badge/production%20audit-17%2F17-brightgreen)](scripts/production_review_audit.py)
+[![CI](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml)
+[![Security](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml)
+[![Coverage Gate](https://img.shields.io/badge/coverage%20gate-80%25%2B-blue)](docs/TESTING_QUALITY_GATES.md)
+[![Audit](https://img.shields.io/badge/production%20audit-passing-brightgreen)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
 [![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#)
@@ -54,7 +54,7 @@ Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTA
 - **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
 - **Durable review and artifact flow** — builder/repo approvals persist through the orchestrator and source-bundle missions store a verified build/package artifact before completion
 - **Full production observability** — Prometheus, Grafana, Loki, Jaeger OTLP, Alertmanager
-- **Enterprise-grade security** — dual-mode auth (API key + JWT/OIDC), per-role key isolation, SAST/SCA/secret scanning in CI
+- **Enterprise-grade security** — dual-mode auth (API key + JWT/OIDC), shared-or-strict service key isolation, SAST/SCA/secret scanning in CI
 - **Docs-as-code baseline** — canonical architecture, operator, developer, API, archive, and repository-map documentation lives under `docs/`
 
 ---
@@ -327,20 +327,26 @@ Each extracted concept becomes a **LogicNode** with:
 | Home / Dashboard | Runtime-wide health, mission counts, and operator launch context |
 | Chat | PM-agent intake conversation with attached-file language inference |
 | Missions | Mission table with lifecycle state and phase stepper |
-| Mission Detail | Live event timeline, Smelt-cycle phase stepper (SSE-driven), chain-of-command |
-| Agents | 38-agent roster grid with persona drill-down |
-| Semantic Bus | Live message stream with windowed rendering |
+| Mission Detail | Live event timeline, Smelt-cycle phase stepper (SSE-driven), chain-of-command, LogicNode/knowledge drill-down, and build-artifact visibility |
+| Agents | 38-agent roster grid with persona drill-down and windowed live logs |
+| LogicNodes | Logic artifact explorer with mission filtering, confidence summaries, and source lineage |
+| Semantic Bus | Live message stream with `stream|poll|paused` transport diagnostics and windowed rendering |
+| Projects | Project portfolio, mission rollups, and project-level audit timeline |
+| Alerts | Incident and alert center with acknowledge/resolve workflow |
+| Performance | Runtime readiness, dependency health, and mission-state capacity snapshot |
 | Builder | Grounded local-workspace review with patch contract, durable approval gate, launch-time approval verification, and mission launch bundle |
 | Repo Import | GitHub import, review gate, launch-time approval verification, and mission scoping with bundled source context |
 | Databases | Shared data-system readiness and diagnostics |
 | Settings | Provider key management, vault-backed secrets, and local environment controls |
 
+Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`, `LogicNodes`, `Semantic Bus`, `Databases`, `Repo Import`, and `Settings`. Additional shipped operator routes include `Mission Detail`, `Builder`, `Projects`, `Alerts`, `Performance`, and `/dashboard` as a direct launch-pad alias.
+
 **Technology:**
 - Next.js 16 App Router, TypeScript (strict mode)
 - Dark SLATE design system (`#0F172A` base, Refinery Violet `#8B5CF6` accent)
 - Inter (display) + JetBrains Mono (code) fonts per Style Guide
-- 31-token CSS variable system driven by `generated-tokens.css`
-- Responsive: 1440px (wide desktop) + 1024px (standard desktop) + 768px (tablet)
+- Generated CSS custom-property token system sourced from `assets/design-tokens/tokens.json` and emitted to `app/generated-tokens.css`
+- Responsive breakpoints include 1440px wide desktop, 1024px standard desktop, and a 920px tablet/mobile collapse
 - SSE live transport with `stream|poll|paused` mode diagnostics
 - Signed `HttpOnly` operator session cookie for sensitive Mission Control server routes
 - Windowed rendering for high-volume agent and semantic bus views
@@ -391,7 +397,7 @@ Each extracted concept becomes a **LogicNode** with:
 - Rate limiting: 120 req/min per key (Redis sliding-window), `X-RateLimit-*` headers
 - Idempotency: SHA256-keyed mission creation with 24h TTL
 - Security headers: `X-Frame-Options DENY`, `X-Content-Type-Options nosniff`, `Referrer-Policy no-referrer`, `Permissions-Policy`
-- Per-service API key isolation: each worker has its own `SERVICE_API_KEY`
+- Service API key isolation supports both shared and strict modes; condensed local defaults can share worker keys, while dedicated profiles can bind per-service and per-agent keys with `AGENT_SERVICE_KEY_MODE=strict`
 - SBOM generation: `anchore/sbom-action` → `sbom.spdx.json` in CI
 - Container security: all images run as non-root users
 - SAST: Bandit, Trivy, gitleaks, pip-audit in `security.yml`
@@ -459,6 +465,9 @@ This generates local-only PostgreSQL and Redis TLS material under `deploy/.local
 ### 3. Start Core Stack
 
 ```bash
+make up
+
+# Equivalent raw compose command (after TLS cert generation)
 docker compose -f deploy/docker-compose.yaml up -d --build
 ```
 
@@ -473,10 +482,9 @@ curl http://localhost:8101/health
 
 # Semantic Bus MCP
 curl http://localhost:8102/health
-
-# Mission Control UI
-open http://localhost:3100
 ```
+
+Then browse to `http://localhost:3100`.
 
 ### 5. Start Monitoring Stack (optional)
 
@@ -514,7 +522,7 @@ make test
 # Lint
 make lint
 
-# Run production audit (17/17 checks)
+# Run production audit (current baseline passes 17/17)
 make audit
 
 # Debug sweep
@@ -549,6 +557,8 @@ npm run test:e2e   # Playwright critical-path E2E
 |---------|-------------|
 | `make up` | Build and start core stack |
 | `make down` | Stop stack and remove volumes |
+| `make up-full-dedicated` | Build and start the strict full-dedicated runtime overlay |
+| `make down-full-dedicated` | Stop the strict full-dedicated runtime overlay and remove volumes |
 | `make validate` | Validate schema contracts |
 | `make lint` | Ruff on backend, tests, and scripts |
 | `make test` | Pytest with coverage gates (≥80% global, strict per-module floors on critical runtime files) |
@@ -556,10 +566,15 @@ npm run test:e2e   # Playwright critical-path E2E
 | `make test-ui-e2e` | Playwright E2E regression suite |
 | `make test-fast` | Pytest without coverage |
 | `make test-live-extended` | Live Neo4j/MinIO disruption recovery tests |
+| `make eval-ai` | Focused AI delegation regression gate |
 | `make audit` | Production checklist audit |
 | `make promotion-gate` | Release promotion policy evaluation |
 | `make release-evidence-verify` | Validate local release-trust evidence bundle |
-| `make eval-ai` | Run the focused AI regression gate |
+| `make qualification-summary` | Export the latest qualification-gate summary evidence |
+| `make dora-metrics` | Export the latest DORA metrics summary evidence |
+| `make agent-keys` | Generate agent-scoped service API keys |
+| `make tls-certs` | Generate local PostgreSQL and Redis dev TLS certificates |
+| `make compose-validate` | Render and validate all compose overlays |
 | `make openapi` | Export OpenAPI specs |
 | `make predeploy` | Pre-deployment checks |
 | `make backup` | PostgreSQL backup |
@@ -567,8 +582,14 @@ npm run test:e2e   # Playwright critical-path E2E
 | `make dr` | Disaster-recovery drill |
 | `make perf` | Performance smoke test |
 | `make reliability` | Sustained-load reliability qualification |
+| `make langgraph-recovery` | Run LangGraph/PostgreSQL recovery qualification |
+| `make dedicated-canary` | Run dedicated-agent canary qualification |
+| `make dedicated-canary-trend` | Export dedicated-agent canary trend evidence |
+| `make oidc-matrix` | Run operator-route auth matrix qualification |
+| `make langgraph-v2-prototype` | Run the LangGraph-v2 prototype qualification matrix |
 | `make sweep` | Debug/code sweep |
-| `make monitor-up/down` | Start/stop monitoring stack |
+| `make monitor-up` | Start the monitoring stack |
+| `make monitor-down` | Stop the monitoring stack and remove volumes |
 
 ---
 
@@ -588,7 +609,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | pip-audit SCA | 0 known vulns | `security.yml` |
 | Release attestation | signed provenance | CI release gate |
 
-**Current status (2026-04-14):** backend `python -m pytest -q` is green (`770 passed, 5 skipped`), services coverage is `81.75%`, Mission Control unit tests are green (`53` tests), and Mission Control Playwright is green (`20` journeys — 7 original + 13 from Phase 1 E2E expansion). See [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) for the remaining product-completion gaps and out-of-band blockers.
+**Validation snapshot (2026-04-16):** `python scripts/validate_documentation.py` and `python scripts/production_review_audit.py` are passing in-repo. The broader test and qualification snapshot is tracked in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md), including the current backend pytest baseline (`889 passed, 5 skipped` on 2026-04-15), the `>=80%` Python coverage gate, Mission Control Vitest and Playwright coverage, and the latest strict full-dedicated runtime evidence in [`docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json`](docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json) and [`docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`](docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json).
 
 ---
 
@@ -675,6 +696,9 @@ Full reference: [`.env.example`](.env.example)
 ### Default (Condensed Workers)
 
 ```bash
+make up
+
+# Equivalent raw compose command
 docker compose -f deploy/docker-compose.yaml up -d --build
 ```
 
@@ -693,6 +717,9 @@ Spawns dedicated manager-worker containers per pod with `AGENT_BINDING` enforcem
 ### Full Dedicated Runtime
 
 ```bash
+make up-full-dedicated
+
+# Equivalent raw compose command
 docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
@@ -739,7 +766,7 @@ theFactory/
 │   ├── ADR_*.md                  # Architectural Decision Records
 │   ├── api/                      # API entry point and interactive-doc guidance
 │   ├── user/                     # Operator/tutorial documentation
-│   ├── evidence/                 # Qualification and release evidence (through phase 45)
+│   ├── evidence/                 # Qualification and release evidence
 │   ├── runbooks/                 # Incident and operational runbooks
 │   └── archive/                  # Superseded and source-material documentation
 ├── scripts/                      # Audit, validation, DR, perf, sweep, and docs maintenance tools
@@ -784,7 +811,7 @@ theFactory/
 
 ## Current Status
 
-**The repo-local application work is now converged to a canonical documentation and validation baseline. Remaining release blockers are out-of-band governance, production-environment, and legal/policy actions rather than missing repository implementation.**
+**The repo-local application, documentation, and qualification evidence are materially aligned. The default runtime remains condensed, and the strict full-dedicated overlay has been revalidated locally. Remaining release blockers are out-of-band governance, production-environment, and legal/policy actions rather than missing repository implementation.**
 
 | Domain | Status |
 |--------|--------|
@@ -793,7 +820,7 @@ theFactory/
 | Observability | ✅ Core telemetry stack, docs, and runbooks are in place |
 | Testing & CI | ✅ Backend pytest, frontend unit tests, Playwright, AI eval gate, and docs validation are in place |
 | Data Systems | ✅ Core path complete; current-source docs now match shipped readiness |
-| Mission Control UI | ✅ Real operator UI with grounded builder, repo-review, chat launch, and artifact views |
+| Mission Control UI | ✅ Real operator UI with grounded builder, repo-review, chat launch, LogicNode, project, alert, performance, and artifact views |
 | Language Extraction Engine | ✅ 20 routed language keys across 4 pods |
 | Mission Lifecycle | ✅ v2 lifecycle is the shipped default, mission creation is synchronous/read-after-write, and source-bundle artifact gating is enforced |
 | CEO→Pod Delegation Chain | ✅ Complete baseline |
