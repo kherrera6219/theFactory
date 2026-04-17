@@ -1,16 +1,3 @@
-"""main.py — API Gateway application: FastAPI app, middleware, and route handlers.
-
-Sub-modules:
-  config.py  — env-var constants and routing maps (pure constants, no functions)
-  auth.py    — stateless token/claim utilities (_extract_bearer_token etc.)
-  stream.py  — SSE live-stream generator (stateless, testable in isolation)
-  tracing.py — OTEL tracing setup
-
-All config-reading functions (auth, rate-limit, proxy, LLM preview) are defined
-directly in this module so that test monkeypatching on this namespace works.
-"""
-from __future__ import annotations
-
 import asyncio
 import hashlib
 import hmac
@@ -23,7 +10,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, Request
@@ -41,91 +28,101 @@ from shared_runtime.protocol import (
     validate_envelope,
 )
 
-from .auth import (  # pure stateless utilities — no config reads
-    _claim_includes_required_role,
-    _extract_bearer_token,
-    _tokens_from_claim_value,  # noqa: F401  (re-exported for test module access)
-)
-from .config import (
-    ANTHROPIC_API_KEY,
-    ANTHROPIC_BASE_URL,
-    ANTHROPIC_MODEL,
-    ANTHROPIC_THINKING_BUDGET_TOKENS,
-    ANTHROPIC_THINKING_MODE,
-    ANTHROPIC_TIMEOUT_SECONDS,
-    ANTHROPIC_VERSION,
-    API_RATE_LIMIT_PER_MINUTE,
-    AUTH_MODE,
-    CEO_AGENT_ID,
-    CORS_ALLOW_HEADERS,
-    CORS_ALLOW_METHODS,
-    CORS_ALLOW_ORIGINS,
-    CORS_EXPOSE_HEADERS,
-    DEFAULT_POD_MANAGER_AGENT_ID,
-    GEMINI_API_KEY,
-    GEMINI_BASE_URL,
-    GEMINI_MODEL,
-    GEMINI_THINKING_BUDGET,
-    GEMINI_THINKING_LEVEL,
-    GEMINI_TIMEOUT_SECONDS,
-    IDEMPOTENCY_KEY_PREFIX,
-    IDEMPOTENCY_TTL_SECONDS,
-    INTAKE_STREAM,
-    INTAKE_TOPIC,
-    INTERNAL_SERVICE_API_KEY,
-    LLM_PROVIDER,
-    MAX_STREAM_LEN,
-    OIDC_ALLOWED_ALGORITHMS,
-    OIDC_AUDIENCE,
-    OIDC_ENFORCE_OPERATOR_ROUTES,
-    OIDC_ISSUER_URL,
-    OIDC_JWKS_URL,
-    OIDC_LEEWAY_SECONDS,
-    OIDC_OPERATOR_ROLE,
-    OIDC_REQUIRED_ROLE,
-    OIDC_SHARED_SECRET,
-    OPENAI_API_KEY,
-    OPENAI_BASE_URL,
-    OPENAI_MODEL,
-    OPENAI_REASONING_EFFORT,
-    OPENAI_TIMEOUT_SECONDS,
-    ORCHESTRATOR_URL,
-    PM_AGENT_ID,
-    POD_MANAGER_BY_LANGUAGE,
-    RATE_LIMIT_HMAC_KEY,
-    RATE_LIMIT_KEY_PREFIX,
-    RATE_LIMIT_WINDOW_SECONDS,
-    REDIS_URL,
-    ROUTING_VERSION,
-    STATE_STREAM,
-)
-from .stream import (  # noqa: F401 (re-exported for test module access)
-    LIVE_STREAM_CONNECTIONS,
-    LIVE_STREAM_ERRORS,
-    LIVE_STREAM_EVENTS,
-    _decode_state_stream_event,
-    _is_stream_event_allowed,
-    _parse_stream_json,
-    _sse_event_block,
-    _state_stream_sse_generator,
-)
 from .tracing import configure_tracing, current_trace_id
+
+try:
+    import redis.asyncio as redis
+except ModuleNotFoundError:
+    redis = None
 
 try:
     import jwt
     from jwt import PyJWKClient
 except ModuleNotFoundError:
-    jwt = None  # type: ignore[assignment]
-    PyJWKClient = None  # type: ignore[assignment,misc]
+    jwt = None
+    PyJWKClient = None
 
-try:
-    import redis.asyncio as redis
-except ModuleNotFoundError:
-    redis = None  # type: ignore[assignment]
-
-_OIDC_JWKS_CLIENT: Any | None = None
-
-LOGGER = logging.getLogger(__name__)
+ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8001")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+INTAKE_STREAM = os.getenv("INTAKE_STREAM", "missions.intake")
+STATE_STREAM = os.getenv("STATE_STREAM", "missions.state")
+INTAKE_TOPIC = os.getenv("INTAKE_TOPIC", "intake.feature_contract.created")
+MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
+CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3100")
+INTERNAL_SERVICE_API_KEY = os.getenv("INTERNAL_SERVICE_API_KEY", "")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
+AUTH_MODE = os.getenv("AUTH_MODE", "api_key").strip().lower()
+OIDC_ISSUER_URL = os.getenv("OIDC_ISSUER_URL", "").strip()
+OIDC_AUDIENCE = os.getenv("OIDC_AUDIENCE", "").strip()
+OIDC_JWKS_URL = os.getenv("OIDC_JWKS_URL", "").strip()
+OIDC_SHARED_SECRET = os.getenv("OIDC_SHARED_SECRET", "").strip()
+OIDC_REQUIRED_ROLE = os.getenv("OIDC_REQUIRED_ROLE", "mutate").strip().lower() or "mutate"
+OIDC_OPERATOR_ROLE = os.getenv("OIDC_OPERATOR_ROLE", "observe").strip().lower() or "observe"
+OIDC_ENFORCE_OPERATOR_ROUTES = (
+    os.getenv("OIDC_ENFORCE_OPERATOR_ROUTES", "true").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+OIDC_ROLE_CLAIMS = tuple(
+    claim.strip()
+    for claim in os.getenv("OIDC_ROLE_CLAIMS", "roles,role,permissions").split(",")
+    if claim.strip()
+)
+OIDC_SCOPE_CLAIMS = tuple(
+    claim.strip()
+    for claim in os.getenv("OIDC_SCOPE_CLAIMS", "scope,scp").split(",")
+    if claim.strip()
+)
+OIDC_ALLOWED_ALGORITHMS = [
+    algorithm.strip()
+    for algorithm in os.getenv("OIDC_ALLOWED_ALGORITHMS", "RS256,HS256").split(",")
+    if algorithm.strip()
+]
+OIDC_LEEWAY_SECONDS = max(0.0, float(os.getenv("OIDC_LEEWAY_SECONDS", "60")))
+IDEMPOTENCY_TTL_SECONDS = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "86400"))
+IDEMPOTENCY_KEY_PREFIX = "idempotency:missions"
+API_RATE_LIMIT_PER_MINUTE = int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "120"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+RATE_LIMIT_KEY_PREFIX = "ratelimit:api-gateway"
+RATE_LIMIT_HMAC_KEY = os.getenv("RATE_LIMIT_HMAC_KEY", "ratelimit-default").encode()
+LIVE_STREAM_BLOCK_MS = int(os.getenv("LIVE_STREAM_BLOCK_MS", "5000"))
+LIVE_STREAM_KEEPALIVE_SECONDS = float(os.getenv("LIVE_STREAM_KEEPALIVE_SECONDS", "15"))
+LIVE_STREAM_COUNT = int(os.getenv("LIVE_STREAM_COUNT", "50"))
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+CORS_ALLOW_HEADERS = [
+    "Accept",
+    "Authorization",
+    "Content-Type",
+    "Idempotency-Key",
+    "X-API-Key",
+]
+CORS_EXPOSE_HEADERS = [
+    "Retry-After",
+    "X-RateLimit-Limit",
+    "X-RateLimit-Remaining",
+    "X-Trace-Id",
+]
+PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "offline").strip().lower()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.3-codex")
+OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "20"))
+OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower()
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
+ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1").rstrip("/")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
+ANTHROPIC_TIMEOUT_SECONDS = float(os.getenv("ANTHROPIC_TIMEOUT_SECONDS", "20"))
+ANTHROPIC_VERSION = os.getenv("ANTHROPIC_VERSION", "2023-06-01").strip()
+ANTHROPIC_THINKING_MODE = os.getenv("ANTHROPIC_THINKING_MODE", "enabled").strip().lower()
+ANTHROPIC_THINKING_BUDGET_TOKENS = int(os.getenv("ANTHROPIC_THINKING_BUDGET_TOKENS", "8192"))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_BASE_URL = os.getenv(
+    "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
+).rstrip("/")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview").strip()
+GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
+GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "-1"))
+GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "medium").strip().lower()
 
 REQUEST_COUNTER = Counter(
     "api_gateway_http_requests_total",
@@ -137,6 +134,38 @@ REQUEST_LATENCY = Histogram(
     "HTTP request latency in seconds for api-gateway",
     ("method", "path"),
 )
+LIVE_STREAM_CONNECTIONS = Counter(
+    "api_gateway_live_stream_connections_total",
+    "Total SSE live-stream connections accepted by api-gateway",
+)
+LIVE_STREAM_EVENTS = Counter(
+    "api_gateway_live_stream_events_total",
+    "Total events emitted by api-gateway live stream",
+    ("event_type",),
+)
+LIVE_STREAM_ERRORS = Counter(
+    "api_gateway_live_stream_errors_total",
+    "Total errors observed in api-gateway live stream",
+    ("reason",),
+)
+LOGGER = logging.getLogger(__name__)
+VALID_AUTH_MODES = {"api_key", "hybrid", "oidc"}
+if AUTH_MODE not in VALID_AUTH_MODES:
+    _invalid_auth_mode_msg = (
+        f"Invalid AUTH_MODE '{AUTH_MODE}'. "
+        f"Valid values: {', '.join(sorted(VALID_AUTH_MODES))}. "
+        f"Falling back to api_key."
+    )
+    if ENVIRONMENT == "production":
+        raise RuntimeError(
+            f"Invalid AUTH_MODE '{AUTH_MODE}' in production. "
+            f"Valid values: {', '.join(sorted(VALID_AUTH_MODES))}. "
+            f"Set AUTH_MODE to a valid value before starting the service."
+        )
+    LOGGER.error(_invalid_auth_mode_msg)
+    AUTH_MODE = "api_key"
+LOGGER.info("api-gateway auth mode active: %s (environment=%s)", AUTH_MODE, ENVIRONMENT)
+_OIDC_JWKS_CLIENT: Any | None = None
 
 if Path("/app/schemas").exists() and Path("/app/protocol").exists():
     REPO_ROOT = Path("/app")
@@ -146,13 +175,23 @@ EVENT_SCHEMA_PATH = Path(
     os.getenv("EVENT_SCHEMA_PATH", str(REPO_ROOT / "schemas/event.envelope.schema.json"))
 )
 TOPICS_PATH = Path(os.getenv("TOPICS_PATH", str(REPO_ROOT / "protocol/topics.yaml")))
-PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
+PM_AGENT_ID = "AGENT-01-PM"
+CEO_AGENT_ID = "AGENT-02-CEO"
+DEFAULT_POD_MANAGER_AGENT_ID = "AGENT-12-PODA-MGR"
+ROUTING_VERSION = "v1.1"
+_POD_A_LANGUAGES = {"python", "javascript", "typescript", "ruby", "php"}
+_POD_B_LANGUAGES = {"go", "rust", "c", "cpp", "zig"}
+_POD_C_LANGUAGES = {"java", "csharp", "kotlin", "scala"}
+_POD_D_LANGUAGES = {"matlab", "r", "julia", "mathematica", "haskell", "ocaml"}
+POD_MANAGER_BY_LANGUAGE: dict[str, str] = {
+    **{language: "AGENT-12-PODA-MGR" for language in _POD_A_LANGUAGES},
+    **{language: "AGENT-18-PODB-MGR" for language in _POD_B_LANGUAGES},
+    **{language: "AGENT-24-PODC-MGR" for language in _POD_C_LANGUAGES},
+    **{language: "AGENT-30-PODD-MGR" for language in _POD_D_LANGUAGES},
+}
+
+
 _METADATA_MAX_BYTES = 4096
-
-
-# ---------------------------------------------------------------------------
-# Pydantic models
-# ---------------------------------------------------------------------------
 
 
 class MissionCreate(BaseModel):
@@ -199,11 +238,6 @@ class BuilderPreviewRequest(BaseModel):
         pattern="^(none|minimal|low|medium|high|xhigh)$",
     )
     thinking_budget: int | None = Field(default=None, ge=-1, le=65536)
-
-
-# ---------------------------------------------------------------------------
-# Mission envelope / metadata helpers
-# ---------------------------------------------------------------------------
 
 
 def _parse_date_time(value: str) -> datetime:
@@ -335,12 +369,16 @@ def _normalize_mission_metadata(
     explicit_project_id = normalized.get("project_id")
     if isinstance(explicit_project_id, str) and explicit_project_id.strip():
         normalized["project_id"] = _normalize_project_id(
-            explicit_project_id, fallback="project-unknown"
+            explicit_project_id,
+            fallback="project-unknown",
         )
     else:
         source = normalized.get("source")
         if isinstance(source, str) and source.strip():
-            normalized["project_id"] = _normalize_project_id(source, fallback="project-unknown")
+            normalized["project_id"] = _normalize_project_id(
+                source,
+                fallback="project-unknown",
+            )
         else:
             normalized.pop("project_id", None)
     if "project_name" not in normalized:
@@ -439,14 +477,201 @@ async def _dependency_status() -> dict[str, bool]:
     return {"orchestrator_healthy": orchestrator_healthy, "redis_healthy": redis_healthy}
 
 
-# ---------------------------------------------------------------------------
-# Auth helpers (config-reading — defined here so monkeypatch works in tests)
-# ---------------------------------------------------------------------------
+def _client_identifier(request: Request) -> str:
+    api_key = request.headers.get("x-api-key")
+    if api_key:
+        # HMAC-SHA256 is intentional here: this is a rate-limit bucket key, not password storage.
+        # Fast, deterministic, keyed hashing is required — bcrypt/argon2 would break rate limiting
+        # (non-deterministic salts) and add unacceptable per-request latency.
+        digest = hmac.digest(
+            RATE_LIMIT_HMAC_KEY, api_key.encode("utf-8"), "sha256"
+        ).hex()
+        return f"api-key:{digest}"
+
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        client_ip = forwarded_for.split(",")[0].strip()
+    else:
+        client_ip = request.client.host if request.client is not None else "unknown"
+    return f"ip:{client_ip}"
+
+
+async def _check_rate_limit(redis_client: Any, identifier: str) -> tuple[bool, int, int]:
+    window = int(time.time() // RATE_LIMIT_WINDOW_SECONDS)
+    identifier_hash = hashlib.sha256(identifier.encode("utf-8")).hexdigest()
+    key = f"{RATE_LIMIT_KEY_PREFIX}:{identifier_hash}:{window}"
+    current = int(await redis_client.incr(key))
+    if current == 1:
+        await redis_client.expire(key, RATE_LIMIT_WINDOW_SECONDS + 5)
+
+    retry_after = RATE_LIMIT_WINDOW_SECONDS - int(time.time() % RATE_LIMIT_WINDOW_SECONDS)
+    remaining = max(0, API_RATE_LIMIT_PER_MINUTE - current)
+    return current > API_RATE_LIMIT_PER_MINUTE, retry_after, remaining
+
+
+def _parse_stream_json(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _decode_state_stream_event(entry_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    payload = _parse_stream_json(fields.get("payload"))
+    envelope = _parse_stream_json(fields.get("envelope"))
+    event_type = str(payload.get("event_type") or fields.get("event_type") or "").strip()
+    mission_id_raw = payload.get("mission_id") or fields.get("mission_id")
+    mission_id = str(mission_id_raw).strip() if mission_id_raw is not None else ""
+    state_raw = payload.get("state") or fields.get("state")
+    state = str(state_raw).strip().upper() if state_raw is not None else ""
+    created_at_raw = payload.get("created_at") or fields.get("created_at")
+    created_at = str(created_at_raw).strip() if created_at_raw is not None else ""
+    topic_raw = envelope.get("topic")
+    topic = str(topic_raw).strip() if topic_raw is not None else ""
+    producer_raw = envelope.get("producer")
+    producer = str(producer_raw).strip() if producer_raw is not None else ""
+    return {
+        "stream_id": entry_id,
+        "event_type": event_type,
+        "mission_id": mission_id or None,
+        "state": state or None,
+        "topic": topic or None,
+        "producer": producer or None,
+        "created_at": created_at or None,
+        "payload": payload,
+    }
+
+
+def _sse_event_block(*, event_name: str, data: dict[str, Any], event_id: str | None = None) -> str:
+    lines: list[str] = []
+    if event_id:
+        lines.append(f"id: {event_id}")
+    lines.append(f"event: {event_name}")
+    lines.append(f"data: {json.dumps(data, separators=(',', ':'))}")
+    return "\n".join(lines) + "\n\n"
+
+
+def _is_stream_event_allowed(
+    event: dict[str, Any],
+    *,
+    mission_id: str | None,
+    include_agent_events: bool,
+) -> bool:
+    event_type = str(event.get("event_type", "")).upper()
+    if not include_agent_events and event_type.startswith("AGENT_"):
+        return False
+    if mission_id and str(event.get("mission_id") or "") != mission_id:
+        return False
+    return True
+
+
+async def _state_stream_sse_generator(
+    redis_client: Any,
+    *,
+    mission_id: str | None,
+    include_agent_events: bool,
+    last_event_id: str | None,
+) -> AsyncIterator[str]:
+    stream_cursor = last_event_id.strip() if isinstance(last_event_id, str) else ""
+    if not stream_cursor:
+        stream_cursor = "$"
+
+    connected_payload = {
+        "stream": INTAKE_STREAM,
+        "state_stream": STATE_STREAM,
+        "mission_id": mission_id,
+        "include_agent_events": include_agent_events,
+    }
+    yield _sse_event_block(
+        event_name="connected",
+        data=connected_payload,
+    )
+
+    last_keepalive = time.monotonic()
+    while True:
+        try:
+            entries = await redis_client.xread(
+                streams={STATE_STREAM: stream_cursor},
+                count=max(1, LIVE_STREAM_COUNT),
+                block=max(100, LIVE_STREAM_BLOCK_MS),
+            )
+            emitted = False
+            for _, records in entries or []:
+                for entry_id, fields in records:
+                    stream_cursor = entry_id
+                    event_payload = _decode_state_stream_event(entry_id, fields)
+                    if not _is_stream_event_allowed(
+                        event_payload,
+                        mission_id=mission_id,
+                        include_agent_events=include_agent_events,
+                    ):
+                        continue
+                    emitted = True
+                    event_type = str(event_payload.get("event_type") or "STREAM_EVENT")
+                    LIVE_STREAM_EVENTS.labels(event_type=event_type).inc()
+                    yield _sse_event_block(
+                        event_name="state_event",
+                        data=event_payload,
+                        event_id=entry_id,
+                    )
+            if emitted:
+                last_keepalive = time.monotonic()
+                continue
+
+            if (time.monotonic() - last_keepalive) >= LIVE_STREAM_KEEPALIVE_SECONDS:
+                last_keepalive = time.monotonic()
+                yield ": keepalive\n\n"
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            LIVE_STREAM_ERRORS.labels(reason="read_failure").inc()
+            LOGGER.warning("state stream sse read failure: %s", exc)
+            error_payload = {"detail": "stream read failure"}
+            yield _sse_event_block(event_name="stream_error", data=error_payload)
+            await asyncio.sleep(1.0)
+
+
+def _extract_bearer_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.strip().lower() != "bearer":
+        return None
+    candidate = token.strip()
+    return candidate or None
+
+
+def _tokens_from_claim_value(value: Any) -> set[str]:
+    if isinstance(value, str):
+        raw_items = value.replace(",", " ").split()
+        return {item.strip().lower() for item in raw_items if item.strip()}
+    if isinstance(value, list):
+        normalized: set[str] = set()
+        for item in value:
+            if isinstance(item, str) and item.strip():
+                normalized.add(item.strip().lower())
+        return normalized
+    return set()
+
+
+def _claim_includes_required_role(claims: dict[str, Any], required_role: str) -> bool:
+    required = required_role.strip().lower()
+    if not required:
+        return True
+
+    tokens: set[str] = set()
+    for claim_name in OIDC_ROLE_CLAIMS + OIDC_SCOPE_CLAIMS:
+        tokens.update(_tokens_from_claim_value(claims.get(claim_name)))
+
+    return required in tokens
 
 
 def _decode_oidc_token(token: str) -> dict[str, Any]:
-    global _OIDC_JWKS_CLIENT
-
     if jwt is None:
         raise HTTPException(status_code=503, detail="oidc auth dependencies are unavailable")
 
@@ -480,6 +705,7 @@ def _decode_oidc_token(token: str) -> dict[str, Any]:
                     status_code=503,
                     detail="oidc jwks configuration is missing",
                 )
+            global _OIDC_JWKS_CLIENT
             if _OIDC_JWKS_CLIENT is None:
                 _OIDC_JWKS_CLIENT = PyJWKClient(jwks_url)
             signing_key = _OIDC_JWKS_CLIENT.get_signing_key_from_jwt(token)
@@ -493,17 +719,6 @@ def _decode_oidc_token(token: str) -> dict[str, Any]:
     if not isinstance(decoded, dict):
         raise HTTPException(status_code=401, detail="invalid bearer token")
     return decoded
-
-
-def _require_internal_service_api_key() -> str:
-    configured_key = INTERNAL_SERVICE_API_KEY.strip()
-    if configured_key:
-        return configured_key
-    LOGGER.error(
-        "INTERNAL_SERVICE_API_KEY is required for internal gateway forwarding when AUTH_MODE=%s",
-        AUTH_MODE,
-    )
-    raise HTTPException(status_code=503, detail="gateway internal auth is not configured")
 
 
 def _resolve_mutation_forward_headers(
@@ -541,6 +756,18 @@ def _resolve_mutation_forward_headers(
         return {"x-api-key": _require_internal_service_api_key()}
 
     raise HTTPException(status_code=500, detail="gateway auth mode configuration error")
+
+
+def _require_internal_service_api_key() -> str:
+    configured_key = INTERNAL_SERVICE_API_KEY.strip()
+    if configured_key:
+        return configured_key
+
+    LOGGER.error(
+        "INTERNAL_SERVICE_API_KEY is required for internal gateway forwarding when AUTH_MODE=%s",
+        AUTH_MODE,
+    )
+    raise HTTPException(status_code=503, detail="gateway internal auth is not configured")
 
 
 def _require_operator_access(
@@ -581,114 +808,6 @@ def _require_operator_access(
     raise HTTPException(status_code=500, detail="gateway auth mode configuration error")
 
 
-# ---------------------------------------------------------------------------
-# Rate-limit helpers
-# ---------------------------------------------------------------------------
-
-
-def _client_identifier(request: Request) -> str:
-    api_key = request.headers.get("x-api-key")
-    if api_key:
-        # HMAC-SHA256: deterministic keyed hash for rate-limit bucket keys.
-        # Fast, deterministic, keyed — bcrypt/argon2 would break rate limiting.
-        digest = hmac.digest(
-            RATE_LIMIT_HMAC_KEY, api_key.encode("utf-8"), "sha256"
-        ).hex()
-        return f"api-key:{digest}"
-
-    forwarded_for = request.headers.get("x-forwarded-for", "")
-    if forwarded_for:
-        client_ip = forwarded_for.split(",")[0].strip()
-    else:
-        client_ip = request.client.host if request.client is not None else "unknown"
-    return f"ip:{client_ip}"
-
-
-async def _check_rate_limit(redis_client: Any, identifier: str) -> tuple[bool, int, int]:
-    window = int(time.time() // RATE_LIMIT_WINDOW_SECONDS)
-    identifier_hash = hashlib.sha256(identifier.encode("utf-8")).hexdigest()
-    key = f"{RATE_LIMIT_KEY_PREFIX}:{identifier_hash}:{window}"
-    current = int(await redis_client.incr(key))
-    if current == 1:
-        await redis_client.expire(key, RATE_LIMIT_WINDOW_SECONDS + 5)
-
-    retry_after = RATE_LIMIT_WINDOW_SECONDS - int(time.time() % RATE_LIMIT_WINDOW_SECONDS)
-    remaining = max(0, API_RATE_LIMIT_PER_MINUTE - current)
-    return current > API_RATE_LIMIT_PER_MINUTE, retry_after, remaining
-
-
-# ---------------------------------------------------------------------------
-# Orchestrator reverse-proxy helpers
-# ---------------------------------------------------------------------------
-
-
-async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            response = await client.get(f"{ORCHESTRATOR_URL}{path}", params=params)
-    except Exception as exc:
-        LOGGER.warning("orchestrator query failed for %s: %s", path, exc)
-        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
-    if response.status_code == 404:
-        raise HTTPException(status_code=404, detail="resource not found")
-    if response.status_code >= 400:
-        raise HTTPException(status_code=502, detail="orchestrator query failed")
-    return response.json()
-
-
-async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None) -> Any:
-    internal_key = _require_internal_service_api_key()
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            response = await client.get(
-                f"{ORCHESTRATOR_URL}{path}",
-                params=params,
-                headers={"x-api-key": internal_key},
-            )
-    except Exception as exc:
-        LOGGER.warning("orchestrator internal query failed for %s: %s", path, exc)
-        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
-    if response.status_code == 404:
-        raise HTTPException(status_code=404, detail="resource not found")
-    if response.status_code in {401, 403}:
-        raise HTTPException(status_code=502, detail="orchestrator internal auth rejected request")
-    if response.status_code >= 400:
-        raise HTTPException(status_code=502, detail="orchestrator internal query failed")
-    return response.json()
-
-
-async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> Any:
-    internal_key = _require_internal_service_api_key()
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            response = await client.post(
-                f"{ORCHESTRATOR_URL}{path}",
-                json=json_body,
-                headers={"x-api-key": internal_key},
-            )
-    except Exception as exc:
-        LOGGER.warning("orchestrator internal mutation failed for %s: %s", path, exc)
-        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
-    if response.status_code in {401, 403}:
-        raise HTTPException(status_code=502, detail="orchestrator internal auth rejected request")
-    if response.status_code >= 400:
-        try:
-            payload = response.json()
-        except Exception:
-            payload = {}
-        detail = payload.get("detail") if isinstance(payload, dict) else None
-        raise HTTPException(
-            status_code=502,
-            detail=str(detail or "orchestrator internal write failed"),
-        )
-    return response.json()
-
-
-# ---------------------------------------------------------------------------
-# Builder LLM preview helpers
-# ---------------------------------------------------------------------------
-
-
 def _normalize_builder_text(value: str) -> str:
     return " ".join(value.split())
 
@@ -697,7 +816,9 @@ def _collect_distinct_lines(value: str, limit: int) -> list[str]:
     lines: list[str] = []
     for raw_line in value.splitlines():
         candidate = raw_line.strip().lstrip("-*").strip()
-        if not candidate or candidate in lines:
+        if not candidate:
+            continue
+        if candidate in lines:
             continue
         lines.append(candidate)
         if len(lines) >= limit:
@@ -706,7 +827,7 @@ def _collect_distinct_lines(value: str, limit: int) -> list[str]:
 
 
 def _build_offline_builder_preview(
-    payload: Any,
+    payload: BuilderPreviewRequest,
     *,
     source: str = "offline",
     notice: str | None = None,
@@ -761,20 +882,6 @@ def _build_offline_builder_preview(
     return response
 
 
-def _build_builder_prompt(payload: Any) -> str:
-    constraints_text = "\n".join(
-        f"- {_normalize_builder_text(item)}"
-        for item in payload.constraints
-        if isinstance(item, str) and _normalize_builder_text(item)
-    )
-    user_prompt = payload.request
-    if constraints_text:
-        user_prompt = f"{payload.request}\n\nConstraints:\n{constraints_text}"
-    if payload.view_mode:
-        user_prompt = f"{user_prompt}\n\nViewport: {payload.view_mode}"
-    return user_prompt
-
-
 def _extract_openai_text(payload: dict[str, Any]) -> str | None:
     output_text = payload.get("output_text")
     if isinstance(output_text, str) and output_text.strip():
@@ -814,6 +921,20 @@ def _extract_openai_text(payload: dict[str, Any]) -> str | None:
     return None
 
 
+def _build_builder_prompt(payload: BuilderPreviewRequest) -> str:
+    constraints_text = "\n".join(
+        f"- {_normalize_builder_text(item)}"
+        for item in payload.constraints
+        if isinstance(item, str) and _normalize_builder_text(item)
+    )
+    user_prompt = payload.request
+    if constraints_text:
+        user_prompt = f"{payload.request}\n\nConstraints:\n{constraints_text}"
+    if payload.view_mode:
+        user_prompt = f"{user_prompt}\n\nViewport: {payload.view_mode}"
+    return user_prompt
+
+
 def _extract_anthropic_text(payload: dict[str, Any]) -> str | None:
     content = payload.get("content")
     if not isinstance(content, list):
@@ -821,13 +942,17 @@ def _extract_anthropic_text(payload: dict[str, Any]) -> str | None:
 
     collected: list[str] = []
     for item in content:
-        if not isinstance(item, dict) or item.get("type") != "text":
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") != "text":
             continue
         text = item.get("text")
         if isinstance(text, str) and text.strip():
             collected.append(text.strip())
 
-    return "\n".join(collected) if collected else None
+    if collected:
+        return "\n".join(collected)
+    return None
 
 
 def _extract_gemini_text(payload: dict[str, Any]) -> str | None:
@@ -852,7 +977,9 @@ def _extract_gemini_text(payload: dict[str, Any]) -> str | None:
             if isinstance(text, str) and text.strip():
                 collected.append(text.strip())
 
-    return "\n".join(collected) if collected else None
+    if collected:
+        return "\n".join(collected)
+    return None
 
 
 def _is_gemini_3_model(model: str) -> bool:
@@ -869,26 +996,15 @@ def _to_gemini_thinking_level(reasoning_effort: str | None) -> str:
     return "medium"
 
 
-def _apply_llm_lines_to_preview(
-    preview: dict[str, Any], summary_lines: list[str]
-) -> dict[str, Any]:
-    if summary_lines:
-        preview["plan"][0]["description"] = summary_lines[0]
-        preview["diff_summary"] = summary_lines[:4]
-        if len(summary_lines) > 4:
-            preview["risk_notes"] = summary_lines[4:7]
-    preview["notice"] = "Generated from live LLM output."
-    return preview
-
-
 async def _openai_builder_preview(
-    payload: Any,
+    payload: BuilderPreviewRequest,
     *,
     model: str,
     reasoning_effort: str | None,
 ) -> dict[str, Any] | None:
     user_prompt = _build_builder_prompt(payload)
-    request_payload: dict[str, Any] = {
+
+    request_payload = {
         "model": model,
         "input": [
             {
@@ -898,28 +1014,35 @@ async def _openai_builder_preview(
                     "for a local enterprise application."
                 ),
             },
-            {"role": "user", "content": user_prompt},
+            {
+                "role": "user",
+                "content": user_prompt,
+            },
         ],
     }
     if reasoning_effort:
         request_payload["reasoning"] = {"effort": reasoning_effort}
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
 
     try:
         async with httpx.AsyncClient(timeout=OPENAI_TIMEOUT_SECONDS) as client:
             response = await client.post(
                 f"{OPENAI_BASE_URL}/responses",
                 json=request_payload,
-                headers={
-                    "Authorization": f"Bearer {OPENAI_API_KEY}",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
             )
     except Exception as exc:
         LOGGER.warning("openai preview request failed: %s", exc)
         return None
 
     if response.status_code >= 400:
-        LOGGER.warning("openai preview returned non-success status: %s", response.status_code)
+        LOGGER.warning(
+            "openai preview returned non-success status: %s",
+            response.status_code,
+        )
         return None
 
     try:
@@ -933,14 +1056,19 @@ async def _openai_builder_preview(
         LOGGER.warning("openai preview response did not contain readable text")
         return None
 
-    return _apply_llm_lines_to_preview(
-        _build_offline_builder_preview(payload, source="openai"),
-        _collect_distinct_lines(llm_text, 8),
-    )
+    summary_lines = _collect_distinct_lines(llm_text, 8)
+    preview = _build_offline_builder_preview(payload, source="openai")
+    if summary_lines:
+        preview["plan"][0]["description"] = summary_lines[0]
+        preview["diff_summary"] = summary_lines[:4]
+        if len(summary_lines) > 4:
+            preview["risk_notes"] = summary_lines[4:7]
+    preview["notice"] = "Generated from live LLM output."
+    return preview
 
 
 async def _anthropic_builder_preview(
-    payload: Any,
+    payload: BuilderPreviewRequest,
     *,
     model: str,
     thinking_mode: str,
@@ -960,23 +1088,28 @@ async def _anthropic_builder_preview(
     elif thinking_mode == "adaptive":
         request_payload["thinking"] = {"type": "adaptive"}
 
+    headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "Content-Type": "application/json",
+    }
+
     try:
         async with httpx.AsyncClient(timeout=ANTHROPIC_TIMEOUT_SECONDS) as client:
             response = await client.post(
                 f"{ANTHROPIC_BASE_URL}/messages",
                 json=request_payload,
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": ANTHROPIC_VERSION,
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
             )
     except Exception as exc:
         LOGGER.warning("anthropic preview request failed: %s", exc)
         return None
 
     if response.status_code >= 400:
-        LOGGER.warning("anthropic preview returned non-success status: %s", response.status_code)
+        LOGGER.warning(
+            "anthropic preview returned non-success status: %s",
+            response.status_code,
+        )
         return None
 
     try:
@@ -990,21 +1123,29 @@ async def _anthropic_builder_preview(
         LOGGER.warning("anthropic preview response did not contain readable text")
         return None
 
-    return _apply_llm_lines_to_preview(
-        _build_offline_builder_preview(payload, source="anthropic"),
-        _collect_distinct_lines(llm_text, 8),
-    )
+    summary_lines = _collect_distinct_lines(llm_text, 8)
+    preview = _build_offline_builder_preview(payload, source="anthropic")
+    if summary_lines:
+        preview["plan"][0]["description"] = summary_lines[0]
+        preview["diff_summary"] = summary_lines[:4]
+        if len(summary_lines) > 4:
+            preview["risk_notes"] = summary_lines[4:7]
+    preview["notice"] = "Generated from live LLM output."
+    return preview
 
 
 async def _gemini_builder_preview(
-    payload: Any,
+    payload: BuilderPreviewRequest,
     *,
     model: str,
     thinking_budget: int,
     thinking_level: str | None,
 ) -> dict[str, Any] | None:
     user_prompt = _build_builder_prompt(payload)
-    generation_config: dict[str, Any] = {"temperature": 0.2, "maxOutputTokens": 1200}
+    generation_config: dict[str, Any] = {
+        "temperature": 0.2,
+        "maxOutputTokens": 1200,
+    }
     if _is_gemini_3_model(model):
         generation_config["thinkingConfig"] = {
             "thinkingLevel": _to_gemini_thinking_level(thinking_level),
@@ -1012,15 +1153,16 @@ async def _gemini_builder_preview(
     elif thinking_budget >= 0:
         generation_config["thinkingConfig"] = {"thinkingBudget": thinking_budget}
 
+    request_payload = {
+        "contents": [{"parts": [{"text": user_prompt}]}],
+        "generationConfig": generation_config,
+    }
     try:
         async with httpx.AsyncClient(timeout=GEMINI_TIMEOUT_SECONDS) as client:
             response = await client.post(
                 f"{GEMINI_BASE_URL}/models/{model}:generateContent",
                 params={"key": GEMINI_API_KEY},
-                json={
-                    "contents": [{"parts": [{"text": user_prompt}]}],
-                    "generationConfig": generation_config,
-                },
+                json=request_payload,
                 headers={"Content-Type": "application/json"},
             )
     except Exception as exc:
@@ -1028,7 +1170,10 @@ async def _gemini_builder_preview(
         return None
 
     if response.status_code >= 400:
-        LOGGER.warning("gemini preview returned non-success status: %s", response.status_code)
+        LOGGER.warning(
+            "gemini preview returned non-success status: %s",
+            response.status_code,
+        )
         return None
 
     try:
@@ -1042,15 +1187,15 @@ async def _gemini_builder_preview(
         LOGGER.warning("gemini preview response did not contain readable text")
         return None
 
-    return _apply_llm_lines_to_preview(
-        _build_offline_builder_preview(payload, source="gemini"),
-        _collect_distinct_lines(llm_text, 8),
-    )
-
-
-# ---------------------------------------------------------------------------
-# FastAPI app
-# ---------------------------------------------------------------------------
+    summary_lines = _collect_distinct_lines(llm_text, 8)
+    preview = _build_offline_builder_preview(payload, source="gemini")
+    if summary_lines:
+        preview["plan"][0]["description"] = summary_lines[0]
+        preview["diff_summary"] = summary_lines[:4]
+        if len(summary_lines) > 4:
+            preview["risk_notes"] = summary_lines[4:7]
+    preview["notice"] = "Generated from live LLM output."
+    return preview
 
 
 @asynccontextmanager
@@ -1099,11 +1244,6 @@ def _request_correlation_id(request: Request) -> str:
     return uuid.uuid4().hex
 
 
-# ---------------------------------------------------------------------------
-# Middleware
-# ---------------------------------------------------------------------------
-
-
 @app.middleware("http")
 async def _request_metrics_and_audit(request: Request, call_next):
     """Combined metrics + structured audit log middleware.
@@ -1126,7 +1266,8 @@ async def _request_metrics_and_audit(request: Request, call_next):
         path = route.path if route is not None else request.url.path
         REQUEST_COUNTER.labels(method=method, path=path, status_code=status_code).inc()
         REQUEST_LATENCY.labels(method=method, path=path).observe(elapsed_ms / 1000)
-        _client_ip = request.client.host if request.client else "unknown"
+        # Structured audit log — no secrets, no bodies
+        _client_ip = (request.client.host if request.client else "unknown")
         LOGGER.info(
             "audit",
             extra={
@@ -1195,14 +1336,10 @@ async def _security_and_rate_limit(request: Request, call_next):
     return response
 
 
-# ---------------------------------------------------------------------------
-# Routes — health / observability
-# ---------------------------------------------------------------------------
-
-
 @app.get("/health")
 async def health() -> dict[str, Any]:
     dependency_status = await _dependency_status()
+
     return {
         "ok": True,
         "service": "api-gateway",
@@ -1235,17 +1372,16 @@ async def readyz() -> dict[str, Any]:
                 **dependency_status,
             },
         )
-    return {"ready": True, "service": "api-gateway", **dependency_status}
+    return {
+        "ready": True,
+        "service": "api-gateway",
+        **dependency_status,
+    }
 
 
 @app.get("/metrics")
 async def metrics() -> Response:
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-
-# ---------------------------------------------------------------------------
-# Routes — live stream
-# ---------------------------------------------------------------------------
 
 
 @app.get("/v1/stream/state")
@@ -1282,11 +1418,6 @@ async def stream_state_events(
     return StreamingResponse(generator, media_type="text/event-stream", headers=headers)
 
 
-# ---------------------------------------------------------------------------
-# Routes — missions
-# ---------------------------------------------------------------------------
-
-
 @app.post("/v1/missions", status_code=201)
 async def create_mission(
     payload: MissionCreate,
@@ -1307,6 +1438,8 @@ async def create_mission(
         mission_id=provisional_mission_id,
         requested_target_language=payload.requested_target_language,
     )
+    # Persist source_code in metadata so pod-workers can retrieve it directly
+    # from the synchronized mission snapshot after create returns.
     if payload.source_code:
         normalized_metadata["source_code"] = payload.source_code
     normalized_payload = MissionCreate(
@@ -1334,14 +1467,20 @@ async def create_mission(
             "mission_id": mission_id,
         }
         acquired = await _save_idempotency_record(
-            redis_client, idempotency_redis_key, in_progress_record, nx=True
+            redis_client,
+            idempotency_redis_key,
+            in_progress_record,
+            nx=True,
         )
         if not acquired:
             existing = await _load_idempotency_record(redis_client, idempotency_redis_key)
             if existing is None:
                 await asyncio.sleep(0.05)
                 acquired = await _save_idempotency_record(
-                    redis_client, idempotency_redis_key, in_progress_record, nx=True
+                    redis_client,
+                    idempotency_redis_key,
+                    in_progress_record,
+                    nx=True,
                 )
                 if not acquired:
                     raise HTTPException(
@@ -1364,7 +1503,10 @@ async def create_mission(
                 existing_mission_id = str(existing.get("mission_id") or "").strip()
                 if existing.get("status") == "upstream_unknown" and existing_mission_id:
                     reconciled = await _reconcile_idempotent_mission(
-                        redis_client, idempotency_redis_key, request_hash, existing_mission_id
+                        redis_client,
+                        idempotency_redis_key,
+                        request_hash,
+                        existing_mission_id,
                     )
                     if reconciled is not None:
                         return reconciled
@@ -1455,7 +1597,9 @@ async def create_mission(
         )
     except (ProtocolValidationError, json.JSONDecodeError) as exc:
         LOGGER.warning(
-            "mission intake telemetry envelope validation failed for %s: %s", mission_id, exc
+            "mission intake telemetry envelope validation failed for %s: %s",
+            mission_id,
+            exc,
         )
     except Exception as exc:
         LOGGER.warning("failed to publish mission intake telemetry for %s: %s", mission_id, exc)
@@ -1480,6 +1624,68 @@ async def create_mission(
             )
 
     return MissionRecord(**mission_payload)
+
+
+async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            response = await client.get(f"{ORCHESTRATOR_URL}{path}", params=params)
+    except Exception as exc:
+        LOGGER.warning("orchestrator query failed for %s: %s", path, exc)
+        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
+    if response.status_code == 404:
+        raise HTTPException(status_code=404, detail="resource not found")
+    if response.status_code >= 400:
+        raise HTTPException(status_code=502, detail="orchestrator query failed")
+    return response.json()
+
+
+async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None) -> Any:
+    internal_key = _require_internal_service_api_key()
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            response = await client.get(
+                f"{ORCHESTRATOR_URL}{path}",
+                params=params,
+                headers={"x-api-key": internal_key},
+            )
+    except Exception as exc:
+        LOGGER.warning("orchestrator internal query failed for %s: %s", path, exc)
+        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
+    if response.status_code == 404:
+        raise HTTPException(status_code=404, detail="resource not found")
+    if response.status_code in {401, 403}:
+        raise HTTPException(status_code=502, detail="orchestrator internal auth rejected request")
+    if response.status_code >= 400:
+        raise HTTPException(status_code=502, detail="orchestrator internal query failed")
+    return response.json()
+
+
+async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> Any:
+    internal_key = _require_internal_service_api_key()
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            response = await client.post(
+                f"{ORCHESTRATOR_URL}{path}",
+                json=json_body,
+                headers={"x-api-key": internal_key},
+            )
+    except Exception as exc:
+        LOGGER.warning("orchestrator internal mutation failed for %s: %s", path, exc)
+        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
+    if response.status_code in {401, 403}:
+        raise HTTPException(status_code=502, detail="orchestrator internal auth rejected request")
+    if response.status_code >= 400:
+        try:
+            payload = response.json()
+        except Exception:
+            payload = {}
+        detail = payload.get("detail") if isinstance(payload, dict) else None
+        raise HTTPException(
+            status_code=502,
+            detail=str(detail or "orchestrator internal write failed"),
+        )
+    return response.json()
 
 
 @app.get("/v1/missions/{mission_id}")
@@ -1532,7 +1738,8 @@ async def get_mission_knowledge_graph(
     mission_id: str, limit: int = Query(default=50, ge=1, le=500)
 ) -> list[dict[str, Any]]:
     return await _proxy_get_internal(
-        f"/internal/missions/{mission_id}/knowledge-graph", params={"limit": limit}
+        f"/internal/missions/{mission_id}/knowledge-graph",
+        params={"limit": limit},
     )
 
 
@@ -1550,7 +1757,8 @@ async def get_mission_audit_artifacts(
     mission_id: str, limit: int = Query(default=50, ge=1, le=500)
 ) -> list[dict[str, Any]]:
     return await _proxy_get_internal(
-        f"/internal/missions/{mission_id}/audit-artifacts", params={"limit": limit}
+        f"/internal/missions/{mission_id}/audit-artifacts",
+        params={"limit": limit},
     )
 
 
@@ -1559,7 +1767,8 @@ async def get_mission_audit_events(
     mission_id: str, limit: int = Query(default=100, ge=1, le=1000)
 ) -> list[dict[str, Any]]:
     return await _proxy_get_internal(
-        f"/internal/missions/{mission_id}/audit-events", params={"limit": limit}
+        f"/internal/missions/{mission_id}/audit-events",
+        params={"limit": limit},
     )
 
 
@@ -1568,50 +1777,19 @@ async def get_mission_build_artifacts(
     mission_id: str, limit: int = Query(default=50, ge=1, le=500)
 ) -> list[dict[str, Any]]:
     return await _proxy_get_internal(
-        f"/internal/missions/{mission_id}/build-artifacts", params={"limit": limit}
+        f"/internal/missions/{mission_id}/build-artifacts",
+        params={"limit": limit},
     )
 
 
 @app.get("/v1/missions/{mission_id}/build-artifacts/{artifact_id}")
-async def get_mission_build_artifact(mission_id: str, artifact_id: str) -> dict[str, Any]:
-    return await _proxy_get_internal(
-        f"/internal/missions/{mission_id}/build-artifacts/{artifact_id}"
-    )
-
-
-@app.post("/v1/missions/{mission_id}/state")
-async def update_mission_state(
+async def get_mission_build_artifact(
     mission_id: str,
-    payload: MissionStateUpdate,
-    x_api_key: str | None = Header(default=None),
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    artifact_id: str,
 ) -> dict[str, Any]:
-    forward_headers = _resolve_mutation_forward_headers(
-        x_api_key=x_api_key, authorization=authorization
+    return await _proxy_get_internal(
+        f"/internal/missions/{mission_id}/build-artifacts/{artifact_id}",
     )
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            response = await client.post(
-                f"{ORCHESTRATOR_URL}/missions/{mission_id}/state",
-                json=payload.model_dump(),
-                headers=forward_headers,
-            )
-    except Exception as exc:
-        LOGGER.exception("orchestrator mission state update failed for mission %s", mission_id)
-        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
-
-    if response.status_code in {401, 403}:
-        raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
-    if response.status_code == 404:
-        raise HTTPException(status_code=404, detail="mission not found")
-    if response.status_code >= 400:
-        raise HTTPException(status_code=502, detail="orchestrator mutation failed")
-    return response.json()
-
-
-# ---------------------------------------------------------------------------
-# Routes — operations
-# ---------------------------------------------------------------------------
 
 
 @app.get("/v1/operations/summary")
@@ -1693,7 +1871,8 @@ async def get_operations_pod_assignments(
 ) -> list[dict[str, Any]]:
     _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
-        "/internal/operations/pod-assignments", params={"limit": limit}
+        "/internal/operations/pod-assignments",
+        params={"limit": limit},
     )
 
 
@@ -1726,7 +1905,8 @@ async def get_project_audit_events(
     if tool_name:
         params["tool_name"] = tool_name
     return await _proxy_get_internal(
-        f"/internal/operations/projects/{project_id}/audit-events", params=params
+        f"/internal/operations/projects/{project_id}/audit-events",
+        params=params,
     )
 
 
@@ -1738,11 +1918,6 @@ async def get_operations_alerts(
 ) -> list[dict[str, Any]]:
     _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal("/internal/operations/alerts", params={"limit": limit})
-
-
-# ---------------------------------------------------------------------------
-# Routes — builder
-# ---------------------------------------------------------------------------
 
 
 @app.post("/v1/builder/preview")
@@ -1775,6 +1950,7 @@ async def create_builder_preview(payload: BuilderPreviewRequest) -> dict[str, An
                 source="offline",
                 notice="OPENAI_API_KEY not configured. Returned deterministic preview.",
             )
+
         generated = await _openai_builder_preview(
             normalized_payload,
             model=selected_model or OPENAI_MODEL,
@@ -1782,6 +1958,7 @@ async def create_builder_preview(payload: BuilderPreviewRequest) -> dict[str, An
         )
         if generated is not None:
             return generated
+
         return _build_offline_builder_preview(
             normalized_payload,
             source="openai-fallback",
@@ -1795,18 +1972,18 @@ async def create_builder_preview(payload: BuilderPreviewRequest) -> dict[str, An
                 source="offline",
                 notice="ANTHROPIC_API_KEY not configured. Returned deterministic preview.",
             )
+
         generated = await _anthropic_builder_preview(
             normalized_payload,
             model=selected_model or ANTHROPIC_MODEL,
             thinking_mode=ANTHROPIC_THINKING_MODE,
-            thinking_budget=(
-                payload.thinking_budget
-                if payload.thinking_budget is not None
-                else ANTHROPIC_THINKING_BUDGET_TOKENS
-            ),
+            thinking_budget=payload.thinking_budget
+            if payload.thinking_budget is not None
+            else ANTHROPIC_THINKING_BUDGET_TOKENS,
         )
         if generated is not None:
             return generated
+
         return _build_offline_builder_preview(
             normalized_payload,
             source="anthropic-fallback",
@@ -1820,18 +1997,18 @@ async def create_builder_preview(payload: BuilderPreviewRequest) -> dict[str, An
                 source="offline",
                 notice="GEMINI_API_KEY not configured. Returned deterministic preview.",
             )
+
         generated = await _gemini_builder_preview(
             normalized_payload,
             model=selected_model or GEMINI_MODEL,
-            thinking_budget=(
-                payload.thinking_budget
-                if payload.thinking_budget is not None
-                else GEMINI_THINKING_BUDGET
-            ),
+            thinking_budget=payload.thinking_budget
+            if payload.thinking_budget is not None
+            else GEMINI_THINKING_BUDGET,
             thinking_level=payload.reasoning_effort or GEMINI_THINKING_LEVEL,
         )
         if generated is not None:
             return generated
+
         return _build_offline_builder_preview(
             normalized_payload,
             source="gemini-fallback",
@@ -1841,9 +2018,36 @@ async def create_builder_preview(payload: BuilderPreviewRequest) -> dict[str, An
     return _build_offline_builder_preview(normalized_payload, source="offline")
 
 
-# ---------------------------------------------------------------------------
-# Root
-# ---------------------------------------------------------------------------
+@app.post("/v1/missions/{mission_id}/state")
+async def update_mission_state(
+    mission_id: str,
+    payload: MissionStateUpdate,
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    forward_headers = _resolve_mutation_forward_headers(
+        x_api_key=x_api_key,
+        authorization=authorization,
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            response = await client.post(
+                f"{ORCHESTRATOR_URL}/missions/{mission_id}/state",
+                json=payload.model_dump(),
+                headers=forward_headers,
+            )
+    except Exception as exc:
+        LOGGER.exception("orchestrator mission state update failed for mission %s", mission_id)
+        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
+
+    if response.status_code in {401, 403}:
+        raise HTTPException(status_code=response.status_code, detail=response.json().get("detail"))
+    if response.status_code == 404:
+        raise HTTPException(status_code=404, detail="mission not found")
+    if response.status_code >= 400:
+        raise HTTPException(status_code=502, detail="orchestrator mutation failed")
+    return response.json()
 
 
 @app.get("/")
