@@ -110,7 +110,7 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Orchestrator Decomposition Status (Phase 5 complete as of 2026-04-14)
 
-- `services/orchestrator/orchestrator/main.py` reduced from **2065 → 1250 → 885 lines** across Phase 3 and Phase 5 extractions. (The re-export shims and route module includes retained in `main.py` account for the difference from an earlier sub-target; further reduction is sequenced as a follow-on.)
+- `services/orchestrator/orchestrator/main.py` reduced from **2065 → 1250 → 423 lines** across Phase 3 and Phase 5 extractions.
 - **Phase 5 domain modules** extracted from `main.py`:
   - `storage/` — 6-module façade package (`missions.py`, `agents.py`, `artifacts.py`, `knowledge.py`, `audit.py`, `scaling.py`); `storage.py` becomes a thin re-export shim.
   - `heartbeat_service.py` — `_build_non_pod_heartbeat_payloads`, `_emit_agent_telemetry_event`, `agent_heartbeat_loop`.

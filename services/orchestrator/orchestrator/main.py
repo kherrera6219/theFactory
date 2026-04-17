@@ -167,18 +167,9 @@ async def _fetch_existing_mission(app: FastAPI, mission_id: str) -> MissionRecor
     return mission
 
 
-def _lifecycle_engine_name(settings: Any) -> str:
-    if settings.mission_flow_v2_enabled:
-        return "mission_flow_v2"
-    if settings.langgraph_enabled:
-        return "langgraph"
-    return "legacy_v1"
-
-
 def _langgraph_runtime_payload(app: FastAPI) -> dict[str, Any]:
     settings = app.state.settings
     return {
-        "lifecycle_engine": _lifecycle_engine_name(settings),
         "langgraph_enabled": settings.langgraph_enabled,
         "langgraph_fail_open": settings.langgraph_fail_open,
         "langgraph_checkpointer": settings.langgraph_checkpointer,
