@@ -1,17 +1,8 @@
 """Unit tests for services/orchestrator/orchestrator/agent_base.py"""
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
-
-# Ensure orchestrator package is importable — consistent with the pattern used
-# by all other orchestrator unit tests in this directory.
-_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_ROOT / "services" / "orchestrator"))
-
-from orchestrator.agent_base import (  # noqa: E402
+from orchestrator.agent_base import (
     AgentReport,
     AgentResult,
     BaseAgent,
