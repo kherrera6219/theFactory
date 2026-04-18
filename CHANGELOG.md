@@ -6,6 +6,31 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Production Remediation (2026-04-17)
+
+Executed the full 8-finding remediation plan from `docs/reviews/production-remediation-plan-2026-04-17.md`. One finding (pod-d-worker hardening) was a false positive — the service already inherits `*readonly-service-hardening` via YAML anchor.
+
+#### Security
+- **OIDC alg-confusion surface removed:** `OIDC_ALLOWED_ALGORITHMS` default flipped from `RS256,HS256` → `RS256` so a forged HS256 token signed with the JWKS public key can never be accepted (api-gateway/main.py:77).
+- **Constant-time API-key compare:** `orchestrator/auth.py` now uses `_match_api_key()` with `hmac.compare_digest`; `semantic-bus-mcp/mcp_server.py:410` flipped from `!=` to `hmac.compare_digest`. Eliminates the timing-side-channel on API-key validation.
+- **JWT error no longer leaks token fragments:** `api-gateway/main.py:716` logs the exception *class name* only. PyJWT's message can include decoded header/claims.
+- **MCP port no longer exposed on 0.0.0.0:** `deploy/docker-compose.yaml` now uses `${MCP_HOST_BIND:-0.0.0.0}:${MCP_HOST_PORT:-8102}:8090`. Prod `.env` must set `MCP_HOST_BIND=127.0.0.1` (documented in `.env.example`).
+- **LangGraph fail-open disabled in prod:** `deploy/docker-compose.prod.yaml` sets `LANGGRAPH_FAIL_OPEN: "false"` so checkpointer outages surface instead of silently masking state loss.
+
+#### Observability
+- **Structured JSON logging:** new `shared_runtime/logging_config.py` with stdlib-only `JsonFormatter` and `configure_logging(service_name)`. Gated by `LOG_FORMAT` (plain|json, default plain). Wired into all 7 services: api-gateway, orchestrator, pod-worker, audit-worker, agent-runtime, dashboard, semantic-bus-mcp. Prod overlay now sets `LOG_FORMAT: json` for every service.
+
+#### Build
+- **Base images pinned to minor+patch+OS release:** all 7 Python Dockerfiles use `python:3.11-slim-bookworm`; mission-control uses `node:22-alpine3.20`. Digest-pinning deferred (tracked in the plan doc).
+- **Healthcheck URLs aligned:** 13 Dockerfile HEALTHCHECK and compose healthcheck entries flipped from `/health` to `/readyz` so liveness no longer races startup (`/readyz` is deterministically gated on upstream readiness).
+- **`start_app.bat` prod parity:** default path now runs `npm run build && npm run start`; `--dev` flag falls back to `npm run dev` for local iteration.
+
+#### Verification
+- `ruff check shared_runtime services tests` → clean.
+- `pytest tests` → 999 passed, 5 skipped.
+
+---
+
 ### Settings & Vault — Offline Resilience (2026-04-16)
 
 #### Fixed

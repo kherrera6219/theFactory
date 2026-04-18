@@ -11,8 +11,14 @@ echo.
 echo [2/2] Starting Mission Control UI...
 cd apps\mission-control
 
-:: Start the Next.js dev server in a new window so it keeps running
-start "Mission Control UI" cmd /k "echo Starting Next.js Dev Server... && npm run dev"
+:: Build and start Mission Control in production mode so this script mirrors the
+:: production image (Next.js standalone output). Pass --dev as the first arg to
+:: start_app.bat to fall back to the hot-reloading dev server.
+if /I "%~1"=="--dev" (
+    start "Mission Control UI (dev)" cmd /k "echo Starting Next.js Dev Server... && npm run dev"
+) else (
+    start "Mission Control UI" cmd /k "echo Building Next.js production bundle... && npm run build && echo Starting production server... && npm run start"
+)
 
 echo.
 echo Application stack is starting up!

@@ -416,6 +416,7 @@ Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`,
 | **Alertmanager** | Pager webhook routing for `severity: critical|high` alerts |
 | **Loki + Promtail** | Centralized log aggregation |
 | **Jaeger** | OTLP distributed traces (api-gateway + orchestrator + pod-worker) |
+| **Structured logging** | Stdlib `JsonFormatter` in `shared_runtime/logging_config.py`; `LOG_FORMAT=json` in prod emits one JSON record per line (service, level, ts, message, trace_id) |
 
 ### Pod Worker Metrics
 

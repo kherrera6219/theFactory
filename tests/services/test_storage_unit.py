@@ -80,12 +80,23 @@ class FakeCursor:
         return False
 
 
+class _FakeTxn:
+    def __enter__(self) -> "_FakeTxn":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+
 class FakeConn:
     def __init__(self, cursor: FakeCursor) -> None:
         self._cursor = cursor
 
     def cursor(self) -> FakeCursor:
         return self._cursor
+
+    def transaction(self) -> "_FakeTxn":
+        return _FakeTxn()
 
     def __enter__(self) -> "FakeConn":
         return self
@@ -293,25 +304,9 @@ def test_insert_and_list_mission_events(monkeypatch) -> None:
 def test_transition_mission_state_success_and_noop(monkeypatch) -> None:
     now = datetime(2026, 3, 1, tzinfo=UTC)
     row = ("mission-1", "Build API", "python", {"source": "test"}, "RUNNING", now)
-    _patch_db(
-        monkeypatch,
-        [
-            FakeCursor(fetchone_results=[row]),
-            FakeCursor(fetchone_results=[None]),
-        ],
-    )
-    calls: list[tuple[MissionState | None, MissionState, str]] = []
-
-    def _insert_event(
-        _settings_obj: Settings,
-        _mission_id: str,
-        previous_state: MissionState | None,
-        new_state: MissionState,
-        event_type: str,
-    ) -> None:
-        calls.append((previous_state, new_state, event_type))
-
-    monkeypatch.setattr(storage_missions, "insert_mission_event", _insert_event)
+    success_cursor = FakeCursor(fetchone_results=[row])
+    noop_cursor = FakeCursor(fetchone_results=[None])
+    _patch_db(monkeypatch, [success_cursor, noop_cursor])
     settings = _settings()
 
     record = storage.transition_mission_state(
@@ -322,7 +317,13 @@ def test_transition_mission_state_success_and_noop(monkeypatch) -> None:
         "MISSION_RUNNING",
     )
     assert record is not None
-    assert calls[0][1] == MissionState.running
+    # Two executes on the same cursor: the state UPDATE and the event INSERT (atomic).
+    assert len(success_cursor.executed) == 2
+    event_params = success_cursor.executed[1][1]
+    assert event_params[0] == "mission-1"
+    assert event_params[1] == MissionState.queued.value
+    assert event_params[2] == MissionState.running.value
+    assert event_params[3] == "MISSION_RUNNING"
 
     none_record = storage.transition_mission_state(
         settings,
@@ -332,6 +333,8 @@ def test_transition_mission_state_success_and_noop(monkeypatch) -> None:
         "MISSION_FAILED",
     )
     assert none_record is None
+    # No-op: only the UPDATE runs, no event INSERT.
+    assert len(noop_cursor.executed) == 1
 
 
 def test_pod_assignment_success_and_conflict(monkeypatch) -> None:
