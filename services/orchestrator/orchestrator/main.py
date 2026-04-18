@@ -15,6 +15,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
+from shared_runtime.logging_config import configure_logging
+
 from . import milvus_store, neo4j_store, object_store, qdrant_store, storage
 from .agent_integrations import build_agent_integration_record
 from .agent_registry import (  # noqa: F401  (used by callers via _main)
@@ -53,6 +55,7 @@ from .runtime import (
 from .settings import load_settings
 from .tracing import configure_tracing, current_trace_id
 
+configure_logging("orchestrator")
 LOGGER = logging.getLogger(__name__)
 
 SETTINGS = load_settings()

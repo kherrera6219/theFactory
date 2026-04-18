@@ -275,9 +275,9 @@ services:
       LANGGRAPH_CHECKPOINTER_POSTGRES_URL: ${LANGGRAPH_CHECKPOINTER_POSTGRES_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}@postgres:5432/${POSTGRES_DB:-ulr}?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt}
       LANGGRAPH_CHECKPOINTER_SETUP: ${LANGGRAPH_CHECKPOINTER_SETUP:-false}
       LANGGRAPH_CHECKPOINT_NAMESPACE: ${LANGGRAPH_CHECKPOINT_NAMESPACE:-}
-      ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-admin-key}
+      ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-}
       INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
-      ORCHESTRATOR_READONLY_API_KEY: ${ORCHESTRATOR_READONLY_API_KEY:-viewer-key}
+      ORCHESTRATOR_READONLY_API_KEY: ${ORCHESTRATOR_READONLY_API_KEY:-}
       ORCHESTRATOR_API_KEYS: ${ORCHESTRATOR_API_KEYS:-}
       ORCHESTRATOR_PORT: 8001
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -312,7 +312,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -391,7 +391,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -421,7 +421,7 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
     volumes: *redis-client-certs
     ports:
-      - "${MCP_HOST_PORT:-8102}:8090"
+      - "${MCP_HOST_BIND:-0.0.0.0}:${MCP_HOST_PORT:-8102}:8090"
     depends_on:
       redis:
         condition: service_healthy
@@ -431,7 +431,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8090/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8090/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -466,7 +466,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -535,7 +535,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -579,7 +579,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -623,7 +623,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -667,7 +667,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -709,7 +709,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -758,7 +758,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -807,7 +807,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -856,7 +856,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8201/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8201/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s
@@ -899,7 +899,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8202/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8202/readyz', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s

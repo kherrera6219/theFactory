@@ -20,6 +20,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from pydantic import BaseModel, Field
 
 from shared_runtime.agent_keys import normalize_agent_id
+from shared_runtime.logging_config import configure_logging
 from shared_runtime.protocol import (
     ProtocolValidationError,
     load_event_schema,
@@ -74,7 +75,7 @@ OIDC_SCOPE_CLAIMS = tuple(
 )
 OIDC_ALLOWED_ALGORITHMS = [
     algorithm.strip()
-    for algorithm in os.getenv("OIDC_ALLOWED_ALGORITHMS", "RS256,HS256").split(",")
+    for algorithm in os.getenv("OIDC_ALLOWED_ALGORITHMS", "RS256").split(",")
     if algorithm.strip()
 ]
 OIDC_LEEWAY_SECONDS = max(0.0, float(os.getenv("OIDC_LEEWAY_SECONDS", "60")))
@@ -148,6 +149,7 @@ LIVE_STREAM_ERRORS = Counter(
     "Total errors observed in api-gateway live stream",
     ("reason",),
 )
+configure_logging("api-gateway")
 LOGGER = logging.getLogger(__name__)
 VALID_AUTH_MODES = {"api_key", "hybrid", "oidc"}
 if AUTH_MODE not in VALID_AUTH_MODES:
@@ -713,7 +715,8 @@ def _decode_oidc_token(token: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as exc:
-        LOGGER.warning("oidc bearer token rejected: %s", exc)
+        # Log the exception class only; the message may include token fragments.
+        LOGGER.warning("oidc bearer token rejected: %s", type(exc).__name__)
         raise HTTPException(status_code=401, detail="invalid bearer token") from exc
 
     if not isinstance(decoded, dict):

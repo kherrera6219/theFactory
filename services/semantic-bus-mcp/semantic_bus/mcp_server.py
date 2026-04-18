@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import inspect
 import json
 import logging
@@ -17,7 +18,11 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from shared_runtime.logging_config import configure_logging
+
 from .tracing import configure_tracing
+
+configure_logging("semantic-bus-mcp")
 
 try:
     import redis.asyncio as redis
@@ -407,7 +412,10 @@ async def send_message(
 
     if not _is_valid_agent_id(payload.sender):
         raise HTTPException(status_code=422, detail=f"invalid sender id: {payload.sender}")
-    if MCP_API_KEY and (x_api_key or "").strip() != MCP_API_KEY:
+    if MCP_API_KEY and not hmac.compare_digest(
+        (x_api_key or "").strip().encode("utf-8"),
+        MCP_API_KEY.encode("utf-8"),
+    ):
         LOGGER.warning("semantic-bus-mcp rejected request due to invalid api key")
         raise HTTPException(status_code=403, detail="invalid mcp api key")
     if (x_agent_id or "").strip() != payload.sender:
