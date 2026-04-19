@@ -3,11 +3,14 @@ import os
 from typing import Any
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import HTMLResponse
+
+from shared_runtime.logging_config import configure_logging
 
 from .tracing import configure_tracing
 
+configure_logging("dashboard")
 LOGGER = logging.getLogger(__name__)
 
 API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
@@ -19,6 +22,32 @@ configure_tracing(app, service_name="dashboard")
 @app.get("/health")
 def health() -> dict[str, bool | str]:
     return {"ok": True, "service": "dashboard"}
+
+
+@app.get("/readyz")
+async def readyz(response: Response) -> dict[str, Any]:
+    api_gateway_ok = False
+    api_gateway_error: str | None = None
+    try:
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            upstream = await client.get(f"{API_GATEWAY_URL}/readyz")
+        api_gateway_ok = upstream.status_code == 200
+        if not api_gateway_ok:
+            api_gateway_error = f"upstream status {upstream.status_code}"
+    except Exception as exc:
+        api_gateway_error = str(exc)
+        LOGGER.warning("dashboard readiness check failed: %s", exc)
+
+    ready = api_gateway_ok
+    if not ready:
+        response.status_code = 503
+    return {
+        "ready": ready,
+        "service": "dashboard",
+        "dependencies": {
+            "api_gateway": {"ok": api_gateway_ok, "error": api_gateway_error},
+        },
+    }
 
 
 @app.get("/snapshot")

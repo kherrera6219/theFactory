@@ -1,19 +1,20 @@
 # Stage 1: install Python dependencies into a virtual environment
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim-bookworm AS builder
 RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
 COPY services/dashboard/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: lean runtime image — no pip, no build artefacts
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 WORKDIR /app
 ENV PATH=/opt/venv/bin:$PATH
 COPY --from=builder /opt/venv /opt/venv
 COPY services/dashboard /app
+COPY shared_runtime /app/shared_runtime
 RUN useradd --system --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
 USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz')" || exit 1
 CMD ["uvicorn", "dashboard.main:app", "--host", "0.0.0.0", "--port", "8080"]

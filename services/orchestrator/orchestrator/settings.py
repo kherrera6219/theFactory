@@ -139,6 +139,18 @@ def load_settings() -> Settings:
     else:
         repo_root = Path(__file__).resolve().parents[3]
 
+    admin_key = os.getenv("ORCHESTRATOR_ADMIN_API_KEY", "")
+    readonly_key = os.getenv("ORCHESTRATOR_READONLY_API_KEY", "")
+    internal_key = os.getenv("INTERNAL_SERVICE_API_KEY", "")
+    extra_keys = os.getenv("ORCHESTRATOR_API_KEYS", "")
+    if os.getenv("ENVIRONMENT", "").strip().lower() == "production":
+        if not any([admin_key, readonly_key, internal_key, extra_keys.strip()]):
+            raise RuntimeError(
+                "ENVIRONMENT=production requires at least one of "
+                "ORCHESTRATOR_ADMIN_API_KEY, ORCHESTRATOR_READONLY_API_KEY, "
+                "INTERNAL_SERVICE_API_KEY, or ORCHESTRATOR_API_KEYS to be set"
+            )
+
     return Settings(
         redis_url=os.getenv("REDIS_URL", "redis://redis:6379/0"),
         postgres_url=os.getenv("POSTGRES_URL", "postgresql://postgres:postgres@postgres:5432/ulr"),
@@ -166,10 +178,10 @@ def load_settings() -> Settings:
             )
         ),
         topics_path=Path(os.getenv("TOPICS_PATH", str(repo_root / "protocol" / "topics.yaml"))),
-        admin_api_key=os.getenv("ORCHESTRATOR_ADMIN_API_KEY", ""),
-        internal_service_api_key=os.getenv("INTERNAL_SERVICE_API_KEY", ""),
-        readonly_api_key=os.getenv("ORCHESTRATOR_READONLY_API_KEY", ""),
-        extra_api_keys=os.getenv("ORCHESTRATOR_API_KEYS", ""),
+        admin_api_key=admin_key,
+        internal_service_api_key=internal_key,
+        readonly_api_key=readonly_key,
+        extra_api_keys=extra_keys,
         qdrant_enabled=_as_bool(os.getenv("QDRANT_ENABLED", "true"), True)
         and bool(os.getenv("QDRANT_URL", "http://qdrant:6333").strip()),
         qdrant_collection=os.getenv("QDRANT_COLLECTION", "mission_knowledge").strip()

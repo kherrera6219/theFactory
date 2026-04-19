@@ -342,22 +342,33 @@ def transition_mission_state(
     event_type: str,
 ) -> MissionRecord | None:
     with db_connect(settings) as conn:
-        with conn.cursor() as cur:
-            if expected_state is None:
-                cur.execute(TRANSITION_MISSION_STATE_SQL, (new_state.value, mission_id))
-            else:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                if expected_state is None:
+                    cur.execute(TRANSITION_MISSION_STATE_SQL, (new_state.value, mission_id))
+                else:
+                    cur.execute(
+                        TRANSITION_MISSION_STATE_IF_MATCH_SQL,
+                        (new_state.value, mission_id, expected_state.value),
+                    )
+                row = cur.fetchone()
+                if not row:
+                    return None
                 cur.execute(
-                    TRANSITION_MISSION_STATE_IF_MATCH_SQL,
-                    (new_state.value, mission_id, expected_state.value),
+                    """
+                    INSERT INTO mission_state_events
+                        (mission_id, previous_state, new_state, event_type)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (
+                        mission_id,
+                        expected_state.value if expected_state else None,
+                        new_state.value,
+                        event_type,
+                    ),
                 )
-            row = cur.fetchone()
 
-    if not row:
-        return None
-
-    record = row_to_mission(row)
-    insert_mission_event(settings, mission_id, expected_state, new_state, event_type)
-    return record
+    return row_to_mission(row)
 
 
 def count_missions(settings: Settings) -> int:

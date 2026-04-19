@@ -24,11 +24,15 @@ services:
       AUTH_MODE: oidc
       API_RATE_LIMIT_PER_MINUTE: 60
       OIDC_ENFORCE_OPERATOR_ROUTES: "true"
+      # Restrict algorithms to asymmetric only in prod. HS256 is never accepted
+      # when a JWKS is configured — blocks alg-confusion attacks.
+      OIDC_ALLOWED_ALGORITHMS: "RS256"
       # --- Phase 2 security features ---
       PII_GUARD_MODE: redact         # redact PII in mission prompts at intake
       PROMPT_GUARD_MODE: block       # block prompt injection attempts in prod
       # --- observability ---
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
       AUDIT_LOG_ENABLED: "true"
 
   orchestrator:
@@ -37,7 +41,7 @@ services:
       LANGGRAPH_ENABLED: "true"
       LANGGRAPH_CHECKPOINTER: postgres
       LANGGRAPH_CHECKPOINTER_SETUP: "true"
-      LANGGRAPH_FAIL_OPEN: "true"
+      LANGGRAPH_FAIL_OPEN: "false"
       # --- storage ---
       OBJECT_STORAGE_ENABLED: "true"
       NEO4J_ENABLED: "true"
@@ -46,7 +50,11 @@ services:
       PII_GUARD_MODE: redact
       # --- observability ---
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
+  # PROD: set MCP_HOST_BIND=127.0.0.1 in the prod .env so the MCP port is only
+  # reachable on the host loopback. Internal service-to-service traffic uses
+  # the Docker bridge network and does not rely on the published port.
   semantic-bus-mcp:
     environment:
       # Phase 3 — lower backpressure limit in prod to protect downstream consumers
@@ -54,26 +62,32 @@ services:
       # Longer dedup TTL in prod (10 minutes) — prevents replay across retries
       MESSAGE_DEDUP_TTL_SECONDS: "600"
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
+      ENVIRONMENT: production
 
   pod-a-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
   pod-b-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
   pod-c-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
   pod-d-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
   pod-a-dedicated-mgr-worker:
     environment:
@@ -82,6 +96,7 @@ services:
       CIRCUIT_FAILURE_THRESHOLD: "3"
       CIRCUIT_RECOVERY_SECONDS: "60"
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
   pod-b-dedicated-mgr-worker:
     environment:
@@ -89,6 +104,7 @@ services:
       CIRCUIT_FAILURE_THRESHOLD: "3"
       CIRCUIT_RECOVERY_SECONDS: "60"
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
   pod-c-dedicated-mgr-worker:
     environment:
@@ -96,6 +112,7 @@ services:
       CIRCUIT_FAILURE_THRESHOLD: "3"
       CIRCUIT_RECOVERY_SECONDS: "60"
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
   pod-d-dedicated-mgr-worker:
     environment:
@@ -103,17 +120,21 @@ services:
       CIRCUIT_FAILURE_THRESHOLD: "3"
       CIRCUIT_RECOVERY_SECONDS: "60"
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
   audit-worker:
     environment:
       AGENT_SERVICE_KEY_MODE: strict
       LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
   dashboard:
     environment:
       API_GATEWAY_URL: http://api-gateway:8000
       DASHBOARD_PORT: 8080
       HGR_RUNTIME_ENV: production
+      LOG_LEVEL: WARNING
+      LOG_FORMAT: json
 
   mission-control:
     environment:
