@@ -21,6 +21,7 @@ from fastapi.responses import Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from redis.exceptions import ResponseError
 
+from shared_runtime.logging_config import configure_logging
 from shared_runtime.protocol import (
     ProtocolValidationError,
     load_event_schema,
@@ -41,6 +42,7 @@ except ModuleNotFoundError:
     from orchestrator.agent_base import make_agent
     from orchestrator.agent_registry import normalize_language
 
+configure_logging("agent-runtime")
 LOGGER = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")

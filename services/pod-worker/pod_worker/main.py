@@ -24,6 +24,7 @@ from shared_runtime.agent_keys import (
     normalize_agent_id,
     service_api_key_for_agent,
 )
+from shared_runtime.logging_config import configure_logging
 from shared_runtime.protocol import (
     ProtocolValidationError,
     load_event_schema,
@@ -46,6 +47,7 @@ except ModuleNotFoundError:
     from orchestrator.agent_base import make_agent, make_specialist_for_language
     from orchestrator.agent_registry import normalize_language
 
+configure_logging("pod-worker")
 LOGGER = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -1135,6 +1137,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
         source_ref=f"mission://{mission_id}",
     )
     refined_ir_store_record: dict[str, Any] | None = None
+    refined_ir_status = "SUCCESS"
     if REFINED_IR_STORE_PATH:
         try:
             store_record = write_refined_ir_module(
@@ -1149,12 +1152,15 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
                 "sha256": store_record.sha256,
             }
         except Exception as exc:
+            LOGGER.exception("refined_ir write failed for mission %s", mission_id)
             refined_ir_store_record = {"error": str(exc)}
+            refined_ir_status = "ERROR"
     if refined_ir_store_record is not None:
         await _emit_audit_event(
             mission_id=mission_id,
             agent_id=resolved_agent_id,
             event_type="TOOL_REFINED_IR_WRITTEN",
+            status=refined_ir_status,
             object_type="refined_ir",
             object_id=mission_id,
             tool_name="refined_ir",
@@ -1425,6 +1431,7 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
         source_ref=f"mission://{mission_id}/partitions/{partition_id}",
     )
     refined_ir_store_record: dict[str, Any] | None = None
+    refined_ir_status = "SUCCESS"
     if REFINED_IR_STORE_PATH:
         try:
             store_record = write_refined_ir_module(
@@ -1439,12 +1446,19 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
                 "sha256": store_record.sha256,
             }
         except Exception as exc:
+            LOGGER.exception(
+                "refined_ir write failed for mission %s partition %s",
+                mission_id,
+                partition_id,
+            )
             refined_ir_store_record = {"error": str(exc)}
+            refined_ir_status = "ERROR"
     if refined_ir_store_record is not None:
         await _emit_audit_event(
             mission_id=mission_id,
             agent_id=resolved_agent_id,
             event_type="TOOL_REFINED_IR_WRITTEN",
+            status=refined_ir_status,
             object_type="refined_ir",
             object_id=f"{mission_id}:{partition_id}",
             tool_name="refined_ir",

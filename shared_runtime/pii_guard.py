@@ -32,15 +32,15 @@ class PiiMatch:
 _PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     # (pii_type, compiled_pattern, placeholder)
     ("SSN", re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[REDACTED-SSN]"),
-    ("CREDIT_CARD", re.compile(r"\b(?:4\d{12}(?:\d{3})?|5[1-5]\d{14}|3[47]\d{13}|6011\d{12})\b"), "[REDACTED-CC]"),
-    ("EMAIL", re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"), "[REDACTED-EMAIL]"),
-    ("PHONE_US", re.compile(r"\b(?:\+1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"), "[REDACTED-PHONE]"),
+    ("CREDIT_CARD", re.compile(r"\b(?:4\d{12}(?:\d{3})?|5[1-5]\d{14}|3[47]\d{13}|6011\d{12})\b"), "[REDACTED-CC]"),  # noqa: E501
+    ("EMAIL", re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"), "[REDACTED-EMAIL]"),  # noqa: E501
+    ("PHONE_US", re.compile(r"\b(?:\+1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"), "[REDACTED-PHONE]"),  # noqa: E501
     ("PHONE_INTL", re.compile(r"\+\d{1,3}[-.\s]?\d{2,4}[-.\s]?\d{4,10}\b"), "[REDACTED-PHONE]"),
-    ("JWT_TOKEN", re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\b"), "[REDACTED-JWT]"),
+    ("JWT_TOKEN", re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\b"), "[REDACTED-JWT]"),  # noqa: E501
     ("API_KEY_HEX", re.compile(r"\b[a-f0-9]{32,64}\b"), "[REDACTED-KEY]"),
     ("API_KEY_B64", re.compile(r"\b[A-Za-z0-9+/]{40,}={0,2}\b"), "[REDACTED-KEY]"),
-    ("PASSWORD_KV", re.compile(r"(?i)(?:password|passwd|secret|token|api[_-]?key)\s*[=:]\s*\S+"), "[REDACTED-CREDENTIAL]"),
-    ("IP_ADDRESS", re.compile(r"\b(?:25[0-5]|2[0-4]\d|1\d{2}|\d{1,2})(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|\d{1,2})){3}\b"), "[REDACTED-IP]"),
+    ("PASSWORD_KV", re.compile(r"(?i)(?:password|passwd|secret|token|api[_-]?key)\s*[=:]\s*\S+"), "[REDACTED-CREDENTIAL]"),  # noqa: E501
+    ("IP_ADDRESS", re.compile(r"\b(?:25[0-5]|2[0-4]\d|1\d{2}|\d{1,2})(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|\d{1,2})){3}\b"), "[REDACTED-IP]"),  # noqa: E501
 ]
 
 # Fields that should NEVER be forwarded to LLM calls regardless of content

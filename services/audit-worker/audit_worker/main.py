@@ -23,6 +23,7 @@ from shared_runtime.agent_keys import (
     normalize_agent_id,
     service_api_key_for_agent,
 )
+from shared_runtime.logging_config import configure_logging
 from shared_runtime.protocol import (
     ProtocolValidationError,
     load_event_schema,
@@ -33,6 +34,7 @@ from shared_runtime.protocol import (
 
 from .tracing import configure_tracing
 
+configure_logging("audit-worker")
 LOGGER = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
