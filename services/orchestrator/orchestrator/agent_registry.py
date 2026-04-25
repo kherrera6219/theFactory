@@ -437,7 +437,7 @@ AGENT_REGISTRY: Final[tuple[AgentDefinition, ...]] = (
         name="Dependency Absorption Agent",
         tier="Support Ring",
         pod="Support Ring",
-        role="Dependency absorption analysis, intent extraction, equivalence planning, and SBOM delta",
+        role="Dependency absorption: intent extraction, equivalence planning, and SBOM delta",
         category="support",
     ),
     AgentDefinition(
@@ -447,7 +447,7 @@ AGENT_REGISTRY: Final[tuple[AgentDefinition, ...]] = (
         name="Database and Test Data Agent",
         tier="Support Ring",
         pod="Support Ring",
-        role="Ephemeral test environment provisioning, database schema setup, and synthetic test data generation",
+        role="Ephemeral test environment provisioning, schema setup, and synthetic data generation",
         category="support",
     ),
     AgentDefinition(
