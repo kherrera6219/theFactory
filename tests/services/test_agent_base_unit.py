@@ -143,7 +143,7 @@ class TestMakeAgentFactory:
         agent = make_agent("agent-01-pm")
         assert isinstance(agent, InterfaceAgent)
 
-    def test_all_35_agents_resolvable(self) -> None:
+    def test_all_41_agents_resolvable(self) -> None:
         """Every entry in AGENT_REGISTRY must resolve without error."""
         for definition in AGENT_REGISTRY:
             agent = make_agent(definition.agent_id)
