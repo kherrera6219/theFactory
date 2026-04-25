@@ -1,10 +1,13 @@
 import type {
   BuilderPreviewResponse,
+  DataClassification,
+  DepthMode,
   GatewayHealth,
   MissionChainTrace,
   LiveStateStreamEvent,
   MissionEvent,
   MissionRecord,
+  MissionType,
   OperationsAgentIntegrationsSnapshot,
   OperationsAgentsSnapshot,
   OperationsAlertRecord,
@@ -13,6 +16,7 @@ import type {
   OperationsLogicNodeRecord,
   OperationsProjectRecord,
   OperationsSummary,
+  OutputMode,
   PodAssignmentRecord,
   RepoReviewResponse,
   ReviewApprovalReceipt,
@@ -177,6 +181,10 @@ export async function getMissionChainTrace(missionId: string): Promise<MissionCh
 export async function createMission(payload: {
   prompt: string;
   requested_target_language: string | null;
+  mission_type?: MissionType | null;
+  depth_mode?: DepthMode | null;
+  output_mode?: OutputMode | null;
+  data_classification?: DataClassification | null;
   source_code?: string;
   metadata: Record<string, unknown>;
 }): Promise<MissionRecord> {
