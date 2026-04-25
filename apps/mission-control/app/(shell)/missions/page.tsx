@@ -15,11 +15,57 @@ import {
   isTerminalState,
   normalizeState,
 } from "../../lib/format";
-import type { MissionEvent, MissionRecord } from "../../lib/types";
+import type {
+  DataClassification,
+  DepthMode,
+  MissionEvent,
+  MissionRecord,
+  MissionType,
+  OutputMode,
+} from "../../lib/types";
 import { sanitizeUserText } from "../../lib/security";
 
 const TARGET_LANGUAGES = ["python", "typescript", "go", "rust", "java", "csharp"] as const;
 type TargetLanguage = (typeof TARGET_LANGUAGES)[number];
+
+const MISSION_TYPES: { value: MissionType; label: string }[] = [
+  { value: "BUILD_NEW", label: "Build a new application from scratch" },
+  { value: "IMPORT_MODERNIZE", label: "Import and modernize an existing repo" },
+  { value: "PORT", label: "Port to another OS, platform, or language" },
+  { value: "DEBUG_REPAIR", label: "Debug or repair a repo" },
+  { value: "SECURITY_HARDEN", label: "Security harden a repo" },
+  { value: "REDUCE_DEPENDENCIES", label: "Reduce dependencies and code bloat" },
+  { value: "RUN_QC", label: "Run and QC a built or patched app" },
+  { value: "ARCHITECTURE_DOCS", label: "Generate architecture and documentation only" },
+  { value: "ANALYZE_ONLY", label: "Analyze only — no code changes" },
+  { value: "SELF_ANALYZE", label: "Self-analyze theFactory itself" },
+];
+
+const DEPTH_MODES: { value: DepthMode; label: string }[] = [
+  { value: "SPRINT", label: "Sprint — fast prototype / first pass" },
+  { value: "STANDARD", label: "Standard — normal engineering workflow" },
+  { value: "PRODUCTION", label: "Production — full docs, tests, security, runtime QC" },
+  { value: "REGULATED", label: "Regulated — compliance gates and stronger evidence" },
+  { value: "AUTONOMOUS_LONG_RUN", label: "Autonomous Long Run — multi-hour work with checkpoints" },
+];
+
+const OUTPUT_MODES: { value: OutputMode; label: string }[] = [
+  { value: "ANALYZE_ONLY", label: "Analyze only — reports, no changes" },
+  { value: "PLAN_ONLY", label: "Plan only — charters and plans" },
+  { value: "PATCH_PROPOSAL", label: "Patch proposal — diffs without applying" },
+  { value: "APPLY_PATCH", label: "Apply patch — apply approved changes" },
+  { value: "FULL_BUILD", label: "Full build — apply, test, document, package" },
+  { value: "DEPENDENCY_REDUCTION", label: "Dependency reduction only" },
+  { value: "RUN_QC", label: "Run / QC only — launch and validate existing app" },
+  { value: "FULL_TRANSFORMATION", label: "Full transformation — multi-phase port / modernization" },
+];
+
+const DATA_CLASSIFICATIONS: { value: DataClassification; label: string }[] = [
+  { value: "TIER_0_PUBLIC", label: "Tier 0 — Public (open-source or demo repo)" },
+  { value: "TIER_1_INTERNAL", label: "Tier 1 — Internal (proprietary, no regulated data)" },
+  { value: "TIER_2_SENSITIVE", label: "Tier 2 — Sensitive (credentials patterns, PII, trade secrets)" },
+  { value: "TIER_3_REGULATED", label: "Tier 3 — Regulated (HIPAA, PCI, CUI, ITAR)" },
+];
 
 const MISSION_LIST_LIMIT = 20;
 const POLL_INTERVAL_MS = 2500;
@@ -37,6 +83,10 @@ function upsertMission(records: MissionRecord[], candidate: MissionRecord): Miss
 export default function MissionsPage() {
   const [prompt, setPrompt] = useState("");
   const [targetLanguage, setTargetLanguage] = useState<TargetLanguage>("python");
+  const [missionType, setMissionType] = useState<MissionType>("BUILD_NEW");
+  const [depthMode, setDepthMode] = useState<DepthMode>("STANDARD");
+  const [outputMode, setOutputMode] = useState<OutputMode>("FULL_BUILD");
+  const [dataClassification, setDataClassification] = useState<DataClassification>("TIER_1_INTERNAL");
   const [mission, setMission] = useState<MissionRecord | null>(null);
   const [events, setEvents] = useState<MissionEvent[]>([]);
   const [recentMissions, setRecentMissions] = useState<MissionRecord[]>([]);
@@ -127,6 +177,10 @@ export default function MissionsPage() {
       const created = await createMission({
         prompt: trimmedPrompt,
         requested_target_language: targetLanguage,
+        mission_type: missionType,
+        depth_mode: depthMode,
+        output_mode: outputMode,
+        data_classification: dataClassification,
         metadata: { source: "mission-control-ui" },
       });
       setMission(created);
@@ -230,6 +284,76 @@ export default function MissionsPage() {
               ? "Prompt is too short. Add enough context before submission."
               : "Tip: include functional boundaries and quality expectations."}
           </p>
+
+          <label htmlFor="missionType">Mission type</label>
+          <p id="missionTypeHelp" className="help-text">
+            What kind of work should theFactory perform?
+          </p>
+          <select
+            id="missionType"
+            value={missionType}
+            aria-describedby="missionTypeHelp"
+            onChange={(eventChange) => setMissionType(eventChange.target.value as MissionType)}
+          >
+            {MISSION_TYPES.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+
+          <label htmlFor="depthMode">Depth mode</label>
+          <p id="depthModeHelp" className="help-text">
+            How thoroughly should this mission be executed?
+          </p>
+          <select
+            id="depthMode"
+            value={depthMode}
+            aria-describedby="depthModeHelp"
+            onChange={(eventChange) => setDepthMode(eventChange.target.value as DepthMode)}
+          >
+            {DEPTH_MODES.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+
+          <label htmlFor="outputMode">Output mode</label>
+          <p id="outputModeHelp" className="help-text">
+            What is this mission permitted to produce or apply?
+          </p>
+          <select
+            id="outputMode"
+            value={outputMode}
+            aria-describedby="outputModeHelp"
+            onChange={(eventChange) => setOutputMode(eventChange.target.value as OutputMode)}
+          >
+            {OUTPUT_MODES.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+
+          <label htmlFor="dataClassification">Data classification</label>
+          <p id="dataClassHelp" className="help-text">
+            Tier 2+ restricts LLM routing to local models only.
+          </p>
+          <select
+            id="dataClassification"
+            value={dataClassification}
+            aria-describedby="dataClassHelp"
+            onChange={(eventChange) =>
+              setDataClassification(eventChange.target.value as DataClassification)
+            }
+          >
+            {DATA_CLASSIFICATIONS.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
 
           <label htmlFor="targetLanguage">Target language</label>
           <select
@@ -370,6 +494,30 @@ export default function MissionsPage() {
                 <dt>Target</dt>
                 <dd>{mission.requested_target_language ?? "auto"}</dd>
               </div>
+              {mission.mission_type && (
+                <div>
+                  <dt>Mission Type</dt>
+                  <dd>{mission.mission_type}</dd>
+                </div>
+              )}
+              {mission.depth_mode && (
+                <div>
+                  <dt>Depth</dt>
+                  <dd>{mission.depth_mode}</dd>
+                </div>
+              )}
+              {mission.output_mode && (
+                <div>
+                  <dt>Output</dt>
+                  <dd>{mission.output_mode}</dd>
+                </div>
+              )}
+              {mission.data_classification && (
+                <div>
+                  <dt>Classification</dt>
+                  <dd>{mission.data_classification}</dd>
+                </div>
+              )}
               <div>
                 <dt>Created</dt>
                 <dd>{formatDateTime(mission.created_at)}</dd>

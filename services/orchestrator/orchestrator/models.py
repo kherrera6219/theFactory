@@ -11,6 +11,45 @@ from pydantic import BaseModel, Field
 # ==============================================================================
 
 
+class MissionType(str, Enum):
+    build_new = "BUILD_NEW"
+    import_modernize = "IMPORT_MODERNIZE"
+    port = "PORT"
+    debug_repair = "DEBUG_REPAIR"
+    security_harden = "SECURITY_HARDEN"
+    reduce_dependencies = "REDUCE_DEPENDENCIES"
+    run_qc = "RUN_QC"
+    architecture_docs = "ARCHITECTURE_DOCS"
+    analyze_only = "ANALYZE_ONLY"
+    self_analyze = "SELF_ANALYZE"
+
+
+class DepthMode(str, Enum):
+    sprint = "SPRINT"
+    standard = "STANDARD"
+    production = "PRODUCTION"
+    regulated = "REGULATED"
+    autonomous_long_run = "AUTONOMOUS_LONG_RUN"
+
+
+class OutputMode(str, Enum):
+    analyze_only = "ANALYZE_ONLY"
+    plan_only = "PLAN_ONLY"
+    patch_proposal = "PATCH_PROPOSAL"
+    apply_patch = "APPLY_PATCH"
+    full_build = "FULL_BUILD"
+    dependency_reduction = "DEPENDENCY_REDUCTION"
+    run_qc = "RUN_QC"
+    full_transformation = "FULL_TRANSFORMATION"
+
+
+class DataClassification(str, Enum):
+    tier_0_public = "TIER_0_PUBLIC"
+    tier_1_internal = "TIER_1_INTERNAL"
+    tier_2_sensitive = "TIER_2_SENSITIVE"
+    tier_3_regulated = "TIER_3_REGULATED"
+
+
 class MissionState(str, Enum):
     intake = "INTAKE"
     queued = "QUEUED"
@@ -126,6 +165,10 @@ class MissionRecord(BaseModel):
     mission_id: str
     prompt: str
     requested_target_language: str | None = None
+    mission_type: MissionType | None = None
+    depth_mode: DepthMode | None = None
+    output_mode: OutputMode | None = None
+    data_classification: DataClassification | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     project_id: str | None = None
     state: MissionState
@@ -149,6 +192,10 @@ class MissionCreate(BaseModel):
     mission_id: str = Field(min_length=1)
     prompt: str = Field(min_length=3)
     requested_target_language: str | None = None
+    mission_type: MissionType | None = None
+    depth_mode: DepthMode | None = None
+    output_mode: OutputMode | None = None
+    data_classification: DataClassification | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     project_id: str | None = None
     created_at: datetime | None = None

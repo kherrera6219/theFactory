@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mission_charter.v1.json",
+  "title": "MissionCharterV1",
+  "description": "Formal intake contract for a theFactory mission. Produced by the PM Agent during Phase 1 (PM_INTAKE) of the Mission Flow V2 lifecycle.",
+  "type": "object",
+  "required": [
+    "schema",
+    "charter_id",
+    "mission_id",
+    "mission_type",
+    "depth_mode",
+    "output_mode",
+    "data_classification",
+    "target_outcome",
+    "risk_level",
+    "human_approval_required",
+    "created_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "mission_charter.v1",
+      "description": "Schema identifier and version. Must be exactly 'mission_charter.v1'."
+    },
+    "charter_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique identifier for this charter instance (UUID recommended)."
+    },
+    "mission_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The mission this charter governs."
+    },
+    "mission_type": {
+      "type": "string",
+      "enum": [
+        "BUILD_NEW",
+        "IMPORT_MODERNIZE",
+        "PORT",
+        "DEBUG_REPAIR",
+        "SECURITY_HARDEN",
+        "REDUCE_DEPENDENCIES",
+        "RUN_QC",
+        "ARCHITECTURE_DOCS",
+        "ANALYZE_ONLY",
+        "SELF_ANALYZE"
+      ],
+      "description": "The class of work this mission represents."
+    },
+    "depth_mode": {
+      "type": "string",
+      "enum": [
+        "SPRINT",
+        "STANDARD",
+        "PRODUCTION",
+        "REGULATED",
+        "AUTONOMOUS_LONG_RUN"
+      ],
+      "description": "How thoroughly this mission should be executed."
+    },
+    "output_mode": {
+      "type": "string",
+      "enum": [
+        "ANALYZE_ONLY",
+        "PLAN_ONLY",
+        "PATCH_PROPOSAL",
+        "APPLY_PATCH",
+        "FULL_BUILD",
+        "DEPENDENCY_REDUCTION",
+        "RUN_QC",
+        "FULL_TRANSFORMATION"
+      ],
+      "description": "What the mission is permitted to produce or apply."
+    },
+    "data_classification": {
+      "type": "string",
+      "enum": [
+        "TIER_0_PUBLIC",
+        "TIER_1_INTERNAL",
+        "TIER_2_SENSITIVE",
+        "TIER_3_REGULATED"
+      ],
+      "description": "Sensitivity classification of the target repo / source code. Governs which LLM providers may be used."
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "github_repo",
+        "local_directory",
+        "zip_bundle",
+        "url",
+        "direct_input"
+      ],
+      "description": "How the target source material is being provided."
+    },
+    "target_outcome": {
+      "type": "string",
+      "minLength": 3,
+      "description": "Short human-readable statement of what success looks like."
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "enterprise"],
+      "description": "Operator-assessed risk level for this mission."
+    },
+    "required_agents": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Agent IDs that must be activated for this mission.",
+      "examples": [["AGENT-01-PM", "AGENT-02-CEO", "AGENT-05-SECURITY"]]
+    },
+    "provider_routing_policy": {
+      "type": "string",
+      "enum": [
+        "any",
+        "local_preferred",
+        "local_only",
+        "anthropic_preferred",
+        "openai_preferred"
+      ],
+      "default": "any",
+      "description": "LLM provider routing constraint derived from data_classification."
+    },
+    "human_approval_required": {
+      "type": "boolean",
+      "description": "Whether any human approval gate must be passed before code changes are applied."
+    },
+    "approval_gates_required": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "mission_charter",
+          "application_intelligence_map",
+          "dependency_absorption_plan",
+          "architecture_plan",
+          "test_environment_plan",
+          "patch_plan",
+          "code_application",
+          "runtime_qc",
+          "release_package"
+        ]
+      },
+      "description": "Which approval gates are required for this mission's depth_mode."
+    },
+    "expected_artifacts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Artifact types this mission is expected to produce.",
+      "examples": [
+        [
+          "application_intelligence_map",
+          "dependency_absorption_plan",
+          "patch_plan",
+          "runtime_qc_report",
+          "audit_evidence_bundle"
+        ]
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this charter was created."
+    },
+    "approved_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this charter was approved by an operator. Null until approved."
+    },
+    "approved_by": {
+      "type": ["string", "null"],
+      "description": "Operator identifier who approved this charter. Null until approved."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional operator notes captured during charter intake."
+    }
+  }
+}
