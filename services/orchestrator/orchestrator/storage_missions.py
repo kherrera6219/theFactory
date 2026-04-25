@@ -14,7 +14,7 @@ from .agent_scaling import (
 from .agent_scaling import (
     record_partition_result as embed_partition_result,
 )
-from .models import MissionEvent, MissionRecord, MissionState
+from .models import DataClassification, DepthMode, MissionEvent, MissionRecord, MissionState, MissionType, OutputMode
 from .project_identity import resolve_project_id, with_project_identity
 from .settings import Settings
 from .storage_core import _json_to_dict, _to_iso, db_connect, psycopg
@@ -132,16 +132,60 @@ LOCKED_UPDATE_MISSION_METADATA_SQL = """
 """
 
 
+def _charter_fields_from_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Extract Phase 1 charter enum fields stored in metadata_json."""
+    out: dict[str, Any] = {}
+    raw_type = metadata.get("__mission_type__")
+    raw_depth = metadata.get("__depth_mode__")
+    raw_output = metadata.get("__output_mode__")
+    raw_class = metadata.get("__data_classification__")
+    try:
+        out["mission_type"] = MissionType(raw_type) if raw_type else None
+    except ValueError:
+        out["mission_type"] = None
+    try:
+        out["depth_mode"] = DepthMode(raw_depth) if raw_depth else None
+    except ValueError:
+        out["depth_mode"] = None
+    try:
+        out["output_mode"] = OutputMode(raw_output) if raw_output else None
+    except ValueError:
+        out["output_mode"] = None
+    try:
+        out["data_classification"] = DataClassification(raw_class) if raw_class else None
+    except ValueError:
+        out["data_classification"] = None
+    return out
+
+
+def _embed_charter_fields(metadata: dict[str, Any], record: MissionRecord) -> dict[str, Any]:
+    """Write Phase 1 charter enum fields into metadata_json for persistence."""
+    if record.mission_type is not None:
+        metadata["__mission_type__"] = record.mission_type.value
+    if record.depth_mode is not None:
+        metadata["__depth_mode__"] = record.depth_mode.value
+    if record.output_mode is not None:
+        metadata["__output_mode__"] = record.output_mode.value
+    if record.data_classification is not None:
+        metadata["__data_classification__"] = record.data_classification.value
+    return metadata
+
+
 def row_to_mission(row: Any) -> MissionRecord:
     metadata = _json_to_dict(row[3])
     has_project_id = len(row) >= 7
     project_id_index = 4 if has_project_id else None
     state_index = 5 if has_project_id else 4
     created_at_index = 6 if has_project_id else 5
+    charter = _charter_fields_from_metadata(metadata)
     return MissionRecord(
         mission_id=row[0],
         prompt=row[1],
         requested_target_language=row[2],
+        mission_type=charter["mission_type"],
+        depth_mode=charter["depth_mode"],
+        output_mode=charter["output_mode"],
+        data_classification=charter["data_classification"],
         metadata=metadata,
         project_id=str(
             (row[project_id_index] if project_id_index is not None else None)
@@ -154,6 +198,7 @@ def row_to_mission(row: Any) -> MissionRecord:
 
 def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: str | None) -> None:
     metadata = with_project_identity(record.metadata, mission_id=record.mission_id)
+    metadata = _embed_charter_fields(metadata, record)
     project_id = str(
         record.project_id or resolve_project_id(metadata, mission_id=record.mission_id)
     )

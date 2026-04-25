@@ -1,8 +1,47 @@
+export type MissionType =
+  | "BUILD_NEW"
+  | "IMPORT_MODERNIZE"
+  | "PORT"
+  | "DEBUG_REPAIR"
+  | "SECURITY_HARDEN"
+  | "REDUCE_DEPENDENCIES"
+  | "RUN_QC"
+  | "ARCHITECTURE_DOCS"
+  | "ANALYZE_ONLY"
+  | "SELF_ANALYZE";
+
+export type DepthMode =
+  | "SPRINT"
+  | "STANDARD"
+  | "PRODUCTION"
+  | "REGULATED"
+  | "AUTONOMOUS_LONG_RUN";
+
+export type OutputMode =
+  | "ANALYZE_ONLY"
+  | "PLAN_ONLY"
+  | "PATCH_PROPOSAL"
+  | "APPLY_PATCH"
+  | "FULL_BUILD"
+  | "DEPENDENCY_REDUCTION"
+  | "RUN_QC"
+  | "FULL_TRANSFORMATION";
+
+export type DataClassification =
+  | "TIER_0_PUBLIC"
+  | "TIER_1_INTERNAL"
+  | "TIER_2_SENSITIVE"
+  | "TIER_3_REGULATED";
+
 export type MissionRecord = {
   mission_id: string;
   prompt?: string;
   state: string;
   requested_target_language: string | null;
+  mission_type?: MissionType | null;
+  depth_mode?: DepthMode | null;
+  output_mode?: OutputMode | null;
+  data_classification?: DataClassification | null;
   metadata?: Record<string, unknown>;
   project_id?: string | null;
   created_at: string;

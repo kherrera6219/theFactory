@@ -430,6 +430,7 @@ AGENT_REGISTRY: Final[tuple[AgentDefinition, ...]] = (
         category="specialist",
         specialties=("ocaml",),
     ),
+    # Factory Capability Expansion — Phase 1
     AgentDefinition(
         index=39,
         agent_id="AGENT-39-DEPABS",
