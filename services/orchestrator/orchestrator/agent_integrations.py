@@ -207,7 +207,11 @@ def _topic_bindings_for_agent(agent: AgentDefinition) -> dict[str, list[str]]:
         elif agent.short_code == "DEPABS":
             consume.update({"artifact.rir.submitted", "mission.state.running"})
             publish.update(
-                {"dependency.absorption.plan", "dependency.absorption.report", "dependency.sbom.delta"}
+                {
+                    "dependency.absorption.plan",
+                    "dependency.absorption.report",
+                    "dependency.sbom.delta",
+                }
             )
         elif agent.short_code == "TESTDATA":
             consume.update(_MISSION_STATE_TOPICS)
@@ -289,10 +293,8 @@ def _store_bindings_for_agent(agent: AgentDefinition) -> list[dict[str, Any]]:
             }
         )
 
-    if agent.short_code in {"VC", "DEPLOY", "TESTER", "DEPABS", "TESTDATA", "RQCA"} or agent.category in {
-        "pod_manager",
-        "pod_audit",
-    }:
+    new_artifact_agents = {"VC", "DEPLOY", "TESTER", "DEPABS", "TESTDATA", "RQCA"}
+    if agent.short_code in new_artifact_agents or agent.category in {"pod_manager", "pod_audit"}:
         stores.append(
             {
                 "name": "object_storage",

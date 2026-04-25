@@ -256,7 +256,7 @@ _SHORT_CODE_SCOPE: dict[str, str] = {
     "HW": "Owns runtime hardware tuning and host-level performance mapping strategy.",
     "TESTER": "Owns integration evidence and release-blocking failure discovery.",
     "DEPLOY": "Owns packaging, delivery readiness, and post-release stability gates.",
-    "DEPABS": "Owns dependency absorption decisions, equivalence evidence, and SBOM delta integrity.",
+    "DEPABS": "Owns absorption decisions, equivalence evidence, and SBOM delta integrity.",
     "TESTDATA": "Owns per-mission ephemeral environment lifecycle and test data correctness.",
     "RQCA": "Owns runtime quality control verdict authority and sandbox execution safety.",
 }
@@ -381,7 +381,7 @@ _SHORT_CODE_METHODS: dict[str, list[str]] = {
     ],
     "TESTDATA": [
         "Provision ephemeral per-mission database environments from the migration framework.",
-        "Generate synthetic, schema-valid test data that covers boundary conditions and edge cases.",
+        "Generate synthetic, schema-valid test data covering boundary conditions and edge cases.",
         "Tear down all test environments and purge data after mission completion or failure.",
         "Publish environment-ready and environment-torn-down events to unblock downstream agents.",
     ],

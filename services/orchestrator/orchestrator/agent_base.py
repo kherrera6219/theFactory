@@ -7,7 +7,8 @@ lifecycle methods, and a set of typed subclasses for each agent category:
   BaseAgent
   ├── InterfaceAgent        (PM)
   ├── ExecutiveAgent        (CEO)
-  ├── SupportAgent          (BROKER, ACCOUNTANT, SECURITY, IS, VC, COMPLIANCE, HW, TESTER, DEPLOY)
+  ├── SupportAgent          (BROKER, ACCOUNTANT, SECURITY, IS, VC, COMPLIANCE,
+  │                          HW, TESTER, DEPLOY, DEPABS, TESTDATA, RQCA)
   ├── PodManagerAgent       (PODA-MGR, PODB-MGR, PODC-MGR, PODD-MGR)
   ├── PodAuditAgent         (PODA-AUDIT, PODB-AUDIT, PODC-AUDIT, PODD-AUDIT)
   └── SpecialistAgent
@@ -147,7 +148,7 @@ class AgentReport:
 
 class BaseAgent(abc.ABC):
     """
-    Abstract base class for all 35 theFactory agents.
+    Abstract base class for all 41 theFactory agents.
 
     Subclasses must implement execute(), validate(), and report(). The
     definition property exposes the immutable AgentDefinition config record.
@@ -394,7 +395,8 @@ class ExecutiveAgent(BaseAgent):
 class SupportAgent(BaseAgent):
     """Support ring agents.
 
-    Covers: BROKER, ACCOUNTANT, SECURITY, IS, VC, COMPLIANCE, HW, TESTER, DEPLOY.
+    Covers: BROKER, ACCOUNTANT, SECURITY, IS, VC, COMPLIANCE, HW, TESTER, DEPLOY,
+    DEPABS, TESTDATA, RQCA.
     """
 
     def execute(self, mission_id: str, payload: dict[str, Any]) -> AgentResult:
