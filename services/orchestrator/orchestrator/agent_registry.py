@@ -430,6 +430,36 @@ AGENT_REGISTRY: Final[tuple[AgentDefinition, ...]] = (
         category="specialist",
         specialties=("ocaml",),
     ),
+    AgentDefinition(
+        index=39,
+        agent_id="AGENT-39-DEPABS",
+        short_code="DEPABS",
+        name="Dependency Absorption Agent",
+        tier="Support Ring",
+        pod="Support Ring",
+        role="Dependency absorption: intent extraction, equivalence planning, and SBOM delta",
+        category="support",
+    ),
+    AgentDefinition(
+        index=40,
+        agent_id="AGENT-40-TESTDATA",
+        short_code="TESTDATA",
+        name="Database and Test Data Agent",
+        tier="Support Ring",
+        pod="Support Ring",
+        role="Ephemeral test environment provisioning, schema setup, and synthetic data generation",
+        category="support",
+    ),
+    AgentDefinition(
+        index=41,
+        agent_id="AGENT-41-RQCA",
+        short_code="RQCA",
+        name="Runtime QC Agent",
+        tier="Support Ring",
+        pod="Support Ring",
+        role="AI-driven browser and CLI runtime quality control in ephemeral sandbox environments",
+        category="support",
+    ),
 )
 
 

@@ -1,0 +1,320 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://thefactory.dev/schemas/mission_charter.v1.json",
+  "title": "Mission Charter",
+  "description": "Structured mission contract produced by PM Agent (AGENT-01-PM) from natural-language operator input. Consumed by CEO Agent (AGENT-02-CEO) to decompose and assign pod workloads.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "charter_id",
+    "mission_id",
+    "created_at",
+    "requested_by",
+    "mission_mode",
+    "depth_mode",
+    "output_mode",
+    "target",
+    "objective",
+    "success_criteria",
+    "definition_of_done"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver-style schema version stamp; producers set this on every emitted instance.",
+      "examples": ["1.0.0"]
+    },
+    "charter_id": {
+      "type": "string",
+      "description": "Unique identifier for this charter instance.",
+      "pattern": "^charter-[a-z0-9\\-]+$",
+      "examples": ["charter-01j9abcd1234"]
+    },
+    "mission_id": {
+      "type": "string",
+      "description": "Stable mission identifier this charter belongs to.",
+      "pattern": "^mission-[a-z0-9\\-]+$",
+      "examples": ["mission-01j9abcd5678"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when the charter was created."
+    },
+    "requested_by": {
+      "type": "string",
+      "description": "Operator or system identity that initiated the mission.",
+      "examples": ["operator:kevin", "system:ci"]
+    },
+    "mission_mode": {
+      "type": "integer",
+      "description": "Numbered mission mode selected by the operator (1–10).",
+      "minimum": 1,
+      "maximum": 10,
+      "examples": [1, 5, 7]
+    },
+    "mission_mode_label": {
+      "type": "string",
+      "description": "Human-readable label for the selected mission mode.",
+      "examples": [
+        "New feature development",
+        "Dependency absorption",
+        "Application porting"
+      ]
+    },
+    "depth_mode": {
+      "type": "string",
+      "description": "Controls the depth of analysis and artifact generation.",
+      "enum": [
+        "quick_scan",
+        "standard",
+        "deep_audit",
+        "autonomous_long_run"
+      ]
+    },
+    "output_mode": {
+      "type": "string",
+      "description": "Controls the form of mission outputs delivered to the operator.",
+      "enum": [
+        "report_only",
+        "patch_files",
+        "full_branch",
+        "pull_request"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "description": "Describes the codebase or artifact the mission acts on.",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["local_repo", "github_repo", "archive_upload", "url", "self"],
+          "description": "How the target is supplied."
+        },
+        "path": {
+          "type": "string",
+          "description": "Local filesystem path when type is local_repo."
+        },
+        "repo_url": {
+          "type": "string",
+          "description": "Remote repository URL when type is github_repo."
+        },
+        "branch": {
+          "type": "string",
+          "description": "Branch to operate on when type is github_repo or local_repo."
+        },
+        "primary_language": {
+          "type": "string",
+          "description": "Primary language of the target, normalized to registry form.",
+          "examples": ["python", "javascript", "rust"]
+        },
+        "detected_languages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "All languages detected in the target repository."
+        },
+        "aim_artifact_id": {
+          "type": "string",
+          "description": "ID of the Application Intelligence Map artifact generated for this target, if available."
+        }
+      },
+      "additionalProperties": false
+    },
+    "objective": {
+      "type": "string",
+      "description": "PM Agent's structured restatement of the operator's natural-language goal.",
+      "minLength": 10,
+      "examples": [
+        "Add JWT-authenticated user sessions to the FastAPI service and cover them with integration tests."
+      ]
+    },
+    "raw_input": {
+      "type": "string",
+      "description": "Original natural-language input from the operator, preserved verbatim for traceability."
+    },
+    "scope": {
+      "type": "object",
+      "description": "Explicit scope boundaries agreed between PM Agent and the operator.",
+      "properties": {
+        "in_scope": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Capabilities, files, or concerns explicitly included."
+        },
+        "out_of_scope": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Items explicitly excluded from this mission."
+        },
+        "assumptions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Assumptions PM Agent made when clarification was not available."
+        }
+      },
+      "additionalProperties": false
+    },
+    "success_criteria": {
+      "type": "array",
+      "description": "Measurable conditions that must be true for the mission to be considered successful.",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "examples": [
+        ["All existing tests pass", "New integration tests cover the happy path and token expiry"]
+      ]
+    },
+    "definition_of_done": {
+      "type": "object",
+      "description": "Structured DoD derived from the selected depth_mode.",
+      "required": ["depth_mode", "gates"],
+      "properties": {
+        "depth_mode": {
+          "type": "string",
+          "enum": ["quick_scan", "standard", "deep_audit", "autonomous_long_run"]
+        },
+        "gates": {
+          "type": "array",
+          "description": "Ordered list of required approval gates before mission is COMPLETE.",
+          "items": { "type": "string" },
+          "examples": [
+            [
+              "pod_audit_pass",
+              "security_scan_pass",
+              "compliance_check_pass",
+              "integration_tests_pass",
+              "runtime_qc_pass",
+              "operator_approval"
+            ]
+          ]
+        },
+        "requires_operator_approval": {
+          "type": "boolean",
+          "description": "Whether the mission requires explicit operator sign-off before COMPLETE."
+        },
+        "requires_runtime_qc": {
+          "type": "boolean",
+          "description": "Whether AI Runtime QC (AGENT-41-RQCA) must run before COMPLETE."
+        },
+        "requires_dependency_absorption": {
+          "type": "boolean",
+          "description": "Whether dependency absorption analysis (AGENT-39-DEPABS) must complete."
+        }
+      },
+      "additionalProperties": false
+    },
+    "non_functional_constraints": {
+      "type": "object",
+      "description": "Non-functional requirements that constrain the mission execution.",
+      "properties": {
+        "max_token_budget": {
+          "type": "integer",
+          "description": "Maximum total tokens across all agents for this mission.",
+          "minimum": 0
+        },
+        "max_wall_time_seconds": {
+          "type": "integer",
+          "description": "Maximum wall-clock time in seconds before mission is forcibly failed.",
+          "minimum": 0
+        },
+        "sensitive_code_tier": {
+          "type": "integer",
+          "description": "Sensitive code handling tier for the target (0=public, 1=internal, 2=sensitive, 3=regulated).",
+          "enum": [0, 1, 2, 3]
+        },
+        "provider_restriction": {
+          "type": "string",
+          "description": "Restrict LLM routing to a specific provider (e.g. 'local_only' for Tier 3).",
+          "examples": ["local_only", "anthropic_only", "any"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "checkpoint": {
+      "type": "object",
+      "description": "Checkpoint state for autonomous long-run missions that support resume.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "last_gate_passed": {
+          "type": "string",
+          "description": "The last gate successfully passed before the most recent failure."
+        },
+        "resume_from": {
+          "type": "string",
+          "description": "The gate to resume from on next execution attempt."
+        }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Freeform metadata for operator tagging, CI correlation, or audit correlation.",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "schema_version": "1.0.0",
+      "charter_id": "charter-01j9abcd1234",
+      "mission_id": "mission-01j9abcd5678",
+      "created_at": "2026-04-25T12:00:00Z",
+      "requested_by": "operator:kevin",
+      "mission_mode": 1,
+      "mission_mode_label": "New feature development",
+      "depth_mode": "standard",
+      "output_mode": "full_branch",
+      "target": {
+        "type": "local_repo",
+        "path": "/workspace/myapp",
+        "branch": "main",
+        "primary_language": "python",
+        "detected_languages": ["python", "javascript"]
+      },
+      "objective": "Add JWT-authenticated user sessions to the FastAPI service and cover them with integration tests.",
+      "raw_input": "Add login with JWT to the FastAPI app",
+      "scope": {
+        "in_scope": [
+          "JWT session creation and validation",
+          "Protected route middleware",
+          "Integration test coverage"
+        ],
+        "out_of_scope": [
+          "OAuth2 provider integration",
+          "Frontend login UI"
+        ],
+        "assumptions": [
+          "PostgreSQL is available as the session store",
+          "Existing user table has email and password_hash columns"
+        ]
+      },
+      "success_criteria": [
+        "All existing tests pass",
+        "POST /auth/login returns a signed JWT",
+        "Protected routes return 401 without a valid token",
+        "Integration tests cover happy path and token expiry"
+      ],
+      "definition_of_done": {
+        "depth_mode": "standard",
+        "gates": [
+          "pod_audit_pass",
+          "security_scan_pass",
+          "compliance_check_pass",
+          "integration_tests_pass",
+          "operator_approval"
+        ],
+        "requires_operator_approval": true,
+        "requires_runtime_qc": false,
+        "requires_dependency_absorption": false
+      },
+      "non_functional_constraints": {
+        "max_token_budget": 500000,
+        "max_wall_time_seconds": 3600,
+        "sensitive_code_tier": 1,
+        "provider_restriction": "any"
+      }
+    }
+  ]
+}

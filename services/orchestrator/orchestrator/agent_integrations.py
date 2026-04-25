@@ -136,6 +136,9 @@ _AGENT_LLM_PROFILE_MAP: Final[dict[str, str]] = {
     "AGENT-36-GO": "openai_codegen",
     "AGENT-37-HASKELL": "gemini_stem",
     "AGENT-38-OCAML": "gemini_stem",
+    "AGENT-39-DEPABS": "anthropic_deep_audit",
+    "AGENT-40-TESTDATA": "gemini_ops_fast",
+    "AGENT-41-RQCA": "anthropic_general_audit",
 }
 
 
@@ -201,6 +204,21 @@ def _topic_bindings_for_agent(agent: AgentDefinition) -> dict[str, list[str]]:
             consume.add("cluster.assigned.podB")
         elif agent.short_code == "IS":
             consume.update({"artifact.rir.verified", "pod.standard.ready"})
+        elif agent.short_code == "DEPABS":
+            consume.update({"artifact.rir.submitted", "mission.state.running"})
+            publish.update(
+                {
+                    "dependency.absorption.plan",
+                    "dependency.absorption.report",
+                    "dependency.sbom.delta",
+                }
+            )
+        elif agent.short_code == "TESTDATA":
+            consume.update(_MISSION_STATE_TOPICS)
+            publish.update({"test.environment.ready", "test.environment.torn_down"})
+        elif agent.short_code == "RQCA":
+            consume.update({"mission.state.verified", "mission.state.complete"})
+            publish.update({"runtime.qc.report", "runtime.qc.verdict"})
     elif agent.category == "pod_manager":
         if pod_topic:
             consume.add(pod_topic)
@@ -275,10 +293,8 @@ def _store_bindings_for_agent(agent: AgentDefinition) -> list[dict[str, Any]]:
             }
         )
 
-    if agent.short_code in {"VC", "DEPLOY", "TESTER"} or agent.category in {
-        "pod_manager",
-        "pod_audit",
-    }:
+    new_artifact_agents = {"VC", "DEPLOY", "TESTER", "DEPABS", "TESTDATA", "RQCA"}
+    if agent.short_code in new_artifact_agents or agent.category in {"pod_manager", "pod_audit"}:
         stores.append(
             {
                 "name": "object_storage",

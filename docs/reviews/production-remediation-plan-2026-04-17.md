@@ -1,5 +1,10 @@
 # Production Remediation Plan — 2026-04-17
 
+Document version: 2026.04.17
+Last updated: 2026-04-17
+Status: Active
+Audience: Maintainers, security reviewers
+
 Validation of the 8 outstanding findings from the 2026-04-16 production code review,
 plus the ordered plan used to execute them.
 

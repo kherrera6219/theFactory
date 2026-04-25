@@ -1,7 +1,7 @@
 # Documentation Index
 
-Document version: 2026.04.15  
-Last updated: 2026-04-15  
+Document version: 2026.04.25  
+Last updated: 2026-04-25  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -10,11 +10,32 @@ This is the master map for theFactory documentation. The live documentation set 
 ## Start Here
 
 1. [../README.md](../README.md)
-2. [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
-3. [ARCHITECTURE.md](ARCHITECTURE.md)
-4. [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md)
-5. [REPOSITORY_BUILD_MAP_2026-03-29.md](REPOSITORY_BUILD_MAP_2026-03-29.md)
-6. [RELEASE_COMPLETION_PLAN.md](RELEASE_COMPLETION_PLAN.md)
+2. [00_PRODUCT_OVERVIEW.md](00_PRODUCT_OVERVIEW.md)
+3. [WHAT_THEFACTORY_IS_AND_IS_NOT.md](WHAT_THEFACTORY_IS_AND_IS_NOT.md)
+4. [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
+5. [ARCHITECTURE.md](ARCHITECTURE.md)
+6. [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md)
+7. [REPOSITORY_BUILD_MAP_2026-03-29.md](REPOSITORY_BUILD_MAP_2026-03-29.md)
+8. [RELEASE_COMPLETION_PLAN.md](RELEASE_COMPLETION_PLAN.md)
+
+## Product Identity, Doctrine, and Strategy
+
+- [00_PRODUCT_OVERVIEW.md](00_PRODUCT_OVERVIEW.md)
+  - five-minute product orientation
+- [WHAT_THEFACTORY_IS_AND_IS_NOT.md](WHAT_THEFACTORY_IS_AND_IS_NOT.md)
+  - canonical positioning, scope boundaries, comparison to vibe coding
+- [DEPENDENCY_ABSORPTION_DOCTRINE.md](DEPENDENCY_ABSORPTION_DOCTRINE.md)
+  - dependency absorption doctrine, decision hierarchy, safety blocks
+- [APPLICATION_INTELLIGENCE_MAP.md](APPLICATION_INTELLIGENCE_MAP.md)
+  - application intelligence map artifact and consumers
+- [RUNTIME_QC_AND_TEST_ENVIRONMENTS.md](RUNTIME_QC_AND_TEST_ENVIRONMENTS.md)
+  - ephemeral test environments and AI runtime QC
+- [SENSITIVE_CODE_HANDLING_POLICY.md](SENSITIVE_CODE_HANDLING_POLICY.md)
+  - source code classification, provider routing, redaction
+- [SCHEMA_REGISTRY_AND_VERSIONING.md](SCHEMA_REGISTRY_AND_VERSIONING.md)
+  - schema registry, versioning rules, compatibility
+- [LICENSE_STRATEGY.md](LICENSE_STRATEGY.md)
+  - open-core strategy and MIT license confirmation
 
 ## Canonical Product and Architecture Docs
 
