@@ -2,9 +2,9 @@
 
 # 🏭 theFactory
 
-**HolyGrail Multi-Agent Software Refinery**
+**An AI software factory — not a code-completion tool.**
 
-*A local-first AI orchestration platform with a real multi-service control plane, a 38-agent registry, a condensed default runtime, and a validated strict full-dedicated topology for mission intake, delegation, language processing, and audit handoff.*
+*theFactory is a local-first, event-driven AI software factory for building, modernizing, debugging, securing, porting, validating, and optimizing applications through task-activated specialist agents, multi-provider model routing, dependency absorption, isolated workspaces, ephemeral runtime test environments, AI runtime QC, and audit-ready evidence.*
 
 [![CI](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml)
@@ -12,7 +12,7 @@
 [![Audit](https://img.shields.io/badge/production%20audit-passing-brightgreen)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
-[![License](https://img.shields.io/badge/license-proprietary-lightgrey)](#)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 </div>
 
@@ -20,6 +20,9 @@
 
 ## Table of Contents
 
+- [What theFactory Is](#what-thefactory-is)
+- [theFactory vs. Vibe Coding](#thefactory-vs-vibe-coding)
+- [Mission Lifecycle (At a Glance)](#mission-lifecycle-at-a-glance)
 - [Overview](#overview)
 - [Implementation Status](docs/IMPLEMENTATION_STATUS.md)
 - [Architecture](#architecture)
@@ -38,6 +41,66 @@
 - [Configuration](#configuration)
 - [Deployment Profiles](#deployment-profiles)
 - [Documentation Index](#documentation-index)
+
+---
+
+## What theFactory Is
+
+theFactory is a **local-first, event-driven AI software factory**. It accepts natural-language missions and delivers working software through a fully governed orchestration pipeline staffed by task-activated specialist agents.
+
+It is **not** a code-completion tool, a chat-to-code assistant, or a single-prompt generator. It is a complete software production system that produces requirements, architecture, code, tests, runtime environments, runtime validation, and audit-ready evidence as part of every mission it runs.
+
+Read more in [`docs/00_PRODUCT_OVERVIEW.md`](docs/00_PRODUCT_OVERVIEW.md) and [`docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md`](docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md).
+
+### Core Doctrines
+
+1. **Not vibe coding.** Full software production lifecycles, not single-prompt drops.
+2. **Agents are task-activated.** A registry of available roles is not a permanent workforce.
+3. **Dependencies are liabilities until proven necessary.** See [`docs/DEPENDENCY_ABSORPTION_DOCTRINE.md`](docs/DEPENDENCY_ABSORPTION_DOCTRINE.md).
+4. **Smart coding.** Generate only what the application actually needs.
+5. **Workspaces are isolated by default.** The factory never modifies the source directly.
+6. **Nothing ships without evidence.** Every mission produces a verifiable audit trail.
+7. **Sensitive code stays local.** See [`docs/SENSITIVE_CODE_HANDLING_POLICY.md`](docs/SENSITIVE_CODE_HANDLING_POLICY.md).
+
+---
+
+## theFactory vs. Vibe Coding
+
+| Normal Vibe Coding | theFactory |
+|---|---|
+| Fast prompt-to-code | Full software production lifecycle |
+| One model, one chat loop | Task-activated agent workforce |
+| Often adds dependencies quickly | Eliminates dependencies unless necessary |
+| Preview-first | Requirements, architecture, tests, runtime QC |
+| Weak traceability | Mission events, artifacts, audit evidence |
+| Demo-focused | Production-readiness focused |
+| Runs on your machine | Operates in isolated, disposable workspaces |
+| No audit trail | Full chain-of-custody evidence bundle |
+| Trust the LLM | Verify with tests and runtime QC |
+| Ship the dependency tree | Shrink the dependency tree |
+
+Both approaches have their place. theFactory is built for the work that vibe coding cannot ship to production.
+
+---
+
+## Mission Lifecycle (At a Glance)
+
+```
+PM intake
+  → requirements
+  → architecture
+  → mission plan
+  → agent activation
+  → code, docs, tests, build
+  → dependency absorption
+  → isolated workspace
+  → disposable test environment
+  → runtime QC
+  → audit evidence
+  → release handoff
+```
+
+For the implemented lifecycle (Mission Flow v2 — 11-phase state machine) see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ARCHITECTURE_DATA_FLOWS.md`](docs/ARCHITECTURE_DATA_FLOWS.md).
 
 ---
 
@@ -780,6 +843,14 @@ theFactory/
 
 | Document | Description |
 |----------|-------------|
+| [`docs/00_PRODUCT_OVERVIEW.md`](docs/00_PRODUCT_OVERVIEW.md) | Five-minute product orientation |
+| [`docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md`](docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md) | Canonical positioning and scope boundaries |
+| [`docs/DEPENDENCY_ABSORPTION_DOCTRINE.md`](docs/DEPENDENCY_ABSORPTION_DOCTRINE.md) | Dependency absorption doctrine, decision hierarchy, safety blocks |
+| [`docs/APPLICATION_INTELLIGENCE_MAP.md`](docs/APPLICATION_INTELLIGENCE_MAP.md) | Application Intelligence Map artifact and consumers |
+| [`docs/RUNTIME_QC_AND_TEST_ENVIRONMENTS.md`](docs/RUNTIME_QC_AND_TEST_ENVIRONMENTS.md) | Ephemeral test environments and AI runtime QC |
+| [`docs/SENSITIVE_CODE_HANDLING_POLICY.md`](docs/SENSITIVE_CODE_HANDLING_POLICY.md) | Source code classification, provider routing, redaction |
+| [`docs/SCHEMA_REGISTRY_AND_VERSIONING.md`](docs/SCHEMA_REGISTRY_AND_VERSIONING.md) | Schema registry, versioning rules, compatibility |
+| [`docs/LICENSE_STRATEGY.md`](docs/LICENSE_STRATEGY.md) | Open-core strategy and MIT license confirmation |
 | [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Current shipped defaults, known gaps, and validation snapshot |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture and topology |
 | [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md) | System, runtime, deployment, and multi-agent diagrams |
