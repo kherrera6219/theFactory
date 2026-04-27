@@ -5,7 +5,7 @@ redis==7.4.0
 prometheus-client==0.25.0
 opentelemetry-api==1.41.0
 opentelemetry-sdk==1.41.0
-opentelemetry-exporter-otlp==1.41.0
+opentelemetry-exporter-otlp==1.41.1
 opentelemetry-instrumentation-fastapi==0.62b0
 opentelemetry-instrumentation-httpx==0.62b0
 PyJWT[crypto]==2.12.1
