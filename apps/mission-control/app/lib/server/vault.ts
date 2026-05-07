@@ -79,7 +79,8 @@ const ENFORCE_SLOT_TTL =
 // Local encrypted file backend — uses MISSION_CONTROL_ADMIN_KEY for AES-256-GCM
 const VAULT_ENCRYPTION_KEY = process.env.MISSION_CONTROL_ADMIN_KEY?.trim() ?? "";
 const VAULT_DATA_FILE =
-  process.env.VAULT_DATA_PATH?.trim() || join(homedir(), ".thefactory", "vault.json");
+  process.env.VAULT_DATA_PATH?.trim() ||
+  join(/* turbopackIgnore: true */ homedir(), ".thefactory", "vault.json");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -199,8 +200,8 @@ function decryptSecret(blob: EncryptedBlob, keyHex: string): string {
 function readLocalVaultFile(): Map<string, VaultEntry> {
   const map = new Map<string, VaultEntry>();
   try {
-    if (!existsSync(VAULT_DATA_FILE)) return map;
-    const raw = readFileSync(VAULT_DATA_FILE, "utf8");
+    if (!existsSync(/* turbopackIgnore: true */ VAULT_DATA_FILE)) return map;
+    const raw = readFileSync(/* turbopackIgnore: true */ VAULT_DATA_FILE, "utf8");
     const data = JSON.parse(raw) as VaultFileData;
     for (const [slotId, entry] of Object.entries(data.entries ?? {})) {
       try {
@@ -221,11 +222,15 @@ function writeLocalVaultFile(memory: Map<string, VaultEntry>): void {
   for (const [slotId, entry] of memory) {
     entries[slotId] = { ...entry, secret: encryptSecret(entry.secret, VAULT_ENCRYPTION_KEY) };
   }
-  const dir = dirname(VAULT_DATA_FILE);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+  const dir = dirname(/* turbopackIgnore: true */ VAULT_DATA_FILE);
+  if (!existsSync(/* turbopackIgnore: true */ dir)) {
+    mkdirSync(/* turbopackIgnore: true */ dir, { recursive: true });
   }
-  writeFileSync(VAULT_DATA_FILE, JSON.stringify({ version: 1, entries }, null, 2), "utf8");
+  writeFileSync(
+    /* turbopackIgnore: true */ VAULT_DATA_FILE,
+    JSON.stringify({ version: 1, entries }, null, 2),
+    "utf8",
+  );
 }
 
 function getLocalVaultMemory(): Map<string, VaultEntry> {
