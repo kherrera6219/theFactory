@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
 import { listOperationsAlerts } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import type { AlertRecord, OperationsAlertRecord } from "../../lib/types";
@@ -92,20 +93,28 @@ export default function AlertsPage() {
 
       <Panel title="Alert Summary">
         {loading && <p className="muted">Collecting live alert signals...</p>}
-        {error && <p className="error-box">{error}</p>}
+        {error && (
+          <SystemMessage tone="critical" title="Alert signals are unavailable">
+            {error} Incident data will appear when the operations API is reachable.
+          </SystemMessage>
+        )}
         {!loading && !error && <p className="muted">Open alerts: {openCount}</p>}
       </Panel>
 
       <Panel title="Active and Recent Alerts">
         {!loading && !error && alerts.length === 0 && (
-          <p className="muted">No active alerts. All systems are operating normally.</p>
+          <EmptyState title="No active alerts" compact>
+            Alert history and remediation recommendations will appear here when the operations service reports incidents.
+          </EmptyState>
         )}
         <ul className="card-list">
           {alerts.map((alert) => (
             <li key={alert.id} className={`info-card alert-${alert.severity}`}>
               <div className="panel-title-row">
                 <h3>{alert.title}</h3>
-                <span className={`pill ${alert.state}`}>{alert.state}</span>
+                <StatusBadge tone={alert.state === "resolved" ? "healthy" : alert.state === "acknowledged" ? "warning" : "critical"}>
+                  {alert.state}
+                </StatusBadge>
               </div>
               <p>{alert.recommendation}</p>
               <dl className="card-meta">

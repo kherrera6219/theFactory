@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, MetricCard, StatusBadge, SystemMessage } from "../../components/status";
 import { humanizeState } from "../../lib/format";
 import { getGatewayHealth, getGatewayReadyState, listMissions } from "../../lib/api-client";
 import type { GatewayHealth, MissionRecord } from "../../lib/types";
@@ -65,46 +66,47 @@ export default function DashboardPage() {
   return (
     <div className="page shell-page">
       <PageHeader
+        compact
         eyebrow="Home"
         title="Launch Pad"
         description="Open mission control and assess system health before launching the next mission."
       />
 
       <Panel title="System Health Snapshot">
-        {error && <p className="error-box">{error}</p>}
-        <div className="kpi-grid" role="list" aria-label="Mission metrics">
-          <article className="kpi-card" role="listitem">
-            <h3>Total Missions</h3>
-            {loading ? (
-              <span className="skeleton-line skeleton-metric" aria-hidden="true" />
-            ) : (
-              <p>{error ? 0 : missions.length}</p>
-            )}
-          </article>
-          <article className="kpi-card" role="listitem">
-            <h3>Running</h3>
-            {loading ? (
-              <span className="skeleton-line skeleton-metric" aria-hidden="true" />
-            ) : (
-              <p>{error ? 0 : missions.filter((item) => item.state.toUpperCase() === "RUNNING").length}</p>
-            )}
-          </article>
-          <article className="kpi-card" role="listitem">
-            <h3>Verified</h3>
-            {loading ? (
-              <span className="skeleton-line skeleton-metric" aria-hidden="true" />
-            ) : (
-              <p>{error ? 0 : missions.filter((item) => item.state.toUpperCase() === "VERIFIED").length}</p>
-            )}
-          </article>
-          <article className="kpi-card" role="listitem">
-            <h3>Failed</h3>
-            {loading ? (
-              <span className="skeleton-line skeleton-metric" aria-hidden="true" />
-            ) : (
-              <p>{error ? 0 : missions.filter((item) => item.state.toUpperCase() === "FAILED").length}</p>
-            )}
-          </article>
+        {error && (
+          <SystemMessage tone="critical" title="Mission metrics are unavailable">
+            The UI is running, but the local gateway did not return dashboard data. Add API keys and start the runtime before the live-data review.
+          </SystemMessage>
+        )}
+        <div className="kpi-grid" aria-label="Mission metrics">
+          <MetricCard
+            label="Total Missions"
+            value={error ? "—" : missions.length}
+            loading={loading}
+            tone={error ? "neutral" : "info"}
+            detail={error ? "Waiting for runtime" : "Loaded from mission service"}
+          />
+          <MetricCard
+            label="Running"
+            value={error ? "—" : missions.filter((item) => item.state.toUpperCase() === "RUNNING").length}
+            loading={loading}
+            tone="warning"
+            detail="Active execution"
+          />
+          <MetricCard
+            label="Verified"
+            value={error ? "—" : missions.filter((item) => item.state.toUpperCase() === "VERIFIED").length}
+            loading={loading}
+            tone="healthy"
+            detail="Passed validation"
+          />
+          <MetricCard
+            label="Failed"
+            value={error ? "—" : missions.filter((item) => item.state.toUpperCase() === "FAILED").length}
+            loading={loading}
+            tone="critical"
+            detail="Needs operator attention"
+          />
         </div>
       </Panel>
 
@@ -112,45 +114,42 @@ export default function DashboardPage() {
         <ul className="summary-list">
           <li>
             <strong>Gateway readiness</strong>
-            <span
-              className={`connection-chip ${readyState?.ready ? "live" : "stale"}`}
-              role="status"
-              aria-label={`Gateway readiness: ${readyState?.ready ? "Ready" : readyState?.detail ?? "Unavailable"}`}
+            <StatusBadge
+              tone={readyState?.ready ? "healthy" : "critical"}
+              label={`Gateway readiness: ${readyState?.ready ? "Ready" : readyState?.detail ?? "Unavailable"}`}
             >
               {readyState?.ready ? "Ready" : readyState?.detail ?? "Unavailable"}
-            </span>
+            </StatusBadge>
           </li>
           <li>
             <strong>Redis</strong>
-            <span
-              className={`connection-chip ${health?.redis_healthy ? "live" : "stale"}`}
-              role="status"
-              aria-label={`Redis: ${health?.redis_healthy ? "Healthy" : "Unavailable"}`}
-            >
+            <StatusBadge tone={health?.redis_healthy ? "healthy" : "critical"} label={`Redis: ${health?.redis_healthy ? "Healthy" : "Unavailable"}`}>
               {health?.redis_healthy ? "Healthy" : "Unavailable"}
-            </span>
+            </StatusBadge>
           </li>
           <li>
             <strong>Orchestrator</strong>
-            <span
-              className={`connection-chip ${health?.orchestrator_healthy ? "live" : "stale"}`}
-              role="status"
-              aria-label={`Orchestrator: ${health?.orchestrator_healthy ? "Healthy" : "Unavailable"}`}
-            >
+            <StatusBadge tone={health?.orchestrator_healthy ? "healthy" : "critical"} label={`Orchestrator: ${health?.orchestrator_healthy ? "Healthy" : "Unavailable"}`}>
               {health?.orchestrator_healthy ? "Healthy" : "Unavailable"}
-            </span>
+            </StatusBadge>
           </li>
         </ul>
       </Panel>
 
       <Panel title="Top Mission States">
         {stateSummary.length === 0 && (
-          <p className="muted">
-            No mission data yet.{" "}
-            <Link href="/chat" className="shell-link-button" style={{ color: "var(--accent-contrast)", textDecoration: "underline" }}>
-              Launch your first mission →
-            </Link>
-          </p>
+          <EmptyState
+            title={error ? "Mission state data is offline" : "No mission state data yet"}
+            action={
+              <Link href="/chat" className="secondary-button shell-link-button">
+                Launch mission
+              </Link>
+            }
+          >
+            {error
+              ? "State charts will populate when the local runtime can return mission telemetry."
+              : "Launch a mission to populate state distribution, progress, and operational history."}
+          </EmptyState>
         )}
         {stateSummary.length > 0 && (
           <ul className="summary-list">

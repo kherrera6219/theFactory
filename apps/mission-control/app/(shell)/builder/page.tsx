@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, SystemMessage } from "../../components/status";
 import {
   approveReviewArtifact,
   createBuilderWorkspaceReview,
@@ -227,7 +228,11 @@ export default function BuilderPage() {
           </button>
         </div>
         {executionMessage && <p className="help-text">{executionMessage}</p>}
-        {error && <p className="error-box">{error}</p>}
+        {error && (
+          <SystemMessage tone="critical" title="Builder request could not continue">
+            {error}
+          </SystemMessage>
+        )}
       </Panel>
 
       <Panel title={`Step 2: Review Patch Contract${reviewLocked ? " (locked)" : ""}`}>
@@ -272,9 +277,9 @@ export default function BuilderPage() {
         </div>
         <div className="stack-gap">
           {!preview && (
-            <div className="code-block">
-              <p className="muted">No preview generated yet.</p>
-            </div>
+            <EmptyState title="No patch contract generated yet" compact>
+              Stage a request to inspect affected files, proposed changes, risk notes, and test plan before launch.
+            </EmptyState>
           )}
           {preview &&
             (preview.files ?? []).map((file) => (
@@ -351,7 +356,11 @@ export default function BuilderPage() {
       </Panel>
 
       <Panel title={`Step 3: Launch Mission${launchLocked ? " (locked)" : ""}`}>
-        {launchLocked && <p className="muted">Apply the Step 2 review gate to unlock mission launch.</p>}
+        {launchLocked && (
+          <EmptyState title="Launch is locked by review approval" compact>
+            Apply the Step 2 review gate to persist the patch contract before launching a mission.
+          </EmptyState>
+        )}
         {!launchLocked && preview && approval && (
           <div className="stack-gap">
             <ul className="summary-list">

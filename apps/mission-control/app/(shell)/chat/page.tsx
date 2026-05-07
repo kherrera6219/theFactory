@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, SystemMessage } from "../../components/status";
 import { createBuilderPreview, createMission } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { inferRequestedTargetLanguage } from "../../lib/language";
@@ -85,20 +86,22 @@ function summarizeScope(text: string): string {
   return `${normalized.slice(0, 117)}...`;
 }
 
+function initialWelcomeMessage(): ChatMessage {
+  return {
+    id: "welcome",
+    role: "pm",
+    text:
+      "Hello. I am your PM Agent. Describe what you want to build or analyze, " +
+      "and attach source files if needed.",
+    ts: "",
+  };
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "pm",
-      text:
-        "Hello. I am your PM Agent. Describe what you want to build or analyze, " +
-        "and attach source files if needed.",
-      ts: new Date().toISOString(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([initialWelcomeMessage()]);
   const [contract, setContract] = useState<FeatureContract | null>(null);
   const [editingContract, setEditingContract] = useState(false);
   const [thinking, setThinking] = useState(false);
@@ -133,16 +136,7 @@ export default function ChatPage() {
   const fileChips = useMemo(() => files.map((item) => fileLabel(item)), [files]);
 
   function resetConversation() {
-    setMessages([
-      {
-        id: "welcome",
-        role: "pm",
-        text:
-          "Hello. I am your PM Agent. Describe what you want to build or analyze, " +
-          "and attach source files if needed.",
-        ts: new Date().toISOString(),
-      },
-    ]);
+    setMessages([initialWelcomeMessage()]);
     setFiles([]);
     setContract(null);
     setEditingContract(false);
@@ -297,26 +291,26 @@ export default function ChatPage() {
       />
 
       <Panel title="Conversation" className="chat-panel">
-        <ul className="chat-list" role="log" aria-live="polite" aria-label="PM chat history">
+        <div className="chat-list" role="log" aria-live="polite" aria-label="PM chat history">
           {messages.map((message) => (
-            <li key={message.id} className={`chat-item ${message.role === "user" ? "user" : "pm"}`}>
+            <article key={message.id} className={`chat-item ${message.role === "user" ? "user" : "pm"}`}>
               <div className="chat-meta">
                 <strong>{message.role === "user" ? "You" : "PM Agent"}</strong>
-                <span>{formatDateTime(message.ts)}</span>
+                <span>{message.ts ? formatDateTime(message.ts) : "Session start"}</span>
               </div>
               <p>{message.text}</p>
-            </li>
+            </article>
           ))}
           {thinking && (
-            <li className="chat-item pm">
+            <article className="chat-item pm" aria-label="PM Agent is preparing a response">
               <div className="chat-meta">
                 <strong>PM Agent</strong>
                 <span>Thinking...</span>
               </div>
               <p>...</p>
-            </li>
+            </article>
           )}
-        </ul>
+        </div>
       </Panel>
 
       <Panel title="Attach Files and Message">
@@ -374,8 +368,20 @@ export default function ChatPage() {
             {thinking ? "Sending..." : "Send"}
           </button>
         </div>
-        {error && <p className="error-box">{error}</p>}
+        {error && (
+          <SystemMessage tone="warning" title="Message needs attention">
+            {error}
+          </SystemMessage>
+        )}
       </Panel>
+
+      {!contract && (
+        <Panel title="Feature Contract">
+          <EmptyState title="Contract appears after the PM Agent can process the request" compact>
+            When backend services are live, this panel will show scope, language detection, estimated duration, and launch confirmation before creating a mission.
+          </EmptyState>
+        </Panel>
+      )}
 
       {contract && (
         <Panel title="Feature Contract">

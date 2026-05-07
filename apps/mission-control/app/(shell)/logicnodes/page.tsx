@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, SystemMessage } from "../../components/status";
 import { listOperationsLogicNodes } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import type { OperationsLogicNodeRecord } from "../../lib/types";
@@ -120,9 +121,15 @@ export default function LogicNodesPage() {
 
       <Panel title="Node List">
         {loading && <p className="muted">Loading logicnodes...</p>}
-        {error && <p className="error-box">{error}</p>}
+        {error && (
+          <SystemMessage tone="critical" title="LogicNode data is unavailable">
+            {error} Extracted artifacts will appear after missions can run against the live backend.
+          </SystemMessage>
+        )}
         {!loading && !error && filteredNodes.length === 0 && (
-          <p className="muted">No LogicNodes match the current criteria.</p>
+          <EmptyState title="No LogicNodes match the current criteria" compact>
+            Run a mission that extracts logic artifacts, or clear the search and mission filters.
+          </EmptyState>
         )}
         {!loading && !error && filteredNodes.length > 0 && (
           <ul className="card-list">

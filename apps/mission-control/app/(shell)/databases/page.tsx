@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { StatusBadge, SystemMessage } from "../../components/status";
 import { getGatewayHealth, getOperationsSummary } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import type { GatewayHealth, OperationsSummary } from "../../lib/types";
@@ -178,24 +179,34 @@ export default function DatabasesPage() {
       <Panel title="Health Overview">
         {loading && <p className="muted">Collecting database diagnostics...</p>}
         {orchestratorOffline && (
-          <p className="warning-box">
+          <SystemMessage tone="warning" title="Database diagnostics are running in offline mode">
             Orchestrator unreachable at port 8100. Start the Docker stack to see live database health.
-          </p>
+          </SystemMessage>
         )}
-        {error && <p className="error-box">{error}</p>}
+        {error && (
+          <SystemMessage tone="critical" title="Database health could not be loaded">
+            {error}
+          </SystemMessage>
+        )}
         {!loading && !orchestratorOffline && !error && (
           <ul className="summary-list">
             <li>
               <strong>Runtime database ready</strong>
-              <span>{summary?.runtime.db_ready ? "Yes" : "No"}</span>
+              <StatusBadge tone={summary?.runtime.db_ready ? "healthy" : "critical"}>
+                {summary?.runtime.db_ready ? "Ready" : "Unavailable"}
+              </StatusBadge>
             </li>
             <li>
               <strong>Redis ready</strong>
-              <span>{health?.redis_healthy ? "Yes" : "No"}</span>
+              <StatusBadge tone={health?.redis_healthy ? "healthy" : "critical"}>
+                {health?.redis_healthy ? "Ready" : "Unavailable"}
+              </StatusBadge>
             </li>
             <li>
               <strong>Protocol consumer running</strong>
-              <span>{summary?.runtime.consumer_running ? "Yes" : "No"}</span>
+              <StatusBadge tone={summary?.runtime.consumer_running ? "healthy" : "warning"}>
+                {summary?.runtime.consumer_running ? "Running" : "Stopped"}
+              </StatusBadge>
             </li>
             <li>
               <strong>Generated at</strong>
@@ -211,9 +222,9 @@ export default function DatabasesPage() {
             <li key={card.id} className={`info-card db-${card.status}`}>
               <div className="panel-title-row">
                 <h3>{card.name}</h3>
-                <span className={`pill ${card.status}`}>
+                <StatusBadge tone={card.status === "healthy" ? "healthy" : card.status === "degraded" ? "critical" : "neutral"}>
                   {card.status === "healthy" ? "Healthy" : card.status === "degraded" ? "Degraded" : "Disabled"}
-                </span>
+                </StatusBadge>
               </div>
               <p className="muted">{card.engine}</p>
               <p>{card.details}</p>

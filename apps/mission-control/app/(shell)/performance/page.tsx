@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, MetricCard, SystemMessage } from "../../components/status";
 import { getGatewayHealth, getGatewayReadyState, listMissions } from "../../lib/api-client";
 import { humanizeState } from "../../lib/format";
 import type { GatewayHealth, MissionRecord } from "../../lib/types";
@@ -96,22 +97,32 @@ export default function PerformancePage() {
 
       <Panel title="Key Metrics">
         {loading && <p className="muted">Collecting runtime metrics...</p>}
-        {error && <p className="error-box">{error}</p>}
+        {error && (
+          <SystemMessage tone="critical" title="Performance metrics are unavailable">
+            {error} Runtime capacity metrics will populate once the gateway can return health and mission snapshots.
+          </SystemMessage>
+        )}
         {!loading && !error && (
-          <ul className="kpi-grid" aria-label="Runtime metrics">
+          <div className="kpi-grid" aria-label="Runtime metrics">
             {metrics.map((metric) => (
-              <li key={metric.title} className="kpi-card">
-                <h3>{metric.title}</h3>
-                <p>{metric.value}</p>
-                <span className="muted">{metric.trend}</span>
-              </li>
+              <MetricCard
+                key={metric.title}
+                label={metric.title}
+                value={metric.value}
+                detail={metric.trend}
+                tone={/Unavailable|Not Ready/i.test(metric.value) ? "critical" : "healthy"}
+              />
             ))}
-          </ul>
+          </div>
         )}
       </Panel>
 
       <Panel title="Mission State Distribution">
-        {stateDistribution.length === 0 && <p className="muted">No mission state data available.</p>}
+        {stateDistribution.length === 0 && (
+          <EmptyState title={error ? "No performance distribution while runtime is offline" : "No mission state data yet"} compact>
+            Mission throughput and state distribution will appear after mission telemetry is available.
+          </EmptyState>
+        )}
         {stateDistribution.length > 0 && (
           <ul className="summary-list">
             {stateDistribution.map(([state, count]) => (

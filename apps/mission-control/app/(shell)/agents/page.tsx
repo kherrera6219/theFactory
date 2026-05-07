@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
 import {
   getOperationsAgents,
   missionStateStreamUrl,
@@ -406,7 +407,11 @@ export default function AgentsPage() {
       </Panel>
 
       <Panel title="Runtime Dependencies">
-        {error && <p className="error-box">{error}</p>}
+        {error && (
+          <SystemMessage tone="critical" title="Agent telemetry is unavailable">
+            {error} The grid will populate when the local orchestrator and dependency services are running.
+          </SystemMessage>
+        )}
         {!error && snapshot && (
           <div role="alert" aria-live="polite">
             {!snapshot.runtime.consumer_running && (
@@ -440,51 +445,39 @@ export default function AgentsPage() {
           <ul className="summary-list">
             <li>
               <strong>Redis</strong>
-              <span
-                className={`connection-chip ${snapshot?.runtime.redis_ready ? "live" : "stale"}`}
-                role="status"
-              >
+              <StatusBadge tone={snapshot?.runtime.redis_ready ? "healthy" : "critical"}>
                 {snapshot?.runtime.redis_ready ? "Healthy" : "Unavailable"}
-              </span>
+              </StatusBadge>
             </li>
             <li>
               <strong>Database</strong>
-              <span
-                className={`connection-chip ${snapshot?.runtime.db_ready ? "live" : "stale"}`}
-                role="status"
-              >
+              <StatusBadge tone={snapshot?.runtime.db_ready ? "healthy" : "critical"}>
                 {snapshot?.runtime.db_ready ? "Ready" : "Unavailable"}
-              </span>
+              </StatusBadge>
             </li>
             <li>
               <strong>Protocol validation</strong>
-              <span
-                className={`connection-chip ${snapshot?.runtime.protocol_ready ? "live" : "stale"}`}
-                role="status"
-              >
+              <StatusBadge tone={snapshot?.runtime.protocol_ready ? "healthy" : "warning"}>
                 {snapshot?.runtime.protocol_ready ? "Ready" : "Unavailable"}
-              </span>
+              </StatusBadge>
             </li>
             <li>
               <strong>Consumer task</strong>
-              <span
-                className={`connection-chip ${snapshot?.runtime.consumer_running ? "live" : "stale"}`}
-                role="status"
-              >
+              <StatusBadge tone={snapshot?.runtime.consumer_running ? "healthy" : "warning"}>
                 {snapshot?.runtime.consumer_running ? "Running" : "Not running"}
-              </span>
+              </StatusBadge>
             </li>
             <li>
               <strong>Topology mode</strong>
-              <span className={`connection-chip ${snapshot?.topology_mode === "full-dedicated" ? "live" : snapshot?.topology_mode === "dedicated" ? "retrying" : "stale"}`}>
+              <StatusBadge tone={snapshot?.topology_mode === "full-dedicated" ? "healthy" : snapshot?.topology_mode === "dedicated" ? "warning" : "neutral"}>
                 {snapshot?.topology_mode ?? "condensed"}
-              </span>
+              </StatusBadge>
             </li>
             <li>
               <strong>Transport mode</strong>
-              <span className={`connection-chip ${transportMode === "stream" ? "live" : "retrying"}`}>
+              <StatusBadge tone={transportMode === "stream" ? "healthy" : "warning"}>
                 {transportMode}
-              </span>
+              </StatusBadge>
             </li>
             <li>
               <strong>Stream events</strong>
@@ -546,6 +539,8 @@ export default function AgentsPage() {
         </p>
         <div
           className="table-wrap virtualized-table-wrap"
+          tabIndex={0}
+          aria-label="Scrollable agent roster"
           style={{ maxHeight: `${AGENT_TABLE_HEIGHT_PX}px` }}
           onScroll={(event) => setAgentTableScrollTop(event.currentTarget.scrollTop)}
         >
@@ -589,16 +584,21 @@ export default function AgentsPage() {
           </table>
         </div>
         {filteredAgents.length === 0 && !loading && agents.length === 0 && (
-          <p className="muted">
-            No agents found. Ensure the backend gateway is running and reachable, then{" "}
-            <Link href="/settings" className="shell-link-button" style={{ color: "var(--accent-contrast)", textDecoration: "underline" }}>
-              check Settings
-            </Link>{" "}
-            to verify the API base URL.
-          </p>
+          <EmptyState
+            title="No runtime agents available"
+            action={
+              <Link href="/settings" className="secondary-button shell-link-button">
+                Check Settings
+              </Link>
+            }
+          >
+            Ensure the backend gateway is running and reachable, then verify the API base URL.
+          </EmptyState>
         )}
         {filteredAgents.length === 0 && !loading && agents.length > 0 && (
-          <p className="muted">No agents match the selected filters. Try clearing one or more filters above.</p>
+          <EmptyState title="No agents match these filters" compact>
+            Try switching to Conceptual Architecture or clearing tier, pod, and state filters.
+          </EmptyState>
         )}
       </Panel>
 

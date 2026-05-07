@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, SystemMessage } from "../../components/status";
 import {
   approveReviewArtifact,
   createMission,
@@ -514,7 +515,11 @@ export default function RepoImportPage() {
       </Panel>
 
       <Panel title="Step 2: Select Files and Overlay Actions" className={`step-panel ${step2Locked ? "locked" : ""}`}>
-        {step2Locked && <p className="muted">Complete Step 1 to unlock file selection.</p>}
+        {step2Locked && (
+          <EmptyState title="File selection unlocks after import" compact>
+            Import a repository to preview files, choose inclusion scope, and assign overlay actions.
+          </EmptyState>
+        )}
         {!step2Locked && (
           <>
             <div className="inline-actions">
@@ -568,7 +573,11 @@ export default function RepoImportPage() {
       </Panel>
 
       <Panel title="Step 3: Review Scope and Apply Gate" className={`step-panel ${step3Locked ? "locked" : ""}`}>
-        {step3Locked && <p className="muted">Select at least one file in Step 2 to run repository review.</p>}
+        {step3Locked && (
+          <EmptyState title="Review gate requires selected files" compact>
+            Select at least one file in Step 2, then generate a review artifact before launch.
+          </EmptyState>
+        )}
         {!step3Locked && (
           <div className="stack-gap">
             <div className="mission-type-grid">
@@ -710,7 +719,11 @@ export default function RepoImportPage() {
       </Panel>
 
       <Panel title="Step 4: Launch Mission" className={`step-panel ${step4Locked ? "locked" : ""}`}>
-        {step4Locked && <p className="muted">Apply Step 3 review gate to unlock mission launch.</p>}
+        {step4Locked && (
+          <EmptyState title="Launch is locked by review approval" compact>
+            Apply the Step 3 review gate to persist scope approval and unlock mission launch.
+          </EmptyState>
+        )}
         {!step4Locked && (
           <>
             <ul className="summary-list">
@@ -746,7 +759,11 @@ export default function RepoImportPage() {
         )}
       </Panel>
 
-      {error && <p className="error-box">{error}</p>}
+      {error && (
+        <SystemMessage tone="critical" title="Repository workflow needs attention">
+          {error}
+        </SystemMessage>
+      )}
     </div>
   );
 }
