@@ -673,6 +673,8 @@ npm run test:e2e   # Playwright critical-path E2E
 | pip-audit SCA | 0 known vulns | `security.yml` |
 | Release attestation | signed provenance | CI release gate |
 
+The main CI workflow must remain valid GitHub Actions YAML before any gate can run. Artifact download retries are not configured with unsupported step keys; if retry behavior is needed, it should be implemented through an explicit retry action or shell retry wrapper.
+
 **Validation snapshot (2026-04-16):** `python scripts/validate_documentation.py` and `python scripts/production_review_audit.py` are passing in-repo. The broader test and qualification snapshot is tracked in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md), including the current backend pytest baseline (`889 passed, 5 skipped` on 2026-04-15), the `>=80%` Python coverage gate, Mission Control Vitest and Playwright coverage, and the latest strict full-dedicated runtime evidence in [`docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json`](docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json) and [`docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`](docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json).
 
 ---
