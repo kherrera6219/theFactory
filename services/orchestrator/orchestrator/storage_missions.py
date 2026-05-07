@@ -14,7 +14,15 @@ from .agent_scaling import (
 from .agent_scaling import (
     record_partition_result as embed_partition_result,
 )
-from .models import DataClassification, DepthMode, MissionEvent, MissionRecord, MissionState, MissionType, OutputMode
+from .models import (
+    DataClassification,
+    DepthMode,
+    MissionEvent,
+    MissionRecord,
+    MissionState,
+    MissionType,
+    OutputMode,
+)
 from .project_identity import resolve_project_id, with_project_identity
 from .settings import Settings
 from .storage_core import _json_to_dict, _to_iso, db_connect, psycopg
