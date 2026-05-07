@@ -25,13 +25,13 @@ describe("api-client", () => {
   });
 
   it("builds mission API URLs with default base", () => {
-    expect(missionApiUrl("/health")).toBe("http://localhost:8100/health");
+    expect(missionApiUrl("/health")).toBe("/api/gateway/health");
   });
 
   it("builds mission stream URLs with optional filters", () => {
-    expect(missionStateStreamUrl()).toBe("http://localhost:8100/v1/stream/state");
+    expect(missionStateStreamUrl()).toBe("/api/gateway/v1/stream/state");
     expect(missionStateStreamUrl({ missionId: "mission-1" })).toBe(
-      "http://localhost:8100/v1/stream/state?mission_id=mission-1",
+      "/api/gateway/v1/stream/state?mission_id=mission-1",
     );
     expect(
       missionStateStreamUrl({
@@ -39,7 +39,7 @@ describe("api-client", () => {
         includeAgentEvents: false,
       }),
     ).toBe(
-      "http://localhost:8100/v1/stream/state?mission_id=mission-1&include_agent_events=false",
+      "/api/gateway/v1/stream/state?mission_id=mission-1&include_agent_events=false",
     );
   });
 
@@ -153,7 +153,7 @@ describe("api-client", () => {
     const payload = await getMissionChainTrace("mission-1");
     expect(payload.mission_id).toBe("mission-1");
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:8100/v1/missions/mission-1/chain-trace",
+      "/api/gateway/v1/missions/mission-1/chain-trace",
       expect.objectContaining({ method: "GET" }),
     );
   });
