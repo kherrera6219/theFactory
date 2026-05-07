@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
 import { createMission, getMission, getMissionEvents, listMissions } from "../../lib/api-client";
 import {
   ETA_BY_STATE,
@@ -397,9 +398,15 @@ export default function MissionsPage() {
             ))}
           </ul>
         )}
-        {missionListError && <p className="error-box">{missionListError}</p>}
+        {missionListError && (
+          <SystemMessage tone="critical" title="Recent missions are unavailable">
+            {missionListError} Start the local runtime or update the API base URL, then refresh this panel.
+          </SystemMessage>
+        )}
         {!missionListLoading && !missionListError && recentMissions.length === 0 && (
-          <p className="muted">No recent missions found. Submit your first mission above.</p>
+          <EmptyState title="No recent missions yet" compact>
+            Submitted missions will appear here with their latest state, timestamp, and live detail link.
+          </EmptyState>
         )}
         {!missionListLoading && recentMissions.length > 0 && (
           <ul className="mission-list">
@@ -437,20 +444,40 @@ export default function MissionsPage() {
         className="status-panel"
         title="Mission Status"
         actions={
-          <span className={`connection-chip ${connectionState}`}>
+          <StatusBadge
+            tone={
+              connectionState === "live"
+                ? "healthy"
+                : connectionState === "retrying"
+                  ? "warning"
+                  : connectionState === "stale"
+                    ? "critical"
+                    : "neutral"
+            }
+          >
             {connectionState === "idle" && "Idle"}
             {connectionState === "live" && "Live"}
             {connectionState === "retrying" && "Retrying"}
             {connectionState === "stale" && "Stale"}
-          </span>
+          </StatusBadge>
         }
       >
-        {successNotice && <p className="success-box">{successNotice}</p>}
-        {submitError && <p className="error-box">{submitError}</p>}
+        {successNotice && (
+          <SystemMessage tone="success" title="Mission accepted">
+            {successNotice}
+          </SystemMessage>
+        )}
+        {submitError && (
+          <SystemMessage tone="critical" title="Mission could not be submitted">
+            {submitError}
+          </SystemMessage>
+        )}
         {pollError && (
-          <div className="error-box">
-            <p>{pollError}</p>
-            {mission && (
+          <SystemMessage
+            tone="critical"
+            title="Mission status is stale"
+            action={
+              mission ? (
               <button
                 type="button"
                 className="secondary-button"
@@ -458,10 +485,17 @@ export default function MissionsPage() {
               >
                 Retry Now
               </button>
-            )}
-          </div>
+              ) : null
+            }
+          >
+            {pollError}
+          </SystemMessage>
         )}
-        {!mission && <p className="muted">No mission selected.</p>}
+        {!mission && (
+          <EmptyState title="No mission selected" compact>
+            Launch a new mission or select one from recent missions to monitor progress, events, and retry state.
+          </EmptyState>
+        )}
         {mission && (
           <>
             <div className="progress-block" aria-label={`Progress ${progress}%`}>
@@ -532,8 +566,16 @@ export default function MissionsPage() {
       </Panel>
 
       <Panel title="Transition Timeline">
-        {!mission && <p className="muted">Mission events appear after submission.</p>}
-        {mission && events.length === 0 && <p className="muted">Waiting for state events...</p>}
+        {!mission && (
+          <EmptyState title="No timeline yet" compact>
+            Mission events appear here after submission or after selecting a recent mission.
+          </EmptyState>
+        )}
+        {mission && events.length === 0 && (
+          <EmptyState title="Waiting for state events" compact>
+            The mission is selected, but no transition events have been returned by the runtime yet.
+          </EmptyState>
+        )}
         {events.length > 0 && (
           <dl>
             {events.map((missionEvent, index) => (

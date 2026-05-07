@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
 import { listOperationsProjects, listProjectAuditEvents } from "../../lib/api-client";
 import { formatDateTime, humanizeState } from "../../lib/format";
 import { TEMPLATE_CATALOG } from "../../lib/template-catalog";
@@ -111,8 +112,12 @@ export default function ProjectsPage() {
 
       <Panel title="Project Portfolio">
         {loading && <p className="muted">Building portfolio from mission metadata...</p>}
-        {error && <p className="error-box">{error}</p>}
-        <div className="table-wrap">
+        {error && (
+          <SystemMessage tone="critical" title="Project portfolio is unavailable">
+            {error} Project signals are derived from mission metadata and will populate when the runtime is live.
+          </SystemMessage>
+        )}
+        <div className="table-wrap" tabIndex={0} aria-label="Scrollable project audit table">
           <table className="data-table">
             <caption className="sr-only">
               Project catalog with source, status, mission counts, and last update timestamp.
@@ -138,7 +143,11 @@ export default function ProjectsPage() {
                 >
                   <td>{project.project_id}</td>
                   <td>{project.project_name ?? project.source}</td>
-                  <td>{humanizeState(project.status)}</td>
+                  <td>
+                    <StatusBadge tone={project.status.toUpperCase().includes("FAIL") ? "critical" : "info"}>
+                      {humanizeState(project.status)}
+                    </StatusBadge>
+                  </td>
                   <td>{project.mission_count}</td>
                   <td>{project.failed_count}</td>
                   <td>{project.complete_count}</td>
@@ -148,20 +157,28 @@ export default function ProjectsPage() {
             </tbody>
           </table>
         </div>
-        {!loading && sortedProjects.length === 0 && <p className="muted">No projects available yet.</p>}
+        {!loading && sortedProjects.length === 0 && (
+          <EmptyState title="No projects available yet" compact>
+            Imported repositories and mission groups will appear here after live mission metadata is available.
+          </EmptyState>
+        )}
       </Panel>
 
       <Panel
         title={selectedProject ? `Audit Timeline: ${selectedProject.project_name ?? selectedProject.project_id}` : "Audit Timeline"}
       >
         {auditLoading && <p className="muted">Loading project audit trail...</p>}
-        {auditError && <p className="error-box">{auditError}</p>}
+        {auditError && (
+          <SystemMessage tone="critical" title="Audit timeline is unavailable">
+            {auditError}
+          </SystemMessage>
+        )}
         {!auditLoading && !auditError && selectedProject && (
           <p className="muted">
             Showing the latest {auditEvents.length} recorded agent actions for <strong>{selectedProject.project_id}</strong>.
           </p>
         )}
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} aria-label="Scrollable project portfolio table">
           <table className="data-table">
             <caption className="sr-only">
               Project audit log with event type, mission, agent, service, tool, and timing details.
@@ -198,7 +215,9 @@ export default function ProjectsPage() {
           </table>
         </div>
         {!auditLoading && !auditError && selectedProject && auditEvents.length === 0 && (
-          <p className="muted">No audit events recorded for this project yet.</p>
+          <EmptyState title="No audit events recorded yet" compact>
+            Agent actions, tool calls, and mission evidence will appear once this project has runtime activity.
+          </EmptyState>
         )}
       </Panel>
 

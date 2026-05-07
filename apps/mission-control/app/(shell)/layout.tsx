@@ -5,6 +5,7 @@ import { KeyboardShortcuts } from "../components/keyboard-shortcuts";
 import { ReconnectBanner } from "../components/reconnect-banner";
 import { ShellHeaderMeta } from "../components/shell-header-meta";
 import { ShellNav } from "../components/shell-nav";
+import { StatusBadge } from "../components/status";
 
 type ShellLayoutProps = {
   children: ReactNode;
@@ -29,7 +30,11 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
         <header className="shell-header">
           <ShellHeaderMeta />
           <div className="shell-header-actions">
-            <Link href="/chat" className="secondary-button shell-link-button">
+            <div className="shell-runtime-summary" aria-label="Runtime summary">
+              <StatusBadge tone="warning">Offline-ready</StatusBadge>
+              <span className="muted">Live data requires API keys/runtime</span>
+            </div>
+            <Link href="/chat" className="primary-button shell-link-button">
               New Mission
             </Link>
             <Link href="/missions" className="secondary-button shell-link-button">

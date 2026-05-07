@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
 import {
   listOperationsEvents,
   missionStateStreamUrl,
@@ -281,9 +282,9 @@ export default function SemanticBusPage() {
         title="Stream Filters"
         actions={
           <div className="inline-actions">
-            <span className={`connection-chip ${isLive ? "live" : "stale"}`}>
+            <StatusBadge tone={isLive ? (transportMode === "stream" ? "healthy" : "warning") : "neutral"}>
               {isLive ? `LIVE (${transportMode})` : "PAUSED"}
-            </span>
+            </StatusBadge>
             <button type="button" className="secondary-button" onClick={() => setIsLive((current) => !current)}>
               {isLive ? "Pause" : "Resume"}
             </button>
@@ -339,12 +340,18 @@ export default function SemanticBusPage() {
 
       <Panel title="Event Stream">
         {loading && <p className="muted">Loading recent semantic bus events...</p>}
-        {error && <p className="error-box">{error}</p>}
+        {error && (
+          <SystemMessage tone="critical" title="Semantic bus events are unavailable">
+            {error} Live events will appear once the runtime stream or polling endpoint is available.
+          </SystemMessage>
+        )}
         <p className="muted">
           Rendering {virtualizedEvents.rows.length} of {filteredEvents.length} rows (windowed).
         </p>
         <div
           className="table-wrap virtualized-table-wrap"
+          tabIndex={0}
+          aria-label="Scrollable semantic bus event table"
           style={{ maxHeight: `${EVENT_TABLE_HEIGHT_PX}px` }}
           onScroll={(event) => setEventTableScrollTop(event.currentTarget.scrollTop)}
         >
@@ -391,7 +398,11 @@ export default function SemanticBusPage() {
           </table>
         </div>
         {filteredEvents.length === 0 && (
-          <p className="muted">No semantic bus events match the current filters.</p>
+          <EmptyState title={error ? "No stream data while runtime is offline" : "No events match the current filters"} compact>
+            {error
+              ? "The monitor is ready, but the event source has not returned data."
+              : "Clear the search or protocol filter to broaden the visible event stream."}
+          </EmptyState>
         )}
       </Panel>
 

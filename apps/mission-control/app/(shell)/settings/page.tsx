@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { OperatorUnlockForm } from "../../components/operator-unlock-form";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
+import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
 import { getOperationsAgentIntegrations } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { clampNumber, isAllowedLocalApiBase, safeJsonParse } from "../../lib/security";
@@ -413,16 +414,20 @@ export default function SettingsPage() {
 
       <Panel title="API Key Vault Slots">
         {orchestratorOffline && (
-          <p className="warning-box">
-            Orchestrator offline (port 8100 unreachable) — showing static agent roster. Vault keys can still be saved.
-          </p>
+          <SystemMessage tone="warning" title="Static roster mode">
+            Orchestrator offline (port 8100 unreachable). Vault keys can still be saved, and the live agent roster will replace this table when runtime services are available.
+          </SystemMessage>
         )}
-        {slotError && <p className="error-box">{slotError}</p>}
+        {slotError && (
+          <SystemMessage tone="critical" title="Vault metadata could not be loaded">
+            {slotError}
+          </SystemMessage>
+        )}
         <p className="help-text">
           Provider and GitHub keys are stored server-side in the configured vault backend and never
           returned in plaintext.
         </p>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} aria-label="Scrollable API key vault slots table">
           <table className="data-table">
             <caption className="sr-only">Vault slots for all agents and operator integrations.</caption>
             <thead>
@@ -443,7 +448,21 @@ export default function SettingsPage() {
                   <td>{row.slotId}</td>
                   <td>{row.provider}</td>
                   <td>{row.model}</td>
-                  <td>{describeVaultStatus(row.status)}</td>
+                  <td>
+                    <StatusBadge
+                      tone={
+                        row.status === "set"
+                          ? "healthy"
+                          : row.status === "expiring"
+                            ? "warning"
+                            : row.status === "expired"
+                              ? "critical"
+                              : "neutral"
+                      }
+                    >
+                      {describeVaultStatus(row.status)}
+                    </StatusBadge>
+                  </td>
                   <td>{row.maskedPreview ?? "n/a"}</td>
                   <td>{row.lastRotatedAt ? formatDateTime(row.lastRotatedAt) : "n/a"}</td>
                   <td>{row.expiresAt ? formatDateTime(row.expiresAt) : "n/a"}</td>
@@ -468,7 +487,11 @@ export default function SettingsPage() {
       </Panel>
 
       <Panel title="Edit Selected Vault Slot">
-        {!selectedSlot && <p className="muted">Select a slot from the table above.</p>}
+        {!selectedSlot && (
+          <EmptyState title="No vault slot selected" compact>
+            Select a slot from the table above to save, test, or clear a provider credential.
+          </EmptyState>
+        )}
         {selectedSlot && (
           <>
             <ul className="summary-list">
@@ -525,8 +548,16 @@ export default function SettingsPage() {
             </div>
           </>
         )}
-        {slotMessage && <p className="success-box">{slotMessage}</p>}
-        {slotError && <p className="error-box">{slotError}</p>}
+        {slotMessage && (
+          <SystemMessage tone="success" title="Vault updated">
+            {slotMessage}
+          </SystemMessage>
+        )}
+        {slotError && (
+          <SystemMessage tone="critical" title="Vault action failed">
+            {slotError}
+          </SystemMessage>
+        )}
       </Panel>
 
       <Panel title="Operator Admin Session">
@@ -548,8 +579,16 @@ export default function SettingsPage() {
         <button type="button" onClick={savePreferences}>
           Save Runtime Preferences
         </button>
-        {saveError && <p className="error-box">{saveError}</p>}
-        {saveMessage && <p className="success-box">{saveMessage}</p>}
+        {saveError && (
+          <SystemMessage tone="critical" title="Preferences were not saved">
+            {saveError}
+          </SystemMessage>
+        )}
+        {saveMessage && (
+          <SystemMessage tone="success" title="Preferences saved">
+            {saveMessage}
+          </SystemMessage>
+        )}
       </Panel>
     </div>
   );

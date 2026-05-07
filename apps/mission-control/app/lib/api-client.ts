@@ -24,7 +24,7 @@ import type {
 } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-const missionApiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8100";
+const missionApiBase = process.env.NEXT_PUBLIC_API_PROXY_BASE_URL ?? "/api/gateway";
 
 export class ApiError extends Error {
   statusCode: number;
@@ -92,7 +92,15 @@ export async function fetchJson<T>(input: string, init?: FetchJsonInit): Promise
     if (!response.ok) {
       throw new ApiError(await parseError(response), response.status);
     }
-    return (await response.json()) as T;
+    const payload = (await response.json()) as T & {
+      __gateway_error?: boolean;
+      detail?: string;
+      status?: number;
+    };
+    if (payload.__gateway_error) {
+      throw new ApiError(payload.detail ?? "Local runtime gateway is unavailable.", payload.status ?? 503);
+    }
+    return payload as T;
   } finally {
     timeout?.cleanup();
   }
