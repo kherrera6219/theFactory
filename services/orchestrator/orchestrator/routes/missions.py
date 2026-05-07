@@ -91,7 +91,9 @@ async def create_mission(
             "mission_type": record.mission_type.value if record.mission_type else None,
             "depth_mode": record.depth_mode.value if record.depth_mode else None,
             "output_mode": record.output_mode.value if record.output_mode else None,
-            "data_classification": record.data_classification.value if record.data_classification else None,
+            "data_classification": (
+                record.data_classification.value if record.data_classification else None
+            ),
             "source": metadata.get("source"),
             "project_name": metadata.get("project_name"),
         },
