@@ -26,6 +26,10 @@ async function fulfillJson(
   });
 }
 
+function gatewayPathname(url: URL): string {
+  return url.pathname.replace(/^\/api\/gateway(?=\/|$)/, "");
+}
+
 test.beforeEach(async ({ page }) => {
   await attachOperatorSession(page);
 });
@@ -43,16 +47,16 @@ test.describe("Mission failure path", () => {
       created_at: new Date().toISOString(),
     };
 
-    await page.route("**/v1/missions**", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/missions.*/, async (route) => {
       const request = route.request();
       const url = new URL(request.url());
-      if (request.method() === "GET" && url.pathname === "/v1/missions") {
+      if (request.method() === "GET" && gatewayPathname(url) === "/v1/missions") {
         return fulfillJson(route, 200, [failedMission]);
       }
       return route.continue();
     });
 
-    await page.route(`**/v1/missions/mission-fail-001`, async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/missions\/mission-fail-001$/, async (route) => {
       return fulfillJson(route, 200, failedMission);
     });
 
@@ -76,11 +80,11 @@ test.describe("Mission failure path", () => {
   });
 
   test("API gateway 503 shows user-friendly error banner", async ({ page }) => {
-    await page.route("**/v1/missions**", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/missions.*/, async (route) => {
       return fulfillJson(route, 503, { detail: "Service temporarily unavailable." });
     });
 
-    await page.route("**/v1/operations/**", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/operations\/.*/, async (route) => {
       return fulfillJson(route, 503, { detail: "Service temporarily unavailable." });
     });
 
@@ -98,7 +102,7 @@ test.describe("Mission v2 lifecycle state progression", () => {
     let callCount = 0;
     const states = ["QUEUED", "RUNNING", "COMPLETE"];
 
-    await page.route("**/v1/missions/mission-v2-001", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/missions\/mission-v2-001$/, async (route) => {
       const state = states[Math.min(callCount, states.length - 1)];
       callCount++;
       return fulfillJson(route, 200, {
@@ -111,7 +115,7 @@ test.describe("Mission v2 lifecycle state progression", () => {
       });
     });
 
-    await page.route("**/v1/missions/mission-v2-001/events", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/missions\/mission-v2-001\/events$/, async (route) => {
       return fulfillJson(route, 200, {
         events: [
           { event_type: "MISSION_QUEUED", new_state: "QUEUED", ts: new Date().toISOString() },
@@ -126,7 +130,7 @@ test.describe("Mission v2 lifecycle state progression", () => {
   });
 
   test("v2 flow shows PM_INTAKE → CEO_DELEGATED phases in event list", async ({ page }) => {
-    await page.route("**/v1/missions/mission-v2-phases", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/missions\/mission-v2-phases$/, async (route) => {
       return fulfillJson(route, 200, {
         mission_id: "mission-v2-phases",
         prompt: "Build a Rust CLI",
@@ -137,7 +141,7 @@ test.describe("Mission v2 lifecycle state progression", () => {
       });
     });
 
-    await page.route("**/v1/missions/mission-v2-phases/events", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/missions\/mission-v2-phases\/events$/, async (route) => {
       return fulfillJson(route, 200, {
         events: [
           { event_type: "MISSION_QUEUED", new_state: "QUEUED", ts: new Date().toISOString() },
@@ -195,7 +199,7 @@ test.describe("Agents registry view", () => {
       last_heartbeat: new Date().toISOString(),
     }));
 
-    await page.route("**/v1/operations/agents**", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/operations\/agents.*/, async (route) => {
       return fulfillJson(route, 200, { agents: mockAgents });
     });
 
@@ -209,7 +213,7 @@ test.describe("Agents registry view", () => {
 
 test.describe("Semantic bus monitor", () => {
   test("semantic bus page loads without crashing", async ({ page }) => {
-    await page.route("**/v1/operations/**", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/operations\/.*/, async (route) => {
       return fulfillJson(route, 200, { events: [], total: 0 });
     });
 
@@ -223,7 +227,7 @@ test.describe("Semantic bus monitor", () => {
 
 test.describe("Accessibility — extended pages", () => {
   test("agents page has no critical a11y violations", async ({ page }) => {
-    await page.route("**/v1/operations/agents**", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/operations\/agents.*/, async (route) => {
       return fulfillJson(route, 200, { agents: [] });
     });
 
@@ -255,7 +259,7 @@ test.describe("Accessibility — extended pages", () => {
 
 test.describe("Databases data plane view", () => {
   test("databases page renders with all data plane statuses", async ({ page }) => {
-    await page.route("**/v1/operations/**", async (route) => {
+    await page.route(/.*(?:\/api\/gateway)?\/v1\/operations\/.*/, async (route) => {
       return fulfillJson(route, 200, {
         databases: {
           postgres: { status: "healthy", latency_ms: 2 },
