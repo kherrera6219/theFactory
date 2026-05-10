@@ -212,10 +212,18 @@ jobs:
           mkdir -p reports
           printf 'signed_tag_verified=false\n' > reports/signed-tag-verification.txt
 
-      - name: Download CI artifacts
+      - name: Download test artifacts
         uses: actions/download-artifact@v4
         with:
-          path: reports/input-artifacts
+          name: test-artifacts-py3.11
+          path: reports/input-artifacts/test-artifacts-py3.11
+        timeout-minutes: 5
+
+      - name: Download SBOM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom
+          path: reports/input-artifacts/sbom
         timeout-minutes: 5
 
       - name: Build release manifest
