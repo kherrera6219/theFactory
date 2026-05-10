@@ -275,8 +275,20 @@ jobs:
           subject-path: reports/release-manifest.json
 
       - name: Verify release manifest attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          gh attestation verify reports/release-manifest.json --repo "${{ github.repository }}" > reports/attestation-verification.txt
+          for attempt in 1 2 3 4 5 6; do
+            if gh attestation verify reports/release-manifest.json \
+              --repo "${{ github.repository }}" \
+              > reports/attestation-verification.txt \
+              2> reports/attestation-verification.err; then
+              exit 0
+            fi
+            cat reports/attestation-verification.err
+            sleep 10
+          done
+          exit 1
 
       - name: Import release tag verification key
         if: startsWith(github.ref, 'refs/tags/v')
