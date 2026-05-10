@@ -885,14 +885,14 @@ theFactory/
 
 ## Current Status
 
-**The repo-local application, documentation, and qualification evidence are materially aligned. The default runtime remains condensed, and the strict full-dedicated overlay has been revalidated locally. Remaining release blockers are out-of-band governance, production-environment, and legal/policy actions rather than missing repository implementation.**
+**The repo-local application and documentation are materially aligned. Main-branch CI now validates lint, tests, builds, SBOM generation, release-manifest attestation, and signing evidence; strict promotion remains release-tag gated and still requires fresh live qualification evidence from the operator runbook. Remaining release blockers are out-of-band governance, production-environment, and legal/policy actions rather than missing repository implementation.**
 
 | Domain | Status |
 |--------|--------|
 | Infrastructure & DevOps | ✅ Repo-local implementation baseline complete; production-host enforcement remains out-of-band |
 | Security & Auth | ✅ Fail-closed repo-local baseline; key-history scrub and host-policy enforcement remain |
 | Observability | ✅ Core telemetry stack, docs, and runbooks are in place |
-| Testing & CI | ✅ Backend pytest, frontend unit tests, Playwright, AI eval gate, and docs validation are in place |
+| Testing & CI | ✅ Backend pytest, frontend unit tests, Playwright, AI eval gate, docs validation, SBOM, and release-trust evidence are in place |
 | Data Systems | ✅ Core path complete; current-source docs now match shipped readiness |
 | Mission Control UI | ✅ Real operator UI with grounded builder, repo-review, chat launch, LogicNode, project, alert, performance, and artifact views |
 | Language Extraction Engine | ✅ 20 routed language keys across 4 pods |
