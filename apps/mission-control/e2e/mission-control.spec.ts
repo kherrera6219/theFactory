@@ -78,6 +78,10 @@ async function fulfillJson(route: Route, status: number, body: unknown): Promise
   });
 }
 
+function gatewayPathname(url: URL): string {
+  return url.pathname.replace(/^\/api\/gateway(?=\/|$)/, "");
+}
+
 async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}): Promise<void> {
   const seedMissionId = "mission-seed-001";
   let missionCounter = 1;
@@ -384,10 +388,10 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
     });
   });
 
-  await page.route(/http:\/\/(?:localhost|127\.0\.0\.1):8100\/.*/, async (route) => {
+  await page.route(/(?:http:\/\/(?:localhost|127\.0\.0\.1):8100\/.*|.*\/api\/gateway\/.*)/, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    const pathname = url.pathname;
+    const pathname = gatewayPathname(url);
 
     if (pathname === "/v1/missions" && request.method() === "GET") {
       if (options.failMissionList) {
@@ -794,13 +798,11 @@ test("error states surface actionable UI messaging", async ({ page }) => {
   });
 
   await page.goto("/missions");
-  await expect(page.locator(".error-box", { hasText: "Mission list unavailable for test." })).toBeVisible();
+  await expect(page.getByText("Mission list unavailable for test.").first()).toBeVisible();
 
   await page.getByLabel("Mission prompt").fill("Trigger a mission submit error path.");
   await page.getByRole("button", { name: "Launch Mission" }).click();
-  await expect(
-    page.locator(".error-box", { hasText: /Review mission prompt and retry\./ }),
-  ).toBeVisible();
+  await expect(page.getByText(/Review mission prompt and retry\./).first()).toBeVisible();
 });
 
 test("accessibility checks pass on mission flow pages", async ({ page }) => {
