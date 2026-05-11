@@ -311,7 +311,7 @@ jobs:
           echo "signed_tag_verified=true" >> "${GITHUB_OUTPUT}"
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.8.1
+        uses: sigstore/cosign-installer@v4.1.2
 
       - name: Sign release manifest and SBOM
         run: |
