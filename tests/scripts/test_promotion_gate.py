@@ -130,7 +130,7 @@ def test_evaluate_promotion_blocks_preview_models() -> None:
                     "model": "gemini-3.1-pro-preview",
                     "lifecycle": "preview",
                     "production_approved": False,
-                    "fallback_model": "gpt-5.2-pro",
+                    "fallback_model": "gpt-5.5",
                     "fallback_lifecycle": "stable",
                     "fallback_production_approved": True,
                 }

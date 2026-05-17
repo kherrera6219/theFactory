@@ -1,25 +1,37 @@
 {
-  "generated_at": "2026-03-08T17:33:35.695587+00:00",
+  "generated_at": "2026-05-17T04:16:08.808219+00:00",
   "source": "services/orchestrator/orchestrator/agent_integrations.py",
   "summary": {
-    "total_agents": 35,
+    "total_agents": 41,
     "lifecycle_counts": {
-      "stable": 35
+      "preview": 9,
+      "stable": 32
     },
-    "blocked_agent_count": 0,
-    "blocked_agents": []
+    "blocked_agent_count": 9,
+    "blocked_agents": [
+      "AGENT-06-IS",
+      "AGENT-09-HW",
+      "AGENT-30-PODD-MGR",
+      "AGENT-32-MATLAB",
+      "AGENT-33-R",
+      "AGENT-34-JULIA",
+      "AGENT-35-MATHEMATICA",
+      "AGENT-37-HASKELL",
+      "AGENT-38-OCAML"
+    ]
   },
   "models": [
     {
       "provider": "anthropic",
-      "model": "claude-opus-4-6",
+      "model": "claude-opus-4-7",
       "lifecycle": "stable",
       "production_approved": true,
       "agents": [
         "AGENT-05-SECURITY",
         "AGENT-08-COMPLIANCE",
         "AGENT-10-TESTER",
-        "AGENT-31-PODD-AUDIT"
+        "AGENT-31-PODD-AUDIT",
+        "AGENT-39-DEPABS"
       ]
     },
     {
@@ -35,24 +47,26 @@
         "AGENT-26-JAVA",
         "AGENT-27-CSHARP",
         "AGENT-28-SCALA",
-        "AGENT-29-KOTLIN"
+        "AGENT-29-KOTLIN",
+        "AGENT-41-RQCA"
       ]
     },
     {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemini-3.1-flash-lite",
       "lifecycle": "stable",
       "production_approved": true,
       "agents": [
         "AGENT-03-BROKER",
-        "AGENT-11-DEPLOY"
+        "AGENT-11-DEPLOY",
+        "AGENT-40-TESTDATA"
       ]
     },
     {
       "provider": "gemini",
-      "model": "gemini-2.5-pro",
-      "lifecycle": "stable",
-      "production_approved": true,
+      "model": "gemini-3.1-pro-preview",
+      "lifecycle": "preview",
+      "production_approved": false,
       "agents": [
         "AGENT-06-IS",
         "AGENT-09-HW",
@@ -60,28 +74,9 @@
         "AGENT-32-MATLAB",
         "AGENT-33-R",
         "AGENT-34-JULIA",
-        "AGENT-35-MATHEMATICA"
-      ]
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-5.2",
-      "lifecycle": "stable",
-      "production_approved": true,
-      "agents": [
-        "AGENT-04-ACCOUNTANT"
-      ]
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-5.2-pro",
-      "lifecycle": "stable",
-      "production_approved": true,
-      "agents": [
-        "AGENT-02-CEO",
-        "AGENT-12-PODA-MGR",
-        "AGENT-18-PODB-MGR",
-        "AGENT-24-PODC-MGR"
+        "AGENT-35-MATHEMATICA",
+        "AGENT-37-HASKELL",
+        "AGENT-38-OCAML"
       ]
     },
     {
@@ -98,7 +93,21 @@
         "AGENT-20-C",
         "AGENT-21-CPP",
         "AGENT-22-RUST",
-        "AGENT-23-ZIG"
+        "AGENT-23-ZIG",
+        "AGENT-36-GO"
+      ]
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "stable",
+      "production_approved": true,
+      "agents": [
+        "AGENT-02-CEO",
+        "AGENT-04-ACCOUNTANT",
+        "AGENT-12-PODA-MGR",
+        "AGENT-18-PODB-MGR",
+        "AGENT-24-PODC-MGR"
       ]
     }
   ],
@@ -117,7 +126,7 @@
     {
       "agent_id": "AGENT-02-CEO",
       "provider": "openai",
-      "model": "gpt-5.2-pro",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -128,18 +137,18 @@
     {
       "agent_id": "AGENT-03-BROKER",
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemini-3.1-flash-lite",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-5.2",
+      "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
     {
       "agent_id": "AGENT-04-ACCOUNTANT",
       "provider": "openai",
-      "model": "gpt-5.2",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -150,7 +159,7 @@
     {
       "agent_id": "AGENT-05-SECURITY",
       "provider": "anthropic",
-      "model": "claude-opus-4-6",
+      "model": "claude-opus-4-7",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -161,9 +170,9 @@
     {
       "agent_id": "AGENT-06-IS",
       "provider": "gemini",
-      "model": "gemini-2.5-pro",
-      "lifecycle": "stable",
-      "production_approved": true,
+      "model": "gemini-3.1-pro-preview",
+      "lifecycle": "preview",
+      "production_approved": false,
       "fallback_provider": "anthropic",
       "fallback_model": "claude-sonnet-4-6",
       "fallback_lifecycle": "stable",
@@ -183,7 +192,7 @@
     {
       "agent_id": "AGENT-08-COMPLIANCE",
       "provider": "anthropic",
-      "model": "claude-opus-4-6",
+      "model": "claude-opus-4-7",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -194,18 +203,18 @@
     {
       "agent_id": "AGENT-09-HW",
       "provider": "gemini",
-      "model": "gemini-2.5-pro",
-      "lifecycle": "stable",
-      "production_approved": true,
+      "model": "gemini-3.1-pro-preview",
+      "lifecycle": "preview",
+      "production_approved": false,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-5.2-pro",
+      "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
     {
       "agent_id": "AGENT-10-TESTER",
       "provider": "anthropic",
-      "model": "claude-opus-4-6",
+      "model": "claude-opus-4-7",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -216,18 +225,18 @@
     {
       "agent_id": "AGENT-11-DEPLOY",
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemini-3.1-flash-lite",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-5.2",
+      "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
     {
       "agent_id": "AGENT-12-PODA-MGR",
       "provider": "openai",
-      "model": "gpt-5.2-pro",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -293,7 +302,7 @@
     {
       "agent_id": "AGENT-18-PODB-MGR",
       "provider": "openai",
-      "model": "gpt-5.2-pro",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -359,7 +368,7 @@
     {
       "agent_id": "AGENT-24-PODC-MGR",
       "provider": "openai",
-      "model": "gpt-5.2-pro",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -425,18 +434,18 @@
     {
       "agent_id": "AGENT-30-PODD-MGR",
       "provider": "gemini",
-      "model": "gemini-2.5-pro",
-      "lifecycle": "stable",
-      "production_approved": true,
+      "model": "gemini-3.1-pro-preview",
+      "lifecycle": "preview",
+      "production_approved": false,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-5.2-pro",
+      "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
     {
       "agent_id": "AGENT-31-PODD-AUDIT",
       "provider": "anthropic",
-      "model": "claude-opus-4-6",
+      "model": "claude-opus-4-7",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -447,45 +456,111 @@
     {
       "agent_id": "AGENT-32-MATLAB",
       "provider": "gemini",
-      "model": "gemini-2.5-pro",
-      "lifecycle": "stable",
-      "production_approved": true,
+      "model": "gemini-3.1-pro-preview",
+      "lifecycle": "preview",
+      "production_approved": false,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-5.2-pro",
+      "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
     {
       "agent_id": "AGENT-33-R",
       "provider": "gemini",
-      "model": "gemini-2.5-pro",
-      "lifecycle": "stable",
-      "production_approved": true,
+      "model": "gemini-3.1-pro-preview",
+      "lifecycle": "preview",
+      "production_approved": false,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-5.2-pro",
+      "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
     {
       "agent_id": "AGENT-34-JULIA",
       "provider": "gemini",
-      "model": "gemini-2.5-pro",
-      "lifecycle": "stable",
-      "production_approved": true,
+      "model": "gemini-3.1-pro-preview",
+      "lifecycle": "preview",
+      "production_approved": false,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-5.2-pro",
+      "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
     {
       "agent_id": "AGENT-35-MATHEMATICA",
       "provider": "gemini",
-      "model": "gemini-2.5-pro",
+      "model": "gemini-3.1-pro-preview",
+      "lifecycle": "preview",
+      "production_approved": false,
+      "fallback_provider": "openai",
+      "fallback_model": "gpt-5.5",
+      "fallback_lifecycle": "stable",
+      "fallback_production_approved": true
+    },
+    {
+      "agent_id": "AGENT-36-GO",
+      "provider": "openai",
+      "model": "gpt-5.3-codex",
+      "lifecycle": "stable",
+      "production_approved": true,
+      "fallback_provider": "",
+      "fallback_model": "",
+      "fallback_lifecycle": "none",
+      "fallback_production_approved": true
+    },
+    {
+      "agent_id": "AGENT-37-HASKELL",
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview",
+      "lifecycle": "preview",
+      "production_approved": false,
+      "fallback_provider": "openai",
+      "fallback_model": "gpt-5.5",
+      "fallback_lifecycle": "stable",
+      "fallback_production_approved": true
+    },
+    {
+      "agent_id": "AGENT-38-OCAML",
+      "provider": "gemini",
+      "model": "gemini-3.1-pro-preview",
+      "lifecycle": "preview",
+      "production_approved": false,
+      "fallback_provider": "openai",
+      "fallback_model": "gpt-5.5",
+      "fallback_lifecycle": "stable",
+      "fallback_production_approved": true
+    },
+    {
+      "agent_id": "AGENT-39-DEPABS",
+      "provider": "anthropic",
+      "model": "claude-opus-4-7",
+      "lifecycle": "stable",
+      "production_approved": true,
+      "fallback_provider": "",
+      "fallback_model": "",
+      "fallback_lifecycle": "none",
+      "fallback_production_approved": true
+    },
+    {
+      "agent_id": "AGENT-40-TESTDATA",
+      "provider": "gemini",
+      "model": "gemini-3.1-flash-lite",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-5.2-pro",
+      "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
+      "fallback_production_approved": true
+    },
+    {
+      "agent_id": "AGENT-41-RQCA",
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "lifecycle": "stable",
+      "production_approved": true,
+      "fallback_provider": "",
+      "fallback_model": "",
+      "fallback_lifecycle": "none",
       "fallback_production_approved": true
     }
   ]

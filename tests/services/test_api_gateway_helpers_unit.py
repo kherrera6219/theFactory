@@ -564,7 +564,7 @@ def test_live_builder_preview_helpers_cover_success_and_failure_paths(monkeypatc
         asyncio.run(
             api_gateway_main._gemini_builder_preview(
                 payload,
-                model="gemini-2.5-pro",
+                model="gemini-3.1-pro-preview",
                 thinking_budget=5,
                 thinking_level=None,
             )

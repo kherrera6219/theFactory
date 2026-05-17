@@ -10,6 +10,9 @@ from .mission_flow import append_chain_event
 SOURCE_BUNDLE_ARTIFACT_ID = "source-bundle-package"
 SOURCE_BUNDLE_ARTIFACT_TYPE = "source_bundle_package"
 SOURCE_BUNDLE_ARTIFACT_STAGE = "package"
+GENERATED_CODE_ARTIFACT_ID = "generated-code-output"
+GENERATED_CODE_ARTIFACT_TYPE = "generated_code"
+GENERATED_CODE_ARTIFACT_STAGE = "squeeze"
 BUILD_ARTIFACT_PACKAGED_EVENT = "MISSION_BUILD_ARTIFACT_PACKAGED"
 BUILD_ARTIFACT_FAILED_EVENT = "MISSION_BUILD_ARTIFACT_FAILED"
 
@@ -19,8 +22,88 @@ _SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
 def mission_requires_build_artifact(metadata: Any) -> bool:
     if not isinstance(metadata, dict):
         return False
+    if mission_has_generated_output(metadata):
+        return True
     source_code = metadata.get("source_code")
     return isinstance(source_code, str) and bool(source_code.strip())
+
+
+def mission_has_generated_output(metadata: Any) -> bool:
+    if not isinstance(metadata, dict):
+        return False
+    generated_output = metadata.get("generated_output")
+    if not isinstance(generated_output, dict):
+        return False
+    if str(generated_output.get("source", "")).strip().lower() == "fallback":
+        return False
+    generated_code = generated_output.get("generated_code")
+    return isinstance(generated_code, str) and len(generated_code.strip()) >= 10
+
+
+def build_generated_output_artifact(
+    *,
+    mission_id: str,
+    requested_target_language: str | None,
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    generated_output = metadata.get("generated_output")
+    if not isinstance(generated_output, dict):
+        raise ValueError("generated_output is required to build a generated code artifact")
+    generated_code = str(generated_output.get("generated_code") or "").strip()
+    if len(generated_code) < 10:
+        raise ValueError("generated_output.generated_code is too small to package")
+
+    generated_at = datetime.now(UTC).isoformat()
+    digest_sha256 = hashlib.sha256(generated_code.encode("utf-8")).hexdigest()
+    size_bytes = len(generated_code.encode("utf-8"))
+    manifest = {
+        "manifest_version": "build-artifact.v1",
+        "mission_id": mission_id,
+        "artifact_id": GENERATED_CODE_ARTIFACT_ID,
+        "artifact_type": GENERATED_CODE_ARTIFACT_TYPE,
+        "stage": GENERATED_CODE_ARTIFACT_STAGE,
+        "generated_at": generated_at,
+        "requested_target_language": requested_target_language,
+        "filename": generated_output.get("filename") or "generated.txt",
+        "language": generated_output.get("language") or requested_target_language or "text",
+        "description": generated_output.get("description"),
+        "dependencies": generated_output.get("dependencies") or [],
+        "source": generated_output.get("source"),
+        "specialist_agent_id": generated_output.get("specialist_agent_id"),
+        "model_provider": generated_output.get("model_provider"),
+        "model": generated_output.get("model"),
+    }
+    verification = {
+        "verified": True,
+        "verification_method": "sha256",
+        "verified_at": generated_at,
+        "artifact_digest_sha256": digest_sha256,
+    }
+    build_log = "\n".join(
+        [
+            f"[{generated_at}] generated-code packaging started for mission {mission_id}",
+            f"[{generated_at}] packaged generated code artifact",
+            f"[{generated_at}] computed sha256 {digest_sha256}",
+            f"[{generated_at}] package completed with status SUCCESS",
+        ]
+    )
+    return {
+        "artifact_id": GENERATED_CODE_ARTIFACT_ID,
+        "artifact_type": GENERATED_CODE_ARTIFACT_TYPE,
+        "stage": GENERATED_CODE_ARTIFACT_STAGE,
+        "status": "SUCCESS",
+        "storage_backend": "database",
+        "storage_ref": (
+            f"database://missions/{mission_id}/build-artifacts/{GENERATED_CODE_ARTIFACT_ID}"
+        ),
+        "digest_sha256": digest_sha256,
+        "size_bytes": size_bytes,
+        "manifest": manifest,
+        "verification": verification,
+        "build_log": build_log,
+        "artifact_text": generated_code,
+        "created_at": generated_at,
+    }
 
 
 def build_source_bundle_artifact(

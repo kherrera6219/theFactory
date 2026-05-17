@@ -31,7 +31,7 @@ def test_build_inventory_classifies_preview_and_stable_routes(monkeypatch) -> No
                         "provider": "gemini",
                         "model": "gemini-3.1-pro-preview",
                         "fallback_provider": "openai",
-                        "fallback_model": "gpt-5.2-pro",
+                        "fallback_model": "gpt-5.5",
                     },
                 },
             ]

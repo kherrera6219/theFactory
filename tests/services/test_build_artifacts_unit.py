@@ -62,3 +62,44 @@ def test_mission_requires_build_artifact_detects_source_code() -> None:
     assert build_artifacts.mission_requires_build_artifact({"source_code": "print('a')"}) is True
     assert build_artifacts.mission_requires_build_artifact({"source_code": "   "}) is False
     assert build_artifacts.mission_requires_build_artifact({"source": "builder"}) is False
+
+
+def test_build_generated_output_artifact_generates_manifest_and_digest() -> None:
+    metadata = {
+        "generated_output": {
+            "generated_code": "def count_words(text: str) -> dict[str, int]:\n    return {}\n",
+            "filename": "count_words.py",
+            "language": "python",
+            "description": "Word counter",
+            "dependencies": [],
+            "source": "llm",
+            "specialist_agent_id": "AGENT-14-PYTHON",
+            "model_provider": "openai",
+            "model": "gpt-5.3-codex",
+        }
+    }
+    artifact = build_artifacts.build_generated_output_artifact(
+        mission_id="mission-2",
+        requested_target_language="python",
+        metadata=metadata,
+    )
+    assert artifact["artifact_id"] == build_artifacts.GENERATED_CODE_ARTIFACT_ID
+    assert artifact["artifact_type"] == build_artifacts.GENERATED_CODE_ARTIFACT_TYPE
+    assert artifact["manifest"]["filename"] == "count_words.py"
+    assert artifact["artifact_text"].startswith("def count_words")
+    assert artifact["digest_sha256"]
+
+
+def test_mission_has_generated_output_rejects_fallback() -> None:
+    assert (
+        build_artifacts.mission_has_generated_output(
+            {"generated_output": {"generated_code": "print('hello')", "source": "fallback"}}
+        )
+        is False
+    )
+    assert (
+        build_artifacts.mission_requires_build_artifact(
+            {"generated_output": {"generated_code": "print('hello')", "source": "llm"}}
+        )
+        is True
+    )

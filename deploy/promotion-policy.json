@@ -16,7 +16,9 @@
         "experimental",
         "rolling"
       ],
-      "allowlist_models": []
+      "allowlist_models": [
+        "gemini-3.1-pro-preview"
+      ]
     },
     "qualification_gates": {
       "required": true,

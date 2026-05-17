@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -208,6 +209,10 @@ def _agent_recommendation(agent_id: str | None) -> dict[str, Any]:
 
 def _ceo_recommendation() -> dict[str, Any]:
     return _agent_recommendation(CEO_AGENT_ID)
+
+
+def _pm_recommendation() -> dict[str, Any]:
+    return _agent_recommendation("AGENT-01-PM")
 
 
 def _extract_openai_text(payload: dict[str, Any]) -> str | None:
@@ -436,7 +441,7 @@ async def _call_with_recommendation(
     call_context: str,
 ) -> tuple[dict[str, Any] | None, str, str, str]:
     provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.2-pro")).strip()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
 
     parsed = await _call_provider(
         provider=provider,
@@ -585,6 +590,833 @@ def _build_specialist_prompt(
     )
 
 
+def _build_mission_contract_prompt(
+    *,
+    mission_context: dict[str, Any],
+    prompt: str,
+    mission_type: str,
+    output_mode: str,
+    requested_target_language: str | None,
+    ceo_delegation: dict[str, Any],
+    recommended_provider: str,
+    recommended_model: str,
+) -> str:
+    safe_prompt = _clean_text(prompt, max_length=1200)
+    safe_mission_type = _clean_text(mission_type or "BUILD_NEW", max_length=48).upper()
+    safe_output_mode = _clean_text(output_mode or "FULL_BUILD", max_length=48).upper()
+    safe_language = _clean_text(requested_target_language or "auto", max_length=32).lower()
+    safe_delegation = json.dumps(
+        {
+            "pod_manager_agent_id": ceo_delegation.get("pod_manager_agent_id"),
+            "specialist_agent_id": ceo_delegation.get("specialist_agent_id"),
+            "source": ceo_delegation.get("source"),
+        },
+        sort_keys=True,
+    )
+    feature_contract = mission_context.get("feature_contract")
+    feature_summary = ""
+    if isinstance(feature_contract, dict):
+        feature_summary = json.dumps(
+            {
+                "title": feature_contract.get("title"),
+                "summary": feature_contract.get("summary"),
+                "functional_requirements": feature_contract.get("functional_requirements"),
+                "acceptance_criteria": feature_contract.get("acceptance_criteria"),
+            },
+            sort_keys=True,
+        )
+    return (
+        "You are AGENT-02-CEO. Produce the durable Mission Contract for this mission.\n"
+        f"Recommended model route: {recommended_provider}/{recommended_model}\n"
+        "Return only JSON. No markdown, prose, or code fences.\n\n"
+        f"Mission type: {safe_mission_type}\n"
+        f"Output mode: {safe_output_mode}\n"
+        f"Requested target language: {safe_language}\n"
+        f"CEO delegation JSON: {safe_delegation}\n"
+        + (f"PM feature contract JSON: {feature_summary}\n" if feature_summary else "")
+        + f"User prompt: {safe_prompt}\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "contract_summary": "one sentence describing the requested deliverable",\n'
+        '  "mission_type": "BUILD_NEW | IMPORT_MODERNIZE | PORT | DEBUG_REPAIR | ANALYZE_ONLY",\n'
+        '  "target_languages": ["language names"],\n'
+        '  "output_mode": "FULL_BUILD | ANALYZE_ONLY | PLAN_ONLY | PATCH_PROPOSAL | APPLY_PATCH",\n'
+        '  "output_format": "standalone_script | library | service | analysis_report | patch",\n'
+        '  "required_domains": ["short domain names"],\n'
+        '  "logicnode_requirements": [\n'
+        '    {"domain": "domain", "concept": "concept", '
+        '"intent": "testable intent", "priority": "HIGH | MEDIUM | LOW"}\n'
+        "  ],\n"
+        '  "acceptance_criteria": ["testable pass/fail criteria"],\n'
+        '  "risk_notes": ["material risks or constraints"]\n'
+        "}\n\n"
+        "Keep arrays concise. Use 1-12 logicnode requirements and 1-6 acceptance criteria.\n"
+        f"Safe mission context: {_safe_context_json(mission_context)}"
+    )
+
+
+def _build_pm_feature_contract_prompt(
+    *,
+    prompt: str,
+    mission_type: str,
+    depth_mode: str,
+    output_mode: str,
+    requested_target_language: str | None,
+    recommended_provider: str,
+    recommended_model: str,
+) -> str:
+    safe_prompt = _clean_text(prompt, max_length=1200)
+    return (
+        "You are AGENT-01-PM. Convert the operator request into a product-level "
+        "Feature Contract for a software factory mission.\n"
+        f"Recommended model route: {recommended_provider}/{recommended_model}\n"
+        "Return only JSON. No markdown, prose, or code fences.\n\n"
+        f"Mission type: {_clean_text(mission_type or 'BUILD_NEW', max_length=48).upper()}\n"
+        f"Depth mode: {_clean_text(depth_mode or 'STANDARD', max_length=48).upper()}\n"
+        f"Output mode: {_clean_text(output_mode or 'FULL_BUILD', max_length=48).upper()}\n"
+        "Requested target language: "
+        f"{_clean_text(requested_target_language or 'auto', max_length=32).lower()}\n"
+        f"Operator request: {safe_prompt}\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "title": "short title",\n'
+        '  "summary": "one paragraph",\n'
+        '  "functional_requirements": ["specific requirements"],\n'
+        '  "non_functional_requirements": ["constraints"],\n'
+        '  "acceptance_criteria": ["testable criteria"],\n'
+        '  "target_languages": ["language names"],\n'
+        '  "estimated_complexity": "low | medium | high | very_high",\n'
+        '  "human_approval_required": true,\n'
+        '  "risk_notes": ["risks"],\n'
+        '  "clarifying_questions": ["questions if needed"]\n'
+        "}\n"
+    )
+
+
+def _normalize_pm_feature_contract(
+    raw: dict[str, Any],
+    *,
+    provider: str,
+    model: str,
+    route: str,
+    prompt: str,
+    requested_target_language: str | None,
+) -> dict[str, Any]:
+    complexity = _clean_text(raw.get("estimated_complexity", "medium"), max_length=24).lower()
+    if complexity not in {"low", "medium", "high", "very_high"}:
+        complexity = "medium"
+    human_approval = raw.get("human_approval_required", False)
+    if not isinstance(human_approval, bool):
+        human_approval = str(human_approval).strip().lower() in {"1", "true", "yes", "on"}
+    target_languages = _string_list(raw.get("target_languages"), limit=4, max_length=32)
+    if not target_languages and requested_target_language:
+        target_languages = [_clean_text(requested_target_language, max_length=32).lower()]
+    functional_requirements = _string_list(raw.get("functional_requirements"), limit=8)
+    if not functional_requirements:
+        functional_requirements = [_clean_text(prompt, max_length=160) or "Complete mission"]
+    acceptance_criteria = _string_list(raw.get("acceptance_criteria"), limit=6)
+    if not acceptance_criteria:
+        acceptance_criteria = ["Mission completes without error."]
+    return {
+        "schema_version": "feature_contract.v1",
+        "title": _clean_text(raw.get("title", "Mission"), max_length=80) or "Mission",
+        "summary": _clean_text(raw.get("summary", prompt), max_length=500),
+        "functional_requirements": functional_requirements,
+        "non_functional_requirements": _string_list(
+            raw.get("non_functional_requirements"), limit=4
+        ),
+        "acceptance_criteria": acceptance_criteria,
+        "target_languages": target_languages,
+        "estimated_complexity": complexity,
+        "human_approval_required": human_approval,
+        "risk_notes": _string_list(raw.get("risk_notes"), limit=5),
+        "clarifying_questions": _string_list(raw.get("clarifying_questions"), limit=5),
+        "source": "llm",
+        "llm_route": route,
+        "model_provider": provider,
+        "model": model,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _fallback_pm_feature_contract(
+    *,
+    prompt: str,
+    mission_type: str,
+    requested_target_language: str | None,
+    recommendation: dict[str, Any],
+) -> dict[str, Any]:
+    language = _clean_text(requested_target_language or "", max_length=32).lower()
+    return {
+        "schema_version": "feature_contract.v1",
+        "title": _clean_text(prompt, max_length=80) or "Mission",
+        "summary": _clean_text(prompt, max_length=500),
+        "functional_requirements": [_clean_text(prompt, max_length=160) or "Complete mission"],
+        "non_functional_requirements": [],
+        "acceptance_criteria": ["Mission completes without error."],
+        "target_languages": [language] if language else [],
+        "estimated_complexity": "medium",
+        "human_approval_required": str(mission_type).strip().upper()
+        in {"IMPORT_MODERNIZE", "PORT", "DEBUG_REPAIR", "SECURITY_HARDEN"},
+        "risk_notes": ["Feature contract generated via deterministic fallback."],
+        "clarifying_questions": [],
+        "source": "fallback",
+        "model_provider": recommendation.get("provider"),
+        "model": recommendation.get("model"),
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+async def generate_pm_feature_contract(
+    *,
+    prompt: str,
+    mission_type: str,
+    depth_mode: str,
+    output_mode: str,
+    requested_target_language: str | None,
+) -> dict[str, Any]:
+    recommendation = _pm_recommendation()
+    provider = str(recommendation.get("provider", "anthropic")).strip().lower()
+    model = str(recommendation.get("model", "claude-sonnet-4-6")).strip()
+    pm_prompt = _build_pm_feature_contract_prompt(
+        prompt=prompt,
+        mission_type=mission_type,
+        depth_mode=depth_mode,
+        output_mode=output_mode,
+        requested_target_language=requested_target_language,
+        recommended_provider=provider,
+        recommended_model=model,
+    )
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+        recommendation=recommendation,
+        prompt=pm_prompt,
+        call_context="pm feature contract",
+    )
+    if not isinstance(parsed, dict):
+        return _fallback_pm_feature_contract(
+            prompt=prompt,
+            mission_type=mission_type,
+            requested_target_language=requested_target_language,
+            recommendation=recommendation,
+        )
+    return _normalize_pm_feature_contract(
+        parsed,
+        provider=resolved_provider,
+        model=resolved_model,
+        route=llm_route,
+        prompt=prompt,
+        requested_target_language=requested_target_language,
+    )
+
+
+def _string_list(value: Any, *, limit: int, max_length: int = 120) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [
+        cleaned
+        for item in value[:limit]
+        if (cleaned := _clean_text(item, max_length=max_length))
+    ]
+
+
+def _normalize_mission_contract(
+    raw: dict[str, Any],
+    *,
+    provider: str,
+    model: str,
+    route: str,
+    mission_type: str,
+    output_mode: str,
+    requested_target_language: str | None,
+) -> dict[str, Any]:
+    valid_priorities = {"HIGH", "MEDIUM", "LOW"}
+    valid_output_formats = {"standalone_script", "library", "service", "analysis_report", "patch"}
+    normalized_output_format = _clean_text(
+        raw.get("output_format", "standalone_script"), max_length=48
+    ).lower()
+    if normalized_output_format not in valid_output_formats:
+        normalized_output_format = "standalone_script"
+
+    requirements: list[dict[str, Any]] = []
+    raw_requirements = raw.get("logicnode_requirements")
+    if isinstance(raw_requirements, list):
+        for item in raw_requirements[:12]:
+            if not isinstance(item, dict):
+                continue
+            priority = _clean_text(item.get("priority", "MEDIUM"), max_length=16).upper()
+            if priority not in valid_priorities:
+                priority = "MEDIUM"
+            requirements.append(
+                {
+                    "domain": _clean_text(item.get("domain", "generic"), max_length=64)
+                    or "generic",
+                    "concept": _clean_text(
+                        item.get("concept", "primary_operation"), max_length=64
+                    )
+                    or "primary_operation",
+                    "intent": _clean_text(item.get("intent", "Implement requested behavior")),
+                    "priority": priority,
+                }
+            )
+    if not requirements:
+        requirements = [
+            {
+                "domain": "generic",
+                "concept": "primary_operation",
+                "intent": "Implement the requested mission behavior",
+                "priority": "HIGH",
+            }
+        ]
+
+    target_languages = _string_list(raw.get("target_languages"), limit=4, max_length=32)
+    if not target_languages and requested_target_language:
+        target_languages = [_clean_text(requested_target_language, max_length=32).lower()]
+
+    acceptance_criteria = _string_list(raw.get("acceptance_criteria"), limit=6)
+    if not acceptance_criteria:
+        acceptance_criteria = ["Mission output satisfies the requested behavior."]
+
+    return {
+        "schema_version": "mission_contract.v1",
+        "contract_summary": _clean_text(
+            raw.get("contract_summary", "Mission contract generated."), max_length=240
+        ),
+        "mission_type": _clean_text(raw.get("mission_type", mission_type), max_length=48).upper(),
+        "target_languages": target_languages,
+        "output_mode": _clean_text(raw.get("output_mode", output_mode), max_length=48).upper(),
+        "output_format": normalized_output_format,
+        "required_domains": _string_list(raw.get("required_domains"), limit=10, max_length=64),
+        "logicnode_requirements": requirements,
+        "acceptance_criteria": acceptance_criteria,
+        "risk_notes": _string_list(raw.get("risk_notes"), limit=5),
+        "source": "llm",
+        "llm_route": route,
+        "model_provider": provider,
+        "model": model,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _fallback_mission_contract(
+    *,
+    prompt: str,
+    mission_type: str,
+    output_mode: str,
+    requested_target_language: str | None,
+    recommendation: dict[str, Any],
+) -> dict[str, Any]:
+    language = _clean_text(requested_target_language or "general", max_length=32).lower()
+    return {
+        "schema_version": "mission_contract.v1",
+        "contract_summary": _clean_text(
+            prompt or "Complete the requested mission.",
+            max_length=240,
+        ),
+        "mission_type": _clean_text(mission_type or "BUILD_NEW", max_length=48).upper(),
+        "target_languages": [language] if language != "general" else [],
+        "output_mode": _clean_text(output_mode or "FULL_BUILD", max_length=48).upper(),
+        "output_format": "standalone_script",
+        "required_domains": ["generic"],
+        "logicnode_requirements": [
+            {
+                "domain": "generic",
+                "concept": "primary_operation",
+                "intent": "Implement the requested mission behavior",
+                "priority": "HIGH",
+            }
+        ],
+        "acceptance_criteria": ["Mission output satisfies the requested behavior."],
+        "risk_notes": ["Mission contract generated via deterministic fallback."],
+        "source": "fallback",
+        "model_provider": recommendation.get("provider"),
+        "model": recommendation.get("model"),
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _build_codegen_prompt(
+    *,
+    mission_context: dict[str, Any],
+    mission_contract: dict[str, Any],
+    logicnodes: list[dict[str, Any]],
+    target_language: str,
+    specialist_agent_id: str,
+    recommended_provider: str,
+    recommended_model: str,
+) -> str:
+    contract_summary = _clean_text(
+        mission_contract.get("contract_summary", "Implement the mission"), max_length=280
+    )
+    acceptance = "\n".join(
+        f"- {_clean_text(item, max_length=140)}"
+        for item in (mission_contract.get("acceptance_criteria") or [])[:6]
+    ) or "- Satisfy the mission contract."
+    requirements = []
+    raw_requirements = mission_contract.get("logicnode_requirements")
+    if isinstance(raw_requirements, list):
+        for item in raw_requirements[:12]:
+            if isinstance(item, dict):
+                requirements.append(
+                    "- "
+                    f"{_clean_text(item.get('domain'), max_length=48)}."
+                    f"{_clean_text(item.get('concept'), max_length=48)}: "
+                    f"{_clean_text(item.get('intent'), max_length=140)}"
+                )
+    logicnode_lines = []
+    for node in logicnodes[:12]:
+        if isinstance(node, dict):
+            logicnode_lines.append(_clean_text(json.dumps(node, sort_keys=True), max_length=220))
+    return (
+        f"You are {specialist_agent_id}, a {target_language} specialist.\n"
+        f"Recommended model route: {recommended_provider}/{recommended_model}\n"
+        "Generate a single complete source file that satisfies the mission contract.\n"
+        "Return only JSON. No markdown, prose, or code fences.\n\n"
+        f"Mission: {contract_summary}\n"
+        f"Target language: {_clean_text(target_language, max_length=32)}\n"
+        f"Acceptance criteria:\n{acceptance}\n\n"
+        f"Contract requirements:\n{chr(10).join(requirements) or '- primary_operation'}\n\n"
+        f"Extracted logicnode context:\n{chr(10).join(logicnode_lines) or '- none'}\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "generated_code": "complete source code string",\n'
+        '  "filename": "safe filename",\n'
+        '  "language": "target language",\n'
+        '  "description": "one sentence",\n'
+        '  "dependencies": ["package names"],\n'
+        '  "usage_example": "one short usage example"\n'
+        "}\n"
+        f"Safe mission context: {_safe_context_json(mission_context)}"
+    )
+
+
+def _strip_code_fences(value: str) -> str:
+    text = value.strip()
+    if not text.startswith("```"):
+        return text
+    lines = text.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def _safe_filename(value: Any, fallback: str) -> str:
+    filename = _clean_text(value or fallback, max_length=96)
+    filename = filename.replace("\\", "_").replace("/", "_").replace("..", "_").strip()
+    return filename or fallback
+
+
+def _normalize_codegen_result(
+    raw: dict[str, Any],
+    *,
+    specialist_agent_id: str,
+    target_language: str,
+    provider: str,
+    model: str,
+    route: str,
+) -> dict[str, Any] | None:
+    generated_code = _strip_code_fences(str(raw.get("generated_code", "")))
+    if len(generated_code.strip()) < 10:
+        return None
+    language = _clean_text(raw.get("language", target_language), max_length=32).lower()
+    filename = _safe_filename(raw.get("filename"), f"generated.{language or 'txt'}")
+    return {
+        "schema_version": "generated_output.v1",
+        "generated_code": generated_code,
+        "filename": filename,
+        "language": language or target_language,
+        "description": _clean_text(raw.get("description", "Generated output."), max_length=240),
+        "dependencies": _string_list(raw.get("dependencies"), limit=20, max_length=80),
+        "usage_example": _clean_text(raw.get("usage_example", ""), max_length=240),
+        "source": "llm",
+        "specialist_agent_id": specialist_agent_id,
+        "llm_route": route,
+        "model_provider": provider,
+        "model": model,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "code_length_chars": len(generated_code),
+    }
+
+
+def _fallback_codegen(
+    *,
+    specialist_agent_id: str,
+    target_language: str,
+    contract_summary: str,
+    recommendation: dict[str, Any],
+) -> dict[str, Any]:
+    language = _clean_text(target_language or "text", max_length=32).lower()
+    return {
+        "schema_version": "generated_output.v1",
+        "generated_code": "",
+        "filename": f"generated.{language or 'txt'}",
+        "language": language,
+        "description": "Code generation unavailable; provider output was not available.",
+        "dependencies": [],
+        "usage_example": "",
+        "source": "fallback",
+        "specialist_agent_id": specialist_agent_id,
+        "model_provider": recommendation.get("provider"),
+        "model": recommendation.get("model"),
+        "generated_at": datetime.now(UTC).isoformat(),
+        "code_length_chars": 0,
+        "risk_notes": [
+            _clean_text(contract_summary, max_length=160),
+            "Fallback output is not a generated software deliverable.",
+        ],
+    }
+
+
+def _priority(value: Any) -> str:
+    priority = _clean_text(value or "MEDIUM", max_length=16).upper()
+    if priority not in {"HIGH", "MEDIUM", "LOW"}:
+        return "MEDIUM"
+    return priority
+
+
+def _cluster_id(index: int, domain: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", domain.strip().lower()).strip("-")
+    return f"cluster-{index:02d}-{slug or 'general'}"
+
+
+def _build_logic_clusters_prompt(
+    *,
+    mission_context: dict[str, Any],
+    mission_contract: dict[str, Any],
+    ceo_delegation: dict[str, Any],
+    requested_target_language: str | None,
+    recommended_provider: str,
+    recommended_model: str,
+) -> str:
+    safe_language = _clean_text(requested_target_language or "auto", max_length=32).lower()
+    contract_summary = _clean_text(
+        mission_contract.get("contract_summary", "mission"), max_length=500
+    )
+    required_domains = _string_list(mission_contract.get("required_domains"), limit=10)
+    requirements = mission_contract.get("logicnode_requirements")
+    safe_requirements = requirements if isinstance(requirements, list) else []
+    safe_delegation = json.dumps(
+        {
+            "pod_manager_agent_id": ceo_delegation.get("pod_manager_agent_id"),
+            "specialist_agent_id": ceo_delegation.get("specialist_agent_id"),
+        },
+        sort_keys=True,
+    )
+    return (
+        "You are AGENT-02-CEO. Decompose this mission contract into logic clusters.\n"
+        f"Recommended model route: {recommended_provider}/{recommended_model}\n"
+        "Return only JSON. No markdown, prose, or code fences.\n\n"
+        f"Requested target language: {safe_language}\n"
+        f"Mission summary: {contract_summary}\n"
+        f"Required domains: {json.dumps(required_domains)}\n"
+        f"CEO delegation JSON: {safe_delegation}\n"
+        f"Logicnode requirements JSON: {json.dumps(safe_requirements, sort_keys=True)}\n\n"
+        "Required JSON shape:\n"
+        "{\n"
+        '  "clusters": [\n'
+        "    {\n"
+        '      "title": "short cluster title",\n'
+        '      "domain": "domain",\n'
+        '      "priority": "HIGH | MEDIUM | LOW",\n'
+        '      "pod_manager_agent_id": "assigned pod manager id",\n'
+        '      "specialist_agent_id": "assigned specialist id",\n'
+        '      "requirement_refs": ["requirement concept names"],\n'
+        '      "rationale": "why this work is grouped together"\n'
+        "    }\n"
+        "  ]\n"
+        "}\n\n"
+        "Return 1-8 clusters. Keep clusters coarse enough for pod-level ownership.\n"
+        f"Safe mission context: {_safe_context_json(mission_context)}"
+    )
+
+
+def _normalize_logic_clusters(
+    raw: dict[str, Any],
+    *,
+    provider: str,
+    model: str,
+    route: str,
+    mission_contract: dict[str, Any],
+    requested_target_language: str | None,
+    ceo_delegation: dict[str, Any],
+) -> dict[str, Any]:
+    default_pod_manager = _normalize_agent_choice(
+        ceo_delegation.get("pod_manager_agent_id"),
+        allowed_ids=_VALID_POD_MANAGER_IDS,
+        fallback=resolve_pod_manager_agent_id(requested_target_language),
+    )
+    default_specialist = _normalize_agent_choice(
+        ceo_delegation.get("specialist_agent_id"),
+        allowed_ids=_VALID_SPECIALIST_IDS,
+        fallback=resolve_specialist_agent_id(requested_target_language),
+    )
+    raw_clusters = raw.get("clusters")
+    if not isinstance(raw_clusters, list):
+        raw_clusters = []
+    clusters: list[dict[str, Any]] = []
+    for item in raw_clusters[:8]:
+        if not isinstance(item, dict):
+            continue
+        domain = _clean_text(item.get("domain") or item.get("title") or "general", max_length=64)
+        cluster_index = len(clusters) + 1
+        clusters.append(
+            {
+                "cluster_id": _clean_text(
+                    item.get("cluster_id") or _cluster_id(cluster_index, domain),
+                    max_length=80,
+                ),
+                "title": _clean_text(item.get("title") or domain, max_length=96),
+                "domain": domain,
+                "priority": _priority(item.get("priority")),
+                "pod_manager_agent_id": _normalize_agent_choice(
+                    item.get("pod_manager_agent_id"),
+                    allowed_ids=_VALID_POD_MANAGER_IDS,
+                    fallback=default_pod_manager,
+                ),
+                "specialist_agent_id": _normalize_agent_choice(
+                    item.get("specialist_agent_id"),
+                    allowed_ids=_VALID_SPECIALIST_IDS,
+                    fallback=default_specialist,
+                ),
+                "requirement_refs": _string_list(item.get("requirement_refs"), limit=8),
+                "rationale": _clean_text(
+                    item.get("rationale") or "Grouped by related domain scope.",
+                    max_length=240,
+                ),
+            }
+        )
+    if not clusters:
+        return _fallback_logic_clusters(
+            mission_contract=mission_contract,
+            requested_target_language=requested_target_language,
+            ceo_delegation=ceo_delegation,
+            recommendation={"provider": provider, "model": model},
+        )
+    return {
+        "schema_version": "logic_clusters.v1",
+        "clusters": clusters,
+        "source": "llm",
+        "llm_route": route,
+        "model_provider": provider,
+        "model": model,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _fallback_logic_clusters(
+    *,
+    mission_contract: dict[str, Any],
+    requested_target_language: str | None,
+    ceo_delegation: dict[str, Any],
+    recommendation: dict[str, Any],
+) -> dict[str, Any]:
+    pod_manager_agent_id = _normalize_agent_choice(
+        ceo_delegation.get("pod_manager_agent_id"),
+        allowed_ids=_VALID_POD_MANAGER_IDS,
+        fallback=resolve_pod_manager_agent_id(requested_target_language),
+    )
+    specialist_agent_id = _normalize_agent_choice(
+        ceo_delegation.get("specialist_agent_id"),
+        allowed_ids=_VALID_SPECIALIST_IDS,
+        fallback=resolve_specialist_agent_id(requested_target_language),
+    )
+    requirements = mission_contract.get("logicnode_requirements")
+    requirement_items = (
+        [item for item in requirements if isinstance(item, dict)]
+        if isinstance(requirements, list)
+        else []
+    )
+    domains = _string_list(mission_contract.get("required_domains"), limit=8)
+    if not domains:
+        domains = [
+            _clean_text(item.get("domain") or "general", max_length=64)
+            for item in requirement_items[:8]
+        ]
+    if not domains:
+        domains = ["general"]
+    seen: set[str] = set()
+    clusters: list[dict[str, Any]] = []
+    for domain in domains:
+        normalized_domain = domain or "general"
+        key = normalized_domain.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        matching_requirements = [
+            _clean_text(
+                item.get("concept") or item.get("intent") or normalized_domain,
+                max_length=80,
+            )
+            for item in requirement_items
+            if _clean_text(item.get("domain") or "", max_length=64).lower() == key
+        ]
+        priority = "MEDIUM"
+        for item in requirement_items:
+            if _clean_text(item.get("domain") or "", max_length=64).lower() == key:
+                priority = _priority(item.get("priority"))
+                break
+        cluster_index = len(clusters) + 1
+        clusters.append(
+            {
+                "cluster_id": _cluster_id(cluster_index, normalized_domain),
+                "title": f"{normalized_domain.title()} Cluster",
+                "domain": normalized_domain,
+                "priority": priority,
+                "pod_manager_agent_id": pod_manager_agent_id,
+                "specialist_agent_id": specialist_agent_id,
+                "requirement_refs": matching_requirements[:8],
+                "rationale": "Deterministic cluster from mission contract domain scope.",
+            }
+        )
+    return {
+        "schema_version": "logic_clusters.v1",
+        "clusters": clusters[:8],
+        "source": "fallback",
+        "model_provider": recommendation.get("provider"),
+        "model": recommendation.get("model"),
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+async def generate_code_from_contract(
+    *,
+    mission_context: dict[str, Any],
+    specialist_agent_id: str,
+    mission_contract: dict[str, Any],
+    logicnodes: list[dict[str, Any]] | None,
+    target_language: str,
+) -> dict[str, Any]:
+    recommendation = _agent_recommendation(specialist_agent_id)
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.3-codex")).strip()
+    prompt = _build_codegen_prompt(
+        mission_context=mission_context,
+        mission_contract=mission_contract,
+        logicnodes=logicnodes or [],
+        target_language=target_language,
+        specialist_agent_id=specialist_agent_id,
+        recommended_provider=provider,
+        recommended_model=model,
+    )
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context=f"specialist codegen {specialist_agent_id}",
+    )
+    contract_summary = str(mission_contract.get("contract_summary", "mission"))
+    if not isinstance(parsed, dict):
+        return _fallback_codegen(
+            specialist_agent_id=specialist_agent_id,
+            target_language=target_language,
+            contract_summary=contract_summary,
+            recommendation=recommendation,
+        )
+    normalized = _normalize_codegen_result(
+        parsed,
+        specialist_agent_id=specialist_agent_id,
+        target_language=target_language,
+        provider=resolved_provider,
+        model=resolved_model,
+        route=llm_route,
+    )
+    if normalized is None:
+        return _fallback_codegen(
+            specialist_agent_id=specialist_agent_id,
+            target_language=target_language,
+            contract_summary=contract_summary,
+            recommendation=recommendation,
+        )
+    return normalized
+
+
+async def generate_logic_clusters(
+    *,
+    mission_context: dict[str, Any],
+    mission_contract: dict[str, Any],
+    requested_target_language: str | None,
+    ceo_delegation: dict[str, Any],
+) -> dict[str, Any]:
+    recommendation = _ceo_recommendation()
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
+    prompt = _build_logic_clusters_prompt(
+        mission_context=mission_context,
+        mission_contract=mission_contract,
+        ceo_delegation=ceo_delegation,
+        requested_target_language=requested_target_language,
+        recommended_provider=provider,
+        recommended_model=model,
+    )
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context="logic cluster decomposition",
+    )
+    if not isinstance(parsed, dict):
+        return _fallback_logic_clusters(
+            mission_contract=mission_contract,
+            requested_target_language=requested_target_language,
+            ceo_delegation=ceo_delegation,
+            recommendation=recommendation,
+        )
+    return _normalize_logic_clusters(
+        parsed,
+        provider=resolved_provider,
+        model=resolved_model,
+        route=llm_route,
+        mission_contract=mission_contract,
+        requested_target_language=requested_target_language,
+        ceo_delegation=ceo_delegation,
+    )
+
+
+async def generate_mission_contract(
+    *,
+    mission_context: dict[str, Any],
+    prompt: str,
+    mission_type: str,
+    output_mode: str,
+    requested_target_language: str | None,
+    ceo_delegation: dict[str, Any],
+) -> dict[str, Any]:
+    recommendation = _ceo_recommendation()
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
+    contract_prompt = _build_mission_contract_prompt(
+        mission_context=mission_context,
+        prompt=prompt,
+        mission_type=mission_type,
+        output_mode=output_mode,
+        requested_target_language=requested_target_language,
+        ceo_delegation=ceo_delegation,
+        recommended_provider=provider,
+        recommended_model=model,
+    )
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+        recommendation=recommendation,
+        prompt=contract_prompt,
+        call_context="mission contract",
+    )
+    if not isinstance(parsed, dict):
+        return _fallback_mission_contract(
+            prompt=prompt,
+            mission_type=mission_type,
+            output_mode=output_mode,
+            requested_target_language=requested_target_language,
+            recommendation=recommendation,
+        )
+    return _normalize_mission_contract(
+        parsed,
+        provider=resolved_provider,
+        model=resolved_model,
+        route=llm_route,
+        mission_type=mission_type,
+        output_mode=output_mode,
+        requested_target_language=requested_target_language,
+    )
+
+
 async def generate_ceo_delegation(
     *,
     mission_context: dict[str, Any],
@@ -592,7 +1424,7 @@ async def generate_ceo_delegation(
 ) -> dict[str, Any]:
     recommendation = _ceo_recommendation()
     provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.2-pro")).strip()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
     prompt = _build_prompt(
         mission_context=mission_context,
         recommended_provider=provider,
@@ -655,7 +1487,7 @@ async def generate_pod_manager_delegation(
 
     recommendation = _agent_recommendation(normalized_pod_manager_agent_id)
     provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.2-pro")).strip()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
     prompt = _build_pod_manager_prompt(
         mission_context=mission_context,
         pod_manager_agent_id=normalized_pod_manager_agent_id,
@@ -718,7 +1550,7 @@ async def generate_specialist_plan(
 
     recommendation = _agent_recommendation(normalized_specialist_agent_id)
     provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.2-pro")).strip()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
     prompt = _build_specialist_prompt(
         mission_context=mission_context,
         specialist_agent_id=normalized_specialist_agent_id,
