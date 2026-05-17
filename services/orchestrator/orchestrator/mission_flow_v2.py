@@ -44,6 +44,10 @@ from .agent_scaling import (
 from .audit_events import record_audit_event
 from .llm_delegation import (
     generate_ceo_delegation,
+    generate_code_from_contract,
+    generate_logic_clusters,
+    generate_mission_contract,
+    generate_pm_feature_contract,
     generate_pod_manager_delegation,
     generate_specialist_plan,
 )
@@ -176,6 +180,115 @@ def _scaling_workload_items(metadata: dict[str, Any], specialist_plan: dict[str,
         if str(item).strip()
     ]
     return workload_items or ["default_workload"]
+
+
+def _mission_mode_for_type(mission_type: str) -> int:
+    mapping = {
+        "BUILD_NEW": 1,
+        "IMPORT_MODERNIZE": 2,
+        "PORT": 3,
+        "DEBUG_REPAIR": 4,
+        "SECURITY_HARDEN": 5,
+        "REDUCE_DEPENDENCIES": 6,
+        "RUN_QC": 7,
+        "ARCHITECTURE_DOCS": 8,
+        "ANALYZE_ONLY": 9,
+        "SELF_ANALYZE": 10,
+    }
+    return mapping.get(mission_type.strip().upper(), 1)
+
+
+def _schema_depth_mode(depth_mode: str) -> str:
+    mapping = {
+        "SPRINT": "quick_scan",
+        "STANDARD": "standard",
+        "PRODUCTION": "deep_audit",
+        "REGULATED": "deep_audit",
+        "AUTONOMOUS_LONG_RUN": "autonomous_long_run",
+    }
+    return mapping.get(depth_mode.strip().upper(), "standard")
+
+
+def _schema_output_mode(output_mode: str) -> str:
+    mapping = {
+        "ANALYZE_ONLY": "report_only",
+        "PLAN_ONLY": "report_only",
+        "PATCH_PROPOSAL": "patch_files",
+        "APPLY_PATCH": "patch_files",
+        "FULL_BUILD": "full_branch",
+        "DEPENDENCY_REDUCTION": "full_branch",
+        "RUN_QC": "report_only",
+        "FULL_TRANSFORMATION": "full_branch",
+    }
+    return mapping.get(output_mode.strip().upper(), "full_branch")
+
+
+def build_mission_charter(
+    *,
+    mission_id: str,
+    prompt: str,
+    requested_target_language: str | None,
+    feature_contract: dict[str, Any],
+    mission_type: str,
+    depth_mode: str,
+    output_mode: str,
+) -> dict[str, Any]:
+    schema_depth = _schema_depth_mode(depth_mode)
+    schema_output = _schema_output_mode(output_mode)
+    approval_required = bool(feature_contract.get("human_approval_required", False))
+    if schema_depth in {"deep_audit", "autonomous_long_run"}:
+        approval_required = True
+    gates = ["pod_audit_pass"]
+    if schema_depth != "quick_scan":
+        gates.extend(["security_scan_pass", "integration_tests_pass"])
+    if approval_required:
+        gates.append("operator_approval")
+    objective = str(feature_contract.get("summary") or prompt or "Complete mission")[:500]
+    if len(objective.strip()) < 10:
+        objective = "Complete the requested mission."
+    return {
+        "schema_version": "1.0.0",
+        "charter_id": f"charter-{uuid.uuid4()}",
+        "mission_id": mission_id,
+        "created_at": datetime.now(UTC).isoformat(),
+        "requested_by": "operator:mission-control",
+        "mission_mode": _mission_mode_for_type(mission_type),
+        "mission_mode_label": mission_type.strip().upper() or "BUILD_NEW",
+        "depth_mode": schema_depth,
+        "output_mode": schema_output,
+        "target": {
+            "type": "local_repo" if prompt else "self",
+            "primary_language": (requested_target_language or "unknown").strip().lower(),
+            "detected_languages": (
+                [(requested_target_language or "").strip().lower()]
+                if requested_target_language
+                else []
+            ),
+        },
+        "objective": objective,
+        "raw_input": prompt,
+        "scope": {
+            "in_scope": list(feature_contract.get("functional_requirements") or [])[:8],
+            "out_of_scope": [],
+            "assumptions": list(feature_contract.get("risk_notes") or [])[:5],
+        },
+        "success_criteria": list(feature_contract.get("acceptance_criteria") or [])
+        or ["Mission completes without error."],
+        "definition_of_done": {
+            "depth_mode": schema_depth,
+            "gates": gates,
+            "requires_operator_approval": approval_required,
+            "requires_runtime_qc": schema_depth in {"deep_audit", "autonomous_long_run"},
+            "requires_dependency_absorption": mission_type.strip().upper() == "REDUCE_DEPENDENCIES",
+        },
+        "non_functional_constraints": {
+            "sensitive_code_tier": 1,
+            "provider_restriction": "any",
+        },
+        "metadata": {
+            "source": str(feature_contract.get("source") or "fallback"),
+        },
+    }
 
 
 async def _emit_partition_work_items(
@@ -340,20 +453,79 @@ async def _prepare_pm_intake(
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
     metadata["selected_agent_id"] = PM_AGENT_ID
     metadata["agent_id"] = PM_AGENT_ID
+    mission_type = str(metadata.get("mission_type") or "BUILD_NEW").strip().upper()
+    depth_mode = str(metadata.get("depth_mode") or "STANDARD").strip().upper()
+    output_mode = str(metadata.get("output_mode") or "FULL_BUILD").strip().upper()
+    feature_contract = await generate_pm_feature_contract(
+        prompt=str(mission.prompt or ""),
+        mission_type=mission_type,
+        depth_mode=depth_mode,
+        output_mode=output_mode,
+        requested_target_language=mission.requested_target_language,
+    )
+    mission_charter = build_mission_charter(
+        mission_id=mission_id,
+        prompt=str(mission.prompt or ""),
+        requested_target_language=mission.requested_target_language,
+        feature_contract=feature_contract,
+        mission_type=mission_type,
+        depth_mode=depth_mode,
+        output_mode=output_mode,
+    )
+    metadata["feature_contract"] = feature_contract
+    metadata["mission_charter"] = mission_charter
 
     if not _chain_event_exists(metadata, "MISSION_PM_INTAKE"):
         append_chain_event(
             metadata,
             event_type="MISSION_PM_INTAKE",
             agent_id=PM_AGENT_ID,
-            details={"source": metadata.get("source", "mission-flow-v2")},
+            details={
+                "source": metadata.get("source", "mission-flow-v2"),
+                "feature_contract_source": feature_contract.get("source"),
+                "title": feature_contract.get("title"),
+            },
+        )
+    if not _chain_event_exists(metadata, "FEATURE_CONTRACT_CREATED"):
+        append_chain_event(
+            metadata,
+            event_type="FEATURE_CONTRACT_CREATED",
+            agent_id=PM_AGENT_ID,
+            details={
+                "source": feature_contract.get("source"),
+                "requirement_count": len(feature_contract.get("functional_requirements", [])),
+                "acceptance_criteria_count": len(feature_contract.get("acceptance_criteria", [])),
+                "human_approval_required": feature_contract.get("human_approval_required"),
+            },
         )
     _record_artifact(
         metadata,
         stage="pm_intake",
         event_type="MISSION_PM_INTAKE",
         agent_id=PM_AGENT_ID,
-        details={"source": metadata.get("source", "mission-flow-v2")},
+        details={
+            "source": metadata.get("source", "mission-flow-v2"),
+            "feature_contract_source": feature_contract.get("source"),
+            "mission_charter_id": mission_charter.get("charter_id"),
+        },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=mission,
+        agent_id=PM_AGENT_ID,
+        service_name="orchestrator",
+        event_type="FEATURE_CONTRACT_CREATED",
+        object_type="feature_contract",
+        object_id="feature_contract",
+        tool_name="llm_delegation",
+        payload_summary={
+            "source": feature_contract.get("source"),
+            "title": feature_contract.get("title"),
+            "requirement_count": len(feature_contract.get("functional_requirements", [])),
+            "human_approval_required": feature_contract.get("human_approval_required"),
+        },
+        content_hash_source=feature_contract,
     )
     return (
         await _persist_metadata(
@@ -381,7 +553,11 @@ async def _prepare_ceo_delegation(
         return False
 
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
-    mission_context = _mission_context(mission, metadata)
+    mission_context = {
+        **_mission_context(mission, metadata),
+        "feature_contract": metadata.get("feature_contract"),
+        "mission_charter": metadata.get("mission_charter"),
+    }
     delegation = await generate_ceo_delegation(
         mission_context=mission_context,
         requested_target_language=mission.requested_target_language,
@@ -402,6 +578,23 @@ async def _prepare_ceo_delegation(
     metadata["selected_agent_id"] = pod_manager_agent_id
     metadata["agent_id"] = pod_manager_agent_id
 
+    mission_contract = await generate_mission_contract(
+        mission_context=mission_context,
+        prompt=str(mission.prompt or ""),
+        mission_type=str(metadata.get("mission_type") or "BUILD_NEW"),
+        output_mode=str(metadata.get("output_mode") or "FULL_BUILD"),
+        requested_target_language=mission.requested_target_language,
+        ceo_delegation=normalized,
+    )
+    metadata["mission_contract"] = mission_contract
+    logic_clusters = await generate_logic_clusters(
+        mission_context={**mission_context, "mission_contract": mission_contract},
+        mission_contract=mission_contract,
+        requested_target_language=mission.requested_target_language,
+        ceo_delegation=normalized,
+    )
+    metadata["logic_clusters"] = logic_clusters
+
     if not _chain_event_exists(metadata, "MISSION_CEO_DELEGATED"):
         append_chain_event(
             metadata,
@@ -416,6 +609,35 @@ async def _prepare_ceo_delegation(
                 "model": normalized.get("model"),
             },
         )
+    if not _chain_event_exists(metadata, "MISSION_CONTRACT_GENERATED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_CONTRACT_GENERATED",
+            agent_id=CEO_AGENT_ID,
+            details={
+                "source": mission_contract.get("source"),
+                "output_format": mission_contract.get("output_format"),
+                "requirement_count": len(mission_contract.get("logicnode_requirements", [])),
+                "acceptance_criteria_count": len(
+                    mission_contract.get("acceptance_criteria", [])
+                ),
+                "model_provider": mission_contract.get("model_provider"),
+                "model": mission_contract.get("model"),
+            },
+        )
+    if not _chain_event_exists(metadata, "LOGIC_CLUSTERS_DECOMPOSED"):
+        clusters = logic_clusters.get("clusters") if isinstance(logic_clusters, dict) else []
+        append_chain_event(
+            metadata,
+            event_type="LOGIC_CLUSTERS_DECOMPOSED",
+            agent_id=CEO_AGENT_ID,
+            details={
+                "source": logic_clusters.get("source"),
+                "cluster_count": len(clusters) if isinstance(clusters, list) else 0,
+                "model_provider": logic_clusters.get("model_provider"),
+                "model": logic_clusters.get("model"),
+            },
+        )
     _record_artifact(
         metadata,
         stage="ceo_delegated",
@@ -428,6 +650,28 @@ async def _prepare_ceo_delegation(
             "llm_route": normalized.get("llm_route"),
             "model_provider": normalized.get("model_provider"),
             "model": normalized.get("model"),
+        },
+    )
+    _record_artifact(
+        metadata,
+        stage="mission_contract",
+        event_type="MISSION_CONTRACT_GENERATED",
+        agent_id=CEO_AGENT_ID,
+        details={
+            "source": mission_contract.get("source"),
+            "output_format": mission_contract.get("output_format"),
+            "requirement_count": len(mission_contract.get("logicnode_requirements", [])),
+        },
+    )
+    clusters = logic_clusters.get("clusters") if isinstance(logic_clusters, dict) else []
+    _record_artifact(
+        metadata,
+        stage="logic_clusters",
+        event_type="LOGIC_CLUSTERS_DECOMPOSED",
+        agent_id=CEO_AGENT_ID,
+        details={
+            "source": logic_clusters.get("source"),
+            "cluster_count": len(clusters) if isinstance(clusters, list) else 0,
         },
     )
     await record_audit_event(
@@ -449,6 +693,40 @@ async def _prepare_ceo_delegation(
             "specialist_agent_id": specialist_agent_id,
         },
         content_hash_source=normalized,
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=mission,
+        agent_id=CEO_AGENT_ID,
+        service_name="orchestrator",
+        event_type="MISSION_CONTRACT_GENERATED",
+        object_type="mission_contract",
+        object_id="mission_contract",
+        tool_name="llm_delegation",
+        payload_summary={
+            "source": mission_contract.get("source"),
+            "output_format": mission_contract.get("output_format"),
+            "requirement_count": len(mission_contract.get("logicnode_requirements", [])),
+            "acceptance_criteria_count": len(mission_contract.get("acceptance_criteria", [])),
+        },
+        content_hash_source=mission_contract,
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=mission,
+        agent_id=CEO_AGENT_ID,
+        service_name="orchestrator",
+        event_type="LOGIC_CLUSTERS_DECOMPOSED",
+        object_type="logic_clusters",
+        object_id="logic_clusters",
+        tool_name="llm_delegation",
+        payload_summary={
+            "source": logic_clusters.get("source"),
+            "cluster_count": len(clusters) if isinstance(clusters, list) else 0,
+        },
+        content_hash_source=logic_clusters,
     )
     return (
         await _persist_metadata(
@@ -492,6 +770,7 @@ async def _prepare_pod_assignment(
         mission_context={
             **_mission_context(mission, metadata),
             "ceo_delegation": ceo_delegation,
+            "logic_clusters": metadata.get("logic_clusters"),
         },
         requested_target_language=mission.requested_target_language,
         pod_manager_agent_id=pod_manager_agent_id,
@@ -662,6 +941,40 @@ async def _prepare_specialist_plan(
     metadata["selected_agent_id"] = specialist_agent_id
     metadata["agent_id"] = specialist_agent_id
 
+    mission_contract = metadata.get("mission_contract")
+    output_mode = str(metadata.get("output_mode") or "FULL_BUILD").strip().upper()
+    if (
+        isinstance(mission_contract, dict)
+        and output_mode != "ANALYZE_ONLY"
+        and not isinstance(metadata.get("generated_output"), dict)
+    ):
+        generated_output = await generate_code_from_contract(
+            mission_context={
+                **_mission_context(mission, metadata),
+                "mission_contract": mission_contract,
+                "specialist_plan": normalized,
+            },
+            specialist_agent_id=specialist_agent_id,
+            mission_contract=mission_contract,
+            logicnodes=[],
+            target_language=mission.requested_target_language or "python",
+        )
+        metadata["generated_output"] = generated_output
+        if not _chain_event_exists(metadata, "GENERATED_OUTPUT_CREATED"):
+            append_chain_event(
+                metadata,
+                event_type="GENERATED_OUTPUT_CREATED",
+                agent_id=specialist_agent_id,
+                details={
+                    "source": generated_output.get("source"),
+                    "filename": generated_output.get("filename"),
+                    "language": generated_output.get("language"),
+                    "code_length_chars": generated_output.get("code_length_chars", 0),
+                    "model_provider": generated_output.get("model_provider"),
+                    "model": generated_output.get("model"),
+                },
+            )
+
     should_emit = not _chain_event_exists(metadata, "MISSION_SPECIALIST_PLANNED")
     if should_emit:
         append_chain_event(
@@ -709,6 +1022,26 @@ async def _prepare_specialist_plan(
         },
         content_hash_source=normalized,
     )
+    generated_output_for_audit = metadata.get("generated_output")
+    if isinstance(generated_output_for_audit, dict):
+        await record_audit_event(
+            app,
+            mission_id=mission_id,
+            mission=mission,
+            agent_id=specialist_agent_id,
+            service_name="orchestrator",
+            event_type="GENERATED_OUTPUT_CREATED",
+            object_type="generated_output",
+            object_id=str(generated_output_for_audit.get("filename") or "generated_output"),
+            tool_name="llm_delegation",
+            payload_summary={
+                "source": generated_output_for_audit.get("source"),
+                "filename": generated_output_for_audit.get("filename"),
+                "language": generated_output_for_audit.get("language"),
+                "code_length_chars": generated_output_for_audit.get("code_length_chars", 0),
+            },
+            content_hash_source=generated_output_for_audit,
+        )
 
     # Compute scaling decision when feature is enabled.
     if _setting_bool(settings, "agent_scaling_enabled", False) and is_scalable_agent(
@@ -805,11 +1138,19 @@ async def _ensure_verified_build_artifact(
     if not build_artifact_support.mission_requires_build_artifact(mission.metadata):
         return mission
 
-    artifact_record = build_artifact_support.build_source_bundle_artifact(
-        mission_id=mission.mission_id,
-        requested_target_language=mission.requested_target_language,
-        metadata=mission.metadata if isinstance(mission.metadata, dict) else {},
-    )
+    artifact_metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
+    if build_artifact_support.mission_has_generated_output(artifact_metadata):
+        artifact_record = build_artifact_support.build_generated_output_artifact(
+            mission_id=mission.mission_id,
+            requested_target_language=mission.requested_target_language,
+            metadata=artifact_metadata,
+        )
+    else:
+        artifact_record = build_artifact_support.build_source_bundle_artifact(
+            mission_id=mission.mission_id,
+            requested_target_language=mission.requested_target_language,
+            metadata=artifact_metadata,
+        )
     await asyncio.to_thread(
         storage.upsert_build_artifact,
         settings,

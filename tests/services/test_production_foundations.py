@@ -562,7 +562,7 @@ def test_gateway_openai_builder_preview_helper(monkeypatch) -> None:
     result = asyncio.run(
         api_gateway_main._openai_builder_preview(
             payload,
-            model="gpt-5.2",
+            model="gpt-5.5",
             reasoning_effort="high",
         )
     )

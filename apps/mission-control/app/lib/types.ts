@@ -96,6 +96,91 @@ export type MissionBuildArtifactRecord = {
   updated_at: string;
 };
 
+export type MissionContractLogicNodeRequirement = {
+  domain: string;
+  concept: string;
+  intent: string;
+  priority: "HIGH" | "MEDIUM" | "LOW";
+};
+
+export type MissionContract = {
+  schema_version: "mission_contract.v1";
+  contract_summary: string;
+  mission_type: string;
+  target_languages: string[];
+  output_mode: string;
+  output_format: string;
+  required_domains: string[];
+  logicnode_requirements: MissionContractLogicNodeRequirement[];
+  acceptance_criteria: string[];
+  risk_notes: string[];
+  source: "llm" | "fallback";
+  llm_route?: string;
+  model_provider?: string;
+  model?: string;
+  created_at: string;
+};
+
+export type FeatureContract = {
+  schema_version: "feature_contract.v1";
+  title: string;
+  summary: string;
+  functional_requirements: string[];
+  non_functional_requirements: string[];
+  acceptance_criteria: string[];
+  target_languages: string[];
+  estimated_complexity: "low" | "medium" | "high" | "very_high";
+  human_approval_required: boolean;
+  risk_notes: string[];
+  clarifying_questions: string[];
+  source: "llm" | "fallback";
+  llm_route?: string;
+  model_provider?: string;
+  model?: string;
+  created_at: string;
+};
+
+export type MissionCharter = {
+  schema_version: string;
+  charter_id: string;
+  mission_id: string;
+  created_at: string;
+  requested_by: string;
+  mission_mode: number;
+  mission_mode_label?: string;
+  depth_mode: string;
+  output_mode: string;
+  target: Record<string, unknown>;
+  objective: string;
+  raw_input?: string;
+  scope?: Record<string, unknown>;
+  success_criteria: string[];
+  definition_of_done: Record<string, unknown>;
+  non_functional_constraints?: Record<string, unknown>;
+  metadata?: Record<string, string>;
+};
+
+export type LogicCluster = {
+  cluster_id: string;
+  title: string;
+  domain: string;
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  pod_manager_agent_id: string;
+  specialist_agent_id: string;
+  requirement_refs: string[];
+  rationale: string;
+};
+
+export type LogicClusters = {
+  schema_version: "logic_clusters.v1";
+  clusters: LogicCluster[];
+  source: "llm" | "fallback";
+  llm_route?: string;
+  model_provider?: string;
+  model?: string;
+  created_at: string;
+};
+
 export type MissionChainTrace = {
   mission_id: string;
   routing_enforced: boolean;
@@ -109,6 +194,10 @@ export type MissionChainTrace = {
   logicnode_count: number;
   artifact_summary?: Record<string, Record<string, unknown>>;
   build_artifacts?: MissionBuildArtifactRecord[];
+  feature_contract?: FeatureContract | null;
+  mission_charter?: MissionCharter | null;
+  mission_contract?: MissionContract | null;
+  logic_clusters?: LogicClusters | null;
   route_provenance?: {
     ceo?: MissionRouteProvenanceStage | null;
     pod_manager?: MissionRouteProvenanceStage | null;

@@ -15,6 +15,7 @@ import {
   missionStateStreamUrl,
   parseLiveStateStreamMessage,
   listOperationsLogicNodes,
+  missionApiUrl,
   updateMissionStateWithVault,
 } from "../../../lib/api-client";
 import { formatDateTime, formatTime, humanizeState, normalizeState } from "../../../lib/format";
@@ -265,6 +266,14 @@ export default function MissionDetailPage() {
     () => chainTrace?.build_artifacts ?? [],
     [chainTrace],
   );
+  const generatedCodeArtifact = useMemo(
+    () => buildArtifacts.find((artifact) => artifact.artifact_type === "generated_code") ?? null,
+    [buildArtifacts],
+  );
+  const featureContract = chainTrace?.feature_contract ?? null;
+  const missionCharter = chainTrace?.mission_charter ?? null;
+  const missionContract = chainTrace?.mission_contract ?? null;
+  const logicClusters = chainTrace?.logic_clusters?.clusters ?? [];
 
   async function cancelMission() {
     if (!mission) {
@@ -588,6 +597,153 @@ export default function MissionDetailPage() {
         )}
       </Panel>
 
+      <Panel title="PM Feature Contract">
+        {!featureContract && <p className="muted">No PM feature contract recorded yet.</p>}
+        {featureContract && (
+          <>
+            <dl>
+              <div>
+                <dt>Title</dt>
+                <dd>{featureContract.title}</dd>
+              </div>
+              <div>
+                <dt>Source</dt>
+                <dd>{featureContract.source}</dd>
+              </div>
+              <div>
+                <dt>Complexity</dt>
+                <dd>{featureContract.estimated_complexity}</dd>
+              </div>
+              <div>
+                <dt>Approval</dt>
+                <dd>{featureContract.human_approval_required ? "required" : "not required"}</dd>
+              </div>
+            </dl>
+            <p>{featureContract.summary}</p>
+            {featureContract.acceptance_criteria.length > 0 && (
+              <ul className="summary-list">
+                {featureContract.acceptance_criteria.map((criterion) => (
+                  <li key={`feature-criterion-${criterion}`}>
+                    <span>{criterion}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </Panel>
+
+      <Panel title="Mission Charter">
+        {!missionCharter && <p className="muted">No mission charter recorded yet.</p>}
+        {missionCharter && (
+          <>
+            <dl>
+              <div>
+                <dt>Mode</dt>
+                <dd>{missionCharter.mission_mode_label ?? missionCharter.mission_mode}</dd>
+              </div>
+              <div>
+                <dt>Depth</dt>
+                <dd>{missionCharter.depth_mode}</dd>
+              </div>
+              <div>
+                <dt>Output</dt>
+                <dd>{missionCharter.output_mode}</dd>
+              </div>
+              <div>
+                <dt>Created</dt>
+                <dd>{formatDateTime(missionCharter.created_at)}</dd>
+              </div>
+            </dl>
+            <p>{missionCharter.objective}</p>
+            {missionCharter.success_criteria.length > 0 && (
+              <ul className="summary-list">
+                {missionCharter.success_criteria.map((criterion) => (
+                  <li key={`charter-criterion-${criterion}`}>
+                    <span>{criterion}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </Panel>
+
+      <Panel title="Mission Contract">
+        {!missionContract && <p className="muted">No CEO mission contract recorded yet.</p>}
+        {missionContract && (
+          <>
+            <dl>
+              <div>
+                <dt>Type</dt>
+                <dd>{missionContract.mission_type}</dd>
+              </div>
+              <div>
+                <dt>Output mode</dt>
+                <dd>{missionContract.output_mode}</dd>
+              </div>
+              <div>
+                <dt>Format</dt>
+                <dd>{missionContract.output_format}</dd>
+              </div>
+              <div>
+                <dt>Source</dt>
+                <dd>{missionContract.source}</dd>
+              </div>
+            </dl>
+            <p>{missionContract.contract_summary}</p>
+            {missionContract.logicnode_requirements.length > 0 && (
+              <ul className="card-list">
+                {missionContract.logicnode_requirements.map((requirement) => (
+                  <li
+                    key={`${requirement.domain}-${requirement.concept}-${requirement.intent}`}
+                    className="info-card"
+                  >
+                    <h3>{requirement.concept}</h3>
+                    <p>{requirement.intent}</p>
+                    <p className="muted">
+                      {requirement.domain} - {requirement.priority}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </Panel>
+
+      <Panel title="Logic Clusters">
+        {logicClusters.length === 0 && <p className="muted">No logic clusters recorded yet.</p>}
+        {logicClusters.length > 0 && (
+          <ul className="card-list">
+            {logicClusters.map((cluster) => (
+              <li key={cluster.cluster_id} className="info-card">
+                <h3>{cluster.title}</h3>
+                <dl>
+                  <div>
+                    <dt>Domain</dt>
+                    <dd>{cluster.domain}</dd>
+                  </div>
+                  <div>
+                    <dt>Priority</dt>
+                    <dd>{cluster.priority}</dd>
+                  </div>
+                  <div>
+                    <dt>Pod manager</dt>
+                    <dd>{cluster.pod_manager_agent_id}</dd>
+                  </div>
+                  <div>
+                    <dt>Specialist</dt>
+                    <dd>{cluster.specialist_agent_id}</dd>
+                  </div>
+                </dl>
+                <p>{cluster.rationale}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
       <Panel title="Active Agents">
         {activeAgents.length === 0 && <p className="muted">No active agents currently assigned.</p>}
         {activeAgents.length > 0 && (
@@ -603,6 +759,43 @@ export default function MissionDetailPage() {
               </li>
             ))}
           </ul>
+        )}
+      </Panel>
+
+      <Panel title="Generated Output">
+        {!generatedCodeArtifact && <p className="muted">No generated-code artifact recorded yet.</p>}
+        {generatedCodeArtifact && (
+          <>
+            <dl>
+              <div>
+                <dt>File</dt>
+                <dd>{String(generatedCodeArtifact.manifest?.filename ?? generatedCodeArtifact.artifact_id)}</dd>
+              </div>
+              <div>
+                <dt>Digest</dt>
+                <dd>{generatedCodeArtifact.digest_sha256 ?? "n/a"}</dd>
+              </div>
+              <div>
+                <dt>Size</dt>
+                <dd>{generatedCodeArtifact.size_bytes} bytes</dd>
+              </div>
+            </dl>
+            <div className="inline-actions">
+              <a
+                className="secondary-button shell-link-button"
+                href={missionApiUrl(
+                  `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
+                )}
+              >
+                Download Generated Code
+              </a>
+            </div>
+            {generatedCodeArtifact.artifact_text && (
+              <div className="code-block">
+                <pre>{generatedCodeArtifact.artifact_text}</pre>
+              </div>
+            )}
+          </>
         )}
       </Panel>
 

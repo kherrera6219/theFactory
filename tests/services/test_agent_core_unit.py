@@ -52,7 +52,7 @@ def test_persona_tools_data_system_paths_and_model_route() -> None:
     specialist = _agent(category="specialist", specialties=("python",))
     tools = agent_personas._tools_for_agent(
         specialist,
-        llm_recommendation={"provider": "openai", "model": "gpt-5.2-pro"},
+        llm_recommendation={"provider": "openai", "model": "gpt-5.5"},
         data_systems=[
             {"name": "redis", "status": "implemented"},
             {"name": "qdrant", "status": ""},
@@ -61,7 +61,7 @@ def test_persona_tools_data_system_paths_and_model_route() -> None:
     )
     assert "redis (implemented)" in tools
     assert "qdrant" in tools
-    assert "Primary model route: openai/gpt-5.2-pro" in tools
+    assert "Primary model route: openai/gpt-5.5" in tools
 
 
 def test_persona_tools_without_full_model_route() -> None:
@@ -99,7 +99,7 @@ def test_persona_model_routing_optional_fields() -> None:
             "thinking_budget_tokens": 8192,
             "thinking_level": "high",
             "fallback_provider": "openai",
-            "fallback_model": "gpt-5.2-pro",
+            "fallback_model": "gpt-5.5",
         }
     )
     assert route["mode"] == "thinking"
@@ -108,11 +108,11 @@ def test_persona_model_routing_optional_fields() -> None:
     assert route["thinking_budget_tokens"] == 8192
     assert route["thinking_level"] == "high"
     assert route["fallback_provider"] == "openai"
-    assert route["fallback_model"] == "gpt-5.2-pro"
+    assert route["fallback_model"] == "gpt-5.5"
 
 
 def test_persona_model_routing_omits_mode_when_empty() -> None:
-    route = agent_personas._model_routing({"provider": "openai", "model": "gpt-5.2-pro"})
+    route = agent_personas._model_routing({"provider": "openai", "model": "gpt-5.5"})
     assert "mode" not in route
 
 
@@ -191,7 +191,7 @@ def test_integration_protocol_topic_store_and_llm_fallback_paths(monkeypatch) ->
         {
             "protocols": ["beta"],
             "data_systems": [{"name": "qdrant"}],
-            "llm_recommendation": {"provider": "openai", "model": "gpt-5.2-pro"},
+            "llm_recommendation": {"provider": "openai", "model": "gpt-5.5"},
         },
     ]
 
@@ -209,7 +209,7 @@ def test_integration_protocol_topic_store_and_llm_fallback_paths(monkeypatch) ->
     assert snapshot["protocols"] == ["alpha", "beta", "rho"]
     assert snapshot["data_systems"] == ["postgresql", "qdrant", "redis"]
     assert snapshot["llm_provider_counts"] == {"openai": 1}
-    assert snapshot["llm_model_counts"] == {"gpt-5.2-pro": 1}
+    assert snapshot["llm_model_counts"] == {"gpt-5.5": 1}
 
 
 def test_agent_registry_normalize_language() -> None:

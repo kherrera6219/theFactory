@@ -120,7 +120,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_BASE_URL = os.getenv(
     "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
 ).rstrip("/")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview").strip()
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "-1"))
 GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "medium").strip().lower()
@@ -1793,6 +1793,43 @@ async def get_mission_build_artifact(
     return await _proxy_get_internal(
         f"/internal/missions/{mission_id}/build-artifacts/{artifact_id}",
     )
+
+
+@app.get("/v1/missions/{mission_id}/artifact")
+async def download_mission_artifact(
+    mission_id: str,
+    artifact_type: str = Query(default="generated_code"),
+) -> Response:
+    records = await _proxy_get_internal(
+        f"/internal/missions/{mission_id}/build-artifacts",
+        params={"limit": 50},
+    )
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        if str(record.get("artifact_type", "")) != artifact_type:
+            continue
+        artifact_text = record.get("artifact_text")
+        if not isinstance(artifact_text, str) or not artifact_text:
+            continue
+        manifest = record.get("manifest") if isinstance(record.get("manifest"), dict) else {}
+        filename = str(manifest.get("filename") or "artifact.txt")
+        filename = filename.replace("\\", "_").replace("/", "_").replace("..", "_")
+        language = str(manifest.get("language") or "text").strip().lower()
+        media_types = {
+            "python": "text/x-python",
+            "javascript": "application/javascript",
+            "typescript": "application/typescript",
+            "java": "text/x-java-source",
+            "go": "text/x-go",
+            "rust": "text/plain",
+        }
+        return Response(
+            content=artifact_text,
+            media_type=media_types.get(language, "text/plain"),
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    raise HTTPException(status_code=404, detail=f"No {artifact_type} artifact found")
 
 
 @app.get("/v1/operations/summary")

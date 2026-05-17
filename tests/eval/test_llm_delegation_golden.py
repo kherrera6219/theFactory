@@ -57,7 +57,7 @@ def test_fallback_delegation_matches_golden(case: dict[str, Any]) -> None:
 
     recommendation: dict[str, Any] = {
         "provider": "openai",
-        "model": "gpt-5.2-pro",
+        "model": "gpt-5.5",
     }
 
     result = _fallback_delegation(

@@ -197,6 +197,10 @@ def _build_mission_chain_trace(
         "build_artifacts": build_artifacts or [],
         "scaling": _scaling_summary(metadata),
         "route_provenance": route_provenance,
+        "feature_contract": metadata.get("feature_contract"),
+        "mission_charter": metadata.get("mission_charter"),
+        "mission_contract": metadata.get("mission_contract"),
+        "logic_clusters": metadata.get("logic_clusters"),
         "events": chain_trace,
     }
 

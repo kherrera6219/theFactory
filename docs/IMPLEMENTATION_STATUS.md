@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.04.16
-Last updated: 2026-04-16
+Document version: 2026.05.16
+Last updated: 2026-05-16
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -20,6 +20,13 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 - `MISSION_FLOW_V2_ENABLED=true` by default in `.env.example`, `deploy/docker-compose.yaml`, and `services/orchestrator/orchestrator/settings.py`.
 - `LANGGRAPH_ENABLED=false` by default. The LangGraph lifecycle remains optional and is not the shipped default path.
+- OpenAI coding defaults now use `gpt-5.3-codex` for VC and OpenAI-backed specialist routes. `gpt-5.5` is configured for OpenAI operations and executive routing after official OpenAI model-catalog verification on 2026-05-17. Anthropic deep-audit routes use `claude-opus-4-7`, Sonnet workhorse routes use `claude-sonnet-4-6`, and Gemini deep-reasoning routes use `gemini-3.1-pro-preview` with preview lifecycle called out for promotion governance. Deterministic no-key delegation smoke coverage is available through `scripts/smoke_ceo_delegation.py`.
+- PM intake now produces `feature_contract` and schema-shaped `mission_charter` metadata through LLM-or-fallback generation during Mission Flow v2. Chain trace exposes both artifacts for Mission Control/API consumers.
+- CEO delegation now produces a durable `mission_contract` after routing. The contract is stored in mission metadata, audit logged, exposed in chain trace, and uses PM feature-contract context when available.
+- CEO delegation now decomposes the mission contract into `logic_clusters` with domain, priority, pod-manager, specialist, requirement references, and rationale. Cluster metadata is audit logged, emitted as a chain event, exposed in chain trace, and passed into pod-manager delegation context.
+- Specialist planning now attempts narrow contract-driven generated-output creation for non-`ANALYZE_ONLY` missions. Successful LLM output is stored as `metadata.generated_output`; fallback output is marked as fallback and is not packaged as a successful generated-code artifact.
+- Build artifact packaging now prefers valid `generated_output` and writes a `generated_code` artifact; otherwise it preserves the existing source-bundle artifact path. API Gateway exposes `GET /v1/missions/{mission_id}/artifact?artifact_type=generated_code` for generated artifact download.
+- Mission Detail now displays PM feature contracts, mission charters, CEO mission contracts, logic clusters, generated output metadata, generated code preview text when available, and a generated-code download action.
 - `services/orchestrator/orchestrator/runtime.py` executes mission flow via the `LifecycleEngine` protocol (Phase 5):
   1. `MissionFlowV2Engine` when `MISSION_FLOW_V2_ENABLED=true`
   2. `LangGraphEngine` when v2 is disabled and `LANGGRAPH_ENABLED=true`
