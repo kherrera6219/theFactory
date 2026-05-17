@@ -31,6 +31,14 @@ back to deterministic behavior.
 That fallback is useful, but it can make the UI appear healthy while the
 intelligence layer is offline. Phase 1 makes this explicit and testable.
 
+**Current validation - May 17, 2026:** Phase 1 is implemented for the repo's
+configured defaults. The active model matrix has been updated to `gpt-5.5`,
+`gpt-5.3-codex`, `claude-opus-4-7`, `claude-sonnet-4-6`,
+`gemini-3.1-pro-preview`, and `gemini-3.1-flash-lite`; model inventory export,
+focused tests, full Python tests, Mission Control lint/test, and deterministic
+CEO-delegation smoke have passed. Remaining work is a credentialed live-provider
+smoke proving non-fallback LLM routing in this environment.
+
 ---
 
 ## Exact Work
@@ -191,15 +199,15 @@ claiming Phase 1 complete.
 
 ## Definition of Done
 
-- [ ] Current model IDs are inventoried from backend, frontend, env, deploy, and docs.
-- [ ] Each production model assignment has a verified availability/lifecycle status.
-- [ ] Invalid or blocked assignments are replaced with verified alternatives.
-- [ ] Backend config, frontend display, env defaults, and docs agree.
-- [ ] Promotion model governance reports zero blocked production agents.
+- [x] Current model IDs are inventoried from backend, frontend, env, deploy, and docs.
+- [x] Each production model assignment has a verified availability/lifecycle status.
+- [x] Invalid or blocked assignments are replaced with verified alternatives.
+- [x] Backend config, frontend display, env defaults, and docs agree.
+- [x] Promotion model governance reports zero blocked production agents.
 - [ ] CEO delegation smoke proves live LLM routing when credentials are present.
-- [ ] Deterministic fallback is explicitly verified when credentials are absent.
-- [ ] Unit tests and full test suite pass.
-- [ ] `docs/IMPLEMENTATION_STATUS.md` records the verification result.
+- [x] Deterministic fallback is explicitly verified when credentials are absent.
+- [x] Focused unit tests, full Python tests, Mission Control lint, and Mission Control tests pass.
+- [x] `docs/IMPLEMENTATION_STATUS.md` records the verification result.
 
 ---
 

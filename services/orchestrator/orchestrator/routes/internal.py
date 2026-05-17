@@ -10,6 +10,8 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from .. import milvus_store, neo4j_store, object_store, qdrant_store, storage
 from ..audit_events import record_audit_event, summarize_mapping
 from ..auth import AuthContext
+from ..llm_delegation import generate_pm_feature_contract
+from ..mission_flow_v2 import build_mission_charter
 from ..models import (
     AgentActionEventUpsert,
     AgentHeartbeatUpsert,
@@ -288,6 +290,47 @@ async def upsert_pod_assignment(
                 "assignment": exc.existing_assignment,
             },
         ) from exc
+
+
+@router.post("/internal/pm/feature-contract")
+async def create_pm_feature_contract(
+    payload: dict[str, Any],
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    prompt = str(payload.get("prompt") or payload.get("request") or "").strip()
+    if len(prompt) < 3:
+        raise HTTPException(status_code=400, detail="prompt must be at least 3 characters")
+
+    mission_type = str(payload.get("mission_type") or "BUILD_NEW").strip().upper()
+    depth_mode = str(payload.get("depth_mode") or "STANDARD").strip().upper()
+    output_mode = str(payload.get("output_mode") or "FULL_BUILD").strip().upper()
+    requested_target_language = payload.get("requested_target_language")
+    if requested_target_language is not None:
+        requested_target_language = str(requested_target_language).strip() or None
+
+    feature_contract = await generate_pm_feature_contract(
+        prompt=prompt,
+        mission_type=mission_type,
+        depth_mode=depth_mode,
+        output_mode=output_mode,
+        requested_target_language=requested_target_language,
+    )
+    mission_charter = build_mission_charter(
+        mission_id=str(payload.get("mission_id") or "preview"),
+        prompt=prompt,
+        requested_target_language=requested_target_language,
+        feature_contract=feature_contract,
+        mission_type=mission_type,
+        depth_mode=depth_mode,
+        output_mode=output_mode,
+    )
+    return {
+        "feature_contract": feature_contract,
+        "mission_charter": mission_charter,
+        "source": feature_contract.get("source", "fallback"),
+        "model_provider": feature_contract.get("model_provider"),
+        "model": feature_contract.get("model"),
+    }
 
 
 @router.get("/internal/missions/{mission_id}/pod-assignment")

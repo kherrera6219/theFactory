@@ -23,6 +23,37 @@ v2_map_state_to_v1 = orchestrator_mission_flow_v2.v2_map_state_to_v1
 v2_phase_index = orchestrator_mission_flow_v2.v2_phase_index
 MissionState = orchestrator_models.MissionState
 
+
+def test_build_mission_charter_validates_against_schema() -> None:
+    charter = orchestrator_mission_flow_v2.build_mission_charter(
+        mission_id="mission-1",
+        prompt="Build a Python CSV reader",
+        requested_target_language="python",
+        feature_contract={
+            "summary": "Build a Python CSV reader",
+            "functional_requirements": ["Read CSV rows"],
+            "acceptance_criteria": ["Returns a list of dictionaries"],
+            "risk_notes": ["Validate input path"],
+            "source": "fallback",
+        },
+        mission_type="BUILD_NEW",
+        depth_mode="STANDARD",
+        output_mode="FULL_BUILD",
+    )
+
+    assert charter["schema"] == "mission_charter.v1"
+    assert charter["schema_version"] == "1.0.0"
+    assert charter["mission_type"] == "BUILD_NEW"
+    assert charter["target_outcome"] == "Build a Python CSV reader"
+    assert charter["success_criteria"] == ["Returns a list of dictionaries"]
+
+
+def test_mission_charter_schema_validation_rejects_missing_required_field() -> None:
+    with pytest.raises(ValueError, match="missing required fields"):
+        orchestrator_mission_flow_v2.validate_mission_charter_schema(
+            {"schema": "mission_charter.v1"}
+        )
+
 # ------------------------------------------------------------------
 # Transition table structure
 # ------------------------------------------------------------------

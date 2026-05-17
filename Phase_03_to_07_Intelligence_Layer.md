@@ -3,6 +3,35 @@
 
 ---
 
+## Current Validation - May 17, 2026
+
+This grouped document is no longer the authoritative status source for Phases
+3-5. Those phases have been partially or fully implemented in the codebase:
+
+- PM feature contracts and mission charters are persisted by Mission Flow v2.
+- CEO mission contracts are persisted and shown in chain trace.
+- Generated output is persisted, packaged as `generated_code`, exposed through
+  the gateway artifact route, and displayed in Mission Detail.
+- CEO logic clusters are persisted as a `logic_clusters.v1` object with a
+  `clusters` array and are exposed in Mission Detail.
+
+Use this file as a follow-on hardening plan for the still-open intelligence
+work:
+
+- Chat preview now uses the backend PM endpoint with local `createBuilderPreview()`
+  fallback;
+- decide whether PM provider calls need a longer timeout;
+- pod-worker extraction now consumes CEO logic-cluster domain focus;
+- implement Phase 6 pod group standards;
+- activate Phase 7 Java/JS AST extractors.
+
+Current chain-trace fields are exposed at the top level of the chain trace
+response: `feature_contract`, `mission_charter`, `mission_contract`, and
+`logic_clusters`. Current logic-cluster event naming is
+`LOGIC_CLUSTERS_DECOMPOSED`, not `MISSION_LOGIC_CLUSTERS_ASSIGNED`.
+
+---
+
 ## Problem
 
 `generate_pm_feature_contract()` is already wired and makes a real LLM call.
@@ -169,8 +198,8 @@ GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-45}
       contract appears (not hardcoded template text)
 - [ ] `title`, `summary`, `functional_requirements`, `acceptance_criteria` in contract
       are specific to the submitted prompt, not generic placeholder text
-- [ ] If Anthropic API is unavailable, Chat page falls back gracefully without crashing
-- [ ] `make test` passes
+- [x] If provider/API access is unavailable, Chat page falls back gracefully without crashing
+- [x] Full Python test suite and Mission Control typecheck pass
 
 ---
 
@@ -188,7 +217,9 @@ LLM call fails) most of the time. Once Phase 1+3 unlock real PM output, the char
 will be populated with real content.
 
 This phase verifies the charter is correct, adds it to the chain trace display,
-and adds a test.
+and adds a test. Current implementation already persists and displays the
+charter; remaining work is credentialed provider validation and any stricter
+runtime schema validation the project wants before release claims.
 
 ---
 
@@ -197,7 +228,10 @@ and adds a test.
 In `mission_flow_v2.py`, find `_prepare_pm_intake()`. Confirm:
 1. `generate_pm_feature_contract()` is awaited before `build_mission_charter()` is called
 2. The charter is stored in `metadata["mission_charter"]`
-3. A `MISSION_CHARTER_GENERATED` chain event is appended with `charter_id` in details
+3. PM intake events expose the generated feature-contract and charter context.
+   Current event naming uses `FEATURE_CONTRACT_CREATED`; add a dedicated
+   `MISSION_CHARTER_GENERATED` event only if the team wants more granular trace
+   semantics.
 
 If the ordering is wrong or the charter call is missing, add it:
 ```python
@@ -231,25 +265,25 @@ In `apps/mission-control/app/(shell)/missions/[id]/page.tsx`,
 add a collapsible "Mission Charter" panel after the Mission Signals panel:
 
 ```tsx
-{chainTrace?.metadata?.mission_charter && (
+{chainTrace?.mission_charter && (
   <Panel title="Mission Charter" collapsible defaultCollapsed>
     <div className="charter-grid">
-      <div><strong>Objective:</strong> {chainTrace.metadata.mission_charter.objective}</div>
-      <div><strong>Depth:</strong> {chainTrace.metadata.mission_charter.depth_mode}</div>
-      <div><strong>Output:</strong> {chainTrace.metadata.mission_charter.output_mode}</div>
+      <div><strong>Objective:</strong> {chainTrace.mission_charter.objective}</div>
+      <div><strong>Depth:</strong> {chainTrace.mission_charter.depth_mode}</div>
+      <div><strong>Output:</strong> {chainTrace.mission_charter.output_mode}</div>
     </div>
-    {chainTrace.metadata.mission_charter.scope?.in_scope?.length > 0 && (
+    {chainTrace.mission_charter.scope?.in_scope?.length > 0 && (
       <div>
         <strong>In scope:</strong>
-        <ul>{chainTrace.metadata.mission_charter.scope.in_scope.map(
+        <ul>{chainTrace.mission_charter.scope.in_scope.map(
           (item: string, i: number) => <li key={i}>{item}</li>
         )}</ul>
       </div>
     )}
-    {chainTrace.metadata.mission_charter.success_criteria?.length > 0 && (
+    {chainTrace.mission_charter.success_criteria?.length > 0 && (
       <div>
         <strong>Success criteria:</strong>
-        <ul>{chainTrace.metadata.mission_charter.success_criteria.map(
+        <ul>{chainTrace.mission_charter.success_criteria.map(
           (item: string, i: number) => <li key={i}>{item}</li>
         )}</ul>
       </div>
@@ -425,14 +459,16 @@ logic_clusters = await generate_logic_clusters(
 )
 metadata["logic_clusters"] = logic_clusters
 
-if not _chain_event_exists(metadata, "MISSION_LOGIC_CLUSTERS_ASSIGNED"):
+if not _chain_event_exists(metadata, "LOGIC_CLUSTERS_DECOMPOSED"):
     append_chain_event(
         metadata,
-        event_type="MISSION_LOGIC_CLUSTERS_ASSIGNED",
+        event_type="LOGIC_CLUSTERS_DECOMPOSED",
         agent_id=CEO_AGENT_ID,
         details={
-            "cluster_count": len(logic_clusters),
-            "pods_assigned": list({c["assigned_pod"] for c in logic_clusters}),
+            "cluster_count": len(logic_clusters.get("clusters", [])),
+            "pods_assigned": list({
+                c["assigned_pod"] for c in logic_clusters.get("clusters", [])
+            }),
         },
     )
 ```
@@ -444,7 +480,8 @@ after fetching `mission_metadata`:
 
 ```python
 # Determine which domains this pod should focus on
-logic_clusters = mission_metadata.get("logic_clusters") or []
+logic_cluster_doc = mission_metadata.get("logic_clusters") or {}
+logic_clusters = logic_cluster_doc.get("clusters") or []
 pod_cluster = next(
     (c for c in logic_clusters if c.get("assigned_pod") == POD_NAME.lower()),
     None,
@@ -466,10 +503,10 @@ are extracted — it changes which are ranked highest in the logicnode output.
 Add a "Logic Clusters" panel after the Mission Contract panel:
 
 ```tsx
-{chainTrace?.metadata?.logic_clusters?.length > 0 && (
+{chainTrace?.logic_clusters?.clusters?.length > 0 && (
   <Panel title="Logic Clusters">
     <div className="cluster-grid">
-      {chainTrace.metadata.logic_clusters.map((cluster: any) => (
+      {chainTrace.logic_clusters.clusters.map((cluster: any) => (
         <div key={cluster.cluster_id} className="cluster-card">
           <strong>{cluster.assigned_pod}</strong>
           <span className={`priority-badge ${cluster.priority.toLowerCase()}`}>
@@ -492,11 +529,11 @@ Add a "Logic Clusters" panel after the Mission Contract panel:
 
 ## Validation
 
-- [ ] CEO delegation chain event includes `MISSION_LOGIC_CLUSTERS_ASSIGNED`
-- [ ] `metadata.logic_clusters` present in chain trace with at least 1 cluster
-- [ ] Pod A missions have `logic_clusters[n].assigned_pod === "podA"`
-- [ ] Mission Detail shows Logic Clusters panel
-- [ ] `make test` passes
+- [x] CEO delegation chain event includes `LOGIC_CLUSTERS_DECOMPOSED`
+- [x] `logic_clusters.clusters` present in chain trace with at least 1 cluster
+- [x] Pod workers consume cluster focus from `logic_clusters.clusters[n].assigned_pod`
+- [x] Mission Detail shows Logic Clusters panel
+- [x] Full Python test suite passes
 
 ---
 

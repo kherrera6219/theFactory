@@ -3,6 +3,30 @@
 
 ---
 
+## Current Validation - May 17, 2026
+
+Phases 8-11 remain planned work. The May 16-17 implementation pass moved the
+system forward through PM/CEO contracts, first generated output, and CEO logic
+clusters, but it did not implement the full Smelt-Cycle back half.
+
+Treat this document as the active forward plan with these adjustments:
+
+- Phase 8 FETCH is still open: no IS Agent execution, documentation crawler,
+  LlamaIndex ingestion, or Knowledge Lake preload exists yet.
+- Phase 9 FUSION is still open: generated output already exists before FUSION
+  for narrow BUILD_NEW missions, so FUSION should enrich or rerun generation
+  from the future `master_logic_stream`, not create the first generated output.
+- Phase 10 DELIVERY should add PM delivery summary, acceptance-criteria
+  verification, and final delivery status. Mission Detail already has generated
+  output visibility.
+- Phase 11 AIM is still open.
+
+Current chain trace exposes PM/CEO artifacts at top-level fields such as
+`feature_contract`, `mission_charter`, `mission_contract`, `logic_clusters`, and
+`generated_output`; new UI examples should read those top-level fields directly.
+
+---
+
 # Phase 8 — FETCH Phase: IS Agent and Knowledge Lake
 **Duration:** 7–10 days
 
@@ -648,7 +672,7 @@ async def _prepare_fusion(
 ## Change 3 — Display Master Logic Stream on Mission Detail page
 
 Add a "Master Logic Stream" collapsible panel in the Mission Detail page
-when `chainTrace?.metadata?.master_logic_stream?.master_logic_stream?.length > 0`:
+when `chainTrace?.master_logic_stream?.master_logic_stream?.length > 0`:
 
 ```tsx
 {masterStream?.master_logic_stream?.length > 0 && (
@@ -678,7 +702,7 @@ when `chainTrace?.metadata?.master_logic_stream?.master_logic_stream?.length > 0
 ## Validation
 
 - [ ] Chain trace shows `MISSION_LOGIC_FOLDED` event after FUSION state
-- [ ] `metadata.master_logic_stream.total_unified_nodes` > 0
+- [ ] `master_logic_stream.total_unified_nodes` > 0 in chain trace
 - [ ] For missions with multiple pod outputs, `eliminated_across_pods` > 0
 - [ ] Generated code quality improves when master stream is non-empty
 - [ ] Mission Detail shows Master Logic Stream panel
@@ -808,26 +832,26 @@ In `apps/mission-control/app/(shell)/missions/[id]/page.tsx`,
 when `mission.state === "COMPLETE"`, render a prominent delivery banner at the top:
 
 ```tsx
-{mission?.state === "COMPLETE" && chainTrace?.metadata?.delivery_summary && (
+{mission?.state === "COMPLETE" && chainTrace?.delivery_summary && (
   <div className="delivery-banner">
     <div className="delivery-banner-icon">✓</div>
     <div className="delivery-banner-content">
-      <h2>{chainTrace.metadata.delivery_summary.delivery_title}</h2>
-      <p>{chainTrace.metadata.delivery_summary.delivery_summary}</p>
-      {chainTrace.metadata.delivery_summary.usage_notes && (
+      <h2>{chainTrace.delivery_summary.delivery_title}</h2>
+      <p>{chainTrace.delivery_summary.delivery_summary}</p>
+      {chainTrace.delivery_summary.usage_notes && (
         <p className="usage-notes muted">
-          {chainTrace.metadata.delivery_summary.usage_notes}
+          {chainTrace.delivery_summary.usage_notes}
         </p>
       )}
     </div>
     <div className="delivery-banner-actions">
-      {chainTrace?.metadata?.generated_output?.generated_code && (
+      {chainTrace?.generated_output?.generated_code && (
         <a
           href={`/api/gateway/v1/missions/${missionId}/artifact`}
-          download={chainTrace.metadata.generated_output.filename}
+          download={chainTrace.generated_output.filename}
           className="primary-button"
         >
-          Download {chainTrace.metadata.generated_output.filename}
+          Download {chainTrace.generated_output.filename}
         </a>
       )}
     </div>
@@ -1074,7 +1098,7 @@ if mission_requires_aim(metadata.get("mission_type", "BUILD_NEW")) \
 
 ## Change 3 — Add AIM viewer to Mission Detail page
 
-When `chainTrace?.metadata?.application_intelligence_map` is present:
+When `chainTrace?.application_intelligence_map` is present:
 
 ```tsx
 {aim && (

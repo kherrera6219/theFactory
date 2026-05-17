@@ -140,6 +140,14 @@ export type FeatureContract = {
   created_at: string;
 };
 
+export type PmFeatureContractResponse = {
+  feature_contract: FeatureContract;
+  mission_charter?: MissionCharter | null;
+  source: "llm" | "fallback" | string;
+  model_provider?: string | null;
+  model?: string | null;
+};
+
 export type MissionCharter = {
   schema_version: string;
   charter_id: string;

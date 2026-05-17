@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, SystemMessage } from "../../components/status";
-import { createBuilderPreview, createMission } from "../../lib/api-client";
+import { createBuilderPreview, createMission, createPmFeatureContract } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { inferRequestedTargetLanguage } from "../../lib/language";
 import { sanitizeUserText } from "../../lib/security";
@@ -20,12 +20,13 @@ type ChatMessage = {
   ts: string;
 };
 
-type FeatureContract = {
+type DisplayFeatureContract = {
   title: string;
   languages: string;
   scope: string;
   estimatedDuration: string;
   launchPrompt: string;
+  source?: string;
 };
 
 const CHAT_STORAGE_KEY = "mission-control:pm-chat-history";
@@ -102,7 +103,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([initialWelcomeMessage()]);
-  const [contract, setContract] = useState<FeatureContract | null>(null);
+  const [contract, setContract] = useState<DisplayFeatureContract | null>(null);
   const [editingContract, setEditingContract] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [launching, setLaunching] = useState(false);
@@ -174,26 +175,61 @@ export default function ChatPage() {
     ]);
 
     try {
-      const preview = await createBuilderPreview({
-        request: normalized,
-        constraints:
-          files.length > 0 ? [`Attached files: ${files.map((item) => item.name).join(", ")}`] : [],
-        viewMode: "desktop",
-      });
-
-      const acknowledgement =
-        preview.plan.length > 0
-          ? preview.plan.map((step) => `${step.title}: ${step.description}`).join(" ")
-          : "Request received. I have prepared a feature contract.";
-
       const detected = detectLanguages(files);
-      const generatedContract: FeatureContract = {
-        title: normalized.split(" ").slice(0, 8).join(" ").replace(/[.?!]$/, "") || "New Mission",
-        languages: detected,
-        scope: summarizeScope(normalized),
-        estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
-        launchPrompt: normalized,
-      };
+      let acknowledgement = "Request received. I have prepared a feature contract.";
+      let generatedContract: DisplayFeatureContract;
+      try {
+        const pmPreview = await createPmFeatureContract({
+          prompt: normalized,
+          requestedTargetLanguage: inferRequestedTargetLanguage({
+            prompt: normalized,
+            filePaths: files.map((file) => file.name),
+          }),
+        });
+        const featureContract = pmPreview.feature_contract;
+        acknowledgement =
+          featureContract.acceptance_criteria.length > 0
+            ? [
+                featureContract.summary,
+                `Acceptance: ${featureContract.acceptance_criteria.slice(0, 2).join("; ")}`,
+              ]
+                .filter(Boolean)
+                .join(" ")
+            : featureContract.summary || acknowledgement;
+        generatedContract = {
+          title: featureContract.title || "New Mission",
+          languages:
+            featureContract.target_languages.length > 0
+              ? featureContract.target_languages.join(", ")
+              : detected,
+          scope: featureContract.summary || summarizeScope(normalized),
+          estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
+          launchPrompt: normalized,
+          source: pmPreview.source,
+        };
+      } catch {
+        const preview = await createBuilderPreview({
+          request: normalized,
+          constraints:
+            files.length > 0
+              ? [`Attached files: ${files.map((item) => item.name).join(", ")}`]
+              : [],
+          viewMode: "desktop",
+        });
+        acknowledgement =
+          preview.plan.length > 0
+            ? preview.plan.map((step) => `${step.title}: ${step.description}`).join(" ")
+            : "Request received. I have prepared a local fallback feature contract.";
+        generatedContract = {
+          title:
+            normalized.split(" ").slice(0, 8).join(" ").replace(/[.?!]$/, "") || "New Mission",
+          languages: detected,
+          scope: summarizeScope(normalized),
+          estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
+          launchPrompt: normalized,
+          source: "local-fallback",
+        };
+      }
 
       setMessages((current) => [
         ...current,

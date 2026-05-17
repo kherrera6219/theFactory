@@ -23,13 +23,15 @@ specification that Phase 3 can generate from.
 
 ## Validated Starting Point
 
-- `llm_delegation.py` currently has CEO routing and specialist planning, not a
-  generated build contract.
-- `mission_flow_v2.py` stores CEO delegation metadata, but no formal contract.
-- Chain trace exposes routing, artifacts, provenance, and events, but no durable
+- **Current validation - May 17, 2026:** Phase 2 is implemented locally with
+  deterministic fallback and focused test coverage. Remaining validation is a
+  credentialed live-provider run that proves non-fallback contract generation.
+- `llm_delegation.py` still owns CEO routing and specialist planning, while
+  mission-contract generation now lives in the Mission Flow v2 path.
+- `mission_flow_v2.py` persists `metadata["mission_contract"]`.
+- Chain trace exposes routing, artifacts, provenance, events, and the durable
   mission contract.
-- Mission Control mission detail has trace and artifact panels, but no contract
-  panel.
+- Mission Control mission detail includes a Mission Contract panel.
 - `schemas/mission_charter.v1.json` exists and should be reused or extended
   where practical instead of creating unrelated schema sprawl.
 
@@ -275,16 +277,17 @@ Expected result:
 
 ## Definition of Done
 
-- [ ] Mission contract schema exists or mission-charter schema is extended.
-- [ ] `generate_mission_contract()` is implemented with fallback.
-- [ ] Mission flow persists `metadata["mission_contract"]`.
-- [ ] Chain trace API exposes `mission_contract`.
-- [ ] Mission Control displays the Mission Contract panel.
-- [ ] Unit tests cover fallback, normalization, persistence, and trace exposure.
-- [ ] Frontend typecheck passes.
-- [ ] Backend tests pass.
-- [ ] Live mission validation proves contract visibility.
-- [ ] Current docs are updated without overstating Phase 3 capabilities.
+- [x] Mission contract schema exists or mission-charter schema is extended.
+- [x] `generate_mission_contract()` is implemented with fallback.
+- [x] Mission flow persists `metadata["mission_contract"]`.
+- [x] Chain trace API exposes `mission_contract`.
+- [x] Mission Control displays the Mission Contract panel.
+- [x] Unit tests cover fallback, normalization, persistence, and trace exposure.
+- [x] Frontend lint/type validation passed during the Phase 1-5 implementation pass.
+- [x] Backend focused and full Python tests passed during the Phase 1-5 implementation pass.
+- [x] Local smoke validation proves contract visibility with deterministic fallback.
+- [x] Current docs are updated without overstating Phase 3 capabilities.
+- [ ] Credentialed live-provider validation proves non-fallback contract generation.
 
 ---
 

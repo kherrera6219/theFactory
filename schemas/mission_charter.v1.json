@@ -6,6 +6,7 @@
   "type": "object",
   "required": [
     "schema",
+    "schema_version",
     "charter_id",
     "mission_id",
     "mission_type",
@@ -15,14 +16,22 @@
     "target_outcome",
     "risk_level",
     "human_approval_required",
-    "created_at"
+    "created_at",
+    "objective",
+    "success_criteria",
+    "definition_of_done"
   ],
-  "additionalProperties": false,
+  "additionalProperties": true,
   "properties": {
     "schema": {
       "type": "string",
       "const": "mission_charter.v1",
       "description": "Schema identifier and version. Must be exactly 'mission_charter.v1'."
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Implementation schema version used by Mission Flow V2."
     },
     "charter_id": {
       "type": "string",
@@ -57,7 +66,11 @@
         "STANDARD",
         "PRODUCTION",
         "REGULATED",
-        "AUTONOMOUS_LONG_RUN"
+        "AUTONOMOUS_LONG_RUN",
+        "quick_scan",
+        "standard",
+        "deep_audit",
+        "autonomous_long_run"
       ],
       "description": "How thoroughly this mission should be executed."
     },
@@ -71,7 +84,10 @@
         "FULL_BUILD",
         "DEPENDENCY_REDUCTION",
         "RUN_QC",
-        "FULL_TRANSFORMATION"
+        "FULL_TRANSFORMATION",
+        "report_only",
+        "patch_files",
+        "full_branch"
       ],
       "description": "What the mission is permitted to produce or apply."
     },
@@ -164,6 +180,20 @@
       "type": "string",
       "format": "date-time",
       "description": "ISO 8601 timestamp when this charter was created."
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 3,
+      "description": "Mission objective derived from PM feature-contract intake."
+    },
+    "success_criteria": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Acceptance criteria that determine mission success."
+    },
+    "definition_of_done": {
+      "type": "object",
+      "description": "Execution gates and approval requirements for this mission."
     },
     "approved_at": {
       "type": ["string", "null"],
