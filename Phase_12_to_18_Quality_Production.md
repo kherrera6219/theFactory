@@ -3,6 +3,29 @@
 
 ---
 
+## Current Validation - May 17, 2026
+
+Phases 12-18 remain planned work. They should build on the current implemented
+baseline: PM feature contracts, mission charters, mission contracts, logic
+clusters, generated output metadata, generated-code artifacts, and Mission
+Detail visibility are already present.
+
+Provider pricing and token accounting are time-sensitive. Before implementing
+Phase 15, refresh all prices against official provider pricing pages and treat
+the values below as placeholders tied to the current project model matrix, not
+contractual billing facts.
+
+Current project model IDs to use when wiring ledgers and allowlists:
+
+- `openai/gpt-5.5`
+- `openai/gpt-5.3-codex`
+- `anthropic/claude-opus-4-7`
+- `anthropic/claude-sonnet-4-6`
+- `gemini/gemini-3.1-pro-preview`
+- `gemini/gemini-3.1-flash-lite`
+
+---
+
 # Phase 12 — Equivalence Verification Harness
 **Duration:** 7–10 days
 
@@ -969,15 +992,18 @@ async def _record_token_usage(
 
 
 def _estimate_cost(provider: str, model: str, input_tokens: int, output_tokens: int) -> float:
-    """Estimate USD cost from token counts. Prices as of May 2026."""
+    """Estimate USD cost from token counts.
+
+    Placeholder prices only. Refresh against official provider pricing docs
+    before enabling billing, budgets, or customer-facing cost claims.
+    """
     pricing = {
-        ("openai", "o3"): (0.000015, 0.000060),        # $15/$60 per 1M
-        ("openai", "o4-mini"): (0.0000015, 0.000006),   # $1.50/$6 per 1M
-        ("openai", "gpt-4o-mini"): (0.00000015, 0.0000006),
-        ("anthropic", "claude-opus-4-6"): (0.000015, 0.000075),
+        ("openai", "gpt-5.5"): (0.000010, 0.000030),
+        ("openai", "gpt-5.3-codex"): (0.000010, 0.000030),
+        ("anthropic", "claude-opus-4-7"): (0.000015, 0.000075),
         ("anthropic", "claude-sonnet-4-6"): (0.000003, 0.000015),
-        ("gemini", "gemini-2.5-pro"): (0.00000125, 0.000010),
-        ("gemini", "gemini-2.5-flash"): (0.00000025, 0.0000010),
+        ("gemini", "gemini-3.1-pro-preview"): (0.00000125, 0.000010),
+        ("gemini", "gemini-3.1-flash-lite"): (0.00000025, 0.0000010),
     }
     key = (provider.lower(), model.lower())
     input_price, output_price = pricing.get(key, (0.000010, 0.000030))

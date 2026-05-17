@@ -23,12 +23,16 @@ modernization, dependency absorption, or runtime QC.
 
 ## Validated Starting Point
 
+- **Current validation - May 17, 2026:** Phase 3 is implemented locally with
+  deterministic fallback, generated-code artifact packaging, artifact download,
+  and Mission Detail visibility. Remaining validation is a credentialed
+  live-provider mission that proves non-fallback generation quality.
 - Pod workers extract logicnodes and build Refined IR modules.
-- `/internal/knowledge` persists worker results, but generated output is not a
-  first-class mission artifact.
-- `build_artifacts.py` packages source bundles when `metadata.source_code`
-  exists.
-- Mission Control can display build artifacts, but no generated-output panel.
+- `/internal/knowledge` persists worker results, and generated output is now a
+  first-class mission artifact when generation runs.
+- `build_artifacts.py` packages generated code when present and still packages
+  source bundles when `metadata.source_code` exists.
+- Mission Control can display build artifacts and generated output.
 - Audit/equivalence is shallow and should not be represented as proof of
   generated-code correctness yet.
 
@@ -336,19 +340,19 @@ If provider credentials are absent:
 
 ## Definition of Done
 
-- [ ] `generate_code_from_contract()` or equivalent specialist generation API exists.
-- [ ] Generated output uses the Phase 2 mission contract.
-- [ ] Generation is feature-flagged and skips `ANALYZE_ONLY`.
-- [ ] `metadata["generated_output"]` is persisted for successful generation.
-- [ ] `generated_code` artifact packaging exists.
-- [ ] Source-bundle packaging still works when no generated output exists.
-- [ ] Chain trace exposes the generated artifact.
-- [ ] API gateway exposes artifact download.
-- [ ] Mission Control displays generated output with copy/download controls.
-- [ ] Fallback output is clearly marked and not misreported as real generation.
-- [ ] Backend and frontend tests pass.
-- [ ] Live demo mission proves a real generated artifact.
-- [ ] Current docs are updated to reflect the narrow shipped capability.
+- [x] `generate_code_from_contract()` or equivalent specialist generation API exists.
+- [x] Generated output uses the Phase 2 mission contract.
+- [x] Generation is gated by mission type/output mode and skips `ANALYZE_ONLY`.
+- [x] `metadata["generated_output"]` is persisted for successful generation.
+- [x] `generated_code` artifact packaging exists.
+- [x] Source-bundle packaging still works when no generated output exists.
+- [x] Chain trace exposes the generated artifact.
+- [x] API gateway exposes artifact download.
+- [x] Mission Control displays generated output with copy/download controls.
+- [x] Fallback output is clearly marked and not misreported as credentialed generation.
+- [x] Backend focused/full Python tests and frontend lint/tests passed during the Phase 1-5 implementation pass.
+- [ ] Credentialed live demo mission proves a real non-fallback generated artifact.
+- [x] Current docs are updated to reflect the narrow shipped capability.
 
 ---
 

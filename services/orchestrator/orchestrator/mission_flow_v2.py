@@ -29,6 +29,8 @@ import logging
 import re
 import uuid
 from datetime import UTC, datetime
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from . import build_artifacts as build_artifact_support
@@ -73,6 +75,9 @@ RUNTIME_PHASES = frozenset(
     }
 )
 _SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
+_MISSION_CHARTER_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[3] / "schemas" / "mission_charter.v1.json"
+)
 
 
 def _setting_bool(settings: Any, name: str, default: bool = False) -> bool:
@@ -223,6 +228,64 @@ def _schema_output_mode(output_mode: str) -> str:
     return mapping.get(output_mode.strip().upper(), "full_branch")
 
 
+@lru_cache(maxsize=1)
+def _mission_charter_schema() -> dict[str, Any]:
+    with _MISSION_CHARTER_SCHEMA_PATH.open("r", encoding="utf-8") as handle:
+        loaded = json.load(handle)
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _validate_schema_type(value: Any, expected: Any) -> bool:
+    if expected == "string":
+        return isinstance(value, str)
+    if expected == "boolean":
+        return isinstance(value, bool)
+    if expected == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if expected == "object":
+        return isinstance(value, dict)
+    if expected == "array":
+        return isinstance(value, list)
+    if expected == "null":
+        return value is None
+    if isinstance(expected, list):
+        return any(_validate_schema_type(value, item) for item in expected)
+    return True
+
+
+def validate_mission_charter_schema(charter: dict[str, Any]) -> dict[str, Any]:
+    """Validate generated mission charters against the checked-in schema subset."""
+    schema = _mission_charter_schema()
+    required = schema.get("required") if isinstance(schema.get("required"), list) else []
+    missing = [key for key in required if key not in charter]
+    if missing:
+        raise ValueError(f"mission charter missing required fields: {', '.join(missing)}")
+
+    properties = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
+    for key, rules in properties.items():
+        if key not in charter or not isinstance(rules, dict):
+            continue
+        value = charter[key]
+        if "const" in rules and value != rules["const"]:
+            raise ValueError(f"mission charter field {key!r} must be {rules['const']!r}")
+        enum_values = rules.get("enum")
+        if isinstance(enum_values, list) and value not in enum_values:
+            raise ValueError(f"mission charter field {key!r} has unsupported value {value!r}")
+        if "type" in rules and not _validate_schema_type(value, rules["type"]):
+            raise ValueError(f"mission charter field {key!r} has invalid type")
+        min_length = rules.get("minLength")
+        if isinstance(min_length, int) and isinstance(value, str) and len(value) < min_length:
+            raise ValueError(f"mission charter field {key!r} is too short")
+
+    if schema.get("additionalProperties") is False:
+        extras = sorted(set(charter) - set(properties))
+        if extras:
+            raise ValueError(f"mission charter has unexpected fields: {', '.join(extras)}")
+    return charter
+
+
 def build_mission_charter(
     *,
     mission_id: str,
@@ -246,16 +309,30 @@ def build_mission_charter(
     objective = str(feature_contract.get("summary") or prompt or "Complete mission")[:500]
     if len(objective.strip()) < 10:
         objective = "Complete the requested mission."
-    return {
+    normalized_mission_type = mission_type.strip().upper() or "BUILD_NEW"
+    normalized_depth_mode = depth_mode.strip().upper() or "STANDARD"
+    normalized_output_mode = output_mode.strip().upper() or "FULL_BUILD"
+    charter = {
+        "schema": "mission_charter.v1",
         "schema_version": "1.0.0",
         "charter_id": f"charter-{uuid.uuid4()}",
         "mission_id": mission_id,
         "created_at": datetime.now(UTC).isoformat(),
         "requested_by": "operator:mission-control",
+        "mission_type": normalized_mission_type,
         "mission_mode": _mission_mode_for_type(mission_type),
-        "mission_mode_label": mission_type.strip().upper() or "BUILD_NEW",
+        "mission_mode_label": normalized_mission_type,
         "depth_mode": schema_depth,
+        "depth_mode_label": normalized_depth_mode,
         "output_mode": schema_output,
+        "output_mode_label": normalized_output_mode,
+        "data_classification": "TIER_1_INTERNAL",
+        "source_type": "direct_input",
+        "target_outcome": objective,
+        "risk_level": "medium" if approval_required else "low",
+        "human_approval_required": approval_required,
+        "approval_gates_required": gates,
+        "expected_artifacts": ["mission_contract", "logic_clusters", "generated_output"],
         "target": {
             "type": "local_repo" if prompt else "self",
             "primary_language": (requested_target_language or "unknown").strip().lower(),
@@ -289,6 +366,7 @@ def build_mission_charter(
             "source": str(feature_contract.get("source") or "fallback"),
         },
     }
+    return validate_mission_charter_schema(charter)
 
 
 async def _emit_partition_work_items(

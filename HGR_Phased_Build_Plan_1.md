@@ -4,6 +4,26 @@
 
 ---
 
+## Superseded Validation Note - May 17, 2026
+
+This document is retained as a historical alternate plan. Do not use it as the
+current source of truth for phase status or model selections. The active plan is
+`HGR_Phased_Build_Plan.md`, with the detailed per-phase files carrying current
+validation notes.
+
+Key drift in this file:
+
+- Phase 1 model recommendations are stale. Current project defaults are
+  `gpt-5.5`, `gpt-5.3-codex`, `claude-opus-4-7`, `claude-sonnet-4-6`,
+  `gemini-3.1-pro-preview`, and `gemini-3.1-flash-lite`.
+- Phases 1-5 have already shipped material implementation work, including PM
+  feature contracts, mission charters, CEO mission contracts, generated output
+  artifact support, and logic cluster decomposition.
+- The next active implementation target is Phase 6 pod group standards, followed
+  by Phase 7 Java/JS AST activation and Phases 8-11 Smelt-Cycle completion.
+
+---
+
 ## How to Read This Plan
 
 Each phase has a clear **entry state** (what the system can do before you start),
@@ -44,41 +64,41 @@ Replace the `_LLM_PROFILES` dict with valid current model names:
 # Executive and orchestration — deep reasoning
 "openai_exec": {
     "provider": "openai",
-    "model": "o3",                      # was gpt-5.2-pro
+    "model": "gpt-5.5",
     "fallback_provider": "anthropic",
-    "fallback_model": "claude-opus-4-5",
+    "fallback_model": "claude-opus-4-7",
 }
 
 # Code generation specialists
 "openai_codegen": {
     "provider": "openai",
-    "model": "gpt-4o",                  # was gpt-5.3-codex
+    "model": "gpt-5.3-codex",
     "fallback_provider": "anthropic",
-    "fallback_model": "claude-sonnet-4-5",
+    "fallback_model": "claude-sonnet-4-6",
 }
 
 # Audit and review
 "anthropic_general_audit": {
     "provider": "anthropic",
-    "model": "claude-sonnet-4-6",       # already correct
+    "model": "claude-sonnet-4-6",
 }
 "anthropic_deep_audit": {
     "provider": "anthropic",
-    "model": "claude-opus-4-6",         # already correct
+    "model": "claude-opus-4-7",
 }
 
 # STEM / math / knowledge
 "gemini_stem": {
     "provider": "gemini",
-    "model": "gemini-2.5-pro",          # verify this is active
+    "model": "gemini-3.1-pro-preview",
     "fallback_provider": "openai",
-    "fallback_model": "gpt-4o",
+    "fallback_model": "gpt-5.5",
 }
 "gemini_ops_fast": {
     "provider": "gemini",
-    "model": "gemini-2.5-flash",        # verify this is active
+    "model": "gemini-3.1-flash-lite",
     "fallback_provider": "openai",
-    "fallback_model": "gpt-4o-mini",
+    "fallback_model": "gpt-5.5",
 }
 ```
 
@@ -395,7 +415,7 @@ not just the raw prompt string.
 
 ## Phase 5 — CEO Logic Cluster Decomposition
 **Duration:** 3–4 days
-**Entry state:** CEO routing prompt returns agent IDs only; no Logic Clusters defined
+**Entry state:** CEO routing now creates a `mission_contract` and `logic_clusters`; pod workers do not yet consume those clusters for focused extraction.
 **Exit state:** CEO produces Logic Clusters — explicit pod assignments with domain scope per cluster — which drive what each pod actually works on
 
 ### What to do

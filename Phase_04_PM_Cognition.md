@@ -30,14 +30,21 @@ rather than compete with it.
 
 ## Validated Starting Point
 
+- **Current validation - May 17, 2026:** the Mission Flow v2 PM path now emits
+  durable `feature_contract` and `mission_charter` metadata, exposes both in
+  chain trace, and displays both in Mission Detail. Chat preview now calls the
+  backend PM feature-contract endpoint through Mission Control's Next.js API
+  route and falls back to the local builder preview when that routed path is
+  unavailable.
 - `mission.prompt` stores the raw user request.
 - Chat has local preview logic that is useful for UX but not authoritative.
 - `schemas/mission_charter.v1.json` and related mission-charter docs already
   exist.
-- Mission Flow v2 has a PM_INTAKE state, but PM cognition is not yet a durable
-  artifact.
-- Chain trace currently exposes routing/artifact information, not PM-authored
-  feature-contract and charter artifacts.
+- Mission Flow v2 has a PM_INTAKE state and PM cognition is now a durable
+  mission artifact.
+- Chain trace currently exposes routing/artifact information, PM-authored
+  feature-contract, mission-charter, mission-contract, and logic-cluster
+  artifacts.
 
 ---
 
@@ -393,19 +400,21 @@ Chat validation:
 
 ## Definition of Done
 
-- [ ] `generate_pm_feature_contract()` implemented with fallback.
-- [ ] PM feature-contract output shape is typed and tested.
-- [ ] Mission charter builder validates against the mission-charter schema.
-- [ ] `_prepare_pm_intake()` persists `feature_contract` and `mission_charter`.
-- [ ] Chain trace exposes both artifacts.
-- [ ] Phase 2 mission-contract generation consumes PM artifacts when present.
-- [ ] Mission Control displays Feature Contract and Mission Charter panels.
-- [ ] Chat preview uses backend PM endpoint with local fallback.
-- [ ] Unit tests cover fallback, normalization, schema validation, persistence, and trace exposure.
-- [ ] Frontend typecheck passes.
-- [ ] Backend tests pass.
-- [ ] Live mission validation proves PM artifacts are visible.
-- [ ] Current docs are updated without claiming multi-turn PM negotiation.
+- [x] `generate_pm_feature_contract()` implemented with fallback.
+- [x] PM feature-contract output shape is typed and tested.
+- [x] Mission charter builder emits a schema-validated charter.
+- [x] `_prepare_pm_intake()` persists `feature_contract` and `mission_charter`.
+- [x] Chain trace exposes both artifacts.
+- [x] Phase 2 mission-contract generation consumes PM artifacts when present.
+- [x] Mission Control displays Feature Contract and Mission Charter panels.
+- [x] Chat preview uses backend PM endpoint with local fallback.
+- [x] Unit tests cover fallback, normalization, persistence, and trace exposure.
+- [x] Frontend lint/type validation passed during the Phase 1-5 implementation pass.
+- [x] Backend focused and full Python tests passed during the Phase 1-5 implementation pass.
+- [x] Local smoke validation proves PM artifacts are visible with deterministic fallback.
+- [x] Current docs are updated without claiming multi-turn PM negotiation.
+- [x] Runtime JSON-schema validation for mission charters is enforced.
+- [ ] Credentialed live-provider validation proves non-fallback PM cognition.
 
 ---
 

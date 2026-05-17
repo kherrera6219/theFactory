@@ -6,7 +6,17 @@
 
 ## Executive Summary
 
-theFactory has completed 39 development phases and is a production-grade infrastructure system. The pipeline scaffolding, state machine, protocol bus, operator console, security controls, CI/CD, and audit chain are all real and solid. What is missing is the intelligence layer — the agents are wired up but not thinking, the extraction pipeline runs but does not generate, and the back half of the Smelt-Cycle (FUSION → SQUEEZE → DELIVERY) is not implemented in any form. The system can ingest a mission, route it through 11 state transitions, extract conceptual patterns from source code, and produce an audit trail. It cannot yet produce working software from those patterns.
+**Validation update - May 17, 2026:** this gap report is a historical baseline,
+not the current state of the repo. Phases 1-5 have since shipped material
+intelligence-layer work: provider-verified model defaults, PM feature contracts,
+mission charters, CEO mission contracts, first generated-output artifact support,
+generated-code artifact download, Mission Detail panels for those artifacts, and
+CEO logic cluster decomposition. The remaining major gaps are now pod group
+standards, Java/JS AST activation, FETCH, FUSION, PM delivery verification, AIM,
+runtime/equivalence QC, compliance/security execution, DEPABS, and token/cost
+ledgering.
+
+theFactory has completed 39 development phases and is a production-grade infrastructure system. The pipeline scaffolding, state machine, protocol bus, operator console, security controls, CI/CD, and audit chain are all real and solid. The original missing area was the intelligence layer. That assessment has been partially closed by the May 16-17 implementation pass, but the later Smelt-Cycle phases and trust/production agents remain open.
 
 ---
 
@@ -151,8 +161,14 @@ These are core spec requirements with zero implementation in the codebase.
 
 ### 3.3 SQUEEZE Phase — Code Generation from Refined-IR
 **Spec:** Phase 5/6. Specialists receive the Master Logic Stream and generate actual code — converting each LogicNode back into target-language implementation. The Hardware-Mapping Injector tunes the stream for the target platform. Systems Pod may produce WASM for performance-critical paths. DevOps bundles the output artifact.
-**What's built:** None. There is no code generation step anywhere in the codebase. `SpecialistAgent.execute()` processes pre-extracted logicnodes and returns an audit-oriented `logicnode_set` artifact. The `build_artifacts.py` packaging step at `VERIFIED` takes the source code that was submitted *with the mission* (if any) and wraps it in a SHA-256 digest and chain-of-custody record. The output artifact is the input, not a transformation of it.
-**Impact:** The system cannot produce software. A mission that completes produces an audit-wrapped copy of the input, not generated or transformed code.
+**Current validation:** Partially built. Mission Flow v2 can create a first
+narrow `generated_output` from the mission contract, persist it in metadata, and
+package it as a `generated_code` artifact when present. The source-bundle path
+still works for analysis/source missions. This is not yet full SQUEEZE: it does
+not consume a Master Logic Stream, perform hardware mapping, generate multi-file
+projects, run runtime QC, or prove semantic equivalence.
+**Impact:** The system now has an early generated-output loop, but the complete
+Refined-IR-to-production-code SQUEEZE phase remains open.
 
 ### 3.4 DELIVERY Phase — PM Visual Verification and Deployment
 **Spec:** Phase 7. PM Agent uses Gemini multimodal Vision-AI to compare the rendered output against the original Visual Blueprint from intake. Verifies UI matches intent. Routes corrections back if discrepancies exist. Deployment Agent packages and delivers the final artifact.
@@ -170,12 +186,21 @@ These are core spec requirements with zero implementation in the codebase.
 
 ### 3.7 PM Agent Cognition — Feature Contract and Visual Blueprint Generation
 **Spec:** PM Agent receives user input via Protocol Omega, interprets intent, asks clarifying questions if needed, generates a Visual Blueprint (wireframe/mockup using Gemini multimodal), and produces a structured Feature Contract with functional requirements, acceptance criteria, success metrics, and non-functional requirements.
-**What's built:** The Chat page in Mission Control is functional — it takes user input, optionally reads attached files, and generates a minimal "feature contract" preview using `createBuilderPreview()`. This preview is a simple keyword-match extraction with hardcoded template text. No Gemini call is made. No Visual Blueprint is produced. The Feature Contract is not persisted or forwarded to the CEO with any structure; it becomes the `prompt` field of a mission record.
-**Impact:** The PM-to-CEO handoff is a plain text string, not a structured specification. The CEO routing decision has no structured requirements to reason about.
+**Current validation:** Partially built. Mission Flow v2 now persists a
+structured `feature_contract` and `mission_charter`, exposes them in chain trace,
+and displays them in Mission Detail. The Chat page still uses the local
+`createBuilderPreview()` path, and Visual Blueprint generation, multimodal
+verification, clarifying-question flow, and PM approval workflow remain open.
+**Impact:** The mission path now has a structured PM-to-CEO handoff, but the
+operator chat preview and visual/approval parts of PM cognition still need work.
 
 ### 3.8 CEO Cognition — Refined-IR Contract and Logic Cluster Decomposition
 **Spec:** CEO receives the Feature Contract, decomposes it into Logic Clusters by domain, assigns each cluster to the appropriate pod, and produces a Refined-IR Contract — a precise specification of all required LogicNodes, their domains, expected inputs/outputs, and cross-language requirements.
-**What's built:** CEO LLM call asks: "Return JSON with pod_manager_agent_id, specialist_agent_id, rationale." The response is a routing decision. No Refined-IR Contract is produced. No Logic Clusters are defined. The CEO has no structured view of what the mission actually needs to build.
+**Current validation:** Partially built. CEO delegation now persists a durable
+`mission_contract` and decomposes it into `logic_clusters`. Both are exposed in
+chain trace and displayed in Mission Detail. Pod workers do not yet consume
+logic-cluster focus, and FUSION has not yet consolidated pod group standards into
+a Master Logic Stream.
 
 ### 3.9 Sub-Manager Consolidation — Pod Group Standards
 **Spec:** Each pod's Sub-Manager receives LogicNodes from 4 language specialists, performs semantic deduplication (Python's filter ≈ JavaScript's .filter() ≈ Ruby's select ≈ PHP's array_filter), merges equivalent concepts into canonical Group Standard LogicNodes, and reports the consolidated Pod Standard to the CEO.
@@ -209,13 +234,21 @@ These are core spec requirements with zero implementation in the codebase.
 
 ## Section 4 — Schema and Model Gaps
 
-### 4.1 LLM Model Strings Are Invalid
-The agent model assignments reference models that don't exist under those names:
-- `gpt-5.2-pro` (CEO, pod managers) — not a valid OpenAI model name
-- `gpt-5.3-codex` (all 16 language specialists) — not a valid OpenAI model name
-- `gemini-2.5-flash`, `gemini-2.5-pro` — may be valid but need verification
+### 4.1 LLM Model Governance - Updated
+The original model-string finding is closed for OpenAI and Anthropic defaults.
+Current defaults are:
 
-The deterministic fallback means the system doesn't break when these fail — but no LLM cognition fires for any specialist or CEO work in production.
+- OpenAI executive/ops: `gpt-5.5`
+- OpenAI coding specialists and VC: `gpt-5.3-codex`
+- Anthropic deep audit: `claude-opus-4-7`
+- Anthropic general workhorse: `claude-sonnet-4-6`
+- Gemini deep reasoning: `gemini-3.1-pro-preview`
+- Gemini fast ops: `gemini-3.1-flash-lite`
+
+Gemini 3.1 Pro remains preview-lifecycle in the official Google docs. It is
+intentionally allowlisted in `deploy/promotion-policy.json`; release claims must
+keep that waiver visible until Google publishes a stable 3.1 Pro API ID or the
+project pins back to a stable Gemini model.
 
 ### 4.2 LogicNode Schema Gap Between Spec and Code
 The `protocol_beta_production.md` spec defines LogicNodes with `semantic.domain`, `semantic.mathematical_foundation`, `interface.inputs` with full type constraints, `cross_language_equivalents` with semantic similarity scores, `hardware_hints`, `performance.complexity`, `logic.steps`. The code produces `{concept_id, domain, concept, intent, confidence, evidence}`. The code schema is directionally correct but contains ~20% of the spec depth needed for CEO fusion and SQUEEZE code generation to work.

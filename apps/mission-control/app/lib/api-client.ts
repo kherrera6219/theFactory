@@ -1,5 +1,6 @@
 import type {
   BuilderPreviewResponse,
+  PmFeatureContractResponse,
   DataClassification,
   DepthMode,
   GatewayHealth,
@@ -358,6 +359,26 @@ export async function createBuilderPreview(payload: {
       request: payload.request,
       constraints: payload.constraints,
       view_mode: payload.viewMode,
+    }),
+  });
+}
+
+export async function createPmFeatureContract(payload: {
+  prompt: string;
+  missionType?: string;
+  depthMode?: string;
+  outputMode?: string;
+  requestedTargetLanguage?: string | null;
+}): Promise<PmFeatureContractResponse> {
+  return fetchJson<PmFeatureContractResponse>("/api/pm/feature-contract", {
+    method: "POST",
+    timeoutMs: 30_000,
+    body: JSON.stringify({
+      prompt: payload.prompt,
+      mission_type: payload.missionType ?? "BUILD_NEW",
+      depth_mode: payload.depthMode ?? "STANDARD",
+      output_mode: payload.outputMode ?? "FULL_BUILD",
+      requested_target_language: payload.requestedTargetLanguage ?? null,
     }),
   });
 }

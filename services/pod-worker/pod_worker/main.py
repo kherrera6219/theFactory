@@ -340,6 +340,38 @@ def _summarize_value(value: Any) -> Any:
     return str(value)
 
 
+def _focus_domains_for_pod(mission_metadata: Any) -> list[str]:
+    if not isinstance(mission_metadata, dict):
+        return []
+    logic_cluster_doc = mission_metadata.get("logic_clusters")
+    if not isinstance(logic_cluster_doc, dict):
+        return []
+    clusters = logic_cluster_doc.get("clusters")
+    if not isinstance(clusters, list):
+        return []
+    pod_name = POD_NAME.strip().lower()
+    focus_domains: list[str] = []
+    for cluster in clusters:
+        if not isinstance(cluster, dict):
+            continue
+        assigned_pod = str(
+            cluster.get("assigned_pod")
+            or cluster.get("pod_name")
+            or cluster.get("pod")
+            or ""
+        ).strip().lower()
+        pod_manager_id = str(cluster.get("pod_manager_agent_id") or "").strip().upper()
+        if assigned_pod and assigned_pod != pod_name:
+            continue
+        default_manager_id = DEFAULT_POD_MANAGER_AGENT_IDS.get(pod_name)
+        if not assigned_pod and default_manager_id and pod_manager_id != default_manager_id:
+            continue
+        domain = str(cluster.get("domain") or "").strip()
+        if domain and domain not in focus_domains:
+            focus_domains.append(domain)
+    return focus_domains
+
+
 def _summarize_mapping(value: Any) -> dict[str, Any]:
     return _summarize_value(value) if isinstance(value, dict) else {}
 
@@ -1048,11 +1080,12 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
     extraction_language = target_language or "python"  # default Pod A primary
     extraction_summary: dict = {"language": extraction_language, "concepts_found": 0}
     extracted_logicnodes: list[dict[str, Any]] = []
+    focus_domains = _focus_domains_for_pod(mission_metadata)
 
     if source_code:
         started = time.perf_counter()
         extractor = _get_extractor(extraction_language)
-        result = extractor.extract(source_code)
+        result = extractor.extract(source_code, focus_domains=focus_domains)
         EXTRACTION_LATENCY.labels(pod_name=POD_NAME, agent_id=resolved_agent_id).observe(
             time.perf_counter() - started
         )
@@ -1064,6 +1097,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             len(result.concepts)
         )
         extraction_summary = result.summary
+        extraction_summary["focus_domains"] = focus_domains
         extracted_logicnodes = _logicnodes_from_extraction(
             mission_id=mission_id,
             target_language=target_language,
@@ -1331,11 +1365,12 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
     extraction_language = target_language or "python"
     extraction_summary: dict[str, Any] = {"language": extraction_language, "concepts_found": 0}
     extracted_logicnodes: list[dict[str, Any]] = []
+    focus_domains = _focus_domains_for_pod(mission_metadata)
 
     if source_code:
         started = time.perf_counter()
         extractor = _get_extractor(extraction_language)
-        result = extractor.extract(source_code)
+        result = extractor.extract(source_code, focus_domains=focus_domains)
         EXTRACTION_LATENCY.labels(pod_name=POD_NAME, agent_id=resolved_agent_id).observe(
             time.perf_counter() - started
         )
@@ -1345,6 +1380,7 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
             language=extraction_language,
         ).inc(len(result.concepts))
         extraction_summary = result.summary
+        extraction_summary["focus_domains"] = focus_domains
         extracted_logicnodes = _logicnodes_from_extraction(
             mission_id=mission_id,
             target_language=target_language,

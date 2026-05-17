@@ -592,8 +592,9 @@ def test_handle_running_mission_with_source_extraction(monkeypatch) -> None:
         evidence = "map pattern"
 
     class FakeExtractor:
-        def extract(self, source_code: str):
+        def extract(self, source_code: str, focus_domains: list[str] | None = None):
             _ = source_code
+            _ = focus_domains
             return SimpleNamespace(
                 summary={"language": "python", "concepts_found": 1},
                 concepts=[FakeConcept()],
@@ -988,7 +989,8 @@ def test_handle_partition_ready_submits_partition_results(monkeypatch) -> None:
         evidence = "map pattern"
 
     class FakeExtractor:
-        def extract(self, source_code: str):
+        def extract(self, source_code: str, focus_domains: list[str] | None = None):
+            _ = focus_domains
             assert "other.py" not in source_code
             return SimpleNamespace(
                 summary={"language": "python", "concepts_found": 1},

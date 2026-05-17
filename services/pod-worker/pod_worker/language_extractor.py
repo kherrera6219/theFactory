@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Final
 
 from .concept_catalog import ConceptPattern, get_patterns
@@ -99,7 +99,7 @@ class LanguageExtractor:
     _class_pattern: re.Pattern[str] | None = None
     _import_pattern: re.Pattern[str] | None = None
 
-    def extract(self, source: str) -> ExtractionResult:
+    def extract(self, source: str, focus_domains: list[str] | None = None) -> ExtractionResult:
         """Run full extraction pipeline on *source* text."""
         result = ExtractionResult(language=self.language)
 
@@ -122,7 +122,10 @@ class LanguageExtractor:
             result.functions = self._detect_functions(source, lines)
             result.classes = self._detect_classes(source, lines)
             result.imports = self._detect_imports(source)
-            result.concepts = self._detect_concepts(source, lines)
+            result.concepts = self._apply_focus_domains(
+                self._detect_concepts(source, lines),
+                focus_domains,
+            )
         except Exception as exc:
             LOGGER.warning("extraction failed for %s: %s", self.language, exc)
             result.error = str(exc)
@@ -205,6 +208,31 @@ class LanguageExtractor:
 
         return found
 
+    def _apply_focus_domains(
+        self,
+        concepts: list[ExtractedConcept],
+        focus_domains: list[str] | None,
+    ) -> list[ExtractedConcept]:
+        normalized_focus = {
+            str(domain).strip().lower()
+            for domain in focus_domains or []
+            if str(domain).strip()
+        }
+        if not normalized_focus:
+            return concepts
+        boosted: list[ExtractedConcept] = []
+        for concept in concepts:
+            if concept.domain.strip().lower() in normalized_focus:
+                boosted.append(
+                    replace(
+                        concept,
+                        confidence=round(min(concept.confidence + 0.15, 1.0), 2),
+                    )
+                )
+            else:
+                boosted.append(concept)
+        return boosted
+
 
 def _compute_confidence(pattern: ConceptPattern, line: str) -> float:
     """Heuristic confidence score for a pattern match.
@@ -250,10 +278,10 @@ class PythonAstExtractor(PythonExtractor):
     Enable via ``PYTHON_AST_EXTRACTOR_ENABLED=true``.
     """
 
-    def extract(self, source: str) -> ExtractionResult:
+    def extract(self, source: str, focus_domains: list[str] | None = None) -> ExtractionResult:
         # Run the full regex pipeline first — this produces the concepts that
         # feed LogicNodes and is always the source of truth for concept detection.
-        result = super().extract(source)
+        result = super().extract(source, focus_domains=focus_domains)
 
         # Attempt AST-based structural enrichment.
         try:
@@ -299,6 +327,31 @@ class PythonAstExtractor(PythonExtractor):
             len(result.imports),
         )
         return result
+
+    def _apply_focus_domains(
+        self,
+        concepts: list[ExtractedConcept],
+        focus_domains: list[str] | None,
+    ) -> list[ExtractedConcept]:
+        normalized_focus = {
+            str(domain).strip().lower()
+            for domain in focus_domains or []
+            if str(domain).strip()
+        }
+        if not normalized_focus:
+            return concepts
+        boosted: list[ExtractedConcept] = []
+        for concept in concepts:
+            if concept.domain.strip().lower() in normalized_focus:
+                boosted.append(
+                    replace(
+                        concept,
+                        confidence=round(min(concept.confidence + 0.15, 1.0), 2),
+                    )
+                )
+            else:
+                boosted.append(concept)
+        return boosted
 
 
 class JavaScriptExtractor(LanguageExtractor):

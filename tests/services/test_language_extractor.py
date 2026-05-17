@@ -90,6 +90,17 @@ class TestPythonExtractor:
         for concept in result.concepts:
             assert 0.0 < concept.confidence <= 1.0
 
+    def test_focus_domains_boost_matching_concepts(self):
+        baseline = self.extractor.extract(PYTHON_SAMPLE)
+        focused = self.extractor.extract(PYTHON_SAMPLE, focus_domains=["list_operations"])
+        baseline_filter = next(
+            concept for concept in baseline.concepts if concept.concept_id == "DYN-001-002"
+        )
+        focused_filter = next(
+            concept for concept in focused.concepts if concept.concept_id == "DYN-001-002"
+        )
+        assert focused_filter.confidence > baseline_filter.confidence
+
     def test_summary_dict(self):
         result = self.extractor.extract(PYTHON_SAMPLE)
         summary = result.summary

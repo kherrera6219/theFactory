@@ -1718,6 +1718,17 @@ async def get_mission_chain_trace(mission_id: str) -> dict[str, Any]:
     return await _proxy_get_internal(f"/internal/missions/{mission_id}/chain-trace")
 
 
+@app.post("/v1/pm/feature-contract")
+async def create_pm_feature_contract(payload: dict[str, Any]) -> dict[str, Any]:
+    prompt = str(payload.get("prompt") or payload.get("request") or "").strip()
+    if len(prompt) < 3:
+        raise HTTPException(status_code=400, detail="prompt must be at least 3 characters")
+    return await _proxy_post_internal(
+        "/internal/pm/feature-contract",
+        json_body={**payload, "prompt": prompt},
+    )
+
+
 @app.get("/v1/missions/{mission_id}/logicnodes")
 async def get_mission_logicnodes(
     mission_id: str, limit: int = Query(default=50, ge=1, le=500)

@@ -314,7 +314,7 @@ Remaining validation gap:
 
 ## Phase 4 - PM Feature Contract and Mission Charter
 **Duration:** 3-5 days  
-**Entry state:** Chat preview is UI-local and heuristic.  
+**Entry state:** PM artifacts exist; Chat preview now uses the backend PM endpoint with local fallback.
 **Exit state:** PM intake produces a persisted feature contract and mission
 charter before CEO delegation.
 
@@ -328,12 +328,15 @@ charter before CEO delegation.
 
 ### Current status - implemented May 16, 2026
 
-- PM intake generates and persists `feature_contract` and schema-shaped
+- PM intake generates and persists `feature_contract` and schema-validated
   `mission_charter` metadata.
+- Chat preview calls the routed backend PM feature-contract endpoint and keeps
+  local builder preview as an offline fallback.
 - Chain trace exposes both PM artifacts.
 - Mission Flow v2 passes PM artifacts into CEO contract generation context.
 - Mission Detail displays PM Feature Contract and Mission Charter panels.
-- Focused backend tests and Mission Control type checks passed.
+- Focused/full backend tests, Mission Control type checks, and Mission Control
+  tests passed.
 
 ---
 
@@ -357,9 +360,12 @@ domains, and priorities.
   `LOGIC_CLUSTERS_DECOMPOSED`, records audit evidence, and adds a
   `logic_clusters` stage artifact summary.
 - Pod-manager delegation receives `logic_clusters` in mission context.
+- Pod workers consume logic-cluster domain focus and boost matching concept
+  confidence for their assigned pod.
 - Chain trace and Mission Detail expose cluster assignment, domain, priority,
   pod manager, specialist, requirement refs, and rationale.
-- Focused backend tests and Mission Control type checks passed.
+- Focused/full backend tests, Mission Control type checks, and Mission Control
+  tests passed.
 
 ---
 
