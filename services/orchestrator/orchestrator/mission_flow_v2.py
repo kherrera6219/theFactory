@@ -45,6 +45,7 @@ from .agent_scaling import (
 )
 from .aim_generator import generate_aim, mission_requires_aim
 from .audit_events import record_audit_event
+from .equivalence_verifier import build_equivalence_report, mission_requires_equivalence
 from .llm_delegation import (
     generate_ceo_delegation,
     generate_code_from_contract,
@@ -1605,6 +1606,94 @@ async def _prepare_delivery_summary(
     return updated or mission
 
 
+async def _prepare_equivalence_report(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> tuple[Any, bool, dict[str, Any]]:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    if not mission_requires_equivalence(metadata):
+        return mission, True, {"skipped": True, "reason": "generated output not present"}
+
+    build_artifacts = await asyncio.to_thread(
+        storage.list_build_artifacts,
+        settings,
+        mission.mission_id,
+        50,
+    )
+    enforcement_enabled = _setting_bool(
+        settings,
+        "mission_equivalence_enforcement_enabled",
+        False,
+    )
+    report = build_equivalence_report(
+        mission_id=mission.mission_id,
+        requested_target_language=mission.requested_target_language,
+        metadata=metadata,
+        build_artifacts=build_artifacts,
+        enforcement_enabled=enforcement_enabled,
+    )
+    metadata["equivalence_report"] = report
+    event_type = (
+        "MISSION_EQUIVALENCE_BLOCKED"
+        if report.get("blocking")
+        else "MISSION_EQUIVALENCE_VERIFIED"
+    )
+    if not _chain_event_exists(metadata, event_type):
+        append_chain_event(
+            metadata,
+            event_type=event_type,
+            agent_id="AGENT-10-TESTER",
+            details={
+                "report_id": report["report_id"],
+                "status": report["status"],
+                "passed": report["passed"],
+                "blocking": report["blocking"],
+                "risk_level": report["risk_level"],
+                "check_count": len(report.get("checks", [])),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="equivalence",
+        event_type=event_type,
+        agent_id="AGENT-10-TESTER",
+        details={
+            "report_id": report["report_id"],
+            "status": report["status"],
+            "passed": report["passed"],
+            "blocking": report["blocking"],
+            "risk_level": report["risk_level"],
+        },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id="AGENT-10-TESTER",
+        service_name="orchestrator",
+        event_type=event_type,
+        object_type="equivalence_report",
+        object_id=str(report["report_id"]),
+        payload_summary={
+            "status": report["status"],
+            "passed": report["passed"],
+            "blocking": report["blocking"],
+            "risk_level": report["risk_level"],
+            "check_count": len(report.get("checks", [])),
+        },
+        content_hash_source=report,
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission, not bool(report.get("blocking")), report
+
+
 async def _prepare_fusion(
     *,
     app: Any,
@@ -1941,6 +2030,43 @@ async def advance_mission_lifecycle_v2(
                             mission_id,
                             exc,
                         )
+                return
+            mission, equivalence_ready, equivalence_report = await _prepare_equivalence_report(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+            if not equivalence_ready:
+                await asyncio.to_thread(
+                    storage.insert_mission_event,
+                    settings,
+                    mission_id,
+                    MissionState.verified,
+                    MissionState.verified,
+                    "MISSION_EQUIVALENCE_BLOCKED",
+                )
+                redis_ready = bool(getattr(app.state, "redis_ready", False))
+                redis_client = getattr(app.state, "redis", None)
+                if redis_ready and redis_client is not None:
+                    try:
+                        await emit_state_event_fn(
+                            settings=settings,
+                            validator=validator,
+                            redis_client=redis_client,
+                            mission=mission,
+                            event_type="MISSION_EQUIVALENCE_BLOCKED",
+                        )
+                    except Exception as exc:
+                        LOGGER.warning(
+                            "v2: failed to emit equivalence block event for mission %s: %s",
+                            mission_id,
+                            exc,
+                        )
+                LOGGER.info(
+                    "v2: mission %s blocked by equivalence report %s",
+                    mission_id,
+                    equivalence_report.get("report_id"),
+                )
                 return
             mission = await _prepare_delivery_summary(
                 app=app,

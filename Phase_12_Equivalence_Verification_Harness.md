@@ -1,6 +1,6 @@
 # Phase 12 - Equivalence Verification Harness
 
-**Status:** Planned  
+**Status:** Implemented
 **Last updated:** 2026-05-18  
 **Depends on:** Phase 11 AIM, Phase 10 delivery summaries, build artifact packaging
 
@@ -19,7 +19,7 @@ The repo already has the surfaces Phase 12 should reuse:
 - Phase 11 now provides `application_intelligence_map` for source-bearing
   analysis/import/modernize/debug/security missions.
 
-The missing piece is a durable equivalence report that says whether generated or
+The missing piece was a durable equivalence report that says whether generated or
 transformed output satisfies the contract and available source/AIM evidence.
 
 ## Implementation Plan
@@ -70,13 +70,14 @@ transformed output satisfies the contract and available source/AIM evidence.
 
 ## Validation
 
-- `BUILD_NEW` with generated output creates `equivalence_report`.
-- Generated-code artifact without successful verification blocks when
+- [x] `BUILD_NEW` with generated output creates `equivalence_report`.
+- [x] Generated-code artifact without successful verification blocks when
   enforcement is enabled.
-- Source-bundle-only `ANALYZE_ONLY` mission records non-blocking review status.
-- Chain trace exposes `equivalence_report`.
-- Mission Detail renders the equivalence panel.
-- Targeted pytest covers pass, fail/block, and non-blocking review paths.
-- `python -m ruff check services\orchestrator\orchestrator tests\services`
+- [x] Source-bundle-only `ANALYZE_ONLY` mission skips equivalence gating unless it
+  produces generated output.
+- [x] Chain trace exposes `equivalence_report`.
+- [x] Mission Detail renders the equivalence panel.
+- [x] Targeted pytest covers pass, fail/block, and non-blocking review paths.
+- [x] `python -m ruff check services\orchestrator\orchestrator tests\services`
   passes for touched files.
-- `npm --prefix apps\mission-control run lint` passes.
+- [x] `npm --prefix apps\mission-control run lint` passes.

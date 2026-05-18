@@ -9,10 +9,10 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Project Status
 
-As of 2026-05-18, Phases 1-11 are implemented.
+As of 2026-05-18, Phases 1-12 are implemented.
 
-- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, and Phase 11 Application Intelligence Map for source-bearing analysis missions.
-- **Current active phase:** Phase 12 - Equivalence Verification Harness.
+- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, Phase 11 Application Intelligence Map, and Phase 12 equivalence reports for generated outputs.
+- **Current active phase:** Phase 13 - Security and Compliance Agents.
 - **Still planned:** Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
 - **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, and remaining forward-looking docs cleanup.
 
@@ -210,8 +210,8 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Implement Phase 12 equivalence verification for generated/transformed outputs: durable `equivalence_report`, chain-trace/UI exposure, audit evidence, and COMPLETE gating when enforcement is enabled.
-2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY/AIM loop.
+1. Implement Phase 13 security and compliance agents for mission-level safety/compliance verdicts.
+2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY/AIM/equivalence loop.
 3. Refresh stale qualification evidence before launch claims.
 4. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
 5. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.

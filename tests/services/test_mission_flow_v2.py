@@ -370,6 +370,91 @@ async def test_prepare_pm_intake_generates_aim_for_source_analysis_mission() -> 
 
 
 @pytest.mark.asyncio
+async def test_prepare_equivalence_report_records_nonblocking_report() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {
+            "source": "llm",
+            "generated_code": "def read_csv(path):\n    return []\n",
+            "filename": "solution.py",
+            "language": "python",
+        },
+        "feature_contract": {"acceptance_criteria": ["Returns rows"]},
+    }
+    build_artifacts = [
+        {
+            "artifact_id": "generated-code-output",
+            "artifact_type": "generated_code",
+            "status": "SUCCESS",
+            "digest_sha256": "abc123",
+            "verification": {"verified": True, "verification_method": "sha256"},
+        }
+    ]
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.list_build_artifacts = lambda *_args: build_artifacts
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            updated, ready, report = await orchestrator_mission_flow_v2._prepare_equivalence_report(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+
+    assert updated is mission
+    assert ready is True
+    assert report["passed"] is True
+    assert mission.metadata["equivalence_report"]["report_id"] == "equivalence-test-m1"
+    assert any(
+        event["event_type"] == "MISSION_EQUIVALENCE_VERIFIED"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_equivalence_report_blocks_when_enforced() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    settings.mission_equivalence_enforcement_enabled = True
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {
+            "source": "llm",
+            "generated_code": "def read_csv(path):\n    return []\n",
+            "filename": "solution.py",
+            "language": "python",
+        }
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.list_build_artifacts = lambda *_args: []
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            _updated, ready, report = (
+                await orchestrator_mission_flow_v2._prepare_equivalence_report(
+                    app=app,
+                    settings=settings,
+                    mission=mission,
+                )
+            )
+
+    assert ready is False
+    assert report["blocking"] is True
+    assert any(
+        event["event_type"] == "MISSION_EQUIVALENCE_BLOCKED"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_prepare_fusion_regenerates_when_existing_output_is_fallback() -> None:
     mission = _make_mission(state=MissionState.fusion)
     mission.metadata = {

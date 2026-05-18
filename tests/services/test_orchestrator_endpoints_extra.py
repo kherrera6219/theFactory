@@ -265,6 +265,20 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
                 "recommended_approach": "Proceed with analysis.",
                 "recommended_mission_type": "ANALYZE_ONLY",
             },
+            "equivalence_report": {
+                "schema_version": "equivalence_report.v1",
+                "report_id": "equivalence-mission-1",
+                "mission_id": "mission-1",
+                "status": "passed",
+                "passed": True,
+                "blocking": False,
+                "enforcement_enabled": False,
+                "risk_level": "low",
+                "checks": [],
+                "findings": [],
+                "evidence_refs": [],
+                "source": "deterministic",
+            },
             "master_logic_stream": {
                 "master_logic_stream": [
                     {
@@ -322,6 +336,7 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
     )
     assert payload["fetch_result"]["indexed_languages"] == ["python"]
     assert payload["application_intelligence_map"]["aim_id"] == "aim-mission-1"
+    assert payload["equivalence_report"]["report_id"] == "equivalence-mission-1"
     assert payload["master_logic_stream"]["total_unified_nodes"] == 1
     assert payload["delivery_summary"]["delivery_title"] == "Delivered CSV reader"
 

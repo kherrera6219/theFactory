@@ -253,6 +253,30 @@ export type ApplicationIntelligenceMap = {
   };
 };
 
+export type EquivalenceReport = {
+  schema_version: "equivalence_report.v1";
+  report_id: string;
+  mission_id: string;
+  generated_at: string;
+  status: "passed" | "blocked" | "review_required" | string;
+  passed: boolean;
+  blocking: boolean;
+  enforcement_enabled: boolean;
+  risk_level: "low" | "medium" | "high" | string;
+  target_language?: string | null;
+  checks: Array<{
+    check_id: string;
+    title: string;
+    status: "pass" | "fail" | "manual_review" | string;
+    required: boolean;
+    message: string;
+    evidence?: Record<string, unknown>;
+  }>;
+  findings: string[];
+  evidence_refs: Array<Record<string, unknown>>;
+  source: string;
+};
+
 export type MissionChainTrace = {
   mission_id: string;
   routing_enforced: boolean;
@@ -280,6 +304,7 @@ export type MissionChainTrace = {
     mission_id: string;
   } | null;
   application_intelligence_map?: ApplicationIntelligenceMap | null;
+  equivalence_report?: EquivalenceReport | null;
   master_logic_stream?: {
     master_logic_stream: Array<{
       node_id: string;

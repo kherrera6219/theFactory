@@ -71,6 +71,8 @@ class Settings:
     langgraph_checkpointer_setup: bool = False
     langgraph_checkpoint_namespace: str = ""
     mission_flow_v2_enabled: bool = True
+    mission_equivalence_enforcement_enabled: bool = False
+    mission_equivalence_python_execution_enabled: bool = False
     agent_scaling_enabled: bool = False
     agent_scaling_max_instances: int = 4
     agent_scaling_items_per_instance: int = 3
@@ -237,6 +239,12 @@ def load_settings() -> Settings:
         langgraph_checkpoint_namespace=os.getenv("LANGGRAPH_CHECKPOINT_NAMESPACE", "").strip(),
         mission_flow_v2_enabled=_as_bool(
             os.getenv("MISSION_FLOW_V2_ENABLED", "true"), True
+        ),
+        mission_equivalence_enforcement_enabled=_as_bool(
+            os.getenv("MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED", "false"), False
+        ),
+        mission_equivalence_python_execution_enabled=_as_bool(
+            os.getenv("MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED", "false"), False
         ),
         agent_scaling_enabled=_as_bool(
             os.getenv("AGENT_SCALING_ENABLED", "false"), False

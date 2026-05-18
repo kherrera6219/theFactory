@@ -277,6 +277,7 @@ export default function MissionDetailPage() {
   const podGroupStandards = Object.entries(chainTrace?.pod_group_standards ?? {});
   const fetchResult = chainTrace?.fetch_result ?? null;
   const applicationIntelligenceMap = chainTrace?.application_intelligence_map ?? null;
+  const equivalenceReport = chainTrace?.equivalence_report ?? null;
   const masterLogicStream = chainTrace?.master_logic_stream ?? null;
   const deliverySummary = chainTrace?.delivery_summary ?? null;
 
@@ -1057,6 +1058,69 @@ export default function MissionDetailPage() {
           </ul>
         )}
       </Panel>
+
+      {equivalenceReport && (
+        <Panel title="Equivalence Verification">
+          <dl>
+            <div>
+              <dt>Status</dt>
+              <dd>{equivalenceReport.status}</dd>
+            </div>
+            <div>
+              <dt>Passed</dt>
+              <dd>{equivalenceReport.passed ? "yes" : "no"}</dd>
+            </div>
+            <div>
+              <dt>Blocking</dt>
+              <dd>{equivalenceReport.blocking ? "yes" : "no"}</dd>
+            </div>
+            <div>
+              <dt>Risk</dt>
+              <dd>{equivalenceReport.risk_level}</dd>
+            </div>
+            <div>
+              <dt>Target language</dt>
+              <dd>{equivalenceReport.target_language ?? "n/a"}</dd>
+            </div>
+            <div>
+              <dt>Enforcement</dt>
+              <dd>{equivalenceReport.enforcement_enabled ? "enabled" : "advisory"}</dd>
+            </div>
+          </dl>
+          {equivalenceReport.findings.length > 0 && (
+            <>
+              <p className="muted">Findings</p>
+              <ul className="summary-list">
+                {equivalenceReport.findings.map((finding) => (
+                  <li key={`equivalence-finding-${finding}`}>
+                    <span>{finding}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {equivalenceReport.checks.length > 0 && (
+            <ul className="card-list">
+              {equivalenceReport.checks.map((check) => (
+                <li key={check.check_id} className="info-card">
+                  <h3>{check.title}</h3>
+                  <dl>
+                    <div>
+                      <dt>Status</dt>
+                      <dd>{check.status}</dd>
+                    </div>
+                    <div>
+                      <dt>Required</dt>
+                      <dd>{check.required ? "yes" : "no"}</dd>
+                    </div>
+                  </dl>
+                  <p>{check.message}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      )}
 
       <Panel title="Audit Evidence">
         {auditReports.length === 0 && (
