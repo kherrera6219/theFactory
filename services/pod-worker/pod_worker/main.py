@@ -33,7 +33,12 @@ from shared_runtime.protocol import (
     validate_envelope,
 )
 
-from .language_extractor import PythonAstExtractor, get_extractor
+from .language_extractor import (
+    JavaAstExtractor,
+    JavaScriptAstExtractor,
+    PythonAstExtractor,
+    get_extractor,
+)
 from .refined_ir import build_refined_ir_module, write_refined_ir_module
 from .tracing import configure_tracing
 
@@ -78,13 +83,10 @@ REFINED_IR_STORE_PATH = os.getenv("REFINED_IR_STORE_PATH", "").strip()
 PYTHON_AST_EXTRACTOR_ENABLED = (
     os.getenv("PYTHON_AST_EXTRACTOR_ENABLED", "false").strip().lower() == "true"
 )
-
-
-def _get_extractor(language: str):  # type: ignore[return]
-    """Return extractor for *language*, using AST extractor for Python when enabled."""
-    if language == "python" and PYTHON_AST_EXTRACTOR_ENABLED:
-        return PythonAstExtractor()
-    return get_extractor(language)
+JS_AST_EXTRACTOR_ENABLED = os.getenv("JS_AST_EXTRACTOR_ENABLED", "false").strip().lower() == "true"
+JAVA_AST_EXTRACTOR_ENABLED = (
+    os.getenv("JAVA_AST_EXTRACTOR_ENABLED", "false").strip().lower() == "true"
+)
 
 
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
@@ -148,11 +150,15 @@ _SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
 def _get_extractor(language: str):
     """Return the appropriate extractor for *language*.
 
-    Uses PythonAstExtractor when PYTHON_AST_EXTRACTOR_ENABLED is true and the
-    target language is Python.  All other languages use the standard registry.
+    Uses AST-backed extractors when their feature flags are true. All flagged
+    paths fall back to the standard regex registry when parsing is unavailable.
     """
     if language == "python" and PYTHON_AST_EXTRACTOR_ENABLED:
         return PythonAstExtractor()
+    if language in {"javascript", "typescript"} and JS_AST_EXTRACTOR_ENABLED:
+        return JavaScriptAstExtractor()
+    if language == "java" and JAVA_AST_EXTRACTOR_ENABLED:
+        return JavaAstExtractor()
     return get_extractor(language)
 
 

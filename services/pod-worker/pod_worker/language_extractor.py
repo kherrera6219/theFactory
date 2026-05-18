@@ -367,6 +367,48 @@ class JavaScriptExtractor(LanguageExtractor):
     )
 
 
+class JavaScriptAstExtractor(JavaScriptExtractor):
+    """JavaScript/TypeScript extractor with AST-backed structural enrichment."""
+
+    def extract(self, source: str, focus_domains: list[str] | None = None) -> ExtractionResult:
+        result = super().extract(source, focus_domains=focus_domains)
+        try:
+            from .js_ast_extractor import extract_js_ast
+        except ImportError:
+            LOGGER.warning("js_ast_extractor not available; using regex-only extraction")
+            return result
+
+        ast_result = extract_js_ast(source)
+        if not ast_result.success:
+            LOGGER.debug(
+                "JS AST parse failed (%s) — regex structural info retained",
+                ast_result.error,
+            )
+            return result
+
+        result.functions = [
+            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            for item in ast_result.functions
+        ]
+        result.classes = [
+            ClassInfo(
+                name=item.name,
+                line=item.line,
+                parents=() if item.extends is None else (item.extends,),
+            )
+            for item in ast_result.classes
+        ]
+        result.imports = [
+            (
+                f"import {', '.join(item.names)} from {item.module}"
+                if item.names
+                else f"import {item.module}"
+            )
+            for item in ast_result.imports
+        ]
+        return result
+
+
 class RubyExtractor(LanguageExtractor):
     language = "ruby"
     _function_pattern = re.compile(r"^\s*def\s+(\w+)", re.MULTILINE)
@@ -456,6 +498,41 @@ class JavaExtractor(LanguageExtractor):
     )
     _class_pattern = re.compile(r"\b(?:class|interface)\s+(\w+)", re.MULTILINE)
     _import_pattern = re.compile(r"^\s*import\s+[\w.*]+;", re.MULTILINE)
+
+
+class JavaAstExtractor(JavaExtractor):
+    """Java extractor with AST-backed structural enrichment."""
+
+    def extract(self, source: str, focus_domains: list[str] | None = None) -> ExtractionResult:
+        result = super().extract(source, focus_domains=focus_domains)
+        try:
+            from .java_ast_extractor import extract_java_ast
+        except ImportError:
+            LOGGER.warning("java_ast_extractor not available; using regex-only extraction")
+            return result
+
+        ast_result = extract_java_ast(source)
+        if not ast_result.success:
+            LOGGER.debug(
+                "Java AST parse failed (%s) — regex structural info retained",
+                ast_result.error,
+            )
+            return result
+
+        result.functions = [
+            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            for item in ast_result.methods
+        ]
+        result.classes = [
+            ClassInfo(
+                name=item.name,
+                line=item.line,
+                parents=tuple(parent for parent in (item.extends, *item.implements) if parent),
+            )
+            for item in ast_result.classes
+        ]
+        result.imports = [item.qualified_name for item in ast_result.imports]
+        return result
 
 
 class CSharpExtractor(LanguageExtractor):

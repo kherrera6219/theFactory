@@ -3,3 +3,5 @@ uvicorn==0.44.0
 redis==7.4.0
 httpx==0.28.1
 prometheus-client==0.25.0
+javalang==0.13.0
+esprima==4.0.1
