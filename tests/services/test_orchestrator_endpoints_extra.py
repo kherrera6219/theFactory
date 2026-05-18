@@ -296,6 +296,84 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
                 "evidence_refs": [],
                 "source": "deterministic",
             },
+            "dependency_inventory": {
+                "schema_version": "dependency_inventory.v1",
+                "inventory_id": "dependency-inventory-mission-1",
+                "mission_id": "mission-1",
+                "dependency_count": 1,
+                "dependencies": [
+                    {
+                        "dependency_id": "dep-csv",
+                        "name": "csv",
+                        "normalized_name": "csv",
+                        "ecosystem": "python",
+                        "version": None,
+                        "source_refs": ["application_intelligence_map.detected_dependencies"],
+                        "usage_hints": [],
+                    }
+                ],
+                "sources": ["application_intelligence_map.detected_dependencies"],
+                "source": "deterministic",
+            },
+            "dependency_classification_report": {
+                "schema_version": "dependency_classification_report.v1",
+                "report_id": "dependency-classification-mission-1",
+                "mission_id": "mission-1",
+                "status": "classified",
+                "blocking": False,
+                "classification_count": 1,
+                "classifications": [
+                    {
+                        "dependency_id": "dep-csv",
+                        "name": "csv",
+                        "normalized_name": "csv",
+                        "decision": "keep",
+                        "category": "Keep",
+                        "risk_level": "low",
+                        "safety_blocked": False,
+                        "blocking": False,
+                        "license": None,
+                        "rationale": (
+                            "Runtime or standard-library dependency should not be absorbed."
+                        ),
+                        "source_refs": ["application_intelligence_map.detected_dependencies"],
+                        "usage_hints": [],
+                    }
+                ],
+                "source": "deterministic",
+            },
+            "dependency_absorption_report": {
+                "schema_version": "dependency_absorption_report.v1",
+                "report_id": "dependency-absorption-mission-1",
+                "mission_id": "mission-1",
+                "status": "not_applicable",
+                "blocking": False,
+                "modified_output_created": False,
+                "equivalence_required": False,
+                "equivalence_passed": True,
+                "security_compliance_required": False,
+                "security_compliance_passed": True,
+                "planned_replacements": [],
+                "survival_justification_count": 1,
+                "safety_block_count": 0,
+                "recommendations": [],
+                "evidence_refs": [],
+                "source": "deterministic",
+            },
+            "dependency_survival_justifications": [
+                {
+                    "schema_version": "dependency_survival_justification.v1",
+                    "justification_id": "dependency-survival-mission-1-csv",
+                    "mission_id": "mission-1",
+                    "dependency_id": "dep-csv",
+                    "name": "csv",
+                    "decision": "keep",
+                    "risk_level": "low",
+                    "safety_blocked": False,
+                    "rationale": "Runtime or standard-library dependency should not be absorbed.",
+                    "review_required": False,
+                }
+            ],
             "master_logic_stream": {
                 "master_logic_stream": [
                     {
@@ -357,6 +435,10 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
     assert payload["security_compliance_report"]["report_id"] == (
         "security-compliance-mission-1"
     )
+    assert payload["dependency_inventory"]["inventory_id"] == (
+        "dependency-inventory-mission-1"
+    )
+    assert payload["dependency_absorption_report"]["status"] == "not_applicable"
     assert payload["master_logic_stream"]["total_unified_nodes"] == 1
     assert payload["delivery_summary"]["delivery_title"] == "Delivered CSV reader"
 

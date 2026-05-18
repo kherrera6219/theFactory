@@ -208,6 +208,12 @@ def _build_mission_chain_trace(
         "application_intelligence_map": metadata.get("application_intelligence_map"),
         "equivalence_report": metadata.get("equivalence_report"),
         "security_compliance_report": metadata.get("security_compliance_report"),
+        "dependency_inventory": metadata.get("dependency_inventory"),
+        "dependency_classification_report": metadata.get("dependency_classification_report"),
+        "dependency_absorption_report": metadata.get("dependency_absorption_report"),
+        "dependency_survival_justifications": metadata.get(
+            "dependency_survival_justifications"
+        ),
         "master_logic_stream": metadata.get("master_logic_stream"),
         "delivery_summary": metadata.get("delivery_summary"),
         "events": chain_trace,

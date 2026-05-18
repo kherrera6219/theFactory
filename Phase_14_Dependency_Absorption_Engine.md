@@ -1,6 +1,6 @@
 # Phase 14 - Dependency Absorption Engine
 
-**Status:** Planned  
+**Status:** Implemented
 **Last updated:** 2026-05-18  
 **Depends on:** Phase 11 AIM, Phase 12 equivalence, Phase 13 security/compliance
 
@@ -11,36 +11,42 @@ The dependency absorption doctrine is already canonical in
 runtime registry/persona/model matrix. AIM can surface detected dependencies,
 and Phase 12 creates equivalence evidence for generated output.
 
-What does not exist yet:
+Implemented in this phase:
 
 - mission-local dependency inventory
-- dependency classifier
-- survival justification
-- absorption plan/report
+- deterministic dependency classifier
+- survival justification metadata
+- advisory absorption report and small-utility replacement plans
+- chain-trace/API exposure and Mission Control rendering
+
+Still intentionally not implemented:
+
 - SBOM delta or modified-output packaging tied to dependency decisions
+- broad automatic dependency removal
+- runtime call-site rewrite or dependency deletion
 
-## Updated Implementation Plan
+## Implemented Behavior
 
-1. Add inventory and classification reports.
+1. Added inventory and classification reports.
    - `dependency_inventory.v1`
    - `dependency_classification_report.v1`
    - `dependency_absorption_report.v1`
    - `dependency_survival_justification.v1`
 
-2. Build inventory from available evidence.
+2. Inventory is built from available evidence.
    - AIM `detected_dependencies`
    - source-bundle file manifest and lockfiles/package files when present
    - generated-output dependency lists
    - package metadata from repo/builder review artifacts when present
 
-3. Classify before generating replacements.
+3. Classification runs before any replacement planning.
    - Categories must match the doctrine: absorb, reimplement, replace, vendor,
      wrap, pin, keep, block.
    - Safety-blocked dependency families must never be auto-absorbed.
    - Platform/runtime/security dependencies default to keep/wrap/pin with
      justification.
 
-4. Gate replacement planning.
+4. Replacement planning is gated.
    - First implementation may create replacement plans for small, pure, local
      utility dependencies only.
    - Actual modified output requires passing Phase 12 equivalence and Phase 13
@@ -48,7 +54,7 @@ What does not exist yet:
    - No automatic removal of cryptography, auth, TLS, database drivers, cloud SDK
      auth/signing, hardware drivers, or regulated/proprietary dependencies.
 
-5. Expose evidence.
+5. Evidence is exposed.
    - Store reports in metadata.
    - Emit `MISSION_DEPENDENCY_INVENTORY_CREATED`,
      `MISSION_DEPENDENCY_CLASSIFIED`, and when applicable
@@ -65,9 +71,9 @@ What does not exist yet:
 
 ## Validation
 
-- `REDUCE_DEPENDENCIES` mission with source/AIM dependencies creates inventory.
-- Safety-blocked dependency is classified as keep/block, not absorb.
-- Small pure utility dependency can receive an absorption plan.
-- Chain trace exposes dependency reports.
-- Mission Detail renders inventory/classification.
-- Targeted pytest and Mission Control typecheck pass.
+- [x] `REDUCE_DEPENDENCIES`/source/AIM dependency evidence creates inventory.
+- [x] Safety-blocked dependency is classified as keep/wrap/pin/block, not absorb.
+- [x] Small pure utility dependency can receive an advisory absorption plan.
+- [x] Chain trace exposes dependency reports.
+- [x] Mission Detail renders inventory/classification.
+- [x] Targeted pytest, ruff, Mission Control lint, and Mission Control unit tests pass.

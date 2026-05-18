@@ -713,7 +713,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 11 | Application Intelligence Map | 3 | 5-7 days | Implemented | AIM artifact, UI, and risk flags |
 | 12 | Equivalence Verification Harness | 4 | 7-10 days | Implemented | Real verification evidence |
 | 13 | Security and Compliance Agents | 4 | 5-7 days | Implemented | Safety/compliance verdicts |
-| 14 | Dependency Absorption Engine | 4 | 10-14 days | Planned | Dependency inventory/classification first |
+| 14 | Dependency Absorption Engine | 4 | 10-14 days | Implemented | Dependency inventory/classification and advisory plans |
 | 15 | Token and Cost Ledger | 4 | 2-3 days | Planned | Per-mission LLM cost |
 | 16 | Knowledge Lake Embeddings and Auto-Refresh | 5 | 7-10 days | Planned | Operational knowledge lake |
 | 17 | DR Evidence and Release Hardening | 5 | 3-5 days | Planned | Recovery/release evidence |
@@ -730,16 +730,17 @@ Minimum path to a real working demo:
 
 1. Complete a live provider-key BUILD_NEW demo through the implemented
    Phase 1-11 loop.
-2. Phase 14 - add dependency inventory and classification for source-bearing missions.
+2. Phase 15 - add token and cost ledger for LLM-backed work.
 3. Phase 17 - refresh stale qualification evidence before release claims.
 
-Phases 1-13 now provide the first local/fallback proof of value: structured PM
+Phases 1-14 now provide the first local/fallback proof of value: structured PM
 and CEO contracts, FETCH context, FUSION synthesis, generated-output packaging,
 PM delivery summaries, AIM source inventory, equivalence evidence, pod
-standards, security/compliance verdicts, and AST-backed
-Python/JavaScript/TypeScript/Java extraction. The next proof point should be
-Phase 14 dependency inventory/classification, with a live LLM-backed demo
-mission run as soon as provider credentials are available.
+standards, security/compliance verdicts, dependency inventory/classification,
+advisory dependency absorption plans, and AST-backed Python/JavaScript/
+TypeScript/Java extraction. The next proof point should be Phase 15 token/cost
+ledgering, with a live LLM-backed demo mission run as soon as provider
+credentials are available.
 
 ---
 

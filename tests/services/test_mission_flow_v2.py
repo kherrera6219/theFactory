@@ -534,6 +534,84 @@ async def test_prepare_security_compliance_report_blocks_when_enforced() -> None
 
 
 @pytest.mark.asyncio
+async def test_prepare_dependency_absorption_reports_records_plan() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {"dependencies": ["left-pad"]},
+        "equivalence_report": {"report_id": "equivalence-test-m1", "passed": True},
+        "security_compliance_report": {
+            "report_id": "security-compliance-test-m1",
+            "passed": True,
+            "blocking": False,
+        },
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            updated, ready, report = (
+                await orchestrator_mission_flow_v2._prepare_dependency_absorption_reports(
+                    app=app,
+                    settings=settings,
+                    mission=mission,
+                )
+            )
+
+    assert updated is mission
+    assert ready is True
+    assert report["status"] == "planned"
+    assert mission.metadata["dependency_inventory"]["dependency_count"] == 1
+    assert mission.metadata["dependency_classification_report"]["classifications"][0][
+        "decision"
+    ] == "absorb"
+    assert any(
+        event["event_type"] == "MISSION_DEPENDENCY_INVENTORY_CREATED"
+        for event in mission.metadata["chain_trace"]
+    )
+    assert any(
+        event["event_type"] == "MISSION_DEPENDENCY_ABSORPTION_PLANNED"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_dependency_absorption_reports_blocks_bad_license() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "application_intelligence_map": {"detected_dependencies": ["copyleft-helper"]},
+        "dependency_licenses": {"copyleft-helper": "GPL-3.0"},
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            _updated, ready, report = (
+                await orchestrator_mission_flow_v2._prepare_dependency_absorption_reports(
+                    app=app,
+                    settings=settings,
+                    mission=mission,
+                )
+            )
+
+    assert ready is False
+    assert report["blocking"] is True
+    assert any(
+        event["event_type"] == "MISSION_DEPENDENCY_ABSORPTION_BLOCKED"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_prepare_fusion_regenerates_when_existing_output_is_fallback() -> None:
     mission = _make_mission(state=MissionState.fusion)
     mission.metadata = {

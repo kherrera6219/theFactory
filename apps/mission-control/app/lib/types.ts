@@ -312,6 +312,99 @@ export type SecurityComplianceCheck = {
   recommendation?: string;
 };
 
+export type DependencyInventory = {
+  schema_version: "dependency_inventory.v1";
+  inventory_id: string;
+  mission_id: string;
+  generated_at: string;
+  dependency_count: number;
+  dependencies: DependencyInventoryEntry[];
+  sources: string[];
+  source: string;
+};
+
+export type DependencyInventoryEntry = {
+  dependency_id: string;
+  name: string;
+  normalized_name: string;
+  ecosystem: string;
+  version?: string | null;
+  source_refs: string[];
+  usage_hints: string[];
+};
+
+export type DependencyClassificationReport = {
+  schema_version: "dependency_classification_report.v1";
+  report_id: string;
+  mission_id: string;
+  generated_at: string;
+  status: "classified" | "blocked" | string;
+  blocking: boolean;
+  classification_count: number;
+  classifications: DependencyClassification[];
+  source: string;
+};
+
+export type DependencyClassification = {
+  dependency_id: string;
+  name: string;
+  normalized_name: string;
+  decision: "absorb" | "reimplement" | "replace" | "vendor" | "wrap" | "pin" | "keep" | "block" | string;
+  category: string;
+  risk_level: "low" | "medium" | "high" | string;
+  safety_blocked: boolean;
+  blocking: boolean;
+  license?: string | null;
+  rationale: string;
+  source_refs: string[];
+  usage_hints: string[];
+};
+
+export type DependencyAbsorptionReport = {
+  schema_version: "dependency_absorption_report.v1";
+  report_id: string;
+  mission_id: string;
+  generated_at: string;
+  status: "planned" | "gated" | "blocked" | "not_applicable" | string;
+  blocking: boolean;
+  modified_output_created: boolean;
+  equivalence_required: boolean;
+  equivalence_passed: boolean;
+  security_compliance_required: boolean;
+  security_compliance_passed: boolean;
+  planned_replacements: DependencyReplacementPlan[];
+  survival_justification_count: number;
+  safety_block_count: number;
+  recommendations: string[];
+  evidence_refs: Array<Record<string, unknown>>;
+  source: string;
+};
+
+export type DependencyReplacementPlan = {
+  dependency_id: string;
+  name: string;
+  decision: string;
+  status: "ready_for_planning" | "gated" | string;
+  blocked_by: string[];
+  replacement_scope: string;
+  requires_operator_approval: boolean;
+  modified_output_created: boolean;
+  rationale: string;
+};
+
+export type DependencySurvivalJustification = {
+  schema_version: "dependency_survival_justification.v1";
+  justification_id: string;
+  mission_id: string;
+  dependency_id: string;
+  name: string;
+  decision: string;
+  risk_level: "low" | "medium" | "high" | string;
+  safety_blocked: boolean;
+  rationale: string;
+  review_required: boolean;
+};
+
 export type MissionChainTrace = {
   mission_id: string;
   routing_enforced: boolean;
@@ -341,6 +434,10 @@ export type MissionChainTrace = {
   application_intelligence_map?: ApplicationIntelligenceMap | null;
   equivalence_report?: EquivalenceReport | null;
   security_compliance_report?: SecurityComplianceReport | null;
+  dependency_inventory?: DependencyInventory | null;
+  dependency_classification_report?: DependencyClassificationReport | null;
+  dependency_absorption_report?: DependencyAbsorptionReport | null;
+  dependency_survival_justifications?: DependencySurvivalJustification[] | null;
   master_logic_stream?: {
     master_logic_stream: Array<{
       node_id: string;

@@ -45,6 +45,10 @@ from .agent_scaling import (
 )
 from .aim_generator import generate_aim, mission_requires_aim
 from .audit_events import record_audit_event
+from .dependency_absorption import (
+    build_dependency_absorption_reports,
+    mission_requires_dependency_absorption,
+)
 from .equivalence_verifier import build_equivalence_report, mission_requires_equivalence
 from .llm_delegation import (
     generate_ceo_delegation,
@@ -1780,6 +1784,106 @@ async def _prepare_security_compliance_report(
     return updated or mission, not bool(report.get("blocking")), report
 
 
+async def _prepare_dependency_absorption_reports(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> tuple[Any, bool, dict[str, Any]]:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    if not mission_requires_dependency_absorption(metadata):
+        return mission, True, {"skipped": True, "reason": "no dependency evidence"}
+
+    reports = build_dependency_absorption_reports(
+        mission_id=mission.mission_id,
+        metadata=metadata,
+    )
+    inventory = reports["dependency_inventory"]
+    classification_report = reports["dependency_classification_report"]
+    absorption_report = reports["dependency_absorption_report"]
+    metadata["dependency_inventory"] = inventory
+    metadata["dependency_classification_report"] = classification_report
+    metadata["dependency_absorption_report"] = absorption_report
+    metadata["dependency_survival_justifications"] = reports[
+        "dependency_survival_justifications"
+    ]
+
+    event_type = (
+        "MISSION_DEPENDENCY_ABSORPTION_BLOCKED"
+        if absorption_report.get("blocking")
+        else "MISSION_DEPENDENCY_ABSORPTION_PLANNED"
+        if absorption_report.get("planned_replacements")
+        else "MISSION_DEPENDENCY_CLASSIFIED"
+    )
+    if not _chain_event_exists(metadata, "MISSION_DEPENDENCY_INVENTORY_CREATED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_DEPENDENCY_INVENTORY_CREATED",
+            agent_id="AGENT-39-DEPABS",
+            details={
+                "inventory_id": inventory["inventory_id"],
+                "dependency_count": inventory["dependency_count"],
+                "sources": inventory.get("sources", []),
+            },
+        )
+    if not _chain_event_exists(metadata, event_type):
+        append_chain_event(
+            metadata,
+            event_type=event_type,
+            agent_id="AGENT-39-DEPABS",
+            details={
+                "report_id": absorption_report["report_id"],
+                "classification_report_id": classification_report["report_id"],
+                "status": absorption_report["status"],
+                "blocking": absorption_report["blocking"],
+                "planned_replacement_count": len(
+                    absorption_report.get("planned_replacements", [])
+                ),
+                "safety_block_count": absorption_report.get("safety_block_count", 0),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="dependency_absorption",
+        event_type=event_type,
+        agent_id="AGENT-39-DEPABS",
+        details={
+            "inventory_id": inventory["inventory_id"],
+            "report_id": absorption_report["report_id"],
+            "status": absorption_report["status"],
+            "blocking": absorption_report["blocking"],
+            "dependency_count": inventory["dependency_count"],
+        },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id="AGENT-39-DEPABS",
+        service_name="orchestrator",
+        event_type=event_type,
+        object_type="dependency_absorption_report",
+        object_id=str(absorption_report["report_id"]),
+        payload_summary={
+            "status": absorption_report["status"],
+            "blocking": absorption_report["blocking"],
+            "dependency_count": inventory["dependency_count"],
+            "planned_replacement_count": len(
+                absorption_report.get("planned_replacements", [])
+            ),
+            "safety_block_count": absorption_report.get("safety_block_count", 0),
+        },
+        content_hash_source=reports,
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission, not bool(absorption_report.get("blocking")), absorption_report
+
+
 async def _prepare_fusion(
     *,
     app: Any,
@@ -2194,6 +2298,46 @@ async def advance_mission_lifecycle_v2(
                     "v2: mission %s blocked by security/compliance report %s",
                     mission_id,
                     security_compliance_report.get("report_id"),
+                )
+                return
+            mission, dependency_absorption_ready, dependency_absorption_report = (
+                await _prepare_dependency_absorption_reports(
+                    app=app,
+                    settings=settings,
+                    mission=mission,
+                )
+            )
+            if not dependency_absorption_ready:
+                await asyncio.to_thread(
+                    storage.insert_mission_event,
+                    settings,
+                    mission_id,
+                    MissionState.verified,
+                    MissionState.verified,
+                    "MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
+                )
+                redis_ready = bool(getattr(app.state, "redis_ready", False))
+                redis_client = getattr(app.state, "redis", None)
+                if redis_ready and redis_client is not None:
+                    try:
+                        await emit_state_event_fn(
+                            settings=settings,
+                            validator=validator,
+                            redis_client=redis_client,
+                            mission=mission,
+                            event_type="MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
+                        )
+                    except Exception as exc:
+                        LOGGER.warning(
+                            "v2: failed to emit dependency absorption block event for "
+                            "mission %s: %s",
+                            mission_id,
+                            exc,
+                        )
+                LOGGER.info(
+                    "v2: mission %s blocked by dependency absorption report %s",
+                    mission_id,
+                    dependency_absorption_report.get("report_id"),
                 )
                 return
             mission = await _prepare_delivery_summary(
