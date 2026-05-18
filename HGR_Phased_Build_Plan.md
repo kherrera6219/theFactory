@@ -506,17 +506,23 @@ banner.
 
 ## Phase 11 - Application Intelligence Map
 **Duration:** 5-7 days  
-**Entry state:** AIM is documented as forward-looking and schema references are
-not implemented.  
-**Exit state:** analysis/import/modernize missions can produce an AIM artifact
-before modification work begins.
+**Entry state:** source bundles, PM contracts, FETCH/FUSION/DELIVERY, and
+language extractors exist; AIM generation, chain-trace exposure, and Mission
+Control rendering are not implemented.
+**Exit state:** source-bearing analysis/import/modernize/debug/security missions
+produce an AIM artifact before modification or specialist codegen begins.
 
 ### Scope
 
-- Add AIM schema.
-- Generate language/dependency/function/concept inventory.
-- Add approval gate for high-risk mission types.
-- Add AIM viewer.
+- Add AIM schema and `application_intelligence_map` chain-trace field.
+- Generate bounded source-bundle inventory using existing language extractors;
+  do not send raw `source_code` to an LLM prompt.
+- Store language, dependency, function, class, concept, complexity, and risk
+  flags before CEO/specialist modification work.
+- Add Mission Control AIM viewer.
+- Capture high-risk approval recommendations as metadata now; defer a blocking
+  approval gate to the quality/trust phases unless Phase 11 explicitly builds
+  the gate.
 
 ---
 
@@ -653,7 +659,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 8 | FETCH / Knowledge Context | 3 | 7-10 days | Implemented | Retrieved technical context |
 | 9 | FUSION / Master Logic Stream | 3 | 5-7 days | Implemented | Cross-pod synthesis |
 | 10 | DELIVERY / PM Verification | 3 | 4-5 days | Implemented | Delivery summary and criteria check |
-| 11 | Application Intelligence Map | 3 | 5-7 days | Planned | AIM artifact and approval gate |
+| 11 | Application Intelligence Map | 3 | 5-7 days | Planned | AIM artifact, UI, and risk flags |
 | 12 | Equivalence Verification Harness | 4 | 7-10 days | Planned | Real verification evidence |
 | 13 | Security and Compliance Agents | 4 | 5-7 days | Planned | Safety/compliance verdicts |
 | 14 | Dependency Absorption Engine | 4 | 10-14 days | Planned | Dependency reduction reports/output |

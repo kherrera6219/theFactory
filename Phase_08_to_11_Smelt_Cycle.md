@@ -948,6 +948,37 @@ what is in it. The AIM must be produced before any changes happen.
 
 ---
 
+## Validated plan update - 2026-05-18
+
+Repo review confirmed the source-bundle path is already real: Mission Control and
+the API gateway can pass `metadata.source_code`, build artifacts can parse
+`## FILE ...` bundles, and Phase 7 extractors cover Python, JavaScript,
+TypeScript, and Java. Phase 11 should reuse those surfaces instead of creating a
+raw-source LLM prompt.
+
+Implementation constraints:
+
+- Generate AIM only for source-bearing `ANALYZE_ONLY`, `IMPORT_MODERNIZE`,
+  `PORT`, `DEBUG_REPAIR`, `SECURITY_HARDEN`, and `REDUCE_DEPENDENCIES`
+  missions. `BUILD_NEW` with no `source_code` must skip AIM.
+- Run AIM after PM feature-contract generation and before CEO delegation,
+  specialist codegen, or modification work. At this point the durable
+  `mission_contract` has not been created yet, so use `feature_contract`,
+  mission metadata, and source inventory as AIM inputs.
+- Never include raw `source_code` in the LLM prompt. Build a bounded extraction
+  summary containing file manifest, detected languages, counts, imports,
+  domains, and truncation flags.
+- Parse multi-file bundles and infer language per file. Do not run one
+  extractor across the entire bundle based only on `requested_target_language`.
+- Store `metadata["application_intelligence_map"]`, expose it through chain
+  trace/internal API responses, render it in Mission Control, and append
+  `MISSION_AIM_GENERATED`.
+- Store high-risk findings and approval recommendations as AIM metadata in
+  Phase 11. A blocking human approval gate is a follow-on quality/trust item
+  unless it is explicitly implemented in this phase.
+
+---
+
 ## Change 1 — Create `services/orchestrator/orchestrator/aim_generator.py`
 
 ```python
@@ -979,7 +1010,7 @@ async def generate_aim(
     prompt: str,
     mission_type: str,
     requested_target_language: str | None,
-    mission_contract: dict[str, Any],
+    feature_contract: dict[str, Any],
     settings: Any,
 ) -> dict[str, Any]:
     """Generate Application Intelligence Map from source code."""
@@ -1000,6 +1031,7 @@ async def generate_aim(
         f"Mission type: {mission_type}\n"
         f"Operator request: {_clean_text(prompt, max_length=300)}\n"
         f"Target language: {requested_target_language or 'auto'}\n"
+        f"Feature contract: {json.dumps(feature_contract, default=str)[:2000]}\n"
         f"Extraction summary:\n{json.dumps(extraction_summary, indent=2)}\n\n"
         "Required JSON keys:\n"
         "{\n"
@@ -1013,6 +1045,8 @@ async def generate_aim(
         '  "key_patterns": ["important patterns found"],\n'
         '  "detected_dependencies": ["library names found in imports"],\n'
         '  "risks": ["potential issues or concerns"],\n'
+        '  "risk_flags": ["security | migration | dependency | data | approval"],\n'
+        '  "human_approval_recommended": false,\n'
         '  "recommended_approach": "suggested strategy for this mission type",\n'
         '  "recommended_mission_type": "most appropriate mission type"\n'
         "}\n"
@@ -1051,6 +1085,8 @@ async def generate_aim(
             "detected_dependencies": parsed.get("detected_dependencies") or
                                       extraction_summary.get("detected_imports", []),
             "risks": parsed.get("risks") or [],
+            "risk_flags": parsed.get("risk_flags") or [],
+            "human_approval_recommended": bool(parsed.get("human_approval_recommended", False)),
             "recommended_approach": parsed.get("recommended_approach", ""),
             "recommended_mission_type": parsed.get("recommended_mission_type", mission_type),
         })
@@ -1066,6 +1102,8 @@ async def generate_aim(
             "key_patterns": [],
             "detected_dependencies": extraction_summary.get("detected_imports", []),
             "risks": [],
+            "risk_flags": [],
+            "human_approval_recommended": False,
             "recommended_approach": "Proceed with standard extraction and analysis.",
             "recommended_mission_type": mission_type,
         })
@@ -1076,7 +1114,7 @@ async def generate_aim(
 async def _extract_all_languages(
     source_code: str, primary_language: str | None
 ) -> dict[str, Any]:
-    """Run extractors on source code to build extraction summary for AIM."""
+    """Run per-file extractors on a bounded source bundle for AIM."""
     try:
         import sys
         from pathlib import Path
@@ -1085,25 +1123,45 @@ async def _extract_all_languages(
             sys.path.insert(0, str(pod_worker_root))
         from pod_worker.language_extractor import get_extractor
 
-        language = (primary_language or "python").strip().lower()
-        extractor = get_extractor(language)
-        result = extractor.extract(source_code)
-
+        # Implement these as local helpers or reuse the existing source-bundle
+        # parser shape from build_artifacts.py. They must return bounded file
+        # entries and map extensions such as .py, .js, .ts, .tsx, and .java.
+        files = _parse_source_bundle(source_code)
         domain_counts: dict[str, int] = {}
-        for concept in (result.concepts or []):
-            domain = getattr(concept, "domain", "generic")
-            domain_counts[domain] = domain_counts.get(domain, 0) + 1
+        detected_imports: list[str] = []
+        detected_languages: set[str] = set()
+        total_functions = 0
+        total_classes = 0
+        total_concepts = 0
+
+        for file_item in files[:100]:
+            language = _infer_language(file_item["path"], primary_language)
+            if language not in {"python", "javascript", "typescript", "java"}:
+                continue
+            detected_languages.add(language)
+            extractor = get_extractor(language)
+            result = extractor.extract(file_item["content"][:200_000])
+            total_functions += len(getattr(result, "functions", []) or [])
+            total_classes += len(getattr(result, "classes", []) or [])
+            concepts = getattr(result, "concepts", []) or []
+            total_concepts += len(concepts)
+            for concept in concepts:
+                domain = getattr(concept, "domain", "generic")
+                domain_counts[domain] = domain_counts.get(domain, 0) + 1
+                if domain == "import":
+                    detected_imports.append(getattr(concept, "concept", ""))
 
         return {
-            "language": language,
-            "total_functions": len(result.functions) if hasattr(result, "functions") else 0,
-            "total_classes": len(result.classes) if hasattr(result, "classes") else 0,
-            "total_concepts": len(result.concepts) if hasattr(result, "concepts") else 0,
+            "files_seen": len(files),
+            "files_analyzed": min(len(files), 100),
+            "truncated": len(files) > 100 or len(source_code) > 2_000_000,
+            "detected_languages": sorted(detected_languages),
+            "primary_language": primary_language,
+            "total_functions": total_functions,
+            "total_classes": total_classes,
+            "total_concepts": total_concepts,
             "domain_counts": domain_counts,
-            "detected_imports": [
-                c.concept for c in (result.concepts or [])
-                if getattr(c, "domain", "") == "import"
-            ][:20],
+            "detected_imports": sorted({item for item in detected_imports if item})[:50],
         }
     except Exception as exc:
         LOGGER.warning("AIM extraction failed: %s", exc)
@@ -1130,7 +1188,7 @@ if mission_requires_aim(metadata.get("mission_type", "BUILD_NEW")) \
         prompt=mission.prompt or "",
         mission_type=metadata.get("mission_type", "ANALYZE_ONLY"),
         requested_target_language=mission.requested_target_language,
-        mission_contract=metadata.get("mission_contract") or {},
+        feature_contract=metadata.get("feature_contract") or {},
         settings=settings,
     )
     metadata["application_intelligence_map"] = aim
@@ -1191,7 +1249,13 @@ When `chainTrace?.application_intelligence_map` is present:
 
 - [ ] ANALYZE_ONLY mission with attached source file produces AIM in chain trace
 - [ ] `metadata.application_intelligence_map.repository_summary` is meaningful
+- [ ] AIM prompt uses bounded extraction summary and excludes raw `source_code`
+- [ ] Multi-file source bundles are parsed per file and per detected language
 - [ ] BUILD_NEW missions without source do NOT produce an AIM
 - [ ] Mission Detail shows AIM panel for analysis missions
 - [ ] Chain trace includes `MISSION_AIM_GENERATED` event
-- [ ] `make test` passes
+- [ ] Targeted backend tests pass:
+  `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_language_extractor.py tests\services\test_llm_delegation_unit.py -q`
+- [ ] Targeted ruff passes for orchestrator, pod-worker extractor, and touched tests
+- [ ] Mission Control lint/typecheck passes:
+  `npm --prefix apps\mission-control run lint`

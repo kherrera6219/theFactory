@@ -9,8 +9,7 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Project Status
 
-As of 2026-05-18, Phases 1-10 are implemented locally; Phase 10 completion is
-pending commit/push.
+As of 2026-05-18, Phases 1-10 are implemented and pushed to `main`.
 
 - **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, and Phase 10 DELIVERY/PM verification.
 - **Current active phase:** Phase 11 - Application Intelligence Map.
@@ -211,7 +210,7 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Implement Phase 11 Application Intelligence Map for source-bearing analysis and modernization missions.
+1. Implement Phase 11 Application Intelligence Map for source-bearing analysis and modernization missions: source-bundle inventory, bounded extractor summary, chain-trace exposure, Mission Control viewer, and high-risk flags.
 2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY loop.
 3. Refresh stale qualification evidence before launch claims.
 4. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
