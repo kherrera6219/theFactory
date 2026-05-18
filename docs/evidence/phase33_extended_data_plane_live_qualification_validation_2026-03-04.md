@@ -1,5 +1,9 @@
 # Phase 33 Validation - Extended Data-Plane Live Qualification (2026-03-04)
 
+Document version: 2026.03.04
+Last updated: 2026-03-04
+Status: Historical Evidence
+
 ## Objective
 Execute the Phase 20 objective by validating live Neo4j/MinIO optional data-plane paths and disruption recovery under the compose `extended-data-plane` profile.
 

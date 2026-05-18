@@ -1,5 +1,9 @@
 # ADR - Security Model: API Keys vs JWT/OIDC (2026-03-04)
 
+Date: 2026-03-04  
+Document version: 2026.03.04  
+Last updated: 2026-04-17  
+
 ## Status
 Accepted
 

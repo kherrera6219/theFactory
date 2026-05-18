@@ -1,5 +1,9 @@
 # Phase 24 Validation - LangGraph Postgres Checkpointer Baseline (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Objective
 Add postgres-backed checkpoint persistence support to the LangGraph mission lifecycle path while preserving runtime safety and quality gates.
 

@@ -16,6 +16,8 @@
 
 </div>
 
+> **Version:** 1.0.0 · **Last updated:** 2026-05-17 · **Status:** Canonical
+
 ---
 
 ## Table of Contents

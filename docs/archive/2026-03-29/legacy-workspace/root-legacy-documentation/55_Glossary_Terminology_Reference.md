@@ -1,4 +1,8 @@
 # DOCUMENT 55: GLOSSARY & TERMINOLOGY REFERENCE
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery - Documentation & Training
 
 **Document ID:** 55  

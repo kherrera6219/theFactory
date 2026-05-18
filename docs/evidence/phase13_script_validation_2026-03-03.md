@@ -1,5 +1,9 @@
 # Phase 13 Validation Evidence (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Scope
 - Backup/DR script regression hardening.
 - Dry-run automation coverage for PowerShell operational scripts.

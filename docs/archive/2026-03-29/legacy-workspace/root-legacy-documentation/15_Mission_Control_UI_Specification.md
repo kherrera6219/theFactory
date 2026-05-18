@@ -1,4 +1,8 @@
 # MISSION CONTROL UI SPECIFICATION
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Interactive Dashboard for Holy Grail Refinery
 
 **Version:** 1.0  

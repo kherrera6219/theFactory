@@ -1,5 +1,9 @@
 # Phase 37 Validation — Strategy ADR + Operator OIDC + Dedicated Canary (2026-03-08)
 
+Document version: 2026.03.08
+Last updated: 2026-03-08
+Status: Historical Evidence
+
 ## Scope
 
 1. Close deferred-scope governance gap with canonical decision package.

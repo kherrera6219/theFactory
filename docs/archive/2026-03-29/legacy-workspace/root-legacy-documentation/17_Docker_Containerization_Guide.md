@@ -1,4 +1,8 @@
 # DOCKER CONTAINERIZATION GUIDE
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Container Architecture for 35-Agent System
 
 **Version:** 1.0  

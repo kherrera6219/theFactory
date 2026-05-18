@@ -1,5 +1,9 @@
 # Phase 43 Evidence: AI Safety, Prompt Governance, and Eval Gates
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 Date: 2026-03-29
 
 ## Summary

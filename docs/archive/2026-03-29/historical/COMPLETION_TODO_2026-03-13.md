@@ -1,5 +1,9 @@
 # theFactory — Updated Completion TODO
 
+Document version: 2026.03.13
+Last updated: 2026-03-13
+Status: Historical Archive
+
 **Last updated:** 2026-03-14
 
 ---

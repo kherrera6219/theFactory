@@ -1,5 +1,9 @@
 # Code of Conduct
 
+Document version: 2026.04.14  
+Last updated: 2026-04-14  
+Status: Canonical
+
 ## Our Commitment
 
 We want `theFactory` to be a professional, respectful collaboration space for maintainers, operators, security reviewers, and contributors.

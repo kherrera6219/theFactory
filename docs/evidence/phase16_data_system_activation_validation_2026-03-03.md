@@ -1,5 +1,9 @@
 # Phase 16 Validation Evidence (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Scope
 - Activate Qdrant in orchestrator internal knowledge retrieval/mirroring paths.
 - Add Qdrant security hardening and regression coverage.

@@ -1,5 +1,9 @@
 # Pod D: Mathematical Pod - Complete Specification
 
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
+
 ## Executive Summary
 Pod D covers MATLAB, R, Julia, and Mathematica with **98 concepts across 18 domains**, focusing on matrix operations, statistical analysis, symbolic computation, and numerical methods.
 

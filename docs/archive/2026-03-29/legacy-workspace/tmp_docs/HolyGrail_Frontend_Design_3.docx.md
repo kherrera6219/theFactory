@@ -1,4 +1,8 @@
 ⚗
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 HOLY GRAIL REFINERY
 FRONTEND DESIGN SPECIFICATION
 User Stories  ·  Pages  ·  UI/UX Components  ·  Interaction Design  ·  Wireframes

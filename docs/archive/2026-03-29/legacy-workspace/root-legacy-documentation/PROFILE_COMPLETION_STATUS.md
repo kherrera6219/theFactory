@@ -1,5 +1,9 @@
 # Holy Grail Refinery - Agent Profile Completion Status
 
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
+
 ## COMPLETED PROFILES: 14/34
 
 ### ✅ Leadership/Management (6/6) - COMPLETE

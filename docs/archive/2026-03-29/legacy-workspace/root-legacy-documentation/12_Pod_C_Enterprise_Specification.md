@@ -1,4 +1,8 @@
 # POD C: ENTERPRISE LANGUAGES SPECIFICATION
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Complete Domain and Concept Catalog
 
 **Version:** 1.0  

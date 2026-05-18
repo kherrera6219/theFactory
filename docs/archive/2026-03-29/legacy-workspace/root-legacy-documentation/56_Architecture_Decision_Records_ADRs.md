@@ -1,4 +1,8 @@
 # DOCUMENT 56: ARCHITECTURE DECISION RECORDS (ADRs)
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery - Documentation & Training
 
 **Document ID:** 56  

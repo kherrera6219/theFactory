@@ -1,5 +1,9 @@
 # HOLY GRAIL REFINERY - COMPLETE AGENT PROFILE
 
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
+
 ```
 ═══════════════════════════════════════════════════════════════
 AGENT PROFILE: AGENT-GO-001 - Go Language Specialist

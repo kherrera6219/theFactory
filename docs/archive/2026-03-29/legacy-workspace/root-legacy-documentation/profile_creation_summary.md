@@ -1,5 +1,9 @@
 # Holy Grail Refinery - Agent Profile Creation Summary
 
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
+
 ## Profiles Created (Total: 13/34)
 
 ### Leadership/Management (4):

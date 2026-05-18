@@ -1,5 +1,9 @@
 # Phase 26 Validation - LangGraph Live Postgres Recovery Qualification (2026-03-04)
 
+Document version: 2026.03.04
+Last updated: 2026-03-04
+Status: Historical Evidence
+
 ## Objective
 Close the remaining LangGraph P0 gap by proving mission lifecycle completion through orchestrator restart/disruption while postgres checkpoint persistence is enabled.
 

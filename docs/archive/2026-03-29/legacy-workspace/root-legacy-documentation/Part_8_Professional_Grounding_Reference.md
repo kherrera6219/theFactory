@@ -1,4 +1,8 @@
 # PART 8: PROFESSIONAL GROUNDING & CREDENTIALS
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Reference Document for All Holy Grail Refinery Agents
 
 ```

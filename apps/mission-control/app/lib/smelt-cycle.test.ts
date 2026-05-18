@@ -36,7 +36,8 @@ describe("smelt-cycle mapping", () => {
     );
     expect(smeltPhaseFromEventType("OTHER_EVENT")).toBeNull();
     expect(smeltPhaseFromIndex(5)).toBe("SQUEEZE");
-    expect(smeltPhaseFromIndex(3, "v2")).toBe("CEO DELEGATED");
+    expect(smeltPhaseFromIndex(3, "v2")).toBe("FETCH");
+    expect(smeltPhaseFromIndex(4, "v2")).toBe("CEO DELEGATED");
     expect(smeltPhaseFromIndex(999)).toBe("DELIVERY");
     expect(smeltPhaseFromIndex(-1)).toBe("INTAKE");
   });
@@ -92,8 +93,8 @@ describe("smelt-cycle mapping", () => {
 
     expect(detectMissionPhaseModel({ missionState: "CEO_DELEGATED" })).toBe("v2");
     expect(descriptor.model).toBe("v2");
-    expect(descriptor.phaseIndex).toBe(3);
+    expect(descriptor.phaseIndex).toBe(4);
     expect(descriptor.phaseName).toBe("CEO DELEGATED");
-    expect(descriptor.phases).toHaveLength(11);
+    expect(descriptor.phases).toHaveLength(12);
   });
 });

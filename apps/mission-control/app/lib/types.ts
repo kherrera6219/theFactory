@@ -232,6 +232,30 @@ export type MissionChainTrace = {
   mission_contract?: MissionContract | null;
   logic_clusters?: LogicClusters | null;
   pod_group_standards?: Record<string, PodGroupStandard> | null;
+  fetch_result?: {
+    indexed_languages: string[];
+    skipped_languages: string[];
+    errors: string[];
+    knowledge_ready: boolean;
+    indexed_at: string;
+    mission_id: string;
+  } | null;
+  master_logic_stream?: {
+    master_logic_stream: Array<{
+      node_id: string;
+      domain: string;
+      concept: string;
+      canonical_intent: string;
+      source_pods: string[];
+      dependency_order: number;
+    }>;
+    total_unified_nodes: number;
+    eliminated_across_pods: number;
+    ready_for_codegen: boolean;
+    source: string;
+    model_provider?: string;
+    model?: string;
+  } | null;
   route_provenance?: {
     ceo?: MissionRouteProvenanceStage | null;
     pod_manager?: MissionRouteProvenanceStage | null;

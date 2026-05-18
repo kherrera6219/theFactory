@@ -1,4 +1,8 @@
 # DATA ARCHITECTURE DOCUMENT
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery: Shared Database Specifications
 
 **Version:** 1.0  

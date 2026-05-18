@@ -1,5 +1,9 @@
 # Phase 28 Validation - Smelt-Cycle Runtime Reconciliation (2026-03-04)
 
+Document version: 2026.03.04
+Last updated: 2026-03-04
+Status: Historical Evidence
+
 ## Objective
 Close the Smelt-cycle fidelity gap by reconciling runtime telemetry with deterministic 7-phase Mission Control progression.
 
