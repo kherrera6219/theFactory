@@ -3,15 +3,16 @@
 
 Document version: 2026.05.18  
 Last updated: 2026-05-18  
-Status: Active Plan — Phases 8-9 implemented; Phases 10-11 planned
+Status: Implemented - Phases 8-11 complete
 
 ---
 
 ## Current Validation - May 18, 2026
 
-Phases 8-10 are implemented as of the May 18 pass. The system now has FETCH
-knowledge context, FUSION master logic stream support, and DELIVERY/PM
-verification. Phase 11 remains planned work.
+Phases 8-11 are implemented as of the May 18 pass. The system now has FETCH
+knowledge context, FUSION master logic stream support, DELIVERY/PM verification,
+and source-safe Application Intelligence Maps for source-bearing analysis
+missions.
 
 Treat this document as the active forward plan with these adjustments:
 
@@ -24,7 +25,9 @@ Treat this document as the active forward plan with these adjustments:
 - Phase 10 DELIVERY is implemented: completed missions receive PM delivery
   summaries, chain trace exposes `delivery_summary`, and Mission Detail shows an
   artifact-aware delivery banner.
-- Phase 11 AIM is still open.
+- Phase 11 AIM is implemented: source-bearing analysis/import/modernize/debug
+  missions receive bounded source-bundle inventory, chain trace exposes
+  `application_intelligence_map`, and Mission Detail shows the AIM panel.
 
 Current chain trace exposes PM/CEO artifacts at top-level fields such as
 `feature_contract`, `mission_charter`, `mission_contract`, `logic_clusters`,
@@ -1247,15 +1250,15 @@ When `chainTrace?.application_intelligence_map` is present:
 
 ## Validation
 
-- [ ] ANALYZE_ONLY mission with attached source file produces AIM in chain trace
-- [ ] `metadata.application_intelligence_map.repository_summary` is meaningful
-- [ ] AIM prompt uses bounded extraction summary and excludes raw `source_code`
-- [ ] Multi-file source bundles are parsed per file and per detected language
-- [ ] BUILD_NEW missions without source do NOT produce an AIM
-- [ ] Mission Detail shows AIM panel for analysis missions
-- [ ] Chain trace includes `MISSION_AIM_GENERATED` event
-- [ ] Targeted backend tests pass:
+- [x] ANALYZE_ONLY mission with attached source file produces AIM in chain trace
+- [x] `metadata.application_intelligence_map.repository_summary` is meaningful
+- [x] AIM prompt uses bounded extraction summary and excludes raw `source_code`
+- [x] Multi-file source bundles are parsed per file and per detected language
+- [x] BUILD_NEW missions without source do NOT produce an AIM
+- [x] Mission Detail shows AIM panel for analysis missions
+- [x] Chain trace includes `MISSION_AIM_GENERATED` event
+- [x] Targeted backend tests pass:
   `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_language_extractor.py tests\services\test_llm_delegation_unit.py -q`
-- [ ] Targeted ruff passes for orchestrator, pod-worker extractor, and touched tests
-- [ ] Mission Control lint/typecheck passes:
+- [x] Targeted ruff passes for orchestrator, pod-worker extractor, and touched tests
+- [x] Mission Control lint/typecheck passes:
   `npm --prefix apps\mission-control run lint`

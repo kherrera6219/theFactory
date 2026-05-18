@@ -61,9 +61,9 @@ The core remaining validated gap is now narrower:
 - theFactory has real mission orchestration, eventing, extraction, RIR storage,
   Mission Control visibility, durable PM/CEO contracts, first generated-output
   artifact support, source-bundle artifact packaging, and CEO logic clusters.
-- theFactory does not yet have full FETCH/FUSION execution, AIM, dependency
-  absorption, runtime QC, equivalence validation, compliance/security
-  enforcement, or cost accounting.
+- theFactory now has FETCH/FUSION execution and AIM for source-bearing missions;
+  it does not yet have dependency absorption, runtime QC, equivalence validation,
+  compliance/security enforcement, or cost accounting.
 - Current docs split between accurate implementation-status docs and
   forward-looking product docs that describe future capabilities in present tense.
 
@@ -659,7 +659,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 8 | FETCH / Knowledge Context | 3 | 7-10 days | Implemented | Retrieved technical context |
 | 9 | FUSION / Master Logic Stream | 3 | 5-7 days | Implemented | Cross-pod synthesis |
 | 10 | DELIVERY / PM Verification | 3 | 4-5 days | Implemented | Delivery summary and criteria check |
-| 11 | Application Intelligence Map | 3 | 5-7 days | Planned | AIM artifact, UI, and risk flags |
+| 11 | Application Intelligence Map | 3 | 5-7 days | Implemented | AIM artifact, UI, and risk flags |
 | 12 | Equivalence Verification Harness | 4 | 7-10 days | Planned | Real verification evidence |
 | 13 | Security and Compliance Agents | 4 | 5-7 days | Planned | Safety/compliance verdicts |
 | 14 | Dependency Absorption Engine | 4 | 10-14 days | Planned | Dependency reduction reports/output |
@@ -678,15 +678,16 @@ demo and stale qualification-evidence refresh.
 Minimum path to a real working demo:
 
 1. Complete a live provider-key BUILD_NEW demo through the implemented
-   Phase 1-10 loop.
-2. Phase 11 - generate Application Intelligence Maps for source-bearing missions.
+   Phase 1-11 loop.
+2. Phase 12 - add equivalence verification evidence for generated/transformed outputs.
 3. Phase 17 - refresh stale qualification evidence before release claims.
 
-Phases 1-10 now provide the first local/fallback proof of value: structured PM
+Phases 1-11 now provide the first local/fallback proof of value: structured PM
 and CEO contracts, FETCH context, FUSION synthesis, generated-output packaging,
-PM delivery summaries, pod standards, and AST-backed Python/JavaScript/TypeScript/Java
-extraction. The next proof point should be Phase 11 AIM, with a live LLM-backed
-demo mission run as soon as provider credentials are available.
+PM delivery summaries, AIM source inventory, pod standards, and AST-backed
+Python/JavaScript/TypeScript/Java extraction. The next proof point should be
+Phase 12 equivalence verification, with a live LLM-backed demo mission run as
+soon as provider credentials are available.
 
 ---
 

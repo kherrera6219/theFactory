@@ -302,6 +302,74 @@ def _make_stateful_storage(mission: MagicMock) -> tuple[dict[str, Any], Any, Any
 
 
 @pytest.mark.asyncio
+async def test_prepare_pm_intake_generates_aim_for_source_analysis_mission() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    validator = MagicMock()
+    mission = _make_mission()
+    mission.metadata = {
+        "mission_type": "ANALYZE_ONLY",
+        "source_code": "## FILE app.py\nprint('a')\n",
+    }
+    _state, fetch_mission, update_metadata, _transition_mission_state, _insert_mission_event = (
+        _make_stateful_storage(mission)
+    )
+    feature_contract = {
+        "schema_version": "feature_contract.v1",
+        "title": "Review source",
+        "summary": "Analyze supplied source",
+        "functional_requirements": ["Inventory source"],
+        "acceptance_criteria": ["AIM is produced"],
+        "risk_notes": [],
+        "source": "fallback",
+    }
+    generated_aim = {
+        "schema_version": "aim.v1",
+        "aim_id": "aim-test-m1",
+        "mission_id": "test-m1",
+        "repository_summary": "One Python file.",
+        "primary_language": "python",
+        "detected_languages": ["python"],
+        "total_functions": 0,
+        "total_classes": 0,
+        "complexity_assessment": "low",
+        "human_approval_recommended": False,
+        "source": "fallback",
+        "extraction_summary": {"files_analyzed": 1},
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = fetch_mission
+        mock_storage.update_mission_metadata = update_metadata
+        with patch(
+            "orchestrator.mission_flow_v2.generate_pm_feature_contract",
+            AsyncMock(return_value=feature_contract),
+        ), patch(
+            "orchestrator.mission_flow_v2.generate_aim",
+            AsyncMock(return_value=generated_aim),
+        ) as aim_mock, patch(
+            "orchestrator.mission_flow_v2.record_audit_event",
+            AsyncMock(),
+        ):
+            result = await orchestrator_mission_flow_v2._prepare_pm_intake(
+                app=app,
+                settings=settings,
+                validator=validator,
+                emit_state_event_fn=AsyncMock(),
+                mission_id="test-m1",
+            )
+
+    assert result is True
+    aim_mock.assert_awaited_once()
+    assert mission.metadata["application_intelligence_map"]["aim_id"] == "aim-test-m1"
+    assert any(
+        event["event_type"] == "MISSION_AIM_GENERATED"
+        for event in mission.metadata["chain_trace"]
+    )
+    assert "aim" in mission.metadata["mission_artifacts"]
+
+
+@pytest.mark.asyncio
 async def test_prepare_fusion_regenerates_when_existing_output_is_fallback() -> None:
     mission = _make_mission(state=MissionState.fusion)
     mission.metadata = {

@@ -246,6 +246,25 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
                 "indexed_at": "2026-03-01T00:00:00+00:00",
                 "mission_id": "mission-1",
             },
+            "application_intelligence_map": {
+                "schema_version": "aim.v1",
+                "aim_id": "aim-mission-1",
+                "mission_id": "mission-1",
+                "repository_summary": "One Python service.",
+                "detected_languages": ["python"],
+                "primary_language": "python",
+                "total_functions": 3,
+                "total_classes": 1,
+                "domain_distribution": {"parsing": 2},
+                "complexity_assessment": "low",
+                "key_patterns": [],
+                "detected_dependencies": ["csv"],
+                "risks": [],
+                "risk_flags": [],
+                "human_approval_recommended": False,
+                "recommended_approach": "Proceed with analysis.",
+                "recommended_mission_type": "ANALYZE_ONLY",
+            },
             "master_logic_stream": {
                 "master_logic_stream": [
                     {
@@ -302,6 +321,7 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
         "csv_reader"
     )
     assert payload["fetch_result"]["indexed_languages"] == ["python"]
+    assert payload["application_intelligence_map"]["aim_id"] == "aim-mission-1"
     assert payload["master_logic_stream"]["total_unified_nodes"] == 1
     assert payload["delivery_summary"]["delivery_title"] == "Delivered CSV reader"
 

@@ -214,6 +214,45 @@ export type PodGroupStandard = {
   created_at: string;
 };
 
+export type ApplicationIntelligenceMap = {
+  schema_version: "aim.v1";
+  aim_id: string;
+  mission_id: string;
+  mission_type: string;
+  generated_at: string;
+  source: "llm" | "fallback" | string;
+  llm_route?: string;
+  model_provider?: string;
+  model?: string;
+  repository_summary: string;
+  detected_languages: string[];
+  primary_language?: string | null;
+  total_functions: number;
+  total_classes: number;
+  total_concepts?: number;
+  domain_distribution: Record<string, number>;
+  complexity_assessment: "low" | "medium" | "high" | "very_high" | string;
+  key_patterns: string[];
+  detected_dependencies: string[];
+  risks: string[];
+  risk_flags: string[];
+  human_approval_recommended: boolean;
+  recommended_approach: string;
+  recommended_mission_type: string;
+  extraction_summary?: {
+    files_seen?: number;
+    files_analyzed?: number;
+    truncated?: boolean;
+    file_manifest?: Array<{
+      path: string;
+      language?: string;
+      size_bytes?: number;
+      sha256?: string;
+      analyzed?: boolean;
+    }>;
+  };
+};
+
 export type MissionChainTrace = {
   mission_id: string;
   routing_enforced: boolean;
@@ -240,6 +279,7 @@ export type MissionChainTrace = {
     indexed_at: string;
     mission_id: string;
   } | null;
+  application_intelligence_map?: ApplicationIntelligenceMap | null;
   master_logic_stream?: {
     master_logic_stream: Array<{
       node_id: string;

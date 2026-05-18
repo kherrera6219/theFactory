@@ -43,6 +43,7 @@ from .agent_scaling import (
     is_scalable_agent,
     scaling_decision_from_metadata,
 )
+from .aim_generator import generate_aim, mission_requires_aim
 from .audit_events import record_audit_event
 from .llm_delegation import (
     generate_ceo_delegation,
@@ -624,6 +625,69 @@ async def _prepare_pm_intake(
         },
         content_hash_source=feature_contract,
     )
+    if mission_requires_aim(mission_type) and isinstance(metadata.get("source_code"), str):
+        aim = await generate_aim(
+            mission_id=mission_id,
+            source_code=str(metadata["source_code"]),
+            prompt=str(mission.prompt or ""),
+            mission_type=mission_type,
+            requested_target_language=mission.requested_target_language,
+            feature_contract=feature_contract,
+            settings=settings,
+        )
+        metadata["application_intelligence_map"] = aim
+        if not _chain_event_exists(metadata, "MISSION_AIM_GENERATED"):
+            append_chain_event(
+                metadata,
+                event_type="MISSION_AIM_GENERATED",
+                agent_id=CEO_AGENT_ID,
+                details={
+                    "aim_id": aim.get("aim_id"),
+                    "primary_language": aim.get("primary_language"),
+                    "detected_languages": aim.get("detected_languages", []),
+                    "files_analyzed": (aim.get("extraction_summary") or {}).get(
+                        "files_analyzed", 0
+                    ),
+                    "total_functions": aim.get("total_functions", 0),
+                    "total_classes": aim.get("total_classes", 0),
+                    "complexity": aim.get("complexity_assessment"),
+                    "human_approval_recommended": aim.get("human_approval_recommended", False),
+                    "source": aim.get("source"),
+                },
+            )
+        _record_artifact(
+            metadata,
+            stage="aim",
+            event_type="MISSION_AIM_GENERATED",
+            agent_id=CEO_AGENT_ID,
+            details={
+                "aim_id": aim.get("aim_id"),
+                "schema_version": aim.get("schema_version"),
+                "source": aim.get("source"),
+                "model_provider": aim.get("model_provider"),
+                "model": aim.get("model"),
+            },
+        )
+        await record_audit_event(
+            app,
+            mission_id=mission_id,
+            mission=mission,
+            agent_id=CEO_AGENT_ID,
+            service_name="orchestrator",
+            event_type="MISSION_AIM_GENERATED",
+            object_type="application_intelligence_map",
+            object_id=str(aim.get("aim_id") or "application_intelligence_map"),
+            tool_name="aim_generator",
+            payload_summary={
+                "source": aim.get("source"),
+                "primary_language": aim.get("primary_language"),
+                "files_analyzed": (aim.get("extraction_summary") or {}).get(
+                    "files_analyzed", 0
+                ),
+                "human_approval_recommended": aim.get("human_approval_recommended", False),
+            },
+            content_hash_source=aim,
+        )
     return (
         await _persist_metadata(
             app=app,

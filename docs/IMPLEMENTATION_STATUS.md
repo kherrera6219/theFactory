@@ -9,11 +9,11 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Project Status
 
-As of 2026-05-18, Phases 1-10 are implemented and pushed to `main`.
+As of 2026-05-18, Phases 1-11 are implemented.
 
-- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, and Phase 10 DELIVERY/PM verification.
-- **Current active phase:** Phase 11 - Application Intelligence Map.
-- **Still planned:** Phase 11 AIM and Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
+- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, and Phase 11 Application Intelligence Map for source-bearing analysis missions.
+- **Current active phase:** Phase 12 - Equivalence Verification Harness.
+- **Still planned:** Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
 - **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, and remaining forward-looking docs cleanup.
 
 ## Mission Control UI — Vault and Settings (2026-04-16)
@@ -193,7 +193,7 @@ As of 2026-05-18:
   - `python scripts/mission_artifact_qualification.py --profile-label full-dedicated-local-2026-04-15 --output-file docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json --history-file docs/evidence/mission_artifact_qualification_history.jsonl`
   - `python scripts/dedicated_agent_canary_rollout.py --profile-label full-dedicated-local-2026-04-15 --output-file docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`
 
-The repository should therefore be treated as a strong local development baseline with defense-in-depth security hardening and improved maintainability. It is not yet launch-complete because the live provider-key demo, stale qualification-evidence refresh, remaining forward-looking docs cleanup, and Dependabot high-vulnerability remediation are still open.
+The repository should therefore be treated as a strong local development baseline with defense-in-depth security hardening and improved maintainability. It is not yet launch-complete because the live provider-key demo, stale qualification-evidence refresh, and remaining forward-looking docs cleanup are still open.
 
 ## Current Hardening Baseline
 
@@ -210,7 +210,7 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Implement Phase 11 Application Intelligence Map for source-bearing analysis and modernization missions: source-bundle inventory, bounded extractor summary, chain-trace exposure, Mission Control viewer, and high-risk flags.
+1. Implement Phase 12 equivalence verification for generated/transformed outputs.
 2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY loop.
 3. Refresh stale qualification evidence before launch claims.
 4. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
