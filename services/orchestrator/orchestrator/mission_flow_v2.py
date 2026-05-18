@@ -684,6 +684,7 @@ async def _prepare_fetch_phase(
                 "indexed_languages": fetch_result["indexed_languages"],
                 "skipped": fetch_result["skipped_languages"],
                 "errors": fetch_result["errors"],
+                "knowledge_ids": fetch_result.get("knowledge_ids", []),
                 "knowledge_ready": fetch_result["knowledge_ready"],
             },
         )
@@ -1514,6 +1515,33 @@ async def _prepare_fusion(
         }
 
     metadata["master_logic_stream"] = master_stream
+
+    output_mode = str(metadata.get("output_mode") or "FULL_BUILD").strip().upper()
+    if (
+        output_mode != "ANALYZE_ONLY"
+        and master_stream.get("ready_for_codegen")
+        and not build_artifact_support.mission_has_generated_output(metadata)
+    ):
+        specialist_agent_id = _validate_agent_id(
+            metadata.get("assigned_specialist_agent_id"),
+            fallback=resolve_specialist_agent_id(mission.requested_target_language),
+        )
+        try:
+            generated_output = await generate_code_from_contract(
+                mission_context={
+                    **_mission_context(mission, metadata),
+                    "mission_contract": mission_contract,
+                    "specialist_plan": metadata.get("specialist_plan") or {},
+                    "master_logic_stream": master_stream,
+                },
+                specialist_agent_id=specialist_agent_id,
+                mission_contract=mission_contract,
+                logicnodes=master_stream.get("master_logic_stream") or [],
+                target_language=mission.requested_target_language or "python",
+            )
+            metadata["generated_output"] = generated_output
+        except Exception as exc:
+            LOGGER.warning("v2: fusion codegen failed for mission %s: %s", mission.mission_id, exc)
 
     if not _chain_event_exists(metadata, "MISSION_LOGIC_FOLDED"):
         append_chain_event(

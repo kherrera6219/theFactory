@@ -89,6 +89,7 @@ V2_STATES: set[MissionState] = {
     MissionState.pod_assigned,
     MissionState.specialist_assigned,
     MissionState.running,
+    MissionState.gating,
     MissionState.fusion,
     MissionState.verified,
     MissionState.complete,

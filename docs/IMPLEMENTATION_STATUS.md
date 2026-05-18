@@ -9,11 +9,12 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Project Status
 
-As of 2026-05-18, Phases 1-7 are implemented and pushed to `main`.
+As of 2026-05-18, Phases 1-9 are implemented locally; Phase 8/9 completion is
+pending commit/push.
 
-- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, and JavaScript/TypeScript/Java AST-backed extraction.
-- **Current active phase:** Phase 8 - FETCH / Knowledge Context. This is the next implementation priority and should add IS Agent execution, knowledge-context artifacts, deterministic curated-doc fallback, chain-trace visibility, and Mission Control display.
-- **Still planned:** Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, Phase 11 AIM, and Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
+- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, and Phase 9 FUSION/master logic stream.
+- **Current active phase:** Phase 10 - DELIVERY / PM verification.
+- **Still planned:** Phase 10 DELIVERY/PM verification, Phase 11 AIM, and Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
 - **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, remaining forward-looking docs cleanup, and the open GitHub Dependabot high vulnerability alert.
 
 ## Mission Control UI — Vault and Settings (2026-04-16)
@@ -34,6 +35,8 @@ As of 2026-05-18, Phases 1-7 are implemented and pushed to `main`.
 - Mission Control Chat now previews PM feature contracts through the routed backend PM endpoint (`/api/pm/feature-contract` -> `/v1/pm/feature-contract` -> `/internal/pm/feature-contract`) and keeps the local builder preview as an offline fallback.
 - CEO delegation now produces a durable `mission_contract` after routing. The contract is stored in mission metadata, audit logged, exposed in chain trace, and uses PM feature-contract context when available.
 - CEO delegation now decomposes the mission contract into `logic_clusters` with domain, priority, pod-manager, specialist, requirement references, and rationale. Cluster metadata is audit logged, emitted as a chain event, exposed in chain trace, and passed into pod-manager delegation context.
+- Phase 8 FETCH now adds an IS-agent `FETCH` lifecycle step. It indexes deterministic bootstrap language docs, mirrors them into mission-scoped knowledge, exposes `fetch_result` in chain trace, and lets pod workers pass documentation context into extraction.
+- Phase 9 FUSION now folds pod group standards into `master_logic_stream`, exposes that stream in chain trace/Mission Control, and uses it to replace missing or fallback generated output when code generation is eligible.
 - Pod workers now consume CEO logic-cluster domain focus during extraction and boost matching concept confidence for the assigned pod.
 - Pod managers now produce `pod_group_standards` during the Mission Flow v2 GATING phase. Standards consolidate specialist LogicNodes into canonical pod-level nodes, record duplicate elimination counts, emit `MISSION_POD_GROUP_STANDARD_PRODUCED`, and are exposed through chain trace and Mission Control.
 - Specialist planning now attempts narrow contract-driven generated-output creation for non-`ANALYZE_ONLY` missions. Successful LLM output is stored as `metadata.generated_output`; fallback output is marked as fallback and is not packaged as a successful generated-code artifact.
@@ -174,6 +177,10 @@ As of 2026-05-18:
   - `python -m pip install javalang==0.13.0 esprima==4.0.1`
   - `python -m pytest tests\services\test_language_extractor_golden.py tests\services\test_language_extractor.py -q`
   - `python -m ruff check services\pod-worker tests\services\test_language_extractor_golden.py`
+- Phase 8/9 focused validation is green:
+  - `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_pod_worker_unit.py tests\services\test_language_extractor.py tests\services\test_llm_delegation_unit.py -q`
+  - `python -m ruff check services\orchestrator\orchestrator services\pod-worker tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_pod_worker_unit.py tests\services\test_language_extractor.py tests\services\test_llm_delegation_unit.py`
+  - `npm --prefix apps\mission-control run lint`
 - Full post-Phase-7 validation is green:
   - `python -m ruff check services tests scripts`
   - `python -m pytest -q`
@@ -200,8 +207,8 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Implement Phase 8 FETCH / Knowledge Context so missions attach relevant language/framework context before downstream extraction and generation.
-2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/generated-output loop.
+1. Complete Phase 10 DELIVERY / PM verification so completed missions get a PM delivery summary and artifact-aware delivery actions.
+2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/generated-output loop.
 3. Refresh stale qualification evidence and resolve the open GitHub Dependabot high vulnerability before launch claims.
 4. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
 5. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.

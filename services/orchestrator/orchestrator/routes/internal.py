@@ -204,6 +204,8 @@ def _build_mission_chain_trace(
         "mission_contract": metadata.get("mission_contract"),
         "logic_clusters": metadata.get("logic_clusters"),
         "pod_group_standards": metadata.get("pod_group_standards"),
+        "fetch_result": metadata.get("fetch_result"),
+        "master_logic_stream": metadata.get("master_logic_stream"),
         "events": chain_trace,
     }
 
