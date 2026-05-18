@@ -1,5 +1,9 @@
 # Phase 23 Validation - LangGraph Baseline (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Objective
 Begin LangGraph orchestration adoption with a production-safe baseline:
 - feature-flagged execution,

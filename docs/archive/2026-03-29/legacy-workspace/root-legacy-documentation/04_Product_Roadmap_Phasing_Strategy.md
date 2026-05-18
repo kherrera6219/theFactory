@@ -1,4 +1,8 @@
 # PRODUCT ROADMAP & PHASING STRATEGY
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery: Execution Plan
 
 **Version:** 1.0  

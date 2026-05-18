@@ -1,4 +1,8 @@
 # PRODUCT REQUIREMENTS DOCUMENT (PRD)
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery: AI-Powered Software Manufacturing System
 
 **Version:** 1.0  

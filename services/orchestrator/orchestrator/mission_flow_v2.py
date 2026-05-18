@@ -48,6 +48,7 @@ from .llm_delegation import (
     generate_ceo_delegation,
     generate_code_from_contract,
     generate_logic_clusters,
+    generate_master_logic_stream,
     generate_mission_contract,
     generate_pm_feature_contract,
     generate_pod_group_standard,
@@ -622,6 +623,71 @@ async def _prepare_pm_intake(
         },
         content_hash_source=feature_contract,
     )
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission_id,
+            metadata=metadata,
+        )
+        is not None
+    )
+
+
+async def _prepare_fetch_phase(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+) -> bool:
+    """Phase 8: IS Agent knowledge-lake preload.
+
+    Indexes bootstrap documentation for the mission's target language(s) so
+    pod workers have documentation context during extraction. Never blocks the
+    mission — errors are captured in fetch_result and the mission proceeds.
+    """
+    from .is_agent import detect_required_languages, run_fetch_phase
+
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    mission_type = str(metadata.get("mission_type") or "BUILD_NEW").strip().upper()
+
+    languages = detect_required_languages(
+        prompt=str(mission.prompt or ""),
+        requested_target_language=mission.requested_target_language,
+        source_code=metadata.get("source_code"),
+        mission_type=mission_type,
+    )
+
+    fetch_result = await run_fetch_phase(
+        mission_id=mission_id,
+        required_languages=languages,
+        settings=settings,
+    )
+
+    metadata["fetch_result"] = fetch_result
+    metadata["knowledge_lake_ready"] = fetch_result["knowledge_ready"]
+
+    if not _chain_event_exists(metadata, "MISSION_FETCH_COMPLETE"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_FETCH_COMPLETE",
+            agent_id="AGENT-06-IS",
+            details={
+                "indexed_languages": fetch_result["indexed_languages"],
+                "skipped": fetch_result["skipped_languages"],
+                "errors": fetch_result["errors"],
+                "knowledge_ready": fetch_result["knowledge_ready"],
+            },
+        )
+
     return (
         await _persist_metadata(
             app=app,
@@ -1412,13 +1478,73 @@ async def _ensure_verified_build_artifact(
     )
     return updated or mission
 
+async def _prepare_fusion(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission: Any,
+) -> Any:
+    """Phase 9: CEO Logic Folding — fuse pod Group Standards into Master Logic Stream.
+
+    Runs after transitioning into FUSION. If pod_group_standards is empty the
+    mission still proceeds; the master_logic_stream will be empty and
+    ready_for_codegen will be False.
+    """
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+
+    pod_group_standards = metadata.get("pod_group_standards") or {}
+    mission_contract = metadata.get("mission_contract") or {}
+
+    try:
+        master_stream = await generate_master_logic_stream(
+            pod_group_standards=pod_group_standards,
+            mission_contract=mission_contract,
+            mission_context=_mission_context(mission, metadata),
+        )
+    except Exception as exc:
+        LOGGER.warning("v2: fusion failed for mission %s: %s", mission.mission_id, exc)
+        master_stream = {
+            "master_logic_stream": [],
+            "total_unified_nodes": 0,
+            "eliminated_across_pods": 0,
+            "ready_for_codegen": False,
+            "source": "error",
+        }
+
+    metadata["master_logic_stream"] = master_stream
+
+    if not _chain_event_exists(metadata, "MISSION_LOGIC_FOLDED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_LOGIC_FOLDED",
+            agent_id=CEO_AGENT_ID,
+            details={
+                "unified_nodes": master_stream["total_unified_nodes"],
+                "eliminated": master_stream["eliminated_across_pods"],
+                "ready_for_codegen": master_stream["ready_for_codegen"],
+                "source": master_stream.get("source"),
+            },
+        )
+
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission
+
+
 # ------------------------------------------------------------------
 # V2 transition table (ordered)
 # ------------------------------------------------------------------
 
 V2_TRANSITIONS: tuple[tuple[MissionState, MissionState, str], ...] = (
     (MissionState.queued, MissionState.pm_intake, "MISSION_PM_INTAKE"),
-    (MissionState.pm_intake, MissionState.ceo_delegated, "MISSION_CEO_DELEGATED"),
+    (MissionState.pm_intake, MissionState.fetch, "MISSION_FETCH"),
+    (MissionState.fetch, MissionState.ceo_delegated, "MISSION_CEO_DELEGATED"),
     (
         MissionState.ceo_delegated,
         MissionState.pod_assigned,
@@ -1451,6 +1577,7 @@ V2_PHASE_ORDER: tuple[MissionState, ...] = (
     MissionState.intake,
     MissionState.queued,
     MissionState.pm_intake,
+    MissionState.fetch,
     MissionState.ceo_delegated,
     MissionState.pod_assigned,
     MissionState.specialist_assigned,
@@ -1466,6 +1593,8 @@ V2_EVENT_TO_PHASE: dict[str, MissionState] = {
     "MISSION_INTAKE": MissionState.intake,
     "MISSION_QUEUED": MissionState.queued,
     "MISSION_PM_INTAKE": MissionState.pm_intake,
+    "MISSION_FETCH": MissionState.fetch,
+    "MISSION_FETCH_COMPLETE": MissionState.fetch,
     "MISSION_CEO_DELEGATED": MissionState.ceo_delegated,
     "MISSION_POD_MANAGER_ASSIGNED": MissionState.pod_assigned,
     "MISSION_SPECIALIST_ASSIGNED": MissionState.specialist_assigned,
@@ -1485,6 +1614,7 @@ _V2_TO_V1_MAP: dict[MissionState, MissionState] = {
     MissionState.intake: MissionState.intake,
     MissionState.queued: MissionState.queued,
     MissionState.pm_intake: MissionState.queued,
+    MissionState.fetch: MissionState.queued,
     MissionState.ceo_delegated: MissionState.queued,
     MissionState.pod_assigned: MissionState.queued,
     MissionState.specialist_assigned: MissionState.queued,
@@ -1560,7 +1690,8 @@ async def advance_mission_lifecycle_v2(
 
     stage_preparers = {
         MissionState.queued: _prepare_pm_intake,
-        MissionState.pm_intake: _prepare_ceo_delegation,
+        MissionState.pm_intake: _prepare_fetch_phase,   # Phase 8: IS Agent
+        MissionState.fetch: _prepare_ceo_delegation,    # Phase 8: CEO after FETCH
         MissionState.ceo_delegated: _prepare_pod_assignment,
         MissionState.pod_assigned: _prepare_specialist_assignment,
         MissionState.specialist_assigned: _prepare_specialist_plan,
@@ -1719,6 +1850,15 @@ async def advance_mission_lifecycle_v2(
 
         if new_state == MissionState.gating:
             record = await _produce_pod_group_standard(
+                app=app,
+                settings=settings,
+                validator=validator,
+                emit_state_event_fn=emit_state_event_fn,
+                mission=record,
+            )
+
+        if new_state == MissionState.fusion:
+            record = await _prepare_fusion(
                 app=app,
                 settings=settings,
                 validator=validator,

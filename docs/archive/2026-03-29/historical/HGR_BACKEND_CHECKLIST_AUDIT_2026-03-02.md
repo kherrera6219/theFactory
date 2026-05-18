@@ -1,5 +1,9 @@
 # HGR Backend Checklist Audit
 
+Document version: 2026.03.02
+Last updated: 2026-03-02
+Status: Historical Archive
+
 > Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
 
 Date: 2026-03-02  

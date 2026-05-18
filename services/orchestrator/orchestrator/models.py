@@ -55,6 +55,7 @@ class MissionState(str, Enum):
     queued = "QUEUED"
     # v2 intermediate states (feature-flagged via MISSION_FLOW_V2_ENABLED)
     pm_intake = "PM_INTAKE"
+    fetch = "FETCH"              # Phase 8: IS Agent knowledge-lake preload
     ceo_delegated = "CEO_DELEGATED"
     pod_assigned = "POD_ASSIGNED"
     specialist_assigned = "SPECIALIST_ASSIGNED"
@@ -83,6 +84,7 @@ V2_STATES: set[MissionState] = {
     MissionState.intake,
     MissionState.queued,
     MissionState.pm_intake,
+    MissionState.fetch,
     MissionState.ceo_delegated,
     MissionState.pod_assigned,
     MissionState.specialist_assigned,
@@ -100,6 +102,8 @@ EventType = Literal[
     "MISSION_INTAKE",
     "MISSION_QUEUED",
     "MISSION_PM_INTAKE",
+    "MISSION_FETCH",
+    "MISSION_FETCH_COMPLETE",
     "MISSION_CEO_DELEGATED",
     "MISSION_POD_ASSIGNED",
     "MISSION_SPECIALIST_ASSIGNED",
@@ -133,7 +137,8 @@ VALID_TRANSITIONS: dict[MissionState, set[MissionState]] = {
     },
 
     # V2-only routing chain
-    MissionState.pm_intake: {MissionState.ceo_delegated, MissionState.failed},
+    MissionState.pm_intake: {MissionState.fetch, MissionState.ceo_delegated, MissionState.failed},
+    MissionState.fetch: {MissionState.ceo_delegated, MissionState.failed},
     MissionState.ceo_delegated: {MissionState.pod_assigned, MissionState.failed},
     MissionState.pod_assigned: {MissionState.specialist_assigned, MissionState.failed},
     MissionState.specialist_assigned: {MissionState.running, MissionState.failed},

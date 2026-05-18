@@ -1,5 +1,9 @@
 # Phase 30 Validation - Auth Mode + Dedicated Profile Baseline (2026-03-04)
 
+Document version: 2026.03.04
+Last updated: 2026-03-04
+Status: Historical Evidence
+
 ## Objective
 Execute the accepted ADR decisions by implementing:
 1. Gateway auth-mode abstraction for API key and JWT/OIDC flows.

@@ -148,7 +148,6 @@ As of 2026-05-18, Phases 1-7 are implemented and pushed to `main`.
 - **Event replay detection** (`shared_runtime/protocol.py`): in-process `_InProcessReplayGuard` with TTL eviction
 - **Message deduplication** in semantic bus: Redis SET NX EX on `correlation_id`; backpressure 503 + `Retry-After: 5` when queue > limit
 - **Circuit breaker** in agent-runtime: CLOSED/OPEN/HALF-OPEN state machine; configurable failure threshold and recovery window
-- **AST-based Python extraction** (`pod_worker/ast_extractor.py`): optional structural extractor available behind `PYTHON_AST_EXTRACTOR_ENABLED=true`; the shipped default path remains regex-first unless the flag is enabled
 - **Secret hygiene**: gitleaks full-history scan, `.pre-commit-config.yaml` with staged-secret protection, `.gitleaks.toml` custom patterns
 
 ## Validation Snapshot

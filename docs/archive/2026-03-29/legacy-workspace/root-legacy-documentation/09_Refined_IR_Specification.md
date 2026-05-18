@@ -1,4 +1,8 @@
 # REFINED-IR SPECIFICATION
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery: Universal Logic Representation Standard
 
 **Version:** 1.0  

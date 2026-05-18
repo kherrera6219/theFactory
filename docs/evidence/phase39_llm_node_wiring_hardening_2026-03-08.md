@@ -1,5 +1,9 @@
 # Phase 39 Validation - LangGraph LLM Node Wiring and Container Hardening (2026-03-08)
 
+Document version: 2026.03.08
+Last updated: 2026-03-08
+Status: Historical Evidence
+
 ## Scope
 
 1. Wire provider-backed LLM calls beyond CEO delegation so pod-manager and specialist LangGraph

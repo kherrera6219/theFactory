@@ -1,0 +1,277 @@
+"""is_agent.py — IS Agent: Knowledge Lake population for mission context.
+
+Phase 8 bootstrap: indexes static language reference docs into the Knowledge
+Lake (storage layer) so pod workers can query documentation context during
+extraction. Phase 16 replaces static docs with live crawled documentation.
+"""
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import logging
+import re
+from datetime import UTC, datetime
+from typing import Any
+
+LOGGER = logging.getLogger(__name__)
+
+# Static documentation seed for Phase 8.
+# Each entry: language_key → list of (topic, content) tuples.
+_BOOTSTRAP_DOCS: dict[str, list[tuple[str, str]]] = {
+    "python": [
+        ("builtins.list", "list: ordered mutable sequence. Methods: append, extend, pop, "
+                          "insert, remove, sort, reverse, count, index, copy, clear."),
+        ("builtins.dict", "dict: key-value mapping. Methods: get, set, items, keys, values, "
+                          "update, pop, setdefault, copy, clear."),
+        ("builtins.str", "str: immutable text sequence. Methods: split, join, strip, replace, "
+                         "find, format, encode, upper, lower, startswith, endswith."),
+        ("io.file", "open(): open files for reading/writing. Modes: r, w, a, rb, wb. "
+                    "Context manager with 'with' statement recommended."),
+        ("itertools", "itertools: efficient looping. Functions: chain, cycle, repeat, "
+                      "combinations, permutations, groupby, islice, product."),
+        ("collections", "collections: specialized data structures. Classes: defaultdict, "
+                        "OrderedDict, Counter, deque, namedtuple, ChainMap."),
+        ("functools", "functools: higher-order functions. Functions: reduce, partial, "
+                      "lru_cache, wraps, cached_property, total_ordering."),
+        ("pathlib", "pathlib.Path: object-oriented filesystem paths. Methods: exists, "
+                    "open, read_text, write_text, mkdir, glob, iterdir, stat."),
+        ("json", "json: JSON encoding/decoding. Functions: loads, dumps, load, dump. "
+                 "Handles: dict, list, str, int, float, bool, None."),
+        ("re", "re: regular expressions. Functions: match, search, findall, sub, split, "
+               "compile, fullmatch. Flags: IGNORECASE, MULTILINE, DOTALL."),
+        ("typing", "typing: type hints. Types: Optional, Union, List, Dict, Tuple, "
+                   "Set, Any, Callable, Iterator, Generator, TypeVar, Generic."),
+        ("dataclasses", "dataclasses: data containers. Decorator: @dataclass. "
+                        "Fields: field(), dataclass(frozen=True) for immutable."),
+        ("asyncio", "asyncio: async I/O. Keywords: async def, await, async for, async with. "
+                    "Functions: gather, sleep, create_task, run, Queue, Lock, Event."),
+        ("requests", "requests: HTTP client. Methods: get, post, put, delete, patch, head. "
+                     "Session for connection pooling. Response: .json(), .text, .status_code."),
+        ("os", "os: operating system interface. Functions: getcwd, chdir, listdir, "
+               "makedirs, remove, rename, environ, path.join, path.exists, path.dirname."),
+    ],
+    "javascript": [
+        ("Array", "Array methods: map, filter, reduce, forEach, find, findIndex, some, every, "
+                  "includes, indexOf, slice, splice, sort, reverse, flat, flatMap, fill."),
+        ("Object", "Object methods: keys, values, entries, assign, create, freeze, "
+                   "fromEntries, hasOwn. Spread operator for shallow copy."),
+        ("String", "String methods: split, join, slice, substring, indexOf, includes, "
+                   "startsWith, endsWith, replace, replaceAll, trim, padStart, padEnd, "
+                   "toUpperCase, toLowerCase, match, search."),
+        ("Promise", "Promise: async operations. Methods: then, catch, finally, "
+                    "Promise.all, Promise.allSettled, Promise.race, Promise.any. "
+                    "async/await syntax for cleaner code."),
+        ("fetch", "fetch API: HTTP requests. Returns Promise<Response>. "
+                  ".json() for JSON, .text() for text. Headers, body, method options."),
+        ("Map", "Map: key-value collection preserving insertion order. Methods: set, get, "
+                "has, delete, clear, forEach, keys, values, entries."),
+        ("Set", "Set: unique value collection. Methods: add, has, delete, clear, forEach. "
+                "Convert array to set to deduplicate: new Set(array)."),
+        ("JSON", "JSON.parse(string): parse JSON string. JSON.stringify(value): serialize to JSON. "
+                 "Handles: object, array, string, number, boolean, null."),
+        ("Math", "Math functions: floor, ceil, round, abs, max, min, pow, sqrt, random, "
+                 "sin, cos, tan, log, PI, E."),
+        ("Date", "Date: date/time. new Date() for current time. Methods: getTime, toISOString, "
+                 "getFullYear, getMonth, getDate, getHours, getMinutes, getSeconds."),
+        ("RegExp", "RegExp: regular expressions. Flags: g, i, m, s. "
+                   "Methods: test, exec. String: match, matchAll, replace."),
+        ("Error", "Error types: Error, TypeError, RangeError, ReferenceError, SyntaxError. "
+                  "Properties: message, name, stack. Custom errors: class MyError extends Error."),
+    ],
+    "typescript": [
+        ("types", "TypeScript type annotations: string, number, boolean, null, undefined, "
+                  "never, unknown, any, void. Union: A | B. Intersection: A & B."),
+        ("interfaces", "interface: structural contracts. Extends for inheritance. "
+                       "Optional fields: name?: Type. Readonly: readonly name: Type."),
+        ("generics", "Generics: function<T>(arg: T): T. Constraints: T extends Base. "
+                     "Built-in: Array<T>, Promise<T>, Record<K,V>, Partial<T>, Required<T>."),
+        ("enums", "enum: named constant sets. Numeric (default) or string enums. "
+                  "const enum for inline values. keyof typeof for key unions."),
+        ("decorators", "@decorator syntax. Class, method, property, parameter decorators. "
+                       "experimentalDecorators must be enabled in tsconfig."),
+    ],
+    "java": [
+        ("java.util.List", "List interface: ArrayList, LinkedList. Methods: add, get, set, remove, "
+                           "size, isEmpty, contains, indexOf, subList, toArray, iterator."),
+        ("java.util.Map", "Map interface: HashMap, TreeMap, LinkedHashMap. Methods: put, get, "
+                          "remove, containsKey, containsValue, keySet, values, entrySet, size."),
+        ("java.util.stream", "Stream API: filter, map, flatMap, reduce, collect, forEach, "
+                              "sorted, distinct, limit, skip, count, findFirst, anyMatch, allMatch."
+                              ),
+        ("java.util.Optional", "Optional: null-safe container. Methods: of, ofNullable, empty, "
+                               "get, isPresent, ifPresent, orElse, orElseGet, orElseThrow, filter."
+                               ),
+        ("java.io", "File I/O: Files.readAllLines, Files.write, BufferedReader, FileReader, "
+                    "FileWriter, Path, Paths.get. Try-with-resources for auto-closing."),
+        ("java.lang.String", "String methods: length, charAt, substring, indexOf, contains, "
+                              "startsWith, endsWith, toLowerCase, toUpperCase, trim, split."
+                              ),
+        ("java.util.Collections", "Collections utility: sort, reverse, shuffle, min, max, "
+                                  "frequency, unmodifiableList, synchronizedList."),
+        ("java.util.concurrent", "Concurrency: ExecutorService, Future, CompletableFuture, "
+                                 "AtomicInteger, ConcurrentHashMap, CountDownLatch, Semaphore."),
+        ("annotations", "Common annotations: @Override, @Deprecated, @SuppressWarnings, "
+                        "@FunctionalInterface. Spring: @Component, @Service, @Repository, @Bean."),
+        ("exceptions", "Checked vs unchecked exceptions. Common: IOException, SQLException, "
+                       "NullPointerException, IllegalArgumentException. try-catch-finally."),
+    ],
+}
+
+# Languages with bootstrap docs available
+SUPPORTED_LANGUAGES: frozenset[str] = frozenset(_BOOTSTRAP_DOCS)
+
+# Sentinel mission_id used for global knowledge lake entries (not per-mission)
+_KNOWLEDGE_LAKE_ID = "__knowledge_lake__"
+
+
+def detect_required_languages(
+    *,
+    prompt: str,
+    requested_target_language: str | None,
+    source_code: str | None,
+    mission_type: str,
+) -> list[str]:
+    """Return the language keys IS Agent should index docs for."""
+    languages: set[str] = set()
+
+    if requested_target_language:
+        key = requested_target_language.strip().lower()
+        # typescript source gets both ts and js docs
+        if key == "typescript":
+            languages.update({"typescript", "javascript"})
+        elif key in SUPPORTED_LANGUAGES:
+            languages.add(key)
+
+    if source_code:
+        if re.search(r"^import |^from .+ import ", source_code, re.MULTILINE):
+            languages.add("python")
+        if re.search(r"^import .+;|require\(|const .+ = require", source_code, re.MULTILINE):
+            languages.add("javascript")
+        if re.search(r"^import [A-Z]|^package [a-z]", source_code, re.MULTILINE):
+            if "java" in (prompt + (source_code or "")).lower():
+                languages.add("java")
+
+    # Always index at least the target language
+    if not languages and requested_target_language:
+        languages.add(requested_target_language.strip().lower())
+    elif not languages:
+        languages.add("python")
+
+    # Filter to only supported languages
+    return sorted(lang for lang in languages if lang in SUPPORTED_LANGUAGES)
+
+
+def _build_docs_content(language_key: str) -> tuple[str, str]:
+    """Return (combined_text, content_hash) for a language."""
+    docs = _BOOTSTRAP_DOCS[language_key]
+    parts = [f"## {topic}\n{description}" for topic, description in docs]
+    combined = f"# {language_key} Language Reference\n\n" + "\n\n".join(parts)
+    content_hash = hashlib.sha256(combined.encode("utf-8")).hexdigest()[:16]
+    return combined, content_hash
+
+
+def _check_knowledge_exists(*, settings: Any, knowledge_id: str) -> bool:
+    """Return True if this knowledge_id is already indexed in the lake."""
+    try:
+        from .storage import list_knowledge
+        records = list_knowledge(settings, _KNOWLEDGE_LAKE_ID, limit=200)
+        return any(
+            isinstance(r, dict) and r.get("knowledge_id") == knowledge_id
+            for r in records
+        )
+    except Exception:
+        return False
+
+
+async def run_fetch_phase(
+    *,
+    mission_id: str,
+    required_languages: list[str],
+    settings: Any,
+) -> dict[str, Any]:
+    """IS Agent execution: index bootstrap docs for required languages.
+
+    Never raises — errors are captured in the result dict. The mission
+    proceeds regardless of individual language indexing failures.
+    """
+    indexed_languages: list[str] = []
+    skipped_languages: list[str] = []
+    errors: list[str] = []
+
+    for language_key in required_languages:
+        if language_key not in _BOOTSTRAP_DOCS:
+            skipped_languages.append(language_key)
+            continue
+
+        knowledge_id = f"docs.{language_key}.bootstrap"
+
+        try:
+            already_indexed = await asyncio.to_thread(
+                _check_knowledge_exists,
+                settings=settings,
+                knowledge_id=knowledge_id,
+            )
+            if already_indexed:
+                indexed_languages.append(language_key)
+                LOGGER.debug("IS Agent: %s already indexed, skipping", language_key)
+                continue
+
+            combined_text, content_hash = _build_docs_content(language_key)
+            content = {
+                "combined_text": combined_text,
+                "language": language_key,
+                "kind": "bootstrap_documentation",
+                "hash": content_hash,
+                "topic_count": len(_BOOTSTRAP_DOCS[language_key]),
+            }
+            created_at = datetime.now(UTC).isoformat()
+
+            await asyncio.to_thread(
+                _upsert_knowledge_safe,
+                settings=settings,
+                knowledge_id=knowledge_id,
+                content=content,
+                created_at=created_at,
+            )
+
+            indexed_languages.append(language_key)
+            LOGGER.info(
+                "IS Agent indexed %s documentation (%d topics)",
+                language_key,
+                len(_BOOTSTRAP_DOCS[language_key]),
+            )
+
+        except Exception as exc:
+            LOGGER.warning("IS Agent failed to index %s: %s", language_key, exc)
+            errors.append(f"{language_key}: {exc}")
+
+    return {
+        "indexed_languages": indexed_languages,
+        "skipped_languages": skipped_languages,
+        "errors": errors,
+        "knowledge_ready": len(indexed_languages) > 0,
+        "indexed_at": datetime.now(UTC).isoformat(),
+        "mission_id": mission_id,
+    }
+
+
+def _upsert_knowledge_safe(
+    *,
+    settings: Any,
+    knowledge_id: str,
+    content: dict[str, Any],
+    created_at: str,
+) -> None:
+    """Write to the unified storage façade; log and swallow on failure."""
+    try:
+        from .storage import upsert_knowledge
+        upsert_knowledge(
+            settings,
+            _KNOWLEDGE_LAKE_ID,
+            knowledge_id,
+            content,
+            created_at,
+        )
+    except Exception as exc:
+        LOGGER.warning("IS Agent storage write failed for %s: %s", knowledge_id, exc)
+        raise

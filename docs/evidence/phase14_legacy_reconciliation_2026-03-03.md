@@ -1,5 +1,9 @@
 # Phase 14 Validation Evidence (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Scope
 - Legacy roadmap reconciliation note publication.
 - Mission Control runtime-port policy normalization in canonical docs.

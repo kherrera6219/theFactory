@@ -18,6 +18,26 @@ Audience: Developers, reviewers, and maintainers
 
 ---
 
+> **STATUS UPDATE — 2026-05-17**: Phases 4, 5, and 6 of this update plan are complete.
+> Do not act on them as open work items.
+>
+> **Phase 4 (Extraction Contract + Fixtures):** DONE — provenance fields added; golden tests
+>   in `tests/services/test_language_extractor_golden.py`.
+>
+> **Phase 5 (AST Migration Wave 1):** DONE — Python, Java, and JS/TS AST extractors all wired
+>   and feature-flagged (`PYTHON_AST_EXTRACTOR_ENABLED`, `JAVA_AST_EXTRACTOR_ENABLED`,
+>   `JS_AST_EXTRACTOR_ENABLED`). Defaults enabled in compose. *(commit 8b59594, 2026-05-17)*
+>
+> **Phase 6 (Orchestrator Slimming):** DONE — `storage.py` split into 6 domain modules
+>   (127-line re-export façade: `storage_core.py`, `storage_missions.py`, `storage_pods.py`,
+>   `storage_logicnodes.py`, `storage_artifacts.py`, `storage_agents.py`);
+>   `heartbeat_service.py` extracted from `main.py`; `lifecycle_interface.py` defines
+>   `LifecycleEngine` Protocol with `get_lifecycle_engine()` factory. *(commit 9e1e8d7, 2026-05-17)*
+>
+> Phases 1, 2, 3, and 7 were already marked complete as of 2026-04-15.
+
+---
+
 ## What Changed vs. the Original Plan
 
 | Original Assumption | Code Reality | Impact on Plan |

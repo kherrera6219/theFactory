@@ -6,15 +6,15 @@
 
 ## Executive Summary
 
-**Validation update - May 17, 2026:** this gap report is a historical baseline,
-not the current state of the repo. Phases 1-5 have since shipped material
-intelligence-layer work: provider-verified model defaults, PM feature contracts,
-mission charters, CEO mission contracts, first generated-output artifact support,
-generated-code artifact download, Mission Detail panels for those artifacts, and
-CEO logic cluster decomposition. The remaining major gaps are now pod group
-standards, Java/JS AST activation, FETCH, FUSION, PM delivery verification, AIM,
-runtime/equivalence QC, compliance/security execution, DEPABS, and token/cost
-ledgering.
+**Validation update - May 17, 2026 (revised 2026-05-17):** this gap report is a
+historical baseline, not the current state of the repo. Phases 1-7 have since
+shipped material intelligence-layer work: provider-verified model defaults, PM
+feature contracts, mission charters, CEO mission contracts, first generated-output
+artifact support, generated-code artifact download, Mission Detail panels for those
+artifacts, CEO logic cluster decomposition, pod group standards (Phase 6), and
+JavaScript/TypeScript + Java AST extractors (Phase 7). The remaining major gaps
+are now FETCH, FUSION, PM delivery verification, AIM, runtime/equivalence QC,
+compliance/security execution, DEPABS, and token/cost ledgering.
 
 theFactory has completed 39 development phases and is a production-grade infrastructure system. The pipeline scaffolding, state machine, protocol bus, operator console, security controls, CI/CD, and audit chain are all real and solid. The original missing area was the intelligence layer. That assessment has been partially closed by the May 16-17 implementation pass, but the later Smelt-Cycle phases and trust/production agents remain open.
 
@@ -43,8 +43,8 @@ These components are real, tested, and production-quality. No work needed here b
 ### 1.3 Source Extraction Engine
 - Regex-based extraction for all 20 language keys across 4 pods
 - Python AST extractor (real — uses `ast` module, zero false positives)
-- Java AST extractor file exists but is a **stub** (`success=False`)
-- JS/TS AST extractor file exists but is a **stub** (`success=False`)
+- Java AST extractor — **real implementation** (uses `javalang`, implemented 2026-05-17, commit 8b59594)
+- JS/TS AST extractor — **real implementation** (uses `esprima`, implemented 2026-05-17, commit 8b59594)
 - Concept catalog: ~430 patterns across all language pods
 - Golden fixture tests locking extraction output for Python, JS, Java, Rust
 - `ExtractedConcept` records include domain, concept, intent, confidence, evidence, extraction_method, source_range
@@ -120,12 +120,12 @@ These components exist in the codebase but are not functional end-to-end.
 **What should exist:** Agents that receive mission context and produce substantive work — the PM decomposing requirements into a real Feature Contract, the CEO producing an actual Refined-IR Contract specifying required LogicNodes, specialists generating code from those LogicNodes.
 
 ### 2.2 Java and JS/TS AST Extractors
-**What exists:** `java_ast_extractor.py` and `js_ast_extractor.py` — both are stubs that return `success=False` and fall back to regex silently.
-**What is missing:** Real AST parsing for Java (needs `javalang` dependency) and JavaScript/TypeScript (needs `esprima` or equivalent). Both files document exactly what to add. These are the two highest-traffic languages after Python for most real-world repos.
+**RESOLVED — 2026-05-17 (commit 8b59594, Phase 7)**
+`java_ast_extractor.py` uses `javalang` to extract packages, imports, classes, constructors, methods, parameters, modifiers, and annotations. `js_ast_extractor.py` uses `esprima` to extract imports, classes, class methods, function declarations, and arrow/function-expression assignments, stripping TypeScript syntax before parsing. Both preserve regex concept detection as fallback and return `success=False` only when the library is unavailable or the source has a parse error. Feature flags: `JAVA_AST_EXTRACTOR_ENABLED=true`, `JS_AST_EXTRACTOR_ENABLED=true` — both defaulted on in compose.
 
 ### 2.3 Mission Charter Generation
-**What exists:** `schemas/mission_charter.v1.json` — a complete JSON schema for a formal intake contract produced by the PM agent at Phase 1 (PM_INTAKE). The schema is validated in CI via `validate_schemas.py`.
-**What is missing:** Any code that actually generates a charter. The PM_INTAKE phase transitions the mission state but no agent produces a charter JSON, stores it, or makes it available on the chain trace. The schema is fully designed; the producer doesn't exist.
+**RESOLVED — 2026-05-16 (Phase 4)**
+Mission charters are now generated during PM_INTAKE in Mission Flow v2. The PM path produces a structured `feature_contract` and a schema-validated `mission_charter`, persists both in `metadata`, exposes them in the chain trace API, and displays them in Mission Control Mission Detail. Visual Blueprint generation, multimodal verification, and PM approval workflow remain open (see Section 3.7).
 
 ### 2.4 Application Intelligence Map (AIM)
 **What exists:** `docs/APPLICATION_INTELLIGENCE_MAP.md` — a detailed canonical spec defining a comprehensive read-only analysis artifact produced before any code changes. The spec says AIM generation is required for IMPORT_MODERNIZE, PORT, DEBUG_REPAIR, SECURITY_HARDEN, REDUCE_DEPENDENCIES, and ANALYZE_ONLY missions.
@@ -196,15 +196,16 @@ operator chat preview and visual/approval parts of PM cognition still need work.
 
 ### 3.8 CEO Cognition — Refined-IR Contract and Logic Cluster Decomposition
 **Spec:** CEO receives the Feature Contract, decomposes it into Logic Clusters by domain, assigns each cluster to the appropriate pod, and produces a Refined-IR Contract — a precise specification of all required LogicNodes, their domains, expected inputs/outputs, and cross-language requirements.
-**Current validation:** Partially built. CEO delegation now persists a durable
+**Current validation (updated 2026-05-17):** CEO delegation persists a durable
 `mission_contract` and decomposes it into `logic_clusters`. Both are exposed in
-chain trace and displayed in Mission Detail. Pod workers do not yet consume
-logic-cluster focus, and FUSION has not yet consolidated pod group standards into
-a Master Logic Stream.
+chain trace and displayed in Mission Detail. Pod workers now consume CEO
+logic-cluster domain focus during extraction and boost matching concept confidence
+for the assigned pod. FUSION has not yet consolidated pod group standards into a
+Master Logic Stream (see Section 3.2).
 
 ### 3.9 Sub-Manager Consolidation — Pod Group Standards
-**Spec:** Each pod's Sub-Manager receives LogicNodes from 4 language specialists, performs semantic deduplication (Python's filter ≈ JavaScript's .filter() ≈ Ruby's select ≈ PHP's array_filter), merges equivalent concepts into canonical Group Standard LogicNodes, and reports the consolidated Pod Standard to the CEO.
-**What's built:** None. `PodManagerAgent.execute()` creates a `pod_fusion_plan` artifact with the specialist agent ID. No cross-language LogicNode comparison happens. No deduplication. No Group Standard is produced.
+**RESOLVED — 2026-05-17 (commit 9e1e8d7, Phase 6)**
+Pod group standards are now produced during the GATING phase in Mission Flow v2. `generate_pod_group_standard()` in `llm_delegation.py` consolidates specialist LogicNodes into canonical pod-level nodes, records duplicate elimination counts, emits `MISSION_POD_GROUP_STANDARD_PRODUCED`, and stores results in `metadata["pod_group_standards"]`. Standards are exposed through chain trace and displayed in Mission Control Mission Detail. Full cross-pod FUSION consolidation into a Master Logic Stream (CEO Logic Folding) remains open — see Section 3.2.
 
 ### 3.10 Compliance Agent — IP Provenance and License Checking
 **Spec:** Compliance Agent (AGENT-08) receives every LogicNode via Protocol Delta, checks the source library license, verifies no GPL contamination, and clears or blocks the node with a compliance verdict.

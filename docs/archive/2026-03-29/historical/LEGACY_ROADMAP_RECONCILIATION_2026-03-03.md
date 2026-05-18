@@ -1,5 +1,9 @@
 # Legacy Roadmap and Runtime Port Reconciliation (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Archive
+
 ## Purpose
 
 Reconcile legacy planning artifacts in `legacy documentation/` with the active delivery baseline in `docs/ROADMAP.md` and current runtime behavior.

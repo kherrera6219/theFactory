@@ -3,6 +3,10 @@
 **Run once at end of all 18 phases, before Release Gate**
 **This is a systematic full-stack inspection, not a quick smoke test**
 
+Document version: 2026.05.17  
+Last updated: 2026-05-17  
+Status: Reference — execute when all 18 phases are implemented
+
 ---
 
 ## How to Run This Sweep
