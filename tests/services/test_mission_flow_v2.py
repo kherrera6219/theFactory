@@ -405,6 +405,14 @@ class TestAdvanceMissionLifecycleV2:
             mock_storage.fetch_mission = fetch_mission
             mock_storage.update_mission_metadata = update_metadata
             mock_storage.insert_mission_event = insert_mission_event
+            mock_storage.list_build_artifacts = lambda *_args: [
+                {
+                    "artifact_id": "generated-code-output",
+                    "artifact_type": "generated_code",
+                    "manifest": {"filename": "solution.py", "language": "python"},
+                    "artifact_text": "def read_csv(path):\n    return []\n",
+                }
+            ]
 
             with patch(
                 "orchestrator.mission_flow_v2.generate_ceo_delegation",
@@ -471,6 +479,20 @@ class TestAdvanceMissionLifecycleV2:
                         "created_at": "2026-01-01T00:00:00+00:00",
                     }
                 ),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_pm_delivery_summary",
+                AsyncMock(
+                    return_value={
+                        "delivery_title": "Delivered CSV reader",
+                        "delivery_summary": "Mission complete.",
+                        "criteria_met": ["Returns CSV rows"],
+                        "criteria_unmet": [],
+                        "usage_notes": "Download generated code.",
+                        "recommendations": [],
+                        "primary_artifact_type": "generated_code",
+                        "source": "fallback",
+                    }
+                ),
             ):
                 await advance_mission_lifecycle_v2(
                     app=app,
@@ -506,6 +528,11 @@ class TestAdvanceMissionLifecycleV2:
         assert mission.metadata["ceo_delegation"]["pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
         assert mission.metadata["specialist_plan"]["specialist_agent_id"] == "AGENT-14-PYTHON"
         assert mission.metadata["pod_group_standards"]["podA"]["canonical_logicnodes"]
+        assert mission.metadata["delivery_summary"]["delivery_title"] == "Delivered CSV reader"
+        assert any(
+            event["event_type"] == "MISSION_DELIVERED"
+            for event in mission.metadata["chain_trace"]
+        )
         assert "specialist_planned" in mission.metadata["mission_artifacts"]
 
     @pytest.mark.asyncio

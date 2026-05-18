@@ -1338,6 +1338,34 @@ dd {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
+.delivery-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--success);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+
+.delivery-banner h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.delivery-banner p {
+  margin: 0 0 8px;
+}
+
+.delivery-banner-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 180px;
+}
+
 .virtual-log-shell {
   border: 1px solid var(--border);
   border-radius: 10px;

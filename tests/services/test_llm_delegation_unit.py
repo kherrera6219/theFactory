@@ -185,6 +185,89 @@ def test_generate_code_from_contract_uses_llm_result(monkeypatch) -> None:
     assert "def hello" in result["generated_code"]
 
 
+def test_generate_pm_delivery_summary_uses_artifact_context(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_agent_recommendation",
+        lambda _agent_id: {"provider": "openai", "model": "gpt-5.5"},
+    )
+
+    async def _call_with_recommendation(*, recommendation, prompt, call_context):
+        assert recommendation["model"] == "gpt-5.5"
+        assert "pm delivery summary" in call_context
+        assert "solution.py" in prompt
+        return (
+            {
+                "delivery_title": "Delivered CSV reader",
+                "delivery_summary": "The generated artifact implements the requested reader.",
+                "criteria_met": ["Returns CSV rows"],
+                "criteria_unmet": [],
+                "usage_notes": "Run python solution.py",
+                "recommendations": ["Add integration tests"],
+            },
+            "openai",
+            "gpt-5.5",
+            "primary",
+        )
+
+    monkeypatch.setattr(llm_delegation, "_call_with_recommendation", _call_with_recommendation)
+    result = asyncio.run(
+        llm_delegation.generate_pm_delivery_summary(
+            mission_context={"mission_id": "mission-1", "requested_target_language": "python"},
+            generated_output={},
+            build_artifacts=[
+                {
+                    "artifact_id": "generated-code-output",
+                    "artifact_type": "generated_code",
+                    "manifest": {"filename": "solution.py", "language": "python"},
+                    "artifact_text": "def read_csv(path):\n    return []\n",
+                }
+            ],
+            feature_contract={"acceptance_criteria": ["Returns CSV rows"]},
+            mission_contract={"contract_summary": "Build a CSV reader"},
+        )
+    )
+
+    assert result["source"] == "llm"
+    assert result["delivery_title"] == "Delivered CSV reader"
+    assert result["primary_artifact_type"] == "generated_code"
+    assert result["criteria_met"] == ["Returns CSV rows"]
+
+
+def test_generate_pm_delivery_summary_fallback_handles_source_bundle(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_agent_recommendation",
+        lambda _agent_id: {"provider": "openai", "model": "gpt-5.5"},
+    )
+
+    async def _call_with_recommendation(*, recommendation, prompt, call_context):
+        _ = recommendation, prompt, call_context
+        return None, "fallback", "fallback", "fallback"
+
+    monkeypatch.setattr(llm_delegation, "_call_with_recommendation", _call_with_recommendation)
+    result = asyncio.run(
+        llm_delegation.generate_pm_delivery_summary(
+            mission_context={"mission_id": "mission-1"},
+            generated_output={},
+            build_artifacts=[
+                {
+                    "artifact_id": "source-bundle-package",
+                    "artifact_type": "source_bundle_package",
+                    "manifest": {"filename": "source-bundle.txt"},
+                    "artifact_text": "## FILE app.py\nprint('a')\n",
+                }
+            ],
+            feature_contract={"acceptance_criteria": ["Preserve source"]},
+            mission_contract={},
+        )
+    )
+
+    assert result["source"] == "fallback"
+    assert result["primary_artifact_type"] == "source_bundle_package"
+    assert result["criteria_unmet"] == ["Preserve source"]
+
+
 def test_pm_feature_contract_fallback_and_normalization() -> None:
     fallback = llm_delegation._fallback_pm_feature_contract(
         prompt="Build CSV reader",

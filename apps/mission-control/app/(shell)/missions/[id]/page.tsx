@@ -277,6 +277,7 @@ export default function MissionDetailPage() {
   const podGroupStandards = Object.entries(chainTrace?.pod_group_standards ?? {});
   const fetchResult = chainTrace?.fetch_result ?? null;
   const masterLogicStream = chainTrace?.master_logic_stream ?? null;
+  const deliverySummary = chainTrace?.delivery_summary ?? null;
 
   async function cancelMission() {
     if (!mission) {
@@ -345,6 +346,34 @@ export default function MissionDetailPage() {
       {actionError && <p className="error-box">{actionError}</p>}
       {pausedMonitor && (
         <p className="warning-box">Live refresh paused locally. Click "Resume Monitor" to continue.</p>
+      )}
+
+      {mission?.state === "COMPLETE" && deliverySummary && (
+        <section className="delivery-banner" aria-label="Mission delivery summary">
+          <div>
+            <p className="eyebrow">Delivered</p>
+            <h2>{deliverySummary.delivery_title}</h2>
+            <p>{deliverySummary.delivery_summary}</p>
+            {deliverySummary.usage_notes && (
+              <p className="muted">{deliverySummary.usage_notes}</p>
+            )}
+          </div>
+          <div className="delivery-banner-actions">
+            {generatedCodeArtifact && (
+              <a
+                className="primary-button shell-link-button"
+                href={missionApiUrl(
+                  `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
+                )}
+              >
+                Download Generated Code
+              </a>
+            )}
+            {!generatedCodeArtifact && deliverySummary.primary_artifact_type && (
+              <span className="muted">{deliverySummary.primary_artifact_type}</span>
+            )}
+          </div>
+        </section>
       )}
 
       <Panel title={phaseStepperTitle}>

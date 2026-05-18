@@ -9,9 +9,9 @@ Status: Active Plan — Phases 8-9 implemented; Phases 10-11 planned
 
 ## Current Validation - May 18, 2026
 
-Phases 8-9 are implemented as of the May 18 pass. The system now has FETCH
-knowledge context and FUSION master logic stream support. Phases 10-11 remain
-planned work.
+Phases 8-10 are implemented as of the May 18 pass. The system now has FETCH
+knowledge context, FUSION master logic stream support, and DELIVERY/PM
+verification. Phase 11 remains planned work.
 
 Treat this document as the active forward plan with these adjustments:
 
@@ -21,9 +21,9 @@ Treat this document as the active forward plan with these adjustments:
 - Phase 9 FUSION is implemented: FUSION creates `master_logic_stream`, exposes
   it in chain trace/Mission Control, and can replace missing or fallback
   generated output when the stream is ready for codegen.
-- Phase 10 DELIVERY should add PM delivery summary, acceptance-criteria
-  verification, and final delivery status. Mission Detail already has generated
-  output visibility.
+- Phase 10 DELIVERY is implemented: completed missions receive PM delivery
+  summaries, chain trace exposes `delivery_summary`, and Mission Detail shows an
+  artifact-aware delivery banner.
 - Phase 11 AIM is still open.
 
 Current chain trace exposes PM/CEO artifacts at top-level fields such as
@@ -924,14 +924,14 @@ Add CSS for `.delivery-banner`:
 
 ## Validation
 
-- [ ] Chain trace shows `MISSION_DELIVERED` event at COMPLETE
-- [ ] `metadata.delivery_summary.delivery_title` is specific to the mission output
-- [ ] Chain trace exposes `delivery_summary` at top level
-- [ ] Mission Detail shows delivery banner when state=COMPLETE and delivery summary exists
-- [ ] Generated-code download uses `/v1/missions/{mission_id}/artifact?artifact_type=generated_code`
-- [ ] Source-bundle-only and ANALYZE_ONLY missions get delivery text without generated-code-only wording
-- [ ] Missions blocked at VERIFIED do not show delivery summary or delivery banner
-- [ ] Targeted pytest, ruff, and Mission Control typecheck pass
+- [x] Chain trace shows `MISSION_DELIVERED` event at COMPLETE
+- [x] `metadata.delivery_summary.delivery_title` is specific to the mission output
+- [x] Chain trace exposes `delivery_summary` at top level
+- [x] Mission Detail shows delivery banner when state=COMPLETE and delivery summary exists
+- [x] Generated-code download uses `/v1/missions/{mission_id}/artifact?artifact_type=generated_code`
+- [x] Source-bundle-only and ANALYZE_ONLY missions get delivery text without generated-code-only wording
+- [x] Missions blocked at VERIFIED do not show delivery summary or delivery banner
+- [x] Targeted pytest, ruff, and Mission Control typecheck pass
 
 ---
 

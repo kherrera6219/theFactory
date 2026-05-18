@@ -1680,6 +1680,126 @@ async def generate_code_from_contract(
     return normalized
 
 
+async def generate_pm_delivery_summary(
+    *,
+    mission_context: dict[str, Any],
+    generated_output: dict[str, Any],
+    build_artifacts: list[dict[str, Any]],
+    feature_contract: dict[str, Any],
+    mission_contract: dict[str, Any],
+) -> dict[str, Any]:
+    """PM Agent produces a final delivery summary for completed missions."""
+    recommendation = _agent_recommendation("AGENT-01-PM")
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
+
+    primary_artifact = next(
+        (
+            artifact
+            for artifact in build_artifacts
+            if artifact.get("artifact_type") == "generated_code"
+        ),
+        build_artifacts[0] if build_artifacts else {},
+    )
+    manifest = primary_artifact.get("manifest") if isinstance(primary_artifact, dict) else {}
+    if not isinstance(manifest, dict):
+        manifest = {}
+    artifact_text = (
+        primary_artifact.get("artifact_text")
+        if isinstance(primary_artifact, dict)
+        else ""
+    )
+    code_preview = str(generated_output.get("generated_code") or artifact_text or "")[:600]
+    filename = str(
+        generated_output.get("filename")
+        or manifest.get("filename")
+        or primary_artifact.get("artifact_id")
+        or "mission artifact"
+    )
+    language = str(
+        generated_output.get("language")
+        or manifest.get("language")
+        or mission_context.get("requested_target_language")
+        or "unknown"
+    )
+    criteria = (
+        feature_contract.get("acceptance_criteria")
+        or mission_contract.get("acceptance_criteria")
+        or []
+    )
+    contract_summary = (
+        mission_contract.get("contract_summary")
+        or feature_contract.get("summary")
+        or mission_context.get("prompt")
+        or "Completed mission"
+    )
+    artifact_type = (
+        primary_artifact.get("artifact_type")
+        if isinstance(primary_artifact, dict)
+        else None
+    )
+
+    prompt = (
+        "You are AGENT-01-PM. The mission is complete. Produce a concise "
+        "operator delivery summary tied to acceptance criteria and artifacts.\n"
+        f"Recommended model: {provider}/{model}\n"
+        "Return only JSON. No markdown.\n\n"
+        f"Mission: {_clean_text(contract_summary, max_length=300)}\n"
+        f"Primary artifact: {filename} ({artifact_type or 'none'}, {language})\n"
+        f"Artifact count: {len(build_artifacts)}\n"
+        f"Output preview:\n{_clean_text(code_preview, max_length=600)}\n"
+        f"Acceptance criteria: {json.dumps(_string_list(criteria, limit=6))}\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "delivery_title": "short title for what was delivered",\n'
+        '  "delivery_summary": "1-2 sentence summary for the operator",\n'
+        '  "criteria_met": ["criteria that appear to be satisfied"],\n'
+        '  "criteria_unmet": ["criteria that may need verification"],\n'
+        '  "usage_notes": "how to use or inspect the delivered artifact",\n'
+        '  "recommendations": ["optional follow-up suggestions"]\n'
+        "}\n"
+    )
+
+    parsed, resolved_provider, resolved_model, _route = await _call_with_recommendation(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context="pm delivery summary",
+    )
+    if not isinstance(parsed, dict):
+        return {
+            "delivery_title": f"Delivered: {filename}",
+            "delivery_summary": (
+                "Mission complete. Review the delivered artifact and verify it "
+                "against the acceptance criteria."
+            ),
+            "criteria_met": [],
+            "criteria_unmet": _string_list(criteria, limit=6),
+            "usage_notes": "Open the delivered artifact and verify it before release.",
+            "recommendations": [],
+            "primary_artifact_type": artifact_type,
+            "source": "fallback",
+        }
+
+    return {
+        "delivery_title": _clean_text(
+            parsed.get("delivery_title") or f"Delivered: {filename}",
+            max_length=120,
+        ),
+        "delivery_summary": _clean_text(
+            parsed.get("delivery_summary") or "Mission complete.",
+            max_length=500,
+        ),
+        "criteria_met": _string_list(parsed.get("criteria_met"), limit=6),
+        "criteria_unmet": _string_list(parsed.get("criteria_unmet"), limit=6),
+        "usage_notes": _clean_text(parsed.get("usage_notes", ""), max_length=300),
+        "recommendations": _string_list(parsed.get("recommendations"), limit=4),
+        "primary_artifact_type": artifact_type,
+        "source": "llm",
+        "model_provider": resolved_provider,
+        "model": resolved_model,
+    }
+
+
 async def generate_logic_clusters(
     *,
     mission_context: dict[str, Any],

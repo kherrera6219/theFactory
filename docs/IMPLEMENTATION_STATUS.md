@@ -9,12 +9,12 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Project Status
 
-As of 2026-05-18, Phases 1-9 are implemented locally; Phase 8/9 completion is
+As of 2026-05-18, Phases 1-10 are implemented locally; Phase 10 completion is
 pending commit/push.
 
-- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, and Phase 9 FUSION/master logic stream.
-- **Current active phase:** Phase 10 - DELIVERY / PM verification.
-- **Still planned:** Phase 10 DELIVERY/PM verification, Phase 11 AIM, and Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
+- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, and Phase 10 DELIVERY/PM verification.
+- **Current active phase:** Phase 11 - Application Intelligence Map.
+- **Still planned:** Phase 11 AIM and Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
 - **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, and remaining forward-looking docs cleanup.
 
 ## Mission Control UI — Vault and Settings (2026-04-16)
@@ -181,6 +181,10 @@ As of 2026-05-18:
   - `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_pod_worker_unit.py tests\services\test_language_extractor.py tests\services\test_llm_delegation_unit.py -q`
   - `python -m ruff check services\orchestrator\orchestrator services\pod-worker tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_pod_worker_unit.py tests\services\test_language_extractor.py tests\services\test_llm_delegation_unit.py`
   - `npm --prefix apps\mission-control run lint`
+- Phase 10 focused validation is green:
+  - `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_build_artifacts_unit.py tests\services\test_llm_delegation_unit.py -q`
+  - `python -m ruff check services\orchestrator\orchestrator tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_build_artifacts_unit.py tests\services\test_llm_delegation_unit.py`
+  - `npm --prefix apps\mission-control run lint`
 - Full post-Phase-7 validation is green:
   - `python -m ruff check services tests scripts`
   - `python -m pytest -q`
@@ -207,8 +211,8 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Complete Phase 10 DELIVERY / PM verification so completed missions get a PM delivery summary and artifact-aware delivery actions.
-2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/generated-output loop.
+1. Implement Phase 11 Application Intelligence Map for source-bearing analysis and modernization missions.
+2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY loop.
 3. Refresh stale qualification evidence before launch claims.
 4. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
 5. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.

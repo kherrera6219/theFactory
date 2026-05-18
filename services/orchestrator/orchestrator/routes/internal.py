@@ -206,6 +206,7 @@ def _build_mission_chain_trace(
         "pod_group_standards": metadata.get("pod_group_standards"),
         "fetch_result": metadata.get("fetch_result"),
         "master_logic_stream": metadata.get("master_logic_stream"),
+        "delivery_summary": metadata.get("delivery_summary"),
         "events": chain_trace,
     }
 
