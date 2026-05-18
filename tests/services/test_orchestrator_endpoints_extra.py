@@ -216,6 +216,28 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
                     "agent_id": "AGENT-14-PYTHON",
                 }
             },
+            "pod_group_standards": {
+                "podA": {
+                    "schema_version": "pod_group_standard.v1",
+                    "pod": "podA",
+                    "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                    "mission_id": "mission-1",
+                    "canonical_logicnodes": [
+                        {
+                            "standard_node_id": "standard-node-01-parsing-csv-reader",
+                            "domain": "parsing",
+                            "concept": "csv_reader",
+                            "intent": "Read CSV rows",
+                            "source_node_ids": ["node-1"],
+                            "languages": ["python"],
+                        }
+                    ],
+                    "eliminated_duplicates": 0,
+                    "summary": "Canonical pod standard.",
+                    "source": "fallback",
+                    "created_at": "2026-03-01T00:00:00+00:00",
+                }
+            },
             "chain_trace": [
                 {
                     "event_type": "MISSION_SPECIALIST_PLANNED",
@@ -241,6 +263,9 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
     assert (
         payload["artifact_summary"]["specialist_planned"]["event_type"]
         == "MISSION_SPECIALIST_PLANNED"
+    )
+    assert payload["pod_group_standards"]["podA"]["canonical_logicnodes"][0]["concept"] == (
+        "csv_reader"
     )
 
 

@@ -1279,6 +1279,356 @@ def _fallback_logic_clusters(
     }
 
 
+def _logicnode_payload(record: Any) -> dict[str, Any]:
+    if not isinstance(record, dict):
+        return {}
+    nested = record.get("node")
+    if isinstance(nested, dict):
+        return nested
+    return record
+
+
+def _logicnode_text(value: Any, *keys: str, fallback: str = "") -> str:
+    if not isinstance(value, dict):
+        return fallback
+    for key in keys:
+        raw_candidate = value.get(key)
+        if raw_candidate is None:
+            continue
+        candidate = _clean_text(raw_candidate, max_length=120)
+        if candidate:
+            return candidate
+    nested = value.get("payload")
+    if isinstance(nested, dict):
+        for key in keys:
+            raw_candidate = nested.get(key)
+            if raw_candidate is None:
+                continue
+            candidate = _clean_text(raw_candidate, max_length=120)
+            if candidate:
+                return candidate
+    return fallback
+
+
+def _logicnode_sources(record: Any, payload: dict[str, Any]) -> list[str]:
+    sources: list[str] = []
+    for container in (record, payload):
+        if not isinstance(container, dict):
+            continue
+        for key in ("node_id", "id", "logicnode_id"):
+            raw_candidate = container.get(key)
+            if raw_candidate is None:
+                continue
+            candidate = _clean_text(raw_candidate, max_length=96)
+            if candidate and candidate not in sources:
+                sources.append(candidate)
+    return sources or ["unidentified-logicnode"]
+
+
+def _logicnode_languages(record: Any, payload: dict[str, Any]) -> list[str]:
+    languages: list[str] = []
+    for container in (record, payload):
+        if not isinstance(container, dict):
+            continue
+        for key in ("language", "target_language", "requested_target_language", "source_language"):
+            raw_candidate = container.get(key)
+            if raw_candidate is None:
+                continue
+            candidate = _clean_text(raw_candidate, max_length=32).lower()
+            if candidate and candidate not in languages:
+                languages.append(candidate)
+    return languages[:6]
+
+
+def _standard_node_id(index: int, domain: str, concept: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", f"{domain}-{concept}".strip().lower()).strip("-")
+    return f"standard-node-{index:02d}-{slug or 'general'}"
+
+
+def _fallback_pod_group_standard(
+    *,
+    pod_name: str,
+    pod_manager_agent_id: str,
+    mission_id: str,
+    logicnodes: list[dict[str, Any]],
+    mission_contract: dict[str, Any],
+    recommendation: dict[str, Any],
+) -> dict[str, Any]:
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for record in logicnodes[:200]:
+        payload = _logicnode_payload(record)
+        if not payload:
+            continue
+        domain = _logicnode_text(payload, "domain", "category", fallback="general")
+        concept = _logicnode_text(payload, "concept", "name", "title", fallback="")
+        if not concept:
+            concept = _logicnode_text(payload, "intent", "summary", fallback="primary_operation")
+        intent = _logicnode_text(
+            payload,
+            "intent",
+            "summary",
+            "description",
+            fallback="Implement extracted mission behavior.",
+        )
+        key = (domain.lower(), concept.lower())
+        source_ids = _logicnode_sources(record, payload)
+        languages = _logicnode_languages(record, payload)
+        existing = grouped.get(key)
+        if existing is None:
+            confidence = payload.get("confidence")
+            grouped[key] = {
+                "domain": domain,
+                "concept": concept,
+                "intent": intent,
+                "source_node_ids": source_ids,
+                "languages": languages,
+                "confidence": confidence if isinstance(confidence, (int, float)) else None,
+            }
+            continue
+        for source_id in source_ids:
+            if source_id not in existing["source_node_ids"]:
+                existing["source_node_ids"].append(source_id)
+        for language in languages:
+            if language not in existing["languages"]:
+                existing["languages"].append(language)
+        if (
+            not existing.get("intent")
+            or existing["intent"] == "Implement extracted mission behavior."
+        ):
+            existing["intent"] = intent
+
+    if not grouped:
+        requirements = mission_contract.get("logicnode_requirements")
+        if isinstance(requirements, list):
+            for item in requirements[:8]:
+                if not isinstance(item, dict):
+                    continue
+                domain = _clean_text(item.get("domain") or "general", max_length=64)
+                concept = _clean_text(item.get("concept") or "primary_operation", max_length=80)
+                grouped[(domain.lower(), concept.lower())] = {
+                    "domain": domain,
+                    "concept": concept,
+                    "intent": _clean_text(
+                        item.get("intent") or "Implement mission contract requirement.",
+                        max_length=180,
+                    ),
+                    "source_node_ids": [],
+                    "languages": _string_list(
+                        mission_contract.get("target_languages"),
+                        limit=6,
+                        max_length=32,
+                    ),
+                    "confidence": None,
+                }
+
+    canonical: list[dict[str, Any]] = []
+    for item in grouped.values():
+        node_index = len(canonical) + 1
+        confidence = item.get("confidence")
+        canonical.append(
+            {
+                "standard_node_id": _standard_node_id(
+                    node_index,
+                    str(item.get("domain") or "general"),
+                    str(item.get("concept") or "primary_operation"),
+                ),
+                "domain": item.get("domain") or "general",
+                "concept": item.get("concept") or "primary_operation",
+                "intent": item.get("intent") or "Implement extracted mission behavior.",
+                "source_node_ids": list(item.get("source_node_ids") or [])[:20],
+                "languages": list(item.get("languages") or [])[:6],
+                "confidence": confidence if isinstance(confidence, (int, float)) else None,
+            }
+        )
+        if len(canonical) >= 20:
+            break
+
+    return {
+        "schema_version": "pod_group_standard.v1",
+        "pod": pod_name,
+        "pod_manager_agent_id": pod_manager_agent_id,
+        "mission_id": mission_id,
+        "canonical_logicnodes": canonical,
+        "eliminated_duplicates": max(0, len(logicnodes) - len(canonical)),
+        "summary": (
+            "Deterministic pod group standard produced by consolidating equivalent "
+            "LogicNodes for pod-manager fusion."
+        ),
+        "source": "fallback",
+        "model_provider": recommendation.get("provider"),
+        "model": recommendation.get("model"),
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _build_pod_group_standard_prompt(
+    *,
+    pod_name: str,
+    pod_manager_agent_id: str,
+    mission_id: str,
+    logicnodes: list[dict[str, Any]],
+    mission_contract: dict[str, Any],
+    recommended_provider: str,
+    recommended_model: str,
+) -> str:
+    safe_nodes = [
+        _clean_text(json.dumps(record, sort_keys=True), max_length=420)
+        for record in logicnodes[:40]
+        if isinstance(record, dict)
+    ]
+    contract_summary = _clean_text(
+        mission_contract.get("contract_summary", "mission"), max_length=320
+    )
+    return (
+        f"You are {pod_manager_agent_id}, the sub-manager for {pod_name}.\n"
+        f"Recommended model route: {recommended_provider}/{recommended_model}\n"
+        "Consolidate specialist LogicNodes into a canonical pod group standard.\n"
+        "Deduplicate semantically equivalent nodes across languages and preserve source ids.\n"
+        "Return only JSON. No markdown, prose, or code fences.\n\n"
+        f"Mission id: {_clean_text(mission_id, max_length=96)}\n"
+        f"Mission summary: {contract_summary}\n"
+        f"LogicNodes JSON lines:\n{chr(10).join(safe_nodes) or '- none'}\n\n"
+        "Required JSON shape:\n"
+        "{\n"
+        '  "canonical_logicnodes": [\n'
+        "    {\n"
+        '      "domain": "domain",\n'
+        '      "concept": "canonical concept",\n'
+        '      "intent": "canonical intent",\n'
+        '      "source_node_ids": ["source logicnode ids"],\n'
+        '      "languages": ["languages represented"],\n'
+        '      "confidence": 0.0\n'
+        "    }\n"
+        "  ],\n"
+        '  "eliminated_duplicates": 0,\n'
+        '  "summary": "one sentence"\n'
+        "}\n"
+    )
+
+
+def _normalize_pod_group_standard(
+    raw: dict[str, Any],
+    *,
+    provider: str,
+    model: str,
+    route: str,
+    pod_name: str,
+    pod_manager_agent_id: str,
+    mission_id: str,
+    logicnodes: list[dict[str, Any]],
+    mission_contract: dict[str, Any],
+) -> dict[str, Any]:
+    canonical: list[dict[str, Any]] = []
+    raw_nodes = raw.get("canonical_logicnodes")
+    if isinstance(raw_nodes, list):
+        for item in raw_nodes[:20]:
+            if not isinstance(item, dict):
+                continue
+            domain = _clean_text(item.get("domain") or "general", max_length=64)
+            concept = _clean_text(item.get("concept") or "primary_operation", max_length=80)
+            confidence = item.get("confidence")
+            canonical.append(
+                {
+                    "standard_node_id": _clean_text(
+                        item.get("standard_node_id")
+                        or _standard_node_id(len(canonical) + 1, domain, concept),
+                        max_length=96,
+                    ),
+                    "domain": domain,
+                    "concept": concept,
+                    "intent": _clean_text(
+                        item.get("intent") or "Implement extracted mission behavior.",
+                        max_length=180,
+                    ),
+                    "source_node_ids": _string_list(
+                        item.get("source_node_ids"),
+                        limit=20,
+                        max_length=96,
+                    ),
+                    "languages": _string_list(item.get("languages"), limit=6, max_length=32),
+                    "confidence": confidence if isinstance(confidence, (int, float)) else None,
+                }
+            )
+    if not canonical:
+        return _fallback_pod_group_standard(
+            pod_name=pod_name,
+            pod_manager_agent_id=pod_manager_agent_id,
+            mission_id=mission_id,
+            logicnodes=logicnodes,
+            mission_contract=mission_contract,
+            recommendation={"provider": provider, "model": model},
+        )
+    duplicate_count = raw.get("eliminated_duplicates")
+    if not isinstance(duplicate_count, int) or duplicate_count < 0:
+        duplicate_count = max(0, len(logicnodes) - len(canonical))
+    return {
+        "schema_version": "pod_group_standard.v1",
+        "pod": pod_name,
+        "pod_manager_agent_id": pod_manager_agent_id,
+        "mission_id": mission_id,
+        "canonical_logicnodes": canonical,
+        "eliminated_duplicates": duplicate_count,
+        "summary": _clean_text(
+            raw.get("summary")
+            or "Pod group standard consolidated from specialist LogicNodes.",
+            max_length=260,
+        ),
+        "source": "llm",
+        "llm_route": route,
+        "model_provider": provider,
+        "model": model,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+async def generate_pod_group_standard(
+    *,
+    pod_name: str,
+    pod_manager_agent_id: str,
+    mission_id: str,
+    logicnodes: list[dict[str, Any]],
+    mission_contract: dict[str, Any],
+) -> dict[str, Any]:
+    normalized_pod_manager_agent_id = pod_manager_agent_id.strip().upper()
+    recommendation = _agent_recommendation(normalized_pod_manager_agent_id)
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
+    prompt = _build_pod_group_standard_prompt(
+        pod_name=pod_name,
+        pod_manager_agent_id=normalized_pod_manager_agent_id,
+        mission_id=mission_id,
+        logicnodes=logicnodes,
+        mission_contract=mission_contract,
+        recommended_provider=provider,
+        recommended_model=model,
+    )
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context="pod group standard consolidation",
+    )
+    if not isinstance(parsed, dict):
+        return _fallback_pod_group_standard(
+            pod_name=pod_name,
+            pod_manager_agent_id=normalized_pod_manager_agent_id,
+            mission_id=mission_id,
+            logicnodes=logicnodes,
+            mission_contract=mission_contract,
+            recommendation=recommendation,
+        )
+    return _normalize_pod_group_standard(
+        parsed,
+        provider=resolved_provider,
+        model=resolved_model,
+        route=llm_route,
+        pod_name=pod_name,
+        pod_manager_agent_id=normalized_pod_manager_agent_id,
+        mission_id=mission_id,
+        logicnodes=logicnodes,
+        mission_contract=mission_contract,
+    )
+
+
 async def generate_code_from_contract(
     *,
     mission_context: dict[str, Any],

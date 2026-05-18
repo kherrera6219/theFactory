@@ -203,6 +203,7 @@ def _build_mission_chain_trace(
         "mission_charter": metadata.get("mission_charter"),
         "mission_contract": metadata.get("mission_contract"),
         "logic_clusters": metadata.get("logic_clusters"),
+        "pod_group_standards": metadata.get("pod_group_standards"),
         "events": chain_trace,
     }
 

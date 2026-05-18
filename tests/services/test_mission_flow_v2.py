@@ -314,6 +314,32 @@ class TestAdvanceMissionLifecycleV2:
                         "model": "gpt-5.4-mini",
                     }
                 ),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_pod_group_standard",
+                AsyncMock(
+                    return_value={
+                        "schema_version": "pod_group_standard.v1",
+                        "pod": "podA",
+                        "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                        "mission_id": "test-m1",
+                        "canonical_logicnodes": [
+                            {
+                                "standard_node_id": "standard-node-01-parsing-csv-reader",
+                                "domain": "parsing",
+                                "concept": "csv_reader",
+                                "intent": "Read CSV rows",
+                                "source_node_ids": ["node-1"],
+                                "languages": ["python"],
+                            }
+                        ],
+                        "eliminated_duplicates": 0,
+                        "summary": "Canonical pod standard.",
+                        "source": "fallback",
+                        "model_provider": "openai",
+                        "model": "gpt-5.5",
+                        "created_at": "2026-01-01T00:00:00+00:00",
+                    }
+                ),
             ):
                 await advance_mission_lifecycle_v2(
                     app=app,
@@ -336,7 +362,7 @@ class TestAdvanceMissionLifecycleV2:
         prepare_fn.assert_not_awaited()
         # completion_fn called once (for verified->complete)
         completion_fn.assert_awaited_once()
-        assert emit_fn.await_count == 10
+        assert emit_fn.await_count == 11
         emitted_events = [call.kwargs["event_type"] for call in emit_fn.await_args_list]
         assert emitted_events[:5] == [
             "MISSION_PM_INTAKE",
@@ -345,8 +371,10 @@ class TestAdvanceMissionLifecycleV2:
             "MISSION_SPECIALIST_ASSIGNED",
             "MISSION_SPECIALIST_PLANNED",
         ]
+        assert "MISSION_POD_GROUP_STANDARD_PRODUCED" in emitted_events
         assert mission.metadata["ceo_delegation"]["pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
         assert mission.metadata["specialist_plan"]["specialist_agent_id"] == "AGENT-14-PYTHON"
+        assert mission.metadata["pod_group_standards"]["podA"]["canonical_logicnodes"]
         assert "specialist_planned" in mission.metadata["mission_artifacts"]
 
     @pytest.mark.asyncio
