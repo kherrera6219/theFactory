@@ -486,6 +486,7 @@ fallback generated output when eligible.
 
 ## Phase 10 - DELIVERY / PM Verification
 **Duration:** 4-5 days  
+**Status:** Implemented May 18, 2026
 **Entry state:** COMPLETE means the pipeline reached final state, but delivery is
 mostly trace/artifact display and generated-code artifacts already have a
 download route.
@@ -651,7 +652,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 7 | JavaScript and Java AST Extractors | 2 | 2-4 days | Implemented | Real JS/Java extraction |
 | 8 | FETCH / Knowledge Context | 3 | 7-10 days | Implemented | Retrieved technical context |
 | 9 | FUSION / Master Logic Stream | 3 | 5-7 days | Implemented | Cross-pod synthesis |
-| 10 | DELIVERY / PM Verification | 3 | 4-5 days | Planned | Delivery summary and criteria check |
+| 10 | DELIVERY / PM Verification | 3 | 4-5 days | Implemented | Delivery summary and criteria check |
 | 11 | Application Intelligence Map | 3 | 5-7 days | Planned | AIM artifact and approval gate |
 | 12 | Equivalence Verification Harness | 4 | 7-10 days | Planned | Real verification evidence |
 | 13 | Security and Compliance Agents | 4 | 5-7 days | Planned | Safety/compliance verdicts |
@@ -671,15 +672,15 @@ demo and stale qualification-evidence refresh.
 Minimum path to a real working demo:
 
 1. Complete a live provider-key BUILD_NEW demo through the implemented
-   Phase 1-7 loop.
-2. Phase 10 - present delivered output cleanly with PM verification.
+   Phase 1-10 loop.
+2. Phase 11 - generate Application Intelligence Maps for source-bearing missions.
 3. Phase 17 - refresh stale qualification evidence before release claims.
 
-Phases 1-9 now provide the first local/fallback proof of value: structured PM
+Phases 1-10 now provide the first local/fallback proof of value: structured PM
 and CEO contracts, FETCH context, FUSION synthesis, generated-output packaging,
-pod standards, and AST-backed Python/JavaScript/TypeScript/Java extraction. The
-next proof point should be Phase 10 DELIVERY / PM verification, with a live
-LLM-backed demo mission run as soon as provider credentials are available.
+PM delivery summaries, pod standards, and AST-backed Python/JavaScript/TypeScript/Java
+extraction. The next proof point should be Phase 11 AIM, with a live LLM-backed
+demo mission run as soon as provider credentials are available.
 
 ---
 

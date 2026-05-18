@@ -262,6 +262,16 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
                 "ready_for_codegen": True,
                 "source": "fallback",
             },
+            "delivery_summary": {
+                "delivery_title": "Delivered CSV reader",
+                "delivery_summary": "Mission complete.",
+                "criteria_met": ["Returns CSV rows"],
+                "criteria_unmet": [],
+                "usage_notes": "Download the generated code artifact.",
+                "recommendations": [],
+                "primary_artifact_type": "generated_code",
+                "source": "fallback",
+            },
             "chain_trace": [
                 {
                     "event_type": "MISSION_SPECIALIST_PLANNED",
@@ -293,6 +303,7 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
     )
     assert payload["fetch_result"]["indexed_languages"] == ["python"]
     assert payload["master_logic_stream"]["total_unified_nodes"] == 1
+    assert payload["delivery_summary"]["delivery_title"] == "Delivered CSV reader"
 
 
 def test_update_state_and_internal_endpoints(monkeypatch) -> None:

@@ -256,6 +256,18 @@ export type MissionChainTrace = {
     model_provider?: string;
     model?: string;
   } | null;
+  delivery_summary?: {
+    delivery_title: string;
+    delivery_summary: string;
+    criteria_met: string[];
+    criteria_unmet: string[];
+    usage_notes?: string;
+    recommendations: string[];
+    primary_artifact_type?: string | null;
+    source: string;
+    model_provider?: string;
+    model?: string;
+  } | null;
   route_provenance?: {
     ceo?: MissionRouteProvenanceStage | null;
     pod_manager?: MissionRouteProvenanceStage | null;

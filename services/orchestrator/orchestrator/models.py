@@ -121,6 +121,7 @@ EventType = Literal[
     # Operational / lifecycle events
     "MISSION_LOGICNODE_WRITTEN",
     "MISSION_COMPLETION_BLOCKED",
+    "MISSION_DELIVERED",
     # Agent events
     "AGENT_STATE_CHANGED",
 ]

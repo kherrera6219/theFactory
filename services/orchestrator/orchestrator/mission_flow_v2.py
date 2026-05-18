@@ -50,6 +50,7 @@ from .llm_delegation import (
     generate_logic_clusters,
     generate_master_logic_stream,
     generate_mission_contract,
+    generate_pm_delivery_summary,
     generate_pm_feature_contract,
     generate_pod_group_standard,
     generate_pod_manager_delegation,
@@ -1479,6 +1480,67 @@ async def _ensure_verified_build_artifact(
     )
     return updated or mission
 
+
+async def _prepare_delivery_summary(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> Any:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    build_artifacts = await asyncio.to_thread(
+        storage.list_build_artifacts,
+        settings,
+        mission.mission_id,
+        50,
+    )
+    delivery_summary = await generate_pm_delivery_summary(
+        mission_context=_mission_context(mission, metadata),
+        generated_output=metadata.get("generated_output") or {},
+        build_artifacts=build_artifacts,
+        feature_contract=metadata.get("feature_contract") or {},
+        mission_contract=metadata.get("mission_contract") or {},
+    )
+    metadata["delivery_summary"] = delivery_summary
+
+    if not _chain_event_exists(metadata, "MISSION_DELIVERED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_DELIVERED",
+            agent_id=PM_AGENT_ID,
+            details={
+                "delivery_title": delivery_summary["delivery_title"],
+                "artifact_type": delivery_summary.get("primary_artifact_type"),
+                "criteria_met_count": len(delivery_summary.get("criteria_met", [])),
+                "source": delivery_summary.get("source"),
+            },
+        )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id=PM_AGENT_ID,
+        service_name="orchestrator",
+        event_type="MISSION_DELIVERED",
+        object_type="delivery_summary",
+        object_id=mission.mission_id,
+        payload_summary={
+            "delivery_title": delivery_summary["delivery_title"],
+            "artifact_type": delivery_summary.get("primary_artifact_type"),
+            "criteria_met_count": len(delivery_summary.get("criteria_met", [])),
+            "source": delivery_summary.get("source"),
+        },
+        content_hash_source=delivery_summary,
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission
+
+
 async def _prepare_fusion(
     *,
     app: Any,
@@ -1816,6 +1878,11 @@ async def advance_mission_lifecycle_v2(
                             exc,
                         )
                 return
+            mission = await _prepare_delivery_summary(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
 
         await asyncio.sleep(settings.transition_step_seconds)
 
