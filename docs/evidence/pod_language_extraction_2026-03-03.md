@@ -1,5 +1,9 @@
 # Pod A/B/C/D Language Extraction — Implementation Evidence (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Objective
 
 Implement specialist agent extraction logic for all four pod language groups so that

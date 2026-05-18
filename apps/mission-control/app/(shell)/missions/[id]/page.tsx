@@ -275,6 +275,8 @@ export default function MissionDetailPage() {
   const missionContract = chainTrace?.mission_contract ?? null;
   const logicClusters = chainTrace?.logic_clusters?.clusters ?? [];
   const podGroupStandards = Object.entries(chainTrace?.pod_group_standards ?? {});
+  const fetchResult = chainTrace?.fetch_result ?? null;
+  const masterLogicStream = chainTrace?.master_logic_stream ?? null;
 
   async function cancelMission() {
     if (!mission) {
@@ -791,6 +793,66 @@ export default function MissionDetailPage() {
           </ul>
         )}
       </Panel>
+
+      {fetchResult && (
+        <Panel title="Knowledge Lake (FETCH)">
+          <dl>
+            <div>
+              <dt>Indexed languages</dt>
+              <dd>
+                {fetchResult.indexed_languages?.length > 0
+                  ? fetchResult.indexed_languages.join(", ")
+                  : "none"}
+              </dd>
+            </div>
+            {fetchResult.skipped_languages?.length > 0 && (
+              <div>
+                <dt>Skipped (no bootstrap docs)</dt>
+                <dd>{fetchResult.skipped_languages.join(", ")}</dd>
+              </div>
+            )}
+            <div>
+              <dt>Knowledge ready</dt>
+              <dd>{fetchResult.knowledge_ready ? "Yes" : "No"}</dd>
+            </div>
+            {fetchResult.errors?.length > 0 && (
+              <div>
+                <dt>Errors</dt>
+                <dd className="error-text">{fetchResult.errors.join("; ")}</dd>
+              </div>
+            )}
+          </dl>
+        </Panel>
+      )}
+
+      {masterLogicStream != null &&
+        (masterLogicStream.master_logic_stream?.length ?? 0) > 0 && (
+          <Panel title="Master Logic Stream (FUSION)">
+            <dl>
+              <div>
+                <dt>Unified nodes</dt>
+                <dd>{masterLogicStream.total_unified_nodes}</dd>
+              </div>
+              <div>
+                <dt>Duplicates eliminated across pods</dt>
+                <dd>{masterLogicStream.eliminated_across_pods}</dd>
+              </div>
+              <div>
+                <dt>Source</dt>
+                <dd>{masterLogicStream.source}</dd>
+              </div>
+            </dl>
+            <ul className="summary-list">
+              {masterLogicStream.master_logic_stream.map((node) => (
+                <li key={node.node_id}>
+                  <strong>{node.concept}</strong>
+                  <span>{node.domain}</span>
+                  <span className="muted">{(node.source_pods ?? []).join(", ")}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        )}
 
       <Panel title="Active Agents">
         {activeAgents.length === 0 && <p className="muted">No active agents currently assigned.</p>}

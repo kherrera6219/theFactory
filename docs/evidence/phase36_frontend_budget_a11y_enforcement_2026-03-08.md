@@ -1,5 +1,9 @@
 # Phase 36 Validation — Frontend Budget + Accessibility Enforcement (2026-03-08)
 
+Document version: 2026.03.08
+Last updated: 2026-03-08
+Status: Historical Evidence
+
 ## Scope
 - Enforce frontend performance budget in CI.
 - Enforce accessibility assertions including color contrast.

@@ -1,5 +1,9 @@
 # Unified Logic Refinery (ULR) — Single Blueprint
 
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
+
 This document is the **single source of truth** for the Unified Logic Refinery starter repo. It consolidates the architecture, contracts, workflows, and implementation plan into one place.
 
 ---

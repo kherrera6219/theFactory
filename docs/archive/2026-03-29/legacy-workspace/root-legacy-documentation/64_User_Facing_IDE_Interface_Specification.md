@@ -1,4 +1,8 @@
 # USER-FACING IDE INTERFACE SPECIFICATION
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery: The Builder's Experience
 
 **Version:** 1.0  

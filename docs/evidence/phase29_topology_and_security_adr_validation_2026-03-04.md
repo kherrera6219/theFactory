@@ -1,5 +1,9 @@
 # Phase 29 Validation - Topology and Security ADR Decision Package (2026-03-04)
 
+Document version: 2026.03.04
+Last updated: 2026-03-04
+Status: Historical Evidence
+
 ## Objective
 Close the final two Word-doc reconciliation gaps by publishing canonical decisions for:
 1. 35-agent runtime topology model.

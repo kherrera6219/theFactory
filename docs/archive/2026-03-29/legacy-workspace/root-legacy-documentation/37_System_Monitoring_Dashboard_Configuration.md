@@ -1,4 +1,8 @@
 # DOCUMENT 37: SYSTEM MONITORING DASHBOARD CONFIGURATION
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery - Operations & Deployment
 
 **Document ID:** 37  

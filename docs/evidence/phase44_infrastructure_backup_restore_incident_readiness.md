@@ -1,5 +1,9 @@
 # Phase 44 Evidence: Infrastructure Backup, Restore, and Incident Readiness
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 Date: 2026-03-29
 
 ## Summary

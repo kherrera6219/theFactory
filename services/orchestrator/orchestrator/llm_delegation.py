@@ -1949,3 +1949,118 @@ async def generate_specialist_plan(
         "model": resolved_model,
         "mission_context": mission_context,
     }
+
+
+async def generate_master_logic_stream(
+    *,
+    pod_group_standards: dict[str, dict[str, Any]],
+    mission_contract: dict[str, Any],
+    mission_context: dict[str, Any],
+) -> dict[str, Any]:
+    """CEO fuses pod Group Standards into a unified Master Logic Stream (Phase 9).
+
+    Merges LogicNodes from all pods, eliminates cross-pod duplicates, and orders
+    by dependency for downstream code generation. Falls back to deterministic
+    deduplication when LLM is unavailable.
+    """
+    if not pod_group_standards:
+        return {
+            "master_logic_stream": [],
+            "total_unified_nodes": 0,
+            "eliminated_across_pods": 0,
+            "ready_for_codegen": False,
+            "source": "empty",
+        }
+
+    recommendation = _ceo_recommendation()
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
+
+    pods_summary = []
+    total_input_nodes = 0
+    for pod_name, standard in pod_group_standards.items():
+        nodes = standard.get("canonical_logicnodes") or []
+        total_input_nodes += len(nodes)
+        pods_summary.append({
+            "pod": pod_name,
+            "node_count": len(nodes),
+            "nodes": [
+                {"domain": n.get("domain"), "concept": n.get("concept"), "intent": n.get("intent")}
+                for n in nodes[:15]
+            ],
+        })
+
+    contract_summary = _clean_text(mission_contract.get("contract_summary", ""), max_length=300)
+    required_domains = mission_contract.get("required_domains") or []
+    acceptance_criteria = mission_contract.get("acceptance_criteria") or []
+
+    prompt = (
+        "You are AGENT-02-CEO performing Logic Folding — the Grand Fusion.\n"
+        f"Recommended model: {provider}/{model}\n"
+        "Merge LogicNodes from all pods into a single ordered Master Logic Stream.\n"
+        "Remove cross-pod duplicates. Order by dependency (inputs before outputs).\n"
+        "Return only JSON. No markdown.\n\n"
+        f"Mission: {contract_summary}\n"
+        f"Required domains: {json.dumps(required_domains[:10])}\n"
+        f"Acceptance criteria: {json.dumps(acceptance_criteria[:4])}\n"
+        f"Total input nodes across all pods: {total_input_nodes}\n"
+        f"Pod inputs:\n{json.dumps(pods_summary, indent=2)}\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "master_logic_stream": [\n'
+        '    {"node_id": "unified-001", "domain": "domain", "concept": "concept",\n'
+        '     "canonical_intent": "intent", "source_pods": ["podA"], "dependency_order": 1}\n'
+        "  ],\n"
+        '  "total_unified_nodes": 18,\n'
+        '  "eliminated_across_pods": 4,\n'
+        '  "ready_for_codegen": true\n'
+        "}\n\n"
+        "Keep master_logic_stream to 5-25 nodes. Order by dependency_order (lowest first).\n"
+    )
+
+    parsed, resolved_provider, resolved_model, _route = await _call_with_recommendation(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context="ceo logic fusion",
+    )
+
+    if not isinstance(parsed, dict):
+        all_nodes: list[dict[str, Any]] = []
+        seen_concepts: set[str] = set()
+        order = 1
+        for pod_name, standard in pod_group_standards.items():
+            for node in (standard.get("canonical_logicnodes") or [])[:10]:
+                concept = str(node.get("concept") or "")
+                if concept not in seen_concepts:
+                    seen_concepts.add(concept)
+                    all_nodes.append({
+                        "node_id": f"unified-{order:03d}",
+                        "domain": node.get("domain", "generic"),
+                        "concept": concept,
+                        "canonical_intent": node.get("intent", ""),
+                        "source_pods": [pod_name],
+                        "dependency_order": order,
+                    })
+                    order += 1
+        eliminated = max(0, total_input_nodes - len(all_nodes))
+        return {
+            "master_logic_stream": all_nodes[:20],
+            "total_unified_nodes": len(all_nodes),
+            "eliminated_across_pods": eliminated,
+            "ready_for_codegen": len(all_nodes) > 0,
+            "source": "fallback",
+        }
+
+    stream = parsed.get("master_logic_stream") or []
+    if not isinstance(stream, list):
+        stream = []
+
+    return {
+        "master_logic_stream": stream[:25],
+        "total_unified_nodes": int(parsed.get("total_unified_nodes") or len(stream)),
+        "eliminated_across_pods": int(parsed.get("eliminated_across_pods") or 0),
+        "ready_for_codegen": bool(parsed.get("ready_for_codegen", True)),
+        "source": "llm",
+        "model_provider": resolved_provider,
+        "model": resolved_model,
+    }

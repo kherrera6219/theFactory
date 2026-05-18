@@ -1,4 +1,8 @@
 HOLY GRAIL REFINERY
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 PRODUCTION REVIEW CHECKLIST
 For Use With: Codex / Claude Code Automated Review
 Version 1.0  |  February 2026  |  Confidential

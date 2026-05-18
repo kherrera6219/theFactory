@@ -1,5 +1,9 @@
 # Phase 38 Validation - Qualification Matrix Automation (2026-03-08)
 
+Document version: 2026.03.08
+Last updated: 2026-03-08
+Status: Historical Evidence
+
 ## Scope
 
 Implement remaining roadmap-follow-up automation:

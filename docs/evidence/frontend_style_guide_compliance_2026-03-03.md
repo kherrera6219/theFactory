@@ -1,5 +1,9 @@
 # Frontend Style Guide Compliance — Implementation Evidence (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Objective
 Implement the remaining frontend items from the compliance audit in parallel with Codex's
 WebSocket/SSE, Smelt-cycle, and ADR work:

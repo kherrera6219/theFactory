@@ -2,8 +2,34 @@
 
 Document version: 2026.04.14  
 Last updated: 2026-04-14  
-Status: Review Artifact  
+Status: Review Artifact (historical — see STATUS UPDATE below)  
 Audience: Developers, reviewers, and maintainers
+
+---
+
+> **STATUS UPDATE — 2026-05-17**
+> The following findings from this review have been resolved. Do not act on them as open work items.
+>
+> **RESOLVED** — Python AST extractor is now wired to production (`pod_worker/main.py:156`,
+> `PYTHON_AST_EXTRACTOR_ENABLED` flag). Java (`java_ast_extractor.py`) and JS/TS
+> (`js_ast_extractor.py`) AST extractors are also fully implemented using `javalang` and
+> `esprima` respectively (commit 8b59594, Phase 7, 2026-05-17).
+>
+> **RESOLVED** — `LifecycleEngine` Protocol now exists (`lifecycle_interface.py`).
+> `runtime.py` uses `get_lifecycle_engine()` factory. No more inline `if/elif/else`
+> engine selection in `advance_mission_lifecycle()`.
+>
+> **RESOLVED** — `storage.py` split into 6 domain modules (`storage_core`, `storage_missions`,
+> `storage_pods`, `storage_logicnodes`, `storage_artifacts`, `storage_agents`).
+> `storage.py` is now a 127-line re-export façade.
+>
+> **RESOLVED** — `heartbeat_service.py` extracted from `main.py`. Main imports constants from it.
+>
+> **STILL OPEN** — No `runtime_class` field on agents to distinguish real vs. synthesized workers.
+>
+> **STILL OPEN** — No audit evidence chain display on Mission Detail.
+
+---
 
 ## Review Date: 2026-04-14
 ## Reviewer: Claude Code (read-only pass)

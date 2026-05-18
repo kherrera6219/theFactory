@@ -1,5 +1,9 @@
 # Phase 25 Validation - Word-Doc Audit + LangGraph Runtime Visibility (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Objective
 1. Read all Word documents in-repo and reconcile remaining work to current implementation.
 2. Implement and test runtime visibility fields for LangGraph mode in orchestrator health/readiness/operations APIs.

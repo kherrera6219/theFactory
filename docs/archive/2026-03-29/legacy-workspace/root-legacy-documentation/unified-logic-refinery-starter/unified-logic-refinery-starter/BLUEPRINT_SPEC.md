@@ -1,4 +1,8 @@
 # BLUEPRINT_SPEC.md  
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Unified Logic Refinery — Master Blueprint Specification
 Version: 1.0.0  
 Last Updated: 2026-01-29

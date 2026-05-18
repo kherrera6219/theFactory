@@ -1,5 +1,9 @@
 # Phase 12 Validation Evidence (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Scope
 - Mission Control builder diff/preview productionization.
 - Mission Control GitHub repo intake productionization.

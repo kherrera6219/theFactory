@@ -1,5 +1,9 @@
 # Unified Logic Refinery — Starter Repo
 
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
+
 This is a **starter scaffold** generated from `BLUEPRINT_SPEC.md` (v1.0.0).
 
 ## What’s included
