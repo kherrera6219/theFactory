@@ -660,14 +660,16 @@ demo and stale qualification-evidence refresh.
 Minimum path to a real working demo:
 
 1. Complete a live provider-key BUILD_NEW demo through the implemented
-   Phase 1-5 loop.
+   Phase 1-7 loop.
 2. Phase 8 - attach real FETCH/knowledge context to downstream prompts.
 3. Phase 10 - present delivered output cleanly with PM verification.
 4. Phase 17 - refresh stale qualification evidence before release claims.
 
-Phases 1-5 now provide the first local/fallback proof of value. The next proof
-point should be either a live LLM-backed demo mission or Phase 6 pod standards,
-depending on whether provider credentials are available.
+Phases 1-7 now provide the first local/fallback proof of value: structured PM
+and CEO contracts, generated-output packaging, pod standards, and AST-backed
+Python/JavaScript/TypeScript/Java extraction. The next proof point should be
+Phase 8 FETCH / Knowledge Context, with a live LLM-backed demo mission run as
+soon as provider credentials are available.
 
 ---
 

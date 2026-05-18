@@ -3,10 +3,10 @@
 
 ---
 
-## Current Validation - May 17, 2026
+## Current Validation - May 18, 2026
 
 This grouped document is no longer the authoritative status source for Phases
-3-5. Those phases have been partially or fully implemented in the codebase:
+3-7. Those phases have now been implemented in the codebase:
 
 - PM feature contracts and mission charters are persisted by Mission Flow v2.
 - CEO mission contracts are persisted and shown in chain trace.
@@ -14,6 +14,11 @@ This grouped document is no longer the authoritative status source for Phases
   the gateway artifact route, and displayed in Mission Detail.
 - CEO logic clusters are persisted as a `logic_clusters.v1` object with a
   `clusters` array and are exposed in Mission Detail.
+- Pod group standards are produced during GATING, stored as
+  `pod_group_standards`, exposed in chain trace, and displayed in Mission Detail.
+- JavaScript/TypeScript and Java AST extraction are active behind
+  `JS_AST_EXTRACTOR_ENABLED` and `JAVA_AST_EXTRACTOR_ENABLED`, preserving regex
+  concept detection and fallback behavior.
 
 Use this file as a follow-on hardening plan for the still-open intelligence
 work:
@@ -22,13 +27,15 @@ work:
   fallback;
 - decide whether PM provider calls need a longer timeout;
 - pod-worker extraction now consumes CEO logic-cluster domain focus;
-- implement Phase 6 pod group standards;
-- activate Phase 7 Java/JS AST extractors.
+- complete a live provider-key demo for the PM/CEO/generated-output path;
+- use Phase 8 FETCH context to improve specialist extraction and generation
+  quality.
 
 Current chain-trace fields are exposed at the top level of the chain trace
-response: `feature_contract`, `mission_charter`, `mission_contract`, and
-`logic_clusters`. Current logic-cluster event naming is
-`LOGIC_CLUSTERS_DECOMPOSED`, not `MISSION_LOGIC_CLUSTERS_ASSIGNED`.
+response: `feature_contract`, `mission_charter`, `mission_contract`,
+`logic_clusters`, `pod_group_standards`, and `generated_output`. Current
+logic-cluster event naming is `LOGIC_CLUSTERS_DECOMPOSED`, not
+`MISSION_LOGIC_CLUSTERS_ASSIGNED`.
 
 ---
 

@@ -3,11 +3,12 @@
 
 ---
 
-## Current Validation - May 17, 2026
+## Current Validation - May 18, 2026
 
-Phases 8-11 remain planned work. The May 16-17 implementation pass moved the
-system forward through PM/CEO contracts, first generated output, and CEO logic
-clusters, but it did not implement the full Smelt-Cycle back half.
+Phases 8-11 remain planned work. The May 16-18 implementation pass moved the
+system forward through PM/CEO contracts, first generated output, CEO logic
+clusters, pod group standards, and JavaScript/TypeScript/Java AST extraction,
+but it did not implement the full Smelt-Cycle back half.
 
 Treat this document as the active forward plan with these adjustments:
 
@@ -22,8 +23,9 @@ Treat this document as the active forward plan with these adjustments:
 - Phase 11 AIM is still open.
 
 Current chain trace exposes PM/CEO artifacts at top-level fields such as
-`feature_contract`, `mission_charter`, `mission_contract`, `logic_clusters`, and
-`generated_output`; new UI examples should read those top-level fields directly.
+`feature_contract`, `mission_charter`, `mission_contract`, `logic_clusters`,
+`pod_group_standards`, and `generated_output`; new UI examples should read those
+top-level fields directly.
 
 ---
 
