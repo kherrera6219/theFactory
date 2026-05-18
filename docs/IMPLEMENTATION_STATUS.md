@@ -9,10 +9,10 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Project Status
 
-As of 2026-05-18, Phases 1-12 are implemented.
+As of 2026-05-18, Phases 1-13 are implemented and validated locally.
 
-- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, Phase 11 Application Intelligence Map, and Phase 12 equivalence reports for generated outputs.
-- **Current active phase:** Phase 13 - Security and Compliance Agents.
+- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, Phase 11 Application Intelligence Map, Phase 12 equivalence reports, and Phase 13 security/compliance reports for generated outputs.
+- **Current active phase:** Phase 14 - Dependency Absorption Engine.
 - **Still planned:** Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
 - **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, and remaining forward-looking docs cleanup.
 
@@ -210,9 +210,8 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Implement Phase 13 security and compliance agents for mission-level safety/compliance verdicts, using Phase 12 equivalence/build evidence as inputs.
-2. Implement Phase 14 dependency inventory/classification before attempting dependency replacement generation.
-3. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY/AIM/equivalence loop.
+1. Implement Phase 14 dependency inventory/classification before attempting dependency replacement generation.
+2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY/AIM/equivalence/security-compliance loop.
 4. Refresh stale qualification evidence before launch claims.
 5. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
 6. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.

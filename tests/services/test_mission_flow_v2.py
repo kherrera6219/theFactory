@@ -455,6 +455,85 @@ async def test_prepare_equivalence_report_blocks_when_enforced() -> None:
 
 
 @pytest.mark.asyncio
+async def test_prepare_security_compliance_report_records_pass() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {
+            "source": "llm",
+            "generated_code": "def read_csv(path):\n    return []\n",
+            "filename": "solution.py",
+            "language": "python",
+        },
+        "equivalence_report": {"report_id": "equivalence-test-m1", "passed": True},
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            updated, ready, report = (
+                await orchestrator_mission_flow_v2._prepare_security_compliance_report(
+                    app=app,
+                    settings=settings,
+                    mission=mission,
+                )
+            )
+
+    assert updated is mission
+    assert ready is True
+    assert report["passed"] is True
+    assert mission.metadata["security_compliance_report"]["report_id"] == (
+        "security-compliance-test-m1"
+    )
+    assert any(
+        event["event_type"] == "MISSION_SECURITY_COMPLIANCE_PASSED"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_security_compliance_report_blocks_when_enforced() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    settings.mission_security_compliance_enforcement_enabled = True
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {
+            "source": "llm",
+            "generated_code": "API_KEY = 'sk-test-secret-value-123456'\n",
+            "filename": "solution.py",
+            "language": "python",
+        },
+        "equivalence_report": {"report_id": "equivalence-test-m1", "passed": True},
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            _updated, ready, report = (
+                await orchestrator_mission_flow_v2._prepare_security_compliance_report(
+                    app=app,
+                    settings=settings,
+                    mission=mission,
+                )
+            )
+
+    assert ready is False
+    assert report["blocking"] is True
+    assert any(
+        event["event_type"] == "MISSION_SECURITY_COMPLIANCE_BLOCKED"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_prepare_fusion_regenerates_when_existing_output_is_fallback() -> None:
     mission = _make_mission(state=MissionState.fusion)
     mission.metadata = {

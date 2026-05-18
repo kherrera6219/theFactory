@@ -67,6 +67,10 @@ from .mission_flow import (
     with_chain_defaults,
 )
 from .models import MissionState
+from .security_compliance import (
+    build_security_compliance_report,
+    mission_requires_security_compliance,
+)
 
 LOGGER = logging.getLogger(__name__)
 VALID_AGENT_IDS = frozenset(agent.agent_id for agent in AGENT_REGISTRY)
@@ -1694,6 +1698,88 @@ async def _prepare_equivalence_report(
     return updated or mission, not bool(report.get("blocking")), report
 
 
+async def _prepare_security_compliance_report(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> tuple[Any, bool, dict[str, Any]]:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    if not mission_requires_security_compliance(metadata):
+        return mission, True, {"skipped": True, "reason": "no mission artifact to scan"}
+
+    enforcement_enabled = _setting_bool(
+        settings,
+        "mission_security_compliance_enforcement_enabled",
+        False,
+    )
+    report = build_security_compliance_report(
+        mission_id=mission.mission_id,
+        metadata=metadata,
+        enforcement_enabled=enforcement_enabled,
+    )
+    metadata["security_compliance_report"] = report
+    if report.get("blocking"):
+        event_type = "MISSION_SECURITY_COMPLIANCE_BLOCKED"
+    elif report.get("status") == "warned":
+        event_type = "MISSION_SECURITY_COMPLIANCE_WARNED"
+    else:
+        event_type = "MISSION_SECURITY_COMPLIANCE_PASSED"
+
+    if not _chain_event_exists(metadata, event_type):
+        append_chain_event(
+            metadata,
+            event_type=event_type,
+            agent_id="AGENT-05-SECURITY",
+            details={
+                "report_id": report["report_id"],
+                "status": report["status"],
+                "passed": report["passed"],
+                "blocking": report["blocking"],
+                "risk_level": report["risk_level"],
+                "finding_count": len(report.get("findings", [])),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="security_compliance",
+        event_type=event_type,
+        agent_id="AGENT-05-SECURITY",
+        details={
+            "report_id": report["report_id"],
+            "status": report["status"],
+            "passed": report["passed"],
+            "blocking": report["blocking"],
+            "risk_level": report["risk_level"],
+        },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id="AGENT-05-SECURITY",
+        service_name="orchestrator",
+        event_type=event_type,
+        object_type="security_compliance_report",
+        object_id=str(report["report_id"]),
+        payload_summary={
+            "status": report["status"],
+            "passed": report["passed"],
+            "blocking": report["blocking"],
+            "risk_level": report["risk_level"],
+            "finding_count": len(report.get("findings", [])),
+        },
+        content_hash_source=report,
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission, not bool(report.get("blocking")), report
+
+
 async def _prepare_fusion(
     *,
     app: Any,
@@ -2066,6 +2152,48 @@ async def advance_mission_lifecycle_v2(
                     "v2: mission %s blocked by equivalence report %s",
                     mission_id,
                     equivalence_report.get("report_id"),
+                )
+                return
+            (
+                mission,
+                security_compliance_ready,
+                security_compliance_report,
+            ) = await _prepare_security_compliance_report(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+            if not security_compliance_ready:
+                await asyncio.to_thread(
+                    storage.insert_mission_event,
+                    settings,
+                    mission_id,
+                    MissionState.verified,
+                    MissionState.verified,
+                    "MISSION_SECURITY_COMPLIANCE_BLOCKED",
+                )
+                redis_ready = bool(getattr(app.state, "redis_ready", False))
+                redis_client = getattr(app.state, "redis", None)
+                if redis_ready and redis_client is not None:
+                    try:
+                        await emit_state_event_fn(
+                            settings=settings,
+                            validator=validator,
+                            redis_client=redis_client,
+                            mission=mission,
+                            event_type="MISSION_SECURITY_COMPLIANCE_BLOCKED",
+                        )
+                    except Exception as exc:
+                        LOGGER.warning(
+                            "v2: failed to emit security/compliance block event for "
+                            "mission %s: %s",
+                            mission_id,
+                            exc,
+                        )
+                LOGGER.info(
+                    "v2: mission %s blocked by security/compliance report %s",
+                    mission_id,
+                    security_compliance_report.get("report_id"),
                 )
                 return
             mission = await _prepare_delivery_summary(

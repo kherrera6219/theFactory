@@ -62,8 +62,8 @@ The core remaining validated gap is now narrower:
   Mission Control visibility, durable PM/CEO contracts, first generated-output
   artifact support, source-bundle artifact packaging, and CEO logic clusters.
 - theFactory now has FETCH/FUSION execution, AIM for source-bearing missions,
-  and equivalence reports for generated outputs; it does not yet have dependency
-  absorption, runtime QC, compliance/security enforcement, or cost accounting.
+  equivalence reports, and security/compliance reports for generated outputs; it
+  does not yet have dependency absorption, runtime QC, or cost accounting.
 - Current docs split between accurate implementation-status docs and
   forward-looking product docs that describe future capabilities in present tense.
 
@@ -234,7 +234,7 @@ what should be built, analyzed, or transformed.
 ```bash
 pytest tests/services/test_llm_delegation_unit.py -v
 pytest tests/services/test_mission_flow_v2*.py -v
-npm --prefix apps/mission-control run typecheck
+npm --prefix apps/mission-control run lint
 make test
 ```
 
@@ -712,7 +712,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 10 | DELIVERY / PM Verification | 3 | 4-5 days | Implemented | Delivery summary and criteria check |
 | 11 | Application Intelligence Map | 3 | 5-7 days | Implemented | AIM artifact, UI, and risk flags |
 | 12 | Equivalence Verification Harness | 4 | 7-10 days | Implemented | Real verification evidence |
-| 13 | Security and Compliance Agents | 4 | 5-7 days | Planned | Safety/compliance verdicts |
+| 13 | Security and Compliance Agents | 4 | 5-7 days | Implemented | Safety/compliance verdicts |
 | 14 | Dependency Absorption Engine | 4 | 10-14 days | Planned | Dependency inventory/classification first |
 | 15 | Token and Cost Ledger | 4 | 2-3 days | Planned | Per-mission LLM cost |
 | 16 | Knowledge Lake Embeddings and Auto-Refresh | 5 | 7-10 days | Planned | Operational knowledge lake |
@@ -730,15 +730,16 @@ Minimum path to a real working demo:
 
 1. Complete a live provider-key BUILD_NEW demo through the implemented
    Phase 1-11 loop.
-2. Phase 13 - add security/compliance verdicts for mission outputs.
+2. Phase 14 - add dependency inventory and classification for source-bearing missions.
 3. Phase 17 - refresh stale qualification evidence before release claims.
 
-Phases 1-12 now provide the first local/fallback proof of value: structured PM
+Phases 1-13 now provide the first local/fallback proof of value: structured PM
 and CEO contracts, FETCH context, FUSION synthesis, generated-output packaging,
 PM delivery summaries, AIM source inventory, equivalence evidence, pod
-standards, and AST-backed Python/JavaScript/TypeScript/Java extraction. The next
-proof point should be Phase 13 security/compliance verdicts, with a live
-LLM-backed demo mission run as soon as provider credentials are available.
+standards, security/compliance verdicts, and AST-backed
+Python/JavaScript/TypeScript/Java extraction. The next proof point should be
+Phase 14 dependency inventory/classification, with a live LLM-backed demo
+mission run as soon as provider credentials are available.
 
 ---
 

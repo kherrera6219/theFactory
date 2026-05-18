@@ -207,6 +207,7 @@ def _build_mission_chain_trace(
         "fetch_result": metadata.get("fetch_result"),
         "application_intelligence_map": metadata.get("application_intelligence_map"),
         "equivalence_report": metadata.get("equivalence_report"),
+        "security_compliance_report": metadata.get("security_compliance_report"),
         "master_logic_stream": metadata.get("master_logic_stream"),
         "delivery_summary": metadata.get("delivery_summary"),
         "events": chain_trace,

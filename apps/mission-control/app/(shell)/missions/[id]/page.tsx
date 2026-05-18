@@ -278,6 +278,7 @@ export default function MissionDetailPage() {
   const fetchResult = chainTrace?.fetch_result ?? null;
   const applicationIntelligenceMap = chainTrace?.application_intelligence_map ?? null;
   const equivalenceReport = chainTrace?.equivalence_report ?? null;
+  const securityComplianceReport = chainTrace?.security_compliance_report ?? null;
   const masterLogicStream = chainTrace?.master_logic_stream ?? null;
   const deliverySummary = chainTrace?.delivery_summary ?? null;
 
@@ -1119,6 +1120,79 @@ export default function MissionDetailPage() {
               ))}
             </ul>
           )}
+        </Panel>
+      )}
+
+      {securityComplianceReport && (
+        <Panel title="Security and Compliance">
+          <dl>
+            <div>
+              <dt>Status</dt>
+              <dd>{securityComplianceReport.status}</dd>
+            </div>
+            <div>
+              <dt>Passed</dt>
+              <dd>{securityComplianceReport.passed ? "yes" : "no"}</dd>
+            </div>
+            <div>
+              <dt>Blocking</dt>
+              <dd>{securityComplianceReport.blocking ? "yes" : "no"}</dd>
+            </div>
+            <div>
+              <dt>Risk</dt>
+              <dd>{securityComplianceReport.risk_level}</dd>
+            </div>
+            <div>
+              <dt>Enforcement</dt>
+              <dd>{securityComplianceReport.enforcement_enabled ? "enabled" : "advisory"}</dd>
+            </div>
+            <div>
+              <dt>Regulated context</dt>
+              <dd>{securityComplianceReport.regulated_context ? "yes" : "no"}</dd>
+            </div>
+          </dl>
+          {securityComplianceReport.findings.length > 0 && (
+            <>
+              <p className="muted">Findings</p>
+              <ul className="summary-list">
+                {securityComplianceReport.findings.map((finding) => (
+                  <li key={`security-compliance-finding-${finding}`}>
+                    <span>{finding}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {securityComplianceReport.recommendations.length > 0 && (
+            <>
+              <p className="muted">Recommendations</p>
+              <ul className="summary-list">
+                {securityComplianceReport.recommendations.map((recommendation) => (
+                  <li key={`security-compliance-recommendation-${recommendation}`}>
+                    <span>{recommendation}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <ul className="card-list">
+            {[...securityComplianceReport.security.checks, ...securityComplianceReport.compliance.checks].map((check) => (
+              <li key={check.check_id} className="info-card">
+                <h3>{check.title}</h3>
+                <dl>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{check.status}</dd>
+                  </div>
+                  <div>
+                    <dt>Required</dt>
+                    <dd>{check.required ? "yes" : "no"}</dd>
+                  </div>
+                </dl>
+                <p>{check.message}</p>
+              </li>
+            ))}
+          </ul>
         </Panel>
       )}
 

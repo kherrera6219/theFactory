@@ -1,6 +1,6 @@
 # Phase 13 - Security and Compliance Agents
 
-**Status:** Planned  
+**Status:** Implemented
 **Last updated:** 2026-05-18  
 **Depends on:** Phase 10 delivery, Phase 11 AIM, Phase 12 equivalence reports
 
@@ -17,7 +17,7 @@ The repo already has useful foundations:
 - Mission Control already renders audit reports, build artifacts, AIM, and
   equivalence evidence.
 
-The missing piece is a mission-local verdict that evaluates the specific output
+The missing piece was a mission-local verdict that evaluates the specific output
 before completion.
 
 ## Updated Implementation Plan
@@ -59,9 +59,9 @@ before completion.
 
 ## Validation
 
-- Generated output with obvious secret-like text blocks when enforcement is on.
-- Missing equivalence report warns or blocks according to policy.
-- Low-risk generated output records a pass verdict.
-- Chain trace exposes `security_compliance_report`.
-- Mission Detail renders the report.
-- Targeted pytest and Mission Control typecheck pass.
+- [x] Generated output with obvious secret-like text blocks when enforcement is on.
+- [x] Missing equivalence report warns or blocks according to policy.
+- [x] Low-risk generated output records a pass verdict.
+- [x] Chain trace exposes `security_compliance_report`.
+- [x] Mission Detail renders the report.
+- [x] Targeted pytest, ruff, Mission Control lint, and Mission Control unit tests pass.
