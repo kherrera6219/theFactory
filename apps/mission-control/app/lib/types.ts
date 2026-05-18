@@ -189,6 +189,31 @@ export type LogicClusters = {
   created_at: string;
 };
 
+export type PodGroupStandardNode = {
+  standard_node_id: string;
+  domain: string;
+  concept: string;
+  intent: string;
+  source_node_ids: string[];
+  languages: string[];
+  confidence?: number | null;
+};
+
+export type PodGroupStandard = {
+  schema_version: "pod_group_standard.v1";
+  pod: string;
+  pod_manager_agent_id: string;
+  mission_id: string;
+  canonical_logicnodes: PodGroupStandardNode[];
+  eliminated_duplicates: number;
+  summary: string;
+  source: "llm" | "fallback";
+  llm_route?: string;
+  model_provider?: string;
+  model?: string;
+  created_at: string;
+};
+
 export type MissionChainTrace = {
   mission_id: string;
   routing_enforced: boolean;
@@ -206,6 +231,7 @@ export type MissionChainTrace = {
   mission_charter?: MissionCharter | null;
   mission_contract?: MissionContract | null;
   logic_clusters?: LogicClusters | null;
+  pod_group_standards?: Record<string, PodGroupStandard> | null;
   route_provenance?: {
     ceo?: MissionRouteProvenanceStage | null;
     pod_manager?: MissionRouteProvenanceStage | null;

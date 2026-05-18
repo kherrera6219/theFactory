@@ -302,6 +302,93 @@ def test_generate_logic_clusters_uses_llm_result(monkeypatch) -> None:
     assert result["clusters"][0]["specialist_agent_id"] == "AGENT-14-PYTHON"
 
 
+def test_pod_group_standard_fallback_deduplicates_logicnodes() -> None:
+    result = llm_delegation._fallback_pod_group_standard(
+        pod_name="podA",
+        pod_manager_agent_id="AGENT-12-PODA-MGR",
+        mission_id="mission-6",
+        logicnodes=[
+            {
+                "node_id": "node-1",
+                "node": {
+                    "domain": "parsing",
+                    "concept": "csv_reader",
+                    "intent": "Read CSV rows",
+                    "language": "python",
+                    "confidence": 0.91,
+                },
+            },
+            {
+                "node_id": "node-2",
+                "node": {
+                    "domain": "parsing",
+                    "concept": "csv_reader",
+                    "intent": "Read CSV rows from JavaScript",
+                    "language": "javascript",
+                },
+            },
+        ],
+        mission_contract={},
+        recommendation={"provider": "openai", "model": "gpt-5.5"},
+    )
+
+    assert result["schema_version"] == "pod_group_standard.v1"
+    assert result["source"] == "fallback"
+    assert result["eliminated_duplicates"] == 1
+    assert len(result["canonical_logicnodes"]) == 1
+    assert result["canonical_logicnodes"][0]["source_node_ids"] == ["node-1", "node-2"]
+    assert result["canonical_logicnodes"][0]["languages"] == ["python", "javascript"]
+
+
+def test_generate_pod_group_standard_uses_llm_result(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_agent_recommendation",
+        lambda _agent_id: {"provider": "openai", "model": "gpt-5.5"},
+    )
+
+    async def _call_with_recommendation(*, recommendation, prompt, call_context):
+        assert recommendation["model"] == "gpt-5.5"
+        assert "pod group standard consolidation" in call_context
+        assert "mission-7" in prompt
+        return (
+            {
+                "canonical_logicnodes": [
+                    {
+                        "domain": "parsing",
+                        "concept": "csv_reader",
+                        "intent": "Read CSV rows",
+                        "source_node_ids": ["node-1", "node-2"],
+                        "languages": ["python", "javascript"],
+                        "confidence": 0.88,
+                    }
+                ],
+                "eliminated_duplicates": 1,
+                "summary": "Canonical parser standard.",
+            },
+            "openai",
+            "gpt-5.5",
+            "primary",
+        )
+
+    monkeypatch.setattr(llm_delegation, "_call_with_recommendation", _call_with_recommendation)
+    result = asyncio.run(
+        llm_delegation.generate_pod_group_standard(
+            pod_name="podA",
+            pod_manager_agent_id="AGENT-12-PODA-MGR",
+            mission_id="mission-7",
+            logicnodes=[{"node_id": "node-1", "node": {"domain": "parsing"}}],
+            mission_contract={"contract_summary": "Build CSV reader"},
+        )
+    )
+
+    assert result["source"] == "llm"
+    assert result["llm_route"] == "primary"
+    assert result["canonical_logicnodes"][0]["standard_node_id"] == (
+        "standard-node-01-parsing-csv-reader"
+    )
+
+
 def test_fallback_delegation_uses_language_mapping() -> None:
     recommendation = {"provider": "anthropic", "model": "claude-sonnet"}
     fallback = llm_delegation._fallback_delegation(

@@ -1,7 +1,7 @@
 # Implementation Status
 
 Document version: 2026.05.16
-Last updated: 2026-05-16
+Last updated: 2026-05-18
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -26,9 +26,10 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 - CEO delegation now produces a durable `mission_contract` after routing. The contract is stored in mission metadata, audit logged, exposed in chain trace, and uses PM feature-contract context when available.
 - CEO delegation now decomposes the mission contract into `logic_clusters` with domain, priority, pod-manager, specialist, requirement references, and rationale. Cluster metadata is audit logged, emitted as a chain event, exposed in chain trace, and passed into pod-manager delegation context.
 - Pod workers now consume CEO logic-cluster domain focus during extraction and boost matching concept confidence for the assigned pod.
+- Pod managers now produce `pod_group_standards` during the Mission Flow v2 GATING phase. Standards consolidate specialist LogicNodes into canonical pod-level nodes, record duplicate elimination counts, emit `MISSION_POD_GROUP_STANDARD_PRODUCED`, and are exposed through chain trace and Mission Control.
 - Specialist planning now attempts narrow contract-driven generated-output creation for non-`ANALYZE_ONLY` missions. Successful LLM output is stored as `metadata.generated_output`; fallback output is marked as fallback and is not packaged as a successful generated-code artifact.
 - Build artifact packaging now prefers valid `generated_output` and writes a `generated_code` artifact; otherwise it preserves the existing source-bundle artifact path. API Gateway exposes `GET /v1/missions/{mission_id}/artifact?artifact_type=generated_code` for generated artifact download.
-- Mission Detail now displays PM feature contracts, mission charters, CEO mission contracts, logic clusters, generated output metadata, generated code preview text when available, and a generated-code download action.
+- Mission Detail now displays PM feature contracts, mission charters, CEO mission contracts, logic clusters, pod group standards, generated output metadata, generated code preview text when available, and a generated-code download action.
 - `services/orchestrator/orchestrator/runtime.py` executes mission flow via the `LifecycleEngine` protocol (Phase 5):
   1. `MissionFlowV2Engine` when `MISSION_FLOW_V2_ENABLED=true`
   2. `LangGraphEngine` when v2 is disabled and `LANGGRAPH_ENABLED=true`
@@ -157,6 +158,10 @@ As of 2026-04-15:
   - `python -m pytest -q tests/services/test_api_gateway_helpers_unit.py tests/services/test_storage_unit.py tests/services/test_orchestrator_endpoints_extra.py tests/services/test_runtime_unit.py tests/services/test_lifecycle_interface_unit.py tests/services/test_mission_flow_v2.py tests/services/test_orchestrator_main_helpers_unit.py tests/services/test_language_extractor_golden.py`
   - `npm --prefix apps/mission-control run lint`
   - `npm --prefix apps/mission-control run test`
+- Phase 6 focused validation is green:
+  - `python -m pytest tests\services\test_llm_delegation_unit.py tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py -q`
+  - `python -m ruff check services\orchestrator\orchestrator\llm_delegation.py services\orchestrator\orchestrator\mission_flow_v2.py services\orchestrator\orchestrator\routes\internal.py tests\services\test_llm_delegation_unit.py tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py`
+  - `npm --prefix apps\mission-control run lint`
 - Strict full-dedicated live qualification is green:
   - `python scripts/mission_artifact_qualification.py --profile-label full-dedicated-local-2026-04-15 --output-file docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json --history-file docs/evidence/mission_artifact_qualification_history.jsonl`
   - `python scripts/dedicated_agent_canary_rollout.py --profile-label full-dedicated-local-2026-04-15 --output-file docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`

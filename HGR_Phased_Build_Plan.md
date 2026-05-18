@@ -29,15 +29,25 @@ implemented:
   logic clusters, generated output metadata, generated code preview text when
   present, and a generated-code download action.
 
+As of the May 18 Phase 6 pass, pod managers now also produce pod group
+standards during the v2 GATING phase:
+
+- pod group standard generation exists with LLM routing and deterministic
+  fallback deduplication;
+- Mission Flow v2 stores `metadata["pod_group_standards"]` and emits
+  `MISSION_POD_GROUP_STANDARD_PRODUCED`;
+- chain trace exposes pod standards;
+- Mission Detail displays pod standards, canonical LogicNode counts, duplicate
+  removal counts, and canonical node summaries.
+
 The core remaining validated gap is now narrower:
 
 - theFactory has real mission orchestration, eventing, extraction, RIR storage,
   Mission Control visibility, durable PM/CEO contracts, first generated-output
   artifact support, source-bundle artifact packaging, and CEO logic clusters.
-- theFactory does not yet have pod-group standards, real JavaScript/Java AST
-  extraction, full FETCH/FUSION execution, AIM, dependency absorption, runtime
-  QC, equivalence validation, compliance/security enforcement, or cost
-  accounting.
+- theFactory does not yet have real JavaScript/Java AST extraction, full
+  FETCH/FUSION execution, AIM, dependency absorption, runtime QC, equivalence
+  validation, compliance/security enforcement, or cost accounting.
 - Current docs split between accurate implementation-status docs and
   forward-looking product docs that describe future capabilities in present tense.
 
@@ -381,6 +391,17 @@ group standards.
 - Store `pod_group_standards`.
 - Expose standards through chain trace and Mission Control.
 
+### Current status - implemented May 18, 2026
+
+- `generate_pod_group_standard()` exists in `llm_delegation.py` with LLM and
+  deterministic fallback behavior.
+- Mission Flow v2 produces pod group standards after the mission enters
+  `GATING`, stores them under `metadata["pod_group_standards"]`, emits
+  `MISSION_POD_GROUP_STANDARD_PRODUCED`, and records audit/artifact evidence.
+- Chain trace exposes `pod_group_standards`.
+- Mission Detail displays pod group standards and their canonical LogicNodes.
+- Focused backend tests, ruff checks, and Mission Control lint passed.
+
 ---
 
 ## Phase 7 - JavaScript and Java AST Extractors
@@ -593,7 +614,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 3 | First Generated Output Artifact | 1 | 5-7 days | Implemented, pending live LLM demo | Generated code artifact path |
 | 4 | PM Feature Contract and Mission Charter | 2 | 3-5 days | Implemented | Structured PM intake in metadata/API/UI |
 | 5 | CEO Logic Cluster Decomposition | 2 | 3-4 days | Implemented | Pod/domain work clusters |
-| 6 | Pod Group Standards | 2 | 4-5 days | Next | Cross-language pod consolidation |
+| 6 | Pod Group Standards | 2 | 4-5 days | Implemented | Cross-language pod consolidation |
 | 7 | JavaScript and Java AST Extractors | 2 | 2-4 days | Planned | Real JS/Java extraction |
 | 8 | FETCH / Knowledge Context | 3 | 7-10 days | Planned | Retrieved technical context |
 | 9 | FUSION / Master Logic Stream | 3 | 5-7 days | Planned | Cross-pod synthesis |
@@ -607,7 +628,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 17 | DR Evidence and Release Hardening | 5 | 3-5 days | Planned | Recovery/release evidence |
 | 18 | Reproducible Demo Missions and Launch Docs | 5 | 5-7 days | Planned | Launch-ready demo suite |
 
-**Remaining estimate after Phase 5:** 61-92 days, excluding the live provider-key
+**Remaining estimate after Phase 6:** 57-87 days, excluding the live provider-key
 demo and stale qualification-evidence refresh.
 
 ---
@@ -618,8 +639,8 @@ Minimum path to a real working demo:
 
 1. Complete a live provider-key BUILD_NEW demo through the implemented
    Phase 1-5 loop.
-2. Phase 6 - consolidate pod standards so clusters produce reusable pod-level
-   work products.
+2. Phase 7 - activate JavaScript and Java AST extraction for higher-quality
+   import/modernize missions.
 3. Phase 10 - present delivered output cleanly with PM verification.
 4. Phase 17 - refresh stale qualification evidence before release claims.
 

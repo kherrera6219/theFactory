@@ -274,6 +274,7 @@ export default function MissionDetailPage() {
   const missionCharter = chainTrace?.mission_charter ?? null;
   const missionContract = chainTrace?.mission_contract ?? null;
   const logicClusters = chainTrace?.logic_clusters?.clusters ?? [];
+  const podGroupStandards = Object.entries(chainTrace?.pod_group_standards ?? {});
 
   async function cancelMission() {
     if (!mission) {
@@ -738,6 +739,53 @@ export default function MissionDetailPage() {
                   </div>
                 </dl>
                 <p>{cluster.rationale}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
+      <Panel title="Pod Group Standards">
+        {podGroupStandards.length === 0 && (
+          <p className="muted">No pod group standards recorded yet.</p>
+        )}
+        {podGroupStandards.length > 0 && (
+          <ul className="card-list">
+            {podGroupStandards.map(([pod, standard]) => (
+              <li key={pod} className="info-card">
+                <h3>{pod}</h3>
+                <dl>
+                  <div>
+                    <dt>Pod manager</dt>
+                    <dd>{standard.pod_manager_agent_id}</dd>
+                  </div>
+                  <div>
+                    <dt>Canonical LogicNodes</dt>
+                    <dd>{standard.canonical_logicnodes.length}</dd>
+                  </div>
+                  <div>
+                    <dt>Duplicates removed</dt>
+                    <dd>{standard.eliminated_duplicates}</dd>
+                  </div>
+                  <div>
+                    <dt>Source</dt>
+                    <dd>{standard.source}</dd>
+                  </div>
+                </dl>
+                <p>{standard.summary}</p>
+                {standard.canonical_logicnodes.length > 0 && (
+                  <ul className="summary-list">
+                    {standard.canonical_logicnodes.slice(0, 8).map((node) => (
+                      <li key={node.standard_node_id}>
+                        <strong>{node.concept}</strong>
+                        <span>{node.domain}</span>
+                        <span className="muted">
+                          {node.languages.length > 0 ? node.languages.join(", ") : "language n/a"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>

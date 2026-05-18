@@ -654,10 +654,19 @@ async def _prepare_gating(...):
 
 ## Validation
 
-- [ ] Chain trace includes `MISSION_POD_GROUP_STANDARD_PRODUCED` event after GATING
-- [ ] `metadata.pod_group_standards.podA.canonical_logicnodes` non-empty
-- [ ] `eliminated_duplicates` is >= 0 (0 is fine for simple missions)
-- [ ] `make test` passes
+- [x] Chain trace includes `MISSION_POD_GROUP_STANDARD_PRODUCED` event after GATING
+- [x] `metadata.pod_group_standards.podA.canonical_logicnodes` non-empty
+- [x] `eliminated_duplicates` is >= 0 (0 is fine for simple missions)
+- [x] Focused Python tests, ruff, and Mission Control lint pass
+
+## Current status - implemented May 18, 2026
+
+- `generate_pod_group_standard()` is implemented with provider routing,
+  normalization, and deterministic fallback deduplication.
+- Mission Flow v2 produces standards after the mission reaches `GATING`, stores
+  them under `metadata["pod_group_standards"]`, emits
+  `MISSION_POD_GROUP_STANDARD_PRODUCED`, and records audit evidence.
+- Chain trace and Mission Detail expose the standards.
 
 ---
 

@@ -50,6 +50,7 @@ from .llm_delegation import (
     generate_logic_clusters,
     generate_mission_contract,
     generate_pm_feature_contract,
+    generate_pod_group_standard,
     generate_pod_manager_delegation,
     generate_specialist_plan,
 )
@@ -149,6 +150,22 @@ def _validate_agent_id(candidate: Any, *, fallback: str) -> str:
     if normalized in VALID_AGENT_IDS:
         return normalized
     return fallback
+
+
+def _pod_key_for_manager(agent_id: str) -> str:
+    normalized = str(agent_id or "").strip().upper()
+    agent = next(
+        (candidate for candidate in AGENT_REGISTRY if candidate.agent_id == normalized),
+        None,
+    )
+    pod_name = str(getattr(agent, "pod", "") or "").strip()
+    pod_map = {
+        "Pod A": "podA",
+        "Pod B": "podB",
+        "Pod C": "podC",
+        "Pod D": "podD",
+    }
+    return pod_map.get(pod_name, pod_name.replace(" ", "") or "pod")
 
 
 def _mission_context(mission: Any, metadata: dict[str, Any]) -> dict[str, Any]:
@@ -1207,6 +1224,110 @@ async def _persist_runtime_phase_artifact(
     return updated or mission
 
 
+async def _produce_pod_group_standard(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission: Any,
+) -> Any:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    pod_manager_agent_id = _validate_agent_id(
+        metadata.get("assigned_pod_manager_agent_id"),
+        fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+    )
+    pod_name = _pod_key_for_manager(pod_manager_agent_id)
+    existing_standards = metadata.get("pod_group_standards")
+    if isinstance(existing_standards, dict) and isinstance(existing_standards.get(pod_name), dict):
+        return mission
+
+    mission_contract = metadata.get("mission_contract")
+    if not isinstance(mission_contract, dict):
+        mission_contract = {}
+    raw_logicnodes = await asyncio.to_thread(
+        storage.list_logicnodes,
+        settings,
+        mission.mission_id,
+        500,
+    )
+    logicnodes = raw_logicnodes if isinstance(raw_logicnodes, list) else []
+    standard = await generate_pod_group_standard(
+        pod_name=pod_name,
+        pod_manager_agent_id=pod_manager_agent_id,
+        mission_id=mission.mission_id,
+        logicnodes=[record for record in logicnodes if isinstance(record, dict)],
+        mission_contract=mission_contract,
+    )
+    standards = dict(existing_standards) if isinstance(existing_standards, dict) else {}
+    standards[pod_name] = standard
+    metadata["pod_group_standards"] = standards
+    metadata["selected_agent_id"] = pod_manager_agent_id
+    metadata["agent_id"] = pod_manager_agent_id
+
+    canonical_nodes = standard.get("canonical_logicnodes")
+    canonical_count = len(canonical_nodes) if isinstance(canonical_nodes, list) else 0
+    if not _chain_event_exists(metadata, "MISSION_POD_GROUP_STANDARD_PRODUCED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_POD_GROUP_STANDARD_PRODUCED",
+            agent_id=pod_manager_agent_id,
+            details={
+                "pod": pod_name,
+                "canonical_logicnode_count": canonical_count,
+                "eliminated_duplicates": standard.get("eliminated_duplicates", 0),
+                "source": standard.get("source"),
+                "llm_route": standard.get("llm_route"),
+                "model_provider": standard.get("model_provider"),
+                "model": standard.get("model"),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="pod_group_standard",
+        event_type="MISSION_POD_GROUP_STANDARD_PRODUCED",
+        agent_id=pod_manager_agent_id,
+        details={
+            "pod": pod_name,
+            "canonical_logicnode_count": canonical_count,
+            "eliminated_duplicates": standard.get("eliminated_duplicates", 0),
+        },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id=pod_manager_agent_id,
+        service_name="orchestrator",
+        event_type="MISSION_POD_GROUP_STANDARD_PRODUCED",
+        object_type="pod_group_standard",
+        object_id=pod_name,
+        tool_name="llm_delegation",
+        payload_summary={
+            "pod": pod_name,
+            "canonical_logicnode_count": canonical_count,
+            "eliminated_duplicates": standard.get("eliminated_duplicates", 0),
+            "source": standard.get("source"),
+            "model_provider": standard.get("model_provider"),
+            "model": standard.get("model"),
+        },
+        content_hash_source=standard,
+    )
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission.mission_id,
+            metadata=metadata,
+            emit_event_type="MISSION_POD_GROUP_STANDARD_PRODUCED",
+            event_state=MissionState.gating,
+        )
+        or mission
+    )
+
+
 async def _ensure_verified_build_artifact(
     *,
     app: Any,
@@ -1595,3 +1716,12 @@ async def advance_mission_lifecycle_v2(
                     mission_id,
                     exc,
                 )
+
+        if new_state == MissionState.gating:
+            record = await _produce_pod_group_standard(
+                app=app,
+                settings=settings,
+                validator=validator,
+                emit_state_event_fn=emit_state_event_fn,
+                mission=record,
+            )
