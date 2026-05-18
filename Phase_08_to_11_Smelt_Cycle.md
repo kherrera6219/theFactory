@@ -766,6 +766,7 @@ async def generate_pm_delivery_summary(
     *,
     mission_context: dict[str, Any],
     generated_output: dict[str, Any],
+    build_artifacts: list[dict[str, Any]],
     feature_contract: dict[str, Any],
     mission_contract: dict[str, Any],
 ) -> dict[str, Any]:
@@ -774,9 +775,15 @@ async def generate_pm_delivery_summary(
     provider = recommendation["provider"]
     model = recommendation["model"]
 
-    code_preview = str(generated_output.get("generated_code") or "")[:600]
-    filename = generated_output.get("filename") or "output.txt"
-    language = generated_output.get("language") or "unknown"
+    primary_artifact = next(
+        (artifact for artifact in build_artifacts if artifact.get("artifact_type") == "generated_code"),
+        build_artifacts[0] if build_artifacts else {},
+    )
+    manifest = primary_artifact.get("manifest") if isinstance(primary_artifact, dict) else {}
+    artifact_text = primary_artifact.get("artifact_text") if isinstance(primary_artifact, dict) else ""
+    code_preview = str(generated_output.get("generated_code") or artifact_text or "")[:600]
+    filename = generated_output.get("filename") or manifest.get("filename") or "mission artifact"
+    language = generated_output.get("language") or manifest.get("language") or "unknown"
     criteria = feature_contract.get("acceptance_criteria") or \
                 mission_contract.get("acceptance_criteria") or []
     contract_summary = mission_contract.get("contract_summary") or ""
@@ -812,8 +819,9 @@ async def generate_pm_delivery_summary(
             "delivery_summary": f"Mission complete. {filename} generated successfully.",
             "criteria_met": [],
             "criteria_unmet": criteria,
-            "usage_notes": f"Run the generated {language} file to verify output.",
+            "usage_notes": "Open the delivered artifact and verify it against the acceptance criteria.",
             "recommendations": [],
+            "primary_artifact_type": primary_artifact.get("artifact_type"),
             "source": "fallback",
         }
 
@@ -828,37 +836,43 @@ async def generate_pm_delivery_summary(
         "criteria_unmet": _string_list(parsed.get("criteria_unmet"), limit=6),
         "usage_notes": _clean_text(parsed.get("usage_notes", ""), max_length=300),
         "recommendations": _string_list(parsed.get("recommendations"), limit=4),
+        "primary_artifact_type": primary_artifact.get("artifact_type"),
         "source": "llm",
         "model_provider": resolved_provider,
         "model": resolved_model,
     }
 ```
 
-## Change 2 — Call delivery summary at VERIFIED → COMPLETE transition
+## Change 2 — Call delivery summary after the completion gate
 
-In `mission_flow_v2.py`, in `_prepare_completion()` or the VERIFIED handler,
-before transitioning to COMPLETE:
+In `mission_flow_v2.py`, generate delivery only after `completion_check_fn()`
+returns ready and after `_ensure_verified_build_artifact()` has packaged the
+current artifact. If the mission is blocked at VERIFIED, keep the existing
+`MISSION_COMPLETION_BLOCKED` behavior and do not write `delivery_summary`.
 
 ```python
-if mission_has_generated_output(metadata):
-    delivery_summary = await generate_pm_delivery_summary(
-        mission_context=_mission_context(mission, metadata),
-        generated_output=metadata["generated_output"],
-        feature_contract=metadata.get("feature_contract") or {},
-        mission_contract=metadata.get("mission_contract") or {},
-    )
-    metadata["delivery_summary"] = delivery_summary
-    append_chain_event(
-        metadata,
-        event_type="MISSION_DELIVERED",
-        agent_id="AGENT-01-PM",
-        details={
-            "delivery_title": delivery_summary["delivery_title"],
-            "filename": metadata["generated_output"].get("filename"),
-            "criteria_met_count": len(delivery_summary["criteria_met"]),
-            "source": delivery_summary.get("source"),
-        },
-    )
+build_artifacts = await asyncio.to_thread(
+    storage.list_build_artifacts, settings, mission_id, 50
+)
+delivery_summary = await generate_pm_delivery_summary(
+    mission_context=_mission_context(mission, metadata),
+    generated_output=metadata.get("generated_output") or {},
+    build_artifacts=build_artifacts,
+    feature_contract=metadata.get("feature_contract") or {},
+    mission_contract=metadata.get("mission_contract") or {},
+)
+metadata["delivery_summary"] = delivery_summary
+append_chain_event(
+    metadata,
+    event_type="MISSION_DELIVERED",
+    agent_id="AGENT-01-PM",
+    details={
+        "delivery_title": delivery_summary["delivery_title"],
+        "artifact_type": delivery_summary.get("primary_artifact_type"),
+        "criteria_met_count": len(delivery_summary["criteria_met"]),
+        "source": delivery_summary.get("source"),
+    },
+)
 ```
 
 ## Change 3 — Mission Detail delivery banner
@@ -880,13 +894,14 @@ when `mission.state === "COMPLETE"`, render a prominent delivery banner at the t
       )}
     </div>
     <div className="delivery-banner-actions">
-      {chainTrace?.generated_output?.generated_code && (
+      {generatedCodeArtifact && (
         <a
-          href={`/api/gateway/v1/missions/${missionId}/artifact`}
-          download={chainTrace.generated_output.filename}
+          href={missionApiUrl(
+            `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
+          )}
           className="primary-button"
         >
-          Download {chainTrace.generated_output.filename}
+          Download Generated Code
         </a>
       )}
     </div>
@@ -911,10 +926,12 @@ Add CSS for `.delivery-banner`:
 
 - [ ] Chain trace shows `MISSION_DELIVERED` event at COMPLETE
 - [ ] `metadata.delivery_summary.delivery_title` is specific to the mission output
-- [ ] Mission Detail shows green delivery banner when state=COMPLETE
-- [ ] Download button downloads the generated file with correct name
-- [ ] Missions without generated output (ANALYZE_ONLY) do not show delivery banner
-- [ ] `make test` passes
+- [ ] Chain trace exposes `delivery_summary` at top level
+- [ ] Mission Detail shows delivery banner when state=COMPLETE and delivery summary exists
+- [ ] Generated-code download uses `/v1/missions/{mission_id}/artifact?artifact_type=generated_code`
+- [ ] Source-bundle-only and ANALYZE_ONLY missions get delivery text without generated-code-only wording
+- [ ] Missions blocked at VERIFIED do not show delivery summary or delivery banner
+- [ ] Targeted pytest, ruff, and Mission Control typecheck pass
 
 ---
 
