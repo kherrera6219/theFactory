@@ -7,6 +7,15 @@ Audience: Operators, developers, maintainers, and auditors
 
 This document is the canonical current-state snapshot for theFactory. Use it as the source of truth for shipped defaults, active runtime behavior, current qualification status, and known follow-up work. Date-stamped ADRs, roadmap phases, audits, and completion checklists remain useful historical records, but some of them no longer describe the current default runtime exactly.
 
+## Project Status
+
+As of 2026-05-18, Phases 1-7 are implemented and pushed to `main`.
+
+- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, and JavaScript/TypeScript/Java AST-backed extraction.
+- **Current active phase:** Phase 8 - FETCH / Knowledge Context. This is the next implementation priority and should add IS Agent execution, knowledge-context artifacts, deterministic curated-doc fallback, chain-trace visibility, and Mission Control display.
+- **Still planned:** Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, Phase 11 AIM, and Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
+- **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, remaining forward-looking docs cleanup, and the open GitHub Dependabot high vulnerability alert.
+
 ## Mission Control UI — Vault and Settings (2026-04-16)
 
 - **API Key Vault Slots table** in `/settings` now populates all 35 agent slots offline via a static roster fallback. The orchestrator does not need to be running to enter or save API keys.
@@ -144,14 +153,14 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Validation Snapshot
 
-As of 2026-04-15:
+As of 2026-05-18:
 
-- `python -m pytest -q` is green: **889 passed, 5 skipped** (excludes pre-existing broken import test and infra-dependent storage tests).
+- `python -m pytest -q` is green after the Phase 7 extractor work.
 - All new Phase 5–7 modules have unit test coverage (lifecycle engine protocol, heartbeat service, storage façade, extractor provenance fields, golden tests, AST vs regex comparison).
 - `apps/mission-control` TypeScript check is green (`tsc --noEmit`, 0 errors).
-- `apps/mission-control` unit tests are green (`npm test`, **53 tests**, 15 test files).
+- `apps/mission-control` unit tests are green (`npm test`, **55 tests**, 15 test files).
 - `apps/mission-control` Playwright: original 7 tests plus 13 new extended tests from Phase 1 E2E expansion.
-- Repository-wide `python -m ruff check services tests scripts` still has documented pre-existing variance in untouched files.
+- Repository-wide `python -m ruff check services tests scripts` is green.
 - Orchestrator `main.py` reduced from **2065 → 423 lines** via route decomposition (Phase 3) and domain module extraction (Phase 5).
 - Targeted post-audit-rollout verification is green:
   - `python -m ruff check services tests scripts`
@@ -166,11 +175,16 @@ As of 2026-04-15:
   - `python -m pip install javalang==0.13.0 esprima==4.0.1`
   - `python -m pytest tests\services\test_language_extractor_golden.py tests\services\test_language_extractor.py -q`
   - `python -m ruff check services\pod-worker tests\services\test_language_extractor_golden.py`
+- Full post-Phase-7 validation is green:
+  - `python -m ruff check services tests scripts`
+  - `python -m pytest -q`
+  - `npm --prefix apps\mission-control run lint`
+  - `npm --prefix apps\mission-control run test`
 - Strict full-dedicated live qualification is green:
   - `python scripts/mission_artifact_qualification.py --profile-label full-dedicated-local-2026-04-15 --output-file docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json --history-file docs/evidence/mission_artifact_qualification_history.jsonl`
   - `python scripts/dedicated_agent_canary_rollout.py --profile-label full-dedicated-local-2026-04-15 --output-file docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`
 
-The repository should therefore be treated as a production-ready baseline with defense-in-depth security hardening and improved maintainability.
+The repository should therefore be treated as a strong local development baseline with defense-in-depth security hardening and improved maintainability. It is not yet launch-complete because the live provider-key demo, stale qualification-evidence refresh, remaining forward-looking docs cleanup, and Dependabot high-vulnerability remediation are still open.
 
 ## Current Hardening Baseline
 
@@ -187,9 +201,12 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
-2. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.
-3. Automate strict full-dedicated smoke qualification in CI or scheduled qualification runs so topology regressions fail earlier.
-4. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including AI safety governance, shared-state durability, DR evidence, and final release qualification.
-5. `test_storage_unit.py` requires a live `postgres` host — excluded from the standard test run by `--ignore`; should be run in a Docker-compose integration environment.
-6. `test_agent_base_unit.py` has a pre-existing broken import; excluded pending upstream fix.
+1. Implement Phase 8 FETCH / Knowledge Context so missions attach relevant language/framework context before downstream extraction and generation.
+2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/generated-output loop.
+3. Refresh stale qualification evidence and resolve the open GitHub Dependabot high vulnerability before launch claims.
+4. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
+5. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.
+6. Automate strict full-dedicated smoke qualification in CI or scheduled qualification runs so topology regressions fail earlier.
+7. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including AI safety governance, shared-state durability, DR evidence, and final release qualification.
+8. `test_storage_unit.py` requires a live `postgres` host when run as an integration test; run it in a Docker-compose integration environment when validating storage against live Postgres.
+9. `test_agent_base_unit.py` has a pre-existing broken import; excluded pending upstream fix.
