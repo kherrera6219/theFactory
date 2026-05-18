@@ -210,8 +210,8 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Implement Phase 12 equivalence verification for generated/transformed outputs.
-2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY loop.
+1. Implement Phase 12 equivalence verification for generated/transformed outputs: durable `equivalence_report`, chain-trace/UI exposure, audit evidence, and COMPLETE gating when enforcement is enabled.
+2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY/AIM loop.
 3. Refresh stale qualification evidence before launch claims.
 4. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
 5. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.

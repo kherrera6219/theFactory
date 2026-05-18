@@ -533,16 +533,32 @@ produce an AIM artifact before modification or specialist codegen begins.
 
 ## Phase 12 - Equivalence Verification Harness
 **Duration:** 7-10 days  
-**Entry state:** audit checks are shallow shape checks and simple PASS reports.  
-**Exit state:** generated or transformed output is checked against contract and,
-where feasible, source behavior.
+**Entry state:** build artifacts have digest verification, PM delivery summaries
+check acceptance criteria text, audit-report endpoints exist, and the Phase 11
+AIM can describe source-bearing missions. There is no durable equivalence report
+or COMPLETE gate tied to behavioral evidence.
+**Exit state:** generated or transformed output is checked against PM/CEO
+contract criteria, build artifacts, and AIM/source inventory where available;
+the result is stored as durable audit evidence and can block COMPLETE when a
+configured required check fails.
 
 ### Scope
 
-- Add contract-level tests first.
-- Add sandboxed execution for Python behind a flag.
-- Add equivalence reports to audit evidence.
-- Block COMPLETE on configured verification failures.
+- Add `equivalence_report.v1` schema/normalizer for deterministic verification
+  results.
+- Generate contract-level checks from `feature_contract`, `mission_contract`,
+  `generated_output`, build artifacts, and `application_intelligence_map`.
+- Store `metadata["equivalence_report"]`, emit
+  `MISSION_EQUIVALENCE_VERIFIED` or `MISSION_EQUIVALENCE_BLOCKED`, expose the
+  report in chain trace, and render it in Mission Control audit evidence.
+- Wire the existing `VERIFIED -> COMPLETE` completion gate to require passing
+  equivalence for generated/transformed output when Phase 12 enforcement is
+  enabled.
+- Keep source-bundle-only and `ANALYZE_ONLY` missions non-blocking unless they
+  explicitly produce generated/transformed output.
+- Add Python sandbox execution only behind an explicit opt-in flag after the
+  deterministic report path is in place. Do not execute arbitrary submitted
+  source by default.
 
 ---
 
