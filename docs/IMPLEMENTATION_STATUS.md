@@ -210,12 +210,13 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Implement Phase 13 security and compliance agents for mission-level safety/compliance verdicts.
-2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY/AIM/equivalence loop.
-3. Refresh stale qualification evidence before launch claims.
-4. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
-5. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.
-6. Automate strict full-dedicated smoke qualification in CI or scheduled qualification runs so topology regressions fail earlier.
-7. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including AI safety governance, shared-state durability, DR evidence, and final release qualification.
-8. `test_storage_unit.py` requires a live `postgres` host when run as an integration test; run it in a Docker-compose integration environment when validating storage against live Postgres.
+1. Implement Phase 13 security and compliance agents for mission-level safety/compliance verdicts, using Phase 12 equivalence/build evidence as inputs.
+2. Implement Phase 14 dependency inventory/classification before attempting dependency replacement generation.
+3. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY/AIM/equivalence loop.
+4. Refresh stale qualification evidence before launch claims.
+5. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
+6. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.
+7. Automate strict full-dedicated smoke qualification in CI or scheduled qualification runs so topology regressions fail earlier.
+8. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including AI safety governance, shared-state durability, DR evidence, and final release qualification.
+9. `test_storage_unit.py` requires a live `postgres` host when run as an integration test; run it in a Docker-compose integration environment when validating storage against live Postgres.
 9. `test_agent_base_unit.py` has a pre-existing broken import; excluded pending upstream fix.

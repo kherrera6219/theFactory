@@ -564,32 +564,67 @@ configured required check fails.
 
 ## Phase 13 - Security and Compliance Agents
 **Duration:** 5-7 days  
-**Entry state:** security/compliance agents exist mostly as registry/persona
-entries.  
-**Exit state:** generated output and extracted logicnodes receive real security
-and compliance verdicts.
+**Entry state:** AGENT-05-SECURITY and AGENT-08-COMPLIANCE exist in the
+registry/persona/model matrix, repo-level security and compliance evidence docs
+exist, Mission Flow has build artifacts plus Phase 12 equivalence reports, and
+Mission Control can render audit evidence. There is no mission-local security or
+compliance verdict yet.
+**Exit state:** generated output and source-bearing mission artifacts receive
+deterministic security/compliance verdicts that are stored in metadata, exposed
+through chain trace/audit evidence, rendered in Mission Control, and optionally
+block COMPLETE under policy.
 
 ### Scope
 
-- Add security scan service.
-- Add compliance/license provenance checks.
-- Display verdicts in audit panel.
-- Define block/warn/pass policy.
+- Add `security_compliance_report.v1` normalizer with separate security and
+  compliance sections.
+- Reuse existing inputs first: `generated_output`, build artifacts,
+  `application_intelligence_map`, `equivalence_report`, mission contracts, data
+  classification, and source-bundle manifests.
+- Implement deterministic checks before external scanners: secret-pattern
+  detection, dangerous API/import hints, insecure generated-code patterns,
+  missing artifact/equivalence evidence, data-classification flags, and
+  license/provenance unknowns.
+- Emit `MISSION_SECURITY_COMPLIANCE_PASSED`,
+  `MISSION_SECURITY_COMPLIANCE_WARNED`, or
+  `MISSION_SECURITY_COMPLIANCE_BLOCKED`; store
+  `metadata["security_compliance_report"]`.
+- Expose the report in chain trace and Mission Control audit evidence.
+- Add COMPLETE gating only when `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED`
+  is true or the mission depth/data classification requires it.
+- Keep external SAST/SCA tooling optional in this phase; wire it as evidence
+  input when available, not as a hard runtime dependency.
 
 ---
 
 ## Phase 14 - Dependency Absorption Engine
 **Duration:** 10-14 days  
-**Entry state:** DEPABS is doctrine and registry wiring, not an active engine.  
-**Exit state:** REDUCE_DEPENDENCIES missions classify dependencies and generate
-first-party replacements for narrow, absorbable cases.
+**Entry state:** AGENT-39-DEPABS exists in registry/personas, the dependency
+absorption doctrine defines safety blocks and gates, AIM exposes detected
+dependencies, and Phase 12 equivalence reports exist. There is no mission-local
+dependency inventory, classifier, survival justification, or absorption report.
+**Exit state:** `REDUCE_DEPENDENCIES` and source-bearing modernization missions
+produce dependency inventory, classification, and safety-block evidence; only
+low-risk pure-function candidates can proceed to first-party replacement
+planning, and replacement execution remains gated by equivalence and
+security/compliance verdicts.
 
 ### Scope
 
-- Add dependency inventory schema.
-- Add dependency classifier.
-- Add first-party replacement generation for small pure-function cases.
-- Package modified output and absorption report.
+- Add `dependency_inventory.v1`, `dependency_classification_report.v1`, and
+  `dependency_absorption_report.v1` runtime shapes.
+- Build inventory from AIM dependency hints, source-bundle manifests, lockfiles
+  when present, package metadata, and generated-output dependency lists.
+- Implement deterministic classifier categories from the doctrine: absorb,
+  reimplement, replace, vendor, wrap, pin, keep, block.
+- Enforce the initial safety block list before any replacement generation.
+- Require Phase 12 `equivalence_report` and Phase 13
+  `security_compliance_report` before any dependency is marked absorbed.
+- Limit first implementation to recommendations and replacement plans for small,
+  pure, local utility dependencies. Do not remove runtime/platform/security
+  dependencies automatically.
+- Expose reports in chain trace and Mission Control; package modified output
+  only after the report is non-blocking and equivalence/security gates pass.
 
 ---
 
@@ -678,7 +713,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 11 | Application Intelligence Map | 3 | 5-7 days | Implemented | AIM artifact, UI, and risk flags |
 | 12 | Equivalence Verification Harness | 4 | 7-10 days | Implemented | Real verification evidence |
 | 13 | Security and Compliance Agents | 4 | 5-7 days | Planned | Safety/compliance verdicts |
-| 14 | Dependency Absorption Engine | 4 | 10-14 days | Planned | Dependency reduction reports/output |
+| 14 | Dependency Absorption Engine | 4 | 10-14 days | Planned | Dependency inventory/classification first |
 | 15 | Token and Cost Ledger | 4 | 2-3 days | Planned | Per-mission LLM cost |
 | 16 | Knowledge Lake Embeddings and Auto-Refresh | 5 | 7-10 days | Planned | Operational knowledge lake |
 | 17 | DR Evidence and Release Hardening | 5 | 3-5 days | Planned | Recovery/release evidence |
