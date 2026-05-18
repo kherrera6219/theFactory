@@ -40,14 +40,25 @@ standards during the v2 GATING phase:
 - Mission Detail displays pod standards, canonical LogicNode counts, duplicate
   removal counts, and canonical node summaries.
 
+As of the May 18 Phase 7 pass, JavaScript/TypeScript and Java AST extraction is
+active behind feature flags:
+
+- `javalang` and `esprima` are bundled in the pod-worker requirements;
+- Java AST extraction captures packages, imports, classes/interfaces/enums,
+  constructors, methods, parameters, modifiers, annotations, and signatures;
+- JavaScript/TypeScript AST extraction captures imports, classes, class methods,
+  function declarations, and arrow/function-expression assignments;
+- pod-worker AST feature flags route JS/TS and Java to AST-backed structural
+  enrichment while preserving regex concept detection and regex fallback.
+
 The core remaining validated gap is now narrower:
 
 - theFactory has real mission orchestration, eventing, extraction, RIR storage,
   Mission Control visibility, durable PM/CEO contracts, first generated-output
   artifact support, source-bundle artifact packaging, and CEO logic clusters.
-- theFactory does not yet have real JavaScript/Java AST extraction, full
-  FETCH/FUSION execution, AIM, dependency absorption, runtime QC, equivalence
-  validation, compliance/security enforcement, or cost accounting.
+- theFactory does not yet have full FETCH/FUSION execution, AIM, dependency
+  absorption, runtime QC, equivalence validation, compliance/security
+  enforcement, or cost accounting.
 - Current docs split between accurate implementation-status docs and
   forward-looking product docs that describe future capabilities in present tense.
 
@@ -417,6 +428,17 @@ nodes with tests.
 - Add fixture-based extractor tests.
 - Update implementation status from stub to active.
 
+### Current status - implemented May 18, 2026
+
+- `extract_java_ast()` is implemented with `javalang`.
+- `extract_js_ast()` is implemented with `esprima` and conservative TypeScript
+  syntax stripping.
+- `JavaAstExtractor` and `JavaScriptAstExtractor` wrap the existing regex
+  extractors, replacing structural fields only after successful AST parsing.
+- `JAVA_AST_EXTRACTOR_ENABLED` and `JS_AST_EXTRACTOR_ENABLED` are wired into
+  pod-worker runtime selection and compose defaults.
+- Golden tests cover Java, JavaScript, and TypeScript AST structural output.
+
 ---
 
 # Tier 3 - Full Smelt-Cycle Execution
@@ -615,7 +637,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 4 | PM Feature Contract and Mission Charter | 2 | 3-5 days | Implemented | Structured PM intake in metadata/API/UI |
 | 5 | CEO Logic Cluster Decomposition | 2 | 3-4 days | Implemented | Pod/domain work clusters |
 | 6 | Pod Group Standards | 2 | 4-5 days | Implemented | Cross-language pod consolidation |
-| 7 | JavaScript and Java AST Extractors | 2 | 2-4 days | Planned | Real JS/Java extraction |
+| 7 | JavaScript and Java AST Extractors | 2 | 2-4 days | Implemented | Real JS/Java extraction |
 | 8 | FETCH / Knowledge Context | 3 | 7-10 days | Planned | Retrieved technical context |
 | 9 | FUSION / Master Logic Stream | 3 | 5-7 days | Planned | Cross-pod synthesis |
 | 10 | DELIVERY / PM Verification | 3 | 4-5 days | Planned | Delivery summary and criteria check |
@@ -628,7 +650,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 17 | DR Evidence and Release Hardening | 5 | 3-5 days | Planned | Recovery/release evidence |
 | 18 | Reproducible Demo Missions and Launch Docs | 5 | 5-7 days | Planned | Launch-ready demo suite |
 
-**Remaining estimate after Phase 6:** 57-87 days, excluding the live provider-key
+**Remaining estimate after Phase 7:** 55-83 days, excluding the live provider-key
 demo and stale qualification-evidence refresh.
 
 ---
@@ -639,8 +661,7 @@ Minimum path to a real working demo:
 
 1. Complete a live provider-key BUILD_NEW demo through the implemented
    Phase 1-5 loop.
-2. Phase 7 - activate JavaScript and Java AST extraction for higher-quality
-   import/modernize missions.
+2. Phase 8 - attach real FETCH/knowledge context to downstream prompts.
 3. Phase 10 - present delivered output cleanly with PM verification.
 4. Phase 17 - refresh stale qualification evidence before release claims.
 

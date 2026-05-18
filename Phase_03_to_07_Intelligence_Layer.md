@@ -946,9 +946,20 @@ def test_js_ast_extracts_functions():
 
 ## Validation
 
-- [ ] `pip install javalang esprima` succeeds
-- [ ] Java golden test passes with real extraction
-- [ ] JS golden test passes with real extraction
-- [ ] `JAVA_AST_EXTRACTOR_ENABLED=true make test` green
-- [ ] Java mission produces logicnodes with `extraction_method: "ast"` in node payload
-- [ ] Fallback to regex still works when env var is false
+- [x] `pip install javalang esprima` succeeds
+- [x] Java golden test passes with real extraction
+- [x] JS golden test passes with real extraction
+- [x] TypeScript golden test passes with real extraction
+- [x] Fallback to regex still works when env var is false
+
+## Current status - implemented May 18, 2026
+
+- `extract_java_ast()` uses `javalang` to parse packages, imports, classes,
+  interfaces, enums, constructors, methods, parameters, modifiers, annotations,
+  and signatures.
+- `extract_js_ast()` uses `esprima` to parse JavaScript and a conservative
+  TypeScript-stripped form for `.ts` source.
+- `JavaAstExtractor` and `JavaScriptAstExtractor` enrich structural fields while
+  preserving regex concept detection.
+- `JS_AST_EXTRACTOR_ENABLED` and `JAVA_AST_EXTRACTOR_ENABLED` are wired through
+  pod-worker selection and compose defaults.

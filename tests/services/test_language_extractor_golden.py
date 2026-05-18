@@ -12,6 +12,7 @@ Rules:
 """
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -22,7 +23,9 @@ FIXTURES = ROOT / "tests" / "fixtures" / "extractors"
 sys.path.insert(0, str(ROOT / "services" / "pod-worker"))
 
 from pod_worker.language_extractor import (  # noqa: E402
+    JavaAstExtractor,
     JavaExtractor,
+    JavaScriptAstExtractor,
     JavaScriptExtractor,
     PythonAstExtractor,
     PythonExtractor,
@@ -159,6 +162,43 @@ class TestJavaScriptGolden:
             assert concept.extraction_method == "regex"
 
 
+@pytest.mark.skipif(
+    not importlib.util.find_spec("esprima"),
+    reason="esprima not installed",
+)
+class TestJavaScriptAstGolden:
+    def setup_method(self) -> None:
+        self.result = JavaScriptAstExtractor().extract(_load("javascript_sample.js"))
+
+    def test_no_error(self):
+        assert self.result.error is None
+
+    def test_class_methods_detected(self):
+        names = {f.name for f in self.result.functions}
+        assert {"run", "process", "submitMission", "validateMission"}.issubset(names)
+
+    def test_class_method_list(self):
+        mission_runner = next(c for c in self.result.classes if c.name == "MissionRunner")
+        assert mission_runner.parents == ()
+
+
+@pytest.mark.skipif(
+    not importlib.util.find_spec("esprima"),
+    reason="esprima not installed",
+)
+class TestTypeScriptAstGolden:
+    def setup_method(self) -> None:
+        self.result = JavaScriptAstExtractor().extract(_load("typescript_sample.ts"))
+
+    def test_no_error(self):
+        assert self.result.error is None
+
+    def test_typescript_structures_detected(self):
+        names = {f.name for f in self.result.functions}
+        assert {"runMission", "validate", "submitMission", "normalizeMission"}.issubset(names)
+        assert "TypeScriptMissionRunner" in {c.name for c in self.result.classes}
+
+
 # ---------------------------------------------------------------------------
 # Java
 # ---------------------------------------------------------------------------
@@ -187,6 +227,27 @@ class TestJavaGolden:
     def test_all_concepts_have_regex_extraction_method(self):
         for concept in self.result.concepts:
             assert concept.extraction_method == "regex"
+
+
+@pytest.mark.skipif(
+    not importlib.util.find_spec("javalang"),
+    reason="javalang not installed",
+)
+class TestJavaAstGolden:
+    def setup_method(self) -> None:
+        self.result = JavaAstExtractor().extract(_load("java_sample.java"))
+
+    def test_no_error(self):
+        assert self.result.error is None
+
+    def test_private_and_constructor_methods_detected(self):
+        names = {f.name for f in self.result.functions}
+        assert {"MissionOrchestrator", "createMission", "findById", "isComplete", "save"}.issubset(
+            names
+        )
+
+    def test_imports_are_structured(self):
+        assert "java.util.Optional" in self.result.imports
 
 
 # ---------------------------------------------------------------------------
