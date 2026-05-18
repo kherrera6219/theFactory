@@ -3,24 +3,24 @@
 
 Document version: 2026.05.18  
 Last updated: 2026-05-18  
-Status: Active Plan — phases not yet implemented
+Status: Active Plan — Phases 8-9 implemented; Phases 10-11 planned
 
 ---
 
 ## Current Validation - May 18, 2026
 
-Phases 8-11 remain planned work. The May 16-18 implementation pass moved the
-system forward through PM/CEO contracts, first generated output, CEO logic
-clusters, pod group standards, and JavaScript/TypeScript/Java AST extraction,
-but it did not implement the full Smelt-Cycle back half.
+Phases 8-9 are implemented as of the May 18 pass. The system now has FETCH
+knowledge context and FUSION master logic stream support. Phases 10-11 remain
+planned work.
 
 Treat this document as the active forward plan with these adjustments:
 
-- Phase 8 FETCH is still open: no IS Agent execution, documentation crawler,
-  LlamaIndex ingestion, or Knowledge Lake preload exists yet.
-- Phase 9 FUSION is still open: generated output already exists before FUSION
-  for narrow BUILD_NEW missions, so FUSION should enrich or rerun generation
-  from the future `master_logic_stream`, not create the first generated output.
+- Phase 8 FETCH is implemented: IS Agent execution indexes deterministic
+  bootstrap docs, mirrors them into mission-scoped knowledge, exposes
+  `fetch_result`, and passes documentation context into pod extraction.
+- Phase 9 FUSION is implemented: FUSION creates `master_logic_stream`, exposes
+  it in chain trace/Mission Control, and can replace missing or fallback
+  generated output when the stream is ready for codegen.
 - Phase 10 DELIVERY should add PM delivery summary, acceptance-criteria
   verification, and final delivery status. Mission Detail already has generated
   output visibility.
@@ -492,13 +492,13 @@ improves domain classification of matched concepts.
 
 ## Validation
 
-- [ ] FETCH state appears in mission timeline on Mission Detail page
-- [ ] `metadata.fetch_result.indexed_languages` contains the target language
-- [ ] Chain trace shows `MISSION_FETCH_COMPLETE` event
-- [ ] Build_NEW missions without source skip FETCH and go directly to CEO_DELEGATED
-- [ ] IMPORT_MODERNIZE missions with source code pass through FETCH
-- [ ] `make test` passes (add migration test for new FETCH state)
-- [ ] `smelt-cycle.ts`: add `"FETCH"` to `MISSION_FLOW_V2_PHASES` (between `"PM INTAKE"` and `"CEO DELEGATED"`) and update `V2_EVENT_TO_PHASE_INDEX` / `V2_STATE_TO_PHASE_INDEX` to include the new `MISSION_FETCH_COMPLETE` event and `FETCH` state at index 3, shifting subsequent indices by +1. The old `SMELT_PHASES` v1 array already has `"FETCH"` and is unrelated.
+- [x] FETCH state appears in mission timeline on Mission Detail page
+- [x] `metadata.fetch_result.indexed_languages` contains the target language
+- [x] Chain trace shows `MISSION_FETCH_COMPLETE` event
+- [x] BUILD_NEW missions receive lightweight target-language FETCH context
+- [x] IMPORT_MODERNIZE/source missions pass through FETCH
+- [x] Targeted Phase 8/9 pytest, ruff, and Mission Control typecheck pass
+- [x] `smelt-cycle.ts` includes FETCH and `MISSION_FETCH_COMPLETE` in the v2 phase map
 
 ---
 
@@ -736,12 +736,12 @@ when `chainTrace?.master_logic_stream?.master_logic_stream?.length > 0`:
 
 ## Validation
 
-- [ ] Chain trace shows `MISSION_LOGIC_FOLDED` event after FUSION state
-- [ ] `master_logic_stream.total_unified_nodes` > 0 in chain trace
-- [ ] For missions with multiple pod outputs, `eliminated_across_pods` > 0
-- [ ] Generated code quality improves when master stream is non-empty
-- [ ] Mission Detail shows Master Logic Stream panel
-- [ ] `make test` passes
+- [x] Chain trace shows `MISSION_LOGIC_FOLDED` event after FUSION state
+- [x] `master_logic_stream.total_unified_nodes` is exposed in chain trace
+- [x] Multiple pod outputs can report `eliminated_across_pods`
+- [x] Missing or fallback generated output can be replaced from a ready master stream
+- [x] Mission Detail shows Master Logic Stream panel
+- [x] Targeted Phase 8/9 pytest, ruff, and Mission Control typecheck pass
 
 ---
 

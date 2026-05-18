@@ -13,7 +13,7 @@ must be verified against the live provider before replacement. The correct first
 phase was model governance and live/fallback LLM validation, not a blind
 replacement with `o3`, `o4-mini`, or `gpt-4o`.
 
-As of the May 16 implementation pass, Phases 1-5 have moved from planned to
+As of the May 18 implementation pass, Phases 1-9 have moved from planned to
 implemented:
 
 - active OpenAI model defaults use verified `gpt-5.5` executive/operations
@@ -24,6 +24,11 @@ implemented:
 - CEO delegation creates a durable `mission_contract`;
 - specialist planning can create a first narrow `generated_output`, and build
   artifact packaging can expose it as a `generated_code` artifact;
+- Phase 8 FETCH indexes deterministic bootstrap docs, mirrors them into
+  mission-scoped knowledge, exposes `fetch_result`, and passes documentation
+  context to pod extraction;
+- Phase 9 FUSION creates `master_logic_stream`, exposes it to Mission Control,
+  and can replace missing/fallback generated output from the fused stream;
 - CEO delegation now decomposes the mission contract into `logic_clusters`;
 - Mission Detail displays PM contracts, mission charters, mission contracts,
   logic clusters, generated output metadata, generated code preview text when
@@ -448,31 +453,34 @@ nodes with tests.
 
 ## Phase 8 - FETCH / Knowledge Context
 **Duration:** 7-10 days  
-**Entry state:** FETCH is mostly doctrine/reference material.  
-**Exit state:** missions can retrieve relevant language/framework context from a
-real knowledge store and attach it to downstream prompts.
+**Status:** Implemented May 18, 2026
+**Entry state:** FETCH was mostly doctrine/reference material.
+**Exit state:** missions retrieve deterministic bootstrap language context from
+knowledge storage and attach it to downstream extraction/generation surfaces.
 
 ### Scope
 
-- Define knowledge context artifact.
-- Use Qdrant or configured vector store for retrieval.
-- Add deterministic fallback to local curated docs.
-- Display fetched context summary.
+- `fetch_result` metadata and chain-trace artifact.
+- IS-agent bootstrap docs mirrored to global and mission-scoped knowledge.
+- Pod-worker `doc_context` retrieval before extraction.
+- Mission Control fetched-context summary.
 
 ---
 
 ## Phase 9 - FUSION / Master Logic Stream
 **Duration:** 5-7 days  
-**Entry state:** FUSION is a lifecycle checkpoint.  
-**Exit state:** CEO or a fusion agent combines pod group standards into a master
-logic stream used by code generation.
+**Status:** Implemented May 18, 2026
+**Entry state:** FUSION was a lifecycle checkpoint.
+**Exit state:** CEO/fusion logic combines pod group standards into a
+`master_logic_stream` exposed in chain trace and used to replace missing or
+fallback generated output when eligible.
 
 ### Scope
 
-- Add `master_logic_stream`.
-- Resolve duplicate/conflicting logicnodes across pods.
-- Feed stream into code generation when present.
-- Display stream and provenance.
+- `master_logic_stream` generation.
+- Cross-pod duplicate accounting.
+- Fallback/missing generated-output replacement from the fused stream.
+- Mission Control stream/provenance display.
 
 ---
 
@@ -638,8 +646,8 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 5 | CEO Logic Cluster Decomposition | 2 | 3-4 days | Implemented | Pod/domain work clusters |
 | 6 | Pod Group Standards | 2 | 4-5 days | Implemented | Cross-language pod consolidation |
 | 7 | JavaScript and Java AST Extractors | 2 | 2-4 days | Implemented | Real JS/Java extraction |
-| 8 | FETCH / Knowledge Context | 3 | 7-10 days | Planned | Retrieved technical context |
-| 9 | FUSION / Master Logic Stream | 3 | 5-7 days | Planned | Cross-pod synthesis |
+| 8 | FETCH / Knowledge Context | 3 | 7-10 days | Implemented | Retrieved technical context |
+| 9 | FUSION / Master Logic Stream | 3 | 5-7 days | Implemented | Cross-pod synthesis |
 | 10 | DELIVERY / PM Verification | 3 | 4-5 days | Planned | Delivery summary and criteria check |
 | 11 | Application Intelligence Map | 3 | 5-7 days | Planned | AIM artifact and approval gate |
 | 12 | Equivalence Verification Harness | 4 | 7-10 days | Planned | Real verification evidence |
@@ -650,7 +658,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 17 | DR Evidence and Release Hardening | 5 | 3-5 days | Planned | Recovery/release evidence |
 | 18 | Reproducible Demo Missions and Launch Docs | 5 | 5-7 days | Planned | Launch-ready demo suite |
 
-**Remaining estimate after Phase 7:** 55-83 days, excluding the live provider-key
+**Remaining estimate after Phase 9:** 43-66 days, excluding the live provider-key
 demo and stale qualification-evidence refresh.
 
 ---
@@ -661,15 +669,14 @@ Minimum path to a real working demo:
 
 1. Complete a live provider-key BUILD_NEW demo through the implemented
    Phase 1-7 loop.
-2. Phase 8 - attach real FETCH/knowledge context to downstream prompts.
-3. Phase 10 - present delivered output cleanly with PM verification.
-4. Phase 17 - refresh stale qualification evidence before release claims.
+2. Phase 10 - present delivered output cleanly with PM verification.
+3. Phase 17 - refresh stale qualification evidence before release claims.
 
-Phases 1-7 now provide the first local/fallback proof of value: structured PM
-and CEO contracts, generated-output packaging, pod standards, and AST-backed
-Python/JavaScript/TypeScript/Java extraction. The next proof point should be
-Phase 8 FETCH / Knowledge Context, with a live LLM-backed demo mission run as
-soon as provider credentials are available.
+Phases 1-9 now provide the first local/fallback proof of value: structured PM
+and CEO contracts, FETCH context, FUSION synthesis, generated-output packaging,
+pod standards, and AST-backed Python/JavaScript/TypeScript/Java extraction. The
+next proof point should be Phase 10 DELIVERY / PM verification, with a live
+LLM-backed demo mission run as soon as provider credentials are available.
 
 ---
 

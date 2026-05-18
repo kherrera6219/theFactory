@@ -1,9 +1,11 @@
 """Tests for mission_flow_v2.py — 11-phase v2 lifecycle engine."""
 from __future__ import annotations
 
+import asyncio
 import importlib
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 orchestrator_mission_flow_v2 = importlib.import_module("orchestrator.mission_flow_v2")
 orchestrator_models = importlib.import_module("orchestrator.models")
+orchestrator_is_agent = importlib.import_module("orchestrator.is_agent")
 
 V1_TRANSITIONS = orchestrator_mission_flow_v2.V1_TRANSITIONS
 V2_EVENT_TO_PHASE = orchestrator_mission_flow_v2.V2_EVENT_TO_PHASE
@@ -22,6 +25,7 @@ advance_mission_lifecycle_v2 = orchestrator_mission_flow_v2.advance_mission_life
 v2_map_state_to_v1 = orchestrator_mission_flow_v2.v2_map_state_to_v1
 v2_phase_index = orchestrator_mission_flow_v2.v2_phase_index
 MissionState = orchestrator_models.MissionState
+V2_STATES = orchestrator_models.V2_STATES
 
 
 def test_build_mission_charter_validates_against_schema() -> None:
@@ -54,6 +58,43 @@ def test_mission_charter_schema_validation_rejects_missing_required_field() -> N
             {"schema": "mission_charter.v1"}
         )
 
+
+def test_run_fetch_phase_mirrors_docs_to_global_and_mission_knowledge(monkeypatch) -> None:
+    writes: list[tuple[str, str, dict[str, Any]]] = []
+
+    def _list_knowledge(_settings: Any, _mission_id: str, limit: int = 200) -> list[dict[str, Any]]:
+        _ = limit
+        return []
+
+    def _upsert_knowledge(
+        _settings: Any,
+        mission_id: str,
+        knowledge_id: str,
+        content: dict[str, Any],
+        _created_at: str,
+    ) -> dict[str, Any]:
+        writes.append((mission_id, knowledge_id, content))
+        return {"knowledge_id": knowledge_id}
+
+    fake_storage = SimpleNamespace(
+        list_knowledge=_list_knowledge,
+        upsert_knowledge=_upsert_knowledge,
+    )
+    monkeypatch.setitem(sys.modules, "orchestrator.storage", fake_storage)
+
+    result = asyncio.run(
+        orchestrator_is_agent.run_fetch_phase(
+            mission_id="mission-1",
+            required_languages=["python"],
+            settings=object(),
+        )
+    )
+
+    assert result["indexed_languages"] == ["python"]
+    assert result["knowledge_ids"] == ["docs.python.bootstrap"]
+    assert {write[0] for write in writes} == {"__knowledge_lake__", "mission-1"}
+    assert all(write[2]["kind"] == "bootstrap_documentation" for write in writes)
+
 # ------------------------------------------------------------------
 # Transition table structure
 # ------------------------------------------------------------------
@@ -79,6 +120,14 @@ class TestV2Transitions:
     def test_all_event_types_unique(self) -> None:
         events = [t[2] for t in V2_TRANSITIONS]
         assert len(events) == len(set(events))
+
+    def test_v2_state_set_covers_transition_chain(self) -> None:
+        transition_states = {
+            state
+            for source, target, _event_type in V2_TRANSITIONS
+            for state in (source, target)
+        }
+        assert transition_states <= V2_STATES
 
 
 class TestV1Transitions:
@@ -249,6 +298,87 @@ def _make_stateful_storage(mission: MagicMock) -> tuple[dict[str, Any], Any, Any
         update_mission_metadata,
         transition_mission_state,
         insert_mission_event,
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_fusion_regenerates_when_existing_output_is_fallback() -> None:
+    mission = _make_mission(state=MissionState.fusion)
+    mission.metadata = {
+        "mission_contract": {"contract_summary": "Build a CSV reader"},
+        "pod_group_standards": {
+            "podA": {
+                "canonical_logicnodes": [
+                    {
+                        "domain": "parsing",
+                        "concept": "csv_reader",
+                        "intent": "Read CSV rows",
+                    }
+                ]
+            }
+        },
+        "generated_output": {
+            "source": "fallback",
+            "generated_code": "print('fallback')",
+        },
+        "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+    }
+    master_stream = {
+        "master_logic_stream": [
+            {
+                "node_id": "unified-001",
+                "domain": "parsing",
+                "concept": "csv_reader",
+                "canonical_intent": "Read CSV rows",
+                "source_pods": ["podA"],
+                "dependency_order": 1,
+            }
+        ],
+        "total_unified_nodes": 1,
+        "eliminated_across_pods": 0,
+        "ready_for_codegen": True,
+        "source": "fallback",
+    }
+    generated_output = {
+        "source": "llm",
+        "generated_code": "def read_csv(path):\n    return []\n",
+        "filename": "solution.py",
+        "language": "python",
+    }
+
+    with (
+        patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_master_logic_stream",
+            new=AsyncMock(return_value=master_stream),
+        ),
+        patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_code_from_contract",
+            new=AsyncMock(return_value=generated_output),
+        ) as generate_code,
+        patch.object(
+            orchestrator_mission_flow_v2.storage,
+            "update_mission_metadata",
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission,
+        ),
+    ):
+        updated = await orchestrator_mission_flow_v2._prepare_fusion(
+            app=_make_app_state(),
+            settings=_make_settings(),
+            validator=MagicMock(),
+            emit_state_event_fn=AsyncMock(),
+            mission=mission,
+        )
+
+    assert updated is mission
+    assert mission.metadata["master_logic_stream"] == master_stream
+    assert mission.metadata["generated_output"] == generated_output
+    assert generate_code.await_count == 1
+    assert any(
+        event["event_type"] == "MISSION_LOGIC_FOLDED"
+        for event in mission.metadata["chain_trace"]
     )
 
 

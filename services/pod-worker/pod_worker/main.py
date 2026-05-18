@@ -378,6 +378,44 @@ def _focus_domains_for_pod(mission_metadata: Any) -> list[str]:
     return focus_domains
 
 
+async def _fetch_doc_context(mission_id: str, language: str) -> str | None:
+    try:
+        response = await _request(
+            "GET",
+            f"/internal/missions/{mission_id}/knowledge",
+            params={"limit": 100},
+        )
+    except Exception:
+        return None
+    if response.status_code >= 400:
+        return None
+
+    try:
+        records = response.json()
+    except Exception:
+        return None
+    if not isinstance(records, list):
+        return None
+
+    language_key = str(language or "").strip().lower()
+    context_parts: list[str] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        content = record.get("content")
+        if not isinstance(content, dict):
+            continue
+        record_language = str(content.get("language") or "").strip().lower()
+        if content.get("kind") != "bootstrap_documentation":
+            continue
+        if language_key and record_language and record_language != language_key:
+            continue
+        combined_text = str(content.get("combined_text") or "").strip()
+        if combined_text:
+            context_parts.append(combined_text)
+    return "\n\n".join(context_parts) or None
+
+
 def _summarize_mapping(value: Any) -> dict[str, Any]:
     return _summarize_value(value) if isinstance(value, dict) else {}
 
@@ -1087,11 +1125,16 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
     extraction_summary: dict = {"language": extraction_language, "concepts_found": 0}
     extracted_logicnodes: list[dict[str, Any]] = []
     focus_domains = _focus_domains_for_pod(mission_metadata)
+    doc_context = await _fetch_doc_context(mission_id, extraction_language)
 
     if source_code:
         started = time.perf_counter()
         extractor = _get_extractor(extraction_language)
-        result = extractor.extract(source_code, focus_domains=focus_domains)
+        result = extractor.extract(
+            source_code,
+            focus_domains=focus_domains,
+            doc_context=doc_context,
+        )
         EXTRACTION_LATENCY.labels(pod_name=POD_NAME, agent_id=resolved_agent_id).observe(
             time.perf_counter() - started
         )
@@ -1104,6 +1147,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
         )
         extraction_summary = result.summary
         extraction_summary["focus_domains"] = focus_domains
+        extraction_summary["doc_context_ready"] = bool(doc_context)
         extracted_logicnodes = _logicnodes_from_extraction(
             mission_id=mission_id,
             target_language=target_language,
@@ -1372,11 +1416,16 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
     extraction_summary: dict[str, Any] = {"language": extraction_language, "concepts_found": 0}
     extracted_logicnodes: list[dict[str, Any]] = []
     focus_domains = _focus_domains_for_pod(mission_metadata)
+    doc_context = await _fetch_doc_context(mission_id, extraction_language)
 
     if source_code:
         started = time.perf_counter()
         extractor = _get_extractor(extraction_language)
-        result = extractor.extract(source_code, focus_domains=focus_domains)
+        result = extractor.extract(
+            source_code,
+            focus_domains=focus_domains,
+            doc_context=doc_context,
+        )
         EXTRACTION_LATENCY.labels(pod_name=POD_NAME, agent_id=resolved_agent_id).observe(
             time.perf_counter() - started
         )
@@ -1387,6 +1436,7 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
         ).inc(len(result.concepts))
         extraction_summary = result.summary
         extraction_summary["focus_domains"] = focus_domains
+        extraction_summary["doc_context_ready"] = bool(doc_context)
         extracted_logicnodes = _logicnodes_from_extraction(
             mission_id=mission_id,
             target_language=target_language,

@@ -238,6 +238,30 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
                     "created_at": "2026-03-01T00:00:00+00:00",
                 }
             },
+            "fetch_result": {
+                "indexed_languages": ["python"],
+                "skipped_languages": [],
+                "errors": [],
+                "knowledge_ready": True,
+                "indexed_at": "2026-03-01T00:00:00+00:00",
+                "mission_id": "mission-1",
+            },
+            "master_logic_stream": {
+                "master_logic_stream": [
+                    {
+                        "node_id": "master-1",
+                        "domain": "parsing",
+                        "concept": "csv_reader",
+                        "canonical_intent": "Read CSV rows",
+                        "source_pods": ["podA"],
+                        "dependency_order": 1,
+                    }
+                ],
+                "total_unified_nodes": 1,
+                "eliminated_across_pods": 0,
+                "ready_for_codegen": True,
+                "source": "fallback",
+            },
             "chain_trace": [
                 {
                     "event_type": "MISSION_SPECIALIST_PLANNED",
@@ -267,6 +291,8 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
     assert payload["pod_group_standards"]["podA"]["canonical_logicnodes"][0]["concept"] == (
         "csv_reader"
     )
+    assert payload["fetch_result"]["indexed_languages"] == ["python"]
+    assert payload["master_logic_stream"]["total_unified_nodes"] == 1
 
 
 def test_update_state_and_internal_endpoints(monkeypatch) -> None:
