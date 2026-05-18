@@ -1,5 +1,9 @@
 # theFactory Comprehensive Application Audit (2026-03-02)
 
+Document version: 2026.03.02
+Last updated: 2026-03-02
+Status: Historical Archive
+
 > Historical snapshot: this report reflects repository state on 2026-03-02.
 > Current status is tracked in `docs/COMPLETION_TODO_2026-03-02.md`, `docs/ROADMAP.md`, and `docs/DELIVERY_PHASE_LOG_2026-03-02.md`.
 > Supersession update (2026-03-03): the listed P0/P1 gaps in this snapshot were closed across Phases 7-18; remaining roadmap work is primarily optional observability and advanced UX hardening.

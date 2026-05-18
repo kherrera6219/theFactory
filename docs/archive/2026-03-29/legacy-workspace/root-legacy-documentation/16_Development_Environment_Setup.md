@@ -1,4 +1,8 @@
 # DEVELOPMENT ENVIRONMENT SETUP
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Complete Guide for Holy Grail Refinery Development
 
 **Version:** 1.0  

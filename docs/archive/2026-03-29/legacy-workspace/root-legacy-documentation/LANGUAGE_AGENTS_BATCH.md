@@ -1,5 +1,9 @@
 # Language Agent Profiles - Batch Creation
 
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
+
 ## Template Structure (Streamlined)
 Each profile contains:
 1. Core Identity (5 key points)

@@ -1,5 +1,9 @@
 # Phase 35 Validation - Mission Artifact Runtime Integrity (2026-03-08)
 
+Document version: 2026.03.08
+Last updated: 2026-03-08
+Status: Historical Evidence
+
 ## Objective
 Close the remaining runtime-proof gap by adding deterministic qualification for:
 - PM -> CEO -> pod/specialist chain evidence

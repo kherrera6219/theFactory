@@ -1,5 +1,9 @@
 # Mission Control
 
+Document version: 2026.05.17  
+Last updated: 2026-05-17  
+Status: Canonical
+
 Mission Control is the Next.js operator console for theFactory.
 
 It is designed for local-first Windows operation and provides real-time visibility into missions, agents, semantic-bus activity, and runtime controls.

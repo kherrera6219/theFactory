@@ -1,6 +1,10 @@
 # Phase 4 - PM Feature Contract and Mission Charter
 ## Tier 2 | Estimated Duration: 3-5 days
 
+Document version: 2026.05.17  
+Last updated: 2026-05-17  
+Status: Implemented
+
 ---
 
 ## Context

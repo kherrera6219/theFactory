@@ -1,4 +1,8 @@
 # WORKFLOW & ORCHESTRATION DESIGN
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## LangGraph State Machines and Agent Coordination
 
 **Version:** 1.0  

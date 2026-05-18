@@ -1,5 +1,9 @@
 # Phase 27 Validation - Mission Control Live Transport Baseline (2026-03-04)
 
+Document version: 2026.03.04
+Last updated: 2026-03-04
+Status: Historical Evidence
+
 ## Objective
 Implement and validate live transport for mission-critical Mission Control views while preserving deterministic polling fallback.
 

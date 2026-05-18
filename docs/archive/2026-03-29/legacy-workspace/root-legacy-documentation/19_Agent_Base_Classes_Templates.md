@@ -1,4 +1,8 @@
 # DOCUMENT 19: AGENT BASE CLASSES & TEMPLATES
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery - Development Specifications
 
 **Document ID:** 19  

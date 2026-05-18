@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-04-14 against actual codebase.
+> Last validated: 2026-05-17 against actual codebase.
 
 ---
 
@@ -47,9 +47,10 @@ All three paths emit identical lifecycle events via `emit_state_event()`.
 
 The language-analysis layer uses **regex-based** pattern detection for 20 language keys.
 
-**Exception**: Python also has `ast_extractor.py` (AST-backed, fully tested).
-Enable via `PYTHON_AST_EXTRACTOR_ENABLED=true` — uses AST for structural accuracy,
-regex still runs for concept detection. Falls back on syntax errors.
+**Exception**: Three languages now have AST-backed extractors alongside regex:
+- **Python** (`ast_extractor.py`) — enable via `PYTHON_AST_EXTRACTOR_ENABLED=true`; uses `ast` module for structural accuracy; regex still runs for concept detection; falls back on syntax errors.
+- **JavaScript / TypeScript** (`js_ast_extractor.py`) — enable via `JS_AST_EXTRACTOR_ENABLED=true`; uses `esprima`; strips TS syntax before parsing; preserves regex concept detection and fallback. *(implemented 2026-05-17)*
+- **Java** (`java_ast_extractor.py`) — enable via `JAVA_AST_EXTRACTOR_ENABLED=true`; uses `javalang`; extracts packages, imports, classes, constructors, methods, annotations; preserves regex concept detection and fallback. *(implemented 2026-05-17)*
 
 Language routing:
 - **Pod A — Dynamic**: Python, JavaScript, TypeScript, Ruby, PHP

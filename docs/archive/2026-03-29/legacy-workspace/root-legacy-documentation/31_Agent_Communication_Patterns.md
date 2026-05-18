@@ -1,4 +1,8 @@
 # DOCUMENT 31: AGENT COMMUNICATION PATTERNS
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery - Development Specifications
 
 **Document ID:** 31  

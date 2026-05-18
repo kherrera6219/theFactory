@@ -1,5 +1,9 @@
 # Phase 18 Validation Evidence (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Scope
 - Implement optional object-storage adapter for immutable audit artifacts.
 - Add retention/legal-hold controls with fail-soft behavior for non-object-lock buckets.

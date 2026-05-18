@@ -1,4 +1,8 @@
 # AGENT ARCHITECTURE SPECIFICATION
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery: Complete Agent Profile Definitions
 
 **Version:** 1.0  

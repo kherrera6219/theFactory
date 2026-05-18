@@ -1,5 +1,9 @@
 # Phase 17 Validation Evidence (2026-03-03)
 
+Document version: 2026.03.03
+Last updated: 2026-03-03
+Status: Historical Evidence
+
 ## Scope
 - Introduce feature-flagged Neo4j adapter for relationship-heavy knowledge and audit graph paths.
 - Wire Neo4j runtime readiness into orchestrator health/readiness/operations payloads.

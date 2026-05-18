@@ -1,6 +1,10 @@
 # Phases 12–18 — Quality, Trust, and Production Operations
 **Tiers:** 4 and 5
 
+Document version: 2026.05.17  
+Last updated: 2026-05-17  
+Status: Active Plan — phases not yet implemented
+
 ---
 
 ## Current Validation - May 17, 2026

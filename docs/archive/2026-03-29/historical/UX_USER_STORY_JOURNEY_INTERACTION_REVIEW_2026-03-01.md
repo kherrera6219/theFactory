@@ -1,5 +1,9 @@
 # User Story, Journey, and Interaction Review (Production Standard)
 
+Document version: 2026.03.01
+Last updated: 2026-03-01
+Status: Historical Archive
+
 Date: March 1, 2026  
 Repo: `C:\software\Holygrail\theFactory`  
 Primary surface reviewed: `apps/mission-control` + gateway/orchestrator mission APIs

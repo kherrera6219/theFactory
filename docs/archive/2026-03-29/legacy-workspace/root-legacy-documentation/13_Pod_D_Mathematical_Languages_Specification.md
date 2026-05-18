@@ -1,4 +1,8 @@
 # POD D: MATHEMATICAL LANGUAGES SPECIFICATION
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Complete Domain Catalog for MATLAB, R, Julia, Mathematica
 
 **Version:** 1.0  

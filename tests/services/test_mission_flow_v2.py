@@ -60,8 +60,8 @@ def test_mission_charter_schema_validation_rejects_missing_required_field() -> N
 
 
 class TestV2Transitions:
-    def test_has_9_transitions(self) -> None:
-        assert len(V2_TRANSITIONS) == 9
+    def test_has_10_transitions(self) -> None:
+        assert len(V2_TRANSITIONS) == 10
 
     def test_starts_from_queued(self) -> None:
         assert V2_TRANSITIONS[0][0] == MissionState.queued
@@ -96,8 +96,8 @@ class TestV1Transitions:
 
 
 class TestV2PhaseOrder:
-    def test_has_11_phases(self) -> None:
-        assert len(V2_PHASE_ORDER) == 11
+    def test_has_12_phases(self) -> None:
+        assert len(V2_PHASE_ORDER) == 12
 
     def test_starts_intake_ends_complete(self) -> None:
         assert V2_PHASE_ORDER[0] == MissionState.intake
@@ -116,8 +116,8 @@ class TestV2PhaseOrder:
 
 
 class TestV2EventToPhase:
-    def test_covers_all_11_events(self) -> None:
-        assert len(V2_EVENT_TO_PHASE) == 11
+    def test_covers_all_13_events(self) -> None:
+        assert len(V2_EVENT_TO_PHASE) == 13
 
     def test_all_v2_phase_order_values_mapped(self) -> None:
         mapped_phases = set(V2_EVENT_TO_PHASE.values())
@@ -137,6 +137,7 @@ class TestV2MapStateToV1:
             (MissionState.intake, MissionState.intake),
             (MissionState.queued, MissionState.queued),
             (MissionState.pm_intake, MissionState.queued),
+            (MissionState.fetch, MissionState.queued),
             (MissionState.ceo_delegated, MissionState.queued),
             (MissionState.pod_assigned, MissionState.queued),
             (MissionState.specialist_assigned, MissionState.queued),
@@ -163,14 +164,14 @@ class TestV2PhaseIndex:
     def test_intake_is_0(self) -> None:
         assert v2_phase_index(MissionState.intake) == 0
 
-    def test_complete_is_10(self) -> None:
-        assert v2_phase_index(MissionState.complete) == 10
+    def test_complete_is_11(self) -> None:
+        assert v2_phase_index(MissionState.complete) == 11
 
     def test_failed_is_minus_1(self) -> None:
         assert v2_phase_index(MissionState.failed) == -1
 
-    def test_running_is_6(self) -> None:
-        assert v2_phase_index(MissionState.running) == 6
+    def test_running_is_7(self) -> None:
+        assert v2_phase_index(MissionState.running) == 7
 
 
 # ------------------------------------------------------------------
@@ -351,7 +352,7 @@ class TestAdvanceMissionLifecycleV2:
                     completion_check_fn=completion_fn,
                 )
 
-        assert len(state["transitions"]) == 9
+        assert len(state["transitions"]) == 10
         assert state["transitions"][0] == (
             "QUEUED", "PM_INTAKE", "MISSION_PM_INTAKE"
         )
@@ -362,14 +363,14 @@ class TestAdvanceMissionLifecycleV2:
         prepare_fn.assert_not_awaited()
         # completion_fn called once (for verified->complete)
         completion_fn.assert_awaited_once()
-        assert emit_fn.await_count == 11
+        assert emit_fn.await_count == 12
         emitted_events = [call.kwargs["event_type"] for call in emit_fn.await_args_list]
         assert emitted_events[:5] == [
             "MISSION_PM_INTAKE",
+            "MISSION_FETCH",
             "MISSION_CEO_DELEGATED",
             "MISSION_POD_MANAGER_ASSIGNED",
             "MISSION_SPECIALIST_ASSIGNED",
-            "MISSION_SPECIALIST_PLANNED",
         ]
         assert "MISSION_POD_GROUP_STANDARD_PRODUCED" in emitted_events
         assert mission.metadata["ceo_delegation"]["pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
@@ -546,7 +547,7 @@ class TestAdvanceMissionLifecycleV2:
                     completion_check_fn=completion_fn,
                 )
 
-        assert len(state["transitions"]) == 8
+        assert len(state["transitions"]) == 9
         assert "MISSION_COMPLETION_BLOCKED" in mission.metadata["last_chain_event_type"]
         prepare_fn.assert_not_awaited()
 
@@ -757,7 +758,7 @@ async def test_scaling_emits_partition_events_and_waits_for_results() -> None:
                 completion_check_fn=completion_fn,
             )
 
-    assert len(state["transitions"]) == 5
+    assert len(state["transitions"]) == 6
     emitted_events = [call.kwargs["event_type"] for call in emit_fn.await_args_list]
     assert "MISSION_RUNNING" in emitted_events
     assert "MISSION_GATING" not in emitted_events

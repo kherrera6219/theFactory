@@ -1,5 +1,9 @@
 # Contributing to theFactory
 
+Document version: 2026.04.17  
+Last updated: 2026-04-17  
+Status: Canonical
+
 Thank you for contributing to theFactory (HolyGrail Multi-Agent Software Refinery).
 
 ---

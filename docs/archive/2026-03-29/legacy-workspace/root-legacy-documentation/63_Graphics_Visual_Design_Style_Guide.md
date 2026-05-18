@@ -1,4 +1,8 @@
 # DOCUMENT 63: GRAPHICS, VISUAL DESIGN & STYLE GUIDE
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery - Brand Identity & Visual Standards
 
 **Document ID:** 63  

@@ -1,6 +1,10 @@
 # Phases 8–11 — Full Smelt-Cycle
 **Tier:** 3 — Complete 7-phase pipeline end-to-end
 
+Document version: 2026.05.18  
+Last updated: 2026-05-18  
+Status: Active Plan — phases not yet implemented
+
 ---
 
 ## Current Validation - May 18, 2026
@@ -26,6 +30,35 @@ Current chain trace exposes PM/CEO artifacts at top-level fields such as
 `feature_contract`, `mission_charter`, `mission_contract`, `logic_clusters`,
 `pod_group_standards`, and `generated_output`; new UI examples should read those
 top-level fields directly.
+
+---
+
+## Phase 8 Code Validation — 2026-05-17
+
+Validated against actual source code. All five Phase 8 components are unbuilt:
+
+| Component | File | Status |
+|---|---|---|
+| IS Agent module | `orchestrator/is_agent.py` | ✗ File does not exist |
+| `MissionState.fetch` enum value | `orchestrator/models.py` | ✗ Not in enum; `VALID_TRANSITIONS` has no FETCH entry |
+| `_prepare_fetch_phase()` | `orchestrator/mission_flow_v2.py` | ✗ Function does not exist; `V2_TRANSITIONS` goes `pm_intake → ceo_delegated` directly |
+| Pod worker knowledge context injection | `pod_worker/main.py` | ✗ No `_fetch_language_docs`, `doc_context`, or `knowledge_context` |
+| FETCH in `MISSION_FLOW_V2_PHASES` | `app/lib/smelt-cycle.ts` | ✗ Not in v2 phase list (the old v1 `SMELT_PHASES` array has FETCH; the v2 list does not) |
+
+**Foundation already in place — Phase 8 builds on:**
+- `storage.upsert_knowledge` and `storage.list_knowledge` re-exported from `storage.py` via `storage_logicnodes.py` ✓
+- `AGENT-06-IS` ("IS Agent") registered in `agent_registry.py` with `gemini_knowledge` routing ✓
+- Internal knowledge API (`GET /internal/knowledge/{mission_id}`) already wired in `routes/internal.py` ✓
+- Qdrant, Milvus, and Neo4j `upsert_knowledge` / `list_knowledge` all implemented ✓
+
+**⚠ API mismatch in Change 1 design code:** The `is_agent.py` example calls
+`qdrant_store.upsert_knowledge(collection=..., content=combined_string, metadata=...)`.
+The actual `qdrant_store.upsert_knowledge` signature is:
+`(settings: Settings, mission_id: str, knowledge_id: str, content: dict[str, Any], created_at: str)`.
+Differences: no `collection` param (uses `settings.qdrant_collection` internally), `content`
+must be a `dict` not a string, `metadata` is not a separate param (embed in `content`), and
+`settings` + `created_at` are required. Use `storage.upsert_knowledge(settings, ...)` from
+the storage facade rather than calling the qdrant module directly.
 
 ---
 
@@ -465,7 +498,7 @@ improves domain classification of matched concepts.
 - [ ] Build_NEW missions without source skip FETCH and go directly to CEO_DELEGATED
 - [ ] IMPORT_MODERNIZE missions with source code pass through FETCH
 - [ ] `make test` passes (add migration test for new FETCH state)
-- [ ] `smelt-cycle.ts` updated to include FETCH in the 8-phase map
+- [ ] `smelt-cycle.ts`: add `"FETCH"` to `MISSION_FLOW_V2_PHASES` (between `"PM INTAKE"` and `"CEO DELEGATED"`) and update `V2_EVENT_TO_PHASE_INDEX` / `V2_STATE_TO_PHASE_INDEX` to include the new `MISSION_FETCH_COMPLETE` event and `FETCH` state at index 3, shifting subsequent indices by +1. The old `SMELT_PHASES` v1 array already has `"FETCH"` and is unrelated.
 
 ---
 

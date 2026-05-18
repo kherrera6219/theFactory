@@ -1,4 +1,8 @@
 # DOCUMENT 52: API DOCUMENTATION & REFERENCE
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery - Documentation & Training
 
 **Document ID:** 52  

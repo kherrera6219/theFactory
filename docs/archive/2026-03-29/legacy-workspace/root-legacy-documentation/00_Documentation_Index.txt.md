@@ -1,4 +1,8 @@
 # HOLY GRAIL REFINERY - DOCUMENTATION INDEX
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Complete Design Specification
 
 **Project:** Holy Grail Refinery  

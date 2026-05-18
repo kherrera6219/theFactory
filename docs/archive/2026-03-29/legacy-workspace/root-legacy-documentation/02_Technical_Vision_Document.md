@@ -1,4 +1,8 @@
 # TECHNICAL VISION DOCUMENT
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery: Unified Computational Comprehension Architecture
 
 **Version:** 1.0  

@@ -1,5 +1,9 @@
 # theFactory Completion TODO (2026-03-02)
 
+Document version: 2026.03.02
+Last updated: 2026-03-02
+Status: Historical Archive
+
 > Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
 
 Historical note (2026-03-13): this checklist is a dated execution snapshot, not the current shipped-status source of truth. Some items marked complete here have since drifted from the live defaults or current test state. For the active completion backlog, use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md).

@@ -1,4 +1,8 @@
 # COMMUNICATION PROTOCOL SPECIFICATION
+
+Document version: 2026.03.29
+Last updated: 2026-03-29
+Status: Archived Legacy
 ## Holy Grail Refinery: Inter-Agent Communication Standards
 
 **Version:** 1.0  

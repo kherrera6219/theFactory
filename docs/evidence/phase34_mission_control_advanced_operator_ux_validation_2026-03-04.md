@@ -1,5 +1,9 @@
 # Phase 34 Validation - Mission Control Advanced Operator UX (2026-03-04)
 
+Document version: 2026.03.04
+Last updated: 2026-03-04
+Status: Historical Evidence
+
 ## Objective
 Execute the remaining Phase 21 UX scope:
 - repository diff-review/apply gate with file-level overlay workflow,

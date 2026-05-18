@@ -1,5 +1,9 @@
 # Phase 32 Validation - Optional Data-Plane Observability and SLO Controls (2026-03-04)
 
+Document version: 2026.03.04
+Last updated: 2026-03-04
+Status: Historical Evidence
+
 ## Objective
 Implement production-grade observability controls for optional Neo4j and object-storage adapters, including readiness/error/latency metrics, alerting, dashboards, and runbook linkage.
 
