@@ -15,7 +15,7 @@ pending commit/push.
 - **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, and Phase 9 FUSION/master logic stream.
 - **Current active phase:** Phase 10 - DELIVERY / PM verification.
 - **Still planned:** Phase 10 DELIVERY/PM verification, Phase 11 AIM, and Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
-- **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, remaining forward-looking docs cleanup, and the open GitHub Dependabot high vulnerability alert.
+- **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, and remaining forward-looking docs cleanup.
 
 ## Mission Control UI — Vault and Settings (2026-04-16)
 
@@ -209,7 +209,7 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 1. Complete Phase 10 DELIVERY / PM verification so completed missions get a PM delivery summary and artifact-aware delivery actions.
 2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/generated-output loop.
-3. Refresh stale qualification evidence and resolve the open GitHub Dependabot high vulnerability before launch claims.
+3. Refresh stale qualification evidence before launch claims.
 4. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
 5. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.
 6. Automate strict full-dedicated smoke qualification in CI or scheduled qualification runs so topology regressions fail earlier.

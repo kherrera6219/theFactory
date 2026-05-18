@@ -487,16 +487,19 @@ fallback generated output when eligible.
 ## Phase 10 - DELIVERY / PM Verification
 **Duration:** 4-5 days  
 **Entry state:** COMPLETE means the pipeline reached final state, but delivery is
-mostly trace/artifact display.  
+mostly trace/artifact display and generated-code artifacts already have a
+download route.
 **Exit state:** PM generates a delivery summary tied to acceptance criteria and
-the delivered artifact.
+the delivered artifact, and Mission Detail shows an artifact-aware delivery
+banner.
 
 ### Scope
 
 - Add PM delivery summary.
 - Compare generated output to mission contract acceptance criteria.
 - Show "Mission Delivered" panel.
-- Add first-class download/copy actions.
+- Reuse the existing generated-code artifact download route.
+- Adapt delivery copy/actions for source-bundle-only and analysis-only missions.
 
 ---
 
