@@ -1,0 +1,84 @@
+{
+  "schema_version": "phase18_demo_missions.v1",
+  "run_mode": "dry",
+  "run_timestamp_utc": "2026-05-19T18:42:30.015842+00:00",
+  "passed": true,
+  "failure_reasons": [],
+  "demos": [
+    {
+      "demo_id": "build-new-python-cli",
+      "expected_behavior": "BUILD_NEW generated-output path",
+      "payload": {
+        "prompt": "Build a Python CLI function named summarize_expenses that accepts CSV text and returns totals by category.",
+        "requested_target_language": "python",
+        "metadata": {
+          "source": "phase18_demo",
+          "mission_type": "BUILD_NEW",
+          "depth_mode": "STANDARD",
+          "output_mode": "FULL_BUILD",
+          "acceptance_criteria": [
+            "Parses CSV text without file system access",
+            "Returns category totals as a dictionary",
+            "Includes deterministic unit-test examples"
+          ]
+        }
+      },
+      "required_evidence": [
+        "mission reaches COMPLETE",
+        "chain trace includes PM/CEO/pod/specialist events",
+        "generated_code artifact is available when live LLM or fused fallback output succeeds"
+      ]
+    },
+    {
+      "demo_id": "analyze-only-service-map",
+      "expected_behavior": "ANALYZE_ONLY source intelligence path",
+      "payload": {
+        "prompt": "Analyze this small service and identify its public API and risks.",
+        "requested_target_language": "python",
+        "source_code": "## FILE app.py\nfrom fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get('/health')\ndef health():\n    return {'ok': True}\n",
+        "metadata": {
+          "source": "phase18_demo",
+          "mission_type": "ANALYZE_ONLY",
+          "depth_mode": "STANDARD",
+          "output_mode": "ANALYZE_ONLY",
+          "acceptance_criteria": [
+            "Produces source inventory or AIM evidence",
+            "Does not require generated output",
+            "Surfaces risk or modernization observations"
+          ]
+        }
+      },
+      "required_evidence": [
+        "mission reaches COMPLETE",
+        "source_code is packaged or analyzed",
+        "AIM/equivalence/security evidence is present when enabled"
+      ]
+    },
+    {
+      "demo_id": "import-modernize-debug-repair",
+      "expected_behavior": "IMPORT_MODERNIZE and DEBUG_REPAIR source-bundle path",
+      "payload": {
+        "prompt": "Modernize and repair the supplied Python function so divide handles zero safely and returns an explicit error object.",
+        "requested_target_language": "python",
+        "source_code": "## FILE calculator.py\ndef divide(a, b):\n    return a / b\n\n## FILE test_calculator.py\ndef test_divide_zero():\n    assert divide(1, 0)['error'] == 'division_by_zero'\n",
+        "metadata": {
+          "source": "phase18_demo",
+          "mission_type": "IMPORT_MODERNIZE",
+          "secondary_mission_type": "DEBUG_REPAIR",
+          "depth_mode": "STANDARD",
+          "output_mode": "PATCH_PROPOSAL",
+          "acceptance_criteria": [
+            "Identifies the divide-by-zero defect",
+            "Proposes a minimal modernization/repair patch",
+            "Preserves source-bundle audit evidence"
+          ]
+        }
+      },
+      "required_evidence": [
+        "mission reaches COMPLETE",
+        "source bundle produces build/package evidence",
+        "repair intent is reflected in PM/CEO contract metadata"
+      ]
+    }
+  ]
+}

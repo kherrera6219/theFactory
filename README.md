@@ -633,6 +633,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | `make test-fast` | Pytest without coverage |
 | `make test-live-extended` | Live Neo4j/MinIO disruption recovery tests |
 | `make eval-ai` | Focused AI delegation regression gate |
+| `make demo` | Validate the Phase 18 reproducible demo mission manifest |
 | `make audit` | Production checklist audit |
 | `make promotion-gate` | Release promotion policy evaluation |
 | `make release-evidence-verify` | Validate local release-trust evidence bundle |
@@ -676,6 +677,19 @@ npm run test:e2e   # Playwright critical-path E2E
 | Release attestation | signed provenance | CI release gate |
 
 The main CI workflow must remain valid GitHub Actions YAML before any gate can run. Artifact download retries are not configured with unsupported step keys; if retry behavior is needed, it should be implemented through an explicit retry action or shell retry wrapper.
+
+### Reproducible Demo Missions
+
+Phase 18 demo coverage is defined in `scripts/demo_missions.py`. `make demo`
+performs the CI-safe manifest validation and writes
+`docs/evidence/phase18_demo_missions_latest.json`. A live stack run uses:
+
+```bash
+python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
+```
+
+The live run is the launch-demo proof point. It requires a running stack and
+provider-key configuration when generated LLM output is part of the claim.
 
 **Validation snapshot (2026-04-16):** `python scripts/validate_documentation.py` and `python scripts/production_review_audit.py` are passing in-repo. The broader test and qualification snapshot is tracked in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md), including the current backend pytest baseline (`889 passed, 5 skipped` on 2026-04-15), the `>=80%` Python coverage gate, Mission Control Vitest and Playwright coverage, and the latest strict full-dedicated runtime evidence in [`docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json`](docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json) and [`docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`](docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json).
 

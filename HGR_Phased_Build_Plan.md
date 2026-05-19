@@ -14,9 +14,10 @@ phase was model governance and live/fallback LLM validation, not a blind
 replacement with `o3`, `o4-mini`, or `gpt-4o`.
 
 As of the May 19 implementation pass, Phases 1-14 are implemented locally,
-Phase 16 has a partial embedding/refresh implementation, and Phase 17 now has
-local DR/release-hardening evidence. The launch promotion gate still correctly
-blocks until stale live qualification evidence is refreshed.
+Phase 16 has a partial embedding/refresh implementation, Phase 17 has local
+DR/release-hardening evidence, and Phase 18 has a reproducible demo-mission
+harness. The launch promotion gate still correctly blocks until stale live
+qualification evidence is refreshed.
 
 - active OpenAI model defaults use verified `gpt-5.5` executive/operations
   routes and `gpt-5.3-codex` coding routes, with deterministic no-key fallback
@@ -739,15 +740,31 @@ or fail closed with explicit stale-evidence reasons.
 ## Phase 18 - Reproducible Demo Missions and Launch Docs
 **Duration:** 5-7 days  
 **Entry state:** no current demo suite proves the full factory loop.  
-**Exit state:** three reproducible demo missions prove BUILD_NEW, ANALYZE_ONLY,
+**Exit state:** three reproducible demo missions are defined, validated in a
+CI-safe manifest, and runnable against a live stack for BUILD_NEW, ANALYZE_ONLY,
 and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 
 ### Scope
 
-- Add live demo tests.
+- Add `scripts/demo_missions.py` with dry-run validation and live stack
+  execution.
+- Define canonical BUILD_NEW, ANALYZE_ONLY, and IMPORT_MODERNIZE with
+  DEBUG_REPAIR intent demo payloads.
+- Add script-level tests that validate manifest coverage and mocked live
+  mission execution.
 - Add `make demo`.
-- Update README and current docs to match implemented behavior only.
-- Archive or relabel forward-looking docs that remain aspirational.
+- Update README and current docs to match implemented behavior only: local demo
+  harness is implemented; live launch demo still requires stack/provider
+  readiness.
+- Record dry-run evidence in `docs/evidence/phase18_demo_missions_latest.json`.
+
+### Implementation Notes
+
+- Dedicated plan/status: `Phase_18_Reproducible_Demo_Missions.md`.
+- Local evidence artifact:
+  `docs/evidence/phase18_demo_missions_latest.json`.
+- Live command:
+  `python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100`.
 
 ---
 
@@ -772,7 +789,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 15 | Token and Cost Ledger | 4 | 2-3 days | Planned | Per-mission LLM cost |
 | 16 | Knowledge Lake Embeddings and Auto-Refresh | 5 | 7-10 days | Partially implemented | Shared embedding path and refresh detection |
 | 17 | DR Evidence and Release Hardening | 5 | 3-5 days | Local evidence implemented; live gate blocked by stale qualification evidence | Recovery/release evidence |
-| 18 | Reproducible Demo Missions and Launch Docs | 5 | 5-7 days | Planned | Launch-ready demo suite |
+| 18 | Reproducible Demo Missions and Launch Docs | 5 | 5-7 days | Local harness implemented; live demo environment-gated | Launch demo suite |
 
 **Remaining estimate after Phase 17:** 24-38 days, excluding the live
 provider-key demo and stale qualification-evidence refresh.
