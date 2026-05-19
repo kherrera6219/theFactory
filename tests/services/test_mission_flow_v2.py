@@ -91,9 +91,56 @@ def test_run_fetch_phase_mirrors_docs_to_global_and_mission_knowledge(monkeypatc
     )
 
     assert result["indexed_languages"] == ["python"]
+    assert result["refreshed_languages"] == ["python"]
+    assert result["unchanged_languages"] == []
     assert result["knowledge_ids"] == ["docs.python.bootstrap"]
+    assert result["embedding_provider"] == "deterministic"
     assert {write[0] for write in writes} == {"__knowledge_lake__", "mission-1"}
     assert all(write[2]["kind"] == "bootstrap_documentation" for write in writes)
+
+
+def test_run_fetch_phase_skips_global_refresh_when_hash_is_current(monkeypatch) -> None:
+    writes: list[tuple[str, str, dict[str, Any]]] = []
+    current = orchestrator_is_agent._bootstrap_content_for_language("python")
+
+    def _list_knowledge(_settings: Any, _mission_id: str, limit: int = 200) -> list[dict[str, Any]]:
+        _ = limit
+        return [
+            {
+                "mission_id": "__knowledge_lake__",
+                "knowledge_id": "docs.python.bootstrap",
+                "content": {"hash": current["hash"]},
+            }
+        ]
+
+    def _upsert_knowledge(
+        _settings: Any,
+        mission_id: str,
+        knowledge_id: str,
+        content: dict[str, Any],
+        _created_at: str,
+    ) -> dict[str, Any]:
+        writes.append((mission_id, knowledge_id, content))
+        return {"knowledge_id": knowledge_id}
+
+    fake_storage = SimpleNamespace(
+        list_knowledge=_list_knowledge,
+        upsert_knowledge=_upsert_knowledge,
+    )
+    monkeypatch.setitem(sys.modules, "orchestrator.storage", fake_storage)
+
+    result = asyncio.run(
+        orchestrator_is_agent.run_fetch_phase(
+            mission_id="mission-1",
+            required_languages=["python"],
+            settings=object(),
+        )
+    )
+
+    assert result["refreshed_languages"] == []
+    assert result["unchanged_languages"] == ["python"]
+    assert [write[0] for write in writes] == ["mission-1"]
+
 
 # ------------------------------------------------------------------
 # Transition table structure

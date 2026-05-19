@@ -760,6 +760,10 @@ async def _prepare_fetch_phase(
                 "errors": fetch_result["errors"],
                 "knowledge_ids": fetch_result.get("knowledge_ids", []),
                 "knowledge_ready": fetch_result["knowledge_ready"],
+                "refreshed_languages": fetch_result.get("refreshed_languages", []),
+                "unchanged_languages": fetch_result.get("unchanged_languages", []),
+                "embedding_provider": fetch_result.get("embedding_provider"),
+                "embedding_model": fetch_result.get("embedding_model"),
             },
         )
 

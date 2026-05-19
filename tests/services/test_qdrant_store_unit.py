@@ -175,6 +175,9 @@ def test_upsert_knowledge_builds_qdrant_point_payload(monkeypatch) -> None:
     point = points[0]
     assert point["id"] == "mission-1:knowledge-1"
     assert point["payload"]["mission_id"] == "mission-1"
+    assert point["payload"]["embedding_provider"] == "deterministic"
+    assert point["payload"]["embedding_model"] == "deterministic-hash-v1"
+    assert point["payload"]["embedding_dimensions"] == 16
     assert len(point["vector"]) == 16
 
 

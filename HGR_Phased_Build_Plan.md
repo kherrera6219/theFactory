@@ -63,7 +63,7 @@ The core remaining validated gap is now narrower:
   artifact support, source-bundle artifact packaging, and CEO logic clusters.
 - theFactory now has FETCH/FUSION execution, AIM for source-bearing missions,
   equivalence reports, and security/compliance reports for generated outputs; it
-  does not yet have dependency absorption, runtime QC, or cost accounting.
+  does not yet have dependency execution, runtime QC, or cost accounting.
 - Current docs split between accurate implementation-status docs and
   forward-looking product docs that describe future capabilities in present tense.
 
@@ -630,16 +630,33 @@ security/compliance verdicts.
 
 ## Phase 15 - Token and Cost Ledger
 **Duration:** 2-3 days  
-**Entry state:** LLM cost per mission is not tracked.  
-**Exit state:** every LLM call records provider, model, token usage where
-available, estimated cost, agent, and mission.
+**Entry state:** LLM cost per mission is not tracked. Live LLM calls are
+centralized in `llm_delegation.py`, generated artifacts record provider/model
+provenance, and audit events exist, but there is no durable usage/cost ledger.
+**Exit state:** every live LLM attempt records provider, model, route, token
+usage where available, estimated cost where pricing is known, agent, mission,
+latency, and status. Mission Control exposes mission-level usage/cost summaries.
 
 ### Scope
 
-- Wrap LLM calls with tracking.
-- Add database table/migration.
-- Add Mission Control cost summary.
-- Add budget warning events.
+- Add `V006_llm_usage_ledger.sql` with `llm_usage_events`.
+- Instrument `_call_with_recommendation()` / `_call_provider()` rather than
+  each phase-specific generation function.
+- Normalize provider usage metadata from OpenAI, Anthropic, and Gemini.
+- Estimate cost from a config-driven model price catalog; keep unknown pricing
+  explicit instead of inventing values.
+- Store no prompts, API keys, headers, or raw provider responses in the ledger.
+- Add mission chain-trace/API summary fields for usage totals and recent calls.
+- Add Mission Control cost summary panel.
+- Emit advisory budget warning events; do not block missions by default.
+
+### Validation
+
+- Mock provider usage payloads for OpenAI, Anthropic, and Gemini.
+- Verify primary and fallback attempts create separate ledger events.
+- Verify deterministic no-key fallback creates no paid usage.
+- Verify unknown pricing is surfaced as unknown, not zero.
+- Verify Mission Detail renders the cost summary.
 
 ---
 
@@ -652,15 +669,35 @@ available, estimated cost, agent, and mission.
 **Duration:** 7-10 days  
 **Entry state:** knowledge storage exists, but doc intelligence is not a complete
 operational knowledge lake.  
-**Exit state:** language/framework docs can be embedded, refreshed, and used by
-FETCH/context retrieval.
+**Exit state:** language/framework docs can be embedded through a shared
+provider-aware embedding path, refreshed when source content changes, and used
+by FETCH/context retrieval. Scheduled refresh and retrieval quality tests remain
+required before this phase is complete.
 
 ### Scope
 
-- Real embedding model selection.
-- Initial corpus load.
-- Refresh job.
-- Retrieval quality tests.
+- Select current embedding providers and defaults: deterministic local fallback,
+  OpenAI `text-embedding-3-large`/`text-embedding-3-small`, and Gemini
+  `gemini-embedding-001`.
+- Centralize embedding vector generation for Qdrant and Milvus.
+- Keep local/offline deterministic embeddings as the default.
+- Add content-hash refresh detection for IS-agent bootstrap documentation.
+- Expose embedding provider/model and refresh status in chain trace and Mission
+  Control.
+- Add scheduled refresh and retrieval quality tests before marking the phase
+  complete.
+
+### Current status - partially implemented May 19, 2026
+
+- `knowledge_embeddings.py` centralizes deterministic/OpenAI embedding vector
+  generation.
+- Qdrant and Milvus use the shared embedding helper and store embedding
+  provider/model/dimension metadata in vector payloads.
+- IS-agent FETCH now refreshes changed bootstrap docs and records refreshed vs.
+  unchanged languages.
+- Mission Control displays the FETCH embedding model and refresh state.
+- Gemini embeddings, scheduled refresh, retrieval quality tests, and Phase 15
+  embedding cost ledger integration remain open.
 
 ---
 
@@ -715,7 +752,7 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 13 | Security and Compliance Agents | 4 | 5-7 days | Implemented | Safety/compliance verdicts |
 | 14 | Dependency Absorption Engine | 4 | 10-14 days | Implemented | Dependency inventory/classification and advisory plans |
 | 15 | Token and Cost Ledger | 4 | 2-3 days | Planned | Per-mission LLM cost |
-| 16 | Knowledge Lake Embeddings and Auto-Refresh | 5 | 7-10 days | Planned | Operational knowledge lake |
+| 16 | Knowledge Lake Embeddings and Auto-Refresh | 5 | 7-10 days | Partially implemented | Shared embedding path and refresh detection |
 | 17 | DR Evidence and Release Hardening | 5 | 3-5 days | Planned | Recovery/release evidence |
 | 18 | Reproducible Demo Missions and Launch Docs | 5 | 5-7 days | Planned | Launch-ready demo suite |
 

@@ -930,6 +930,30 @@ export default function MissionDetailPage() {
               <dt>Knowledge ready</dt>
               <dd>{fetchResult.knowledge_ready ? "Yes" : "No"}</dd>
             </div>
+            <div>
+              <dt>Embedding model</dt>
+              <dd>
+                {fetchResult.embedding_provider && fetchResult.embedding_model
+                  ? `${fetchResult.embedding_provider}/${fetchResult.embedding_model}`
+                  : "deterministic"}
+              </dd>
+            </div>
+            <div>
+              <dt>Refresh</dt>
+              <dd>{fetchResult.refresh_enabled === false ? "disabled" : "enabled"}</dd>
+            </div>
+            {(fetchResult.refreshed_languages?.length ?? 0) > 0 && (
+              <div>
+                <dt>Refreshed</dt>
+                <dd>{fetchResult.refreshed_languages?.join(", ")}</dd>
+              </div>
+            )}
+            {(fetchResult.unchanged_languages?.length ?? 0) > 0 && (
+              <div>
+                <dt>Unchanged</dt>
+                <dd>{fetchResult.unchanged_languages?.join(", ")}</dd>
+              </div>
+            )}
             {fetchResult.errors?.length > 0 && (
               <div>
                 <dt>Errors</dt>

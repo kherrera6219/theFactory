@@ -45,6 +45,10 @@ class Settings:
     milvus_collection: str = "mission_knowledge"
     milvus_vector_size: int = 64
     milvus_timeout_seconds: float = 3.0
+    knowledge_embedding_provider: str = "deterministic"
+    knowledge_embedding_model: str = "deterministic-hash-v1"
+    knowledge_embedding_timeout_seconds: float = 10.0
+    knowledge_refresh_enabled: bool = True
     neo4j_url: str = "http://neo4j:7474"
     neo4j_enabled: bool = False
     neo4j_username: str = "neo4j"
@@ -197,6 +201,20 @@ def load_settings() -> Settings:
         or "mission_knowledge",
         milvus_vector_size=max(8, int(os.getenv("MILVUS_VECTOR_SIZE", "64"))),
         milvus_timeout_seconds=max(0.5, float(os.getenv("MILVUS_TIMEOUT_SECONDS", "3.0"))),
+        knowledge_embedding_provider=os.getenv(
+            "KNOWLEDGE_EMBEDDING_PROVIDER", "deterministic"
+        ).strip().lower()
+        or "deterministic",
+        knowledge_embedding_model=os.getenv(
+            "KNOWLEDGE_EMBEDDING_MODEL", "deterministic-hash-v1"
+        ).strip()
+        or "deterministic-hash-v1",
+        knowledge_embedding_timeout_seconds=max(
+            1.0, float(os.getenv("KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS", "10.0"))
+        ),
+        knowledge_refresh_enabled=_as_bool(
+            os.getenv("KNOWLEDGE_REFRESH_ENABLED", "true"), True
+        ),
         neo4j_enabled=_as_bool(os.getenv("NEO4J_ENABLED", "false"), False)
         and bool(os.getenv("NEO4J_URL", "http://neo4j:7474").strip()),
         neo4j_username=os.getenv("NEO4J_USERNAME", "neo4j"),

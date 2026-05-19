@@ -425,9 +425,14 @@ export type MissionChainTrace = {
   pod_group_standards?: Record<string, PodGroupStandard> | null;
   fetch_result?: {
     indexed_languages: string[];
+    refreshed_languages?: string[];
+    unchanged_languages?: string[];
     skipped_languages: string[];
     errors: string[];
     knowledge_ready: boolean;
+    refresh_enabled?: boolean;
+    embedding_provider?: string;
+    embedding_model?: string;
     indexed_at: string;
     mission_id: string;
   } | null;
