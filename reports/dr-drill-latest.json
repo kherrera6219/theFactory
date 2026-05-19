@@ -1,11 +1,11 @@
 {
-  "rto_target_minutes": 30,
-  "latest_backup": "C:\\software\\Holygrail\\theFactory\\.claude\\worktrees\\upbeat-nightingale-c071ba\\backups\\ulr_20990101_82274ee7.sql",
-  "completed_at_utc": "2026-05-18T06:12:17.8469119Z",
-  "rpo_target_hours": 24,
   "passed": true,
-  "started_at_utc": "2026-05-18T06:12:17.7712207Z",
+  "completed_at_utc": "2026-05-19T18:36:24.2861515Z",
+  "latest_backup": "C:\\software\\Holygrail\\theFactory\\backups\\ulr_20990101_df3bb365.sql",
+  "started_at_utc": "2026-05-19T18:36:24.2314028Z",
+  "rpo_target_hours": 24,
+  "latest_backup_manifest": "C:\\software\\Holygrail\\theFactory\\backups\\ulr_20990101_df3bb365.sql.json",
+  "duration_seconds": 0.05,
   "dry_run": true,
-  "latest_backup_manifest": "C:\\software\\Holygrail\\theFactory\\.claude\\worktrees\\upbeat-nightingale-c071ba\\backups\\ulr_20990101_82274ee7.sql.json",
-  "duration_seconds": 0.08
+  "rto_target_minutes": 30
 }

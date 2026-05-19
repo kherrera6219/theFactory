@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.05.16
-Last updated: 2026-05-18
+Document version: 2026.05.17
+Last updated: 2026-05-19
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -9,11 +9,13 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Project Status
 
-As of 2026-05-18, Phases 1-14 are implemented and validated locally.
+As of 2026-05-19, Phases 1-14 are implemented and validated locally. Phase 17
+has local DR/release-hardening evidence, while live launch promotion remains
+blocked until stale qualification evidence is refreshed.
 
-- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, Phase 11 Application Intelligence Map, Phase 12 equivalence reports, Phase 13 security/compliance reports for generated outputs, and Phase 14 dependency inventory/classification with advisory absorption planning.
-- **Current active phase:** Phase 15 - Token and Cost Ledger.
-- **Still planned:** Tier 4/5 cost ledgering, knowledge-lake completion, DR, and demo hardening.
+- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, Phase 11 Application Intelligence Map, Phase 12 equivalence reports, Phase 13 security/compliance reports for generated outputs, Phase 14 dependency inventory/classification with advisory absorption planning, and Phase 17 local DR/release-hardening evidence.
+- **Current active phase:** Phase 15/16 completion items and Phase 18 demo hardening.
+- **Still planned:** Tier 4/5 cost ledger completion, knowledge-lake scheduled refresh/Gemini embedding/retrieval-quality completion, live qualification refresh, and demo hardening.
 - **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, and remaining forward-looking docs cleanup.
 
 ## Mission Control UI — Vault and Settings (2026-04-16)
@@ -39,6 +41,7 @@ As of 2026-05-18, Phases 1-14 are implemented and validated locally.
 - Phase 14 dependency absorption now creates `dependency_inventory`, `dependency_classification_report`, `dependency_absorption_report`, and `dependency_survival_justifications` metadata for dependency-bearing missions. Safety-blocked families are retained/wrapped/pinned, small pure utilities can receive advisory replacement plans, and Mission Control renders the evidence.
 - Phase 15 remains planned. Current validation shows live LLM calls are centralized in `llm_delegation.py`, but there is no durable `llm_usage_events` table, provider usage normalizer, mission cost summary, or Mission Control cost panel yet.
 - Phase 16 is partially implemented. Knowledge embeddings now use a shared deterministic/OpenAI-capable helper, Qdrant/Milvus payloads include embedding metadata, FETCH refreshes changed bootstrap docs by content hash, and Mission Control shows embedding/refresh status. Gemini embeddings, scheduled refresh, retrieval quality tests, and Phase 15 embedding cost accounting remain open.
+- Phase 17 local evidence is implemented. `scripts/phase17_release_hardening_evidence.py` validates the latest DR drill report, RTO/RPO metadata, release-hardening scripts, and gitleaks/pre-commit secret-history controls, then records evidence in `docs/evidence/`. Live release promotion remains blocked until qualification evidence is regenerated inside the policy freshness window.
 - Pod workers now consume CEO logic-cluster domain focus during extraction and boost matching concept confidence for the assigned pod.
 - Pod managers now produce `pod_group_standards` during the Mission Flow v2 GATING phase. Standards consolidate specialist LogicNodes into canonical pod-level nodes, record duplicate elimination counts, emit `MISSION_POD_GROUP_STANDARD_PRODUCED`, and are exposed through chain trace and Mission Control.
 - Specialist planning now attempts narrow contract-driven generated-output creation for non-`ANALYZE_ONLY` missions. Successful LLM output is stored as `metadata.generated_output`; fallback output is marked as fallback and is not packaged as a successful generated-code artifact.

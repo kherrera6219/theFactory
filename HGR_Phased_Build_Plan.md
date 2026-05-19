@@ -13,8 +13,10 @@ must be verified against the live provider before replacement. The correct first
 phase was model governance and live/fallback LLM validation, not a blind
 replacement with `o3`, `o4-mini`, or `gpt-4o`.
 
-As of the May 18 implementation pass, Phases 1-9 have moved from planned to
-implemented:
+As of the May 19 implementation pass, Phases 1-14 are implemented locally,
+Phase 16 has a partial embedding/refresh implementation, and Phase 17 now has
+local DR/release-hardening evidence. The launch promotion gate still correctly
+blocks until stale live qualification evidence is refreshed.
 
 - active OpenAI model defaults use verified `gpt-5.5` executive/operations
   routes and `gpt-5.3-codex` coding routes, with deterministic no-key fallback
@@ -703,18 +705,34 @@ required before this phase is complete.
 
 ## Phase 17 - DR Evidence and Release Hardening
 **Duration:** 3-5 days  
-**Entry state:** release-trust docs and scripts exist, but fresh DR evidence and
-history hygiene must be verified before launch claims.  
-**Exit state:** DR drill evidence exists, secrets/history risks are addressed, and
-promotion gates pass.
+**Entry state:** release-trust docs and scripts exist, but fresh DR evidence,
+history hygiene, and qualification freshness must be verified before launch
+claims.
+**Exit state:** local DR/release-hardening evidence exists, secrets/history
+controls are verified, and promotion gates either pass with fresh live evidence
+or fail closed with explicit stale-evidence reasons.
 
 ### Scope
 
-- Run and record DR drill.
-- Verify backup/restore RTO.
-- Review git history secret findings before any destructive history rewrite.
-- Rotate affected credentials if needed.
-- Re-run promotion gate.
+- Run and record a DR drill dry-run or live drill.
+- Verify backup artifact generation and RTO/RPO metadata.
+- Verify release-hardening scripts for backup, restore, DR, evidence validation,
+  promotion gate, and qualification summary.
+- Verify secret-history controls through `.gitleaks.toml` and pre-commit
+  gitleaks configuration before any destructive history rewrite.
+- Capture Phase 17 evidence with
+  `scripts/phase17_release_hardening_evidence.py`.
+- Re-run qualification summary and promotion gate; stale live evidence must
+  remain a release blocker rather than being papered over.
+
+### Implementation Notes
+
+- Dedicated plan/status: `Phase_17_DR_Release_Hardening.md`.
+- Local evidence artifact:
+  `docs/evidence/phase17_dr_release_hardening_2026-05-19.json`.
+- The Phase 17 local evidence path can pass independently of launch promotion.
+  Launch remains blocked until required live qualification suites are rerun
+  within the `deploy/promotion-policy.json` freshness window.
 
 ---
 
@@ -753,11 +771,11 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 14 | Dependency Absorption Engine | 4 | 10-14 days | Implemented | Dependency inventory/classification and advisory plans |
 | 15 | Token and Cost Ledger | 4 | 2-3 days | Planned | Per-mission LLM cost |
 | 16 | Knowledge Lake Embeddings and Auto-Refresh | 5 | 7-10 days | Partially implemented | Shared embedding path and refresh detection |
-| 17 | DR Evidence and Release Hardening | 5 | 3-5 days | Planned | Recovery/release evidence |
+| 17 | DR Evidence and Release Hardening | 5 | 3-5 days | Local evidence implemented; live gate blocked by stale qualification evidence | Recovery/release evidence |
 | 18 | Reproducible Demo Missions and Launch Docs | 5 | 5-7 days | Planned | Launch-ready demo suite |
 
-**Remaining estimate after Phase 9:** 43-66 days, excluding the live provider-key
-demo and stale qualification-evidence refresh.
+**Remaining estimate after Phase 17:** 24-38 days, excluding the live
+provider-key demo and stale qualification-evidence refresh.
 
 ---
 
@@ -767,8 +785,10 @@ Minimum path to a real working demo:
 
 1. Complete a live provider-key BUILD_NEW demo through the implemented
    Phase 1-11 loop.
-2. Phase 15 - add token and cost ledger for LLM-backed work.
-3. Phase 17 - refresh stale qualification evidence before release claims.
+2. Finish Phase 15/16 open cost, scheduled refresh, Gemini embedding, and
+   retrieval-quality items.
+3. Refresh stale qualification evidence and re-run promotion gates before
+   release claims.
 
 Phases 1-14 now provide the first local/fallback proof of value: structured PM
 and CEO contracts, FETCH context, FUSION synthesis, generated-output packaging,
