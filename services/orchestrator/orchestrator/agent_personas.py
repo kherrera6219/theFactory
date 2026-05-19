@@ -987,3 +987,25 @@ def build_agent_persona_profile(
         "standards_alignment": _standards_alignment_for_agent(agent),
         "evidence_sources": _evidence_sources_for_agent(agent),
     }
+
+
+def build_agent_system_prompt(agent: AgentDefinition) -> str:
+    """Build the compact persona prompt used as the LLM system channel."""
+    profile = build_agent_persona_profile(
+        agent,
+        protocols=[],
+        llm_recommendation={},
+        data_systems=[],
+    )
+    job_role = profile["job_role"]
+    lines = [
+        str(profile["master_instruction"]),
+        f"Role: {job_role['title']} - {job_role['primary_function']}",
+        f"Scope: {job_role['scope']}",
+        "Traits: " + "; ".join(profile["traits_skills"][:5]),
+        "Methods: " + "; ".join(profile["methods_procedures"][:5]),
+        "Tools: " + "; ".join(profile["tools"][:5]),
+        "Primary protocol: " + str(profile["protocol"].get("primary_code", "unknown")),
+        "Return only the schema requested by the user prompt. Do not add markdown.",
+    ]
+    return "\n".join(line for line in lines if line.strip())

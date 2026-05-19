@@ -1,8 +1,8 @@
 # Phase 20 — CEO and Support Agent Workflow Depth
 
-**Status:** Planned
-**Last updated:** 2026-05-18
-**Depends on:** Phase 19 (system prompts and risk propagation wired)
+**Status:** CEO continuity and HW context implemented; LLM support-agent activation remains gated
+**Last updated:** 2026-05-19
+**Depends on:** Phase 19 core system prompts and risk propagation
 
 ---
 
@@ -61,6 +61,32 @@ Compliance, Tester; Gemini 3.1 Pro for IS, HW) but those models are never called
 This phase activates the CEO's reasoning continuity and the highest-value
 support agents — those whose output can directly improve mission quality or
 catch failures before delivery.
+
+---
+
+## Implementation Update — 2026-05-19
+
+Completed in this pass:
+
+- Replaced the minimal CEO delegation prompt with mission-type-aware strategic
+  guidance for BUILD_NEW, DEBUG_REPAIR, SECURITY_HARDEN, PORT,
+  REDUCE_DEPENDENCIES, IMPORT_MODERNIZE, and ANALYZE_ONLY.
+- Carried CEO delegation rationale into the mission-contract prompt.
+- Added workload-balance and dependency-ordering guidance to logic-cluster
+  decomposition prompts.
+- Added `depends_on` to normalized logic cluster records.
+- Added `CEO_REASONING_SUMMARY` chain-trace event with delegation rationale,
+  contract summary, cluster count, cross-pod flags, and support-agent flags.
+- Added deterministic `hw_agent.py` hardware context injection for
+  performance-sensitive systems-language/codegen prompts.
+- Added focused regression coverage in `tests/services/test_llm_delegation_unit.py`.
+
+Deferred from this pass:
+
+- LLM-backed Security, VC, Tester, and Compliance support-agent workflows.
+- Mission Control panels for commit strategy and generated tests.
+- Integration-test artifact packaging. These require broader delivery-flow and
+  UI changes and should remain feature-flagged when implemented.
 
 ---
 
@@ -743,13 +769,13 @@ COMPLIANCE_LLM_ENABLED=false           # LLM license assessment for unknown pack
 ## Validation
 
 ### CEO reasoning continuity
-- [ ] `BUILD_NEW` delegation prompt contains "code generation capability" strategy text.
-- [ ] `DEBUG_REPAIR` delegation prompt contains "static analysis and fault-isolation" text.
-- [ ] `PORT` delegation prompt contains "cross-pod dependency" language.
-- [ ] Mission contract prompt includes CEO delegation rationale text.
+- [x] `BUILD_NEW` delegation prompt contains "code generation capability" strategy text.
+- [x] `DEBUG_REPAIR` delegation prompt contains "static analysis and fault-isolation" text.
+- [x] `PORT` delegation prompt contains "cross-pod dependency" language.
+- [x] Mission contract prompt includes CEO delegation rationale text.
 - [ ] Logic clusters for `SECURITY_HARDEN` include a `domain='security_audit'` cluster.
-- [ ] Logic clusters schema accepts `depends_on` field without validation error.
-- [ ] Chain trace includes `CEO_REASONING_SUMMARY` event after CEO phase.
+- [x] Logic clusters schema accepts `depends_on` field without validation error.
+- [x] Chain trace includes `CEO_REASONING_SUMMARY` event after CEO phase.
 
 ### Security LLM analysis
 - [ ] With `SECURITY_LLM_ANALYSIS_ENABLED=false`: pattern scan behavior unchanged.
@@ -765,11 +791,11 @@ COMPLIANCE_LLM_ENABLED=false           # LLM license assessment for unknown pack
 - [ ] Mission Control renders Commit Strategy panel when data present.
 
 ### HW context injection
-- [ ] Rust codegen prompt for `BUILD_NEW` contains AW1 CPU/GPU text.
-- [ ] Python codegen prompt for `ANALYZE_ONLY` does NOT contain HW context.
-- [ ] JavaScript codegen prompt for `BUILD_NEW` does NOT contain HW context
+- [x] Rust codegen prompt for `BUILD_NEW` contains AW1 CPU/GPU text.
+- [x] Python codegen prompt for `ANALYZE_ONLY` does NOT contain HW context.
+- [x] JavaScript codegen prompt for `BUILD_NEW` does NOT contain HW context
       (not a systems language, no perf-sensitive domain).
-- [ ] Julia codegen prompt for `BUILD_NEW` DOES contain HW context
+- [x] Julia codegen prompt for `BUILD_NEW` DOES contain HW context
       (systems language).
 
 ### Tester Agent

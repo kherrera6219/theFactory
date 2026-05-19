@@ -1,8 +1,8 @@
 # Phase 19 — Agent Prompt Intelligence and PM Interview Loop
 
-**Status:** Planned
-**Last updated:** 2026-05-18
-**Depends on:** Phase 15 (token ledger wired), Phase 18 (demo missions green)
+**Status:** Core prompt intelligence implemented; PM clarification loop remains UI/API-gated
+**Last updated:** 2026-05-19
+**Depends on:** Phase 18 local demo harness
 
 ---
 
@@ -57,6 +57,31 @@ specialist generates poor output.
   already wired to the backend PM endpoint.
 - `MissionState` enum in `models.py` defines all current states. A new
   `pm_clarifying` value requires a migration and transition guard addition.
+
+---
+
+## Implementation Update — 2026-05-19
+
+Completed in this pass:
+
+- Added `build_agent_system_prompt()` in `agent_personas.py`.
+- Added `_system_prompt_for_agent()` and provider-level system-prompt
+  pass-through for OpenAI, Anthropic, and Gemini in `llm_delegation.py`.
+- Wired persona system prompts into PM, CEO, pod-manager, specialist, codegen,
+  pod-standard, delivery-summary, and CEO-fusion LLM paths.
+- Added language discipline/tooling context to specialist planning and codegen
+  prompts.
+- Added upstream risk propagation from PM feature contracts and CEO mission
+  contracts into downstream CEO/specialist prompts.
+- Added `ambiguity_score` to PM feature contracts and deterministic fallback
+  feature contracts.
+- Added regression coverage in `tests/services/test_llm_delegation_unit.py`.
+
+Deferred from this pass:
+
+- `PM_CLARIFYING` state, clarification answer/skip endpoints, and Mission
+  Control clarification panel. Those remain larger API/UI workflow work and
+  should be implemented with a dedicated migration and browser-backed QA pass.
 
 ---
 
@@ -259,6 +284,9 @@ already receives `mission_context` — add the risk injection there first.
 ---
 
 ## Change 4 — PM clarification loop
+
+**Status:** Deferred. Ambiguity scoring is implemented, but mission pausing,
+answer submission, skip semantics, and Mission Control rendering remain open.
 
 This is the highest-effort change and the most user-visible. Implement last
 within this phase.
@@ -500,28 +528,28 @@ the operator enables them.
 ## Validation
 
 ### Change 1 — System prompts
-- [ ] `_call_with_recommendation()` accepts and passes `system_prompt` for all
+- [x] `_call_with_recommendation()` accepts and passes `system_prompt` for all
       three providers (OpenAI, Anthropic, Gemini).
-- [ ] PM, CEO, pod manager, and specialist LLM calls all send a non-empty system
+- [x] PM, CEO, pod manager, and specialist LLM calls all send a non-empty system
       prompt in unit tests with a mocked provider.
-- [ ] `_system_prompt_for_agent("AGENT-01-PM")` returns a non-empty string.
-- [ ] `_system_prompt_for_agent("AGENT-UNKNOWN-999")` returns `None` without
+- [x] `_system_prompt_for_agent("AGENT-01-PM")` returns a non-empty string.
+- [x] `_system_prompt_for_agent("AGENT-UNKNOWN-999")` returns `None` without
       raising.
 
 ### Change 2 — Language enrichment
-- [ ] `_build_specialist_plan_prompt()` for `language="rust"` includes rust
+- [x] `_build_specialist_plan_prompt()` for `language="rust"` includes rust
       ownership/lifetime guidance text.
-- [ ] `_build_specialist_plan_prompt()` for `language="java"` includes JVM
+- [x] `_build_specialist_plan_prompt()` for `language="java"` includes JVM
       architecture text.
-- [ ] `_build_specialist_plan_prompt()` for an unknown language produces no
+- [x] `_build_specialist_plan_prompt()` for an unknown language produces no
       language context block (no KeyError).
 
 ### Change 3 — Risk propagation
-- [ ] A feature contract with 2 risk notes and 2 clarifying questions produces
+- [x] A feature contract with 2 risk notes and 2 clarifying questions produces
       a non-empty `_format_upstream_risks()` string.
-- [ ] That string appears in the mission contract prompt and specialist plan
+- [x] That string appears in the mission contract prompt and specialist plan
       prompt for the same mission.
-- [ ] An empty feature contract (fallback) produces an empty risk context string
+- [x] An empty feature contract (fallback) produces an empty risk context string
       with no error.
 
 ### Change 4 — PM clarification loop

@@ -137,6 +137,39 @@ def _chain_event_exists(metadata: dict[str, Any], event_type: str) -> bool:
     )
 
 
+def _extract_support_agent_flags(
+    ceo_delegation: dict[str, Any],
+    mission_type: str,
+) -> list[str]:
+    text = f"{ceo_delegation.get('rationale', '')} {mission_type}".upper()
+    flags: list[str] = []
+    keyword_map = {
+        "SECURITY": "AGENT-05-SECURITY",
+        "COMPLIANCE": "AGENT-08-COMPLIANCE",
+        "DEPABS": "AGENT-39-DEPABS",
+        "DEPENDENC": "AGENT-39-DEPABS",
+        "TEST": "AGENT-10-TESTER",
+        "VC": "AGENT-07-VC",
+    }
+    for keyword, agent_id in keyword_map.items():
+        if keyword in text and agent_id not in flags:
+            flags.append(agent_id)
+    return flags
+
+
+def _extract_cross_pod_flags(logic_clusters: dict[str, Any]) -> list[str]:
+    clusters = logic_clusters.get("clusters") if isinstance(logic_clusters, dict) else []
+    if not isinstance(clusters, list):
+        return []
+    pod_ids = {
+        str(cluster.get("pod_manager_agent_id") or "").strip().upper()
+        for cluster in clusters
+        if isinstance(cluster, dict)
+    }
+    pod_ids.discard("")
+    return sorted(pod_ids) if len(pod_ids) > 1 else []
+
+
 def _record_artifact(
     metadata: dict[str, Any],
     *,
@@ -876,6 +909,25 @@ async def _prepare_ceo_delegation(
                 "cluster_count": len(clusters) if isinstance(clusters, list) else 0,
                 "model_provider": logic_clusters.get("model_provider"),
                 "model": logic_clusters.get("model"),
+            },
+        )
+    if not _chain_event_exists(metadata, "CEO_REASONING_SUMMARY"):
+        clusters = logic_clusters.get("clusters") if isinstance(logic_clusters, dict) else []
+        support_agent_flags = _extract_support_agent_flags(
+            normalized,
+            str(metadata.get("mission_type") or "BUILD_NEW"),
+        )
+        metadata["ceo_support_agent_flags"] = support_agent_flags
+        append_chain_event(
+            metadata,
+            event_type="CEO_REASONING_SUMMARY",
+            agent_id=CEO_AGENT_ID,
+            details={
+                "delegation_rationale": normalized.get("rationale"),
+                "contract_summary": mission_contract.get("contract_summary"),
+                "cluster_count": len(clusters) if isinstance(clusters, list) else 0,
+                "cross_pod_flags": _extract_cross_pod_flags(logic_clusters),
+                "support_agent_flags": support_agent_flags,
             },
         )
     _record_artifact(

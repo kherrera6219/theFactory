@@ -11,7 +11,13 @@ from typing import Any
 import httpx
 
 from .agent_integrations import build_agent_integration_record
+from .agent_personas import (
+    _LANGUAGE_GUIDANCE,
+    _LANGUAGE_TOOLING,
+    build_agent_system_prompt,
+)
 from .agent_registry import AGENT_REGISTRY, AgentDefinition
+from .hw_agent import build_hw_context_block
 from .mission_flow import (
     CEO_AGENT_ID,
     POD_MANAGER_BY_LANGUAGE,
@@ -59,6 +65,26 @@ _RETRYABLE_HTTP_ERRORS = (
     httpx.ConnectError,
     httpx.RemoteProtocolError,
 )
+
+
+def _system_prompt_for_agent(agent_id: str) -> str | None:
+    """Return a persona-grounded system prompt for an agent."""
+    normalized_agent_id = _clean_text(agent_id, max_length=32).upper()
+    try:
+        agent = next(
+            (
+                candidate
+                for candidate in AGENT_REGISTRY
+                if candidate.agent_id == normalized_agent_id
+            ),
+            None,
+        )
+        if agent is None:
+            return None
+        return build_agent_system_prompt(agent)
+    except Exception:
+        LOGGER.warning("failed to build system prompt for %s", normalized_agent_id, exc_info=True)
+        return None
 
 
 def _retry_delay_for_response(response: httpx.Response, default_delay: float) -> float:
@@ -315,6 +341,62 @@ def _normalize_text_list(value: Any, *, limit: int = 5) -> list[str]:
     return items[:limit]
 
 
+def _language_context(language: str | None) -> str:
+    language_key = _clean_text(language or "", max_length=32).lower()
+    guidance = _LANGUAGE_GUIDANCE.get(language_key, "")
+    tooling = _LANGUAGE_TOOLING.get(language_key, "")
+    if not guidance and not tooling:
+        return ""
+    lines = ["Language discipline:"]
+    if guidance:
+        lines.append(f"  - {guidance}")
+    if tooling:
+        lines.append(f"  - Tooling references: {tooling}")
+    return "\n" + "\n".join(lines) + "\n"
+
+
+def _format_upstream_risks(metadata: dict[str, Any]) -> str:
+    """Summarize upstream PM/CEO risk signals for downstream prompts."""
+    lines: list[str] = []
+    feature_contract = metadata.get("feature_contract")
+    if isinstance(feature_contract, dict):
+        risks = _string_list(feature_contract.get("risk_notes"), limit=3)
+        questions = _string_list(feature_contract.get("clarifying_questions"), limit=3)
+        if risks:
+            lines.append("PM risk notes: " + "; ".join(risks))
+        if questions:
+            lines.append("PM open questions: " + "; ".join(questions))
+    mission_contract = metadata.get("mission_contract")
+    if isinstance(mission_contract, dict):
+        risks = _string_list(mission_contract.get("risk_notes"), limit=3)
+        if risks:
+            lines.append("CEO risk notes: " + "; ".join(risks))
+    if not lines:
+        return ""
+    return "\nUpstream risk context:\n" + "\n".join(f"  - {line}" for line in lines) + "\n"
+
+
+def _pm_ambiguity_score(contract: dict[str, Any], prompt: str) -> float:
+    """Score feature-contract ambiguity from 0.0 to 1.0."""
+    score = 0.0
+    questions = contract.get("clarifying_questions")
+    if isinstance(questions, list):
+        score += min(len(questions) * 0.15, 0.45)
+    risks = contract.get("risk_notes")
+    if isinstance(risks, list):
+        score += min(len(risks) * 0.10, 0.20)
+    if len(str(prompt or "").strip()) < 60:
+        score += 0.20
+    complexity = str(contract.get("estimated_complexity") or "medium").strip().lower()
+    requirements = contract.get("functional_requirements")
+    if complexity in {"high", "very_high"} and isinstance(requirements, list):
+        if len(requirements) <= 2:
+            score += 0.20
+    if bool(contract.get("human_approval_required")):
+        score += 0.10
+    return round(min(score, 1.0), 3)
+
+
 def _normalize_agent_choice(raw_value: Any, *, allowed_ids: set[str], fallback: str) -> str:
     candidate = _clean_text(raw_value, max_length=32).upper()
     return candidate if candidate in allowed_ids else fallback
@@ -325,12 +407,17 @@ async def _call_openai(
     prompt: str,
     *,
     call_context: str,
+    system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
     if not OPENAI_API_KEY:
         return None
+    messages: list[dict[str, str]] = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
     payload = {
         "model": model,
-        "input": prompt,
+        "input": messages,
         "reasoning": {"effort": "medium"},
     }
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
@@ -358,6 +445,7 @@ async def _call_anthropic(
     prompt: str,
     *,
     call_context: str,
+    system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
     if not ANTHROPIC_API_KEY:
         return None
@@ -366,6 +454,8 @@ async def _call_anthropic(
         "max_tokens": 900,
         "messages": [{"role": "user", "content": prompt}],
     }
+    if system_prompt:
+        payload["system"] = system_prompt
     headers = {
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": ANTHROPIC_VERSION,
@@ -395,10 +485,13 @@ async def _call_gemini(
     prompt: str,
     *,
     call_context: str,
+    system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
     if not GEMINI_API_KEY:
         return None
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    payload: dict[str, Any] = {"contents": [{"parts": [{"text": prompt}]}]}
+    if system_prompt:
+        payload["system_instruction"] = {"parts": [{"text": system_prompt}]}
     response = await _post_with_retry(
         f"{GEMINI_BASE_URL}/models/{model}:generateContent",
         json_payload=payload,
@@ -425,13 +518,27 @@ async def _call_provider(
     model: str,
     prompt: str,
     call_context: str,
+    system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
     normalized = provider.strip().lower()
+    async def _call_backend(func: Any) -> dict[str, Any] | None:
+        try:
+            return await func(
+                model,
+                prompt,
+                call_context=call_context,
+                system_prompt=system_prompt,
+            )
+        except TypeError as exc:
+            if "system_prompt" not in str(exc):
+                raise
+            return await func(model, prompt, call_context=call_context)
+
     if normalized == "anthropic":
-        return await _call_anthropic(model, prompt, call_context=call_context)
+        return await _call_backend(_call_anthropic)
     if normalized == "gemini":
-        return await _call_gemini(model, prompt, call_context=call_context)
-    return await _call_openai(model, prompt, call_context=call_context)
+        return await _call_backend(_call_gemini)
+    return await _call_backend(_call_openai)
 
 
 async def _call_with_recommendation(
@@ -439,15 +546,39 @@ async def _call_with_recommendation(
     recommendation: dict[str, Any],
     prompt: str,
     call_context: str,
+    system_prompt: str | None = None,
 ) -> tuple[dict[str, Any] | None, str, str, str]:
     provider = str(recommendation.get("provider", "openai")).strip().lower()
     model = str(recommendation.get("model", "gpt-5.5")).strip()
 
-    parsed = await _call_provider(
-        provider=provider,
-        model=model,
-        prompt=prompt,
-        call_context=call_context,
+    async def _provider_call(
+        *,
+        route_provider: str,
+        route_model: str,
+        route_context: str,
+    ) -> dict[str, Any] | None:
+        try:
+            return await _call_provider(
+                provider=route_provider,
+                model=route_model,
+                prompt=prompt,
+                call_context=route_context,
+                system_prompt=system_prompt,
+            )
+        except TypeError as exc:
+            if "system_prompt" not in str(exc):
+                raise
+            return await _call_provider(
+                provider=route_provider,
+                model=route_model,
+                prompt=prompt,
+                call_context=route_context,
+            )
+
+    parsed = await _provider_call(
+        route_provider=provider,
+        route_model=model,
+        route_context=call_context,
     )
     if isinstance(parsed, dict):
         return parsed, provider, model, "primary"
@@ -460,15 +591,39 @@ async def _call_with_recommendation(
     if fallback_provider == provider and fallback_model == model:
         return None, provider, model, "primary"
 
-    fallback = await _call_provider(
-        provider=fallback_provider,
-        model=fallback_model,
-        prompt=prompt,
-        call_context=f"{call_context} (fallback)",
+    fallback = await _provider_call(
+        route_provider=fallback_provider,
+        route_model=fallback_model,
+        route_context=f"{call_context} (fallback)",
     )
     if isinstance(fallback, dict):
         return fallback, fallback_provider, fallback_model, "fallback"
     return None, provider, model, "primary"
+
+
+async def _call_with_agent_system(
+    *,
+    recommendation: dict[str, Any],
+    prompt: str,
+    call_context: str,
+    agent_id: str,
+) -> tuple[dict[str, Any] | None, str, str, str]:
+    """Call the recommendation helper with persona system prompt when supported."""
+    try:
+        return await _call_with_recommendation(
+            recommendation=recommendation,
+            prompt=prompt,
+            call_context=call_context,
+            system_prompt=_system_prompt_for_agent(agent_id),
+        )
+    except TypeError as exc:
+        if "system_prompt" not in str(exc):
+            raise
+        return await _call_with_recommendation(
+            recommendation=recommendation,
+            prompt=prompt,
+            call_context=call_context,
+        )
 
 
 def _fallback_delegation(
@@ -543,10 +698,57 @@ def _build_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
+    mission_type = str(mission_context.get("mission_type") or "BUILD_NEW").strip().upper()
+    language = str(mission_context.get("requested_target_language") or "auto").strip().lower()
+    feature_contract = mission_context.get("feature_contract")
+    complexity = ""
+    if isinstance(feature_contract, dict):
+        complexity = str(feature_contract.get("estimated_complexity") or "").strip().lower()
+    type_strategy = {
+        "BUILD_NEW": (
+            "Select the pod whose language specialist has the strongest code generation "
+            "capability for the requested language."
+        ),
+        "DEBUG_REPAIR": (
+            "Select the pod whose specialist has the deepest static analysis and "
+            "fault-isolation capability for the source language."
+        ),
+        "SECURITY_HARDEN": (
+            "Select the pod whose specialist understands security-sensitive patterns. "
+            "Flag Security and Compliance agents before COMPLETE."
+        ),
+        "PORT": (
+            "Two languages are involved. Note source extraction, target generation, "
+            "and any cross-pod dependency in your rationale."
+        ),
+        "REDUCE_DEPENDENCIES": (
+            "Select the pod whose specialist can identify import-level intent and "
+            "generate replacement code. Flag DEPABS requirements."
+        ),
+        "IMPORT_MODERNIZE": (
+            "Select the pod whose specialist understands legacy patterns in the "
+            "source language. Modernization requires extraction and generation."
+        ),
+        "ANALYZE_ONLY": (
+            "Select the pod whose specialist can produce the richest LogicNode "
+            "coverage. No code generation is required."
+        ),
+    }
+    strategy = type_strategy.get(mission_type, type_strategy["BUILD_NEW"])
+    complexity_note = (
+        " High-complexity mission: consider multiple clusters and parallel pod ownership."
+        if complexity in {"high", "very_high"}
+        else ""
+    )
     return (
         "You are AGENT-02-CEO in a strict chain-of-command runtime.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
-        "Return only JSON with keys: pod_manager_agent_id, specialist_agent_id, rationale.\n"
+        "Return only JSON with keys: pod_manager_agent_id, specialist_agent_id, rationale.\n\n"
+        f"Mission type: {mission_type}\n"
+        f"Target language: {language}\n"
+        f"Strategic guidance: {strategy}{complexity_note}\n\n"
+        "Your rationale must explain why this pod, why this specialist, and any "
+        "cross-pod or support-agent dependencies flagged by mission type.\n\n"
         "Mission context JSON:\n"
         f"{_safe_context_json(mission_context)}\n"
         "Valid pod manager ids: AGENT-12-PODA-MGR, AGENT-18-PODB-MGR, "
@@ -580,9 +782,13 @@ def _build_specialist_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
+    language = str(mission_context.get("requested_target_language") or "").strip().lower()
+    risk_context = _format_upstream_risks(mission_context)
     return (
         f"You are {specialist_agent_id}, delegated by {pod_manager_agent_id}.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
+        f"{_language_context(language)}"
+        f"{risk_context}"
         "Return only JSON with keys: plan_summary, deliverables, risk_notes.\n"
         "deliverables and risk_notes must be arrays of short strings.\n"
         "Mission context JSON:\n"
@@ -609,10 +815,13 @@ def _build_mission_contract_prompt(
         {
             "pod_manager_agent_id": ceo_delegation.get("pod_manager_agent_id"),
             "specialist_agent_id": ceo_delegation.get("specialist_agent_id"),
+            "rationale": ceo_delegation.get("rationale"),
             "source": ceo_delegation.get("source"),
         },
         sort_keys=True,
     )
+    delegation_rationale = _clean_text(ceo_delegation.get("rationale", ""), max_length=280)
+    risk_context = _format_upstream_risks(mission_context)
     feature_contract = mission_context.get("feature_contract")
     feature_summary = ""
     if isinstance(feature_contract, dict):
@@ -633,7 +842,9 @@ def _build_mission_contract_prompt(
         f"Output mode: {safe_output_mode}\n"
         f"Requested target language: {safe_language}\n"
         f"CEO delegation JSON: {safe_delegation}\n"
+        + (f"CEO delegation rationale: {delegation_rationale}\n" if delegation_rationale else "")
         + (f"PM feature contract JSON: {feature_summary}\n" if feature_summary else "")
+        + risk_context
         + f"User prompt: {safe_prompt}\n\n"
         "Required JSON keys:\n"
         "{\n"
@@ -717,7 +928,7 @@ def _normalize_pm_feature_contract(
     acceptance_criteria = _string_list(raw.get("acceptance_criteria"), limit=6)
     if not acceptance_criteria:
         acceptance_criteria = ["Mission completes without error."]
-    return {
+    contract = {
         "schema_version": "feature_contract.v1",
         "title": _clean_text(raw.get("title", "Mission"), max_length=80) or "Mission",
         "summary": _clean_text(raw.get("summary", prompt), max_length=500),
@@ -737,6 +948,8 @@ def _normalize_pm_feature_contract(
         "model": model,
         "created_at": datetime.now(UTC).isoformat(),
     }
+    contract["ambiguity_score"] = _pm_ambiguity_score(contract, prompt)
+    return contract
 
 
 def _fallback_pm_feature_contract(
@@ -747,7 +960,7 @@ def _fallback_pm_feature_contract(
     recommendation: dict[str, Any],
 ) -> dict[str, Any]:
     language = _clean_text(requested_target_language or "", max_length=32).lower()
-    return {
+    contract = {
         "schema_version": "feature_contract.v1",
         "title": _clean_text(prompt, max_length=80) or "Mission",
         "summary": _clean_text(prompt, max_length=500),
@@ -765,6 +978,8 @@ def _fallback_pm_feature_contract(
         "model": recommendation.get("model"),
         "created_at": datetime.now(UTC).isoformat(),
     }
+    contract["ambiguity_score"] = _pm_ambiguity_score(contract, prompt)
+    return contract
 
 
 async def generate_pm_feature_contract(
@@ -787,10 +1002,11 @@ async def generate_pm_feature_contract(
         recommended_provider=provider,
         recommended_model=model,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=pm_prompt,
         call_context="pm feature contract",
+        agent_id="AGENT-01-PM",
     )
     if not isinstance(parsed, dict):
         return _fallback_pm_feature_contract(
@@ -966,6 +1182,16 @@ def _build_codegen_prompt(
     for node in logicnodes[:12]:
         if isinstance(node, dict):
             logicnode_lines.append(_clean_text(json.dumps(node, sort_keys=True), max_length=220))
+    risk_context = _format_upstream_risks(mission_context)
+    hw_context = build_hw_context_block(
+        mission_type=str(mission_context.get("mission_type") or "BUILD_NEW"),
+        language=target_language,
+        logic_clusters=(
+            mission_context.get("logic_clusters")
+            if isinstance(mission_context.get("logic_clusters"), dict)
+            else None
+        ),
+    )
     return (
         f"You are {specialist_agent_id}, a {target_language} specialist.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
@@ -973,6 +1199,9 @@ def _build_codegen_prompt(
         "Return only JSON. No markdown, prose, or code fences.\n\n"
         f"Mission: {contract_summary}\n"
         f"Target language: {_clean_text(target_language, max_length=32)}\n"
+        f"{_language_context(target_language)}"
+        f"{risk_context}"
+        f"{hw_context}"
         f"Acceptance criteria:\n{acceptance}\n\n"
         f"Contract requirements:\n{chr(10).join(requirements) or '- primary_operation'}\n\n"
         f"Extracted logicnode context:\n{chr(10).join(logicnode_lines) or '- none'}\n\n"
@@ -1103,15 +1332,32 @@ def _build_logic_clusters_prompt(
         },
         sort_keys=True,
     )
+    mission_type = str(
+        mission_context.get("mission_type") or mission_contract.get("mission_type") or "BUILD_NEW"
+    ).strip().upper()
+    cluster_guidance = (
+        "Decompose into 1-8 clusters. Rules:\n"
+        "  - Each cluster must be ownable by a single pod manager.\n"
+        "  - Clusters that can run in parallel should share priority level.\n"
+        "  - Dependent clusters must list upstream titles in depends_on.\n"
+        "  - DEBUG_REPAIR: one cluster per suspected fault domain.\n"
+        "  - PORT: source extraction and target generation are separate clusters.\n"
+        "  - SECURITY_HARDEN: include a security_audit cluster.\n"
+        "  - REDUCE_DEPENDENCIES: include a dependency_absorption cluster.\n"
+    )
+    risk_context = _format_upstream_risks(mission_context)
     return (
         "You are AGENT-02-CEO. Decompose this mission contract into logic clusters.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         "Return only JSON. No markdown, prose, or code fences.\n\n"
+        f"Mission type: {mission_type}\n"
         f"Requested target language: {safe_language}\n"
         f"Mission summary: {contract_summary}\n"
         f"Required domains: {json.dumps(required_domains)}\n"
         f"CEO delegation JSON: {safe_delegation}\n"
         f"Logicnode requirements JSON: {json.dumps(safe_requirements, sort_keys=True)}\n\n"
+        f"{cluster_guidance}\n"
+        f"{risk_context}"
         "Required JSON shape:\n"
         "{\n"
         '  "clusters": [\n'
@@ -1122,11 +1368,12 @@ def _build_logic_clusters_prompt(
         '      "pod_manager_agent_id": "assigned pod manager id",\n'
         '      "specialist_agent_id": "assigned specialist id",\n'
         '      "requirement_refs": ["requirement concept names"],\n'
+        '      "depends_on": ["upstream cluster titles"],\n'
         '      "rationale": "why this work is grouped together"\n'
         "    }\n"
         "  ]\n"
         "}\n\n"
-        "Return 1-8 clusters. Keep clusters coarse enough for pod-level ownership.\n"
+        "Keep clusters coarse enough for pod-level ownership.\n"
         f"Safe mission context: {_safe_context_json(mission_context)}"
     )
 
@@ -1180,6 +1427,7 @@ def _normalize_logic_clusters(
                     fallback=default_specialist,
                 ),
                 "requirement_refs": _string_list(item.get("requirement_refs"), limit=8),
+                "depends_on": _string_list(item.get("depends_on"), limit=8, max_length=96),
                 "rationale": _clean_text(
                     item.get("rationale") or "Grouped by related domain scope.",
                     max_length=240,
@@ -1266,6 +1514,7 @@ def _fallback_logic_clusters(
                 "pod_manager_agent_id": pod_manager_agent_id,
                 "specialist_agent_id": specialist_agent_id,
                 "requirement_refs": matching_requirements[:8],
+                "depends_on": [],
                 "rationale": "Deterministic cluster from mission contract domain scope.",
             }
         )
@@ -1602,10 +1851,11 @@ async def generate_pod_group_standard(
         recommended_provider=provider,
         recommended_model=model,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="pod group standard consolidation",
+        agent_id=normalized_pod_manager_agent_id,
     )
     if not isinstance(parsed, dict):
         return _fallback_pod_group_standard(
@@ -1649,10 +1899,11 @@ async def generate_code_from_contract(
         recommended_provider=provider,
         recommended_model=model,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context=f"specialist codegen {specialist_agent_id}",
+        agent_id=specialist_agent_id,
     )
     contract_summary = str(mission_contract.get("contract_summary", "mission"))
     if not isinstance(parsed, dict):
@@ -1760,10 +2011,11 @@ async def generate_pm_delivery_summary(
         "}\n"
     )
 
-    parsed, resolved_provider, resolved_model, _route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, _route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="pm delivery summary",
+        agent_id="AGENT-01-PM",
     )
     if not isinstance(parsed, dict):
         return {
@@ -1818,10 +2070,11 @@ async def generate_logic_clusters(
         recommended_provider=provider,
         recommended_model=model,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="logic cluster decomposition",
+        agent_id=CEO_AGENT_ID,
     )
     if not isinstance(parsed, dict):
         return _fallback_logic_clusters(
@@ -1863,10 +2116,11 @@ async def generate_mission_contract(
         recommended_provider=provider,
         recommended_model=model,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=contract_prompt,
         call_context="mission contract",
+        agent_id=CEO_AGENT_ID,
     )
     if not isinstance(parsed, dict):
         return _fallback_mission_contract(
@@ -1901,10 +2155,11 @@ async def generate_ceo_delegation(
         recommended_model=model,
     )
 
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="ceo delegation",
+        agent_id=CEO_AGENT_ID,
     )
 
     if not isinstance(parsed, dict):
@@ -1966,10 +2221,11 @@ async def generate_pod_manager_delegation(
         recommended_model=model,
     )
 
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="pod-manager delegation",
+        agent_id=normalized_pod_manager_agent_id,
     )
     if not isinstance(parsed, dict):
         return _fallback_pod_manager_delegation(
@@ -2029,10 +2285,11 @@ async def generate_specialist_plan(
         recommended_model=model,
     )
 
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="specialist planning",
+        agent_id=normalized_specialist_agent_id,
     )
     if not isinstance(parsed, dict):
         return _fallback_specialist_plan(
@@ -2138,10 +2395,11 @@ async def generate_master_logic_stream(
         "Keep master_logic_stream to 5-25 nodes. Order by dependency_order (lowest first).\n"
     )
 
-    parsed, resolved_provider, resolved_model, _route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, _route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="ceo logic fusion",
+        agent_id=CEO_AGENT_ID,
     )
 
     if not isinstance(parsed, dict):

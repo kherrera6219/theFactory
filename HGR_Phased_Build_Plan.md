@@ -16,7 +16,9 @@ replacement with `o3`, `o4-mini`, or `gpt-4o`.
 As of the May 19 implementation pass, Phases 1-14 are implemented locally,
 Phase 16 has a partial embedding/refresh implementation, Phase 17 has local
 DR/release-hardening evidence, and Phase 18 has a reproducible demo-mission
-harness. The launch promotion gate still correctly blocks until stale live
+harness. Phase 19/20 core prompt intelligence and CEO/HW context are now
+implemented locally, with PM clarification UI and LLM support-agent activation
+still gated. The launch promotion gate still correctly blocks until stale live
 qualification evidence is refreshed.
 
 - active OpenAI model defaults use verified `gpt-5.5` executive/operations
@@ -768,6 +770,49 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 
 ---
 
+## Phase 19 - Agent Prompt Intelligence and PM Interview Loop
+**Duration:** 5-8 days
+**Entry state:** persona data exists, but LLM calls were mostly user-turn-only
+and downstream prompts did not inherit PM/CEO risk context.
+**Exit state:** persona system prompts are passed to provider calls, specialist
+prompts include language/tooling context, upstream risks flow downstream, and
+PM ambiguity is scored. PM clarification pause/resume remains API/UI-gated.
+
+### Scope
+
+- Build persona-grounded system prompts from `agent_personas.py`.
+- Pass system prompts through OpenAI, Anthropic, and Gemini call paths.
+- Wire system prompts into PM, CEO, pod-manager, specialist, pod-standard,
+  codegen, delivery-summary, and CEO-fusion LLM paths.
+- Add language discipline/tooling context to specialist planning and codegen.
+- Propagate PM/CEO risk notes and clarifying questions downstream.
+- Add PM feature-contract `ambiguity_score`.
+- Defer `PM_CLARIFYING` state and Mission Control clarification panel to a
+  dedicated API/UI pass.
+
+---
+
+## Phase 20 - CEO and Support Agent Workflow Depth
+**Duration:** 7-10 days
+**Entry state:** CEO calls were independent and support-agent prompt/runtime
+depth was mostly synthesized.
+**Exit state:** CEO prompts are mission-type-aware, delegation rationale carries
+into contract/cluster prompts, chain trace includes a CEO reasoning summary, and
+performance-sensitive codegen receives deterministic AW1 hardware context.
+LLM-backed Security/VC/Tester/Compliance support workflows remain gated.
+
+### Scope
+
+- Add mission-type strategy to CEO delegation.
+- Carry delegation rationale into mission-contract generation.
+- Add workload-balance, dependency-ordering, and `depends_on` cluster guidance.
+- Emit `CEO_REASONING_SUMMARY` in chain trace with cross-pod/support-agent flags.
+- Add deterministic `hw_agent.py` context injection for systems/performance work.
+- Defer LLM support-agent activation and Mission Control support panels to a
+  broader feature-flagged delivery/UI pass.
+
+---
+
 # Summary Table
 
 | Phase | Name | Tier | Duration | Status | Key Output |
@@ -790,8 +835,10 @@ and IMPORT_MODERNIZE/DEBUG_REPAIR behavior.
 | 16 | Knowledge Lake Embeddings and Auto-Refresh | 5 | 7-10 days | Partially implemented | Shared embedding path and refresh detection |
 | 17 | DR Evidence and Release Hardening | 5 | 3-5 days | Local evidence implemented; live gate blocked by stale qualification evidence | Recovery/release evidence |
 | 18 | Reproducible Demo Missions and Launch Docs | 5 | 5-7 days | Local harness implemented; live demo environment-gated | Launch demo suite |
+| 19 | Agent Prompt Intelligence and PM Interview Loop | 6 | 5-8 days | Core prompt intelligence implemented; clarification UI/API gated | Persona prompts and risk propagation |
+| 20 | CEO and Support Agent Workflow Depth | 6 | 7-10 days | CEO continuity and HW context implemented; support LLMs gated | CEO reasoning summary and HW context |
 
-**Remaining estimate after Phase 17:** 24-38 days, excluding the live
+**Remaining estimate after Phase 20:** 19-32 days, excluding the live
 provider-key demo and stale qualification-evidence refresh.
 
 ---

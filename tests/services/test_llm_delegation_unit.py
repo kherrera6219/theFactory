@@ -949,6 +949,70 @@ def test_resolve_agent_and_recommendation_default_to_ceo() -> None:
     assert recommendation["agent_id"] == llm_delegation.CEO_AGENT_ID
 
 
+def test_system_prompt_for_agent_uses_persona_profile() -> None:
+    prompt = llm_delegation._system_prompt_for_agent("AGENT-01-PM")
+    assert prompt is not None
+    assert "user-intent guardian" in prompt
+    assert "Return only the schema requested" in prompt
+    assert llm_delegation._system_prompt_for_agent("AGENT-UNKNOWN-999") is None
+
+
+def test_specialist_prompt_includes_language_and_risk_context() -> None:
+    prompt = llm_delegation._build_specialist_prompt(
+        mission_context={
+            "mission_id": "mission-1",
+            "requested_target_language": "rust",
+            "feature_contract": {
+                "risk_notes": ["unsafe boundary unclear"],
+                "clarifying_questions": ["Should unsafe be allowed?"],
+            },
+        },
+        specialist_agent_id="AGENT-22-RUST",
+        pod_manager_agent_id="AGENT-18-PODB-MGR",
+        recommended_provider="openai",
+        recommended_model="gpt-5.3-codex",
+    )
+    assert "Ownership model correctness" in prompt
+    assert "PM risk notes" in prompt
+    assert "PM open questions" in prompt
+
+
+def test_codegen_prompt_includes_hw_context_for_systems_language() -> None:
+    prompt = llm_delegation._build_codegen_prompt(
+        mission_context={
+            "mission_id": "mission-1",
+            "mission_type": "BUILD_NEW",
+            "logic_clusters": {"clusters": [{"domain": "memory_management"}]},
+        },
+        mission_contract={
+            "contract_summary": "Build fast parser",
+            "acceptance_criteria": ["Parses input"],
+            "logicnode_requirements": [],
+        },
+        logicnodes=[],
+        target_language="rust",
+        specialist_agent_id="AGENT-22-RUST",
+        recommended_provider="openai",
+        recommended_model="gpt-5.3-codex",
+    )
+    assert "Runtime hardware context (AW1)" in prompt
+    assert "Intel i7-14700F" in prompt
+
+
+def test_pm_ambiguity_score_tracks_questions_and_short_prompt() -> None:
+    score = llm_delegation._pm_ambiguity_score(
+        {
+            "clarifying_questions": ["one", "two"],
+            "risk_notes": ["risk"],
+            "estimated_complexity": "high",
+            "functional_requirements": ["thin"],
+            "human_approval_required": True,
+        },
+        "short prompt",
+    )
+    assert score >= 0.8
+
+
 def test_extract_text_helpers_return_none_for_invalid_shapes() -> None:
     assert llm_delegation._extract_openai_text({"choices": ["bad"], "output": ["bad"]}) is None
     assert llm_delegation._extract_anthropic_text({"content": [{"type": "image"}]}) is None
