@@ -996,3 +996,32 @@ export type LlmUsageSummary = {
     cost_usd: number | null;
   }>;
 };
+
+export type VcCommitStrategy = {
+  strategy_id: string;
+  commit_hash?: string | null;
+  branch_name?: string | null;
+  message?: string | null;
+  status: "pending" | "applied" | "failed" | string;
+};
+
+export type IntegrationTests = {
+  framework: string;
+  test_count: number;
+  passed_count: number;
+  failed_count: number;
+  duration_ms: number;
+  results: Array<{
+    name: string;
+    status: "pass" | "fail" | string;
+    error_message?: string | null;
+  }>;
+};
+
+export type PodAuditVerdict = {
+  audit_id: string;
+  pod_name: string;
+  verdict: "APPROVED" | "REJECTED" | "WARNING" | string;
+  rationale: string;
+  audited_at: string;
+};

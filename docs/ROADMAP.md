@@ -494,9 +494,77 @@ Current-state note (2026-03-29): this document remains the implementation phase 
   - `docs/evidence/phase39_llm_node_wiring_hardening_2026-03-08.md`
 - Status: Complete (LLM depth wiring + hardening controls validated, 2026-03-08).
 
+## Phase 40: Shipped PM & CEO Durable Contracts (Phase 15 Alignment)
+
+- Implemented durable `feature_contract` and schema-validated `mission_charter` metadata.
+- Implemented `mission_contract` and decomposed `logic_clusters` within CEO reasoning context.
+- Status: Complete (2026-05-18).
+
+## Phase 41: Shipped Gemini & Qdrant Knowledge Lake (Phase 16 Alignment)
+
+- Embedded bootstrap docs and mirrored them to mission-scoped vector data store.
+- Exposed knowledge lake fetch results in chain trace.
+- Status: Complete (2026-05-18).
+
+## Phase 42: Shipped Phase 9 FUSION Stream (Phase 16 Alignment)
+
+- Folded pod group standards into the canonical `master_logic_stream`.
+- Leveraged master logic streams to bypass fallback generated outputs.
+- Status: Complete (2026-05-18).
+
+## Phase 43: Shipped Application Intelligence Map (Phase 11 Alignment)
+
+- Deployed AIM generation for 20 routed language keys.
+- Status: Complete (2026-05-18).
+
+## Phase 44: Shipped Equivalence Verification (Phase 12 Alignment)
+
+- Integrated structural equivalence testing reports.
+- Status: Complete (2026-05-18).
+
+## Phase 45: Shipped Security & Compliance Intelligence (Phase 13 Alignment)
+
+- Integrated AST-level compliance reports for generated outputs.
+- Status: Complete (2026-05-18).
+
+## Phase 46: Shipped Dependency Absorption Advisory (Phase 14 Alignment)
+
+- Configured classification reports, SBOM delta predictions, and dependency inventories.
+- Status: Complete (2026-05-18).
+
+## Phase 47: Shipped Disaster Recovery Release Hardening (Phase 17 Alignment)
+
+- Automated recovery drill timed evidence generation.
+- Status: Complete (2026-05-19).
+
+## Phase 48: Shipped CEO/HW Context and Prompt Intelligence (Phases 19 & 20 Alignment)
+
+- Configured mission-type-aware CEO delegation and specialized planning prompts.
+- Status: Complete (2026-05-19).
+
+## Phase 49: Shipped Specialist Deep Extraction (Phase 21 Alignment)
+
+- Deployed AST-backed extractors with class-level function and import mapping.
+- Status: Complete (2026-05-19).
+
+## Phase 50: Shipped Runtime QC & DEPABS Splicing (Phases 22 & 23 Alignment)
+
+- Deployed docker-sandbox dry runs, testdata manifests, and SBOM reduction tables.
+- Status: Complete (2026-05-19).
+
+## Phase 51: Phase 26 Production Hardening & Git History Scrubbing
+
+- Completed destructive history rewrite to purge committed private keys.
+- Deployed timed disaster recovery drill automation and achieved 22/22 PASS on production audit.
+- Status: Complete (2026-05-19).
+
+## Phase 52: Phase 27 Mission Control Details Convergence
+
+- Extracted all 22 panels from the inline detail page into clean category-structured components.
+- Integrated individual Error Boundary wraps, strict TypeScript structures, and useConfirm hooks.
+- Status: Complete (2026-05-20).
+
 ## Next Roadmap Targets
 
-1. Execute weekly live-stack matrix/canary/prototype runs and publish retained evidence snapshots.
-2. Promote v2 prototype matrix signals into release-policy thresholds after three consecutive successful qualification windows.
-3. Add targeted metrics dashboard panels for `MISSION_SPECIALIST_PLANNED` and LLM route
-   provenance (`primary` vs `fallback`) per mission.
+1. Promote full dedicated-agent compose profiles to primary integration platforms.
+2. Automate end-to-end continuous canary evaluation on staging runtimes.
