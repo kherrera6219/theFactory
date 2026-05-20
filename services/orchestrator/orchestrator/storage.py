@@ -29,6 +29,10 @@ from .storage_agents import (
 from .storage_artifacts import (
     get_build_artifact,
     get_review_approval,
+    get_runtime_qc_report,
+    get_testdata_manifest,
+    insert_runtime_qc_report,
+    insert_testdata_manifest,
     list_audit_reports,
     list_build_artifacts,
     list_recent_audit_reports,
@@ -115,6 +119,10 @@ __all__ = [
     "upsert_build_artifact",
     "list_build_artifacts",
     "get_build_artifact",
+    "insert_testdata_manifest",
+    "get_testdata_manifest",
+    "insert_runtime_qc_report",
+    "get_runtime_qc_report",
     # agents
     "create_agent_action_event",
     "upsert_agent_heartbeat",

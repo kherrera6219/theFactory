@@ -2149,6 +2149,48 @@ def build_deploy_readiness_assessment(
     }
 
 
+async def generate_rqca_assessment(
+    *,
+    mission_id: str,
+    execution_result: dict[str, Any],
+    mission_contract: dict[str, Any],
+    language: str,
+) -> dict[str, Any]:
+    """Interpret runtime-QC execution results with deterministic fallback."""
+    _ = mission_id, mission_contract, language
+    verdict = str(execution_result.get("verdict") or "SKIPPED").strip().upper()
+    passed = bool(execution_result.get("passed", False))
+    if verdict in {"DRY_RUN", "SKIPPED"}:
+        return {
+            "qc_verdict": "ADVISORY",
+            "confidence": "LOW",
+            "execution_verdict": verdict,
+            "findings": [],
+            "remediation": [],
+            "deployment_safe": True,
+            "source": "advisory",
+            "assessed_at": datetime.now(UTC).isoformat(),
+        }
+    if passed:
+        qc_verdict = "PASS"
+        findings = ["Runtime execution completed with the expected exit code."]
+        remediation: list[str] = []
+    else:
+        qc_verdict = "FAIL"
+        findings = ["Runtime execution did not complete as expected."]
+        remediation = ["Inspect stderr/stdout previews and repair the generated artifact."]
+    return {
+        "qc_verdict": qc_verdict,
+        "confidence": "LOW",
+        "execution_verdict": verdict,
+        "findings": findings,
+        "remediation": remediation,
+        "deployment_safe": passed,
+        "source": "fallback",
+        "assessed_at": datetime.now(UTC).isoformat(),
+    }
+
+
 async def generate_pm_delivery_summary(
     *,
     mission_context: dict[str, Any],

@@ -841,6 +841,53 @@ activation/enforcement and Mission Control panels remain gated.
 
 ---
 
+## Phase 22 - Runtime QC: TESTDATA and RQCA
+**Duration:** 7-10 days
+**Entry state:** TESTDATA and RQCA exist in the registry/persona matrix, but
+there is no runtime module, schema, API, Mission Control panel, or sandbox
+execution evidence.
+**Exit state:** generated artifacts can receive a testdata manifest and a
+runtime-QC report. Python and JavaScript/TypeScript artifacts can run in an
+explicit opt-in Docker sandbox; unsupported languages produce dry-run evidence.
+**Current status:** Slice A implemented locally on 2026-05-20. Live Docker
+execution remains operator-gated by `RQCA_AGENT_ENABLED=false` and Docker
+availability.
+
+### Scope
+
+- Add TESTDATA manifest generation with deterministic fallback and safety caps.
+- Add RQCA runtime-QC reports with dry-run support and opt-in Docker execution.
+- Add `V006_runtime_qc_schema.sql` plus storage/API/chain-trace exposure.
+- Add Mission Control Runtime QC and Test Environment panels.
+- Keep browser automation, multi-container environments, and long-running QC
+  sessions out of this slice.
+
+---
+
+## Phase 23 - DEPABS Execution
+**Duration:** 5-8 days
+**Entry state:** Phase 14 produces inventory, classification, survival
+justifications, and advisory `planned_replacements`; no source is modified.
+**Exit state:** `REDUCE_DEPENDENCIES` missions can, behind
+`DEPABS_EXECUTION_ENABLED=false` by default, execute ready replacement plans,
+produce a modified generated artifact, attach `depabs_execution`, and publish
+an `sbom_delta`.
+**Current status:** Core execution slice implemented locally on 2026-05-20
+behind `DEPABS_EXECUTION_ENABLED=false`.
+
+### Scope
+
+- Consume `dependency_absorption_report.planned_replacements` with
+  `status="ready_for_planning"`.
+- Start with Python absorption execution; JavaScript/TypeScript follows after
+  explicit import/require/ESM tests.
+- Never execute gated, safety-blocked, or survival-justified dependencies.
+- Generate SBOM delta from `dependency_inventory.dependencies`.
+- Route modified artifacts through equivalence, security/compliance, and
+  runtime-QC evidence before promotion claims.
+
+---
+
 # Summary Table
 
 | Phase | Name | Tier | Duration | Status | Key Output |
@@ -866,9 +913,11 @@ activation/enforcement and Mission Control panels remain gated.
 | 19 | Agent Prompt Intelligence and PM Interview Loop | 6 | 5-8 days | Core prompt intelligence implemented; clarification UI/API gated | Persona prompts and risk propagation |
 | 20 | CEO and Support Agent Workflow Depth | 6 | 7-10 days | CEO continuity and HW context implemented; support LLMs gated | CEO reasoning summary and HW context |
 | 21 | Pod Agent Workflow Depth | 6 | 5-7 days | Core pod workflow depth implemented; LLM/UI activation gated | Pod-family prompts, coverage verdicts, provider health |
+| 22 | Runtime QC: TESTDATA and RQCA | 7 | 7-10 days | Slice A implemented; live sandbox gated | Testdata manifests and runtime-QC reports |
+| 23 | DEPABS Execution | 7 | 5-8 days | Core execution slice implemented; verification gated | Modified artifacts and SBOM delta |
 
-**Remaining estimate after Phase 21:** 17-29 days, excluding the live
-provider-key demo and stale qualification-evidence refresh.
+**Remaining estimate after Phase 22/23 local slices:** 17-29 days, excluding
+the live provider-key demo and stale qualification-evidence refresh.
 
 ---
 

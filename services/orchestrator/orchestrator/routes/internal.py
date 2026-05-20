@@ -211,9 +211,13 @@ def _build_mission_chain_trace(
         "dependency_inventory": metadata.get("dependency_inventory"),
         "dependency_classification_report": metadata.get("dependency_classification_report"),
         "dependency_absorption_report": metadata.get("dependency_absorption_report"),
+        "depabs_execution": metadata.get("depabs_execution"),
+        "sbom_delta": metadata.get("sbom_delta"),
         "dependency_survival_justifications": metadata.get(
             "dependency_survival_justifications"
         ),
+        "testdata_manifest": metadata.get("testdata_manifest"),
+        "runtime_qc_report": metadata.get("runtime_qc_report"),
         "master_logic_stream": metadata.get("master_logic_stream"),
         "delivery_summary": metadata.get("delivery_summary"),
         "events": chain_trace,
@@ -408,6 +412,48 @@ async def get_chain_trace(
         events=events,
         build_artifacts=build_artifacts,
     )
+
+
+@router.get("/internal/missions/{mission_id}/testdata-manifest")
+async def get_mission_testdata_manifest(
+    request: Request,
+    mission_id: str,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+    record = await asyncio.to_thread(storage.get_testdata_manifest, app.state.settings, mission_id)
+    if record is not None:
+        return record
+    metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
+    manifest = metadata.get("testdata_manifest")
+    if isinstance(manifest, dict):
+        return {"mission_id": mission_id, "manifest": manifest, "source": "mission_metadata"}
+    raise HTTPException(status_code=404, detail="testdata manifest not found")
+
+
+@router.get("/internal/missions/{mission_id}/runtime-qc")
+async def get_mission_runtime_qc(
+    request: Request,
+    mission_id: str,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+    record = await asyncio.to_thread(storage.get_runtime_qc_report, app.state.settings, mission_id)
+    if record is not None:
+        return record
+    metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
+    report = metadata.get("runtime_qc_report")
+    if isinstance(report, dict):
+        return {"mission_id": mission_id, "runtime_qc_report": report, "source": "mission_metadata"}
+    raise HTTPException(status_code=404, detail="runtime QC report not found")
 
 
 @router.post("/internal/audit-events")

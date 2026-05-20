@@ -47,6 +47,8 @@ from .aim_generator import generate_aim, mission_requires_aim
 from .audit_events import record_audit_event
 from .dependency_absorption import (
     build_dependency_absorption_reports,
+    build_sbom_delta,
+    execute_absorption,
     mission_requires_dependency_absorption,
 )
 from .equivalence_verifier import build_equivalence_report, mission_requires_equivalence
@@ -60,6 +62,7 @@ from .llm_delegation import (
     generate_pm_feature_contract,
     generate_pod_group_standard,
     generate_pod_manager_delegation,
+    generate_rqca_assessment,
     generate_specialist_plan,
 )
 from .mission_flow import (
@@ -71,10 +74,12 @@ from .mission_flow import (
     with_chain_defaults,
 )
 from .models import MissionState
+from .rqca_agent import run_runtime_qc
 from .security_compliance import (
     build_security_compliance_report,
     mission_requires_security_compliance,
 )
+from .testdata_agent import generate_testdata_manifest
 
 LOGGER = logging.getLogger(__name__)
 VALID_AGENT_IDS = frozenset(agent.agent_id for agent in AGENT_REGISTRY)
@@ -1963,6 +1968,245 @@ async def _prepare_dependency_absorption_reports(
     return updated or mission, not bool(absorption_report.get("blocking")), absorption_report
 
 
+async def _prepare_depabs_execution(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> Any:
+    if not bool(getattr(settings, "depabs_execution_enabled", False)):
+        return mission
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    source_code = str(metadata.get("source_code") or "")
+    absorption_report = metadata.get("dependency_absorption_report")
+    if not source_code.strip() or not isinstance(absorption_report, dict):
+        return mission
+    if isinstance(metadata.get("depabs_execution"), dict):
+        return mission
+    execution = await execute_absorption(
+        mission_id=mission.mission_id,
+        source_code=source_code,
+        language=mission.requested_target_language or "python",
+        absorption_report=absorption_report,
+        settings=settings,
+    )
+    metadata["depabs_execution"] = execution
+    inventory = metadata.get("dependency_inventory")
+    survival = metadata.get("dependency_survival_justifications")
+    sbom_delta = build_sbom_delta(
+        original_dependencies=(
+            inventory.get("dependencies", []) if isinstance(inventory, dict) else []
+        ),
+        absorption_result=execution,
+        survival_justifications=survival if isinstance(survival, list) else [],
+    )
+    metadata["sbom_delta"] = sbom_delta
+    absorption_count = int(execution.get("absorption_count") or 0)
+    if absorption_count > 0:
+        language = mission.requested_target_language or "python"
+        metadata["generated_output"] = {
+            "schema_version": "generated_output.v1",
+            "generated_code": execution.get("modified_source") or source_code,
+            "filename": f"absorbed_{mission.mission_id}.{_extension_for_language(language)}",
+            "language": language,
+            "description": (
+                f"Source with {absorption_count} dependencies absorbed into first-party code."
+            ),
+            "dependencies": sbom_delta.get("remaining", []),
+            "source": "depabs_execution",
+            "code_length_chars": len(str(execution.get("modified_source") or "")),
+        }
+    append_chain_event(
+        metadata,
+        event_type="MISSION_DEPABS_EXECUTED",
+        agent_id="AGENT-39-DEPABS",
+        details={
+            "status": execution.get("status"),
+            "absorption_count": absorption_count,
+            "reduction_percent": sbom_delta.get("reduction_percent"),
+        },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id="AGENT-39-DEPABS",
+        service_name="orchestrator",
+        event_type="MISSION_DEPABS_EXECUTED",
+        object_type="depabs_execution",
+        object_id=mission.mission_id,
+        payload_summary={
+            "status": execution.get("status"),
+            "absorption_count": absorption_count,
+            "reduction_percent": sbom_delta.get("reduction_percent"),
+        },
+        content_hash_source={"depabs_execution": execution, "sbom_delta": sbom_delta},
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    if updated is not None and absorption_count > 0:
+        try:
+            updated = await _ensure_verified_build_artifact(
+                app=app,
+                settings=settings,
+                mission=updated,
+            )
+        except Exception as exc:
+            LOGGER.warning("failed to package DEPABS artifact for %s: %s", mission.mission_id, exc)
+    return updated or mission
+
+
+def _extension_for_language(language: str) -> str:
+    return {
+        "python": "py",
+        "javascript": "js",
+        "typescript": "ts",
+        "java": "java",
+        "csharp": "cs",
+        "rust": "rs",
+        "go": "go",
+    }.get(str(language or "").lower(), "txt")
+
+
+async def _prepare_runtime_qc(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> tuple[Any, bool, dict[str, Any]]:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    generated_output = metadata.get("generated_output")
+    if not isinstance(generated_output, dict):
+        return mission, True, {"skipped": True, "reason": "no generated output"}
+    if not bool(getattr(settings, "testdata_agent_enabled", False)):
+        return mission, True, {"skipped": True, "reason": "TESTDATA disabled"}
+    target_language = mission.requested_target_language or str(
+        generated_output.get("language") or "python"
+    )
+    manifest = metadata.get("testdata_manifest")
+    if not isinstance(manifest, dict):
+        manifest = await generate_testdata_manifest(
+            mission_id=mission.mission_id,
+            generated_output=generated_output,
+            integration_tests=metadata.get("integration_tests")
+            if isinstance(metadata.get("integration_tests"), dict)
+            else None,
+            mission_contract=metadata.get("mission_contract")
+            if isinstance(metadata.get("mission_contract"), dict)
+            else {},
+            language=target_language,
+            settings=settings,
+        )
+        metadata["testdata_manifest"] = manifest
+        append_chain_event(
+            metadata,
+            event_type="MISSION_TESTDATA_MANIFEST_READY",
+            agent_id="AGENT-40-TESTDATA",
+            details={
+                "base_image": manifest.get("base_image"),
+                "timeout_seconds": manifest.get("timeout_seconds"),
+                "synthetic_input_count": len(manifest.get("synthetic_inputs") or []),
+                "source": manifest.get("source"),
+            },
+        )
+        try:
+            await asyncio.to_thread(
+                storage.insert_testdata_manifest,
+                settings,
+                mission.mission_id,
+                manifest,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "failed to persist testdata manifest for %s: %s",
+                mission.mission_id,
+                exc,
+            )
+
+    if not bool(getattr(settings, "rqca_agent_enabled", False)):
+        updated = await asyncio.to_thread(
+            storage.update_mission_metadata,
+            settings,
+            mission.mission_id,
+            metadata,
+        )
+        return updated or mission, True, {"skipped": True, "reason": "RQCA disabled"}
+
+    execution = await run_runtime_qc(
+        mission_id=mission.mission_id,
+        generated_output=generated_output,
+        testdata_manifest=manifest,
+        integration_tests=metadata.get("integration_tests")
+        if isinstance(metadata.get("integration_tests"), dict)
+        else None,
+        language=target_language,
+        settings=settings,
+    )
+    qc_assessment = await generate_rqca_assessment(
+        mission_id=mission.mission_id,
+        execution_result=execution,
+        mission_contract=metadata.get("mission_contract")
+        if isinstance(metadata.get("mission_contract"), dict)
+        else {},
+        language=target_language,
+    )
+    runtime_qc_report = {**execution, "qc_assessment": qc_assessment}
+    metadata["runtime_qc_report"] = runtime_qc_report
+    append_chain_event(
+        metadata,
+        event_type="MISSION_RUNTIME_QC_COMPLETE",
+        agent_id="AGENT-41-RQCA",
+        details={
+            "execution_verdict": execution.get("verdict"),
+            "qc_verdict": qc_assessment.get("qc_verdict"),
+            "execution_type": execution.get("execution_type"),
+            "deployment_safe": qc_assessment.get("deployment_safe"),
+            "source": execution.get("source"),
+        },
+    )
+    try:
+        await asyncio.to_thread(
+            storage.insert_runtime_qc_report,
+            settings,
+            mission.mission_id,
+            execution,
+            qc_assessment,
+        )
+    except Exception as exc:
+        LOGGER.warning("failed to persist runtime QC report for %s: %s", mission.mission_id, exc)
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id="AGENT-41-RQCA",
+        service_name="orchestrator",
+        event_type="MISSION_RUNTIME_QC_COMPLETE",
+        object_type="runtime_qc_report",
+        object_id=mission.mission_id,
+        payload_summary={
+            "execution_verdict": execution.get("verdict"),
+            "qc_verdict": qc_assessment.get("qc_verdict"),
+            "execution_type": execution.get("execution_type"),
+        },
+        content_hash_source=runtime_qc_report,
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    blocked = (
+        bool(getattr(settings, "rqca_enforcement_enabled", False))
+        and qc_assessment.get("qc_verdict") == "FAIL"
+    )
+    return updated or mission, not blocked, runtime_qc_report
+
+
 async def _prepare_fusion(
     *,
     app: Any,
@@ -2417,6 +2661,31 @@ async def advance_mission_lifecycle_v2(
                     "v2: mission %s blocked by dependency absorption report %s",
                     mission_id,
                     dependency_absorption_report.get("report_id"),
+                )
+                return
+            mission = await _prepare_depabs_execution(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+            mission, runtime_qc_ready, runtime_qc_report = await _prepare_runtime_qc(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+            if not runtime_qc_ready:
+                await asyncio.to_thread(
+                    storage.insert_mission_event,
+                    settings,
+                    mission_id,
+                    MissionState.verified,
+                    MissionState.verified,
+                    "MISSION_RUNTIME_QC_BLOCKED",
+                )
+                LOGGER.info(
+                    "v2: mission %s blocked by runtime QC report %s",
+                    mission_id,
+                    runtime_qc_report.get("verdict"),
                 )
                 return
             mission = await _prepare_delivery_summary(

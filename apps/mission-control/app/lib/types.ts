@@ -405,6 +405,69 @@ export type DependencySurvivalJustification = {
   review_required: boolean;
 };
 
+export type TestdataManifest = {
+  schema_version?: "testdata_manifest.v1" | string;
+  base_image: string;
+  install_commands: string[];
+  env_vars: Record<string, string>;
+  synthetic_inputs: Array<{ input_id: string; description: string; input_data: string }>;
+  run_command: string;
+  timeout_seconds: number;
+  memory_limit_mb: number;
+  network_required: boolean;
+  notes: string;
+  language: string;
+  test_framework: string;
+  source: string;
+};
+
+export type RuntimeQcReport = {
+  schema_version?: "runtime_qc_report.v1" | string;
+  verdict: "PASS" | "FAIL" | "TIMEOUT" | "ERROR" | "DRY_RUN" | "SKIPPED" | string;
+  passed: boolean;
+  execution_type: "docker_live" | "dry_run" | "skipped" | string;
+  exit_code?: number | null;
+  expected_exit_code?: number | null;
+  stdout_preview?: string | null;
+  stderr_preview?: string | null;
+  base_image?: string | null;
+  language: string;
+  filename: string;
+  timeout_seconds?: number | null;
+  dry_run_reason?: string | null;
+  qc_assessment?: {
+    qc_verdict: "PASS" | "WARN" | "FAIL" | "INCONCLUSIVE" | "ADVISORY" | string;
+    confidence: "HIGH" | "MEDIUM" | "LOW" | string;
+    findings: string[];
+    remediation: string[];
+    deployment_safe: boolean;
+    source: string;
+  } | null;
+  source: string;
+};
+
+export type DepabsExecution = {
+  schema_version?: "depabs_execution.v1" | string;
+  status: string;
+  absorption_count: number;
+  splices: Array<{
+    library: string;
+    symbols_replaced: string[];
+    filename?: string | null;
+    status: string;
+    reason?: string | null;
+  }>;
+};
+
+export type SbomDelta = {
+  schema_version?: "sbom_delta.v1" | string;
+  original_dependency_count: number;
+  removed: string[];
+  remaining: string[];
+  kept_with_justification: string[];
+  reduction_percent: number;
+};
+
 export type MissionChainTrace = {
   mission_id: string;
   routing_enforced: boolean;
@@ -442,7 +505,11 @@ export type MissionChainTrace = {
   dependency_inventory?: DependencyInventory | null;
   dependency_classification_report?: DependencyClassificationReport | null;
   dependency_absorption_report?: DependencyAbsorptionReport | null;
+  depabs_execution?: DepabsExecution | null;
+  sbom_delta?: SbomDelta | null;
   dependency_survival_justifications?: DependencySurvivalJustification[] | null;
+  testdata_manifest?: TestdataManifest | null;
+  runtime_qc_report?: RuntimeQcReport | null;
   master_logic_stream?: {
     master_logic_stream: Array<{
       node_id: string;

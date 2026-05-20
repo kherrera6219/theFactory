@@ -282,8 +282,12 @@ export default function MissionDetailPage() {
   const dependencyInventory = chainTrace?.dependency_inventory ?? null;
   const dependencyClassificationReport = chainTrace?.dependency_classification_report ?? null;
   const dependencyAbsorptionReport = chainTrace?.dependency_absorption_report ?? null;
+  const depabsExecution = chainTrace?.depabs_execution ?? null;
+  const sbomDelta = chainTrace?.sbom_delta ?? null;
   const dependencySurvivalJustifications =
     chainTrace?.dependency_survival_justifications ?? [];
+  const testdataManifest = chainTrace?.testdata_manifest ?? null;
+  const runtimeQcReport = chainTrace?.runtime_qc_report ?? null;
   const masterLogicStream = chainTrace?.master_logic_stream ?? null;
   const deliverySummary = chainTrace?.delivery_summary ?? null;
 
@@ -1342,6 +1346,57 @@ export default function MissionDetailPage() {
                 </ul>
               </>
             )}
+          {depabsExecution && (
+            <>
+              <p className="muted">DEPABS execution</p>
+              <dl>
+                <div>
+                  <dt>Status</dt>
+                  <dd>{depabsExecution.status}</dd>
+                </div>
+                <div>
+                  <dt>Absorbed</dt>
+                  <dd>{depabsExecution.absorption_count}</dd>
+                </div>
+              </dl>
+              {depabsExecution.splices.length > 0 && (
+                <ul className="summary-list">
+                  {depabsExecution.splices.map((splice) => (
+                    <li key={`depabs-splice-${splice.library}-${splice.status}`}>
+                      <strong>{splice.library}</strong>
+                      <span>{splice.status}</span>
+                      {splice.reason && <span className="muted">{splice.reason}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+          {sbomDelta && (
+            <>
+              <p className="muted">SBOM delta</p>
+              <dl>
+                <div>
+                  <dt>Reduction</dt>
+                  <dd>{sbomDelta.reduction_percent}%</dd>
+                </div>
+                <div>
+                  <dt>Original</dt>
+                  <dd>{sbomDelta.original_dependency_count}</dd>
+                </div>
+                <div>
+                  <dt>Removed</dt>
+                  <dd>{sbomDelta.removed.length ? sbomDelta.removed.join(", ") : "none"}</dd>
+                </div>
+                <div>
+                  <dt>Remaining</dt>
+                  <dd>
+                    {sbomDelta.remaining.length ? sbomDelta.remaining.join(", ") : "none"}
+                  </dd>
+                </div>
+              </dl>
+            </>
+          )}
           {dependencySurvivalJustifications.length > 0 && (
             <>
               <p className="muted">Survival justifications</p>
@@ -1354,6 +1409,74 @@ export default function MissionDetailPage() {
                   </li>
                 ))}
               </ul>
+            </>
+          )}
+        </Panel>
+      )}
+
+      {(testdataManifest || runtimeQcReport) && (
+        <Panel title="Runtime QC">
+          {runtimeQcReport && (
+            <>
+              <dl>
+                <div>
+                  <dt>Execution</dt>
+                  <dd>{runtimeQcReport.verdict}</dd>
+                </div>
+                <div>
+                  <dt>QC verdict</dt>
+                  <dd>{runtimeQcReport.qc_assessment?.qc_verdict ?? "pending"}</dd>
+                </div>
+                <div>
+                  <dt>Execution type</dt>
+                  <dd>{runtimeQcReport.execution_type}</dd>
+                </div>
+                <div>
+                  <dt>Deployment safe</dt>
+                  <dd>{runtimeQcReport.qc_assessment?.deployment_safe ? "yes" : "no"}</dd>
+                </div>
+              </dl>
+              {runtimeQcReport.stdout_preview && (
+                <pre className="code-preview">{runtimeQcReport.stdout_preview}</pre>
+              )}
+              {(runtimeQcReport.qc_assessment?.findings ?? []).length > 0 && (
+                <ul className="summary-list">
+                  {runtimeQcReport.qc_assessment?.findings.map((finding) => (
+                    <li key={`runtime-qc-finding-${finding}`}>
+                      <span>{finding}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+          {testdataManifest && (
+            <>
+              <p className="muted">Test environment</p>
+              <dl>
+                <div>
+                  <dt>Base image</dt>
+                  <dd>{testdataManifest.base_image}</dd>
+                </div>
+                <div>
+                  <dt>Framework</dt>
+                  <dd>{testdataManifest.test_framework}</dd>
+                </div>
+                <div>
+                  <dt>Run command</dt>
+                  <dd>{testdataManifest.run_command}</dd>
+                </div>
+                <div>
+                  <dt>Limits</dt>
+                  <dd>
+                    {testdataManifest.timeout_seconds}s / {testdataManifest.memory_limit_mb}MB
+                  </dd>
+                </div>
+                <div>
+                  <dt>Synthetic inputs</dt>
+                  <dd>{testdataManifest.synthetic_inputs.length}</dd>
+                </div>
+              </dl>
             </>
           )}
         </Panel>

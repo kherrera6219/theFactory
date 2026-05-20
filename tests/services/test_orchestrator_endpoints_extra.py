@@ -110,6 +110,54 @@ def test_internal_provider_health_endpoint(monkeypatch) -> None:
     assert response.json()["providers"]["openai"]["call_count"] == 1
 
 
+def test_internal_runtime_qc_endpoint_reads_storage(monkeypatch) -> None:
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)
+    monkeypatch.setattr(
+        orchestrator_internal.storage,
+        "get_runtime_qc_report",
+        lambda *_: {
+            "mission_id": "mission-1",
+            "execution_result": {"verdict": "PASS"},
+            "qc_assessment": {"qc_verdict": "PASS"},
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/missions/mission-1/runtime-qc",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert response.status_code == 200
+    assert response.json()["execution_result"]["verdict"] == "PASS"
+
+
+def test_internal_testdata_manifest_endpoint_reads_metadata(monkeypatch) -> None:
+    async def _fetch_with_manifest(_: object, mission_id: str) -> MissionRecord:
+        record = _mission()
+        record.metadata["testdata_manifest"] = {
+            "base_image": "python:3.11-slim",
+            "run_command": "python solution.py",
+        }
+        return record
+
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch_with_manifest)
+    monkeypatch.setattr(
+        orchestrator_internal.storage,
+        "get_testdata_manifest",
+        lambda *_: None,
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/missions/mission-1/testdata-manifest",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert response.status_code == 200
+    assert response.json()["manifest"]["base_image"] == "python:3.11-slim"
+
+
 def test_mission_query_endpoints(monkeypatch) -> None:
     monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
     monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)

@@ -1,6 +1,7 @@
 """Mission-local dependency inventory and absorption planning."""
 from __future__ import annotations
 
+import ast
 import json
 import re
 from datetime import UTC, datetime
@@ -261,6 +262,224 @@ def build_dependency_inventory(
         ),
         "source": "deterministic",
     }
+
+
+async def execute_absorption(
+    *,
+    mission_id: str,
+    source_code: str,
+    language: str,
+    absorption_report: dict[str, Any],
+    settings: Any,
+) -> dict[str, Any]:
+    """Execute conservative first-party replacement splices for ready plans."""
+    _ = settings
+    normalized_language = str(language or "").strip().lower()
+    if normalized_language not in {"python", "javascript", "typescript"}:
+        return {
+            "schema_version": "depabs_execution.v1",
+            "mission_id": mission_id,
+            "status": "skipped",
+            "reason": f"Absorption execution not supported for {language}.",
+            "modified_source": source_code,
+            "splices": [],
+            "absorption_count": 0,
+            "source": "deterministic",
+            "executed_at": datetime.now(UTC).isoformat(),
+        }
+
+    candidates = [
+        item
+        for item in (absorption_report.get("planned_replacements") or [])
+        if isinstance(item, dict) and item.get("status") == "ready_for_planning"
+    ][:3]
+    if not candidates:
+        return {
+            "schema_version": "depabs_execution.v1",
+            "mission_id": mission_id,
+            "status": "nothing_to_absorb",
+            "modified_source": source_code,
+            "splices": [],
+            "absorption_count": 0,
+            "source": "deterministic",
+            "executed_at": datetime.now(UTC).isoformat(),
+        }
+
+    modified = source_code
+    splices: list[dict[str, Any]] = []
+    for candidate in candidates:
+        library = str(candidate.get("name") or "").strip()
+        used_symbols = _detect_used_symbols(modified, library, normalized_language)
+        replacement = _generate_replacement_code(
+            library=library,
+            used_symbols=used_symbols,
+            language=normalized_language,
+        )
+        if not replacement.get("replacement_code"):
+            splices.append(
+                {
+                    "library": library,
+                    "symbols_replaced": used_symbols,
+                    "status": "unsupported",
+                    "reason": "No deterministic replacement available.",
+                }
+            )
+            continue
+        next_source, status, reason = _splice_replacement(
+            source=modified,
+            library=library,
+            language=normalized_language,
+            replacement=replacement,
+        )
+        splices.append(
+            {
+                "library": library,
+                "symbols_replaced": used_symbols,
+                "filename": replacement.get("filename"),
+                "status": status,
+                "reason": reason,
+            }
+        )
+        if status == "ok":
+            modified = next_source
+
+    absorption_count = sum(1 for item in splices if item.get("status") == "ok")
+    return {
+        "schema_version": "depabs_execution.v1",
+        "mission_id": mission_id,
+        "status": "executed" if absorption_count else "no_splices_applied",
+        "modified_source": modified,
+        "splices": splices,
+        "absorption_count": absorption_count,
+        "source": "deterministic",
+        "executed_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def build_sbom_delta(
+    *,
+    original_dependencies: list[dict[str, Any]],
+    absorption_result: dict[str, Any],
+    survival_justifications: list[dict[str, Any]],
+) -> dict[str, Any]:
+    original_names = [
+        str(item.get("name") or "").strip()
+        for item in original_dependencies
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    ]
+    removed = [
+        str(item.get("library") or "").strip()
+        for item in absorption_result.get("splices", [])
+        if isinstance(item, dict) and item.get("status") == "ok"
+    ]
+    kept = [
+        str(item.get("name") or "").strip()
+        for item in survival_justifications
+        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    ]
+    remaining = [name for name in original_names if name not in removed]
+    return {
+        "schema_version": "sbom_delta.v1",
+        "original_dependency_count": len(original_names),
+        "removed": removed,
+        "remaining": remaining,
+        "kept_with_justification": kept,
+        "reduction_percent": round(len(removed) / max(len(original_names), 1) * 100, 1),
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _detect_used_symbols(source: str, library: str, language: str) -> list[str]:
+    normalized = library.strip()
+    if not normalized:
+        return []
+    if language == "python":
+        symbols = []
+        for pattern in (
+            rf"(?m)^\s*import\s+{re.escape(normalized)}(?:\s+as\s+(\w+))?",
+            rf"(?m)^\s*from\s+{re.escape(normalized)}\s+import\s+([^\n#]+)",
+        ):
+            for match in re.finditer(pattern, source):
+                captured = match.group(1)
+                if captured:
+                    symbols.extend(
+                        item.strip().split(" as ")[-1]
+                        for item in captured.split(",")
+                        if item.strip()
+                    )
+                else:
+                    symbols.append(normalized)
+        return sorted(set(symbols)) or [normalized]
+    if language in {"javascript", "typescript"}:
+        if re.search(rf"['\"]{re.escape(normalized)}['\"]", source):
+            return [normalized]
+    return []
+
+
+def _generate_replacement_code(
+    *,
+    library: str,
+    used_symbols: list[str],
+    language: str,
+) -> dict[str, Any]:
+    normalized = library.strip().lower()
+    if language == "python" and normalized in {"left-pad", "left_pad"}:
+        return {
+            "filename": "depabs_left_pad.py",
+            "replacement_code": (
+                "\n\n# DEPABS replacement for left-pad\n"
+                "def left_pad(value, width, fillchar=' '):\n"
+                "    text = str(value)\n"
+                "    pad = str(fillchar or ' ')[:1]\n"
+                "    if len(text) >= int(width):\n"
+                "        return text\n"
+                "    return pad * (int(width) - len(text)) + text\n"
+            ),
+        }
+    if language == "python" and normalized in {"slugify", "snakecase", "kebabcase"}:
+        helper_name = normalized.replace("-", "_")
+        separator = "-" if normalized in {"slugify", "kebabcase"} else "_"
+        return {
+            "filename": f"depabs_{helper_name}.py",
+            "replacement_code": (
+                f"\n\n# DEPABS replacement for {normalized}\n"
+                f"def {helper_name}(value):\n"
+                "    import re\n"
+                "    text = re.sub(r'[^A-Za-z0-9]+', '"
+                f"{separator}"
+                "', str(value)).strip('"
+                f"{separator}"
+                "')\n"
+                "    return text.lower()\n"
+            ),
+        }
+    if used_symbols and language in {"javascript", "typescript"}:
+        return {"filename": "", "replacement_code": ""}
+    return {"filename": "", "replacement_code": ""}
+
+
+def _splice_replacement(
+    *,
+    source: str,
+    library: str,
+    language: str,
+    replacement: dict[str, Any],
+) -> tuple[str, str, str]:
+    replacement_code = str(replacement.get("replacement_code") or "")
+    if not replacement_code.strip():
+        return source, "skipped", "Replacement code is empty."
+    if language != "python":
+        return source, "unsupported", "Only Python splicing is enabled in this slice."
+    import_pattern = re.compile(
+        rf"(?m)^\s*(?:import\s+{re.escape(library)}(?:\s+as\s+\w+)?|"
+        rf"from\s+{re.escape(library)}\s+import\s+[^\n#]+)\s*(?:#.*)?$"
+    )
+    modified = import_pattern.sub("", source).rstrip() + replacement_code + "\n"
+    try:
+        ast.parse(modified)
+    except SyntaxError as exc:
+        return source, "syntax_error", str(exc)
+    return modified, "ok", "Replacement spliced into source."
 
 
 def _classify_dependency(entry: dict[str, Any], *, metadata: dict[str, Any]) -> dict[str, Any]:

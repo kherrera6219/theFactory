@@ -78,6 +78,11 @@ class Settings:
     mission_equivalence_enforcement_enabled: bool = False
     mission_equivalence_python_execution_enabled: bool = False
     mission_security_compliance_enforcement_enabled: bool = False
+    testdata_agent_enabled: bool = False
+    rqca_agent_enabled: bool = False
+    rqca_enforcement_enabled: bool = False
+    docker_bin: str = "docker"
+    depabs_execution_enabled: bool = False
     agent_scaling_enabled: bool = False
     agent_scaling_max_instances: int = 4
     agent_scaling_items_per_instance: int = 3
@@ -267,6 +272,15 @@ def load_settings() -> Settings:
         ),
         mission_security_compliance_enforcement_enabled=_as_bool(
             os.getenv("MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED", "false"), False
+        ),
+        testdata_agent_enabled=_as_bool(os.getenv("TESTDATA_AGENT_ENABLED", "false"), False),
+        rqca_agent_enabled=_as_bool(os.getenv("RQCA_AGENT_ENABLED", "false"), False),
+        rqca_enforcement_enabled=_as_bool(
+            os.getenv("RQCA_ENFORCEMENT_ENABLED", "false"), False
+        ),
+        docker_bin=os.getenv("DOCKER_BIN", "docker").strip() or "docker",
+        depabs_execution_enabled=_as_bool(
+            os.getenv("DEPABS_EXECUTION_ENABLED", "false"), False
         ),
         agent_scaling_enabled=_as_bool(
             os.getenv("AGENT_SCALING_ENABLED", "false"), False

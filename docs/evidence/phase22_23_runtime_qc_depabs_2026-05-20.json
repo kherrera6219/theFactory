@@ -1,0 +1,51 @@
+{
+  "schema_version": "phase_evidence.v1",
+  "phases": [22, 23],
+  "recorded_at": "2026-05-20T00:00:00Z",
+  "status": "local_slices_implemented_feature_gated",
+  "implemented": [
+    "testdata manifest generation with deterministic safe fallback",
+    "runtime QC dry-run, skipped, and opt-in Docker execution report paths",
+    "runtime QC V006 schema, storage helpers, internal API, and public redacted API",
+    "runtime QC and test environment chain-trace and Mission Control rendering",
+    "DEPABS execution over ready planned replacements",
+    "conservative Python replacement splicing with syntax validation",
+    "SBOM delta generation and Mission Control rendering"
+  ],
+  "feature_flags": {
+    "TESTDATA_AGENT_ENABLED": false,
+    "RQCA_AGENT_ENABLED": false,
+    "RQCA_ENFORCEMENT_ENABLED": false,
+    "DEPABS_EXECUTION_ENABLED": false
+  },
+  "deferred": [
+    "live Docker sandbox qualification",
+    "browser Runtime QC",
+    "multi-container runtime environments",
+    "JavaScript and TypeScript DEPABS splicing",
+    "promotion-grade verification of modified artifacts"
+  ],
+  "validation": [
+    {
+      "command": "$env:PYTHONPATH='services/orchestrator'; python -m pytest tests/services/test_agent_base_unit.py tests/services/test_llm_delegation_unit.py tests/services/test_mission_flow_v2.py tests/services/test_orchestrator_endpoints_extra.py -q",
+      "status": "passed",
+      "scope": "phase21_done_check"
+    },
+    {
+      "command": "python -m ruff check services/orchestrator/orchestrator/dependency_absorption.py services/orchestrator/orchestrator/llm_delegation.py services/orchestrator/orchestrator/mission_flow_v2.py services/orchestrator/orchestrator/rqca_agent.py services/orchestrator/orchestrator/testdata_agent.py services/orchestrator/orchestrator/routes/internal.py services/orchestrator/orchestrator/routes/missions.py services/orchestrator/orchestrator/settings.py services/orchestrator/orchestrator/storage.py services/orchestrator/orchestrator/storage_artifacts.py tests/services/test_dependency_absorption_unit.py tests/services/test_runtime_qc_unit.py tests/services/test_orchestrator_endpoints_extra.py",
+      "status": "passed"
+    },
+    {
+      "command": "$env:PYTHONPATH='services/orchestrator'; python -m pytest tests/services/test_runtime_qc_unit.py tests/services/test_dependency_absorption_unit.py tests/services/test_orchestrator_endpoints_extra.py tests/services/test_llm_delegation_unit.py tests/services/test_mission_flow_v2.py -q",
+      "status": "passed"
+    },
+    {
+      "command": "npm --prefix apps/mission-control run lint",
+      "status": "passed"
+    },
+    {
+      "command": "npm --prefix apps/mission-control run test",
+      "status": "passed"
+    }
+  ]
+}

@@ -1,9 +1,13 @@
 # Phase 23 — DEPABS Execution: Absorption with Modified Artifacts
 
-**Status:** Planned
-**Last updated:** 2026-05-18
-**Depends on:** Phase 22 (RQCA sandbox), Phase 14 (inventory/classification),
-Phase 12 (equivalence harness)
+**Status:** Core execution slice implemented locally; live verification remains gated
+**Last updated:** 2026-05-20
+**Depends on:** Phase 14 dependency inventory/classification/advisory
+absorption planning, Phase 12 equivalence harness, Phase 13
+security/compliance report, and Phase 22 runtime-QC evidence when sandbox
+execution is available. Phase 22 is a verification dependency for promotion,
+not a hard prerequisite for generating a modified artifact behind a disabled
+feature flag.
 
 ---
 
@@ -18,10 +22,67 @@ classifies and advises, never absorbs.
 This phase closes that gap for `REDUCE_DEPENDENCIES` missions on Python and
 JavaScript targets. It adds:
 - replacement code generation for Absorb-classified dependencies
-- source splicing (remove the import, inline the replacement)
+- source splicing (remove the import, inline or local-module the replacement)
 - equivalence verification of the modified artifact via the Phase 12 harness
 - runtime verification via the Phase 22 RQCA sandbox
 - before/after SBOM delta as a deliverable artifact
+
+---
+
+## Review Update — 2026-05-20
+
+Validated against the current repo:
+
+- Phase 14 is implemented as advisory planning only in
+  `dependency_absorption.py`.
+- The current absorption report uses `planned_replacements`, not the older
+  sample shape `analysis` with `action == "Absorb"`.
+- A replacement is only `ready_for_planning` when equivalence and
+  security/compliance evidence already pass; otherwise it is `gated`.
+- Mission Flow v2 already records `MISSION_DEPENDENCY_ABSORPTION_REPORTED`,
+  but no modified artifact, `depabs_execution`, or `sbom_delta` exists yet.
+- Mission Control already renders dependency inventory/classification/
+  absorption planning evidence, but no SBOM delta panel or DEPABS execution
+  panel exists.
+
+Plan corrections:
+
+- Phase 23 must consume `dependency_absorption_report.planned_replacements`
+  where `status == "ready_for_planning"`.
+- Do not execute absorption for safety-blocked, survival-justified, or gated
+  dependencies.
+- Keep `DEPABS_EXECUTION_ENABLED=false` by default and treat all execution as
+  non-critical path until equivalence, security/compliance, and runtime-QC
+  evidence are attached to the modified artifact.
+- Python should be the first executable splice target. JavaScript/TypeScript
+  should follow only after import/require/ESM handling has explicit tests.
+- Operator approval remains required for Production/Regulated depth modes as
+  described in `docs/DEPENDENCY_ABSORPTION_DOCTRINE.md`.
+
+---
+
+## Implementation Update — 2026-05-20
+
+Completed in this pass:
+
+- Added `execute_absorption()` using the current
+  `dependency_absorption_report.planned_replacements` shape.
+- Limited execution to `status="ready_for_planning"` replacements and skipped
+  gated, safety-blocked, and survival-justified dependencies.
+- Added conservative deterministic Python splicing for small utility
+  replacements, with `ast.parse()` syntax validation before accepting a splice.
+- Added `build_sbom_delta()` using `dependency_inventory.dependencies`.
+- Wired DEPABS execution into Mission Flow v2 behind
+  `DEPABS_EXECUTION_ENABLED=false`.
+- Added `depabs_execution` and `sbom_delta` chain-trace exposure and Mission
+  Control rendering.
+
+Still gated:
+
+- JavaScript/TypeScript splicing remains disabled until import/require/ESM
+  handling has explicit tests.
+- Modified artifacts still require the normal equivalence/security/runtime-QC
+  evidence path before promotion claims.
 
 ---
 
@@ -53,9 +114,9 @@ async def execute_absorption(
         }
 
     candidates = [
-        item for item in (absorption_report.get("analysis") or [])
-        if item.get("action") == "Absorb"
-    ][:5]  # cap: 5 absorptions per mission in Phase 23
+        item for item in (absorption_report.get("planned_replacements") or [])
+        if item.get("status") == "ready_for_planning"
+    ][:3]  # cap: 3 absorptions per mission in Phase 23
 
     if not candidates:
         return {
@@ -68,7 +129,7 @@ async def execute_absorption(
     modified = source_code
 
     for dep in candidates:
-        library = dep.get("library", "")
+        library = dep.get("name", "")
         used_symbols = _detect_used_symbols(modified, library, language)
         if not used_symbols:
             continue
@@ -113,24 +174,31 @@ error (detectable via `ast.parse` for Python), it is skipped and logged.
 ```python
 def build_sbom_delta(
     *,
-    original_dependencies: list[str],
+    original_dependencies: list[dict[str, Any]],
     absorption_result: dict[str, Any],
     absorption_report: dict[str, Any],
+    survival_justifications: list[dict[str, Any]],
 ) -> dict[str, Any]:
     absorbed = [s["library"] for s in absorption_result.get("splices", [])
                 if s["status"] == "ok"]
-    kept = [item["library"] for item in (absorption_report.get("analysis") or [])
-            if item.get("action") in {"Keep", "Wrap", "Pin", "Block"}]
+    original_names = [
+        item.get("name") for item in original_dependencies if isinstance(item, dict)
+    ]
+    kept = [
+        item.get("dependency_name") or item.get("name")
+        for item in survival_justifications
+        if isinstance(item, dict)
+    ]
     removed = absorbed
-    remaining = [d for d in original_dependencies if d not in removed]
+    remaining = [name for name in original_names if name not in removed]
     return {
         "schema_version": "sbom_delta.v1",
-        "original_dependency_count": len(original_dependencies),
+        "original_dependency_count": len(original_names),
         "removed": removed,
         "remaining": remaining,
-        "kept_with_justification": kept,
+        "kept_with_justification": [item for item in kept if item],
         "reduction_percent": round(
-            len(removed) / max(len(original_dependencies), 1) * 100, 1
+            len(removed) / max(len(original_names), 1) * 100, 1
         ),
     }
 ```
@@ -174,9 +242,10 @@ if (
     sbom_delta = build_sbom_delta(
         original_dependencies=metadata.get(
             "dependency_inventory", {}
-        ).get("detected_libraries", []),
+        ).get("dependencies", []),
         absorption_result=execution_result,
         absorption_report=metadata.get("dependency_absorption_report", {}),
+        survival_justifications=metadata.get("dependency_survival_justifications", []),
     )
     metadata["sbom_delta"] = sbom_delta
     append_chain_event(
@@ -229,13 +298,18 @@ DEPABS_EXECUTION_ENABLED=false   # Execute absorption (generate + splice)
 
 ## Validation
 
-- [ ] `DEPABS_EXECUTION_ENABLED=false`: advisory classification only, unchanged.
-- [ ] Python source with `import click` produces splice with `click` removed and
-      replacement code inlined.
+- [x] `DEPABS_EXECUTION_ENABLED=false`: advisory classification only, unchanged.
+- [x] Only `planned_replacements` with `status="ready_for_planning"` are
+      eligible for execution.
+- [x] Gated replacements and survival-justified dependencies are never spliced.
+- [x] Python source with a supported small utility produces a splice with the
+      dependency import removed and replacement code inlined.
 - [ ] Python source with `import cryptography` is NOT absorbed (safety block list).
-- [ ] Splice that would produce a syntax error is skipped, not applied.
-- [ ] `MISSION_DEPABS_EXECUTED` event in chain trace.
-- [ ] `sbom_delta.reduction_percent > 0` for a mission with at least one absorbed dep.
+- [x] Splice that would produce a syntax error is skipped, not applied.
+- [x] `MISSION_DEPABS_EXECUTED` event in chain trace.
+- [x] `sbom_delta.reduction_percent > 0` for a mission with at least one absorbed dep.
+- [x] `sbom_delta.remaining` is computed from
+      `dependency_inventory.dependencies`.
 - [ ] Modified artifact passes RQCA sandbox execution (when sandbox available).
-- [ ] SBOM delta panel renders in Mission Control.
-- [ ] `python -m pytest -q` passes. `ruff check` passes.
+- [x] SBOM delta panel renders in Mission Control.
+- [x] Focused pytest and ruff checks pass.

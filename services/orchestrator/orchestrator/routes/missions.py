@@ -141,6 +141,43 @@ async def get_mission_events(
     return [event.model_dump() for event in events]
 
 
+@router.get("/missions/{mission_id}/runtime-qc")
+async def get_public_runtime_qc(request: Request, mission_id: str) -> dict[str, Any]:
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+    record = await asyncio.to_thread(storage.get_runtime_qc_report, app.state.settings, mission_id)
+    if record is None:
+        metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
+        report = metadata.get("runtime_qc_report")
+        if not isinstance(report, dict):
+            raise HTTPException(status_code=404, detail="runtime QC report not found")
+        record = {
+            "mission_id": mission_id,
+            "execution_result": report,
+            "qc_assessment": report.get("qc_assessment") if isinstance(report, dict) else {},
+        }
+    execution = record.get("execution_result") if isinstance(record, dict) else {}
+    if not isinstance(execution, dict):
+        execution = {}
+    qc_assessment = record.get("qc_assessment") if isinstance(record, dict) else {}
+    if not isinstance(qc_assessment, dict):
+        qc_assessment = {}
+    return {
+        "mission_id": mission_id,
+        "verdict": execution.get("verdict") or record.get("verdict"),
+        "execution_type": execution.get("execution_type") or record.get("execution_type"),
+        "qc_verdict": qc_assessment.get("qc_verdict") or record.get("qc_verdict"),
+        "deployment_safe": qc_assessment.get("deployment_safe"),
+        "stdout_preview": execution.get("stdout_preview") or record.get("stdout_preview"),
+        "stderr_preview": None,
+        "language": execution.get("language") or record.get("language"),
+        "filename": execution.get("filename") or record.get("filename"),
+    }
+
+
 @router.post("/missions/{mission_id}/state")
 async def update_mission_state(
     request: Request,

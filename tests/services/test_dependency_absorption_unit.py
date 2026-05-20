@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import sys
 from pathlib import Path
@@ -76,3 +77,54 @@ def test_small_pure_utility_plan_is_gated_without_evidence() -> None:
         "equivalence_report",
         "security_compliance_report",
     ]
+
+
+def test_execute_absorption_splices_ready_python_plan() -> None:
+    result = asyncio.run(
+        dependency_absorption.execute_absorption(
+            mission_id="mission-1",
+            source_code="import left-pad\n\nprint('x')\n",
+            language="python",
+            absorption_report={
+                "planned_replacements": [
+                    {"name": "left-pad", "status": "ready_for_planning"}
+                ]
+            },
+            settings=None,
+        )
+    )
+
+    assert result["status"] == "executed"
+    assert result["absorption_count"] == 1
+    assert "import left-pad" not in result["modified_source"]
+    assert "def left_pad" in result["modified_source"]
+
+
+def test_execute_absorption_ignores_gated_plan() -> None:
+    result = asyncio.run(
+        dependency_absorption.execute_absorption(
+            mission_id="mission-1",
+            source_code="import left-pad\n",
+            language="python",
+            absorption_report={
+                "planned_replacements": [{"name": "left-pad", "status": "gated"}]
+            },
+            settings=None,
+        )
+    )
+
+    assert result["status"] == "nothing_to_absorb"
+    assert result["absorption_count"] == 0
+
+
+def test_build_sbom_delta_uses_inventory_dependencies() -> None:
+    result = dependency_absorption.build_sbom_delta(
+        original_dependencies=[{"name": "left-pad"}, {"name": "cryptography"}],
+        absorption_result={"splices": [{"library": "left-pad", "status": "ok"}]},
+        survival_justifications=[{"name": "cryptography"}],
+    )
+
+    assert result["removed"] == ["left-pad"]
+    assert result["remaining"] == ["cryptography"]
+    assert result["kept_with_justification"] == ["cryptography"]
+    assert result["reduction_percent"] == 50.0

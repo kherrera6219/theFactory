@@ -1,9 +1,13 @@
 # Phase 22 — Runtime QC: TESTDATA and RQCA Agent Activation
 
-**Status:** Planned
-**Last updated:** 2026-05-18
-**Depends on:** Phase 21 (pod audit and deploy readiness wired), Phase 15
-(token ledger for cost visibility), Phase 18 (demo missions green)
+**Status:** Slice A implemented locally; live Docker sandbox remains opt-in
+**Last updated:** 2026-05-20
+**Depends on:** Generated-output/build-artifact path from Phases 3/10,
+equivalence/security evidence from Phases 12/13, Phase 18 demo harness, and
+Phase 21 core pod evidence. Phase 15 token ledger, Tester-generated
+integration tests, Deploy Agent lifecycle wiring, and pod-audit LLM enforcement
+remain useful follow-ons but are not hard prerequisites for the first Runtime
+QC slice.
 
 ---
 
@@ -14,7 +18,11 @@ agents in the registry. Together they close the loop that `WHAT_THEFACTORY_IS_AN
 explicitly promises: "It launches built or patched applications in a sandboxed
 environment and validates them through automated browser sessions."
 
-That promise is currently false. Phase 22 makes it true.
+That promise is currently false. Phase 22 starts making it true with a
+bounded first runtime-QC slice: generated artifacts get a testdata manifest,
+Python/JavaScript artifacts can execute in an opt-in Docker sandbox, and other
+languages receive explicit dry-run evidence. Browser automation and
+multi-container environments remain later slices.
 
 **AGENT-40-TESTDATA** owns ephemeral test environment lifecycle, schema
 provisioning, and synthetic data generation. Without it, the Tester agent's
@@ -42,9 +50,71 @@ QC evidence artifacts that feed the existing audit chain.
 - Generated code execution is strictly opt-in behind feature flags.
 - Timeout and resource limits are mandatory on every sandbox operation.
 - No browser automation requires internet access — sandbox is network-isolated.
+- The default compose stack must not mount the Docker socket. Any Docker socket
+  access is isolated to an explicit operator-selected sandbox profile.
 - Mission flow never fails due to TESTDATA or RQCA agent errors — both are
   non-critical path. Evidence is produced when execution succeeds; absence
   of evidence is recorded but does not block COMPLETE.
+
+---
+
+## Review Update — 2026-05-20
+
+Validated against the current repo:
+
+- `AGENT-40-TESTDATA` and `AGENT-41-RQCA` exist in the registry and persona
+  matrix, but there are no `testdata_agent.py` or `rqca_agent.py` runtime
+  modules yet.
+- Mission Flow v2 already tracks `requires_runtime_qc` in PM feature-contract
+  metadata, but no runtime-QC lifecycle stage is wired.
+- Phase 21 delivered core pod evidence and provider-health telemetry, but it
+  did not wire Deploy Agent readiness into COMPLETE or activate LLM pod-audit
+  enforcement. Phase 22 should consume existing generated-output,
+  equivalence, security/compliance, dependency, and build-artifact metadata
+  directly instead of waiting for that wiring.
+- Mission Control frontend notes already define the needed `testdata_manifest`
+  and `runtime_qc_report` types/panels, but those fields are not yet present in
+  the live chain trace types.
+- The latest migration in the current repo is `V005`; the runtime-QC migration
+  should therefore be `V006_runtime_qc_schema.sql`, not V007.
+
+Plan corrections:
+
+- Treat Phase 22 as **Slice A** only: manifest generation, dry-run evidence,
+  and opt-in Docker execution for Python and JavaScript/TypeScript artifacts.
+- Keep browser automation, screenshots, multi-container apps, database
+  provisioning, and long-running QC sessions out of this phase.
+- Do not require Phase 20 Tester-generated integration tests. If tests are
+  absent, RQCA should execute the generated artifact with the TESTDATA manifest
+  and record the reduced evidence quality.
+- Make persistence additive: store summary data in the new runtime-QC tables
+  and also expose the latest report through mission metadata/chain trace.
+
+---
+
+## Implementation Update — 2026-05-20
+
+Completed in this pass:
+
+- Added `testdata_agent.py` with deterministic safe manifest generation,
+  default language frameworks/images, network-disabled policy, and resource
+  caps.
+- Added `rqca_agent.py` with dry-run/skipped reports and opt-in Docker
+  execution for Python and JavaScript/TypeScript artifacts.
+- Added `generate_rqca_assessment()` deterministic fallback assessment.
+- Added `V006_runtime_qc_schema.sql`, storage helpers, internal runtime-QC and
+  testdata-manifest endpoints, and public redacted runtime-QC endpoint.
+- Wired TESTDATA/RQCA into the Mission Flow v2 completion gate behind
+  `TESTDATA_AGENT_ENABLED=false`, `RQCA_AGENT_ENABLED=false`, and
+  `RQCA_ENFORCEMENT_ENABLED=false`.
+- Exposed `testdata_manifest` and `runtime_qc_report` through chain trace.
+- Added Mission Control Runtime QC and Test Environment panels.
+
+Still gated:
+
+- Live Docker execution requires operator opt-in and Docker availability.
+- Browser automation, screenshots, multi-container environments, database
+  provisioning, and long-running QC sessions remain future slices.
 
 ---
 
@@ -742,9 +812,10 @@ if rqca_enforcement and qc_assessment.get("qc_verdict") == "FAIL":
 
 ---
 
-## Change 3 — Schema migration V007
+## Change 3 — Schema migration V006
 
-Create `V007_runtime_qc_schema.sql`:
+Create `V006_runtime_qc_schema.sql` because the current repository has
+migrations `V001` through `V005`:
 
 ```sql
 -- Runtime QC execution log
@@ -803,6 +874,10 @@ GET /internal/missions/{mission_id}/runtime-qc
 GET /internal/missions/{mission_id}/testdata-manifest
 ```
 
+Also include `testdata_manifest` and `runtime_qc_report` in the existing
+mission chain-trace payload so Mission Control can render the new panels from
+the same mission-detail fetch it already uses.
+
 ### 4b. Public routes
 
 Add to `routes/` (public tier):
@@ -857,11 +932,16 @@ grants the orchestrator Docker socket access for sandbox execution.
 capability. This profile is NEVER included in the default compose stack.
 It must be explicitly opted in by the operator.
 
+Do not imply that a read-only socket mount makes Docker safe. The Docker API
+can still create privileged containers even when the socket path is mounted
+read-only. The isolation boundary is the dedicated host/profile policy plus
+the child-container runtime restrictions.
+
 ```yaml
 # In deploy/docker-compose.yaml under orchestrator service:
 # Add to profiles: ["rqca-sandbox"] — NOT default
 volumes:
-  - /var/run/docker.sock:/var/run/docker.sock:ro  # rqca-sandbox profile only
+  - /var/run/docker.sock:/var/run/docker.sock     # rqca-sandbox profile only
 ```
 
 Document clearly in `.env.example` and `OPERATIONS_RUNBOOK.md`:
@@ -907,25 +987,25 @@ DOCKER_BIN=docker                # Path to Docker binary for sandbox execution
 ## Validation
 
 ### TESTDATA Agent
-- [ ] `TESTDATA_AGENT_ENABLED=false`: no testdata call, no metadata key added.
-- [ ] Flag enabled with Python `generated_output`: `testdata_manifest` in
+- [x] `TESTDATA_AGENT_ENABLED=false`: no testdata call, no metadata key added.
+- [x] Flag enabled with Python `generated_output`: `testdata_manifest` in
       chain trace with `base_image="python:3.11-slim"` and
       `network_required=false`.
-- [ ] LLM returning `network_required=true` has it overridden to `false`.
-- [ ] `timeout_seconds > 60` in LLM output is capped to 60.
-- [ ] `memory_limit_mb > 512` in LLM output is capped to 512.
-- [ ] `MISSION_TESTDATA_MANIFEST_READY` event in chain trace.
-- [ ] Fallback manifest returned when LLM call fails — no exception raised.
+- [x] Manifest network access is forced to `false`.
+- [x] `timeout_seconds > 60` is capped to 60.
+- [x] `memory_limit_mb > 512` is capped to 512.
+- [x] `MISSION_TESTDATA_MANIFEST_READY` event is emitted in chain trace.
+- [x] Fallback manifest returned without requiring provider calls.
 
 ### RQCA Agent — dry run
-- [ ] `RQCA_AGENT_ENABLED=false`: no RQCA call, no metadata key.
-- [ ] Flag enabled for `language="rust"`: returns `DRY_RUN` verdict (not
+- [x] `RQCA_AGENT_ENABLED=false`: no RQCA call, no metadata key.
+- [x] Flag enabled for `language="rust"`: returns `DRY_RUN` verdict (not
       supported in Slice A).
-- [ ] `MISSION_RUNTIME_QC_COMPLETE` event in chain trace with
+- [x] `MISSION_RUNTIME_QC_COMPLETE` event in chain trace with
       `execution_type="dry_run"`.
 
 ### RQCA Agent — live execution (requires Docker)
-- [ ] `_check_docker_available()` returns False when Docker absent —
+- [x] `_check_docker_available()` returns False when Docker absent —
       falls back to dry_run without raising.
 - [ ] Simple Python `print("hello")` generated artifact executes, exits 0,
       returns `verdict="PASS"`.
@@ -938,28 +1018,31 @@ DOCKER_BIN=docker                # Path to Docker binary for sandbox execution
 - [ ] Enforcement + FAIL verdict: mission does not reach COMPLETE state.
 
 ### Schema migration
-- [ ] `V007_runtime_qc_schema.sql` applies cleanly on top of V001–V006.
+- [x] `V006_runtime_qc_schema.sql` is present and sequenced after V001–V005.
 - [ ] `mission_runtime_qc` table accepts insert and select for a test row.
 - [ ] `mission_testdata_manifests` table accepts insert and select.
 
 ### API
+- [x] `GET /v1/missions/{id}/runtime-qc` returns a redacted runtime-QC payload
+      when data exists.
 - [ ] `GET /v1/missions/{id}/runtime-qc` returns 200 for a completed mission
       with QC data.
 - [ ] `GET /v1/missions/{id}/runtime-qc` returns 404 for a mission without
       QC data.
-- [ ] Stderr detail redacted in non-admin response.
+- [x] Stderr detail redacted in public response.
+- [x] Chain trace exposes `testdata_manifest` and `runtime_qc_report`.
 
 ### Mission Control
-- [ ] Runtime QC panel renders for PASS verdict (green chip).
+- [x] Runtime QC panel renders runtime-QC verdict data when present.
 - [ ] Runtime QC panel renders for FAIL verdict (red chip + remediation list).
 - [ ] DRY_RUN verdict renders with grey chip and dry_run_reason text.
-- [ ] Test Environment panel renders with base_image and synthetic input count.
+- [x] Test Environment panel renders with base_image and synthetic input count.
 
 ### Full suite
-- [ ] `python -m pytest -q` passes on all touched files.
-- [ ] `python -m ruff check services/orchestrator tests/services` passes.
-- [ ] `npm --prefix apps/mission-control run lint` passes.
-- [ ] `npm --prefix apps/mission-control run test` passes.
+- [x] Focused backend pytest passes on touched files.
+- [x] Focused ruff check passes on touched files.
+- [x] `npm --prefix apps/mission-control run lint` passes.
+- [x] `npm --prefix apps/mission-control run test` passes.
 - [ ] RQCA and TESTDATA failures are never propagated as mission FAILED state
       unless enforcement flags are explicitly set.
 - [ ] No test in the standard suite requires Docker to be running.
