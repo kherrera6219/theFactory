@@ -66,6 +66,11 @@ test-live-extended:
 eval-ai:
 	pytest -q tests/eval/test_llm_delegation_golden.py
 
+eval:
+	pytest tests/eval/ -v --tb=short -x \
+		-m "not live_llm" \
+		--no-header
+
 demo:
 	python scripts/demo_missions.py --dry-run \
 		--output-file docs/evidence/phase18_demo_missions_latest.json

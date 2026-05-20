@@ -1103,3 +1103,10 @@ async def upsert_agent_heartbeat(
                 },
             )
     return record
+
+
+@router.get("/internal/prompt-registry", dependencies=[INTERNAL_AUTH_DEP])
+async def get_prompt_registry() -> Any:
+    """Return all registered versioned prompt assets."""
+    from ..prompt_registry import list_prompts
+    return {"prompts": list_prompts(), "count": len(list_prompts())}

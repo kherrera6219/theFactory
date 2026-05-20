@@ -7,6 +7,7 @@ import os
 import re
 import time
 from collections import defaultdict
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
 
@@ -30,11 +31,26 @@ from .mission_flow import (
 
 LOGGER = logging.getLogger(__name__)
 
+LLM_SAFETY_BLOCK_ENABLED = (
+    os.getenv("LLM_SAFETY_BLOCK_ENABLED", "false").strip().lower()
+    in {"1", "true", "yes"}
+)
+
+current_mission_id: ContextVar[str | None] = ContextVar("current_mission_id", default=None)
+current_settings: ContextVar[Any | None] = ContextVar("current_settings", default=None)
+current_agent_id: ContextVar[str | None] = ContextVar("current_agent_id", default=None)
+
 # Lazy import to avoid circular — resolved at call time.
 def _record_usage_event(  # noqa: PLR0913
     settings, mission_id, agent_id, provider, model, inp, out, succeeded, route
 ):
     """Fire-and-forget token usage recording. Never raises."""
+    if not settings:
+        settings = current_settings.get()
+    if not mission_id:
+        mission_id = current_mission_id.get() or ""
+    if not agent_id:
+        agent_id = current_agent_id.get() or ""
     if not mission_id:
         return
     try:
@@ -691,6 +707,18 @@ async def _call_with_recommendation(
     provider = str(recommendation.get("provider", "openai")).strip().lower()
     model = str(recommendation.get("model", "gpt-5.5")).strip()
 
+    # Safety envelope — scan outbound prompt before any LLM call
+    from .llm_safety import (  # noqa: PLC0415
+        check_outbound_prompt,
+        sanitize_outbound_prompt,
+    )
+    _safety_violations = check_outbound_prompt(prompt, call_context)
+    if _safety_violations:
+        LOGGER.warning("LLM safety outbound violations [%s]: %s", call_context, _safety_violations)
+        if LLM_SAFETY_BLOCK_ENABLED:
+            return None, provider, model, "blocked_safety"
+        prompt = sanitize_outbound_prompt(prompt)  # noqa: PLW2901
+
     async def _provider_call(
         *,
         route_provider: str,
@@ -767,21 +795,25 @@ async def _call_with_agent_system(
     agent_id: str,
 ) -> tuple[dict[str, Any] | None, str, str, str]:
     """Call the recommendation helper with persona system prompt when supported."""
+    token = current_agent_id.set(agent_id)
     try:
-        return await _call_with_recommendation(
-            recommendation=recommendation,
-            prompt=prompt,
-            call_context=call_context,
-            system_prompt=_system_prompt_for_agent(agent_id),
-        )
-    except TypeError as exc:
-        if "system_prompt" not in str(exc):
-            raise
-        return await _call_with_recommendation(
-            recommendation=recommendation,
-            prompt=prompt,
-            call_context=call_context,
-        )
+        try:
+            return await _call_with_recommendation(
+                recommendation=recommendation,
+                prompt=prompt,
+                call_context=call_context,
+                system_prompt=_system_prompt_for_agent(agent_id),
+            )
+        except TypeError as exc:
+            if "system_prompt" not in str(exc):
+                raise
+            return await _call_with_recommendation(
+                recommendation=recommendation,
+                prompt=prompt,
+                call_context=call_context,
+            )
+    finally:
+        current_agent_id.reset(token)
 
 
 def _fallback_delegation(

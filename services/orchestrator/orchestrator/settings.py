@@ -84,6 +84,8 @@ class Settings:
     docker_bin: str = "docker"
     depabs_execution_enabled: bool = False
     port_two_phase_enabled: bool = False
+    llm_safety_block_enabled: bool = False
+    knowledge_refresh_interval_seconds: int = 3600
     agent_scaling_enabled: bool = False
     agent_scaling_max_instances: int = 4
     agent_scaling_items_per_instance: int = 3
@@ -285,6 +287,12 @@ def load_settings() -> Settings:
         ),
         port_two_phase_enabled=_as_bool(
             os.getenv("PORT_TWO_PHASE_ENABLED", "false"), False
+        ),
+        llm_safety_block_enabled=_as_bool(
+            os.getenv("LLM_SAFETY_BLOCK_ENABLED", "false"), False
+        ),
+        knowledge_refresh_interval_seconds=max(
+            10, int(os.getenv("KNOWLEDGE_REFRESH_INTERVAL_SECONDS", "3600"))
         ),
         agent_scaling_enabled=_as_bool(
             os.getenv("AGENT_SCALING_ENABLED", "false"), False

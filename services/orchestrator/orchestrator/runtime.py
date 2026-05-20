@@ -548,9 +548,17 @@ def start_lifecycle_task(app: FastAPI, mission_id: str) -> None:
 
 
 async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
+    from .llm_delegation import current_mission_id, current_settings
+
     settings: Settings = app.state.settings
-    engine = get_lifecycle_engine(settings)
-    await engine.advance(app, mission_id)
+    token_mid = current_mission_id.set(mission_id)
+    token_set = current_settings.set(settings)
+    try:
+        engine = get_lifecycle_engine(settings)
+        await engine.advance(app, mission_id)
+    finally:
+        current_mission_id.reset(token_mid)
+        current_settings.reset(token_set)
 
 
 async def ensure_runtime_ready(app: FastAPI) -> tuple[bool, bool]:

@@ -541,7 +541,7 @@ function buildTestPlan(params: {
   }
   if (
     params.requestedTargetLanguage &&
-    !testPlan.some((step) => step.toLowerCase().includes(params.requestedTargetLanguage!))
+    !testPlan.some((step) => step.toLowerCase().includes(params.requestedTargetLanguage ?? ""))
   ) {
     testPlan.push(
       `Run focused verification for the ${params.requestedTargetLanguage} specialist path before marking the mission complete.`,

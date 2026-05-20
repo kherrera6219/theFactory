@@ -27,6 +27,8 @@ _PRICING: dict[str, dict[str, tuple[float, float]]] = {
         "gpt-4o-mini": (0.000150, 0.000600),
         "o3": (0.010, 0.040),
         "o4-mini": (0.0011, 0.0044),
+        "text-embedding-3-large": (0.00013, 0.0),
+        "text-embedding-3-small": (0.00002, 0.0),
     },
     "anthropic": {
         "claude-opus-4-7": (0.015, 0.075),

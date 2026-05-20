@@ -1,0 +1,9 @@
+{
+  "prompt_id": "pm_feature_contract.v1",
+  "version": "1.0.0",
+  "owner_agent_id": "AGENT-01-PM",
+  "variables": ["provider", "model", "mission_type", "depth_mode", "output_mode", "language", "prompt_text", "mission_context"],
+  "change_note": "Initial versioned asset extracted from llm_delegation.py Phase 25.",
+  "created_at": "2026-05-20T00:00:00Z",
+  "template": "You are AGENT-01-PM. Convert the operator request into a structured feature contract.\nRecommended model: {provider}/{model}\nReturn only JSON. No markdown.\n\nMission type: {mission_type}\nDepth mode: {depth_mode}\nOutput mode: {output_mode}\nTarget language: {language}\nOperator request: {prompt_text}\n{mission_context}"
+}

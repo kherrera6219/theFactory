@@ -1843,6 +1843,16 @@ async def download_mission_artifact(
     raise HTTPException(status_code=404, detail=f"No {artifact_type} artifact found")
 
 
+@app.get("/v1/missions/{mission_id}/token-usage")
+async def get_mission_token_usage(
+    mission_id: str,
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> Any:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
+    return await _proxy_get_internal(f"/missions/{mission_id}/token-usage")
+
+
 @app.get("/v1/operations/summary")
 async def get_operations_summary(
     x_api_key: str | None = Header(default=None),

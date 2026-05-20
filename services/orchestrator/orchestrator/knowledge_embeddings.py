@@ -33,6 +33,42 @@ def embedding_config(settings: Any, *, vector_size: int) -> dict[str, Any]:
     }
 
 
+def _record_embedding_usage(
+    settings: Any,
+    mission_id: str,
+    provider: str,
+    model: str,
+    text: str,
+    succeeded: bool,
+) -> None:
+    try:
+        import asyncio
+
+        from .llm_cost_ledger import record_llm_usage
+
+        tokens = max(1, len(text) // 4)
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                loop.create_task(
+                    record_llm_usage(
+                        settings=settings,
+                        mission_id=mission_id,
+                        agent_id="system-knowledge-lake",
+                        provider=provider,
+                        model=model,
+                        input_tokens=tokens,
+                        output_tokens=0,
+                        call_succeeded=succeeded,
+                        routing_source="knowledge-lake-embedding",
+                    )
+                )
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
+
+
 def vector_for_content(
     settings: Any,
     *,
@@ -45,10 +81,26 @@ def vector_for_content(
     text = _content_text(content)
     if config["provider"] == "openai":
         vector = _openai_embedding(settings, text=text, dimensions=vector_size)
+        _record_embedding_usage(
+            settings,
+            mission_id,
+            config["provider"],
+            config["model"],
+            text,
+            vector is not None,
+        )
         if vector is not None:
             return _fit_dimensions(vector, vector_size)
     if config["provider"] == "gemini":
         vector = _gemini_embedding(settings, text=text, dimensions=vector_size)
+        _record_embedding_usage(
+            settings,
+            mission_id,
+            config["provider"],
+            config["model"],
+            text,
+            vector is not None,
+        )
         if vector is not None:
             return _fit_dimensions(vector, vector_size)
     return _deterministic_vector(
