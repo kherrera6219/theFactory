@@ -83,6 +83,7 @@ class Settings:
     rqca_enforcement_enabled: bool = False
     docker_bin: str = "docker"
     depabs_execution_enabled: bool = False
+    port_two_phase_enabled: bool = False
     agent_scaling_enabled: bool = False
     agent_scaling_max_instances: int = 4
     agent_scaling_items_per_instance: int = 3
@@ -281,6 +282,9 @@ def load_settings() -> Settings:
         docker_bin=os.getenv("DOCKER_BIN", "docker").strip() or "docker",
         depabs_execution_enabled=_as_bool(
             os.getenv("DEPABS_EXECUTION_ENABLED", "false"), False
+        ),
+        port_two_phase_enabled=_as_bool(
+            os.getenv("PORT_TWO_PHASE_ENABLED", "false"), False
         ),
         agent_scaling_enabled=_as_bool(
             os.getenv("AGENT_SCALING_ENABLED", "false"), False

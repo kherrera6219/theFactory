@@ -1,7 +1,7 @@
 # Phase 24 — PORT Mission Cross-Pod Coordination
 
-**Status:** Planned
-**Last updated:** 2026-05-18
+**Status:** In progress
+**Last updated:** 2026-05-20
 **Depends on:** Phase 23 (absorption execution), Phase 20 (CEO reasoning),
 Phase 21 (pod manager delegation depth)
 
@@ -30,151 +30,145 @@ A PORT mission should be a two-pod sequence:
 
 ---
 
+## Pre-implementation findings (2026-05-20)
+
+After reading the live codebase before implementing:
+
+- `_build_ceo_delegation_prompt()` in `llm_delegation.py` already has a PORT
+  entry at line 878 — but it is weak ("Two languages are involved. Note
+  source extraction..."). **Change 1 replaces this existing entry** rather
+  than adding a new one.
+- There is no `_normalize_ceo_delegation()` standalone function. CEO delegation
+  normalization happens inline in `_prepare_ceo_delegated()` in
+  `mission_flow_v2.py`. **Change 1 also patches that inline block** to
+  capture `source_pod_manager_agent_id` from the PORT two-cluster response.
+- `detect_required_languages()` already exists in `is_agent.py` and handles
+  source bundle extension scanning. **Change 2a reuses it** for source
+  language detection rather than writing a new function.
+- The settings pattern is established (`DEPABS_EXECUTION_ENABLED`,
+  `RQCA_AGENT_ENABLED`, etc.). `PORT_TWO_PHASE_ENABLED=false` follows the
+  same pattern exactly.
+- `_build_codegen_prompt()` is a standalone function in `llm_delegation.py`
+  at line 1338. **Change 2d patches it directly** to inject source LogicNode
+  context when `port_source_logicnodes` is present in `mission_context`.
+
+---
+
 ## Change 1 — CEO PORT strategy: two-cluster decomposition
 
-Phase 20 added mission-type-aware CEO prompting. Extend the PORT strategy
-in `_build_ceo_delegation_prompt()` to produce a specific two-cluster
-structure:
+### 1a. Replace weak PORT strategy in `_build_ceo_delegation_prompt()`
+
+File: `services/orchestrator/orchestrator/llm_delegation.py`
+
+Replace the existing `"PORT"` entry in `type_strategy` dict (line ~878):
 
 ```python
+# BEFORE (weak)
+"PORT": (
+    "Two languages are involved. Note source extraction, target generation, "
+    "and any cross-pod dependency in your rationale."
+),
+
+# AFTER (mandatory two-cluster)
 "PORT": (
     "This is a PORT mission. It MUST produce exactly two logic clusters:\n"
-    "  Cluster 1 (EXTRACTION): assigned to the source-language pod and specialist.\n"
-    "    Domain: source_extraction. Priority: HIGH.\n"
-    "    This cluster extracts intent from the original source code.\n"
-    "  Cluster 2 (GENERATION): assigned to the target-language pod and specialist.\n"
-    "    Domain: target_generation. Priority: MEDIUM. depends_on: [Cluster 1].\n"
-    "    This cluster generates the target-language implementation.\n"
-    "Identify both the source language and the target language from the prompt "
-    "and mission contract. Assign each cluster to the correct pod."
+    "  Cluster 1 (EXTRACTION): domain=source_extraction, priority=HIGH.\n"
+    "    Assigned to the SOURCE language pod manager and specialist.\n"
+    "    Purpose: extract intent and LogicNodes from the original source.\n"
+    "  Cluster 2 (GENERATION): domain=target_generation, priority=MEDIUM.\n"
+    "    Assigned to the TARGET language pod manager and specialist.\n"
+    "    depends_on: [Cluster 1 title].\n"
+    "    Purpose: generate target-language implementation from extracted intent.\n"
+    "Identify source and target language from the prompt. "
+    "Assign each cluster to the CORRECT pod."
 ),
 ```
 
-The CEO delegation for PORT missions must therefore return two pod manager
-assignments: `source_pod_manager_agent_id` and `target_pod_manager_agent_id`.
-Extend `_normalize_ceo_delegation()` to capture both.
+### 1b. Capture source pod from PORT clusters in `_prepare_ceo_delegated()`
+
+File: `services/orchestrator/orchestrator/mission_flow_v2.py`
+
+After `logic_clusters` is stored in metadata, when `mission_type == "PORT"`:
+extract the source-pod cluster from the clusters list and store
+`port_source_pod_manager_agent_id` and `port_source_specialist_agent_id`
+in metadata for use in the two-phase flow.
 
 ---
 
 ## Change 2 — Two-phase mission flow for PORT
 
-Add a `PORT` execution path in `mission_flow_v2.py`.
+File: `services/orchestrator/orchestrator/mission_flow_v2.py`
 
-### 2a. Detect PORT and set up two-phase metadata
+### 2a. Feature flag + source language detection
 
-In `_prepare_ceo_delegated()`, when `mission_type == "PORT"`:
+Add `port_two_phase_enabled` to settings. When disabled, PORT routes
+single-pod as before. When enabled:
 
-```python
-if mission_type == "PORT":
-    source_language = _detect_source_language(mission.prompt, metadata)
-    target_language = mission.requested_target_language or "python"
-    metadata["port_source_language"] = source_language
-    metadata["port_target_language"] = target_language
-    metadata["port_phase"] = "extraction"
-```
-
-`_detect_source_language()` reads from the prompt, the source bundle file
-extensions, or the AIM if already present.
+In `_prepare_ceo_delegated()`, when `mission_type == "PORT"` and flag is on:
+- Call `detect_required_languages()` (already in `is_agent.py`) to identify
+  source language from source bundle file extensions.
+- Store `port_source_language`, `port_target_language`, `port_phase="extraction"`
+  in metadata.
 
 ### 2b. Extraction phase — source pod runs first
 
-In `_prepare_specialist_assigned()`, when `port_phase == "extraction"`:
-
-- Route to the source-language specialist (from cluster 1 assignment).
-- Generate AIM from the source code using the source language.
-- Run source-language extraction to produce LogicNodes from the original.
-- Store as `metadata["port_source_logicnodes"]` and
-  `metadata["port_source_aim"]`.
-- Emit `MISSION_PORT_EXTRACTION_COMPLETE`.
-- Set `metadata["port_phase"] = "generation"`.
-- Re-queue the mission at `POD_ASSIGNED` to trigger the generation phase.
+In `_run_specialist_phase()`, when `port_phase == "extraction"`:
+- Override specialist routing to use `port_source_specialist_agent_id`.
+- Run AIM generation on source code with source language.
+- Run extraction to produce LogicNodes.
+- Store as `port_source_logicnodes` and `port_source_aim`.
+- Emit `MISSION_PORT_EXTRACTION_COMPLETE` chain event.
+- Set `port_phase = "generation"` and re-queue at `POD_ASSIGNED`.
 
 ### 2c. Generation phase — target pod runs second
 
-On the second pass through `_prepare_specialist_assigned()`,
+On second pass through `_run_specialist_phase()`,
 when `port_phase == "generation"`:
-
-- Route to the target-language specialist (from cluster 2 assignment).
-- Pass `port_source_logicnodes` and `port_source_aim` into the code
-  generation prompt as source behavior context.
-- Generate target-language implementation informed by extracted source intent.
-- Store as the normal `generated_output`.
+- Route to target specialist normally.
+- Pass `port_source_logicnodes` and `port_source_aim` into codegen context.
 - Emit `MISSION_PORT_GENERATION_COMPLETE`.
 
-### 2d. Extend codegen prompt for PORT
+### 2d. Inject source LogicNode context into codegen prompt
 
-In `_build_codegen_prompt()`, when `mission_context` contains
-`port_source_logicnodes`:
-
-```python
-source_context = ""
-port_nodes = mission_context.get("port_source_logicnodes") or []
-if port_nodes:
-    node_lines = "\n".join(
-        f"- {n.get('domain')}.{n.get('concept')}: {n.get('intent', '')[:80]}"
-        for n in port_nodes[:15]
-    )
-    source_context = (
-        f"\nSource behavior extracted from original {source_lang} code:\n"
-        f"{node_lines}\n"
-        "Preserve this behavior in your {target_lang} implementation.\n"
-    )
-```
+In `_build_codegen_prompt()` in `llm_delegation.py`:
+When `mission_context` contains `port_source_logicnodes`, append a
+"Source behavior extracted from original code" block to the prompt.
 
 ---
 
-## Change 3 — PORT equivalence: source vs target
+## Change 3 — PORT equivalence: concept coverage check
 
-Extend `equivalence_verifier.py` for PORT missions to compare source
-LogicNodes against target LogicNodes rather than contract alone:
+File: `services/orchestrator/orchestrator/equivalence_verifier.py`
 
-```python
-def _port_equivalence_checks(
-    source_logicnodes: list[dict],
-    target_logicnodes: list[dict],
-) -> list[dict]:
-    """
-    For PORT missions: verify that every source domain.concept appears
-    in the target extraction at equivalent confidence.
-    """
-    source_concepts = {
-        f"{n.get('domain')}.{n.get('concept')}" for n in source_logicnodes
-    }
-    target_concepts = {
-        f"{n.get('domain')}.{n.get('concept')}" for n in target_logicnodes
-    }
-    missing = source_concepts - target_concepts
-    checks = []
-    for concept in source_concepts:
-        present = concept in target_concepts
-        checks.append({
-            "check": f"concept_preserved:{concept}",
-            "status": "pass" if present else "manual_review",
-            "required": False,  # semantic equivalence is advisory for PORT
-        })
-    return checks
-```
+Add `_port_equivalence_checks()` called when `port_source_logicnodes`
+is present in metadata. Checks that every `domain.concept` from the source
+extraction appears in the target extraction. All checks are `required=False`
+(advisory) — semantic equivalence is not enforced for PORT.
 
 ---
 
 ## Change 4 — Mission Control PORT phase indicator
 
-In Mission Detail, for PORT missions show a two-phase progress indicator:
+File: `apps/mission-control/app/(shell)/missions/[id]/page.tsx`
 
-```
-[EXTRACTION: Python ✓] → [GENERATION: Rust ●]
-```
-
-Derived from `port_phase`, `port_source_language`, `port_target_language`,
-and the presence of `port_source_logicnodes` in chain trace metadata.
+For PORT missions, render a two-phase progress indicator in the Mission
+Signals panel derived from `port_phase`, `port_source_language`,
+`port_target_language`, and presence of `port_source_logicnodes` in chain
+trace metadata.
 
 ---
 
 ## Settings
 
+Add to `services/orchestrator/orchestrator/settings.py`:
+
+```python
+port_two_phase_enabled=_as_bool(os.getenv("PORT_TWO_PHASE_ENABLED", "false"), False),
+```
+
+Add to `.env.example`:
 ```bash
-PORT_TWO_PHASE_ENABLED=false   # Enable two-pod PORT execution
-# Single-pod fallback remains the default
+PORT_TWO_PHASE_ENABLED=false   # Enable two-pod PORT execution (default: single-pod)
 ```
 
 ---

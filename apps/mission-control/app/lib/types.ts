@@ -545,6 +545,21 @@ export type MissionChainTrace = {
     fallback_used?: boolean;
   };
   events: MissionChainEvent[];
+  // PORT two-phase fields
+  port_phase?: string | null;
+  port_source_language?: string | null;
+  port_target_language?: string | null;
+  port_source_logicnodes?: Array<Record<string, unknown>> | null;
+  // Mission type (surfaced in chain trace for UI)
+  mission_type?: string | null;
+  // Generated output metadata (for PORT phase indicator)
+  generated_output?: {
+    source?: string;
+    filename?: string;
+    language?: string;
+    generated_code?: string;
+    code_length_chars?: number;
+  } | null;
 };
 
 export type LiveStateStreamEvent = {

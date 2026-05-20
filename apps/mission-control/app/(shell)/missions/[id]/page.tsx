@@ -445,6 +445,30 @@ export default function MissionDetailPage() {
                 <dt>Target language</dt>
                 <dd>{mission.requested_target_language ?? "n/a"}</dd>
               </div>
+              {/* PORT two-phase indicator */}
+              {chainTrace?.mission_type === "PORT" &&
+                chainTrace?.port_source_language && (
+                  <div>
+                    <dt>PORT phases</dt>
+                    <dd>
+                      <span
+                        className={`connection-chip ${chainTrace?.port_source_logicnodes?.length ? "live" : "retrying"}`}
+                        title="Source extraction phase"
+                      >
+                        EXTRACTION: {String(chainTrace?.port_source_language ?? "?")}
+                        {chainTrace?.port_source_logicnodes?.length ? " ✓" : " ●"}
+                      </span>
+                      {" → "}
+                      <span
+                        className={`connection-chip ${chainTrace?.port_phase === "generation" ? "retrying" : chainTrace?.generated_output ? "live" : "stale"}`}
+                        title="Target generation phase"
+                      >
+                        GENERATION: {String(chainTrace?.port_target_language ?? mission.requested_target_language ?? "?")}
+                        {chainTrace?.generated_output ? " ✓" : " ●"}
+                      </span>
+                    </dd>
+                  </div>
+                )}
               <div>
                 <dt>Last refresh</dt>
                 <dd>{lastUpdatedAt ? formatTime(lastUpdatedAt) : "n/a"}</dd>

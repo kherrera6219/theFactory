@@ -74,6 +74,7 @@ from .mission_flow import (
     with_chain_defaults,
 )
 from .models import MissionState
+from .port_coordinator import _setup_port_two_phase, run_port_extraction_phase
 from .rqca_agent import run_runtime_qc
 from .security_compliance import (
     build_security_compliance_report,
@@ -1025,6 +1026,11 @@ async def _prepare_ceo_delegation(
         },
         content_hash_source=logic_clusters,
     )
+    # PORT two-phase setup — extract source/target language and cluster assignments
+    mission_type_now = str(metadata.get("mission_type") or "BUILD_NEW").strip().upper()
+    if mission_type_now == "PORT" and _setting_bool(settings, "port_two_phase_enabled"):
+        _setup_port_two_phase(metadata, mission, clusters)
+
     return (
         await _persist_metadata(
             app=app,
@@ -1213,6 +1219,29 @@ async def _prepare_specialist_plan(
         return False
 
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+
+    # PORT two-phase: run extraction phase on first pass
+    if (
+        str(metadata.get("mission_type") or "").strip().upper() == "PORT"
+        and _setting_bool(settings, "port_two_phase_enabled")
+        and str(metadata.get("port_phase") or "").strip().lower() == "extraction"
+    ):
+        extraction_updates = await run_port_extraction_phase(
+            mission_id=mission_id,
+            mission=mission,
+            metadata=metadata,
+            settings=settings,
+        )
+        for key, value in extraction_updates.items():
+            metadata[key] = value
+        # Persist extraction results — port_phase is now "generation".
+        # The lifecycle engine will re-enter _prepare_specialist_plan on the
+        # next SPECIALIST_ASSIGNED transition and take the generation path.
+        updated = await asyncio.to_thread(
+            storage.update_mission_metadata, settings, mission_id, metadata
+        )
+        return updated is not None
+
     pod_manager_agent_id = _validate_agent_id(
         metadata.get("assigned_pod_manager_agent_id"),
         fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
@@ -1221,6 +1250,22 @@ async def _prepare_specialist_plan(
         metadata.get("assigned_specialist_agent_id"),
         fallback=resolve_specialist_agent_id(mission.requested_target_language),
     )
+
+    # PORT generation phase: inject source logicnodes into context
+    port_source_logicnodes = None
+    if (
+        str(metadata.get("mission_type") or "").strip().upper() == "PORT"
+        and _setting_bool(settings, "port_two_phase_enabled")
+        and str(metadata.get("port_phase") or "").strip().lower() == "generation"
+    ):
+        port_source_logicnodes = metadata.get("port_source_logicnodes") or []
+        specialist_agent_id = _validate_agent_id(
+            metadata.get("assigned_specialist_agent_id"),
+            fallback=resolve_specialist_agent_id(
+                metadata.get("port_target_language") or mission.requested_target_language
+            ),
+        )
+
     specialist_plan = await generate_specialist_plan(
         mission_context={
             **_mission_context(mission, metadata),
@@ -1245,16 +1290,28 @@ async def _prepare_specialist_plan(
         and output_mode != "ANALYZE_ONLY"
         and not isinstance(metadata.get("generated_output"), dict)
     ):
+        # Build codegen context — inject PORT source logicnodes when in generation phase
+        _codegen_context: dict[str, Any] = {
+            **_mission_context(mission, metadata),
+            "mission_contract": mission_contract,
+            "specialist_plan": normalized,
+        }
+        if port_source_logicnodes:
+            _codegen_context["port_source_logicnodes"] = port_source_logicnodes
+            _codegen_context["port_source_language"] = metadata.get("port_source_language", "")
+            _codegen_context["port_target_language"] = metadata.get("port_target_language", "")
+
+        _target_lang = (
+            str(metadata.get("port_target_language") or "").strip()
+            or mission.requested_target_language
+            or "python"
+        )
         generated_output = await generate_code_from_contract(
-            mission_context={
-                **_mission_context(mission, metadata),
-                "mission_contract": mission_contract,
-                "specialist_plan": normalized,
-            },
+            mission_context=_codegen_context,
             specialist_agent_id=specialist_agent_id,
             mission_contract=mission_contract,
-            logicnodes=[],
-            target_language=mission.requested_target_language or "python",
+            logicnodes=list(port_source_logicnodes) if port_source_logicnodes else [],
+            target_language=_target_lang,
         )
         metadata["generated_output"] = generated_output
         if not _chain_event_exists(metadata, "GENERATED_OUTPUT_CREATED"):
@@ -1269,6 +1326,21 @@ async def _prepare_specialist_plan(
                     "code_length_chars": generated_output.get("code_length_chars", 0),
                     "model_provider": generated_output.get("model_provider"),
                     "model": generated_output.get("model"),
+                },
+            )
+        # PORT generation phase complete
+        if port_source_logicnodes and not _chain_event_exists(
+            metadata, "MISSION_PORT_GENERATION_COMPLETE"
+        ):
+            append_chain_event(
+                metadata,
+                event_type="MISSION_PORT_GENERATION_COMPLETE",
+                agent_id=specialist_agent_id,
+                details={
+                    "target_language": metadata.get("port_target_language", ""),
+                    "source_logicnode_count": len(port_source_logicnodes),
+                    "filename": generated_output.get("filename"),
+                    "source": generated_output.get("source"),
                 },
             )
 

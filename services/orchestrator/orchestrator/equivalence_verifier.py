@@ -46,6 +46,11 @@ def build_equivalence_report(
         _check_acceptance_criteria(feature_contract, mission_contract),
         _check_aim_consistency(aim, generated_output),
     ]
+    # PORT missions — add concept coverage checks (advisory, not required)
+    port_source_logicnodes = metadata.get("port_source_logicnodes")
+    if isinstance(port_source_logicnodes, list) and port_source_logicnodes:
+        port_generated_output = generated_output
+        checks.extend(_port_concept_coverage_checks(port_source_logicnodes, port_generated_output))
     findings = [
         check["message"]
         for check in checks
@@ -311,6 +316,50 @@ def _risk_level(*, checks: list[dict[str, Any]], blocking: bool) -> str:
     if any(check["status"] == "manual_review" for check in checks):
         return "medium"
     return "low"
+
+
+def _port_concept_coverage_checks(
+    source_logicnodes: list[dict[str, Any]],
+    generated_output: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Advisory concept coverage checks for PORT missions.
+
+    Verifies that domain.concept pairs from the source extraction are
+    reflected in the generated output description. All checks are
+    required=False — semantic equivalence is advisory for PORT.
+    """
+    source_concepts = {
+        f"{str(n.get('domain') or '').strip()}.{str(n.get('concept') or '').strip()}"
+        for n in source_logicnodes
+        if isinstance(n, dict) and n.get("concept")
+    }
+    if not source_concepts:
+        return []
+
+    description = str(generated_output.get("description") or "").lower()
+    generated_code = str(generated_output.get("generated_code") or "").lower()
+    search_text = description + " " + generated_code
+
+    checks = []
+    for concept_key in sorted(source_concepts)[:20]:
+        parts = concept_key.split(".", 1)
+        concept_name = parts[1] if len(parts) > 1 else concept_key
+        concept_slug = concept_name.replace("_", " ").replace("-", " ").lower()
+        present = concept_slug in search_text or concept_name.lower() in search_text
+        checks.append({
+            "check": f"port_concept_preserved:{concept_key}",
+            "status": "pass" if present else "manual_review",
+            "required": False,
+            "message": (
+                f"Source concept '{concept_key}' found in generated output."
+                if present
+                else (
+                    f"Source concept '{concept_key}' not detected"
+                    " in generated output — manual review."
+                )
+            ),
+        })
+    return checks
 
 
 def _dict_value(value: Any) -> dict[str, Any]:

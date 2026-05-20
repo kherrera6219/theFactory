@@ -876,8 +876,16 @@ def _build_prompt(
             "Flag Security and Compliance agents before COMPLETE."
         ),
         "PORT": (
-            "Two languages are involved. Note source extraction, target generation, "
-            "and any cross-pod dependency in your rationale."
+            "This is a PORT mission. It MUST produce exactly two logic clusters:\n"
+            "  Cluster 1 (EXTRACTION): domain=source_extraction, priority=HIGH.\n"
+            "    Assigned to the SOURCE language pod manager and specialist.\n"
+            "    Purpose: extract intent and LogicNodes from the original source.\n"
+            "  Cluster 2 (GENERATION): domain=target_generation, priority=MEDIUM.\n"
+            "    Assigned to the TARGET language pod manager and specialist.\n"
+            "    depends_on: [Cluster 1 title].\n"
+            "    Purpose: generate target-language implementation from extracted intent.\n"
+            "Identify source and target language from the prompt. "
+            "Assign each cluster to the CORRECT pod."
         ),
         "REDUCE_DEPENDENCIES": (
             "Select the pod whose specialist can identify import-level intent and "
@@ -1377,6 +1385,27 @@ def _build_codegen_prompt(
             else None
         ),
     )
+    # PORT mission — inject source behavior context
+    port_source_context = ""
+    port_nodes = mission_context.get("port_source_logicnodes") or []
+    if port_nodes and isinstance(port_nodes, list):
+        source_lang = _clean_text(
+            str(mission_context.get("port_source_language") or "source"), max_length=32
+        )
+        node_lines = "\n".join(
+            f"- {_clean_text(str(n.get('domain') or ''), max_length=32)}"
+            f".{_clean_text(str(n.get('concept') or ''), max_length=48)}: "
+            f"{_clean_text(str(n.get('intent') or ''), max_length=100)}"
+            for n in port_nodes[:15]
+            if isinstance(n, dict)
+        )
+        if node_lines:
+            port_source_context = (
+                f"\nSource behavior extracted from original {source_lang} code:\n"
+                f"{node_lines}\n"
+                f"Preserve this behavior in your {target_language} implementation.\n"
+            )
+
     return (
         f"You are {specialist_agent_id}, a {target_language} specialist.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
@@ -1387,6 +1416,7 @@ def _build_codegen_prompt(
         f"{_language_context(target_language)}"
         f"{risk_context}"
         f"{hw_context}"
+        f"{port_source_context}"
         f"Acceptance criteria:\n{acceptance}\n\n"
         f"Contract requirements:\n{chr(10).join(requirements) or '- primary_operation'}\n\n"
         f"Extracted logicnode context:\n{chr(10).join(logicnode_lines) or '- none'}\n\n"
