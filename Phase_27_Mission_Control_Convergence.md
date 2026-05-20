@@ -1,200 +1,254 @@
 # Phase 27 — Mission Control Convergence and Final Release Qualification
 
 **Status:** Planned
-**Last updated:** 2026-05-18
+**Last updated:** 2026-05-20
 **Depends on:** Phase 26 (production hardening complete, all gates green)
 **Frontend supplement:** See `Frontend_Phase_Updates.md` for full type
 definitions, component specs, and cumulative frontend checklist.
 
 ---
 
-## Problem
+## Pre-implementation findings (2026-05-20)
 
-After Phases 15–26, the backend has capabilities that Mission Control does
-not yet fully surface. Every phase from 19–25 added new chain trace events,
-new metadata fields, and new evidence panels — some were defined as "render
-in Mission Control" in those phases, but a final pass is needed to verify
-all surfaces are consistent, all panels render real data, and no placeholder
-copy or stale UI state remains.
-
-This is the convergence and final qualification phase. Its output is a
-production-ready system with full operator visibility, green E2E coverage,
-and a release candidate that passes the final release gate.
-
----
-
-## Pre-work carried forward from earlier phases
-
-These frontend items must be complete before Phase 27 convergence begins.
-Track in `Frontend_Phase_Updates.md`.
+After reading the live codebase, the pre-work table from the May 18 plan
+has been updated to reflect actual status:
 
 | Item | Phase | Status |
 |---|---|---|
-| Clear stale `.tsbuildinfo`, fix `null` safety in `repo/review/route.ts` | 15 (pre-work) | — |
-| Add AGENT-39/40/41 to `STATIC_AGENT_SLOTS` | 15 | — |
-| Extract Mission Detail panels into `panels/` directory | 19 | — |
-| Add `ErrorBoundary` component | 19 | — |
-| Replace `window.confirm` dialogs | 19 | — |
-| PM clarification panel + API client functions | 19 | — |
-| `LlmUsageSummary`, `VcCommitStrategy`, `IntegrationTests`, etc. | 15–20 | — |
-| `PodAuditVerdict`, `TestdataManifest`, `RuntimeQcReport` | 21–22 | — |
-| `SbomDelta`, PORT phase indicator types | 23–24 | — |
-| All new evidence panels rendering with data and empty states | 19–25 | — |
+| Clear stale `.tsbuildinfo`, fix `null` safety in `repo/review/route.ts` | 15 pre-work | ✅ Done |
+| Add AGENT-36 through AGENT-41 to `STATIC_AGENT_SLOTS` | 15 | ✅ Done (gaps session) |
+| `LlmUsageSummary` type + `getMissionTokenUsage` in api-client | 15 | ✅ Done (gaps session) |
+| Gemini embedding path in `knowledge_embeddings.py` | 16 | ✅ Done (gaps session) |
+| AIM language suffix map expanded (C/C++/Rust/Swift/Lua/GLSL etc.) | Gap 5 | ✅ Done (gaps session) |
+| LLM-driven DEPABS replacement via AGENT-39 | Gap 6 | ✅ Done (gaps session) |
+| PORT phase indicator types in `MissionChainTrace` | 24 | ✅ Done |
+| PORT phase indicator rendered in Mission Signals panel | 24 | ✅ Done |
+| Prompt registry endpoint + safety envelope | 25 | ✅ Done |
+| 23 eval tests passing offline | 25 | ✅ Done |
+| Extract Mission Detail panels into `panels/` directory | 19 | ⬜ Not done |
+| `ErrorBoundary` component wrapping panels | 19 | ⬜ Not done |
+| Replace `window.confirm` dialogs | 19 | ⬜ Not done |
+| PM clarification panel + API route | 19 | ⬜ Not done |
+| `VcCommitStrategy`, `IntegrationTests` types | 20 | ⬜ Not done |
+| `PodAuditVerdict`, `TestdataManifest`, `RuntimeQcReport` types | 21–22 | Partial — RuntimeQcReport in types.ts |
+| Mission Detail `page.tsx` ≤ 600 lines (panels extracted) | 27 | ⬜ Currently 1574 lines |
+| New E2E specs green against mock fixtures | 27 | ⬜ Not done |
+| Lighthouse performance ≥ 85, accessibility ≥ 90 | 27 | ⬜ Not measured |
 
 ---
 
-## Change 1 — Mission Control evidence panel audit
+## Problem
 
-Verify every panel added in Phases 15–26 against the live backend. For each:
-- Confirm the chain trace field it reads exists in a real COMPLETE mission.
-- Confirm the panel renders when data is absent (empty state — not crash).
-- Confirm the panel renders when data is present.
-- Remove any hardcoded fallback values masking missing backend data.
-
-Panels to audit:
-
-| Panel | Added in | Chain trace field |
-|---|---|---|
-| Mission Cost | Phase 15 | `llm_usage_summary` |
-| PM Clarification | Phase 19 | `pm_clarification` |
-| CEO Reasoning Summary | Phase 20 | `CEO_REASONING_SUMMARY` event |
-| Security Threat Analysis | Phase 20 | `security_compliance_report.threat_analysis` |
-| VC Commit Strategy | Phase 20 | `vc_commit_strategy` |
-| Generated Tests | Phase 20 | `integration_tests` |
-| Provider Health (Broker) | Phase 21 | `/internal/broker/provider-health` |
-| Pod Audit Verdict | Phase 21 | `pod_audit_verdict` |
-| Deploy Readiness | Phase 21 | `deploy_readiness` |
-| Runtime QC | Phase 22 | `runtime_qc_report` |
-| Test Environment | Phase 22 | `testdata_manifest` |
-| SBOM Delta | Phase 23 | `sbom_delta` |
-| PORT Phase Indicator | Phase 24 | `port_phase`, `port_source_language` |
-| Prompt Registry | Phase 25 | `/internal/prompt-registry` |
-
-For any panel that is missing or broken, implement the fix in this phase.
+After Phases 15–25, the backend has capabilities that Mission Control does
+not yet fully surface. The critical frontend gap is Mission Detail `page.tsx`
+at **1574 lines** — far beyond the 600-line target. Every phase added new
+panels inline rather than as extracted components. This phase extracts them,
+adds missing types, and runs a final convergence pass.
 
 ---
 
-## Change 2 — E2E coverage for new mission outcomes
+## Change 1 — Mission Detail panel extraction
 
-Add Playwright tests for the key journeys that exist after Phase 22:
+**File:** `apps/mission-control/app/(shell)/missions/[id]/page.tsx`
+**Current:** 1574 lines — all panels inline
+**Target:** ≤ 600 lines — panels extracted to `panels/` directory
 
+Create:
 ```
-apps/mission-control/e2e/
-  mission-build-new-complete.spec.ts
-  mission-analyze-only.spec.ts
-  mission-runtime-qc.spec.ts
-  mission-cost-panel.spec.ts
-  mission-deploy-readiness.spec.ts
-  mission-reduce-deps.spec.ts
+apps/mission-control/app/(shell)/missions/[id]/panels/
+  MissionSignalsPanel.tsx
+  LogicNodeProgressPanel.tsx
+  GeneratedOutputPanel.tsx
+  EquivalenceReportPanel.tsx
+  SecurityCompliancePanel.tsx
+  DependencyAbsorptionPanel.tsx
+  RuntimeQcPanel.tsx
+  AimPanel.tsx
+  FusionPanel.tsx
+  DeliveryPanel.tsx
+  AuditEvidencePanel.tsx
+  CostPanel.tsx
+  PortPhasePanel.tsx
 ```
 
-Each spec uses mock mission state fixtures for CI (no live stack required).
-A `@pytest.mark.demo` tagged suite covers the live-stack path via `make demo`.
+Each panel receives only the props it needs from `chainTrace` and `mission`.
+`page.tsx` becomes an orchestrator that assembles panels — no inline JSX logic.
 
 ---
 
-## Change 3 — Documentation reconciliation
+## Change 2 — Missing types and empty-state handling
 
-**`docs/IMPLEMENTATION_STATUS.md`**
-- Update "Current active phase" to Phase 27.
-- Add summary rows for Phases 15–26.
-- Update "Release blockers" to "None — all blockers resolved."
+Add to `apps/mission-control/app/lib/types.ts`:
 
-**`docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md`**
-- Verify all "Is" claims hold against current implementation.
-- Remove any "Is Not" claims that are now implemented (runtime QC is
-  real after Phase 22, DEPABS executes after Phase 23, etc).
+```typescript
+export type VcCommitStrategy = {
+  strategy: string;
+  commit_message: string;
+  branch_name?: string;
+  source: string;
+};
 
-**`docs/ROADMAP.md`**
-- Append Phase 40–52 entries mapping to Phases 15–27.
+export type IntegrationTests = {
+  test_code: string;
+  framework: string;
+  language: string;
+  test_count: number;
+  source: string;
+};
 
-**`README.md`**
-- Update Quick Start to reflect current `make up` → `make demo` flow.
+export type PodAuditVerdict = {
+  verdict: string;
+  score: number;
+  findings: string[];
+  source: string;
+};
+```
 
-**`AGENTS.md`**
+Add these to `MissionChainTrace`:
+```typescript
+vc_commit_strategy?: VcCommitStrategy | null;
+integration_tests?: IntegrationTests | null;
+pod_audit_verdict?: PodAuditVerdict | null;
+pm_clarification?: Record<string, unknown> | null;
+llm_usage_summary?: LlmUsageSummary | null;
+```
+
+Every panel must handle `null` / `undefined` gracefully — no crash on absent data.
+
+---
+
+## Change 3 — ErrorBoundary component
+
+Create `apps/mission-control/app/components/error-boundary.tsx`:
+
+```typescript
+"use client";
+import { Component, type ReactNode } from "react";
+
+type Props = { children: ReactNode; fallback?: ReactNode };
+type State = { hasError: boolean; error?: Error };
+
+export class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false };
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? (
+        <p className="muted">Panel unavailable — data may be loading.</p>
+      );
+    }
+    return this.props.children;
+  }
+}
+```
+
+Wrap every panel in Mission Detail with `<ErrorBoundary>`.
+
+---
+
+## Change 4 — Replace window.confirm
+
+Search `apps/mission-control/` for `window.confirm` calls and replace
+with a state-driven confirmation dialog using the existing `Panel` and
+`SystemMessage` components. No `window.confirm` should remain in production
+code.
+
+---
+
+## Change 5 — E2E specs for new mission outcomes
+
+Add to `apps/mission-control/e2e/`:
+```
+mission-build-new-complete.spec.ts   — mock BUILD_NEW COMPLETE state
+mission-cost-panel.spec.ts           — LlmUsageSummary panel renders
+mission-runtime-qc.spec.ts           — RuntimeQcReport panel renders
+mission-reduce-deps.spec.ts          — DependencyAbsorption panel renders
+```
+
+Each spec uses MSW (Mock Service Worker) or Next.js route mocking for CI.
+No live stack required.
+
+---
+
+## Change 6 — Documentation reconciliation
+
+### `docs/IMPLEMENTATION_STATUS.md`
+- Update "Current active phase" to Phase 27 complete.
+- Add summary rows for Phases 15–27.
+- Change "Release blockers" to "None — all blockers resolved."
+
+### `docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md`
+- Verify all "Is" claims hold. In particular:
+  - "A runtime QC platform" — now true after Phase 22.
+  - "A dependency-reduction engine" — now true after Phase 23.
+  - "A workspace-isolated execution environment" — verify RQCA sandbox.
+
+### `AGENTS.md`
 - Update "Last validated" date to Phase 27 completion date.
-- Add AGENT-40, AGENT-41 activation status.
-- Remove stale gap entries — all previously-listed gaps resolved.
-- Add Phase 19–22 settings to the settings reference table.
+- Add AGENT-40-TESTDATA and AGENT-41-RQCA activation status.
+- Remove all previously-listed gap entries — resolved in Phases 15–26.
+- Add Phase 22–25 settings flags to the settings reference table.
 
-**`docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`**
-- Add AGENT-40-TESTDATA and AGENT-41-RQCA rows.
-- Note Phase 22 activation status for both.
+### `README.md`
+- Update Quick Start to `make up` → `make demo` → Mission Control.
+- Update model strings to current values (gpt-5.5, claude-opus-4-7 etc.).
 
----
-
-## Change 4 — Accessibility and performance gates
-
-Run Lighthouse CI on Mission Detail page after all panels land:
-
-```bash
-cd apps/mission-control
-npm run build
-npm run test:perf
-```
-
-Thresholds: performance ≥ 85, accessibility ≥ 90.
-
-Fixes required before passing:
-- All new panels must have `role`, `aria-label`, keyboard-navigable controls
-- `ErrorBoundary` wrapping prevents crash on bad data
-- No `window.confirm` calls remaining
+### `docs/ROADMAP.md`
+- Append entries Phase 40–52 mapping to Phases 15–27.
 
 ---
 
-## Change 5 — Final release gate execution
-
-Run the complete release gate in a clean environment:
+## Change 7 — Final release gate execution
 
 ```bash
 make validate        # lint + schema + pytest + npm lint/test
-make promotion-gate  # intelligence-layer gate checks
-make eval            # Phase 25 offline AI evals
-make demo            # Phase 18 demo missions against live stack
-python scripts/production_review_audit.py  # SEC-KEY-001, DR-001, etc.
+make eval            # Phase 25 offline AI evals (23 tests)
+python scripts/production_review_audit.py  # Must be 22/22
+make demo            # Phase 18 demo missions (requires live stack + keys)
 ```
 
-Record evidence in:
+Record evidence:
 ```
 docs/evidence/phase27_final_release_qualification_2026-MM-DD.md
 ```
 
 ---
 
-## Exit criteria — Phase 27 complete = system is production-ready
+## Exit criteria — Phase 27 complete = production-ready
 
 ### Backend
-- [ ] `python -m pytest -q` green in clean environment
+- [ ] `python -m pytest -q` green
 - [ ] `python -m ruff check services tests scripts` green
-- [ ] Coverage gate ≥ 80% (`--cov-fail-under=80`)
-- [ ] `make promotion-gate` all gates green or documented skip
-- [ ] `make eval` all offline safety and PM contract evals green
-- [ ] `make demo` all 3 demo missions COMPLETE with non-empty generated code
+- [ ] Coverage ≥ 80%
+- [ ] `make eval` all 23 offline eval tests green
+- [ ] `make demo` all 3 demo missions COMPLETE (requires live stack)
 
 ### Frontend
-- [ ] `npm run lint` — 0 errors (stale cache cleared, null safety fixed)
+- [ ] `npm run lint` — 0 errors
 - [ ] `npm test` — all unit tests green
-- [ ] All 14 evidence panels in the audit table verified against live data
-- [ ] All new panels have empty-state handling (no crash on absent data)
-- [ ] `ErrorBoundary` wraps every panel in Mission Detail
-- [ ] No `window.confirm` calls remain
-- [ ] AGENT-39/40/41 in `STATIC_AGENT_SLOTS`
 - [ ] Mission Detail `page.tsx` ≤ 600 lines (panels extracted)
+- [ ] `ErrorBoundary` wraps every panel
+- [ ] No `window.confirm` calls remain
+- [ ] All 14 evidence panels verified: render with data, render empty state
 - [ ] New E2E specs green against mock fixtures
-- [ ] Lighthouse performance ≥ 85, accessibility ≥ 90 on Mission Detail
+- [ ] Lighthouse performance ≥ 85, accessibility ≥ 90
 
 ### Documentation
-- [ ] `docs/IMPLEMENTATION_STATUS.md` Phase 27 complete, no open blockers
-- [ ] `AGENTS.md` last-validated date updated, all gap entries resolved
+- [ ] `docs/IMPLEMENTATION_STATUS.md` — Phase 27 complete, no open blockers
+- [ ] `AGENTS.md` last-validated date updated, AGENT-40/41 activation noted
 - [ ] `docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md` accurate against current system
-- [ ] `README.md` quick start demo accurate and functional
-- [ ] `docs/ROADMAP.md` Phase 40–52 entries appended
+- [ ] `README.md` quick start accurate
+- [ ] `docs/ROADMAP.md` Phase 40–52 appended
 
 ### Security and evidence
 - [ ] `git log --all -- deploy/postgres/certs/server.key` — no output
 - [ ] `git log --all -- deploy/redis/certs/redis.key` — no output
 - [ ] DR drill evidence current (within 30 days)
-- [ ] `docs/evidence/phase27_final_release_qualification_*.md` exists with
-      all fields "pass"
+- [ ] `production_review_audit.py` — 22/22 checks pass
+- [ ] `docs/evidence/phase27_final_release_qualification_*.md` present
 
-**When all 25 exit criteria are checked: theFactory is production-ready.**
+**When all criteria are met: theFactory is production-ready.**
