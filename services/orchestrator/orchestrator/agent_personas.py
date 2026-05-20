@@ -714,7 +714,7 @@ def _cache_hints_for_agent(agent: AgentDefinition) -> list[str]:
 def _model_routing(llm_recommendation: dict[str, Any]) -> dict[str, Any]:
     route: dict[str, Any] = {
         "provider": str(llm_recommendation.get("provider", "openai")),
-        "model": str(llm_recommendation.get("model", "gpt-5.2-pro")),
+        "model": str(llm_recommendation.get("model", "gpt-5.5")),
     }
     mode = llm_recommendation.get("mode")
     if isinstance(mode, str) and mode:
@@ -840,7 +840,7 @@ def _master_instruction(
     llm_recommendation: dict[str, Any],
 ) -> str:
     provider = str(llm_recommendation.get("provider", "openai"))
-    model = str(llm_recommendation.get("model", "gpt-5.2-pro"))
+    model = str(llm_recommendation.get("model", "gpt-5.5"))
     protocol = _protocol_profile(agent, protocols)["primary_code"]
 
     if agent.category == "specialist":

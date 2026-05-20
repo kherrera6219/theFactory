@@ -40,7 +40,7 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
     },
     "openai_codegen": {
         "provider": "openai",
-        "model": "gpt-5.3-codex",
+        "model": "gpt-5.5",
         "mode": "thinking",
         "reasoning_effort": "xhigh",
         "reason": "Best fit for long-horizon coding and agentic code changes.",

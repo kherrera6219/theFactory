@@ -2192,7 +2192,7 @@ async def generate_code_from_contract(
 ) -> dict[str, Any]:
     recommendation = _agent_recommendation(specialist_agent_id)
     provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.3-codex")).strip()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
     prompt = _build_codegen_prompt(
         mission_context=mission_context,
         mission_contract=mission_contract,

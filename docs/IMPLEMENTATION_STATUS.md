@@ -151,9 +151,8 @@ remaining blocker for a public launch claim is the live provider-key demo (item 
 | `OBJECT_STORAGE_ENABLED` | `false` | Optional MinIO/S3 adapter |
 | `KNOWLEDGE_EMBEDDING_PROVIDER` | `deterministic` | Set to `gemini` to activate |
 
-**LLM model assignments (as of 2026-05-17):**
-- OpenAI executive/operations: `gpt-5.5`
-- OpenAI specialist/VC: `gpt-5.3-codex`
+**LLM model assignments (as of 2026-05-20):**
+- OpenAI all agents: `gpt-5.5`
 - Anthropic deep-audit: `claude-opus-4-7`
 - Anthropic workhorse: `claude-sonnet-4-6`
 - Gemini all agents: `gemini-3.5-flash` (GA — Google I/O May 2026)

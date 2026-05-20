@@ -75,7 +75,7 @@ def test_build_generated_output_artifact_generates_manifest_and_digest() -> None
             "source": "llm",
             "specialist_agent_id": "AGENT-14-PYTHON",
             "model_provider": "openai",
-            "model": "gpt-5.3-codex",
+            "model": "gpt-5.5",
         }
     }
     artifact = build_artifacts.build_generated_output_artifact(

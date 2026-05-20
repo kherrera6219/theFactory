@@ -62,33 +62,25 @@
     },
     {
       "provider": "openai",
-      "model": "gpt-5.3-codex",
-      "lifecycle": "stable",
-      "production_approved": true,
-      "agents": [
-        "AGENT-07-VC",
-        "AGENT-14-PYTHON",
-        "AGENT-15-JAVASCRIPT",
-        "AGENT-16-RUBY",
-        "AGENT-17-PHP",
-        "AGENT-20-C",
-        "AGENT-21-CPP",
-        "AGENT-22-RUST",
-        "AGENT-23-ZIG",
-        "AGENT-36-GO"
-      ]
-    },
-    {
-      "provider": "openai",
       "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "agents": [
         "AGENT-02-CEO",
         "AGENT-04-ACCOUNTANT",
+        "AGENT-07-VC",
         "AGENT-12-PODA-MGR",
+        "AGENT-14-PYTHON",
+        "AGENT-15-JAVASCRIPT",
+        "AGENT-16-RUBY",
+        "AGENT-17-PHP",
         "AGENT-18-PODB-MGR",
-        "AGENT-24-PODC-MGR"
+        "AGENT-20-C",
+        "AGENT-21-CPP",
+        "AGENT-22-RUST",
+        "AGENT-23-ZIG",
+        "AGENT-24-PODC-MGR",
+        "AGENT-36-GO"
       ]
     }
   ],
@@ -118,7 +110,7 @@
     {
       "agent_id": "AGENT-03-BROKER",
       "provider": "gemini",
-      "model": "gemini-3.1-flash-lite",
+      "model": "gemini-3.5-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -151,9 +143,9 @@
     {
       "agent_id": "AGENT-06-IS",
       "provider": "gemini",
-      "model": "gemini-3.1-pro-preview",
-      "lifecycle": "preview",
-      "production_approved": false,
+      "model": "gemini-3.5-flash",
+      "lifecycle": "stable",
+      "production_approved": true,
       "fallback_provider": "anthropic",
       "fallback_model": "claude-sonnet-4-6",
       "fallback_lifecycle": "stable",
@@ -162,7 +154,7 @@
     {
       "agent_id": "AGENT-07-VC",
       "provider": "openai",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -184,9 +176,9 @@
     {
       "agent_id": "AGENT-09-HW",
       "provider": "gemini",
-      "model": "gemini-3.1-pro-preview",
-      "lifecycle": "preview",
-      "production_approved": false,
+      "model": "gemini-3.5-flash",
+      "lifecycle": "stable",
+      "production_approved": true,
       "fallback_provider": "openai",
       "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
@@ -206,7 +198,7 @@
     {
       "agent_id": "AGENT-11-DEPLOY",
       "provider": "gemini",
-      "model": "gemini-3.1-flash-lite",
+      "model": "gemini-3.5-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
@@ -239,7 +231,7 @@
     {
       "agent_id": "AGENT-14-PYTHON",
       "provider": "openai",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -250,7 +242,7 @@
     {
       "agent_id": "AGENT-15-JAVASCRIPT",
       "provider": "openai",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -261,7 +253,7 @@
     {
       "agent_id": "AGENT-16-RUBY",
       "provider": "openai",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -272,7 +264,7 @@
     {
       "agent_id": "AGENT-17-PHP",
       "provider": "openai",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -305,7 +297,7 @@
     {
       "agent_id": "AGENT-20-C",
       "provider": "openai",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -316,7 +308,7 @@
     {
       "agent_id": "AGENT-21-CPP",
       "provider": "openai",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -327,7 +319,7 @@
     {
       "agent_id": "AGENT-22-RUST",
       "provider": "openai",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -338,7 +330,7 @@
     {
       "agent_id": "AGENT-23-ZIG",
       "provider": "openai",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -415,9 +407,9 @@
     {
       "agent_id": "AGENT-30-PODD-MGR",
       "provider": "gemini",
-      "model": "gemini-3.1-pro-preview",
-      "lifecycle": "preview",
-      "production_approved": false,
+      "model": "gemini-3.5-flash",
+      "lifecycle": "stable",
+      "production_approved": true,
       "fallback_provider": "openai",
       "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
@@ -437,9 +429,9 @@
     {
       "agent_id": "AGENT-32-MATLAB",
       "provider": "gemini",
-      "model": "gemini-3.1-pro-preview",
-      "lifecycle": "preview",
-      "production_approved": false,
+      "model": "gemini-3.5-flash",
+      "lifecycle": "stable",
+      "production_approved": true,
       "fallback_provider": "openai",
       "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
@@ -448,9 +440,9 @@
     {
       "agent_id": "AGENT-33-R",
       "provider": "gemini",
-      "model": "gemini-3.1-pro-preview",
-      "lifecycle": "preview",
-      "production_approved": false,
+      "model": "gemini-3.5-flash",
+      "lifecycle": "stable",
+      "production_approved": true,
       "fallback_provider": "openai",
       "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
@@ -459,9 +451,9 @@
     {
       "agent_id": "AGENT-34-JULIA",
       "provider": "gemini",
-      "model": "gemini-3.1-pro-preview",
-      "lifecycle": "preview",
-      "production_approved": false,
+      "model": "gemini-3.5-flash",
+      "lifecycle": "stable",
+      "production_approved": true,
       "fallback_provider": "openai",
       "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
@@ -470,9 +462,9 @@
     {
       "agent_id": "AGENT-35-MATHEMATICA",
       "provider": "gemini",
-      "model": "gemini-3.1-pro-preview",
-      "lifecycle": "preview",
-      "production_approved": false,
+      "model": "gemini-3.5-flash",
+      "lifecycle": "stable",
+      "production_approved": true,
       "fallback_provider": "openai",
       "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
@@ -481,7 +473,7 @@
     {
       "agent_id": "AGENT-36-GO",
       "provider": "openai",
-      "model": "gpt-5.3-codex",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -492,9 +484,9 @@
     {
       "agent_id": "AGENT-37-HASKELL",
       "provider": "gemini",
-      "model": "gemini-3.1-pro-preview",
-      "lifecycle": "preview",
-      "production_approved": false,
+      "model": "gemini-3.5-flash",
+      "lifecycle": "stable",
+      "production_approved": true,
       "fallback_provider": "openai",
       "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
@@ -503,9 +495,9 @@
     {
       "agent_id": "AGENT-38-OCAML",
       "provider": "gemini",
-      "model": "gemini-3.1-pro-preview",
-      "lifecycle": "preview",
-      "production_approved": false,
+      "model": "gemini-3.5-flash",
+      "lifecycle": "stable",
+      "production_approved": true,
       "fallback_provider": "openai",
       "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
@@ -525,7 +517,7 @@
     {
       "agent_id": "AGENT-40-TESTDATA",
       "provider": "gemini",
-      "model": "gemini-3.1-flash-lite",
+      "model": "gemini-3.5-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",

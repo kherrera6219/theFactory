@@ -792,7 +792,7 @@ class TestAdvanceMissionLifecycleV2:
                         "source": "llm",
                         "llm_route": "primary",
                         "model_provider": "openai",
-                        "model": "gpt-5.4-mini",
+                        "model": "gpt-5.5",
                     }
                 ),
             ), patch(
@@ -807,7 +807,7 @@ class TestAdvanceMissionLifecycleV2:
                         "source": "llm",
                         "llm_route": "primary",
                         "model_provider": "openai",
-                        "model": "gpt-5.4-mini",
+                        "model": "gpt-5.5",
                     }
                 ),
             ), patch(

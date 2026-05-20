@@ -35,7 +35,7 @@ test("mission-cost-panel details and cost distribution", async ({ page }) => {
       },
       {
         provider: "openai",
-        model: "gpt-4o",
+        model: "gpt-5.5",
         input_tokens: 40000,
         output_tokens: 14000,
         estimated_cost_usd: 0.5450,
@@ -55,7 +55,7 @@ test("mission-cost-panel details and cost distribution", async ({ page }) => {
       {
         agent_id: "AGENT-14-PYTHON",
         provider: "openai",
-        model: "gpt-4o",
+        model: "gpt-5.5",
         input_tokens: 40000,
         output_tokens: 14000,
         cost_usd: 0.5450,

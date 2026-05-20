@@ -54,7 +54,7 @@ def test_parse_iso_datetime_and_route_summary_helpers() -> None:
             "source": "llm",
             "llm_route": "primary",
             "model_provider": "openai",
-            "model": "gpt-5.3",
+            "model": "gpt-5.5",
             "pod_manager_agent_id": "AGENT-12-PODA-MGR",
             "specialist_agent_id": "AGENT-14-PYTHON",
             "rationale": "match language",

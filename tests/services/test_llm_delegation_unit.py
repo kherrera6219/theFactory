@@ -32,7 +32,7 @@ def test_agent_model_inventory_uses_current_codex_model() -> None:
         for record in snapshot.get("agents", [])
         if isinstance(record, dict)
     }
-    assert "gpt-5.3-codex" in models
+    assert "gpt-5.5" in models
     assert "gpt-5.2-codex" not in models
 
 
@@ -169,7 +169,7 @@ def test_codegen_normalizer_strips_fences_and_sanitizes_filename() -> None:
         specialist_agent_id="AGENT-14-PYTHON",
         target_language="python",
         provider="openai",
-        model="gpt-5.3-codex",
+        model="gpt-5.5",
         route="primary",
     )
     assert result is not None
@@ -183,11 +183,11 @@ def test_generate_code_from_contract_uses_llm_result(monkeypatch) -> None:
     monkeypatch.setattr(
         llm_delegation,
         "_agent_recommendation",
-        lambda _agent_id: {"provider": "openai", "model": "gpt-5.3-codex"},
+        lambda _agent_id: {"provider": "openai", "model": "gpt-5.5"},
     )
 
     async def _call_with_recommendation(*, recommendation, prompt, call_context):
-        assert recommendation["model"] == "gpt-5.3-codex"
+        assert recommendation["model"] == "gpt-5.5"
         assert "specialist codegen" in call_context
         assert "Build hello" in prompt
         return (
@@ -199,7 +199,7 @@ def test_generate_code_from_contract_uses_llm_result(monkeypatch) -> None:
                 "dependencies": [],
             },
             "openai",
-            "gpt-5.3-codex",
+            "gpt-5.5",
             "primary",
         )
 
@@ -861,7 +861,7 @@ def test_call_with_recommendation_uses_fallback_route(monkeypatch) -> None:
                 "provider": "anthropic",
                 "model": "claude",
                 "fallback_provider": "openai",
-                "fallback_model": "gpt-5.4-mini",
+                "fallback_model": "gpt-5.5",
             },
             prompt="prompt",
             call_context="ctx",
@@ -869,7 +869,7 @@ def test_call_with_recommendation_uses_fallback_route(monkeypatch) -> None:
     )
     assert parsed == {"specialist_agent_id": "AGENT-14-PYTHON"}
     assert provider == "openai"
-    assert model == "gpt-5.4-mini"
+    assert model == "gpt-5.5"
     assert route == "fallback"
 
 
@@ -883,9 +883,9 @@ def test_call_with_recommendation_returns_primary_when_fallback_is_same(monkeypa
         llm_delegation._call_with_recommendation(
             recommendation={
                 "provider": "openai",
-                "model": "gpt-5.4-mini",
+                "model": "gpt-5.5",
                 "fallback_provider": "openai",
-                "fallback_model": "gpt-5.4-mini",
+                "fallback_model": "gpt-5.5",
             },
             prompt="prompt",
             call_context="ctx",
@@ -893,7 +893,7 @@ def test_call_with_recommendation_returns_primary_when_fallback_is_same(monkeypa
     )
     assert parsed is None
     assert provider == "openai"
-    assert model == "gpt-5.4-mini"
+    assert model == "gpt-5.5"
     assert route == "primary"
 
 
@@ -1022,7 +1022,7 @@ def test_specialist_prompt_includes_language_and_risk_context() -> None:
         specialist_agent_id="AGENT-22-RUST",
         pod_manager_agent_id="AGENT-18-PODB-MGR",
         recommended_provider="openai",
-        recommended_model="gpt-5.3-codex",
+        recommended_model="gpt-5.5",
     )
     assert "Ownership model correctness" in prompt
     assert "PM risk notes" in prompt
@@ -1045,7 +1045,7 @@ def test_codegen_prompt_includes_hw_context_for_systems_language() -> None:
         target_language="rust",
         specialist_agent_id="AGENT-22-RUST",
         recommended_provider="openai",
-        recommended_model="gpt-5.3-codex",
+        recommended_model="gpt-5.5",
     )
     assert "Runtime hardware context (AW1)" in prompt
     assert "Intel i7-14700F" in prompt
@@ -1082,13 +1082,13 @@ def test_call_with_recommendation_without_fallback_returns_primary(monkeypatch) 
     monkeypatch.setattr(llm_delegation, "_call_provider", _call_provider)
     parsed, provider, model, route = asyncio.run(
         llm_delegation._call_with_recommendation(
-            recommendation={"provider": "openai", "model": "gpt-5.4-mini"},
+            recommendation={"provider": "openai", "model": "gpt-5.5"},
             prompt="prompt",
             call_context="ctx",
         )
     )
     assert parsed is None
-    assert (provider, model, route) == ("openai", "gpt-5.4-mini", "primary")
+    assert (provider, model, route) == ("openai", "gpt-5.5", "primary")
 
 
 def test_generate_ceo_delegation_uses_default_rationale(monkeypatch) -> None:
