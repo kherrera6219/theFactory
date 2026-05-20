@@ -47,6 +47,10 @@ def vector_for_content(
         vector = _openai_embedding(settings, text=text, dimensions=vector_size)
         if vector is not None:
             return _fit_dimensions(vector, vector_size)
+    if config["provider"] == "gemini":
+        vector = _gemini_embedding(settings, text=text, dimensions=vector_size)
+        if vector is not None:
+            return _fit_dimensions(vector, vector_size)
     return _deterministic_vector(
         mission_id=mission_id,
         knowledge_id=knowledge_id,
@@ -126,6 +130,61 @@ def _openai_embedding(settings: Any, *, text: str, dimensions: int) -> list[floa
         return None
     vector = []
     for item in first["embedding"]:
+        try:
+            vector.append(float(item))
+        except (TypeError, ValueError):
+            return None
+    return vector or None
+
+
+
+def _gemini_embedding(settings: Any, *, text: str, dimensions: int) -> list[float] | None:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return None
+    base_url = str(
+        getattr(settings, "knowledge_embedding_gemini_base_url", "")
+        or os.getenv(
+            "GEMINI_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta",
+        )
+    ).rstrip("/")
+    if not _valid_http_base(base_url):
+        return None
+    model = str(
+        getattr(settings, "knowledge_embedding_model", "") or GEMINI_EMBEDDING_MODEL
+    ).strip()
+    payload = {
+        "model": model,
+        "content": {"parts": [{"text": text}]},
+        "task_type": "RETRIEVAL_DOCUMENT",
+    }
+    if dimensions and dimensions != 768:
+        payload["output_dimensionality"] = dimensions
+    url = f"{base_url}/models/{model}:embedContent?key={api_key}"
+    request = Request(
+        url,
+        data=json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    timeout = max(
+        1.0,
+        float(getattr(settings, "knowledge_embedding_timeout_seconds", 10.0) or 10.0),
+    )
+    try:
+        with urlopen(request, timeout=timeout) as response:  # nosec B310
+            body = json.loads(response.read().decode("utf-8"))
+    except (OSError, URLError, ValueError):
+        return None
+    embedding = body.get("embedding") if isinstance(body, dict) else None
+    if not isinstance(embedding, dict):
+        return None
+    values = embedding.get("values")
+    if not isinstance(values, list) or not values:
+        return None
+    vector = []
+    for item in values:
         try:
             vector.append(float(item))
         except (TypeError, ValueError):

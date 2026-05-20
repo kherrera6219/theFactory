@@ -450,3 +450,14 @@ export async function verifyReviewApproval(payload: {
     }),
   });
 }
+
+export async function getMissionTokenUsage(missionId: string): Promise<import("./types").LlmUsageSummary | null> {
+  try {
+    return await fetchJson<import("./types").LlmUsageSummary>(
+      missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}/token-usage`),
+      { method: "GET" }
+    );
+  } catch {
+    return null;
+  }
+}

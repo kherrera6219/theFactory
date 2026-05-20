@@ -49,6 +49,12 @@ const STATIC_AGENT_SLOTS: Array<{ agentId: string; name: string; provider: strin
   { agentId: "AGENT-33-R", name: "R Specialist", provider: "gemini", model: "gemini-3.1-pro-preview" },
   { agentId: "AGENT-34-JULIA", name: "Julia Specialist", provider: "gemini", model: "gemini-3.1-pro-preview" },
   { agentId: "AGENT-35-MATHEMATICA", name: "Mathematica Specialist", provider: "gemini", model: "gemini-3.1-pro-preview" },
+  { agentId: "AGENT-36-GO", name: "Go Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-37-HASKELL", name: "Haskell Specialist", provider: "gemini", model: "gemini-3.1-pro-preview" },
+  { agentId: "AGENT-38-OCAML", name: "OCaml Specialist", provider: "gemini", model: "gemini-3.1-pro-preview" },
+  { agentId: "AGENT-39-DEPABS", name: "Dependency Absorption Agent", provider: "anthropic", model: "claude-opus-4-7" },
+  { agentId: "AGENT-40-TESTDATA", name: "Database and Test Data Agent", provider: "gemini", model: "gemini-3.1-flash-lite" },
+  { agentId: "AGENT-41-RQCA", name: "Runtime QC Agent", provider: "anthropic", model: "claude-sonnet-4-6" },
 ];
 
 type LocalPreferences = {

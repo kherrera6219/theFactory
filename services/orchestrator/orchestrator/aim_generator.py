@@ -29,6 +29,7 @@ MAX_SOURCE_CHARS = 2_000_000
 
 _SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
 _LANGUAGE_BY_SUFFIX = {
+    # Pod A — Dynamic
     ".py": "python",
     ".js": "javascript",
     ".jsx": "javascript",
@@ -36,9 +37,51 @@ _LANGUAGE_BY_SUFFIX = {
     ".cjs": "javascript",
     ".ts": "typescript",
     ".tsx": "typescript",
+    ".rb": "ruby",
+    ".php": "php",
+    # Pod B — Systems (desktop / game critical)
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".hxx": "cpp",
+    ".rs": "rust",
+    ".go": "go",
+    ".zig": "zig",
+    # Pod C — Enterprise
     ".java": "java",
+    ".cs": "csharp",
+    ".scala": "scala",
+    ".kt": "kotlin",
+    ".kts": "kotlin",
+    # Pod D — Mathematical
+    ".r": "r",
+    ".R": "r",
+    ".jl": "julia",
+    ".m": "matlab",
+    ".wl": "mathematica",
+    ".nb": "mathematica",
+    ".hs": "haskell",
+    ".ml": "ocaml",
+    ".mli": "ocaml",
+    # Platform-native (desktop / game)
+    ".swift": "swift",
+    ".mm": "objc",
+    ".lua": "lua",
+    ".glsl": "glsl",
+    ".hlsl": "hlsl",
+    ".wgsl": "wgsl",
+    ".shader": "glsl",
 }
-_SUPPORTED_EXTRACTOR_LANGUAGES = frozenset({"python", "javascript", "typescript", "java"})
+_SUPPORTED_EXTRACTOR_LANGUAGES = frozenset({
+    "python", "javascript", "typescript", "java",
+    "c", "cpp", "rust", "go", "zig",
+    "csharp", "scala", "kotlin",
+    "ruby", "php",
+    "r", "julia", "matlab", "mathematica", "haskell", "ocaml",
+})
 
 
 def mission_requires_aim(mission_type: str | None) -> bool:

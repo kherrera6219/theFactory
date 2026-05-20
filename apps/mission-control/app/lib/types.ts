@@ -956,3 +956,28 @@ export type RepoReviewResponse = {
   notice?: string;
 };
 
+
+export type LlmUsageSummary = {
+  mission_id: string;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number | null;
+  unknown_pricing_count: number;
+  call_count: number;
+  by_provider: Array<{
+    provider: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    estimated_cost_usd: number | null;
+  }>;
+  by_agent: Array<{
+    agent_id: string;
+    provider: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cost_usd: number | null;
+  }>;
+};

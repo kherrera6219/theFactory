@@ -239,3 +239,11 @@ async def update_mission_state(
     )
 
     return record
+
+
+@router.get("/{mission_id}/token-usage", dependencies=[INTERNAL_AUTH_DEP])
+async def get_mission_token_usage(mission_id: str, request: Request) -> Any:
+    """Return aggregated LLM token usage and estimated cost for a mission."""
+    from ..llm_cost_ledger import get_mission_token_usage as _get_usage
+    settings = request.app.state.settings
+    return await _get_usage(settings=settings, mission_id=mission_id)

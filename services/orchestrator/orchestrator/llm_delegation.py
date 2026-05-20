@@ -30,6 +30,32 @@ from .mission_flow import (
 
 LOGGER = logging.getLogger(__name__)
 
+# Lazy import to avoid circular — resolved at call time.
+def _record_usage_event(  # noqa: PLR0913
+    settings, mission_id, agent_id, provider, model, inp, out, succeeded, route
+):
+    """Fire-and-forget token usage recording. Never raises."""
+    if not mission_id:
+        return
+    try:
+        import asyncio as _asyncio  # noqa: PLC0415
+
+        from .llm_cost_ledger import record_llm_usage as _record  # noqa: PLC0415
+        coro = _record(
+            settings=settings, mission_id=mission_id, agent_id=agent_id,
+            provider=provider, model=model,
+            input_tokens=inp, output_tokens=out,
+            call_succeeded=succeeded, routing_source=route,
+        )
+        try:
+            loop = _asyncio.get_running_loop()
+            loop.create_task(coro)
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
+
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
 OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "20"))
@@ -313,6 +339,10 @@ def _pm_recommendation() -> dict[str, Any]:
     return _agent_recommendation("AGENT-01-PM")
 
 
+def _depabs_recommendation() -> dict[str, Any]:
+    return _agent_recommendation("AGENT-39-DEPABS")
+
+
 def _extract_openai_text(payload: dict[str, Any]) -> str | None:
     output_text = payload.get("output_text")
     if isinstance(output_text, str) and output_text.strip():
@@ -509,7 +539,17 @@ async def _call_openai(
         body = response.json()
     except ValueError:
         return None
-    return _extract_decision_payload(_extract_openai_text(body))
+    text = _extract_openai_text(body)
+    parsed = _extract_decision_payload(text)
+    if isinstance(parsed, dict):
+        usage = body.get("usage") or {}
+        parsed["__input_tokens__"] = int(
+            usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0) or 0
+        )
+        parsed["__output_tokens__"] = int(
+            usage.get("output_tokens", 0) or usage.get("completion_tokens", 0) or 0
+        )
+    return parsed
 
 
 async def _call_anthropic(
@@ -549,7 +589,13 @@ async def _call_anthropic(
         body = response.json()
     except ValueError:
         return None
-    return _extract_decision_payload(_extract_anthropic_text(body))
+    text = _extract_anthropic_text(body)
+    parsed = _extract_decision_payload(text)
+    if isinstance(parsed, dict):
+        usage = body.get("usage") or {}
+        parsed["__input_tokens__"] = int(usage.get("input_tokens", 0) or 0)
+        parsed["__output_tokens__"] = int(usage.get("output_tokens", 0) or 0)
+    return parsed
 
 
 async def _call_gemini(
@@ -581,7 +627,13 @@ async def _call_gemini(
         body = response.json()
     except ValueError:
         return None
-    return _extract_decision_payload(_extract_gemini_text(body))
+    text = _extract_gemini_text(body)
+    parsed = _extract_decision_payload(text)
+    if isinstance(parsed, dict):
+        meta = body.get("usageMetadata") or {}
+        parsed["__input_tokens__"] = int(meta.get("promptTokenCount", 0) or 0)
+        parsed["__output_tokens__"] = int(meta.get("candidatesTokenCount", 0) or 0)
+    return parsed
 
 
 async def _call_provider(
@@ -669,6 +721,15 @@ async def _call_with_recommendation(
         route_context=call_context,
     )
     if isinstance(parsed, dict):
+        _record_usage_event(
+            getattr(recommendation, "__settings__", None),
+            str(recommendation.get("__mission_id__", "") or ""),
+            str(recommendation.get("__agent_id__", "") or ""),
+            provider, model,
+            int(parsed.pop("__input_tokens__", 0) or 0),
+            int(parsed.pop("__output_tokens__", 0) or 0),
+            True, "primary",
+        )
         return parsed, provider, model, "primary"
 
     fallback_provider = str(recommendation.get("fallback_provider", "")).strip().lower()
@@ -685,6 +746,15 @@ async def _call_with_recommendation(
         route_context=f"{call_context} (fallback)",
     )
     if isinstance(fallback, dict):
+        _record_usage_event(
+            getattr(recommendation, "__settings__", None),
+            str(recommendation.get("__mission_id__", "") or ""),
+            str(recommendation.get("__agent_id__", "") or ""),
+            fallback_provider, fallback_model,
+            int(fallback.pop("__input_tokens__", 0) or 0),
+            int(fallback.pop("__output_tokens__", 0) or 0),
+            True, "fallback",
+        )
         return fallback, fallback_provider, fallback_model, "fallback"
     return None, provider, model, "primary"
 

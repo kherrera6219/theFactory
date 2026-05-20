@@ -273,7 +273,6 @@ async def execute_absorption(
     settings: Any,
 ) -> dict[str, Any]:
     """Execute conservative first-party replacement splices for ready plans."""
-    _ = settings
     normalized_language = str(language or "").strip().lower()
     if normalized_language not in {"python", "javascript", "typescript"}:
         return {
@@ -310,10 +309,12 @@ async def execute_absorption(
     for candidate in candidates:
         library = str(candidate.get("name") or "").strip()
         used_symbols = _detect_used_symbols(modified, library, normalized_language)
-        replacement = _generate_replacement_code(
+        replacement = await _generate_replacement_code(
             library=library,
             used_symbols=used_symbols,
             language=normalized_language,
+            settings=settings,
+            mission_id=mission_id,
         )
         if not replacement.get("replacement_code"):
             splices.append(
@@ -416,11 +417,13 @@ def _detect_used_symbols(source: str, library: str, language: str) -> list[str]:
     return []
 
 
-def _generate_replacement_code(
+async def _generate_replacement_code(
     *,
     library: str,
     used_symbols: list[str],
     language: str,
+    settings: Any = None,
+    mission_id: str = "",
 ) -> dict[str, Any]:
     normalized = library.strip().lower()
     if language == "python" and normalized in {"left-pad", "left_pad"}:
@@ -453,9 +456,15 @@ def _generate_replacement_code(
                 "    return text.lower()\n"
             ),
         }
-    if used_symbols and language in {"javascript", "typescript"}:
-        return {"filename": "", "replacement_code": ""}
-    return {"filename": "", "replacement_code": ""}
+    # LLM-driven replacement for everything not in the deterministic table
+    return await _llm_generate_replacement(
+        library=library,
+        normalized=normalized,
+        used_symbols=used_symbols,
+        language=language,
+        settings=settings,
+        mission_id=mission_id,
+    )
 
 
 def _splice_replacement(
@@ -798,3 +807,87 @@ def _evidence_refs(metadata: dict[str, Any]) -> list[dict[str, Any]]:
     if isinstance(metadata.get("source_code"), str) and metadata["source_code"].strip():
         refs.append({"type": "metadata", "ref": "source_code"})
     return refs
+
+
+async def _llm_generate_replacement(
+    *,
+    library: str,
+    normalized: str,
+    used_symbols: list[str],
+    language: str,
+    settings: Any,
+    mission_id: str,
+) -> dict[str, Any]:
+    """Call the LLM to generate a first-party replacement for an absorbable dependency.
+
+    Returns a replacement dict compatible with _splice_replacement.
+    Falls back to empty dict (skipped) on any failure.
+    """
+    if not settings:
+        return {"filename": "", "replacement_code": ""}
+    if language not in {"python", "javascript", "typescript"}:
+        return {"filename": "", "replacement_code": ""}
+
+    symbols_str = ", ".join(used_symbols[:10]) if used_symbols else library
+    ext = {"python": "py", "javascript": "js", "typescript": "ts"}.get(language, "py")
+    filename = f"depabs_{normalized.replace('-', '_').replace('.', '_')}.{ext}"
+
+    prompt = (
+        "You are AGENT-39-DEPABS performing dependency absorption.\n"
+        f"Generate a minimal, self-contained first-party replacement for the '{library}' library.\n"
+        f"Language: {language}\n"
+        f"Symbols used by the codebase: {symbols_str}\n"
+        "Requirements:\n"
+        "- Only implement the symbols listed above\n"
+        "- Zero external imports (stdlib only)\n"
+        "- Match the public API exactly so existing call sites work without modification\n"
+        "- Include a module docstring stating this is a DEPABS replacement\n"
+        "- Keep it under 80 lines\n"
+        "Return ONLY the raw source code. No markdown fences. No explanation.\n"
+        f"Start with: # DEPABS replacement for {library}\n"
+    )
+
+    try:
+        from .llm_delegation import _call_with_recommendation, _depabs_recommendation
+
+        recommendation = _depabs_recommendation()
+        recommendation["__mission_id__"] = mission_id
+        recommendation["__agent_id__"] = "AGENT-39-DEPABS"
+        recommendation["__settings__"] = settings
+
+        parsed, _provider, _model, _route = await _call_with_recommendation(
+            recommendation=recommendation,
+            prompt=prompt,
+            call_context="depabs_llm_replacement",
+        )
+
+        code = ""
+        if isinstance(parsed, dict):
+            # LLM returned JSON — extract any code field
+            for key in ("replacement_code", "code", "source", "content"):
+                candidate = str(parsed.get(key) or "").strip()
+                if candidate and len(candidate) > 10:
+                    code = candidate
+                    break
+        elif isinstance(parsed, str):
+            code = parsed.strip()
+
+        if not code or len(code) < 10:
+            return {"filename": "", "replacement_code": ""}
+
+        # Validate Python syntax before accepting
+        if language == "python":
+            try:
+                import ast as _ast
+                _ast.parse(code)
+            except SyntaxError:
+                return {"filename": "", "replacement_code": ""}
+
+        return {
+            "filename": filename,
+            "replacement_code": f"\n\n{code}\n",
+            "source": "llm",
+        }
+
+    except Exception:  # noqa: BLE001
+        return {"filename": "", "replacement_code": ""}
