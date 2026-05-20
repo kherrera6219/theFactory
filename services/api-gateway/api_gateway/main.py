@@ -120,7 +120,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_BASE_URL = os.getenv(
     "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
 ).rstrip("/")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash").strip()
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "-1"))
 GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "medium").strip().lower()
@@ -987,7 +987,11 @@ def _extract_gemini_text(payload: dict[str, Any]) -> str | None:
 
 def _is_gemini_3_model(model: str) -> bool:
     normalized = model.strip().lower()
-    return normalized.startswith("gemini-3-") or normalized.startswith("gemini-3.1-")
+    return (
+        normalized.startswith("gemini-3-")
+        or normalized.startswith("gemini-3.1-")
+        or normalized.startswith("gemini-3.5-")
+    )
 
 
 def _to_gemini_thinking_level(reasoning_effort: str | None) -> str:
