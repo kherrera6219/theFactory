@@ -696,7 +696,7 @@ def test_generate_specialist_plan_falls_back_when_provider_call_missing(monkeypa
     monkeypatch.setattr(
         llm_delegation,
         "_agent_recommendation",
-        lambda _agent_id: {"provider": "gemini", "model": "gemini-3.1-pro-preview"},
+        lambda _agent_id: {"provider": "gemini", "model": "gemini-3.5-flash"},
     )
 
     async def _no_result(

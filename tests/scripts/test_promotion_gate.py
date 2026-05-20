@@ -127,7 +127,7 @@ def test_evaluate_promotion_blocks_preview_models() -> None:
             "agents": [
                 {
                     "agent_id": "AGENT-30-PODD-MGR",
-                    "model": "gemini-3.1-pro-preview",
+                    "model": "some-vendor-experimental-9.0-preview",
                     "lifecycle": "preview",
                     "production_approved": False,
                     "fallback_model": "gpt-5.5",

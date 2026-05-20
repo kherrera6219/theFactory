@@ -13,11 +13,10 @@ Prevent release promotion when runtime-default LLM routes use preview, experimen
 
 - Release promotion requires a machine-readable agent model inventory.
 - `deploy/promotion-policy.json` blocks lifecycle stages `preview`, `experimental`, and `rolling`.
-- Current Gemini defaults are `gemini-3.1-pro-preview` and
-  `gemini-3.1-flash-lite`.
-- Gemini 3.1 Pro is currently a preview-lifecycle route in the official Google
-  docs. It is intentionally listed in `allowlist_models` until a stable 3.1 Pro
-  ID is published or this project chooses to pin back to stable Gemini 2.5 Pro.
+- Current Gemini default for all agents is `gemini-3.5-flash` (GA — Google I/O
+  May 2026). All 12 Gemini agents are now on a stable-lifecycle model.
+- `allowlist_models` in `deploy/promotion-policy.json` is empty; no preview
+  waivers are active.
 - Preview routes may only be promoted if added to the policy allowlist.
 
 ## Gate Inputs

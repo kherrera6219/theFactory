@@ -156,7 +156,7 @@ remaining blocker for a public launch claim is the live provider-key demo (item 
 - OpenAI specialist/VC: `gpt-5.3-codex`
 - Anthropic deep-audit: `claude-opus-4-7`
 - Anthropic workhorse: `claude-sonnet-4-6`
-- Gemini deep-reasoning: `gemini-3.1-pro-preview`
+- Gemini all agents: `gemini-3.5-flash` (GA — Google I/O May 2026)
 
 ---
 

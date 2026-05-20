@@ -80,21 +80,21 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
     },
     "gemini_stem": {
         "provider": "gemini",
-        "model": "gemini-3.1-pro-preview",
+        "model": "gemini-3.5-flash",
         "mode": "thinking",
         "thinking_level": "high",
         "fallback_provider": "openai",
         "fallback_model": "gpt-5.5",
-        "reason": "Best for deepest technical and mathematical reasoning workloads.",
+        "reason": "GA Flash model (Google I/O May 2026) — strong technical and mathematical reasoning at lower latency than pro-preview.",
     },
     "gemini_knowledge": {
         "provider": "gemini",
-        "model": "gemini-3.1-pro-preview",
+        "model": "gemini-3.5-flash",
         "mode": "thinking",
         "thinking_level": "high",
         "fallback_provider": "anthropic",
         "fallback_model": "claude-sonnet-4-6",
-        "reason": "Best fit for large-context knowledge indexing, retrieval, and synthesis tasks.",
+        "reason": "GA Flash model (Google I/O May 2026) — large-context knowledge indexing, retrieval, and synthesis.",
     },
 }
 _AGENT_LLM_PROFILE_MAP: Final[dict[str, str]] = {

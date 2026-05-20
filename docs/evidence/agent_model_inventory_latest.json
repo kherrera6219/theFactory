@@ -1,24 +1,13 @@
 {
-  "generated_at": "2026-05-17T04:38:09.291906+00:00",
+  "generated_at": "2026-05-20T00:00:00.000000+00:00",
   "source": "services/orchestrator/orchestrator/agent_integrations.py",
   "summary": {
     "total_agents": 41,
     "lifecycle_counts": {
-      "preview": 9,
-      "stable": 32
+      "stable": 41
     },
-    "blocked_agent_count": 9,
-    "blocked_agents": [
-      "AGENT-06-IS",
-      "AGENT-09-HW",
-      "AGENT-30-PODD-MGR",
-      "AGENT-32-MATLAB",
-      "AGENT-33-R",
-      "AGENT-34-JULIA",
-      "AGENT-35-MATHEMATICA",
-      "AGENT-37-HASKELL",
-      "AGENT-38-OCAML"
-    ]
+    "blocked_agent_count": 0,
+    "blocked_agents": []
   },
   "models": [
     {
@@ -53,30 +42,22 @@
     },
     {
       "provider": "gemini",
-      "model": "gemini-3.1-flash-lite",
+      "model": "gemini-3.5-flash",
       "lifecycle": "stable",
       "production_approved": true,
       "agents": [
         "AGENT-03-BROKER",
-        "AGENT-11-DEPLOY",
-        "AGENT-40-TESTDATA"
-      ]
-    },
-    {
-      "provider": "gemini",
-      "model": "gemini-3.1-pro-preview",
-      "lifecycle": "preview",
-      "production_approved": false,
-      "agents": [
         "AGENT-06-IS",
         "AGENT-09-HW",
+        "AGENT-11-DEPLOY",
         "AGENT-30-PODD-MGR",
         "AGENT-32-MATLAB",
         "AGENT-33-R",
         "AGENT-34-JULIA",
         "AGENT-35-MATHEMATICA",
         "AGENT-37-HASKELL",
-        "AGENT-38-OCAML"
+        "AGENT-38-OCAML",
+        "AGENT-40-TESTDATA"
       ]
     },
     {
