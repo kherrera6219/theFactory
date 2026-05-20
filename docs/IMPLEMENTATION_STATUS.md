@@ -1,7 +1,7 @@
 # Implementation Status
 
 Document version: 2026.05.17
-Last updated: 2026-05-19
+Last updated: 2026-05-20
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -9,15 +9,15 @@ This document is the canonical current-state snapshot for theFactory. Use it as 
 
 ## Project Status
 
-As of 2026-05-19, Phases 1-14 are implemented and validated locally. Phase 17
+As of 2026-05-20, Phases 1-14 are implemented and validated locally. Phase 17
 has local DR/release-hardening evidence and Phase 18 has a reproducible demo
-mission harness. Phase 19/20 core prompt intelligence and CEO/HW workflow depth
-are implemented locally, while live launch promotion remains blocked until stale
-qualification evidence is refreshed.
+mission harness. Phase 19/20 core prompt intelligence, CEO/HW workflow depth,
+and Phase 21 core pod workflow depth are implemented locally, while live launch
+promotion remains blocked until stale qualification evidence is refreshed.
 
-- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, Phase 11 Application Intelligence Map, Phase 12 equivalence reports, Phase 13 security/compliance reports for generated outputs, Phase 14 dependency inventory/classification with advisory absorption planning, Phase 17 local DR/release-hardening evidence, Phase 18 reproducible demo mission manifest/harness, Phase 19 core prompt intelligence, and Phase 20 CEO reasoning/HW context.
-- **Current active phase:** Phase 15/16 completion items, PM clarification API/UI, support-agent LLM activation, and live demo execution when runtime/provider prerequisites are available.
-- **Still planned:** Tier 4/5 cost ledger completion, knowledge-lake scheduled refresh/Gemini embedding/retrieval-quality completion, live qualification refresh, live launch-demo execution, PM clarification workflow, and LLM-backed Security/VC/Tester/Compliance support-agent workflows.
+- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, JavaScript/TypeScript/Java AST-backed extraction, Phase 8 FETCH/knowledge context, Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, Phase 11 Application Intelligence Map, Phase 12 equivalence reports, Phase 13 security/compliance reports for generated outputs, Phase 14 dependency inventory/classification with advisory absorption planning, Phase 17 local DR/release-hardening evidence, Phase 18 reproducible demo mission manifest/harness, Phase 19 core prompt intelligence, Phase 20 CEO reasoning/HW context, and Phase 21 core pod workflow depth.
+- **Current active phase:** Phase 15/16 completion items, PM clarification API/UI, support-agent LLM activation, pod-audit LLM activation, Mission Control provider/deploy panels, and live demo execution when runtime/provider prerequisites are available.
+- **Still planned:** Tier 4/5 cost ledger completion, knowledge-lake scheduled refresh/Gemini embedding/retrieval-quality completion, live qualification refresh, live launch-demo execution, PM clarification workflow, LLM-backed Security/VC/Tester/Compliance support-agent workflows, LLM semantic pod audit, and COMPLETE-transition deploy readiness wiring.
 - **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, and remaining forward-looking docs cleanup.
 
 ## Mission Control UI — Vault and Settings (2026-04-16)
@@ -47,6 +47,7 @@ qualification evidence is refreshed.
 - Phase 18 local demo evidence is implemented. `scripts/demo_missions.py` defines BUILD_NEW, ANALYZE_ONLY, and IMPORT_MODERNIZE plus DEBUG_REPAIR-intent demo payloads, validates them with `make demo`, and can submit them to a live API Gateway with `--live`. The local manifest is not a substitute for a live provider-key demo.
 - Phase 19 core prompt intelligence is implemented. Agent persona profiles now produce system prompts, provider calls can carry system prompts, specialist prompts include language/tooling context, upstream PM/CEO risks flow into downstream prompts, and PM feature contracts include `ambiguity_score`. The PM clarification state/endpoints/UI remain open.
 - Phase 20 CEO/HW workflow depth is implemented. CEO delegation is mission-type-aware, delegation rationale carries into mission-contract prompts, logic clusters accept `depends_on`, chain trace records `CEO_REASONING_SUMMARY`, and performance-sensitive systems-language codegen gets deterministic AW1 hardware context. LLM-backed Security/VC/Tester/Compliance support workflows remain feature-gated future work.
+- Phase 21 core pod workflow depth is implemented. Pod-manager prompts now include pod-family strategy, pod group standards include `coverage_verdict`, thin coverage emits `MISSION_POD_STANDARD_THIN_COVERAGE`, class-level specialist extraction reflects source functions/classes/imports, broker provider health is available through `/internal/broker/provider-health`, and Deploy Agent readiness has a deterministic fallback helper. LLM pod audit, COMPLETE-transition deploy wiring, and Mission Control panels remain gated.
 - Pod workers now consume CEO logic-cluster domain focus during extraction and boost matching concept confidence for the assigned pod.
 - Pod managers now produce `pod_group_standards` during the Mission Flow v2 GATING phase. Standards consolidate specialist LogicNodes into canonical pod-level nodes, record duplicate elimination counts, emit `MISSION_POD_GROUP_STANDARD_PRODUCED`, and are exposed through chain trace and Mission Control.
 - Specialist planning now attempts narrow contract-driven generated-output creation for non-`ANALYZE_ONLY` missions. Successful LLM output is stored as `metadata.generated_output`; fallback output is marked as fallback and is not packaged as a successful generated-code artifact.
@@ -195,6 +196,9 @@ As of 2026-05-18:
   - `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_build_artifacts_unit.py tests\services\test_llm_delegation_unit.py -q`
   - `python -m ruff check services\orchestrator\orchestrator tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_build_artifacts_unit.py tests\services\test_llm_delegation_unit.py`
   - `npm --prefix apps\mission-control run lint`
+- Phase 21 focused validation is green:
+  - `python -m ruff check services/orchestrator/orchestrator/agent_base.py services/orchestrator/orchestrator/llm_delegation.py services/orchestrator/orchestrator/mission_flow_v2.py services/orchestrator/orchestrator/routes/internal.py tests/services/test_agent_base_unit.py tests/services/test_llm_delegation_unit.py tests/services/test_orchestrator_endpoints_extra.py`
+  - `$env:PYTHONPATH='services/orchestrator'; python -m pytest tests/services/test_agent_base_unit.py tests/services/test_llm_delegation_unit.py tests/services/test_mission_flow_v2.py tests/services/test_orchestrator_endpoints_extra.py -q`
 - Phase 14 focused validation is green:
   - `python -m ruff check services\orchestrator\orchestrator\dependency_absorption.py services\orchestrator\orchestrator\mission_flow_v2.py services\orchestrator\orchestrator\routes\internal.py tests\services\test_dependency_absorption_unit.py tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py`
   - `python -m pytest tests\services\test_dependency_absorption_unit.py tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py tests\services\test_security_compliance_unit.py tests\services\test_equivalence_verifier_unit.py -q`
@@ -235,4 +239,5 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 7. Automate strict full-dedicated smoke qualification in CI or scheduled qualification runs so topology regressions fail earlier.
 8. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including AI safety governance, shared-state durability, DR evidence, and final release qualification.
 9. `test_storage_unit.py` requires a live `postgres` host when run as an integration test; run it in a Docker-compose integration environment when validating storage against live Postgres.
-10. `test_agent_base_unit.py` has a pre-existing broken import; excluded pending upstream fix.
+10. Direct service tests that import `orchestrator` should be run with
+    `PYTHONPATH=services/orchestrator` outside the repo's packaged test runner.

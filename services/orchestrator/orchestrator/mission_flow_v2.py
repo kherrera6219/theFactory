@@ -1455,6 +1455,7 @@ async def _produce_pod_group_standard(
         mission_id=mission.mission_id,
         logicnodes=[record for record in logicnodes if isinstance(record, dict)],
         mission_contract=mission_contract,
+        source_code=str(metadata.get("source_code") or metadata.get("prompt") or ""),
     )
     standards = dict(existing_standards) if isinstance(existing_standards, dict) else {}
     standards[pod_name] = standard
@@ -1477,6 +1478,28 @@ async def _produce_pod_group_standard(
                 "llm_route": standard.get("llm_route"),
                 "model_provider": standard.get("model_provider"),
                 "model": standard.get("model"),
+            },
+        )
+    coverage_verdict = standard.get("coverage_verdict")
+    if (
+        isinstance(coverage_verdict, dict)
+        and bool(coverage_verdict.get("coverage_thin", False))
+        and not _chain_event_exists(metadata, "MISSION_POD_STANDARD_THIN_COVERAGE")
+    ):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_POD_STANDARD_THIN_COVERAGE",
+            agent_id=pod_manager_agent_id,
+            details={
+                "pod": pod_name,
+                "raw_logicnode_count": coverage_verdict.get("raw_logicnode_count"),
+                "canonical_logicnode_count": coverage_verdict.get(
+                    "canonical_logicnode_count"
+                ),
+                "expected_minimum_canonical_logicnodes": coverage_verdict.get(
+                    "expected_minimum_canonical_logicnodes"
+                ),
+                "findings": coverage_verdict.get("findings", []),
             },
         )
     _record_artifact(

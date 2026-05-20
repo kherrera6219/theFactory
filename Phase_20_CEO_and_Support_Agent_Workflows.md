@@ -1,7 +1,7 @@
 # Phase 20 — CEO and Support Agent Workflow Depth
 
 **Status:** CEO continuity and HW context implemented; LLM support-agent activation remains gated
-**Last updated:** 2026-05-19
+**Last updated:** 2026-05-20
 **Depends on:** Phase 19 core system prompts and risk propagation
 
 ---
@@ -80,6 +80,9 @@ Completed in this pass:
 - Added deterministic `hw_agent.py` hardware context injection for
   performance-sensitive systems-language/codegen prompts.
 - Added focused regression coverage in `tests/services/test_llm_delegation_unit.py`.
+- Phase 21 now adds read-only broker provider-health telemetry and a
+  deterministic Deploy Agent readiness fallback; the LLM-backed support-agent
+  workflows below remain intentionally gated.
 
 Deferred from this pass:
 

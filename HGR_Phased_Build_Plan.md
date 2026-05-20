@@ -16,10 +16,11 @@ replacement with `o3`, `o4-mini`, or `gpt-4o`.
 As of the May 19 implementation pass, Phases 1-14 are implemented locally,
 Phase 16 has a partial embedding/refresh implementation, Phase 17 has local
 DR/release-hardening evidence, and Phase 18 has a reproducible demo-mission
-harness. Phase 19/20 core prompt intelligence and CEO/HW context are now
-implemented locally, with PM clarification UI and LLM support-agent activation
-still gated. The launch promotion gate still correctly blocks until stale live
-qualification evidence is refreshed.
+harness. Phase 19/20 core prompt intelligence, CEO/HW context, and Phase 21
+core pod workflow depth are now implemented locally, with PM clarification UI,
+LLM support-agent activation, pod-audit LLM enforcement, and Mission Control
+provider/deploy panels still gated. The launch promotion gate still correctly
+blocks until stale live qualification evidence is refreshed.
 
 - active OpenAI model defaults use verified `gpt-5.5` executive/operations
   routes and `gpt-5.3-codex` coding routes, with deterministic no-key fallback
@@ -813,6 +814,33 @@ LLM-backed Security/VC/Tester/Compliance support workflows remain gated.
 
 ---
 
+## Phase 21 - Pod Agent Workflow Depth
+**Duration:** 5-7 days
+**Entry state:** pod managers produced standards, but prompts lacked pod-family
+strategy; specialist class-level extraction returned one generic stub; broker
+provider health and Deploy Agent readiness had no runtime surface.
+**Exit state:** pod-manager prompts carry family-specific strategy, pod group
+standards include deterministic coverage verdicts and thin-coverage chain
+events, class-level specialist extraction reflects source functions/classes/
+imports, broker provider health is available through an internal endpoint, and
+Deploy Agent readiness has a deterministic fallback helper. LLM pod-audit
+activation/enforcement and Mission Control panels remain gated.
+
+### Scope
+
+- Add pod-family strategy to pod-manager delegation prompts.
+- Attach `coverage_verdict` to pod group standards and emit
+  `MISSION_POD_STANDARD_THIN_COVERAGE` when coverage is too thin.
+- Replace the class-level specialist stub with bounded source-reflective
+  function/class/import extraction.
+- Track rolling in-process provider health around LLM calls and expose
+  `/internal/broker/provider-health`.
+- Add deterministic Deploy Agent packaging-readiness fallback logic.
+- Defer LLM semantic pod audit, COMPLETE transition deploy-agent wiring, and
+  Mission Control panels to feature-flagged API/UI work.
+
+---
+
 # Summary Table
 
 | Phase | Name | Tier | Duration | Status | Key Output |
@@ -837,8 +865,9 @@ LLM-backed Security/VC/Tester/Compliance support workflows remain gated.
 | 18 | Reproducible Demo Missions and Launch Docs | 5 | 5-7 days | Local harness implemented; live demo environment-gated | Launch demo suite |
 | 19 | Agent Prompt Intelligence and PM Interview Loop | 6 | 5-8 days | Core prompt intelligence implemented; clarification UI/API gated | Persona prompts and risk propagation |
 | 20 | CEO and Support Agent Workflow Depth | 6 | 7-10 days | CEO continuity and HW context implemented; support LLMs gated | CEO reasoning summary and HW context |
+| 21 | Pod Agent Workflow Depth | 6 | 5-7 days | Core pod workflow depth implemented; LLM/UI activation gated | Pod-family prompts, coverage verdicts, provider health |
 
-**Remaining estimate after Phase 20:** 19-32 days, excluding the live
+**Remaining estimate after Phase 21:** 17-29 days, excluding the live
 provider-key demo and stale qualification-evidence refresh.
 
 ---

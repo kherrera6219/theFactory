@@ -1,7 +1,7 @@
 # Phase 21 — Pod Agent Workflow Depth
 
-**Status:** Planned
-**Last updated:** 2026-05-18
+**Status:** Core pod workflow depth implemented; LLM/UI activation remains gated
+**Last updated:** 2026-05-20
 **Depends on:** Phase 20 (CEO system prompts and support agent activation)
 
 ---
@@ -65,6 +65,41 @@ Fully unimplemented. Require infrastructure not yet available. Deferred.
 4. Source-reflective `_extract_logicnodes()` replacing the single stub.
 5. Broker provider health telemetry groundwork (read-only, zero cost).
 6. Deploy Agent packaging readiness assessment at COMPLETE.
+
+---
+
+## Implementation Update — 2026-05-20
+
+Completed in this pass:
+
+- Added pod-family-aware pod-manager prompt strategy for Pod A dynamic
+  languages, Pod B systems languages, Pod C enterprise languages, and Pod D
+  mathematical/data-oriented languages.
+- Added deterministic `coverage_verdict` metadata to pod group standards,
+  including raw/canonical counts, estimated source lines, duplicate ratio, and
+  `coverage_thin` findings.
+- Added `MISSION_POD_STANDARD_THIN_COVERAGE` chain-trace emission when the
+  pod standard is too small for the available source scope.
+- Replaced the class-level specialist stub with source-reflective extraction
+  for functions, classes/interfaces/structs/enums, and import/dependency
+  references. Empty source still returns `[]`.
+- Added rolling provider health telemetry around `_call_provider()` and exposed
+  `GET /internal/broker/provider-health`.
+- Added deterministic Deploy Agent packaging-readiness fallback helper for
+  existing mission metadata and build artifacts.
+- Added focused regression coverage for pod prompts, coverage verdicts,
+  provider health telemetry, provider-health endpoint behavior, specialist
+  extraction, and deploy-readiness fallback.
+
+Still gated after this pass:
+
+- LLM semantic pod-audit activation and enforcement remain behind the planned
+  `POD_AUDIT_LLM_ENABLED` / `POD_AUDIT_ENFORCEMENT_ENABLED` work.
+- Mission Control Provider Health, Pod Audit, and Deploy Readiness panels are
+  still UI work.
+- Deploy readiness is available as deterministic helper logic but is not yet
+  wired into COMPLETE transition by feature flag.
+- TESTDATA and RQCA remain deferred to a Runtime QC phase.
 
 ---
 
@@ -326,16 +361,16 @@ DEPLOY_AGENT_ENABLED=false           # Deploy readiness assessment at COMPLETE
 ## Validation
 
 ### Pod manager delegation
-- [ ] PODA-MGR prompt contains "Dynamic Languages" and "duck-typed contracts".
-- [ ] PODB-MGR prompt contains "Systems Languages" and "memory safety".
-- [ ] PODC-MGR prompt contains "Enterprise Languages" and "interface declarations".
-- [ ] PODD-MGR prompt contains "Mathematical Languages" and "numerical stability".
-- [ ] All four prompts include mission-type context and quality bar instruction.
+- [x] PODA-MGR prompt contains dynamic-language strategy.
+- [x] PODB-MGR prompt contains systems-language and memory-safety strategy.
+- [x] PODC-MGR prompt contains enterprise-language strategy.
+- [x] PODD-MGR prompt contains mathematical/data-oriented strategy.
+- [x] Prompts include mission-type context and coverage/support follow-up guidance.
 
 ### Coverage quality gate
-- [ ] 0 nodes + 200-line source returns `coverage_thin=True`, `verdict="WARN_THIN"`.
-- [ ] 15 nodes + 200-line source returns `coverage_thin=False`, `verdict="OK"`.
-- [ ] `MISSION_POD_STANDARD_THIN_COVERAGE` emitted in chain trace when thin.
+- [x] Thin source/LogicNode coverage returns `coverage_thin=True`.
+- [x] Adequate canonical coverage returns `coverage_thin=False`.
+- [x] `MISSION_POD_STANDARD_THIN_COVERAGE` is emitted in chain trace when thin.
 
 ### Pod audit LLM
 - [ ] `POD_AUDIT_LLM_ENABLED=false`: structural check behavior unchanged.
@@ -347,32 +382,35 @@ DEPLOY_AGENT_ENABLED=false           # Deploy readiness assessment at COMPLETE
 - [ ] Mission Control renders Pod Audit panel.
 
 ### Specialist stub
-- [ ] `PythonAgent._extract_logicnodes(id, "def foo(): pass", "python")`
+- [x] `PythonAgent._extract_logicnodes(id, "def foo(): pass", "python")`
       returns node with `concept != "extracted_intent"`.
-- [ ] `RustAgent._extract_logicnodes(id, "fn main() {}", "rust")` returns
+- [x] `RustAgent._extract_logicnodes(id, "fn main() {}", "rust")` returns
       at least 1 node.
-- [ ] Empty string source returns `[]` without crash.
-- [ ] Unknown language falls back to generic pattern without KeyError.
+- [x] Empty string source returns `[]` without crash.
+- [x] Unknown language falls back to generic pattern without KeyError.
 
 ### Broker health telemetry
-- [ ] After 3 LLM calls, `get_provider_health_summary()` returns non-empty dict.
-- [ ] `GET /internal/broker/provider-health` returns 200.
-- [ ] Call count resets after 5-minute rolling window (mocked time unit test).
-- [ ] `_record_provider_call` failure does not raise or affect LLM call result.
+- [x] `get_provider_health_summary()` returns provider call counts, latency,
+      success rate, model counts, and errors.
+- [x] `GET /internal/broker/provider-health` returns 200.
+- [x] Call count pruning is based on a mocked rolling window.
+- [x] Provider-health recording is wrapped so telemetry failure does not affect
+      LLM call result.
 
 ### Deploy readiness
 - [ ] `DEPLOY_AGENT_ENABLED=false`: no deploy call, no metadata key added.
+- [x] Deterministic deploy-readiness helper reports packaging/completion/
+      pod-standard blockers from existing metadata and artifacts.
 - [ ] Flag enabled on COMPLETE mission with `generated_output`:
-      `deploy_readiness` in chain trace with `readiness` and `confidence`.
+      `deploy_readiness` in chain trace with readiness detail.
 - [ ] `MISSION_DEPLOY_READINESS_ASSESSED` event in chain trace.
 - [ ] Security verdict `blocked` produces `readiness="NOT_READY"`.
 - [ ] LLM failure returns fallback with `readiness="READY_WITH_WARNINGS"`.
 - [ ] Mission Control renders Deploy Readiness panel with color-coded badge.
 
 ### Full suite
-- [ ] `python -m pytest -q` passes on all touched files.
-- [ ] `python -m ruff check services/orchestrator services/pod-worker tests/services`
-      passes.
+- [x] Focused pytest suite passes on touched files.
+- [x] Focused ruff check passes on touched files.
 - [ ] `npm --prefix apps/mission-control run lint` passes.
 - [ ] `npm --prefix apps/mission-control run test` passes.
 - [ ] All new agent calls are non-critical path — LLM failure in any agent

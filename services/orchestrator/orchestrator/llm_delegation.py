@@ -5,6 +5,8 @@ import json
 import logging
 import os
 import re
+import time
+from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
@@ -54,6 +56,9 @@ _SECRET_LIKE_PATTERN = re.compile(
 _VALID_AGENT_IDS = {agent.agent_id for agent in AGENT_REGISTRY}
 _VALID_POD_MANAGER_IDS = set(POD_MANAGER_BY_LANGUAGE.values())
 _VALID_SPECIALIST_IDS = set(SPECIALIST_BY_LANGUAGE.values())
+_PROVIDER_HEALTH_WINDOW_SECONDS = 300.0
+_PROVIDER_HEALTH_MAX_SAMPLES = 200
+_provider_health_samples: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
 # Retry configuration for transient LLM API failures.
 # Retries apply only to network errors and 5xx responses; 4xx errors are not retried.
@@ -65,6 +70,73 @@ _RETRYABLE_HTTP_ERRORS = (
     httpx.ConnectError,
     httpx.RemoteProtocolError,
 )
+
+
+def _record_provider_health(
+    *,
+    provider: str,
+    model: str,
+    latency_ms: float,
+    success: bool,
+    now: float | None = None,
+) -> None:
+    normalized_provider = str(provider or "openai").strip().lower() or "openai"
+    timestamp = time.time() if now is None else now
+    samples = _provider_health_samples[normalized_provider]
+    cutoff = timestamp - _PROVIDER_HEALTH_WINDOW_SECONDS
+    samples[:] = [
+        sample
+        for sample in samples[-_PROVIDER_HEALTH_MAX_SAMPLES:]
+        if float(sample.get("ts", 0.0)) >= cutoff
+    ]
+    samples.append(
+        {
+            "ts": timestamp,
+            "model": _clean_text(model, max_length=96),
+            "latency_ms": max(0.0, float(latency_ms)),
+            "success": bool(success),
+        }
+    )
+
+
+def get_provider_health_summary(now: float | None = None) -> dict[str, Any]:
+    timestamp = time.time() if now is None else now
+    cutoff = timestamp - _PROVIDER_HEALTH_WINDOW_SECONDS
+    providers: dict[str, Any] = {}
+    for provider, raw_samples in list(_provider_health_samples.items()):
+        samples = [
+            sample
+            for sample in raw_samples[-_PROVIDER_HEALTH_MAX_SAMPLES:]
+            if float(sample.get("ts", 0.0)) >= cutoff
+        ]
+        raw_samples[:] = samples
+        latencies = sorted(
+            float(sample.get("latency_ms", 0.0))
+            for sample in samples
+            if isinstance(sample.get("latency_ms"), (int, float))
+        )
+        error_count = sum(1 for sample in samples if not bool(sample.get("success", False)))
+        model_counts: dict[str, int] = {}
+        for sample in samples:
+            model_name = str(sample.get("model") or "unknown")
+            model_counts[model_name] = model_counts.get(model_name, 0) + 1
+        p95_index = min(len(latencies) - 1, int(len(latencies) * 0.95)) if latencies else 0
+        providers[provider] = {
+            "call_count": len(samples),
+            "error_count": error_count,
+            "success_rate": round((len(samples) - error_count) / len(samples), 4)
+            if samples
+            else None,
+            "avg_latency_ms": round(sum(latencies) / len(latencies), 2) if latencies else None,
+            "p95_latency_ms": round(latencies[p95_index], 2) if latencies else None,
+            "models": model_counts,
+        }
+    return {
+        "schema_version": "provider_health.v1",
+        "window_seconds": int(_PROVIDER_HEALTH_WINDOW_SECONDS),
+        "providers": providers,
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
 
 
 def _system_prompt_for_agent(agent_id: str) -> str | None:
@@ -521,6 +593,7 @@ async def _call_provider(
     system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
     normalized = provider.strip().lower()
+
     async def _call_backend(func: Any) -> dict[str, Any] | None:
         try:
             return await func(
@@ -534,11 +607,26 @@ async def _call_provider(
                 raise
             return await func(model, prompt, call_context=call_context)
 
-    if normalized == "anthropic":
-        return await _call_backend(_call_anthropic)
-    if normalized == "gemini":
-        return await _call_backend(_call_gemini)
-    return await _call_backend(_call_openai)
+    started = time.perf_counter()
+    result: dict[str, Any] | None = None
+    try:
+        if normalized == "anthropic":
+            result = await _call_backend(_call_anthropic)
+        elif normalized == "gemini":
+            result = await _call_backend(_call_gemini)
+        else:
+            result = await _call_backend(_call_openai)
+        return result
+    finally:
+        try:
+            _record_provider_health(
+                provider=normalized or "openai",
+                model=model,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                success=isinstance(result, dict),
+            )
+        except Exception:
+            LOGGER.warning("failed to record provider health telemetry", exc_info=True)
 
 
 async def _call_with_recommendation(
@@ -764,11 +852,38 @@ def _build_pod_manager_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
+    pod_family_strategy = {
+        "AGENT-12-PODA-MGR": (
+            "Pod A owns dynamic language execution. Prioritize runtime ergonomics, "
+            "package boundaries, async behavior, and scripting surface clarity."
+        ),
+        "AGENT-18-PODB-MGR": (
+            "Pod B owns systems language execution. Prioritize memory safety, "
+            "concurrency, compile-time contracts, and dependency minimization."
+        ),
+        "AGENT-24-PODC-MGR": (
+            "Pod C owns JVM and enterprise language execution. Prioritize layered "
+            "architecture, type contracts, build tooling, and operational stability."
+        ),
+        "AGENT-30-PODD-MGR": (
+            "Pod D owns functional and data-oriented language execution. Prioritize "
+            "pure transformations, schema boundaries, pipeline semantics, and proofability."
+        ),
+    }
+    mission_type = str(mission_context.get("mission_type") or "BUILD_NEW").strip().upper()
+    strategy = pod_family_strategy.get(
+        pod_manager_agent_id.strip().upper(),
+        "Use pod-family expertise to select the specialist with the strongest mission fit.",
+    )
     return (
         f"You are {pod_manager_agent_id} (pod manager) in a strict delegation chain.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         "Return only JSON with keys: specialist_agent_id, rationale.\n"
         f"Default specialist_agent_id: {default_specialist_agent_id}\n"
+        f"Mission type: {mission_type}\n"
+        f"Pod-family strategy: {strategy}\n"
+        "Your rationale must identify language fit, risk fit, and whether the pod "
+        "needs cross-pod or support-agent follow-up.\n"
         "Mission context JSON:\n"
         f"{_safe_context_json(mission_context)}"
     )
@@ -1594,6 +1709,41 @@ def _standard_node_id(index: int, domain: str, concept: str) -> str:
     return f"standard-node-{index:02d}-{slug or 'general'}"
 
 
+def _pod_standard_coverage_verdict(
+    *,
+    logicnodes: list[dict[str, Any]],
+    canonical_logicnodes: list[dict[str, Any]],
+    source_code: str | None = None,
+) -> dict[str, Any]:
+    raw_count = len([node for node in logicnodes if isinstance(node, dict)])
+    canonical_count = len(canonical_logicnodes)
+    source_line_count = len([line for line in str(source_code or "").splitlines() if line.strip()])
+    expected_minimum = max(1, min(20, source_line_count // 25)) if source_line_count else 1
+    coverage_thin = canonical_count < expected_minimum or (raw_count > 0 and canonical_count == 0)
+    duplicate_ratio = (
+        round((max(0, raw_count - canonical_count) / raw_count), 4) if raw_count else 0.0
+    )
+    findings: list[str] = []
+    if coverage_thin:
+        findings.append(
+            "Canonical LogicNode coverage is thin for the available source and pod evidence."
+        )
+    if raw_count > 0 and duplicate_ratio >= 0.85:
+        findings.append("High duplicate-elimination ratio requires pod-manager review.")
+    if not findings:
+        findings.append("Canonical LogicNode coverage meets deterministic pod standard checks.")
+    return {
+        "schema_version": "pod_standard_coverage.v1",
+        "raw_logicnode_count": raw_count,
+        "canonical_logicnode_count": canonical_count,
+        "source_line_count": source_line_count,
+        "expected_minimum_canonical_logicnodes": expected_minimum,
+        "duplicate_ratio": duplicate_ratio,
+        "coverage_thin": coverage_thin,
+        "findings": findings,
+    }
+
+
 def _fallback_pod_group_standard(
     *,
     pod_name: str,
@@ -1602,6 +1752,7 @@ def _fallback_pod_group_standard(
     logicnodes: list[dict[str, Any]],
     mission_contract: dict[str, Any],
     recommendation: dict[str, Any],
+    source_code: str | None = None,
 ) -> dict[str, Any]:
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for record in logicnodes[:200]:
@@ -1698,6 +1849,11 @@ def _fallback_pod_group_standard(
         "pod_manager_agent_id": pod_manager_agent_id,
         "mission_id": mission_id,
         "canonical_logicnodes": canonical,
+        "coverage_verdict": _pod_standard_coverage_verdict(
+            logicnodes=logicnodes,
+            canonical_logicnodes=canonical,
+            source_code=source_code,
+        ),
         "eliminated_duplicates": max(0, len(logicnodes) - len(canonical)),
         "summary": (
             "Deterministic pod group standard produced by consolidating equivalent "
@@ -1719,6 +1875,7 @@ def _build_pod_group_standard_prompt(
     mission_contract: dict[str, Any],
     recommended_provider: str,
     recommended_model: str,
+    source_code: str | None = None,
 ) -> str:
     safe_nodes = [
         _clean_text(json.dumps(record, sort_keys=True), max_length=420)
@@ -1728,14 +1885,17 @@ def _build_pod_group_standard_prompt(
     contract_summary = _clean_text(
         mission_contract.get("contract_summary", "mission"), max_length=320
     )
+    source_line_count = len([line for line in str(source_code or "").splitlines() if line.strip()])
     return (
         f"You are {pod_manager_agent_id}, the sub-manager for {pod_name}.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         "Consolidate specialist LogicNodes into a canonical pod group standard.\n"
         "Deduplicate semantically equivalent nodes across languages and preserve source ids.\n"
+        "Call out thin coverage when the canonical standard is too small for the source scope.\n"
         "Return only JSON. No markdown, prose, or code fences.\n\n"
         f"Mission id: {_clean_text(mission_id, max_length=96)}\n"
         f"Mission summary: {contract_summary}\n"
+        f"Approximate source line count: {source_line_count}\n"
         f"LogicNodes JSON lines:\n{chr(10).join(safe_nodes) or '- none'}\n\n"
         "Required JSON shape:\n"
         "{\n"
@@ -1766,6 +1926,7 @@ def _normalize_pod_group_standard(
     mission_id: str,
     logicnodes: list[dict[str, Any]],
     mission_contract: dict[str, Any],
+    source_code: str | None = None,
 ) -> dict[str, Any]:
     canonical: list[dict[str, Any]] = []
     raw_nodes = raw.get("canonical_logicnodes")
@@ -1806,6 +1967,7 @@ def _normalize_pod_group_standard(
             logicnodes=logicnodes,
             mission_contract=mission_contract,
             recommendation={"provider": provider, "model": model},
+            source_code=source_code,
         )
     duplicate_count = raw.get("eliminated_duplicates")
     if not isinstance(duplicate_count, int) or duplicate_count < 0:
@@ -1816,6 +1978,11 @@ def _normalize_pod_group_standard(
         "pod_manager_agent_id": pod_manager_agent_id,
         "mission_id": mission_id,
         "canonical_logicnodes": canonical,
+        "coverage_verdict": _pod_standard_coverage_verdict(
+            logicnodes=logicnodes,
+            canonical_logicnodes=canonical,
+            source_code=source_code,
+        ),
         "eliminated_duplicates": duplicate_count,
         "summary": _clean_text(
             raw.get("summary")
@@ -1837,6 +2004,7 @@ async def generate_pod_group_standard(
     mission_id: str,
     logicnodes: list[dict[str, Any]],
     mission_contract: dict[str, Any],
+    source_code: str | None = None,
 ) -> dict[str, Any]:
     normalized_pod_manager_agent_id = pod_manager_agent_id.strip().upper()
     recommendation = _agent_recommendation(normalized_pod_manager_agent_id)
@@ -1850,6 +2018,7 @@ async def generate_pod_group_standard(
         mission_contract=mission_contract,
         recommended_provider=provider,
         recommended_model=model,
+        source_code=source_code,
     )
     parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
@@ -1865,6 +2034,7 @@ async def generate_pod_group_standard(
             logicnodes=logicnodes,
             mission_contract=mission_contract,
             recommendation=recommendation,
+            source_code=source_code,
         )
     return _normalize_pod_group_standard(
         parsed,
@@ -1876,6 +2046,7 @@ async def generate_pod_group_standard(
         mission_id=mission_id,
         logicnodes=logicnodes,
         mission_contract=mission_contract,
+        source_code=source_code,
     )
 
 
@@ -1929,6 +2100,53 @@ async def generate_code_from_contract(
             recommendation=recommendation,
         )
     return normalized
+
+
+def build_deploy_readiness_assessment(
+    *,
+    mission_id: str,
+    metadata: dict[str, Any],
+    build_artifacts: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Build the Deploy Agent's deterministic packaging-readiness fallback."""
+    artifacts = build_artifacts if isinstance(build_artifacts, list) else []
+    has_packaged_artifact = any(
+        isinstance(artifact, dict)
+        and str(artifact.get("artifact_type") or artifact.get("type") or "").lower()
+        in {"generated_code", "source_bundle_package"}
+        for artifact in artifacts
+    ) or bool(
+        isinstance(metadata.get("mission_artifacts"), dict)
+        and metadata["mission_artifacts"].get("build_packaged")
+    )
+    checks = [
+        {
+            "name": "packaged_artifact",
+            "passed": has_packaged_artifact,
+            "summary": "Mission has a generated-code or source-bundle build artifact.",
+        },
+        {
+            "name": "completion_evidence",
+            "passed": bool(metadata.get("delivery_summary") or metadata.get("generated_output")),
+            "summary": "Mission contains completion evidence for operator review.",
+        },
+        {
+            "name": "pod_standard",
+            "passed": bool(metadata.get("pod_group_standards")),
+            "summary": "Mission contains a pod group standard for traceability.",
+        },
+    ]
+    blockers = [check["name"] for check in checks if not check["passed"]]
+    return {
+        "schema_version": "deploy_readiness.v1",
+        "mission_id": _clean_text(mission_id, max_length=96),
+        "agent_id": "AGENT-11-DEPLOY",
+        "ready": not blockers,
+        "blockers": blockers,
+        "checks": checks,
+        "source": "fallback",
+        "created_at": datetime.now(UTC).isoformat(),
+    }
 
 
 async def generate_pm_delivery_summary(

@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from .. import milvus_store, neo4j_store, object_store, qdrant_store, storage
 from ..audit_events import record_audit_event, summarize_mapping
 from ..auth import AuthContext
-from ..llm_delegation import generate_pm_feature_contract
+from ..llm_delegation import generate_pm_feature_contract, get_provider_health_summary
 from ..mission_flow_v2 import build_mission_charter
 from ..models import (
     AgentActionEventUpsert,
@@ -344,6 +344,11 @@ async def create_pm_feature_contract(
         "model_provider": feature_contract.get("model_provider"),
         "model": feature_contract.get("model"),
     }
+
+
+@router.get("/internal/broker/provider-health")
+async def get_broker_provider_health(_: AuthContext = INTERNAL_AUTH_DEP) -> dict[str, Any]:
+    return get_provider_health_summary()
 
 
 @router.get("/internal/missions/{mission_id}/pod-assignment")

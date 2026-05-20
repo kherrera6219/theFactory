@@ -36,6 +36,43 @@ def test_agent_model_inventory_uses_current_codex_model() -> None:
     assert "gpt-5.2-codex" not in models
 
 
+def test_pod_manager_prompt_includes_family_strategy() -> None:
+    prompt = llm_delegation._build_pod_manager_prompt(
+        mission_context={"mission_id": "mission-1", "mission_type": "DEBUG_REPAIR"},
+        pod_manager_agent_id="AGENT-18-PODB-MGR",
+        default_specialist_agent_id="AGENT-22-RUST",
+        recommended_provider="openai",
+        recommended_model="gpt-5.5",
+    )
+    assert "Pod B owns systems language execution" in prompt
+    assert "Mission type: DEBUG_REPAIR" in prompt
+    assert "cross-pod or support-agent follow-up" in prompt
+
+
+def test_provider_health_summary_records_success_and_error() -> None:
+    llm_delegation._provider_health_samples.clear()
+    llm_delegation._record_provider_health(
+        provider="openai",
+        model="gpt-5.5",
+        latency_ms=100,
+        success=True,
+        now=1000.0,
+    )
+    llm_delegation._record_provider_health(
+        provider="openai",
+        model="gpt-5.5",
+        latency_ms=200,
+        success=False,
+        now=1001.0,
+    )
+    result = llm_delegation.get_provider_health_summary(now=1002.0)
+    provider = result["providers"]["openai"]
+    assert provider["call_count"] == 2
+    assert provider["error_count"] == 1
+    assert provider["avg_latency_ms"] == 150
+    assert provider["models"] == {"gpt-5.5": 2}
+
+
 def test_fallback_mission_contract_returns_required_shape() -> None:
     result = llm_delegation._fallback_mission_contract(
         prompt="Build a CSV reader",
@@ -421,6 +458,7 @@ def test_pod_group_standard_fallback_deduplicates_logicnodes() -> None:
     assert len(result["canonical_logicnodes"]) == 1
     assert result["canonical_logicnodes"][0]["source_node_ids"] == ["node-1", "node-2"]
     assert result["canonical_logicnodes"][0]["languages"] == ["python", "javascript"]
+    assert result["coverage_verdict"]["coverage_thin"] is False
 
 
 def test_generate_pod_group_standard_uses_llm_result(monkeypatch) -> None:
@@ -462,6 +500,7 @@ def test_generate_pod_group_standard_uses_llm_result(monkeypatch) -> None:
             mission_id="mission-7",
             logicnodes=[{"node_id": "node-1", "node": {"domain": "parsing"}}],
             mission_contract={"contract_summary": "Build CSV reader"},
+            source_code="\n".join("line" for _ in range(80)),
         )
     )
 
@@ -470,6 +509,19 @@ def test_generate_pod_group_standard_uses_llm_result(monkeypatch) -> None:
     assert result["canonical_logicnodes"][0]["standard_node_id"] == (
         "standard-node-01-parsing-csv-reader"
     )
+    assert result["coverage_verdict"]["coverage_thin"] is True
+
+
+def test_build_deploy_readiness_assessment_reports_blockers() -> None:
+    result = llm_delegation.build_deploy_readiness_assessment(
+        mission_id="mission-9",
+        metadata={"pod_group_standards": {"podA": {}}},
+        build_artifacts=[],
+    )
+    assert result["schema_version"] == "deploy_readiness.v1"
+    assert result["agent_id"] == "AGENT-11-DEPLOY"
+    assert result["ready"] is False
+    assert "packaged_artifact" in result["blockers"]
 
 
 def test_fallback_delegation_uses_language_mapping() -> None:

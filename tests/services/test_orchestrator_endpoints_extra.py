@@ -89,6 +89,27 @@ def test_create_mission_endpoint(monkeypatch) -> None:
     assert emitted == ["MISSION_QUEUED"]
 
 
+def test_internal_provider_health_endpoint(monkeypatch) -> None:
+    monkeypatch.setattr(
+        orchestrator_internal,
+        "get_provider_health_summary",
+        lambda: {
+            "schema_version": "provider_health.v1",
+            "window_seconds": 300,
+            "providers": {"openai": {"call_count": 1}},
+            "generated_at": "2026-05-19T00:00:00+00:00",
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/broker/provider-health",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert response.status_code == 200
+    assert response.json()["providers"]["openai"]["call_count"] == 1
+
+
 def test_mission_query_endpoints(monkeypatch) -> None:
     monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
     monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)

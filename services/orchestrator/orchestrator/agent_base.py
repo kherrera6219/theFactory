@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import abc
 import logging
+import re
 from typing import Any
 
 from .agent_registry import AGENT_REGISTRY, AgentDefinition
@@ -625,18 +626,54 @@ class SpecialistAgent(BaseAgent):
         self, mission_id: str, source_payload: Any, language: str
     ) -> list[dict[str, Any]]:
         """
-        Produce minimal LogicNode stubs from payload.
+        Produce source-reflective LogicNodes from payload.
 
         Subclasses may override for language-specific extraction.
         The pod-worker's language_extractor handles the full pipeline;
         this method is the class-level integration point for direct invocation.
         """
-        if not source_payload:
+        source = str(source_payload or "")
+        if not source.strip():
             return []
+        patterns = (
+            ("function", re.compile(r"\b(?:def|function|fn|func)\s+([A-Za-z_][\w]*)")),
+            ("class", re.compile(r"\b(?:class|struct|enum|interface)\s+([A-Za-z_][\w]*)")),
+            (
+                "module_dependency",
+                re.compile(r"\b(?:import|from|using|require)\s+([A-Za-z_][\w.]*)"),
+            ),
+        )
+        logicnodes: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        for domain, pattern in patterns:
+            for match in pattern.finditer(source):
+                concept = str(match.group(1)).strip()
+                key = (domain, concept.lower())
+                if not concept or key in seen:
+                    continue
+                seen.add(key)
+                node_id = f"{mission_id}:{self.language_key or language}:{len(logicnodes)}"
+                logicnodes.append(
+                    {
+                        "node_id": node_id,
+                        "domain": domain,
+                        "concept": concept,
+                        "intent": f"Preserve {domain} behavior for {concept}.",
+                        "language": language,
+                        "source": "specialist_agent",
+                        "agent_id": self.agent_id,
+                    }
+                )
+                if len(logicnodes) >= 20:
+                    return logicnodes
+        if logicnodes:
+            return logicnodes
         return [
             {
-                "node_id": f"{mission_id}:{self.language_key}:0",
-                "concept": "extracted_intent",
+                "node_id": f"{mission_id}:{self.language_key or language}:0",
+                "domain": "source_behavior",
+                "concept": "source_payload",
+                "intent": "Preserve behavior described by the provided source payload.",
                 "language": language,
                 "source": "specialist_agent",
                 "agent_id": self.agent_id,
