@@ -233,8 +233,8 @@ Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEA
 
 ## Open Gaps For Completion
 
-1. Implement Phase 15 token/cost ledger before making cost or budget claims. The dedicated plan is [`../Phase_15_Token_Cost_Ledger.md`](../Phase_15_Token_Cost_Ledger.md).
-2. Finish Phase 16 scheduled refresh, Gemini embeddings, and retrieval quality tests. The dedicated plan is [`../Phase_16_Knowledge_Lake_Embeddings.md`](../Phase_16_Knowledge_Lake_Embeddings.md).
+1. Implement Phase 15 token/cost ledger before making cost or budget claims. The dedicated plan is [`phases/Phase_15_Token_Cost_Ledger.md`](phases/Phase_15_Token_Cost_Ledger.md).
+2. Finish Phase 16 scheduled refresh, Gemini embeddings, and retrieval quality tests. The dedicated plan is [`phases/Phase_16_Knowledge_Lake_Embeddings.md`](phases/Phase_16_Knowledge_Lake_Embeddings.md).
 3. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/FETCH/FUSION/DELIVERY/AIM/equivalence/security-compliance/dependency loop.
 4. Refresh stale qualification evidence before launch claims.
 5. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
