@@ -2,13 +2,13 @@
 # Automated Timed DR Drill Orchestrator for theFactory
 # Captures RTO, performs backup/restore, validates stack recovery, and writes evidence JSON.
 
-import os
-import sys
-import time
 import json
+import os
 import subprocess
+import time
 import urllib.request
 from datetime import datetime, timezone
+
 
 def run_cmd(args, check=True, shell=False):
     print(f"Running: {' '.join(args) if isinstance(args, list) else args}")
@@ -62,19 +62,19 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.dry_run:
         print("Dry-run: invoking simulated backup script...")
-        cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts/backup_postgres.ps1", "-DryRun", "-Timestamp", timestamp]
+        cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts/backup_postgres.ps1", "-DryRun", "-Timestamp", timestamp]  # noqa: E501
         run_cmd(cmd)
     else:
         print("Real-drill: invoking real backup script...")
-        cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts/backup_postgres.ps1", "-Timestamp", timestamp]
+        cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts/backup_postgres.ps1", "-Timestamp", timestamp]  # noqa: E501
         run_cmd(cmd)
 
     # Find the backup file and manifest
     backup_dir = "backups"
-    backups = [f for f in os.listdir(backup_dir) if f.startswith(f"ulr_{timestamp}") and f.endswith(".sql")]
+    backups = [f for f in os.listdir(backup_dir) if f.startswith(f"ulr_{timestamp}") and f.endswith(".sql")]  # noqa: E501
     if not backups:
         # fallback to newest
-        backups = sorted([f for f in os.listdir(backup_dir) if f.startswith("ulr_") and f.endswith(".sql")], reverse=True)
+        backups = sorted([f for f in os.listdir(backup_dir) if f.startswith("ulr_") and f.endswith(".sql")], reverse=True)  # noqa: E501
     
     if backups:
         backup_file = os.path.abspath(os.path.join(backup_dir, backups[0]))
@@ -113,7 +113,7 @@ def main():
         
         # Run restore postgres
         print(f"Executing restore script with backup: {backup_file}")
-        run_cmd(["powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts/restore_postgres.ps1", "-BackupFile", backup_file])
+        run_cmd(["powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts/restore_postgres.ps1", "-BackupFile", backup_file])  # noqa: E501
 
     # 5. Measure stack recovery and verify readiness
     print("\n[5/5] Measuring time to service readiness (RTO calculation)...")
@@ -132,7 +132,7 @@ def main():
             # Also verify if postgres query works
             db_ready = False
             try:
-                db_res = run_cmd(["docker", "compose", "-f", "deploy/docker-compose.yaml", "exec", "-T", "postgres", "psql", "-U", "postgres", "-d", "ulr", "-c", "select count(*) as missions from missions;"], check=False)
+                db_res = run_cmd(["docker", "compose", "-f", "deploy/docker-compose.yaml", "exec", "-T", "postgres", "psql", "-U", "postgres", "-d", "ulr", "-c", "select count(*) as missions from missions;"], check=False)  # noqa: E501
                 if db_res.returncode == 0:
                     db_ready = True
             except Exception:
@@ -143,7 +143,7 @@ def main():
                 print("All health checks and DB queries are PASSING!")
                 break
             
-            print(f"Waiting for services... (elapsed: {int(elapsed)}s) [API: {api_ready}, ORCH: {orchestrator_ready}, DB: {db_ready}]")
+            print(f"Waiting for services... (elapsed: {int(elapsed)}s) [API: {api_ready}, ORCH: {orchestrator_ready}, DB: {db_ready}]")  # noqa: E501
             time.sleep(5)
             elapsed = time.time() - restore_start
 

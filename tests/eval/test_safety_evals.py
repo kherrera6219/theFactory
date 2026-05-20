@@ -1,5 +1,4 @@
 """test_safety_evals.py — Offline safety checks for LLM entry and exit paths."""
-import pytest
 
 from services.orchestrator.orchestrator.llm_safety import (
     check_inbound_response,

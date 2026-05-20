@@ -585,8 +585,8 @@ def check_compliance_evidence_mapping() -> AuditResult:
 def check_no_committed_keys() -> AuditResult:
     import subprocess
     try:
-        res_pg = subprocess.run(["git", "log", "--all", "--", "deploy/postgres/certs/server.key"], capture_output=True, text=True)
-        res_rd = subprocess.run(["git", "log", "--all", "--", "deploy/redis/certs/redis.key"], capture_output=True, text=True)
+        res_pg = subprocess.run(["git", "log", "--all", "--", "deploy/postgres/certs/server.key"], capture_output=True, text=True)  # noqa: E501
+        res_rd = subprocess.run(["git", "log", "--all", "--", "deploy/redis/certs/redis.key"], capture_output=True, text=True)  # noqa: E501
         passed = not res_pg.stdout.strip() and not res_rd.stdout.strip()
         notes = "no key history traced" if passed else "key commits found in history"
     except Exception as e:
@@ -606,7 +606,7 @@ def check_dr_drill_evidence() -> AuditResult:
     dr_files = list(evidence_dir.glob("dr_drill_phase26_*.json"))
     p17_files = list(evidence_dir.glob("phase17_dr_release_hardening_*.json"))
     passed = len(dr_files) > 0 or len(p17_files) > 0
-    notes = f"found {len(dr_files)} DR drills, {len(p17_files)} phase17 drills" if passed else "no DR drill files found"
+    notes = f"found {len(dr_files)} DR drills, {len(p17_files)} phase17 drills" if passed else "no DR drill files found"  # noqa: E501
     return _result(
         check_id="DR-001",
         priority="HIGH",
@@ -620,7 +620,7 @@ def check_prompt_assets_registry() -> AuditResult:
     prompt_dir = REPO_ROOT / "services" / "orchestrator" / "orchestrator" / "prompt_assets"
     json_files = list(prompt_dir.glob("*.json"))
     passed = len(json_files) >= 5
-    notes = f"found {len(json_files)} JSON prompt files in registry" if passed else f"found {len(json_files)} files (required >= 5)"
+    notes = f"found {len(json_files)} JSON prompt files in registry" if passed else f"found {len(json_files)} files (required >= 5)"  # noqa: E501
     return _result(
         check_id="AI-001",
         priority="HIGH",
@@ -659,7 +659,7 @@ def check_phases_evidence() -> AuditResult:
         if not matches:
             missing.append(phase)
     passed = not missing
-    notes = "all phase 22-25 evidence present" if passed else f"missing evidence for phases: {', '.join(missing)}"
+    notes = "all phase 22-25 evidence present" if passed else f"missing evidence for phases: {', '.join(missing)}"  # noqa: E501
     return _result(
         check_id="PHASE-001",
         priority="HIGH",

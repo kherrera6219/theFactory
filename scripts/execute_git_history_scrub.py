@@ -3,9 +3,10 @@
 # DO NOT FORCE PUSH to remote origin until Claude Code has finished Phase 25.
 
 import os
-import sys
-import subprocess
 import shutil
+import subprocess
+import sys
+
 
 def run_cmd(args, check=True):
     print(f"Running: {' '.join(args)}")
@@ -49,20 +50,20 @@ def main():
                 os.environ["PATH"] = path_dir + os.pathsep + os.environ["PATH"]
                 
         if not shutil.which("git-filter-repo"):
-            print("Error: git-filter-repo is required. Please install it ('pip install git-filter-repo') and ensure python scripts are in your Path.")
+            print("Error: git-filter-repo is required. Please install it ('pip install git-filter-repo') and ensure python scripts are in your Path.")  # noqa: E501
             sys.exit(1)
 
     print("\n[1/3] Executing git filter-repo to scrub TLS keys locally...")
     # Run filter-repo to invert-path out the cert keys
-    run_cmd(["git", "filter-repo", "--path", "deploy/postgres/certs/server.key", "--invert-paths", "--force"])
-    run_cmd(["git", "filter-repo", "--path", "deploy/redis/certs/redis.key", "--invert-paths", "--force"])
+    run_cmd(["git", "filter-repo", "--path", "deploy/postgres/certs/server.key", "--invert-paths", "--force"])  # noqa: E501
+    run_cmd(["git", "filter-repo", "--path", "deploy/redis/certs/redis.key", "--invert-paths", "--force"])  # noqa: E501
 
     print("\n[2/3] Verifying clean local git log...")
-    postgres_log = run_cmd(["git", "log", "--all", "--", "deploy/postgres/certs/server.key"]).stdout.strip()
-    redis_log = run_cmd(["git", "log", "--all", "--", "deploy/redis/certs/redis.key"]).stdout.strip()
+    postgres_log = run_cmd(["git", "log", "--all", "--", "deploy/postgres/certs/server.key"]).stdout.strip()  # noqa: E501
+    redis_log = run_cmd(["git", "log", "--all", "--", "deploy/redis/certs/redis.key"]).stdout.strip()  # noqa: E501
 
     if not postgres_log and not redis_log:
-        print("[PASS] Verification PASS: No commits trace deploy/postgres/certs/server.key or deploy/redis/certs/redis.key in history.")
+        print("[PASS] Verification PASS: No commits trace deploy/postgres/certs/server.key or deploy/redis/certs/redis.key in history.")  # noqa: E501
     else:
         print("Verification failed! Commits were still found in git history.")
         if postgres_log:
@@ -73,7 +74,7 @@ def main():
 
     print("\n[3/3] Regenerating fresh local development certs...")
     # Restore local development certificates using make target
-    # On Windows, we try running make if available, or fall back to local python scripts if make is absent
+    # On Windows, we try running make if available, or fall back to local python scripts if make is absent  # noqa: E501
     if shutil.which("make"):
         run_cmd(["make", "tls-certs"])
     else:
@@ -82,7 +83,7 @@ def main():
         if os.path.exists("scripts/generate_certs.py"):
             run_cmd([sys.executable, "scripts/generate_certs.py"])
         else:
-            print("Warning: could not restore dev certs directly. Please run 'make tls-certs' manually.")
+            print("Warning: could not restore dev certs directly. Please run 'make tls-certs' manually.")  # noqa: E501
 
     print("\n=========================================================")
     print("  Scrub Complete (Staged Locally)                        ")
