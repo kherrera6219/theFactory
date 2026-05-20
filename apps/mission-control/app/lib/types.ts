@@ -560,6 +560,17 @@ export type MissionChainTrace = {
     generated_code?: string;
     code_length_chars?: number;
   } | null;
+  pm_clarification?: PmClarificationState | null;
+  llm_usage_summary?: LlmUsageSummary | null;
+  vc_commit_strategy?: VcCommitStrategy | null;
+  integration_tests?: IntegrationTests | null;
+  pod_audit_verdict?: PodAuditVerdict | null;
+};
+
+export type PmClarificationState = {
+  questions: string[];
+  ambiguity_score: number;
+  pending: boolean;
 };
 
 export type LiveStateStreamEvent = {
