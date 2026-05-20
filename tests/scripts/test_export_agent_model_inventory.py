@@ -28,8 +28,8 @@ def test_build_inventory_classifies_preview_and_stable_routes(monkeypatch) -> No
                 {
                     "agent_id": "AGENT-30-PODD-MGR",
                     "llm_recommendation": {
-                        "provider": "gemini",
-                        "model": "gemini-3.5-flash",
+                        "provider": "some-vendor",
+                        "model": "some-vendor-next-9.0-preview",
                         "fallback_provider": "openai",
                         "fallback_model": "gpt-5.5",
                     },

@@ -669,6 +669,7 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
         lambda *_args: {"mission_id": "mission-1", "pod_name": "podA"},
     )
     monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(runtime.storage, "list_build_artifacts", lambda *_args: [])
     checkpoint_events: list[str] = []
 
     def _insert_checkpoint(
@@ -801,6 +802,7 @@ def test_advance_mission_lifecycle_skips_emit_when_redis_not_ready(monkeypatch) 
     monkeypatch.setattr(runtime.storage, "insert_mission_event", lambda *_args: None)
     monkeypatch.setattr(runtime.storage, "get_pod_assignment", lambda *_args: {"pod_name": "podA"})
     monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(runtime.storage, "list_build_artifacts", lambda *_args: [])
     monkeypatch.setattr(
         runtime.storage,
         "transition_mission_state",
@@ -843,6 +845,7 @@ def test_advance_mission_lifecycle_emit_exception_is_swallowed(monkeypatch) -> N
     monkeypatch.setattr(runtime.storage, "insert_mission_event", lambda *_args: None)
     monkeypatch.setattr(runtime.storage, "get_pod_assignment", lambda *_args: {"pod_name": "podA"})
     monkeypatch.setattr(runtime.storage, "list_logicnodes", lambda *_args: [])
+    monkeypatch.setattr(runtime.storage, "list_build_artifacts", lambda *_args: [])
     monkeypatch.setattr(
         runtime.storage,
         "transition_mission_state",
