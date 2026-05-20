@@ -21,8 +21,8 @@ def test_build_inventory_classifies_preview_and_stable_routes(monkeypatch) -> No
                 {
                     "agent_id": "AGENT-01-PM",
                     "llm_recommendation": {
-                        "provider": "anthropic",
-                        "model": "claude-sonnet-4-6",
+                        "provider": "openai",
+                        "model": "gpt-5.5",
                     },
                 },
                 {

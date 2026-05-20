@@ -26,8 +26,8 @@ test("mission-cost-panel details and cost distribution", async ({ page }) => {
     unknown_pricing_count: 0,
     by_provider: [
       {
-        provider: "anthropic",
-        model: "claude-3-5-sonnet",
+        provider: "openai",
+        model: "gpt-5.5",
         input_tokens: 80000,
         output_tokens: 20000,
         estimated_cost_usd: 1.2000,
@@ -45,8 +45,8 @@ test("mission-cost-panel details and cost distribution", async ({ page }) => {
     by_agent: [
       {
         agent_id: "AGENT-02-CEO",
-        provider: "anthropic",
-        model: "claude-3-5-sonnet",
+        provider: "openai",
+        model: "gpt-5.5",
         input_tokens: 50000,
         output_tokens: 10000,
         cost_usd: 0.7500,
@@ -136,8 +136,8 @@ test("mission-cost-panel details and cost distribution", async ({ page }) => {
   await expect(page.locator(".cost-analysis-panel").getByText("14", { exact: true })).toBeVisible();
 
   // Verify provider breakdown
-  await expect(page.getByText("anthropic", { exact: true })).toBeVisible();
-  await expect(page.getByText("claude-3-5-sonnet", { exact: true })).toBeVisible();
+  await expect(page.getByText("openai", { exact: true })).toBeVisible();
+  await expect(page.getByText("gpt-5.5", { exact: true })).toBeVisible();
   await expect(page.getByText("$1.2000")).toBeVisible();
 
   // Verify agent breakdown

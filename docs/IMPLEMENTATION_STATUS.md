@@ -152,10 +152,8 @@ remaining blocker for a public launch claim is the live provider-key demo (item 
 | `KNOWLEDGE_EMBEDDING_PROVIDER` | `deterministic` | Set to `gemini` to activate |
 
 **LLM model assignments (as of 2026-05-20):**
-- OpenAI all agents: `gpt-5.5`
-- Anthropic deep-audit: `claude-opus-4-7`
-- Anthropic workhorse: `claude-sonnet-4-6`
-- Gemini all agents: `gemini-3.5-flash` (GA — Google I/O May 2026)
+- OpenAI (28 agents): `gpt-5.5` — PM, CEO, executives, all pod managers, all code specialists, security, compliance, pod auditors A/B/C, tester, DEPABS, RQCA
+- Gemini (13 agents): `gemini-3.5-flash` (GA — Google I/O May 2026) — all STEM/mathematical specialists (MATLAB, R, Julia, Mathematica, Haskell, OCaml), Pod D manager and auditor, IS, HW, Broker, Deploy, TestData
 
 ---
 

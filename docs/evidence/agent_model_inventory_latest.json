@@ -11,36 +11,6 @@
   },
   "models": [
     {
-      "provider": "anthropic",
-      "model": "claude-opus-4-7",
-      "lifecycle": "stable",
-      "production_approved": true,
-      "agents": [
-        "AGENT-05-SECURITY",
-        "AGENT-08-COMPLIANCE",
-        "AGENT-10-TESTER",
-        "AGENT-31-PODD-AUDIT",
-        "AGENT-39-DEPABS"
-      ]
-    },
-    {
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
-      "lifecycle": "stable",
-      "production_approved": true,
-      "agents": [
-        "AGENT-01-PM",
-        "AGENT-13-PODA-AUDIT",
-        "AGENT-19-PODB-AUDIT",
-        "AGENT-25-PODC-AUDIT",
-        "AGENT-26-JAVA",
-        "AGENT-27-CSHARP",
-        "AGENT-28-SCALA",
-        "AGENT-29-KOTLIN",
-        "AGENT-41-RQCA"
-      ]
-    },
-    {
       "provider": "gemini",
       "model": "gemini-3.5-flash",
       "lifecycle": "stable",
@@ -51,6 +21,7 @@
         "AGENT-09-HW",
         "AGENT-11-DEPLOY",
         "AGENT-30-PODD-MGR",
+        "AGENT-31-PODD-AUDIT",
         "AGENT-32-MATLAB",
         "AGENT-33-R",
         "AGENT-34-JULIA",
@@ -66,29 +37,42 @@
       "lifecycle": "stable",
       "production_approved": true,
       "agents": [
+        "AGENT-01-PM",
         "AGENT-02-CEO",
         "AGENT-04-ACCOUNTANT",
+        "AGENT-05-SECURITY",
         "AGENT-07-VC",
+        "AGENT-08-COMPLIANCE",
+        "AGENT-10-TESTER",
         "AGENT-12-PODA-MGR",
+        "AGENT-13-PODA-AUDIT",
         "AGENT-14-PYTHON",
         "AGENT-15-JAVASCRIPT",
         "AGENT-16-RUBY",
         "AGENT-17-PHP",
         "AGENT-18-PODB-MGR",
+        "AGENT-19-PODB-AUDIT",
         "AGENT-20-C",
         "AGENT-21-CPP",
         "AGENT-22-RUST",
         "AGENT-23-ZIG",
         "AGENT-24-PODC-MGR",
-        "AGENT-36-GO"
+        "AGENT-25-PODC-AUDIT",
+        "AGENT-26-JAVA",
+        "AGENT-27-CSHARP",
+        "AGENT-28-SCALA",
+        "AGENT-29-KOTLIN",
+        "AGENT-36-GO",
+        "AGENT-39-DEPABS",
+        "AGENT-41-RQCA"
       ]
     }
   ],
   "agents": [
     {
       "agent_id": "AGENT-01-PM",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -131,8 +115,8 @@
     },
     {
       "agent_id": "AGENT-05-SECURITY",
-      "provider": "anthropic",
-      "model": "claude-opus-4-7",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -146,8 +130,8 @@
       "model": "gemini-3.5-flash",
       "lifecycle": "stable",
       "production_approved": true,
-      "fallback_provider": "anthropic",
-      "fallback_model": "claude-sonnet-4-6",
+      "fallback_provider": "openai",
+      "fallback_model": "gpt-5.5",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -164,8 +148,8 @@
     },
     {
       "agent_id": "AGENT-08-COMPLIANCE",
-      "provider": "anthropic",
-      "model": "claude-opus-4-7",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -186,8 +170,8 @@
     },
     {
       "agent_id": "AGENT-10-TESTER",
-      "provider": "anthropic",
-      "model": "claude-opus-4-7",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -219,8 +203,8 @@
     },
     {
       "agent_id": "AGENT-13-PODA-AUDIT",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -285,8 +269,8 @@
     },
     {
       "agent_id": "AGENT-19-PODB-AUDIT",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -351,8 +335,8 @@
     },
     {
       "agent_id": "AGENT-25-PODC-AUDIT",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -362,8 +346,8 @@
     },
     {
       "agent_id": "AGENT-26-JAVA",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -373,8 +357,8 @@
     },
     {
       "agent_id": "AGENT-27-CSHARP",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -384,8 +368,8 @@
     },
     {
       "agent_id": "AGENT-28-SCALA",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -395,8 +379,8 @@
     },
     {
       "agent_id": "AGENT-29-KOTLIN",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -417,13 +401,13 @@
     },
     {
       "agent_id": "AGENT-31-PODD-AUDIT",
-      "provider": "anthropic",
-      "model": "claude-opus-4-7",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash",
       "lifecycle": "stable",
       "production_approved": true,
-      "fallback_provider": "",
-      "fallback_model": "",
-      "fallback_lifecycle": "none",
+      "fallback_provider": "openai",
+      "fallback_model": "gpt-5.5",
+      "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
     {
@@ -505,8 +489,8 @@
     },
     {
       "agent_id": "AGENT-39-DEPABS",
-      "provider": "anthropic",
-      "model": "claude-opus-4-7",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",
@@ -527,8 +511,8 @@
     },
     {
       "agent_id": "AGENT-41-RQCA",
-      "provider": "anthropic",
-      "model": "claude-sonnet-4-6",
+      "provider": "openai",
+      "model": "gpt-5.5",
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "",

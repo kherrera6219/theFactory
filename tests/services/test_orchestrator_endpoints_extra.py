@@ -255,8 +255,8 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
             "ceo_delegation": {
                 "source": "llm",
                 "llm_route": "primary",
-                "model_provider": "anthropic",
-                "model": "claude-3-5-sonnet",
+                "model_provider": "openai",
+                "model": "gpt-5.5",
                 "pod_manager_agent_id": "AGENT-12-PODA-MGR",
                 "specialist_agent_id": "AGENT-14-PYTHON",
             },
@@ -1092,7 +1092,7 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert "milvus" in integration_payload["feature_flagged_data_plane"]
     assert integration_payload["planned_data_plane"] == []
     assert integration_payload["llm_provider_counts"]["openai"] > 0
-    assert integration_payload["llm_provider_counts"]["anthropic"] > 0
+    assert "anthropic" not in integration_payload["llm_provider_counts"]
     assert integration_payload["llm_provider_counts"]["gemini"] > 0
     assert any(record["agent_id"] == "AGENT-01-PM" for record in integration_payload["agents"])
     assert all("llm_recommendation" in record for record in integration_payload["agents"])

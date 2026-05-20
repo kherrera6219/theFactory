@@ -779,8 +779,8 @@ class TestAdvanceMissionLifecycleV2:
                         "specialist_agent_id": "AGENT-14-PYTHON",
                         "source": "llm",
                         "llm_route": "primary",
-                        "model_provider": "anthropic",
-                        "model": "claude-3-5-sonnet",
+                        "model_provider": "openai",
+                        "model": "gpt-5.5",
                     }
                 ),
             ), patch(

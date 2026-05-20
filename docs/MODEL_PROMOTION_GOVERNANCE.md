@@ -1,7 +1,7 @@
 # Model Promotion Governance
 
-Document version: 2026.05.17  
-Last updated: 2026-05-17  
+Document version: 2026.05.20  
+Last updated: 2026-05-20  
 Status: Canonical  
 Audience: Maintainers, AI operators, and release reviewers
 
@@ -13,8 +13,8 @@ Prevent release promotion when runtime-default LLM routes use preview, experimen
 
 - Release promotion requires a machine-readable agent model inventory.
 - `deploy/promotion-policy.json` blocks lifecycle stages `preview`, `experimental`, and `rolling`.
-- Current Gemini default for all agents is `gemini-3.5-flash` (GA — Google I/O
-  May 2026). All 12 Gemini agents are now on a stable-lifecycle model.
+- All 41 agents use two GA stable models: `gpt-5.5` (OpenAI, 28 agents) and
+  `gemini-3.5-flash` (Gemini, 13 agents). No Anthropic routes are active.
 - `allowlist_models` in `deploy/promotion-policy.json` is empty; no preview
   waivers are active.
 - Preview routes may only be promoted if added to the policy allowlist.
