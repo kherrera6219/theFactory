@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
+import { GlobalSearch } from "../components/global-search";
 import { KeyboardShortcuts } from "../components/keyboard-shortcuts";
+import { NotificationBell } from "../components/notification-bell";
 import { ReconnectBanner } from "../components/reconnect-banner";
 import { ShellHeaderMeta } from "../components/shell-header-meta";
 import { ShellNav } from "../components/shell-nav";
@@ -29,6 +31,10 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
       <div className="shell-main-column">
         <header className="shell-header">
           <ShellHeaderMeta />
+          {/* 5D — Global search center zone */}
+          <div className="shell-header-search">
+            <GlobalSearch />
+          </div>
           <div className="shell-header-actions">
             <StatusBadge
               tone="warning"
@@ -36,6 +42,8 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
             >
               Offline-ready
             </StatusBadge>
+            {/* 5A — Notification bell */}
+            <NotificationBell />
             <Link href="/chat" className="primary-button shell-link-button">
               New Mission
             </Link>
@@ -50,7 +58,7 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
         </main>
         <footer className="shell-statusbar">
           <span>Live Transport: Active</span>
-          <span>Ctrl+? for shortcuts</span>
+          <span>Ctrl+K · Search &nbsp;|&nbsp; Ctrl+? · Shortcuts</span>
         </footer>
       </div>
       <KeyboardShortcuts />

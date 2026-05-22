@@ -9,6 +9,7 @@ import { Panel } from "../../../components/panel";
 import { EmptyState, SystemMessage } from "../../../components/status";
 import { useLastRefreshed } from "../../../lib/use-last-refreshed";
 import { listMissions } from "../../../lib/api-client";
+import { downloadCsv, downloadJson, missionsToCsvRows } from "../../../lib/export";
 import { formatDateTime, humanizeState, isTerminalState } from "../../../lib/format";
 import type { MissionRecord } from "../../../lib/types";
 
@@ -116,6 +117,29 @@ export default function MissionHistoryPage() {
               disabled={loading}
             >
               {loading ? "Loading…" : "Refresh"}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={filtered.length === 0}
+              onClick={() =>
+                downloadCsv(
+                  missionsToCsvRows(filtered as unknown as Record<string, unknown>[]),
+                  `missions-${new Date().toISOString().slice(0, 10)}`,
+                )
+              }
+            >
+              CSV
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={filtered.length === 0}
+              onClick={() =>
+                downloadJson(filtered, `missions-${new Date().toISOString().slice(0, 10)}`)
+              }
+            >
+              JSON
             </button>
           </>
         }

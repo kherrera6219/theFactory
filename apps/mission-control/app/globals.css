@@ -2098,3 +2098,429 @@ dd {
   min-width: 100px;
   text-align: center;
 }
+
+/* ── Notification bell (5A) ──────────────────────────────────── */
+
+.notif-bell-wrap {
+  position: relative;
+}
+
+.notif-bell-btn {
+  position: relative;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 1rem;
+  line-height: 1;
+  margin-top: 0;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: border-color 150ms, background 150ms;
+}
+
+.notif-bell-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  color: var(--ink);
+}
+
+.notif-bell-icon {
+  font-size: 1.05rem;
+}
+
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.notif-drawer {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-height: 480px;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+}
+
+.notif-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.notif-drawer-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.notif-drawer-empty {
+  padding: 16px 14px;
+  font-size: 0.88rem;
+}
+
+.notif-alert-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+}
+
+.notif-alert-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.notif-alert-item:last-child {
+  border-bottom: 0;
+}
+
+.notif-alert-item.sev-critical {
+  border-left: 3px solid var(--danger);
+}
+
+.notif-alert-item.sev-high {
+  border-left: 3px solid var(--danger);
+}
+
+.notif-alert-item.sev-medium {
+  border-left: 3px solid var(--warning);
+}
+
+.notif-alert-item.sev-low {
+  border-left: 3px solid var(--ink-dim);
+}
+
+.notif-alert-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.notif-sev-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.notif-sev-pill.sev-critical,
+.notif-sev-pill.sev-high {
+  color: #fca5a5;
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.notif-sev-pill.sev-medium {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning);
+}
+
+.notif-sev-pill.sev-low {
+  color: var(--ink-muted);
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+
+.notif-state-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.notif-state-dot.state-open { background: var(--danger); }
+.notif-state-dot.state-acknowledged { background: var(--warning); }
+.notif-state-dot.state-resolved { background: var(--success); }
+
+.notif-alert-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.notif-alert-meta {
+  margin: 3px 0 0;
+  font-size: 0.76rem;
+  color: var(--ink-muted);
+}
+
+.notif-alert-rec {
+  margin: 5px 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+/* ── Global search (5D) ──────────────────────────────────────── */
+
+.shell-header-search {
+  flex: 1;
+  max-width: 420px;
+  margin: 0 12px;
+}
+
+.global-search-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.global-search-input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 7px 12px;
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.global-search-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
+.global-search-input::placeholder {
+  color: var(--ink-dim);
+}
+
+.global-search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  z-index: 1050;
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.global-search-group {
+  list-style: none;
+}
+
+.global-search-group > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.global-search-group-label {
+  display: block;
+  padding: 6px 12px 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+}
+
+.global-search-result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  margin-top: 0;
+  min-height: unset;
+  text-align: left;
+  cursor: pointer;
+  transition: background 80ms;
+}
+
+.global-search-result:hover,
+.global-search-result.active {
+  background: var(--bg-elevated);
+}
+
+.global-search-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.global-search-sublabel {
+  font-size: 0.76rem;
+  color: var(--ink-muted);
+}
+
+.global-search-empty {
+  padding: 12px 14px;
+  font-size: 0.84rem;
+  color: var(--ink-muted);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.3);
+  z-index: 1050;
+}
+
+/* ── Semantic Bus sparkline (5E) ─────────────────────────────── */
+
+.bus-sparkline-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+}
+
+.bus-rate-label {
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.bus-rate-unit {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+.bus-sparkline-svg {
+  flex-shrink: 0;
+}
+
+.bus-sparkline-label {
+  font-size: 0.72rem;
+  margin: 0;
+}
+
+/* ── Audit Log page (5B) ─────────────────────────────────────── */
+
+.audit-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audit-entry {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+}
+
+.audit-entry.audit-critical {
+  border-left: 3px solid var(--danger);
+}
+
+.audit-entry.audit-warning {
+  border-left: 3px solid var(--warning);
+}
+
+.audit-entry-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.audit-sev-marker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.audit-sev-marker.sev-critical { color: #fca5a5; }
+.audit-sev-marker.sev-warning  { color: var(--warning); }
+.audit-sev-marker.sev-info     { color: var(--ink-dim); }
+
+.audit-entry-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-entry-category {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.audit-entry-ts {
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.audit-entry-detail {
+  margin: 4px 0 0 26px;
+  font-size: 0.82rem;
+}
+
+.audit-entry-skeleton {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  margin-bottom: 4px;
+}
+
