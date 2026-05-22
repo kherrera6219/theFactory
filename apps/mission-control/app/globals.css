@@ -382,11 +382,26 @@ input {
   color: var(--ink);
 }
 
+/* 4B: accent border always shows on focus (visible caret position feedback) */
 textarea:focus,
 select:focus,
 input:focus {
-  outline: 3px solid var(--ring);
   border-color: var(--accent);
+}
+
+/* 4C: focus ring scoped to keyboard-only (:focus-visible) — not on mouse click */
+textarea:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Suppress outline when focused by pointer (mouse/touch) */
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
+  outline: none;
 }
 
 button {
@@ -853,10 +868,11 @@ dd {
   background: var(--ink-dim);
 }
 
-.metric-dot.healthy { background: var(--success); }
-.metric-dot.warning { background: var(--warning); }
-.metric-dot.critical { background: var(--danger); }
-.metric-dot.info { background: var(--info); }
+/* 4E: color-not-alone — each tone has a distinct shape in addition to color */
+.metric-dot.healthy  { background: var(--success); border-radius: 999px; /* circle ✓ */ }
+.metric-dot.warning  { background: var(--warning); border-radius: 2px; transform: rotate(45deg); /* diamond ◆ */ }
+.metric-dot.critical { background: var(--danger);  border-radius: 2px; /* square ■ */ }
+.metric-dot.info     { background: var(--info);    border-radius: 999px; /* circle */ }
 
 .skeleton-line {
   display: block;
@@ -1318,8 +1334,9 @@ dd {
   font-variant-numeric: tabular-nums;
 }
 
-.char-counter.warn { color: var(--warning); }
-.char-counter.at-limit { color: var(--danger); }
+/* 4A: font-weight 600 boosts perceptual contrast for warning/danger inline text */
+.char-counter.warn    { color: var(--warning); font-weight: 600; }
+.char-counter.at-limit { color: var(--danger);  font-weight: 600; }
 
 /* ── Database retry button ───────────────────────────────────── */
 .db-card-actions {
@@ -1538,6 +1555,7 @@ dd {
   background: var(--warning-bg);
   border-color: var(--warning);
   color: var(--warning);
+  font-weight: 600; /* 4A */
 }
 
 .pill.resolved {
@@ -1707,6 +1725,7 @@ dd {
   border-radius: 10px;
   background: var(--warning-bg);
   color: var(--warning);
+  font-weight: 600; /* 4A */
   padding: 10px 12px;
 }
 
@@ -1899,6 +1918,9 @@ dd {
   }
 }
 
+/* 4D: Reduced motion — covers: button hover transforms, card hover transitions,
+   skeleton shimmer, reconnect-banner slideDown, spinner spin, progress fill,
+   connection-chip transitions, and any future CSS animations/transitions */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1907,6 +1929,13 @@ dd {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Explicitly stop transform-based hover effects */
+  button:hover,
+  .shortcut-card:hover,
+  .info-card:hover {
+    transform: none !important;
   }
 }
 

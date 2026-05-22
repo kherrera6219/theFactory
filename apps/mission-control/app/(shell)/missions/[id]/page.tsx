@@ -428,7 +428,13 @@ export default function MissionDetailPage() {
                 className={`phase-step ${complete ? "complete" : ""} ${active ? "active" : ""}`}
                 aria-current={active ? "step" : undefined}
               >
-                <span className="phase-marker">{complete ? "✓" : active ? "●" : "○"}</span>
+                {/* 4E: aria-label gives screen readers explicit state, not just the symbol glyph */}
+                <span
+                  className="phase-marker"
+                  aria-label={complete ? "Completed" : active ? "Active" : "Pending"}
+                >
+                  {complete ? "✓" : active ? "●" : "○"}
+                </span>
                 <span>{phase}</span>
               </li>
             );

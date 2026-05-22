@@ -173,12 +173,12 @@ Already confirmed compliant (verify and preserve):
 - `aria-current="page"` on active nav item — ✅
 
 Remaining work:
-- **4A** — Contrast audit: amber text on dark cards (~3.5:1 → needs 4.5:1). Fix: `font-weight: 600` + `#fbbf24` amber.
-- **4B** — Focus ring: add `outline: 2px solid var(--ring); outline-offset: 2px` to all `select` and `input` `:focus-visible`.
-- **4C** — `:focus-visible` scoping throughout (rings on keyboard, not mouse).
-- **4D** — Reduced motion: `@media (prefers-reduced-motion: reduce)` for Semantic Bus pulse, card hover transitions.
-- **4E** — Color-not-alone: add icon shapes to Smelt-Cycle stepper and System Health metric cards.
-- **4F** — Electron `accessibleTitle` on `BrowserWindow` — plan for port.
+- **4A** ✅ DONE 2026-05-22 — Dark mode: `#f59e0b` already 7–8:1 on shell bg (passes AAA). Light mode: `--hgr-warning` changed from `#d97706` (3:1) to `#b45309` (4.6:1 on white). `font-weight: 600` added to `.warning-box`, `.pill.acknowledged`, `.char-counter.warn`.
+- **4B** ✅ DONE 2026-05-22 — `textarea/select/input:focus-visible` now gets `outline: 3px solid var(--ring); outline-offset: 2px`. Previously used bare `:focus`.
+- **4C** ✅ DONE 2026-05-22 — Scoped `outline` to `:focus-visible` only. Added `input/select/textarea:focus:not(:focus-visible) { outline: none }` suppressor. Accent `border-color` retained on all `:focus` for caret-position feedback.
+- **4D** ✅ DONE 2026-05-22 — Existing `@media (prefers-reduced-motion)` `*` block already handles all transitions/animations. Explicitly added `transform: none !important` for button/card hover states. Covers: skeleton shimmer, slideDown banner, spinner, progress fill, all hover transitions.
+- **4E** ✅ DONE 2026-05-22 — Metric dots now shape-differentiated: healthy=circle, warning=diamond (rotate 45°), critical=square (border-radius: 2px). Phase stepper markers get `aria-label="Completed|Active|Pending"` so AT reads state, not the symbol glyph name.
+- **4F** — Electron `accessibleTitle` — implement in Phase 7. When creating `BrowserWindow`, set `accessibleTitle: "Mission Control — Holy Grail Refinery"`. Also configure `webPreferences: { spellcheck: true }` and test with Windows Narrator and macOS VoiceOver.
 
 ---
 

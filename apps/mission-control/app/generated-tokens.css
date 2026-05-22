@@ -95,8 +95,9 @@
     --hgr-success-bg:   rgba(5, 150, 105, 0.10);
     --hgr-danger:       #dc2626;
     --hgr-danger-bg:    rgba(220, 38, 38, 0.10);
-    --hgr-warning:      #d97706;
-    --hgr-warning-bg:   rgba(217, 119, 6, 0.10);
+    /* 4A: #b45309 (amber-700) achieves 4.6:1 on white — WCAG AA for normal text */
+    --hgr-warning:      #b45309;
+    --hgr-warning-bg:   rgba(180, 83, 9, 0.10);
     --hgr-info:         #0284c7;
     --hgr-info-bg:      rgba(2, 132, 199, 0.10);
   }
