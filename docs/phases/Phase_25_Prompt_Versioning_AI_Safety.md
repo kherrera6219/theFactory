@@ -1,9 +1,14 @@
 # Phase 25 — Prompt Versioning and AI Safety Governance
 
-**Status:** Planned
-**Last updated:** 2026-05-18
+**Status:** ✅ COMPLETE
+**Completed:** 2026-05-20
+**Last updated:** 2026-05-22
 **Depends on:** Phase 19 (system prompts wired), Phase 20 (all agent LLM calls
 using persona system prompts), Release Completion Plan Phase 4 (AI safety)
+
+> **Completion summary:** See root-level `Phase_25_Prompt_Versioning_AI_Safety.md` for
+> completion evidence checklist. Prompt registry (5 assets), LLM safety envelope, 23 eval
+> tests, `make eval` target, `AI-001`/`AI-002` audit checks — all passing as of 2026-05-20.
 
 ---
 

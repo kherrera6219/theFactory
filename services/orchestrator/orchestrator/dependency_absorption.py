@@ -477,18 +477,34 @@ def _splice_replacement(
     replacement_code = str(replacement.get("replacement_code") or "")
     if not replacement_code.strip():
         return source, "skipped", "Replacement code is empty."
-    if language != "python":
-        return source, "unsupported", "Only Python splicing is enabled in this slice."
-    import_pattern = re.compile(
-        rf"(?m)^\s*(?:import\s+{re.escape(library)}(?:\s+as\s+\w+)?|"
-        rf"from\s+{re.escape(library)}\s+import\s+[^\n#]+)\s*(?:#.*)?$"
-    )
-    modified = import_pattern.sub("", source).rstrip() + replacement_code + "\n"
-    try:
-        ast.parse(modified)
-    except SyntaxError as exc:
-        return source, "syntax_error", str(exc)
-    return modified, "ok", "Replacement spliced into source."
+
+    if language == "python":
+        import_pattern = re.compile(
+            rf"(?m)^\s*(?:import\s+{re.escape(library)}(?:\s+as\s+\w+)?|"
+            rf"from\s+{re.escape(library)}\s+import\s+[^\n#]+)\s*(?:#.*)?$"
+        )
+        modified = import_pattern.sub("", source).rstrip() + replacement_code + "\n"
+        try:
+            ast.parse(modified)
+        except SyntaxError as exc:
+            return source, "syntax_error", str(exc)
+        return modified, "ok", "Replacement spliced into source."
+
+    if language in {"javascript", "typescript"}:
+        # Match: import X from 'lib'; import {X} from 'lib'; import 'lib'; const X = require('lib')
+        lib_esc = re.escape(library)
+        js_import_pattern = re.compile(
+            rf"(?m)^\s*(?:"
+            rf"import\s+(?:\*\s+as\s+\w+|\{{[^}}]*\}}|\w+(?:\s*,\s*\{{[^}}]*\}})?)\s+from\s+['\"]"
+            rf"{lib_esc}['\"]"
+            rf"|import\s+['\"{lib_esc}'\"]"
+            rf"|(?:const|let|var)\s+\w+\s*=\s*require\(['\"{lib_esc}'\"]['\"]?\))"
+            rf"\s*;?\s*(?://.*)?$"
+        )
+        modified = js_import_pattern.sub("", source).rstrip() + replacement_code + "\n"
+        return modified, "ok", "Replacement spliced into source."
+
+    return source, "unsupported", f"Splicing not supported for language: {language}."
 
 
 def _classify_dependency(entry: dict[str, Any], *, metadata: dict[str, Any]) -> dict[str, Any]:

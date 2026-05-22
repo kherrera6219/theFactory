@@ -37,19 +37,32 @@ def test_testdata_manifest_is_safe_and_capped() -> None:
 
 
 def test_rqca_unsupported_language_returns_dry_run() -> None:
+    # Java is not in _ALL_LIVE_LANGUAGES so must always get DRY_RUN regardless of Docker.
+    # (Rust, C, C++, C# are now supported compiled languages via S3-02.)
     result = asyncio.run(
         rqca_agent.run_runtime_qc(
             mission_id="mission-1",
-            generated_output={"filename": "main.rs", "generated_code": "fn main() {}"},
-            testdata_manifest={"base_image": "rust:1.78-slim", "run_command": "cargo test"},
+            generated_output={"filename": "Main.java", "generated_code": "public class Main {}"},
+            testdata_manifest={"base_image": "eclipse-temurin:21", "run_command": "java Main"},
             integration_tests=None,
-            language="rust",
+            language="java",
             settings=SimpleNamespace(docker_bin="docker"),
         )
     )
 
     assert result["verdict"] == "DRY_RUN"
     assert result["execution_type"] == "dry_run"
+
+
+def test_rqca_compiled_language_live_languages_set() -> None:
+    """Rust, C, C++, C# are now in the live execution set (S3-02)."""
+    assert "rust" in rqca_agent._ALL_LIVE_LANGUAGES
+    assert "c" in rqca_agent._ALL_LIVE_LANGUAGES
+    assert "cpp" in rqca_agent._ALL_LIVE_LANGUAGES
+    assert "csharp" in rqca_agent._ALL_LIVE_LANGUAGES
+    assert "c#" in rqca_agent._ALL_LIVE_LANGUAGES
+    # Java still unsupported — validate it stays out
+    assert "java" not in rqca_agent._ALL_LIVE_LANGUAGES
 
 
 def test_rqca_missing_artifact_returns_skipped() -> None:

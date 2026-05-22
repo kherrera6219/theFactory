@@ -1,13 +1,13 @@
 # Build Roadmap
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
-Status: Historical reference  
+Document version: 2026.05.22  
+Last updated: 2026-05-22  
+Status: Active — Phases 1–54 complete; Sprint 1–4 open (see SPRINT_BACKLOG.md)  
 Audience: Operators, developers, maintainers, and auditors
 
-> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+> **Phase log note (updated 2026-05-22):** Phases 1–52 were planned/completed by 2026-05-20. Phases 53–54 (Mission Control UI/UX Phase 4+6 and Electron shell) completed 2026-05-22. Any `35-agent` references in early phases are historical planning terminology — the current runtime is 38 agents.
 
-Current-state note (2026-03-29): this document remains the implementation phase log. It should not be read as a guarantee that the current repository is fully green or fully converged. For shipped defaults and active validation status, use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md). For the remaining release sequence and phase gates, use [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md).
+For shipped defaults and active validation status, use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md). For open sprint work, use [`SPRINT_BACKLOG.md`](SPRINT_BACKLOG.md).
 
 ## Phase 1: Foundation
 
@@ -564,7 +564,31 @@ Current-state note (2026-03-29): this document remains the implementation phase 
 - Integrated individual Error Boundary wraps, strict TypeScript structures, and useConfirm hooks.
 - Status: Complete (2026-05-20).
 
+## Phase 53: Mission Control UI/UX — Accessibility & Domain UX (Phases 4 & 6)
+
+- Accessibility hardening: AAA contrast ratios, `focus-visible` outlines, reduced-motion, shape-differentiated status dots, ARIA labels on phase stepper.
+- Tooltip Glossary: 20 domain terms with accessible hover tooltips wired into Mission Detail phase stepper.
+- Guided Tour: 6-step first-visit spotlight overlay, localStorage-persisted, `Ctrl+G` to reopen.
+- Command Palette: `Ctrl+K` fuzzy search across missions, agents, LogicNodes, and nav links. Full ARIA.
+- Status Bar: live service-health count, active missions, last-sync timestamp, 15s poll.
+- Inline Mission Name Edit: click-to-edit in Mission Detail header, persisted via PATCH API.
+- Status: Complete (2026-05-22).
+
+## Phase 54: Electron Desktop Shell (Phase 7)
+
+- Custom frameless titlebar with platform-aware window controls (macOS traffic lights zone, Windows SVG controls).
+- System tray: mission status icon, context menu, double-click to restore.
+- Local file system repo import via native `dialog.showOpenDialog`.
+- Auto-update infrastructure: `electron-updater`, Settings "Software Updates" panel.
+- IPC architecture: `contextBridge.exposeInMainWorld`, `IPC_CHANNELS` constants as single source of truth, all bridge functions safe no-ops in browser context.
+- Electron TypeScript isolated via separate `electron/tsconfig.json`; excluded from Next.js build.
+- Status: Complete (2026-05-22).
+
 ## Next Roadmap Targets
 
-1. Promote full dedicated-agent compose profiles to primary integration platforms.
-2. Automate end-to-end continuous canary evaluation on staging runtimes.
+1. **Sprint 1 — Live Demo Gate:** Run `python scripts/demo_missions.py --live` with real provider API keys; confirm BUILD_NEW reaches COMPLETE with non-empty `generated_code`. Activate AST extractors and Gemini embeddings defaults after demo passes. See `docs/SPRINT_BACKLOG.md` for full sprint details.
+2. **Sprint 2 — Intelligence Layer:** PM clarification workflow, security/VC/tester/pod-audit LLM activation, deploy-readiness gate, pm_clarification/llm_usage_summary chain trace wiring.
+3. **Sprint 3 — Platform Differentiation:** JS/TS DEPABS splicing, RQCA for compiled languages, PORT two-phase demo.
+4. **Sprint 4 — Scale & Maturity:** Neo4j graph activation, object storage, agent scaling validation, live qualification evidence refresh.
+5. Promote full dedicated-agent compose profiles to primary integration platforms.
+6. Automate end-to-end continuous canary evaluation on staging runtimes.

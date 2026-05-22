@@ -8,9 +8,48 @@ from pathlib import Path
 from typing import Any
 
 RQCA_SCHEMA_VERSION = "runtime_qc_report.v1"
+# Languages that get live Docker execution when RQCA_AGENT_ENABLED=true.
+# Dynamic languages run their output directly; compiled languages compile-then-run.
 _EXECUTABLE_LANGUAGES = {"python", "javascript", "typescript"}
+_COMPILED_LANGUAGES = {"c", "cpp", "c++", "rust", "csharp", "c#"}
+_ALL_LIVE_LANGUAGES = _EXECUTABLE_LANGUAGES | _COMPILED_LANGUAGES
 _MAX_TIMEOUT_SECONDS = 60
 _MAX_MEMORY_MB = 512
+
+# Docker image + compile-and-run command templates for compiled languages.
+# The run_command is a shell snippet executed inside the container with /workspace mounted.
+_COMPILED_LANGUAGE_CONFIG: dict[str, dict[str, str]] = {
+    "c": {
+        "base_image": "gcc:13-bookworm",
+        "compile_command": "gcc -Wall -Wextra -o /workspace/a.out /workspace/{filename}",
+        "run_command": "/workspace/a.out",
+    },
+    "cpp": {
+        "base_image": "gcc:13-bookworm",
+        "compile_command": "g++ -std=c++20 -Wall -Wextra -o /workspace/a.out /workspace/{filename}",
+        "run_command": "/workspace/a.out",
+    },
+    "c++": {
+        "base_image": "gcc:13-bookworm",
+        "compile_command": "g++ -std=c++20 -Wall -Wextra -o /workspace/a.out /workspace/{filename}",
+        "run_command": "/workspace/a.out",
+    },
+    "rust": {
+        "base_image": "rust:1.78-slim-bookworm",
+        "compile_command": "rustc /workspace/{filename} -o /workspace/a.out",
+        "run_command": "/workspace/a.out",
+    },
+    "csharp": {
+        "base_image": "mcr.microsoft.com/dotnet/sdk:8.0",
+        "compile_command": "dotnet-script /workspace/{filename}",
+        "run_command": "",  # dotnet-script compiles + runs in one step
+    },
+    "c#": {
+        "base_image": "mcr.microsoft.com/dotnet/sdk:8.0",
+        "compile_command": "dotnet-script /workspace/{filename}",
+        "run_command": "",
+    },
+}
 
 
 async def _check_docker_available(docker_bin: str = "docker") -> bool:
@@ -54,13 +93,13 @@ async def run_runtime_qc(
             filename=filename,
             reason="No generated code artifact to execute.",
         )
-    if normalized_language not in _EXECUTABLE_LANGUAGES:
+    if normalized_language not in _ALL_LIVE_LANGUAGES:
         return _dry_run_report(
             mission_id=mission_id,
             language=normalized_language,
             filename=filename,
             testdata_manifest=testdata_manifest,
-            reason=f"Live execution not supported for {normalized_language} in Slice A.",
+            reason=f"Live execution not supported for {normalized_language}.",
         )
     docker_bin = str(getattr(settings, "docker_bin", "docker") or "docker")
     if not await _check_docker_available(docker_bin):
@@ -71,6 +110,23 @@ async def run_runtime_qc(
             testdata_manifest=testdata_manifest,
             reason="Docker not available.",
         )
+    # Inject compiled-language defaults into the testdata manifest when the
+    # language has a known compile-then-run config and the manifest doesn't
+    # already specify a base_image.
+    if normalized_language in _COMPILED_LANGUAGES:
+        compiled_cfg = _COMPILED_LANGUAGE_CONFIG.get(normalized_language, {})
+        if compiled_cfg and not testdata_manifest.get("base_image"):
+            testdata_manifest = {**testdata_manifest}
+            testdata_manifest.setdefault("base_image", compiled_cfg["base_image"])
+            if compiled_cfg.get("run_command"):
+                run_cmd = (
+                    compiled_cfg["compile_command"].format(filename=filename)
+                    + " && "
+                    + compiled_cfg["run_command"]
+                )
+            else:
+                run_cmd = compiled_cfg["compile_command"].format(filename=filename)
+            testdata_manifest.setdefault("run_command", run_cmd)
     return await _execute_in_sandbox(
         docker_bin=docker_bin,
         mission_id=mission_id,
