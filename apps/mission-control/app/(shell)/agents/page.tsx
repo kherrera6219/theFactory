@@ -12,6 +12,7 @@ import {
   parseLiveStateStreamMessage,
 } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
+import { useLastRefreshed } from "../../lib/use-last-refreshed";
 import type { AgentRuntimeClass, OperationsAgentRecord, OperationsAgentsSnapshot } from "../../lib/types";
 
 const POLL_INTERVAL_MS = 2000;
@@ -67,6 +68,7 @@ export default function AgentsPage() {
   const [agentLogs, setAgentLogs] = useState<AgentLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastSnapshotAt, setLastSnapshotAt] = useState<string | null>(null);
   const [transportMode, setTransportMode] = useState<"stream" | "poll">("poll");
   const [streamEventsSeen, setStreamEventsSeen] = useState(0);
   const [streamErrors, setStreamErrors] = useState(0);
@@ -74,6 +76,7 @@ export default function AgentsPage() {
   const [agentTableScrollTop, setAgentTableScrollTop] = useState(0);
   const [agentLogScrollTop, setAgentLogScrollTop] = useState(0);
   const lastStreamRefreshRef = useRef(0);
+  const lastSnapshotLabel = useLastRefreshed(lastSnapshotAt);
 
   const load = useCallback(async () => {
     setError(null);
@@ -84,6 +87,7 @@ export default function AgentsPage() {
         eventLimit: 500,
       });
       setSnapshot(data);
+      setLastSnapshotAt(new Date().toISOString());
       const generatedAt = data.generated_at;
       const heartbeatLogs: AgentLogEntry[] = data.agents.map((agent) => ({
         id: `heartbeat-${generatedAt}-${agent.agent_id}`,
@@ -541,10 +545,13 @@ export default function AgentsPage() {
         )}
       </Panel>}
 
-      <Panel title="Agent Grid">
+      <Panel
+        title="Agent Grid"
+        actions={lastSnapshotLabel ? <span className="last-refreshed">{lastSnapshotLabel}</span> : undefined}
+      >
         <p className="muted">
           Showing {filteredAgents.length} of {agents.length} agents. Windowed rows: {virtualizedAgents.rows.length}.
-          Last refresh: {snapshot ? formatDateTime(snapshot.generated_at) : "n/a"}.
+          Last snapshot: {snapshot ? formatDateTime(snapshot.generated_at) : "n/a"}.
         </p>
         <div
           className="table-wrap virtualized-table-wrap"

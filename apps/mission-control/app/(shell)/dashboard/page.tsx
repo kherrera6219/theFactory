@@ -7,6 +7,7 @@ import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, MetricCard, StatusBadge, SystemMessage } from "../../components/status";
 import { humanizeState } from "../../lib/format";
+import { useLastRefreshed } from "../../lib/use-last-refreshed";
 import { getGatewayHealth, getGatewayReadyState, listMissions } from "../../lib/api-client";
 import type { GatewayHealth, MissionRecord } from "../../lib/types";
 
@@ -27,7 +28,9 @@ export default function DashboardPage() {
   const [readyState, setReadyState] = useState<{ ready: boolean; detail?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchAt, setLastFetchAt] = useState<string | null>(null);
 
+  const lastRefreshedLabel = useLastRefreshed(lastFetchAt);
   const stateSummary = useMemo(() => summarizeStates(missions), [missions]);
 
   useEffect(() => {
@@ -45,6 +48,7 @@ export default function DashboardPage() {
           setMissions(data);
           setHealth(healthData);
           setReadyState(ready);
+          setLastFetchAt(new Date().toISOString());
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -72,7 +76,10 @@ export default function DashboardPage() {
         description="Open mission control and assess system health before launching the next mission."
       />
 
-      <Panel title="System Health Snapshot">
+      <Panel
+        title="System Health Snapshot"
+        actions={lastRefreshedLabel ? <span className="last-refreshed">{lastRefreshedLabel}</span> : undefined}
+      >
         {error && (
           <SystemMessage tone="critical" title="Mission metrics are unavailable">
             The UI is running, but the local gateway did not return dashboard data. Add API keys and start the runtime before the live-data review.

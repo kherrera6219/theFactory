@@ -118,6 +118,7 @@ export default function SettingsPage() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savePending, setSavePending] = useState(false);
+  const [slotSearch, setSlotSearch] = useState("");
   const [orchestratorOffline, setOrchestratorOffline] = useState(false);
 
   useEffect(() => {
@@ -229,6 +230,18 @@ export default function SettingsPage() {
     () => rows.some((row) => row.maskedPreview !== null || row.lastRotatedAt !== null || row.expiresAt !== null),
     [rows],
   );
+
+  /** Search-filtered rows for the vault table. */
+  const filteredRows = useMemo(() => {
+    const q = slotSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (row) =>
+        row.slotId.toLowerCase().includes(q) ||
+        row.provider.toLowerCase().includes(q) ||
+        row.model.toLowerCase().includes(q),
+    );
+  }, [rows, slotSearch]);
 
   function updatePreference<K extends keyof LocalPreferences>(key: K, value: LocalPreferences[K]) {
     setPreferences((current) => ({ ...current, [key]: value }));
@@ -447,6 +460,14 @@ export default function SettingsPage() {
           Provider and GitHub keys are stored server-side in the configured vault backend and never
           returned in plaintext.
         </p>
+        <input
+          type="search"
+          className="table-search"
+          placeholder="Filter by slot ID, provider, or model…"
+          aria-label="Search vault slots"
+          value={slotSearch}
+          onChange={(e) => setSlotSearch(e.target.value)}
+        />
         <div className="table-wrap" tabIndex={0} aria-label="Scrollable API key vault slots table">
           <table className="data-table">
             <caption className="sr-only">Vault slots for all agents and operator integrations.</caption>
@@ -463,7 +484,7 @@ export default function SettingsPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {filteredRows.map((row) => (
                 <tr key={row.slotId}>
                   <td className="mono-id">{row.slotId}</td>
                   <td>{row.provider}</td>

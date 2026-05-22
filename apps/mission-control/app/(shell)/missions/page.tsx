@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import { CopyId } from "../../components/copy-id";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
+import { useLastRefreshed } from "../../lib/use-last-refreshed";
 import { createMission, getMission, getMissionEvents, listMissions } from "../../lib/api-client";
 import {
   ETA_BY_STATE,
@@ -82,6 +84,7 @@ function upsertMission(records: MissionRecord[], candidate: MissionRecord): Miss
 }
 
 export default function MissionsPage() {
+  const [missionName, setMissionName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [targetLanguage, setTargetLanguage] = useState<TargetLanguage>("python");
   const [missionType, setMissionType] = useState<MissionType>("BUILD_NEW");
@@ -102,8 +105,25 @@ export default function MissionsPage() {
   );
   const [pollFailures, setPollFailures] = useState(0);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [lastFetchAt, setLastFetchAt] = useState<string | null>(null);
 
+  const lastRefreshedLabel = useLastRefreshed(lastFetchAt);
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < 3;
+
+  /** Phase 2D — pre-populate the launch form from a previous mission. */
+  function duplicateMission(source: MissionRecord) {
+    setPrompt(source.prompt ?? "");
+    setMissionName(`Re-run: ${source.mission_id.slice(8, 16)}`);
+    if (source.mission_type) setMissionType(source.mission_type);
+    if (source.depth_mode) setDepthMode(source.depth_mode);
+    if (source.output_mode) setOutputMode(source.output_mode);
+    if (source.requested_target_language && TARGET_LANGUAGES.includes(source.requested_target_language as TargetLanguage)) {
+      setTargetLanguage(source.requested_target_language as TargetLanguage);
+    }
+    if (source.data_classification) setDataClassification(source.data_classification);
+    // Scroll the form panel into view so the operator can see what was pre-filled.
+    document.querySelector(".form-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
   const normalizedState = normalizeState(mission?.state);
   const progress = PROGRESS_BY_STATE[normalizedState] ?? 0;
   const etaText = ETA_BY_STATE[normalizedState] ?? "calculating";
@@ -126,6 +146,7 @@ export default function MissionsPage() {
     try {
       const data = await listMissions(MISSION_LIST_LIMIT);
       setRecentMissions(data);
+      setLastFetchAt(new Date().toISOString());
     } catch (error) {
       setMissionListError(error instanceof Error ? error.message : "Unable to load recent missions.");
     } finally {
@@ -182,10 +203,14 @@ export default function MissionsPage() {
         depth_mode: depthMode,
         output_mode: outputMode,
         data_classification: dataClassification,
-        metadata: { source: "mission-control-ui" },
+        metadata: {
+          source: "mission-control-ui",
+          ...(missionName.trim() ? { name: sanitizeUserText(missionName) } : {}),
+        },
       });
       setMission(created);
       setPrompt("");
+      setMissionName("");
       rememberSelectedMission(created.mission_id);
       upsertRecentMission(created);
       setSuccessNotice(`Mission ${created.mission_id} accepted and queued.`);
@@ -266,25 +291,47 @@ export default function MissionsPage() {
 
       <Panel className="form-panel" title="Launch Mission">
         <form onSubmit={submitMission}>
+          {/* Phase 2C — optional human-readable mission name */}
+          <div className="mission-name-field">
+            <label htmlFor="missionName">Mission name <span className="muted">(optional)</span></label>
+            <input
+              id="missionName"
+              type="text"
+              value={missionName}
+              onChange={(e) => setMissionName(e.target.value)}
+              placeholder="e.g. Payroll API v2 — refactor"
+              maxLength={120}
+            />
+          </div>
+
           <label htmlFor="prompt">Mission prompt</label>
           <p id="promptHelp" className="help-text">
-            Include intent, constraints, and expected outputs. Minimum 3 characters.
+            Describe the goal, constraints, and expected outputs of this mission. Minimum 3 characters.
           </p>
           <textarea
             id="prompt"
             value={prompt}
             onChange={(eventChange) => setPrompt(eventChange.target.value)}
-            placeholder="Build an internal API that translates payroll rules into testable logic nodes."
+            placeholder="Describe what you want to build, analyze, or transform. Include scope, constraints, and quality expectations."
             rows={6}
             required
             aria-describedby="promptHelp promptValidation"
             aria-invalid={promptTooShort}
           />
-          <p id="promptValidation" className={promptTooShort ? "field-error" : "help-text"}>
-            {promptTooShort
-              ? "Prompt is too short. Add enough context before submission."
-              : "Tip: include functional boundaries and quality expectations."}
-          </p>
+          {/* Phase 2L — char counter */}
+          <div className="prompt-footer">
+            <p id="promptValidation" className={promptTooShort ? "field-error" : "help-text"}>
+              {promptTooShort
+                ? "Prompt is too short. Add enough context before submission."
+                : "Tip: include functional boundaries and quality expectations."}
+            </p>
+            <span
+              className={`char-counter${prompt.length >= 2800 ? " at-limit" : prompt.length >= 2000 ? " warn" : ""}`}
+              aria-live="polite"
+            >
+              {prompt.length} / 3000
+            </span>
+          </div>
 
           <label htmlFor="missionType">Mission type</label>
           <p id="missionTypeHelp" className="help-text">
@@ -378,9 +425,14 @@ export default function MissionsPage() {
       <Panel
         title="My Recent Missions"
         actions={
-          <button type="button" className="secondary-button" onClick={() => void loadRecentMissions()}>
-            Refresh
-          </button>
+          <>
+            {lastRefreshedLabel && (
+              <span className="last-refreshed">{lastRefreshedLabel}</span>
+            )}
+            <button type="button" className="secondary-button" onClick={() => void loadRecentMissions()}>
+              Refresh
+            </button>
+          </>
         }
       >
         {missionListLoading && (
@@ -421,17 +473,33 @@ export default function MissionsPage() {
                       onClick={() => selectMission(item)}
                       aria-current={isActive ? "true" : undefined}
                     >
-                      <span className="mission-item-id mono-id">{item.mission_id}</span>
+                      {/* Phase 2C — show human name when available */}
+                      {(item.metadata as Record<string, unknown> | undefined)?.name
+                        ? <span className="mission-item-name">{String((item.metadata as Record<string, unknown>).name)}</span>
+                        : null}
+                      <span className="mono-id">{item.mission_id.slice(0, 8)}…</span>
                       <span className="mission-item-meta">
                         {humanizeState(item.state)} • {formatDateTime(item.created_at)}
                       </span>
                     </button>
-                    <Link
-                      href={`/missions/${item.mission_id}`}
-                      className="secondary-button shell-link-button mission-live-link"
-                    >
-                      View Live
-                    </Link>
+                    <div className="mission-item-actions">
+                      {/* Phase 2I — copy full mission ID to clipboard */}
+                      <CopyId id={item.mission_id} display={item.mission_id.slice(0, 8) + "…"} />
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        title="Pre-fill the launch form with this mission's settings"
+                        onClick={() => duplicateMission(item)}
+                      >
+                        Duplicate
+                      </button>
+                      <Link
+                        href={`/missions/${item.mission_id}`}
+                        className="secondary-button shell-link-button mission-live-link"
+                      >
+                        View Live
+                      </Link>
+                    </div>
                   </div>
                 </li>
               );

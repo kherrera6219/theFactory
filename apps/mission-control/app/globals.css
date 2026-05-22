@@ -250,7 +250,18 @@ a {
 }
 
 .mission-console {
+  /* Phase 2F — each column scrolls independently so the Recent Missions
+     panel stays visible while the operator fills out the form below. */
   grid-template-columns: 1.2fr 1fr;
+  align-items: start;
+  height: calc(100vh - 57px); /* subtract shell-header height */
+  overflow: hidden;
+}
+
+.mission-console > * {
+  height: 100%;
+  overflow-y: auto;
+  padding-bottom: 24px;
 }
 
 .panel {
@@ -282,16 +293,24 @@ a {
   font-size: 0.82rem;
 }
 
+/* Phase 3B — 5-level type hierarchy
+   Display (h1)     1.875rem/30px — page titles, 1.5× jump over h2
+   Heading (h2)     1.25rem/20px  — section titles
+   Sub-heading (h3) 1.0625rem/17px— card/panel titles (set in components)
+   Body             0.9375rem/15px— labels, field text
+   Caption/Micro    0.8125rem/13px— muted hints, timestamps              */
 h1 {
-  margin: 4px 0 6px;
-  font-size: 1.55rem;
+  margin: 4px 0 8px;
+  font-size: var(--text-3xl, 1.875rem);
+  font-weight: 700;
   line-height: 1.15;
 }
 
 h2 {
   margin-top: 0;
   margin-bottom: 14px;
-  font-size: 1.25rem;
+  font-size: var(--text-xl, 1.25rem);
+  font-weight: 650;
 }
 
 .page-hero {
@@ -722,6 +741,18 @@ dd {
   white-space: nowrap;
 }
 
+.mission-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.mission-item-name {
+  font-size: var(--text-sm, 0.8125rem);
+  font-weight: 600;
+  color: var(--ink);
+}
+
 .mission-item-skeleton-main {
   display: grid;
   gap: 6px;
@@ -788,13 +819,17 @@ dd {
 .metric-card p {
   margin: 8px 0 2px;
   font-family: var(--font-mono), monospace;
-  font-size: 1.45rem;
-  color: var(--accent);
+  /* Phase 3D: was var(--accent)/purple — purple is for interactive elements only.
+     Metric numbers use ink (white in dark mode) so they don't look clickable. */
+  font-size: var(--text-3xl, 1.875rem);
+  font-weight: 700;
+  color: var(--ink);
 }
 
-.metric-card.critical p { color: #fca5a5; }
-.metric-card.healthy p { color: #86efac; }
-.metric-card.warning p { color: #fcd34d; }
+/* Tone overrides retain semantic color for non-neutral states */
+.metric-card.critical p { color: var(--danger); }
+.metric-card.healthy p  { color: var(--success); }
+.metric-card.warning p  { color: var(--warning); }
 
 .metric-card-header {
   display: flex;
@@ -1062,6 +1097,286 @@ dd {
 
 .empty-state-action {
   margin-top: 10px;
+}
+
+/* ── EmptyState variant system (Phase 2A) ──────────────────── */
+
+/* error — configuration failure, gateway down */
+.empty-state.error {
+  border: none;
+  border-left: 3px solid var(--danger);
+  background: var(--danger-bg);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.empty-state.error .empty-state-marker {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+.empty-state.error h3 { color: #fca5a5; }
+
+/* locked — sequential step not yet unlocked */
+.empty-state.locked {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  background: rgba(15, 23, 42, 0.25);
+  opacity: 0.75;
+}
+.empty-state.locked .empty-state-marker {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+.empty-state.locked h3 { color: var(--ink-muted); }
+
+/* empty — ready but no data yet */
+.empty-state.empty {
+  border-style: dashed;
+}
+
+/* offline — requires live backend */
+.empty-state.offline {
+  border: none;
+  border-left: 3px solid var(--warning);
+  background: var(--warning-bg);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.empty-state.offline .empty-state-marker {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+}
+.empty-state.offline h3 { color: #fcd34d; }
+
+/* ── CopyId component ────────────────────────────────────────── */
+.copy-id-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.copy-id-text {
+  /* inherits .mono-id styles */
+}
+
+.copy-id-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 120ms, background 120ms;
+  min-height: unset; /* override the global button min-height */
+}
+
+.copy-id-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+.copy-id-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* ── Refresh timestamp label ─────────────────────────────────── */
+.last-refreshed {
+  font-size: var(--text-xs, 0.6875rem);
+  color: var(--ink-dim);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ── Mission history aggregate pills ────────────────────────── */
+.mission-status-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.mission-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--text-xs, 0.6875rem);
+  font-weight: 600;
+}
+
+.mission-pill.complete { background: var(--success-bg); color: var(--success); }
+.mission-pill.running  { background: var(--info-bg);    color: var(--info); }
+.mission-pill.failed   { background: var(--danger-bg);  color: var(--danger); }
+.mission-pill.pending  { background: var(--bg-elevated); color: var(--ink-muted); }
+
+/* ── Chat history sidebar ────────────────────────────────────── */
+.chat-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.chat-history-sidebar {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: 12px;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+.chat-history-title {
+  margin: 0 0 10px;
+  font-size: var(--text-sm, 0.8125rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.chat-history-group-label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: var(--text-xs, 0.6875rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+}
+
+.chat-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.chat-history-item {
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 120ms;
+}
+
+.chat-history-item:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+
+.chat-history-item.active {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+}
+
+.chat-history-item-title {
+  display: block;
+  font-size: var(--text-sm, 0.8125rem);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-history-item-meta {
+  display: block;
+  font-size: var(--text-xs, 0.6875rem);
+  color: var(--ink-muted);
+  margin-top: 1px;
+}
+
+/* ── Mission name field ──────────────────────────────────────── */
+.mission-name-field {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+/* ── Prompt char counter ─────────────────────────────────────── */
+.prompt-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.char-counter {
+  font-size: var(--text-xs, 0.6875rem);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.char-counter.warn { color: var(--warning); }
+.char-counter.at-limit { color: var(--danger); }
+
+/* ── Database retry button ───────────────────────────────────── */
+.db-card-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Settings search ─────────────────────────────────────────── */
+.table-search {
+  margin-bottom: 10px;
+  width: 100%;
+  max-width: 360px;
+}
+
+/* ── Mission detail tabs ─────────────────────────────────────── */
+.mission-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mission-tabs::-webkit-scrollbar { display: none; }
+
+.mission-tab {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: var(--text-sm, 0.8125rem);
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: unset;
+  transform: none;
+  transition: color 120ms, border-color 120ms;
+}
+
+.mission-tab:hover {
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+.mission-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.mission-tab-panels {
+  display: grid;
+  gap: 16px;
 }
 
 .filters-grid {
@@ -1720,4 +2035,37 @@ dd {
   100% {
     background-position: -20% 0;
   }
+}
+
+/* ── Mission History page ─────────────────────────────────────── */
+
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.history-count {
+  font-size: 0.84rem;
+  margin: 0 0 10px;
+}
+
+/* ── Pagination bar ──────────────────────────────────────────── */
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 0 4px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.pagination-bar .muted {
+  min-width: 100px;
+  text-align: center;
 }

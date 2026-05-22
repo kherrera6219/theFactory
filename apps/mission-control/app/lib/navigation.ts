@@ -21,6 +21,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/", label: "Home", description: "Launch pad and system health" },
       { href: "/chat", label: "Chat", description: "PM Agent conversation and mission intake" },
       { href: "/missions", label: "Missions", description: "Mission lifecycle control center" },
+      { href: "/missions/history", label: "History", description: "Full mission archive with filtering" },
     ],
   },
   {

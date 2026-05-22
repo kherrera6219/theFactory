@@ -103,6 +103,7 @@ export default function MissionDetailPage() {
   const [streamErrors, setStreamErrors] = useState(0);
   const [pollFallbackTicks, setPollFallbackTicks] = useState(0);
   const [tokenUsage, setTokenUsage] = useState<LlmUsageSummary | null>(null);
+  const [activeTab, setActiveTab] = useState<"execution" | "artifacts" | "contracts" | "events">("execution");
   const lastStreamRefreshRef = useRef(0);
 
   const loadDetails = useCallback(async () => {
@@ -435,118 +436,83 @@ export default function MissionDetailPage() {
         </ol>
       </Panel>
 
-      <div className="mission-detail-grid">
-        <ErrorBoundary>
-          <MissionSignalsPanel
-            loading={loading}
-            mission={mission}
-            chainTrace={chainTrace}
-            lifecycleEngine={lifecycleEngine}
-            phaseLabel={phaseLabel}
-            phaseName={phaseName}
-            lastUpdatedAt={lastUpdatedAt}
-            transportMode={transportMode}
-            streamEventsSeen={streamEventsSeen}
-            streamErrors={streamErrors}
-            pollFallbackTicks={pollFallbackTicks}
-          />
-        </ErrorBoundary>
+      {/* Phase 2B — Tabbed progressive disclosure replacing the flat 22-panel grid */}
+      <div className="mission-tabs" role="tablist" aria-label="Mission detail sections">
+        {(["execution", "artifacts", "contracts", "events"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            aria-controls={`tab-panel-${tab}`}
+            className={`mission-tab${activeTab === tab ? " active" : ""}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+      </div>
 
-        <ErrorBoundary>
-          <LogicNodeProgressPanel
-            missionId={missionId}
-            logicNodes={logicNodes}
-            verifiedCount={verifiedCount}
-            avgConfidence={avgConfidence}
-          />
-        </ErrorBoundary>
+      {/* Execution tab — live signals, node progress, active agents */}
+      <div
+        id="tab-panel-execution"
+        role="tabpanel"
+        aria-labelledby="tab-execution"
+        hidden={activeTab !== "execution"}
+        className="mission-tab-panels"
+      >
+        <ErrorBoundary><MissionSignalsPanel loading={loading} mission={mission} chainTrace={chainTrace} lifecycleEngine={lifecycleEngine} phaseLabel={phaseLabel} phaseName={phaseName} lastUpdatedAt={lastUpdatedAt} transportMode={transportMode} streamEventsSeen={streamEventsSeen} streamErrors={streamErrors} pollFallbackTicks={pollFallbackTicks} /></ErrorBoundary>
+        <ErrorBoundary><LogicNodeProgressPanel missionId={missionId} logicNodes={logicNodes} verifiedCount={verifiedCount} avgConfidence={avgConfidence} /></ErrorBoundary>
+        <ErrorBoundary><ChainOfCommandTracePanel chainTrace={chainTrace} /></ErrorBoundary>
+        <ErrorBoundary><ActiveAgentsPanel activeAgents={activeAgents} /></ErrorBoundary>
+        <ErrorBoundary><CostPanel tokenUsage={tokenUsage} /></ErrorBoundary>
+      </div>
 
-        <ErrorBoundary>
-          <CostPanel tokenUsage={tokenUsage} />
-        </ErrorBoundary>
+      {/* Artifacts tab — generated output, build artifacts, audit evidence, quality reports */}
+      <div
+        id="tab-panel-artifacts"
+        role="tabpanel"
+        aria-labelledby="tab-artifacts"
+        hidden={activeTab !== "artifacts"}
+        className="mission-tab-panels"
+      >
+        <ErrorBoundary><GeneratedOutputPanel missionId={missionId} generatedCodeArtifact={generatedCodeArtifact} /></ErrorBoundary>
+        <ErrorBoundary><DeliveryPanel buildArtifacts={buildArtifacts} /></ErrorBoundary>
+        <ErrorBoundary><AuditEvidencePanel auditReports={auditReports} /></ErrorBoundary>
+        <ErrorBoundary><AimPanel applicationIntelligenceMap={applicationIntelligenceMap as any} /></ErrorBoundary>
+        <ErrorBoundary><FusionPanel masterLogicStream={masterLogicStream} /></ErrorBoundary>
+        <ErrorBoundary><KnowledgeLakePanel fetchResult={fetchResult} /></ErrorBoundary>
+        <ErrorBoundary><EquivalenceReportPanel equivalenceReport={equivalenceReport} /></ErrorBoundary>
+        <ErrorBoundary><SecurityCompliancePanel securityComplianceReport={securityComplianceReport as any} /></ErrorBoundary>
+        <ErrorBoundary><DependencyAbsorptionPanel dependencyInventory={dependencyInventory} dependencyClassificationReport={dependencyClassificationReport} dependencyAbsorptionReport={dependencyAbsorptionReport} depabsExecution={depabsExecution} sbomDelta={sbomDelta} dependencySurvivalJustifications={dependencySurvivalJustifications} /></ErrorBoundary>
+        <ErrorBoundary><RuntimeQcPanel runtimeQcReport={runtimeQcReport} testdataManifest={testdataManifest} /></ErrorBoundary>
+      </div>
 
-        <ErrorBoundary>
-          <ChainOfCommandTracePanel chainTrace={chainTrace} />
-        </ErrorBoundary>
+      {/* Contracts tab — planning artifacts and specifications */}
+      <div
+        id="tab-panel-contracts"
+        role="tabpanel"
+        aria-labelledby="tab-contracts"
+        hidden={activeTab !== "contracts"}
+        className="mission-tab-panels"
+      >
+        <ErrorBoundary><PmFeatureContractPanel featureContract={featureContract} /></ErrorBoundary>
+        <ErrorBoundary><MissionCharterPanel missionCharter={missionCharter as any} /></ErrorBoundary>
+        <ErrorBoundary><MissionContractPanel missionContract={missionContract} /></ErrorBoundary>
+        <ErrorBoundary><PodGroupStandardsPanel podGroupStandards={podGroupStandards} /></ErrorBoundary>
+        <ErrorBoundary><LogicClustersPanel logicClusters={logicClusters} /></ErrorBoundary>
+        <ErrorBoundary><RouteProvenancePanel chainTrace={chainTrace} /></ErrorBoundary>
+      </div>
 
-        <ErrorBoundary>
-          <RouteProvenancePanel chainTrace={chainTrace} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <PmFeatureContractPanel featureContract={featureContract} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <MissionCharterPanel missionCharter={missionCharter as any} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <AimPanel applicationIntelligenceMap={applicationIntelligenceMap as any} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <MissionContractPanel missionContract={missionContract} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <LogicClustersPanel logicClusters={logicClusters} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <PodGroupStandardsPanel podGroupStandards={podGroupStandards} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <KnowledgeLakePanel fetchResult={fetchResult} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <FusionPanel masterLogicStream={masterLogicStream} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <ActiveAgentsPanel activeAgents={activeAgents} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <GeneratedOutputPanel missionId={missionId} generatedCodeArtifact={generatedCodeArtifact} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <DeliveryPanel buildArtifacts={buildArtifacts} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <EquivalenceReportPanel equivalenceReport={equivalenceReport} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <SecurityCompliancePanel securityComplianceReport={securityComplianceReport as any} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <DependencyAbsorptionPanel
-            dependencyInventory={dependencyInventory}
-            dependencyClassificationReport={dependencyClassificationReport}
-            dependencyAbsorptionReport={dependencyAbsorptionReport}
-            depabsExecution={depabsExecution}
-            sbomDelta={sbomDelta}
-            dependencySurvivalJustifications={dependencySurvivalJustifications}
-          />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <RuntimeQcPanel runtimeQcReport={runtimeQcReport} testdataManifest={testdataManifest} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <AuditEvidencePanel auditReports={auditReports} />
-        </ErrorBoundary>
-
-        <ErrorBoundary>
-          <MissionEventLogPanel events={events} model={phaseDescriptor.model} />
-        </ErrorBoundary>
+      {/* Events tab — mission event log */}
+      <div
+        id="tab-panel-events"
+        role="tabpanel"
+        aria-labelledby="tab-events"
+        hidden={activeTab !== "events"}
+        className="mission-tab-panels"
+      >
+        <ErrorBoundary><MissionEventLogPanel events={events} model={phaseDescriptor.model} /></ErrorBoundary>
       </div>
     </div>
   );
