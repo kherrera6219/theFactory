@@ -117,6 +117,7 @@ export default function SettingsPage() {
   const [slotError, setSlotError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savePending, setSavePending] = useState(false);
   const [orchestratorOffline, setOrchestratorOffline] = useState(false);
 
   useEffect(() => {
@@ -223,6 +224,12 @@ export default function SettingsPage() {
     [rows, selectedSlotId],
   );
 
+  /** True when at least one row has a configured key — reveals the masked/rotation/expiry columns. */
+  const hasAnyKeyData = useMemo(
+    () => rows.some((row) => row.maskedPreview !== null || row.lastRotatedAt !== null || row.expiresAt !== null),
+    [rows],
+  );
+
   function updatePreference<K extends keyof LocalPreferences>(key: K, value: LocalPreferences[K]) {
     setPreferences((current) => ({ ...current, [key]: value }));
   }
@@ -244,9 +251,16 @@ export default function SettingsPage() {
       memoryLimitPct: clampNumber(preferences.memoryLimitPct, 10, 100),
     };
 
-    setPreferences(normalized);
-    window.localStorage.setItem("mission-control:preferences", JSON.stringify(normalized));
-    setSaveMessage("Local runtime preferences saved.");
+    setSavePending(true);
+    try {
+      setPreferences(normalized);
+      window.localStorage.setItem("mission-control:preferences", JSON.stringify(normalized));
+      setSaveMessage("Preferences saved.");
+    } catch {
+      setSaveError("Failed to save preferences — localStorage may be unavailable.");
+    } finally {
+      setSavePending(false);
+    }
   }
 
   async function saveVaultSlot() {
@@ -442,16 +456,16 @@ export default function SettingsPage() {
                 <th scope="col">Provider</th>
                 <th scope="col">Model</th>
                 <th scope="col">Status</th>
-                <th scope="col">Masked</th>
-                <th scope="col">Last Rotated</th>
-                <th scope="col">Expires</th>
+                {hasAnyKeyData && <th scope="col">Masked</th>}
+                {hasAnyKeyData && <th scope="col">Last Rotated</th>}
+                {hasAnyKeyData && <th scope="col">Expires</th>}
                 <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.slotId}>
-                  <td>{row.slotId}</td>
+                  <td className="mono-id">{row.slotId}</td>
                   <td>{row.provider}</td>
                   <td>{row.model}</td>
                   <td>
@@ -469,9 +483,9 @@ export default function SettingsPage() {
                       {describeVaultStatus(row.status)}
                     </StatusBadge>
                   </td>
-                  <td>{row.maskedPreview ?? "n/a"}</td>
-                  <td>{row.lastRotatedAt ? formatDateTime(row.lastRotatedAt) : "n/a"}</td>
-                  <td>{row.expiresAt ? formatDateTime(row.expiresAt) : "n/a"}</td>
+                  {hasAnyKeyData && <td>{row.maskedPreview ?? "—"}</td>}
+                  {hasAnyKeyData && <td>{row.lastRotatedAt ? formatDateTime(row.lastRotatedAt) : "—"}</td>}
+                  {hasAnyKeyData && <td>{row.expiresAt ? formatDateTime(row.expiresAt) : "—"}</td>}
                   <td>
                     <button
                       type="button"
@@ -482,7 +496,7 @@ export default function SettingsPage() {
                         setSlotError(null);
                       }}
                     >
-                      Select
+                      Configure
                     </button>
                   </td>
                 </tr>
@@ -582,8 +596,13 @@ export default function SettingsPage() {
           </button>
         }
       >
-        <button type="button" onClick={savePreferences}>
-          Save Runtime Preferences
+        <button
+          type="button"
+          className="primary-button"
+          disabled={savePending}
+          onClick={savePreferences}
+        >
+          {savePending ? "Saving…" : saveMessage ? "✓ Saved" : "Save Runtime Preferences"}
         </button>
         {saveError && (
           <SystemMessage tone="critical" title="Preferences were not saved">

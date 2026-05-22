@@ -36,7 +36,7 @@ export function KeyboardShortcuts() {
       const key = event.key.toLowerCase();
       const ctrl = event.ctrlKey || event.metaKey;
 
-      if (ctrl && event.shiftKey && key === "/") {
+      if (ctrl && key === "?") {
         event.preventDefault();
         setOpen((current) => !current);
         return;

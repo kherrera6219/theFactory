@@ -408,8 +408,16 @@ export default function AgentsPage() {
 
       <Panel title="Runtime Dependencies">
         {error && (
-          <SystemMessage tone="critical" title="Agent telemetry is unavailable">
-            {error} The grid will populate when the local orchestrator and dependency services are running.
+          <SystemMessage
+            tone="critical"
+            title="Agent telemetry is unavailable"
+            action={
+              <Link href="/settings" className="secondary-button shell-link-button">
+                Configure in Settings →
+              </Link>
+            }
+          >
+            {error} Ensure the backend gateway is running and API keys are configured.
           </SystemMessage>
         )}
         {!error && snapshot && (
@@ -495,7 +503,8 @@ export default function AgentsPage() {
         )}
       </Panel>
 
-      <Panel title="Agent and Mission Snapshot">
+      {/* Suppress snapshot + distribution panels entirely when telemetry is unavailable */}
+      {!error && <Panel title="Agent and Mission Snapshot">
         {loading && <p className="muted">Loading pod workload summary...</p>}
         {!loading && snapshot && (
           <ul className="summary-list">
@@ -517,9 +526,9 @@ export default function AgentsPage() {
             </li>
           </ul>
         )}
-      </Panel>
+      </Panel>}
 
-      <Panel title="State Distribution">
+      {!error && <Panel title="State Distribution">
         {!loading && snapshot && (
           <ul className="summary-list">
             {Object.entries(snapshot.state_counts).map(([state, count]) => (
@@ -530,7 +539,7 @@ export default function AgentsPage() {
             ))}
           </ul>
         )}
-      </Panel>
+      </Panel>}
 
       <Panel title="Agent Grid">
         <p className="muted">

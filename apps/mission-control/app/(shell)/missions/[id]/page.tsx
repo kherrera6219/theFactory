@@ -310,9 +310,12 @@ export default function MissionDetailPage() {
     }
     const confirmed = await confirm({
       title: "Cancel Mission?",
-      message: "Cancel mission? This operation marks the mission as FAILED in the current backend workflow.",
-      confirmText: "Cancel Mission",
-      cancelText: "Dismiss",
+      message:
+        `This will immediately stop all active agents for mission ${mission.mission_id.slice(0, 16)}…` +
+        " Any work in progress will be lost and the mission will be marked FAILED. This cannot be undone.",
+      confirmText: "Yes, Cancel Mission",
+      cancelText: "Keep Running",
+      dangerous: true,
     });
     if (!confirmed) {
       return;
@@ -354,7 +357,11 @@ export default function MissionDetailPage() {
     <div className="page shell-page">
       <PageHeader
         eyebrow="Mission Detail"
-        title={mission ? `Mission ${mission.mission_id}` : "Mission Detail"}
+        title={
+          mission ? (
+            <>Mission <span className="mono-id">{mission.mission_id}</span></>
+          ) : "Mission Detail"
+        }
         description={
           mission
             ? `Status ${humanizeState(mission.state)}. Live mission diagnostics for phases, active agents, and extracted LogicNodes.`
@@ -368,7 +375,7 @@ export default function MissionDetailPage() {
             <button type="button" className="secondary-button" onClick={pauseMonitor}>
               {pausedMonitor ? "Resume Monitor" : "Pause Monitor"}
             </button>
-            <button type="button" onClick={() => void cancelMission()}>
+            <button type="button" className="danger-button" onClick={() => void cancelMission()}>
               Cancel Mission
             </button>
           </div>

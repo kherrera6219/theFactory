@@ -30,10 +30,12 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
         <header className="shell-header">
           <ShellHeaderMeta />
           <div className="shell-header-actions">
-            <div className="shell-runtime-summary" aria-label="Runtime summary">
-              <StatusBadge tone="warning">Offline-ready</StatusBadge>
-              <span className="muted">Live data requires API keys/runtime</span>
-            </div>
+            <StatusBadge
+              tone="warning"
+              label="Offline-ready — live data requires API keys and a running local runtime"
+            >
+              Offline-ready
+            </StatusBadge>
             <Link href="/chat" className="primary-button shell-link-button">
               New Mission
             </Link>

@@ -126,12 +126,33 @@ a {
   margin: 8px 0 6px;
 }
 
+.shell-nav-group {
+  margin-top: 4px;
+}
+
+.shell-nav-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 14px 0 0;
+}
+
+.shell-nav-group-label {
+  display: block;
+  margin: 12px 0 4px 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  user-select: none;
+}
+
 .shell-nav-list {
   list-style: none;
-  margin: 18px 0 0;
+  margin: 4px 0 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .shell-nav-item {
@@ -197,12 +218,13 @@ a {
   align-items: center;
 }
 
-.shell-runtime-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 8px;
+/* .shell-runtime-summary removed — badge now sits inline in shell-header-actions */
+/* StatusBadge in the header gets a right separator to visually group it from buttons */
+.shell-header-actions > .status-badge {
+  padding-right: 12px;
+  margin-right: 4px;
   border-right: 1px solid var(--border);
+  cursor: help;
 }
 
 .shell-main {
@@ -405,6 +427,85 @@ button:disabled {
 .secondary-button:hover:not(:disabled) {
   background: var(--accent-glow);
   border-color: var(--accent);
+}
+
+.danger-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-control);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+  color: #fff;
+  border: 1px solid transparent;
+  background: var(--danger);
+}
+
+.danger-button:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 0 16px var(--danger-bg);
+}
+
+/* ── Monospace identifier utility ─────────────────────────── */
+.mono-id {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85em;
+  letter-spacing: -0.01em;
+  word-break: break-all;
+}
+
+/* ── Confirm dialog ────────────────────────────────────────── */
+.confirm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
+}
+
+.confirm-dialog {
+  width: min(440px, 92vw);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.confirm-dialog-body {
+  padding: 24px;
+}
+
+.confirm-dialog-body h3 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.confirm-dialog-body p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 24px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
 }
 
 button:focus-visible,

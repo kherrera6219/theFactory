@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 
 type PageHeaderProps = {
   eyebrow: string;
-  title: string;
+  /** Accepts a ReactNode so callers can embed styled spans (e.g. mono-id for UUIDs). */
+  title: ReactNode;
   description: string;
   actions?: ReactNode;
   compact?: boolean;

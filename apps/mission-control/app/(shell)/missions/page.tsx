@@ -421,7 +421,7 @@ export default function MissionsPage() {
                       onClick={() => selectMission(item)}
                       aria-current={isActive ? "true" : undefined}
                     >
-                      <span className="mission-item-id">{item.mission_id}</span>
+                      <span className="mission-item-id mono-id">{item.mission_id}</span>
                       <span className="mission-item-meta">
                         {humanizeState(item.state)} • {formatDateTime(item.created_at)}
                       </span>
