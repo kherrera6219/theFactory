@@ -56,8 +56,12 @@ Check off `[x]` as items complete. Each item maps to a numbered section in
   `.env.example`. Run a live mission and confirm knowledge retrieval returns
   semantically relevant results. Fall back to `deterministic` if retrieval quality
   degrades.
-  _Files: `services/orchestrator/orchestrator/knowledge_embeddings.py`,
-  `services/orchestrator/orchestrator/settings.py`_
+  **Implementation note (code-ready):** In `settings.py` line 48–49 change defaults from
+  `"deterministic"` / `"deterministic-hash-v1"` to `"gemini"` / `"text-embedding-004"`.
+  Update `.env.example` line `KNOWLEDGE_EMBEDDING_PROVIDER=deterministic` to `=gemini`.
+  `knowledge_embeddings.py` already has a working Gemini path — only the default needs
+  to flip. _Prerequisite: GEMINI_API_KEY set in `.env`._
+  _Files: `services/orchestrator/orchestrator/settings.py`, `.env.example`_
 
 - [x] **S1-05 — Flip equivalence enforcement on** ✅ DONE 2026-05-22
   Set `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED=true` as default after S1-01 confirms
@@ -196,6 +200,15 @@ LLM calls behind them.
   that require a supporting service (e.g. web app + Postgres). Generate a
   `docker-compose.rqca.yml` from the manifest. `rqca_agent.py` spins up the compose
   stack, runs tests against it, tears it down.
+  **Implementation note (code-ready):**
+  1. Add `multi_container: bool` + `services: list[dict]` fields to `generate_testdata_manifest()`
+     output when the LLM detects a multi-service architecture.
+  2. Add `_build_rqca_compose_yml(manifest) -> str` helper in `rqca_agent.py` that
+     converts the `services` list into a minimal docker-compose YAML string.
+  3. In `_execute_in_sandbox()`, when `manifest.get("multi_container")` is True, write
+     the compose file to tmpdir and run `docker compose -f docker-compose.rqca.yml up
+     --abort-on-container-exit --exit-code-from test-runner` instead of single-container
+     `docker run`. Tear down with `docker compose down` in a finally block.
   _Files: `services/orchestrator/orchestrator/testdata_agent.py`,
   `services/orchestrator/orchestrator/rqca_agent.py`_
 
@@ -212,9 +225,17 @@ LLM calls behind them.
   into the Neo4j adapter so dependency relationships are stored as graph edges. Use the
   graph in FUSION phase to determine optimal LogicNode processing order based on
   dependency depth.
-  _Files: `services/orchestrator/orchestrator/knowledge_graph.py` (or create),
-  `services/orchestrator/orchestrator/mission_flow_v2.py`,
-  `services/orchestrator/orchestrator/settings.py`_
+  **Implementation note (code-ready):**
+  `neo4j_store.py` already has `upsert_knowledge()` and `list_mission_graph()`. Missing piece:
+  a `upsert_logicnode()` function in `neo4j_store.py` that creates `(:LogicNode)` nodes with
+  `DEPENDS_ON` edges derived from `node.get("dependencies")`. Then in
+  `storage_logicnodes.py::upsert_logicnode()` call `neo4j_store.upsert_logicnode()` when
+  `settings.neo4j_enabled`. In `_prepare_fusion()` in `mission_flow_v2.py`, when neo4j is
+  enabled, query `neo4j_store.list_mission_graph()` and sort `pod_group_standards` nodes
+  by graph dependency depth before passing to `generate_master_logic_stream()`.
+  _Files: `services/orchestrator/orchestrator/neo4j_store.py`,
+  `services/orchestrator/orchestrator/storage_logicnodes.py`,
+  `services/orchestrator/orchestrator/mission_flow_v2.py`_
 
 - [ ] **S4-05 — Object storage for large artifacts**
   Set `OBJECT_STORAGE_ENABLED=true` and configure `OBJECT_STORAGE_ENDPOINT` in `.env`.
@@ -222,8 +243,20 @@ LLM calls behind them.
   size exceeds a configurable threshold (`OBJECT_STORAGE_SIZE_THRESHOLD_BYTES`).
   Update `GET /v1/missions/{id}/artifact` to serve from object storage when the
   backend field indicates S3.
-  _Files: `services/orchestrator/orchestrator/storage/artifacts.py`,
-  `services/orchestrator/orchestrator/routes/missions.py`_
+  **Implementation note (code-ready):**
+  `object_store.py` already has `put_object()` and `get_presigned_url()`. Missing pieces:
+  1. In `storage_artifacts.py::upsert_build_artifact()`, when `settings.object_storage_enabled`
+     and `len(artifact_text or "") > settings.object_storage_size_threshold_bytes`, call
+     `object_store.put_object(settings, key=f"artifacts/{mission_id}/{artifact_id}", ...)`,
+     set `storage_backend="s3"` and `storage_ref=key` on the DB record, clear `artifact_text`.
+  2. Add `GET /v1/missions/{id}/artifact/{artifact_id}` route in `routes/missions.py` that
+     returns a presigned URL when `storage_backend == "s3"`, or artifact_text directly otherwise.
+  3. Add `OBJECT_STORAGE_SIZE_THRESHOLD_BYTES=524288` (512 KB default) to `settings.py` and
+     `.env.example`.
+  _Files: `services/orchestrator/orchestrator/storage_artifacts.py`,
+  `services/orchestrator/orchestrator/object_store.py`,
+  `services/orchestrator/orchestrator/routes/missions.py`,
+  `services/orchestrator/orchestrator/settings.py`_
 
 - [ ] **S4-06 — Live qualification evidence refresh**
   With the live stack running, execute:
@@ -258,17 +291,63 @@ LLM calls behind them.
 
 ---
 
+## SPRINT 5 — Live-Stack Validation (requires real API keys + running Docker stack)
+**Goal:** Prove every implemented feature works against a live runtime, not just tests.
+These items cannot be completed with code alone — they require `make up` + real credentials.
+
+- [ ] **S5-01 — Live BUILD_NEW demo** _(was S1-01)_
+  Run `python scripts/demo_missions.py --live` with `OPENAI_API_KEY` or
+  `ANTHROPIC_API_KEY` set in `.env`. A BUILD_NEW mission must reach `COMPLETE` with
+  non-empty `generated_code` in the chain trace.
+  Record evidence: `docs/evidence/live_demo_sprint5_YYYY-MM-DD.json`
+  _Prerequisite: `make up`, real provider key in `.env`_
+
+- [ ] **S5-02 — Token cost ledger live activation** _(was S1-02)_
+  Run V007 migration (`psql` or `make migrate`). Confirm `llm_usage_events` is
+  populated after a live mission. Render Cost panel in Mission Control with real data.
+  _Prerequisite: S5-01 complete_
+
+- [ ] **S5-03 — Gemini embeddings live validation** _(was S1-04)_
+  Set `GEMINI_API_KEY` in `.env` and `KNOWLEDGE_EMBEDDING_PROVIDER=gemini`. Run
+  S5-01 again and confirm knowledge retrieval returns semantically relevant results.
+  _Prerequisite: S5-01 complete, GEMINI_API_KEY available_
+
+- [ ] **S5-04 — PORT two-phase live demo** _(was S3-04)_
+  Take an open-source project (SDL2 game, Windows utility). Run a PORT mission
+  targeting Linux/macOS. Confirm `port_source_logicnodes` and `generated_code` are
+  non-empty. Record chain trace as evidence.
+  _Prerequisite: S5-01 complete_
+
+- [ ] **S5-05 — Agent scaling live validation** _(was S4-03)_
+  Run a mission with a 20+ file source bundle and `AGENT_SCALING_ENABLED=true`.
+  Confirm partition splitting, parallel processing, and result merge all work.
+  _Prerequisite: S5-01 complete_
+
+- [ ] **S5-06 — Live qualification evidence refresh** _(was S4-06)_
+  `make promotion-gate` → `reports/promotion-gate.local.json`.
+  `make qualification-gate-summary` → `reports/qualification-gate-summary.local.json`.
+  Commit updated evidence. (Last refresh: March 2026.)
+  _Prerequisite: S5-01 complete_
+
+- [ ] **S5-07 — Long-duration reliability re-qualification** _(was S4-08)_
+  `python scripts/long_duration_reliability_qualification.py --output docs/evidence/reliability_qualification_phase28_YYYY-MM-DD.json`
+  (current baseline predates the intelligence layer)
+  _Prerequisite: S5-01 complete, stack running for 4+ hours_
+
+---
+
 ## Completion Definition
 
 The application is **fully complete** when:
 
-- [ ] S1-01 passes (live demo with real provider keys, COMPLETE + generated_code)
-- [ ] All Sprint 1–2 items checked
+- [ ] S5-01 passes (live demo with real provider keys, COMPLETE + generated_code)
+- [ ] All Sprint 1–4 code items checked ✅ (S1-03, S1-05, S1-06, S2-01–S2-08, S3-01–S3-03, S4-01 all done)
+- [ ] Remaining code items done: S1-04, S4-02, S4-04, S4-05
 - [ ] `python scripts/production_review_audit.py` → 22/22 PASS (already true)
 - [ ] `python -m pytest tests/eval/ -q` → 97+ tests passing (already true)
 - [ ] `python -m ruff check services tests scripts` → clean (already true)
 - [ ] `npm run lint` → 0 errors (already true)
-- [ ] Sprint 3-4 items for any mission types targeted at launch
+- [ ] Sprint 5 live-stack items completed for any mission types targeted at launch
 - [ ] `docs/IMPLEMENTATION_STATUS.md` Open Work section empty or updated
 
 ---
@@ -280,4 +359,5 @@ The application is **fully complete** when:
 | 2026-05-20 | Initial creation from IMPLEMENTATION_STATUS.md Open Work section | All |
 | 2026-05-20 | Phase 26 and 27 confirmed complete — phase plans updated, sprint backlog live | All |
 | 2026-05-22 | Code validation: S2-07 (knowledge_lake_refresh_loop) confirmed done in main.py; S4-07 (test:perf CI step) confirmed done in ci.yml + package.json. Mission Control Phase 6-7 UI work shipped (command palette, guided tour, tooltip glossary, status bar, inline name edit, Electron shell). | Sprint 2, Sprint 4 |
-| 2026-05-22 | Implementation pass: S1-03 (Python AST default-on in docker-compose + .env.example), S1-05 (MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED=true), S1-06 (MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED=true), S3-03 (PORT_TWO_PHASE_ENABLED=true) flag flips. S2-01 CLARIFYING state + /clarify endpoint. S2-02 generate_security_analysis(), S2-03 generate_vc_commit_strategy(), S2-04 generate_integration_tests(), S2-05 generate_pod_audit_verdict() added to llm_delegation.py and wired into mission_flow_v2.py. S2-06 deploy readiness at VERIFIED→COMPLETE. S2-08 pm_clarification + llm_usage_summary chain trace. S3-01 JS/TS DEPABS splicing. S3-02 compiled language RQCA. S4-01 Anthropic prompt caching. | Sprint 1, 2, 3, 4 |
+| 2026-05-22 | Implementation pass: S1-03 (Python AST default-on in docker-compose + .env.example), S1-05 (MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED=true), S1-06 (MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED=true), S3-03 (PORT_TWO_PHASE_ENABLED=true) flag flips. S2-01 CLARIFYING state + /clarify endpoint. S2-02 generate_security_analysis(), S2-03 generate_vc_commit_strategy(), S2-04 generate_integration_tests(), S2-05 generate_pod_audit_verdict() added to llm_delegation.py and wired into mission_flow_v2.py. S2-06 deploy readiness at VERIFIED→COMPLETE. S2-08 pm_clarification + llm_usage_summary chain trace. S3-01 JS/TS DEPABS splicing. S3-02 compiled language RQCA. S4-01 Anthropic prompt caching. Committed as be9f3ef. | Sprint 1, 2, 3, 4 |
+| 2026-05-22 | Backlog grooming: added Sprint 5 (live-stack validation items moved from S1-01/02, S1-04, S3-04, S4-03, S4-06, S4-08). Added implementation notes to S1-04, S4-02, S4-04, S4-05 with exact file/function pointers. Completion Definition updated. | Sprint 1, 4, 5 |
