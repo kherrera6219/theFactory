@@ -45,6 +45,10 @@ class Settings:
     milvus_collection: str = "mission_knowledge"
     milvus_vector_size: int = 64
     milvus_timeout_seconds: float = 3.0
+    knowledge_embedding_provider: str = "deterministic"
+    knowledge_embedding_model: str = "deterministic-hash-v1"
+    knowledge_embedding_timeout_seconds: float = 10.0
+    knowledge_refresh_enabled: bool = True
     neo4j_url: str = "http://neo4j:7474"
     neo4j_enabled: bool = False
     neo4j_username: str = "neo4j"
@@ -71,6 +75,17 @@ class Settings:
     langgraph_checkpointer_setup: bool = False
     langgraph_checkpoint_namespace: str = ""
     mission_flow_v2_enabled: bool = True
+    mission_equivalence_enforcement_enabled: bool = False
+    mission_equivalence_python_execution_enabled: bool = False
+    mission_security_compliance_enforcement_enabled: bool = False
+    testdata_agent_enabled: bool = False
+    rqca_agent_enabled: bool = False
+    rqca_enforcement_enabled: bool = False
+    docker_bin: str = "docker"
+    depabs_execution_enabled: bool = False
+    port_two_phase_enabled: bool = False
+    llm_safety_block_enabled: bool = False
+    knowledge_refresh_interval_seconds: int = 3600
     agent_scaling_enabled: bool = False
     agent_scaling_max_instances: int = 4
     agent_scaling_items_per_instance: int = 3
@@ -194,6 +209,20 @@ def load_settings() -> Settings:
         or "mission_knowledge",
         milvus_vector_size=max(8, int(os.getenv("MILVUS_VECTOR_SIZE", "64"))),
         milvus_timeout_seconds=max(0.5, float(os.getenv("MILVUS_TIMEOUT_SECONDS", "3.0"))),
+        knowledge_embedding_provider=os.getenv(
+            "KNOWLEDGE_EMBEDDING_PROVIDER", "deterministic"
+        ).strip().lower()
+        or "deterministic",
+        knowledge_embedding_model=os.getenv(
+            "KNOWLEDGE_EMBEDDING_MODEL", "deterministic-hash-v1"
+        ).strip()
+        or "deterministic-hash-v1",
+        knowledge_embedding_timeout_seconds=max(
+            1.0, float(os.getenv("KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS", "10.0"))
+        ),
+        knowledge_refresh_enabled=_as_bool(
+            os.getenv("KNOWLEDGE_REFRESH_ENABLED", "true"), True
+        ),
         neo4j_enabled=_as_bool(os.getenv("NEO4J_ENABLED", "false"), False)
         and bool(os.getenv("NEO4J_URL", "http://neo4j:7474").strip()),
         neo4j_username=os.getenv("NEO4J_USERNAME", "neo4j"),
@@ -237,6 +266,33 @@ def load_settings() -> Settings:
         langgraph_checkpoint_namespace=os.getenv("LANGGRAPH_CHECKPOINT_NAMESPACE", "").strip(),
         mission_flow_v2_enabled=_as_bool(
             os.getenv("MISSION_FLOW_V2_ENABLED", "true"), True
+        ),
+        mission_equivalence_enforcement_enabled=_as_bool(
+            os.getenv("MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED", "false"), False
+        ),
+        mission_equivalence_python_execution_enabled=_as_bool(
+            os.getenv("MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED", "false"), False
+        ),
+        mission_security_compliance_enforcement_enabled=_as_bool(
+            os.getenv("MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED", "false"), False
+        ),
+        testdata_agent_enabled=_as_bool(os.getenv("TESTDATA_AGENT_ENABLED", "false"), False),
+        rqca_agent_enabled=_as_bool(os.getenv("RQCA_AGENT_ENABLED", "false"), False),
+        rqca_enforcement_enabled=_as_bool(
+            os.getenv("RQCA_ENFORCEMENT_ENABLED", "false"), False
+        ),
+        docker_bin=os.getenv("DOCKER_BIN", "docker").strip() or "docker",
+        depabs_execution_enabled=_as_bool(
+            os.getenv("DEPABS_EXECUTION_ENABLED", "false"), False
+        ),
+        port_two_phase_enabled=_as_bool(
+            os.getenv("PORT_TWO_PHASE_ENABLED", "false"), False
+        ),
+        llm_safety_block_enabled=_as_bool(
+            os.getenv("LLM_SAFETY_BLOCK_ENABLED", "false"), False
+        ),
+        knowledge_refresh_interval_seconds=max(
+            10, int(os.getenv("KNOWLEDGE_REFRESH_INTERVAL_SECONDS", "3600"))
         ),
         agent_scaling_enabled=_as_bool(
             os.getenv("AGENT_SCALING_ENABLED", "false"), False

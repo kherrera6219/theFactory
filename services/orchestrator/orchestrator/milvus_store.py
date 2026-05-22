@@ -4,6 +4,7 @@ import hashlib
 import json
 from typing import Any
 
+from .knowledge_embeddings import payload_embedding_metadata, vector_for_content
 from .settings import Settings
 
 try:
@@ -48,19 +49,13 @@ def _vector_for_content(
     knowledge_id: str,
     content: dict[str, Any],
 ) -> list[float]:
-    seed = (
-        f"{mission_id}:{knowledge_id}:"
-        f"{json.dumps(content, sort_keys=True, separators=(',', ':'))}"
-    ).encode("utf-8")
-    digest = hashlib.sha256(seed).digest()
-    vector: list[float] = []
-    while len(vector) < settings.milvus_vector_size:
-        for byte in digest:
-            vector.append((byte / 255.0) * 2.0 - 1.0)
-            if len(vector) >= settings.milvus_vector_size:
-                break
-        digest = hashlib.sha256(digest).digest()
-    return vector
+    return vector_for_content(
+        settings,
+        mission_id=mission_id,
+        knowledge_id=knowledge_id,
+        content=content,
+        vector_size=settings.milvus_vector_size,
+    )
 
 
 def _point_id(mission_id: str, knowledge_id: str) -> int:
@@ -141,6 +136,7 @@ def upsert_knowledge(
                 "knowledge_id": knowledge_id,
                 "content": json.dumps(content, sort_keys=True),
                 "created_at": created_at,
+                **payload_embedding_metadata(settings, vector_size=settings.milvus_vector_size),
             }
         ],
     )

@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  isElectron,
+  electronGetAppVersion,
+  electronCheckForUpdates,
+  electronInstallUpdate,
+} from "../../lib/electron-bridge";
 
 import { OperatorUnlockForm } from "../../components/operator-unlock-form";
 import { PageHeader } from "../../components/page-header";
@@ -14,41 +20,47 @@ import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
 // Static agent registry — used as fallback when the orchestrator is offline so the
 // vault slot table always shows all expected rows for key entry.
 const STATIC_AGENT_SLOTS: Array<{ agentId: string; name: string; provider: string; model: string }> = [
-  { agentId: "AGENT-01-PM", name: "PM Agent", provider: "anthropic", model: "claude-sonnet-4-6" },
+  { agentId: "AGENT-01-PM", name: "PM Agent", provider: "openai", model: "gpt-5.5" },
   { agentId: "AGENT-02-CEO", name: "CEO Agent", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-03-BROKER", name: "API Broker", provider: "gemini", model: "gemini-3.1-flash-lite" },
+  { agentId: "AGENT-03-BROKER", name: "API Broker", provider: "gemini", model: "gemini-3.5-flash" },
   { agentId: "AGENT-04-ACCOUNTANT", name: "Accountant", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-05-SECURITY", name: "Security Agent", provider: "anthropic", model: "claude-opus-4-7" },
-  { agentId: "AGENT-06-IS", name: "IS Agent", provider: "gemini", model: "gemini-3.1-pro-preview" },
-  { agentId: "AGENT-07-VC", name: "Version Control Agent", provider: "openai", model: "gpt-5.3-codex" },
-  { agentId: "AGENT-08-COMPLIANCE", name: "Compliance Agent", provider: "anthropic", model: "claude-opus-4-7" },
-  { agentId: "AGENT-09-HW", name: "Hardware-Mapping Injector", provider: "gemini", model: "gemini-3.1-pro-preview" },
-  { agentId: "AGENT-10-TESTER", name: "System Integration Tester", provider: "anthropic", model: "claude-opus-4-7" },
-  { agentId: "AGENT-11-DEPLOY", name: "Deployment Agent", provider: "gemini", model: "gemini-3.1-flash-lite" },
+  { agentId: "AGENT-05-SECURITY", name: "Security Agent", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-06-IS", name: "IS Agent", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-07-VC", name: "Version Control Agent", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-08-COMPLIANCE", name: "Compliance Agent", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-09-HW", name: "Hardware-Mapping Injector", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-10-TESTER", name: "System Integration Tester", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-11-DEPLOY", name: "Deployment Agent", provider: "gemini", model: "gemini-3.5-flash" },
   { agentId: "AGENT-12-PODA-MGR", name: "Pod A Sub-Manager", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-13-PODA-AUDIT", name: "Pod A QC/Audit", provider: "anthropic", model: "claude-sonnet-4-6" },
-  { agentId: "AGENT-14-PYTHON", name: "Python Specialist", provider: "openai", model: "gpt-5.3-codex" },
-  { agentId: "AGENT-15-JAVASCRIPT", name: "JavaScript Specialist", provider: "openai", model: "gpt-5.3-codex" },
-  { agentId: "AGENT-16-RUBY", name: "Ruby Specialist", provider: "openai", model: "gpt-5.3-codex" },
-  { agentId: "AGENT-17-PHP", name: "PHP Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-13-PODA-AUDIT", name: "Pod A QC/Audit", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-14-PYTHON", name: "Python Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-15-JAVASCRIPT", name: "JavaScript Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-16-RUBY", name: "Ruby Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-17-PHP", name: "PHP Specialist", provider: "openai", model: "gpt-5.5" },
   { agentId: "AGENT-18-PODB-MGR", name: "Pod B Sub-Manager", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-19-PODB-AUDIT", name: "Pod B QC/Audit", provider: "anthropic", model: "claude-sonnet-4-6" },
-  { agentId: "AGENT-20-C", name: "C Specialist", provider: "openai", model: "gpt-5.3-codex" },
-  { agentId: "AGENT-21-CPP", name: "C++ Specialist", provider: "openai", model: "gpt-5.3-codex" },
-  { agentId: "AGENT-22-RUST", name: "Rust Specialist", provider: "openai", model: "gpt-5.3-codex" },
-  { agentId: "AGENT-23-ZIG", name: "Zig Specialist", provider: "openai", model: "gpt-5.3-codex" },
+  { agentId: "AGENT-19-PODB-AUDIT", name: "Pod B QC/Audit", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-20-C", name: "C Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-21-CPP", name: "C++ Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-22-RUST", name: "Rust Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-23-ZIG", name: "Zig Specialist", provider: "openai", model: "gpt-5.5" },
   { agentId: "AGENT-24-PODC-MGR", name: "Pod C Sub-Manager", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-25-PODC-AUDIT", name: "Pod C QC/Audit", provider: "anthropic", model: "claude-sonnet-4-6" },
-  { agentId: "AGENT-26-JAVA", name: "Java Specialist", provider: "anthropic", model: "claude-sonnet-4-6" },
-  { agentId: "AGENT-27-CSHARP", name: "C# Specialist", provider: "anthropic", model: "claude-sonnet-4-6" },
-  { agentId: "AGENT-28-SCALA", name: "Scala Specialist", provider: "anthropic", model: "claude-sonnet-4-6" },
-  { agentId: "AGENT-29-KOTLIN", name: "Kotlin Specialist", provider: "anthropic", model: "claude-sonnet-4-6" },
-  { agentId: "AGENT-30-PODD-MGR", name: "Pod D Sub-Manager", provider: "gemini", model: "gemini-3.1-pro-preview" },
-  { agentId: "AGENT-31-PODD-AUDIT", name: "Pod D QC/Audit", provider: "anthropic", model: "claude-opus-4-7" },
-  { agentId: "AGENT-32-MATLAB", name: "MATLAB Specialist", provider: "gemini", model: "gemini-3.1-pro-preview" },
-  { agentId: "AGENT-33-R", name: "R Specialist", provider: "gemini", model: "gemini-3.1-pro-preview" },
-  { agentId: "AGENT-34-JULIA", name: "Julia Specialist", provider: "gemini", model: "gemini-3.1-pro-preview" },
-  { agentId: "AGENT-35-MATHEMATICA", name: "Mathematica Specialist", provider: "gemini", model: "gemini-3.1-pro-preview" },
+  { agentId: "AGENT-25-PODC-AUDIT", name: "Pod C QC/Audit", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-26-JAVA", name: "Java Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-27-CSHARP", name: "C# Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-28-SCALA", name: "Scala Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-29-KOTLIN", name: "Kotlin Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-30-PODD-MGR", name: "Pod D Sub-Manager", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-31-PODD-AUDIT", name: "Pod D QC/Audit", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-32-MATLAB", name: "MATLAB Specialist", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-33-R", name: "R Specialist", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-34-JULIA", name: "Julia Specialist", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-35-MATHEMATICA", name: "Mathematica Specialist", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-36-GO", name: "Go Specialist", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-37-HASKELL", name: "Haskell Specialist", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-38-OCAML", name: "OCaml Specialist", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-39-DEPABS", name: "Dependency Absorption Agent", provider: "openai", model: "gpt-5.5" },
+  { agentId: "AGENT-40-TESTDATA", name: "Database and Test Data Agent", provider: "gemini", model: "gemini-3.5-flash" },
+  { agentId: "AGENT-41-RQCA", name: "Runtime QC Agent", provider: "openai", model: "gpt-5.5" },
 ];
 
 type LocalPreferences = {
@@ -111,7 +123,18 @@ export default function SettingsPage() {
   const [slotError, setSlotError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savePending, setSavePending] = useState(false);
+  const [slotSearch, setSlotSearch] = useState("");
   const [orchestratorOffline, setOrchestratorOffline] = useState(false);
+
+  // 7D — Software updates state (Electron only)
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateResult, setUpdateResult] = useState<{
+    updateAvailable: boolean;
+    version?: string;
+    downloaded?: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const raw = window.localStorage.getItem("mission-control:preferences");
@@ -119,6 +142,18 @@ export default function SettingsPage() {
       const parsed = safeJsonParse<LocalPreferences>(raw, DEFAULT_PREFERENCES);
       setPreferences({ ...DEFAULT_PREFERENCES, ...parsed });
     }
+    // 7D — Fetch app version from Electron main process.
+    if (isElectron()) {
+      void electronGetAppVersion().then((v) => v && setAppVersion(v));
+      // Listen for a downloaded update event.
+      if (window.electronAPI) {
+        const cleanup = window.electronAPI.onUpdateDownloaded(() =>
+          setUpdateResult((prev) => ({ ...(prev ?? { updateAvailable: true }), downloaded: true })),
+        );
+        return cleanup;
+      }
+    }
+    return undefined;
   }, []);
 
   async function loadVaultAndAgents() {
@@ -217,6 +252,24 @@ export default function SettingsPage() {
     [rows, selectedSlotId],
   );
 
+  /** True when at least one row has a configured key — reveals the masked/rotation/expiry columns. */
+  const hasAnyKeyData = useMemo(
+    () => rows.some((row) => row.maskedPreview !== null || row.lastRotatedAt !== null || row.expiresAt !== null),
+    [rows],
+  );
+
+  /** Search-filtered rows for the vault table. */
+  const filteredRows = useMemo(() => {
+    const q = slotSearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (row) =>
+        row.slotId.toLowerCase().includes(q) ||
+        row.provider.toLowerCase().includes(q) ||
+        row.model.toLowerCase().includes(q),
+    );
+  }, [rows, slotSearch]);
+
   function updatePreference<K extends keyof LocalPreferences>(key: K, value: LocalPreferences[K]) {
     setPreferences((current) => ({ ...current, [key]: value }));
   }
@@ -238,9 +291,16 @@ export default function SettingsPage() {
       memoryLimitPct: clampNumber(preferences.memoryLimitPct, 10, 100),
     };
 
-    setPreferences(normalized);
-    window.localStorage.setItem("mission-control:preferences", JSON.stringify(normalized));
-    setSaveMessage("Local runtime preferences saved.");
+    setSavePending(true);
+    try {
+      setPreferences(normalized);
+      window.localStorage.setItem("mission-control:preferences", JSON.stringify(normalized));
+      setSaveMessage("Preferences saved.");
+    } catch {
+      setSaveError("Failed to save preferences — localStorage may be unavailable.");
+    } finally {
+      setSavePending(false);
+    }
   }
 
   async function saveVaultSlot() {
@@ -427,6 +487,14 @@ export default function SettingsPage() {
           Provider and GitHub keys are stored server-side in the configured vault backend and never
           returned in plaintext.
         </p>
+        <input
+          type="search"
+          className="table-search"
+          placeholder="Filter by slot ID, provider, or model…"
+          aria-label="Search vault slots"
+          value={slotSearch}
+          onChange={(e) => setSlotSearch(e.target.value)}
+        />
         <div className="table-wrap" tabIndex={0} aria-label="Scrollable API key vault slots table">
           <table className="data-table">
             <caption className="sr-only">Vault slots for all agents and operator integrations.</caption>
@@ -436,16 +504,16 @@ export default function SettingsPage() {
                 <th scope="col">Provider</th>
                 <th scope="col">Model</th>
                 <th scope="col">Status</th>
-                <th scope="col">Masked</th>
-                <th scope="col">Last Rotated</th>
-                <th scope="col">Expires</th>
+                {hasAnyKeyData && <th scope="col">Masked</th>}
+                {hasAnyKeyData && <th scope="col">Last Rotated</th>}
+                {hasAnyKeyData && <th scope="col">Expires</th>}
                 <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {filteredRows.map((row) => (
                 <tr key={row.slotId}>
-                  <td>{row.slotId}</td>
+                  <td className="mono-id">{row.slotId}</td>
                   <td>{row.provider}</td>
                   <td>{row.model}</td>
                   <td>
@@ -463,9 +531,9 @@ export default function SettingsPage() {
                       {describeVaultStatus(row.status)}
                     </StatusBadge>
                   </td>
-                  <td>{row.maskedPreview ?? "n/a"}</td>
-                  <td>{row.lastRotatedAt ? formatDateTime(row.lastRotatedAt) : "n/a"}</td>
-                  <td>{row.expiresAt ? formatDateTime(row.expiresAt) : "n/a"}</td>
+                  {hasAnyKeyData && <td>{row.maskedPreview ?? "—"}</td>}
+                  {hasAnyKeyData && <td>{row.lastRotatedAt ? formatDateTime(row.lastRotatedAt) : "—"}</td>}
+                  {hasAnyKeyData && <td>{row.expiresAt ? formatDateTime(row.expiresAt) : "—"}</td>}
                   <td>
                     <button
                       type="button"
@@ -476,7 +544,7 @@ export default function SettingsPage() {
                         setSlotError(null);
                       }}
                     >
-                      Select
+                      Configure
                     </button>
                   </td>
                 </tr>
@@ -560,6 +628,80 @@ export default function SettingsPage() {
         )}
       </Panel>
 
+      {/* 7D — Software Updates panel (visible in all envs; full features in Electron) */}
+      <Panel title="Software Updates">
+        {isElectron() ? (
+          <>
+            <div className="filters-grid">
+              <div>
+                <p className="eyebrow">Current version</p>
+                <p className="mono-id">{appVersion ?? "…"}</p>
+              </div>
+              {updateResult?.version && (
+                <div>
+                  <p className="eyebrow">Available version</p>
+                  <p className="mono-id">{updateResult.version}</p>
+                </div>
+              )}
+            </div>
+
+            {updateResult?.downloaded && (
+              <div className="info-box" style={{ marginTop: "12px" }}>
+                <strong>Update ready.</strong> Mission Control will update on next launch, or you can install now.
+                <div className="inline-actions" style={{ marginTop: "8px" }}>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={electronInstallUpdate}
+                  >
+                    Install &amp; Relaunch
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {updateResult && !updateResult.updateAvailable && !updateResult.downloaded && (
+              <p className="help-text" style={{ marginTop: "8px" }}>
+                ✓ Mission Control is up to date.
+              </p>
+            )}
+
+            <div className="inline-actions" style={{ marginTop: "12px" }}>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={updateChecking}
+                onClick={async () => {
+                  setUpdateChecking(true);
+                  setUpdateResult(null);
+                  try {
+                    const result = await electronCheckForUpdates();
+                    if (result) setUpdateResult(result);
+                  } finally {
+                    setUpdateChecking(false);
+                  }
+                }}
+              >
+                {updateChecking ? "Checking…" : "Check for Updates"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div>
+            <p className="help-text">
+              Auto-update is available in the <strong>desktop app</strong> (Electron).
+              In the browser, update by pulling the latest version from the repository.
+            </p>
+            <p className="help-text muted" style={{ marginTop: "6px" }}>
+              Version:{" "}
+              <span className="mono-id">
+                {process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
+              </span>
+            </p>
+          </div>
+        )}
+      </Panel>
+
       <Panel title="Operator Admin Session">
         <p className="help-text">
           Create a short-lived operator session using the <code>MISSION_CONTROL_ADMIN_KEY</code> set
@@ -576,8 +718,13 @@ export default function SettingsPage() {
           </button>
         }
       >
-        <button type="button" onClick={savePreferences}>
-          Save Runtime Preferences
+        <button
+          type="button"
+          className="primary-button"
+          disabled={savePending}
+          onClick={savePreferences}
+        >
+          {savePending ? "Saving…" : saveMessage ? "✓ Saved" : "Save Runtime Preferences"}
         </button>
         {saveError && (
           <SystemMessage tone="critical" title="Preferences were not saved">

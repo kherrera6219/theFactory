@@ -1,0 +1,33 @@
+{
+  "schema_version": "phase19_20_prompt_workflow_evidence.v1",
+  "generated_at": "2026-05-19T18:52:00Z",
+  "phases": [19, 20],
+  "passed": true,
+  "implemented": [
+    "agent persona system prompts",
+    "provider system-prompt pass-through",
+    "language/tooling specialist prompt context",
+    "upstream PM/CEO risk propagation",
+    "PM feature-contract ambiguity scoring",
+    "mission-type-aware CEO delegation prompt",
+    "CEO delegation rationale in mission-contract prompt",
+    "logic-cluster depends_on normalization",
+    "CEO_REASONING_SUMMARY chain event",
+    "AW1 hardware context injection for performance-sensitive codegen"
+  ],
+  "deferred": [
+    "PM_CLARIFYING state and clarification answer/skip endpoints",
+    "Mission Control PM clarification panel",
+    "LLM-backed Security, VC, Tester, and Compliance support-agent workflows",
+    "Mission Control commit strategy and generated-tests panels",
+    "integration-test artifact packaging"
+  ],
+  "validation": [
+    "python -m ruff check services/orchestrator/orchestrator/agent_personas.py services/orchestrator/orchestrator/llm_delegation.py services/orchestrator/orchestrator/mission_flow_v2.py services/orchestrator/orchestrator/hw_agent.py tests/services/test_llm_delegation_unit.py tests/services/test_mission_flow_v2.py",
+    "python -m pytest tests/services/test_llm_delegation_unit.py tests/services/test_mission_flow_v2.py -q"
+  ],
+  "notes": [
+    "Support-agent LLM workflows remain intentionally gated because they touch delivery artifact packaging and Mission Control UI surfaces.",
+    "PM clarification pause/resume remains intentionally gated because it requires mission state transition, API, and browser-backed Mission Control validation."
+  ]
+}

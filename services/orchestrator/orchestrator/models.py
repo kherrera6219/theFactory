@@ -89,6 +89,7 @@ V2_STATES: set[MissionState] = {
     MissionState.pod_assigned,
     MissionState.specialist_assigned,
     MissionState.running,
+    MissionState.gating,
     MissionState.fusion,
     MissionState.verified,
     MissionState.complete,
@@ -120,6 +121,7 @@ EventType = Literal[
     # Operational / lifecycle events
     "MISSION_LOGICNODE_WRITTEN",
     "MISSION_COMPLETION_BLOCKED",
+    "MISSION_DELIVERED",
     # Agent events
     "AGENT_STATE_CHANGED",
 ]

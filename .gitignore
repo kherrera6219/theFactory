@@ -47,3 +47,6 @@ config/agent_api_keys.enc.yaml
 *.age
 *.sops.yaml
 deploy/.local/
+
+# Live API keys for local testing — never commit
+test-keys/

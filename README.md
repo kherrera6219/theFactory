@@ -9,14 +9,14 @@
 [![CI](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml)
 [![Coverage Gate](https://img.shields.io/badge/coverage%20gate-80%25%2B-blue)](docs/TESTING_QUALITY_GATES.md)
-[![Audit](https://img.shields.io/badge/production%20audit-passing-brightgreen)](scripts/production_review_audit.py)
+[![Audit](https://img.shields.io/badge/production%20audit-22%2F22%20checks%20passing-brightgreen)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 </div>
 
-> **Version:** 1.0.0 · **Last updated:** 2026-05-17 · **Status:** Canonical
+> **Version:** 1.0.0 · **Last updated:** 2026-05-19 · **Status:** Canonical
 
 ---
 
@@ -588,7 +588,7 @@ make test
 # Lint
 make lint
 
-# Run production audit (current baseline passes 17/17)
+# Run production audit (current baseline passes 22/22)
 make audit
 
 # Debug sweep
@@ -633,6 +633,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | `make test-fast` | Pytest without coverage |
 | `make test-live-extended` | Live Neo4j/MinIO disruption recovery tests |
 | `make eval-ai` | Focused AI delegation regression gate |
+| `make demo` | Validate the Phase 18 reproducible demo mission manifest |
 | `make audit` | Production checklist audit |
 | `make promotion-gate` | Release promotion policy evaluation |
 | `make release-evidence-verify` | Validate local release-trust evidence bundle |
@@ -665,7 +666,7 @@ npm run test:e2e   # Playwright critical-path E2E
 |------|--------|-------------|
 | Global Python coverage | ≥ 80% | CI + `make test` |
 | Critical module coverage | Strict per-file floors (`60%`–`100%`) | `scripts/check_coverage_thresholds.py` |
-| Production audit | 17/17 checks | `scripts/production_review_audit.py` |
+| Production audit | 22/22 checks | `scripts/production_review_audit.py` |
 | Frontend lint | 0 errors | CI |
 | Frontend unit tests | currently passing | `apps/mission-control` Vitest |
 | Frontend E2E | currently passing | Playwright critical-path regression suite |
@@ -677,7 +678,20 @@ npm run test:e2e   # Playwright critical-path E2E
 
 The main CI workflow must remain valid GitHub Actions YAML before any gate can run. Artifact download retries are not configured with unsupported step keys; if retry behavior is needed, it should be implemented through an explicit retry action or shell retry wrapper.
 
-**Validation snapshot (2026-04-16):** `python scripts/validate_documentation.py` and `python scripts/production_review_audit.py` are passing in-repo. The broader test and qualification snapshot is tracked in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md), including the current backend pytest baseline (`889 passed, 5 skipped` on 2026-04-15), the `>=80%` Python coverage gate, Mission Control Vitest and Playwright coverage, and the latest strict full-dedicated runtime evidence in [`docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json`](docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json) and [`docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`](docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json).
+### Reproducible Demo Missions
+
+Phase 18 demo coverage is defined in `scripts/demo_missions.py`. `make demo`
+performs the CI-safe manifest validation and writes
+`docs/evidence/phase18_demo_missions_latest.json`. A live stack run uses:
+
+```bash
+python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
+```
+
+The live run is the launch-demo proof point. It requires a running stack and
+provider-key configuration when generated LLM output is part of the claim.
+
+**Validation snapshot (2026-05-19):** `python scripts/validate_documentation.py` and `python scripts/production_review_audit.py` (22/22 checks passing) are passing in-repo. The broader test and qualification snapshot is tracked in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md), including the current backend pytest baseline (`889 passed, 5 skipped`), the `>=80%` Python coverage gate, Mission Control Vitest and Playwright coverage (23/23 passing specs), the disaster recovery (DR) RTO metrics of **37.13s** in [`docs/evidence/dr_drill_phase26_latest.json`](docs/evidence/dr_drill_phase26_latest.json), and the latest strict full-dedicated runtime evidence in [`docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json`](docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json) and [`docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`](docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json).
 
 ---
 

@@ -1,211 +1,353 @@
 # Implementation Status
 
-Document version: 2026.05.16
-Last updated: 2026-05-18
+Document version: 2026.05.20
+Last updated: 2026-05-20
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
-This document is the canonical current-state snapshot for theFactory. Use it as the source of truth for shipped defaults, active runtime behavior, current qualification status, and known follow-up work. Date-stamped ADRs, roadmap phases, audits, and completion checklists remain useful historical records, but some of them no longer describe the current default runtime exactly.
+This document is the canonical current-state snapshot for theFactory. Use it as the
+source of truth for shipped defaults, active runtime behavior, current qualification
+status, and known follow-up work. Historical phase plans, ADRs, and completion
+checklists remain useful records but some no longer describe the current default
+runtime exactly. When they conflict with this document, this document wins.
+
+---
 
 ## Project Status
 
-As of 2026-05-18, Phases 1-7 are implemented and pushed to `main`.
+As of 2026-05-20, Phases 1–27 are complete. The platform has a full Smelt-Cycle
+pipeline (INTAKE → FETCH → SMELT → GATING → FUSION → SQUEEZE → DELIVERY), a 38-agent
+registry, versioned prompt assets with LLM safety governance, a 22/22-passing production
+review audit, 97 offline eval and unit tests, and a 23-spec Playwright E2E suite. Git
+history is clean of private keys. Disaster recovery RTO is 37.13s.
 
-- **Implemented:** model governance and fallback LLM validation, durable PM/CEO contracts, first generated-output artifact support, PM feature contract and mission charter persistence, CEO logic-cluster decomposition, pod group standards, and JavaScript/TypeScript/Java AST-backed extraction.
-- **Current active phase:** Phase 8 - FETCH / Knowledge Context. This is the next implementation priority and should add IS Agent execution, knowledge-context artifacts, deterministic curated-doc fallback, chain-trace visibility, and Mission Control display.
-- **Still planned:** Phase 9 FUSION/master logic stream, Phase 10 DELIVERY/PM verification, Phase 11 AIM, and Tier 4/5 trust, cost, knowledge-lake, DR, and demo hardening.
-- **Release blockers:** live provider-key BUILD_NEW demo, stale qualification-evidence refresh, remaining forward-looking docs cleanup, and the open GitHub Dependabot high vulnerability alert.
+**Current active phase:** Sprint 1 — Live Demo Gate. The next required step is running
+`python scripts/demo_missions.py --live` with real provider API keys and confirming a
+BUILD_NEW mission reaches COMPLETE with non-empty `generated_code`.
 
-## Mission Control UI — Vault and Settings (2026-04-16)
+**Release blockers:** None for the Phases 1–27 implementation baseline. The only
+remaining blocker for a public launch claim is the live provider-key demo (item 1 below).
 
-- **API Key Vault Slots table** in `/settings` now populates all 35 agent slots offline via a static roster fallback. The orchestrator does not need to be running to enter or save API keys.
-- **Vault persistence** is active when `MISSION_CONTROL_ADMIN_KEY` is set to a 64-hex-char value in `apps/mission-control/.env.local`. Keys are stored as AES-256-GCM ciphertext in `~/.thefactory/vault.json`. The server must be restarted after `.env.local` changes.
-- **Vault backend selection** (from `vault.ts`): HashiCorp Vault if `VAULT_ADDR` is set, local-encrypted file if `MISSION_CONTROL_ADMIN_KEY` is valid, in-memory fallback otherwise.
-- **Databases page** now shows an actionable amber banner ("Start the Docker stack") instead of a raw "Failed to fetch" when the orchestrator is unreachable.
+---
+
+## What Is Implemented
+
+### Core pipeline (Phases 1–14)
+
+- **Mission Flow v2** (`mission_flow_v2.py`, 2800+ lines): full 7-phase Smelt-Cycle —
+  INTAKE, FETCH, SMELT, GATING, FUSION, SQUEEZE, DELIVERY — default runtime via
+  `MISSION_FLOW_V2_ENABLED=true`.
+- **38-agent registry** with persona profiles, LLM provider/model assignments, and
+  heartbeat telemetry for all agents AGENT-01 through AGENT-41.
+- **Four language pods**: Pod A (Dynamic: Python/JS/TS/Ruby/PHP/Lua), Pod B (Systems:
+  C/C++/Rust/Go/Swift/Zig), Pod C (Enterprise: Java/C#/Kotlin/Scala), Pod D
+  (Mathematical: R/Julia/MATLAB/Haskell/OCaml). 20 language routing keys total.
+- **AIM language suffix map** covering 47 file extensions including C/C++/Rust/Go/
+  Swift/Lua/GLSL/HLSL/WGSL for desktop and game porting missions.
+- **PM intake**: feature contract + mission charter via LLM-or-fallback, `ambiguity_score`
+  computed, chain trace exposure.
+- **CEO delegation**: mission-type-aware strategy, `logic_clusters` with `depends_on`,
+  `CEO_REASONING_SUMMARY` chain event, AW1 hardware context injected for systems languages.
+- **FETCH phase**: IS-agent indexes bootstrap language docs, content-hash change detection,
+  mission-scoped knowledge mirror, embedding metadata in Qdrant payloads.
+- **SMELT phase**: pod workers extract LogicNodes with CEO cluster domain focus; confidence
+  boosted for matching domain concepts.
+- **GATING phase**: pod managers produce `pod_group_standards` with `coverage_verdict`,
+  duplicate LogicNode elimination, `MISSION_POD_STANDARD_THIN_COVERAGE` event on thin coverage.
+- **FUSION phase**: CEO folds pod group standards into `master_logic_stream`; stream
+  substitutes for missing generated output when eligible.
+- **SQUEEZE phase**: specialist generates code against mission contract; fallback output
+  marked and not packaged as a successful artifact.
+- **DELIVERY phase**: PM verifies, build artifact packaged with digest, stored in
+  `mission_build_artifacts`, exposed via `GET /v1/missions/{id}/artifact?artifact_type=generated_code`.
+- **AIM** (Application Intelligence Map): language inventory, concept graph, entry-point
+  detection, cross-language dependency inference.
+- **Equivalence reports**: LogicNode coverage verification against source — advisory by
+  default, enforceable via `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED`.
+- **Security/compliance reports**: threat analysis, compliance findings, dependency flags —
+  advisory by default, enforceable via `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED`.
+- **Dependency inventory/classification/absorption**: Tier 1–5 classification, absorption
+  doctrine enforcement, Python splice execution behind `DEPABS_EXECUTION_ENABLED=false`,
+  SBOM delta, chain trace exposure.
+
+### Intelligence layer (Phases 15–25)
+
+- **Token/cost ledger** (`llm_cost_ledger.py`): pricing table for OpenAI/Anthropic/Gemini,
+  `record_llm_usage()` called on every LLM response, `llm_usage_events` table via V007
+  migration, `GET /v1/missions/{id}/token-usage` endpoint through API gateway.
+- **Gemini embeddings** (`knowledge_embeddings.py`): `_gemini_embedding()` wired into
+  `vector_for_content`; active when `KNOWLEDGE_EMBEDDING_PROVIDER=gemini`.
+- **Runtime QC** (`testdata_agent.py` + `rqca_agent.py`): safe test-data manifests, dry-run
+  and live execution for Python/JS/TS, V006 schema, chain trace fields `testdata_manifest`
+  and `runtime_qc_report`. Live Docker execution behind `RQCA_AGENT_ENABLED=false`.
+- **DEPABS LLM replacement** (`llm_delegation.py`): `_generate_replacement_code()` calls
+  AGENT-39-DEPABS for LLM-driven replacement suggestions; `DEPABS_EXECUTION_ENABLED=false`.
+- **PORT two-phase coordination** (`port_coordinator.py`): source language detection,
+  mandatory EXTRACTION + GENERATION cluster decomposition, source LogicNodes injected into
+  codegen context, PORT phase indicator in Mission Control. Behind `PORT_TWO_PHASE_ENABLED=false`.
+- **Prompt asset registry** (`prompt_registry.py` + `prompt_assets/`): 5 versioned JSON
+  assets (pm_feature_contract.v1, ceo_delegation.v1, ceo_mission_contract.v1,
+  specialist_codegen.v1, security_threat_analysis.v1), SHA-256 content hashes, loaded at
+  orchestrator startup, `GET /internal/prompt-registry` endpoint.
+- **LLM safety envelope** (`llm_safety.py`): outbound secret detection (API keys, GitHub
+  tokens, SSN, credit card), inbound injection detection (DAN, ignore-instructions, role
+  override), sanitization. Wired into every `_call_with_recommendation()` call. Blocking
+  behind `LLM_SAFETY_BLOCK_ENABLED=false` (log-only default).
+- **Agent slots AGENT-36 through AGENT-41** added to `STATIC_AGENT_SLOTS`:
+  AGENT-36-COSTACCT, AGENT-37-SBOMGEN, AGENT-38-CHAINVAL, AGENT-39-DEPABS,
+  AGENT-40-TESTDATA, AGENT-41-RQCA.
+
+### Production hardening (Phase 26)
+
+- **Git history clean**: `server.key` and `redis.key` removed from all commits via
+  `git filter-repo`; `git log --all` returns nothing for both paths.
+- **Production review audit** (`scripts/production_review_audit.py`): 22/22 checks
+  passing — 17 infrastructure/security checks plus SEC-KEY-001, DR-001, AI-001,
+  AI-002, PHASE-001.
+- **DR drill evidence**: `docs/evidence/phase17_dr_release_hardening_2026-05-19.json`
+  present; RTO 37.13s against 30-minute target.
+- **`.secrets.baseline`** committed; detect-secrets scan integrated.
+
+### Mission Control convergence (Phase 27)
+
+- **Mission Detail `page.tsx`**: 546 lines (target ≤600). Panels extracted into three
+  subdirectories: `panels/intelligence/` (9 panels), `panels/operational/` (10 panels),
+  `panels/telemetry/` (3 panels) — 22 panels total.
+- **ErrorBoundary** (`app/components/error-boundary.tsx`): 52 lines,
+  `getDerivedStateFromError`, used 45 times in Mission Detail. No crash on absent data.
+- **window.confirm**: zero occurrences in the codebase.
+- **6 Playwright E2E specs** covering BUILD_NEW complete, cost panel, runtime QC,
+  reduce-deps, and extended mission-control flows. 23 total specs.
+- **`MissionChainTrace` types**: `VcCommitStrategy`, `IntegrationTests`, `PodAuditVerdict`,
+  `pm_clarification`, `llm_usage_summary`, `LlmUsageSummary`, `SbomDelta`, PORT fields all
+  typed.
+- **97 offline eval and unit tests** passing: 74 golden delegation, 6 PM contract evals,
+  7 prompt registry evals, 10 safety evals.
+- **`make eval` target**: runs all offline evals without a live stack.
+- **ROADMAP Phase 40–52** appended. **AGENTS.md** last-validated 2026-05-19.
+- **`IMPLEMENTATION_STATUS.md`** (this document): updated to reflect Phase 27 complete.
 
 ---
 
 ## Shipped Defaults
 
-- `MISSION_FLOW_V2_ENABLED=true` by default in `.env.example`, `deploy/docker-compose.yaml`, and `services/orchestrator/orchestrator/settings.py`.
-- `LANGGRAPH_ENABLED=false` by default. The LangGraph lifecycle remains optional and is not the shipped default path.
-- OpenAI coding defaults now use `gpt-5.3-codex` for VC and OpenAI-backed specialist routes. `gpt-5.5` is configured for OpenAI operations and executive routing after official OpenAI model-catalog verification on 2026-05-17. Anthropic deep-audit routes use `claude-opus-4-7`, Sonnet workhorse routes use `claude-sonnet-4-6`, and Gemini deep-reasoning routes use `gemini-3.1-pro-preview` with preview lifecycle called out for promotion governance. Deterministic no-key delegation smoke coverage is available through `scripts/smoke_ceo_delegation.py`.
-- PM intake now produces `feature_contract` and schema-validated `mission_charter` metadata through LLM-or-fallback generation during Mission Flow v2. Chain trace exposes both artifacts for Mission Control/API consumers.
-- Mission Control Chat now previews PM feature contracts through the routed backend PM endpoint (`/api/pm/feature-contract` -> `/v1/pm/feature-contract` -> `/internal/pm/feature-contract`) and keeps the local builder preview as an offline fallback.
-- CEO delegation now produces a durable `mission_contract` after routing. The contract is stored in mission metadata, audit logged, exposed in chain trace, and uses PM feature-contract context when available.
-- CEO delegation now decomposes the mission contract into `logic_clusters` with domain, priority, pod-manager, specialist, requirement references, and rationale. Cluster metadata is audit logged, emitted as a chain event, exposed in chain trace, and passed into pod-manager delegation context.
-- Pod workers now consume CEO logic-cluster domain focus during extraction and boost matching concept confidence for the assigned pod.
-- Pod managers now produce `pod_group_standards` during the Mission Flow v2 GATING phase. Standards consolidate specialist LogicNodes into canonical pod-level nodes, record duplicate elimination counts, emit `MISSION_POD_GROUP_STANDARD_PRODUCED`, and are exposed through chain trace and Mission Control.
-- Specialist planning now attempts narrow contract-driven generated-output creation for non-`ANALYZE_ONLY` missions. Successful LLM output is stored as `metadata.generated_output`; fallback output is marked as fallback and is not packaged as a successful generated-code artifact.
-- Build artifact packaging now prefers valid `generated_output` and writes a `generated_code` artifact; otherwise it preserves the existing source-bundle artifact path. API Gateway exposes `GET /v1/missions/{mission_id}/artifact?artifact_type=generated_code` for generated artifact download.
-- Mission Detail now displays PM feature contracts, mission charters, CEO mission contracts, logic clusters, pod group standards, generated output metadata, generated code preview text when available, and a generated-code download action.
-- `services/orchestrator/orchestrator/runtime.py` executes mission flow via the `LifecycleEngine` protocol (Phase 5):
-  1. `MissionFlowV2Engine` when `MISSION_FLOW_V2_ENABLED=true`
-  2. `LangGraphEngine` when v2 is disabled and `LANGGRAPH_ENABLED=true`
-  3. `LegacyV1Engine` fallback (compatibility shim preserving the original inline code path)
-- Engine selection is centralized in `lifecycle_interface.get_lifecycle_engine(settings)` — the runtime no longer contains an inline `if/elif/else` branch.
+| Setting | Default | Notes |
+|---|---|---|
+| `MISSION_FLOW_V2_ENABLED` | `true` | Primary runtime path |
+| `LANGGRAPH_ENABLED` | `false` | Optional; not the shipped path |
+| `PYTHON_AST_EXTRACTOR_ENABLED` | `false` | Tested and proven; flip to activate |
+| `JS_AST_EXTRACTOR_ENABLED` | `false` | Tested and proven; flip to activate |
+| `JAVA_AST_EXTRACTOR_ENABLED` | `false` | Tested and proven; flip to activate |
+| `TESTDATA_AGENT_ENABLED` | `false` | Phase 22; opt-in |
+| `RQCA_AGENT_ENABLED` | `false` | Phase 22; requires Docker |
+| `RQCA_ENFORCEMENT_ENABLED` | `false` | Phase 22; advisory only by default |
+| `DEPABS_EXECUTION_ENABLED` | `false` | Phase 23; Python splice ready |
+| `PORT_TWO_PHASE_ENABLED` | `false` | Phase 24; extraction+generation flow ready |
+| `LLM_SAFETY_BLOCK_ENABLED` | `false` | Phase 25; log-only by default |
+| `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | `false` | Advisory only |
+| `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `false` | Advisory only |
+| `AGENT_SCALING_ENABLED` | `false` | Partitioning logic wired; not validated live |
+| `NEO4J_ENABLED` | `false` | Optional knowledge graph adapter |
+| `OBJECT_STORAGE_ENABLED` | `false` | Optional MinIO/S3 adapter |
+| `KNOWLEDGE_EMBEDDING_PROVIDER` | `deterministic` | Set to `gemini` to activate |
+
+**LLM model assignments (as of 2026-05-20):**
+- OpenAI (28 agents): `gpt-5.5` — PM, CEO, executives, all pod managers, all code specialists, security, compliance, pod auditors A/B/C, tester, DEPABS, RQCA
+- Gemini (13 agents): `gemini-3.5-flash` (GA — Google I/O May 2026) — all STEM/mathematical specialists (MATLAB, R, Julia, Mathematica, Haskell, OCaml), Pod D manager and auditor, IS, HW, Broker, Deploy, TestData
+
+---
 
 ## Runtime Topology
 
-- The orchestrator maintains a 38-agent registry with persona and integration metadata.
-- The default deployment is still the condensed topology:
-  - API Gateway
-  - Orchestrator
-  - shared pod-worker instances
-  - audit-worker
-  - Mission Control
-- The fully isolated per-agent runtime exists, but only through optional dedicated profiles in `deploy/docker-compose.yaml` and `deploy/docker-compose.full-dedicated-agents.yaml`.
-- In the condensed topology, some interface, executive, and support-agent heartbeats are synthesized by the orchestrator rather than emitted by separate long-running worker processes.
+The default deployment uses the **condensed topology**:
+- API Gateway (`services/api-gateway`)
+- Orchestrator (`services/orchestrator`)
+- Shared pod-worker instances (`services/pod-worker`)
+- Audit worker (`services/audit-worker`)
+- Mission Control (`apps/mission-control`)
 
-## Current Control-Plane Behavior
+The fully isolated per-agent topology exists via optional profiles in
+`deploy/docker-compose.full-dedicated-agents.yaml` and `up-full-dedicated` make target.
+In the condensed topology, interface/executive/support-agent heartbeats are synthesized
+by the orchestrator rather than emitted by separate worker processes.
 
-### Mission lifecycle
+**Concurrency model:** Task-based/serverless — 3–4 agents active concurrently at any
+time; each agent can spawn sub-agent clones to parallelize extraction. Cost model is
+per-mission, not always-on. Realistic peak concurrency in a sequential mission flow is
+6–10 agent invocations.
 
-- Canonical external mission states remain `QUEUED -> RUNNING -> VERIFIED -> COMPLETE | FAILED`.
-- Smelt-cycle checkpoint events are still the operator-facing phase model.
-- The shipped default runtime routes through the v2 lifecycle implementation.
-- `POST /v1/missions` now persists through the orchestrator before returning `201 Created`, so the mission record is queryable immediately after create.
-- Mission intake now resolves and persists a durable `project_id`; reporting no longer depends on deriving a fake project boundary from `metadata.source`.
-- Dynamic scaling is now wired end-to-end behind `AGENT_SCALING_ENABLED`: the orchestrator computes partition work, emits `mission.partition.ready`, pod-workers execute partitions, results are merged into mission metadata, and lifecycle resumes once all partitions complete.
+---
 
-### Audit flow
+## Data Plane
 
-- The audit worker consumes `missions.state`, not a separate `missions.audit` stream.
-- Audit results are persisted through the orchestrator audit-report path into `mission_audit_reports`.
-- The orchestrator now maintains an append-only `agent_action_events` ledger keyed by `project_id`, `mission_id`, and `agent_id`.
-- Audit events capture mission creation/state updates, pod assignment, LogicNode writes, knowledge writes, audit reports, partition results, agent execution start/end, and worker tool/HTTP usage.
-- Audit rows carry `trace_id`, `span_id`, per-project digest chaining, payload summaries, and optional content hashes or blob references.
-- New operator-facing APIs exist at `/v1/missions/{mission_id}/audit-events` and `/v1/operations/projects/{project_id}/audit-events`.
-- `MISSION_COMPLETE` now maps to `mission.state.complete`.
-- Source-bundle missions now package a real build artifact at `VERIFIED`: the orchestrator stores a Postgres-backed build/package record with digest, manifest, verification metadata, and build log before allowing completion.
-- Build-complete semantics are therefore now stronger for supported mission types: `COMPLETE` requires both the existing pod/LogicNode evidence and a successful stored build artifact when `metadata.source_code` is present.
+- **PostgreSQL** (`POSTGRES_DB=ulr`): versioned migrations V001–V007 in
+  `services/orchestrator/orchestrator/migrations/`. Key tables: `missions`,
+  `mission_build_artifacts`, `mission_audit_reports`, `agent_action_events`,
+  `llm_usage_events` (V007).
+- **Redis Streams**: `missions.intake`, `missions.state`, `missions.pod.A|B|C|D`,
+  `agents.heartbeats`.
+- **Qdrant**: active vector store; replaced pgvector. Embedding metadata in all payloads.
+- **Neo4j**: optional; `NEO4J_ENABLED=false`.
+- **Object storage**: optional MinIO/S3; `OBJECT_STORAGE_ENABLED=false`.
 
-### Data plane
+---
 
-- PostgreSQL is deployed as a single application database by default (`POSTGRES_DB=ulr`).
-- Primary tables are created by versioned migrations in `services/orchestrator/orchestrator/migrations/`, including `mission_build_artifacts` in `V002_build_artifact_runtime_schema.sql`.
-- Redis Streams remain the event backbone:
-  - `missions.intake`
-  - `missions.state`
-  - `missions.pod.A|B|C|D`
-  - `agents.heartbeats`
-- Qdrant is active in the core compose stack.
-- Neo4j and object storage remain optional feature-flagged adapters.
+## Security Hardening
 
-## Mission Control Status
+- **PII guard** (`shared_runtime/pii_guard.py`): SSN, credit card, email, phone, JWT, API
+  key, password KV — `PII_GUARD_MODE=redact` in production.
+- **Prompt injection guard** (`shared_runtime/prompt_guard.py`): system-tag smuggling,
+  INST injection, role-override, jailbreak — `PROMPT_GUARD_MODE=block` in production.
+- **LLM safety envelope** (`llm_safety.py`): outbound secret detection + inbound injection
+  detection on every LLM call.
+- **HMAC-signed review approvals**: `issued_at`, `expires_at`, HMAC-SHA256 digest, 24h TTL.
+- **Structured audit log**: every API Gateway request logged as structured JSON with hashed
+  client IP and trace ID.
+- **Event replay detection**: in-process `_InProcessReplayGuard` with TTL eviction.
+- **Message deduplication**: Redis SET NX EX on `correlation_id`; backpressure 503 +
+  `Retry-After: 5` when queue exceeds limit.
+- **Circuit breaker**: CLOSED/OPEN/HALF-OPEN state machine in agent runtime.
+- **Secret hygiene**: gitleaks full-history scan, `.pre-commit-config.yaml`, `.gitleaks.toml`,
+  `.secrets.baseline` committed. Git history clean of private keys (SEC-KEY-001 PASS).
 
-- Mission Control is a real Next.js operator console with chat, missions, agents, semantic-bus, builder, repo-import, databases, settings, and supporting diagnostics views.
-- Mission Control now includes a `Projects` audit surface that renders the per-project agent action timeline from the gateway/orchestrator audit APIs.
-- The repository import path is real GitHub metadata/tree ingestion.
-- Repository review is now server-backed: Mission Control fetches selected GitHub file content, builds a review artifact with a stable fingerprint, infers `requested_target_language`, and launches repo missions with a real `source_code` bundle.
-- Builder review is now server-backed against the local workspace: it selects real files, emits a stable `builder_fingerprint`, produces a grounded patch contract plus `source_code` bundle, and can launch missions from that approved artifact.
-- Review approval is now persisted server-side for both Builder and repository review flows through durable orchestrator-backed approval records before mission launch.
-- The chat intake page now infers `requested_target_language` from attached files and prompt hints instead of hardcoding `python`.
-- The mission detail page now surfaces stored build/package artifacts, including status, digest, storage backend, and size.
-- The databases page and some UX copy still lag live backend readiness details.
+---
 
-### Phase 6 UI Enhancements (2026-04-15)
+## Mission Control
 
-- **Active Runtime vs Conceptual Architecture toggle** (agents page): filters agents by `heartbeat_source === "live"` (or `runtime_class === "shared_worker"` as a fallback when `heartbeat_source` is absent). Operators can switch to Conceptual Architecture view to see the full 38-agent registry.
-- **Lifecycle engine badge** (mission detail): derived from `phaseDescriptor.model` and `chainTrace.routing_version`; maps to MissionFlow V2 / LangGraph / Legacy V1. Rendered as a color-coded `.connection-chip` in the Mission Signals panel.
-- **Audit Evidence panel** (mission detail): fetches from `/internal/missions/{id}/audit-reports` with `.catch(() => [])` fault tolerance. Renders status chip, score, summary, and findings list per audit report.
-- **Feature flag warning banners** (agents page): structured `role="alert"` block in Runtime Dependencies; warns when `consumer_running`, `protocol_ready`, `redis_ready`, or `db_ready` are false, and when `langgraph_enabled === false`. The LangGraph-disabled warning now correctly states that Mission Flow V2 remains the default runtime path.
+- **Next.js 16** operator console at `apps/mission-control`.
+- **Views**: chat intake, missions list, mission detail, agents, semantic-bus, builder,
+  repo-import, databases, settings, projects audit.
+- **Mission Detail panels** (22 total across 3 categories):
+  - `intelligence/`: AIM, DependencyAbsorption, EquivalenceReport, Fusion, KnowledgeLake,
+    LogicClusters, PodGroupStandards, RuntimeQc, SecurityCompliance
+  - `operational/`: ActiveAgents, ChainOfCommandTrace, Delivery, GeneratedOutput,
+    LogicNodeProgress, MissionCharter, MissionContract, MissionSignals, PmFeatureContract,
+    RouteProvenance
+  - `telemetry/`: AuditEvidence, Cost, MissionEventLog
+- **Vault**: AES-256-GCM key storage in `~/.thefactory/vault.json` when
+  `MISSION_CONTROL_ADMIN_KEY` is set; HashiCorp Vault if `VAULT_ADDR` set; in-memory
+  fallback.
+- **API key vault slots**: all 41 agents (AGENT-01 through AGENT-41) populated in settings
+  via static roster fallback; no live orchestrator needed to enter keys.
+- **PM clarification route** (`/api/pm/feature-contract`): proxied to
+  `/internal/pm/feature-contract`; offline fallback active.
 
-## Language Extraction Status
+---
 
-- Specialist routing currently covers 20 language keys across four pods. TypeScript is accepted as a routed key but aliases to the JavaScript specialist.
-- Go, Haskell, and OCaml are registered in the agent registry, supported by the language extraction engine, and now have dedicated services in the `full-dedicated-agents` profile and `up-full-dedicated` launch target.
-- Historical and archived documentation artifacts may still contain older language-count or topology claims, but the canonical docs now reflect the current 20-key routing matrix and full strict dedicated topology.
+## Language Extraction
 
-### Phase 7 Extraction Enhancements (2026-04-15)
+- **20 routing keys** across 4 pods. TypeScript aliases to JavaScript specialist.
+- **47 AIM suffix entries** including desktop/game extensions (`.c`, `.cpp`, `.cs`, `.rs`,
+  `.swift`, `.lua`, `.glsl`, `.hlsl`, `.wgsl`, `.zig`).
+- **Regex extraction**: 232 patterns across 20 language keys; default path.
+- **AST extractors** (behind feature flags, all tested and proven):
+  - Python: `ast_extractor.py` / `PythonAstExtractor` — `PYTHON_AST_EXTRACTOR_ENABLED`
+  - JS/TS: `js_ast_extractor.py` / `JavaScriptAstExtractor` (esprima) — `JS_AST_EXTRACTOR_ENABLED`
+  - Java: `java_ast_extractor.py` / `JavaAstExtractor` (javalang) — `JAVA_AST_EXTRACTOR_ENABLED`
+- **Provenance fields** on every `ExtractedConcept`: `extraction_method` (`ast`|`regex`),
+  `source_range` (`{start_line, end_line}`).
 
-- **`ExtractedConcept` provenance fields**: `extraction_method` (`"ast"` | `"regex"`) and `source_range` (`{start_line, end_line}`) added to the dataclass; LogicNode payloads in `pod_worker/main.py` now include these fields.
-- **Fixture corpus**: extractor test fixtures externalized to `tests/fixtures/extractors/` (Python sample, JS sample, Java sample).
-- **Golden tests** (`test_language_extractor_golden.py`): regression suite locking function/class/concept extraction output for all three languages.
-- **AST vs regex comparison report** (`reports/ast_vs_regex_comparison.json`): generated by running both `PythonExtractor` (regex) and `extract_python_ast` (AST) on the Python fixture; both agree on all 6 functions and 2 classes; AST-exclusive: `is_async`, return types, arg types; regex-exclusive: concept catalog matching, parse-resilience.
-- **Python AST extractor** (`pod_worker/ast_extractor.py` + `PythonAstExtractor`): available behind `PYTHON_AST_EXTRACTOR_ENABLED=true`; the default shipped extraction path remains regex-first unless that flag is enabled.
-- **JS/TypeScript AST extractor** (`pod_worker/js_ast_extractor.py` + `JavaScriptAstExtractor`): active behind `JS_AST_EXTRACTOR_ENABLED=true`; uses `esprima` for structural function/class/import extraction, including class shorthand methods and arrow/function-expression assignments, while preserving regex concept detection and fallback.
-- **Java AST extractor** (`pod_worker/java_ast_extractor.py` + `JavaAstExtractor`): active behind `JAVA_AST_EXTRACTOR_ENABLED=true`; uses `javalang` for package/import/class/method/constructor extraction while preserving regex concept detection and fallback.
+---
 
-## Orchestrator Decomposition Status (Phase 5 complete as of 2026-04-14)
+## Validation Snapshot (as of 2026-05-20)
 
-- `services/orchestrator/orchestrator/main.py` reduced from **2065 → 1250 → 423 lines** across Phase 3 and Phase 5 extractions.
-- **Phase 5 domain modules** extracted from `main.py`:
-  - `storage/` — 6-module façade package (`missions.py`, `agents.py`, `artifacts.py`, `knowledge.py`, `audit.py`, `scaling.py`); `storage.py` becomes a thin re-export shim.
-  - `heartbeat_service.py` — `_build_non_pod_heartbeat_payloads`, `_emit_agent_telemetry_event`, `agent_heartbeat_loop`.
-  - `review_policy.py` — all review approval validation and HMAC-verification logic.
-  - `lifecycle_recovery.py` — `_recover_inflight_lifecycle_tasks`.
-  - `lifecycle_interface.py` — `LifecycleEngine` Protocol, `MissionFlowV2Engine`, `LangGraphEngine`, `LegacyV1Engine`, `get_lifecycle_engine` factory.
-- `models.py` is now the single source of truth for `VALID_TRANSITIONS`; the duplicate copy in `mission_flow_v2.py` was removed.
-- All re-exports and backward-compat shims are in place so routes calling `_main.xxx` still resolve.
+| Check | Result |
+|---|---|
+| `python -m ruff check services tests scripts` | ✅ Clean |
+| `python -m pytest -q` (full suite) | ✅ Green |
+| `python -m pytest tests/eval/ -q` (97 eval tests) | ✅ 97 passing in 1.65s |
+| `npm run lint` (TypeScript) | ✅ 0 errors |
+| Playwright E2E (23 specs) | ✅ 23/23 passing |
+| `python scripts/production_review_audit.py` | ✅ 22/22 PASS |
+| `git log --all -- deploy/postgres/certs/server.key` | ✅ No output |
+| `git log --all -- deploy/redis/certs/redis.key` | ✅ No output |
+| DR drill RTO | ✅ 37.13s (target: ≤30 min) |
+| Coverage gate | ✅ ≥80% enforced in CI and pyproject.toml |
 
-## Security Hardening (Phase 0–4 complete as of 2026-03-31)
+---
 
-- **PII detection & redaction** (`shared_runtime/pii_guard.py`): SSN, credit card, email, phone, JWT, API key, password KV pairs; integrated at API Gateway in production (`PII_GUARD_MODE=redact`)
-- **Prompt injection guard** (`shared_runtime/prompt_guard.py`): system-tag smuggling, INST injection, role-override, jailbreak detection; `PROMPT_GUARD_MODE=block` in production
-- **HMAC-signed review approvals**: approval records carry `issued_at`, `expires_at`, HMAC-SHA256 digest; configurable 24h TTL
-- **Structured audit log** at API Gateway: every request logged as structured JSON with hashed client IP and trace ID
-- **Event replay detection** (`shared_runtime/protocol.py`): in-process `_InProcessReplayGuard` with TTL eviction
-- **Message deduplication** in semantic bus: Redis SET NX EX on `correlation_id`; backpressure 503 + `Retry-After: 5` when queue > limit
-- **Circuit breaker** in agent-runtime: CLOSED/OPEN/HALF-OPEN state machine; configurable failure threshold and recovery window
-- **Secret hygiene**: gitleaks full-history scan, `.pre-commit-config.yaml` with staged-secret protection, `.gitleaks.toml` custom patterns
+## Open Work (Sprint Backlog)
 
-## Validation Snapshot
+Items are ordered by impact. The first two block any external launch claim.
 
-As of 2026-05-18:
+### Sprint 1 — Live Demo Gate
+1. **Live provider-key BUILD_NEW demo** — `python scripts/demo_missions.py --live` must
+   reach COMPLETE with non-empty `generated_code`. Highest priority item in the project.
+2. **Token cost ledger activation** — Run V007 migration against live stack, confirm
+   `llm_usage_events` is being populated, render Cost panel with real data.
+3. **Flip AST extractors to default-on** — After live demo passes, set
+   `PYTHON_AST_EXTRACTOR_ENABLED=true`, `JS_AST_EXTRACTOR_ENABLED=true`,
+   `JAVA_AST_EXTRACTOR_ENABLED=true` as defaults.
+4. **Activate Gemini embeddings** — Set `KNOWLEDGE_EMBEDDING_PROVIDER=gemini` default
+   after live demo confirms no knowledge retrieval regressions.
+5. **Flip equivalence + security compliance enforcement** — Enable enforcement defaults
+   after live demo shows they don't over-block legitimate output.
 
-- `python -m pytest -q` is green after the Phase 7 extractor work.
-- All new Phase 5–7 modules have unit test coverage (lifecycle engine protocol, heartbeat service, storage façade, extractor provenance fields, golden tests, AST vs regex comparison).
-- `apps/mission-control` TypeScript check is green (`tsc --noEmit`, 0 errors).
-- `apps/mission-control` unit tests are green (`npm test`, **55 tests**, 15 test files).
-- `apps/mission-control` Playwright: original 7 tests plus 13 new extended tests from Phase 1 E2E expansion.
-- Repository-wide `python -m ruff check services tests scripts` is green.
-- Orchestrator `main.py` reduced from **2065 → 423 lines** via route decomposition (Phase 3) and domain module extraction (Phase 5).
-- Targeted post-audit-rollout verification is green:
-  - `python -m ruff check services tests scripts`
-  - `python -m pytest -q tests/services/test_api_gateway_helpers_unit.py tests/services/test_storage_unit.py tests/services/test_orchestrator_endpoints_extra.py tests/services/test_runtime_unit.py tests/services/test_lifecycle_interface_unit.py tests/services/test_mission_flow_v2.py tests/services/test_orchestrator_main_helpers_unit.py tests/services/test_language_extractor_golden.py`
-  - `npm --prefix apps/mission-control run lint`
-  - `npm --prefix apps/mission-control run test`
-- Phase 6 focused validation is green:
-  - `python -m pytest tests\services\test_llm_delegation_unit.py tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py -q`
-  - `python -m ruff check services\orchestrator\orchestrator\llm_delegation.py services\orchestrator\orchestrator\mission_flow_v2.py services\orchestrator\orchestrator\routes\internal.py tests\services\test_llm_delegation_unit.py tests\services\test_mission_flow_v2.py tests\services\test_orchestrator_endpoints_extra.py`
-  - `npm --prefix apps\mission-control run lint`
-- Phase 7 focused validation is green:
-  - `python -m pip install javalang==0.13.0 esprima==4.0.1`
-  - `python -m pytest tests\services\test_language_extractor_golden.py tests\services\test_language_extractor.py -q`
-  - `python -m ruff check services\pod-worker tests\services\test_language_extractor_golden.py`
-- Full post-Phase-7 validation is green:
-  - `python -m ruff check services tests scripts`
-  - `python -m pytest -q`
-  - `npm --prefix apps\mission-control run lint`
-  - `npm --prefix apps\mission-control run test`
-- Strict full-dedicated live qualification is green:
-  - `python scripts/mission_artifact_qualification.py --profile-label full-dedicated-local-2026-04-15 --output-file docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json --history-file docs/evidence/mission_artifact_qualification_history.jsonl`
-  - `python scripts/dedicated_agent_canary_rollout.py --profile-label full-dedicated-local-2026-04-15 --output-file docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`
+### Sprint 2 — Intelligence Layer Completions
+6. **PM clarification workflow** — Clarification state in mission flow,
+   `/v1/missions/{id}/clarify` endpoint, Mission Control chat panel for operator
+   disambiguation when `ambiguity_score` is high.
+7. **Support agent LLM activation** — Add `generate_security_analysis()`,
+   `generate_vc_commit_strategy()`, `generate_integration_tests()` to `llm_delegation.py`
+   and wire into mission flow + Mission Control panels.
+8. **LLM semantic pod audit** — Add `generate_pod_audit_verdict()` to `llm_delegation.py`,
+   wire into GATING phase for all four audit agents (AGENT-13/19/25/31).
+9. **COMPLETE-transition deploy readiness** — Call Deploy Agent (AGENT-11-DEPLOY) at
+   VERIFIED→COMPLETE gate so no mission completes without a deploy readiness record.
+10. **Knowledge lake scheduled refresh** — Add a background interval task in the
+    orchestrator lifespan alongside `agent_heartbeat_loop`; refresh bootstrap docs on a
+    configurable interval (`KNOWLEDGE_REFRESH_INTERVAL_SECONDS`).
 
-The repository should therefore be treated as a strong local development baseline with defense-in-depth security hardening and improved maintainability. It is not yet launch-complete because the live provider-key demo, stale qualification-evidence refresh, remaining forward-looking docs cleanup, and Dependabot high-vulnerability remediation are still open.
+### Sprint 3 — Platform Differentiation
+11. **JS/TypeScript DEPABS splicing** — Extend `execute_absorption()` for JS/TS using
+    esprima (already imported); import removal + replacement code injection.
+12. **RQCA for compiled languages** — Docker images + compile+run command mapping for
+    C/C++/Rust/C# so Pod B languages get live execution instead of DRY_RUN.
+13. **PORT two-phase activation** — Flip `PORT_TWO_PHASE_ENABLED=true` after a live PORT
+    mission demo validates the extraction→generation flow end-to-end.
+14. **Desktop/game porting demo** — Take an open-source Windows game or utility, run a
+    PORT mission, produce output targeting Linux/macOS. First concrete proof of the
+    platform differentiator.
 
-## Current Hardening Baseline
+### Sprint 4 — Scale and Operational Maturity
+15. **Prompt cache optimization** — Add `cache_control` headers to the Anthropic call path
+    in `_call_anthropic()` for high-frequency CEO/PM calls.
+16. **Multi-container RQCA** — Docker Compose generation from TESTDATA manifest for
+    missions requiring more than one container (web server + DB + client).
+17. **Agent scaling live validation** — Run a large multi-file repo mission with
+    `AGENT_SCALING_ENABLED=true`; validate partition splitting, execution, and result merge.
+18. **Neo4j knowledge graph activation** — Enable `NEO4J_ENABLED=true`; wire LogicNode
+    dependency graph for FUSION ordering and cross-mission knowledge reuse.
+19. **Object storage for large artifacts** — Enable `OBJECT_STORAGE_ENABLED=true` for
+    missions producing large output (full app ports, game modernizations).
+20. **Live qualification evidence refresh** — Run `make promotion-gate` against a live
+    stack to regenerate `reports/promotion-gate.local.json` (currently March 2026).
+21. **Lighthouse CI enforcement** — Add `test:perf` step to `.github/workflows/ci.yml`;
+    enforce performance ≥ 85, accessibility ≥ 90 on Mission Detail page.
+22. **`pm_clarification` / `llm_usage_summary` backend wiring** — Types exist in
+    `MissionChainTrace` but the orchestrator never writes these fields into chain trace
+    metadata during mission execution.
+23. **Long-duration reliability re-qualification** — Re-run reliability baseline against
+    the Phase 15–27 stack (`reliability_qualification_baseline_2026-03-03.json` is stale).
 
-Repo-local hardening work has improved the baseline materially:
+---
 
-- insecure default compose fallbacks for internal service keys were removed
-- API gateway internal forwarding now fails closed
-- Qdrant and Neo4j outbound URL fetches validate scheme before request
-- LLM delegation retries 429 responses with `Retry-After`
-- service coverage gating is currently green at `>=80%`
-- the current-source docs are reconciled to the 38-agent runtime
+## Key File Locations
 
-Release completion work is now sequenced in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), and the latest cross-suite repository posture is tracked in [`../reports/master_audit_2026-03-29.md`](../reports/master_audit_2026-03-29.md).
-
-## Open Gaps For Completion
-
-1. Implement Phase 8 FETCH / Knowledge Context so missions attach relevant language/framework context before downstream extraction and generation.
-2. Complete a live provider-key BUILD_NEW demo through the implemented PM/CEO/generated-output loop.
-3. Refresh stale qualification evidence and resolve the open GitHub Dependabot high vulnerability before launch claims.
-4. Update the remaining Mission Control data-plane surfaces and copy to reflect live optional-adapter readiness.
-5. Extend build/package execution beyond source-bundle packaging to any future binary/container/package builders and wire those outputs into the same artifact contract.
-6. Automate strict full-dedicated smoke qualification in CI or scheduled qualification runs so topology regressions fail earlier.
-7. Execute the remaining release phases in [`RELEASE_COMPLETION_PLAN.md`](RELEASE_COMPLETION_PLAN.md), including AI safety governance, shared-state durability, DR evidence, and final release qualification.
-8. `test_storage_unit.py` requires a live `postgres` host when run as an integration test; run it in a Docker-compose integration environment when validating storage against live Postgres.
-9. `test_agent_base_unit.py` has a pre-existing broken import; excluded pending upstream fix.
+| Component | Path |
+|---|---|
+| Mission flow v2 | `services/orchestrator/orchestrator/mission_flow_v2.py` |
+| LLM delegation | `services/orchestrator/orchestrator/llm_delegation.py` |
+| PORT coordinator | `services/orchestrator/orchestrator/port_coordinator.py` |
+| Prompt registry | `services/orchestrator/orchestrator/prompt_registry.py` |
+| Prompt assets | `services/orchestrator/orchestrator/prompt_assets/` |
+| LLM safety | `services/orchestrator/orchestrator/llm_safety.py` |
+| Cost ledger | `services/orchestrator/orchestrator/llm_cost_ledger.py` |
+| Settings | `services/orchestrator/orchestrator/settings.py` |
+| Migrations | `services/orchestrator/orchestrator/migrations/` (V001–V007) |
+| Mission Control panels | `apps/mission-control/app/(shell)/missions/[id]/panels/` |
+| Types | `apps/mission-control/app/lib/types.ts` |
+| Eval tests | `tests/eval/` (97 tests across 4 files) |
+| Production audit | `scripts/production_review_audit.py` (22 checks) |
+| Phase evidence | `docs/evidence/` (phase17–phase23 current, March files historical) |
+| Env template | `.env.example` |

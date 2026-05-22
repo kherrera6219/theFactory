@@ -572,6 +572,20 @@ def test_handle_running_mission_with_source_extraction(monkeypatch) -> None:
 
     async def _request(method: str, path: str, **kwargs):
         calls.append((method, path, kwargs))
+        if method == "GET" and path == "/internal/missions/mission-1/knowledge":
+            return DummyResponse(
+                200,
+                [
+                    {
+                        "knowledge_id": "docs.python.bootstrap",
+                        "content": {
+                            "kind": "bootstrap_documentation",
+                            "language": "python",
+                            "combined_text": "python docs",
+                        },
+                    }
+                ],
+            )
         return DummyResponse(200, {"ok": True})
 
     published: list[str] = []
@@ -592,9 +606,15 @@ def test_handle_running_mission_with_source_extraction(monkeypatch) -> None:
         evidence = "map pattern"
 
     class FakeExtractor:
-        def extract(self, source_code: str, focus_domains: list[str] | None = None):
+        def extract(
+            self,
+            source_code: str,
+            focus_domains: list[str] | None = None,
+            doc_context: str | None = None,
+        ):
             _ = source_code
             _ = focus_domains
+            assert doc_context == "python docs"
             return SimpleNamespace(
                 summary={"language": "python", "concepts_found": 1},
                 concepts=[FakeConcept()],
@@ -972,6 +992,20 @@ def test_handle_partition_ready_submits_partition_results(monkeypatch) -> None:
 
     async def _request(method: str, path: str, **kwargs):
         calls.append((method, path, kwargs))
+        if method == "GET" and path == "/internal/missions/mission-1/knowledge":
+            return DummyResponse(
+                200,
+                [
+                    {
+                        "knowledge_id": "docs.python.bootstrap",
+                        "content": {
+                            "kind": "bootstrap_documentation",
+                            "language": "python",
+                            "combined_text": "python docs",
+                        },
+                    }
+                ],
+            )
         return DummyResponse(200, {"ok": True})
 
     published: list[str] = []
@@ -989,8 +1023,14 @@ def test_handle_partition_ready_submits_partition_results(monkeypatch) -> None:
         evidence = "map pattern"
 
     class FakeExtractor:
-        def extract(self, source_code: str, focus_domains: list[str] | None = None):
+        def extract(
+            self,
+            source_code: str,
+            focus_domains: list[str] | None = None,
+            doc_context: str | None = None,
+        ):
             _ = focus_domains
+            assert doc_context == "python docs"
             assert "other.py" not in source_code
             return SimpleNamespace(
                 summary={"language": "python", "concepts_found": 1},

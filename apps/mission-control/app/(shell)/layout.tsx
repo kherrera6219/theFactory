@@ -1,10 +1,15 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
+import { CommandPalette, CommandPaletteTrigger } from "../components/command-palette";
+import { ElectronTitlebar } from "../components/electron-titlebar";
+import { GuidedTour } from "../components/guided-tour";
 import { KeyboardShortcuts } from "../components/keyboard-shortcuts";
+import { NotificationBell } from "../components/notification-bell";
 import { ReconnectBanner } from "../components/reconnect-banner";
 import { ShellHeaderMeta } from "../components/shell-header-meta";
 import { ShellNav } from "../components/shell-nav";
+import { StatusBar } from "../components/status-bar";
 import { StatusBadge } from "../components/status";
 
 type ShellLayoutProps = {
@@ -14,6 +19,8 @@ type ShellLayoutProps = {
 export default function ShellLayout({ children }: ShellLayoutProps) {
   return (
     <div className="shell">
+      {/* 7A — Custom frameless titlebar — renders only inside Electron (null in browser) */}
+      <ElectronTitlebar />
       {/* Pre-wired for SSE/WebSocket connection state — hidden until Codex wires live transport */}
       <ReconnectBanner isVisible={false} status="retrying" />
 
@@ -29,11 +36,19 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
       <div className="shell-main-column">
         <header className="shell-header">
           <ShellHeaderMeta />
+          {/* 6C — Command palette trigger (replaces raw GlobalSearch input) */}
+          <div className="shell-header-search">
+            <CommandPaletteTrigger />
+          </div>
           <div className="shell-header-actions">
-            <div className="shell-runtime-summary" aria-label="Runtime summary">
-              <StatusBadge tone="warning">Offline-ready</StatusBadge>
-              <span className="muted">Live data requires API keys/runtime</span>
-            </div>
+            <StatusBadge
+              tone="warning"
+              label="Offline-ready — live data requires API keys and a running local runtime"
+            >
+              Offline-ready
+            </StatusBadge>
+            {/* 5A — Notification bell */}
+            <NotificationBell />
             <Link href="/chat" className="primary-button shell-link-button">
               New Mission
             </Link>
@@ -46,11 +61,14 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
         <main id="main-content" className="shell-main" tabIndex={-1}>
           {children}
         </main>
-        <footer className="shell-statusbar">
-          <span>Live Transport: Active</span>
-          <span>Ctrl+? for shortcuts</span>
-        </footer>
+        {/* 6D — Live status bar replaces static footer */}
+        <StatusBar />
       </div>
+
+      {/* 6C — Command palette modal (self-contained, manages own open state) */}
+      <CommandPalette />
+      {/* 6B — First-visit guided tour */}
+      <GuidedTour />
       <KeyboardShortcuts />
     </div>
   );

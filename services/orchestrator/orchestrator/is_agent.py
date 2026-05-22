@@ -2,7 +2,7 @@
 
 Phase 8 bootstrap: indexes static language reference docs into the Knowledge
 Lake (storage layer) so pod workers can query documentation context during
-extraction. Phase 16 replaces static docs with live crawled documentation.
+extraction. Phase 16 adds refresh detection and shared embedding metadata.
 """
 from __future__ import annotations
 
@@ -183,6 +183,34 @@ def _check_knowledge_exists(*, settings: Any, knowledge_id: str) -> bool:
         return False
 
 
+def _knowledge_is_current(*, settings: Any, knowledge_id: str, content_hash: str) -> bool:
+    """Return True if an indexed global knowledge record has this hash."""
+    try:
+        from .storage import list_knowledge
+
+        records = list_knowledge(settings, _KNOWLEDGE_LAKE_ID, limit=200)
+        for record in records:
+            if not isinstance(record, dict) or record.get("knowledge_id") != knowledge_id:
+                continue
+            content = record.get("content")
+            if isinstance(content, dict) and content.get("hash") == content_hash:
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def _bootstrap_content_for_language(language_key: str) -> dict[str, Any]:
+    combined_text, content_hash = _build_docs_content(language_key)
+    return {
+        "combined_text": combined_text,
+        "language": language_key,
+        "kind": "bootstrap_documentation",
+        "hash": content_hash,
+        "topic_count": len(_BOOTSTRAP_DOCS[language_key]),
+    }
+
+
 async def run_fetch_phase(
     *,
     mission_id: str,
@@ -195,7 +223,10 @@ async def run_fetch_phase(
     proceeds regardless of individual language indexing failures.
     """
     indexed_languages: list[str] = []
+    refreshed_languages: list[str] = []
+    unchanged_languages: list[str] = []
     skipped_languages: list[str] = []
+    knowledge_ids: list[str] = []
     errors: list[str] = []
 
     for language_key in required_languages:
@@ -206,35 +237,44 @@ async def run_fetch_phase(
         knowledge_id = f"docs.{language_key}.bootstrap"
 
         try:
+            content = _bootstrap_content_for_language(language_key)
+            created_at = datetime.now(UTC).isoformat()
+            refresh_enabled = bool(getattr(settings, "knowledge_refresh_enabled", True))
             already_indexed = await asyncio.to_thread(
                 _check_knowledge_exists,
                 settings=settings,
                 knowledge_id=knowledge_id,
             )
-            if already_indexed:
-                indexed_languages.append(language_key)
-                LOGGER.debug("IS Agent: %s already indexed, skipping", language_key)
-                continue
+            current = await asyncio.to_thread(
+                _knowledge_is_current,
+                settings=settings,
+                knowledge_id=knowledge_id,
+                content_hash=content["hash"],
+            )
 
-            combined_text, content_hash = _build_docs_content(language_key)
-            content = {
-                "combined_text": combined_text,
-                "language": language_key,
-                "kind": "bootstrap_documentation",
-                "hash": content_hash,
-                "topic_count": len(_BOOTSTRAP_DOCS[language_key]),
-            }
-            created_at = datetime.now(UTC).isoformat()
-
+            if not already_indexed or (refresh_enabled and not current):
+                await asyncio.to_thread(
+                    _upsert_knowledge_safe,
+                    settings=settings,
+                    mission_id=_KNOWLEDGE_LAKE_ID,
+                    knowledge_id=knowledge_id,
+                    content=content,
+                    created_at=created_at,
+                )
+                refreshed_languages.append(language_key)
+            else:
+                unchanged_languages.append(language_key)
             await asyncio.to_thread(
                 _upsert_knowledge_safe,
                 settings=settings,
+                mission_id=mission_id,
                 knowledge_id=knowledge_id,
                 content=content,
                 created_at=created_at,
             )
 
             indexed_languages.append(language_key)
+            knowledge_ids.append(knowledge_id)
             LOGGER.info(
                 "IS Agent indexed %s documentation (%d topics)",
                 language_key,
@@ -247,9 +287,19 @@ async def run_fetch_phase(
 
     return {
         "indexed_languages": indexed_languages,
+        "refreshed_languages": refreshed_languages,
+        "unchanged_languages": unchanged_languages,
         "skipped_languages": skipped_languages,
+        "knowledge_ids": knowledge_ids,
         "errors": errors,
         "knowledge_ready": len(indexed_languages) > 0,
+        "refresh_enabled": bool(getattr(settings, "knowledge_refresh_enabled", True)),
+        "embedding_provider": str(
+            getattr(settings, "knowledge_embedding_provider", "deterministic")
+        ),
+        "embedding_model": str(
+            getattr(settings, "knowledge_embedding_model", "deterministic-hash-v1")
+        ),
         "indexed_at": datetime.now(UTC).isoformat(),
         "mission_id": mission_id,
     }
@@ -258,6 +308,7 @@ async def run_fetch_phase(
 def _upsert_knowledge_safe(
     *,
     settings: Any,
+    mission_id: str,
     knowledge_id: str,
     content: dict[str, Any],
     created_at: str,
@@ -267,7 +318,7 @@ def _upsert_knowledge_safe(
         from .storage import upsert_knowledge
         upsert_knowledge(
             settings,
-            _KNOWLEDGE_LAKE_ID,
+            mission_id,
             knowledge_id,
             content,
             created_at,

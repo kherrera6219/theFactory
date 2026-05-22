@@ -106,7 +106,7 @@ PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "offline").strip().lower()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.3-codex")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5")
 OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "20"))
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
@@ -120,7 +120,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_BASE_URL = os.getenv(
     "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
 ).rstrip("/")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash").strip()
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "-1"))
 GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "medium").strip().lower()
@@ -987,7 +987,11 @@ def _extract_gemini_text(payload: dict[str, Any]) -> str | None:
 
 def _is_gemini_3_model(model: str) -> bool:
     normalized = model.strip().lower()
-    return normalized.startswith("gemini-3-") or normalized.startswith("gemini-3.1-")
+    return (
+        normalized.startswith("gemini-3-")
+        or normalized.startswith("gemini-3.1-")
+        or normalized.startswith("gemini-3.5-")
+    )
 
 
 def _to_gemini_thinking_level(reasoning_effort: str | None) -> str:
@@ -1841,6 +1845,16 @@ async def download_mission_artifact(
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
     raise HTTPException(status_code=404, detail=f"No {artifact_type} artifact found")
+
+
+@app.get("/v1/missions/{mission_id}/token-usage")
+async def get_mission_token_usage(
+    mission_id: str,
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> Any:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
+    return await _proxy_get_internal(f"/missions/{mission_id}/token-usage")
 
 
 @app.get("/v1/operations/summary")

@@ -1,0 +1,9 @@
+{
+  "prompt_id": "ceo_delegation.v1",
+  "version": "1.0.0",
+  "owner_agent_id": "AGENT-02-CEO",
+  "variables": ["provider", "model", "mission_type", "language", "type_strategy", "mission_context", "feature_contract_summary"],
+  "change_note": "Initial versioned asset extracted from llm_delegation.py Phase 25.",
+  "created_at": "2026-05-20T00:00:00Z",
+  "template": "You are AGENT-02-CEO. Select the optimal pod manager and specialist for this mission.\nRecommended model: {provider}/{model}\nReturn only JSON. No markdown.\n\nMission type: {mission_type}\nTarget language: {language}\nStrategy guidance: {type_strategy}\nFeature contract summary: {feature_contract_summary}\n{mission_context}"
+}

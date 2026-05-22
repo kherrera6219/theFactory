@@ -7,6 +7,7 @@ import { Panel } from "../../components/panel";
 import { StatusBadge, SystemMessage } from "../../components/status";
 import { getGatewayHealth, getOperationsSummary } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
+import { useLastRefreshed } from "../../lib/use-last-refreshed";
 import type { GatewayHealth, OperationsSummary } from "../../lib/types";
 
 const REFRESH_MS = 10_000;
@@ -116,6 +117,8 @@ export default function DatabasesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [orchestratorOffline, setOrchestratorOffline] = useState(false);
+  const [lastFetchAt, setLastFetchAt] = useState<string | null>(null);
+  const lastRefreshed = useLastRefreshed(lastFetchAt);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,6 +157,7 @@ export default function DatabasesPage() {
         healthResult.status === "rejected" ? healthResult.reason : null;
 
       setError(firstError instanceof Error ? firstError.message : firstError ? "Unable to load database health." : null);
+      setLastFetchAt(new Date().toISOString());
       setLoading(false);
     };
 
@@ -176,7 +180,10 @@ export default function DatabasesPage() {
         description="Track the live readiness of the shared data systems used by the refinery control plane."
       />
 
-      <Panel title="Health Overview">
+      <Panel
+        title="Health Overview"
+        actions={lastRefreshed ? <span className="last-refreshed">Updated {lastRefreshed}</span> : undefined}
+      >
         {loading && <p className="muted">Collecting database diagnostics...</p>}
         {orchestratorOffline && (
           <SystemMessage tone="warning" title="Database diagnostics are running in offline mode">
@@ -222,13 +229,45 @@ export default function DatabasesPage() {
             <li key={card.id} className={`info-card db-${card.status}`}>
               <div className="panel-title-row">
                 <h3>{card.name}</h3>
-                <StatusBadge tone={card.status === "healthy" ? "healthy" : card.status === "degraded" ? "critical" : "neutral"}>
+                <StatusBadge
+                  tone={
+                    card.status === "healthy" ? "healthy" :
+                    card.status === "degraded" ? "critical" : "neutral"
+                  }
+                >
                   {card.status === "healthy" ? "Healthy" : card.status === "degraded" ? "Degraded" : "Disabled"}
                 </StatusBadge>
               </div>
               <p className="muted">{card.engine}</p>
               <p>{card.details}</p>
               <p className="muted">Last write: {card.lastWrite}</p>
+              {/* Phase 2G — actionable buttons for non-healthy states */}
+              {card.status === "degraded" && (
+                <div className="db-card-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => void (async () => { setLoading(true); await new Promise((r) => setTimeout(r, 400)); setLoading(false); })()}
+                  >
+                    Retry Connection
+                  </button>
+                </div>
+              )}
+              {card.status === "planned" && (
+                <div className="db-card-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    title="Enable this adapter in your compose environment variables"
+                    onClick={() => {
+                      const target = document.querySelector<HTMLElement>("[href='/settings']");
+                      target?.click();
+                    }}
+                  >
+                    Configure Adapter →
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

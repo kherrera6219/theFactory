@@ -1,0 +1,9 @@
+{
+  "prompt_id": "specialist_codegen.v1",
+  "version": "1.0.0",
+  "owner_agent_id": "AGENT-14-PYTHON",
+  "variables": ["specialist_agent_id", "target_language", "provider", "model", "contract_summary", "acceptance", "requirements", "logicnode_lines"],
+  "change_note": "Initial versioned asset extracted from llm_delegation.py Phase 25.",
+  "created_at": "2026-05-20T00:00:00Z",
+  "template": "You are {specialist_agent_id}, a {target_language} specialist.\nRecommended model route: {provider}/{model}\nGenerate a single complete source file that satisfies the mission contract.\nReturn only JSON. No markdown, prose, or code fences.\n\nMission: {contract_summary}\nTarget language: {target_language}\nAcceptance criteria:\n{acceptance}\n\nContract requirements:\n{requirements}\n\nExtracted logicnode context:\n{logicnode_lines}"
+}

@@ -89,6 +89,75 @@ def test_create_mission_endpoint(monkeypatch) -> None:
     assert emitted == ["MISSION_QUEUED"]
 
 
+def test_internal_provider_health_endpoint(monkeypatch) -> None:
+    monkeypatch.setattr(
+        orchestrator_internal,
+        "get_provider_health_summary",
+        lambda: {
+            "schema_version": "provider_health.v1",
+            "window_seconds": 300,
+            "providers": {"openai": {"call_count": 1}},
+            "generated_at": "2026-05-19T00:00:00+00:00",
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/broker/provider-health",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert response.status_code == 200
+    assert response.json()["providers"]["openai"]["call_count"] == 1
+
+
+def test_internal_runtime_qc_endpoint_reads_storage(monkeypatch) -> None:
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)
+    monkeypatch.setattr(
+        orchestrator_internal.storage,
+        "get_runtime_qc_report",
+        lambda *_: {
+            "mission_id": "mission-1",
+            "execution_result": {"verdict": "PASS"},
+            "qc_assessment": {"qc_verdict": "PASS"},
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/missions/mission-1/runtime-qc",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert response.status_code == 200
+    assert response.json()["execution_result"]["verdict"] == "PASS"
+
+
+def test_internal_testdata_manifest_endpoint_reads_metadata(monkeypatch) -> None:
+    async def _fetch_with_manifest(_: object, mission_id: str) -> MissionRecord:
+        record = _mission()
+        record.metadata["testdata_manifest"] = {
+            "base_image": "python:3.11-slim",
+            "run_command": "python solution.py",
+        }
+        return record
+
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch_with_manifest)
+    monkeypatch.setattr(
+        orchestrator_internal.storage,
+        "get_testdata_manifest",
+        lambda *_: None,
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/missions/mission-1/testdata-manifest",
+        headers={"x-api-key": "worker-key"},
+    )
+    assert response.status_code == 200
+    assert response.json()["manifest"]["base_image"] == "python:3.11-slim"
+
+
 def test_mission_query_endpoints(monkeypatch) -> None:
     monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
     monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)
@@ -186,8 +255,8 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
             "ceo_delegation": {
                 "source": "llm",
                 "llm_route": "primary",
-                "model_provider": "anthropic",
-                "model": "claude-3-5-sonnet",
+                "model_provider": "openai",
+                "model": "gpt-5.5",
                 "pod_manager_agent_id": "AGENT-12-PODA-MGR",
                 "specialist_agent_id": "AGENT-14-PYTHON",
             },
@@ -195,7 +264,7 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
                 "source": "llm",
                 "llm_route": "primary",
                 "model_provider": "openai",
-                "model": "gpt-5.4-mini",
+                "model": "gpt-5.5",
                 "pod_manager_agent_id": "AGENT-12-PODA-MGR",
                 "specialist_agent_id": "AGENT-14-PYTHON",
             },
@@ -203,7 +272,7 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
                 "source": "fallback",
                 "llm_route": "fallback",
                 "model_provider": "openai",
-                "model": "gpt-5.4-mini",
+                "model": "gpt-5.5",
                 "specialist_agent_id": "AGENT-14-PYTHON",
                 "pod_manager_agent_id": "AGENT-12-PODA-MGR",
                 "plan_summary": "Implement and validate the requested change.",
@@ -238,6 +307,168 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
                     "created_at": "2026-03-01T00:00:00+00:00",
                 }
             },
+            "fetch_result": {
+                "indexed_languages": ["python"],
+                "skipped_languages": [],
+                "errors": [],
+                "knowledge_ready": True,
+                "indexed_at": "2026-03-01T00:00:00+00:00",
+                "mission_id": "mission-1",
+            },
+            "application_intelligence_map": {
+                "schema_version": "aim.v1",
+                "aim_id": "aim-mission-1",
+                "mission_id": "mission-1",
+                "repository_summary": "One Python service.",
+                "detected_languages": ["python"],
+                "primary_language": "python",
+                "total_functions": 3,
+                "total_classes": 1,
+                "domain_distribution": {"parsing": 2},
+                "complexity_assessment": "low",
+                "key_patterns": [],
+                "detected_dependencies": ["csv"],
+                "risks": [],
+                "risk_flags": [],
+                "human_approval_recommended": False,
+                "recommended_approach": "Proceed with analysis.",
+                "recommended_mission_type": "ANALYZE_ONLY",
+            },
+            "equivalence_report": {
+                "schema_version": "equivalence_report.v1",
+                "report_id": "equivalence-mission-1",
+                "mission_id": "mission-1",
+                "status": "passed",
+                "passed": True,
+                "blocking": False,
+                "enforcement_enabled": False,
+                "risk_level": "low",
+                "checks": [],
+                "findings": [],
+                "evidence_refs": [],
+                "source": "deterministic",
+            },
+            "security_compliance_report": {
+                "schema_version": "security_compliance_report.v1",
+                "report_id": "security-compliance-mission-1",
+                "mission_id": "mission-1",
+                "status": "passed",
+                "passed": True,
+                "blocking": False,
+                "enforcement_enabled": False,
+                "regulated_context": False,
+                "risk_level": "low",
+                "security": {"passed": True, "checks": []},
+                "compliance": {"passed": True, "checks": []},
+                "findings": [],
+                "recommendations": [],
+                "evidence_refs": [],
+                "source": "deterministic",
+            },
+            "dependency_inventory": {
+                "schema_version": "dependency_inventory.v1",
+                "inventory_id": "dependency-inventory-mission-1",
+                "mission_id": "mission-1",
+                "dependency_count": 1,
+                "dependencies": [
+                    {
+                        "dependency_id": "dep-csv",
+                        "name": "csv",
+                        "normalized_name": "csv",
+                        "ecosystem": "python",
+                        "version": None,
+                        "source_refs": ["application_intelligence_map.detected_dependencies"],
+                        "usage_hints": [],
+                    }
+                ],
+                "sources": ["application_intelligence_map.detected_dependencies"],
+                "source": "deterministic",
+            },
+            "dependency_classification_report": {
+                "schema_version": "dependency_classification_report.v1",
+                "report_id": "dependency-classification-mission-1",
+                "mission_id": "mission-1",
+                "status": "classified",
+                "blocking": False,
+                "classification_count": 1,
+                "classifications": [
+                    {
+                        "dependency_id": "dep-csv",
+                        "name": "csv",
+                        "normalized_name": "csv",
+                        "decision": "keep",
+                        "category": "Keep",
+                        "risk_level": "low",
+                        "safety_blocked": False,
+                        "blocking": False,
+                        "license": None,
+                        "rationale": (
+                            "Runtime or standard-library dependency should not be absorbed."
+                        ),
+                        "source_refs": ["application_intelligence_map.detected_dependencies"],
+                        "usage_hints": [],
+                    }
+                ],
+                "source": "deterministic",
+            },
+            "dependency_absorption_report": {
+                "schema_version": "dependency_absorption_report.v1",
+                "report_id": "dependency-absorption-mission-1",
+                "mission_id": "mission-1",
+                "status": "not_applicable",
+                "blocking": False,
+                "modified_output_created": False,
+                "equivalence_required": False,
+                "equivalence_passed": True,
+                "security_compliance_required": False,
+                "security_compliance_passed": True,
+                "planned_replacements": [],
+                "survival_justification_count": 1,
+                "safety_block_count": 0,
+                "recommendations": [],
+                "evidence_refs": [],
+                "source": "deterministic",
+            },
+            "dependency_survival_justifications": [
+                {
+                    "schema_version": "dependency_survival_justification.v1",
+                    "justification_id": "dependency-survival-mission-1-csv",
+                    "mission_id": "mission-1",
+                    "dependency_id": "dep-csv",
+                    "name": "csv",
+                    "decision": "keep",
+                    "risk_level": "low",
+                    "safety_blocked": False,
+                    "rationale": "Runtime or standard-library dependency should not be absorbed.",
+                    "review_required": False,
+                }
+            ],
+            "master_logic_stream": {
+                "master_logic_stream": [
+                    {
+                        "node_id": "master-1",
+                        "domain": "parsing",
+                        "concept": "csv_reader",
+                        "canonical_intent": "Read CSV rows",
+                        "source_pods": ["podA"],
+                        "dependency_order": 1,
+                    }
+                ],
+                "total_unified_nodes": 1,
+                "eliminated_across_pods": 0,
+                "ready_for_codegen": True,
+                "source": "fallback",
+            },
+            "delivery_summary": {
+                "delivery_title": "Delivered CSV reader",
+                "delivery_summary": "Mission complete.",
+                "criteria_met": ["Returns CSV rows"],
+                "criteria_unmet": [],
+                "usage_notes": "Download the generated code artifact.",
+                "recommendations": [],
+                "primary_artifact_type": "generated_code",
+                "source": "fallback",
+            },
             "chain_trace": [
                 {
                     "event_type": "MISSION_SPECIALIST_PLANNED",
@@ -267,6 +498,18 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
     assert payload["pod_group_standards"]["podA"]["canonical_logicnodes"][0]["concept"] == (
         "csv_reader"
     )
+    assert payload["fetch_result"]["indexed_languages"] == ["python"]
+    assert payload["application_intelligence_map"]["aim_id"] == "aim-mission-1"
+    assert payload["equivalence_report"]["report_id"] == "equivalence-mission-1"
+    assert payload["security_compliance_report"]["report_id"] == (
+        "security-compliance-mission-1"
+    )
+    assert payload["dependency_inventory"]["inventory_id"] == (
+        "dependency-inventory-mission-1"
+    )
+    assert payload["dependency_absorption_report"]["status"] == "not_applicable"
+    assert payload["master_logic_stream"]["total_unified_nodes"] == 1
+    assert payload["delivery_summary"]["delivery_title"] == "Delivered CSV reader"
 
 
 def test_update_state_and_internal_endpoints(monkeypatch) -> None:
@@ -849,7 +1092,7 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert "milvus" in integration_payload["feature_flagged_data_plane"]
     assert integration_payload["planned_data_plane"] == []
     assert integration_payload["llm_provider_counts"]["openai"] > 0
-    assert integration_payload["llm_provider_counts"]["anthropic"] > 0
+    assert "anthropic" not in integration_payload["llm_provider_counts"]
     assert integration_payload["llm_provider_counts"]["gemini"] > 0
     assert any(record["agent_id"] == "AGENT-01-PM" for record in integration_payload["agents"])
     assert all("llm_recommendation" in record for record in integration_payload["agents"])

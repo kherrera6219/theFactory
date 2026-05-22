@@ -161,7 +161,7 @@ def test_ensure_db_schema_executes_queries(monkeypatch) -> None:
     assert len(cursor.executed) >= 3
     assert "schema_migrations" in cursor.executed[0][0]
     assert "SELECT version, checksum FROM schema_migrations" in cursor.executed[1][0]
-    assert cursor.executed[-1][1][0] == "005"
+    assert cursor.executed[-1][1][0] == "007"
 
 
 def test_row_and_json_helpers() -> None:

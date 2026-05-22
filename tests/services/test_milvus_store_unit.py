@@ -102,6 +102,9 @@ def test_upsert_knowledge_builds_payload(monkeypatch) -> None:
     point = payload["data"][0]
     assert point["mission_id"] == "mission-1"
     assert point["knowledge_id"] == "knowledge-1"
+    assert point["embedding_provider"] == "deterministic"
+    assert point["embedding_model"] == "deterministic-hash-v1"
+    assert point["embedding_dimensions"] == 16
     assert len(point["vector"]) == 16
 
 

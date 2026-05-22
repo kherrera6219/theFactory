@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isElectron, electronShowOpenDialog } from "../../lib/electron-bridge";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
@@ -439,13 +440,40 @@ export default function RepoImportPage() {
 
       <Panel title="Step 1: Import Repository" className="step-panel">
         <label htmlFor="repo-url">GitHub repository URL</label>
-        <input
-          id="repo-url"
-          type="url"
-          value={repoUrl}
-          onChange={(event) => setRepoUrl(event.target.value)}
-          placeholder="https://github.com/org/project"
-        />
+        <div className="repo-url-row">
+          <input
+            id="repo-url"
+            type="url"
+            value={repoUrl}
+            onChange={(event) => setRepoUrl(event.target.value)}
+            placeholder="https://github.com/org/project"
+            style={{ flex: 1 }}
+          />
+          {/* 7C — Show native directory picker in Electron; informational note in browser. */}
+          {isElectron() ? (
+            <button
+              type="button"
+              className="secondary-button"
+              title="Browse for a local repository directory"
+              onClick={async () => {
+                const paths = await electronShowOpenDialog({
+                  title: "Select local repository root",
+                  properties: ["openDirectory"],
+                });
+                if (paths && paths[0]) {
+                  // Set as a local path — the backend accepts file:// URIs for local repos.
+                  setRepoUrl(`file://${paths[0]}`);
+                }
+              }}
+            >
+              Browse Local…
+            </button>
+          ) : (
+            <span className="repo-local-hint muted" title="Browse is available in the desktop app">
+              Desktop app: Browse local repos
+            </span>
+          )}
+        </div>
         <div className="filters-grid">
           <label>
             Branch

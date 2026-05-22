@@ -99,7 +99,12 @@ class LanguageExtractor:
     _class_pattern: re.Pattern[str] | None = None
     _import_pattern: re.Pattern[str] | None = None
 
-    def extract(self, source: str, focus_domains: list[str] | None = None) -> ExtractionResult:
+    def extract(
+        self,
+        source: str,
+        focus_domains: list[str] | None = None,
+        doc_context: str | None = None,
+    ) -> ExtractionResult:
         """Run full extraction pipeline on *source* text."""
         result = ExtractionResult(language=self.language)
 
@@ -123,7 +128,10 @@ class LanguageExtractor:
             result.classes = self._detect_classes(source, lines)
             result.imports = self._detect_imports(source)
             result.concepts = self._apply_focus_domains(
-                self._detect_concepts(source, lines),
+                self._apply_doc_context(
+                    self._detect_concepts(source, lines),
+                    doc_context,
+                ),
                 focus_domains,
             )
         except Exception as exc:
@@ -233,6 +241,31 @@ class LanguageExtractor:
                 boosted.append(concept)
         return boosted
 
+    def _apply_doc_context(
+        self,
+        concepts: list[ExtractedConcept],
+        doc_context: str | None,
+    ) -> list[ExtractedConcept]:
+        normalized_context = str(doc_context or "").strip().lower()
+        if not normalized_context:
+            return concepts
+        boosted: list[ExtractedConcept] = []
+        for concept in concepts:
+            context_hit = (
+                concept.domain.strip().lower() in normalized_context
+                or concept.concept.strip().lower() in normalized_context
+            )
+            if context_hit:
+                boosted.append(
+                    replace(
+                        concept,
+                        confidence=round(min(concept.confidence + 0.05, 1.0), 2),
+                    )
+                )
+            else:
+                boosted.append(concept)
+        return boosted
+
 
 def _compute_confidence(pattern: ConceptPattern, line: str) -> float:
     """Heuristic confidence score for a pattern match.
@@ -278,10 +311,15 @@ class PythonAstExtractor(PythonExtractor):
     Enable via ``PYTHON_AST_EXTRACTOR_ENABLED=true``.
     """
 
-    def extract(self, source: str, focus_domains: list[str] | None = None) -> ExtractionResult:
+    def extract(
+        self,
+        source: str,
+        focus_domains: list[str] | None = None,
+        doc_context: str | None = None,
+    ) -> ExtractionResult:
         # Run the full regex pipeline first — this produces the concepts that
         # feed LogicNodes and is always the source of truth for concept detection.
-        result = super().extract(source, focus_domains=focus_domains)
+        result = super().extract(source, focus_domains=focus_domains, doc_context=doc_context)
 
         # Attempt AST-based structural enrichment.
         try:
@@ -370,8 +408,13 @@ class JavaScriptExtractor(LanguageExtractor):
 class JavaScriptAstExtractor(JavaScriptExtractor):
     """JavaScript/TypeScript extractor with AST-backed structural enrichment."""
 
-    def extract(self, source: str, focus_domains: list[str] | None = None) -> ExtractionResult:
-        result = super().extract(source, focus_domains=focus_domains)
+    def extract(
+        self,
+        source: str,
+        focus_domains: list[str] | None = None,
+        doc_context: str | None = None,
+    ) -> ExtractionResult:
+        result = super().extract(source, focus_domains=focus_domains, doc_context=doc_context)
         try:
             from .js_ast_extractor import extract_js_ast
         except ImportError:
@@ -503,8 +546,13 @@ class JavaExtractor(LanguageExtractor):
 class JavaAstExtractor(JavaExtractor):
     """Java extractor with AST-backed structural enrichment."""
 
-    def extract(self, source: str, focus_domains: list[str] | None = None) -> ExtractionResult:
-        result = super().extract(source, focus_domains=focus_domains)
+    def extract(
+        self,
+        source: str,
+        focus_domains: list[str] | None = None,
+        doc_context: str | None = None,
+    ) -> ExtractionResult:
+        result = super().extract(source, focus_domains=focus_domains, doc_context=doc_context)
         try:
             from .java_ast_extractor import extract_java_ast
         except ImportError:
