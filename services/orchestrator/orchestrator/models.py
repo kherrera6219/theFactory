@@ -59,6 +59,9 @@ class MissionState(str, Enum):
     ceo_delegated = "CEO_DELEGATED"
     pod_assigned = "POD_ASSIGNED"
     specialist_assigned = "SPECIALIST_ASSIGNED"
+    # Optional clarification hold — PM pauses pipeline awaiting operator input.
+    # Entered from pm_intake when the intent is ambiguous; exits back to pm_intake.
+    clarifying = "CLARIFYING"
     # v1.1 + v2 shared states
     running = "RUNNING"
     gating = "GATING"
@@ -88,6 +91,7 @@ V2_STATES: set[MissionState] = {
     MissionState.ceo_delegated,
     MissionState.pod_assigned,
     MissionState.specialist_assigned,
+    MissionState.clarifying,
     MissionState.running,
     MissionState.gating,
     MissionState.fusion,
@@ -108,6 +112,7 @@ EventType = Literal[
     "MISSION_CEO_DELEGATED",
     "MISSION_POD_ASSIGNED",
     "MISSION_SPECIALIST_ASSIGNED",
+    "MISSION_CLARIFYING",
     "MISSION_RUNNING",
     "MISSION_GATING",
     "MISSION_FUSION",
@@ -122,6 +127,14 @@ EventType = Literal[
     "MISSION_LOGICNODE_WRITTEN",
     "MISSION_COMPLETION_BLOCKED",
     "MISSION_DELIVERED",
+    # Intelligence-layer agent events (Sprint 2)
+    "MISSION_CLARIFICATION_RECEIVED",
+    "MISSION_CLARIFICATION_APPLIED",
+    "MISSION_POD_AUDIT_COMPLETE",
+    "MISSION_SECURITY_ANALYSIS_COMPLETE",
+    "MISSION_VC_COMMIT_STRATEGY_READY",
+    "MISSION_INTEGRATION_TESTS_GENERATED",
+    "MISSION_DEPLOY_READINESS_ASSESSED",
     # Agent events
     "AGENT_STATE_CHANGED",
 ]
@@ -139,7 +152,14 @@ VALID_TRANSITIONS: dict[MissionState, set[MissionState]] = {
     },
 
     # V2-only routing chain
-    MissionState.pm_intake: {MissionState.fetch, MissionState.ceo_delegated, MissionState.failed},
+    MissionState.pm_intake: {
+        MissionState.fetch,
+        MissionState.ceo_delegated,
+        MissionState.clarifying,
+        MissionState.failed,
+    },
+    # Clarification hold: PM pauses awaiting operator response, then re-enters pm_intake.
+    MissionState.clarifying: {MissionState.pm_intake, MissionState.failed},
     MissionState.fetch: {MissionState.ceo_delegated, MissionState.failed},
     MissionState.ceo_delegated: {MissionState.pod_assigned, MissionState.failed},
     MissionState.pod_assigned: {MissionState.specialist_assigned, MissionState.failed},
@@ -211,6 +231,17 @@ class MissionCreate(BaseModel):
 class MissionStateUpdate(BaseModel):
     new_state: MissionState
     expected_state: MissionState | None = None
+
+
+class MissionClarifyRequest(BaseModel):
+    """Operator-supplied clarification that resolves a CLARIFYING-state mission.
+
+    ``clarification`` is stored in ``metadata["pm_clarification"]`` and the
+    mission is transitioned back to PM_INTAKE so the PM Agent can re-process
+    the intent with the additional context.
+    """
+
+    clarification: str = Field(min_length=3, max_length=2000)
 
 
 class PodAssignmentUpsert(BaseModel):

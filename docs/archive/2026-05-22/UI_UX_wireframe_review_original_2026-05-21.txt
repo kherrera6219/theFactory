@@ -1,0 +1,833 @@
+run a ui ux wireframe , design , and visual appeal review of this application and create a findings and recommendation report27 steps27 stepsHoly Grail Refinery — Mission Control: UI/UX Wireframe, Design & Visual Appeal Review
+Application: Holy Grail Refinery — Mission Control
+Type: Enterprise AI Agent Orchestration Console (Local Runtime)
+Review Date: May 21, 2026
+Scope: All 9 application sections reviewed — Home, Chat, Missions, Agents, LogicNodes, Semantic Bus, Databases, Repo Import, Settings (+ Mission Detail view)
+
+Executive Summary
+Mission Control is a technically sophisticated, purpose-built operator console for managing AI agent pipelines ("missions"). The application has a strong dark-mode aesthetic and a clear domain vocabulary. However, there are notable gaps in visual hierarchy, information density management, empty-state UX, and interactive affordance clarity that create friction for power users and would significantly impede onboarding for new operators. The recommendations below are prioritized and actionable.
+
+Section 1: Layout & Wireframe Analysis
+1.1 Overall Information Architecture
+Findings:
+The application uses a persistent left sidebar for primary navigation and a top header bar for global context and primary actions. This is a sound and conventional dashboard pattern for enterprise tooling. However, several structural issues weaken it.
+The sidebar contains 9 navigation items but uses no visual grouping or hierarchy. Items like Home, Chat, and Missions belong to a "mission workflow" cluster, while Agents, LogicNodes, and Semantic Bus are observability/monitoring tools, and Databases, Repo Import, and Settings are configuration/infrastructure. Without grouping, all items appear equally weighted, making the app feel flatter than it is and increasing cognitive load when scanning.
+The top header bar carries three distinct types of content — a breadcrumb/context label on the left, a status badge in the center, and two action buttons on the right — but the visual weight distribution is unbalanced. The centered "OFFLINE-READY" badge competes with the page title and the action buttons, and the explanatory text "Live data requires API keys/runtime" reads like a permanent warning rather than a contextual status hint.
+Recommendations:
+Group the sidebar into three labeled sections: Workflow (Home, Chat, Missions), Observability (Agents, LogicNodes, Semantic Bus), and Configuration (Databases, Repo Import, Settings). Add subtle dividers and muted section labels. This is one of the highest-leverage wireframe improvements possible with minimal engineering cost.
+Move the status badge to the right side of the header, adjacent to the action buttons, so the left side is exclusively reserved for page identity/breadcrumbs. Condense "Live data requires API keys/runtime" into a tooltip on the badge itself.
+
+1.2 Page-Level Layout Consistency
+Findings:
+Most pages follow a common pattern: a page header with title + subtitle, followed by stacked white-bordered cards. This is good for consistency. However, the card layout paradigm is applied too uniformly across very different content types, creating a mismatch on some pages.
+On the Mission Detail page, 9+ cards are arranged in a 3-column grid, many of which display only "No [X] recorded yet." This results in a large amount of visual noise and wasted vertical real estate. Empty cards communicate the same "no data" state with different labels, which is repetitive and visually cluttered.
+On the Missions page, the two-column layout (Launch Mission form on the left, Recent Missions on the right) is well-conceived but the proportional split (~60/40) causes the launch form to scroll while the recent missions list stays anchored, creating a disconnected interaction model. When the user scrolls to fill out the bottom of the form, the mission list scrolls out of view as well.
+The Agents page has an unusual layout where the filter controls, a large error banner, and then two completely empty sections ("Agent and Mission Snapshot," "State Distribution") appear before the actual Agent Grid — which is also empty. Four consecutive empty sections in vertical sequence is one of the most significant layout anti-patterns observed.
+Recommendations:
+For the Mission Detail page, implement a progressive disclosure model — show only the "active" data panels by default (Smelt-Cycle Phase Stepper, Mission Signals, LogicNode Progress) and collapse or hide the "not yet available" cards behind a toggle or tab. Cards with no data should be consolidated into a single "Awaiting mission data" placeholder panel rather than rendering individually.
+For the Missions page, consider making the form panel independently scrollable within the two-column layout using CSS overflow-y: auto on each column, so the recent missions list remains visible as the user fills out the form.
+For the Agents page, collapse or hide sections that have no data when the error state is active. The error banner should sit at the top and explain that all dependent sections are unavailable, then hide the empty sections.
+
+Section 2: UX & Interaction Design
+2.1 Navigation & Wayfinding
+Findings:
+Navigation is functional but lacks depth cues. The active state in the sidebar — a filled purple/violet background rectangle — is clear and readable. However, there is no breadcrumb trail on most inner pages beyond the two-level "SECTION > Page Title" micro-breadcrumb at the top of the content area. On the Mission Detail sub-page, wayfinding relies solely on the "Back to Missions" button, with no persistent indication in the sidebar that the user is within the Missions section.
+There are also two separate "launch a mission" entry points: the "New Mission" button in the header, and the "Launch Mission" form on the Missions page. Both navigate to the same Missions page, making the "New Mission" button redundant and potentially confusing.
+Recommendations:
+Highlight the parent nav item (Missions) when a sub-page like Mission Detail is active. Add a visible breadcrumb trail such as "Missions → mission-618c..." at the top of the content panel for deep sub-pages. Differentiate the "New Mission" header button's behavior — it could scroll-to or auto-focus the mission prompt field rather than simply re-navigating to a page the user may already be on.
+
+2.2 Empty States
+Findings:
+Empty states are the single most significant UX weakness across the application. The pattern used consistently is a rounded square icon placeholder on the left with a bolded label and a secondary description — for example, "No runtime agents available / Ensure the backend gateway is running and reachable, then verify the API base URL." This is a reasonable empty-state component in isolation, but it is applied to every empty data surface with essentially the same visual treatment, regardless of whether the emptiness is:
+
+A configuration error (Agents telemetry unavailable — gateway auth not configured)
+An expected offline state (no live data without API keys)
+A genuinely empty dataset (no missions launched yet)
+A locked/sequential workflow step (files must be imported before step 2 unlocks)
+
+All four of these are fundamentally different states that should communicate different things to the user, but they all look identical.
+Recommendations:
+Develop a multi-tier empty state system with at minimum three distinct visual treatments: (1) a warning/error state for configuration failures (red/amber border, clear actionable CTA linking to Settings), (2) a pending/sequential state for wizard-gated steps that are intentionally locked (muted appearance, lock icon, "Complete step X first" label), and (3) a genuinely empty state for features that are ready but have no data yet (neutral color, gentle illustration or icon, optional quick-start CTA).
+
+2.3 Form UX (Missions Page)
+Findings:
+The Launch Mission form is the core user workflow and deserves the most careful UX consideration. The form has five fields (prompt textarea, mission type, depth mode, output mode, target language), each with a dropdown, followed by a "Launch Mission" button. The field labels use a two-line pattern — a bold label on top and an explanatory sub-label below — which is good practice. However:
+The mission prompt textarea has a placeholder that reads "Build an internal API that translates payroll rules into testable logic nodes." — a highly specific example that anchors users to one domain rather than helping them understand what to write. The helper text below ("Tip: include functional boundaries and quality expectations.") is minimal.
+The dropdowns all use native HTML <select> elements styled with a dark theme. The option values are verbose and inconsistent in length (e.g., "Standard — normal engineering workflow" vs "python"), making the UI feel manually assembled rather than systematically designed.
+There is no real-time validation or character counter on the prompt field, despite the requirement of "Minimum 3 characters" being called out. The "Launch Mission" button is always visible and active regardless of form state — there's no affordance to prevent premature submission.
+Recommendations:
+Replace the example placeholder with a more generic and instructive one (e.g., "Describe the goal, constraints, and expected outputs of this mission..."). Add a character counter to the textarea. Implement progressive button state — the "Launch Mission" button should be visually disabled/muted until the minimum requirements are met. Consider custom-styled dropdowns to improve visual consistency and allow for icons or groupings within option lists.
+
+2.4 Semantic Bus — Protocol Event Monitor
+Findings:
+This page is one of the better-designed sections. The "LIVE (STREAM)" indicator badge with a pulsing green dot is visually distinctive and immediately communicates real-time status. The table with column headers (TIMESTAMP, PROTOCOL, PRODUCER, CONSUMER, TYPE, TOPIC, PRIORITY, SUMMARY) is well-organized for a data-dense monitoring view.
+However, the page provides no way to understand what the table columns mean without domain knowledge. There are no tooltips on column headers, no help text, and no legend. The table is also only ever "windowed" (as stated by "Rendering 0 of 0 rows (windowed)") with no UI for adjusting the window size or loading more events.
+Recommendations:
+Add hover tooltips to all column headers explaining what each field represents. Add a configurable "window size" control (e.g., "Show last 50 / 100 / 500 events") so operators can tune the view to their needs. Consider adding a mini-chart or sparkline above the table showing event rate over time to give operators a sense of system activity even before individual events are examined.
+
+2.5 Settings Page — API Key Vault Slots
+Findings:
+The API Key Vault Slots table is feature-rich but has a significant UX issue: the table has a "MASKED" column that always shows "n/a" for missing keys, an "ACTIONS" column that is cut off at the right edge (the column header reads "ACTIONS" but is visually clipped), and a "Select" button whose action is unclear — does it select an existing key, does it open a key entry dialog, or does it navigate elsewhere?
+The "Static roster mode" amber warning banner is well-designed — amber/gold color distinguishes it from error (red) and success (green) states effectively. However the banner text is technical and dense.
+Recommendations:
+Rename the "Select" button to "Add Key" or "Configure" to make the action intent unambiguous. Fix the column overflow in the table — consider making the table horizontally scrollable on narrow viewports rather than clipping column headers. Simplify the "Static roster mode" banner copy to a one-sentence user-facing explanation with a link to documentation.
+
+Section 3: Visual Design & Aesthetic Appeal
+3.1 Color System
+Findings:
+The application uses a dark blue-grey base palette (#1a1d2e body, #252836 cards) that is appropriate for an enterprise operator console designed for extended use. The accent color is a strong purple/violet (#7c3aed or similar) used for CTAs, active states, and badges — creating a distinctive product identity.
+Status colors follow a clear semantic system: green for healthy/ready, amber/orange for warnings/offline, red for errors/failed, and grey for disabled. This is correct and consistent across all pages reviewed.
+However, several color accessibility issues are present. The purple metric numbers on the System Health Snapshot cards (e.g., the large "6" for Total Missions) use the same purple as the accent color, making them hard to distinguish from interactive elements. The amber text "Static roster mode" and "Agent telemetry is unavailable" labels have relatively low contrast against the dark card backgrounds. The muted teal/green color used for breadcrumb labels like "HOME" and "LOGICNODES" is subtle to the point of being nearly invisible.
+Recommendations:
+Reserve the purple accent strictly for interactive elements (buttons, links, active states). Use a neutral white or light grey for metric values on dashboard cards. Run a WCAG AA contrast check on all amber/warning text against dark backgrounds and increase font weight or adjust hue where contrast ratios fall below 4.5:1. Increase the contrast and font-weight of the breadcrumb section labels.
+
+3.2 Typography
+Findings:
+The type scale is functional but lacks clear differentiation between levels. The application uses three visible text weights — a bold heading weight (section titles like "System Health Snapshot"), a medium weight (body labels), and a light/regular weight (secondary descriptions). However, the heading and body text sizes are very close together — section titles appear only marginally larger than field labels, which reduces perceived visual hierarchy.
+The monospaced mission IDs displayed in the Recent Missions list (e.g., "mission-618c9a6e-4ad0-4dd5-8603-8c2a50936165") are displayed in the same font as surrounding text, which makes them harder to visually distinguish as identifiers.
+The "OFFLINE-READY," "READY," "HEALTHY," "DEGRADED," "MISSING," and "IDLE" status labels are rendered in ALL-CAPS with small font sizes. While this is a common badge convention, the inconsistency in sizing and background treatment across different status badges makes the overall language feel unpolished.
+Recommendations:
+Increase the size differential between section headers and body text — consider bumping section titles to 18–20px if they are currently at 16px. Render mission IDs in a monospace font family (e.g., font-family: monospace or a specific coding font) to make them visually distinct as technical identifiers. Standardize the badge system — define a single component with consistent padding, font size, and color rules applied uniformly across all status indicators.
+
+3.3 Spacing & Density
+Findings:
+Overall spacing is generous — card padding, section gaps, and row heights are comfortable for a desktop-first interface. This is appropriate for the expected use context (operator workstations).
+One exception is the Settings table, where dense rows of API key slots with multiple columns in a limited viewport create a compressed, difficult-to-scan layout. The "LAST ROTATED" and "EXPIRES" columns in particular show "n/a" for all rows, consuming horizontal space without adding current value.
+On the Agents page, the filter bar (Tier / Pod / State) uses three wide dropdown selects in a row that span nearly the full width of the content area, which looks disproportionate when there are no agents to filter.
+Recommendations:
+In the Settings table, allow hiding columns that are universally "n/a" (MASKED, LAST ROTATED, EXPIRES) until keys are configured, reducing the table to its essential columns (SLOT ID, PROVIDER, MODEL, STATUS, ACTIONS). For the Agents filter bar, constrain dropdown widths and align them left rather than stretching to full width.
+
+3.4 Interactive Component Styling
+Findings:
+The primary CTA button ("Launch Mission," "Import Repository," "Send") uses a solid purple background with white text — clearly primary and distinct. Good.
+The secondary buttons ("Back to Missions," "Pause Monitor," "Refresh," "View Live") use a dark, low-contrast style that blends into the card backgrounds. In particular, "Back to Missions" and "Pause Monitor" on the Mission Detail page are styled so similarly to one another that there is no visual distinction between the action (Pause) and navigation (Back) buttons.
+The "Cancel Mission" button on the Mission Detail page uses a filled red background — which is visually alarming and correct for a destructive action. However its presence alongside two neutral-styled buttons creates an inconsistent visual weight among the three action buttons in that header group.
+Input fields (text inputs, textareas, selects) are styled with dark backgrounds and a subtle border. When focused, the textarea shows a purple outline — good affordance. However, the <select> dropdowns do not show a matching focus state, creating an inconsistency.
+Recommendations:
+Define a three-tier button system: primary (filled purple), secondary (outlined with a visible border and legible text), and danger (filled red). Apply these consistently. The "Back to Missions" should be a ghost/text button (navigation, not an action), "Pause Monitor" should be secondary, and "Cancel Mission" should be danger. Extend the purple focus-ring treatment from textarea to all form inputs including selects.
+
+Section 4: Terminology & Domain Language
+Findings:
+The application uses a rich and internally consistent domain vocabulary — "missions," "smelt-cycle," "logic nodes," "pods," "agents," "refinery," "gating," "fusion," "squeeze," "delivery." This is evocative and likely intentional, creating a sense of industrial-scale operations.
+However, this vocabulary creates a steep learning curve. There is no onboarding layer, tooltip system, or in-app glossary to help new operators understand what terms like "LogicNode," "PM Feature Contract," "Mission Charter," "Route Provenance," or "Smelt-Cycle Phase" mean in practice. The Agents page introduces concepts like "Tier," "Pod," "Workload," and "Specialties" as column headers with no explanation.
+Recommendations:
+Add a lightweight help/tooltip system — a small "?" icon next to specialized terms that reveals a one-sentence definition on hover. This can be implemented without disrupting the visual design. Consider a first-visit or guided onboarding overlay that walks new operators through the core concepts using the real UI. At minimum, the Agents page column headers and the Smelt-Cycle phase names should have tooltips.
+
+Section 5: Prioritized Recommendation Summary
+The following table ranks all findings by impact and effort:
+PriorityFindingImpactEffortP1Group sidebar navigation into labeled sectionsHighLowP1Multi-tier empty state systemHighMediumP1Standardize badge/status componentHighLowP1Fix Mission Detail — hide "no data yet" cardsHighLowP2Fix button hierarchy (primary / secondary / danger)HighLowP2Add focus-ring consistency to all inputsMediumLowP2Add tooltips to domain-specific termsHighMediumP2Fix Agents page — suppress empty sections during error stateMediumLowP2Missions form: disabled submit until valid, char counterMediumMediumP3Move status badge to header right sideMediumLowP3Independent column scroll on Missions 2-column layoutMediumMediumP3Render mission IDs in monospace fontLowLowP3Semantic Bus: tooltips on table columns + sparklineMediumMediumP3Settings table: hide all-null columnsLowLowP3Increase heading/body type size differentialMediumLow
+
+Overall Scores
+DimensionScoreNotesInformation Architecture6/10Functional but flat nav, no groupingWireframe / Layout6.5/10Consistent card pattern, but density & empty states hurt usabilityInteraction Design6/10Forms need validation, buttons need hierarchy, empty states need differentiationVisual Design7/10Strong color identity and dark mode execution; typography and component standardization need polishAccessibility5.5/10Amber-on-dark contrast concerns; no visible skip-links or ARIA investigation; monospace IDs neededDomain UX / Onboarding4.5/10Rich vocabulary with zero discoverability supportOverall6/10Solid foundation for a specialized enterprise tool; targeted improvements would significantly elevate quality
+
+Conclusion
+Mission Control has a compelling and coherent visual identity well-suited for its enterprise operator audience. The dark theme, color-coded status system, and structured card-based layout give it a professional, data-dense aesthetic. The application's core workflow — launching, monitoring, and reviewing missions — is logically structured across pages.
+The most impactful improvements are centered on three themes: empty state differentiation (so operators always know what action to take next), navigation grouping (so the app's depth is immediately understandable), and component standardization (so buttons, badges, and form fields behave and look consistent everywhere). None of these require fundamental redesign — they are targeted, engineering-friendly improvements that would meaningfully raise the quality of the product from a competent internal tool to a polished enterprise product.create a phased update plan to get a 10 in each area1 step1 stepHoly Grail Refinery — Mission Control
+Phased Update Plan: Path to 10/10 Across All Dimensions
+Based on: UI/UX Review — May 21, 2026
+Current Scores: Information Architecture 6 · Layout/Wireframe 6.5 · Interaction Design 6 · Visual Design 7 · Accessibility 5.5 · Domain UX/Onboarding 4.5
+Target: 10/10 in all six dimensions
+Each phase is designed to be independently shippable, building on the previous. Phases are scoped to be realistic sprints — Phase 1 is the highest ROI work and can ship quickly; each subsequent phase adds depth and polish.
+
+Phase 1 — Foundation Fixes (~1–2 weeks)
+Goal: Eliminate the most damaging UX failures with minimal code changes
+Score impact: IA → 8 · Layout → 8 · Interaction → 7.5 · Visual → 8 · Accessibility → 7 · Domain UX → 6
+This phase focuses exclusively on changes that require no new backend work, no new components, and no design system — just targeted, high-leverage CSS and logic edits.
+
+1A — Sidebar Navigation Grouping
+Target score area: Information Architecture
+Add three labeled section groups to the sidebar with a subtle divider line and a muted uppercase group label. No routing or component changes needed — pure layout restructuring.
+── WORKFLOW ──────────────
+  Home
+  Chat
+  Missions
+
+── OBSERVABILITY ─────────
+  Agents
+  LogicNodes
+  Semantic Bus
+
+── CONFIGURATION ─────────
+  Databases
+  Repo Import
+  Settings
+Each group label should be approximately 10px, all-caps, letter-spacing: 0.1em, color rgba(255,255,255,0.35) — visible but clearly subordinate. Add 8px top padding above each group label and a 1px hairline divider.
+Additionally: When on a sub-page (e.g., Mission Detail), highlight the parent nav item ("Missions") with the active style and show the page depth in the breadcrumb: Missions → mission-618c...
+
+1B — Button Hierarchy Standardization
+Target score area: Interaction Design, Visual Design
+Define and apply three button variants across all pages immediately:
+
+Primary — filled #7c3aed background, white text, 6px border-radius. Used for: "Launch Mission," "Import Repository," "Send," "New Mission"
+Secondary — transparent background, 1px solid rgba(255,255,255,0.25) border, white text. Used for: "Refresh," "Pause Monitor," "Back to Missions," "View Live," "Choose files"
+Danger — filled #dc2626 background, white text. Used exclusively for: "Cancel Mission," any delete/destructive action
+Ghost/Text — no border, no background, muted purple text. Used for navigation actions like "Back to Missions" (navigation, not action)
+
+This single change resolves the visual confusion on Mission Detail where three buttons of equal visual weight have completely different consequences.
+
+1C — Status Badge Standardization
+Target score area: Visual Design
+Unify all status badges to a single reusable component with consistent padding (4px 10px), font size (11px), font-weight (600), border-radius (999px), and dot + label format:
+StateDot colorBackgroundTextHEALTHY / READY#22c55ergba(34,197,94,0.15)#22c55eOFFLINE-READY#f59e0brgba(245,158,11,0.15)#f59e0bDEGRADED#ef4444rgba(239,68,68,0.15)#ef4444MISSING#6b7280rgba(107,114,128,0.15)#6b7280IDLE#6b7280rgba(107,114,128,0.15)#6b7280LIVE (STREAM)#22c55e + pulsergba(34,197,94,0.15)#22c55e
+Move the "OFFLINE-READY" badge from the center of the header to the right side, immediately left of the "New Mission" button. Condense "Live data requires API keys/runtime" into a tooltip on hover of the badge.
+
+1D — Mission IDs in Monospace
+Target score area: Visual Design, Accessibility
+Wrap all UUIDs, mission IDs, slot IDs, and technical identifiers in a <code> element or apply font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; font-size: 0.85em; letter-spacing: -0.02em. This includes the Recent Missions list, the Settings API Key Vault table, and any ID rendered in the Mission Detail header.
+
+1E — Suppress All-Null Table Columns
+Target score area: Layout/Wireframe
+In the Settings API Key Vault table, programmatically hide the "MASKED," "LAST ROTATED," and "EXPIRES" columns when all values in those columns are "n/a." Replace with a compact "Key not configured" state. When at least one key has been configured, reveal those columns. This immediately reduces table density and makes the actual actionable columns (SLOT ID, PROVIDER, MODEL, STATUS, ACTIONS) more legible.
+
+1F — Agents Page Error State Cleanup
+Target score area: Layout/Wireframe
+When the "Agent telemetry is unavailable" error is active, hide the "Agent and Mission Snapshot," "State Distribution," and "Agent Grid" empty sections. Show only the error banner with a direct CTA button: "Configure Gateway in Settings →". This converts a page with 4 consecutive empty panels into a focused, actionable single-message state.
+
+Phase 2 — Component & Empty State System (~2–3 weeks)
+Goal: Build the shared component library and fix the empty state anti-patterns across the entire app
+Score impact: IA → 9 · Layout → 9 · Interaction → 8.5 · Visual → 9 · Accessibility → 8 · Domain UX → 7
+
+2A — Empty State Component System
+Target score area: Interaction Design, Layout/Wireframe
+Build a single <EmptyState> component that accepts a variant prop. This is the most impactful component investment in the entire application.
+Variant: error — used for configuration failures
+
+Left border: 2px #ef4444
+Background: rgba(239,68,68,0.07)
+Icon: warning triangle (red)
+Title: bold, describes what failed
+Body: plain language explanation
+CTA button: secondary-styled, links to relevant fix location (e.g., Settings)
+Example: "Agent telemetry is unavailable — gateway auth is not configured. [Open Settings →]"
+
+Variant: locked — used for sequential wizard steps that require a prior step
+
+Left border: 2px rgba(255,255,255,0.15)
+Background: slightly dimmer than base card
+Icon: lock icon (muted grey)
+Title: "Complete Step X first"
+Body: describes what step must be completed and why
+No CTA (the action is in the earlier step)
+Example: "File selection unlocks after import — Import a repository in Step 1 to continue"
+
+Variant: empty — used for genuinely ready but empty data surfaces
+
+No border treatment
+Icon: subtle domain-relevant illustration or outline icon
+Title: encouraging label
+Body: explains what will appear here
+Optional: ghost CTA to create first item
+Example: "No events yet — stream events will appear here when agents are running"
+
+Variant: offline — used for features that require live backend connectivity
+
+Left border: 2px #f59e0b
+Background: rgba(245,158,11,0.07)
+Icon: plug/disconnected icon (amber)
+Body: concise note that live data requires runtime connection
+Example: "Requires live runtime — connect the backend gateway to view agent telemetry"
+
+Apply these four variants systematically across every empty state in the application, replacing the current single-style treatment.
+
+2B — Mission Detail: Progressive Disclosure
+Target score area: Layout/Wireframe
+Restructure the Mission Detail page into two zones:
+Zone 1 — Always Visible (the "Live Operations" strip)
+
+Mission header (ID, status, action buttons)
+Smelt-Cycle Phase Stepper
+Mission Signals panel (even if empty, this is real-time)
+
+Zone 2 — Tabbed Panel below the stepper
+Four tabs: Execution (LogicNode Progress, Chain of Command Trace, Active Agents) · Artifacts (Generated Output, Build Artifacts, Audit Evidence) · Contracts (PM Feature Contract, Mission Charter, Mission Contract, Pod Group Standards, Logic Clusters, Route Provenance) · Events (Mission Event Log, Transition Timeline)
+Each tab shows its panels only if at least one has data; otherwise shows a single <EmptyState variant="empty"> per tab. This collapses ~12 individual cards into 4 focused tabs, dramatically reducing the "wall of empty cards" problem.
+
+2C — Missions Page: Independent Column Scroll
+Target score area: Layout/Wireframe
+Wrap the two-column layout (Launch Mission form + Recent Missions) in a CSS grid with height: calc(100vh - header-height) and overflow-y: auto on each column independently. The Recent Missions list should remain anchored as the user scrolls the form, so completed missions are always visible for reference while configuring a new launch.
+Also add a thin sticky mission status summary bar at the top of the Recent Missions column showing aggregate counts (Complete: 6, Running: 0, Failed: 0) as small colored pills — referencing the same data as the Home dashboard but contextually placed where it's most useful.
+
+2D — Form Validation & Submit State
+Target score area: Interaction Design
+For the Launch Mission form and the Repo Import form:
+
+Disable the primary CTA button until required fields are valid. Use opacity: 0.45; pointer-events: none with a CSS transition rather than removing the button. Add a tooltip on the disabled button: "Enter a mission prompt to continue."
+Add a live character counter to the mission prompt textarea: right-aligned, muted, format 47 / 3000 characters. Show the minimum threshold ("Minimum 3 characters") as a helper below the counter only until the minimum is met, then hide it.
+On the GitHub URL field in Repo Import, add inline format validation — a green checkmark when the URL matches https://github.com/* pattern, a gentle amber indicator with "Expected format: https://github.com/org/project" when it doesn't.
+Add a loading/spinner state to the "Launch Mission" and "Import Repository" buttons during async operations so users know submission was received.
+
+
+2E — Input Focus State Consistency
+Target score area: Interaction Design, Accessibility
+Apply a consistent outline: 2px solid #7c3aed; outline-offset: 2px focus ring to every interactive element: text inputs, textareas, <select> dropdowns, buttons, and navigation links. Currently only the textarea has this treatment. This single CSS change closes a significant accessibility gap and costs essentially zero engineering effort.
+Add :focus-visible scoping so the ring appears only on keyboard navigation, not on mouse click, for a cleaner visual experience for pointer users while remaining fully accessible for keyboard users.
+
+2F — Header Context Cleanup
+Target score area: Information Architecture, Visual Design
+Refactor the top header bar into three clearly defined zones:
+
+Left zone: Page context only — "Local Runtime — {Page Name}" as the primary label, "Enterprise operator console" as a permanent muted sub-label below. No other content.
+Center zone: Empty (reserved for future search or command palette)
+Right zone: Status badge → "New Mission" button → "Mission Center" button, left to right with 12px gaps.
+
+This simple repositioning reduces the cognitive competition between status information and navigation actions that currently occurs in the centered badge layout.
+
+Phase 3 — Design System & Typography (~2–3 weeks)
+Goal: Establish a formal design token system and elevate typographic quality to publication level
+Score impact: IA → 9.5 · Layout → 9.5 · Interaction → 9 · Visual → 9.5 · Accessibility → 8.5 · Domain UX → 8
+
+3A — Design Token Foundation
+Target score area: Visual Design
+Define and document a full set of CSS custom properties (design tokens) at the :root level. This turns ad-hoc color and spacing values into a maintainable system.
+css/* Color tokens */
+--color-bg-base: #12141f;
+--color-bg-card: #1e2130;
+--color-bg-card-hover: #242740;
+--color-border-subtle: rgba(255,255,255,0.08);
+--color-border-default: rgba(255,255,255,0.14);
+--color-accent-primary: #7c3aed;
+--color-accent-primary-hover: #6d28d9;
+--color-text-primary: #f1f5f9;
+--color-text-secondary: #94a3b8;
+--color-text-muted: #475569;
+--color-status-healthy: #22c55e;
+--color-status-warning: #f59e0b;
+--color-status-error: #ef4444;
+--color-status-disabled: #475569;
+
+/* Spacing scale */
+--space-1: 4px;   --space-2: 8px;   --space-3: 12px;
+--space-4: 16px;  --space-5: 20px;  --space-6: 24px;
+--space-8: 32px;  --space-10: 40px; --space-12: 48px;
+
+/* Type scale */
+--text-xs: 11px;  --text-sm: 13px;  --text-base: 15px;
+--text-lg: 17px;  --text-xl: 20px;  --text-2xl: 24px;
+--text-3xl: 30px;
+
+/* Radius */
+--radius-sm: 4px; --radius-md: 8px;
+--radius-lg: 12px; --radius-pill: 999px;
+Replace all hardcoded values throughout the codebase with these tokens. This makes future theme changes (e.g., a light mode) achievable in minutes rather than weeks.
+
+3B — Typography Scale Overhaul
+Target score area: Visual Design, Accessibility
+Implement a clear 5-level typographic hierarchy applied consistently across all pages:
+LevelUsageSizeWeightColor tokenDisplayPage titles (Launch Pad, LogicNode Explorer)--text-3xl / 30px700--color-text-primaryHeadingSection titles (System Health Snapshot)--text-xl / 20px600--color-text-primarySub-headingCard/panel titles (Runtime Health)--text-lg / 17px600--color-text-primaryBodyLabels, field text, content--text-base / 15px400--color-text-primaryCaptionSub-labels, hints, timestamps--text-sm / 13px400--color-text-secondaryMicroBadge text, column headers, breadcrumbs--text-xs / 11px600--color-text-muted
+Currently, the gap between Display and Heading is too small — page titles feel only marginally larger than section titles. Increasing Display to 30px and maintaining Heading at 20px creates a clear 1.5x visual jump that communicates page structure at a glance.
+Apply letter-spacing: 0.08em; text-transform: uppercase to all Micro-level text (column headers, breadcrumb labels, group labels) to give small text the visual presence it needs at reduced sizes.
+
+3C — Card System Refinement
+Target score area: Visual Design, Layout
+Introduce two card variants to replace the single uniform card used everywhere:
+Panel card — used for major content sections (System Health Snapshot, Runtime Health, Conversation). Slightly lighter background (--color-bg-card), 1px solid var(--color-border-subtle) border, --radius-lg corners, --space-6 padding.
+Data card — used for metric tiles, database cards, mission list items. Same background, but add a left 3px colored accent border that reflects status (green for healthy, amber for warning, red for error, transparent/grey for neutral). This gives data cards a distinctive "at a glance" readability improvement, especially on the Databases page where Semantic Bus (healthy), State Graph (degraded), and Knowledge Vectors (disabled) are visually identical currently.
+Add a subtle transition: background 0.15s ease hover state to all clickable cards so interactive cards feel responsive and non-interactive cards feel stable.
+
+3D — Metric Value Typography
+Target score area: Visual Design
+On the System Health Snapshot, the large metric numbers (6, 0, 0, 0) currently use the same purple accent color as interactive buttons, creating a semantic confusion. Update metric values to use --color-text-primary (white) for their numerical values, with the semantic dot indicator (blue, amber, green, red) retaining its status color. Reserve the accent purple strictly for interactive elements.
+Additionally, increase the metric number size to --text-3xl (30px) with font-weight: 700 to give the dashboard its proper at-a-glance scanning power. Large numerals on a health dashboard should be immediately readable from across a workstation.
+
+Phase 4 — Accessibility Audit & Remediation (~2 weeks)
+Goal: Achieve WCAG 2.1 AA compliance throughout the application
+Score impact: Accessibility → 10
+
+4A — Contrast Ratio Audit & Fixes
+Run a full automated + manual WCAG 2.1 AA contrast audit. Known items requiring remediation:
+
+Amber warning text on dark card backgrounds (e.g., "Static roster mode," "Agent telemetry is unavailable") — current contrast ratio estimated at ~3.5:1 against the dark card; AA requires 4.5:1 for normal text. Fix by increasing text to font-weight: 600 and lightening the amber to #fbbf24 or #fcd34d.
+Muted breadcrumb labels (HOME, LOGICNODES, etc.) — increase to --color-text-secondary (#94a3b8) minimum.
+Secondary button text — ensure all secondary buttons meet 4.5:1 against their background.
+Placeholder text in inputs — placeholder color must be at minimum 3:1 (WCAG AA for UI components). Adjust from current near-invisible placeholders.
+
+
+4B — Keyboard Navigation Audit
+
+Add tabindex="0" to all custom interactive elements that are not natively focusable (any <div> or <span> used as a button or link).
+Implement a visible skip navigation link as the first focusable element in the DOM: <a href="#main-content" class="skip-link">Skip to main content</a> that becomes visible on focus. Styled with the accent purple background, positioned at top-left.
+Audit all dropdown/select menus for keyboard operability. Native <select> elements are already keyboard-accessible; if any have been replaced with custom components, ensure they implement the ARIA listbox role pattern.
+Ensure the sidebar navigation can be traversed entirely by keyboard, with clear focus indicators on each item.
+
+
+4C — ARIA Semantic Markup
+
+Add role="navigation" aria-label="Main navigation" to the sidebar <nav> element.
+Add role="main" to the primary content area.
+Add role="status" aria-live="polite" to the runtime health status indicators so screen reader users are informed when status changes.
+Add aria-label attributes to all icon-only buttons.
+Add aria-describedby to form fields linking to their helper text, so screen readers announce the hints when the field receives focus.
+Add aria-expanded and aria-controls to any collapsible sections.
+Add role="alert" aria-live="assertive" to error banners (Agent telemetry unavailable, Database health could not be loaded) so they are announced immediately to screen reader users.
+
+
+4D — Reduced Motion Support
+Add @media (prefers-reduced-motion: reduce) overrides for all CSS animations, including the pulsing green dot on the "LIVE (STREAM)" badge, any card hover transitions, and any loading spinners. Replace animated elements with static alternatives when this media query is active.
+
+4E — Color-Not-Alone Policy
+Audit every instance where color is the sole differentiator of meaning. Key instances:
+
+The four status dots on the System Health Snapshot (blue, amber, green, red) — add a second differentiator: a unique icon shape per status category (circle for total, triangle for running, checkmark for verified, X for failed).
+The Runtime Health status badges — already use dot + text label, which is compliant. Good.
+The Smelt-Cycle Phase Stepper — the filled green "INTAKE" and outlined amber "FETCH" steps use color + border weight as differentiators, which is acceptable, but add an icon (checkmark for completed, active dot for current, empty circle for pending) to each step to eliminate color-as-sole-signal.
+
+
+Phase 5 — Domain UX, Onboarding & Advanced Interactions (~3–4 weeks)
+Goal: Make the application learnable and delightful for new operators; add power-user features
+Score impact: IA → 10 · Layout → 10 · Interaction → 10 · Visual → 10 · Domain UX → 10
+
+5A — In-App Tooltip Glossary
+Target score area: Domain UX/Onboarding
+Build a lightweight <Tooltip> component with a ? trigger icon displayed inline next to any specialized term on first use per session. The tooltip should appear on hover with a 200ms delay and contain:
+
+Term (bold)
+One-sentence definition in plain language
+Optional: a link to deeper documentation
+
+Priority terms requiring tooltips in Phase 5A:
+Smelt-Cycle Phases: INTAKE, FETCH, SMELT, GATING, FUSION, SQUEEZE, DELIVERY · LogicNode · PM Feature Contract · Mission Charter · Mission Contract · CEO Mission Contract · Route Provenance · Logic Clusters · Pod Group Standards · Tier (in agent context) · Pod · Specialties · Semantic Bus · Depth Mode · Output Mode
+The tooltip should be implemented as a global context provider that reads from a glossary.json file, so new terms can be added without component changes.
+
+5B — First-Visit Guided Tour
+Target score area: Domain UX/Onboarding
+Implement an optional guided tour triggered on first visit (stored in localStorage). The tour uses a spotlight/overlay pattern that dims the rest of the UI and highlights specific elements with an explanatory callout. Steps:
+
+Sidebar — "Here are your 8 operator modules, organized into Workflow, Observability, and Configuration sections."
+Home: System Health Snapshot — "This dashboard shows your mission counts and runtime health at a glance before you launch."
+Home: Runtime Health — "These are your three core services. All three must be healthy before a mission can run live."
+Missions: Launch Form — "This is where you describe and launch a new refinery mission. Describe your goal, choose your parameters, and hit Launch."
+Missions: Smelt-Cycle — "Once launched, your mission moves through these 7 phases automatically. You can monitor each phase in real time."
+Chat — "Prefer a conversational interface? Describe your mission to the PM Agent and it will configure and launch for you."
+
+The tour should be skippable at any point and re-triggerable from a "?" help button in the header.
+
+5C — Command Palette
+Target score area: Information Architecture, Interaction Design
+Add a command palette triggered by Ctrl+K (or Cmd+K). This is the single highest-leverage power-user feature for an operator console. The palette should support:
+
+Navigation commands: "Go to Agents," "Open Settings," "View Recent Missions"
+Action commands: "Launch New Mission," "Refresh Semantic Bus," "Import Repository"
+Mission search: type a partial mission ID or date to find and navigate to a specific mission
+Status commands: "Show system health," "Check runtime status"
+
+The palette uses a floating modal overlay with a search input, fuzzy-matched results list, and keyboard navigation (arrow keys + Enter). This partially addresses the "two launch points" redundancy identified in Phase 1 by giving power users a third, faster path to any action.
+
+5D — Semantic Bus: Sparkline + Event Rate
+Target score area: Layout/Wireframe, Domain UX
+Above the Event Stream table on the Semantic Bus page, add a small real-time sparkline chart (SVG or Canvas, ~80px tall) showing event rate (events/second) over the last 60 seconds as a line chart. Use the accent purple for the line with a subtle gradient fill beneath it. This gives operators an immediate sense of system activity without reading individual rows, and turns an otherwise static-looking monitor page into something that feels genuinely live.
+Also add a "Rate" indicator as a large formatted label (e.g., "12.4 msg/s") alongside the sparkline, currently the "Rate: 0 msg/s" text is buried in the filter bar as plain text.
+
+5E — Notification / Alert Center
+Target score area: Information Architecture, Interaction Design
+Add a notification bell icon to the header right zone (between the status badge and "New Mission"). This bell collects system-level events that require operator attention: mission failures, degraded services, missing API keys, runtime errors. The bell shows a numeric badge when there are unread alerts.
+Clicking the bell opens a right-side drawer (not a page navigation) listing recent alerts with timestamp, severity, and a direct action link. This surfaces information that currently is scattered across multiple pages (a failed mission is only visible on the Missions page, a degraded database is only visible on the Databases page) into a single attention-management surface.
+
+5F — Dark/Light Theme Toggle
+Target score area: Visual Design, Accessibility
+Once the design token system from Phase 3A is in place, implement a light theme variant by overriding the color tokens under a [data-theme="light"] selector. Store preference in localStorage. Add a toggle button (sun/moon icon) to the header right zone.
+The light theme should use a very light blue-grey base (#f8fafc) with dark text (#0f172a) and a slightly deeper purple accent (#6d28d9) for maintained brand consistency. This is achievable in roughly a day of work once the token system exists, and dramatically expands the accessibility and usability of the application for operators in bright environments.
+
+Score Projection by Phase
+DimensionCurrentAfter Phase 1After Phase 2After Phase 3After Phase 4After Phase 5Information Architecture6.08.09.09.59.510Layout / Wireframe6.58.09.09.59.510Interaction Design6.07.58.59.09.010Visual Design7.08.09.09.59.510Accessibility5.57.08.08.51010Domain UX / Onboarding4.56.07.08.08.010Overall6.07.48.48.99.210
+
+Total Effort Estimate
+PhaseDurationPrimary SkillsDependencyPhase 11–2 weeksFrontend (CSS/JS)None — can start immediatelyPhase 22–3 weeksFrontend (components)Phase 1 completePhase 32–3 weeksFrontend + DesignPhase 1 complete (can run parallel to Phase 2)Phase 42 weeksFrontend + QAPhase 3 completePhase 53–4 weeksFrontend + Backend (command palette, notifications)Phases 2, 3, 4 completeTotal~10–14 weeks
+
+Quick Wins Checklist (Phase 1 — can ship this week)
+For the team moving immediately, these are the six tasks that require no design review, no new components, and can be committed today:
+
+ Add CSS letter-spacing group labels to sidebar with <hr> dividers
+ Apply font-family: monospace to all mission UUIDs and slot IDs
+ Add outline: 2px solid #7c3aed focus ring to all <select> elements
+ Reposition the OFFLINE-READY badge to the header right zone
+ Hide the all-null columns in the Settings API Key Vault table
+ Apply the three-variant button class system (primary / secondary / danger) globally
+
+Each of these is a CSS or minor conditional-render change — together they lift the application's perceived quality noticeably before any larger component work begins.was there any standard features missing or did you notice anything you think is missing in genera;27 steps27 stepsYes — quite a few things, ranging from critical missing infrastructure to expected enterprise features to quality-of-life gaps. Here's the full breakdown organized by severity:
+
+Missing Features & Gaps — Holy Grail Refinery Mission Control
+
+🔴 Critical Missing — Broken or Completely Absent
+1. The 404 Page is a Bare Next.js Default
+When navigating to any non-existent route (e.g., /profile, /logs), the app renders a completely unstyled Next.js default 404 — pure black background, white text, no navigation, no branding, no way back to the app. It breaks immersion completely and leaves the user stranded. A custom pages/404.tsx inside the app's shell with a "Return to Mission Control" button is the fix.
+2. No Global Search
+There is no way to search across the entire application. The app has 6 missions visible and already the only way to find a specific mission is to remember roughly when it was created and scan the Recent Missions list manually. As missions scale to hundreds, this becomes unusable. LogicNodes has its own search, Semantic Bus has its own search — but there is no cross-cutting search for missions, agents, events, or any other entity. A header search bar or Ctrl+K command palette is the expected pattern for an operator console of this type.
+3. No Mission History / Full Mission List Page
+The "My Recent Missions" panel shows 6 missions. There is no way to see more than those 6, no pagination, no "View All Missions" link, no filtering by date range, status, or type, and no sorting. If an operator has run 50 missions, there is simply no UI surface to find the older ones. A dedicated /missions/history or /missions/all page with full search, filter, sort, and pagination is a fundamental missing page.
+4. No User / Session Identity Anywhere
+There is zero indication of who is currently operating the console. No user avatar, name, email, or session indicator appears anywhere in the UI — not in the header, not in the sidebar, not in settings. For a local runtime this may be intentional, but the "Operator Admin Session" section in Settings implies some concept of identity exists. If multiple people could use the same instance, there is no way to know who launched which mission, who configured which key, or who is currently logged in.
+5. No Confirmation Dialog on "Cancel Mission"
+The "Cancel Mission" button on the Mission Detail page is styled with a filled red background — correctly signaling danger. But clicking it appears to execute immediately with no "Are you sure?" confirmation dialog. For a destructive, potentially irreversible action on a running pipeline, a confirmation modal with a plain-language warning ("This will stop all active agents and cannot be undone") is a standard safety requirement that is completely absent.
+
+🟠 High Priority Missing — Expected in Enterprise Tooling
+6. No Export / Download Functionality
+Nowhere in the application can an operator export data. Specifically missing: exporting mission event logs, exporting audit evidence, downloading generated output artifacts, exporting the LogicNode list as JSON or CSV, or downloading agent grid state as a report. Enterprise operators routinely need to share mission results, file audit reports, or feed data into other systems. There is no export button, no "Download" link, and no copy-to-clipboard affordance anywhere.
+7. No Audit / System Log Viewer
+The Mission Detail page has an "Audit Evidence" panel, but there is no dedicated system-level audit log or activity log anywhere in the application. Questions like "Who changed the API key for AGENT-01 and when?" or "What missions ran last week?" or "Which operator cancelled mission X?" have no answerable surface in the current UI. A /logs or /audit page is standard in enterprise operator consoles.
+8. No Notification / Alert System
+There is no notification bell, no alert tray, no toast/snackbar system for async events. If a mission fails while the operator is on the Semantic Bus page, nothing draws their attention. If a database transitions from HEALTHY to DEGRADED, there is no ambient notification. The app is entirely page-by-page — the operator must actively navigate to find out about problems rather than being proactively alerted. This is especially significant since missions run asynchronously.
+9. No Keyboard Shortcut System (despite teasing one)
+The bottom status bar says Ctrl+? for shortcuts — implying a shortcut system exists or is planned — but pressing Ctrl+? does nothing observable. The shortcut help overlay either doesn't exist yet or is broken. This is a dangling affordance that creates confusion: operators see the hint, try it, get nothing, and don't know if the feature is broken or just not implemented.
+10. No Mission Duplication / Template Feature
+The Missions page has no way to clone or re-run a previous mission with modifications. If an operator wants to re-run the same mission with a different depth mode or target language, they must manually re-type the entire prompt and re-select all options from scratch. A "Duplicate" or "Re-run with edits" option on each mission in the Recent Missions list is a missing high-frequency workflow.
+11. No Mission Naming / Labeling
+All missions are identified only by their UUID (e.g., mission-618c9a6e-4ad0-4dd5-8603-8c2a50936165). There is no field to give a mission a human-readable name, tag, or label. Operators working with multiple missions cannot distinguish between them at a glance — they must memorize UUIDs or recall exact timestamps. A simple "Mission name (optional)" field on the launch form would solve this.
+12. Settings Has No Save Confirmation / Feedback
+The Settings page has a "Save Runtime Preferences" button at the bottom, but there is no visible feedback when it is clicked — no success toast, no "Saved" confirmation state on the button, no error message if the save fails. The operator has no way to know whether their configuration was persisted. This is a fundamental form UX requirement.
+
+🟡 Medium Priority Missing — Quality of Life & Professional Polish
+13. Chat Has No Conversation History
+The Chat page shows "Session start" and a single PM Agent greeting. There is a "New Chat" button in the top-right, implying multiple conversations could exist — but there is no sidebar, tab bar, or list of previous conversations. Once a chat session is started, there is no way to return to it after navigating away. For an interface designed to help operators define missions through conversation, losing that conversational context on navigation is a significant workflow gap.
+14. No Confirmation Before Leaving a Chat / Form with Unsaved Input
+If an operator has typed a 3-paragraph mission prompt into the textarea and accidentally clicks "Home" in the sidebar, everything is lost immediately with no "Leave page? You have unsaved changes" warning. This is especially painful on the Chat page and the Repo Import wizard.
+15. No "Copy to Clipboard" on Mission IDs, Slot IDs, or Technical Identifiers
+Mission IDs, agent slot IDs, and other technical strings appear throughout the app but there is no copy button next to any of them. Operators who need to reference a mission ID in another system, share it with a colleague, or paste it into an API call must manually triple-click and copy it — a friction point that a small clipboard icon next to every ID would eliminate in seconds.
+16. No Pagination or Infinite Scroll on the Settings API Key Table
+The Settings vault table has 33+ rows visible (AGENT-01 through AGENT-33+), requiring significant scrolling to find a specific slot. There is no way to search, filter, or jump to a specific slot by name or provider. As the roster grows, this becomes increasingly unwieldy. A search-filter input above the table, or collapsible groups by provider, would dramatically improve usability.
+17. Databases Page Has No Retry / Reconnect Action
+The State Graph database card shows "DEGRADED — Database dependency unavailable." and the Knowledge Vectors card shows "DISABLED." Neither card has any action button — no "Retry connection," no "Enable," no "Configure." They are pure read-only status displays. For an operator who needs to resolve a degraded state, the UI provides no path forward from within the page — they must know to go to Settings or restart the service externally.
+18. No Dark/Light Mode Toggle
+The app is exclusively dark mode. While appropriate for an ops console, there is no option for operators working in bright environments or with accessibility preferences that favor light backgrounds. This was noted in the phased plan as a Phase 5 item, but it's worth calling out as a genuinely missing standard feature for enterprise software in 2026.
+19. No "Last Refreshed" Timestamp on Dashboard Data
+The Home page System Health Snapshot shows live metrics, but there's no indication of when those numbers were last fetched. The "Refresh" button on Recent Missions has no feedback about the freshness of data. Operators making decisions based on dashboard data need to know if they're looking at live data from 2 seconds ago or cached data from 10 minutes ago.
+20. No App Version / Build Info Anywhere
+There is no version number, build hash, or release date visible anywhere in the application — not in the footer, not in Settings, not in an About section. This makes it impossible for operators to file meaningful bug reports ("I'm on version X"), verify they have the latest deployment, or communicate the exact build to a support team.
+21. The Status Bar Footer Is Severely Underused
+The bottom status bar (Live Transport: Active   Ctrl+? for shortcuts) sits on every page but only ever shows those two static pieces of text. This valuable persistent real-estate could surface dynamic information: last sync time, active mission count, memory/CPU usage, connected agent count, current operator session — any live context that would benefit from always being visible without taking up main content area.
+
+Summary Table
+#GapSeverityEffort to Fix1Custom 404 page🔴 CriticalLow2Global search🔴 CriticalHigh3Full mission history/list page🔴 CriticalMedium4User/session identity🔴 CriticalMedium5Cancel mission confirmation dialog🔴 CriticalLow6Export / download functionality🟠 HighHigh7Audit / system log viewer🟠 HighHigh8Notification / alert system🟠 HighHigh9Broken keyboard shortcut hint🟠 HighLow10Mission duplication / re-run🟠 HighMedium11Human-readable mission names🟠 HighLow12Settings save feedback/confirmation🟠 HighLow13Chat conversation history🟡 MediumMedium14Unsaved changes navigation warning🟡 MediumLow15Copy-to-clipboard on IDs🟡 MediumLow16Settings table search/pagination🟡 MediumLow17Database retry/reconnect actions🟡 MediumLow18Dark/light mode toggle🟡 MediumMedium19"Last refreshed" timestamp🟡 MediumLow20App version/build info🟡 MediumLow21Status bar live context🟡 MediumMedium
+The most jarring to a first-time user would be items 1, 5, 9, 11, and 12 — they either break the experience outright (naked 404), create anxiety about data loss (no save confirmation), or tease features that don't work (the shortcut hint). Those five could realistically be fixed in a single focused day of work and would meaningfully raise the perceived quality of the product.note this is a local frist applicaition so the user is login with there windows app. we are still building this at a later date this will be built into a electron system to be installed and run like a windowed app.That's really helpful context — it changes the framing on several of those findings quite significantly. Let me re-assess each gap with that in mind.
+
+Revised Gap Assessment — Local-First / Future Electron App Context
+
+Items That Are Now Non-Issues or Lower Priority
+User/Session Identity (#4) — Completely valid to drop. Since this runs locally and the Windows user is already authenticated at the OS level, an in-app login or user identity surface is redundant. When it eventually becomes an Electron app, the OS session context is the identity. No action needed.
+Dark/Light Mode (#18) — Electron apps respect the OS-level dark/light preference via prefers-color-scheme. When the time comes, wiring that media query to your design token system (as outlined in Phase 3A of the update plan) will handle this automatically without needing a manual toggle in the UI. Lower priority than previously noted.
+App Version / Build Info (#20) — In an Electron app this lives in the system tray, the titlebar, or the native "About" dialog — not in the web UI itself. Electron's app.getVersion() handles it natively. Non-issue for the web layer.
+Unsaved Changes Navigation Warning (#14) — In a windowed Electron app the navigation model is different from a browser tab. There's no accidental back-button, no URL bar to retype, no risk of closing a tab. The risk surface for accidentally losing form input is much lower. Still worth a light implementation (especially on the Chat page), but drops from medium to low priority.
+
+Items That Are More Important Given This Context
+Custom 404 Page (#1) — Actually becomes more important, not less. In an Electron app, any routing error will produce that naked black screen with no escape. In a browser the user can at least hit Back or retype a URL. In a windowed app, a bad route could leave the operator genuinely stuck with no obvious recovery path. A custom 404 that re-renders the full app shell with a "Return Home" button is essential before the Electron port.
+Keyboard Shortcut System (#9) — Electron users have no browser chrome to fall back on. There's no address bar, no tab bar, no browser shortcuts. The app's own keyboard shortcuts become the only keyboard interface for power operators. The Ctrl+? for shortcuts hint that currently does nothing is therefore a bigger problem in an Electron context — it's not just a missing convenience feature, it's the entire keyboard navigation story. This should be a higher priority than the earlier review suggested.
+Notification / Alert System (#8) — Electron gives you access to native OS notifications via new Notification() or the Electron API. This means alerts for mission failures, degraded services, or completed runs can surface as proper Windows toast notifications even when the app window is minimized or in the background. The in-app notification bell is still needed for when the window is active, but the missing piece is actually more addressable in Electron than in a browser — and should be planned as a native integration, not just a web UI component.
+Status Bar Footer (#21) — In an Electron app the window titlebar and status bar carry extra significance because there's no browser UI around them. That bottom status bar is prime real estate for live system state. Many desktop operator tools (think VS Code's status bar, or any DAW) use this strip heavily. The current Live Transport: Active   Ctrl+? for shortcuts usage is a missed opportunity that becomes more visible in a native window context.
+The Settings Table Scale (#16) — If this runs locally and a single operator is manually configuring 33+ API key slots, the table UX problem is something they'll hit every single session during initial setup. Because there's no cloud provisioning or automatic key management in a local-first model, the operator is the one doing all of this by hand. The search/filter gap on that table is more painful in local-first than it would be in a managed cloud environment.
+
+The Genuinely New Consideration: Electron-Specific Features to Plan For
+Now that the Electron target is confirmed, there are a few things worth calling out that aren't currently in any of the plans but should be on the roadmap:
+Native window controls and titlebar — Electron apps typically use a custom titlebar that replaces the OS chrome. The current header bar (HOLYGRAIL / Mission Control) is already styled like a titlebar, which is great. But the Electron port will need to make that the actual drag region (-webkit-app-region: drag) and integrate minimize/maximize/close buttons. Planning the header layout with this in mind now will save a painful refactor later.
+App tray / background operation — A local-first mission runner naturally wants to keep running when the window is closed or minimized. Electron's system tray API allows a tray icon with a context menu showing live mission status (e.g., "2 missions running — 1 complete") without needing the window open. This is a highly valuable feature for this type of app and should be in the feature roadmap even if it's Phase 5 or 6 work.
+Auto-update — Since it'll be distributed as an installed Windows app, electron-updater or a similar mechanism needs to be planned. There should be a Settings section for "Check for updates / current version" when that time comes.
+Local file system access — The Repo Import workflow currently works via GitHub URL. In an Electron context, an operator should also be able to import a repository from a local path on their machine via a native file picker (dialog.showOpenDialog). This is a feature that's impossible in a browser but trivial in Electron and would be genuinely useful for local development workflows.
+
+What This Doesn't Change
+Everything in the original phased update plan (Phases 1–5) remains valid and relevant. The visual design improvements, component standardization, empty state system, accessibility work, and onboarding layer are all UI concerns that translate directly into the Electron webview with zero changes. The design token system, typography overhaul, and button hierarchy work are particularly important to complete before the Electron port since they establish the foundation the native window experience will be built on top of.
+The short version: the local-first / Electron context removes a handful of lower-value concerns (login, version display, OS theme toggle) while actually raising the stakes on keyboard shortcuts, the 404 page, notifications, and the status bar — since in a windowed app with no browser chrome, the app's own chrome is everything.update your update planHoly Grail Refinery — Mission Control
+Updated Phased Update Plan (Revised for Local-First / Electron Target)
+Based on: UI/UX Review + Missing Features Audit + Local-First/Electron Context
+Previous scores: IA 6 · Layout 6.5 · Interaction 6 · Visual 7 · Accessibility 5.5 · Domain UX 4.5
+Target: 10/10 across all dimensions + Electron-ready architecture
+
+What Changed From the Previous Plan
+Items removed or de-prioritized: in-app user/session identity (handled by OS), manual dark/light toggle (handled by OS prefers-color-scheme), app version in UI (handled by Electron native dialog).
+Items elevated in priority: custom 404 page (operator gets stranded in windowed app), keyboard shortcut system (no browser chrome fallback in Electron), notification system (becomes native OS toast integration), status bar (prime real estate in a windowed context), cancel mission confirmation (destructive action, no undo).
+Items added as new: mission naming/labels, mission duplication, copy-to-clipboard on IDs, chat history, settings save feedback, database retry actions, full mission history page, global search, export/download, audit log viewer, Electron-specific architecture planning (titlebar drag region, tray, auto-update, local file import).
+
+Phase 1 — Foundation Fixes + Critical Safety (~1–2 weeks)
+Goal: Eliminate broken experiences, add the two critical safety features, zero new backend work
+Score impact: IA → 8 · Layout → 8 · Interaction → 7.5 · Visual → 8 · Accessibility → 7 · Domain UX → 6
+
+1A — Custom 404 Page
+Priority: Critical (elevated for Electron context)
+Replace the bare Next.js default 404 with a page that renders fully inside the app shell — sidebar, header, everything. Content of the 404 panel:
+⚠  Page not found
+The route you navigated to doesn't exist in this version of Mission Control.
+
+[ Return to Launch Pad ]   [ Go to Missions ]
+Styled as an error variant empty state using the same card system as the rest of the app. In Electron there is no browser Back button, so this is a genuine escape-hatch requirement, not just polish.
+
+1B — Cancel Mission Confirmation Dialog
+Priority: Critical (destructive action, no undo)
+When "Cancel Mission" is clicked, intercept the action and render a modal overlay before executing:
+┌─────────────────────────────────────────┐
+│  Cancel Mission?                        │
+│                                         │
+│  This will immediately stop all active  │
+│  agents for this mission. Any work in   │
+│  progress will be lost and cannot be    │
+│  recovered.                             │
+│                                         │
+│  Mission: mission-618c9a6e...           │
+│  Phase: FETCH (active)                  │
+│                                         │
+│  [ Keep Running ]   [ Yes, Cancel ]     │
+└─────────────────────────────────────────┘
+"Keep Running" is the left/default button (secondary style). "Yes, Cancel" is the right button (danger style, filled red). Pressing Escape or clicking the backdrop dismisses to "Keep Running." This is a one-component addition with no backend changes.
+
+1C — Sidebar Navigation Grouping
+Three labeled sections with hairline dividers:
+── WORKFLOW ──────────────
+  Home · Chat · Missions
+
+── OBSERVABILITY ─────────
+  Agents · LogicNodes · Semantic Bus
+
+── CONFIGURATION ─────────
+  Databases · Repo Import · Settings
+Group labels: 10px, all-caps, letter-spacing: 0.1em, color: rgba(255,255,255,0.35). Active sub-page (e.g., Mission Detail) highlights the parent nav item and shows depth in breadcrumb: Missions → mission-618c...
+
+1D — Button Hierarchy Standardization
+Three-variant system applied globally:
+
+Primary — filled #7c3aed, white text. Launch Mission, Import Repository, Send, New Mission, Unlock Mission Control.
+Secondary — transparent, 1px solid rgba(255,255,255,0.25), white text. Refresh, Pause Monitor, View Live, Back to Missions, Test, Choose files.
+Danger — filled #dc2626, white text. Cancel Mission, Clear (key). Requires confirmation dialog before execution.
+Ghost — no border, no background, muted purple text. Pure navigation actions (Back to Missions as a nav link, not an action).
+
+
+1E — Status Badge Standardization
+Single reusable badge component, pill-shaped, dot + label:
+StateColorHEALTHY / READY#22c55e on rgba(34,197,94,0.15)OFFLINE-READY#f59e0b on rgba(245,158,11,0.15)DEGRADED#ef4444 on rgba(239,68,68,0.15)MISSING / IDLE / DISABLED#6b7280 on rgba(107,114,128,0.15)LIVE (STREAM)#22c55e + CSS pulse animationSET#22c55e on rgba(34,197,94,0.15)
+Relocate the OFFLINE-READY badge from center header to right zone, left of "New Mission." Condense explanatory text to a hover tooltip.
+
+1F — Mission IDs in Monospace + Copy Button
+Apply font-family: ui-monospace, monospace; font-size: 0.85em to all UUIDs, mission IDs, slot IDs, and technical identifiers throughout the app.
+Add a small clipboard icon (⎘) immediately to the right of every ID. On click: copy to clipboard, swap icon to a checkmark for 1.5 seconds, then revert. No backend. Pure DOM + navigator.clipboard.writeText(). Addresses the missing copy-to-clipboard gap (#15) identified in the audit.
+
+1G — Settings Save Feedback
+When "Save Runtime Preferences" is clicked: button transitions to a loading spinner for the async operation, then to a "✓ Saved" green confirmation state for 2 seconds, then returns to normal. If the save fails, the button transitions to "✗ Failed — retry?" in red. A single toast notification also appears bottom-right. Currently operators have zero feedback that their configuration persisted — this is a one-function change.
+
+1H — Keyboard Shortcut Hint Fix / Stub
+Priority: Elevated for Electron context
+The Ctrl+? for shortcuts hint in the status bar currently does nothing. Either implement the shortcut overlay (see Phase 2D) or remove the hint entirely until it's ready. A dangling affordance that fails silently is worse than no affordance at all. For Phase 1, at minimum: wire Ctrl+? to open a placeholder modal that says "Keyboard shortcuts coming soon" — so the hint is no longer broken.
+
+1I — Agents Page Error State Cleanup
+When "Agent telemetry is unavailable" is active, hide the "Agent and Mission Snapshot," "State Distribution," and "Agent Grid" empty sections. Show only the error banner with a direct CTA: "Configure Gateway in Settings →." Converts 4 consecutive empty panels into a single focused actionable state.
+
+1J — Suppress All-Null Columns in Settings Table
+Programmatically hide MASKED, LAST ROTATED, and EXPIRES columns when all their values are "n/a." Reveal them once at least one key has a value. Reduces the settings table from 8 columns to 5 for a first-time setup operator, making the actionable columns (SLOT ID, PROVIDER, MODEL, STATUS, ACTIONS) much more legible.
+
+Phase 2 — Component System + Missing Core Features (~3–4 weeks)
+Goal: Build shared component library, fix empty state anti-patterns, add the missing standard features operators need daily
+Score impact: IA → 9 · Layout → 9 · Interaction → 8.5 · Visual → 9 · Accessibility → 8 · Domain UX → 7.5
+
+2A — Empty State Component System (4 variants)
+<EmptyState variant="error|locked|empty|offline"> — see original Phase 2A spec. Applied systematically to every empty surface, replacing the current uniform single-style treatment. This is the highest-leverage component investment in the application.
+
+2B — Human-Readable Mission Names
+Add an optional "Mission name" text input at the top of the Launch Mission form, above the prompt textarea:
+Mission name  (optional)
+┌──────────────────────────────────────┐
+│  e.g. "Payroll API v2 — refactor"    │
+└──────────────────────────────────────┘
+Store alongside the mission record. Display in the Recent Missions list as the primary label, with the UUID shown in smaller monospace beneath it. Fall back to truncated UUID if no name is provided. Also shown in the Mission Detail header. This is the single highest-impact UX improvement for day-to-day mission management — operators can stop memorizing UUIDs.
+
+2C — Mission Duplication / Re-Run
+Add a "Duplicate" button (secondary style) next to "View Live" on each mission in the Recent Missions list. Clicking it populates the Launch Mission form with all the same settings as the original mission (prompt, type, depth mode, output mode, tier, language) so the operator can review, modify, and re-launch without retyping. The name field pre-fills as "[Original Name] — copy."
+
+2D — Keyboard Shortcut System
+Priority: Elevated for Electron context — no browser chrome fallback
+Full Ctrl+? overlay listing all available shortcuts. Define and implement the shortcut set:
+ShortcutActionCtrl+?Open/close shortcut help overlayCtrl+KOpen command palette (Phase 5)Ctrl+HNavigate to HomeCtrl+MNavigate to MissionsCtrl+Shift+NNew Mission (focus prompt textarea)Ctrl+Shift+COpen ChatCtrl+Shift+AOpen AgentsCtrl+RRefresh current page dataEscapeClose any open modal/overlayCtrl+SSave (on Settings page)
+The overlay is a centered modal with a dark card, grouped shortcut table, and closes on Escape or clicking outside. In Electron, these shortcuts will be registered at the app level via globalShortcut for the actions that should work even when the window isn't focused (e.g., bring window to front).
+
+2E — Full Mission History Page
+New page at /missions/history accessible from a "View All Missions →" link at the bottom of the Recent Missions panel. Features:
+
+Full paginated list of all missions (25 per page), newest first
+Columns: Name/ID · Status · Type · Language · Created · Duration · Actions
+Filter bar: status (All / Complete / Running / Failed / Pending), date range picker, mission type dropdown
+Sort by: created date, duration, status
+Search: full-text search across mission name, ID, and prompt text
+Each row has "View Live" and "Duplicate" actions
+Bulk select + "Export selected as JSON/CSV" (addresses export gap #6)
+
+
+2F — Mission Detail: Progressive Disclosure (Tabbed)
+Restructure the Mission Detail card grid into four tabs below the Smelt-Cycle Phase Stepper:
+
+Execution — Mission Signals, LogicNode Progress, Chain of Command Trace, Active Agents
+Artifacts — Generated Output, Build Artifacts, Audit Evidence
+Contracts — PM Feature Contract, Mission Charter, Mission Contract, Pod Group Standards, Logic Clusters, Route Provenance
+Events — Mission Event Log, Transition Timeline
+
+Each tab shows only populated panels. Empty tabs show a single <EmptyState variant="empty"> rather than a grid of empty cards. This collapses 12 empty cards into 4 focused tabs.
+
+2G — Database Retry / Reconnect Actions
+Add action buttons to each Database Card based on its status:
+
+DEGRADED → "Retry Connection" button (secondary). On click: shows a spinner, attempts reconnection, updates badge.
+DISABLED → "Enable" button (secondary). On click: prompts for required configuration if any, then attempts to enable.
+HEALTHY → no action button (status-only card).
+
+Currently these cards are pure read-only and give operators no path forward from within the UI.
+
+2H — Chat Conversation History
+Add a left panel to the Chat page (collapsible, ~220px wide) listing previous conversations in reverse-chronological order:
+┌──────────────────┐
+│ Conversations    │
+│ ─────────────── │
+│ Today            │
+│ > Payroll API    │
+│   Session start  │
+│                  │
+│ Yesterday        │
+│ > LogicNode re.. │
+│   2 messages     │
+│                  │
+│ + New Chat       │
+└──────────────────┘
+Conversations are stored in localStorage (local-first, no backend needed). Clicking a conversation loads its message history. "New Chat" clears the active conversation and starts fresh. The current "New Chat" button in the top-right remains but becomes redundant once the sidebar exists — keep it for discoverability, remove it in a later polish pass.
+
+2I — Form Validation & Submit State
+For Launch Mission and Repo Import forms:
+
+Disable primary CTA until required fields are valid (opacity: 0.45; pointer-events: none with transition)
+Add character counter to the mission prompt textarea: 47 / 3000 characters
+Add inline URL format validation to the GitHub URL field (green check / amber hint)
+Add loading spinner state on CTA buttons during async operations
+Add "unsaved changes" beforeunload-style warning for Chat message input (if the user has typed something and clicks away, show a native-style "Leave? Your message will be lost" inline prompt — not a browser dialog, since Electron doesn't have those)
+
+
+2J — Settings Table Search + Group Collapse
+Add a search input above the API Key Vault table: "Filter slots by name, provider, or model." Results filter live as the operator types. Additionally, group rows by provider (OpenAI, Gemini, etc.) with collapsible group headers so operators can collapse providers they aren't configuring. With 33+ slots, this is essential usability.
+
+2K — "Last Refreshed" Timestamp
+On Home dashboard, Agents page, Databases page, and Semantic Bus: show a small Updated 12s ago or Updated just now timestamp next to each data section's title, auto-incrementing since last fetch. Turns opaque static numbers into clearly time-bounded snapshots. Single useLastRefreshed(timestamp) hook used across all data-fetching components.
+
+2L — Missions Form: Independent Column Scroll
+Wrap the two-column Missions layout in a CSS grid with height: calc(100vh - header) and overflow-y: auto on each column independently. The Recent Missions panel stays anchored as the operator scrolls the form. Add a sticky aggregate summary at the top of the Recent Missions column (Complete: 6 · Running: 0 · Failed: 0) as small colored pills.
+
+Phase 3 — Design System & Typography (~2–3 weeks, can run parallel to Phase 2)
+Goal: Full design token system, typographic hierarchy, refined card system
+Score impact: Visual → 9.5 · Accessibility → 8.5
+This phase is unchanged from the original plan. Full CSS custom property token system, 5-level typography scale, two card variants (panel + data), metric value color fix, and data card left-border status accent. See original Phase 3A–3D spec in full.
+The one addition: ensure all design tokens are defined in a way that can be overridden by an Electron prefers-color-scheme: light media query without any JS changes — pure CSS variable reassignment under a @media (prefers-color-scheme: light) block. This gives the app automatic OS-responsive theming for free when the Electron port ships.
+
+Phase 4 — Accessibility Audit & Remediation (~2 weeks)
+Goal: WCAG 2.1 AA compliance throughout
+Score impact: Accessibility → 10
+Unchanged from original Phase 4 spec: contrast ratio audit and fixes, keyboard navigation audit, ARIA semantic markup, reduced motion support, color-not-alone policy. See original Phase 4A–4E.
+One Electron-specific addition: register the accessibility tree correctly in the Electron BrowserWindow by setting accessibleTitle on the window and ensuring the webview doesn't suppress accessibility APIs. Electron has known accessibility gotchas that should be verified during this phase rather than discovered post-ship.
+
+Phase 5 — Notifications, Audit & Export (~3 weeks)
+Goal: Complete the missing enterprise-grade observability and data portability features
+Score impact: IA → 9.5 · Interaction → 9.5 · Domain UX → 9
+
+5A — In-App Notification System + Native OS Toasts
+Two-layer notification system:
+Layer 1 — In-app notification tray (bell icon in header right zone): collects all async system events — mission state changes, service health changes, key expiry warnings, completed runs. Bell shows a numeric badge for unread count. Clicking opens a right-side drawer (not a page navigation) showing events in reverse-chronological order, each with timestamp, severity dot, description, and a direct action link.
+Layer 2 — Native OS notifications (Electron-specific): when the Mission Control window is not focused, critical events (mission failed, service degraded) fire a native Windows toast notification via new Notification(title, { body, icon }). Clicking the toast brings the app window to front and navigates to the relevant page. This is achievable in the Electron webview context without needing the main process — the Web Notifications API works in Electron's renderer.
+Events that trigger notifications: mission transitions to FAILED · mission transitions to COMPLETE · service status changes to DEGRADED · API key expiry within 7 days · new mission phase entered (optional, per-mission opt-in).
+
+5B — System Activity / Audit Log Viewer
+New page at /audit (add to Configuration nav group in sidebar). Features:
+
+Chronological log of all system-level events: mission launches, cancellations, completions, API key changes, settings saves, service status changes
+Each row: timestamp · event type · description · operator (local Windows username via Electron os.userInfo()) · mission/entity ID if applicable
+Filter by: event type, date range, mission ID
+Export as JSON or CSV
+Search full-text across event descriptions
+Retained in local SQLite or flat JSON file (local-first — no cloud backend needed)
+Visible from sidebar as "Audit Log" under the Configuration group
+
+
+5C — Export / Download Functionality
+Add export capability to all major data surfaces:
+
+Mission History page — "Export selected" or "Export all" → JSON or CSV of mission metadata and status
+Mission Detail → Artifacts tab — "Download" button on Generated Output and Build Artifacts panels (downloads to local filesystem via Electron dialog.showSaveDialog)
+Mission Detail → Events tab — "Export event log" → JSON
+LogicNode Explorer — "Export node list" → JSON when nodes are present
+Semantic Bus — "Export captured events" → JSON of the current windowed buffer
+Audit Log — "Export log" → JSON or CSV
+
+All file saves use Electron's native save dialog, which gives the operator a proper "Save As" experience with folder navigation — far better than a browser download.
+
+5D — Global Search
+A persistent search input in the header center zone (Phase 2 reserved this space). Searches across:
+
+Mission names and IDs
+Mission prompt text
+LogicNode IDs and payloads
+Agent names and slot IDs
+Audit log events
+
+Results appear in a floating dropdown below the search bar, grouped by type (Missions, LogicNodes, Events), with keyboard navigation (arrow keys + Enter). Debounced at 200ms. Local-first — all data is queried from local state/storage, no API call needed.
+
+5E — Semantic Bus: Sparkline + Event Rate Meter
+Above the Event Stream table, add a real-time sparkline chart (60-second rolling window, SVG, ~80px tall) showing events/second as a line chart in the accent purple with a subtle fill. Add a prominent 12.4 msg/s rate display as a large formatted label alongside it. Replaces the buried Rate: 0 msg/s plain text in the filter bar.
+
+Phase 6 — Domain UX, Onboarding & Power Features (~3–4 weeks)
+Goal: Make the app learnable, delightful, and maximally efficient for daily operator use
+Score impact: IA → 10 · Interaction → 10 · Domain UX → 10 · Visual → 10
+
+6A — In-App Tooltip Glossary
+Lightweight <Tooltip> component with ? trigger on all specialized domain terms. Reads from a glossary.json file for easy addition of new terms. Priority terms: all 7 Smelt-Cycle phases, LogicNode, PM Feature Contract, Mission Charter, CEO Mission Contract, Route Provenance, Logic Clusters, Pod Group Standards, Tier, Pod, Specialties, Semantic Bus, Depth Mode, Output Mode.
+
+6B — First-Visit Guided Tour
+Optional spotlight/overlay tour triggered on first launch (stored in localStorage). 6 steps covering sidebar, health dashboard, runtime health, mission launch form, Smelt-Cycle stepper, and Chat. Skippable at any point, re-triggerable from a ? help icon in the header.
+
+6C — Command Palette (Ctrl+K)
+Full fuzzy-search command palette. Navigation, actions, and mission search all in one. Keyboard-navigable with arrow keys + Enter. This makes every feature in the app reachable without touching the mouse — especially important for an Electron operator console used under time pressure.
+
+6D — Status Bar Upgrade
+The persistent bottom status bar (Live Transport: Active   Ctrl+? for shortcuts) is upgraded to a dynamic information strip showing: connected service count · active mission count · current keyboard shortcut hint · last sync timestamp · (in Electron) local machine name. Each segment is a clickable shortcut to the relevant section.
+
+6E — Mission Detail: Mission Name in Header + Inline Edit
+The Mission Detail page header currently just says "Mission Detail" with no context. With mission names from Phase 2B, update it to show: mission-618c... — "Payroll API v2" with an inline edit pencil icon that lets operators rename a mission directly from the detail page without going back to the list.
+
+Phase 7 — Electron Port Preparation (~2–3 weeks)
+Goal: Prepare all frontend architecture for the Electron shell transition
+This phase is planning + implementation work, not UI feature work
+
+7A — Titlebar Drag Region + Custom Window Controls
+The current header bar is visually styled like a titlebar already — this is a head start. For the Electron port:
+
+Add -webkit-app-region: drag to the header bar so operators can drag the window by the header
+Add -webkit-app-region: no-drag to all interactive elements within the header (buttons, status badge) so they remain clickable
+Decide on and implement window control strategy: native OS controls (simplest), or custom minimize/maximize/close buttons in the header right zone styled to match the app's design system
+Set frame: false in BrowserWindow options and implement the custom titlebar approach if going custom
+
+
+7B — System Tray Integration
+Implement a system tray icon with a context menu:
+Holy Grail — Mission Control
+─────────────────────────────
+● 2 missions running
+✓ 6 missions complete
+─────────────────────────────
+Open Mission Control
+New Mission
+─────────────────────────────
+Quit
+The tray icon changes to reflect system state: a pulsing dot when missions are active, a green check when all complete, a red alert when a failure has occurred. The app can continue running in the tray after the window is closed, monitoring mission state and firing OS notifications.
+
+7C — Local File System Import (Electron Enhancement)
+Add a "Browse local folder..." option to the Repo Import page Step 1, alongside the existing GitHub URL field. Uses dialog.showOpenDialog({ properties: ['openDirectory'] }) to let operators point at a local repository on their machine without needing a GitHub URL. Result is treated identically to a GitHub import from Step 2 onward. This is a feature only possible in Electron and meaningfully expands the use case for local development workflows.
+
+7D — Auto-Update Infrastructure
+Integrate electron-updater with a configured update feed (GitHub Releases, S3, or custom server). Add an "Updates" section to the Settings page showing: current version, last checked date, "Check for updates" button, and auto-update toggle. When an update is available, show a non-intrusive banner in the app header: ⬆ Mission Control v2.1 is available — [Update Now] [Later]
+
+7E — Electron IPC Architecture Review
+Before porting, audit all data-fetching patterns in the Next.js app to ensure they work correctly in Electron's renderer process context. Key items: confirm all fetch() calls use relative URLs or configurable base URLs (not hardcoded localhost assumptions that could break in packaged app), ensure WebSocket connections for live streaming (Semantic Bus, Mission status) work in Electron's webview, and replace any browser-API-dependent features with Electron equivalents where needed.
+
+Revised Score Projections
+DimensionNowPh 1Ph 2Ph 3Ph 4Ph 5Ph 6Ph 7Information Architecture6.08.09.09.09.09.51010Layout / Wireframe6.58.09.09.59.59.51010Interaction Design6.07.58.59.09.09.51010Visual Design7.08.09.09.59.59.51010Accessibility5.57.08.08.510101010Domain UX / Onboarding4.56.07.58.08.08.51010Electron-Readiness———————10
+
+Revised Total Effort Estimate
+PhaseDurationSkillsDependencyPhase 11–2 weeksFrontend (CSS/JS)None — start immediatelyPhase 23–4 weeksFrontend (components + state)Phase 1Phase 32–3 weeksFrontend + DesignPhase 1 (runs parallel to Ph 2)Phase 42 weeksFrontend + QAPhase 3Phase 53 weeksFrontend + Backend (local storage, file I/O)Phase 2Phase 63–4 weeksFrontend + Content (glossary, tour copy)Phases 2, 3, 4Phase 72–3 weeksElectron / Desktop engineeringPhases 1–6 completeTotal~16–21 weeks
+
+Immediate Action Checklist (This Week — Zero Design Review Needed)
+
+ Wire Ctrl+? to open a "Shortcuts coming soon" stub modal (fixes broken hint)
+ Add font-family: monospace to all UUIDs and slot IDs
+ Add clipboard copy button next to every ID
+ Add "Save Runtime Preferences" feedback (spinner → ✓ Saved toast)
+ Add confirmation modal before "Cancel Mission" executes
+ Create custom 404.tsx inside the app shell with "Return to Launch Pad" button
+ Add CSS sidebar group labels with hairline dividers
+ Suppress all-null columns in Settings API Key Vault table
+ Apply outline: 2px solid #7c3aed focus ring globally to all <select> elements
+ Hide empty Agent sections when telemetry error is active

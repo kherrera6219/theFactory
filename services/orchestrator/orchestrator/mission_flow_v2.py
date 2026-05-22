@@ -53,17 +53,22 @@ from .dependency_absorption import (
 )
 from .equivalence_verifier import build_equivalence_report, mission_requires_equivalence
 from .llm_delegation import (
+    build_deploy_readiness_assessment,
     generate_ceo_delegation,
     generate_code_from_contract,
+    generate_integration_tests,
     generate_logic_clusters,
     generate_master_logic_stream,
     generate_mission_contract,
     generate_pm_delivery_summary,
     generate_pm_feature_contract,
+    generate_pod_audit_verdict,
     generate_pod_group_standard,
     generate_pod_manager_delegation,
     generate_rqca_assessment,
+    generate_security_analysis,
     generate_specialist_plan,
+    generate_vc_commit_strategy,
 )
 from .mission_flow import (
     CEO_AGENT_ID,
@@ -1610,6 +1615,33 @@ async def _produce_pod_group_standard(
         },
         content_hash_source=standard,
     )
+
+    # S2-05: Pod audit verdict — QC agent reviews the pod standard.
+    _raw_gen_output = metadata.get("generated_output")
+    generated_output = _raw_gen_output if isinstance(_raw_gen_output, dict) else None
+    pod_audit = await generate_pod_audit_verdict(
+        mission_id=mission.mission_id,
+        pod_name=pod_name,
+        mission_context=_mission_context(mission, metadata),
+        pod_group_standard=standard,
+        generated_output=generated_output,
+    )
+    pod_audits = dict(metadata.get("pod_audit_verdicts") or {})
+    pod_audits[pod_name] = pod_audit
+    metadata["pod_audit_verdicts"] = pod_audits
+    if not _chain_event_exists(metadata, "MISSION_POD_AUDIT_COMPLETE"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_POD_AUDIT_COMPLETE",
+            agent_id=pod_audit.get("agent_id", pod_manager_agent_id),
+            details={
+                "pod": pod_name,
+                "verdict": pod_audit.get("verdict"),
+                "quality_score": pod_audit.get("quality_score"),
+                "source": pod_audit.get("source"),
+            },
+        )
+
     return (
         await _persist_metadata(
             app=app,
@@ -1717,6 +1749,12 @@ async def _prepare_delivery_summary(
     mission: Any,
 ) -> Any:
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    mission_context = _mission_context(mission, metadata)
+    _raw_gen = metadata.get("generated_output")
+    generated_output: dict[str, Any] = _raw_gen if isinstance(_raw_gen, dict) else {}
+    _raw_contract = metadata.get("mission_contract")
+    mission_contract: dict[str, Any] = _raw_contract if isinstance(_raw_contract, dict) else {}
+
     build_artifacts = await asyncio.to_thread(
         storage.list_build_artifacts,
         settings,
@@ -1724,13 +1762,96 @@ async def _prepare_delivery_summary(
         50,
     )
     delivery_summary = await generate_pm_delivery_summary(
-        mission_context=_mission_context(mission, metadata),
-        generated_output=metadata.get("generated_output") or {},
+        mission_context=mission_context,
+        generated_output=generated_output,
         build_artifacts=build_artifacts,
         feature_contract=metadata.get("feature_contract") or {},
-        mission_contract=metadata.get("mission_contract") or {},
+        mission_contract=mission_contract,
     )
     metadata["delivery_summary"] = delivery_summary
+
+    # S2-02: Security threat analysis — run once at delivery.
+    if not isinstance(metadata.get("security_analysis"), dict):
+        security_analysis = await generate_security_analysis(
+            mission_id=mission.mission_id,
+            mission_context=mission_context,
+            generated_output=generated_output,
+            mission_contract=mission_contract,
+        )
+        metadata["security_analysis"] = security_analysis
+        append_chain_event(
+            metadata,
+            event_type="MISSION_SECURITY_ANALYSIS_COMPLETE",
+            agent_id="AGENT-05-SECURITY",
+            details={
+                "risk_level": security_analysis.get("risk_level"),
+                "deployment_safe": security_analysis.get("deployment_safe"),
+                "threat_count": len(security_analysis.get("threats") or []),
+                "passed": security_analysis.get("passed"),
+                "source": security_analysis.get("source"),
+            },
+        )
+
+    # S2-03: VC commit strategy — generate once at delivery.
+    if not isinstance(metadata.get("vc_commit_strategy"), dict):
+        vc_commit_strategy = await generate_vc_commit_strategy(
+            mission_id=mission.mission_id,
+            mission_context=mission_context,
+            generated_output=generated_output,
+            delivery_summary=delivery_summary,
+        )
+        metadata["vc_commit_strategy"] = vc_commit_strategy
+        append_chain_event(
+            metadata,
+            event_type="MISSION_VC_COMMIT_STRATEGY_READY",
+            agent_id="AGENT-07-VC",
+            details={
+                "conventional_type": vc_commit_strategy.get("conventional_type"),
+                "branch_name": vc_commit_strategy.get("branch_name"),
+                "source": vc_commit_strategy.get("source"),
+            },
+        )
+
+    # S2-04: Integration tests — generate once at delivery.
+    if not isinstance(metadata.get("integration_tests"), dict):
+        integration_tests = await generate_integration_tests(
+            mission_id=mission.mission_id,
+            mission_context=mission_context,
+            generated_output=generated_output,
+            mission_contract=mission_contract,
+        )
+        metadata["integration_tests"] = integration_tests
+        append_chain_event(
+            metadata,
+            event_type="MISSION_INTEGRATION_TESTS_GENERATED",
+            agent_id="AGENT-10-TESTER",
+            details={
+                "test_filename": integration_tests.get("test_filename"),
+                "test_case_count": len(integration_tests.get("test_cases") or []),
+                "framework": integration_tests.get("framework"),
+                "source": integration_tests.get("source"),
+            },
+        )
+
+    # S2-08: Write pm_clarification into chain trace if present and not already written.
+    pm_clarification = metadata.get("pm_clarification")
+    if pm_clarification and not _chain_event_exists(metadata, "MISSION_CLARIFICATION_APPLIED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_CLARIFICATION_APPLIED",
+            agent_id=PM_AGENT_ID,
+            details={"clarification_length": len(str(pm_clarification))},
+        )
+
+    # S2-08: Write llm_usage_summary from cost ledger into metadata at delivery.
+    try:
+        from .llm_cost_ledger import get_mission_token_usage as _get_token_usage  # noqa: PLC0415
+        llm_usage_summary = await _get_token_usage(
+            settings=settings, mission_id=mission.mission_id
+        )
+        metadata["llm_usage_summary"] = llm_usage_summary
+    except Exception as exc:
+        LOGGER.debug("failed to fetch llm_usage_summary for %s: %s", mission.mission_id, exc)
 
     if not _chain_event_exists(metadata, "MISSION_DELIVERED"):
         append_chain_event(
@@ -2760,6 +2881,45 @@ async def advance_mission_lifecycle_v2(
                     runtime_qc_report.get("verdict"),
                 )
                 return
+
+            # S2-06: Deploy readiness assessment — AGENT-11-DEPLOY must report ready
+            # before the mission is allowed to transition to COMPLETE.
+            mission = (
+                await asyncio.to_thread(storage.fetch_mission, settings, mission_id) or mission
+            )
+            _deploy_meta = with_chain_defaults(mission.metadata, mission.requested_target_language)
+            _build_artifacts_for_deploy = await asyncio.to_thread(
+                storage.list_build_artifacts, settings, mission_id, 50
+            )
+            deploy_readiness = build_deploy_readiness_assessment(
+                mission_id=mission_id,
+                metadata=_deploy_meta,
+                build_artifacts=_build_artifacts_for_deploy,
+            )
+            _deploy_meta["deploy_readiness"] = deploy_readiness
+            if not _chain_event_exists(_deploy_meta, "MISSION_DEPLOY_READINESS_ASSESSED"):
+                append_chain_event(
+                    _deploy_meta,
+                    event_type="MISSION_DEPLOY_READINESS_ASSESSED",
+                    agent_id="AGENT-11-DEPLOY",
+                    details={
+                        "ready": deploy_readiness.get("ready"),
+                        "blockers": deploy_readiness.get("blockers"),
+                        "source": deploy_readiness.get("source"),
+                    },
+                )
+            await asyncio.to_thread(
+                storage.update_mission_metadata, settings, mission_id, _deploy_meta
+            )
+            if not deploy_readiness.get("ready", True):
+                LOGGER.info(
+                    "v2: mission %s deploy readiness check failed — blockers: %s",
+                    mission_id,
+                    deploy_readiness.get("blockers"),
+                )
+                # Non-fatal: log and continue — deploy readiness is advisory unless
+                # a future flag adds hard enforcement here.
+
             mission = await _prepare_delivery_summary(
                 app=app,
                 settings=settings,

@@ -11,6 +11,7 @@ from .. import storage
 from ..audit_events import record_audit_event
 from ..auth import AuthContext
 from ..models import (
+    MissionClarifyRequest,
     MissionCreate,
     MissionRecord,
     MissionState,
@@ -238,6 +239,92 @@ async def update_mission_state(
         },
     )
 
+    return record
+
+
+@router.post("/missions/{mission_id}/clarify")
+async def clarify_mission(
+    request: Request,
+    mission_id: str,
+    payload: MissionClarifyRequest,
+    _: AuthContext = MUTATION_AUTH_DEP,
+) -> MissionRecord:
+    """Supply operator clarification to a mission blocked in CLARIFYING state.
+
+    Stores the clarification text in ``metadata["pm_clarification"]`` and
+    transitions the mission back to PM_INTAKE so the PM Agent re-processes
+    the intent with the additional context.  Only valid when the current
+    state is CLARIFYING; returns HTTP 409 otherwise.
+    """
+    import orchestrator.main as _main  # noqa: PLC0415
+
+    from ..mission_flow import append_chain_event, with_chain_defaults  # noqa: PLC0415
+
+    app = request.app
+    redis_ready, _ = await _main._ensure_db_ready(app)
+    redis_client = getattr(app.state, "redis", None)
+
+    mission = await _main._fetch_existing_mission(app, mission_id)
+    if mission.state != MissionState.clarifying:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Mission {mission_id} is in state {mission.state.value!r}, "
+                "not CLARIFYING. Clarification only applies to CLARIFYING missions."
+            ),
+        )
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    metadata["pm_clarification"] = payload.clarification
+    append_chain_event(
+        metadata,
+        event_type="MISSION_CLARIFICATION_RECEIVED",
+        agent_id="AGENT-01-PM",
+        details={"clarification_length": len(payload.clarification)},
+    )
+    await asyncio.to_thread(
+        storage.update_mission_metadata,
+        app.state.settings,
+        mission_id,
+        metadata,
+    )
+
+    record = await asyncio.to_thread(
+        storage.transition_mission_state,
+        app.state.settings,
+        mission_id,
+        MissionState.clarifying,
+        MissionState.pm_intake,
+        "MISSION_PM_INTAKE",
+    )
+    if record is None:
+        raise HTTPException(status_code=409, detail="state transition rejected")
+
+    if redis_ready and redis_client is not None and app.state.protocol_ready:
+        try:
+            await _main.emit_state_event(
+                app.state.settings,
+                app.state.envelope_validator,
+                redis_client,
+                record,
+                "MISSION_PM_INTAKE",
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "failed to emit clarify→pm_intake event for %s: %s", mission_id, exc
+            )
+
+    await record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=record,
+        agent_id="AGENT-01-PM",
+        service_name="orchestrator",
+        event_type="MISSION_CLARIFICATION_RECEIVED",
+        object_type="mission",
+        object_id=mission_id,
+        payload_summary={"clarification_length": len(payload.clarification)},
+    )
     return record
 
 

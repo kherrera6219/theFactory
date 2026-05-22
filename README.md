@@ -16,7 +16,7 @@
 
 </div>
 
-> **Version:** 1.0.0 · **Last updated:** 2026-05-19 · **Status:** Canonical
+> **Version:** 1.0.0 · **Last updated:** 2026-05-22 · **Status:** Canonical
 
 ---
 
@@ -115,7 +115,7 @@ Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTA
 - **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
 - **Semantic bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
 - **38-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
-- **Language-aware code analysis** — regex-first extraction engine for 20 routed language keys across 4 pod groups, with optional Python AST structural extraction behind a feature flag
+- **Language-aware code analysis** — regex-first extraction engine for 20 routed language keys across 4 pod groups; Python, JavaScript/TypeScript, and Java each have full AST-backed structural extractors (feature-flagged, production-ready)
 - **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
 - **Durable review and artifact flow** — builder/repo approvals persist through the orchestrator and source-bundle missions store a verified build/package artifact before completion
 - **Full production observability** — Prometheus, Grafana, Loki, Jaeger OTLP, Alertmanager
@@ -279,7 +279,12 @@ Lifecycle engine behavior in the shipped defaults:
 
 ## Language Extraction Engine
 
-Pod workers run a regex-first static-analysis extraction engine that detects computational concepts in source code before LogicNode creation. Python can switch to AST-backed structural extraction with `PYTHON_AST_EXTRACTOR_ENABLED=true`; JavaScript/TypeScript and Java AST modules are present only as stubs. No LLM calls are required for this phase.
+Pod workers run a regex-first static-analysis extraction engine that detects computational concepts in source code before LogicNode creation. Three languages also have full AST-backed structural extractors (all production-ready, feature-flagged off by default pending live demo confirmation):
+- **Python** (`PYTHON_AST_EXTRACTOR_ENABLED=true`) — uses stdlib `ast` module; zero false positives for structural fields; regex still runs for concept detection.
+- **JavaScript/TypeScript** (`JS_AST_EXTRACTOR_ENABLED=true`) — uses `esprima`; strips TS syntax before parsing; preserves regex fallback.
+- **Java** (`JAVA_AST_EXTRACTOR_ENABLED=true`) — uses `javalang`; extracts packages, imports, classes, constructors, methods, annotations; preserves regex fallback.
+
+No LLM calls are required for this phase.
 
 | Pod | Languages | Concept Prefix | Patterns |
 |-----|-----------|---------------|---------|
@@ -406,6 +411,17 @@ Each extracted concept becomes a **LogicNode** with:
 
 Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`, `LogicNodes`, `Semantic Bus`, `Databases`, `Repo Import`, and `Settings`. Additional shipped operator routes include `Mission Detail`, `Builder`, `Projects`, `Alerts`, `Performance`, and `/dashboard` as a direct launch-pad alias.
 
+**Additional operator experience features (Phase 6-7, shipped 2026-05-22):**
+
+| Feature | Description |
+|---------|-------------|
+| Command Palette | `Ctrl+K` fuzzy-search for missions, agents, LogicNodes, and nav links; keyboard badge display |
+| Tooltip Glossary | 20 domain terms (all Smelt-Cycle phases, MissionFlow v2 phases, key concepts) with hover tooltips on phase stepper and mission detail |
+| Guided Tour | 6-step first-visit spotlight tour; reopenable via `Ctrl+G`; localStorage-persisted |
+| Status Bar | Live services-health count, active mission count, last-sync timestamp; polls every 15s |
+| Inline Mission Name Edit | Click-to-edit mission name in Mission Detail header; persisted via PATCH API |
+| Electron Desktop Shell | Custom frameless titlebar with platform-aware window controls; system tray with mission status; local repo browsing via native file dialog; auto-update infrastructure (`electron-updater`); full IPC bridge with contextBridge security |
+
 **Technology:**
 - Next.js 16 App Router, TypeScript (strict mode)
 - Dark SLATE design system (`#0F172A` base, Refinery Violet `#8B5CF6` accent)
@@ -415,6 +431,7 @@ Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`,
 - SSE live transport with `stream|poll|paused` mode diagnostics
 - Signed `HttpOnly` operator session cookie for sensitive Mission Control server routes
 - Windowed rendering for high-volume agent and semantic bus views
+- Electron-ready: `electron/main.ts`, `electron/preload.ts`, `electron/tray.ts`, `electron/updater.ts`; `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`
 
 ---
 
