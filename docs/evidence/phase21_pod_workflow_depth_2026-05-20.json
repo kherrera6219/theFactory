@@ -1,0 +1,32 @@
+{
+  "schema_version": "phase_evidence.v1",
+  "phase": 21,
+  "title": "Pod Agent Workflow Depth",
+  "recorded_at": "2026-05-20T00:00:00Z",
+  "status": "core_implemented_llm_ui_gated",
+  "implemented": [
+    "pod-family-aware pod-manager prompt strategy",
+    "pod group standard coverage verdicts",
+    "thin-coverage chain-trace event",
+    "source-reflective class-level SpecialistAgent extraction",
+    "rolling provider health telemetry",
+    "internal broker provider-health endpoint",
+    "deterministic Deploy Agent readiness fallback helper"
+  ],
+  "deferred": [
+    "LLM semantic pod audit activation and enforcement",
+    "Mission Control Provider Health, Pod Audit, and Deploy Readiness panels",
+    "COMPLETE-transition Deploy Agent feature-flag wiring",
+    "TESTDATA and RQCA runtime QC implementation"
+  ],
+  "validation": [
+    {
+      "command": "python -m ruff check services/orchestrator/orchestrator/agent_base.py services/orchestrator/orchestrator/llm_delegation.py services/orchestrator/orchestrator/mission_flow_v2.py services/orchestrator/orchestrator/routes/internal.py tests/services/test_agent_base_unit.py tests/services/test_llm_delegation_unit.py tests/services/test_orchestrator_endpoints_extra.py",
+      "status": "passed"
+    },
+    {
+      "command": "$env:PYTHONPATH='services/orchestrator'; python -m pytest tests/services/test_agent_base_unit.py tests/services/test_llm_delegation_unit.py tests/services/test_mission_flow_v2.py tests/services/test_orchestrator_endpoints_extra.py -q",
+      "status": "passed"
+    }
+  ]
+}

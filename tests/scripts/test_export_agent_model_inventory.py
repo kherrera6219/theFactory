@@ -21,15 +21,15 @@ def test_build_inventory_classifies_preview_and_stable_routes(monkeypatch) -> No
                 {
                     "agent_id": "AGENT-01-PM",
                     "llm_recommendation": {
-                        "provider": "anthropic",
-                        "model": "claude-sonnet-4-6",
+                        "provider": "openai",
+                        "model": "gpt-5.5",
                     },
                 },
                 {
                     "agent_id": "AGENT-30-PODD-MGR",
                     "llm_recommendation": {
-                        "provider": "gemini",
-                        "model": "gemini-3.1-pro-preview",
+                        "provider": "some-vendor",
+                        "model": "some-vendor-next-9.0-preview",
                         "fallback_provider": "openai",
                         "fallback_model": "gpt-5.5",
                     },

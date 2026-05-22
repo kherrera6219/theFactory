@@ -582,6 +582,93 @@ def check_compliance_evidence_mapping() -> AuditResult:
     )
 
 
+def check_no_committed_keys() -> AuditResult:
+    import subprocess
+    try:
+        res_pg = subprocess.run(["git", "log", "--all", "--", "deploy/postgres/certs/server.key"], capture_output=True, text=True)  # noqa: E501
+        res_rd = subprocess.run(["git", "log", "--all", "--", "deploy/redis/certs/redis.key"], capture_output=True, text=True)  # noqa: E501
+        passed = not res_pg.stdout.strip() and not res_rd.stdout.strip()
+        notes = "no key history traced" if passed else "key commits found in history"
+    except Exception as e:
+        passed = False
+        notes = f"failed to check git: {e}"
+    return _result(
+        check_id="SEC-KEY-001",
+        priority="HIGH",
+        description="No committed TLS key files are traced in git history",
+        passed=passed,
+        notes=notes
+    )
+
+
+def check_dr_drill_evidence() -> AuditResult:
+    evidence_dir = REPO_ROOT / "docs" / "evidence"
+    dr_files = list(evidence_dir.glob("dr_drill_phase26_*.json"))
+    p17_files = list(evidence_dir.glob("phase17_dr_release_hardening_*.json"))
+    passed = len(dr_files) > 0 or len(p17_files) > 0
+    notes = f"found {len(dr_files)} DR drills, {len(p17_files)} phase17 drills" if passed else "no DR drill files found"  # noqa: E501
+    return _result(
+        check_id="DR-001",
+        priority="HIGH",
+        description="Disaster recovery drill timed evidence file is present",
+        passed=passed,
+        notes=notes
+    )
+
+
+def check_prompt_assets_registry() -> AuditResult:
+    prompt_dir = REPO_ROOT / "services" / "orchestrator" / "orchestrator" / "prompt_assets"
+    json_files = list(prompt_dir.glob("*.json"))
+    passed = len(json_files) >= 5
+    notes = f"found {len(json_files)} JSON prompt files in registry" if passed else f"found {len(json_files)} files (required >= 5)"  # noqa: E501
+    return _result(
+        check_id="AI-001",
+        priority="HIGH",
+        description="Prompt assets folder contains >= 5 JSON registry files",
+        passed=passed,
+        notes=notes
+    )
+
+
+def check_safety_evals_tests() -> AuditResult:
+    eval_file = REPO_ROOT / "tests" / "eval" / "test_safety_evals.py"
+    passed = False
+    notes = ""
+    if eval_file.exists():
+        text = _read_text(eval_file)
+        tests = re.findall(r"^\s*def\s+(test_[^\s(:]+)", text, flags=re.MULTILINE)
+        passed = len(tests) >= 8
+        notes = f"found {len(tests)} test cases in safety_evals (required >= 8)"
+    else:
+        notes = "test_safety_evals.py not found"
+        
+    return _result(
+        check_id="AI-002",
+        priority="HIGH",
+        description="test_safety_evals.py exists and contains >= 8 tests",
+        passed=passed,
+        notes=notes
+    )
+
+
+def check_phases_evidence() -> AuditResult:
+    evidence_dir = REPO_ROOT / "docs" / "evidence"
+    missing = []
+    for phase in ["phase22", "phase23", "phase24", "phase25"]:
+        matches = list(evidence_dir.glob(f"{phase}*"))
+        if not matches:
+            missing.append(phase)
+    passed = not missing
+    notes = "all phase 22-25 evidence present" if passed else f"missing evidence for phases: {', '.join(missing)}"  # noqa: E501
+    return _result(
+        check_id="PHASE-001",
+        priority="HIGH",
+        description="Phase 22-25 evidence files are present in docs/evidence/",
+        passed=passed,
+        notes=notes
+    )
+
+
 def run_audit() -> list[AuditResult]:
     return [
         check_coverage_gate(),
@@ -601,6 +688,11 @@ def run_audit() -> list[AuditResult]:
         check_slo_and_dora_controls(),
         check_long_duration_reliability_controls(),
         check_compliance_evidence_mapping(),
+        check_no_committed_keys(),
+        check_dr_drill_evidence(),
+        check_prompt_assets_registry(),
+        check_safety_evals_tests(),
+        check_phases_evidence(),
     ]
 
 

@@ -112,6 +112,11 @@ def test_run_audit_returns_expected_checks() -> None:
         "OBS-011",
         "PERF-010",
         "GRC-012",
+        "SEC-KEY-001",
+        "DR-001",
+        "AI-001",
+        "AI-002",
+        "PHASE-001",
     ]
 
 

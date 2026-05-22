@@ -442,3 +442,211 @@ def get_build_artifact(
     if row is None:
         return None
     return _row_to_build_artifact(row).model_dump(mode="json")
+
+
+def insert_testdata_manifest(
+    settings: Settings,
+    mission_id: str,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    language = str(manifest.get("language") or "").strip() or None
+    base_image = str(manifest.get("base_image") or "").strip() or None
+    test_framework = str(manifest.get("test_framework") or "").strip() or None
+    source = str(manifest.get("source") or "").strip() or None
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO mission_testdata_manifests (
+                    mission_id,
+                    manifest_json,
+                    language,
+                    base_image,
+                    test_framework,
+                    source
+                )
+                VALUES (%s, %s::jsonb, %s, %s, %s, %s)
+                RETURNING
+                    mission_id,
+                    manifest_json,
+                    language,
+                    base_image,
+                    test_framework,
+                    source,
+                    created_at
+                """,
+                (
+                    mission_id,
+                    json.dumps(manifest),
+                    language,
+                    base_image,
+                    test_framework,
+                    source,
+                ),
+            )
+            row = cur.fetchone()
+    return {
+        "mission_id": row[0],
+        "manifest": _json_to_dict(row[1]),
+        "language": row[2],
+        "base_image": row[3],
+        "test_framework": row[4],
+        "source": row[5],
+        "created_at": _to_iso(row[6]),
+    }
+
+
+def get_testdata_manifest(settings: Settings, mission_id: str) -> dict[str, Any] | None:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    mission_id,
+                    manifest_json,
+                    language,
+                    base_image,
+                    test_framework,
+                    source,
+                    created_at
+                FROM mission_testdata_manifests
+                WHERE mission_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (mission_id,),
+            )
+            row = cur.fetchone()
+    if row is None:
+        return None
+    return {
+        "mission_id": row[0],
+        "manifest": _json_to_dict(row[1]),
+        "language": row[2],
+        "base_image": row[3],
+        "test_framework": row[4],
+        "source": row[5],
+        "created_at": _to_iso(row[6]),
+    }
+
+
+def insert_runtime_qc_report(
+    settings: Settings,
+    mission_id: str,
+    execution_result: dict[str, Any],
+    qc_assessment: dict[str, Any],
+) -> dict[str, Any]:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO mission_runtime_qc (
+                    mission_id,
+                    execution_type,
+                    verdict,
+                    qc_verdict,
+                    exit_code,
+                    language,
+                    filename,
+                    base_image,
+                    stdout_preview,
+                    stderr_preview,
+                    execution_result_json,
+                    qc_assessment_json,
+                    started_at,
+                    completed_at
+                )
+                VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s::jsonb, %s::jsonb, %s::timestamptz, %s::timestamptz
+                )
+                RETURNING
+                    mission_id,
+                    execution_type,
+                    verdict,
+                    qc_verdict,
+                    exit_code,
+                    language,
+                    filename,
+                    base_image,
+                    stdout_preview,
+                    stderr_preview,
+                    execution_result_json,
+                    qc_assessment_json,
+                    started_at,
+                    completed_at,
+                    created_at
+                """,
+                (
+                    mission_id,
+                    str(execution_result.get("execution_type") or "skipped"),
+                    str(execution_result.get("verdict") or "SKIPPED"),
+                    qc_assessment.get("qc_verdict"),
+                    execution_result.get("exit_code"),
+                    execution_result.get("language"),
+                    execution_result.get("filename"),
+                    execution_result.get("base_image"),
+                    execution_result.get("stdout_preview"),
+                    execution_result.get("stderr_preview"),
+                    json.dumps(execution_result),
+                    json.dumps(qc_assessment),
+                    execution_result.get("started_at"),
+                    execution_result.get("completed_at"),
+                ),
+            )
+            row = cur.fetchone()
+    return _runtime_qc_row_to_dict(row)
+
+
+def get_runtime_qc_report(settings: Settings, mission_id: str) -> dict[str, Any] | None:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    mission_id,
+                    execution_type,
+                    verdict,
+                    qc_verdict,
+                    exit_code,
+                    language,
+                    filename,
+                    base_image,
+                    stdout_preview,
+                    stderr_preview,
+                    execution_result_json,
+                    qc_assessment_json,
+                    started_at,
+                    completed_at,
+                    created_at
+                FROM mission_runtime_qc
+                WHERE mission_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (mission_id,),
+            )
+            row = cur.fetchone()
+    if row is None:
+        return None
+    return _runtime_qc_row_to_dict(row)
+
+
+def _runtime_qc_row_to_dict(row: Any) -> dict[str, Any]:
+    return {
+        "mission_id": row[0],
+        "execution_type": row[1],
+        "verdict": row[2],
+        "qc_verdict": row[3],
+        "exit_code": row[4],
+        "language": row[5],
+        "filename": row[6],
+        "base_image": row[7],
+        "stdout_preview": row[8],
+        "stderr_preview": row[9],
+        "execution_result": _json_to_dict(row[10]),
+        "qc_assessment": _json_to_dict(row[11]),
+        "started_at": _to_iso(row[12]) if row[12] is not None else None,
+        "completed_at": _to_iso(row[13]) if row[13] is not None else None,
+        "created_at": _to_iso(row[14]),
+    }

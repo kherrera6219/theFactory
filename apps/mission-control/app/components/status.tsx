@@ -45,16 +45,27 @@ export function SystemMessage({ tone, title, children, action }: SystemMessagePr
   );
 }
 
+export type EmptyStateVariant = "empty" | "error" | "locked" | "offline";
+
 type EmptyStateProps = {
   title: string;
   children: ReactNode;
   action?: ReactNode;
   compact?: boolean;
+  /**
+   * Visual treatment for the empty state.
+   * - "empty"   — ready but no data yet (default, dashed border)
+   * - "error"   — configuration failure or gateway error (red left border)
+   * - "locked"  — sequential step not yet unlocked (muted, lock indicator)
+   * - "offline" — feature requires live backend (amber left border)
+   */
+  variant?: EmptyStateVariant;
 };
 
-export function EmptyState({ title, children, action, compact = false }: EmptyStateProps) {
+export function EmptyState({ title, children, action, compact = false, variant = "empty" }: EmptyStateProps) {
+  const classes = ["empty-state", variant, compact ? "compact" : ""].filter(Boolean).join(" ");
   return (
-    <div className={`empty-state ${compact ? "compact" : ""}`.trim()}>
+    <div className={classes}>
       <div className="empty-state-marker" aria-hidden="true" />
       <div className="empty-state-copy">
         <h3>{title}</h3>

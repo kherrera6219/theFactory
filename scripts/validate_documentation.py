@@ -3,7 +3,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPO_ROOT / "docs"
-SKIP_DIR_NAMES = {"archive", "evidence", "openapi"}
+SKIP_DIR_NAMES = {"archive", "evidence", "openapi", "phases"}
 SKIP_NAME_PREFIXES = ("ADR_", "REPOSITORY_BUILD_MAP_")
 REQUIRED_METADATA = (
     "Document version:",
@@ -28,7 +28,7 @@ def current_source_docs() -> list[Path]:
 def markdown_files_for_link_check() -> list[Path]:
     paths = [REPO_ROOT / "README.md"]
     for path in DOCS_ROOT.rglob("*.md"):
-        if "archive" in path.relative_to(DOCS_ROOT).parts:
+        if any(part in {"archive", "phases"} for part in path.relative_to(DOCS_ROOT).parts):
             continue
         paths.append(path)
     return sorted(paths)

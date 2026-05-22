@@ -341,6 +341,8 @@ class TestPythonAgent:
         assert result.status == "ok"
         assert result.artifacts[0]["type"] == "logicnode_set"
         assert result.artifacts[0]["logicnode_count"] > 0
+        assert result.artifacts[0]["logicnodes"][0]["concept"] == "foo"
+        assert result.artifacts[0]["logicnodes"][0]["domain"] == "function"
 
     def test_execute_no_source_produces_empty(self) -> None:
         result = self.agent.execute("m1", {})

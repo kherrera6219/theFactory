@@ -223,6 +223,25 @@ The drill validates:
 3. Database readability post-backup
 4. Recovery confirmation
 
+### Phase 17 Evidence Bundle
+
+For release hardening, pair the DR report with a fresh qualification summary and
+Phase 17 evidence bundle:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1 -DryRun -Timestamp phase17_YYYYMMDD
+python scripts/qualification_gate_summary.py --output-file docs/evidence/qualification_gate_summary_phase17_YYYY-MM-DD.json
+python scripts/phase17_release_hardening_evidence.py `
+  --dr-report-file reports/dr-drill-latest.json `
+  --qualification-summary-file docs/evidence/qualification_gate_summary_phase17_YYYY-MM-DD.json `
+  --output-file docs/evidence/phase17_dr_release_hardening_YYYY-MM-DD.json
+```
+
+`qualification_gate_summary.py` is allowed to return non-zero when required live
+evidence is stale. That is the expected fail-closed release posture; do not
+promote until the qualification suites are rerun and the promotion gate is
+approved.
+
 ### Total Stack Loss — Step-by-Step
 
 | Step | Action | Command |

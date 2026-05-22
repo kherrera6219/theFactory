@@ -52,7 +52,7 @@ def test_evaluate_promotion_allows_main_with_valid_inputs() -> None:
             "agents": [
                 {
                     "agent_id": "AGENT-01-PM",
-                    "model": "claude-sonnet-4-6",
+                    "model": "gpt-5.5",
                     "lifecycle": "stable",
                     "production_approved": True,
                     "fallback_model": "",
@@ -127,7 +127,7 @@ def test_evaluate_promotion_blocks_preview_models() -> None:
             "agents": [
                 {
                     "agent_id": "AGENT-30-PODD-MGR",
-                    "model": "gemini-3.1-pro-preview",
+                    "model": "some-vendor-experimental-9.0-preview",
                     "lifecycle": "preview",
                     "production_approved": False,
                     "fallback_model": "gpt-5.5",
@@ -211,7 +211,7 @@ def test_main_writes_decision_file(tmp_path: Path, monkeypatch) -> None:
                 "agents": [
                     {
                         "agent_id": "AGENT-01-PM",
-                        "model": "claude-sonnet-4-6",
+                        "model": "gpt-5.5",
                         "lifecycle": "stable",
                         "production_approved": True,
                         "fallback_model": "",

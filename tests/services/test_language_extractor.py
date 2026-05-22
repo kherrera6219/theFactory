@@ -101,6 +101,20 @@ class TestPythonExtractor:
         )
         assert focused_filter.confidence > baseline_filter.confidence
 
+    def test_doc_context_boosts_matching_concepts(self):
+        baseline = self.extractor.extract(PYTHON_SAMPLE)
+        contextual = self.extractor.extract(
+            PYTHON_SAMPLE,
+            doc_context="list_operations: list comprehensions, append, filter",
+        )
+        baseline_filter = next(
+            concept for concept in baseline.concepts if concept.concept_id == "DYN-001-002"
+        )
+        contextual_filter = next(
+            concept for concept in contextual.concepts if concept.concept_id == "DYN-001-002"
+        )
+        assert contextual_filter.confidence > baseline_filter.confidence
+
     def test_summary_dict(self):
         result = self.extractor.extract(PYTHON_SAMPLE)
         summary = result.summary

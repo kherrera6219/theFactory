@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "../../../components/page-header";
 import { Panel } from "../../../components/panel";
+import { useConfirm } from "../../../components/dialog-provider";
+import { ErrorBoundary } from "../../../components/error-boundary";
 import {
   getMission,
   getMissionChainTrace,
@@ -17,11 +19,14 @@ import {
   listOperationsLogicNodes,
   missionApiUrl,
   updateMissionStateWithVault,
+  updateMissionMetadata,
+  getMissionTokenUsage,
 } from "../../../lib/api-client";
-import { formatDateTime, formatTime, humanizeState, normalizeState } from "../../../lib/format";
+import { Tooltip } from "../../../components/tooltip";
+import { GLOSSARY } from "../../../lib/glossary";
+import { humanizeState, normalizeState } from "../../../lib/format";
 import {
   deriveMissionPhaseDescriptor,
-  smeltPhaseFromEventType,
 } from "../../../lib/smelt-cycle";
 import type {
   MissionEvent,
@@ -30,7 +35,34 @@ import type {
   OperationsAgentRecord,
   OperationsAuditReportRecord,
   OperationsLogicNodeRecord,
+  LlmUsageSummary,
 } from "../../../lib/types";
+
+// Import all 22 panels from the structured subfolders
+import {
+  MissionSignalsPanel,
+  LogicNodeProgressPanel,
+  GeneratedOutputPanel,
+  DeliveryPanel,
+  ChainOfCommandTracePanel,
+  RouteProvenancePanel,
+  PmFeatureContractPanel,
+  MissionCharterPanel,
+  MissionContractPanel,
+  ActiveAgentsPanel,
+  EquivalenceReportPanel,
+  SecurityCompliancePanel,
+  DependencyAbsorptionPanel,
+  RuntimeQcPanel,
+  AimPanel,
+  FusionPanel,
+  LogicClustersPanel,
+  PodGroupStandardsPanel,
+  KnowledgeLakePanel,
+  CostPanel,
+  AuditEvidencePanel,
+  MissionEventLogPanel,
+} from "./panels";
 
 const POLL_INTERVAL_MS = 2500;
 const STREAM_REFRESH_DEBOUNCE_MS = 500;
@@ -53,18 +85,10 @@ function nodeConfidence(node: OperationsLogicNodeRecord): number | null {
   return null;
 }
 
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter((item) => item.length > 0);
-}
-
 export default function MissionDetailPage() {
   const params = useParams<{ id: string }>();
   const missionId = String(params.id ?? "").trim();
+  const confirm = useConfirm();
 
   const [mission, setMission] = useState<MissionRecord | null>(null);
   const [events, setEvents] = useState<MissionEvent[]>([]);
@@ -81,6 +105,13 @@ export default function MissionDetailPage() {
   const [streamEventsSeen, setStreamEventsSeen] = useState(0);
   const [streamErrors, setStreamErrors] = useState(0);
   const [pollFallbackTicks, setPollFallbackTicks] = useState(0);
+  const [tokenUsage, setTokenUsage] = useState<LlmUsageSummary | null>(null);
+  const [activeTab, setActiveTab] = useState<"execution" | "artifacts" | "contracts" | "events">("execution");
+  // 6E — Inline name edit state.
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const lastStreamRefreshRef = useRef(0);
 
   const loadDetails = useCallback(async () => {
@@ -88,13 +119,14 @@ export default function MissionDetailPage() {
       return;
     }
     try {
-      const [missionData, missionEvents, missionChain, nodes, agentSnapshot, reports] = await Promise.all([
+      const [missionData, missionEvents, missionChain, nodes, agentSnapshot, reports, tokenUsageData] = await Promise.all([
         getMission(missionId),
         getMissionEvents(missionId, 60),
         getMissionChainTrace(missionId),
         listOperationsLogicNodes({ limit: 400, missionId }),
         getOperationsAgents({ missionLimit: 300, assignmentLimit: 300, eventLimit: 200 }),
         listMissionAuditReports(missionId, 50).catch(() => [] as OperationsAuditReportRecord[]),
+        getMissionTokenUsage(missionId).catch(() => null),
       ]);
       setMission(missionData);
       setEvents(missionEvents);
@@ -102,6 +134,7 @@ export default function MissionDetailPage() {
       setLogicNodes(nodes);
       setActiveAgents(agentSnapshot.agents.filter((agent: OperationsAgentRecord) => isAgentActive(agent, missionId)));
       setAuditReports(reports);
+      setTokenUsage(tokenUsageData);
       setError(null);
       setLastUpdatedAt(new Date().toISOString());
     } catch (loadError) {
@@ -246,22 +279,6 @@ export default function MissionDetailPage() {
     return `${Math.round(average * 1000) / 10}%`;
   }, [logicNodes]);
 
-  const routeStages = useMemo(() => {
-    const provenance = chainTrace?.route_provenance;
-    if (!provenance) {
-      return [];
-    }
-    return [
-      { key: "ceo", title: "CEO Delegation", value: provenance.ceo ?? null },
-      { key: "pod_manager", title: "Pod Manager Delegation", value: provenance.pod_manager ?? null },
-      { key: "specialist", title: "Specialist Planning", value: provenance.specialist ?? null },
-    ].filter((item) => item.value);
-  }, [chainTrace]);
-
-  const artifactEntries = useMemo(
-    () => Object.entries(chainTrace?.artifact_summary ?? {}),
-    [chainTrace],
-  );
   const buildArtifacts = useMemo(
     () => chainTrace?.build_artifacts ?? [],
     [chainTrace],
@@ -274,17 +291,41 @@ export default function MissionDetailPage() {
   const missionCharter = chainTrace?.mission_charter ?? null;
   const missionContract = chainTrace?.mission_contract ?? null;
   const logicClusters = chainTrace?.logic_clusters?.clusters ?? [];
-  const podGroupStandards = Object.entries(chainTrace?.pod_group_standards ?? {});
+  const podGroupStandards = useMemo(
+    () => Object.entries(chainTrace?.pod_group_standards ?? {}),
+    [chainTrace],
+  );
   const fetchResult = chainTrace?.fetch_result ?? null;
+  const applicationIntelligenceMap = chainTrace?.application_intelligence_map ?? null;
+  const equivalenceReport = chainTrace?.equivalence_report ?? null;
+  const securityComplianceReport = chainTrace?.security_compliance_report ?? null;
+  const dependencyInventory = chainTrace?.dependency_inventory ?? null;
+  const dependencyClassificationReport = chainTrace?.dependency_classification_report ?? null;
+  const dependencyAbsorptionReport = chainTrace?.dependency_absorption_report ?? null;
+  const depabsExecution = chainTrace?.depabs_execution ?? null;
+  const sbomDelta = chainTrace?.sbom_delta ?? null;
+  const dependencySurvivalJustifications = useMemo(
+    () => chainTrace?.dependency_survival_justifications ?? [],
+    [chainTrace],
+  );
+  const testdataManifest = chainTrace?.testdata_manifest ?? null;
+  const runtimeQcReport = chainTrace?.runtime_qc_report ?? null;
   const masterLogicStream = chainTrace?.master_logic_stream ?? null;
+  const deliverySummary = chainTrace?.delivery_summary ?? null;
 
   async function cancelMission() {
     if (!mission) {
       return;
     }
-    const confirmed = window.confirm(
-      "Cancel mission? This operation marks the mission as FAILED in the current backend workflow.",
-    );
+    const confirmed = await confirm({
+      title: "Cancel Mission?",
+      message:
+        `This will immediately stop all active agents for mission ${mission.mission_id.slice(0, 16)}…` +
+        " Any work in progress will be lost and the mission will be marked FAILED. This cannot be undone.",
+      confirmText: "Yes, Cancel Mission",
+      cancelText: "Keep Running",
+      dangerous: true,
+    });
     if (!confirmed) {
       return;
     }
@@ -305,22 +346,123 @@ export default function MissionDetailPage() {
     }
   }
 
-  function pauseMonitor() {
-    const confirmed = window.confirm(
-      "Pause monitoring? The current backend does not support mission PAUSED state yet. " +
-        "This will freeze UI refresh until resumed.",
+  /** 6E — Begin editing the mission name. */
+  function startEditName() {
+    const currentName = String(
+      (mission?.metadata as Record<string, unknown> | undefined)?.name ?? "",
     );
-    if (!confirmed) {
+    setNameInput(currentName);
+    setEditingName(true);
+    requestAnimationFrame(() => nameInputRef.current?.focus());
+  }
+
+  /** 6E — Commit the edited name to the backend. */
+  async function saveName() {
+    if (!mission) return;
+    const trimmed = nameInput.trim();
+    setEditingName(false);
+    if (!trimmed || trimmed === String((mission.metadata as Record<string, unknown> | undefined)?.name ?? "")) {
       return;
     }
-    setPausedMonitor((current) => !current);
+    setNameSaving(true);
+    try {
+      const updated = await updateMissionMetadata(mission.mission_id, {
+        ...(mission.metadata as Record<string, unknown> | undefined),
+        name: trimmed,
+      });
+      setMission(updated);
+    } catch {
+      setActionError("Could not save mission name — the backend may not support PATCH yet.");
+    } finally {
+      setNameSaving(false);
+    }
+  }
+
+  async function pauseMonitor() {
+    if (pausedMonitor) {
+      setPausedMonitor(false);
+      return;
+    }
+    const confirmed = await confirm({
+      title: "Pause Monitoring?",
+      message: "Pause monitoring? The current backend does not support mission PAUSED state yet. This will freeze UI refresh until resumed.",
+      confirmText: "Pause",
+      cancelText: "Cancel",
+    });
+    if (confirmed) {
+      setPausedMonitor(true);
+    }
   }
 
   return (
     <div className="page shell-page">
       <PageHeader
         eyebrow="Mission Detail"
-        title={mission ? `Mission ${mission.mission_id}` : "Mission Detail"}
+        title={
+          mission ? (() => {
+            const missionName = String(
+              (mission.metadata as Record<string, unknown> | undefined)?.name ?? "",
+            );
+            return (
+              <span className="mission-name-edit-wrap">
+                {editingName ? (
+                  /* Edit mode */
+                  <>
+                    <input
+                      ref={nameInputRef}
+                      type="text"
+                      className="mission-name-input"
+                      value={nameInput}
+                      maxLength={120}
+                      aria-label="Mission name"
+                      onChange={(e) => setNameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void saveName();
+                        if (e.key === "Escape") setEditingName(false);
+                      }}
+                      onBlur={() => void saveName()}
+                    />
+                    <button
+                      type="button"
+                      className="mission-name-edit-btn"
+                      aria-label="Cancel editing"
+                      onClick={() => setEditingName(false)}
+                    >
+                      ✕
+                    </button>
+                  </>
+                ) : (
+                  /* Display mode */
+                  <>
+                    {missionName ? (
+                      <>
+                        <span>{missionName}</span>
+                        <span className="mono-id" style={{ fontSize: "0.6em", opacity: 0.55 }}>
+                          {mission.mission_id.slice(0, 8)}…
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        Mission{" "}
+                        <span className="mono-id">{mission.mission_id.slice(0, 12)}…</span>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="mission-name-edit-btn"
+                      aria-label="Edit mission name"
+                      title="Click to rename this mission"
+                      onClick={startEditName}
+                    >
+                      {nameSaving ? "…" : "✎"}
+                    </button>
+                  </>
+                )}
+              </span>
+            );
+          })()
+          : "Mission Detail"
+        }
         description={
           mission
             ? `Status ${humanizeState(mission.state)}. Live mission diagnostics for phases, active agents, and extracted LogicNodes.`
@@ -334,7 +476,7 @@ export default function MissionDetailPage() {
             <button type="button" className="secondary-button" onClick={pauseMonitor}>
               {pausedMonitor ? "Resume Monitor" : "Pause Monitor"}
             </button>
-            <button type="button" onClick={() => void cancelMission()}>
+            <button type="button" className="danger-button" onClick={() => void cancelMission()}>
               Cancel Mission
             </button>
           </div>
@@ -345,6 +487,34 @@ export default function MissionDetailPage() {
       {actionError && <p className="error-box">{actionError}</p>}
       {pausedMonitor && (
         <p className="warning-box">Live refresh paused locally. Click "Resume Monitor" to continue.</p>
+      )}
+
+      {mission?.state === "COMPLETE" && deliverySummary && (
+        <section className="delivery-banner" aria-label="Mission delivery summary">
+          <div>
+            <p className="eyebrow">Delivered</p>
+            <h2>{deliverySummary.delivery_title}</h2>
+            <p>{deliverySummary.delivery_summary}</p>
+            {deliverySummary.usage_notes && (
+              <p className="muted">{deliverySummary.usage_notes}</p>
+            )}
+          </div>
+          <div className="delivery-banner-actions">
+            {generatedCodeArtifact && (
+              <a
+                className="primary-button shell-link-button"
+                href={missionApiUrl(
+                  `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
+                )}
+              >
+                Download Generated Code
+              </a>
+            )}
+            {!generatedCodeArtifact && deliverySummary.primary_artifact_type && (
+              <span className="muted">{deliverySummary.primary_artifact_type}</span>
+            )}
+          </div>
+        </section>
       )}
 
       <Panel title={phaseStepperTitle}>
@@ -358,685 +528,112 @@ export default function MissionDetailPage() {
                 className={`phase-step ${complete ? "complete" : ""} ${active ? "active" : ""}`}
                 aria-current={active ? "step" : undefined}
               >
-                <span className="phase-marker">{complete ? "✓" : active ? "●" : "○"}</span>
-                <span>{phase}</span>
+                {/* 4E: aria-label gives screen readers explicit state, not just the symbol glyph */}
+                <span
+                  className="phase-marker"
+                  aria-label={complete ? "Completed" : active ? "Active" : "Pending"}
+                >
+                  {complete ? "✓" : active ? "●" : "○"}
+                </span>
+                {/* 6A: Tooltip shows the phase definition from the domain glossary */}
+                {GLOSSARY[phase.toUpperCase().replace(/\s/g, "_")] ??
+                GLOSSARY[phase] ? (
+                  <Tooltip
+                    content={
+                      (GLOSSARY[phase.toUpperCase().replace(/\s/g, "_")] ?? GLOSSARY[phase])
+                        .definition
+                    }
+                    side="bottom"
+                  >
+                    <span className="phase-name">{phase}</span>
+                  </Tooltip>
+                ) : (
+                  <span className="phase-name">{phase}</span>
+                )}
               </li>
             );
           })}
         </ol>
       </Panel>
 
-      <div className="mission-detail-grid">
-        <Panel title="Mission Signals">
-          {loading && <p className="muted">Loading mission signals...</p>}
-          {!loading && mission && (
-            <dl>
-              <div>
-                <dt>Status</dt>
-                <dd>{humanizeState(mission.state)}</dd>
-              </div>
-              <div>
-                <dt>Lifecycle engine</dt>
-                <dd>
-                  <span
-                    className={`connection-chip ${
-                      lifecycleEngine === "MissionFlow V2"
-                        ? "live"
-                        : lifecycleEngine === "LangGraph"
-                          ? "retrying"
-                          : "stale"
-                    }`}
-                    title={`Active lifecycle engine: ${lifecycleEngine}`}
-                  >
-                    {lifecycleEngine}
-                  </span>
-                </dd>
-              </div>
-              <div>
-                <dt>{phaseLabel}</dt>
-                <dd>{phaseName}</dd>
-              </div>
-              <div>
-                <dt>Created</dt>
-                <dd>{formatDateTime(mission.created_at)}</dd>
-              </div>
-              <div>
-                <dt>Target language</dt>
-                <dd>{mission.requested_target_language ?? "n/a"}</dd>
-              </div>
-              <div>
-                <dt>Last refresh</dt>
-                <dd>{lastUpdatedAt ? formatTime(lastUpdatedAt) : "n/a"}</dd>
-              </div>
-              <div>
-                <dt>Transport mode</dt>
-                <dd>{transportMode}</dd>
-              </div>
-              <div>
-                <dt>Stream events</dt>
-                <dd>{streamEventsSeen}</dd>
-              </div>
-              <div>
-                <dt>Stream errors</dt>
-                <dd>{streamErrors}</dd>
-              </div>
-              <div>
-                <dt>Poll fallback ticks</dt>
-                <dd>{pollFallbackTicks}</dd>
-              </div>
-            </dl>
-          )}
-        </Panel>
-
-        <Panel title="LogicNode Progress">
-          <dl>
-            <div>
-              <dt>Extracted</dt>
-              <dd>{logicNodes.length} LogicNodes</dd>
-            </div>
-            <div>
-              <dt>Verified</dt>
-              <dd>{verifiedCount}</dd>
-            </div>
-            <div>
-              <dt>Average confidence</dt>
-              <dd>{avgConfidence}</dd>
-            </div>
-          </dl>
-          <div className="inline-actions">
-            <Link
-              href={`/logicnodes?mission=${encodeURIComponent(missionId)}`}
-              className="secondary-button shell-link-button"
-            >
-              Open LogicNode Explorer
-            </Link>
-          </div>
-        </Panel>
+      {/* Phase 2B — Tabbed progressive disclosure replacing the flat 22-panel grid */}
+      <div className="mission-tabs" role="tablist" aria-label="Mission detail sections">
+        {(["execution", "artifacts", "contracts", "events"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            aria-controls={`tab-panel-${tab}`}
+            className={`mission-tab${activeTab === tab ? " active" : ""}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
       </div>
 
-      <Panel title="Chain of Command Trace">
-        {!chainTrace && <p className="muted">Chain trace not available yet.</p>}
-        {chainTrace && (
-          <>
-            <dl>
-              <div>
-                <dt>Routing enforced</dt>
-                <dd>{chainTrace.routing_enforced ? "yes" : "no"}</dd>
-              </div>
-              <div>
-                <dt>Routing version</dt>
-                <dd>{chainTrace.routing_version ?? "n/a"}</dd>
-              </div>
-              <div>
-                <dt>Selected agent</dt>
-                <dd>{chainTrace.selected_agent_id ?? "n/a"}</dd>
-              </div>
-              <div>
-                <dt>Pod manager</dt>
-                <dd>{chainTrace.assigned_pod_manager_agent_id ?? "n/a"}</dd>
-              </div>
-              <div>
-                <dt>Specialist</dt>
-                <dd>{chainTrace.assigned_specialist_agent_id ?? "n/a"}</dd>
-              </div>
-            </dl>
-            {chainTrace.events.length === 0 && (
-              <p className="muted">No chain events recorded yet.</p>
-            )}
-            {chainTrace.events.length > 0 && (
-              <ul className="summary-list">
-                {chainTrace.events.slice(0, 20).map((event) => (
-                  <li key={`${event.event_type}-${event.ts}`}>
-                    <strong>{formatTime(event.ts)}</strong>
-                    <span>{event.event_type}</span>
-                    <span className="muted">{event.agent_id ?? "unassigned"}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-      </Panel>
+      {/* Execution tab — live signals, node progress, active agents */}
+      <div
+        id="tab-panel-execution"
+        role="tabpanel"
+        aria-labelledby="tab-execution"
+        hidden={activeTab !== "execution"}
+        className="mission-tab-panels"
+      >
+        <ErrorBoundary><MissionSignalsPanel loading={loading} mission={mission} chainTrace={chainTrace} lifecycleEngine={lifecycleEngine} phaseLabel={phaseLabel} phaseName={phaseName} lastUpdatedAt={lastUpdatedAt} transportMode={transportMode} streamEventsSeen={streamEventsSeen} streamErrors={streamErrors} pollFallbackTicks={pollFallbackTicks} /></ErrorBoundary>
+        <ErrorBoundary><LogicNodeProgressPanel missionId={missionId} logicNodes={logicNodes} verifiedCount={verifiedCount} avgConfidence={avgConfidence} /></ErrorBoundary>
+        <ErrorBoundary><ChainOfCommandTracePanel chainTrace={chainTrace} /></ErrorBoundary>
+        <ErrorBoundary><ActiveAgentsPanel activeAgents={activeAgents} /></ErrorBoundary>
+        <ErrorBoundary><CostPanel tokenUsage={tokenUsage} /></ErrorBoundary>
+      </div>
 
-      <Panel title="Route Provenance">
-        {!chainTrace?.route_provenance && <p className="muted">Route provenance not available yet.</p>}
-        {chainTrace?.route_provenance && (
-          <>
-            <dl>
-              <div>
-                <dt>Fallback used</dt>
-                <dd>{chainTrace.route_provenance.fallback_used ? "yes" : "no"}</dd>
-              </div>
-            </dl>
-            {routeStages.length === 0 && <p className="muted">No delegation snapshots recorded yet.</p>}
-            {routeStages.length > 0 && (
-              <ul className="card-list">
-                {routeStages.map((stage) => {
-                  const deliverables = asStringArray(stage.value?.deliverables);
-                  const riskNotes = asStringArray(stage.value?.risk_notes);
-                  return (
-                    <li key={stage.key} className="info-card">
-                      <h3>{stage.title}</h3>
-                      <dl>
-                        <div>
-                          <dt>Source</dt>
-                          <dd>{stage.value?.source ?? "n/a"}</dd>
-                        </div>
-                        <div>
-                          <dt>LLM route</dt>
-                          <dd>{stage.value?.llm_route ?? "n/a"}</dd>
-                        </div>
-                        <div>
-                          <dt>Model</dt>
-                          <dd>
-                            {stage.value?.model_provider ?? "n/a"} / {stage.value?.model ?? "n/a"}
-                          </dd>
-                        </div>
-                        {stage.value?.target_agent_id && (
-                          <div>
-                            <dt>Target agent</dt>
-                            <dd>{stage.value.target_agent_id}</dd>
-                          </div>
-                        )}
-                        {stage.value?.specialist_agent_id && (
-                          <div>
-                            <dt>Specialist</dt>
-                            <dd>{stage.value.specialist_agent_id}</dd>
-                          </div>
-                        )}
-                        {stage.value?.pod_manager_agent_id && (
-                          <div>
-                            <dt>Pod manager</dt>
-                            <dd>{stage.value.pod_manager_agent_id}</dd>
-                          </div>
-                        )}
-                      </dl>
-                      {stage.value?.rationale && <p>{stage.value.rationale}</p>}
-                      {stage.value?.plan_summary && <p>{stage.value.plan_summary}</p>}
-                      {deliverables.length > 0 && (
-                        <>
-                          <p className="muted">Deliverables</p>
-                          <ul className="summary-list">
-                            {deliverables.map((item) => (
-                              <li key={`${stage.key}-deliverable-${item}`}>
-                                <span>{item}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </>
-                      )}
-                      {riskNotes.length > 0 && (
-                        <>
-                          <p className="muted">Risk notes</p>
-                          <ul className="summary-list">
-                            {riskNotes.map((item) => (
-                              <li key={`${stage.key}-risk-${item}`}>
-                                <span>{item}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {artifactEntries.length > 0 && (
-              <>
-                <p className="muted">Stage artifacts</p>
-                <ul className="summary-list">
-                  {artifactEntries.map(([stage, artifact]) => (
-                    <li key={stage}>
-                      <strong>{stage}</strong>
-                      <span>{String(artifact.event_type ?? "artifact")}</span>
-                      <span className="muted">{String(artifact.agent_id ?? "unassigned")}</span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </>
-        )}
-      </Panel>
+      {/* Artifacts tab — generated output, build artifacts, audit evidence, quality reports */}
+      <div
+        id="tab-panel-artifacts"
+        role="tabpanel"
+        aria-labelledby="tab-artifacts"
+        hidden={activeTab !== "artifacts"}
+        className="mission-tab-panels"
+      >
+        <ErrorBoundary><GeneratedOutputPanel missionId={missionId} generatedCodeArtifact={generatedCodeArtifact} /></ErrorBoundary>
+        <ErrorBoundary><DeliveryPanel buildArtifacts={buildArtifacts} /></ErrorBoundary>
+        <ErrorBoundary><AuditEvidencePanel auditReports={auditReports} /></ErrorBoundary>
+        <ErrorBoundary><AimPanel applicationIntelligenceMap={applicationIntelligenceMap as any} /></ErrorBoundary>
+        <ErrorBoundary><FusionPanel masterLogicStream={masterLogicStream} /></ErrorBoundary>
+        <ErrorBoundary><KnowledgeLakePanel fetchResult={fetchResult} /></ErrorBoundary>
+        <ErrorBoundary><EquivalenceReportPanel equivalenceReport={equivalenceReport} /></ErrorBoundary>
+        <ErrorBoundary><SecurityCompliancePanel securityComplianceReport={securityComplianceReport as any} /></ErrorBoundary>
+        <ErrorBoundary><DependencyAbsorptionPanel dependencyInventory={dependencyInventory} dependencyClassificationReport={dependencyClassificationReport} dependencyAbsorptionReport={dependencyAbsorptionReport} depabsExecution={depabsExecution} sbomDelta={sbomDelta} dependencySurvivalJustifications={dependencySurvivalJustifications} /></ErrorBoundary>
+        <ErrorBoundary><RuntimeQcPanel runtimeQcReport={runtimeQcReport} testdataManifest={testdataManifest} /></ErrorBoundary>
+      </div>
 
-      <Panel title="PM Feature Contract">
-        {!featureContract && <p className="muted">No PM feature contract recorded yet.</p>}
-        {featureContract && (
-          <>
-            <dl>
-              <div>
-                <dt>Title</dt>
-                <dd>{featureContract.title}</dd>
-              </div>
-              <div>
-                <dt>Source</dt>
-                <dd>{featureContract.source}</dd>
-              </div>
-              <div>
-                <dt>Complexity</dt>
-                <dd>{featureContract.estimated_complexity}</dd>
-              </div>
-              <div>
-                <dt>Approval</dt>
-                <dd>{featureContract.human_approval_required ? "required" : "not required"}</dd>
-              </div>
-            </dl>
-            <p>{featureContract.summary}</p>
-            {featureContract.acceptance_criteria.length > 0 && (
-              <ul className="summary-list">
-                {featureContract.acceptance_criteria.map((criterion) => (
-                  <li key={`feature-criterion-${criterion}`}>
-                    <span>{criterion}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-      </Panel>
+      {/* Contracts tab — planning artifacts and specifications */}
+      <div
+        id="tab-panel-contracts"
+        role="tabpanel"
+        aria-labelledby="tab-contracts"
+        hidden={activeTab !== "contracts"}
+        className="mission-tab-panels"
+      >
+        <ErrorBoundary><PmFeatureContractPanel featureContract={featureContract} /></ErrorBoundary>
+        <ErrorBoundary><MissionCharterPanel missionCharter={missionCharter as any} /></ErrorBoundary>
+        <ErrorBoundary><MissionContractPanel missionContract={missionContract} /></ErrorBoundary>
+        <ErrorBoundary><PodGroupStandardsPanel podGroupStandards={podGroupStandards} /></ErrorBoundary>
+        <ErrorBoundary><LogicClustersPanel logicClusters={logicClusters} /></ErrorBoundary>
+        <ErrorBoundary><RouteProvenancePanel chainTrace={chainTrace} /></ErrorBoundary>
+      </div>
 
-      <Panel title="Mission Charter">
-        {!missionCharter && <p className="muted">No mission charter recorded yet.</p>}
-        {missionCharter && (
-          <>
-            <dl>
-              <div>
-                <dt>Mode</dt>
-                <dd>{missionCharter.mission_mode_label ?? missionCharter.mission_mode}</dd>
-              </div>
-              <div>
-                <dt>Depth</dt>
-                <dd>{missionCharter.depth_mode}</dd>
-              </div>
-              <div>
-                <dt>Output</dt>
-                <dd>{missionCharter.output_mode}</dd>
-              </div>
-              <div>
-                <dt>Created</dt>
-                <dd>{formatDateTime(missionCharter.created_at)}</dd>
-              </div>
-            </dl>
-            <p>{missionCharter.objective}</p>
-            {missionCharter.success_criteria.length > 0 && (
-              <ul className="summary-list">
-                {missionCharter.success_criteria.map((criterion) => (
-                  <li key={`charter-criterion-${criterion}`}>
-                    <span>{criterion}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-      </Panel>
-
-      <Panel title="Mission Contract">
-        {!missionContract && <p className="muted">No CEO mission contract recorded yet.</p>}
-        {missionContract && (
-          <>
-            <dl>
-              <div>
-                <dt>Type</dt>
-                <dd>{missionContract.mission_type}</dd>
-              </div>
-              <div>
-                <dt>Output mode</dt>
-                <dd>{missionContract.output_mode}</dd>
-              </div>
-              <div>
-                <dt>Format</dt>
-                <dd>{missionContract.output_format}</dd>
-              </div>
-              <div>
-                <dt>Source</dt>
-                <dd>{missionContract.source}</dd>
-              </div>
-            </dl>
-            <p>{missionContract.contract_summary}</p>
-            {missionContract.logicnode_requirements.length > 0 && (
-              <ul className="card-list">
-                {missionContract.logicnode_requirements.map((requirement) => (
-                  <li
-                    key={`${requirement.domain}-${requirement.concept}-${requirement.intent}`}
-                    className="info-card"
-                  >
-                    <h3>{requirement.concept}</h3>
-                    <p>{requirement.intent}</p>
-                    <p className="muted">
-                      {requirement.domain} - {requirement.priority}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-      </Panel>
-
-      <Panel title="Logic Clusters">
-        {logicClusters.length === 0 && <p className="muted">No logic clusters recorded yet.</p>}
-        {logicClusters.length > 0 && (
-          <ul className="card-list">
-            {logicClusters.map((cluster) => (
-              <li key={cluster.cluster_id} className="info-card">
-                <h3>{cluster.title}</h3>
-                <dl>
-                  <div>
-                    <dt>Domain</dt>
-                    <dd>{cluster.domain}</dd>
-                  </div>
-                  <div>
-                    <dt>Priority</dt>
-                    <dd>{cluster.priority}</dd>
-                  </div>
-                  <div>
-                    <dt>Pod manager</dt>
-                    <dd>{cluster.pod_manager_agent_id}</dd>
-                  </div>
-                  <div>
-                    <dt>Specialist</dt>
-                    <dd>{cluster.specialist_agent_id}</dd>
-                  </div>
-                </dl>
-                <p>{cluster.rationale}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-
-      <Panel title="Pod Group Standards">
-        {podGroupStandards.length === 0 && (
-          <p className="muted">No pod group standards recorded yet.</p>
-        )}
-        {podGroupStandards.length > 0 && (
-          <ul className="card-list">
-            {podGroupStandards.map(([pod, standard]) => (
-              <li key={pod} className="info-card">
-                <h3>{pod}</h3>
-                <dl>
-                  <div>
-                    <dt>Pod manager</dt>
-                    <dd>{standard.pod_manager_agent_id}</dd>
-                  </div>
-                  <div>
-                    <dt>Canonical LogicNodes</dt>
-                    <dd>{standard.canonical_logicnodes.length}</dd>
-                  </div>
-                  <div>
-                    <dt>Duplicates removed</dt>
-                    <dd>{standard.eliminated_duplicates}</dd>
-                  </div>
-                  <div>
-                    <dt>Source</dt>
-                    <dd>{standard.source}</dd>
-                  </div>
-                </dl>
-                <p>{standard.summary}</p>
-                {standard.canonical_logicnodes.length > 0 && (
-                  <ul className="summary-list">
-                    {standard.canonical_logicnodes.slice(0, 8).map((node) => (
-                      <li key={node.standard_node_id}>
-                        <strong>{node.concept}</strong>
-                        <span>{node.domain}</span>
-                        <span className="muted">
-                          {node.languages.length > 0 ? node.languages.join(", ") : "language n/a"}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-
-      {fetchResult && (
-        <Panel title="Knowledge Lake (FETCH)">
-          <dl>
-            <div>
-              <dt>Indexed languages</dt>
-              <dd>
-                {fetchResult.indexed_languages?.length > 0
-                  ? fetchResult.indexed_languages.join(", ")
-                  : "none"}
-              </dd>
-            </div>
-            {fetchResult.skipped_languages?.length > 0 && (
-              <div>
-                <dt>Skipped (no bootstrap docs)</dt>
-                <dd>{fetchResult.skipped_languages.join(", ")}</dd>
-              </div>
-            )}
-            <div>
-              <dt>Knowledge ready</dt>
-              <dd>{fetchResult.knowledge_ready ? "Yes" : "No"}</dd>
-            </div>
-            {fetchResult.errors?.length > 0 && (
-              <div>
-                <dt>Errors</dt>
-                <dd className="error-text">{fetchResult.errors.join("; ")}</dd>
-              </div>
-            )}
-          </dl>
-        </Panel>
-      )}
-
-      {masterLogicStream != null &&
-        (masterLogicStream.master_logic_stream?.length ?? 0) > 0 && (
-          <Panel title="Master Logic Stream (FUSION)">
-            <dl>
-              <div>
-                <dt>Unified nodes</dt>
-                <dd>{masterLogicStream.total_unified_nodes}</dd>
-              </div>
-              <div>
-                <dt>Duplicates eliminated across pods</dt>
-                <dd>{masterLogicStream.eliminated_across_pods}</dd>
-              </div>
-              <div>
-                <dt>Source</dt>
-                <dd>{masterLogicStream.source}</dd>
-              </div>
-            </dl>
-            <ul className="summary-list">
-              {masterLogicStream.master_logic_stream.map((node) => (
-                <li key={node.node_id}>
-                  <strong>{node.concept}</strong>
-                  <span>{node.domain}</span>
-                  <span className="muted">{(node.source_pods ?? []).join(", ")}</span>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-        )}
-
-      <Panel title="Active Agents">
-        {activeAgents.length === 0 && <p className="muted">No active agents currently assigned.</p>}
-        {activeAgents.length > 0 && (
-          <ul className="card-list">
-            {activeAgents.map((agent) => (
-              <li key={agent.agent_id} className="info-card">
-                <h3>{agent.agent_id}</h3>
-                <p>{agent.name}</p>
-                <p className="muted">
-                  {agent.pod} - {agent.tier} - {agent.state}
-                </p>
-                <p className="muted">Workload: {agent.workload_pct}%</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-
-      <Panel title="Generated Output">
-        {!generatedCodeArtifact && <p className="muted">No generated-code artifact recorded yet.</p>}
-        {generatedCodeArtifact && (
-          <>
-            <dl>
-              <div>
-                <dt>File</dt>
-                <dd>{String(generatedCodeArtifact.manifest?.filename ?? generatedCodeArtifact.artifact_id)}</dd>
-              </div>
-              <div>
-                <dt>Digest</dt>
-                <dd>{generatedCodeArtifact.digest_sha256 ?? "n/a"}</dd>
-              </div>
-              <div>
-                <dt>Size</dt>
-                <dd>{generatedCodeArtifact.size_bytes} bytes</dd>
-              </div>
-            </dl>
-            <div className="inline-actions">
-              <a
-                className="secondary-button shell-link-button"
-                href={missionApiUrl(
-                  `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
-                )}
-              >
-                Download Generated Code
-              </a>
-            </div>
-            {generatedCodeArtifact.artifact_text && (
-              <div className="code-block">
-                <pre>{generatedCodeArtifact.artifact_text}</pre>
-              </div>
-            )}
-          </>
-        )}
-      </Panel>
-
-      <Panel title="Build Artifacts">
-        {buildArtifacts.length === 0 && (
-          <p className="muted">No build or package artifacts recorded for this mission yet.</p>
-        )}
-        {buildArtifacts.length > 0 && (
-          <ul className="card-list">
-            {buildArtifacts.map((artifact) => (
-              <li key={artifact.artifact_id} className="info-card">
-                <h3>{artifact.artifact_type}</h3>
-                <dl>
-                  <div>
-                    <dt>Status</dt>
-                    <dd>{artifact.status}</dd>
-                  </div>
-                  <div>
-                    <dt>Stage</dt>
-                    <dd>{artifact.stage}</dd>
-                  </div>
-                  <div>
-                    <dt>Storage</dt>
-                    <dd>{artifact.storage_backend}</dd>
-                  </div>
-                  <div>
-                    <dt>Digest</dt>
-                    <dd>{artifact.digest_sha256 ?? "n/a"}</dd>
-                  </div>
-                  <div>
-                    <dt>Size</dt>
-                    <dd>{artifact.size_bytes} bytes</dd>
-                  </div>
-                  <div>
-                    <dt>Updated</dt>
-                    <dd>{formatDateTime(artifact.updated_at)}</dd>
-                  </div>
-                </dl>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-
-      <Panel title="Audit Evidence">
-        {auditReports.length === 0 && (
-          <p className="muted">No audit reports recorded for this mission yet.</p>
-        )}
-        {auditReports.length > 0 && (
-          <ul className="card-list">
-            {auditReports.map((report) => {
-              const summary =
-                typeof report.report.summary === "string"
-                  ? report.report.summary
-                  : null;
-              const findings =
-                Array.isArray(report.report.findings) ? report.report.findings : [];
-              const score =
-                typeof report.report.score === "number" ? report.report.score : null;
-              return (
-                <li key={report.audit_id} className="info-card">
-                  <h3>{report.audit_id}</h3>
-                  <dl>
-                    <div>
-                      <dt>Status</dt>
-                      <dd>
-                        <span
-                          className={`connection-chip ${
-                            report.status === "PASSED"
-                              ? "live"
-                              : report.status === "FAILED"
-                                ? "stale"
-                                : "retrying"
-                          }`}
-                        >
-                          {report.status}
-                        </span>
-                      </dd>
-                    </div>
-                    {score !== null && (
-                      <div>
-                        <dt>Score</dt>
-                        <dd>{score}</dd>
-                      </div>
-                    )}
-                    <div>
-                      <dt>Recorded</dt>
-                      <dd>{formatDateTime(report.created_at)}</dd>
-                    </div>
-                  </dl>
-                  {summary && <p>{summary}</p>}
-                  {findings.length > 0 && (
-                    <>
-                      <p className="muted">Findings</p>
-                      <ul className="summary-list">
-                        {(findings as unknown[]).slice(0, 10).map((finding, idx) => (
-                          <li key={`${report.audit_id}-finding-${idx}`}>
-                            <span>{typeof finding === "string" ? finding : JSON.stringify(finding)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Panel>
-
-      <Panel title="Mission Event Log">
-        {events.length === 0 && <p className="muted">No mission events recorded yet.</p>}
-        {events.length > 0 && (
-          <ul className="summary-list">
-            {events.slice(0, 25).map((event) => {
-              const eventPhaseLabel = smeltPhaseFromEventType(
-                event.event_type,
-                phaseDescriptor.model,
-              );
-              return (
-                <li key={`${event.event_type}-${event.ts}`}>
-                  <strong>{formatTime(event.ts)}</strong>
-                  <span>
-                    {eventPhaseLabel ? `${event.event_type} · ${eventPhaseLabel}` : event.event_type}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Panel>
+      {/* Events tab — mission event log */}
+      <div
+        id="tab-panel-events"
+        role="tabpanel"
+        aria-labelledby="tab-events"
+        hidden={activeTab !== "events"}
+        className="mission-tab-panels"
+      >
+        <ErrorBoundary><MissionEventLogPanel events={events} model={phaseDescriptor.model} /></ErrorBoundary>
+      </div>
     </div>
   );
 }

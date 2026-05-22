@@ -1,0 +1,13 @@
+{
+  "started_at_utc": "2026-05-20T06:41:43.515193+00:00",
+  "completed_at_utc": "2026-05-20T06:42:20.643796+00:00",
+  "duration_seconds": 37.13,
+  "dry_run": false,
+  "passed": true,
+  "rto_target_minutes": 30,
+  "rpo_target_hours": 24,
+  "rto_seconds": 37.13,
+  "restore_passed": true,
+  "latest_backup": "C:\\software\\Holygrail\\theFactory\\backups\\ulr_20260519_234143.sql",
+  "latest_backup_manifest": "C:\\software\\Holygrail\\theFactory\\backups\\ulr_20260519_234143.sql.json"
+}

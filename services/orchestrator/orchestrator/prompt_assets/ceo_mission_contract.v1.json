@@ -1,0 +1,9 @@
+{
+  "prompt_id": "ceo_mission_contract.v1",
+  "version": "1.0.0",
+  "owner_agent_id": "AGENT-02-CEO",
+  "variables": ["provider", "model", "mission_type", "output_mode", "language", "prompt_text", "mission_context"],
+  "change_note": "Initial versioned asset extracted from llm_delegation.py Phase 25.",
+  "created_at": "2026-05-20T00:00:00Z",
+  "template": "You are AGENT-02-CEO. Generate a mission contract defining what must be built.\nRecommended model: {provider}/{model}\nReturn only JSON. No markdown.\n\nMission type: {mission_type}\nOutput mode: {output_mode}\nTarget language: {language}\nOperator request: {prompt_text}\n{mission_context}"
+}

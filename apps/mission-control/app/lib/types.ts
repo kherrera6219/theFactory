@@ -214,6 +214,260 @@ export type PodGroupStandard = {
   created_at: string;
 };
 
+export type ApplicationIntelligenceMap = {
+  schema_version: "aim.v1";
+  aim_id: string;
+  mission_id: string;
+  mission_type: string;
+  generated_at: string;
+  source: "llm" | "fallback" | string;
+  llm_route?: string;
+  model_provider?: string;
+  model?: string;
+  repository_summary: string;
+  detected_languages: string[];
+  primary_language?: string | null;
+  total_functions: number;
+  total_classes: number;
+  total_concepts?: number;
+  domain_distribution: Record<string, number>;
+  complexity_assessment: "low" | "medium" | "high" | "very_high" | string;
+  key_patterns: string[];
+  detected_dependencies: string[];
+  risks: string[];
+  risk_flags: string[];
+  human_approval_recommended: boolean;
+  recommended_approach: string;
+  recommended_mission_type: string;
+  extraction_summary?: {
+    files_seen?: number;
+    files_analyzed?: number;
+    truncated?: boolean;
+    file_manifest?: Array<{
+      path: string;
+      language?: string;
+      size_bytes?: number;
+      sha256?: string;
+      analyzed?: boolean;
+    }>;
+  };
+};
+
+export type EquivalenceReport = {
+  schema_version: "equivalence_report.v1";
+  report_id: string;
+  mission_id: string;
+  generated_at: string;
+  status: "passed" | "blocked" | "review_required" | string;
+  passed: boolean;
+  blocking: boolean;
+  enforcement_enabled: boolean;
+  risk_level: "low" | "medium" | "high" | string;
+  target_language?: string | null;
+  checks: Array<{
+    check_id: string;
+    title: string;
+    status: "pass" | "fail" | "manual_review" | string;
+    required: boolean;
+    message: string;
+    evidence?: Record<string, unknown>;
+  }>;
+  findings: string[];
+  evidence_refs: Array<Record<string, unknown>>;
+  source: string;
+};
+
+export type SecurityComplianceReport = {
+  schema_version: "security_compliance_report.v1";
+  report_id: string;
+  mission_id: string;
+  generated_at: string;
+  status: "passed" | "warned" | "blocked" | string;
+  passed: boolean;
+  blocking: boolean;
+  enforcement_enabled: boolean;
+  regulated_context?: boolean;
+  risk_level: "low" | "medium" | "high" | string;
+  security: {
+    passed: boolean;
+    checks: SecurityComplianceCheck[];
+  };
+  compliance: {
+    passed: boolean;
+    checks: SecurityComplianceCheck[];
+  };
+  findings: string[];
+  recommendations: string[];
+  evidence_refs: Array<Record<string, unknown>>;
+  source: string;
+};
+
+export type SecurityComplianceCheck = {
+  check_id: string;
+  title: string;
+  status: "pass" | "warn" | "fail" | "manual_review" | string;
+  required: boolean;
+  message: string;
+  evidence?: Record<string, unknown>;
+  recommendation?: string;
+};
+
+export type DependencyInventory = {
+  schema_version: "dependency_inventory.v1";
+  inventory_id: string;
+  mission_id: string;
+  generated_at: string;
+  dependency_count: number;
+  dependencies: DependencyInventoryEntry[];
+  sources: string[];
+  source: string;
+};
+
+export type DependencyInventoryEntry = {
+  dependency_id: string;
+  name: string;
+  normalized_name: string;
+  ecosystem: string;
+  version?: string | null;
+  source_refs: string[];
+  usage_hints: string[];
+};
+
+export type DependencyClassificationReport = {
+  schema_version: "dependency_classification_report.v1";
+  report_id: string;
+  mission_id: string;
+  generated_at: string;
+  status: "classified" | "blocked" | string;
+  blocking: boolean;
+  classification_count: number;
+  classifications: DependencyClassification[];
+  source: string;
+};
+
+export type DependencyClassification = {
+  dependency_id: string;
+  name: string;
+  normalized_name: string;
+  decision: "absorb" | "reimplement" | "replace" | "vendor" | "wrap" | "pin" | "keep" | "block" | string;
+  category: string;
+  risk_level: "low" | "medium" | "high" | string;
+  safety_blocked: boolean;
+  blocking: boolean;
+  license?: string | null;
+  rationale: string;
+  source_refs: string[];
+  usage_hints: string[];
+};
+
+export type DependencyAbsorptionReport = {
+  schema_version: "dependency_absorption_report.v1";
+  report_id: string;
+  mission_id: string;
+  generated_at: string;
+  status: "planned" | "gated" | "blocked" | "not_applicable" | string;
+  blocking: boolean;
+  modified_output_created: boolean;
+  equivalence_required: boolean;
+  equivalence_passed: boolean;
+  security_compliance_required: boolean;
+  security_compliance_passed: boolean;
+  planned_replacements: DependencyReplacementPlan[];
+  survival_justification_count: number;
+  safety_block_count: number;
+  recommendations: string[];
+  evidence_refs: Array<Record<string, unknown>>;
+  source: string;
+};
+
+export type DependencyReplacementPlan = {
+  dependency_id: string;
+  name: string;
+  decision: string;
+  status: "ready_for_planning" | "gated" | string;
+  blocked_by: string[];
+  replacement_scope: string;
+  requires_operator_approval: boolean;
+  modified_output_created: boolean;
+  rationale: string;
+};
+
+export type DependencySurvivalJustification = {
+  schema_version: "dependency_survival_justification.v1";
+  justification_id: string;
+  mission_id: string;
+  dependency_id: string;
+  name: string;
+  decision: string;
+  risk_level: "low" | "medium" | "high" | string;
+  safety_blocked: boolean;
+  rationale: string;
+  review_required: boolean;
+};
+
+export type TestdataManifest = {
+  schema_version?: "testdata_manifest.v1" | string;
+  base_image: string;
+  install_commands: string[];
+  env_vars: Record<string, string>;
+  synthetic_inputs: Array<{ input_id: string; description: string; input_data: string }>;
+  run_command: string;
+  timeout_seconds: number;
+  memory_limit_mb: number;
+  network_required: boolean;
+  notes: string;
+  language: string;
+  test_framework: string;
+  source: string;
+};
+
+export type RuntimeQcReport = {
+  schema_version?: "runtime_qc_report.v1" | string;
+  verdict: "PASS" | "FAIL" | "TIMEOUT" | "ERROR" | "DRY_RUN" | "SKIPPED" | string;
+  passed: boolean;
+  execution_type: "docker_live" | "dry_run" | "skipped" | string;
+  exit_code?: number | null;
+  expected_exit_code?: number | null;
+  stdout_preview?: string | null;
+  stderr_preview?: string | null;
+  base_image?: string | null;
+  language: string;
+  filename: string;
+  timeout_seconds?: number | null;
+  dry_run_reason?: string | null;
+  qc_assessment?: {
+    qc_verdict: "PASS" | "WARN" | "FAIL" | "INCONCLUSIVE" | "ADVISORY" | string;
+    confidence: "HIGH" | "MEDIUM" | "LOW" | string;
+    findings: string[];
+    remediation: string[];
+    deployment_safe: boolean;
+    source: string;
+  } | null;
+  source: string;
+};
+
+export type DepabsExecution = {
+  schema_version?: "depabs_execution.v1" | string;
+  status: string;
+  absorption_count: number;
+  splices: Array<{
+    library: string;
+    symbols_replaced: string[];
+    filename?: string | null;
+    status: string;
+    reason?: string | null;
+  }>;
+};
+
+export type SbomDelta = {
+  schema_version?: "sbom_delta.v1" | string;
+  original_dependency_count: number;
+  removed: string[];
+  remaining: string[];
+  kept_with_justification: string[];
+  reduction_percent: number;
+};
+
 export type MissionChainTrace = {
   mission_id: string;
   routing_enforced: boolean;
@@ -234,12 +488,28 @@ export type MissionChainTrace = {
   pod_group_standards?: Record<string, PodGroupStandard> | null;
   fetch_result?: {
     indexed_languages: string[];
+    refreshed_languages?: string[];
+    unchanged_languages?: string[];
     skipped_languages: string[];
     errors: string[];
     knowledge_ready: boolean;
+    refresh_enabled?: boolean;
+    embedding_provider?: string;
+    embedding_model?: string;
     indexed_at: string;
     mission_id: string;
   } | null;
+  application_intelligence_map?: ApplicationIntelligenceMap | null;
+  equivalence_report?: EquivalenceReport | null;
+  security_compliance_report?: SecurityComplianceReport | null;
+  dependency_inventory?: DependencyInventory | null;
+  dependency_classification_report?: DependencyClassificationReport | null;
+  dependency_absorption_report?: DependencyAbsorptionReport | null;
+  depabs_execution?: DepabsExecution | null;
+  sbom_delta?: SbomDelta | null;
+  dependency_survival_justifications?: DependencySurvivalJustification[] | null;
+  testdata_manifest?: TestdataManifest | null;
+  runtime_qc_report?: RuntimeQcReport | null;
   master_logic_stream?: {
     master_logic_stream: Array<{
       node_id: string;
@@ -256,6 +526,18 @@ export type MissionChainTrace = {
     model_provider?: string;
     model?: string;
   } | null;
+  delivery_summary?: {
+    delivery_title: string;
+    delivery_summary: string;
+    criteria_met: string[];
+    criteria_unmet: string[];
+    usage_notes?: string;
+    recommendations: string[];
+    primary_artifact_type?: string | null;
+    source: string;
+    model_provider?: string;
+    model?: string;
+  } | null;
   route_provenance?: {
     ceo?: MissionRouteProvenanceStage | null;
     pod_manager?: MissionRouteProvenanceStage | null;
@@ -263,6 +545,32 @@ export type MissionChainTrace = {
     fallback_used?: boolean;
   };
   events: MissionChainEvent[];
+  // PORT two-phase fields
+  port_phase?: string | null;
+  port_source_language?: string | null;
+  port_target_language?: string | null;
+  port_source_logicnodes?: Array<Record<string, unknown>> | null;
+  // Mission type (surfaced in chain trace for UI)
+  mission_type?: string | null;
+  // Generated output metadata (for PORT phase indicator)
+  generated_output?: {
+    source?: string;
+    filename?: string;
+    language?: string;
+    generated_code?: string;
+    code_length_chars?: number;
+  } | null;
+  pm_clarification?: PmClarificationState | null;
+  llm_usage_summary?: LlmUsageSummary | null;
+  vc_commit_strategy?: VcCommitStrategy | null;
+  integration_tests?: IntegrationTests | null;
+  pod_audit_verdict?: PodAuditVerdict | null;
+};
+
+export type PmClarificationState = {
+  questions: string[];
+  ambiguity_score: number;
+  pending: boolean;
 };
 
 export type LiveStateStreamEvent = {
@@ -674,3 +982,57 @@ export type RepoReviewResponse = {
   notice?: string;
 };
 
+
+export type LlmUsageSummary = {
+  mission_id: string;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number | null;
+  unknown_pricing_count: number;
+  call_count: number;
+  by_provider: Array<{
+    provider: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    estimated_cost_usd: number | null;
+  }>;
+  by_agent: Array<{
+    agent_id: string;
+    provider: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cost_usd: number | null;
+  }>;
+};
+
+export type VcCommitStrategy = {
+  strategy_id: string;
+  commit_hash?: string | null;
+  branch_name?: string | null;
+  message?: string | null;
+  status: "pending" | "applied" | "failed" | string;
+};
+
+export type IntegrationTests = {
+  framework: string;
+  test_count: number;
+  passed_count: number;
+  failed_count: number;
+  duration_ms: number;
+  results: Array<{
+    name: string;
+    status: "pass" | "fail" | string;
+    error_message?: string | null;
+  }>;
+};
+
+export type PodAuditVerdict = {
+  audit_id: string;
+  pod_name: string;
+  verdict: "APPROVED" | "REJECTED" | "WARNING" | string;
+  rationale: string;
+  audited_at: string;
+};

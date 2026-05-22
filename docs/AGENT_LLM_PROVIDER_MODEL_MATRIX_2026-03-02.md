@@ -7,6 +7,8 @@ Audience: Operators, developers, maintainers, and auditors
 
 > Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
 
+> **STATUS UPDATE 2026-05-20:** All Anthropic model routes have been migrated. No agent uses claude-opus-4-7 or claude-sonnet-4-6 as a primary model. The current provider split is: **OpenAI gpt-5.5** (28 agents — PM, CEO, executives, pod managers, code specialists, security, compliance, pod auditors A/B/C, tester, DEPABS, RQCA) and **Gemini gemini-3.5-flash** (13 agents — all STEM/mathematical specialists, Pod D manager and auditor, IS, HW, Broker, Deploy, TestData). See `docs/IMPLEMENTATION_STATUS.md` for the canonical current-state model table.
+
 Date: 2026-03-08
 
 ## Objective

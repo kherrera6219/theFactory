@@ -1,4 +1,4 @@
-.PHONY: up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai audit promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs
+.PHONY: up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai demo audit promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs
 # validate: full pre-merge gate — lint + schema check + pytest + UI lint/test
 
 up: tls-certs
@@ -65,6 +65,15 @@ test-live-extended:
 
 eval-ai:
 	pytest -q tests/eval/test_llm_delegation_golden.py
+
+eval:
+	pytest tests/eval/ -v --tb=short -x \
+		-m "not live_llm" \
+		--no-header
+
+demo:
+	python scripts/demo_missions.py --dry-run \
+		--output-file docs/evidence/phase18_demo_missions_latest.json
 
 audit:
 	python scripts/production_review_audit.py

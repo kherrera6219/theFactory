@@ -1,0 +1,73 @@
+{
+  "generated_at": "2026-05-19T18:35:56.799675+00:00",
+  "policy_version": 3,
+  "passed": false,
+  "failure_reasons": [
+    "operator_route_oidc_matrix: latest evidence age 72.042d exceeds 8.0d",
+    "dedicated_agent_canary_trend: latest evidence age 72.042d exceeds 8.0d",
+    "langgraph_v2_prototype_matrix: latest evidence age 72.042d exceeds 8.0d",
+    "mission_artifact_qualification: latest evidence age 33.953d exceeds 8.0d"
+  ],
+  "suites": {
+    "operator_route_oidc_matrix": {
+      "required": true,
+      "passed": false,
+      "latest_run_timestamp_utc": "2026-03-08T17:34:50.859085+00:00",
+      "latest_age_days": 72.042,
+      "latest_output_file": "C:\\software\\Holygrail\\theFactory\\docs\\evidence\\operator_route_oidc_matrix_latest.json",
+      "latest_passed": true,
+      "consecutive_passes": 2,
+      "min_consecutive_passes": 1,
+      "max_age_days": 8.0,
+      "history_points": 2,
+      "failure_reasons": [
+        "latest evidence age 72.042d exceeds 8.0d"
+      ]
+    },
+    "dedicated_agent_canary_trend": {
+      "required": true,
+      "passed": false,
+      "latest_run_timestamp_utc": "2026-03-08T17:35:18.299274+00:00",
+      "latest_age_days": 72.042,
+      "latest_output_file": "C:\\software\\Holygrail\\theFactory\\docs\\evidence\\dedicated_agent_canary_trend_latest.json",
+      "latest_passed": true,
+      "consecutive_passes": 3,
+      "min_consecutive_passes": 1,
+      "max_age_days": 8.0,
+      "history_points": 3,
+      "failure_reasons": [
+        "latest evidence age 72.042d exceeds 8.0d"
+      ]
+    },
+    "langgraph_v2_prototype_matrix": {
+      "required": true,
+      "passed": false,
+      "latest_run_timestamp_utc": "2026-03-08T17:35:56.349989+00:00",
+      "latest_age_days": 72.042,
+      "latest_output_file": "C:\\software\\Holygrail\\theFactory\\docs\\evidence\\langgraph_v2_prototype_matrix_latest.json",
+      "latest_passed": true,
+      "consecutive_passes": 2,
+      "min_consecutive_passes": 1,
+      "max_age_days": 8.0,
+      "history_points": 2,
+      "failure_reasons": [
+        "latest evidence age 72.042d exceeds 8.0d"
+      ]
+    },
+    "mission_artifact_qualification": {
+      "required": true,
+      "passed": false,
+      "latest_run_timestamp_utc": "2026-04-15T19:43:28.173265+00:00",
+      "latest_age_days": 33.953,
+      "latest_output_file": "C:\\software\\Holygrail\\theFactory\\docs\\evidence\\mission_artifact_qualification_history.jsonl",
+      "latest_passed": true,
+      "consecutive_passes": 2,
+      "min_consecutive_passes": 1,
+      "max_age_days": 8.0,
+      "history_points": 6,
+      "failure_reasons": [
+        "latest evidence age 33.953d exceeds 8.0d"
+      ]
+    }
+  }
+}

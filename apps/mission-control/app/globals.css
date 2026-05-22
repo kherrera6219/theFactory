@@ -126,12 +126,33 @@ a {
   margin: 8px 0 6px;
 }
 
+.shell-nav-group {
+  margin-top: 4px;
+}
+
+.shell-nav-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 14px 0 0;
+}
+
+.shell-nav-group-label {
+  display: block;
+  margin: 12px 0 4px 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  user-select: none;
+}
+
 .shell-nav-list {
   list-style: none;
-  margin: 18px 0 0;
+  margin: 4px 0 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .shell-nav-item {
@@ -197,12 +218,13 @@ a {
   align-items: center;
 }
 
-.shell-runtime-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 8px;
+/* .shell-runtime-summary removed — badge now sits inline in shell-header-actions */
+/* StatusBadge in the header gets a right separator to visually group it from buttons */
+.shell-header-actions > .status-badge {
+  padding-right: 12px;
+  margin-right: 4px;
   border-right: 1px solid var(--border);
+  cursor: help;
 }
 
 .shell-main {
@@ -228,7 +250,18 @@ a {
 }
 
 .mission-console {
+  /* Phase 2F — each column scrolls independently so the Recent Missions
+     panel stays visible while the operator fills out the form below. */
   grid-template-columns: 1.2fr 1fr;
+  align-items: start;
+  height: calc(100vh - 57px); /* subtract shell-header height */
+  overflow: hidden;
+}
+
+.mission-console > * {
+  height: 100%;
+  overflow-y: auto;
+  padding-bottom: 24px;
 }
 
 .panel {
@@ -260,16 +293,24 @@ a {
   font-size: 0.82rem;
 }
 
+/* Phase 3B — 5-level type hierarchy
+   Display (h1)     1.875rem/30px — page titles, 1.5× jump over h2
+   Heading (h2)     1.25rem/20px  — section titles
+   Sub-heading (h3) 1.0625rem/17px— card/panel titles (set in components)
+   Body             0.9375rem/15px— labels, field text
+   Caption/Micro    0.8125rem/13px— muted hints, timestamps              */
 h1 {
-  margin: 4px 0 6px;
-  font-size: 1.55rem;
+  margin: 4px 0 8px;
+  font-size: var(--text-3xl, 1.875rem);
+  font-weight: 700;
   line-height: 1.15;
 }
 
 h2 {
   margin-top: 0;
   margin-bottom: 14px;
-  font-size: 1.25rem;
+  font-size: var(--text-xl, 1.25rem);
+  font-weight: 650;
 }
 
 .page-hero {
@@ -341,11 +382,26 @@ input {
   color: var(--ink);
 }
 
+/* 4B: accent border always shows on focus (visible caret position feedback) */
 textarea:focus,
 select:focus,
 input:focus {
-  outline: 3px solid var(--ring);
   border-color: var(--accent);
+}
+
+/* 4C: focus ring scoped to keyboard-only (:focus-visible) — not on mouse click */
+textarea:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Suppress outline when focused by pointer (mouse/touch) */
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
+  outline: none;
 }
 
 button {
@@ -405,6 +461,85 @@ button:disabled {
 .secondary-button:hover:not(:disabled) {
   background: var(--accent-glow);
   border-color: var(--accent);
+}
+
+.danger-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-control);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+  color: #fff;
+  border: 1px solid transparent;
+  background: var(--danger);
+}
+
+.danger-button:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 0 16px var(--danger-bg);
+}
+
+/* ── Monospace identifier utility ─────────────────────────── */
+.mono-id {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85em;
+  letter-spacing: -0.01em;
+  word-break: break-all;
+}
+
+/* ── Confirm dialog ────────────────────────────────────────── */
+.confirm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
+}
+
+.confirm-dialog {
+  width: min(440px, 92vw);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.confirm-dialog-body {
+  padding: 24px;
+}
+
+.confirm-dialog-body h3 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.confirm-dialog-body p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 24px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
 }
 
 button:focus-visible,
@@ -621,6 +756,18 @@ dd {
   white-space: nowrap;
 }
 
+.mission-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.mission-item-name {
+  font-size: var(--text-sm, 0.8125rem);
+  font-weight: 600;
+  color: var(--ink);
+}
+
 .mission-item-skeleton-main {
   display: grid;
   gap: 6px;
@@ -687,13 +834,17 @@ dd {
 .metric-card p {
   margin: 8px 0 2px;
   font-family: var(--font-mono), monospace;
-  font-size: 1.45rem;
-  color: var(--accent);
+  /* Phase 3D: was var(--accent)/purple — purple is for interactive elements only.
+     Metric numbers use ink (white in dark mode) so they don't look clickable. */
+  font-size: var(--text-3xl, 1.875rem);
+  font-weight: 700;
+  color: var(--ink);
 }
 
-.metric-card.critical p { color: #fca5a5; }
-.metric-card.healthy p { color: #86efac; }
-.metric-card.warning p { color: #fcd34d; }
+/* Tone overrides retain semantic color for non-neutral states */
+.metric-card.critical p { color: var(--danger); }
+.metric-card.healthy p  { color: var(--success); }
+.metric-card.warning p  { color: var(--warning); }
 
 .metric-card-header {
   display: flex;
@@ -717,10 +868,11 @@ dd {
   background: var(--ink-dim);
 }
 
-.metric-dot.healthy { background: var(--success); }
-.metric-dot.warning { background: var(--warning); }
-.metric-dot.critical { background: var(--danger); }
-.metric-dot.info { background: var(--info); }
+/* 4E: color-not-alone — each tone has a distinct shape in addition to color */
+.metric-dot.healthy  { background: var(--success); border-radius: 999px; /* circle ✓ */ }
+.metric-dot.warning  { background: var(--warning); border-radius: 2px; transform: rotate(45deg); /* diamond ◆ */ }
+.metric-dot.critical { background: var(--danger);  border-radius: 2px; /* square ■ */ }
+.metric-dot.info     { background: var(--info);    border-radius: 999px; /* circle */ }
 
 .skeleton-line {
   display: block;
@@ -963,6 +1115,287 @@ dd {
   margin-top: 10px;
 }
 
+/* ── EmptyState variant system (Phase 2A) ──────────────────── */
+
+/* error — configuration failure, gateway down */
+.empty-state.error {
+  border: none;
+  border-left: 3px solid var(--danger);
+  background: var(--danger-bg);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.empty-state.error .empty-state-marker {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+.empty-state.error h3 { color: #fca5a5; }
+
+/* locked — sequential step not yet unlocked */
+.empty-state.locked {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  background: rgba(15, 23, 42, 0.25);
+  opacity: 0.75;
+}
+.empty-state.locked .empty-state-marker {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+.empty-state.locked h3 { color: var(--ink-muted); }
+
+/* empty — ready but no data yet */
+.empty-state.empty {
+  border-style: dashed;
+}
+
+/* offline — requires live backend */
+.empty-state.offline {
+  border: none;
+  border-left: 3px solid var(--warning);
+  background: var(--warning-bg);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.empty-state.offline .empty-state-marker {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+}
+.empty-state.offline h3 { color: #fcd34d; }
+
+/* ── CopyId component ────────────────────────────────────────── */
+.copy-id-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.copy-id-text {
+  /* inherits .mono-id styles */
+}
+
+.copy-id-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 120ms, background 120ms;
+  min-height: unset; /* override the global button min-height */
+}
+
+.copy-id-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+.copy-id-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* ── Refresh timestamp label ─────────────────────────────────── */
+.last-refreshed {
+  font-size: var(--text-xs, 0.6875rem);
+  color: var(--ink-dim);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ── Mission history aggregate pills ────────────────────────── */
+.mission-status-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.mission-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--text-xs, 0.6875rem);
+  font-weight: 600;
+}
+
+.mission-pill.complete { background: var(--success-bg); color: var(--success); }
+.mission-pill.running  { background: var(--info-bg);    color: var(--info); }
+.mission-pill.failed   { background: var(--danger-bg);  color: var(--danger); }
+.mission-pill.pending  { background: var(--bg-elevated); color: var(--ink-muted); }
+
+/* ── Chat history sidebar ────────────────────────────────────── */
+.chat-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.chat-history-sidebar {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: 12px;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+.chat-history-title {
+  margin: 0 0 10px;
+  font-size: var(--text-sm, 0.8125rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.chat-history-group-label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: var(--text-xs, 0.6875rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+}
+
+.chat-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.chat-history-item {
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 120ms;
+}
+
+.chat-history-item:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+
+.chat-history-item.active {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+}
+
+.chat-history-item-title {
+  display: block;
+  font-size: var(--text-sm, 0.8125rem);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-history-item-meta {
+  display: block;
+  font-size: var(--text-xs, 0.6875rem);
+  color: var(--ink-muted);
+  margin-top: 1px;
+}
+
+/* ── Mission name field ──────────────────────────────────────── */
+.mission-name-field {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+/* ── Prompt char counter ─────────────────────────────────────── */
+.prompt-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.char-counter {
+  font-size: var(--text-xs, 0.6875rem);
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 4A: font-weight 600 boosts perceptual contrast for warning/danger inline text */
+.char-counter.warn    { color: var(--warning); font-weight: 600; }
+.char-counter.at-limit { color: var(--danger);  font-weight: 600; }
+
+/* ── Database retry button ───────────────────────────────────── */
+.db-card-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Settings search ─────────────────────────────────────────── */
+.table-search {
+  margin-bottom: 10px;
+  width: 100%;
+  max-width: 360px;
+}
+
+/* ── Mission detail tabs ─────────────────────────────────────── */
+.mission-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mission-tabs::-webkit-scrollbar { display: none; }
+
+.mission-tab {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: var(--text-sm, 0.8125rem);
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: unset;
+  transform: none;
+  transition: color 120ms, border-color 120ms;
+}
+
+.mission-tab:hover {
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+.mission-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.mission-tab-panels {
+  display: grid;
+  gap: 16px;
+}
+
 .filters-grid {
   display: grid;
   gap: 12px;
@@ -1122,6 +1555,7 @@ dd {
   background: var(--warning-bg);
   border-color: var(--warning);
   color: var(--warning);
+  font-weight: 600; /* 4A */
 }
 
 .pill.resolved {
@@ -1291,6 +1725,7 @@ dd {
   border-radius: 10px;
   background: var(--warning-bg);
   color: var(--warning);
+  font-weight: 600; /* 4A */
   padding: 10px 12px;
 }
 
@@ -1336,6 +1771,34 @@ dd {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.delivery-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--success);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+
+.delivery-banner h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.delivery-banner p {
+  margin: 0 0 8px;
+}
+
+.delivery-banner-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 180px;
 }
 
 .virtual-log-shell {
@@ -1455,6 +1918,9 @@ dd {
   }
 }
 
+/* 4D: Reduced motion — covers: button hover transforms, card hover transitions,
+   skeleton shimmer, reconnect-banner slideDown, spinner spin, progress fill,
+   connection-chip transitions, and any future CSS animations/transitions */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1463,6 +1929,13 @@ dd {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Explicitly stop transform-based hover effects */
+  button:hover,
+  .shortcut-card:hover,
+  .info-card:hover {
+    transform: none !important;
   }
 }
 
@@ -1592,3 +2065,1034 @@ dd {
     background-position: -20% 0;
   }
 }
+
+/* ── Mission History page ─────────────────────────────────────── */
+
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.history-count {
+  font-size: 0.84rem;
+  margin: 0 0 10px;
+}
+
+/* ── Pagination bar ──────────────────────────────────────────── */
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 0 4px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.pagination-bar .muted {
+  min-width: 100px;
+  text-align: center;
+}
+
+/* ── Notification bell (5A) ──────────────────────────────────── */
+
+.notif-bell-wrap {
+  position: relative;
+}
+
+.notif-bell-btn {
+  position: relative;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 1rem;
+  line-height: 1;
+  margin-top: 0;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: border-color 150ms, background 150ms;
+}
+
+.notif-bell-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  color: var(--ink);
+}
+
+.notif-bell-icon {
+  font-size: 1.05rem;
+}
+
+.notif-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.notif-drawer {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-height: 480px;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+}
+
+.notif-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.notif-drawer-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.notif-drawer-empty {
+  padding: 16px 14px;
+  font-size: 0.88rem;
+}
+
+.notif-alert-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+}
+
+.notif-alert-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.notif-alert-item:last-child {
+  border-bottom: 0;
+}
+
+.notif-alert-item.sev-critical {
+  border-left: 3px solid var(--danger);
+}
+
+.notif-alert-item.sev-high {
+  border-left: 3px solid var(--danger);
+}
+
+.notif-alert-item.sev-medium {
+  border-left: 3px solid var(--warning);
+}
+
+.notif-alert-item.sev-low {
+  border-left: 3px solid var(--ink-dim);
+}
+
+.notif-alert-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.notif-sev-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.notif-sev-pill.sev-critical,
+.notif-sev-pill.sev-high {
+  color: #fca5a5;
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.notif-sev-pill.sev-medium {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning);
+}
+
+.notif-sev-pill.sev-low {
+  color: var(--ink-muted);
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+
+.notif-state-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.notif-state-dot.state-open { background: var(--danger); }
+.notif-state-dot.state-acknowledged { background: var(--warning); }
+.notif-state-dot.state-resolved { background: var(--success); }
+
+.notif-alert-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.notif-alert-meta {
+  margin: 3px 0 0;
+  font-size: 0.76rem;
+  color: var(--ink-muted);
+}
+
+.notif-alert-rec {
+  margin: 5px 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+/* ── Global search (5D) ──────────────────────────────────────── */
+
+.shell-header-search {
+  flex: 1;
+  max-width: 420px;
+  margin: 0 12px;
+}
+
+.global-search-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.global-search-input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 7px 12px;
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.global-search-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
+.global-search-input::placeholder {
+  color: var(--ink-dim);
+}
+
+.global-search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  z-index: 1050;
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.global-search-group {
+  list-style: none;
+}
+
+.global-search-group > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.global-search-group-label {
+  display: block;
+  padding: 6px 12px 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+}
+
+.global-search-result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  margin-top: 0;
+  min-height: unset;
+  text-align: left;
+  cursor: pointer;
+  transition: background 80ms;
+}
+
+.global-search-result:hover,
+.global-search-result.active {
+  background: var(--bg-elevated);
+}
+
+.global-search-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.global-search-sublabel {
+  font-size: 0.76rem;
+  color: var(--ink-muted);
+}
+
+.global-search-empty {
+  padding: 12px 14px;
+  font-size: 0.84rem;
+  color: var(--ink-muted);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.3);
+  z-index: 1050;
+}
+
+/* ── Semantic Bus sparkline (5E) ─────────────────────────────── */
+
+.bus-sparkline-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+}
+
+.bus-rate-label {
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.bus-rate-unit {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+.bus-sparkline-svg {
+  flex-shrink: 0;
+}
+
+.bus-sparkline-label {
+  font-size: 0.72rem;
+  margin: 0;
+}
+
+/* ── Audit Log page (5B) ─────────────────────────────────────── */
+
+.audit-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audit-entry {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+}
+
+.audit-entry.audit-critical {
+  border-left: 3px solid var(--danger);
+}
+
+.audit-entry.audit-warning {
+  border-left: 3px solid var(--warning);
+}
+
+.audit-entry-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.audit-sev-marker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.audit-sev-marker.sev-critical { color: #fca5a5; }
+.audit-sev-marker.sev-warning  { color: var(--warning); }
+.audit-sev-marker.sev-info     { color: var(--ink-dim); }
+
+.audit-entry-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-entry-category {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.audit-entry-ts {
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.audit-entry-detail {
+  margin: 4px 0 0 26px;
+  font-size: 0.82rem;
+}
+
+.audit-entry-skeleton {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  margin-bottom: 4px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 6A — Tooltip Glossary
+   ───────────────────────────────────────────────────────────────────────── */
+
+.tooltip-wrap {
+  position: relative;
+  display: inline;
+  /* Don't inherit cursor — let caller decide */
+}
+
+.tooltip-trigger {
+  cursor: help;
+  border-bottom: 1px dashed var(--ink-muted);
+  text-decoration: none;
+}
+
+.tooltip-bubble {
+  position: absolute;
+  z-index: 1200;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: normal;
+  width: max-content;
+  max-width: 260px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  font-weight: 400;
+}
+
+.tooltip-side-bottom .tooltip-bubble {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+/* Arrow pip */
+.tooltip-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+}
+
+.tooltip-side-top .tooltip-bubble::after,
+.tooltip-wrap:not(.tooltip-side-bottom) .tooltip-bubble::after {
+  top: 100%;
+  border-top-color: var(--border);
+}
+
+.tooltip-side-bottom .tooltip-bubble::after {
+  bottom: 100%;
+  border-bottom-color: var(--border);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 6B — Guided Tour
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Spotlight overlay strips */
+.tour-overlay-top,
+.tour-overlay-bottom,
+.tour-overlay-left,
+.tour-overlay-right {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.58);
+  z-index: 950;
+  pointer-events: none;
+}
+
+.tour-card {
+  position: fixed;
+  z-index: 960;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  padding: 20px 22px 16px;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  pointer-events: auto;
+}
+
+.tour-card-step {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 6px;
+}
+
+.tour-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+
+.tour-card-body {
+  font-size: 0.83rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+.tour-card-dots {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.tour-card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  flex-shrink: 0;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.tour-card-dot.active {
+  width: 18px;
+  background: var(--accent);
+}
+
+.tour-card-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 6C — Command Palette
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Trigger button in shell header */
+.cmd-palette-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--ink-muted);
+  font-size: 0.83rem;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.cmd-palette-trigger:hover {
+  border-color: var(--accent);
+  background: var(--bg-surface);
+}
+
+.cmd-palette-trigger-icon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.cmd-palette-trigger-label {
+  flex: 1;
+}
+
+.cmd-palette-trigger-badge {
+  font-size: 0.68rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: var(--font-mono), monospace;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+
+/* Backdrop */
+.cmd-palette-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.52);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10vh;
+  z-index: 900;
+  backdrop-filter: blur(2px);
+}
+
+/* Modal */
+.cmd-palette {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 580px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 72vh;
+}
+
+.cmd-palette-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cmd-palette-icon {
+  font-size: 1.1rem;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+
+.cmd-palette-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.cmd-palette-input::placeholder {
+  color: var(--ink-dim);
+}
+
+.cmd-palette-clear {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+}
+
+.cmd-palette-clear:hover {
+  background: var(--bg-surface);
+  color: var(--ink);
+}
+
+/* Results list */
+.cmd-palette-results {
+  overflow-y: auto;
+  flex: 1;
+  padding: 6px 0;
+  list-style: none;
+  margin: 0;
+}
+
+.cmd-section {
+  list-style: none;
+}
+
+.cmd-section-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding: 10px 16px 4px;
+}
+
+.cmd-section ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.cmd-item:hover,
+.cmd-item.active {
+  background: var(--bg-surface);
+}
+
+.cmd-item-icon {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  color: var(--ink-muted);
+}
+
+.cmd-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cmd-item-label {
+  font-size: 0.88rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-item-sublabel {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-item-shortcut {
+  font-size: 0.68rem;
+  color: var(--ink-dim);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: var(--font-mono), monospace;
+  flex-shrink: 0;
+}
+
+.cmd-palette-empty {
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  list-style: none;
+}
+
+.cmd-palette-footer {
+  border-top: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex;
+  gap: 20px;
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 6D — Status Bar
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Override static shell-statusbar with flex layout */
+.shell-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.statusbar-left,
+.statusbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.statusbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.statusbar-dot.live {
+  background: var(--success);
+  box-shadow: 0 0 4px var(--success);
+}
+
+.statusbar-dot.offline {
+  background: var(--ink-dim);
+}
+
+.statusbar-divider {
+  color: var(--border);
+  user-select: none;
+}
+
+.statusbar-services,
+.statusbar-sync {
+  font-size: 0.72rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 6E — Mission Detail Inline Name Edit
+   ───────────────────────────────────────────────────────────────────────── */
+
+.mission-name-edit-wrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mission-name-input {
+  font-size: inherit;
+  font-weight: inherit;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--accent);
+  outline: none;
+  color: inherit;
+  padding: 0 2px;
+  min-width: 120px;
+  max-width: 400px;
+  line-height: 1.2;
+}
+
+.mission-name-edit-btn {
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0 3px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  vertical-align: middle;
+  transition: color 0.15s, background 0.15s;
+}
+
+.mission-name-edit-btn:hover {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* Phase name in stepper — subtle underline when it has a glossary tooltip */
+.phase-name {
+  display: inline;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 7A — Electron Titlebar
+   ─────────────────────────────────────────────────────────────────────────
+   Only visible inside Electron (component returns null in the browser).
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --electron-titlebar-h: 32px;
+}
+
+.electron-titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--electron-titlebar-h);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.electron-titlebar-mac {
+  padding-left: 80px;
+  justify-content: center;
+}
+
+.electron-titlebar-mac-traffic {
+  width: 80px;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  -webkit-app-region: no-drag;
+}
+
+.electron-titlebar-drag {
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
+}
+
+.electron-titlebar-title {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.electron-titlebar-controls {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: background 0.1s, color 0.1s;
+}
+
+.titlebar-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--ink);
+}
+
+.titlebar-close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+/* Shift the shell grid down by titlebar height when it is mounted */
+.shell:has(.electron-titlebar) {
+  padding-top: var(--electron-titlebar-h);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 7C — Repo Import: local path row
+   ───────────────────────────────────────────────────────────────────────── */
+
+.repo-url-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.repo-local-hint {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+

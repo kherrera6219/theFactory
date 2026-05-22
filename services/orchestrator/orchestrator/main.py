@@ -398,6 +398,34 @@ async def agent_heartbeat_loop(app: FastAPI) -> None:
         await asyncio.sleep(AGENT_HEARTBEAT_INTERVAL_SECONDS)
 
 
+async def knowledge_lake_refresh_loop(app: FastAPI) -> None:
+    """Periodically refresh bootstrap docs for all supported languages in the knowledge lake."""
+    from .is_agent import SUPPORTED_LANGUAGES, run_fetch_phase  # noqa: PLC0415
+    while True:
+        try:
+            settings = app.state.settings
+            interval = getattr(settings, "knowledge_refresh_interval_seconds", 3600)
+            await asyncio.sleep(interval)
+            
+            _, db_ready = await ensure_runtime_ready(app)
+            if not db_ready:
+                continue
+
+            LOGGER.info("Starting background auto-refresh for knowledge lake bootstrap documents.")
+            await run_fetch_phase(
+                mission_id="system-knowledge-lake",
+                required_languages=list(SUPPORTED_LANGUAGES),
+                settings=settings,
+            )
+            LOGGER.info(
+                "Background auto-refresh for knowledge lake bootstrap documents completed."
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            LOGGER.exception("knowledge lake refresh loop iteration failed")
+
+
 def _state_for_agent(
     *,
     category: str,
@@ -661,9 +689,13 @@ async def lifespan(app: FastAPI):
     _initialize_app_state(app)
 
     await ensure_runtime_ready(app)
+    # Load versioned prompt assets into registry
+    from .prompt_registry import load_prompt_assets  # noqa: PLC0415
+    await asyncio.to_thread(load_prompt_assets)
     app.state.lifecycle_recovery_task = asyncio.create_task(lifecycle_recovery_loop(app))
     app.state.self_heal_task = asyncio.create_task(runtime_self_heal_loop(app))
     app.state.agent_heartbeat_task = asyncio.create_task(agent_heartbeat_loop(app))
+    app.state.knowledge_refresh_task = asyncio.create_task(knowledge_lake_refresh_loop(app))
 
     yield
 
@@ -678,6 +710,12 @@ async def lifespan(app: FastAPI):
         agent_heartbeat_task.cancel()
         with suppress(asyncio.CancelledError):
             await agent_heartbeat_task
+
+    knowledge_refresh_task = getattr(app.state, "knowledge_refresh_task", None)
+    if knowledge_refresh_task is not None:
+        knowledge_refresh_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await knowledge_refresh_task
 
     self_heal_task = getattr(app.state, "self_heal_task", None)
     if self_heal_task is not None:

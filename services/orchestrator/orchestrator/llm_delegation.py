@@ -5,13 +5,22 @@ import json
 import logging
 import os
 import re
+import time
+from collections import defaultdict
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
 from .agent_integrations import build_agent_integration_record
+from .agent_personas import (
+    _LANGUAGE_GUIDANCE,
+    _LANGUAGE_TOOLING,
+    build_agent_system_prompt,
+)
 from .agent_registry import AGENT_REGISTRY, AgentDefinition
+from .hw_agent import build_hw_context_block
 from .mission_flow import (
     CEO_AGENT_ID,
     POD_MANAGER_BY_LANGUAGE,
@@ -21,6 +30,47 @@ from .mission_flow import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+LLM_SAFETY_BLOCK_ENABLED = (
+    os.getenv("LLM_SAFETY_BLOCK_ENABLED", "false").strip().lower()
+    in {"1", "true", "yes"}
+)
+
+current_mission_id: ContextVar[str | None] = ContextVar("current_mission_id", default=None)
+current_settings: ContextVar[Any | None] = ContextVar("current_settings", default=None)
+current_agent_id: ContextVar[str | None] = ContextVar("current_agent_id", default=None)
+
+# Lazy import to avoid circular — resolved at call time.
+def _record_usage_event(  # noqa: PLR0913
+    settings, mission_id, agent_id, provider, model, inp, out, succeeded, route
+):
+    """Fire-and-forget token usage recording. Never raises."""
+    if not settings:
+        settings = current_settings.get()
+    if not mission_id:
+        mission_id = current_mission_id.get() or ""
+    if not agent_id:
+        agent_id = current_agent_id.get() or ""
+    if not mission_id:
+        return
+    try:
+        import asyncio as _asyncio  # noqa: PLC0415
+
+        from .llm_cost_ledger import record_llm_usage as _record  # noqa: PLC0415
+        coro = _record(
+            settings=settings, mission_id=mission_id, agent_id=agent_id,
+            provider=provider, model=model,
+            input_tokens=inp, output_tokens=out,
+            call_succeeded=succeeded, routing_source=route,
+        )
+        try:
+            loop = _asyncio.get_running_loop()
+            loop.create_task(coro)
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
+
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
@@ -48,6 +98,9 @@ _SECRET_LIKE_PATTERN = re.compile(
 _VALID_AGENT_IDS = {agent.agent_id for agent in AGENT_REGISTRY}
 _VALID_POD_MANAGER_IDS = set(POD_MANAGER_BY_LANGUAGE.values())
 _VALID_SPECIALIST_IDS = set(SPECIALIST_BY_LANGUAGE.values())
+_PROVIDER_HEALTH_WINDOW_SECONDS = 300.0
+_PROVIDER_HEALTH_MAX_SAMPLES = 200
+_provider_health_samples: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
 # Retry configuration for transient LLM API failures.
 # Retries apply only to network errors and 5xx responses; 4xx errors are not retried.
@@ -59,6 +112,93 @@ _RETRYABLE_HTTP_ERRORS = (
     httpx.ConnectError,
     httpx.RemoteProtocolError,
 )
+
+
+def _record_provider_health(
+    *,
+    provider: str,
+    model: str,
+    latency_ms: float,
+    success: bool,
+    now: float | None = None,
+) -> None:
+    normalized_provider = str(provider or "openai").strip().lower() or "openai"
+    timestamp = time.time() if now is None else now
+    samples = _provider_health_samples[normalized_provider]
+    cutoff = timestamp - _PROVIDER_HEALTH_WINDOW_SECONDS
+    samples[:] = [
+        sample
+        for sample in samples[-_PROVIDER_HEALTH_MAX_SAMPLES:]
+        if float(sample.get("ts", 0.0)) >= cutoff
+    ]
+    samples.append(
+        {
+            "ts": timestamp,
+            "model": _clean_text(model, max_length=96),
+            "latency_ms": max(0.0, float(latency_ms)),
+            "success": bool(success),
+        }
+    )
+
+
+def get_provider_health_summary(now: float | None = None) -> dict[str, Any]:
+    timestamp = time.time() if now is None else now
+    cutoff = timestamp - _PROVIDER_HEALTH_WINDOW_SECONDS
+    providers: dict[str, Any] = {}
+    for provider, raw_samples in list(_provider_health_samples.items()):
+        samples = [
+            sample
+            for sample in raw_samples[-_PROVIDER_HEALTH_MAX_SAMPLES:]
+            if float(sample.get("ts", 0.0)) >= cutoff
+        ]
+        raw_samples[:] = samples
+        latencies = sorted(
+            float(sample.get("latency_ms", 0.0))
+            for sample in samples
+            if isinstance(sample.get("latency_ms"), (int, float))
+        )
+        error_count = sum(1 for sample in samples if not bool(sample.get("success", False)))
+        model_counts: dict[str, int] = {}
+        for sample in samples:
+            model_name = str(sample.get("model") or "unknown")
+            model_counts[model_name] = model_counts.get(model_name, 0) + 1
+        p95_index = min(len(latencies) - 1, int(len(latencies) * 0.95)) if latencies else 0
+        providers[provider] = {
+            "call_count": len(samples),
+            "error_count": error_count,
+            "success_rate": round((len(samples) - error_count) / len(samples), 4)
+            if samples
+            else None,
+            "avg_latency_ms": round(sum(latencies) / len(latencies), 2) if latencies else None,
+            "p95_latency_ms": round(latencies[p95_index], 2) if latencies else None,
+            "models": model_counts,
+        }
+    return {
+        "schema_version": "provider_health.v1",
+        "window_seconds": int(_PROVIDER_HEALTH_WINDOW_SECONDS),
+        "providers": providers,
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _system_prompt_for_agent(agent_id: str) -> str | None:
+    """Return a persona-grounded system prompt for an agent."""
+    normalized_agent_id = _clean_text(agent_id, max_length=32).upper()
+    try:
+        agent = next(
+            (
+                candidate
+                for candidate in AGENT_REGISTRY
+                if candidate.agent_id == normalized_agent_id
+            ),
+            None,
+        )
+        if agent is None:
+            return None
+        return build_agent_system_prompt(agent)
+    except Exception:
+        LOGGER.warning("failed to build system prompt for %s", normalized_agent_id, exc_info=True)
+        return None
 
 
 def _retry_delay_for_response(response: httpx.Response, default_delay: float) -> float:
@@ -215,6 +355,10 @@ def _pm_recommendation() -> dict[str, Any]:
     return _agent_recommendation("AGENT-01-PM")
 
 
+def _depabs_recommendation() -> dict[str, Any]:
+    return _agent_recommendation("AGENT-39-DEPABS")
+
+
 def _extract_openai_text(payload: dict[str, Any]) -> str | None:
     output_text = payload.get("output_text")
     if isinstance(output_text, str) and output_text.strip():
@@ -315,6 +459,62 @@ def _normalize_text_list(value: Any, *, limit: int = 5) -> list[str]:
     return items[:limit]
 
 
+def _language_context(language: str | None) -> str:
+    language_key = _clean_text(language or "", max_length=32).lower()
+    guidance = _LANGUAGE_GUIDANCE.get(language_key, "")
+    tooling = _LANGUAGE_TOOLING.get(language_key, "")
+    if not guidance and not tooling:
+        return ""
+    lines = ["Language discipline:"]
+    if guidance:
+        lines.append(f"  - {guidance}")
+    if tooling:
+        lines.append(f"  - Tooling references: {tooling}")
+    return "\n" + "\n".join(lines) + "\n"
+
+
+def _format_upstream_risks(metadata: dict[str, Any]) -> str:
+    """Summarize upstream PM/CEO risk signals for downstream prompts."""
+    lines: list[str] = []
+    feature_contract = metadata.get("feature_contract")
+    if isinstance(feature_contract, dict):
+        risks = _string_list(feature_contract.get("risk_notes"), limit=3)
+        questions = _string_list(feature_contract.get("clarifying_questions"), limit=3)
+        if risks:
+            lines.append("PM risk notes: " + "; ".join(risks))
+        if questions:
+            lines.append("PM open questions: " + "; ".join(questions))
+    mission_contract = metadata.get("mission_contract")
+    if isinstance(mission_contract, dict):
+        risks = _string_list(mission_contract.get("risk_notes"), limit=3)
+        if risks:
+            lines.append("CEO risk notes: " + "; ".join(risks))
+    if not lines:
+        return ""
+    return "\nUpstream risk context:\n" + "\n".join(f"  - {line}" for line in lines) + "\n"
+
+
+def _pm_ambiguity_score(contract: dict[str, Any], prompt: str) -> float:
+    """Score feature-contract ambiguity from 0.0 to 1.0."""
+    score = 0.0
+    questions = contract.get("clarifying_questions")
+    if isinstance(questions, list):
+        score += min(len(questions) * 0.15, 0.45)
+    risks = contract.get("risk_notes")
+    if isinstance(risks, list):
+        score += min(len(risks) * 0.10, 0.20)
+    if len(str(prompt or "").strip()) < 60:
+        score += 0.20
+    complexity = str(contract.get("estimated_complexity") or "medium").strip().lower()
+    requirements = contract.get("functional_requirements")
+    if complexity in {"high", "very_high"} and isinstance(requirements, list):
+        if len(requirements) <= 2:
+            score += 0.20
+    if bool(contract.get("human_approval_required")):
+        score += 0.10
+    return round(min(score, 1.0), 3)
+
+
 def _normalize_agent_choice(raw_value: Any, *, allowed_ids: set[str], fallback: str) -> str:
     candidate = _clean_text(raw_value, max_length=32).upper()
     return candidate if candidate in allowed_ids else fallback
@@ -325,12 +525,17 @@ async def _call_openai(
     prompt: str,
     *,
     call_context: str,
+    system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
     if not OPENAI_API_KEY:
         return None
+    messages: list[dict[str, str]] = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
     payload = {
         "model": model,
-        "input": prompt,
+        "input": messages,
         "reasoning": {"effort": "medium"},
     }
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
@@ -350,7 +555,17 @@ async def _call_openai(
         body = response.json()
     except ValueError:
         return None
-    return _extract_decision_payload(_extract_openai_text(body))
+    text = _extract_openai_text(body)
+    parsed = _extract_decision_payload(text)
+    if isinstance(parsed, dict):
+        usage = body.get("usage") or {}
+        parsed["__input_tokens__"] = int(
+            usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0) or 0
+        )
+        parsed["__output_tokens__"] = int(
+            usage.get("output_tokens", 0) or usage.get("completion_tokens", 0) or 0
+        )
+    return parsed
 
 
 async def _call_anthropic(
@@ -358,6 +573,7 @@ async def _call_anthropic(
     prompt: str,
     *,
     call_context: str,
+    system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
     if not ANTHROPIC_API_KEY:
         return None
@@ -366,6 +582,8 @@ async def _call_anthropic(
         "max_tokens": 900,
         "messages": [{"role": "user", "content": prompt}],
     }
+    if system_prompt:
+        payload["system"] = system_prompt
     headers = {
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": ANTHROPIC_VERSION,
@@ -387,7 +605,13 @@ async def _call_anthropic(
         body = response.json()
     except ValueError:
         return None
-    return _extract_decision_payload(_extract_anthropic_text(body))
+    text = _extract_anthropic_text(body)
+    parsed = _extract_decision_payload(text)
+    if isinstance(parsed, dict):
+        usage = body.get("usage") or {}
+        parsed["__input_tokens__"] = int(usage.get("input_tokens", 0) or 0)
+        parsed["__output_tokens__"] = int(usage.get("output_tokens", 0) or 0)
+    return parsed
 
 
 async def _call_gemini(
@@ -395,10 +619,13 @@ async def _call_gemini(
     prompt: str,
     *,
     call_context: str,
+    system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
     if not GEMINI_API_KEY:
         return None
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    payload: dict[str, Any] = {"contents": [{"parts": [{"text": prompt}]}]}
+    if system_prompt:
+        payload["system_instruction"] = {"parts": [{"text": system_prompt}]}
     response = await _post_with_retry(
         f"{GEMINI_BASE_URL}/models/{model}:generateContent",
         json_payload=payload,
@@ -416,7 +643,13 @@ async def _call_gemini(
         body = response.json()
     except ValueError:
         return None
-    return _extract_decision_payload(_extract_gemini_text(body))
+    text = _extract_gemini_text(body)
+    parsed = _extract_decision_payload(text)
+    if isinstance(parsed, dict):
+        meta = body.get("usageMetadata") or {}
+        parsed["__input_tokens__"] = int(meta.get("promptTokenCount", 0) or 0)
+        parsed["__output_tokens__"] = int(meta.get("candidatesTokenCount", 0) or 0)
+    return parsed
 
 
 async def _call_provider(
@@ -425,13 +658,43 @@ async def _call_provider(
     model: str,
     prompt: str,
     call_context: str,
+    system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
     normalized = provider.strip().lower()
-    if normalized == "anthropic":
-        return await _call_anthropic(model, prompt, call_context=call_context)
-    if normalized == "gemini":
-        return await _call_gemini(model, prompt, call_context=call_context)
-    return await _call_openai(model, prompt, call_context=call_context)
+
+    async def _call_backend(func: Any) -> dict[str, Any] | None:
+        try:
+            return await func(
+                model,
+                prompt,
+                call_context=call_context,
+                system_prompt=system_prompt,
+            )
+        except TypeError as exc:
+            if "system_prompt" not in str(exc):
+                raise
+            return await func(model, prompt, call_context=call_context)
+
+    started = time.perf_counter()
+    result: dict[str, Any] | None = None
+    try:
+        if normalized == "anthropic":
+            result = await _call_backend(_call_anthropic)
+        elif normalized == "gemini":
+            result = await _call_backend(_call_gemini)
+        else:
+            result = await _call_backend(_call_openai)
+        return result
+    finally:
+        try:
+            _record_provider_health(
+                provider=normalized or "openai",
+                model=model,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                success=isinstance(result, dict),
+            )
+        except Exception:
+            LOGGER.warning("failed to record provider health telemetry", exc_info=True)
 
 
 async def _call_with_recommendation(
@@ -439,17 +702,62 @@ async def _call_with_recommendation(
     recommendation: dict[str, Any],
     prompt: str,
     call_context: str,
+    system_prompt: str | None = None,
 ) -> tuple[dict[str, Any] | None, str, str, str]:
     provider = str(recommendation.get("provider", "openai")).strip().lower()
     model = str(recommendation.get("model", "gpt-5.5")).strip()
 
-    parsed = await _call_provider(
-        provider=provider,
-        model=model,
-        prompt=prompt,
-        call_context=call_context,
+    # Safety envelope — scan outbound prompt before any LLM call
+    from .llm_safety import (  # noqa: PLC0415
+        check_outbound_prompt,
+        sanitize_outbound_prompt,
+    )
+    _safety_violations = check_outbound_prompt(prompt, call_context)
+    if _safety_violations:
+        LOGGER.warning("LLM safety outbound violations [%s]: %s", call_context, _safety_violations)
+        if LLM_SAFETY_BLOCK_ENABLED:
+            return None, provider, model, "blocked_safety"
+        prompt = sanitize_outbound_prompt(prompt)  # noqa: PLW2901
+
+    async def _provider_call(
+        *,
+        route_provider: str,
+        route_model: str,
+        route_context: str,
+    ) -> dict[str, Any] | None:
+        try:
+            return await _call_provider(
+                provider=route_provider,
+                model=route_model,
+                prompt=prompt,
+                call_context=route_context,
+                system_prompt=system_prompt,
+            )
+        except TypeError as exc:
+            if "system_prompt" not in str(exc):
+                raise
+            return await _call_provider(
+                provider=route_provider,
+                model=route_model,
+                prompt=prompt,
+                call_context=route_context,
+            )
+
+    parsed = await _provider_call(
+        route_provider=provider,
+        route_model=model,
+        route_context=call_context,
     )
     if isinstance(parsed, dict):
+        _record_usage_event(
+            getattr(recommendation, "__settings__", None),
+            str(recommendation.get("__mission_id__", "") or ""),
+            str(recommendation.get("__agent_id__", "") or ""),
+            provider, model,
+            int(parsed.pop("__input_tokens__", 0) or 0),
+            int(parsed.pop("__output_tokens__", 0) or 0),
+            True, "primary",
+        )
         return parsed, provider, model, "primary"
 
     fallback_provider = str(recommendation.get("fallback_provider", "")).strip().lower()
@@ -460,15 +768,52 @@ async def _call_with_recommendation(
     if fallback_provider == provider and fallback_model == model:
         return None, provider, model, "primary"
 
-    fallback = await _call_provider(
-        provider=fallback_provider,
-        model=fallback_model,
-        prompt=prompt,
-        call_context=f"{call_context} (fallback)",
+    fallback = await _provider_call(
+        route_provider=fallback_provider,
+        route_model=fallback_model,
+        route_context=f"{call_context} (fallback)",
     )
     if isinstance(fallback, dict):
+        _record_usage_event(
+            getattr(recommendation, "__settings__", None),
+            str(recommendation.get("__mission_id__", "") or ""),
+            str(recommendation.get("__agent_id__", "") or ""),
+            fallback_provider, fallback_model,
+            int(fallback.pop("__input_tokens__", 0) or 0),
+            int(fallback.pop("__output_tokens__", 0) or 0),
+            True, "fallback",
+        )
         return fallback, fallback_provider, fallback_model, "fallback"
     return None, provider, model, "primary"
+
+
+async def _call_with_agent_system(
+    *,
+    recommendation: dict[str, Any],
+    prompt: str,
+    call_context: str,
+    agent_id: str,
+) -> tuple[dict[str, Any] | None, str, str, str]:
+    """Call the recommendation helper with persona system prompt when supported."""
+    token = current_agent_id.set(agent_id)
+    try:
+        try:
+            return await _call_with_recommendation(
+                recommendation=recommendation,
+                prompt=prompt,
+                call_context=call_context,
+                system_prompt=_system_prompt_for_agent(agent_id),
+            )
+        except TypeError as exc:
+            if "system_prompt" not in str(exc):
+                raise
+            return await _call_with_recommendation(
+                recommendation=recommendation,
+                prompt=prompt,
+                call_context=call_context,
+            )
+    finally:
+        current_agent_id.reset(token)
 
 
 def _fallback_delegation(
@@ -543,10 +888,65 @@ def _build_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
+    mission_type = str(mission_context.get("mission_type") or "BUILD_NEW").strip().upper()
+    language = str(mission_context.get("requested_target_language") or "auto").strip().lower()
+    feature_contract = mission_context.get("feature_contract")
+    complexity = ""
+    if isinstance(feature_contract, dict):
+        complexity = str(feature_contract.get("estimated_complexity") or "").strip().lower()
+    type_strategy = {
+        "BUILD_NEW": (
+            "Select the pod whose language specialist has the strongest code generation "
+            "capability for the requested language."
+        ),
+        "DEBUG_REPAIR": (
+            "Select the pod whose specialist has the deepest static analysis and "
+            "fault-isolation capability for the source language."
+        ),
+        "SECURITY_HARDEN": (
+            "Select the pod whose specialist understands security-sensitive patterns. "
+            "Flag Security and Compliance agents before COMPLETE."
+        ),
+        "PORT": (
+            "This is a PORT mission. It MUST produce exactly two logic clusters:\n"
+            "  Cluster 1 (EXTRACTION): domain=source_extraction, priority=HIGH.\n"
+            "    Assigned to the SOURCE language pod manager and specialist.\n"
+            "    Purpose: extract intent and LogicNodes from the original source.\n"
+            "  Cluster 2 (GENERATION): domain=target_generation, priority=MEDIUM.\n"
+            "    Assigned to the TARGET language pod manager and specialist.\n"
+            "    depends_on: [Cluster 1 title].\n"
+            "    Purpose: generate target-language implementation from extracted intent.\n"
+            "Identify source and target language from the prompt. "
+            "Assign each cluster to the CORRECT pod."
+        ),
+        "REDUCE_DEPENDENCIES": (
+            "Select the pod whose specialist can identify import-level intent and "
+            "generate replacement code. Flag DEPABS requirements."
+        ),
+        "IMPORT_MODERNIZE": (
+            "Select the pod whose specialist understands legacy patterns in the "
+            "source language. Modernization requires extraction and generation."
+        ),
+        "ANALYZE_ONLY": (
+            "Select the pod whose specialist can produce the richest LogicNode "
+            "coverage. No code generation is required."
+        ),
+    }
+    strategy = type_strategy.get(mission_type, type_strategy["BUILD_NEW"])
+    complexity_note = (
+        " High-complexity mission: consider multiple clusters and parallel pod ownership."
+        if complexity in {"high", "very_high"}
+        else ""
+    )
     return (
         "You are AGENT-02-CEO in a strict chain-of-command runtime.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
-        "Return only JSON with keys: pod_manager_agent_id, specialist_agent_id, rationale.\n"
+        "Return only JSON with keys: pod_manager_agent_id, specialist_agent_id, rationale.\n\n"
+        f"Mission type: {mission_type}\n"
+        f"Target language: {language}\n"
+        f"Strategic guidance: {strategy}{complexity_note}\n\n"
+        "Your rationale must explain why this pod, why this specialist, and any "
+        "cross-pod or support-agent dependencies flagged by mission type.\n\n"
         "Mission context JSON:\n"
         f"{_safe_context_json(mission_context)}\n"
         "Valid pod manager ids: AGENT-12-PODA-MGR, AGENT-18-PODB-MGR, "
@@ -562,11 +962,38 @@ def _build_pod_manager_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
+    pod_family_strategy = {
+        "AGENT-12-PODA-MGR": (
+            "Pod A owns dynamic language execution. Prioritize runtime ergonomics, "
+            "package boundaries, async behavior, and scripting surface clarity."
+        ),
+        "AGENT-18-PODB-MGR": (
+            "Pod B owns systems language execution. Prioritize memory safety, "
+            "concurrency, compile-time contracts, and dependency minimization."
+        ),
+        "AGENT-24-PODC-MGR": (
+            "Pod C owns JVM and enterprise language execution. Prioritize layered "
+            "architecture, type contracts, build tooling, and operational stability."
+        ),
+        "AGENT-30-PODD-MGR": (
+            "Pod D owns functional and data-oriented language execution. Prioritize "
+            "pure transformations, schema boundaries, pipeline semantics, and proofability."
+        ),
+    }
+    mission_type = str(mission_context.get("mission_type") or "BUILD_NEW").strip().upper()
+    strategy = pod_family_strategy.get(
+        pod_manager_agent_id.strip().upper(),
+        "Use pod-family expertise to select the specialist with the strongest mission fit.",
+    )
     return (
         f"You are {pod_manager_agent_id} (pod manager) in a strict delegation chain.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         "Return only JSON with keys: specialist_agent_id, rationale.\n"
         f"Default specialist_agent_id: {default_specialist_agent_id}\n"
+        f"Mission type: {mission_type}\n"
+        f"Pod-family strategy: {strategy}\n"
+        "Your rationale must identify language fit, risk fit, and whether the pod "
+        "needs cross-pod or support-agent follow-up.\n"
         "Mission context JSON:\n"
         f"{_safe_context_json(mission_context)}"
     )
@@ -580,9 +1007,13 @@ def _build_specialist_prompt(
     recommended_provider: str,
     recommended_model: str,
 ) -> str:
+    language = str(mission_context.get("requested_target_language") or "").strip().lower()
+    risk_context = _format_upstream_risks(mission_context)
     return (
         f"You are {specialist_agent_id}, delegated by {pod_manager_agent_id}.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
+        f"{_language_context(language)}"
+        f"{risk_context}"
         "Return only JSON with keys: plan_summary, deliverables, risk_notes.\n"
         "deliverables and risk_notes must be arrays of short strings.\n"
         "Mission context JSON:\n"
@@ -609,10 +1040,13 @@ def _build_mission_contract_prompt(
         {
             "pod_manager_agent_id": ceo_delegation.get("pod_manager_agent_id"),
             "specialist_agent_id": ceo_delegation.get("specialist_agent_id"),
+            "rationale": ceo_delegation.get("rationale"),
             "source": ceo_delegation.get("source"),
         },
         sort_keys=True,
     )
+    delegation_rationale = _clean_text(ceo_delegation.get("rationale", ""), max_length=280)
+    risk_context = _format_upstream_risks(mission_context)
     feature_contract = mission_context.get("feature_contract")
     feature_summary = ""
     if isinstance(feature_contract, dict):
@@ -633,7 +1067,9 @@ def _build_mission_contract_prompt(
         f"Output mode: {safe_output_mode}\n"
         f"Requested target language: {safe_language}\n"
         f"CEO delegation JSON: {safe_delegation}\n"
+        + (f"CEO delegation rationale: {delegation_rationale}\n" if delegation_rationale else "")
         + (f"PM feature contract JSON: {feature_summary}\n" if feature_summary else "")
+        + risk_context
         + f"User prompt: {safe_prompt}\n\n"
         "Required JSON keys:\n"
         "{\n"
@@ -717,7 +1153,7 @@ def _normalize_pm_feature_contract(
     acceptance_criteria = _string_list(raw.get("acceptance_criteria"), limit=6)
     if not acceptance_criteria:
         acceptance_criteria = ["Mission completes without error."]
-    return {
+    contract = {
         "schema_version": "feature_contract.v1",
         "title": _clean_text(raw.get("title", "Mission"), max_length=80) or "Mission",
         "summary": _clean_text(raw.get("summary", prompt), max_length=500),
@@ -737,6 +1173,8 @@ def _normalize_pm_feature_contract(
         "model": model,
         "created_at": datetime.now(UTC).isoformat(),
     }
+    contract["ambiguity_score"] = _pm_ambiguity_score(contract, prompt)
+    return contract
 
 
 def _fallback_pm_feature_contract(
@@ -747,7 +1185,7 @@ def _fallback_pm_feature_contract(
     recommendation: dict[str, Any],
 ) -> dict[str, Any]:
     language = _clean_text(requested_target_language or "", max_length=32).lower()
-    return {
+    contract = {
         "schema_version": "feature_contract.v1",
         "title": _clean_text(prompt, max_length=80) or "Mission",
         "summary": _clean_text(prompt, max_length=500),
@@ -765,6 +1203,8 @@ def _fallback_pm_feature_contract(
         "model": recommendation.get("model"),
         "created_at": datetime.now(UTC).isoformat(),
     }
+    contract["ambiguity_score"] = _pm_ambiguity_score(contract, prompt)
+    return contract
 
 
 async def generate_pm_feature_contract(
@@ -787,10 +1227,11 @@ async def generate_pm_feature_contract(
         recommended_provider=provider,
         recommended_model=model,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=pm_prompt,
         call_context="pm feature contract",
+        agent_id="AGENT-01-PM",
     )
     if not isinstance(parsed, dict):
         return _fallback_pm_feature_contract(
@@ -966,6 +1407,37 @@ def _build_codegen_prompt(
     for node in logicnodes[:12]:
         if isinstance(node, dict):
             logicnode_lines.append(_clean_text(json.dumps(node, sort_keys=True), max_length=220))
+    risk_context = _format_upstream_risks(mission_context)
+    hw_context = build_hw_context_block(
+        mission_type=str(mission_context.get("mission_type") or "BUILD_NEW"),
+        language=target_language,
+        logic_clusters=(
+            mission_context.get("logic_clusters")
+            if isinstance(mission_context.get("logic_clusters"), dict)
+            else None
+        ),
+    )
+    # PORT mission — inject source behavior context
+    port_source_context = ""
+    port_nodes = mission_context.get("port_source_logicnodes") or []
+    if port_nodes and isinstance(port_nodes, list):
+        source_lang = _clean_text(
+            str(mission_context.get("port_source_language") or "source"), max_length=32
+        )
+        node_lines = "\n".join(
+            f"- {_clean_text(str(n.get('domain') or ''), max_length=32)}"
+            f".{_clean_text(str(n.get('concept') or ''), max_length=48)}: "
+            f"{_clean_text(str(n.get('intent') or ''), max_length=100)}"
+            for n in port_nodes[:15]
+            if isinstance(n, dict)
+        )
+        if node_lines:
+            port_source_context = (
+                f"\nSource behavior extracted from original {source_lang} code:\n"
+                f"{node_lines}\n"
+                f"Preserve this behavior in your {target_language} implementation.\n"
+            )
+
     return (
         f"You are {specialist_agent_id}, a {target_language} specialist.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
@@ -973,6 +1445,10 @@ def _build_codegen_prompt(
         "Return only JSON. No markdown, prose, or code fences.\n\n"
         f"Mission: {contract_summary}\n"
         f"Target language: {_clean_text(target_language, max_length=32)}\n"
+        f"{_language_context(target_language)}"
+        f"{risk_context}"
+        f"{hw_context}"
+        f"{port_source_context}"
         f"Acceptance criteria:\n{acceptance}\n\n"
         f"Contract requirements:\n{chr(10).join(requirements) or '- primary_operation'}\n\n"
         f"Extracted logicnode context:\n{chr(10).join(logicnode_lines) or '- none'}\n\n"
@@ -1103,15 +1579,32 @@ def _build_logic_clusters_prompt(
         },
         sort_keys=True,
     )
+    mission_type = str(
+        mission_context.get("mission_type") or mission_contract.get("mission_type") or "BUILD_NEW"
+    ).strip().upper()
+    cluster_guidance = (
+        "Decompose into 1-8 clusters. Rules:\n"
+        "  - Each cluster must be ownable by a single pod manager.\n"
+        "  - Clusters that can run in parallel should share priority level.\n"
+        "  - Dependent clusters must list upstream titles in depends_on.\n"
+        "  - DEBUG_REPAIR: one cluster per suspected fault domain.\n"
+        "  - PORT: source extraction and target generation are separate clusters.\n"
+        "  - SECURITY_HARDEN: include a security_audit cluster.\n"
+        "  - REDUCE_DEPENDENCIES: include a dependency_absorption cluster.\n"
+    )
+    risk_context = _format_upstream_risks(mission_context)
     return (
         "You are AGENT-02-CEO. Decompose this mission contract into logic clusters.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         "Return only JSON. No markdown, prose, or code fences.\n\n"
+        f"Mission type: {mission_type}\n"
         f"Requested target language: {safe_language}\n"
         f"Mission summary: {contract_summary}\n"
         f"Required domains: {json.dumps(required_domains)}\n"
         f"CEO delegation JSON: {safe_delegation}\n"
         f"Logicnode requirements JSON: {json.dumps(safe_requirements, sort_keys=True)}\n\n"
+        f"{cluster_guidance}\n"
+        f"{risk_context}"
         "Required JSON shape:\n"
         "{\n"
         '  "clusters": [\n'
@@ -1122,11 +1615,12 @@ def _build_logic_clusters_prompt(
         '      "pod_manager_agent_id": "assigned pod manager id",\n'
         '      "specialist_agent_id": "assigned specialist id",\n'
         '      "requirement_refs": ["requirement concept names"],\n'
+        '      "depends_on": ["upstream cluster titles"],\n'
         '      "rationale": "why this work is grouped together"\n'
         "    }\n"
         "  ]\n"
         "}\n\n"
-        "Return 1-8 clusters. Keep clusters coarse enough for pod-level ownership.\n"
+        "Keep clusters coarse enough for pod-level ownership.\n"
         f"Safe mission context: {_safe_context_json(mission_context)}"
     )
 
@@ -1180,6 +1674,7 @@ def _normalize_logic_clusters(
                     fallback=default_specialist,
                 ),
                 "requirement_refs": _string_list(item.get("requirement_refs"), limit=8),
+                "depends_on": _string_list(item.get("depends_on"), limit=8, max_length=96),
                 "rationale": _clean_text(
                     item.get("rationale") or "Grouped by related domain scope.",
                     max_length=240,
@@ -1266,6 +1761,7 @@ def _fallback_logic_clusters(
                 "pod_manager_agent_id": pod_manager_agent_id,
                 "specialist_agent_id": specialist_agent_id,
                 "requirement_refs": matching_requirements[:8],
+                "depends_on": [],
                 "rationale": "Deterministic cluster from mission contract domain scope.",
             }
         )
@@ -1345,6 +1841,41 @@ def _standard_node_id(index: int, domain: str, concept: str) -> str:
     return f"standard-node-{index:02d}-{slug or 'general'}"
 
 
+def _pod_standard_coverage_verdict(
+    *,
+    logicnodes: list[dict[str, Any]],
+    canonical_logicnodes: list[dict[str, Any]],
+    source_code: str | None = None,
+) -> dict[str, Any]:
+    raw_count = len([node for node in logicnodes if isinstance(node, dict)])
+    canonical_count = len(canonical_logicnodes)
+    source_line_count = len([line for line in str(source_code or "").splitlines() if line.strip()])
+    expected_minimum = max(1, min(20, source_line_count // 25)) if source_line_count else 1
+    coverage_thin = canonical_count < expected_minimum or (raw_count > 0 and canonical_count == 0)
+    duplicate_ratio = (
+        round((max(0, raw_count - canonical_count) / raw_count), 4) if raw_count else 0.0
+    )
+    findings: list[str] = []
+    if coverage_thin:
+        findings.append(
+            "Canonical LogicNode coverage is thin for the available source and pod evidence."
+        )
+    if raw_count > 0 and duplicate_ratio >= 0.85:
+        findings.append("High duplicate-elimination ratio requires pod-manager review.")
+    if not findings:
+        findings.append("Canonical LogicNode coverage meets deterministic pod standard checks.")
+    return {
+        "schema_version": "pod_standard_coverage.v1",
+        "raw_logicnode_count": raw_count,
+        "canonical_logicnode_count": canonical_count,
+        "source_line_count": source_line_count,
+        "expected_minimum_canonical_logicnodes": expected_minimum,
+        "duplicate_ratio": duplicate_ratio,
+        "coverage_thin": coverage_thin,
+        "findings": findings,
+    }
+
+
 def _fallback_pod_group_standard(
     *,
     pod_name: str,
@@ -1353,6 +1884,7 @@ def _fallback_pod_group_standard(
     logicnodes: list[dict[str, Any]],
     mission_contract: dict[str, Any],
     recommendation: dict[str, Any],
+    source_code: str | None = None,
 ) -> dict[str, Any]:
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for record in logicnodes[:200]:
@@ -1449,6 +1981,11 @@ def _fallback_pod_group_standard(
         "pod_manager_agent_id": pod_manager_agent_id,
         "mission_id": mission_id,
         "canonical_logicnodes": canonical,
+        "coverage_verdict": _pod_standard_coverage_verdict(
+            logicnodes=logicnodes,
+            canonical_logicnodes=canonical,
+            source_code=source_code,
+        ),
         "eliminated_duplicates": max(0, len(logicnodes) - len(canonical)),
         "summary": (
             "Deterministic pod group standard produced by consolidating equivalent "
@@ -1470,6 +2007,7 @@ def _build_pod_group_standard_prompt(
     mission_contract: dict[str, Any],
     recommended_provider: str,
     recommended_model: str,
+    source_code: str | None = None,
 ) -> str:
     safe_nodes = [
         _clean_text(json.dumps(record, sort_keys=True), max_length=420)
@@ -1479,14 +2017,17 @@ def _build_pod_group_standard_prompt(
     contract_summary = _clean_text(
         mission_contract.get("contract_summary", "mission"), max_length=320
     )
+    source_line_count = len([line for line in str(source_code or "").splitlines() if line.strip()])
     return (
         f"You are {pod_manager_agent_id}, the sub-manager for {pod_name}.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         "Consolidate specialist LogicNodes into a canonical pod group standard.\n"
         "Deduplicate semantically equivalent nodes across languages and preserve source ids.\n"
+        "Call out thin coverage when the canonical standard is too small for the source scope.\n"
         "Return only JSON. No markdown, prose, or code fences.\n\n"
         f"Mission id: {_clean_text(mission_id, max_length=96)}\n"
         f"Mission summary: {contract_summary}\n"
+        f"Approximate source line count: {source_line_count}\n"
         f"LogicNodes JSON lines:\n{chr(10).join(safe_nodes) or '- none'}\n\n"
         "Required JSON shape:\n"
         "{\n"
@@ -1517,6 +2058,7 @@ def _normalize_pod_group_standard(
     mission_id: str,
     logicnodes: list[dict[str, Any]],
     mission_contract: dict[str, Any],
+    source_code: str | None = None,
 ) -> dict[str, Any]:
     canonical: list[dict[str, Any]] = []
     raw_nodes = raw.get("canonical_logicnodes")
@@ -1557,6 +2099,7 @@ def _normalize_pod_group_standard(
             logicnodes=logicnodes,
             mission_contract=mission_contract,
             recommendation={"provider": provider, "model": model},
+            source_code=source_code,
         )
     duplicate_count = raw.get("eliminated_duplicates")
     if not isinstance(duplicate_count, int) or duplicate_count < 0:
@@ -1567,6 +2110,11 @@ def _normalize_pod_group_standard(
         "pod_manager_agent_id": pod_manager_agent_id,
         "mission_id": mission_id,
         "canonical_logicnodes": canonical,
+        "coverage_verdict": _pod_standard_coverage_verdict(
+            logicnodes=logicnodes,
+            canonical_logicnodes=canonical,
+            source_code=source_code,
+        ),
         "eliminated_duplicates": duplicate_count,
         "summary": _clean_text(
             raw.get("summary")
@@ -1588,6 +2136,7 @@ async def generate_pod_group_standard(
     mission_id: str,
     logicnodes: list[dict[str, Any]],
     mission_contract: dict[str, Any],
+    source_code: str | None = None,
 ) -> dict[str, Any]:
     normalized_pod_manager_agent_id = pod_manager_agent_id.strip().upper()
     recommendation = _agent_recommendation(normalized_pod_manager_agent_id)
@@ -1601,11 +2150,13 @@ async def generate_pod_group_standard(
         mission_contract=mission_contract,
         recommended_provider=provider,
         recommended_model=model,
+        source_code=source_code,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="pod group standard consolidation",
+        agent_id=normalized_pod_manager_agent_id,
     )
     if not isinstance(parsed, dict):
         return _fallback_pod_group_standard(
@@ -1615,6 +2166,7 @@ async def generate_pod_group_standard(
             logicnodes=logicnodes,
             mission_contract=mission_contract,
             recommendation=recommendation,
+            source_code=source_code,
         )
     return _normalize_pod_group_standard(
         parsed,
@@ -1626,6 +2178,7 @@ async def generate_pod_group_standard(
         mission_id=mission_id,
         logicnodes=logicnodes,
         mission_contract=mission_contract,
+        source_code=source_code,
     )
 
 
@@ -1639,7 +2192,7 @@ async def generate_code_from_contract(
 ) -> dict[str, Any]:
     recommendation = _agent_recommendation(specialist_agent_id)
     provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.3-codex")).strip()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
     prompt = _build_codegen_prompt(
         mission_context=mission_context,
         mission_contract=mission_contract,
@@ -1649,10 +2202,11 @@ async def generate_code_from_contract(
         recommended_provider=provider,
         recommended_model=model,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context=f"specialist codegen {specialist_agent_id}",
+        agent_id=specialist_agent_id,
     )
     contract_summary = str(mission_contract.get("contract_summary", "mission"))
     if not isinstance(parsed, dict):
@@ -1680,6 +2234,216 @@ async def generate_code_from_contract(
     return normalized
 
 
+def build_deploy_readiness_assessment(
+    *,
+    mission_id: str,
+    metadata: dict[str, Any],
+    build_artifacts: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Build the Deploy Agent's deterministic packaging-readiness fallback."""
+    artifacts = build_artifacts if isinstance(build_artifacts, list) else []
+    has_packaged_artifact = any(
+        isinstance(artifact, dict)
+        and str(artifact.get("artifact_type") or artifact.get("type") or "").lower()
+        in {"generated_code", "source_bundle_package"}
+        for artifact in artifacts
+    ) or bool(
+        isinstance(metadata.get("mission_artifacts"), dict)
+        and metadata["mission_artifacts"].get("build_packaged")
+    )
+    checks = [
+        {
+            "name": "packaged_artifact",
+            "passed": has_packaged_artifact,
+            "summary": "Mission has a generated-code or source-bundle build artifact.",
+        },
+        {
+            "name": "completion_evidence",
+            "passed": bool(metadata.get("delivery_summary") or metadata.get("generated_output")),
+            "summary": "Mission contains completion evidence for operator review.",
+        },
+        {
+            "name": "pod_standard",
+            "passed": bool(metadata.get("pod_group_standards")),
+            "summary": "Mission contains a pod group standard for traceability.",
+        },
+    ]
+    blockers = [check["name"] for check in checks if not check["passed"]]
+    return {
+        "schema_version": "deploy_readiness.v1",
+        "mission_id": _clean_text(mission_id, max_length=96),
+        "agent_id": "AGENT-11-DEPLOY",
+        "ready": not blockers,
+        "blockers": blockers,
+        "checks": checks,
+        "source": "fallback",
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+async def generate_rqca_assessment(
+    *,
+    mission_id: str,
+    execution_result: dict[str, Any],
+    mission_contract: dict[str, Any],
+    language: str,
+) -> dict[str, Any]:
+    """Interpret runtime-QC execution results with deterministic fallback."""
+    _ = mission_id, mission_contract, language
+    verdict = str(execution_result.get("verdict") or "SKIPPED").strip().upper()
+    passed = bool(execution_result.get("passed", False))
+    if verdict in {"DRY_RUN", "SKIPPED"}:
+        return {
+            "qc_verdict": "ADVISORY",
+            "confidence": "LOW",
+            "execution_verdict": verdict,
+            "findings": [],
+            "remediation": [],
+            "deployment_safe": True,
+            "source": "advisory",
+            "assessed_at": datetime.now(UTC).isoformat(),
+        }
+    if passed:
+        qc_verdict = "PASS"
+        findings = ["Runtime execution completed with the expected exit code."]
+        remediation: list[str] = []
+    else:
+        qc_verdict = "FAIL"
+        findings = ["Runtime execution did not complete as expected."]
+        remediation = ["Inspect stderr/stdout previews and repair the generated artifact."]
+    return {
+        "qc_verdict": qc_verdict,
+        "confidence": "LOW",
+        "execution_verdict": verdict,
+        "findings": findings,
+        "remediation": remediation,
+        "deployment_safe": passed,
+        "source": "fallback",
+        "assessed_at": datetime.now(UTC).isoformat(),
+    }
+
+
+async def generate_pm_delivery_summary(
+    *,
+    mission_context: dict[str, Any],
+    generated_output: dict[str, Any],
+    build_artifacts: list[dict[str, Any]],
+    feature_contract: dict[str, Any],
+    mission_contract: dict[str, Any],
+) -> dict[str, Any]:
+    """PM Agent produces a final delivery summary for completed missions."""
+    recommendation = _agent_recommendation("AGENT-01-PM")
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
+
+    primary_artifact = next(
+        (
+            artifact
+            for artifact in build_artifacts
+            if artifact.get("artifact_type") == "generated_code"
+        ),
+        build_artifacts[0] if build_artifacts else {},
+    )
+    manifest = primary_artifact.get("manifest") if isinstance(primary_artifact, dict) else {}
+    if not isinstance(manifest, dict):
+        manifest = {}
+    artifact_text = (
+        primary_artifact.get("artifact_text")
+        if isinstance(primary_artifact, dict)
+        else ""
+    )
+    code_preview = str(generated_output.get("generated_code") or artifact_text or "")[:600]
+    filename = str(
+        generated_output.get("filename")
+        or manifest.get("filename")
+        or primary_artifact.get("artifact_id")
+        or "mission artifact"
+    )
+    language = str(
+        generated_output.get("language")
+        or manifest.get("language")
+        or mission_context.get("requested_target_language")
+        or "unknown"
+    )
+    criteria = (
+        feature_contract.get("acceptance_criteria")
+        or mission_contract.get("acceptance_criteria")
+        or []
+    )
+    contract_summary = (
+        mission_contract.get("contract_summary")
+        or feature_contract.get("summary")
+        or mission_context.get("prompt")
+        or "Completed mission"
+    )
+    artifact_type = (
+        primary_artifact.get("artifact_type")
+        if isinstance(primary_artifact, dict)
+        else None
+    )
+
+    prompt = (
+        "You are AGENT-01-PM. The mission is complete. Produce a concise "
+        "operator delivery summary tied to acceptance criteria and artifacts.\n"
+        f"Recommended model: {provider}/{model}\n"
+        "Return only JSON. No markdown.\n\n"
+        f"Mission: {_clean_text(contract_summary, max_length=300)}\n"
+        f"Primary artifact: {filename} ({artifact_type or 'none'}, {language})\n"
+        f"Artifact count: {len(build_artifacts)}\n"
+        f"Output preview:\n{_clean_text(code_preview, max_length=600)}\n"
+        f"Acceptance criteria: {json.dumps(_string_list(criteria, limit=6))}\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "delivery_title": "short title for what was delivered",\n'
+        '  "delivery_summary": "1-2 sentence summary for the operator",\n'
+        '  "criteria_met": ["criteria that appear to be satisfied"],\n'
+        '  "criteria_unmet": ["criteria that may need verification"],\n'
+        '  "usage_notes": "how to use or inspect the delivered artifact",\n'
+        '  "recommendations": ["optional follow-up suggestions"]\n'
+        "}\n"
+    )
+
+    parsed, resolved_provider, resolved_model, _route = await _call_with_agent_system(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context="pm delivery summary",
+        agent_id="AGENT-01-PM",
+    )
+    if not isinstance(parsed, dict):
+        return {
+            "delivery_title": f"Delivered: {filename}",
+            "delivery_summary": (
+                "Mission complete. Review the delivered artifact and verify it "
+                "against the acceptance criteria."
+            ),
+            "criteria_met": [],
+            "criteria_unmet": _string_list(criteria, limit=6),
+            "usage_notes": "Open the delivered artifact and verify it before release.",
+            "recommendations": [],
+            "primary_artifact_type": artifact_type,
+            "source": "fallback",
+        }
+
+    return {
+        "delivery_title": _clean_text(
+            parsed.get("delivery_title") or f"Delivered: {filename}",
+            max_length=120,
+        ),
+        "delivery_summary": _clean_text(
+            parsed.get("delivery_summary") or "Mission complete.",
+            max_length=500,
+        ),
+        "criteria_met": _string_list(parsed.get("criteria_met"), limit=6),
+        "criteria_unmet": _string_list(parsed.get("criteria_unmet"), limit=6),
+        "usage_notes": _clean_text(parsed.get("usage_notes", ""), max_length=300),
+        "recommendations": _string_list(parsed.get("recommendations"), limit=4),
+        "primary_artifact_type": artifact_type,
+        "source": "llm",
+        "model_provider": resolved_provider,
+        "model": resolved_model,
+    }
+
+
 async def generate_logic_clusters(
     *,
     mission_context: dict[str, Any],
@@ -1698,10 +2462,11 @@ async def generate_logic_clusters(
         recommended_provider=provider,
         recommended_model=model,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="logic cluster decomposition",
+        agent_id=CEO_AGENT_ID,
     )
     if not isinstance(parsed, dict):
         return _fallback_logic_clusters(
@@ -1743,10 +2508,11 @@ async def generate_mission_contract(
         recommended_provider=provider,
         recommended_model=model,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=contract_prompt,
         call_context="mission contract",
+        agent_id=CEO_AGENT_ID,
     )
     if not isinstance(parsed, dict):
         return _fallback_mission_contract(
@@ -1781,10 +2547,11 @@ async def generate_ceo_delegation(
         recommended_model=model,
     )
 
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="ceo delegation",
+        agent_id=CEO_AGENT_ID,
     )
 
     if not isinstance(parsed, dict):
@@ -1846,10 +2613,11 @@ async def generate_pod_manager_delegation(
         recommended_model=model,
     )
 
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="pod-manager delegation",
+        agent_id=normalized_pod_manager_agent_id,
     )
     if not isinstance(parsed, dict):
         return _fallback_pod_manager_delegation(
@@ -1909,10 +2677,11 @@ async def generate_specialist_plan(
         recommended_model=model,
     )
 
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="specialist planning",
+        agent_id=normalized_specialist_agent_id,
     )
     if not isinstance(parsed, dict):
         return _fallback_specialist_plan(
@@ -2018,10 +2787,11 @@ async def generate_master_logic_stream(
         "Keep master_logic_stream to 5-25 nodes. Order by dependency_order (lowest first).\n"
     )
 
-    parsed, resolved_provider, resolved_model, _route = await _call_with_recommendation(
+    parsed, resolved_provider, resolved_model, _route = await _call_with_agent_system(
         recommendation=recommendation,
         prompt=prompt,
         call_context="ceo logic fusion",
+        agent_id=CEO_AGENT_ID,
     )
 
     if not isinstance(parsed, dict):

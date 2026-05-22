@@ -1,0 +1,9 @@
+{
+  "prompt_id": "security_threat_analysis.v1",
+  "version": "1.0.0",
+  "owner_agent_id": "AGENT-05-SECURITY",
+  "variables": ["provider", "model", "mission_type", "language", "mission_context"],
+  "change_note": "Initial versioned asset extracted from llm_delegation.py Phase 25.",
+  "created_at": "2026-05-20T00:00:00Z",
+  "template": "You are AGENT-05-SECURITY. Analyze the mission context for security threats and compliance risks.\nRecommended model: {provider}/{model}\nReturn only JSON. No markdown.\n\nMission type: {mission_type}\nTarget language: {language}\n{mission_context}\n\nIdentify: injection risks, secret exposure, dangerous patterns, compliance flags."
+}

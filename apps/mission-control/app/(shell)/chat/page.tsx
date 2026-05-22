@@ -30,6 +30,16 @@ type DisplayFeatureContract = {
 };
 
 const CHAT_STORAGE_KEY = "mission-control:pm-chat-history";
+const HISTORY_STORAGE_KEY = "mission-control:pm-chat-sessions";
+const MAX_HISTORY_SESSIONS = 30;
+
+type ChatSession = {
+  id: string;
+  title: string;
+  savedAt: string;
+  messageCount: number;
+  messages: ChatMessage[];
+};
 const ACCEPTED_EXTENSIONS = [
   ".py",
   ".js",
@@ -108,6 +118,8 @@ export default function ChatPage() {
   const [thinking, setThinking] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -128,21 +140,73 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    if (typeof window === "undefined") return;
     window.sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
   }, [messages]);
+
+  // Load persistent session list from localStorage.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (raw) setSessions(JSON.parse(raw) as ChatSession[]);
+    } catch { /* ignore malformed data */ }
+  }, []);
+
+  function saveSessions(updated: ChatSession[]) {
+    setSessions(updated);
+    try {
+      window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+    } catch { /* storage quota exceeded — silently ignore */ }
+  }
+
+  /** Derive a short title from the first user message. */
+  function deriveTitle(msgs: ChatMessage[]): string {
+    const first = msgs.find((m) => m.role === "user");
+    if (!first) return "New conversation";
+    const text = first.text.slice(0, 60);
+    return text.length < first.text.length ? `${text}…` : text;
+  }
+
+  function saveCurrentSession() {
+    const userMessages = messages.filter((m) => m.role === "user");
+    if (userMessages.length === 0) return; // Nothing worth saving.
+    const id = activeSessionId ?? makeId("session");
+    const session: ChatSession = {
+      id,
+      title: deriveTitle(messages),
+      savedAt: new Date().toISOString(),
+      messageCount: messages.length,
+      messages,
+    };
+    const updated = [session, ...sessions.filter((s) => s.id !== id)]
+      .slice(0, MAX_HISTORY_SESSIONS);
+    saveSessions(updated);
+    setActiveSessionId(id);
+  }
+
+  function loadSession(session: ChatSession) {
+    saveCurrentSession(); // Persist current before switching.
+    setMessages(session.messages);
+    setActiveSessionId(session.id);
+    setContract(null);
+    setEditingContract(false);
+    setInput("");
+    setError(null);
+    setFiles([]);
+  }
 
   const fileChips = useMemo(() => files.map((item) => fileLabel(item)), [files]);
 
   function resetConversation() {
+    saveCurrentSession();
     setMessages([initialWelcomeMessage()]);
     setFiles([]);
     setContract(null);
     setEditingContract(false);
     setInput("");
     setError(null);
+    setActiveSessionId(null);
   }
 
   function addFiles(items: FileList | File[]) {
@@ -310,6 +374,21 @@ export default function ChatPage() {
     }
   }
 
+  // Group sessions by "Today" / "Yesterday" / date label.
+  const groupedSessions = useMemo(() => {
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+    const groups = new Map<string, ChatSession[]>();
+    for (const s of sessions) {
+      const label = new Date(s.savedAt).toDateString();
+      const groupKey = label === today ? "Today" : label === yesterday ? "Yesterday" : label;
+      const bucket = groups.get(groupKey) ?? [];
+      bucket.push(s);
+      groups.set(groupKey, bucket);
+    }
+    return Array.from(groups.entries());
+  }, [sessions]);
+
   return (
     <div className="page shell-page">
       <PageHeader
@@ -326,7 +405,46 @@ export default function ChatPage() {
         }
       />
 
-      <Panel title="Conversation" className="chat-panel">
+      <div className="chat-layout">
+        {/* Phase 2H — persistent conversation history sidebar */}
+        <aside className="chat-history-sidebar">
+          <p className="chat-history-title">Conversations</p>
+          <button
+            type="button"
+            className="secondary-button"
+            style={{ width: "100%", marginBottom: "8px" }}
+            onClick={resetConversation}
+          >
+            + New Chat
+          </button>
+          {groupedSessions.length === 0 && (
+            <p className="muted" style={{ fontSize: "0.8rem" }}>
+              Previous conversations will appear here after you send a message.
+            </p>
+          )}
+          {groupedSessions.map(([group, groupSessions]) => (
+            <div key={group}>
+              <span className="chat-history-group-label">{group}</span>
+              <ul className="chat-history-list">
+                {groupSessions.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      className={`chat-history-item${activeSessionId === s.id ? " active" : ""}`}
+                      onClick={() => loadSession(s)}
+                      title={s.title}
+                    >
+                      <span className="chat-history-item-title">{s.title}</span>
+                      <span className="chat-history-item-meta">{s.messageCount} messages</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </aside>
+
+        <Panel title="Conversation" className="chat-panel">
         <div className="chat-list" role="log" aria-live="polite" aria-label="PM chat history">
           {messages.map((message) => (
             <article key={message.id} className={`chat-item ${message.role === "user" ? "user" : "pm"}`}>
@@ -505,6 +623,8 @@ export default function ChatPage() {
           )}
         </Panel>
       )}
+
+      </div>
     </div>
   );
 }

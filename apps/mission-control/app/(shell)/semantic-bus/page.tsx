@@ -10,8 +10,81 @@ import {
   missionStateStreamUrl,
   parseLiveStateStreamMessage,
 } from "../../lib/api-client";
+import { downloadJson } from "../../lib/export";
 import { formatDateTime } from "../../lib/format";
 import type { BusEventRecord, LiveStateStreamEvent, MissionEvent } from "../../lib/types";
+
+const SPARKLINE_BUCKETS = 60; // 60 one-second buckets = 60s rolling window
+const SPARKLINE_W = 200;
+const SPARKLINE_H = 40;
+
+/** 5E — SVG sparkline showing events/sec over the last 60 seconds. */
+function BusSparkline({ events }: { events: BusEventRecord[] }) {
+  const buckets = useMemo(() => {
+    const now = Date.now();
+    const counts = new Array<number>(SPARKLINE_BUCKETS).fill(0);
+    for (const ev of events) {
+      const age = Math.floor((now - new Date(ev.ts).getTime()) / 1000);
+      if (age >= 0 && age < SPARKLINE_BUCKETS) {
+        counts[SPARKLINE_BUCKETS - 1 - age]++;
+      }
+    }
+    return counts;
+  }, [events]);
+
+  const max = Math.max(...buckets, 1);
+  const points = buckets
+    .map((count, i) => {
+      const x = (i / (SPARKLINE_BUCKETS - 1)) * SPARKLINE_W;
+      const y = SPARKLINE_H - (count / max) * SPARKLINE_H;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  const messagesPerSecond = useMemo(() => {
+    if (events.length === 0) return 0;
+    const now = Date.now();
+    const recent = events.filter(
+      (ev) => now - new Date(ev.ts).getTime() <= 10_000,
+    ).length;
+    return Math.round((recent / 10) * 10) / 10;
+  }, [events]);
+
+  return (
+    <div className="bus-sparkline-wrap">
+      <div className="bus-rate-label" aria-label={`${messagesPerSecond} messages per second`}>
+        {messagesPerSecond}
+        <span className="bus-rate-unit"> msg/s</span>
+      </div>
+      <svg
+        className="bus-sparkline-svg"
+        width={SPARKLINE_W}
+        height={SPARKLINE_H}
+        viewBox={`0 0 ${SPARKLINE_W} ${SPARKLINE_H}`}
+        aria-hidden="true"
+        role="presentation"
+      >
+        <polyline
+          points={points}
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          opacity="0.85"
+        />
+        {/* Fill area under line */}
+        <polyline
+          points={`0,${SPARKLINE_H} ${points} ${SPARKLINE_W},${SPARKLINE_H}`}
+          fill="var(--accent)"
+          fillOpacity="0.12"
+          stroke="none"
+        />
+      </svg>
+      <p className="bus-sparkline-label muted">60s window</p>
+    </div>
+  );
+}
 
 function deriveProtocol(eventType: string): BusEventRecord["protocol"] {
   if (eventType.includes("QUEUED")) {
@@ -260,15 +333,6 @@ export default function SemanticBusPage() {
     };
   }, [filteredEvents, eventTableScrollTop]);
 
-  const messagesPerSecond = useMemo(() => {
-    if (events.length === 0) {
-      return 0;
-    }
-    const newest = new Date(events[0].ts).getTime();
-    const recent = events.filter((event) => newest - new Date(event.ts).getTime() <= 10_000).length;
-    return Math.round((recent / 10) * 10) / 10;
-  }, [events]);
-
   return (
     <div className="page shell-page">
       <PageHeader
@@ -294,9 +358,10 @@ export default function SemanticBusPage() {
           </div>
         }
       >
-        <p className="help-text">Rate: {messagesPerSecond} msg/s</p>
+        {/* 5E — Sparkline replaces the buried msg/s plain text */}
+        <BusSparkline events={events} />
         <p className="help-text">
-          Stream events: {streamEventsSeen} • Stream errors: {streamErrors} • Poll fallback ticks:{" "}
+          Stream events: {streamEventsSeen} • Errors: {streamErrors} • Poll ticks:{" "}
           {pollFallbackTicks}
         </p>
         <div className="filters-grid">
@@ -338,7 +403,24 @@ export default function SemanticBusPage() {
         </div>
       </Panel>
 
-      <Panel title="Event Stream">
+      <Panel
+        title="Event Stream"
+        actions={
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={filteredEvents.length === 0}
+            onClick={() =>
+              downloadJson(
+                filteredEvents,
+                `semantic-bus-${new Date().toISOString().slice(0, 10)}.json`,
+              )
+            }
+          >
+            Export JSON
+          </button>
+        }
+      >
         {loading && <p className="muted">Loading recent semantic bus events...</p>}
         {error && (
           <SystemMessage tone="critical" title="Semantic bus events are unavailable">

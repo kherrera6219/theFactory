@@ -43,16 +43,26 @@ from .agent_scaling import (
     is_scalable_agent,
     scaling_decision_from_metadata,
 )
+from .aim_generator import generate_aim, mission_requires_aim
 from .audit_events import record_audit_event
+from .dependency_absorption import (
+    build_dependency_absorption_reports,
+    build_sbom_delta,
+    execute_absorption,
+    mission_requires_dependency_absorption,
+)
+from .equivalence_verifier import build_equivalence_report, mission_requires_equivalence
 from .llm_delegation import (
     generate_ceo_delegation,
     generate_code_from_contract,
     generate_logic_clusters,
     generate_master_logic_stream,
     generate_mission_contract,
+    generate_pm_delivery_summary,
     generate_pm_feature_contract,
     generate_pod_group_standard,
     generate_pod_manager_delegation,
+    generate_rqca_assessment,
     generate_specialist_plan,
 )
 from .mission_flow import (
@@ -64,6 +74,13 @@ from .mission_flow import (
     with_chain_defaults,
 )
 from .models import MissionState
+from .port_coordinator import _setup_port_two_phase, run_port_extraction_phase
+from .rqca_agent import run_runtime_qc
+from .security_compliance import (
+    build_security_compliance_report,
+    mission_requires_security_compliance,
+)
+from .testdata_agent import generate_testdata_manifest
 
 LOGGER = logging.getLogger(__name__)
 VALID_AGENT_IDS = frozenset(agent.agent_id for agent in AGENT_REGISTRY)
@@ -124,6 +141,39 @@ def _chain_event_exists(metadata: dict[str, Any], event_type: str) -> bool:
         isinstance(record, dict) and str(record.get("event_type", "")).upper() == event_type
         for record in metadata.get("chain_trace", [])
     )
+
+
+def _extract_support_agent_flags(
+    ceo_delegation: dict[str, Any],
+    mission_type: str,
+) -> list[str]:
+    text = f"{ceo_delegation.get('rationale', '')} {mission_type}".upper()
+    flags: list[str] = []
+    keyword_map = {
+        "SECURITY": "AGENT-05-SECURITY",
+        "COMPLIANCE": "AGENT-08-COMPLIANCE",
+        "DEPABS": "AGENT-39-DEPABS",
+        "DEPENDENC": "AGENT-39-DEPABS",
+        "TEST": "AGENT-10-TESTER",
+        "VC": "AGENT-07-VC",
+    }
+    for keyword, agent_id in keyword_map.items():
+        if keyword in text and agent_id not in flags:
+            flags.append(agent_id)
+    return flags
+
+
+def _extract_cross_pod_flags(logic_clusters: dict[str, Any]) -> list[str]:
+    clusters = logic_clusters.get("clusters") if isinstance(logic_clusters, dict) else []
+    if not isinstance(clusters, list):
+        return []
+    pod_ids = {
+        str(cluster.get("pod_manager_agent_id") or "").strip().upper()
+        for cluster in clusters
+        if isinstance(cluster, dict)
+    }
+    pod_ids.discard("")
+    return sorted(pod_ids) if len(pod_ids) > 1 else []
 
 
 def _record_artifact(
@@ -623,6 +673,69 @@ async def _prepare_pm_intake(
         },
         content_hash_source=feature_contract,
     )
+    if mission_requires_aim(mission_type) and isinstance(metadata.get("source_code"), str):
+        aim = await generate_aim(
+            mission_id=mission_id,
+            source_code=str(metadata["source_code"]),
+            prompt=str(mission.prompt or ""),
+            mission_type=mission_type,
+            requested_target_language=mission.requested_target_language,
+            feature_contract=feature_contract,
+            settings=settings,
+        )
+        metadata["application_intelligence_map"] = aim
+        if not _chain_event_exists(metadata, "MISSION_AIM_GENERATED"):
+            append_chain_event(
+                metadata,
+                event_type="MISSION_AIM_GENERATED",
+                agent_id=CEO_AGENT_ID,
+                details={
+                    "aim_id": aim.get("aim_id"),
+                    "primary_language": aim.get("primary_language"),
+                    "detected_languages": aim.get("detected_languages", []),
+                    "files_analyzed": (aim.get("extraction_summary") or {}).get(
+                        "files_analyzed", 0
+                    ),
+                    "total_functions": aim.get("total_functions", 0),
+                    "total_classes": aim.get("total_classes", 0),
+                    "complexity": aim.get("complexity_assessment"),
+                    "human_approval_recommended": aim.get("human_approval_recommended", False),
+                    "source": aim.get("source"),
+                },
+            )
+        _record_artifact(
+            metadata,
+            stage="aim",
+            event_type="MISSION_AIM_GENERATED",
+            agent_id=CEO_AGENT_ID,
+            details={
+                "aim_id": aim.get("aim_id"),
+                "schema_version": aim.get("schema_version"),
+                "source": aim.get("source"),
+                "model_provider": aim.get("model_provider"),
+                "model": aim.get("model"),
+            },
+        )
+        await record_audit_event(
+            app,
+            mission_id=mission_id,
+            mission=mission,
+            agent_id=CEO_AGENT_ID,
+            service_name="orchestrator",
+            event_type="MISSION_AIM_GENERATED",
+            object_type="application_intelligence_map",
+            object_id=str(aim.get("aim_id") or "application_intelligence_map"),
+            tool_name="aim_generator",
+            payload_summary={
+                "source": aim.get("source"),
+                "primary_language": aim.get("primary_language"),
+                "files_analyzed": (aim.get("extraction_summary") or {}).get(
+                    "files_analyzed", 0
+                ),
+                "human_approval_recommended": aim.get("human_approval_recommended", False),
+            },
+            content_hash_source=aim,
+        )
     return (
         await _persist_metadata(
             app=app,
@@ -684,7 +797,12 @@ async def _prepare_fetch_phase(
                 "indexed_languages": fetch_result["indexed_languages"],
                 "skipped": fetch_result["skipped_languages"],
                 "errors": fetch_result["errors"],
+                "knowledge_ids": fetch_result.get("knowledge_ids", []),
                 "knowledge_ready": fetch_result["knowledge_ready"],
+                "refreshed_languages": fetch_result.get("refreshed_languages", []),
+                "unchanged_languages": fetch_result.get("unchanged_languages", []),
+                "embedding_provider": fetch_result.get("embedding_provider"),
+                "embedding_model": fetch_result.get("embedding_model"),
             },
         )
 
@@ -799,6 +917,25 @@ async def _prepare_ceo_delegation(
                 "model": logic_clusters.get("model"),
             },
         )
+    if not _chain_event_exists(metadata, "CEO_REASONING_SUMMARY"):
+        clusters = logic_clusters.get("clusters") if isinstance(logic_clusters, dict) else []
+        support_agent_flags = _extract_support_agent_flags(
+            normalized,
+            str(metadata.get("mission_type") or "BUILD_NEW"),
+        )
+        metadata["ceo_support_agent_flags"] = support_agent_flags
+        append_chain_event(
+            metadata,
+            event_type="CEO_REASONING_SUMMARY",
+            agent_id=CEO_AGENT_ID,
+            details={
+                "delegation_rationale": normalized.get("rationale"),
+                "contract_summary": mission_contract.get("contract_summary"),
+                "cluster_count": len(clusters) if isinstance(clusters, list) else 0,
+                "cross_pod_flags": _extract_cross_pod_flags(logic_clusters),
+                "support_agent_flags": support_agent_flags,
+            },
+        )
     _record_artifact(
         metadata,
         stage="ceo_delegated",
@@ -889,6 +1026,11 @@ async def _prepare_ceo_delegation(
         },
         content_hash_source=logic_clusters,
     )
+    # PORT two-phase setup — extract source/target language and cluster assignments
+    mission_type_now = str(metadata.get("mission_type") or "BUILD_NEW").strip().upper()
+    if mission_type_now == "PORT" and _setting_bool(settings, "port_two_phase_enabled"):
+        _setup_port_two_phase(metadata, mission, clusters)
+
     return (
         await _persist_metadata(
             app=app,
@@ -1077,6 +1219,29 @@ async def _prepare_specialist_plan(
         return False
 
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+
+    # PORT two-phase: run extraction phase on first pass
+    if (
+        str(metadata.get("mission_type") or "").strip().upper() == "PORT"
+        and _setting_bool(settings, "port_two_phase_enabled")
+        and str(metadata.get("port_phase") or "").strip().lower() == "extraction"
+    ):
+        extraction_updates = await run_port_extraction_phase(
+            mission_id=mission_id,
+            mission=mission,
+            metadata=metadata,
+            settings=settings,
+        )
+        for key, value in extraction_updates.items():
+            metadata[key] = value
+        # Persist extraction results — port_phase is now "generation".
+        # The lifecycle engine will re-enter _prepare_specialist_plan on the
+        # next SPECIALIST_ASSIGNED transition and take the generation path.
+        updated = await asyncio.to_thread(
+            storage.update_mission_metadata, settings, mission_id, metadata
+        )
+        return updated is not None
+
     pod_manager_agent_id = _validate_agent_id(
         metadata.get("assigned_pod_manager_agent_id"),
         fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
@@ -1085,6 +1250,22 @@ async def _prepare_specialist_plan(
         metadata.get("assigned_specialist_agent_id"),
         fallback=resolve_specialist_agent_id(mission.requested_target_language),
     )
+
+    # PORT generation phase: inject source logicnodes into context
+    port_source_logicnodes = None
+    if (
+        str(metadata.get("mission_type") or "").strip().upper() == "PORT"
+        and _setting_bool(settings, "port_two_phase_enabled")
+        and str(metadata.get("port_phase") or "").strip().lower() == "generation"
+    ):
+        port_source_logicnodes = metadata.get("port_source_logicnodes") or []
+        specialist_agent_id = _validate_agent_id(
+            metadata.get("assigned_specialist_agent_id"),
+            fallback=resolve_specialist_agent_id(
+                metadata.get("port_target_language") or mission.requested_target_language
+            ),
+        )
+
     specialist_plan = await generate_specialist_plan(
         mission_context={
             **_mission_context(mission, metadata),
@@ -1109,16 +1290,28 @@ async def _prepare_specialist_plan(
         and output_mode != "ANALYZE_ONLY"
         and not isinstance(metadata.get("generated_output"), dict)
     ):
+        # Build codegen context — inject PORT source logicnodes when in generation phase
+        _codegen_context: dict[str, Any] = {
+            **_mission_context(mission, metadata),
+            "mission_contract": mission_contract,
+            "specialist_plan": normalized,
+        }
+        if port_source_logicnodes:
+            _codegen_context["port_source_logicnodes"] = port_source_logicnodes
+            _codegen_context["port_source_language"] = metadata.get("port_source_language", "")
+            _codegen_context["port_target_language"] = metadata.get("port_target_language", "")
+
+        _target_lang = (
+            str(metadata.get("port_target_language") or "").strip()
+            or mission.requested_target_language
+            or "python"
+        )
         generated_output = await generate_code_from_contract(
-            mission_context={
-                **_mission_context(mission, metadata),
-                "mission_contract": mission_contract,
-                "specialist_plan": normalized,
-            },
+            mission_context=_codegen_context,
             specialist_agent_id=specialist_agent_id,
             mission_contract=mission_contract,
-            logicnodes=[],
-            target_language=mission.requested_target_language or "python",
+            logicnodes=list(port_source_logicnodes) if port_source_logicnodes else [],
+            target_language=_target_lang,
         )
         metadata["generated_output"] = generated_output
         if not _chain_event_exists(metadata, "GENERATED_OUTPUT_CREATED"):
@@ -1133,6 +1326,21 @@ async def _prepare_specialist_plan(
                     "code_length_chars": generated_output.get("code_length_chars", 0),
                     "model_provider": generated_output.get("model_provider"),
                     "model": generated_output.get("model"),
+                },
+            )
+        # PORT generation phase complete
+        if port_source_logicnodes and not _chain_event_exists(
+            metadata, "MISSION_PORT_GENERATION_COMPLETE"
+        ):
+            append_chain_event(
+                metadata,
+                event_type="MISSION_PORT_GENERATION_COMPLETE",
+                agent_id=specialist_agent_id,
+                details={
+                    "target_language": metadata.get("port_target_language", ""),
+                    "source_logicnode_count": len(port_source_logicnodes),
+                    "filename": generated_output.get("filename"),
+                    "source": generated_output.get("source"),
                 },
             )
 
@@ -1324,6 +1532,7 @@ async def _produce_pod_group_standard(
         mission_id=mission.mission_id,
         logicnodes=[record for record in logicnodes if isinstance(record, dict)],
         mission_contract=mission_contract,
+        source_code=str(metadata.get("source_code") or metadata.get("prompt") or ""),
     )
     standards = dict(existing_standards) if isinstance(existing_standards, dict) else {}
     standards[pod_name] = standard
@@ -1346,6 +1555,28 @@ async def _produce_pod_group_standard(
                 "llm_route": standard.get("llm_route"),
                 "model_provider": standard.get("model_provider"),
                 "model": standard.get("model"),
+            },
+        )
+    coverage_verdict = standard.get("coverage_verdict")
+    if (
+        isinstance(coverage_verdict, dict)
+        and bool(coverage_verdict.get("coverage_thin", False))
+        and not _chain_event_exists(metadata, "MISSION_POD_STANDARD_THIN_COVERAGE")
+    ):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_POD_STANDARD_THIN_COVERAGE",
+            agent_id=pod_manager_agent_id,
+            details={
+                "pod": pod_name,
+                "raw_logicnode_count": coverage_verdict.get("raw_logicnode_count"),
+                "canonical_logicnode_count": coverage_verdict.get(
+                    "canonical_logicnode_count"
+                ),
+                "expected_minimum_canonical_logicnodes": coverage_verdict.get(
+                    "expected_minimum_canonical_logicnodes"
+                ),
+                "findings": coverage_verdict.get("findings", []),
             },
         )
     _record_artifact(
@@ -1478,6 +1709,576 @@ async def _ensure_verified_build_artifact(
     )
     return updated or mission
 
+
+async def _prepare_delivery_summary(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> Any:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    build_artifacts = await asyncio.to_thread(
+        storage.list_build_artifacts,
+        settings,
+        mission.mission_id,
+        50,
+    )
+    delivery_summary = await generate_pm_delivery_summary(
+        mission_context=_mission_context(mission, metadata),
+        generated_output=metadata.get("generated_output") or {},
+        build_artifacts=build_artifacts,
+        feature_contract=metadata.get("feature_contract") or {},
+        mission_contract=metadata.get("mission_contract") or {},
+    )
+    metadata["delivery_summary"] = delivery_summary
+
+    if not _chain_event_exists(metadata, "MISSION_DELIVERED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_DELIVERED",
+            agent_id=PM_AGENT_ID,
+            details={
+                "delivery_title": delivery_summary["delivery_title"],
+                "artifact_type": delivery_summary.get("primary_artifact_type"),
+                "criteria_met_count": len(delivery_summary.get("criteria_met", [])),
+                "source": delivery_summary.get("source"),
+            },
+        )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id=PM_AGENT_ID,
+        service_name="orchestrator",
+        event_type="MISSION_DELIVERED",
+        object_type="delivery_summary",
+        object_id=mission.mission_id,
+        payload_summary={
+            "delivery_title": delivery_summary["delivery_title"],
+            "artifact_type": delivery_summary.get("primary_artifact_type"),
+            "criteria_met_count": len(delivery_summary.get("criteria_met", [])),
+            "source": delivery_summary.get("source"),
+        },
+        content_hash_source=delivery_summary,
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission
+
+
+async def _prepare_equivalence_report(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> tuple[Any, bool, dict[str, Any]]:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    if not mission_requires_equivalence(metadata):
+        return mission, True, {"skipped": True, "reason": "generated output not present"}
+
+    build_artifacts = await asyncio.to_thread(
+        storage.list_build_artifacts,
+        settings,
+        mission.mission_id,
+        50,
+    )
+    enforcement_enabled = _setting_bool(
+        settings,
+        "mission_equivalence_enforcement_enabled",
+        False,
+    )
+    report = build_equivalence_report(
+        mission_id=mission.mission_id,
+        requested_target_language=mission.requested_target_language,
+        metadata=metadata,
+        build_artifacts=build_artifacts,
+        enforcement_enabled=enforcement_enabled,
+    )
+    metadata["equivalence_report"] = report
+    event_type = (
+        "MISSION_EQUIVALENCE_BLOCKED"
+        if report.get("blocking")
+        else "MISSION_EQUIVALENCE_VERIFIED"
+    )
+    if not _chain_event_exists(metadata, event_type):
+        append_chain_event(
+            metadata,
+            event_type=event_type,
+            agent_id="AGENT-10-TESTER",
+            details={
+                "report_id": report["report_id"],
+                "status": report["status"],
+                "passed": report["passed"],
+                "blocking": report["blocking"],
+                "risk_level": report["risk_level"],
+                "check_count": len(report.get("checks", [])),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="equivalence",
+        event_type=event_type,
+        agent_id="AGENT-10-TESTER",
+        details={
+            "report_id": report["report_id"],
+            "status": report["status"],
+            "passed": report["passed"],
+            "blocking": report["blocking"],
+            "risk_level": report["risk_level"],
+        },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id="AGENT-10-TESTER",
+        service_name="orchestrator",
+        event_type=event_type,
+        object_type="equivalence_report",
+        object_id=str(report["report_id"]),
+        payload_summary={
+            "status": report["status"],
+            "passed": report["passed"],
+            "blocking": report["blocking"],
+            "risk_level": report["risk_level"],
+            "check_count": len(report.get("checks", [])),
+        },
+        content_hash_source=report,
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission, not bool(report.get("blocking")), report
+
+
+async def _prepare_security_compliance_report(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> tuple[Any, bool, dict[str, Any]]:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    if not mission_requires_security_compliance(metadata):
+        return mission, True, {"skipped": True, "reason": "no mission artifact to scan"}
+
+    enforcement_enabled = _setting_bool(
+        settings,
+        "mission_security_compliance_enforcement_enabled",
+        False,
+    )
+    report = build_security_compliance_report(
+        mission_id=mission.mission_id,
+        metadata=metadata,
+        enforcement_enabled=enforcement_enabled,
+    )
+    metadata["security_compliance_report"] = report
+    if report.get("blocking"):
+        event_type = "MISSION_SECURITY_COMPLIANCE_BLOCKED"
+    elif report.get("status") == "warned":
+        event_type = "MISSION_SECURITY_COMPLIANCE_WARNED"
+    else:
+        event_type = "MISSION_SECURITY_COMPLIANCE_PASSED"
+
+    if not _chain_event_exists(metadata, event_type):
+        append_chain_event(
+            metadata,
+            event_type=event_type,
+            agent_id="AGENT-05-SECURITY",
+            details={
+                "report_id": report["report_id"],
+                "status": report["status"],
+                "passed": report["passed"],
+                "blocking": report["blocking"],
+                "risk_level": report["risk_level"],
+                "finding_count": len(report.get("findings", [])),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="security_compliance",
+        event_type=event_type,
+        agent_id="AGENT-05-SECURITY",
+        details={
+            "report_id": report["report_id"],
+            "status": report["status"],
+            "passed": report["passed"],
+            "blocking": report["blocking"],
+            "risk_level": report["risk_level"],
+        },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id="AGENT-05-SECURITY",
+        service_name="orchestrator",
+        event_type=event_type,
+        object_type="security_compliance_report",
+        object_id=str(report["report_id"]),
+        payload_summary={
+            "status": report["status"],
+            "passed": report["passed"],
+            "blocking": report["blocking"],
+            "risk_level": report["risk_level"],
+            "finding_count": len(report.get("findings", [])),
+        },
+        content_hash_source=report,
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission, not bool(report.get("blocking")), report
+
+
+async def _prepare_dependency_absorption_reports(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> tuple[Any, bool, dict[str, Any]]:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    if not mission_requires_dependency_absorption(metadata):
+        return mission, True, {"skipped": True, "reason": "no dependency evidence"}
+
+    reports = build_dependency_absorption_reports(
+        mission_id=mission.mission_id,
+        metadata=metadata,
+    )
+    inventory = reports["dependency_inventory"]
+    classification_report = reports["dependency_classification_report"]
+    absorption_report = reports["dependency_absorption_report"]
+    metadata["dependency_inventory"] = inventory
+    metadata["dependency_classification_report"] = classification_report
+    metadata["dependency_absorption_report"] = absorption_report
+    metadata["dependency_survival_justifications"] = reports[
+        "dependency_survival_justifications"
+    ]
+
+    event_type = (
+        "MISSION_DEPENDENCY_ABSORPTION_BLOCKED"
+        if absorption_report.get("blocking")
+        else "MISSION_DEPENDENCY_ABSORPTION_PLANNED"
+        if absorption_report.get("planned_replacements")
+        else "MISSION_DEPENDENCY_CLASSIFIED"
+    )
+    if not _chain_event_exists(metadata, "MISSION_DEPENDENCY_INVENTORY_CREATED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_DEPENDENCY_INVENTORY_CREATED",
+            agent_id="AGENT-39-DEPABS",
+            details={
+                "inventory_id": inventory["inventory_id"],
+                "dependency_count": inventory["dependency_count"],
+                "sources": inventory.get("sources", []),
+            },
+        )
+    if not _chain_event_exists(metadata, event_type):
+        append_chain_event(
+            metadata,
+            event_type=event_type,
+            agent_id="AGENT-39-DEPABS",
+            details={
+                "report_id": absorption_report["report_id"],
+                "classification_report_id": classification_report["report_id"],
+                "status": absorption_report["status"],
+                "blocking": absorption_report["blocking"],
+                "planned_replacement_count": len(
+                    absorption_report.get("planned_replacements", [])
+                ),
+                "safety_block_count": absorption_report.get("safety_block_count", 0),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="dependency_absorption",
+        event_type=event_type,
+        agent_id="AGENT-39-DEPABS",
+        details={
+            "inventory_id": inventory["inventory_id"],
+            "report_id": absorption_report["report_id"],
+            "status": absorption_report["status"],
+            "blocking": absorption_report["blocking"],
+            "dependency_count": inventory["dependency_count"],
+        },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id="AGENT-39-DEPABS",
+        service_name="orchestrator",
+        event_type=event_type,
+        object_type="dependency_absorption_report",
+        object_id=str(absorption_report["report_id"]),
+        payload_summary={
+            "status": absorption_report["status"],
+            "blocking": absorption_report["blocking"],
+            "dependency_count": inventory["dependency_count"],
+            "planned_replacement_count": len(
+                absorption_report.get("planned_replacements", [])
+            ),
+            "safety_block_count": absorption_report.get("safety_block_count", 0),
+        },
+        content_hash_source=reports,
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission, not bool(absorption_report.get("blocking")), absorption_report
+
+
+async def _prepare_depabs_execution(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> Any:
+    if not bool(getattr(settings, "depabs_execution_enabled", False)):
+        return mission
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    source_code = str(metadata.get("source_code") or "")
+    absorption_report = metadata.get("dependency_absorption_report")
+    if not source_code.strip() or not isinstance(absorption_report, dict):
+        return mission
+    if isinstance(metadata.get("depabs_execution"), dict):
+        return mission
+    execution = await execute_absorption(
+        mission_id=mission.mission_id,
+        source_code=source_code,
+        language=mission.requested_target_language or "python",
+        absorption_report=absorption_report,
+        settings=settings,
+    )
+    metadata["depabs_execution"] = execution
+    inventory = metadata.get("dependency_inventory")
+    survival = metadata.get("dependency_survival_justifications")
+    sbom_delta = build_sbom_delta(
+        original_dependencies=(
+            inventory.get("dependencies", []) if isinstance(inventory, dict) else []
+        ),
+        absorption_result=execution,
+        survival_justifications=survival if isinstance(survival, list) else [],
+    )
+    metadata["sbom_delta"] = sbom_delta
+    absorption_count = int(execution.get("absorption_count") or 0)
+    if absorption_count > 0:
+        language = mission.requested_target_language or "python"
+        metadata["generated_output"] = {
+            "schema_version": "generated_output.v1",
+            "generated_code": execution.get("modified_source") or source_code,
+            "filename": f"absorbed_{mission.mission_id}.{_extension_for_language(language)}",
+            "language": language,
+            "description": (
+                f"Source with {absorption_count} dependencies absorbed into first-party code."
+            ),
+            "dependencies": sbom_delta.get("remaining", []),
+            "source": "depabs_execution",
+            "code_length_chars": len(str(execution.get("modified_source") or "")),
+        }
+    append_chain_event(
+        metadata,
+        event_type="MISSION_DEPABS_EXECUTED",
+        agent_id="AGENT-39-DEPABS",
+        details={
+            "status": execution.get("status"),
+            "absorption_count": absorption_count,
+            "reduction_percent": sbom_delta.get("reduction_percent"),
+        },
+    )
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id="AGENT-39-DEPABS",
+        service_name="orchestrator",
+        event_type="MISSION_DEPABS_EXECUTED",
+        object_type="depabs_execution",
+        object_id=mission.mission_id,
+        payload_summary={
+            "status": execution.get("status"),
+            "absorption_count": absorption_count,
+            "reduction_percent": sbom_delta.get("reduction_percent"),
+        },
+        content_hash_source={"depabs_execution": execution, "sbom_delta": sbom_delta},
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    if updated is not None and absorption_count > 0:
+        try:
+            updated = await _ensure_verified_build_artifact(
+                app=app,
+                settings=settings,
+                mission=updated,
+            )
+        except Exception as exc:
+            LOGGER.warning("failed to package DEPABS artifact for %s: %s", mission.mission_id, exc)
+    return updated or mission
+
+
+def _extension_for_language(language: str) -> str:
+    return {
+        "python": "py",
+        "javascript": "js",
+        "typescript": "ts",
+        "java": "java",
+        "csharp": "cs",
+        "rust": "rs",
+        "go": "go",
+    }.get(str(language or "").lower(), "txt")
+
+
+async def _prepare_runtime_qc(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> tuple[Any, bool, dict[str, Any]]:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    generated_output = metadata.get("generated_output")
+    if not isinstance(generated_output, dict):
+        return mission, True, {"skipped": True, "reason": "no generated output"}
+    if not bool(getattr(settings, "testdata_agent_enabled", False)):
+        return mission, True, {"skipped": True, "reason": "TESTDATA disabled"}
+    target_language = mission.requested_target_language or str(
+        generated_output.get("language") or "python"
+    )
+    manifest = metadata.get("testdata_manifest")
+    if not isinstance(manifest, dict):
+        manifest = await generate_testdata_manifest(
+            mission_id=mission.mission_id,
+            generated_output=generated_output,
+            integration_tests=metadata.get("integration_tests")
+            if isinstance(metadata.get("integration_tests"), dict)
+            else None,
+            mission_contract=metadata.get("mission_contract")
+            if isinstance(metadata.get("mission_contract"), dict)
+            else {},
+            language=target_language,
+            settings=settings,
+        )
+        metadata["testdata_manifest"] = manifest
+        append_chain_event(
+            metadata,
+            event_type="MISSION_TESTDATA_MANIFEST_READY",
+            agent_id="AGENT-40-TESTDATA",
+            details={
+                "base_image": manifest.get("base_image"),
+                "timeout_seconds": manifest.get("timeout_seconds"),
+                "synthetic_input_count": len(manifest.get("synthetic_inputs") or []),
+                "source": manifest.get("source"),
+            },
+        )
+        try:
+            await asyncio.to_thread(
+                storage.insert_testdata_manifest,
+                settings,
+                mission.mission_id,
+                manifest,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "failed to persist testdata manifest for %s: %s",
+                mission.mission_id,
+                exc,
+            )
+
+    if not bool(getattr(settings, "rqca_agent_enabled", False)):
+        updated = await asyncio.to_thread(
+            storage.update_mission_metadata,
+            settings,
+            mission.mission_id,
+            metadata,
+        )
+        return updated or mission, True, {"skipped": True, "reason": "RQCA disabled"}
+
+    execution = await run_runtime_qc(
+        mission_id=mission.mission_id,
+        generated_output=generated_output,
+        testdata_manifest=manifest,
+        integration_tests=metadata.get("integration_tests")
+        if isinstance(metadata.get("integration_tests"), dict)
+        else None,
+        language=target_language,
+        settings=settings,
+    )
+    qc_assessment = await generate_rqca_assessment(
+        mission_id=mission.mission_id,
+        execution_result=execution,
+        mission_contract=metadata.get("mission_contract")
+        if isinstance(metadata.get("mission_contract"), dict)
+        else {},
+        language=target_language,
+    )
+    runtime_qc_report = {**execution, "qc_assessment": qc_assessment}
+    metadata["runtime_qc_report"] = runtime_qc_report
+    append_chain_event(
+        metadata,
+        event_type="MISSION_RUNTIME_QC_COMPLETE",
+        agent_id="AGENT-41-RQCA",
+        details={
+            "execution_verdict": execution.get("verdict"),
+            "qc_verdict": qc_assessment.get("qc_verdict"),
+            "execution_type": execution.get("execution_type"),
+            "deployment_safe": qc_assessment.get("deployment_safe"),
+            "source": execution.get("source"),
+        },
+    )
+    try:
+        await asyncio.to_thread(
+            storage.insert_runtime_qc_report,
+            settings,
+            mission.mission_id,
+            execution,
+            qc_assessment,
+        )
+    except Exception as exc:
+        LOGGER.warning("failed to persist runtime QC report for %s: %s", mission.mission_id, exc)
+    await record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id="AGENT-41-RQCA",
+        service_name="orchestrator",
+        event_type="MISSION_RUNTIME_QC_COMPLETE",
+        object_type="runtime_qc_report",
+        object_id=mission.mission_id,
+        payload_summary={
+            "execution_verdict": execution.get("verdict"),
+            "qc_verdict": qc_assessment.get("qc_verdict"),
+            "execution_type": execution.get("execution_type"),
+        },
+        content_hash_source=runtime_qc_report,
+    )
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    blocked = (
+        bool(getattr(settings, "rqca_enforcement_enabled", False))
+        and qc_assessment.get("qc_verdict") == "FAIL"
+    )
+    return updated or mission, not blocked, runtime_qc_report
+
+
 async def _prepare_fusion(
     *,
     app: Any,
@@ -1514,6 +2315,33 @@ async def _prepare_fusion(
         }
 
     metadata["master_logic_stream"] = master_stream
+
+    output_mode = str(metadata.get("output_mode") or "FULL_BUILD").strip().upper()
+    if (
+        output_mode != "ANALYZE_ONLY"
+        and master_stream.get("ready_for_codegen")
+        and not build_artifact_support.mission_has_generated_output(metadata)
+    ):
+        specialist_agent_id = _validate_agent_id(
+            metadata.get("assigned_specialist_agent_id"),
+            fallback=resolve_specialist_agent_id(mission.requested_target_language),
+        )
+        try:
+            generated_output = await generate_code_from_contract(
+                mission_context={
+                    **_mission_context(mission, metadata),
+                    "mission_contract": mission_contract,
+                    "specialist_plan": metadata.get("specialist_plan") or {},
+                    "master_logic_stream": master_stream,
+                },
+                specialist_agent_id=specialist_agent_id,
+                mission_contract=mission_contract,
+                logicnodes=master_stream.get("master_logic_stream") or [],
+                target_language=mission.requested_target_language or "python",
+            )
+            metadata["generated_output"] = generated_output
+        except Exception as exc:
+            LOGGER.warning("v2: fusion codegen failed for mission %s: %s", mission.mission_id, exc)
 
     if not _chain_event_exists(metadata, "MISSION_LOGIC_FOLDED"):
         append_chain_event(
@@ -1788,6 +2616,155 @@ async def advance_mission_lifecycle_v2(
                             exc,
                         )
                 return
+            mission, equivalence_ready, equivalence_report = await _prepare_equivalence_report(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+            if not equivalence_ready:
+                await asyncio.to_thread(
+                    storage.insert_mission_event,
+                    settings,
+                    mission_id,
+                    MissionState.verified,
+                    MissionState.verified,
+                    "MISSION_EQUIVALENCE_BLOCKED",
+                )
+                redis_ready = bool(getattr(app.state, "redis_ready", False))
+                redis_client = getattr(app.state, "redis", None)
+                if redis_ready and redis_client is not None:
+                    try:
+                        await emit_state_event_fn(
+                            settings=settings,
+                            validator=validator,
+                            redis_client=redis_client,
+                            mission=mission,
+                            event_type="MISSION_EQUIVALENCE_BLOCKED",
+                        )
+                    except Exception as exc:
+                        LOGGER.warning(
+                            "v2: failed to emit equivalence block event for mission %s: %s",
+                            mission_id,
+                            exc,
+                        )
+                LOGGER.info(
+                    "v2: mission %s blocked by equivalence report %s",
+                    mission_id,
+                    equivalence_report.get("report_id"),
+                )
+                return
+            (
+                mission,
+                security_compliance_ready,
+                security_compliance_report,
+            ) = await _prepare_security_compliance_report(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+            if not security_compliance_ready:
+                await asyncio.to_thread(
+                    storage.insert_mission_event,
+                    settings,
+                    mission_id,
+                    MissionState.verified,
+                    MissionState.verified,
+                    "MISSION_SECURITY_COMPLIANCE_BLOCKED",
+                )
+                redis_ready = bool(getattr(app.state, "redis_ready", False))
+                redis_client = getattr(app.state, "redis", None)
+                if redis_ready and redis_client is not None:
+                    try:
+                        await emit_state_event_fn(
+                            settings=settings,
+                            validator=validator,
+                            redis_client=redis_client,
+                            mission=mission,
+                            event_type="MISSION_SECURITY_COMPLIANCE_BLOCKED",
+                        )
+                    except Exception as exc:
+                        LOGGER.warning(
+                            "v2: failed to emit security/compliance block event for "
+                            "mission %s: %s",
+                            mission_id,
+                            exc,
+                        )
+                LOGGER.info(
+                    "v2: mission %s blocked by security/compliance report %s",
+                    mission_id,
+                    security_compliance_report.get("report_id"),
+                )
+                return
+            mission, dependency_absorption_ready, dependency_absorption_report = (
+                await _prepare_dependency_absorption_reports(
+                    app=app,
+                    settings=settings,
+                    mission=mission,
+                )
+            )
+            if not dependency_absorption_ready:
+                await asyncio.to_thread(
+                    storage.insert_mission_event,
+                    settings,
+                    mission_id,
+                    MissionState.verified,
+                    MissionState.verified,
+                    "MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
+                )
+                redis_ready = bool(getattr(app.state, "redis_ready", False))
+                redis_client = getattr(app.state, "redis", None)
+                if redis_ready and redis_client is not None:
+                    try:
+                        await emit_state_event_fn(
+                            settings=settings,
+                            validator=validator,
+                            redis_client=redis_client,
+                            mission=mission,
+                            event_type="MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
+                        )
+                    except Exception as exc:
+                        LOGGER.warning(
+                            "v2: failed to emit dependency absorption block event for "
+                            "mission %s: %s",
+                            mission_id,
+                            exc,
+                        )
+                LOGGER.info(
+                    "v2: mission %s blocked by dependency absorption report %s",
+                    mission_id,
+                    dependency_absorption_report.get("report_id"),
+                )
+                return
+            mission = await _prepare_depabs_execution(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+            mission, runtime_qc_ready, runtime_qc_report = await _prepare_runtime_qc(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+            if not runtime_qc_ready:
+                await asyncio.to_thread(
+                    storage.insert_mission_event,
+                    settings,
+                    mission_id,
+                    MissionState.verified,
+                    MissionState.verified,
+                    "MISSION_RUNTIME_QC_BLOCKED",
+                )
+                LOGGER.info(
+                    "v2: mission %s blocked by runtime QC report %s",
+                    mission_id,
+                    runtime_qc_report.get("verdict"),
+                )
+                return
+            mission = await _prepare_delivery_summary(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
 
         await asyncio.sleep(settings.transition_step_seconds)
 

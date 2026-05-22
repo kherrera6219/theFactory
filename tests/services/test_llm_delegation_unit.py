@@ -32,8 +32,45 @@ def test_agent_model_inventory_uses_current_codex_model() -> None:
         for record in snapshot.get("agents", [])
         if isinstance(record, dict)
     }
-    assert "gpt-5.3-codex" in models
+    assert "gpt-5.5" in models
     assert "gpt-5.2-codex" not in models
+
+
+def test_pod_manager_prompt_includes_family_strategy() -> None:
+    prompt = llm_delegation._build_pod_manager_prompt(
+        mission_context={"mission_id": "mission-1", "mission_type": "DEBUG_REPAIR"},
+        pod_manager_agent_id="AGENT-18-PODB-MGR",
+        default_specialist_agent_id="AGENT-22-RUST",
+        recommended_provider="openai",
+        recommended_model="gpt-5.5",
+    )
+    assert "Pod B owns systems language execution" in prompt
+    assert "Mission type: DEBUG_REPAIR" in prompt
+    assert "cross-pod or support-agent follow-up" in prompt
+
+
+def test_provider_health_summary_records_success_and_error() -> None:
+    llm_delegation._provider_health_samples.clear()
+    llm_delegation._record_provider_health(
+        provider="openai",
+        model="gpt-5.5",
+        latency_ms=100,
+        success=True,
+        now=1000.0,
+    )
+    llm_delegation._record_provider_health(
+        provider="openai",
+        model="gpt-5.5",
+        latency_ms=200,
+        success=False,
+        now=1001.0,
+    )
+    result = llm_delegation.get_provider_health_summary(now=1002.0)
+    provider = result["providers"]["openai"]
+    assert provider["call_count"] == 2
+    assert provider["error_count"] == 1
+    assert provider["avg_latency_ms"] == 150
+    assert provider["models"] == {"gpt-5.5": 2}
 
 
 def test_fallback_mission_contract_returns_required_shape() -> None:
@@ -132,7 +169,7 @@ def test_codegen_normalizer_strips_fences_and_sanitizes_filename() -> None:
         specialist_agent_id="AGENT-14-PYTHON",
         target_language="python",
         provider="openai",
-        model="gpt-5.3-codex",
+        model="gpt-5.5",
         route="primary",
     )
     assert result is not None
@@ -146,11 +183,11 @@ def test_generate_code_from_contract_uses_llm_result(monkeypatch) -> None:
     monkeypatch.setattr(
         llm_delegation,
         "_agent_recommendation",
-        lambda _agent_id: {"provider": "openai", "model": "gpt-5.3-codex"},
+        lambda _agent_id: {"provider": "openai", "model": "gpt-5.5"},
     )
 
     async def _call_with_recommendation(*, recommendation, prompt, call_context):
-        assert recommendation["model"] == "gpt-5.3-codex"
+        assert recommendation["model"] == "gpt-5.5"
         assert "specialist codegen" in call_context
         assert "Build hello" in prompt
         return (
@@ -162,7 +199,7 @@ def test_generate_code_from_contract_uses_llm_result(monkeypatch) -> None:
                 "dependencies": [],
             },
             "openai",
-            "gpt-5.3-codex",
+            "gpt-5.5",
             "primary",
         )
 
@@ -183,6 +220,89 @@ def test_generate_code_from_contract_uses_llm_result(monkeypatch) -> None:
     assert result["source"] == "llm"
     assert result["filename"] == "hello.py"
     assert "def hello" in result["generated_code"]
+
+
+def test_generate_pm_delivery_summary_uses_artifact_context(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_agent_recommendation",
+        lambda _agent_id: {"provider": "openai", "model": "gpt-5.5"},
+    )
+
+    async def _call_with_recommendation(*, recommendation, prompt, call_context):
+        assert recommendation["model"] == "gpt-5.5"
+        assert "pm delivery summary" in call_context
+        assert "solution.py" in prompt
+        return (
+            {
+                "delivery_title": "Delivered CSV reader",
+                "delivery_summary": "The generated artifact implements the requested reader.",
+                "criteria_met": ["Returns CSV rows"],
+                "criteria_unmet": [],
+                "usage_notes": "Run python solution.py",
+                "recommendations": ["Add integration tests"],
+            },
+            "openai",
+            "gpt-5.5",
+            "primary",
+        )
+
+    monkeypatch.setattr(llm_delegation, "_call_with_recommendation", _call_with_recommendation)
+    result = asyncio.run(
+        llm_delegation.generate_pm_delivery_summary(
+            mission_context={"mission_id": "mission-1", "requested_target_language": "python"},
+            generated_output={},
+            build_artifacts=[
+                {
+                    "artifact_id": "generated-code-output",
+                    "artifact_type": "generated_code",
+                    "manifest": {"filename": "solution.py", "language": "python"},
+                    "artifact_text": "def read_csv(path):\n    return []\n",
+                }
+            ],
+            feature_contract={"acceptance_criteria": ["Returns CSV rows"]},
+            mission_contract={"contract_summary": "Build a CSV reader"},
+        )
+    )
+
+    assert result["source"] == "llm"
+    assert result["delivery_title"] == "Delivered CSV reader"
+    assert result["primary_artifact_type"] == "generated_code"
+    assert result["criteria_met"] == ["Returns CSV rows"]
+
+
+def test_generate_pm_delivery_summary_fallback_handles_source_bundle(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_agent_recommendation",
+        lambda _agent_id: {"provider": "openai", "model": "gpt-5.5"},
+    )
+
+    async def _call_with_recommendation(*, recommendation, prompt, call_context):
+        _ = recommendation, prompt, call_context
+        return None, "fallback", "fallback", "fallback"
+
+    monkeypatch.setattr(llm_delegation, "_call_with_recommendation", _call_with_recommendation)
+    result = asyncio.run(
+        llm_delegation.generate_pm_delivery_summary(
+            mission_context={"mission_id": "mission-1"},
+            generated_output={},
+            build_artifacts=[
+                {
+                    "artifact_id": "source-bundle-package",
+                    "artifact_type": "source_bundle_package",
+                    "manifest": {"filename": "source-bundle.txt"},
+                    "artifact_text": "## FILE app.py\nprint('a')\n",
+                }
+            ],
+            feature_contract={"acceptance_criteria": ["Preserve source"]},
+            mission_contract={},
+        )
+    )
+
+    assert result["source"] == "fallback"
+    assert result["primary_artifact_type"] == "source_bundle_package"
+    assert result["criteria_unmet"] == ["Preserve source"]
 
 
 def test_pm_feature_contract_fallback_and_normalization() -> None:
@@ -338,6 +458,7 @@ def test_pod_group_standard_fallback_deduplicates_logicnodes() -> None:
     assert len(result["canonical_logicnodes"]) == 1
     assert result["canonical_logicnodes"][0]["source_node_ids"] == ["node-1", "node-2"]
     assert result["canonical_logicnodes"][0]["languages"] == ["python", "javascript"]
+    assert result["coverage_verdict"]["coverage_thin"] is False
 
 
 def test_generate_pod_group_standard_uses_llm_result(monkeypatch) -> None:
@@ -379,6 +500,7 @@ def test_generate_pod_group_standard_uses_llm_result(monkeypatch) -> None:
             mission_id="mission-7",
             logicnodes=[{"node_id": "node-1", "node": {"domain": "parsing"}}],
             mission_contract={"contract_summary": "Build CSV reader"},
+            source_code="\n".join("line" for _ in range(80)),
         )
     )
 
@@ -387,6 +509,19 @@ def test_generate_pod_group_standard_uses_llm_result(monkeypatch) -> None:
     assert result["canonical_logicnodes"][0]["standard_node_id"] == (
         "standard-node-01-parsing-csv-reader"
     )
+    assert result["coverage_verdict"]["coverage_thin"] is True
+
+
+def test_build_deploy_readiness_assessment_reports_blockers() -> None:
+    result = llm_delegation.build_deploy_readiness_assessment(
+        mission_id="mission-9",
+        metadata={"pod_group_standards": {"podA": {}}},
+        build_artifacts=[],
+    )
+    assert result["schema_version"] == "deploy_readiness.v1"
+    assert result["agent_id"] == "AGENT-11-DEPLOY"
+    assert result["ready"] is False
+    assert "packaged_artifact" in result["blockers"]
 
 
 def test_fallback_delegation_uses_language_mapping() -> None:
@@ -561,7 +696,7 @@ def test_generate_specialist_plan_falls_back_when_provider_call_missing(monkeypa
     monkeypatch.setattr(
         llm_delegation,
         "_agent_recommendation",
-        lambda _agent_id: {"provider": "gemini", "model": "gemini-3.1-pro-preview"},
+        lambda _agent_id: {"provider": "gemini", "model": "gemini-3.5-flash"},
     )
 
     async def _no_result(
@@ -726,7 +861,7 @@ def test_call_with_recommendation_uses_fallback_route(monkeypatch) -> None:
                 "provider": "anthropic",
                 "model": "claude",
                 "fallback_provider": "openai",
-                "fallback_model": "gpt-5.4-mini",
+                "fallback_model": "gpt-5.5",
             },
             prompt="prompt",
             call_context="ctx",
@@ -734,7 +869,7 @@ def test_call_with_recommendation_uses_fallback_route(monkeypatch) -> None:
     )
     assert parsed == {"specialist_agent_id": "AGENT-14-PYTHON"}
     assert provider == "openai"
-    assert model == "gpt-5.4-mini"
+    assert model == "gpt-5.5"
     assert route == "fallback"
 
 
@@ -748,9 +883,9 @@ def test_call_with_recommendation_returns_primary_when_fallback_is_same(monkeypa
         llm_delegation._call_with_recommendation(
             recommendation={
                 "provider": "openai",
-                "model": "gpt-5.4-mini",
+                "model": "gpt-5.5",
                 "fallback_provider": "openai",
-                "fallback_model": "gpt-5.4-mini",
+                "fallback_model": "gpt-5.5",
             },
             prompt="prompt",
             call_context="ctx",
@@ -758,7 +893,7 @@ def test_call_with_recommendation_returns_primary_when_fallback_is_same(monkeypa
     )
     assert parsed is None
     assert provider == "openai"
-    assert model == "gpt-5.4-mini"
+    assert model == "gpt-5.5"
     assert route == "primary"
 
 
@@ -866,6 +1001,70 @@ def test_resolve_agent_and_recommendation_default_to_ceo() -> None:
     assert recommendation["agent_id"] == llm_delegation.CEO_AGENT_ID
 
 
+def test_system_prompt_for_agent_uses_persona_profile() -> None:
+    prompt = llm_delegation._system_prompt_for_agent("AGENT-01-PM")
+    assert prompt is not None
+    assert "user-intent guardian" in prompt
+    assert "Return only the schema requested" in prompt
+    assert llm_delegation._system_prompt_for_agent("AGENT-UNKNOWN-999") is None
+
+
+def test_specialist_prompt_includes_language_and_risk_context() -> None:
+    prompt = llm_delegation._build_specialist_prompt(
+        mission_context={
+            "mission_id": "mission-1",
+            "requested_target_language": "rust",
+            "feature_contract": {
+                "risk_notes": ["unsafe boundary unclear"],
+                "clarifying_questions": ["Should unsafe be allowed?"],
+            },
+        },
+        specialist_agent_id="AGENT-22-RUST",
+        pod_manager_agent_id="AGENT-18-PODB-MGR",
+        recommended_provider="openai",
+        recommended_model="gpt-5.5",
+    )
+    assert "Ownership model correctness" in prompt
+    assert "PM risk notes" in prompt
+    assert "PM open questions" in prompt
+
+
+def test_codegen_prompt_includes_hw_context_for_systems_language() -> None:
+    prompt = llm_delegation._build_codegen_prompt(
+        mission_context={
+            "mission_id": "mission-1",
+            "mission_type": "BUILD_NEW",
+            "logic_clusters": {"clusters": [{"domain": "memory_management"}]},
+        },
+        mission_contract={
+            "contract_summary": "Build fast parser",
+            "acceptance_criteria": ["Parses input"],
+            "logicnode_requirements": [],
+        },
+        logicnodes=[],
+        target_language="rust",
+        specialist_agent_id="AGENT-22-RUST",
+        recommended_provider="openai",
+        recommended_model="gpt-5.5",
+    )
+    assert "Runtime hardware context (AW1)" in prompt
+    assert "Intel i7-14700F" in prompt
+
+
+def test_pm_ambiguity_score_tracks_questions_and_short_prompt() -> None:
+    score = llm_delegation._pm_ambiguity_score(
+        {
+            "clarifying_questions": ["one", "two"],
+            "risk_notes": ["risk"],
+            "estimated_complexity": "high",
+            "functional_requirements": ["thin"],
+            "human_approval_required": True,
+        },
+        "short prompt",
+    )
+    assert score >= 0.8
+
+
 def test_extract_text_helpers_return_none_for_invalid_shapes() -> None:
     assert llm_delegation._extract_openai_text({"choices": ["bad"], "output": ["bad"]}) is None
     assert llm_delegation._extract_anthropic_text({"content": [{"type": "image"}]}) is None
@@ -883,13 +1082,13 @@ def test_call_with_recommendation_without_fallback_returns_primary(monkeypatch) 
     monkeypatch.setattr(llm_delegation, "_call_provider", _call_provider)
     parsed, provider, model, route = asyncio.run(
         llm_delegation._call_with_recommendation(
-            recommendation={"provider": "openai", "model": "gpt-5.4-mini"},
+            recommendation={"provider": "openai", "model": "gpt-5.5"},
             prompt="prompt",
             call_context="ctx",
         )
     )
     assert parsed is None
-    assert (provider, model, route) == ("openai", "gpt-5.4-mini", "primary")
+    assert (provider, model, route) == ("openai", "gpt-5.5", "primary")
 
 
 def test_generate_ceo_delegation_uses_default_rationale(monkeypatch) -> None:

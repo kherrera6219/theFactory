@@ -26,6 +26,8 @@ type RootLayoutProps = {
   children: ReactNode;
 };
 
+import { DialogProvider } from "./components/dialog-provider";
+
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
@@ -33,7 +35,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <a className="skip-link" href="#main-content">
           Skip to main content
         </a>
-        {children}
+        <DialogProvider>
+          {children}
+        </DialogProvider>
       </body>
     </html>
   );
