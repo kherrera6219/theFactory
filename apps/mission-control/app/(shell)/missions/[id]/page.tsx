@@ -19,8 +19,11 @@ import {
   listOperationsLogicNodes,
   missionApiUrl,
   updateMissionStateWithVault,
+  updateMissionMetadata,
   getMissionTokenUsage,
 } from "../../../lib/api-client";
+import { Tooltip } from "../../../components/tooltip";
+import { GLOSSARY } from "../../../lib/glossary";
 import { humanizeState, normalizeState } from "../../../lib/format";
 import {
   deriveMissionPhaseDescriptor,
@@ -104,6 +107,11 @@ export default function MissionDetailPage() {
   const [pollFallbackTicks, setPollFallbackTicks] = useState(0);
   const [tokenUsage, setTokenUsage] = useState<LlmUsageSummary | null>(null);
   const [activeTab, setActiveTab] = useState<"execution" | "artifacts" | "contracts" | "events">("execution");
+  // 6E — Inline name edit state.
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const lastStreamRefreshRef = useRef(0);
 
   const loadDetails = useCallback(async () => {
@@ -338,6 +346,38 @@ export default function MissionDetailPage() {
     }
   }
 
+  /** 6E — Begin editing the mission name. */
+  function startEditName() {
+    const currentName = String(
+      (mission?.metadata as Record<string, unknown> | undefined)?.name ?? "",
+    );
+    setNameInput(currentName);
+    setEditingName(true);
+    requestAnimationFrame(() => nameInputRef.current?.focus());
+  }
+
+  /** 6E — Commit the edited name to the backend. */
+  async function saveName() {
+    if (!mission) return;
+    const trimmed = nameInput.trim();
+    setEditingName(false);
+    if (!trimmed || trimmed === String((mission.metadata as Record<string, unknown> | undefined)?.name ?? "")) {
+      return;
+    }
+    setNameSaving(true);
+    try {
+      const updated = await updateMissionMetadata(mission.mission_id, {
+        ...(mission.metadata as Record<string, unknown> | undefined),
+        name: trimmed,
+      });
+      setMission(updated);
+    } catch {
+      setActionError("Could not save mission name — the backend may not support PATCH yet.");
+    } finally {
+      setNameSaving(false);
+    }
+  }
+
   async function pauseMonitor() {
     if (pausedMonitor) {
       setPausedMonitor(false);
@@ -359,9 +399,69 @@ export default function MissionDetailPage() {
       <PageHeader
         eyebrow="Mission Detail"
         title={
-          mission ? (
-            <>Mission <span className="mono-id">{mission.mission_id}</span></>
-          ) : "Mission Detail"
+          mission ? (() => {
+            const missionName = String(
+              (mission.metadata as Record<string, unknown> | undefined)?.name ?? "",
+            );
+            return (
+              <span className="mission-name-edit-wrap">
+                {editingName ? (
+                  /* Edit mode */
+                  <>
+                    <input
+                      ref={nameInputRef}
+                      type="text"
+                      className="mission-name-input"
+                      value={nameInput}
+                      maxLength={120}
+                      aria-label="Mission name"
+                      onChange={(e) => setNameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void saveName();
+                        if (e.key === "Escape") setEditingName(false);
+                      }}
+                      onBlur={() => void saveName()}
+                    />
+                    <button
+                      type="button"
+                      className="mission-name-edit-btn"
+                      aria-label="Cancel editing"
+                      onClick={() => setEditingName(false)}
+                    >
+                      ✕
+                    </button>
+                  </>
+                ) : (
+                  /* Display mode */
+                  <>
+                    {missionName ? (
+                      <>
+                        <span>{missionName}</span>
+                        <span className="mono-id" style={{ fontSize: "0.6em", opacity: 0.55 }}>
+                          {mission.mission_id.slice(0, 8)}…
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        Mission{" "}
+                        <span className="mono-id">{mission.mission_id.slice(0, 12)}…</span>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="mission-name-edit-btn"
+                      aria-label="Edit mission name"
+                      title="Click to rename this mission"
+                      onClick={startEditName}
+                    >
+                      {nameSaving ? "…" : "✎"}
+                    </button>
+                  </>
+                )}
+              </span>
+            );
+          })()
+          : "Mission Detail"
         }
         description={
           mission
@@ -435,7 +535,21 @@ export default function MissionDetailPage() {
                 >
                   {complete ? "✓" : active ? "●" : "○"}
                 </span>
-                <span>{phase}</span>
+                {/* 6A: Tooltip shows the phase definition from the domain glossary */}
+                {GLOSSARY[phase.toUpperCase().replace(/\s/g, "_")] ??
+                GLOSSARY[phase] ? (
+                  <Tooltip
+                    content={
+                      (GLOSSARY[phase.toUpperCase().replace(/\s/g, "_")] ?? GLOSSARY[phase])
+                        .definition
+                    }
+                    side="bottom"
+                  >
+                    <span className="phase-name">{phase}</span>
+                  </Tooltip>
+                ) : (
+                  <span className="phase-name">{phase}</span>
+                )}
               </li>
             );
           })}

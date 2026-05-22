@@ -17,6 +17,7 @@ const SHORTCUTS: ShortcutEntry[] = [
   { combo: "Ctrl+B", action: "Open Semantic Bus" },
   { combo: "Ctrl+,", action: "Open Settings" },
   { combo: "Ctrl+?", action: "Show shortcut sheet" },
+  { combo: "Ctrl+G", action: "Reopen guided tour" },
   { combo: "Ctrl+F", action: "Focus search input on page" },
   { combo: "Ctrl+R", action: "Hard refresh current page" },
   { combo: "Space", action: "Toggle Semantic Bus live stream (on /semantic-bus)" },
@@ -100,6 +101,10 @@ export function KeyboardShortcuts() {
       if (key === "r") {
         event.preventDefault();
         window.location.reload();
+      }
+      if (key === "g") {
+        event.preventDefault();
+        document.dispatchEvent(new Event("guided-tour-open"));
       }
     }
 

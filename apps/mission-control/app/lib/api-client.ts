@@ -206,6 +206,21 @@ export async function createMission(payload: {
   });
 }
 
+/**
+ * 6E — PATCH a mission's metadata fields (e.g. { name: "My Mission" }).
+ * The backend must accept PATCH /v1/missions/{id}; if it returns 404/405 the
+ * caller should handle the error gracefully.
+ */
+export async function updateMissionMetadata(
+  missionId: string,
+  metadata: Record<string, unknown>,
+): Promise<MissionRecord> {
+  return fetchJson<MissionRecord>(missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}`), {
+    method: "PATCH",
+    body: JSON.stringify({ metadata }),
+  });
+}
+
 export async function updateMissionStateWithVault(payload: {
   missionId: string;
   newState: string;

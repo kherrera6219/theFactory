@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { GlobalSearch } from "../components/global-search";
+import { CommandPalette, CommandPaletteTrigger } from "../components/command-palette";
+import { GuidedTour } from "../components/guided-tour";
 import { KeyboardShortcuts } from "../components/keyboard-shortcuts";
 import { NotificationBell } from "../components/notification-bell";
 import { ReconnectBanner } from "../components/reconnect-banner";
 import { ShellHeaderMeta } from "../components/shell-header-meta";
 import { ShellNav } from "../components/shell-nav";
+import { StatusBar } from "../components/status-bar";
 import { StatusBadge } from "../components/status";
 
 type ShellLayoutProps = {
@@ -31,9 +33,9 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
       <div className="shell-main-column">
         <header className="shell-header">
           <ShellHeaderMeta />
-          {/* 5D — Global search center zone */}
+          {/* 6C — Command palette trigger (replaces raw GlobalSearch input) */}
           <div className="shell-header-search">
-            <GlobalSearch />
+            <CommandPaletteTrigger />
           </div>
           <div className="shell-header-actions">
             <StatusBadge
@@ -56,11 +58,14 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
         <main id="main-content" className="shell-main" tabIndex={-1}>
           {children}
         </main>
-        <footer className="shell-statusbar">
-          <span>Live Transport: Active</span>
-          <span>Ctrl+K · Search &nbsp;|&nbsp; Ctrl+? · Shortcuts</span>
-        </footer>
+        {/* 6D — Live status bar replaces static footer */}
+        <StatusBar />
       </div>
+
+      {/* 6C — Command palette modal (self-contained, manages own open state) */}
+      <CommandPalette />
+      {/* 6B — First-visit guided tour */}
+      <GuidedTour />
       <KeyboardShortcuts />
     </div>
   );

@@ -2524,3 +2524,470 @@ dd {
   margin-bottom: 4px;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 6A — Tooltip Glossary
+   ───────────────────────────────────────────────────────────────────────── */
+
+.tooltip-wrap {
+  position: relative;
+  display: inline;
+  /* Don't inherit cursor — let caller decide */
+}
+
+.tooltip-trigger {
+  cursor: help;
+  border-bottom: 1px dashed var(--ink-muted);
+  text-decoration: none;
+}
+
+.tooltip-bubble {
+  position: absolute;
+  z-index: 1200;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: normal;
+  width: max-content;
+  max-width: 260px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  font-weight: 400;
+}
+
+.tooltip-side-bottom .tooltip-bubble {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+/* Arrow pip */
+.tooltip-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+}
+
+.tooltip-side-top .tooltip-bubble::after,
+.tooltip-wrap:not(.tooltip-side-bottom) .tooltip-bubble::after {
+  top: 100%;
+  border-top-color: var(--border);
+}
+
+.tooltip-side-bottom .tooltip-bubble::after {
+  bottom: 100%;
+  border-bottom-color: var(--border);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 6B — Guided Tour
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Spotlight overlay strips */
+.tour-overlay-top,
+.tour-overlay-bottom,
+.tour-overlay-left,
+.tour-overlay-right {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.58);
+  z-index: 950;
+  pointer-events: none;
+}
+
+.tour-card {
+  position: fixed;
+  z-index: 960;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  padding: 20px 22px 16px;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  pointer-events: auto;
+}
+
+.tour-card-step {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 6px;
+}
+
+.tour-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+
+.tour-card-body {
+  font-size: 0.83rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+.tour-card-dots {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.tour-card-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  flex-shrink: 0;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.tour-card-dot.active {
+  width: 18px;
+  background: var(--accent);
+}
+
+.tour-card-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 6C — Command Palette
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Trigger button in shell header */
+.cmd-palette-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--ink-muted);
+  font-size: 0.83rem;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.cmd-palette-trigger:hover {
+  border-color: var(--accent);
+  background: var(--bg-surface);
+}
+
+.cmd-palette-trigger-icon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.cmd-palette-trigger-label {
+  flex: 1;
+}
+
+.cmd-palette-trigger-badge {
+  font-size: 0.68rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: var(--font-mono), monospace;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+
+/* Backdrop */
+.cmd-palette-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.52);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10vh;
+  z-index: 900;
+  backdrop-filter: blur(2px);
+}
+
+/* Modal */
+.cmd-palette {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 580px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 72vh;
+}
+
+.cmd-palette-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cmd-palette-icon {
+  font-size: 1.1rem;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+
+.cmd-palette-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.cmd-palette-input::placeholder {
+  color: var(--ink-dim);
+}
+
+.cmd-palette-clear {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+}
+
+.cmd-palette-clear:hover {
+  background: var(--bg-surface);
+  color: var(--ink);
+}
+
+/* Results list */
+.cmd-palette-results {
+  overflow-y: auto;
+  flex: 1;
+  padding: 6px 0;
+  list-style: none;
+  margin: 0;
+}
+
+.cmd-section {
+  list-style: none;
+}
+
+.cmd-section-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding: 10px 16px 4px;
+}
+
+.cmd-section ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.cmd-item:hover,
+.cmd-item.active {
+  background: var(--bg-surface);
+}
+
+.cmd-item-icon {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  color: var(--ink-muted);
+}
+
+.cmd-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cmd-item-label {
+  font-size: 0.88rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-item-sublabel {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-item-shortcut {
+  font-size: 0.68rem;
+  color: var(--ink-dim);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: var(--font-mono), monospace;
+  flex-shrink: 0;
+}
+
+.cmd-palette-empty {
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  list-style: none;
+}
+
+.cmd-palette-footer {
+  border-top: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex;
+  gap: 20px;
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 6D — Status Bar
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Override static shell-statusbar with flex layout */
+.shell-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.statusbar-left,
+.statusbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.statusbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.statusbar-dot.live {
+  background: var(--success);
+  box-shadow: 0 0 4px var(--success);
+}
+
+.statusbar-dot.offline {
+  background: var(--ink-dim);
+}
+
+.statusbar-divider {
+  color: var(--border);
+  user-select: none;
+}
+
+.statusbar-services,
+.statusbar-sync {
+  font-size: 0.72rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 6E — Mission Detail Inline Name Edit
+   ───────────────────────────────────────────────────────────────────────── */
+
+.mission-name-edit-wrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mission-name-input {
+  font-size: inherit;
+  font-weight: inherit;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--accent);
+  outline: none;
+  color: inherit;
+  padding: 0 2px;
+  min-width: 120px;
+  max-width: 400px;
+  line-height: 1.2;
+}
+
+.mission-name-edit-btn {
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0 3px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  vertical-align: middle;
+  transition: color 0.15s, background 0.15s;
+}
+
+.mission-name-edit-btn:hover {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* Phase name in stepper — subtle underline when it has a glossary tooltip */
+.phase-name {
+  display: inline;
+}
+
