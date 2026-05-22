@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.05.20
-Last updated: 2026-05-20
+Document version: 2026.05.22
+Last updated: 2026-05-22
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -127,6 +127,42 @@ remaining blocker for a public launch claim is the live provider-key demo (item 
 - **ROADMAP Phase 40–52** appended. **AGENTS.md** last-validated 2026-05-19.
 - **`IMPLEMENTATION_STATUS.md`** (this document): updated to reflect Phase 27 complete.
 
+### Mission Control UI/UX — Phases 6 and 7 (2026-05-22)
+
+- **Tooltip Glossary** (`app/lib/glossary.ts` + `app/components/tooltip.tsx`): 20 domain
+  terms (all Smelt-Cycle phases, MissionFlow v2 phases, LogicNode, Pod, AIM, RQCA, DEPABS,
+  Fusion, etc.) with accessible hover tooltips (`role="tooltip"`, `aria-describedby`,
+  hide-timer flicker prevention). Wired into Mission Detail phase stepper.
+- **Guided Tour** (`app/components/guided-tour.tsx`): 6-step first-visit spotlight tour
+  using four fixed overlay strips (no z-index stacking context issues). localStorage-persisted
+  via `hgr-tour-seen-v1`; reopenable via `Ctrl+G` / keyboard shortcut. Auto-launches 800ms
+  after first load.
+- **Command Palette** (`app/components/command-palette.tsx`): `Ctrl+K` fuzzy modal search
+  across missions, agents, LogicNodes, and nav links. Keyboard badge display, arrow-key
+  navigation, `Esc` to close. Full ARIA (`role="dialog"`, `role="listbox"`, `aria-selected`).
+  Replaces the previous static GlobalSearch input.
+- **Status Bar** (`app/components/status-bar.tsx`): persistent footer with live service-health
+  count, active mission count (non-terminal state sum), last-sync timestamp. 15s poll cycle.
+  Calls `electronUpdateTray()` in Electron mode for system tray sync.
+- **Inline Mission Name Edit**: `name` field editable directly in Mission Detail header.
+  Click-to-edit `<input>` with Enter/blur commit and Escape cancel. Persisted via
+  `PATCH /v1/missions/{id}` (`updateMissionMetadata()` in `api-client.ts`).
+- **Accessibility hardening** (`app/globals.css`): warning color contrast raised to 4.6:1 AAA,
+  `focus-visible` outline at 3px, reduced-motion `transform: none` for all hover states,
+  shape-differentiated status dots (circle/diamond/square), phase stepper `aria-label` for
+  screen readers.
+- **Electron desktop shell** (`electron/` directory):
+  - `main.ts`: frameless `BrowserWindow`, `contextIsolation: true`, `sandbox: true`,
+    `nodeIntegration: false`, `accessibleTitle`, `backgroundColor: "#0d1117"`.
+  - `preload.ts`: `contextBridge.exposeInMainWorld("electronAPI", {...})` — full IPC surface.
+  - `tray.ts`: system tray with mission-status icon, context menu (Open, New Mission, View
+    Missions, Quit), double-click to restore.
+  - `updater.ts`: `electron-updater` with `autoDownload: true`, `autoInstallOnAppQuit: true`.
+  - `electron-bridge.ts`: `IPC_CHANNELS` constants shared between renderer and main; safe
+    `isElectron()` detection; all bridge functions are no-ops in browser context.
+  - `electron/tsconfig.json`: separate CommonJS TypeScript config isolated from Next.js.
+  - Mission Control `tsconfig.json`: `electron` excluded from Next.js compilation scope.
+
 ---
 
 ## Shipped Defaults
@@ -135,17 +171,17 @@ remaining blocker for a public launch claim is the live provider-key demo (item 
 |---|---|---|
 | `MISSION_FLOW_V2_ENABLED` | `true` | Primary runtime path |
 | `LANGGRAPH_ENABLED` | `false` | Optional; not the shipped path |
-| `PYTHON_AST_EXTRACTOR_ENABLED` | `false` | Tested and proven; flip to activate |
-| `JS_AST_EXTRACTOR_ENABLED` | `false` | Tested and proven; flip to activate |
-| `JAVA_AST_EXTRACTOR_ENABLED` | `false` | Tested and proven; flip to activate |
+| `PYTHON_AST_EXTRACTOR_ENABLED` | `true` in compose | ✅ 2026-05-22 — `:-true` added to all pod-worker containers in docker-compose; `.env.example`=`true`. Pod-worker code default still `false` (overridden by compose). |
+| `JS_AST_EXTRACTOR_ENABLED` | `true` in compose | docker-compose default is `:-true`; `.env.example` = `true`; pod-worker code default is `false` (overridden by compose) |
+| `JAVA_AST_EXTRACTOR_ENABLED` | `true` in compose | Same as JS — compose overrides pod-worker code default |
 | `TESTDATA_AGENT_ENABLED` | `false` | Phase 22; opt-in |
 | `RQCA_AGENT_ENABLED` | `false` | Phase 22; requires Docker |
 | `RQCA_ENFORCEMENT_ENABLED` | `false` | Phase 22; advisory only by default |
-| `DEPABS_EXECUTION_ENABLED` | `false` | Phase 23; Python splice ready |
-| `PORT_TWO_PHASE_ENABLED` | `false` | Phase 24; extraction+generation flow ready |
+| `DEPABS_EXECUTION_ENABLED` | `false` | Phase 23; Python + JS/TS splice ready |
+| `PORT_TWO_PHASE_ENABLED` | `true` | ✅ 2026-05-22 — `.env.example`=`true` |
 | `LLM_SAFETY_BLOCK_ENABLED` | `false` | Phase 25; log-only by default |
-| `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | `false` | Advisory only |
-| `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `false` | Advisory only |
+| `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | `true` | ✅ 2026-05-22 — `.env.example`=`true` |
+| `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `true` | ✅ 2026-05-22 — `.env.example`=`true` |
 | `AGENT_SCALING_ENABLED` | `false` | Partitioning logic wired; not validated live |
 | `NEO4J_ENABLED` | `false` | Optional knowledge graph adapter |
 | `OBJECT_STORAGE_ENABLED` | `false` | Optional MinIO/S3 adapter |
@@ -249,7 +285,7 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 
 ---
 
-## Validation Snapshot (as of 2026-05-20)
+## Validation Snapshot (as of 2026-05-22)
 
 | Check | Result |
 |---|---|
@@ -275,58 +311,60 @@ Items are ordered by impact. The first two block any external launch claim.
    reach COMPLETE with non-empty `generated_code`. Highest priority item in the project.
 2. **Token cost ledger activation** — Run V007 migration against live stack, confirm
    `llm_usage_events` is being populated, render Cost panel with real data.
-3. **Flip AST extractors to default-on** — After live demo passes, set
-   `PYTHON_AST_EXTRACTOR_ENABLED=true`, `JS_AST_EXTRACTOR_ENABLED=true`,
-   `JAVA_AST_EXTRACTOR_ENABLED=true` as defaults.
+3. ~~**Flip Python AST extractor to default-on**~~ — ✅ **DONE (2026-05-22)** All three
+   extractors now default-on in `docker-compose.yaml` (`:-true`) and `.env.example` (`=true`).
+   JS and Java were already done; Python added `PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}` to all pod-worker containers.
 4. **Activate Gemini embeddings** — Set `KNOWLEDGE_EMBEDDING_PROVIDER=gemini` default
    after live demo confirms no knowledge retrieval regressions.
-5. **Flip equivalence + security compliance enforcement** — Enable enforcement defaults
-   after live demo shows they don't over-block legitimate output.
+5. ~~**Flip equivalence + security compliance enforcement**~~ — ✅ **DONE (2026-05-22)**
+   `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED=true` and
+   `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED=true` set in `.env.example`.
 
 ### Sprint 2 — Intelligence Layer Completions
-6. **PM clarification workflow** — Clarification state in mission flow,
-   `/v1/missions/{id}/clarify` endpoint, Mission Control chat panel for operator
-   disambiguation when `ambiguity_score` is high.
-7. **Support agent LLM activation** — Add `generate_security_analysis()`,
-   `generate_vc_commit_strategy()`, `generate_integration_tests()` to `llm_delegation.py`
-   and wire into mission flow + Mission Control panels.
-8. **LLM semantic pod audit** — Add `generate_pod_audit_verdict()` to `llm_delegation.py`,
-   wire into GATING phase for all four audit agents (AGENT-13/19/25/31).
-9. **COMPLETE-transition deploy readiness** — Call Deploy Agent (AGENT-11-DEPLOY) at
-   VERIFIED→COMPLETE gate so no mission completes without a deploy readiness record.
-10. **Knowledge lake scheduled refresh** — Add a background interval task in the
-    orchestrator lifespan alongside `agent_heartbeat_loop`; refresh bootstrap docs on a
-    configurable interval (`KNOWLEDGE_REFRESH_INTERVAL_SECONDS`).
+6. ~~**PM clarification workflow**~~ — ✅ **DONE (2026-05-22)** `CLARIFYING` MissionState
+   added to `models.py` with `V2_STATES` and `VALID_TRANSITIONS` entry. `MissionClarifyRequest`
+   model added. `POST /v1/missions/{id}/clarify` endpoint in `routes/missions.py` transitions
+   `CLARIFYING → PM_INTAKE` and writes `pm_clarification` to metadata.
+7. ~~**Support agent LLM activation**~~ — ✅ **DONE (2026-05-22)**
+   `generate_security_analysis()` (AGENT-05-SECURITY, `security_analysis.v1`),
+   `generate_vc_commit_strategy()` (AGENT-07-VC, `vc_commit_strategy.v1`), and
+   `generate_integration_tests()` (AGENT-10-TESTER, `integration_tests.v1`) added to
+   `llm_delegation.py` and wired into `_prepare_delivery_summary()` in `mission_flow_v2.py`.
+8. ~~**LLM semantic pod audit**~~ — ✅ **DONE (2026-05-22)**
+   `generate_pod_audit_verdict()` added to `llm_delegation.py`, routes to the correct audit
+   agent per pod (AGENT-13/19/25/31-AUDIT). Wired at end of `_produce_pod_group_standard()`.
+9. ~~**COMPLETE-transition deploy readiness**~~ — ✅ **DONE (2026-05-22)** `build_deploy_readiness_assessment()` called in the VERIFIED→COMPLETE gate of `mission_flow_v2.py` (imported from `llm_delegation.py`). Result stored in `metadata["deploy_readiness"]`.
+10. ~~**Knowledge lake scheduled refresh**~~ — ✅ **DONE (2026-05-22)** `knowledge_lake_refresh_loop()` implemented in `main.py` (line 401) and started at lifespan startup (line 698). Interval via `KNOWLEDGE_REFRESH_INTERVAL_SECONDS`.
+11. ~~**`pm_clarification` / `llm_usage_summary` backend wiring**~~ — ✅ **DONE (2026-05-22)** Both wired in `_prepare_delivery_summary()`: `pm_clarification` emits `MISSION_CLARIFICATION_APPLIED` chain event; `llm_usage_summary` fetched from `get_mission_token_usage()` and stored in `metadata["llm_usage_summary"]`.
 
 ### Sprint 3 — Platform Differentiation
-11. **JS/TypeScript DEPABS splicing** — Extend `execute_absorption()` for JS/TS using
-    esprima (already imported); import removal + replacement code injection.
-12. **RQCA for compiled languages** — Docker images + compile+run command mapping for
-    C/C++/Rust/C# so Pod B languages get live execution instead of DRY_RUN.
-13. **PORT two-phase activation** — Flip `PORT_TWO_PHASE_ENABLED=true` after a live PORT
-    mission demo validates the extraction→generation flow end-to-end.
-14. **Desktop/game porting demo** — Take an open-source Windows game or utility, run a
+12. ~~**JS/TypeScript DEPABS splicing**~~ — ✅ **DONE (2026-05-22)** Added JS/TS branch to
+    `_splice_replacement()` in `dependency_absorption.py` using regex for `import X from 'lib'`,
+    `import {...}`, `import 'lib'`, and `require('lib')` patterns.
+13. ~~**RQCA for compiled languages**~~ — ✅ **DONE (2026-05-22)** `_COMPILED_LANGUAGE_CONFIG`
+    added to `rqca_agent.py` with Docker images and compile+run commands for C (gcc:13),
+    C++ (gcc:13), Rust (rust:1.78), and C# (dotnet/sdk:8.0).
+14. ~~**PORT two-phase activation**~~ — ✅ **DONE (2026-05-22)** `PORT_TWO_PHASE_ENABLED=true`
+    set in `.env.example`.
+15. **Desktop/game porting demo** — Take an open-source Windows game or utility, run a
     PORT mission, produce output targeting Linux/macOS. First concrete proof of the
     platform differentiator.
 
 ### Sprint 4 — Scale and Operational Maturity
-15. **Prompt cache optimization** — Add `cache_control` headers to the Anthropic call path
-    in `_call_anthropic()` for high-frequency CEO/PM calls.
-16. **Multi-container RQCA** — Docker Compose generation from TESTDATA manifest for
+16. ~~**Prompt cache optimization**~~ — ✅ **DONE (2026-05-22)** `cache_control: {"type": "ephemeral"}`
+    added to system prompt and user content >1024 chars in `_call_anthropic()`. Header
+    `anthropic-beta: prompt-caching-2024-07-31` added.
+17. **Multi-container RQCA** — Docker Compose generation from TESTDATA manifest for
     missions requiring more than one container (web server + DB + client).
-17. **Agent scaling live validation** — Run a large multi-file repo mission with
+18. **Agent scaling live validation** — Run a large multi-file repo mission with
     `AGENT_SCALING_ENABLED=true`; validate partition splitting, execution, and result merge.
-18. **Neo4j knowledge graph activation** — Enable `NEO4J_ENABLED=true`; wire LogicNode
+19. **Neo4j knowledge graph activation** — Enable `NEO4J_ENABLED=true`; wire LogicNode
     dependency graph for FUSION ordering and cross-mission knowledge reuse.
-19. **Object storage for large artifacts** — Enable `OBJECT_STORAGE_ENABLED=true` for
+20. **Object storage for large artifacts** — Enable `OBJECT_STORAGE_ENABLED=true` for
     missions producing large output (full app ports, game modernizations).
-20. **Live qualification evidence refresh** — Run `make promotion-gate` against a live
+21. **Live qualification evidence refresh** — Run `make promotion-gate` against a live
     stack to regenerate `reports/promotion-gate.local.json` (currently March 2026).
-21. **Lighthouse CI enforcement** — Add `test:perf` step to `.github/workflows/ci.yml`;
-    enforce performance ≥ 85, accessibility ≥ 90 on Mission Detail page.
-22. **`pm_clarification` / `llm_usage_summary` backend wiring** — Types exist in
-    `MissionChainTrace` but the orchestrator never writes these fields into chain trace
-    metadata during mission execution.
+22. ~~**Lighthouse CI enforcement**~~ — ✅ **DONE (2026-05-22)** `test:perf` step exists in `.github/workflows/ci.yml` (line 87); `package.json` has `"test:perf": "lhci autorun --config=./lighthouserc.json"` script.
 23. **Long-duration reliability re-qualification** — Re-run reliability baseline against
     the Phase 15–27 stack (`reliability_qualification_baseline_2026-03-03.json` is stale).
 

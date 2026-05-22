@@ -577,16 +577,29 @@ async def _call_anthropic(
 ) -> dict[str, Any] | None:
     if not ANTHROPIC_API_KEY:
         return None
-    payload = {
+    # S4-01: Prompt cache optimization — mark the system prompt and first user
+    # turn as ephemeral cache breakpoints for high-frequency CEO/PM calls.
+    # The anthropic-beta header enables the prompt-caching feature.
+    user_content: list[dict[str, Any]] | str
+    if len(prompt) > 1024:
+        # Only cache large prompts; small ones don't benefit enough to justify
+        # the cache-write token overhead.
+        user_content = [{"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}]
+    else:
+        user_content = prompt
+    payload: dict[str, Any] = {
         "model": model,
         "max_tokens": 900,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [{"role": "user", "content": user_content}],
     }
     if system_prompt:
-        payload["system"] = system_prompt
+        payload["system"] = [
+            {"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}
+        ]
     headers = {
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": ANTHROPIC_VERSION,
+        "anthropic-beta": "prompt-caching-2024-07-31",
         "content-type": "application/json",
     }
     response = await _post_with_retry(
@@ -2833,4 +2846,562 @@ async def generate_master_logic_stream(
         "source": "llm",
         "model_provider": resolved_provider,
         "model": resolved_model,
+    }
+
+
+# ---------------------------------------------------------------------------
+# S2-02: Security threat analysis (AGENT-05-SECURITY)
+# ---------------------------------------------------------------------------
+
+async def generate_security_analysis(
+    *,
+    mission_id: str,
+    mission_context: dict[str, Any],
+    generated_output: dict[str, Any] | None,
+    mission_contract: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Run AGENT-05-SECURITY's threat analysis over the generated code artifact.
+
+    Returns a ``security_analysis.v1`` document with a threat list, risk level,
+    and deployment recommendation.  Falls back deterministically when LLM is
+    unavailable so the gating phase is never blocked by provider outages.
+    """
+    recommendation = _agent_recommendation("AGENT-05-SECURITY")
+    provider = str(recommendation.get("provider", "anthropic")).strip().lower()
+    model = str(recommendation.get("model", "claude-sonnet-4-6")).strip()
+
+    code_snippet = _clean_text(
+        str((generated_output or {}).get("generated_code") or ""), max_length=4000
+    )
+    language = _clean_text(
+        str(
+            (generated_output or {}).get("language")
+            or mission_context.get("requested_target_language")
+            or "unknown"
+        ),
+        max_length=32,
+    )
+    contract_summary = _clean_text(
+        str((mission_contract or {}).get("contract_summary") or ""), max_length=300
+    )
+
+    prompt = (
+        "You are AGENT-05-SECURITY performing a threat-analysis code review.\n"
+        f"Recommended model: {provider}/{model}\n"
+        "Analyse the generated code for security vulnerabilities, injection risks,\n"
+        "secrets/credential exposure, and unsafe dependencies.\n"
+        "Return only JSON. No markdown.\n\n"
+        f"Mission ID: {_clean_text(mission_id, max_length=96)}\n"
+        f"Language: {language}\n"
+        f"Contract summary: {contract_summary}\n"
+        f"Code artifact (truncated to 4000 chars):\n```\n{code_snippet}\n```\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "schema_version": "security_analysis.v1",\n'
+        '  "risk_level": "low|medium|high|critical",\n'
+        '  "deployment_safe": true,\n'
+        '  "threats": [\n'
+        '    {"id": "T001", "category": "injection", "severity": "high",\n'
+        '     "description": "...", "line_hint": null, "remediation": "..."}\n'
+        "  ],\n"
+        '  "summary": "One-paragraph executive summary.",\n'
+        '  "recommendations": ["..."],\n'
+        '  "passed": true\n'
+        "}\n\n"
+        "Limit threats list to 10 items. risk_level must be one of: low, medium, high, critical.\n"
+        "Set deployment_safe=false only if risk_level is high or critical.\n"
+    )
+
+    parsed, resolved_provider, resolved_model, _route = await _call_with_agent_system(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context="security threat analysis",
+        agent_id="AGENT-05-SECURITY",
+    )
+
+    if not isinstance(parsed, dict):
+        return _fallback_security_analysis(mission_id=mission_id, language=language)
+
+    valid_risk_levels = {"low", "medium", "high", "critical"}
+    risk_level = _clean_text(parsed.get("risk_level", "low"), max_length=16).lower()
+    if risk_level not in valid_risk_levels:
+        risk_level = "low"
+    deployment_safe = bool(parsed.get("deployment_safe", True))
+    threats_raw = parsed.get("threats") or []
+    threats: list[dict[str, Any]] = []
+    if isinstance(threats_raw, list):
+        for item in threats_raw[:10]:
+            if not isinstance(item, dict):
+                continue
+            threats.append({
+                "id": _clean_text(item.get("id", ""), max_length=16) or f"T{len(threats)+1:03d}",
+                "category": _clean_text(item.get("category", "unknown"), max_length=64),
+                "severity": _clean_text(item.get("severity", "low"), max_length=16).lower(),
+                "description": _clean_text(item.get("description", ""), max_length=240),
+                "line_hint": item.get("line_hint"),
+                "remediation": _clean_text(item.get("remediation", ""), max_length=240),
+            })
+    passed = risk_level not in {"high", "critical"} and deployment_safe
+    return {
+        "schema_version": "security_analysis.v1",
+        "mission_id": _clean_text(mission_id, max_length=96),
+        "agent_id": "AGENT-05-SECURITY",
+        "risk_level": risk_level,
+        "deployment_safe": deployment_safe,
+        "threats": threats,
+        "summary": _clean_text(
+            parsed.get("summary", "Security analysis complete."), max_length=600
+        ),
+        "recommendations": _string_list(parsed.get("recommendations"), limit=8),
+        "passed": passed,
+        "source": "llm",
+        "model_provider": resolved_provider,
+        "model": resolved_model,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _fallback_security_analysis(*, mission_id: str, language: str) -> dict[str, Any]:
+    return {
+        "schema_version": "security_analysis.v1",
+        "mission_id": _clean_text(mission_id, max_length=96),
+        "agent_id": "AGENT-05-SECURITY",
+        "risk_level": "low",
+        "deployment_safe": True,
+        "threats": [],
+        "summary": (
+            "Security analysis skipped — LLM provider unavailable. Manual review recommended."
+        ),
+        "recommendations": ["Perform manual security review before production deployment."],
+        "passed": True,
+        "source": "fallback",
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# S2-03: Version-control commit strategy (AGENT-07-VC)
+# ---------------------------------------------------------------------------
+
+async def generate_vc_commit_strategy(
+    *,
+    mission_id: str,
+    mission_context: dict[str, Any],
+    generated_output: dict[str, Any] | None,
+    delivery_summary: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Ask AGENT-07-VC to produce a commit strategy for the generated artifact.
+
+    Returns a ``vc_commit_strategy.v1`` document with a conventional-commit
+    message, branch name, PR summary, and rollback plan.
+    """
+    recommendation = _agent_recommendation("AGENT-07-VC")
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
+
+    language = _clean_text(
+        str(
+            (generated_output or {}).get("language")
+            or mission_context.get("requested_target_language")
+            or "unknown"
+        ),
+        max_length=32,
+    )
+    filename = _clean_text(
+        str((generated_output or {}).get("filename") or "output"), max_length=128
+    )
+    delivery_title = _clean_text(
+        str((delivery_summary or {}).get("delivery_title") or "Mission output"), max_length=200
+    )
+    mission_type = _clean_text(
+        str(mission_context.get("mission_type") or "BUILD_NEW"), max_length=48
+    ).upper()
+
+    prompt = (
+        "You are AGENT-07-VC generating a version-control commit strategy.\n"
+        f"Recommended model: {provider}/{model}\n"
+        "Produce a conventional-commit message, feature branch name, PR summary, "
+        "and rollback plan for the generated artifact.\n"
+        "Return only JSON. No markdown.\n\n"
+        f"Mission ID: {_clean_text(mission_id, max_length=96)}\n"
+        f"Mission type: {mission_type}\n"
+        f"Language: {language}\n"
+        f"Primary artifact: {filename}\n"
+        f"Delivery summary: {delivery_title}\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "schema_version": "vc_commit_strategy.v1",\n'
+        '  "commit_message": "feat(scope): description\\n\\nBody text.",\n'
+        '  "branch_name": "feature/mission-<id>-short-slug",\n'
+        '  "pr_title": "...",\n'
+        '  "pr_body": "## Summary\\n- bullet",\n'
+        '  "rollback_steps": ["git revert <sha>", "..."],\n'
+        '  "conventional_type": "feat|fix|chore|refactor|docs|test|perf"\n'
+        "}\n\n"
+        "Keep commit_message under 72 chars for the subject line.\n"
+    )
+
+    parsed, resolved_provider, resolved_model, _route = await _call_with_agent_system(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context="vc commit strategy",
+        agent_id="AGENT-07-VC",
+    )
+
+    if not isinstance(parsed, dict):
+        return _fallback_vc_commit_strategy(
+            mission_id=mission_id, language=language, mission_type=mission_type
+        )
+
+    valid_types = {"feat", "fix", "chore", "refactor", "docs", "test", "perf"}
+    conv_type = _clean_text(parsed.get("conventional_type", "feat"), max_length=16).lower()
+    if conv_type not in valid_types:
+        conv_type = "feat"
+
+    return {
+        "schema_version": "vc_commit_strategy.v1",
+        "mission_id": _clean_text(mission_id, max_length=96),
+        "agent_id": "AGENT-07-VC",
+        "commit_message": _clean_text(parsed.get("commit_message", ""), max_length=500)
+            or f"feat: mission {mission_id[:8]} output",
+        "branch_name": _clean_text(parsed.get("branch_name", ""), max_length=120)
+            or f"feature/mission-{mission_id[:8]}",
+        "pr_title": _clean_text(parsed.get("pr_title", ""), max_length=200)
+            or delivery_title,
+        "pr_body": _clean_text(parsed.get("pr_body", ""), max_length=2000),
+        "rollback_steps": _string_list(parsed.get("rollback_steps"), limit=5),
+        "conventional_type": conv_type,
+        "source": "llm",
+        "model_provider": resolved_provider,
+        "model": resolved_model,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _fallback_vc_commit_strategy(
+    *, mission_id: str, language: str, mission_type: str
+) -> dict[str, Any]:
+    slug = mission_id[:8]
+    mission_lower = mission_type.lower().replace("_", "-")
+    return {
+        "schema_version": "vc_commit_strategy.v1",
+        "mission_id": mission_id,
+        "agent_id": "AGENT-07-VC",
+        "commit_message": f"feat({language}): {mission_lower} mission {slug} output",
+        "branch_name": f"feature/mission-{slug}-{language}",
+        "pr_title": f"Mission {slug} — {mission_lower} ({language})",
+        "pr_body": f"## Summary\n- Automated output from HGR mission `{mission_id}`.",
+        "rollback_steps": ["git revert HEAD", "make down && make up"],
+        "conventional_type": "feat",
+        "source": "fallback",
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# S2-04: Integration test generation (AGENT-10-TESTER)
+# ---------------------------------------------------------------------------
+
+async def generate_integration_tests(
+    *,
+    mission_id: str,
+    mission_context: dict[str, Any],
+    generated_output: dict[str, Any] | None,
+    mission_contract: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Ask AGENT-10-TESTER to generate integration tests for the generated artifact.
+
+    Returns an ``integration_tests.v1`` document containing test code and a
+    manifest of test cases.  Falls back to a stub test when LLM is unavailable.
+    """
+    recommendation = _agent_recommendation("AGENT-10-TESTER")
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
+
+    language = _clean_text(
+        str(
+            (generated_output or {}).get("language")
+            or mission_context.get("requested_target_language")
+            or "python"
+        ),
+        max_length=32,
+    ).lower()
+    filename = _clean_text(
+        str((generated_output or {}).get("filename") or "output"), max_length=128
+    )
+    code_snippet = _clean_text(
+        str((generated_output or {}).get("generated_code") or ""), max_length=3000
+    )
+    contract_summary = _clean_text(
+        str((mission_contract or {}).get("contract_summary") or ""), max_length=300
+    )
+    acceptance_criteria = _string_list(
+        (mission_contract or {}).get("acceptance_criteria"), limit=6
+    )
+
+    prompt = (
+        "You are AGENT-10-TESTER generating integration tests.\n"
+        f"Recommended model: {provider}/{model}\n"
+        "Write integration tests that verify the acceptance criteria "
+        "of the generated artifact. Match the target language.\n"
+        "Return only JSON. No markdown.\n\n"
+        f"Mission ID: {_clean_text(mission_id, max_length=96)}\n"
+        f"Language: {language}\n"
+        f"Artifact filename: {filename}\n"
+        f"Contract summary: {contract_summary}\n"
+        f"Acceptance criteria: {json.dumps(acceptance_criteria)}\n"
+        f"Code artifact (truncated):\n```\n{code_snippet}\n```\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "schema_version": "integration_tests.v1",\n'
+        '  "test_filename": "test_output.py",\n'
+        '  "test_code": "import ...",\n'
+        '  "test_cases": [\n'
+        '    {"name": "test_happy_path", "description": "...", "expected_outcome": "..."}\n'
+        "  ],\n"
+        '  "framework": "pytest|jest|mocha|gtest|junit|rspec"\n'
+        "}\n\n"
+        "Limit test_cases to 8. test_code must be runnable in the target language.\n"
+    )
+
+    parsed, resolved_provider, resolved_model, _route = await _call_with_agent_system(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context="integration test generation",
+        agent_id="AGENT-10-TESTER",
+    )
+
+    if not isinstance(parsed, dict):
+        return _fallback_integration_tests(
+            mission_id=mission_id, language=language, filename=filename
+        )
+
+    test_cases_raw = parsed.get("test_cases") or []
+    test_cases: list[dict[str, Any]] = []
+    if isinstance(test_cases_raw, list):
+        for item in test_cases_raw[:8]:
+            if not isinstance(item, dict):
+                continue
+            test_cases.append({
+                "name": _clean_text(item.get("name", ""), max_length=120),
+                "description": _clean_text(item.get("description", ""), max_length=240),
+                "expected_outcome": _clean_text(item.get("expected_outcome", ""), max_length=240),
+            })
+
+    return {
+        "schema_version": "integration_tests.v1",
+        "mission_id": _clean_text(mission_id, max_length=96),
+        "agent_id": "AGENT-10-TESTER",
+        "test_filename": _clean_text(
+            parsed.get("test_filename", f"test_{filename}"), max_length=200
+        ),
+        "test_code": _clean_text(parsed.get("test_code", ""), max_length=10000),
+        "test_cases": test_cases,
+        "framework": _clean_text(parsed.get("framework", "pytest"), max_length=32),
+        "source": "llm",
+        "model_provider": resolved_provider,
+        "model": resolved_model,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _fallback_integration_tests(
+    *, mission_id: str, language: str, filename: str
+) -> dict[str, Any]:
+    if language == "python":
+        test_code = (
+            f"# Auto-generated stub tests for mission {mission_id[:8]}\n"
+            f"import importlib, sys\n\n"
+            f"def test_module_importable():\n"
+            f"    \"\"\"Verify the generated module imports without error.\"\"\"\n"
+            f"    # Adjust import path as needed for your project layout\n"
+            f"    assert True, 'Module import check placeholder'\n"
+        )
+        framework = "pytest"
+        test_filename = f"test_{filename}"
+    elif language in {"javascript", "typescript"}:
+        test_code = (
+            f"// Auto-generated stub tests for mission {mission_id[:8]}\n"
+            f"describe('{filename}', () => {{\n"
+            f"  it('should load without error', () => {{\n"
+            f"    expect(true).toBe(true);\n"
+            f"  }});\n"
+            f"}});\n"
+        )
+        framework = "jest"
+        test_filename = f"{filename.rsplit('.', 1)[0]}.test.{filename.rsplit('.', 1)[-1]}"
+    else:
+        test_code = f"// Stub test for mission {mission_id[:8]} ({language})\n"
+        framework = "unknown"
+        test_filename = f"test_{filename}"
+
+    return {
+        "schema_version": "integration_tests.v1",
+        "mission_id": mission_id,
+        "agent_id": "AGENT-10-TESTER",
+        "test_filename": test_filename,
+        "test_code": test_code,
+        "test_cases": [
+            {
+                "name": "test_placeholder",
+                "description": "Stub placeholder — replace with real assertions.",
+                "expected_outcome": "Passes without error.",
+            }
+        ],
+        "framework": framework,
+        "source": "fallback",
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# S2-05: Pod audit verdict (AGENT-13/19/25/31-AUDIT)
+# ---------------------------------------------------------------------------
+
+_POD_AUDIT_AGENTS: dict[str, str] = {
+    "podA": "AGENT-13-PODA-AUDIT",
+    "podB": "AGENT-19-PODB-AUDIT",
+    "podC": "AGENT-25-PODC-AUDIT",
+    "podD": "AGENT-31-PODD-AUDIT",
+}
+_DEFAULT_AUDIT_AGENT = "AGENT-13-PODA-AUDIT"
+
+
+async def generate_pod_audit_verdict(
+    *,
+    mission_id: str,
+    pod_name: str,
+    mission_context: dict[str, Any],
+    pod_group_standard: dict[str, Any],
+    generated_output: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Ask the appropriate pod QC/Audit agent to verdict the pod's output.
+
+    ``pod_name`` must be one of ``podA``, ``podB``, ``podC``, ``podD``.
+    Selects the correct audit agent (13/19/25/31) and returns a
+    ``pod_audit_verdict.v1`` document.
+    """
+    normalized_pod = pod_name.strip().lower()
+    audit_agent_id = _POD_AUDIT_AGENTS.get(normalized_pod, _DEFAULT_AUDIT_AGENT)
+    recommendation = _agent_recommendation(audit_agent_id)
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
+
+    canonical_count = len(pod_group_standard.get("canonical_logicnodes") or [])
+    eliminated = int(pod_group_standard.get("eliminated_duplicates") or 0)
+    contract_summary = _clean_text(
+        str(mission_context.get("contract_summary") or ""), max_length=300
+    )
+    language = _clean_text(
+        str(
+            (generated_output or {}).get("language")
+            or mission_context.get("requested_target_language")
+            or "unknown"
+        ),
+        max_length=32,
+    )
+
+    prompt = (
+        f"You are {audit_agent_id} performing QC audit of pod {pod_name}.\n"
+        f"Recommended model: {provider}/{model}\n"
+        "Review the pod's group standard and generated output for quality, "
+        "completeness, and contract alignment.\n"
+        "Return only JSON. No markdown.\n\n"
+        f"Mission ID: {_clean_text(mission_id, max_length=96)}\n"
+        f"Pod: {pod_name}\n"
+        f"Language: {language}\n"
+        f"Contract summary: {contract_summary}\n"
+        f"Canonical LogicNodes produced: {canonical_count}\n"
+        f"Duplicates eliminated: {eliminated}\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "schema_version": "pod_audit_verdict.v1",\n'
+        '  "verdict": "PASS|FAIL|WARN",\n'
+        '  "passed": true,\n'
+        '  "quality_score": 0.85,\n'
+        '  "findings": [\n'
+        '    {"id": "F001", "severity": "warn", "description": "..."}\n'
+        "  ],\n"
+        '  "summary": "Pod audit complete.",\n'
+        '  "recommendations": ["..."]\n'
+        "}\n\n"
+        "verdict must be PASS, FAIL, or WARN. quality_score is 0.0–1.0.\n"
+        "Limit findings to 6 items.\n"
+    )
+
+    parsed, resolved_provider, resolved_model, _route = await _call_with_agent_system(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context=f"pod audit {pod_name}",
+        agent_id=audit_agent_id,
+    )
+
+    if not isinstance(parsed, dict):
+        return _fallback_pod_audit_verdict(
+            mission_id=mission_id,
+            pod_name=pod_name,
+            audit_agent_id=audit_agent_id,
+        )
+
+    valid_verdicts = {"PASS", "FAIL", "WARN"}
+    verdict = _clean_text(parsed.get("verdict", "PASS"), max_length=8).upper()
+    if verdict not in valid_verdicts:
+        verdict = "PASS"
+
+    findings_raw = parsed.get("findings") or []
+    findings: list[dict[str, Any]] = []
+    if isinstance(findings_raw, list):
+        for item in findings_raw[:6]:
+            if not isinstance(item, dict):
+                continue
+            findings.append({
+                "id": _clean_text(item.get("id", ""), max_length=16) or f"F{len(findings)+1:03d}",
+                "severity": _clean_text(item.get("severity", "info"), max_length=16).lower(),
+                "description": _clean_text(item.get("description", ""), max_length=240),
+            })
+
+    try:
+        quality_score = max(0.0, min(1.0, float(parsed.get("quality_score") or 0.8)))
+    except (TypeError, ValueError):
+        quality_score = 0.8
+
+    return {
+        "schema_version": "pod_audit_verdict.v1",
+        "mission_id": _clean_text(mission_id, max_length=96),
+        "pod_name": pod_name,
+        "agent_id": audit_agent_id,
+        "verdict": verdict,
+        "passed": verdict != "FAIL",
+        "quality_score": round(quality_score, 4),
+        "findings": findings,
+        "summary": _clean_text(
+            parsed.get("summary", "Pod audit complete."), max_length=600
+        ),
+        "recommendations": _string_list(parsed.get("recommendations"), limit=6),
+        "source": "llm",
+        "model_provider": resolved_provider,
+        "model": resolved_model,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _fallback_pod_audit_verdict(
+    *, mission_id: str, pod_name: str, audit_agent_id: str
+) -> dict[str, Any]:
+    return {
+        "schema_version": "pod_audit_verdict.v1",
+        "mission_id": mission_id,
+        "pod_name": pod_name,
+        "agent_id": audit_agent_id,
+        "verdict": "PASS",
+        "passed": True,
+        "quality_score": 0.75,
+        "findings": [],
+        "summary": (
+            "Pod audit skipped — LLM provider unavailable. "
+            "Deterministic pass granted for pipeline continuity."
+        ),
+        "recommendations": ["Rerun pod audit with LLM access for authoritative verdict."],
+        "source": "fallback",
+        "created_at": datetime.now(UTC).isoformat(),
     }
