@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2020"],
+    "outDir": "../dist/electron",
+    "rootDir": "..",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": true,
+    /* Electron main/preload run in Node — these browser types are excluded. */
+    "types": ["node"]
+  },
+  "include": [
+    "*.ts",
+    "../app/lib/electron-bridge.ts"
+  ],
+  "exclude": [
+    "../node_modules",
+    "../.next",
+    "../out"
+  ]
+}

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { CommandPalette, CommandPaletteTrigger } from "../components/command-palette";
+import { ElectronTitlebar } from "../components/electron-titlebar";
 import { GuidedTour } from "../components/guided-tour";
 import { KeyboardShortcuts } from "../components/keyboard-shortcuts";
 import { NotificationBell } from "../components/notification-bell";
@@ -18,6 +19,8 @@ type ShellLayoutProps = {
 export default function ShellLayout({ children }: ShellLayoutProps) {
   return (
     <div className="shell">
+      {/* 7A — Custom frameless titlebar — renders only inside Electron (null in browser) */}
+      <ElectronTitlebar />
       {/* Pre-wired for SSE/WebSocket connection state — hidden until Codex wires live transport */}
       <ReconnectBanner isVisible={false} status="retrying" />
 

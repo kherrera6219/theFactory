@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getOperationsSummary } from "../lib/api-client";
+import { electronUpdateTray } from "../lib/electron-bridge";
 import { useLastRefreshed } from "../lib/use-last-refreshed";
 
 const POLL_MS = 15_000;
@@ -44,12 +45,16 @@ export function StatusBar() {
     async function load() {
       try {
         const summary = await getOperationsSummary();
-        setActiveMissions(countActive(summary.mission_state_counts));
+        const active = countActive(summary.mission_state_counts);
+        setActiveMissions(active);
         setServices(countHealthyServices(summary.runtime as Record<string, boolean | null | undefined>));
         setLastSyncAt(new Date().toISOString());
+        // 7B — Push live status to Electron system tray icon.
+        electronUpdateTray({ activeMissions: active, status: "live" });
       } catch {
         // Offline — leave existing values, dot turns grey.
         setLastSyncAt(null);
+        electronUpdateTray({ activeMissions: 0, status: "offline" });
       }
     }
 

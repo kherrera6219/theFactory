@@ -2991,3 +2991,108 @@ dd {
   display: inline;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 7A — Electron Titlebar
+   ─────────────────────────────────────────────────────────────────────────
+   Only visible inside Electron (component returns null in the browser).
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --electron-titlebar-h: 32px;
+}
+
+.electron-titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--electron-titlebar-h);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.electron-titlebar-mac {
+  padding-left: 80px;
+  justify-content: center;
+}
+
+.electron-titlebar-mac-traffic {
+  width: 80px;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  -webkit-app-region: no-drag;
+}
+
+.electron-titlebar-drag {
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
+}
+
+.electron-titlebar-title {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.electron-titlebar-controls {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: background 0.1s, color 0.1s;
+}
+
+.titlebar-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--ink);
+}
+
+.titlebar-close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+/* Shift the shell grid down by titlebar height when it is mounted */
+.shell:has(.electron-titlebar) {
+  padding-top: var(--electron-titlebar-h);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Phase 7C — Repo Import: local path row
+   ───────────────────────────────────────────────────────────────────────── */
+
+.repo-url-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.repo-local-hint {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
