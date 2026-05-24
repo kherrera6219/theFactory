@@ -54,6 +54,7 @@ from .runtime import (
     start_lifecycle_task,  # noqa: F401  (re-exported for route modules)
 )
 from .settings import load_settings
+from .orchestrator_metrics import REQUEST_COUNTER, REQUEST_LATENCY
 from .tracing import configure_tracing, current_trace_id
 
 configure_logging("orchestrator")
@@ -65,16 +66,6 @@ INTERNAL_AUTH = require_roles(SETTINGS, {"internal", "admin", "worker"})
 MUTATION_AUTH_DEP = Depends(MUTATION_AUTH)
 INTERNAL_AUTH_DEP = Depends(INTERNAL_AUTH)
 
-REQUEST_COUNTER = Counter(
-    "orchestrator_http_requests_total",
-    "Total HTTP requests served by orchestrator",
-    ("method", "path", "status_code"),
-)
-REQUEST_LATENCY = Histogram(
-    "orchestrator_http_request_duration_seconds",
-    "HTTP request latency in seconds for orchestrator",
-    ("method", "path"),
-)
 
 LIFECYCLE_RECOVERY_RETRY_SECONDS = max(
     1.0,

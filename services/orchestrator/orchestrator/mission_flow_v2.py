@@ -2528,8 +2528,7 @@ async def _prepare_fusion(
 V2_TRANSITIONS: tuple[tuple[MissionState, MissionState, str], ...] = (
     (MissionState.queued, MissionState.pm_intake, "MISSION_PM_INTAKE"),
     (MissionState.pm_intake, MissionState.clarifying, "MISSION_CLARIFYING"),
-    (MissionState.clarifying, MissionState.pm_intake, "MISSION_PM_INTAKE"),
-    (MissionState.pm_intake, MissionState.fetch, "MISSION_FETCH"),
+    (MissionState.clarifying, MissionState.fetch, "MISSION_FETCH"),
     (MissionState.fetch, MissionState.ceo_delegated, "MISSION_CEO_DELEGATED"),
     (
         MissionState.ceo_delegated,
@@ -2563,6 +2562,7 @@ V2_PHASE_ORDER: tuple[MissionState, ...] = (
     MissionState.intake,
     MissionState.queued,
     MissionState.pm_intake,
+    MissionState.clarifying,
     MissionState.fetch,
     MissionState.ceo_delegated,
     MissionState.pod_assigned,
@@ -2579,6 +2579,7 @@ V2_EVENT_TO_PHASE: dict[str, MissionState] = {
     "MISSION_INTAKE": MissionState.intake,
     "MISSION_QUEUED": MissionState.queued,
     "MISSION_PM_INTAKE": MissionState.pm_intake,
+    "MISSION_CLARIFYING": MissionState.clarifying,
     "MISSION_FETCH": MissionState.fetch,
     "MISSION_FETCH_COMPLETE": MissionState.fetch,
     "MISSION_CEO_DELEGATED": MissionState.ceo_delegated,
