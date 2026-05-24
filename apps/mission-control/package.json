@@ -2,16 +2,55 @@
   "name": "mission-control",
   "version": "0.1.0",
   "private": true,
+  "main": "dist/electron/electron/main.js",
   "scripts": {
     "tokens:sync": "node scripts/sync-design-tokens.mjs",
-    "dev": "npm run tokens:sync && next dev -p 3000",
+    "dev": "npm run tokens:sync && next dev -p 3100",
     "build": "npm run tokens:sync && next build",
-    "start": "next start -p 3000",
+    "start": "next start -p 3100",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "node scripts/run-npm-exec-clean-env.mjs playwright test",
-    "test:perf": "node scripts/run-npm-exec-clean-env.mjs lhci autorun --config=./lighthouserc.json"
+    "test:perf": "node scripts/run-npm-exec-clean-env.mjs lhci autorun --config=./lighthouserc.json",
+    "electron:dev": "npm run tokens:sync && cross-env ELECTRON_DEV=1 tsc --project electron/tsconfig.json && electron .",
+    "electron:build": "node scripts/build-electron.mjs",
+    "electron:package": "npm run electron:build && electron-builder build --win --publish never"
+  },
+  "build": {
+    "appId": "com.holygrail.mission-control",
+    "productName": "theFactory Mission Control",
+    "directories": {
+      "output": "dist/installers"
+    },
+    "files": [
+      "dist/electron/**/*",
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/tray-icon-win.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "theFactory Mission Control",
+      "uninstallDisplayName": "theFactory Mission Control",
+      "runAfterFinish": true,
+      "installerIcon": "public/tray-icon-win.ico",
+      "uninstallerIcon": "public/tray-icon-win.ico",
+      "artifactName": "theFactory-MissionControl-Setup-${version}.${ext}"
+    }
   },
   "overrides": {
     "basic-ftp": "6.0.1",
@@ -23,6 +62,7 @@
     "vite": "8.0.10"
   },
   "dependencies": {
+    "electron-updater": "^6.8.3",
     "next": "16.2.6",
     "react": "19.2.5",
     "react-dom": "19.2.5"
@@ -34,7 +74,11 @@
     "@types/node": "25.6.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "cross-env": "^7.0.3",
+    "electron": "^34.5.8",
+    "electron-builder": "^25.1.8",
     "jsdom": "29.0.2",
+    "ts-node": "^10.9.2",
     "typescript": "6.0.2",
     "vitest": "4.1.4"
   }

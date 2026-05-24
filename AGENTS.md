@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-05-19 against actual codebase (Phase 27 Release Convergence).
+> Last validated: 2026-05-22 against actual codebase (Phase 27 Release Convergence + doc/code drift audit).
 
 ---
 
@@ -48,7 +48,7 @@ All three paths emit identical lifecycle events via `emit_state_event()`.
 The language-analysis layer uses **regex-based** pattern detection for 20 language keys.
 
 **Exception**: Three languages now have AST-backed extractors alongside regex:
-- **Python** (`ast_extractor.py`) — enable via `PYTHON_AST_EXTRACTOR_ENABLED=true`; uses `ast` module for structural accuracy; regex still runs for concept detection; falls back on syntax errors. **Default: false** (pod-worker code default; no compose override yet).
+- **Python** (`ast_extractor.py`) — enable via `PYTHON_AST_EXTRACTOR_ENABLED=true`; uses `ast` module for structural accuracy; regex still runs for concept detection; falls back on syntax errors. **Default: true in docker-compose** (`${PYTHON_AST_EXTRACTOR_ENABLED:-true}`) across all pod workers; pod-worker Python code fallback is `false` if env var is absent outside compose.
 - **JavaScript / TypeScript** (`js_ast_extractor.py`) — enable via `JS_AST_EXTRACTOR_ENABLED=true`; uses `esprima`; strips TS syntax before parsing; preserves regex concept detection and fallback. *(implemented 2026-05-17)* **Default: true in docker-compose** (`${JS_AST_EXTRACTOR_ENABLED:-true}`) and `.env.example`.
 - **Java** (`java_ast_extractor.py`) — enable via `JAVA_AST_EXTRACTOR_ENABLED=true`; uses `javalang`; extracts packages, imports, classes, constructors, methods, annotations; preserves regex concept detection and fallback. *(implemented 2026-05-17)* **Default: true in docker-compose** (`${JAVA_AST_EXTRACTOR_ENABLED:-true}`) and `.env.example`.
 
@@ -82,7 +82,7 @@ Language routing:
 | Path | Sensitivity | Notes |
 |---|---|---|
 | `services/orchestrator/orchestrator/storage_*.py` | **Critical** | Storage split complete (2026-05-17): `storage.py` is now a 135-line re-export façade; domain logic is in `storage_core.py`, `storage_missions.py`, `storage_pods.py`, `storage_logicnodes.py`, `storage_artifacts.py`, `storage_agents.py`. Changes to any storage module affect all services. |
-| `services/orchestrator/orchestrator/mission_flow_v2.py` | **Critical** | 2800+ lines — primary runtime path. All Sprint 2–3 intelligence items flow through here. |
+| `services/orchestrator/orchestrator/mission_flow_v2.py` | **Critical** | 3004 lines — primary runtime path. All Sprint 2–3 intelligence items flow through here. |
 | `services/orchestrator/orchestrator/main.py` | **High** | Routes + lifespan tasks + approvals. Heartbeat synthesis extracted to `heartbeat_service.py`; knowledge refresh loop added at startup. |
 | `services/pod-worker/pod_worker/extractors/` | **High** | Core semantic engine. Fixture tests required for changes. |
 | `shared/schemas/` | **High** | Schema changes break all services. Coordinate. |
@@ -125,7 +125,7 @@ Factory: `get_lifecycle_engine(settings)` in `orchestrator/lifecycle_interface.p
 ### Extraction engine
 
 The pod-worker extracts concepts from source code using regex by default. Three languages also have full AST-backed extractors (all production-ready, feature-flagged):
-- **Python** — `PYTHON_AST_EXTRACTOR_ENABLED=true`; uses `ast` module; zero false positives for structural fields; regex still runs for concept detection; falls back on syntax errors.
+- **Python** — `PYTHON_AST_EXTRACTOR_ENABLED=true`; uses `ast` module; zero false positives for structural fields; regex still runs for concept detection; falls back on syntax errors. **Default: true in docker-compose** (`${PYTHON_AST_EXTRACTOR_ENABLED:-true}`) across all pod workers; pod-worker Python code fallback is `false` if env var is absent outside compose.
 - **JavaScript/TypeScript** — `JS_AST_EXTRACTOR_ENABLED=true`; uses `esprima`; strips TS syntax before parsing; preserves regex fallback. *(implemented 2026-05-17)*
 - **Java** — `JAVA_AST_EXTRACTOR_ENABLED=true`; uses `javalang`; extracts packages, imports, classes, constructors, methods, annotations; preserves regex fallback. *(implemented 2026-05-17)*
 
@@ -170,7 +170,7 @@ The pod-worker extracts concepts from source code using regex by default. Three 
 | File | Risk | Notes |
 |---|---|---|
 | `services/orchestrator/orchestrator/storage_*.py` | High | Storage split done (2026-05-17) — `storage.py` is now a 135-line re-export façade; 6 domain modules hold the logic. High blast radius: changes to any module affect all services. |
-| `services/orchestrator/orchestrator/mission_flow_v2.py` | High | 2800+ lines — primary runtime path. Intelligence layer completions (Sprint 2) go here. |
+| `services/orchestrator/orchestrator/mission_flow_v2.py` | High | 3004 lines — primary runtime path. Intelligence layer completions (Sprint 2) go here. |
 | `services/orchestrator/orchestrator/main.py` | High | ~926 lines. Heartbeat synthesis extracted to `heartbeat_service.py`; knowledge_lake_refresh_loop added (Sprint 2 item complete). |
 | `services/orchestrator/orchestrator/runtime.py` | Medium | Delegates engine selection to `lifecycle_interface.py` via `get_lifecycle_engine()` factory. |
 | `services/orchestrator/orchestrator/agent_registry.py` | Medium | Source of truth for all 38 agent definitions |

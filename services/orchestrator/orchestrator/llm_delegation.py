@@ -12,6 +12,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+from prometheus_client import Counter
+
+LLM_FALLBACK_TOTAL = Counter('llm_fallback_total', 'Count of silent LLM fallbacks', ['agent_id', 'reason'])
+
 
 from .agent_integrations import build_agent_integration_record
 from .agent_personas import (
@@ -355,10 +359,6 @@ def _pm_recommendation() -> dict[str, Any]:
     return _agent_recommendation("AGENT-01-PM")
 
 
-def _depabs_recommendation() -> dict[str, Any]:
-    return _agent_recommendation("AGENT-39-DEPABS")
-
-
 def _extract_openai_text(payload: dict[str, Any]) -> str | None:
     output_text = payload.get("output_text")
     if isinstance(output_text, str) and output_text.strip():
@@ -492,6 +492,14 @@ def _format_upstream_risks(metadata: dict[str, Any]) -> str:
     if not lines:
         return ""
     return "\nUpstream risk context:\n" + "\n".join(f"  - {line}" for line in lines) + "\n"
+
+
+def _format_upstream_style(metadata: dict[str, Any]) -> str:
+    """Summarize user style directives for downstream prompts."""
+    directives = metadata.get("global_style_directives") or []
+    if not directives:
+        return ""
+    return "\nGlobal Team Style Directives (MANDATORY):\n" + "\n".join(f"  - {d}" for d in directives) + "\n"
 
 
 def _pm_ambiguity_score(contract: dict[str, Any], prompt: str) -> float:
@@ -808,6 +816,12 @@ async def _call_with_agent_system(
     agent_id: str,
 ) -> tuple[dict[str, Any] | None, str, str, str]:
     """Call the recommendation helper with persona system prompt when supported."""
+    # Security Hardening: Redact PII from the prompt before sending to provider
+    redacted_prompt, matches = redact_pii(prompt)
+    if matches:
+        LOGGER.info("PII redaction active for %s: %d matches scrubbed", agent_id, len(matches))
+    prompt = redacted_prompt
+
     token = current_agent_id.set(agent_id)
     try:
         try:
@@ -835,6 +849,7 @@ def _fallback_delegation(
     mission_context: dict[str, Any],
     recommendation: dict[str, Any],
 ) -> dict[str, Any]:
+    LLM_FALLBACK_TOTAL.labels(agent_id="AGENT-02-CEO", reason="offline").inc()
     pod_manager_agent_id = resolve_pod_manager_agent_id(requested_target_language)
     specialist_agent_id = resolve_specialist_agent_id(requested_target_language)
     return {
@@ -855,6 +870,7 @@ def _fallback_pod_manager_delegation(
     mission_context: dict[str, Any],
     recommendation: dict[str, Any],
 ) -> dict[str, Any]:
+    LLM_FALLBACK_TOTAL.labels(agent_id=pod_manager_agent_id, reason="offline").inc()
     return {
         "pod_manager_agent_id": pod_manager_agent_id,
         "specialist_agent_id": specialist_agent_id,
@@ -873,6 +889,7 @@ def _fallback_specialist_plan(
     mission_context: dict[str, Any],
     recommendation: dict[str, Any],
 ) -> dict[str, Any]:
+    LLM_FALLBACK_TOTAL.labels(agent_id=specialist_agent_id, reason="offline").inc()
     language = str(mission_context.get("requested_target_language") or "general").strip().lower()
     return {
         "specialist_agent_id": specialist_agent_id,
@@ -951,13 +968,25 @@ def _build_prompt(
         if complexity in {"high", "very_high"}
         else ""
     )
+
+    risk_assessment = mission_context.get("risk_assessment") or {}
+    risk_score = float(risk_assessment.get("risk_score", 0.0))
+    risk_note = ""
+    if risk_score > 0.6:
+        risk_note = f"\nATTENTION: High risk mission (score {risk_score}). Prioritize pods with strong security/audit specialists and plan for rigorous verification cycles."
+
+    style_directives = mission_context.get("global_style_directives") or []
+    style_note = ""
+    if style_directives:
+        style_note = f"\nTEAM STYLE DIRECTIVES: {'; '.join(style_directives)}. Ensure these are propagated to all assigned pod managers and specialists."
+
     return (
-        "You are AGENT-02-CEO in a strict chain-of-command runtime.\n"
+        "You are AGENT-02-CEO in a strict chain-of-command runtime. Act as a strategic executive.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         "Return only JSON with keys: pod_manager_agent_id, specialist_agent_id, rationale.\n\n"
         f"Mission type: {mission_type}\n"
         f"Target language: {language}\n"
-        f"Strategic guidance: {strategy}{complexity_note}\n\n"
+        f"Strategic guidance: {strategy}{complexity_note}{risk_note}{style_note}\n\n"
         "Your rationale must explain why this pod, why this specialist, and any "
         "cross-pod or support-agent dependencies flagged by mission type.\n\n"
         "Mission context JSON:\n"
@@ -998,6 +1027,9 @@ def _build_pod_manager_prompt(
         pod_manager_agent_id.strip().upper(),
         "Use pod-family expertise to select the specialist with the strongest mission fit.",
     )
+    risk_context = _format_upstream_risks(mission_context)
+    style_context = _format_upstream_style(mission_context)
+
     return (
         f"You are {pod_manager_agent_id} (pod manager) in a strict delegation chain.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
@@ -1005,8 +1037,10 @@ def _build_pod_manager_prompt(
         f"Default specialist_agent_id: {default_specialist_agent_id}\n"
         f"Mission type: {mission_type}\n"
         f"Pod-family strategy: {strategy}\n"
+        f"{risk_context}{style_context}"
         "Your rationale must identify language fit, risk fit, and whether the pod "
-        "needs cross-pod or support-agent follow-up.\n"
+        "needs cross-pod or support-agent follow-up. Explicitly mention if team style "
+        "directives were factored into specialist choice.\n"
         "Mission context JSON:\n"
         f"{_safe_context_json(mission_context)}"
     )
@@ -1022,11 +1056,12 @@ def _build_specialist_prompt(
 ) -> str:
     language = str(mission_context.get("requested_target_language") or "").strip().lower()
     risk_context = _format_upstream_risks(mission_context)
+    style_context = _format_upstream_style(mission_context)
     return (
         f"You are {specialist_agent_id}, delegated by {pod_manager_agent_id}.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         f"{_language_context(language)}"
-        f"{risk_context}"
+        f"{risk_context}{style_context}"
         "Return only JSON with keys: plan_summary, deliverables, risk_notes.\n"
         "deliverables and risk_notes must be arrays of short strings.\n"
         "Mission context JSON:\n"
@@ -1113,11 +1148,28 @@ def _build_pm_feature_contract_prompt(
     requested_target_language: str | None,
     recommended_provider: str,
     recommended_model: str,
+    attachments: list[dict[str, Any]] | None = None,
+    global_style_directives: list[str] | None = None,
 ) -> str:
     safe_prompt = _clean_text(prompt, max_length=1200)
+
+    docs_context = ""
+    if attachments:
+        docs_context = "Attached Reference Documents:\n"
+        for att in attachments:
+            docs_context += f"- {att.get('filename')} (Type: {att.get('content_type')}, Purpose: {att.get('purpose')})\n"
+        docs_context += "\n"
+
+    style_context = ""
+    if global_style_directives:
+        style_context = "Global Style & Team Directives:\n"
+        for directive in global_style_directives:
+            style_context += f"- {directive}\n"
+        style_context += "\n"
+
     return (
-        "You are AGENT-01-PM. Convert the operator request into a product-level "
-        "Feature Contract for a software factory mission.\n"
+        "You are AGENT-01-PM. Convert the operator request and attached context into a product-level "
+        "Feature Contract for a software factory mission. Act as a proactive product partner.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         "Return only JSON. No markdown, prose, or code fences.\n\n"
         f"Mission type: {_clean_text(mission_type or 'BUILD_NEW', max_length=48).upper()}\n"
@@ -1125,6 +1177,7 @@ def _build_pm_feature_contract_prompt(
         f"Output mode: {_clean_text(output_mode or 'FULL_BUILD', max_length=48).upper()}\n"
         "Requested target language: "
         f"{_clean_text(requested_target_language or 'auto', max_length=32).lower()}\n"
+        f"{docs_context}{style_context}"
         f"Operator request: {safe_prompt}\n\n"
         "Required JSON keys:\n"
         "{\n"
@@ -1166,6 +1219,16 @@ def _normalize_pm_feature_contract(
     acceptance_criteria = _string_list(raw.get("acceptance_criteria"), limit=6)
     if not acceptance_criteria:
         acceptance_criteria = ["Mission completes without error."]
+    risk_assessment = {
+        "complexity": complexity,
+        "risk_score": 0.0,
+        "risk_factors": _string_list(raw.get("risk_notes"), limit=5),
+    }
+    if complexity == "very_high": risk_assessment["risk_score"] = 0.9
+    elif complexity == "high": risk_assessment["risk_score"] = 0.7
+    elif complexity == "medium": risk_assessment["risk_score"] = 0.4
+    else: risk_assessment["risk_score"] = 0.2
+
     contract = {
         "schema_version": "feature_contract.v1",
         "title": _clean_text(raw.get("title", "Mission"), max_length=80) or "Mission",
@@ -1177,6 +1240,7 @@ def _normalize_pm_feature_contract(
         "acceptance_criteria": acceptance_criteria,
         "target_languages": target_languages,
         "estimated_complexity": complexity,
+        "risk_assessment": risk_assessment,
         "human_approval_required": human_approval,
         "risk_notes": _string_list(raw.get("risk_notes"), limit=5),
         "clarifying_questions": _string_list(raw.get("clarifying_questions"), limit=5),
@@ -1197,6 +1261,7 @@ def _fallback_pm_feature_contract(
     requested_target_language: str | None,
     recommendation: dict[str, Any],
 ) -> dict[str, Any]:
+    LLM_FALLBACK_TOTAL.labels(agent_id="AGENT-01-PM", reason="offline").inc()
     language = _clean_text(requested_target_language or "", max_length=32).lower()
     contract = {
         "schema_version": "feature_contract.v1",
@@ -1227,6 +1292,8 @@ async def generate_pm_feature_contract(
     depth_mode: str,
     output_mode: str,
     requested_target_language: str | None,
+    attachments: list[dict[str, Any]] | None = None,
+    global_style_directives: list[str] | None = None,
 ) -> dict[str, Any]:
     recommendation = _pm_recommendation()
     provider = str(recommendation.get("provider", "anthropic")).strip().lower()
@@ -1239,6 +1306,8 @@ async def generate_pm_feature_contract(
         requested_target_language=requested_target_language,
         recommended_provider=provider,
         recommended_model=model,
+        attachments=attachments,
+        global_style_directives=global_style_directives,
     )
     parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
@@ -1359,6 +1428,7 @@ def _fallback_mission_contract(
     requested_target_language: str | None,
     recommendation: dict[str, Any],
 ) -> dict[str, Any]:
+    LLM_FALLBACK_TOTAL.labels(agent_id="AGENT-01-PM", reason="offline").inc()
     language = _clean_text(requested_target_language or "general", max_length=32).lower()
     return {
         "schema_version": "mission_contract.v1",
@@ -1535,6 +1605,7 @@ def _fallback_codegen(
     contract_summary: str,
     recommendation: dict[str, Any],
 ) -> dict[str, Any]:
+    LLM_FALLBACK_TOTAL.labels(agent_id=specialist_agent_id, reason="offline").inc()
     language = _clean_text(target_language or "text", max_length=32).lower()
     return {
         "schema_version": "generated_output.v1",
@@ -1719,6 +1790,7 @@ def _fallback_logic_clusters(
     ceo_delegation: dict[str, Any],
     recommendation: dict[str, Any],
 ) -> dict[str, Any]:
+    LLM_FALLBACK_TOTAL.labels(agent_id="AGENT-02-CEO", reason="offline").inc()
     pod_manager_agent_id = _normalize_agent_choice(
         ceo_delegation.get("pod_manager_agent_id"),
         allowed_ids=_VALID_POD_MANAGER_IDS,
@@ -1899,6 +1971,7 @@ def _fallback_pod_group_standard(
     recommendation: dict[str, Any],
     source_code: str | None = None,
 ) -> dict[str, Any]:
+    LLM_FALLBACK_TOTAL.labels(agent_id=f"{pod_name.upper()}-MGR", reason="offline").inc()
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for record in logicnodes[:200]:
         payload = _logicnode_payload(record)
@@ -2962,6 +3035,7 @@ async def generate_security_analysis(
 
 
 def _fallback_security_analysis(*, mission_id: str, language: str) -> dict[str, Any]:
+    LLM_FALLBACK_TOTAL.labels(agent_id="AGENT-05-SECURITY", reason="offline").inc()
     return {
         "schema_version": "security_analysis.v1",
         "mission_id": _clean_text(mission_id, max_length=96),

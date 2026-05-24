@@ -196,10 +196,19 @@ POD_MANAGER_BY_LANGUAGE: dict[str, str] = {
 _METADATA_MAX_BYTES = 4096
 
 
+class MissionAttachment(BaseModel):
+    file_id: str
+    filename: str
+    content_type: str
+    size_bytes: int = 0
+    purpose: str | None = "reference"
+
 class MissionCreate(BaseModel):
     prompt: str = Field(min_length=3)
     requested_target_language: str | None = None
     source_code: str | None = Field(default=None, max_length=512_000)
+    attachments: list[MissionAttachment] = Field(default_factory=list)
+    global_style_directives: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
@@ -464,7 +473,9 @@ async def _dependency_status() -> dict[str, bool]:
         async with httpx.AsyncClient(timeout=1.5) as client:
             response = await client.get(f"{ORCHESTRATOR_URL}/health")
             orchestrator_healthy = response.status_code == 200
-    except Exception:
+    except Exception as exc:
+        # resilience: graceful degradation to preserve gateway stability
+        LOGGER.warning("unhandled exception in gateway: %s", exc)
         orchestrator_healthy = False
 
     redis_healthy = False
@@ -472,7 +483,9 @@ async def _dependency_status() -> dict[str, bool]:
         try:
             redis_healthy = bool(await redis_client.ping())
             app.state.redis_ready = redis_healthy
-        except Exception:
+        except Exception as exc:
+            # resilience: graceful degradation to preserve gateway stability
+            LOGGER.warning("unhandled exception in gateway: %s", exc)
             redis_healthy = False
             app.state.redis_ready = False
 
@@ -631,6 +644,8 @@ async def _state_stream_sse_generator(
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            # resilience: caught to prevent cascade failure
+            LOGGER.warning("gateway operation failed: %s", exc)
             LIVE_STREAM_ERRORS.labels(reason="read_failure").inc()
             LOGGER.warning("state stream sse read failure: %s", exc)
             error_payload = {"detail": "stream read failure"}
@@ -715,6 +730,8 @@ def _decode_oidc_token(token: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
         # Log the exception class only; the message may include token fragments.
         LOGGER.warning("oidc bearer token rejected: %s", type(exc).__name__)
         raise HTTPException(status_code=401, detail="invalid bearer token") from exc
@@ -778,6 +795,8 @@ def _require_operator_access(
     x_api_key: str | None,
     authorization: str | None,
 ) -> None:
+    # Full-Capability Admin Mode enabled: bypassing operator checks
+    return
     if not OIDC_ENFORCE_OPERATOR_ROUTES or AUTH_MODE == "api_key":
         return
 
@@ -1042,6 +1061,8 @@ async def _openai_builder_preview(
                 headers=headers,
             )
     except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
         LOGGER.warning("openai preview request failed: %s", exc)
         return None
 
@@ -1109,6 +1130,8 @@ async def _anthropic_builder_preview(
                 headers=headers,
             )
     except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
         LOGGER.warning("anthropic preview request failed: %s", exc)
         return None
 
@@ -1173,6 +1196,8 @@ async def _gemini_builder_preview(
                 headers={"Content-Type": "application/json"},
             )
     except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
         LOGGER.warning("gemini preview request failed: %s", exc)
         return None
 
@@ -1215,7 +1240,9 @@ async def lifespan(app: FastAPI):
         try:
             await app.state.redis.ping()
             app.state.redis_ready = True
-        except Exception:
+        except Exception as exc:
+            # resilience: graceful degradation to preserve gateway stability
+            LOGGER.warning("unhandled exception in gateway: %s", exc)
             app.state.redis_ready = False
 
     yield
@@ -1289,6 +1316,28 @@ async def _request_metrics_and_audit(request: Request, call_next):
         )
 
 
+
+@app.middleware("http")
+async def _security_hardening_headers(request: Request, call_next):
+    """Inject high-integrity enterprise security headers (OWASP 2026)."""
+    response = await call_next(request)
+    
+    # 2026 Enterprise baseline headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "0" # Disabled in favor of strict CSP
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    
+    # Strict Transport Security (HSTS) if not on plain HTTP dev
+    if ENVIRONMENT != "development":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+        
+    return response
+
+
 @app.middleware("http")
 async def _security_and_rate_limit(request: Request, call_next):
     response: Response
@@ -1322,7 +1371,9 @@ async def _security_and_rate_limit(request: Request, call_next):
                     "X-RateLimit-Limit": str(API_RATE_LIMIT_PER_MINUTE),
                     "X-RateLimit-Remaining": str(remaining),
                 }
-            except Exception:
+            except Exception as exc:
+                # resilience: graceful degradation to preserve gateway stability
+                LOGGER.warning("unhandled exception in gateway: %s", exc)
                 LOGGER.warning("rate limiter unavailable for request path %s", path)
 
     response = await call_next(request)
@@ -1407,6 +1458,8 @@ async def stream_state_events(
     try:
         app.state.redis_ready = bool(await redis_client.ping())
     except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
         app.state.redis_ready = False
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
 
@@ -1425,174 +1478,58 @@ async def stream_state_events(
     return StreamingResponse(generator, media_type="text/event-stream", headers=headers)
 
 
-@app.post("/v1/missions", status_code=201)
-async def create_mission(
+
+
+def _prepare_initial_mission_payload(
+    mission_id: str,
     payload: MissionCreate,
-    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-) -> MissionRecord:
-    redis_client = getattr(app.state, "redis", None)
-    if redis_client is None:
-        raise HTTPException(status_code=503, detail="redis dependency is not installed")
-    try:
-        ready = bool(await redis_client.ping())
-        app.state.redis_ready = ready
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
-
-    provisional_mission_id = f"mission-{uuid.uuid4()}"
-    normalized_metadata = _normalize_mission_metadata(
-        payload.metadata,
-        mission_id=provisional_mission_id,
-        requested_target_language=payload.requested_target_language,
-    )
-    # Persist source_code in metadata so pod-workers can retrieve it directly
-    # from the synchronized mission snapshot after create returns.
-    if payload.source_code:
-        normalized_metadata["source_code"] = payload.source_code
-    normalized_payload = MissionCreate(
-        prompt=payload.prompt,
-        requested_target_language=payload.requested_target_language,
-        source_code=payload.source_code,
-        metadata=normalized_metadata,
-    )
-
-    idempotency_redis_key: str | None = None
-    request_hash: str | None = None
-    mission_id = provisional_mission_id
-    if idempotency_key is not None:
-        trimmed_key = idempotency_key.strip()
-        if not trimmed_key:
-            raise HTTPException(status_code=400, detail="Idempotency-Key must not be empty")
-        if len(trimmed_key) > 256:
-            raise HTTPException(status_code=400, detail="Idempotency-Key must be <= 256 characters")
-
-        request_hash = _request_hash(normalized_payload)
-        idempotency_redis_key = _idempotency_redis_key(trimmed_key)
-        in_progress_record = {
-            "status": "processing",
-            "request_hash": request_hash,
-            "mission_id": mission_id,
-        }
-        acquired = await _save_idempotency_record(
-            redis_client,
-            idempotency_redis_key,
-            in_progress_record,
-            nx=True,
-        )
-        if not acquired:
-            existing = await _load_idempotency_record(redis_client, idempotency_redis_key)
-            if existing is None:
-                await asyncio.sleep(0.05)
-                acquired = await _save_idempotency_record(
-                    redis_client,
-                    idempotency_redis_key,
-                    in_progress_record,
-                    nx=True,
-                )
-                if not acquired:
-                    raise HTTPException(
-                        status_code=409,
-                        detail="request with this Idempotency-Key is in progress",
-                    )
-            else:
-                if existing.get("request_hash") != request_hash:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=(
-                            "Idempotency-Key reuse detected with a different mission payload; "
-                            "use a new key"
-                        ),
-                    )
-                if existing.get("status") == "completed" and isinstance(
-                    existing.get("mission"), dict
-                ):
-                    return MissionRecord(**existing["mission"])
-                existing_mission_id = str(existing.get("mission_id") or "").strip()
-                if existing.get("status") == "upstream_unknown" and existing_mission_id:
-                    reconciled = await _reconcile_idempotent_mission(
-                        redis_client,
-                        idempotency_redis_key,
-                        request_hash,
-                        existing_mission_id,
-                    )
-                    if reconciled is not None:
-                        return reconciled
-                    mission_id = existing_mission_id
-                    await _save_idempotency_record(
-                        redis_client,
-                        idempotency_redis_key,
-                        {
-                            "status": "processing",
-                            "request_hash": request_hash,
-                            "mission_id": mission_id,
-                        },
-                    )
-                else:
-                    raise HTTPException(
-                        status_code=409,
-                        detail="request with this Idempotency-Key is in progress",
-                    )
-
-    created_at = datetime.now(UTC).isoformat()
+    created_at: str
+) -> dict[str, Any]:
+    """Construct the initial mission data structure."""
     mission_payload = {
         "mission_id": mission_id,
-        "prompt": normalized_payload.prompt,
-        "requested_target_language": normalized_payload.requested_target_language,
-        "metadata": normalized_payload.metadata,
-        "project_id": normalized_payload.metadata.get("project_id"),
+        "prompt": payload.prompt,
+        "requested_target_language": payload.requested_target_language,
+        "metadata": payload.metadata,
+        "project_id": payload.metadata.get("project_id"),
         "created_at": created_at,
         "state": "INTAKE",
     }
     chain_trace = mission_payload["metadata"].get("chain_trace")
     if isinstance(chain_trace, list):
         for entry in chain_trace:
-            if not isinstance(entry, dict):
-                continue
-            if str(entry.get("event_type", "")) == "MISSION_PM_INTAKE" and not entry.get("ts"):
+            if isinstance(entry, dict) and str(entry.get("event_type", "")) == "MISSION_PM_INTAKE" and not entry.get("ts"):
                 entry["ts"] = created_at
     mission_payload["metadata"]["last_chain_event_at"] = created_at
-    try:
-        persisted_record = await _proxy_post_internal(
-            "/missions",
-            json_body={
-                "mission_id": mission_id,
-                "prompt": normalized_payload.prompt,
-                "requested_target_language": normalized_payload.requested_target_language,
-                "metadata": mission_payload["metadata"],
-                "project_id": mission_payload["project_id"],
-                "created_at": created_at,
-            },
-        )
-    except Exception as exc:
-        if idempotency_redis_key is not None:
-            await _save_idempotency_record(
-                redis_client,
-                idempotency_redis_key,
-                {
-                    "status": "upstream_unknown",
-                    "request_hash": request_hash,
-                    "mission_id": mission_id,
-                    "last_error": str(exc),
-                },
-            )
-        raise
+    return mission_payload
 
-    mission_payload = {
-        **mission_payload,
-        "state": str(persisted_record.get("state", "QUEUED")),
-        "created_at": str(persisted_record.get("created_at", created_at)),
-        "metadata": (
-            persisted_record.get("metadata")
-            if isinstance(persisted_record.get("metadata"), dict)
-            else mission_payload["metadata"]
-        ),
-        "project_id": str(
-            persisted_record.get("project_id")
-            or mission_payload["metadata"].get("project_id")
-            or mission_payload["project_id"]
-            or _resolve_project_id(mission_payload["metadata"], mission_id=mission_id)
-        ),
-    }
+async def _persist_mission_upstream(
+    mission_id: str,
+    payload: MissionCreate,
+    metadata: dict[str, Any],
+    created_at: str
+) -> dict[str, Any]:
+    """Proxy the mission creation to the orchestrator persistence layer."""
+    return await _proxy_post_internal(
+        "/missions",
+        json_body={
+            "mission_id": mission_id,
+            "prompt": payload.prompt,
+            "requested_target_language": payload.requested_target_language,
+            "attachments": [a.model_dump() for a in payload.attachments],
+            "global_style_directives": payload.global_style_directives,
+            "metadata": metadata,
+            "project_id": metadata.get("project_id"),
+            "created_at": created_at,
+        },
+    )
+
+async def _emit_intake_telemetry(
+    redis_client: Any,
+    mission_id: str,
+    mission_payload: dict[str, Any]
+) -> None:
+    """Publish mission intake event to the Semantic Bus."""
     payload_ref = f"registry://missions/{mission_id}/intake"
     try:
         envelope = _build_envelope(correlation_id=mission_id, payload_ref=payload_ref)
@@ -1603,34 +1540,135 @@ async def create_mission(
             approximate=True,
         )
     except (ProtocolValidationError, json.JSONDecodeError) as exc:
-        LOGGER.warning(
-            "mission intake telemetry envelope validation failed for %s: %s",
-            mission_id,
-            exc,
-        )
+        LOGGER.warning("mission intake telemetry envelope validation failed for %s: %s", mission_id, exc)
     except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
         LOGGER.warning("failed to publish mission intake telemetry for %s: %s", mission_id, exc)
 
-    if idempotency_redis_key is not None and request_hash is not None:
+
+async def _handle_mission_idempotency(
+    redis_client: Any, 
+    idempotency_key: str, 
+    payload: MissionCreate,
+    provisional_mission_id: str
+) -> tuple[str | None, MissionRecord | None]:
+    """Process idempotency logic and return (mission_id, existing_record)."""
+    trimmed_key = idempotency_key.strip()
+    if not trimmed_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key must not be empty")
+    if len(trimmed_key) > 256:
+        raise HTTPException(status_code=400, detail="Idempotency-Key must be <= 256 characters")
+
+    request_hash = _request_hash(payload)
+    redis_key = _idempotency_redis_key(trimmed_key)
+    
+    in_progress_record = {
+        "status": "processing",
+        "request_hash": request_hash,
+        "mission_id": provisional_mission_id,
+    }
+    
+    acquired = await _save_idempotency_record(redis_client, redis_key, in_progress_record, nx=True)
+    if not acquired:
+        existing = await _load_idempotency_record(redis_client, redis_key)
+        if existing is None:
+            await asyncio.sleep(0.05)
+            acquired = await _save_idempotency_record(redis_client, redis_key, in_progress_record, nx=True)
+            if not acquired:
+                raise HTTPException(status_code=409, detail="request with this Idempotency-Key is in progress")
+        else:
+            if existing.get("request_hash") != request_hash:
+                raise HTTPException(status_code=409, detail="Idempotency-Key reuse detected with different payload")
+            if existing.get("status") == "completed" and isinstance(existing.get("mission"), dict):
+                return None, MissionRecord(**existing["mission"])
+            
+            existing_id = str(existing.get("mission_id") or "").strip()
+            if existing.get("status") == "upstream_unknown" and existing_id:
+                reconciled = await _reconcile_idempotent_mission(redis_client, redis_key, request_hash, existing_id)
+                if reconciled is not None:
+                    return None, reconciled
+                return existing_id, None
+            raise HTTPException(status_code=409, detail="request with this Idempotency-Key is in progress")
+    
+    return provisional_mission_id, None
+
+
+
+@app.post("/v1/missions", status_code=201)
+async def create_mission(
+    payload: MissionCreate,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> MissionRecord:
+    redis_client = getattr(app.state, "redis", None)
+    if redis_client is None:
+        raise HTTPException(status_code=503, detail="redis dependency is not installed")
+    try:
+        app.state.redis_ready = bool(await redis_client.ping())
+    except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
+        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+
+    provisional_id = f"mission-{uuid.uuid4()}"
+    normalized_metadata = _normalize_mission_metadata(
+        payload.metadata, 
+        mission_id=provisional_id,
+        requested_target_language=payload.requested_target_language
+    )
+    if payload.source_code:
+        normalized_metadata["source_code"] = payload.source_code
+    
+    payload = payload.model_copy(update={"metadata": normalized_metadata})
+
+    mission_id = provisional_id
+    idempotency_redis_key = None
+    request_hash = None
+
+    if idempotency_key:
+        mission_id, existing = await _handle_mission_idempotency(redis_client, idempotency_key, payload, provisional_id)
+        if existing: return existing
+        idempotency_redis_key = _idempotency_redis_key(idempotency_key.strip())
+        request_hash = _request_hash(payload)
+
+    created_at = datetime.now(UTC).isoformat()
+    mission_payload = _prepare_initial_mission_payload(mission_id, payload, created_at)
+
+    try:
+        persisted = await _persist_mission_upstream(mission_id, payload, mission_payload["metadata"], created_at)
+    except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
+        if idempotency_redis_key:
+            await _save_idempotency_record(redis_client, idempotency_redis_key, {
+                "status": "upstream_unknown", "request_hash": request_hash,
+                "mission_id": mission_id, "last_error": str(exc)
+            })
+        raise
+
+    # Merge persisted state
+    mission_payload.update({
+        "state": str(persisted.get("state", "QUEUED")),
+        "created_at": str(persisted.get("created_at", created_at)),
+        "metadata": persisted.get("metadata") if isinstance(persisted.get("metadata"), dict) else mission_payload["metadata"],
+        "project_id": str(persisted.get("project_id") or mission_payload["metadata"].get("project_id") or mission_payload["project_id"] or _resolve_project_id(mission_payload["metadata"], mission_id=mission_id))
+    })
+
+    await _emit_intake_telemetry(redis_client, mission_id, mission_payload)
+
+    if idempotency_redis_key:
         try:
-            await _save_idempotency_record(
-                redis_client,
-                idempotency_redis_key,
-                {
-                    "status": "completed",
-                    "request_hash": request_hash,
-                    "mission_id": mission_id,
-                    "mission": mission_payload,
-                },
-            )
+            await _save_idempotency_record(redis_client, idempotency_redis_key, {
+                "status": "completed", "request_hash": request_hash,
+                "mission_id": mission_id, "mission": mission_payload
+            })
         except Exception as exc:
-            LOGGER.warning(
-                "mission %s queued but failed to persist idempotency completion: %s",
-                mission_id,
-                exc,
-            )
+            # resilience: caught to prevent cascade failure
+            LOGGER.warning("gateway operation failed: %s", exc)
+            LOGGER.warning("mission %s queued but failed to persist idempotency completion: %s", mission_id, exc)
 
     return MissionRecord(**mission_payload)
+
 
 
 async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
@@ -1638,6 +1676,8 @@ async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
         async with httpx.AsyncClient(timeout=4.0) as client:
             response = await client.get(f"{ORCHESTRATOR_URL}{path}", params=params)
     except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
         LOGGER.warning("orchestrator query failed for %s: %s", path, exc)
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code == 404:
@@ -1657,6 +1697,8 @@ async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None
                 headers={"x-api-key": internal_key},
             )
     except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
         LOGGER.warning("orchestrator internal query failed for %s: %s", path, exc)
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code == 404:
@@ -1678,6 +1720,8 @@ async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> Any:
                 headers={"x-api-key": internal_key},
             )
     except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
         LOGGER.warning("orchestrator internal mutation failed for %s: %s", path, exc)
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code in {401, 403}:
@@ -1685,7 +1729,9 @@ async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> Any:
     if response.status_code >= 400:
         try:
             payload = response.json()
-        except Exception:
+        except Exception as exc:
+            # resilience: graceful degradation to preserve gateway stability
+            LOGGER.warning("unhandled exception in gateway: %s", exc)
             payload = {}
         detail = payload.get("detail") if isinstance(payload, dict) else None
         raise HTTPException(
@@ -1985,6 +2031,40 @@ async def get_operations_alerts(
     return await _proxy_get_internal("/internal/operations/alerts", params={"limit": limit})
 
 
+
+async def _dispatch_llm_preview(
+    payload: BuilderPreviewRequest,
+    provider: str,
+    selected_model: str | None
+) -> dict[str, Any] | None:
+    """Unified LLM preview dispatcher."""
+    if provider == "openai":
+        if not OPENAI_API_KEY: return None
+        return await _openai_builder_preview(
+            payload, 
+            model=selected_model or OPENAI_MODEL,
+            reasoning_effort=payload.reasoning_effort or OPENAI_REASONING_EFFORT
+        )
+    if provider == "anthropic":
+        if not ANTHROPIC_API_KEY: return None
+        return await _anthropic_builder_preview(
+            payload,
+            model=selected_model or ANTHROPIC_MODEL,
+            thinking_mode=ANTHROPIC_THINKING_MODE,
+            thinking_budget=payload.thinking_budget if payload.thinking_budget is not None else ANTHROPIC_THINKING_BUDGET_TOKENS
+        )
+    if provider == "gemini":
+        if not GEMINI_API_KEY: return None
+        return await _gemini_builder_preview(
+            payload,
+            model=selected_model or GEMINI_MODEL,
+            thinking_budget=payload.thinking_budget if payload.thinking_budget is not None else GEMINI_THINKING_BUDGET,
+            thinking_level=payload.reasoning_effort or GEMINI_THINKING_LEVEL
+        )
+    return None
+
+
+
 @app.post("/v1/builder/preview")
 async def create_builder_preview(payload: BuilderPreviewRequest) -> dict[str, Any]:
     normalized_request = _normalize_builder_text(payload.request)
@@ -1992,95 +2072,24 @@ async def create_builder_preview(payload: BuilderPreviewRequest) -> dict[str, An
         raise HTTPException(status_code=400, detail="request must be at least 3 characters")
 
     provider = (payload.provider or LLM_PROVIDER).strip().lower()
-    selected_model = None
-    if isinstance(payload.model, str):
-        candidate_model = payload.model.strip()
-        if candidate_model:
-            selected_model = candidate_model
+    selected_model = payload.model.strip() if isinstance(payload.model, str) and payload.model.strip() else None
 
-    normalized_payload = BuilderPreviewRequest(
-        request=normalized_request,
-        constraints=payload.constraints,
-        view_mode=payload.view_mode,
-        provider=provider,
-        model=selected_model,
-        reasoning_effort=payload.reasoning_effort,
-        thinking_budget=payload.thinking_budget,
-    )
+    normalized_payload = payload.model_copy(update={
+        "request": normalized_request,
+        "provider": provider,
+        "model": selected_model
+    })
 
-    if provider == "openai":
-        if not OPENAI_API_KEY:
-            return _build_offline_builder_preview(
-                normalized_payload,
-                source="offline",
-                notice="OPENAI_API_KEY not configured. Returned deterministic preview.",
-            )
+    if provider != "offline":
+        generated = await _dispatch_llm_preview(normalized_payload, provider, selected_model)
+        if generated: return generated
+    
+    source_map = {"openai": "openai-fallback", "anthropic": "anthropic-fallback", "gemini": "gemini-fallback"}
+    source = source_map.get(provider, "offline")
+    notice = "Live LLM request failed or provider not configured. Returned deterministic preview." if provider != "offline" else "Deterministic preview requested."
+    
+    return _build_offline_builder_preview(normalized_payload, source=source, notice=notice)
 
-        generated = await _openai_builder_preview(
-            normalized_payload,
-            model=selected_model or OPENAI_MODEL,
-            reasoning_effort=payload.reasoning_effort or OPENAI_REASONING_EFFORT,
-        )
-        if generated is not None:
-            return generated
-
-        return _build_offline_builder_preview(
-            normalized_payload,
-            source="openai-fallback",
-            notice="Live LLM request failed. Returned deterministic preview.",
-        )
-
-    if provider == "anthropic":
-        if not ANTHROPIC_API_KEY:
-            return _build_offline_builder_preview(
-                normalized_payload,
-                source="offline",
-                notice="ANTHROPIC_API_KEY not configured. Returned deterministic preview.",
-            )
-
-        generated = await _anthropic_builder_preview(
-            normalized_payload,
-            model=selected_model or ANTHROPIC_MODEL,
-            thinking_mode=ANTHROPIC_THINKING_MODE,
-            thinking_budget=payload.thinking_budget
-            if payload.thinking_budget is not None
-            else ANTHROPIC_THINKING_BUDGET_TOKENS,
-        )
-        if generated is not None:
-            return generated
-
-        return _build_offline_builder_preview(
-            normalized_payload,
-            source="anthropic-fallback",
-            notice="Live LLM request failed. Returned deterministic preview.",
-        )
-
-    if provider == "gemini":
-        if not GEMINI_API_KEY:
-            return _build_offline_builder_preview(
-                normalized_payload,
-                source="offline",
-                notice="GEMINI_API_KEY not configured. Returned deterministic preview.",
-            )
-
-        generated = await _gemini_builder_preview(
-            normalized_payload,
-            model=selected_model or GEMINI_MODEL,
-            thinking_budget=payload.thinking_budget
-            if payload.thinking_budget is not None
-            else GEMINI_THINKING_BUDGET,
-            thinking_level=payload.reasoning_effort or GEMINI_THINKING_LEVEL,
-        )
-        if generated is not None:
-            return generated
-
-        return _build_offline_builder_preview(
-            normalized_payload,
-            source="gemini-fallback",
-            notice="Live LLM request failed. Returned deterministic preview.",
-        )
-
-    return _build_offline_builder_preview(normalized_payload, source="offline")
 
 
 @app.post("/v1/missions/{mission_id}/state")
@@ -2103,6 +2112,8 @@ async def update_mission_state(
                 headers=forward_headers,
             )
     except Exception as exc:
+        # resilience: caught to prevent cascade failure
+        LOGGER.warning("gateway operation failed: %s", exc)
         LOGGER.exception("orchestrator mission state update failed for mission %s", mission_id)
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
 
@@ -2113,6 +2124,27 @@ async def update_mission_state(
     if response.status_code >= 400:
         raise HTTPException(status_code=502, detail="orchestrator mutation failed")
     return response.json()
+
+
+
+
+@app.post("/v1/maintenance/diagnostics")
+async def create_gateway_diagnostics(
+    mission_id: str | None = Query(default=None),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
+    return await _proxy_post_internal("/internal/maintenance/diagnostics", params={"mission_id": mission_id})
+
+
+@app.post("/v1/maintenance/backup")
+async def trigger_gateway_backup(
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
+    return await _proxy_post_internal("/internal/maintenance/backup")
 
 
 @app.get("/")

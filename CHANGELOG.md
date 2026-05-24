@@ -6,6 +6,42 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Demo Mission Infrastructure (2026-05-22)
+
+#### Added
+- `scripts/run_demo_mission.py` (new, 467 lines) — end-to-end demo mission runner:
+  - Pre-flight connectivity and LLM provider checks before submission
+  - Submits a `BUILD_NEW` mission with a built-in prompt for Python, JavaScript, or TypeScript
+  - Polls state to terminal, prints live phase progression, reports chain trace summary
+  - Reports: PM Feature Contract, CEO Refined-IR Contract, generated output (with source=llm/fallback), PM Delivery Summary, FETCH result, build artifacts, generated code preview
+  - Writes timestamped evidence JSON to `docs/evidence/demo_mission_<ts>.json`
+  - Custom prompt via `--prompt`, language via `--language`, connectivity-only via `--dry-run`
+- `docs/DEMO_MISSION_SETUP.md` (new) — step-by-step setup guide: TLS cert generation, `.env` creation, secret generation, LLM provider configuration, stack startup, result interpretation
+
+#### Changed
+- `Makefile` — added `demo`, `demo-js`, `demo-ts`, `demo-check` targets
+
+---
+
+### Phase 8 — FETCH Phase Completion (2026-05-22)
+
+#### Added
+- `services/orchestrator/orchestrator/knowledge_lake.py` (new, 369 lines) — Qdrant-backed semantic query layer for the Knowledge Lake:
+  - `is_stocked(language)` — checks whether bootstrap docs for a language are indexed
+  - `query_documentation(language, concept, top_k)` — vector similarity search with keyword-overlap fallback
+  - `index_documentation(language, library, content)` — upserts a documentation chunk with deterministic embedding
+  - `get_language_context(language)` — merged documentation text for prompt injection, capped at 8,000 chars
+  - `broadcast_knowledge_ready(languages, mission_id)` — publishes Protocol Sigma `knowledge_ready` event to the semantic bus; fire-and-forget, never blocks mission progression
+- `tests/services/test_is_agent_fetch_unit.py` (new, 465 lines) — 30 unit tests covering:
+  - `detect_required_languages`: explicit target, TypeScript → js+ts expansion, source-code sniffing, unsupported language fallback
+  - `run_fetch_phase`: per-language indexing, skip/error capture, result schema, storage-failure isolation, empty-language handling
+  - `is_stocked`, `get_language_context`, `index_documentation`, `broadcast_knowledge_ready`, `query_documentation` — all patched offline, no Qdrant required
+
+#### Changed
+- `services/orchestrator/orchestrator/mission_flow_v2.py` — `_prepare_fetch_phase` now imports and calls `broadcast_knowledge_ready` after IS Agent indexing completes; Sigma event fires when `knowledge_ready=True` and indexed languages are non-empty
+
+---
+
 ### Production Remediation (2026-04-17)
 
 Executed the full 8-finding remediation plan from `docs/reviews/production-remediation-plan-2026-04-17.md`. One finding (pod-d-worker hardening) was a false positive — the service already inherits `*readonly-service-hardening` via YAML anchor.

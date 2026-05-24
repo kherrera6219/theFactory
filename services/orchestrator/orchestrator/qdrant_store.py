@@ -7,6 +7,7 @@ from urllib.request import Request, urlopen
 
 from .knowledge_embeddings import payload_embedding_metadata, vector_for_content
 from .settings import Settings
+from .storage_core import factory_json_dumps
 
 _COLLECTION_CACHE: set[str] = set()
 
@@ -25,13 +26,22 @@ def _request_json(
     path: str,
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    from .tracing import current_trace_id, current_span_id
     url = _validated_http_url(settings.qdrant_url, path, service="qdrant")
     body: bytes | None = None
     headers = {"Accept": "application/json", "Content-Type": "application/json"}
     if settings.qdrant_api_key:
         headers["api-key"] = settings.qdrant_api_key
+    
+    trace_id = current_trace_id()
+    if trace_id:
+        headers["x-trace-id"] = trace_id
+    span_id = current_span_id()
+    if span_id:
+        headers["x-span-id"] = span_id
+
     if payload is not None:
-        body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        body = factory_json_dumps(payload).encode("utf-8")
 
     request = Request(url, data=body, method=method, headers=headers)
     with urlopen(request, timeout=settings.qdrant_timeout_seconds) as response:  # nosec B310

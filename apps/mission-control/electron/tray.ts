@@ -1,13 +1,13 @@
 /**
- * 7B — System tray management.
+ * 7B â€” System tray management.
  *
  * Creates the tray icon and context menu. The tray tooltip is updated by the
- * renderer via `electronUpdateTray()` → IPC_CHANNELS.TRAY_UPDATE → main.ts.
+ * renderer via `electronUpdateTray()` â†’ IPC_CHANNELS.TRAY_UPDATE â†’ main.ts.
  *
  * Icon assets:
- *   public/tray-icon.png       — 16×16 default (all platforms)
- *   public/tray-icon@2x.png    — 32×32 for Retina macOS
- *   public/tray-icon-win.ico   — ICO for Windows (256×256 recommended)
+ *   public/tray-icon.png       â€” 16Ã—16 default (all platforms)
+ *   public/tray-icon@2x.png    â€” 32Ã—32 for Retina macOS
+ *   public/tray-icon-win.ico   â€” ICO for Windows (256Ã—256 recommended)
  * Replace these with actual branded assets before shipping.
  */
 
@@ -26,7 +26,7 @@ export function setupTray(mainWindow: BrowserWindow | null): Tray {
       : "tray-icon.png";
 
   const iconPath = path.join(__dirname, "..", "public", iconFile);
-  let icon: nativeImage;
+  let icon: any;
   try {
     icon = nativeImage.createFromPath(iconPath);
     if (platform === "darwin") {
@@ -37,7 +37,7 @@ export function setupTray(mainWindow: BrowserWindow | null): Tray {
   }
 
   const tray = new Tray(icon);
-  tray.setToolTip("Mission Control — HolyGrail Refinery");
+  tray.setToolTip("Mission Control â€” HolyGrail Refinery");
 
   function buildMenu() {
     return Menu.buildFromTemplate([

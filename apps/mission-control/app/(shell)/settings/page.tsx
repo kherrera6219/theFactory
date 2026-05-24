@@ -12,7 +12,7 @@ import { OperatorUnlockForm } from "../../components/operator-unlock-form";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
-import { getOperationsAgentIntegrations } from "../../lib/api-client";
+import { getOperationsAgentIntegrations, createDiagnosticBundle, triggerBackup } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { clampNumber, isAllowedLocalApiBase, safeJsonParse } from "../../lib/security";
 import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
@@ -113,6 +113,38 @@ function describeVaultStatus(status: SlotRow["status"]): string {
 }
 
 export default function SettingsPage() {
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null);
+  const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
+
+  async function handleCreateDiagnostics() {
+    setMaintenanceLoading(true);
+    setMaintenanceMessage(null);
+    setMaintenanceError(null);
+    try {
+      const res = await createDiagnosticBundle();
+      setMaintenanceMessage(`Diagnostic bundle generated at: ${res.bundle_path}`);
+    } catch (err: any) {
+      setMaintenanceError(err.message || "Failed to generate diagnostics.");
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  }
+
+  async function handleTriggerBackup() {
+    setMaintenanceLoading(true);
+    setMaintenanceMessage(null);
+    setMaintenanceError(null);
+    try {
+      const res = await triggerBackup();
+      setMaintenanceMessage(`Backup successfully created at: ${res.backup_path}`);
+    } catch (err: any) {
+      setMaintenanceError(err.message || "Failed to trigger backup.");
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  }
+
   const [preferences, setPreferences] = useState<LocalPreferences>(DEFAULT_PREFERENCES);
   const [snapshot, setSnapshot] = useState<OperationsAgentIntegrationsSnapshot | null>(null);
   const [vaultSlots, setVaultSlots] = useState<VaultSlotRecord[]>([]);
@@ -702,13 +734,34 @@ export default function SettingsPage() {
         )}
       </Panel>
 
-      <Panel title="Operator Admin Session">
+      
+
+      
+      <Panel title="System Maintenance">
         <p className="help-text">
-          Create a short-lived operator session using the <code>MISSION_CONTROL_ADMIN_KEY</code> set
-          in your environment. This is only required for protected admin operations.
+          Enterprise tools for data resilience and diagnostics. Export system state for support or
+          trigger a full backup of all factory database volumes.
         </p>
-        <OperatorUnlockForm />
+        <div className="inline-actions">
+          <button type="button" className="secondary-button" onClick={() => void handleCreateDiagnostics()} disabled={maintenanceLoading}>
+            {maintenanceLoading ? "Processing..." : "Export Diagnostic Bundle"}
+          </button>
+          <button type="button" className="secondary-button" onClick={() => void handleTriggerBackup()} disabled={maintenanceLoading}>
+            {maintenanceLoading ? "Processing..." : "Run Full Stateful Backup"}
+          </button>
+        </div>
+        {maintenanceMessage && (
+          <SystemMessage tone="success" title="Maintenance Complete">
+            {maintenanceMessage}
+          </SystemMessage>
+        )}
+        {maintenanceError && (
+          <SystemMessage tone="critical" title="Maintenance Failed">
+            {maintenanceError}
+          </SystemMessage>
+        )}
       </Panel>
+
 
       <Panel
         title="Save Configuration"

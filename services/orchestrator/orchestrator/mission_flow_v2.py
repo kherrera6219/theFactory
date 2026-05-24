@@ -99,8 +99,11 @@ RUNTIME_PHASES = frozenset(
     }
 )
 _SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
+# Handle both local dev and containerized path structures
 _MISSION_CHARTER_SCHEMA_PATH = (
     Path(__file__).resolve().parents[3] / "schemas" / "mission_charter.v1.json"
+    if len(Path(__file__).resolve().parents) > 3
+    else Path(__file__).resolve().parents[1] / "schemas" / "mission_charter.v1.json"
 )
 
 
@@ -402,7 +405,7 @@ def build_mission_charter(
         "data_classification": "TIER_1_INTERNAL",
         "source_type": "direct_input",
         "target_outcome": objective,
-        "risk_level": "medium" if approval_required else "low",
+        "risk_level": str((feature_contract.get("risk_assessment") or {}).get("complexity") or "medium").lower(),
         "human_approval_required": approval_required,
         "approval_gates_required": gates,
         "expected_artifacts": ["mission_contract", "logic_clusters", "generated_output"],
@@ -613,7 +616,26 @@ async def _prepare_pm_intake(
         depth_mode=depth_mode,
         output_mode=output_mode,
         requested_target_language=mission.requested_target_language,
+        attachments=getattr(mission, "attachments", []),
+        global_style_directives=getattr(mission, "global_style_directives", []),
     )
+
+    ambiguity_score = feature_contract.get("ambiguity_score", 0.0)
+    if ambiguity_score >= 0.7:
+        LOGGER.warning("High ambiguity detected for mission %s; pausing for clarification", mission_id)
+        metadata["last_ambiguity_score"] = ambiguity_score
+        await emit_state_event_fn(
+            app=app,
+            mission_id=mission_id,
+            new_state=MissionState.clarifying,
+            event_type="MISSION_CLARIFYING",
+            details={
+                "ambiguity_score": ambiguity_score,
+                "questions": feature_contract.get("clarifying_questions"),
+            },
+        )
+        return False
+
     mission_charter = build_mission_charter(
         mission_id=mission_id,
         prompt=str(mission.prompt or ""),
@@ -625,6 +647,7 @@ async def _prepare_pm_intake(
     )
     metadata["feature_contract"] = feature_contract
     metadata["mission_charter"] = mission_charter
+    metadata["risk_assessment"] = feature_contract.get("risk_assessment")
 
     if not _chain_event_exists(metadata, "MISSION_PM_INTAKE"):
         append_chain_event(
@@ -769,6 +792,7 @@ async def _prepare_fetch_phase(
     mission — errors are captured in fetch_result and the mission proceeds.
     """
     from .is_agent import detect_required_languages, run_fetch_phase
+    from .knowledge_lake import broadcast_knowledge_ready
 
     mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
     if mission is None:
@@ -788,6 +812,7 @@ async def _prepare_fetch_phase(
         mission_id=mission_id,
         required_languages=languages,
         settings=settings,
+        attachments=getattr(mission, "attachments", []),
     )
 
     metadata["fetch_result"] = fetch_result
@@ -809,6 +834,16 @@ async def _prepare_fetch_phase(
                 "embedding_provider": fetch_result.get("embedding_provider"),
                 "embedding_model": fetch_result.get("embedding_model"),
             },
+        )
+
+    # Publish Protocol Sigma knowledge_ready event to the semantic bus.
+    # Fire-and-forget — never blocks mission progression on bus failure.
+    if fetch_result.get("knowledge_ready") and fetch_result.get("indexed_languages"):
+        await asyncio.to_thread(
+            broadcast_knowledge_ready,
+            settings=settings,
+            languages=fetch_result["indexed_languages"],
+            mission_id=mission_id,
         )
 
     return (
@@ -2492,6 +2527,8 @@ async def _prepare_fusion(
 
 V2_TRANSITIONS: tuple[tuple[MissionState, MissionState, str], ...] = (
     (MissionState.queued, MissionState.pm_intake, "MISSION_PM_INTAKE"),
+    (MissionState.pm_intake, MissionState.clarifying, "MISSION_CLARIFYING"),
+    (MissionState.clarifying, MissionState.pm_intake, "MISSION_PM_INTAKE"),
     (MissionState.pm_intake, MissionState.fetch, "MISSION_FETCH"),
     (MissionState.fetch, MissionState.ceo_delegated, "MISSION_CEO_DELEGATED"),
     (
@@ -2601,6 +2638,321 @@ def v2_phase_index(state: MissionState) -> int:
 # ------------------------------------------------------------------
 
 
+
+async def _advance_running_to_gating(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    mission_id: str,
+) -> bool:
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    if metadata.get("scaling_active"):
+        if not metadata.get("scaling_partition_events_emitted"):
+            mission = await _emit_partition_work_items(
+                app=app,
+                settings=settings,
+                validator=validator,
+                mission=mission,
+            )
+            metadata = with_chain_defaults(
+                mission.metadata,
+                mission.requested_target_language,
+            )
+        if not all_partitions_complete(metadata):
+            return False
+    return True
+
+
+async def _advance_verified_to_complete(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+    completion_check_fn: Any,
+) -> bool:
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+    ready, details = await completion_check_fn(settings=settings, mission=mission)
+    if not ready:
+        metadata = with_chain_defaults(
+            mission.metadata,
+            mission.requested_target_language,
+        )
+        append_chain_event(
+            metadata,
+            event_type="MISSION_COMPLETION_BLOCKED",
+            agent_id=CEO_AGENT_ID,
+            details=details,
+        )
+        await asyncio.to_thread(
+            storage.update_mission_metadata,
+            settings,
+            mission_id,
+            metadata,
+        )
+        await asyncio.to_thread(
+            storage.insert_mission_event,
+            settings,
+            mission_id,
+            MissionState.verified,
+            MissionState.verified,
+            "MISSION_COMPLETION_BLOCKED",
+        )
+        redis_ready = bool(getattr(app.state, "redis_ready", False))
+        redis_client = getattr(app.state, "redis", None)
+        if redis_ready and redis_client is not None:
+            try:
+                await emit_state_event_fn(
+                    settings=settings,
+                    validator=validator,
+                    redis_client=redis_client,
+                    mission=mission,
+                    event_type="MISSION_COMPLETION_BLOCKED",
+                )
+            except Exception as exc:
+                LOGGER.warning(
+                    "v2: failed to emit completion block event for mission %s: %s",
+                    mission_id,
+                    exc,
+                )
+        return False
+
+    mission, equivalence_ready, equivalence_report = await _prepare_equivalence_report(
+        app=app,
+        settings=settings,
+        mission=mission,
+    )
+    if not equivalence_ready:
+        await asyncio.to_thread(
+            storage.insert_mission_event,
+            settings,
+            mission_id,
+            MissionState.verified,
+            MissionState.verified,
+            "MISSION_EQUIVALENCE_BLOCKED",
+        )
+        redis_ready = bool(getattr(app.state, "redis_ready", False))
+        redis_client = getattr(app.state, "redis", None)
+        if redis_ready and redis_client is not None:
+            try:
+                await emit_state_event_fn(
+                    settings=settings,
+                    validator=validator,
+                    redis_client=redis_client,
+                    mission=mission,
+                    event_type="MISSION_EQUIVALENCE_BLOCKED",
+                )
+            except Exception as exc:
+                LOGGER.warning(
+                    "v2: failed to emit equivalence block event for mission %s: %s",
+                    mission_id,
+                    exc,
+                )
+        LOGGER.info(
+            "v2: mission %s blocked by equivalence report %s",
+            mission_id,
+            equivalence_report.get("report_id"),
+        )
+        return False
+
+    (
+        mission,
+        security_compliance_ready,
+        security_compliance_report,
+    ) = await _prepare_security_compliance_report(
+        app=app,
+        settings=settings,
+        mission=mission,
+    )
+    if not security_compliance_ready:
+        await asyncio.to_thread(
+            storage.insert_mission_event,
+            settings,
+            mission_id,
+            MissionState.verified,
+            MissionState.verified,
+            "MISSION_SECURITY_COMPLIANCE_BLOCKED",
+        )
+        redis_ready = bool(getattr(app.state, "redis_ready", False))
+        redis_client = getattr(app.state, "redis", None)
+        if redis_ready and redis_client is not None:
+            try:
+                await emit_state_event_fn(
+                    settings=settings,
+                    validator=validator,
+                    redis_client=redis_client,
+                    mission=mission,
+                    event_type="MISSION_SECURITY_COMPLIANCE_BLOCKED",
+                )
+            except Exception as exc:
+                LOGGER.warning(
+                    "v2: failed to emit security/compliance block event for "
+                    "mission %s: %s",
+                    mission_id,
+                    exc,
+                )
+        LOGGER.info(
+            "v2: mission %s blocked by security/compliance report %s",
+            mission_id,
+            security_compliance_report.get("report_id"),
+        )
+        return False
+
+    mission, dependency_absorption_ready, dependency_absorption_report = (
+        await _prepare_dependency_absorption_reports(
+            app=app,
+            settings=settings,
+            mission=mission,
+        )
+    )
+    if not dependency_absorption_ready:
+        await asyncio.to_thread(
+            storage.insert_mission_event,
+            settings,
+            mission_id,
+            MissionState.verified,
+            MissionState.verified,
+            "MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
+        )
+        redis_ready = bool(getattr(app.state, "redis_ready", False))
+        redis_client = getattr(app.state, "redis", None)
+        if redis_ready and redis_client is not None:
+            try:
+                await emit_state_event_fn(
+                    settings=settings,
+                    validator=validator,
+                    redis_client=redis_client,
+                    mission=mission,
+                    event_type="MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
+                )
+            except Exception as exc:
+                LOGGER.warning(
+                    "v2: failed to emit dependency absorption block event for "
+                    "mission %s: %s",
+                    mission_id,
+                    exc,
+                )
+        LOGGER.info(
+            "v2: mission %s blocked by dependency absorption report %s",
+            mission_id,
+            dependency_absorption_report.get("report_id"),
+        )
+        return False
+
+    mission = await _prepare_depabs_execution(
+        app=app,
+        settings=settings,
+        mission=mission,
+    )
+    mission, runtime_qc_ready, runtime_qc_report = await _prepare_runtime_qc(
+        app=app,
+        settings=settings,
+        mission=mission,
+    )
+    if not runtime_qc_ready:
+        await asyncio.to_thread(
+            storage.insert_mission_event,
+            settings,
+            mission_id,
+            MissionState.verified,
+            MissionState.verified,
+            "MISSION_RUNTIME_QC_BLOCKED",
+        )
+        LOGGER.info(
+            "v2: mission %s blocked by runtime QC report %s",
+            mission_id,
+            runtime_qc_report.get("verdict"),
+        )
+        return False
+
+    # S2-06: Deploy readiness assessment
+    mission = (
+        await asyncio.to_thread(storage.fetch_mission, settings, mission_id) or mission
+    )
+    _deploy_meta = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    _build_artifacts_for_deploy = await asyncio.to_thread(
+        storage.list_build_artifacts, settings, mission_id, 50
+    )
+    deploy_readiness = build_deploy_readiness_assessment(
+        mission_id=mission_id,
+        metadata=_deploy_meta,
+        build_artifacts=_build_artifacts_for_deploy,
+    )
+    _deploy_meta["deploy_readiness"] = deploy_readiness
+    if not _chain_event_exists(_deploy_meta, "MISSION_DEPLOY_READINESS_ASSESSED"):
+        append_chain_event(
+            _deploy_meta,
+            event_type="MISSION_DEPLOY_READINESS_ASSESSED",
+            agent_id="AGENT-11-DEPLOY",
+            details={
+                "ready": deploy_readiness.get("ready"),
+                "blockers": deploy_readiness.get("blockers"),
+                "source": deploy_readiness.get("source"),
+            },
+        )
+    await asyncio.to_thread(
+        storage.update_mission_metadata, settings, mission_id, _deploy_meta
+    )
+    if not deploy_readiness.get("ready", True):
+        LOGGER.info(
+            "v2: mission %s deploy readiness check failed - blockers: %s",
+            mission_id,
+            deploy_readiness.get("blockers"),
+        )
+
+    mission = await _prepare_delivery_summary(
+        app=app,
+        settings=settings,
+        mission=mission,
+    )
+    return True
+
+
+async def _advance_runtime_phases(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    mission_id: str,
+    record: Any,
+    new_state: MissionState,
+    event_type: str,
+) -> Any:
+    record = await _persist_runtime_phase_artifact(
+        settings=settings,
+        mission=record,
+        event_type=event_type,
+    )
+    if new_state == MissionState.verified:
+        try:
+            record = await _ensure_verified_build_artifact(
+                app=app,
+                settings=settings,
+                mission=record,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "v2: failed to package verified build artifact for mission %s: %s",
+                mission_id,
+                exc,
+            )
+    if new_state == MissionState.running:
+        record = await _emit_partition_work_items(
+            app=app,
+            settings=settings,
+            validator=validator,
+            mission=record,
+        )
+    return record
+
+
 async def advance_mission_lifecycle_v2(
     *,
     app: Any,
@@ -2633,7 +2985,7 @@ async def advance_mission_lifecycle_v2(
         Legacy compatibility hook. The v2 driver now performs its own
         PM, CEO, pod-manager, and specialist stage preparation.
     completion_check_fn : callable
-        Async function ``(settings, mission) → (bool, dict)``
+        Async function ``(settings, mission) -> (bool, dict)``
         that checks whether completion artifacts are ready.
     """
 
@@ -2662,269 +3014,25 @@ async def advance_mission_lifecycle_v2(
                 return
 
         if expected_state == MissionState.running and new_state == MissionState.gating:
-            mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
-            if mission is None:
+            if not await _advance_running_to_gating(
+                app=app,
+                settings=settings,
+                validator=validator,
+                mission_id=mission_id,
+            ):
                 return
-            metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
-            if metadata.get("scaling_active"):
-                if not metadata.get("scaling_partition_events_emitted"):
-                    mission = await _emit_partition_work_items(
-                        app=app,
-                        settings=settings,
-                        validator=validator,
-                        mission=mission,
-                    )
-                    metadata = with_chain_defaults(
-                        mission.metadata,
-                        mission.requested_target_language,
-                    )
-                if not all_partitions_complete(metadata):
-                    return
 
         # Completion gate before COMPLETE
-        if (
-            expected_state == MissionState.verified
-            and new_state == MissionState.complete
-        ):
-            mission = await asyncio.to_thread(
-                storage.fetch_mission, settings, mission_id
-            )
-            if mission is None:
-                return
-            ready, details = await completion_check_fn(
-                settings=settings, mission=mission
-            )
-            if not ready:
-                metadata = with_chain_defaults(
-                    mission.metadata,
-                    mission.requested_target_language,
-                )
-                append_chain_event(
-                    metadata,
-                    event_type="MISSION_COMPLETION_BLOCKED",
-                    agent_id=CEO_AGENT_ID,
-                    details=details,
-                )
-                await asyncio.to_thread(
-                    storage.update_mission_metadata,
-                    settings,
-                    mission_id,
-                    metadata,
-                )
-                await asyncio.to_thread(
-                    storage.insert_mission_event,
-                    settings,
-                    mission_id,
-                    MissionState.verified,
-                    MissionState.verified,
-                    "MISSION_COMPLETION_BLOCKED",
-                )
-                redis_ready = bool(getattr(app.state, "redis_ready", False))
-                redis_client = getattr(app.state, "redis", None)
-                if redis_ready and redis_client is not None:
-                    try:
-                        await emit_state_event_fn(
-                            settings=settings,
-                            validator=validator,
-                            redis_client=redis_client,
-                            mission=mission,
-                            event_type="MISSION_COMPLETION_BLOCKED",
-                        )
-                    except Exception as exc:
-                        LOGGER.warning(
-                            "v2: failed to emit completion block event for mission %s: %s",
-                            mission_id,
-                            exc,
-                        )
-                return
-            mission, equivalence_ready, equivalence_report = await _prepare_equivalence_report(
+        if expected_state == MissionState.verified and new_state == MissionState.complete:
+            if not await _advance_verified_to_complete(
                 app=app,
                 settings=settings,
-                mission=mission,
-            )
-            if not equivalence_ready:
-                await asyncio.to_thread(
-                    storage.insert_mission_event,
-                    settings,
-                    mission_id,
-                    MissionState.verified,
-                    MissionState.verified,
-                    "MISSION_EQUIVALENCE_BLOCKED",
-                )
-                redis_ready = bool(getattr(app.state, "redis_ready", False))
-                redis_client = getattr(app.state, "redis", None)
-                if redis_ready and redis_client is not None:
-                    try:
-                        await emit_state_event_fn(
-                            settings=settings,
-                            validator=validator,
-                            redis_client=redis_client,
-                            mission=mission,
-                            event_type="MISSION_EQUIVALENCE_BLOCKED",
-                        )
-                    except Exception as exc:
-                        LOGGER.warning(
-                            "v2: failed to emit equivalence block event for mission %s: %s",
-                            mission_id,
-                            exc,
-                        )
-                LOGGER.info(
-                    "v2: mission %s blocked by equivalence report %s",
-                    mission_id,
-                    equivalence_report.get("report_id"),
-                )
-                return
-            (
-                mission,
-                security_compliance_ready,
-                security_compliance_report,
-            ) = await _prepare_security_compliance_report(
-                app=app,
-                settings=settings,
-                mission=mission,
-            )
-            if not security_compliance_ready:
-                await asyncio.to_thread(
-                    storage.insert_mission_event,
-                    settings,
-                    mission_id,
-                    MissionState.verified,
-                    MissionState.verified,
-                    "MISSION_SECURITY_COMPLIANCE_BLOCKED",
-                )
-                redis_ready = bool(getattr(app.state, "redis_ready", False))
-                redis_client = getattr(app.state, "redis", None)
-                if redis_ready and redis_client is not None:
-                    try:
-                        await emit_state_event_fn(
-                            settings=settings,
-                            validator=validator,
-                            redis_client=redis_client,
-                            mission=mission,
-                            event_type="MISSION_SECURITY_COMPLIANCE_BLOCKED",
-                        )
-                    except Exception as exc:
-                        LOGGER.warning(
-                            "v2: failed to emit security/compliance block event for "
-                            "mission %s: %s",
-                            mission_id,
-                            exc,
-                        )
-                LOGGER.info(
-                    "v2: mission %s blocked by security/compliance report %s",
-                    mission_id,
-                    security_compliance_report.get("report_id"),
-                )
-                return
-            mission, dependency_absorption_ready, dependency_absorption_report = (
-                await _prepare_dependency_absorption_reports(
-                    app=app,
-                    settings=settings,
-                    mission=mission,
-                )
-            )
-            if not dependency_absorption_ready:
-                await asyncio.to_thread(
-                    storage.insert_mission_event,
-                    settings,
-                    mission_id,
-                    MissionState.verified,
-                    MissionState.verified,
-                    "MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
-                )
-                redis_ready = bool(getattr(app.state, "redis_ready", False))
-                redis_client = getattr(app.state, "redis", None)
-                if redis_ready and redis_client is not None:
-                    try:
-                        await emit_state_event_fn(
-                            settings=settings,
-                            validator=validator,
-                            redis_client=redis_client,
-                            mission=mission,
-                            event_type="MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
-                        )
-                    except Exception as exc:
-                        LOGGER.warning(
-                            "v2: failed to emit dependency absorption block event for "
-                            "mission %s: %s",
-                            mission_id,
-                            exc,
-                        )
-                LOGGER.info(
-                    "v2: mission %s blocked by dependency absorption report %s",
-                    mission_id,
-                    dependency_absorption_report.get("report_id"),
-                )
-                return
-            mission = await _prepare_depabs_execution(
-                app=app,
-                settings=settings,
-                mission=mission,
-            )
-            mission, runtime_qc_ready, runtime_qc_report = await _prepare_runtime_qc(
-                app=app,
-                settings=settings,
-                mission=mission,
-            )
-            if not runtime_qc_ready:
-                await asyncio.to_thread(
-                    storage.insert_mission_event,
-                    settings,
-                    mission_id,
-                    MissionState.verified,
-                    MissionState.verified,
-                    "MISSION_RUNTIME_QC_BLOCKED",
-                )
-                LOGGER.info(
-                    "v2: mission %s blocked by runtime QC report %s",
-                    mission_id,
-                    runtime_qc_report.get("verdict"),
-                )
-                return
-
-            # S2-06: Deploy readiness assessment — AGENT-11-DEPLOY must report ready
-            # before the mission is allowed to transition to COMPLETE.
-            mission = (
-                await asyncio.to_thread(storage.fetch_mission, settings, mission_id) or mission
-            )
-            _deploy_meta = with_chain_defaults(mission.metadata, mission.requested_target_language)
-            _build_artifacts_for_deploy = await asyncio.to_thread(
-                storage.list_build_artifacts, settings, mission_id, 50
-            )
-            deploy_readiness = build_deploy_readiness_assessment(
+                validator=validator,
+                emit_state_event_fn=emit_state_event_fn,
                 mission_id=mission_id,
-                metadata=_deploy_meta,
-                build_artifacts=_build_artifacts_for_deploy,
-            )
-            _deploy_meta["deploy_readiness"] = deploy_readiness
-            if not _chain_event_exists(_deploy_meta, "MISSION_DEPLOY_READINESS_ASSESSED"):
-                append_chain_event(
-                    _deploy_meta,
-                    event_type="MISSION_DEPLOY_READINESS_ASSESSED",
-                    agent_id="AGENT-11-DEPLOY",
-                    details={
-                        "ready": deploy_readiness.get("ready"),
-                        "blockers": deploy_readiness.get("blockers"),
-                        "source": deploy_readiness.get("source"),
-                    },
-                )
-            await asyncio.to_thread(
-                storage.update_mission_metadata, settings, mission_id, _deploy_meta
-            )
-            if not deploy_readiness.get("ready", True):
-                LOGGER.info(
-                    "v2: mission %s deploy readiness check failed — blockers: %s",
-                    mission_id,
-                    deploy_readiness.get("blockers"),
-                )
-                # Non-fatal: log and continue — deploy readiness is advisory unless
-                # a future flag adds hard enforcement here.
-
-            mission = await _prepare_delivery_summary(
-                app=app,
-                settings=settings,
-                mission=mission,
-            )
+                completion_check_fn=completion_check_fn,
+            ):
+                return
 
         await asyncio.sleep(settings.transition_step_seconds)
 
@@ -2940,31 +3048,15 @@ async def advance_mission_lifecycle_v2(
             return
 
         if new_state in RUNTIME_PHASES:
-            record = await _persist_runtime_phase_artifact(
+            record = await _advance_runtime_phases(
+                app=app,
                 settings=settings,
-                mission=record,
+                validator=validator,
+                mission_id=mission_id,
+                record=record,
+                new_state=new_state,
                 event_type=event_type,
             )
-            if new_state == MissionState.verified:
-                try:
-                    record = await _ensure_verified_build_artifact(
-                        app=app,
-                        settings=settings,
-                        mission=record,
-                    )
-                except Exception as exc:
-                    LOGGER.warning(
-                        "v2: failed to package verified build artifact for mission %s: %s",
-                        mission_id,
-                        exc,
-                    )
-            if new_state == MissionState.running:
-                record = await _emit_partition_work_items(
-                    app=app,
-                    settings=settings,
-                    validator=validator,
-                    mission=record,
-                )
 
         redis_ready = bool(getattr(app.state, "redis_ready", False))
         redis_client = getattr(app.state, "redis", None)

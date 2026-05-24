@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "../../../components/page-header";
@@ -86,8 +86,8 @@ function nodeConfidence(node: OperationsLogicNodeRecord): number | null {
 }
 
 export default function MissionDetailPage() {
-  const params = useParams<{ id: string }>();
-  const missionId = String(params.id ?? "").trim();
+  const searchParams = useSearchParams();
+  const missionId = searchParams.get("id") ?? "";
   const confirm = useConfirm();
 
   const [mission, setMission] = useState<MissionRecord | null>(null);
@@ -440,11 +440,23 @@ export default function MissionDetailPage() {
                         <span className="mono-id" style={{ fontSize: "0.6em", opacity: 0.55 }}>
                           {mission.mission_id.slice(0, 8)}…
                         </span>
+
+                        {(mission?.metadata as Record<string, unknown> | undefined)?.source === "fallback" && (
+                          <span className="status-badge error" role="alert" aria-live="polite" style={{ marginLeft: "1rem", verticalAlign: "middle" }} title="Mission generated via LLM fallback route due to provider outage.">
+                            ⚠️ FALLBACK ROUTE
+                          </span>
+                        )}
                       </>
                     ) : (
                       <>
                         Mission{" "}
                         <span className="mono-id">{mission.mission_id.slice(0, 12)}…</span>
+
+                        {(mission?.metadata as Record<string, unknown> | undefined)?.source === "fallback" && (
+                          <span className="status-badge error" role="alert" aria-live="polite" style={{ marginLeft: "1rem", verticalAlign: "middle" }} title="Mission generated via LLM fallback route due to provider outage.">
+                            ⚠️ FALLBACK ROUTE
+                          </span>
+                        )}
                       </>
                     )}
                     <button

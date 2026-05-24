@@ -8,6 +8,7 @@ import time
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager, suppress
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -686,6 +687,7 @@ def _build_operations_agents_snapshot(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=20))
     _initialize_app_state(app)
 
     await ensure_runtime_ready(app)
@@ -825,6 +827,16 @@ async def health() -> dict[str, Any]:
             object_store.object_storage_ready, app.state.settings
         )
 
+    jaeger_ready = False
+    if os.getenv("OTEL_TRACING_ENABLED", "true").lower() in {"1", "true", "yes", "on"}:
+        # Simple reachability check for Jaeger OTLP port
+        import socket
+        try:
+            with socket.create_connection(("jaeger", 4318), timeout=0.5):
+                jaeger_ready = True
+        except Exception:
+            jaeger_ready = False
+
     return {
         "ok": True,
         "service": "orchestrator",
@@ -833,7 +845,10 @@ async def health() -> dict[str, Any]:
         "qdrant_ready": qdrant_ready,
         "milvus_ready": milvus_ready,
         "neo4j_ready": neo4j_ready,
+        "neo4j_url": app.state.settings.neo4j_url if app.state.settings.neo4j_enabled else None,
         "object_storage_ready": object_storage_ready,
+        "object_storage_endpoint": app.state.settings.object_storage_endpoint if app.state.settings.object_storage_enabled else None,
+        "jaeger_ready": jaeger_ready,
         "mission_count": mission_count,
         "intake_stream": app.state.settings.intake_stream,
         "state_stream": app.state.settings.state_stream,

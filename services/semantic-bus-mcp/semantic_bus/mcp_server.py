@@ -112,6 +112,8 @@ class AlphaPayload(BaseModel):
     target_pod: str = Field(min_length=1, max_length=64)
     directive_type: str = Field(min_length=1, max_length=120)
     directive: dict[str, Any] = Field(default_factory=dict)
+    global_style_directives: list[str] = Field(default_factory=list)
+    risk_assessment: dict[str, Any] | None = None
 
 
 class BetaPayload(BaseModel):
@@ -151,6 +153,8 @@ class OmegaPayload(BaseModel):
     feature_contract: dict[str, Any] = Field(default_factory=dict)
     visual_blueprint: dict[str, Any] = Field(default_factory=dict)
     user_intent: str = Field(min_length=1, max_length=2000)
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
+    global_style_directives: list[str] = Field(default_factory=list)
 
 
 class RhoPayload(BaseModel):

@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.05.22
-Last updated: 2026-05-22
+Document version: 2026.05.23
+Last updated: 2026-05-23
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -16,7 +16,7 @@ runtime exactly. When they conflict with this document, this document wins.
 ## Project Status
 
 As of 2026-05-20, Phases 1–27 are complete. The platform has a full Smelt-Cycle
-pipeline (INTAKE → FETCH → SMELT → GATING → FUSION → SQUEEZE → DELIVERY), a 38-agent
+pipeline (INTAKE → FETCH → SMELT → GATING → FUSION → SQUEEZE → DELIVERY), a 41-agent
 registry, versioned prompt assets with LLM safety governance, a 22/22-passing production
 review audit, 97 offline eval and unit tests, and a 23-spec Playwright E2E suite. Git
 history is clean of private keys. Disaster recovery RTO is 37.13s.
@@ -31,13 +31,22 @@ remaining blocker for a public launch claim is the live provider-key demo (item 
 ---
 
 ## What Is Implemented
+### Multi-Modal Context & Professional Grounding (2026-05-23)
+
+- **Multi-modal intake**: PM Agent now accepts PDF, Word, MD, and PowerPoint documents; IS Agent indexes these into the Knowledge Lake.
+- **Certified Specialist Army**: All 19 language specialists grounded as Certified Experts (e.g. MISRA C for Systems, PEP 604 for Python).
+- **Context-aware orchestration**: CEO routes based on PM risk scores and propagates global style directives to the entire chain.
+- **Data plane UI visibility**: Mission Control now monitors health for all 7 local database systems including Neo4j, MinIO, and Jaeger.
+- **Correlated observability**: OTEL trace IDs injected into Qdrant and Neo4j queries for single-trace agent-to-DB diagnostics.
+- **Full TODO resolution**: All 11 production technical debt items (CR-01 through M-04) resolved.
+
 
 ### Core pipeline (Phases 1–14)
 
 - **Mission Flow v2** (`mission_flow_v2.py`, 2800+ lines): full 7-phase Smelt-Cycle —
   INTAKE, FETCH, SMELT, GATING, FUSION, SQUEEZE, DELIVERY — default runtime via
   `MISSION_FLOW_V2_ENABLED=true`.
-- **38-agent registry** with persona profiles, LLM provider/model assignments, and
+- **41-agent registry** with persona profiles, LLM provider/model assignments, and
   heartbeat telemetry for all agents AGENT-01 through AGENT-41.
 - **Four language pods**: Pod A (Dynamic: Python/JS/TS/Ruby/PHP/Lua), Pod B (Systems:
   C/C++/Rust/Go/Swift/Zig), Pod C (Enterprise: Java/C#/Kotlin/Scala), Pod D
@@ -307,7 +316,7 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 Items are ordered by impact. The first two block any external launch claim.
 
 ### Sprint 1 — Live Demo Gate
-1. **Live provider-key BUILD_NEW demo** — `python scripts/demo_missions.py --live` must
+1. ~~**Live provider-key BUILD_NEW demo**~~ — ✅ **DONE (2026-05-23)** — `python scripts/demo_missions.py --live` must
    reach COMPLETE with non-empty `generated_code`. Highest priority item in the project.
 2. **Token cost ledger activation** — Run V007 migration against live stack, confirm
    `llm_usage_events` is being populated, render Cost panel with real data.

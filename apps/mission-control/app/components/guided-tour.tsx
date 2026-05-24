@@ -43,12 +43,6 @@ const STEPS: TourStep[] = [
     body: "The notification bell shows open system alerts in real time. Critical alerts also trigger an OS notification when you're in another tab.",
     placement: "bottom",
   },
-  {
-    selector: ".shell-statusbar",
-    title: "Live Runtime Status",
-    body: "The status bar shows active mission count and time since last sync. You're all set — explore Mission Control!",
-    placement: "top",
-  },
 ];
 
 type Rect = { top: number; left: number; right: number; bottom: number; width: number; height: number };

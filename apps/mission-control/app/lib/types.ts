@@ -678,6 +678,7 @@ export type OperationsSummary = {
     milvus_ready?: boolean | null;
     neo4j_ready?: boolean | null;
     object_storage_ready?: boolean | null;
+    jaeger_ready?: boolean | null;
     protocol_ready: boolean;
     consumer_running: boolean;
   };

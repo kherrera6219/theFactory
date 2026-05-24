@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -371,12 +372,24 @@ async def get_operations_summary(
     protocol_ready = bool(getattr(app.state, "protocol_ready", False))
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
-    qdrant_ready = await asyncio.to_thread(qdrant_store.qdrant_ready, app.state.settings)
-    milvus_ready = await asyncio.to_thread(milvus_store.milvus_ready, app.state.settings)
-    neo4j_ready = await asyncio.to_thread(neo4j_store.neo4j_ready, app.state.settings)
+    
+    # Optional adapter readiness with enabled/disabled awareness (return None if disabled)
+    qdrant_ready = await asyncio.to_thread(qdrant_store.qdrant_ready, app.state.settings) if app.state.settings.qdrant_enabled else None
+    milvus_ready = await asyncio.to_thread(milvus_store.milvus_ready, app.state.settings) if app.state.settings.milvus_enabled else None
+    neo4j_ready = await asyncio.to_thread(neo4j_store.neo4j_ready, app.state.settings) if app.state.settings.neo4j_enabled else None
     object_storage_ready = await asyncio.to_thread(
         object_store.object_storage_ready, app.state.settings
-    )
+    ) if app.state.settings.object_storage_enabled else None
+
+    # Observability readiness
+    jaeger_ready = False
+    if os.getenv("OTEL_TRACING_ENABLED", "true").lower() in {"1", "true", "yes", "on"}:
+        import socket
+        try:
+            with socket.create_connection(("jaeger", 4318), timeout=0.5):
+                jaeger_ready = True
+        except Exception:
+            jaeger_ready = False
 
     return {
         "generated_at": datetime.now(UTC).isoformat(),
@@ -388,6 +401,7 @@ async def get_operations_summary(
             "milvus_ready": milvus_ready,
             "neo4j_ready": neo4j_ready,
             "object_storage_ready": object_storage_ready,
+            "jaeger_ready": jaeger_ready,
             "protocol_ready": protocol_ready,
             "consumer_running": consumer_running,
             **_main._langgraph_runtime_payload(app),

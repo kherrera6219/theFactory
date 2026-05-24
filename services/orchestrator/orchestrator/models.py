@@ -123,6 +123,7 @@ EventType = Literal[
     "MISSION_POD_MANAGER_ASSIGNED",
     "MISSION_SPECIALIST_PLANNED",
     "MISSION_SCALING_DECIDED",
+    "MISSION_AIM_GENERATED",
     # Operational / lifecycle events
     "MISSION_LOGICNODE_WRITTEN",
     "MISSION_COMPLETION_BLOCKED",
@@ -135,6 +136,14 @@ EventType = Literal[
     "MISSION_VC_COMMIT_STRATEGY_READY",
     "MISSION_INTEGRATION_TESTS_GENERATED",
     "MISSION_DEPLOY_READINESS_ASSESSED",
+    "MISSION_POD_GROUP_STANDARD_PRODUCED",
+    "MISSION_BUILD_ARTIFACT_WRITTEN",
+    "MISSION_DEPABS_EXECUTED",
+    "MISSION_RUNTIME_QC_COMPLETE",
+    "MISSION_EQUIVALENCE_VERIFIED",
+    "MISSION_SECURITY_COMPLIANCE_PASSED",
+    "MISSION_SECURITY_COMPLIANCE_WARNED",
+    "MISSION_TESTDATA_MANIFEST_READY",
     # Agent events
     "AGENT_STATE_CHANGED",
 ]
@@ -188,6 +197,15 @@ VALID_TRANSITIONS: dict[MissionState, set[MissionState]] = {
 # ==============================================================================
 
 
+class MissionAttachment(BaseModel):
+    """Refers to a file stored in object storage as mission context."""
+    file_id: str
+    filename: str
+    content_type: str
+    size_bytes: int = 0
+    purpose: str | None = "reference"  # reference | PRD | spec | legacy_source
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 class MissionRecord(BaseModel):
     mission_id: str
     prompt: str
@@ -196,6 +214,9 @@ class MissionRecord(BaseModel):
     depth_mode: DepthMode | None = None
     output_mode: OutputMode | None = None
     data_classification: DataClassification | None = None
+    attachments: list[MissionAttachment] = Field(default_factory=list)
+    risk_assessment: dict[str, Any] | None = None
+    global_style_directives: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     project_id: str | None = None
     state: MissionState
@@ -223,6 +244,8 @@ class MissionCreate(BaseModel):
     depth_mode: DepthMode | None = None
     output_mode: OutputMode | None = None
     data_classification: DataClassification | None = None
+    attachments: list[MissionAttachment] = Field(default_factory=list)
+    global_style_directives: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     project_id: str | None = None
     created_at: datetime | None = None
