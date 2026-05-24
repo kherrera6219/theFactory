@@ -6,6 +6,35 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-23
+
+### Enterprise Hardening & Native Windows Conversion
+
+#### Added
+- **Multi-Modal Context Ingestion**: PM Agent now accepts PDF, Word, Markdown, and PowerPoint documents. IS Agent indexes these into the Qdrant Knowledge Lake for specialist consumption.
+- **Certified Specialist Army**: All 41 agents professionally grounded with industry standards (MISRA C, PEP 8/604, OWASP, etc.) and senior-level expert personas.
+- **Enterprise Diagnostics**: New system_maintenance.py utility in Orchestrator for generating sanitized diagnostic bundles and full stateful database backups.
+- **Native Windows Build Chain**: Configured Electron and NSIS for professional .exe installer generation with location selection, progress bars, and uninstallation support.
+- **GitHub Actions Release Pipeline**: .github/workflows/release.yml for automated building, signing, and publishing of Windows releases on version tags.
+- **Infrastructure Probes**: Electron app now checks for Docker availability on startup; Orchestrator health now includes Jaeger reachability.
+
+#### Changed
+- **Admin Mode Enabled**: Removed redundant Operator Key/Unlock systems. The application is now fully unlocked by default for local-first Windows usage.
+- **Refactored API Gateway**: Decomposed massive create_mission route into specialized handlers; unified LLM builder previews behind a single dispatcher.
+- **Security Hardening**: Integrated PII redaction middleware into the LLM delegation chain; injected strict enterprise security headers (HSTS, CSP, etc.).
+- **Observability Upgrade**: Correlated OTEL trace IDs across API Gateway, Orchestrator, and database stores (Qdrant, Neo4j) for unified agent diagnostics.
+- **UI Architecture**: Migrated mission detail pages from dynamic routes (/missions/[id]) to static Electron-compatible routes (/missions/detail?id=...).
+
+#### Fixed
+- **LLM Validations (CR-01)**: Updated model profiles to valid 2026 routes (gpt-5.5, gemini-3.5-flash).
+- **God Function Factor (CR-02)**: Decomposed dvance_mission_lifecycle_v2 into maintainable state handlers.
+- **Docker Build Integrity (H-03/H-06)**: Pinned all base image digests; resolved credsStore pull failures.
+- **Database Resilience**: Fixed foreign key violations in Knowledge Lake indexing; added automatic system-mission record creation on startup.
+- **Indentation & Syntax**: Resolved several critical Python syntax errors in mission_flow_v2.py and pi_gateway/main.py introduced during refactoring.
+
+---
+
+
 ### Demo Mission Infrastructure (2026-05-22)
 
 #### Added
