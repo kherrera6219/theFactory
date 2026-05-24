@@ -7,7 +7,7 @@
     "tokens:sync": "node scripts/sync-design-tokens.mjs",
     "dev": "npm run tokens:sync && next dev -p 3100",
     "build": "npm run tokens:sync && next build",
-    "start": "next start -p 3100",
+    "start": "next start",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

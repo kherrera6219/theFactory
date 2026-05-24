@@ -1,15 +1,11 @@
 /** @type {import('next').NextConfig} */
-const devScriptSources =
-  process.env.NODE_ENV === "production"
-    ? ["'self'", "'unsafe-inline'"]
-    : ["'self'", "'unsafe-inline'", "'unsafe-eval'"];
+
+// Docker builds use server mode (supports API routes); Electron uses static export.
+const isDockerBuild = process.env.NEXT_BUILD_TARGET === "docker";
 
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  // 7E â€” Enable static export for Electron compatibility.
-  output: "export",
-  // 7E â€” Disable image optimization since we're in a static environment.
   images: {
     unoptimized: true,
   },
@@ -19,5 +15,9 @@ const nextConfig = {
     return [];
   },
 };
+
+if (!isDockerBuild) {
+  nextConfig.output = "export";
+}
 
 export default nextConfig;
