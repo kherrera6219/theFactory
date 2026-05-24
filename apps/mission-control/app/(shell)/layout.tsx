@@ -9,7 +9,7 @@ import { NotificationBell } from "../components/notification-bell";
 import { ReconnectBanner } from "../components/reconnect-banner";
 import { ShellHeaderMeta } from "../components/shell-header-meta";
 import { ShellNav } from "../components/shell-nav";
-import { StatusBar } from "../components/status-bar";
+
 import { StatusBadge } from "../components/status";
 
 type ShellLayoutProps = {
@@ -61,8 +61,7 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
         <main id="main-content" className="shell-main" tabIndex={-1}>
           {children}
         </main>
-        {/* 6D — Live status bar replaces static footer */}
-        <StatusBar />
+
       </div>
 
       {/* 6C — Command palette modal (self-contained, manages own open state) */}

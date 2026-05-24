@@ -1,21 +1,4 @@
-/**
- * 7E — Electron main process entry point.
- *
- * Start: electron .  (after tsc --project electron/tsconfig.json)
- * Dev:   ELECTRON_DEV=1 electron .
- *
- * Prerequisites:
- *   npm install --save-dev electron electron-builder
- *   npm install --save electron-updater
- *
- * Build chain:
- *   1. next build && next export → out/  (static HTML/CSS/JS)
- *   2. tsc --project electron/tsconfig.json → dist/electron/
- *   3. electron-builder → dist/installers/
- *
- * See electron-builder docs for platform-specific configuration.
- */
-
+import { execSync } from "child_process";
 import path from "path";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { setupTray } from "./tray";
@@ -26,8 +9,20 @@ const isDev = process.env.ELECTRON_DEV === "1";
 const NEXT_DEV_PORT = 3100; // Match next dev --port in package.json
 
 let mainWindow: BrowserWindow | null = null;
+function checkDockerAvailability(): { available: boolean; error?: string } {
+  try {
+    execSync("docker version", { stdio: "ignore" });
+    return { available: true };
+  } catch (err: any) {
+    return { 
+      available: false, 
+      error: "Docker Desktop or Docker Engine was not found on this system. theFactory backend requires Docker to operate." 
+    };
+  }
+}
 
-// ── Window creation ───────────────────────────────────────────────────────────
+
+// â”€â”€ Window creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -35,25 +30,23 @@ function createWindow(): void {
     height: 900,
     minWidth: 1024,
     minHeight: 640,
-    // 7A — Hide native frame; ElectronTitlebar component draws its own.
+    // 7A â€” Hide native frame; ElectronTitlebar component draws its own.
     frame: false,
-    // 4F — Screen reader accessible window title.
-    accessibleTitle: "Mission Control — HolyGrail Refinery",
     // Matches --hgr-bg token so there's no flash of white on load.
     backgroundColor: "#0d1117",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,   // Mandatory — prevents prototype-pollution attacks.
-      nodeIntegration: false,   // Never enable — direct Node access in renderer is unsafe.
+      contextIsolation: true,   // Mandatory â€” prevents prototype-pollution attacks.
+      nodeIntegration: false,   // Never enable â€” direct Node access in renderer is unsafe.
       sandbox: true,            // Renderer can only use contextBridge APIs.
-      spellcheck: true,         // 4F — Screen reader / accessibility aid.
+      spellcheck: true,         // 4F â€” Screen reader / accessibility aid.
       // Disable features not used; reduces attack surface.
-      webgl: false,
+      // webgl: false, // Enabled for any future visualizations
       plugins: false,
     },
   });
 
-  // Load the Next.js app — dev server in development, static export in production.
+  // Load the Next.js app â€” dev server in development, static export in production.
   const appUrl = isDev
     ? `http://localhost:${NEXT_DEV_PORT}`
     : `file://${path.join(__dirname, "../out/index.html")}`;
@@ -79,18 +72,22 @@ function createWindow(): void {
   });
 }
 
-// ── App lifecycle ─────────────────────────────────────────────────────────────
+// â”€â”€ App lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 app.whenReady().then(() => {
+  const docker = checkDockerAvailability();
+  if (!docker.available) {
+    dialog.showErrorBox("Infrastructure Missing", docker.error!);
+  }
   createWindow();
 
-  // 7B — System tray.
+  // 7B â€” System tray.
   setupTray(mainWindow);
 
-  // 7D — Auto-update.
+  // 7D â€” Auto-update.
   setupUpdater(mainWindow);
 
-  // ── IPC: 7A Window controls ─────────────────────────────────────────────
+  // â”€â”€ IPC: 7A Window controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.on(IPC_CHANNELS.WINDOW_MINIMIZE, () => mainWindow?.minimize());
 
   ipcMain.on(IPC_CHANNELS.WINDOW_MAXIMIZE, () => {
@@ -105,13 +102,9 @@ app.whenReady().then(() => {
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, () => mainWindow?.isMaximized() ?? false);
 
-  // ── IPC: 7B Tray updates ────────────────────────────────────────────────
-  // The tray object is returned by setupTray() — status bar calls this every
-  // 15 s with active mission count and online/offline status.
-  // The tray reference is held inside setupTray; future enhancement can store it
-  // here to allow dynamic tooltip changes without rebuilding the context menu.
+  // â”€â”€ IPC: 7B Tray updates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // ── IPC: 7C File system dialogs ────────────────────────────────────────
+  // â”€â”€ IPC: 7C File system dialogs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€      
   ipcMain.handle(IPC_CHANNELS.FS_SHOW_OPEN, async (_, options: {
     title?: string;
     properties?: ("openFile" | "openDirectory" | "multiSelections")[];
@@ -136,7 +129,7 @@ app.whenReady().then(() => {
     return result.canceled ? null : result.filePath;
   });
 
-  // ── IPC: 7E App info ────────────────────────────────────────────────────
+  // â”€â”€ IPC: 7E App info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle(IPC_CHANNELS.APP_PLATFORM, () => process.platform);
 });
 

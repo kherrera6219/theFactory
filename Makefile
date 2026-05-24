@@ -1,7 +1,15 @@
-.PHONY: up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai demo audit promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs
+
+.PHONY: check-env force-stop
+check-env:
+	@python scripts/check_env.py
+
+force-stop:
+	@python scripts/force_stop.py
+
+.PHONY: check-env up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai demo audit promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs
 # validate: full pre-merge gate — lint + schema check + pytest + UI lint/test
 
-up: tls-certs
+up: check-env tls-certs
 	docker compose -f deploy/docker-compose.yaml up -d --build
 
 down:
@@ -168,3 +176,15 @@ langgraph-v2-prototype:
 
 sweep:
 	powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1
+
+demo:
+	python scripts/run_demo_mission.py
+
+demo-js:
+	python scripts/run_demo_mission.py --language javascript
+
+demo-ts:
+	python scripts/run_demo_mission.py --language typescript
+
+demo-check:
+	python scripts/run_demo_mission.py --dry-run

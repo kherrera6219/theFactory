@@ -23,7 +23,7 @@ type DatabaseCard = {
 
 function runtimeFlag(
   summary: OperationsSummary | null,
-  key: "qdrant_ready" | "neo4j_ready" | "object_storage_ready",
+  key: "qdrant_ready" | "milvus_ready" | "neo4j_ready" | "object_storage_ready" | "jaeger_ready",
 ): boolean | null {
   const value = summary?.runtime[key];
   return typeof value === "boolean" ? value : null;
@@ -80,12 +80,22 @@ function buildCards(summary: OperationsSummary | null, health: GatewayHealth | n
     },
     adapterCard({
       id: "qdrant",
-      name: "Knowledge Vectors",
+      name: "Knowledge Vectors (Primary)",
       engine: "Qdrant",
       ready: runtimeFlag(summary, "qdrant_ready"),
       healthyDetails: "Qdrant mirror and retrieval path are active.",
       degradedDetails: "Qdrant is enabled but not ready.",
       disabledDetails: "Optional vector adapter is disabled.",
+      lastWrite,
+    }),
+    adapterCard({
+      id: "milvus",
+      name: "Knowledge Vectors (Secondary)",
+      engine: "Milvus",
+      ready: runtimeFlag(summary, "milvus_ready"),
+      healthyDetails: "Milvus vector mirror is active.",
+      degradedDetails: "Milvus is enabled but not ready.",
+      disabledDetails: "Optional Milvus adapter is disabled.",
       lastWrite,
     }),
     adapterCard({
@@ -106,6 +116,16 @@ function buildCards(summary: OperationsSummary | null, health: GatewayHealth | n
       healthyDetails: "Audit artifact retention mirror is active.",
       degradedDetails: "Object storage is enabled but not ready.",
       disabledDetails: "Optional object-storage adapter is disabled.",
+      lastWrite,
+    }),
+    adapterCard({
+      id: "jaeger",
+      name: "Observability Pipeline",
+      engine: "Jaeger",
+      ready: runtimeFlag(summary, "jaeger_ready"),
+      healthyDetails: "Distributed tracing is active and collecting spans.",
+      degradedDetails: "Jaeger OTLP endpoint is unreachable.",
+      disabledDetails: "Tracing is disabled in environment.",
       lastWrite,
     }),
   ];

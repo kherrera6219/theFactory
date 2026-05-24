@@ -71,3 +71,43 @@ def current_span_id() -> str | None:
     if context is None or not context.is_valid:
         return None
     return f"{context.span_id:016x}"
+
+
+def trace_operation(operation_name: str, attributes: dict[str, Any] | None = None):
+    """Decorator to trace a function call with OTEL spans."""
+    def decorator(func):
+        import functools
+        if not _enabled():
+            return func
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                from opentelemetry import trace
+                tracer = trace.get_tracer(__name__)
+                with tracer.start_as_current_span(operation_name) as span:
+                    if attributes:
+                        for key, value in attributes.items():
+                            span.set_attribute(key, str(value))
+                    return func(*args, **kwargs)
+            except Exception:
+                return func(*args, **kwargs)
+        
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            try:
+                from opentelemetry import trace
+                tracer = trace.get_tracer(__name__)
+                with tracer.start_as_current_span(operation_name) as span:
+                    if attributes:
+                        for key, value in attributes.items():
+                            span.set_attribute(key, str(value))
+                    return await func(*args, **kwargs)
+            except Exception:
+                return await func(*args, **kwargs)
+
+            import inspect
+        if inspect.iscoroutinefunction(func):
+            return async_wrapper
+        return wrapper
+    return decorator

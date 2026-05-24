@@ -12,6 +12,7 @@ from .data_plane_metrics import (
     set_optional_adapter_enabled,
     set_optional_adapter_ready,
 )
+from .storage_core import factory_json_dumps
 from .settings import Settings
 
 _SCHEMA_CACHE: set[str] = set()
@@ -31,19 +32,28 @@ def _request_json(
     path: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
+    from .tracing import current_trace_id, current_span_id
     url = _validated_http_url(settings.neo4j_url, path, service="neo4j")
     auth = f"{settings.neo4j_username}:{settings.neo4j_password}".encode("utf-8")
     token = base64.b64encode(auth).decode("ascii")
-    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    body = factory_json_dumps(payload).encode("utf-8")
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": f"Basic {token}",
+    }
+    trace_id = current_trace_id()
+    if trace_id:
+        headers["x-trace-id"] = trace_id
+    span_id = current_span_id()
+    if span_id:
+        headers["x-span-id"] = span_id
+
     request = Request(
         url,
         method="POST",
         data=body,
-        headers={
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Authorization": f"Basic {token}",
-        },
+        headers=headers,
     )
     with urlopen(request, timeout=settings.neo4j_timeout_seconds) as response:  # nosec B310
         raw = response.read().decode("utf-8")

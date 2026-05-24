@@ -521,7 +521,11 @@ async def upsert_logicnode(
     await _main._ensure_db_ready(app)
     mission = await _main._fetch_existing_mission(app, payload.mission_id)
 
-    created_at = payload.created_at or datetime.now(UTC).isoformat()
+    created_at = (
+        payload.created_at.isoformat()
+        if isinstance(payload.created_at, datetime)
+        else (payload.created_at or datetime.now(UTC).isoformat())
+    )
     record = await asyncio.to_thread(
         storage.upsert_logicnode,
         app.state.settings,
@@ -578,7 +582,11 @@ async def upsert_knowledge(
     await _main._ensure_db_ready(app)
     mission = await _main._fetch_existing_mission(app, payload.mission_id)
 
-    created_at = payload.created_at or datetime.now(UTC).isoformat()
+    created_at = (
+        payload.created_at.isoformat()
+        if isinstance(payload.created_at, datetime)
+        else (payload.created_at or datetime.now(UTC).isoformat())
+    )
     record = await asyncio.to_thread(
         storage.upsert_knowledge,
         app.state.settings,
@@ -747,7 +755,11 @@ async def upsert_audit_report(
     await _main._ensure_db_ready(app)
     mission = await _main._fetch_existing_mission(app, payload.mission_id)
 
-    created_at = payload.created_at or datetime.now(UTC).isoformat()
+    created_at = (
+        payload.created_at.isoformat()
+        if isinstance(payload.created_at, datetime)
+        else (payload.created_at or datetime.now(UTC).isoformat())
+    )
     record = await asyncio.to_thread(
         storage.upsert_audit_report,
         app.state.settings,
@@ -1110,3 +1122,30 @@ async def get_prompt_registry() -> Any:
     """Return all registered versioned prompt assets."""
     from ..prompt_registry import list_prompts
     return {"prompts": list_prompts(), "count": len(list_prompts())}
+
+
+@router.post("/internal/maintenance/diagnostics")
+async def create_diagnostics(
+    request: Request,
+    mission_id: str | None = None,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    """Generate a sanitized diagnostic bundle."""
+    from ..system_maintenance import get_maintenance_manager
+    manager = get_maintenance_manager(request.app)
+    path = await manager.create_diagnostic_bundle(mission_id=mission_id)
+    return {"ok": True, "bundle_path": path}
+
+
+@router.post("/internal/maintenance/backup")
+async def trigger_backup(
+    request: Request,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    """Trigger a full stateful backup."""
+    from ..system_maintenance import get_maintenance_manager
+    manager = get_maintenance_manager(request.app)
+    path = await manager.run_full_backup()
+    if path.startswith("ERROR"):
+        raise HTTPException(status_code=500, detail=path)
+    return {"ok": True, "backup_path": path}

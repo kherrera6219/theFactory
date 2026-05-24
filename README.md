@@ -16,7 +16,7 @@
 
 </div>
 
-> **Version:** 1.0.0 · **Last updated:** 2026-05-22 · **Status:** Canonical
+> **Version:** 1.1.0 · **Last updated:** 2026-05-23 · **Status:** Canonical
 
 ---
 
@@ -28,7 +28,7 @@
 - [Overview](#overview)
 - [Implementation Status](docs/IMPLEMENTATION_STATUS.md)
 - [Architecture](#architecture)
-- [38-Agent Runtime Model](#38-agent-runtime-model)
+- [38-Agent Runtime Model](#41-agent-runtime-model)
 - [Mission Lifecycle](#mission-lifecycle)
 - [Language Extraction Engine](#language-extraction-engine)
 - [Services](#services)
@@ -108,13 +108,13 @@ For the implemented lifecycle (Mission Flow v2 — 11-phase state machine) see [
 
 ## Overview
 
-**theFactory** is the HolyGrail runtime implementation of a 38-agent multi-agent software refinery. It is designed as a Windows-friendly, Docker-based monorepo that provides:
+**theFactory** is the HolyGrail runtime implementation of a 41-agent multi-agent software refinery. It is designed as a Windows-friendly, Docker-based monorepo that provides:
 
 Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 
-- **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
+- **Multi-modal context ingestion** — native support for PDF, Word, MD, and PowerPoint indexing via IS-Agent\n- **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
 - **Semantic bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
-- **38-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
+- **41-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
 - **Language-aware code analysis** — regex-first extraction engine for 20 routed language keys across 4 pod groups; Python, JavaScript/TypeScript, and Java each have full AST-backed structural extractors (feature-flagged, production-ready)
 - **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
 - **Durable review and artifact flow** — builder/repo approvals persist through the orchestrator and source-bundle missions store a verified build/package artifact before completion
@@ -141,7 +141,7 @@ Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTA
 ┌───────────▼───────────────────────────────────────▼─────────────┐
 │                      ORCHESTRATOR :8101                         │
 │  LangGraph StateGraph · Mission lifecycle · Pod assignment      │
-│  38-agent registry · Operations APIs · Qdrant/Neo4j/S3 plane   │
+│  41-agent registry · Operations APIs · Qdrant/Neo4j/S3 plane   │
 └──┬──────┬──────────┬───────────────┬───────────────────────────┘
    │      │ Redis    │               │
    │   Streams   ┌──▼────────────────▼──┐
@@ -398,7 +398,7 @@ Each extracted concept becomes a **LogicNode** with:
 | Chat | PM-agent intake conversation with attached-file language inference |
 | Missions | Mission table with lifecycle state and phase stepper |
 | Mission Detail | Live event timeline, Smelt-cycle phase stepper (SSE-driven), chain-of-command, LogicNode/knowledge drill-down, and build-artifact visibility |
-| Agents | 38-agent roster grid with persona drill-down and windowed live logs |
+| Agents | 41-agent roster grid with persona drill-down and windowed live logs |
 | LogicNodes | Logic artifact explorer with mission filtering, confidence summaries, and source lineage |
 | Semantic Bus | Live message stream with `stream|poll|paused` transport diagnostics and windowed rendering |
 | Projects | Project portfolio, mission rollups, and project-level audit timeline |
@@ -442,9 +442,9 @@ Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`,
 | **PostgreSQL** | ✅ Active | Missions, events, pod assignments, LogicNodes, knowledge, audits, agent heartbeats |
 | **Redis** | ✅ Active | Streams (event bus), rate limiting, idempotency keys, heartbeat telemetry |
 | **Qdrant** | ✅ Active | Live knowledge retrieval and indexing (PostgreSQL fallback) |
-| **Milvus** | ⚙️ Feature-flagged | Optional vector-store path for extended knowledge retrieval |
-| **Neo4j** | ⚙️ Feature-flagged | Relationship-heavy mission/audit graph queries |
-| **MinIO/S3** | ⚙️ Feature-flagged | Immutable artifact retention, legal-hold, 90-day policy |
+| **Milvus** | ✅ Active | Optional vector-store path for extended knowledge retrieval |
+| **Neo4j** | ✅ Active | Relationship-heavy mission/audit graph queries |
+| **MinIO/S3** | ✅ Active | Immutable artifact retention, legal-hold, 90-day policy |
 
 **Schema governance:** Versioned SQL migrations with checksum-tracked `schema_migrations` table (`V001_...` naming).
 
@@ -822,7 +822,7 @@ make up-full-dedicated
 docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
-Adds dedicated `agent-runtime` containers for PM, CEO, support, and pod-audit roles plus dedicated specialist workers for all 20 routed language keys, including Go, Haskell, and OCaml. The overlay now provisions the full isolated 38-agent runtime topology on top of the shared baseline stack.
+Adds dedicated `agent-runtime` containers for PM, CEO, support, and pod-audit roles plus dedicated specialist workers for all 20 routed language keys, including Go, Haskell, and OCaml. The overlay now provisions the full isolated 41-agent runtime topology on top of the shared baseline stack.
 
 ### Monitoring Stack
 

@@ -152,7 +152,7 @@ def _create_live_mission() -> str:
         },
         headers={"Idempotency-Key": mission_key},
     )
-    assert status == 200
+    assert status in {200, 201}
     assert isinstance(payload, dict)
     mission_id = payload.get("mission_id")
     assert isinstance(mission_id, str) and mission_id

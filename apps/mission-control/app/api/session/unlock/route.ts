@@ -4,6 +4,7 @@ import {
   attachOperatorSessionCookie,
   getMissionControlAdminKey,
   getOperatorSessionTtlSeconds,
+  isOperatorSessionBypassed,
   verifyOperatorAdminKey,
 } from "../../../lib/server/operator-session";
 
@@ -14,6 +15,17 @@ type UnlockRequestPayload = {
 };
 
 export async function POST(request: Request) {
+  // Dev bypass — auto-issue a session without requiring an admin key.
+  if (isOperatorSessionBypassed()) {
+    const response = NextResponse.json({
+      authenticated: true,
+      ttl_seconds: getOperatorSessionTtlSeconds(),
+      bypass: true,
+    });
+    attachOperatorSessionCookie(response);
+    return response;
+  }
+
   if (!getMissionControlAdminKey()) {
     return NextResponse.json(
       {

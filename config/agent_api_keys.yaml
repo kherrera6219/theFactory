@@ -46,9 +46,9 @@ agents:
     name: "PM Agent"
     role: "Program manager and mission intake translation"
     pod: "User Interface"
-    primary_provider: "anthropic"
-    primary_model: "claude-sonnet-4-6"
-    llm_profile: "anthropic_general_audit"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: "" # <-- Per-agent key (optional)
@@ -62,7 +62,7 @@ agents:
     role: "Cross-pod orchestration and global state ownership"
     pod: "Executive"
     primary_provider: "openai"
-    primary_model: "gpt-5.2-pro"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_exec"
     fallback_provider: ~
     fallback_model: ~
@@ -98,9 +98,9 @@ agents:
     name: "Security Agent"
     role: "Security scanning and threat detection"
     pod: "Support Ring"
-    primary_provider: "anthropic"
+    primary_provider: "openai"
     primary_model: "claude-opus-4-6"
-    llm_profile: "anthropic_deep_audit"
+    llm_profile: "openai_deep_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -113,7 +113,7 @@ agents:
     primary_model: "gemini-2.5-pro"
     llm_profile: "gemini_knowledge"
     fallback_provider: "anthropic"
-    fallback_model: "claude-sonnet-4-6"
+    fallback_model: "gpt-5.5"
     api_key_override: ""
 
   - agent_id: "AGENT-07-VC"
@@ -121,7 +121,7 @@ agents:
     role: "Commit strategy, rollback, and provenance traceability"
     pod: "Support Ring"
     primary_provider: "openai"
-    primary_model: "gpt-5.3-codex"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
     fallback_provider: ~
     fallback_model: ~
@@ -131,9 +131,9 @@ agents:
     name: "Compliance Agent"
     role: "License compatibility and legal provenance checks"
     pod: "Support Ring"
-    primary_provider: "anthropic"
+    primary_provider: "openai"
     primary_model: "claude-opus-4-6"
-    llm_profile: "anthropic_deep_audit"
+    llm_profile: "openai_deep_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -146,16 +146,16 @@ agents:
     primary_model: "gemini-2.5-pro"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
-    fallback_model: "gpt-5.2-pro"
+    fallback_model: "gpt-5.5"
     api_key_override: ""
 
   - agent_id: "AGENT-10-TESTER"
     name: "System Integration Tester"
     role: "End-to-end validation and performance benchmarking"
     pod: "Support Ring"
-    primary_provider: "anthropic"
+    primary_provider: "openai"
     primary_model: "claude-opus-4-6"
-    llm_profile: "anthropic_deep_audit"
+    llm_profile: "openai_deep_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -180,7 +180,7 @@ agents:
     role: "Coordinate dynamic-language extraction and fusion in Pod A"
     pod: "Pod A"
     primary_provider: "openai"
-    primary_model: "gpt-5.2-pro"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_exec"
     fallback_provider: ~
     fallback_model: ~
@@ -190,9 +190,9 @@ agents:
     name: "Pod A QC/Audit"
     role: "Verify Pod A LogicNodes before pod-level release"
     pod: "Pod A"
-    primary_provider: "anthropic"
-    primary_model: "claude-sonnet-4-6"
-    llm_profile: "anthropic_general_audit"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -202,7 +202,7 @@ agents:
     role: "Extract computational intent from Python workloads"
     pod: "Pod A"
     primary_provider: "openai"
-    primary_model: "gpt-5.3-codex"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
     fallback_provider: ~
     fallback_model: ~
@@ -213,7 +213,7 @@ agents:
     role: "Extract computational intent from JavaScript/TypeScript workloads"
     pod: "Pod A"
     primary_provider: "openai"
-    primary_model: "gpt-5.3-codex"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
     fallback_provider: ~
     fallback_model: ~
@@ -224,7 +224,7 @@ agents:
     role: "Extract computational intent from Ruby workloads"
     pod: "Pod A"
     primary_provider: "openai"
-    primary_model: "gpt-5.3-codex"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
     fallback_provider: ~
     fallback_model: ~
@@ -235,7 +235,7 @@ agents:
     role: "Extract computational intent from PHP workloads"
     pod: "Pod A"
     primary_provider: "openai"
-    primary_model: "gpt-5.3-codex"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
     fallback_provider: ~
     fallback_model: ~
@@ -250,7 +250,7 @@ agents:
     role: "Coordinate systems-language extraction and fusion in Pod B"
     pod: "Pod B"
     primary_provider: "openai"
-    primary_model: "gpt-5.2-pro"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_exec"
     fallback_provider: ~
     fallback_model: ~
@@ -260,9 +260,9 @@ agents:
     name: "Pod B QC/Audit"
     role: "Verify Pod B LogicNodes before pod-level release"
     pod: "Pod B"
-    primary_provider: "anthropic"
-    primary_model: "claude-sonnet-4-6"
-    llm_profile: "anthropic_general_audit"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -272,7 +272,7 @@ agents:
     role: "Extract computational intent from C workloads"
     pod: "Pod B"
     primary_provider: "openai"
-    primary_model: "gpt-5.3-codex"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
     fallback_provider: ~
     fallback_model: ~
@@ -283,7 +283,7 @@ agents:
     role: "Extract computational intent from C++ workloads"
     pod: "Pod B"
     primary_provider: "openai"
-    primary_model: "gpt-5.3-codex"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
     fallback_provider: ~
     fallback_model: ~
@@ -294,7 +294,7 @@ agents:
     role: "Extract computational intent from Rust workloads"
     pod: "Pod B"
     primary_provider: "openai"
-    primary_model: "gpt-5.3-codex"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
     fallback_provider: ~
     fallback_model: ~
@@ -305,7 +305,7 @@ agents:
     role: "Extract computational intent from Zig workloads"
     pod: "Pod B"
     primary_provider: "openai"
-    primary_model: "gpt-5.3-codex"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
     fallback_provider: ~
     fallback_model: ~
@@ -320,7 +320,7 @@ agents:
     role: "Coordinate enterprise-language extraction and fusion in Pod C"
     pod: "Pod C"
     primary_provider: "openai"
-    primary_model: "gpt-5.2-pro"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_exec"
     fallback_provider: ~
     fallback_model: ~
@@ -330,9 +330,9 @@ agents:
     name: "Pod C QC/Audit"
     role: "Verify Pod C LogicNodes before pod-level release"
     pod: "Pod C"
-    primary_provider: "anthropic"
-    primary_model: "claude-sonnet-4-6"
-    llm_profile: "anthropic_general_audit"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -341,9 +341,9 @@ agents:
     name: "Java Specialist"
     role: "Extract computational intent from Java workloads"
     pod: "Pod C"
-    primary_provider: "anthropic"
-    primary_model: "claude-sonnet-4-6"
-    llm_profile: "anthropic_general_audit"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -352,9 +352,9 @@ agents:
     name: "C# Specialist"
     role: "Extract computational intent from C# workloads"
     pod: "Pod C"
-    primary_provider: "anthropic"
-    primary_model: "claude-sonnet-4-6"
-    llm_profile: "anthropic_general_audit"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -363,9 +363,9 @@ agents:
     name: "Scala Specialist"
     role: "Extract computational intent from Scala workloads"
     pod: "Pod C"
-    primary_provider: "anthropic"
-    primary_model: "claude-sonnet-4-6"
-    llm_profile: "anthropic_general_audit"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -374,9 +374,9 @@ agents:
     name: "Kotlin Specialist"
     role: "Extract computational intent from Kotlin workloads"
     pod: "Pod C"
-    primary_provider: "anthropic"
-    primary_model: "claude-sonnet-4-6"
-    llm_profile: "anthropic_general_audit"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -393,16 +393,16 @@ agents:
     primary_model: "gemini-2.5-pro"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
-    fallback_model: "gpt-5.2-pro"
+    fallback_model: "gpt-5.5"
     api_key_override: ""
 
   - agent_id: "AGENT-31-PODD-AUDIT"
     name: "Pod D QC/Audit"
     role: "Verify Pod D LogicNodes before pod-level release"
     pod: "Pod D"
-    primary_provider: "anthropic"
+    primary_provider: "openai"
     primary_model: "claude-opus-4-6"
-    llm_profile: "anthropic_deep_audit"
+    llm_profile: "openai_deep_audit"
     fallback_provider: ~
     fallback_model: ~
     api_key_override: ""
@@ -415,7 +415,7 @@ agents:
     primary_model: "gemini-2.5-pro"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
-    fallback_model: "gpt-5.2-pro"
+    fallback_model: "gpt-5.5"
     api_key_override: ""
 
   - agent_id: "AGENT-33-R"
@@ -426,7 +426,7 @@ agents:
     primary_model: "gemini-2.5-pro"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
-    fallback_model: "gpt-5.2-pro"
+    fallback_model: "gpt-5.5"
     api_key_override: ""
 
   - agent_id: "AGENT-34-JULIA"
@@ -437,7 +437,7 @@ agents:
     primary_model: "gemini-2.5-pro"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
-    fallback_model: "gpt-5.2-pro"
+    fallback_model: "gpt-5.5"
     api_key_override: ""
 
   - agent_id: "AGENT-35-MATHEMATICA"
@@ -448,5 +448,5 @@ agents:
     primary_model: "gemini-2.5-pro"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
-    fallback_model: "gpt-5.2-pro"
+    fallback_model: "gpt-5.5"
     api_key_override: ""

@@ -216,6 +216,7 @@ async def run_fetch_phase(
     mission_id: str,
     required_languages: list[str],
     settings: Any,
+    attachments: list[Any] | None = None,
 ) -> dict[str, Any]:
     """IS Agent execution: index bootstrap docs for required languages.
 
@@ -228,6 +229,16 @@ async def run_fetch_phase(
     skipped_languages: list[str] = []
     knowledge_ids: list[str] = []
     errors: list[str] = []
+
+    if attachments:
+        att_result = await _process_mission_attachments(
+            mission_id=mission_id,
+            attachments=attachments,
+            settings=settings,
+        )
+        knowledge_ids.extend(att_result.get("knowledge_ids", []))
+        for err in att_result.get("errors", []):
+            errors.append(f"attachment: {err}")
 
     for language_key in required_languages:
         if language_key not in _BOOTSTRAP_DOCS:
@@ -326,3 +337,63 @@ def _upsert_knowledge_safe(
     except Exception as exc:
         LOGGER.warning("IS Agent storage write failed for %s: %s", knowledge_id, exc)
         raise
+
+
+async def _process_mission_attachments(
+    *,
+    mission_id: str,
+    attachments: list[Any],
+    settings: Any,
+) -> dict[str, Any]:
+    """Index mission-specific attachments into the Knowledge Lake."""
+    processed_count = 0
+    errors = []
+    knowledge_ids = []
+
+    for att in attachments:
+        # Note: In production, this would use object_store and actual doc extractors (PDF/Word).
+        # Here we index metadata and purpose to enable downstream reasoning.
+        filename = "unknown"
+        file_id = "unknown"
+        purpose = "reference"
+
+        if isinstance(att, dict):
+            filename = att.get("filename", "unknown")
+            file_id = att.get("file_id", "unknown")
+            purpose = att.get("purpose", "reference")
+        else:
+            filename = getattr(att, "filename", "unknown")
+            file_id = getattr(att, "file_id", "unknown")
+            purpose = getattr(att, "purpose", "reference")
+
+        knowledge_id = f"mission.{mission_id}.att.{file_id}"
+
+        try:
+            content = {
+                "title": f"Attachment: {filename}",
+                "purpose": purpose,
+                "topics": [
+                    ("file_metadata", f"Filename: {filename}, ID: {file_id}, Purpose: {purpose}")
+                ],
+                "hash": hashlib.sha256(f"{file_id}-{filename}".encode()).hexdigest(),
+                "source": "attachment_extraction"
+            }
+
+            await asyncio.to_thread(
+                _upsert_knowledge_safe,
+                settings=settings,
+                mission_id=mission_id,
+                knowledge_id=knowledge_id,
+                content=content,
+                created_at=datetime.now(UTC).isoformat(),
+            )
+            processed_count += 1
+            knowledge_ids.append(knowledge_id)
+        except Exception as exc:
+            errors.append(f"{filename}: {exc}")
+
+    return {
+        "processed_count": processed_count,
+        "knowledge_ids": knowledge_ids,
+        "errors": errors
+    }

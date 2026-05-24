@@ -444,6 +444,7 @@ export default function ChatPage() {
           ))}
         </aside>
 
+        <div className="chat-main">
         <Panel title="Conversation" className="chat-panel">
         <div className="chat-list" role="log" aria-live="polite" aria-label="PM chat history">
           {messages.map((message) => (
@@ -623,6 +624,7 @@ export default function ChatPage() {
           )}
         </Panel>
       )}
+        </div>{/* end chat-main */}
 
       </div>
     </div>

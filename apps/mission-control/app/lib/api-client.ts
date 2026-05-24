@@ -1,3 +1,4 @@
+import { isElectron } from "./electron-bridge";
 import type {
   BuilderPreviewResponse,
   PmFeatureContractResponse,
@@ -25,7 +26,20 @@ import type {
 } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-const missionApiBase = process.env.NEXT_PUBLIC_API_PROXY_BASE_URL ?? "/api/gateway";
+
+// 7E — In Electron, talk directly to the local API Gateway.
+// In the browser, proxy through Next.js /api/gateway.
+const getMissionApiBase = () => {
+  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_PROXY_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_PROXY_BASE_URL;
+  }
+  if (isElectron()) {
+    return "http://localhost:8100/v1";
+  }
+  return "/api/gateway";
+};
+
+const missionApiBase = getMissionApiBase();
 
 export class ApiError extends Error {
   statusCode: number;
@@ -55,12 +69,12 @@ async function parseError(response: Response): Promise<string> {
       payload.detail &&
       typeof payload.detail === "object" &&
       "message" in payload.detail &&
-      typeof payload.detail.message === "string"
+      typeof (payload.detail as any).message === "string"
     ) {
-      return payload.detail.message;
+      return (payload.detail as any).message;
     }
   } catch {
-    // Use default error text if JSON parse fails.
+    // ignore
   }
 
   if (response.status === 429) {
@@ -72,22 +86,17 @@ async function parseError(response: Response): Promise<string> {
   return `Request failed with status ${response.status}`;
 }
 
-type FetchJsonInit = RequestInit & {
-  timeoutMs?: number;
-};
-
-export async function fetchJson<T>(input: string, init?: FetchJsonInit): Promise<T> {
+export async function fetchJson<T>(input: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...requestInit } = init ?? {};
-  const timeout = requestInit.signal ? null : withTimeout(timeoutMs);
+  const { signal, cleanup } = withTimeout(timeoutMs);
   try {
     const response = await fetch(input, {
       ...requestInit,
-      signal: requestInit.signal ?? timeout?.signal,
+      signal: requestInit.signal ?? signal,
       headers: {
         "Content-Type": "application/json",
         ...(requestInit.headers ?? {}),
       },
-      cache: "no-store",
     });
 
     if (!response.ok) {
@@ -98,17 +107,28 @@ export async function fetchJson<T>(input: string, init?: FetchJsonInit): Promise
       detail?: string;
       status?: number;
     };
-    if (payload.__gateway_error) {
-      throw new ApiError(payload.detail ?? "Local runtime gateway is unavailable.", payload.status ?? 503);
+
+    if (payload && typeof payload === "object" && payload.__gateway_error) {
+      throw new ApiError(payload.detail || "Internal Gateway Error", payload.status || 500);
     }
-    return payload as T;
+
+    return payload;
   } finally {
-    timeout?.cleanup();
+    cleanup();
   }
 }
 
 export function missionApiUrl(path: string): string {
-  return `${missionApiBase}${path}`;
+    const base = missionApiBase.endsWith("/") ? missionApiBase.slice(0, -1) : missionApiBase;
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    
+    // 7E — If talkling directly to v1 gateway, we don't need the /v1 prefix in path 
+    // if the base already has it.
+    if (base.endsWith("/v1") && cleanPath.startsWith("/v1/")) {
+        return `${base}${cleanPath.slice(3)}`;
+    }
+    
+    return `${base}${cleanPath}`;
 }
 
 export function missionStateStreamUrl(params?: {
@@ -123,24 +143,15 @@ export function missionStateStreamUrl(params?: {
     searchParams.set("include_agent_events", "false");
   }
   const query = searchParams.toString();
-  if (!query) {
-    return missionApiUrl("/v1/stream/state");
-  }
-  return missionApiUrl(`/v1/stream/state?${query}`);
+  const base = missionApiUrl("/v1/stream/state");
+  return query ? `${base}?${query}` : base;
 }
 
 export function parseLiveStateStreamMessage(raw: string): LiveStateStreamEvent | null {
   try {
     const parsed = JSON.parse(raw) as LiveStateStreamEvent;
-    if (!parsed || typeof parsed !== "object") {
-      return null;
-    }
-    if (typeof parsed.event_type !== "string" || typeof parsed.stream_id !== "string") {
-      return null;
-    }
-    if (!parsed.payload || typeof parsed.payload !== "object") {
-      return null;
-    }
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.event_type !== "string" || typeof parsed.stream_id !== "string") return null;
     return parsed;
   } catch {
     return null;
@@ -155,18 +166,17 @@ export function buildIdempotencyKey(): string {
 }
 
 export async function listMissions(limit: number): Promise<MissionRecord[]> {
-  return fetchJson<MissionRecord[]>(missionApiUrl(`/v1/missions?limit=${limit}`), { method: "GET" });
+  return fetchJson<MissionRecord[]>(missionApiUrl(`/v1/missions?limit=${limit}`));
 }
 
 export async function getMission(missionId: string, maxRetries = 3): Promise<MissionRecord> {
   let attempt = 0;
   while (true) {
     try {
-      return await fetchJson<MissionRecord>(missionApiUrl(`/v1/missions/${missionId}`), { method: "GET" });
+      return await fetchJson<MissionRecord>(missionApiUrl(`/v1/missions/${missionId}`));
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 404 && attempt < maxRetries) {
         attempt++;
-        // Defensive retry for short-lived propagation gaps after mission creation
         await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
         continue;
       }
@@ -176,258 +186,126 @@ export async function getMission(missionId: string, maxRetries = 3): Promise<Mis
 }
 
 export async function getMissionEvents(missionId: string, limit: number): Promise<MissionEvent[]> {
-  return fetchJson<MissionEvent[]>(missionApiUrl(`/v1/missions/${missionId}/events?limit=${limit}`), {
-    method: "GET",
-  });
+  return fetchJson<MissionEvent[]>(missionApiUrl(`/v1/missions/${missionId}/events?limit=${limit}`));
 }
 
 export async function getMissionChainTrace(missionId: string): Promise<MissionChainTrace> {
-  return fetchJson<MissionChainTrace>(missionApiUrl(`/v1/missions/${missionId}/chain-trace`), {
-    method: "GET",
-  });
+  return fetchJson<MissionChainTrace>(missionApiUrl(`/v1/missions/${missionId}/chain-trace`));
 }
 
-export async function createMission(payload: {
-  prompt: string;
-  requested_target_language: string | null;
-  mission_type?: MissionType | null;
-  depth_mode?: DepthMode | null;
-  output_mode?: OutputMode | null;
-  data_classification?: DataClassification | null;
-  source_code?: string;
-  metadata: Record<string, unknown>;
-}): Promise<MissionRecord> {
+export async function createMission(payload: any): Promise<MissionRecord> {
   return fetchJson<MissionRecord>(missionApiUrl("/v1/missions"), {
     method: "POST",
-    headers: {
-      "Idempotency-Key": buildIdempotencyKey(),
-    },
+    headers: { "Idempotency-Key": buildIdempotencyKey() },
     body: JSON.stringify(payload),
   });
 }
 
-/**
- * 6E — PATCH a mission's metadata fields (e.g. { name: "My Mission" }).
- * The backend must accept PATCH /v1/missions/{id}; if it returns 404/405 the
- * caller should handle the error gracefully.
- */
-export async function updateMissionMetadata(
-  missionId: string,
-  metadata: Record<string, unknown>,
-): Promise<MissionRecord> {
+export async function updateMissionMetadata(missionId: string, metadata: any): Promise<MissionRecord> {
   return fetchJson<MissionRecord>(missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}`), {
     method: "PATCH",
     body: JSON.stringify({ metadata }),
   });
 }
 
-export async function updateMissionStateWithVault(payload: {
-  missionId: string;
-  newState: string;
-  expectedState?: string;
-}): Promise<Record<string, unknown>> {
-  return fetchJson<Record<string, unknown>>("/api/operator/mission-state", {
+export async function updateMissionStateWithVault(payload: any): Promise<any> {
+  // In Admin Mode, this might be simplified, but keep for compat
+  return fetchJson("/api/operator/mission-state", {
     method: "POST",
-    body: JSON.stringify({
-      mission_id: payload.missionId,
-      new_state: payload.newState,
-      expected_state: payload.expectedState,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
 export async function getGatewayHealth(): Promise<GatewayHealth> {
-  return fetchJson<GatewayHealth>(missionApiUrl("/health"), { method: "GET" });
+  return fetchJson<GatewayHealth>(missionApiUrl("/health"));
 }
 
 export async function getGatewayReadyState(): Promise<{ ready: boolean; detail?: string }> {
   try {
-    await fetchJson<Record<string, unknown>>(missionApiUrl("/readyz"), { method: "GET" });
+    await fetchJson(missionApiUrl("/readyz"));
     return { ready: true };
-  } catch (error) {
-    if (error instanceof ApiError) {
-      return { ready: false, detail: error.message };
-    }
-    return { ready: false, detail: "Readiness check failed." };
+  } catch (error: any) {
+    return { ready: false, detail: error.message };
   }
 }
 
 export async function getOperationsSummary(): Promise<OperationsSummary> {
-  return fetchJson<OperationsSummary>(missionApiUrl("/v1/operations/summary"), { method: "GET" });
+  return fetchJson<OperationsSummary>(missionApiUrl("/v1/operations/summary"));
 }
 
-export async function getOperationsAgents(params?: {
-  missionLimit?: number;
-  assignmentLimit?: number;
-  eventLimit?: number;
-}): Promise<OperationsAgentsSnapshot> {
+export async function getOperationsAgents(params?: any): Promise<OperationsAgentsSnapshot> {
   const searchParams = new URLSearchParams({
     mission_limit: String(params?.missionLimit ?? 1000),
     assignment_limit: String(params?.assignmentLimit ?? 1000),
     event_limit: String(params?.eventLimit ?? 300),
   });
-  return fetchJson<OperationsAgentsSnapshot>(
-    missionApiUrl(`/v1/operations/agents?${searchParams.toString()}`),
-    { method: "GET" },
-  );
+  return fetchJson<OperationsAgentsSnapshot>(missionApiUrl(`/v1/operations/agents?${searchParams.toString()}`));
 }
 
 export async function getOperationsAgentIntegrations(): Promise<OperationsAgentIntegrationsSnapshot> {
-  return fetchJson<OperationsAgentIntegrationsSnapshot>(
-    missionApiUrl("/v1/operations/agent-integrations"),
-    { method: "GET" },
-  );
+  return fetchJson<OperationsAgentIntegrationsSnapshot>(missionApiUrl("/v1/operations/agent-integrations"));
 }
 
 export async function listOperationsEvents(limit: number): Promise<MissionEvent[]> {
-  return fetchJson<MissionEvent[]>(missionApiUrl(`/v1/operations/events?limit=${limit}`), {
-    method: "GET",
-  });
+  return fetchJson<MissionEvent[]>(missionApiUrl(`/v1/operations/events?limit=${limit}`));
 }
 
-export async function listOperationsLogicNodes(params: {
-  limit: number;
-  missionId?: string;
-}): Promise<OperationsLogicNodeRecord[]> {
+export async function listOperationsLogicNodes(params: any): Promise<OperationsLogicNodeRecord[]> {
   const searchParams = new URLSearchParams({ limit: String(params.limit) });
-  if (params.missionId) {
-    searchParams.set("mission_id", params.missionId);
-  }
-  return fetchJson<OperationsLogicNodeRecord[]>(
-    missionApiUrl(`/v1/operations/logicnodes?${searchParams.toString()}`),
-    {
-      method: "GET",
-    },
-  );
+  if (params.missionId) searchParams.set("mission_id", params.missionId);
+  return fetchJson<OperationsLogicNodeRecord[]>(missionApiUrl(`/v1/operations/logicnodes?${searchParams.toString()}`));
 }
 
 export async function listOperationsPodAssignments(limit: number): Promise<PodAssignmentRecord[]> {
-  return fetchJson<PodAssignmentRecord[]>(
-    missionApiUrl(`/v1/operations/pod-assignments?limit=${limit}`),
-    { method: "GET" },
-  );
+  return fetchJson<PodAssignmentRecord[]>(missionApiUrl(`/v1/operations/pod-assignments?limit=${limit}`));
 }
 
 export async function listOperationsProjects(limit: number): Promise<OperationsProjectRecord[]> {
-  return fetchJson<OperationsProjectRecord[]>(missionApiUrl(`/v1/operations/projects?limit=${limit}`), {
-    method: "GET",
-  });
+  return fetchJson<OperationsProjectRecord[]>(missionApiUrl(`/v1/operations/projects?limit=${limit}`));
 }
 
-export async function listProjectAuditEvents(params: {
-  projectId: string;
-  limit: number;
-  missionId?: string;
-  agentId?: string;
-  toolName?: string;
-}): Promise<OperationsAuditEventRecord[]> {
+export async function listProjectAuditEvents(params: any): Promise<OperationsAuditEventRecord[]> {
   const searchParams = new URLSearchParams({ limit: String(params.limit) });
-  if (params.missionId) {
-    searchParams.set("mission_id", params.missionId);
-  }
-  if (params.agentId) {
-    searchParams.set("agent_id", params.agentId);
-  }
-  if (params.toolName) {
-    searchParams.set("tool_name", params.toolName);
-  }
-  return fetchJson<OperationsAuditEventRecord[]>(
-    missionApiUrl(`/v1/operations/projects/${params.projectId}/audit-events?${searchParams.toString()}`),
-    { method: "GET" },
-  );
+  if (params.missionId) searchParams.set("mission_id", params.missionId);
+  return fetchJson<OperationsAuditEventRecord[]>(missionApiUrl(`/v1/operations/projects/${params.projectId}/audit-events?${searchParams.toString()}`));
 }
 
 export async function listOperationsAlerts(limit: number): Promise<OperationsAlertRecord[]> {
-  return fetchJson<OperationsAlertRecord[]>(missionApiUrl(`/v1/operations/alerts?limit=${limit}`), {
-    method: "GET",
-  });
+  return fetchJson<OperationsAlertRecord[]>(missionApiUrl(`/v1/operations/alerts?limit=${limit}`));
 }
 
-export async function listMissionAuditReports(
-  missionId: string,
-  limit = 50,
-): Promise<OperationsAuditReportRecord[]> {
-  return fetchJson<OperationsAuditReportRecord[]>(
-    missionApiUrl(`/v1/missions/${missionId}/audit-reports?limit=${limit}`),
-    { method: "GET" },
-  );
+export async function listMissionAuditReports(missionId: string, limit = 50): Promise<OperationsAuditReportRecord[]> {
+  return fetchJson<OperationsAuditReportRecord[]>(missionApiUrl(`/v1/missions/${missionId}/audit-reports?limit=${limit}`));
 }
 
-export async function listMissionAuditEvents(
-  missionId: string,
-  limit = 100,
-): Promise<OperationsAuditEventRecord[]> {
-  return fetchJson<OperationsAuditEventRecord[]>(
-    missionApiUrl(`/v1/missions/${missionId}/audit-events?limit=${limit}`),
-    { method: "GET" },
-  );
+export async function listMissionAuditEvents(missionId: string, limit = 100): Promise<OperationsAuditEventRecord[]> {
+  return fetchJson<OperationsAuditEventRecord[]>(missionApiUrl(`/v1/missions/${missionId}/audit-events?limit=${limit}`));
 }
 
-export async function createBuilderPreview(payload: {
-  request: string;
-  constraints: string[];
-  viewMode?: "desktop" | "tablet" | "mobile";
-}): Promise<BuilderPreviewResponse> {
+export async function createBuilderPreview(payload: any): Promise<BuilderPreviewResponse> {
   return fetchJson<BuilderPreviewResponse>(missionApiUrl("/v1/builder/preview"), {
     method: "POST",
-    body: JSON.stringify({
-      request: payload.request,
-      constraints: payload.constraints,
-      view_mode: payload.viewMode,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
-export async function createPmFeatureContract(payload: {
-  prompt: string;
-  missionType?: string;
-  depthMode?: string;
-  outputMode?: string;
-  requestedTargetLanguage?: string | null;
-}): Promise<PmFeatureContractResponse> {
+export async function createPmFeatureContract(payload: any): Promise<PmFeatureContractResponse> {
   return fetchJson<PmFeatureContractResponse>("/api/pm/feature-contract", {
     method: "POST",
     timeoutMs: 30_000,
-    body: JSON.stringify({
-      prompt: payload.prompt,
-      mission_type: payload.missionType ?? "BUILD_NEW",
-      depth_mode: payload.depthMode ?? "STANDARD",
-      output_mode: payload.outputMode ?? "FULL_BUILD",
-      requested_target_language: payload.requestedTargetLanguage ?? null,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
-export async function createBuilderWorkspaceReview(payload: {
-  request: string;
-  constraints: string[];
-  viewMode?: "desktop" | "tablet" | "mobile";
-}): Promise<BuilderPreviewResponse> {
+export async function createBuilderWorkspaceReview(payload: any): Promise<BuilderPreviewResponse> {
   return fetchJson<BuilderPreviewResponse>("/api/builder/review", {
     method: "POST",
     timeoutMs: 30_000,
-    body: JSON.stringify({
-      request: payload.request,
-      constraints: payload.constraints,
-      view_mode: payload.viewMode,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
-export async function createRepoReview(payload: {
-  repo_url: string;
-  branch: string;
-  subdirectory: string;
-  mission_type: "analyze" | "update" | "add_feature" | "refactor";
-  description: string;
-  selected_files: Array<{
-    path: string;
-    overlay_action: "include" | "reference";
-    language: string;
-    bytes: number;
-    estimated_lines: number;
-  }>;
-}): Promise<RepoReviewResponse> {
+export async function createRepoReview(payload: any): Promise<RepoReviewResponse> {
   return fetchJson<RepoReviewResponse>("/api/repo/review", {
     method: "POST",
     timeoutMs: 30_000,
@@ -435,12 +313,7 @@ export async function createRepoReview(payload: {
   });
 }
 
-export async function approveReviewArtifact(payload: {
-  scope: "builder" | "repo";
-  fingerprint: string;
-  summary: string;
-  metadata?: Record<string, unknown>;
-}): Promise<ReviewApprovalReceipt> {
+export async function approveReviewArtifact(payload: any): Promise<ReviewApprovalReceipt> {
   return fetchJson<ReviewApprovalReceipt>("/api/review/approve", {
     method: "POST",
     timeoutMs: 30_000,
@@ -448,31 +321,29 @@ export async function approveReviewArtifact(payload: {
   });
 }
 
-export async function verifyReviewApproval(payload: {
-  scope: "builder" | "repo";
-  approvalId: string;
-  fingerprint: string;
-  receiptDigest: string;
-}): Promise<ReviewApprovalVerificationResult> {
+export async function verifyReviewApproval(payload: any): Promise<ReviewApprovalVerificationResult> {
   return fetchJson<ReviewApprovalVerificationResult>("/api/review/verify", {
     method: "POST",
     timeoutMs: 30_000,
-    body: JSON.stringify({
-      scope: payload.scope,
-      approval_id: payload.approvalId,
-      fingerprint: payload.fingerprint,
-      receipt_digest: payload.receiptDigest,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
-export async function getMissionTokenUsage(missionId: string): Promise<import("./types").LlmUsageSummary | null> {
+export async function getMissionTokenUsage(missionId: string): Promise<any | null> {
   try {
-    return await fetchJson<import("./types").LlmUsageSummary>(
-      missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}/token-usage`),
-      { method: "GET" }
-    );
+    return await fetchJson(missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}/token-usage`));
   } catch {
     return null;
   }
+}
+
+export async function createDiagnosticBundle(missionId?: string): Promise<{ bundle_path: string }> {
+  const url = missionId 
+    ? missionApiUrl(`/v1/maintenance/diagnostics?mission_id=${encodeURIComponent(missionId)}`)
+    : missionApiUrl("/v1/maintenance/diagnostics");
+  return fetchJson(url, { method: "POST" });
+}
+
+export async function triggerBackup(): Promise<{ backup_path: string }> {
+  return fetchJson(missionApiUrl("/v1/maintenance/backup"), { method: "POST" });
 }
