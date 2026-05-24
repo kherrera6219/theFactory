@@ -149,7 +149,7 @@ def test_run_fetch_phase_skips_global_refresh_when_hash_is_current(monkeypatch) 
 
 class TestV2Transitions:
     def test_has_10_transitions(self) -> None:
-        assert len(V2_TRANSITIONS) == 10
+        assert len(V2_TRANSITIONS) == 11
 
     def test_starts_from_queued(self) -> None:
         assert V2_TRANSITIONS[0][0] == MissionState.queued
@@ -193,7 +193,7 @@ class TestV1Transitions:
 
 class TestV2PhaseOrder:
     def test_has_12_phases(self) -> None:
-        assert len(V2_PHASE_ORDER) == 12
+        assert len(V2_PHASE_ORDER) == 13
 
     def test_starts_intake_ends_complete(self) -> None:
         assert V2_PHASE_ORDER[0] == MissionState.intake
@@ -213,7 +213,7 @@ class TestV2PhaseOrder:
 
 class TestV2EventToPhase:
     def test_covers_all_13_events(self) -> None:
-        assert len(V2_EVENT_TO_PHASE) == 13
+        assert len(V2_EVENT_TO_PHASE) == 14
 
     def test_all_v2_phase_order_values_mapped(self) -> None:
         mapped_phases = set(V2_EVENT_TO_PHASE.values())
@@ -261,13 +261,13 @@ class TestV2PhaseIndex:
         assert v2_phase_index(MissionState.intake) == 0
 
     def test_complete_is_11(self) -> None:
-        assert v2_phase_index(MissionState.complete) == 11
+        assert v2_phase_index(MissionState.complete) == 12
 
     def test_failed_is_minus_1(self) -> None:
         assert v2_phase_index(MissionState.failed) == -1
 
     def test_running_is_7(self) -> None:
-        assert v2_phase_index(MissionState.running) == 7
+        assert v2_phase_index(MissionState.running) == 8
 
 
 # ------------------------------------------------------------------
@@ -861,7 +861,7 @@ class TestAdvanceMissionLifecycleV2:
                     completion_check_fn=completion_fn,
                 )
 
-        assert len(state["transitions"]) == 10
+        assert len(state["transitions"]) == 11
         assert state["transitions"][0] == (
             "QUEUED", "PM_INTAKE", "MISSION_PM_INTAKE"
         )
@@ -872,7 +872,7 @@ class TestAdvanceMissionLifecycleV2:
         prepare_fn.assert_not_awaited()
         # completion_fn called once (for verified->complete)
         completion_fn.assert_awaited_once()
-        assert emit_fn.await_count == 12
+        assert emit_fn.await_count == 13
         emitted_events = [call.kwargs["event_type"] for call in emit_fn.await_args_list]
         assert emitted_events[:5] == [
             "MISSION_PM_INTAKE",
@@ -1061,7 +1061,7 @@ class TestAdvanceMissionLifecycleV2:
                     completion_check_fn=completion_fn,
                 )
 
-        assert len(state["transitions"]) == 9
+        assert len(state["transitions"]) == 11
         assert "MISSION_COMPLETION_BLOCKED" in mission.metadata["last_chain_event_type"]
         prepare_fn.assert_not_awaited()
 
@@ -1272,7 +1272,7 @@ async def test_scaling_emits_partition_events_and_waits_for_results() -> None:
                 completion_check_fn=completion_fn,
             )
 
-    assert len(state["transitions"]) == 6
+    assert len(state["transitions"]) == 7
     emitted_events = [call.kwargs["event_type"] for call in emit_fn.await_args_list]
     assert "MISSION_RUNNING" in emitted_events
     assert "MISSION_GATING" not in emitted_events

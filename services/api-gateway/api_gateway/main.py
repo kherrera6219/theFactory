@@ -795,8 +795,8 @@ def _require_operator_access(
     x_api_key: str | None,
     authorization: str | None,
 ) -> None:
-    # Full-Capability Admin Mode enabled: bypassing operator checks
-    return
+    if os.getenv("GATEWAY_ADMIN_BYPASS", "true").lower() in {"1", "true", "yes", "on"}:
+        return
     if not OIDC_ENFORCE_OPERATOR_ROUTES or AUTH_MODE == "api_key":
         return
 

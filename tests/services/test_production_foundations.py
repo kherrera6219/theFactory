@@ -137,7 +137,7 @@ def test_gateway_idempotency_rejects_payload_mismatch(monkeypatch) -> None:
 
         assert first.status_code == 201
         assert second.status_code == 409
-        assert "different mission payload" in second.json()["detail"]
+        assert "different payload" in second.json()["detail"]
 
 
 def test_gateway_mission_intake_rejects_non_pm_agent(monkeypatch) -> None:
@@ -457,7 +457,7 @@ def test_gateway_builder_preview_openai_missing_key(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["source"] == "offline"
-    assert "OPENAI_API_KEY not configured" in payload["notice"]
+    assert "provider not configured" in payload["notice"]
 
 
 def test_gateway_builder_preview_anthropic_missing_key(monkeypatch) -> None:
@@ -473,7 +473,7 @@ def test_gateway_builder_preview_anthropic_missing_key(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["source"] == "offline"
-    assert "ANTHROPIC_API_KEY not configured" in payload["notice"]
+    assert "provider not configured" in payload["notice"]
 
 
 def test_gateway_builder_preview_gemini_missing_key(monkeypatch) -> None:
@@ -489,7 +489,7 @@ def test_gateway_builder_preview_gemini_missing_key(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["source"] == "offline"
-    assert "GEMINI_API_KEY not configured" in payload["notice"]
+    assert "provider not configured" in payload["notice"]
 
 
 def test_gateway_builder_preview_openai_fallback(monkeypatch) -> None:

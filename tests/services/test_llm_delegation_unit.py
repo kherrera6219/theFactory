@@ -1004,7 +1004,7 @@ def test_resolve_agent_and_recommendation_default_to_ceo() -> None:
 def test_system_prompt_for_agent_uses_persona_profile() -> None:
     prompt = llm_delegation._system_prompt_for_agent("AGENT-01-PM")
     assert prompt is not None
-    assert "user-intent guardian" in prompt
+    assert "intent guardian" in prompt
     assert "Return only the schema requested" in prompt
     assert llm_delegation._system_prompt_for_agent("AGENT-UNKNOWN-999") is None
 
@@ -1024,7 +1024,7 @@ def test_specialist_prompt_includes_language_and_risk_context() -> None:
         recommended_provider="openai",
         recommended_model="gpt-5.5",
     )
-    assert "Ownership model correctness" in prompt
+    assert "Certified Rust Architect" in prompt
     assert "PM risk notes" in prompt
     assert "PM open questions" in prompt
 

@@ -1,4 +1,7 @@
 from __future__ import annotations
+from shared_runtime.agent_keys import normalize_agent_id
+from shared_runtime.pii_guard import redact_pii
+
 
 import asyncio
 import json
@@ -14,9 +17,9 @@ from typing import Any
 import httpx
 from prometheus_client import Counter
 
-LLM_FALLBACK_TOTAL = Counter('llm_fallback_total', 'Count of silent LLM fallbacks', ['agent_id', 'reason'])
 
 
+from .orchestrator_metrics import LLM_FALLBACK_TOTAL
 from .agent_integrations import build_agent_integration_record
 from .agent_personas import (
     _LANGUAGE_GUIDANCE,

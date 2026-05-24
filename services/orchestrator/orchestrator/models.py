@@ -168,7 +168,7 @@ VALID_TRANSITIONS: dict[MissionState, set[MissionState]] = {
         MissionState.failed,
     },
     # Clarification hold: PM pauses awaiting operator response, then re-enters pm_intake.
-    MissionState.clarifying: {MissionState.pm_intake, MissionState.failed},
+    MissionState.clarifying: {MissionState.pm_intake, MissionState.fetch, MissionState.failed},
     MissionState.fetch: {MissionState.ceo_delegated, MissionState.failed},
     MissionState.ceo_delegated: {MissionState.pod_assigned, MissionState.failed},
     MissionState.pod_assigned: {MissionState.specialist_assigned, MissionState.failed},
