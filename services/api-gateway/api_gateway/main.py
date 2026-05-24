@@ -470,12 +470,11 @@ async def _dependency_status() -> dict[str, bool]:
     redis_client = getattr(app.state, "redis", None)
     orchestrator_healthy = False
     try:
-        async with httpx.AsyncClient(timeout=1.5) as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:
             response = await client.get(f"{ORCHESTRATOR_URL}/health")
             orchestrator_healthy = response.status_code == 200
-    except Exception as exc:
-        # resilience: graceful degradation to preserve gateway stability
-        LOGGER.warning("unhandled exception in gateway: %s", exc)
+    except httpx.RequestError as exc:
+        LOGGER.warning("orchestrator health check failed: %s", exc)
         orchestrator_healthy = False
 
     redis_healthy = False
@@ -483,9 +482,8 @@ async def _dependency_status() -> dict[str, bool]:
         try:
             redis_healthy = bool(await redis_client.ping())
             app.state.redis_ready = redis_healthy
-        except Exception as exc:
-            # resilience: graceful degradation to preserve gateway stability
-            LOGGER.warning("unhandled exception in gateway: %s", exc)
+        except (ConnectionError, TimeoutError, OSError) as exc:
+            LOGGER.warning("redis ping failed: %s", exc)
             redis_healthy = False
             app.state.redis_ready = False
 
@@ -644,10 +642,9 @@ async def _state_stream_sse_generator(
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            # resilience: caught to prevent cascade failure
-            LOGGER.warning("gateway operation failed: %s", exc)
-            LIVE_STREAM_ERRORS.labels(reason="read_failure").inc()
+            # resilience: any unhandled error inside the SSE loop would kill the stream — keep broadcasting
             LOGGER.warning("state stream sse read failure: %s", exc)
+            LIVE_STREAM_ERRORS.labels(reason="read_failure").inc()
             error_payload = {"detail": "stream read failure"}
             yield _sse_event_block(event_name="stream_error", data=error_payload)
             await asyncio.sleep(1.0)
@@ -730,9 +727,8 @@ def _decode_oidc_token(token: str) -> dict[str, Any]:
     except HTTPException:
         raise
     except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
-        # Log the exception class only; the message may include token fragments.
+        # PyJWT raises many subtypes (InvalidSignatureError, ExpiredSignatureError, etc.)
+        # Log class only — the exception message may contain token fragments.
         LOGGER.warning("oidc bearer token rejected: %s", type(exc).__name__)
         raise HTTPException(status_code=401, detail="invalid bearer token") from exc
 
@@ -1060,9 +1056,7 @@ async def _openai_builder_preview(
                 json=request_payload,
                 headers=headers,
             )
-    except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+    except httpx.RequestError as exc:
         LOGGER.warning("openai preview request failed: %s", exc)
         return None
 
@@ -1129,9 +1123,7 @@ async def _anthropic_builder_preview(
                 json=request_payload,
                 headers=headers,
             )
-    except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+    except httpx.RequestError as exc:
         LOGGER.warning("anthropic preview request failed: %s", exc)
         return None
 
@@ -1195,9 +1187,7 @@ async def _gemini_builder_preview(
                 json=request_payload,
                 headers={"Content-Type": "application/json"},
             )
-    except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+    except httpx.RequestError as exc:
         LOGGER.warning("gemini preview request failed: %s", exc)
         return None
 
@@ -1240,9 +1230,8 @@ async def lifespan(app: FastAPI):
         try:
             await app.state.redis.ping()
             app.state.redis_ready = True
-        except Exception as exc:
-            # resilience: graceful degradation to preserve gateway stability
-            LOGGER.warning("unhandled exception in gateway: %s", exc)
+        except (ConnectionError, TimeoutError, OSError) as exc:
+            LOGGER.warning("redis startup ping failed, marking not ready: %s", exc)
             app.state.redis_ready = False
 
     yield
@@ -1371,10 +1360,9 @@ async def _security_and_rate_limit(request: Request, call_next):
                     "X-RateLimit-Limit": str(API_RATE_LIMIT_PER_MINUTE),
                     "X-RateLimit-Remaining": str(remaining),
                 }
-            except Exception as exc:
-                # resilience: graceful degradation to preserve gateway stability
-                LOGGER.warning("unhandled exception in gateway: %s", exc)
-                LOGGER.warning("rate limiter unavailable for request path %s", path)
+            except (ConnectionError, TimeoutError, OSError) as exc:
+                # resilience: fail-open — request proceeds without rate-limit enforcement
+                LOGGER.warning("rate limiter unavailable for %s: %s — failing open", path, exc)
 
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -1457,9 +1445,7 @@ async def stream_state_events(
         raise HTTPException(status_code=503, detail="redis dependency is not installed")
     try:
         app.state.redis_ready = bool(await redis_client.ping())
-    except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+    except (ConnectionError, TimeoutError, OSError) as exc:
         app.state.redis_ready = False
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
 
@@ -1541,9 +1527,7 @@ async def _emit_intake_telemetry(
         )
     except (ProtocolValidationError, json.JSONDecodeError) as exc:
         LOGGER.warning("mission intake telemetry envelope validation failed for %s: %s", mission_id, exc)
-    except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+    except (ConnectionError, TimeoutError, OSError) as exc:
         LOGGER.warning("failed to publish mission intake telemetry for %s: %s", mission_id, exc)
 
 
@@ -1605,9 +1589,7 @@ async def create_mission(
         raise HTTPException(status_code=503, detail="redis dependency is not installed")
     try:
         app.state.redis_ready = bool(await redis_client.ping())
-    except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+    except (ConnectionError, TimeoutError, OSError) as exc:
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
 
     provisional_id = f"mission-{uuid.uuid4()}"
@@ -1637,8 +1619,8 @@ async def create_mission(
     try:
         persisted = await _persist_mission_upstream(mission_id, payload, mission_payload["metadata"], created_at)
     except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+        # save idempotency state before re-raising so clients can reconcile on retry
+        LOGGER.warning("mission %s upstream persist failed: %s", mission_id, exc)
         if idempotency_redis_key:
             await _save_idempotency_record(redis_client, idempotency_redis_key, {
                 "status": "upstream_unknown", "request_hash": request_hash,
@@ -1662,9 +1644,7 @@ async def create_mission(
                 "status": "completed", "request_hash": request_hash,
                 "mission_id": mission_id, "mission": mission_payload
             })
-        except Exception as exc:
-            # resilience: caught to prevent cascade failure
-            LOGGER.warning("gateway operation failed: %s", exc)
+        except (ConnectionError, TimeoutError, OSError) as exc:
             LOGGER.warning("mission %s queued but failed to persist idempotency completion: %s", mission_id, exc)
 
     return MissionRecord(**mission_payload)
@@ -1675,9 +1655,7 @@ async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
             response = await client.get(f"{ORCHESTRATOR_URL}{path}", params=params)
-    except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+    except httpx.RequestError as exc:
         LOGGER.warning("orchestrator query failed for %s: %s", path, exc)
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code == 404:
@@ -1696,9 +1674,7 @@ async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None
                 params=params,
                 headers={"x-api-key": internal_key},
             )
-    except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+    except httpx.RequestError as exc:
         LOGGER.warning("orchestrator internal query failed for %s: %s", path, exc)
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code == 404:
@@ -1719,9 +1695,7 @@ async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> Any:
                 json=json_body,
                 headers={"x-api-key": internal_key},
             )
-    except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+    except httpx.RequestError as exc:
         LOGGER.warning("orchestrator internal mutation failed for %s: %s", path, exc)
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code in {401, 403}:
@@ -1729,9 +1703,8 @@ async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> Any:
     if response.status_code >= 400:
         try:
             payload = response.json()
-        except Exception as exc:
-            # resilience: graceful degradation to preserve gateway stability
-            LOGGER.warning("unhandled exception in gateway: %s", exc)
+        except ValueError as exc:
+            LOGGER.warning("orchestrator returned non-json error body: %s", exc)
             payload = {}
         detail = payload.get("detail") if isinstance(payload, dict) else None
         raise HTTPException(
@@ -2111,9 +2084,7 @@ async def update_mission_state(
                 json=payload.model_dump(),
                 headers=forward_headers,
             )
-    except Exception as exc:
-        # resilience: caught to prevent cascade failure
-        LOGGER.warning("gateway operation failed: %s", exc)
+    except httpx.RequestError as exc:
         LOGGER.exception("orchestrator mission state update failed for mission %s", mission_id)
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
 

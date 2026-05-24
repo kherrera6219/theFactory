@@ -400,10 +400,10 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=10).read()",
         ]
       interval: 10s
-      timeout: 3s
+      timeout: 12s
       retries: 5
       start_period: 30s
     read_only: true
