@@ -2,7 +2,7 @@ import { execSync } from "child_process";
 import path from "path";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { setupTray } from "./tray";
-import { setupUpdater } from "./updater";
+import { setupUpdater } from "./updater";  // version IPC only — auto-update disabled
 import { IPC_CHANNELS } from "../app/lib/electron-bridge";
 
 const isDev = process.env.ELECTRON_DEV === "1";
@@ -85,7 +85,7 @@ app.whenReady().then(() => {
   setupTray(mainWindow);
 
   // 7D â€” Auto-update.
-  setupUpdater(mainWindow);
+  setupUpdater();
 
   // â”€â”€ IPC: 7A Window controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.on(IPC_CHANNELS.WINDOW_MINIMIZE, () => mainWindow?.minimize());

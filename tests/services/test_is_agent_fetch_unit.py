@@ -7,10 +7,17 @@ tests run offline with no Docker stack.
 from __future__ import annotations
 
 import asyncio
+import sys
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+# Ensure the orchestrator package is importable regardless of test-run ordering.
+_SERVICES_ORCHESTRATOR = str(Path(__file__).resolve().parents[2] / "services" / "orchestrator")
+if _SERVICES_ORCHESTRATOR not in sys.path:
+    sys.path.insert(0, _SERVICES_ORCHESTRATOR)
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +90,7 @@ class TestDetectRequiredLanguages:
 
 class TestRunFetchPhase:
     def _run(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        return asyncio.run(coro)
 
     def _call(self, *, required_languages, settings=None, storage_calls=None):
         from orchestrator.is_agent import run_fetch_phase

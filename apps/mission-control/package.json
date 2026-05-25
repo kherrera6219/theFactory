@@ -20,6 +20,7 @@
   "build": {
     "appId": "com.holygrail.mission-control",
     "productName": "theFactory Mission Control",
+    "copyright": "Copyright © 2026 Kevin Herrera",
     "directories": {
       "output": "dist/installers"
     },
@@ -37,7 +38,10 @@
           ]
         }
       ],
-      "icon": "public/tray-icon-win.ico"
+      "icon": "public/tray-icon-win.ico",
+      "signtoolOptions": {
+        "publisherName": "Kevin Herrera"
+      }
     },
     "nsis": {
       "oneClick": false,
@@ -46,6 +50,7 @@
       "createStartMenuShortcut": true,
       "shortcutName": "theFactory Mission Control",
       "uninstallDisplayName": "theFactory Mission Control",
+      "deleteAppDataOnUninstall": true,
       "runAfterFinish": true,
       "installerIcon": "public/tray-icon-win.ico",
       "uninstallerIcon": "public/tray-icon-win.ico",
@@ -62,7 +67,6 @@
     "vite": "8.0.10"
   },
   "dependencies": {
-    "electron-updater": "^6.8.3",
     "next": "16.2.6",
     "react": "19.2.5",
     "react-dom": "19.2.5"

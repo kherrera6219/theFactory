@@ -417,6 +417,7 @@ def test_resolve_mutation_forward_headers_covers_mode_branches(monkeypatch) -> N
 
 
 def test_require_operator_access_covers_hybrid_oidc_and_invalid_modes(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
     monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", False)
     api_gateway_main._require_operator_access(x_api_key=None, authorization=None)
 

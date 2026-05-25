@@ -89,7 +89,11 @@ def test_upsert_knowledge_builds_payload(monkeypatch) -> None:
     monkeypatch.setattr(milvus_store, "_client", lambda _settings: client)
 
     milvus_store.upsert_knowledge(
-        _settings(milvus_vector_size=16),
+        _settings(
+            milvus_vector_size=16,
+            knowledge_embedding_provider="deterministic",
+            knowledge_embedding_model="deterministic-hash-v1",
+        ),
         "mission-1",
         "knowledge-1",
         {"title": "Node", "score": 1},

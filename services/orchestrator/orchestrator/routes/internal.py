@@ -982,7 +982,15 @@ async def get_build_artifact(
     mission_id: str,
     artifact_id: str,
     _: AuthContext = INTERNAL_AUTH_DEP,
-) -> MissionBuildArtifactRecord:
+) -> Any:
+    """Return the build artifact record.
+
+    When the artifact is stored in object storage (``storage_backend == "s3"``),
+    a 302 redirect to a presigned download URL is returned instead of the full
+    record.  This keeps large artifacts out of the API response body.
+    """
+    from fastapi.responses import RedirectResponse
+
     import orchestrator.main as _main
 
     app = request.app
@@ -996,6 +1004,23 @@ async def get_build_artifact(
     )
     if record is None:
         raise HTTPException(status_code=404, detail="build artifact not found")
+
+    # S4-05: redirect to presigned URL when artifact lives in object storage
+    if record.get("storage_backend") == "s3" and record.get("storage_ref"):
+        settings = app.state.settings
+        if settings.object_storage_enabled:
+            try:
+                from ..object_store import get_presigned_url
+                presigned = await asyncio.to_thread(
+                    get_presigned_url, settings, record["storage_ref"]
+                )
+                return RedirectResponse(url=presigned, status_code=302)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Could not generate presigned URL: {exc}",
+                ) from exc
+
     return MissionBuildArtifactRecord(**record)
 
 

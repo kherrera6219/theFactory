@@ -240,6 +240,82 @@ def put_audit_report(
         )
 
 
+def put_object(
+    settings: Settings,
+    key: str,
+    body: bytes,
+    content_type: str = "application/octet-stream",
+    metadata: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Upload raw bytes to object storage under ``key``.
+
+    Returns ``{"bucket": ..., "key": ..., "etag": ..., "url": ...}``.
+    Raises RuntimeError when object storage is disabled or credentials are missing.
+    """
+    started = time.perf_counter()
+    success = False
+    try:
+        ensure_bucket(settings)
+        client = _s3_client(settings)
+        args: dict[str, Any] = {
+            "Bucket": settings.object_storage_bucket,
+            "Key": key,
+            "Body": body,
+            "ContentType": content_type,
+        }
+        if metadata:
+            args["Metadata"] = {str(k): str(v) for k, v in metadata.items()}
+        response = client.put_object(**args)
+        etag = str(response.get("ETag", "")).strip('"') if isinstance(response, dict) else ""
+        success = True
+        return {
+            "bucket": settings.object_storage_bucket,
+            "key": key,
+            "etag": etag,
+            "url": _object_url(settings, key),
+        }
+    finally:
+        observe_optional_adapter_operation(
+            adapter=_ADAPTER,
+            operation="put_object",
+            duration_seconds=time.perf_counter() - started,
+            success=success,
+        )
+
+
+def get_presigned_url(
+    settings: Settings,
+    key: str,
+    expires_in_seconds: int = 3600,
+) -> str:
+    """Generate a presigned GET URL for the object at ``key``.
+
+    The URL is valid for ``expires_in_seconds`` seconds (default 1 hour).
+    Raises RuntimeError when object storage is disabled or unavailable.
+    """
+    started = time.perf_counter()
+    success = False
+    try:
+        client = _s3_client(settings)
+        url = client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": settings.object_storage_bucket,
+                "Key": key,
+            },
+            ExpiresIn=max(60, min(expires_in_seconds, 604800)),  # 1 min – 7 days
+        )
+        success = True
+        return str(url)
+    finally:
+        observe_optional_adapter_operation(
+            adapter=_ADAPTER,
+            operation="get_presigned_url",
+            duration_seconds=time.perf_counter() - started,
+            success=success,
+        )
+
+
 def list_audit_artifacts(settings: Settings, mission_id: str, limit: int) -> list[dict[str, Any]]:
     started = time.perf_counter()
     success = False

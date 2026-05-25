@@ -158,7 +158,13 @@ def test_upsert_knowledge_builds_qdrant_point_payload(monkeypatch) -> None:
     monkeypatch.setattr(qdrant_store, "_request_json", _request)
 
     qdrant_store.upsert_knowledge(
-        _settings(qdrant_vector_size=16),
+        # Explicitly use deterministic so the test does not depend on the
+        # global default and does not need a live Gemini key.
+        _settings(
+            qdrant_vector_size=16,
+            knowledge_embedding_provider="deterministic",
+            knowledge_embedding_model="deterministic-hash-v1",
+        ),
         "mission-1",
         "knowledge-1",
         {"title": "Node", "score": 1},

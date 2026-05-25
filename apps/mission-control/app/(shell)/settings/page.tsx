@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   isElectron,
   electronGetAppVersion,
-  electronCheckForUpdates,
-  electronInstallUpdate,
 } from "../../lib/electron-bridge";
 
 import { OperatorUnlockForm } from "../../components/operator-unlock-form";
@@ -159,14 +157,8 @@ export default function SettingsPage() {
   const [slotSearch, setSlotSearch] = useState("");
   const [orchestratorOffline, setOrchestratorOffline] = useState(false);
 
-  // 7D — Software updates state (Electron only)
+  // 7D — App version (auto-update disabled; updates via NSIS installer)
   const [appVersion, setAppVersion] = useState<string | null>(null);
-  const [updateChecking, setUpdateChecking] = useState(false);
-  const [updateResult, setUpdateResult] = useState<{
-    updateAvailable: boolean;
-    version?: string;
-    downloaded?: boolean;
-  } | null>(null);
 
   useEffect(() => {
     const raw = window.localStorage.getItem("mission-control:preferences");
@@ -174,18 +166,10 @@ export default function SettingsPage() {
       const parsed = safeJsonParse<LocalPreferences>(raw, DEFAULT_PREFERENCES);
       setPreferences({ ...DEFAULT_PREFERENCES, ...parsed });
     }
-    // 7D — Fetch app version from Electron main process.
+    // Fetch app version from Electron main process.
     if (isElectron()) {
       void electronGetAppVersion().then((v) => v && setAppVersion(v));
-      // Listen for a downloaded update event.
-      if (window.electronAPI) {
-        const cleanup = window.electronAPI.onUpdateDownloaded(() =>
-          setUpdateResult((prev) => ({ ...(prev ?? { updateAvailable: true }), downloaded: true })),
-        );
-        return cleanup;
-      }
     }
-    return undefined;
   }, []);
 
   async function loadVaultAndAgents() {
@@ -660,78 +644,22 @@ export default function SettingsPage() {
         )}
       </Panel>
 
-      {/* 7D — Software Updates panel (visible in all envs; full features in Electron) */}
-      <Panel title="Software Updates">
-        {isElectron() ? (
-          <>
-            <div className="filters-grid">
-              <div>
-                <p className="eyebrow">Current version</p>
-                <p className="mono-id">{appVersion ?? "…"}</p>
-              </div>
-              {updateResult?.version && (
-                <div>
-                  <p className="eyebrow">Available version</p>
-                  <p className="mono-id">{updateResult.version}</p>
-                </div>
-              )}
-            </div>
-
-            {updateResult?.downloaded && (
-              <div className="info-box" style={{ marginTop: "12px" }}>
-                <strong>Update ready.</strong> Mission Control will update on next launch, or you can install now.
-                <div className="inline-actions" style={{ marginTop: "8px" }}>
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={electronInstallUpdate}
-                  >
-                    Install &amp; Relaunch
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {updateResult && !updateResult.updateAvailable && !updateResult.downloaded && (
-              <p className="help-text" style={{ marginTop: "8px" }}>
-                ✓ Mission Control is up to date.
-              </p>
-            )}
-
-            <div className="inline-actions" style={{ marginTop: "12px" }}>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={updateChecking}
-                onClick={async () => {
-                  setUpdateChecking(true);
-                  setUpdateResult(null);
-                  try {
-                    const result = await electronCheckForUpdates();
-                    if (result) setUpdateResult(result);
-                  } finally {
-                    setUpdateChecking(false);
-                  }
-                }}
-              >
-                {updateChecking ? "Checking…" : "Check for Updates"}
-              </button>
-            </div>
-          </>
-        ) : (
+      {/* 7D — Software version panel */}
+      <Panel title="Software Version">
+        <div className="filters-grid">
           <div>
-            <p className="help-text">
-              Auto-update is available in the <strong>desktop app</strong> (Electron).
-              In the browser, update by pulling the latest version from the repository.
-            </p>
-            <p className="help-text muted" style={{ marginTop: "6px" }}>
-              Version:{" "}
-              <span className="mono-id">
-                {process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
-              </span>
+            <p className="eyebrow">Current version</p>
+            <p className="mono-id">
+              {isElectron()
+                ? (appVersion ?? "…")
+                : (process.env.NEXT_PUBLIC_APP_VERSION ?? "dev")}
             </p>
           </div>
-        )}
+        </div>
+        <p className="help-text" style={{ marginTop: "12px" }}>
+          Updates are delivered manually via the <strong>theFactory Mission Control</strong> Windows installer.
+          Download the latest installer from your release channel and run it to upgrade.
+        </p>
       </Panel>
 
       

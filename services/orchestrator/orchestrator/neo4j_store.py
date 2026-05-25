@@ -12,8 +12,8 @@ from .data_plane_metrics import (
     set_optional_adapter_enabled,
     set_optional_adapter_ready,
 )
-from .storage_core import factory_json_dumps
 from .settings import Settings
+from .storage_core import factory_json_dumps
 
 _SCHEMA_CACHE: set[str] = set()
 _ADAPTER = "neo4j"
@@ -32,7 +32,7 @@ def _request_json(
     path: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    from .tracing import current_trace_id, current_span_id
+    from .tracing import current_span_id, current_trace_id
     url = _validated_http_url(settings.neo4j_url, path, service="neo4j")
     auth = f"{settings.neo4j_username}:{settings.neo4j_password}".encode("utf-8")
     token = base64.b64encode(auth).decode("ascii")
@@ -154,6 +154,11 @@ def ensure_schema(settings: Settings) -> None:
             "CREATE CONSTRAINT audit_composite_unique IF NOT EXISTS "
             "FOR (a:AuditReport) REQUIRE (a.mission_id, a.audit_id) IS UNIQUE",
         )
+        _execute_cypher(
+            settings,
+            "CREATE CONSTRAINT logicnode_composite_unique IF NOT EXISTS "
+            "FOR (l:LogicNode) REQUIRE (l.mission_id, l.node_id) IS UNIQUE",
+        )
         _SCHEMA_CACHE.add(cache_key)
         success = True
     finally:
@@ -270,6 +275,122 @@ def upsert_audit_report(
         observe_optional_adapter_operation(
             adapter=_ADAPTER,
             operation="upsert_audit_report",
+            duration_seconds=time.perf_counter() - started,
+            success=success,
+        )
+
+
+def upsert_logicnode(
+    settings: Settings,
+    mission_id: str,
+    node_id: str,
+    node: dict[str, Any],
+    created_at: str,
+) -> None:
+    """Write a LogicNode into the graph with DEPENDS_ON edges to its dependencies.
+
+    ``node.get("dependencies")`` should be a list of node_id strings that this
+    node depends on. Edges are created in the direction dependency→this-node
+    (dependency must be resolved first).
+    """
+    started = time.perf_counter()
+    success = False
+    try:
+        ensure_schema(settings)
+        dependencies: list[str] = []
+        raw_deps = node.get("dependencies")
+        if isinstance(raw_deps, list):
+            dependencies = [str(d).strip() for d in raw_deps if d and str(d).strip()]
+
+        # Upsert the LogicNode itself
+        _execute_cypher(
+            settings,
+            "MERGE (m:Mission {mission_id: $mission_id}) "
+            "ON CREATE SET m.created_at = $created_at "
+            "SET m.updated_at = $created_at "
+            "MERGE (l:LogicNode {mission_id: $mission_id, node_id: $node_id}) "
+            "SET l.node_json = $node_json, "
+            "    l.created_at = $created_at, "
+            "    l.updated_at = $created_at "
+            "MERGE (m)-[:HAS_LOGICNODE]->(l)",
+            {
+                "mission_id": mission_id,
+                "node_id": node_id,
+                "node_json": json.dumps(node, separators=(",", ":"), sort_keys=True),
+                "created_at": created_at,
+            },
+        )
+
+        # Create DEPENDS_ON edges: dep_node -[:DEPENDS_ON]-> this_node
+        for dep_id in dependencies:
+            _execute_cypher(
+                settings,
+                "MERGE (dep:LogicNode {mission_id: $mission_id, node_id: $dep_id}) "
+                "ON CREATE SET dep.mission_id = $mission_id, dep.node_id = $dep_id "
+                "MERGE (this:LogicNode {mission_id: $mission_id, node_id: $node_id}) "
+                "MERGE (dep)-[:DEPENDS_ON]->(this)",
+                {
+                    "mission_id": mission_id,
+                    "dep_id": dep_id,
+                    "node_id": node_id,
+                },
+            )
+        success = True
+    finally:
+        observe_optional_adapter_operation(
+            adapter=_ADAPTER,
+            operation="upsert_logicnode",
+            duration_seconds=time.perf_counter() - started,
+            success=success,
+        )
+
+
+def list_logicnodes_by_depth(
+    settings: Settings, mission_id: str, limit: int
+) -> list[dict[str, Any]]:
+    """Return LogicNodes for a mission ordered by dependency depth (deepest first).
+
+    Uses a variable-length DEPENDS_ON path to calculate depth.  Nodes with no
+    outbound DEPENDS_ON edges have depth 0 (leaf nodes); those that many other
+    nodes depend on have higher depth values and should be processed first
+    during FUSION so downstream nodes have their inputs available.
+    """
+    started = time.perf_counter()
+    success = False
+    try:
+        ensure_schema(settings)
+        query_limit = max(1, min(limit, 2000))
+        rows = _query_rows(
+            settings,
+            "MATCH (m:Mission {mission_id: $mission_id})-[:HAS_LOGICNODE]->(l:LogicNode) "
+            "OPTIONAL MATCH path = (l)-[:DEPENDS_ON*]->(dep:LogicNode) "
+            "WITH l, coalesce(max(length(path)), 0) AS depth "
+            "RETURN l.node_id AS node_id, l.node_json AS node_json, depth "
+            "ORDER BY depth DESC "
+            "LIMIT $limit",
+            {"mission_id": mission_id, "limit": query_limit},
+        )
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            try:
+                node_data = json.loads(str(row.get("node_json") or "{}"))
+            except (ValueError, TypeError):
+                node_data = {}
+            results.append(
+                {
+                    "node_id": str(row.get("node_id", "")),
+                    "node": node_data,
+                    "depth": int(row.get("depth") or 0),
+                }
+            )
+        success = True
+        return results
+    finally:
+        observe_optional_adapter_operation(
+            adapter=_ADAPTER,
+            operation="list_logicnodes_by_depth",
             duration_seconds=time.perf_counter() - started,
             success=success,
         )

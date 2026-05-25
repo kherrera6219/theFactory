@@ -712,6 +712,7 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
     asyncio.run(runtime.advance_mission_lifecycle(app, "mission-1"))
     assert emitted == [
         "MISSION_PM_INTAKE",
+        "MISSION_CLARIFYING",
         "MISSION_FETCH",
         "MISSION_CEO_DELEGATED",
         "MISSION_POD_MANAGER_ASSIGNED",
@@ -726,6 +727,7 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
     ]
     assert checkpoint_events == [
         "MISSION_PM_INTAKE",
+        "MISSION_CLARIFYING",
         "MISSION_FETCH",
         "MISSION_CEO_DELEGATED",
         "MISSION_POD_MANAGER_ASSIGNED",

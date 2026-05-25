@@ -157,6 +157,7 @@ def test_require_operator_access_api_key_mode_noop(monkeypatch) -> None:
 def test_require_operator_access_oidc_mode_requires_bearer(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
     monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
     with TestClient(api_app):
         try:
             api_gateway_main._require_operator_access(x_api_key=None, authorization=None)
@@ -170,6 +171,7 @@ def test_require_operator_access_oidc_requires_operator_role(monkeypatch) -> Non
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
     monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
     monkeypatch.setattr(api_gateway_main, "OIDC_OPERATOR_ROLE", "observe")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
     monkeypatch.setattr(
         api_gateway_main,
         "_decode_oidc_token",
@@ -241,6 +243,7 @@ def test_operations_summary_requires_oidc_operator_role(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
     monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
     monkeypatch.setattr(api_gateway_main, "OIDC_OPERATOR_ROLE", "observe")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
     monkeypatch.setattr(api_gateway_main, "_proxy_get_internal", _fake_proxy_get_internal)
     with TestClient(api_app) as client:
         unauthorized = client.get("/v1/operations/summary")
