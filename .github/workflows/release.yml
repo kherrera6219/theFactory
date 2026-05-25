@@ -31,7 +31,7 @@ jobs:
           # Future: CSC_LINK and CSC_KEY_PASSWORD for code signing
 
       - name: Upload Release Artifacts
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: apps/mission-control/dist/installers/*.exe
         env:
