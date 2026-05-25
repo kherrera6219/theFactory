@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import logging
 import os
 from typing import Any
@@ -106,7 +107,6 @@ def trace_operation(operation_name: str, attributes: dict[str, Any] | None = Non
             except Exception:
                 return await func(*args, **kwargs)
 
-            import inspect
         if inspect.iscoroutinefunction(func):
             return async_wrapper
         return wrapper

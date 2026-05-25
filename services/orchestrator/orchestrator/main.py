@@ -7,14 +7,14 @@ import os
 import time
 import uuid
 from collections import defaultdict
-from contextlib import asynccontextmanager, suppress
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import Response
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from shared_runtime.logging_config import configure_logging
 
@@ -37,6 +37,7 @@ from .models import (
     MissionRecord,
     MissionState,
 )
+from .orchestrator_metrics import REQUEST_COUNTER, REQUEST_LATENCY
 from .protocol import EnvelopeValidator, ProtocolValidationError
 from .review_policy import (
     REVIEW_APPROVAL_STORAGE_BACKEND,  # noqa: F401
@@ -54,7 +55,6 @@ from .runtime import (
     start_lifecycle_task,  # noqa: F401  (re-exported for route modules)
 )
 from .settings import load_settings
-from .orchestrator_metrics import REQUEST_COUNTER, REQUEST_LATENCY
 from .tracing import configure_tracing, current_trace_id
 
 configure_logging("orchestrator")

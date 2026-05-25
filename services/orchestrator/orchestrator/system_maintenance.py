@@ -1,12 +1,12 @@
-import os
 import json
-import tarfile
+import logging
+import os
 import shutil
-from datetime import datetime, UTC
+import tarfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import logging
 LOGGER = logging.getLogger(__name__)
 
 class MaintenanceManager:
@@ -28,7 +28,6 @@ class MaintenanceManager:
 
         try:
             # 1. Collect System Health
-            from .main import health
             # Mocking app for health check call if needed, or calling static parts
             # For now, we'll just write a basic status file
             status = {
@@ -72,6 +71,5 @@ class MaintenanceManager:
 
 def get_maintenance_manager(app: Any) -> MaintenanceManager:
     if not hasattr(app.state, "maintenance_manager"):
-        from .settings import Settings
         app.state.maintenance_manager = MaintenanceManager(app.state.settings)
     return app.state.maintenance_manager

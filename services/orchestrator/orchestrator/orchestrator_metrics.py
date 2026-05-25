@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from prometheus_client import Counter, Histogram, REGISTRY
+from prometheus_client import REGISTRY, Counter, Histogram
+
 
 def _get_metric(name: str):
     return REGISTRY._names_to_collectors.get(name)

@@ -144,7 +144,9 @@ jobs:
         run: |
           cd apps/mission-control
           npm ci
-          npm audit --audit-level=high
+          # Omit devDependencies: electron-builder/tar/cacache chain are build-time only
+          # and do not ship in the deployed Next.js web runtime.
+          npm audit --audit-level=high --omit=dev
 
       - name: License scan (Node)
         # 2026 best practice: block copyleft in frontend deps

@@ -1616,7 +1616,8 @@ async def create_mission(
 
     if idempotency_key:
         mission_id, existing = await _handle_mission_idempotency(redis_client, idempotency_key, payload, provisional_id)
-        if existing: return existing
+        if existing:
+            return existing
         idempotency_redis_key = _idempotency_redis_key(idempotency_key.strip())
         request_hash = _request_hash(payload)
 
@@ -2019,14 +2020,16 @@ async def _dispatch_llm_preview(
 ) -> dict[str, Any] | None:
     """Unified LLM preview dispatcher."""
     if provider == "openai":
-        if not OPENAI_API_KEY: return None
+        if not OPENAI_API_KEY:
+            return None
         return await _openai_builder_preview(
             payload, 
             model=selected_model or OPENAI_MODEL,
             reasoning_effort=payload.reasoning_effort or OPENAI_REASONING_EFFORT
         )
     if provider == "anthropic":
-        if not ANTHROPIC_API_KEY: return None
+        if not ANTHROPIC_API_KEY:
+            return None
         return await _anthropic_builder_preview(
             payload,
             model=selected_model or ANTHROPIC_MODEL,
@@ -2034,7 +2037,8 @@ async def _dispatch_llm_preview(
             thinking_budget=payload.thinking_budget if payload.thinking_budget is not None else ANTHROPIC_THINKING_BUDGET_TOKENS
         )
     if provider == "gemini":
-        if not GEMINI_API_KEY: return None
+        if not GEMINI_API_KEY:
+            return None
         return await _gemini_builder_preview(
             payload,
             model=selected_model or GEMINI_MODEL,

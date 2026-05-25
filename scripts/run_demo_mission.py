@@ -172,7 +172,7 @@ def poll_mission(
     while time.monotonic() < deadline:
         status, body = _get(f"/v1/missions/{mission_id}", api_key=api_key)
         if status == 0:
-            print(f"\r  ⚠ gateway unreachable, retrying...", end="", flush=True)
+            print("\r  ⚠ gateway unreachable, retrying...", end="", flush=True)
             time.sleep(POLL_INTERVAL)
             continue
 

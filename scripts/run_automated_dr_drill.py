@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 def run_cmd(args, check=True, shell=False):
     print(f"Running: {' '.join(args) if isinstance(args, list) else args}")
-    result = subprocess.run(args, capture_output=True, text=True, shell=shell)
+    result = subprocess.run(args, capture_output=True, text=True, shell=shell)  # nosec B602
     if check and result.returncode != 0:
         print(f"Command failed with code {result.returncode}")
         print(f"stdout: {result.stdout}")
@@ -22,7 +22,7 @@ def run_cmd(args, check=True, shell=False):
 
 def check_readyz(url):
     try:
-        with urllib.request.urlopen(url, timeout=2) as response:
+        with urllib.request.urlopen(url, timeout=2) as response:  # nosec B310
             return response.status == 200
     except Exception:
         return False

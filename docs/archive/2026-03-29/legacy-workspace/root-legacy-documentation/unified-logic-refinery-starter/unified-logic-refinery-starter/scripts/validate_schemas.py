@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+
 def main():
     schemas = list(Path("schemas").glob("*.schema.json"))
     if not schemas:

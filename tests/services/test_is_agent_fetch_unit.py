@@ -10,9 +10,7 @@ import asyncio
 import sys
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 # Ensure the orchestrator package is importable regardless of test-run ordering.
 _SERVICES_ORCHESTRATOR = str(Path(__file__).resolve().parents[2] / "services" / "orchestrator")
@@ -380,8 +378,9 @@ class TestBroadcastKnowledgeReady:
 
     def test_sigma_payload_structure(self):
         """Verify the published payload contains required Sigma fields."""
-        from orchestrator.knowledge_lake import broadcast_knowledge_ready
         import json
+
+        from orchestrator.knowledge_lake import broadcast_knowledge_ready
 
         settings = _mock_settings(mcp_url="http://semantic-bus-mcp:8090")
         captured_body: list[bytes] = []

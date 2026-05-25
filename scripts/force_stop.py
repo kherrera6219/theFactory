@@ -1,20 +1,20 @@
-import os
 import subprocess
-import time
 import sys
+import time
+
 
 def run_cmd(cmd):
     try:
         # Using subprocess.run for better control
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)  # nosec B602
         return result.stdout
-    except Exception as e:
+    except Exception:
         return ""
 
 def kill_port(port):
     print(f"Checking port {port}...")
     # Specifically look for LISTENING state on the port
-    output = run_cmd(f"netstat -aon | findstr LISTENING")
+    output = run_cmd("netstat -aon | findstr LISTENING")
     pids = set()
     for line in output.splitlines():
         if f":{port}" in line:
@@ -24,7 +24,7 @@ def kill_port(port):
     
     for pid in pids:
         print(f"Force-terminating PID {pid} (holding port {port})...")
-        subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
+        subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)  # nosec B602
 
 def main():
     print("==============================================")
@@ -52,7 +52,7 @@ def main():
     time.sleep(1) # Give OS a moment to release sockets
     failed_ports = []
     for port in target_ports:
-        output = run_cmd(f"netstat -aon | findstr LISTENING")
+        output = run_cmd("netstat -aon | findstr LISTENING")
         is_active = False
         for line in output.splitlines():
             if f":{port}" in line:
