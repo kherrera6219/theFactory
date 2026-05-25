@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from typing import Any
+
 import pytest
 from fastapi import HTTPException
 
@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
 import orchestrator.auth as auth
 from orchestrator.settings import Settings
+
 
 def _make_dummy_settings(**overrides) -> Settings:
     base = {

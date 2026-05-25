@@ -26,7 +26,7 @@ def _request_json(
     path: str,
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    from .tracing import current_trace_id, current_span_id
+    from .tracing import current_span_id, current_trace_id
     url = _validated_http_url(settings.qdrant_url, path, service="qdrant")
     body: bytes | None = None
     headers = {"Accept": "application/json", "Content-Type": "application/json"}

@@ -38,9 +38,10 @@ def ensure_db_schema(settings: Settings) -> None:
     # 1.1.0 QC: Ensure system mission for global knowledge lake bootstrap
     # This prevents foreign key violations when indexing language docs.
     try:
-        from .storage_missions import upsert_mission
+        from datetime import UTC, datetime
+
         from .models import MissionRecord, MissionState
-        from datetime import datetime, UTC
+        from .storage_missions import upsert_mission
         
         system_mission = MissionRecord(
             mission_id="__knowledge_lake__",

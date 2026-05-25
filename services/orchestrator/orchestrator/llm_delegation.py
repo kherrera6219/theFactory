@@ -1,7 +1,4 @@
 from __future__ import annotations
-from shared_runtime.agent_keys import normalize_agent_id
-from shared_runtime.pii_guard import redact_pii
-
 
 import asyncio
 import json
@@ -15,11 +12,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-from prometheus_client import Counter
 
+from shared_runtime.pii_guard import redact_pii
 
-
-from .orchestrator_metrics import LLM_FALLBACK_TOTAL
 from .agent_integrations import build_agent_integration_record
 from .agent_personas import (
     _LANGUAGE_GUIDANCE,
@@ -35,6 +30,7 @@ from .mission_flow import (
     resolve_pod_manager_agent_id,
     resolve_specialist_agent_id,
 )
+from .orchestrator_metrics import LLM_FALLBACK_TOTAL
 
 LOGGER = logging.getLogger(__name__)
 
@@ -1227,10 +1223,14 @@ def _normalize_pm_feature_contract(
         "risk_score": 0.0,
         "risk_factors": _string_list(raw.get("risk_notes"), limit=5),
     }
-    if complexity == "very_high": risk_assessment["risk_score"] = 0.9
-    elif complexity == "high": risk_assessment["risk_score"] = 0.7
-    elif complexity == "medium": risk_assessment["risk_score"] = 0.4
-    else: risk_assessment["risk_score"] = 0.2
+    if complexity == "very_high":
+        risk_assessment["risk_score"] = 0.9
+    elif complexity == "high":
+        risk_assessment["risk_score"] = 0.7
+    elif complexity == "medium":
+        risk_assessment["risk_score"] = 0.4
+    else:
+        risk_assessment["risk_score"] = 0.2
 
     contract = {
         "schema_version": "feature_contract.v1",

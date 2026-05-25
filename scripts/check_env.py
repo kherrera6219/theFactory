@@ -1,6 +1,6 @@
-import os
 import sys
 from pathlib import Path
+
 
 def check_env():
     # Base path is the repository root (one level up from scripts/)
@@ -24,7 +24,7 @@ def check_env():
              with open(cwd_env, 'r', encoding='utf-8') as f:
                 content = f.read()
                 if 'CHANGE_ME' in content:
-                    print(f"ERROR: Unset CHANGE_ME values in .env (CWD)")
+                    print("ERROR: Unset CHANGE_ME values in .env (CWD)")
                     sys.exit(1)
              found = True
 
