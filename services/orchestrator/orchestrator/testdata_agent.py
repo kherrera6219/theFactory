@@ -107,6 +107,11 @@ async def generate_testdata_manifest(
         "timeout_seconds": 30,
         "memory_limit_mb": 256,
         "network_required": False,
+        # Multi-container support: when an LLM-enriched manifest sets
+        # multi_container=True and populates services[], rqca_agent.py will
+        # build and run a docker-compose stack instead of a single container.
+        "multi_container": False,
+        "services": [],
         "notes": "Deterministic TESTDATA manifest for runtime QC Slice A.",
         "filename": filename,
         "language": normalized_language,

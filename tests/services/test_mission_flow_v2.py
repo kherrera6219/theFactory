@@ -772,6 +772,20 @@ class TestAdvanceMissionLifecycleV2:
             ]
 
             with patch(
+                "orchestrator.mission_flow_v2.generate_pm_feature_contract",
+                AsyncMock(
+                    return_value={
+                        "schema_version": "feature_contract.v1",
+                        "title": "CSV reader",
+                        "summary": "Build a Python CSV reader",
+                        "functional_requirements": ["Read CSV rows"],
+                        "acceptance_criteria": ["Returns a list of dicts"],
+                        "risk_notes": [],
+                        "ambiguity_score": 0.0,
+                        "source": "fallback",
+                    }
+                ),
+            ), patch(
                 "orchestrator.mission_flow_v2.generate_ceo_delegation",
                 AsyncMock(
                     return_value={
@@ -876,10 +890,10 @@ class TestAdvanceMissionLifecycleV2:
         emitted_events = [call.kwargs["event_type"] for call in emit_fn.await_args_list]
         assert emitted_events[:5] == [
             "MISSION_PM_INTAKE",
+            "MISSION_CLARIFYING",
             "MISSION_FETCH",
             "MISSION_CEO_DELEGATED",
             "MISSION_POD_MANAGER_ASSIGNED",
-            "MISSION_SPECIALIST_ASSIGNED",
         ]
         assert "MISSION_POD_GROUP_STANDARD_PRODUCED" in emitted_events
         assert mission.metadata["ceo_delegation"]["pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
@@ -1024,6 +1038,20 @@ class TestAdvanceMissionLifecycleV2:
             mock_storage.insert_mission_event = insert_mission_event
 
             with patch(
+                "orchestrator.mission_flow_v2.generate_pm_feature_contract",
+                AsyncMock(
+                    return_value={
+                        "schema_version": "feature_contract.v1",
+                        "title": "CSV reader",
+                        "summary": "Build a Python CSV reader",
+                        "functional_requirements": ["Read CSV rows"],
+                        "acceptance_criteria": ["Returns a list of dicts"],
+                        "risk_notes": [],
+                        "ambiguity_score": 0.0,
+                        "source": "fallback",
+                    }
+                ),
+            ), patch(
                 "orchestrator.mission_flow_v2.generate_ceo_delegation",
                 AsyncMock(
                     return_value={
@@ -1061,7 +1089,9 @@ class TestAdvanceMissionLifecycleV2:
                     completion_check_fn=completion_fn,
                 )
 
-        assert len(state["transitions"]) == 11
+        # Lifecycle halts before the verified→complete transition fires;
+        # all 10 prior transitions (incl. CLARIFYING) are recorded.
+        assert len(state["transitions"]) == 10
         assert "MISSION_COMPLETION_BLOCKED" in mission.metadata["last_chain_event_type"]
         prepare_fn.assert_not_awaited()
 

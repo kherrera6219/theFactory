@@ -62,10 +62,11 @@ def test_ensure_schema_creates_constraints_once(monkeypatch) -> None:
     neo4j_store.ensure_schema(settings)
     neo4j_store.ensure_schema(settings)
 
-    assert len(calls) == 3
+    assert len(calls) == 4
     assert "mission_id_unique" in calls[0]
     assert "knowledge_composite_unique" in calls[1]
     assert "audit_composite_unique" in calls[2]
+    assert "logicnode_composite_unique" in calls[3]
 
 
 def test_request_json_rejects_non_http_urls() -> None:

@@ -48,20 +48,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   showSaveDialog: (options: object): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.FS_SHOW_SAVE, options),
 
-  // ── 7D: Auto-update ───────────────────────────────────────────────────
+  // ── 7D: App version (auto-update disabled; manual installer updates only) ─
   getAppVersion: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.UPDATER_GET_VERSION),
-
-  checkForUpdates: (): Promise<{ updateAvailable: boolean; version?: string }> =>
-    ipcRenderer.invoke(IPC_CHANNELS.UPDATER_CHECK),
-
-  onUpdateDownloaded: (cb: () => void): (() => void) => {
-    ipcRenderer.on(IPC_CHANNELS.UPDATER_DOWNLOADED, cb);
-    return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATER_DOWNLOADED, cb);
-  },
-
-  installUpdate: () =>
-    ipcRenderer.send(IPC_CHANNELS.UPDATER_INSTALL),
 
   // ── Misc ──────────────────────────────────────────────────────────────
   getPlatform: (): Promise<"darwin" | "win32" | "linux"> =>

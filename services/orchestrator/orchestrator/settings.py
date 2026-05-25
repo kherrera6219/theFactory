@@ -45,8 +45,8 @@ class Settings:
     milvus_collection: str = "mission_knowledge"
     milvus_vector_size: int = 64
     milvus_timeout_seconds: float = 3.0
-    knowledge_embedding_provider: str = "deterministic"
-    knowledge_embedding_model: str = "deterministic-hash-v1"
+    knowledge_embedding_provider: str = "gemini"
+    knowledge_embedding_model: str = "text-embedding-004"
     knowledge_embedding_timeout_seconds: float = 10.0
     knowledge_refresh_enabled: bool = True
     neo4j_url: str = "http://neo4j:7474"
@@ -64,6 +64,7 @@ class Settings:
     object_storage_region: str = "us-east-1"
     object_storage_timeout_seconds: float = 5.0
     object_storage_retention_days: int = 90
+    object_storage_size_threshold_bytes: int = 524288  # 512 KB — artifacts above this go to S3
     object_storage_legal_hold_on_fail: bool = True
     object_storage_force_path_style: bool = True
     object_storage_require_tls: bool = False
@@ -210,13 +211,13 @@ def load_settings() -> Settings:
         milvus_vector_size=max(8, int(os.getenv("MILVUS_VECTOR_SIZE", "64"))),
         milvus_timeout_seconds=max(0.5, float(os.getenv("MILVUS_TIMEOUT_SECONDS", "3.0"))),
         knowledge_embedding_provider=os.getenv(
-            "KNOWLEDGE_EMBEDDING_PROVIDER", "deterministic"
+            "KNOWLEDGE_EMBEDDING_PROVIDER", "gemini"
         ).strip().lower()
-        or "deterministic",
+        or "gemini",
         knowledge_embedding_model=os.getenv(
-            "KNOWLEDGE_EMBEDDING_MODEL", "deterministic-hash-v1"
+            "KNOWLEDGE_EMBEDDING_MODEL", "text-embedding-004"
         ).strip()
-        or "deterministic-hash-v1",
+        or "text-embedding-004",
         knowledge_embedding_timeout_seconds=max(
             1.0, float(os.getenv("KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS", "10.0"))
         ),
@@ -241,6 +242,9 @@ def load_settings() -> Settings:
         ),
         object_storage_retention_days=max(
             1, int(os.getenv("OBJECT_STORAGE_RETENTION_DAYS", "90"))
+        ),
+        object_storage_size_threshold_bytes=max(
+            4096, int(os.getenv("OBJECT_STORAGE_SIZE_THRESHOLD_BYTES", "524288"))
         ),
         object_storage_legal_hold_on_fail=_as_bool(
             os.getenv("OBJECT_STORAGE_LEGAL_HOLD_ON_FAIL", "true"), True

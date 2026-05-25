@@ -33,8 +33,10 @@ from .tracing import configure_tracing, current_trace_id
 
 try:
     import redis.asyncio as redis
+    from redis.exceptions import ConnectionError as _RedisConnectionError
 except ModuleNotFoundError:
     redis = None
+    _RedisConnectionError = type(None)  # never matched; keeps except clauses uniform
 
 try:
     import jwt
@@ -62,6 +64,11 @@ OIDC_OPERATOR_ROLE = os.getenv("OIDC_OPERATOR_ROLE", "observe").strip().lower() 
 OIDC_ENFORCE_OPERATOR_ROUTES = (
     os.getenv("OIDC_ENFORCE_OPERATOR_ROUTES", "true").strip().lower()
     in {"1", "true", "yes", "on"}
+)
+# Set to "false" in production to enforce operator access checks.
+# Defaults to "true" (bypass enabled) for development convenience; tests should disable it.
+GATEWAY_ADMIN_BYPASS: bool = (
+    os.getenv("GATEWAY_ADMIN_BYPASS", "true").strip().lower() in {"1", "true", "yes", "on"}
 )
 OIDC_ROLE_CLAIMS = tuple(
     claim.strip()
@@ -482,7 +489,7 @@ async def _dependency_status() -> dict[str, bool]:
         try:
             redis_healthy = bool(await redis_client.ping())
             app.state.redis_ready = redis_healthy
-        except (ConnectionError, TimeoutError, OSError) as exc:
+        except Exception as exc:
             LOGGER.warning("redis ping failed: %s", exc)
             redis_healthy = False
             app.state.redis_ready = False
@@ -791,7 +798,7 @@ def _require_operator_access(
     x_api_key: str | None,
     authorization: str | None,
 ) -> None:
-    if os.getenv("GATEWAY_ADMIN_BYPASS", "true").lower() in {"1", "true", "yes", "on"}:
+    if GATEWAY_ADMIN_BYPASS:
         return
     if not OIDC_ENFORCE_OPERATOR_ROUTES or AUTH_MODE == "api_key":
         return
@@ -1187,7 +1194,7 @@ async def _gemini_builder_preview(
                 json=request_payload,
                 headers={"Content-Type": "application/json"},
             )
-    except httpx.RequestError as exc:
+    except Exception as exc:
         LOGGER.warning("gemini preview request failed: %s", exc)
         return None
 
@@ -1230,7 +1237,7 @@ async def lifespan(app: FastAPI):
         try:
             await app.state.redis.ping()
             app.state.redis_ready = True
-        except (ConnectionError, TimeoutError, OSError) as exc:
+        except (ConnectionError, TimeoutError, OSError, _RedisConnectionError) as exc:
             LOGGER.warning("redis startup ping failed, marking not ready: %s", exc)
             app.state.redis_ready = False
 
@@ -1360,7 +1367,7 @@ async def _security_and_rate_limit(request: Request, call_next):
                     "X-RateLimit-Limit": str(API_RATE_LIMIT_PER_MINUTE),
                     "X-RateLimit-Remaining": str(remaining),
                 }
-            except (ConnectionError, TimeoutError, OSError) as exc:
+            except (ConnectionError, TimeoutError, OSError, _RedisConnectionError) as exc:
                 # resilience: fail-open — request proceeds without rate-limit enforcement
                 LOGGER.warning("rate limiter unavailable for %s: %s — failing open", path, exc)
 
@@ -1445,7 +1452,7 @@ async def stream_state_events(
         raise HTTPException(status_code=503, detail="redis dependency is not installed")
     try:
         app.state.redis_ready = bool(await redis_client.ping())
-    except (ConnectionError, TimeoutError, OSError) as exc:
+    except (ConnectionError, TimeoutError, OSError, _RedisConnectionError) as exc:
         app.state.redis_ready = False
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
 
@@ -1527,7 +1534,7 @@ async def _emit_intake_telemetry(
         )
     except (ProtocolValidationError, json.JSONDecodeError) as exc:
         LOGGER.warning("mission intake telemetry envelope validation failed for %s: %s", mission_id, exc)
-    except (ConnectionError, TimeoutError, OSError) as exc:
+    except (ConnectionError, TimeoutError, OSError, _RedisConnectionError) as exc:
         LOGGER.warning("failed to publish mission intake telemetry for %s: %s", mission_id, exc)
 
 
@@ -1589,7 +1596,7 @@ async def create_mission(
         raise HTTPException(status_code=503, detail="redis dependency is not installed")
     try:
         app.state.redis_ready = bool(await redis_client.ping())
-    except (ConnectionError, TimeoutError, OSError) as exc:
+    except (ConnectionError, TimeoutError, OSError, _RedisConnectionError) as exc:
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
 
     provisional_id = f"mission-{uuid.uuid4()}"
@@ -1644,7 +1651,7 @@ async def create_mission(
                 "status": "completed", "request_hash": request_hash,
                 "mission_id": mission_id, "mission": mission_payload
             })
-        except (ConnectionError, TimeoutError, OSError) as exc:
+        except (ConnectionError, TimeoutError, OSError, _RedisConnectionError) as exc:
             LOGGER.warning("mission %s queued but failed to persist idempotency completion: %s", mission_id, exc)
 
     return MissionRecord(**mission_payload)
@@ -1655,7 +1662,7 @@ async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
             response = await client.get(f"{ORCHESTRATOR_URL}{path}", params=params)
-    except httpx.RequestError as exc:
+    except Exception as exc:
         LOGGER.warning("orchestrator query failed for %s: %s", path, exc)
         raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
     if response.status_code == 404:
@@ -2054,14 +2061,34 @@ async def create_builder_preview(payload: BuilderPreviewRequest) -> dict[str, An
     })
 
     if provider != "offline":
+        # Check whether the provider's API key is configured before dispatching.
+        _key_map = {
+            "openai": OPENAI_API_KEY,
+            "anthropic": ANTHROPIC_API_KEY,
+            "gemini": GEMINI_API_KEY,
+        }
+        if not _key_map.get(provider):
+            return _build_offline_builder_preview(
+                normalized_payload,
+                source="offline",
+                notice="provider not configured — returned deterministic preview.",
+            )
         generated = await _dispatch_llm_preview(normalized_payload, provider, selected_model)
-        if generated: return generated
-    
-    source_map = {"openai": "openai-fallback", "anthropic": "anthropic-fallback", "gemini": "gemini-fallback"}
-    source = source_map.get(provider, "offline")
-    notice = "Live LLM request failed or provider not configured. Returned deterministic preview." if provider != "offline" else "Deterministic preview requested."
-    
-    return _build_offline_builder_preview(normalized_payload, source=source, notice=notice)
+        if generated:
+            return generated
+        # Key was present but the live request failed — return provider-labelled fallback.
+        source_map = {"openai": "openai-fallback", "anthropic": "anthropic-fallback", "gemini": "gemini-fallback"}
+        return _build_offline_builder_preview(
+            normalized_payload,
+            source=source_map.get(provider, "offline"),
+            notice="Live LLM request failed. Returned deterministic preview.",
+        )
+
+    return _build_offline_builder_preview(
+        normalized_payload,
+        source="offline",
+        notice="Deterministic preview requested.",
+    )
 
 
 

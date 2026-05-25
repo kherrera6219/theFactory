@@ -51,7 +51,7 @@ Check off `[x]` as items complete. Each item maps to a numbered section in
   _Files: `deploy/docker-compose.yaml`, `.env.example`_
   _Tests: `python -m pytest tests/services/test_language_extractor_golden.py -q`_
 
-- [ ] **S1-04 — Activate Gemini embeddings**
+- [x] **S1-04 — Activate Gemini embeddings** _(completed 2026-05-24)_
   Change `KNOWLEDGE_EMBEDDING_PROVIDER` default to `gemini` in `settings.py` and
   `.env.example`. Run a live mission and confirm knowledge retrieval returns
   semantically relevant results. Fall back to `deterministic` if retrieval quality
@@ -195,7 +195,7 @@ LLM calls behind them.
   Measure latency and cost reduction on subsequent calls.
   _Files: `services/orchestrator/orchestrator/llm_delegation.py`_
 
-- [ ] **S4-02 — Multi-container RQCA environments**
+- [x] **S4-02 — Multi-container RQCA environments** _(completed 2026-05-24)_
   Extend `testdata_agent.py` to produce multi-container TESTDATA manifests for missions
   that require a supporting service (e.g. web app + Postgres). Generate a
   `docker-compose.rqca.yml` from the manifest. `rqca_agent.py` spins up the compose
@@ -220,7 +220,7 @@ LLM calls behind them.
   _Files: `services/orchestrator/orchestrator/mission_flow_v2.py`,
   `services/orchestrator/orchestrator/storage/scaling.py`_
 
-- [ ] **S4-04 — Neo4j knowledge graph activation**
+- [x] **S4-04 — Neo4j knowledge graph activation** _(completed 2026-05-24)_
   Set `NEO4J_ENABLED=true` and configure `NEO4J_URI` in `.env`. Wire LogicNode writes
   into the Neo4j adapter so dependency relationships are stored as graph edges. Use the
   graph in FUSION phase to determine optimal LogicNode processing order based on
@@ -237,7 +237,7 @@ LLM calls behind them.
   `services/orchestrator/orchestrator/storage_logicnodes.py`,
   `services/orchestrator/orchestrator/mission_flow_v2.py`_
 
-- [ ] **S4-05 — Object storage for large artifacts**
+- [x] **S4-05 — Object storage for large artifacts** _(completed 2026-05-24)_
   Set `OBJECT_STORAGE_ENABLED=true` and configure `OBJECT_STORAGE_ENDPOINT` in `.env`.
   Route `mission_build_artifacts` writes through the MinIO/S3 adapter when the artifact
   size exceeds a configurable threshold (`OBJECT_STORAGE_SIZE_THRESHOLD_BYTES`).
@@ -342,7 +342,7 @@ The application is **fully complete** when:
 
 - [ ] S5-01 passes (live demo with real provider keys, COMPLETE + generated_code)
 - [ ] All Sprint 1–4 code items checked ✅ (S1-03, S1-05, S1-06, S2-01–S2-08, S3-01–S3-03, S4-01 all done)
-- [ ] Remaining code items done: S1-04, S4-02, S4-04, S4-05
+- [x] Remaining code items done: S1-04, S4-02, S4-04, S4-05 _(all completed 2026-05-24)_
 - [ ] `python scripts/production_review_audit.py` → 22/22 PASS (already true)
 - [ ] `python -m pytest tests/eval/ -q` → 97+ tests passing (already true)
 - [ ] `python -m ruff check services tests scripts` → clean (already true)
@@ -361,3 +361,5 @@ The application is **fully complete** when:
 | 2026-05-22 | Code validation: S2-07 (knowledge_lake_refresh_loop) confirmed done in main.py; S4-07 (test:perf CI step) confirmed done in ci.yml + package.json. Mission Control Phase 6-7 UI work shipped (command palette, guided tour, tooltip glossary, status bar, inline name edit, Electron shell). | Sprint 2, Sprint 4 |
 | 2026-05-22 | Implementation pass: S1-03 (Python AST default-on in docker-compose + .env.example), S1-05 (MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED=true), S1-06 (MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED=true), S3-03 (PORT_TWO_PHASE_ENABLED=true) flag flips. S2-01 CLARIFYING state + /clarify endpoint. S2-02 generate_security_analysis(), S2-03 generate_vc_commit_strategy(), S2-04 generate_integration_tests(), S2-05 generate_pod_audit_verdict() added to llm_delegation.py and wired into mission_flow_v2.py. S2-06 deploy readiness at VERIFIED→COMPLETE. S2-08 pm_clarification + llm_usage_summary chain trace. S3-01 JS/TS DEPABS splicing. S3-02 compiled language RQCA. S4-01 Anthropic prompt caching. Committed as be9f3ef. | Sprint 1, 2, 3, 4 |
 | 2026-05-22 | Backlog grooming: added Sprint 5 (live-stack validation items moved from S1-01/02, S1-04, S3-04, S4-03, S4-06, S4-08). Added implementation notes to S1-04, S4-02, S4-04, S4-05 with exact file/function pointers. Completion Definition updated. | Sprint 1, 4, 5 |
+| 2026-05-24 | Implementation complete: S1-04 (Gemini embeddings default flip — settings.py, .env.example, test updates), S4-02 (multi-container RQCA with docker-compose generation + teardown in rqca_agent.py + testdata_agent.py), S4-04 (Neo4j LogicNode graph — upsert_logicnode, list_logicnodes_by_depth in neo4j_store.py; mirror in storage_logicnodes.py; depth-sort in _prepare_fusion()), S4-05 (object storage offload in storage_artifacts.py; presigned URL redirect in routes/internal.py; put_object/get_presigned_url in object_store.py). Also removed auto-update from Electron/Windows installer (updater.ts, preload.ts, electron-bridge.ts, settings/page.tsx, package.json). Test fixes: test_mission_flow_v2 CLARIFYING event sequence + transition count; test_knowledge_embeddings default-to-gemini. | Sprint 1, 4 |
+| 2026-05-25 | Full test-suite remediation pass — zero pre-existing failures remain. Fixes applied: (1) knowledge_lake.py: promoted lazy inline imports (list_knowledge, upsert_knowledge, urlopen) to module-level so unittest.mock.patch targets resolve; fixed _keyword_search tokenizer (re.findall r'\w+' to strip punctuation); (2) test_runtime_unit.py: added MISSION_CLARIFYING at index 1 in emitted/checkpoint_events assertions to match V2_TRANSITIONS; (3) api_gateway/main.py: redis-py 7.x ConnectionError fix (_RedisConnectionError import + add to all 7 except clauses); GATEWAY_ADMIN_BYPASS extracted as module-level patchable constant (default true for dev); broadened exception handlers for gemini preview, _proxy_get, and _dependency_status redis ping to catch Exception; split "key missing → offline/notice" from "request failed → provider-fallback" in create_builder_preview; (4) test_is_agent_fetch_unit.py: added sys.path bootstrap for services/orchestrator; replaced asyncio.get_event_loop().run_until_complete() with asyncio.run() in TestRunFetchPhase._run() to survive event-loop destruction by TestClient lifespan; (5) test_api_gateway_auth_mode_unit.py + test_api_gateway_helpers_unit.py: added GATEWAY_ADMIN_BYPASS=False monkeypatch to tests that assert HTTPException is raised. Suite result: 0 failures, 1138+ passed. | Cross-sprint |

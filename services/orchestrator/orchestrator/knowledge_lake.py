@@ -16,6 +16,9 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.request import urlopen  # noqa: S310 — patched in tests; only http/https used
+
+from .qdrant_store import list_knowledge, upsert_knowledge
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +39,6 @@ def is_stocked(*, settings: Any, language: str) -> bool:
         return False
     knowledge_id = f"docs.{language.strip().lower()}.bootstrap"
     try:
-        from .qdrant_store import list_knowledge
         records = list_knowledge(settings, _KNOWLEDGE_LAKE_ID, limit=50)
         return any(
             isinstance(r, dict) and r.get("knowledge_id") == knowledge_id
@@ -117,7 +119,6 @@ def index_documentation(
         "hash": content_hash,
     }
     try:
-        from .qdrant_store import upsert_knowledge
         upsert_knowledge(
             settings,
             _KNOWLEDGE_LAKE_ID,
@@ -149,7 +150,6 @@ def get_language_context(*, settings: Any, language: str) -> str | None:
     knowledge_id = f"docs.{language_key}.bootstrap"
 
     try:
-        from .qdrant_store import list_knowledge
         records = list_knowledge(settings, _KNOWLEDGE_LAKE_ID, limit=10)
     except Exception as exc:
         LOGGER.warning("knowledge_lake.get_language_context list error: %s", exc)
@@ -199,7 +199,7 @@ def broadcast_knowledge_ready(
     import json
     import uuid
     from datetime import UTC, datetime
-    from urllib.request import Request, urlopen
+    from urllib.request import Request
 
     payload = {
         "protocol": "sigma",
@@ -332,14 +332,16 @@ def _keyword_search(
 ) -> list[dict[str, Any]]:
     """Scroll-based keyword overlap fallback when vector search yields nothing."""
     try:
-        from .qdrant_store import list_knowledge
         records = list_knowledge(settings, _KNOWLEDGE_LAKE_ID, limit=200)
     except Exception as exc:
         LOGGER.debug("knowledge_lake._keyword_search list error: %s", exc)
         return []
 
+    import re as _re
+    _tok = _re.compile(r"\w+")
+
     scored: list[tuple[float, dict[str, Any]]] = []
-    concept_tokens = set(concept_key.lower().split())
+    concept_tokens = set(_tok.findall(concept_key.lower()))
 
     for record in records:
         if not isinstance(record, dict):
@@ -352,9 +354,9 @@ def _keyword_search(
 
         combined_text = str(content.get("combined_text") or "").lower()
         knowledge_id = str(record.get("knowledge_id") or "").lower()
-        text_tokens = set(combined_text.split())
+        text_tokens = set(_tok.findall(combined_text))
         overlap = len(concept_tokens & text_tokens)
-        id_overlap = len(concept_tokens & set(knowledge_id.replace(".", " ").split()))
+        id_overlap = len(concept_tokens & set(_tok.findall(knowledge_id)))
         score = (overlap + id_overlap * 2) / max(len(concept_tokens), 1)
 
         if score > 0:

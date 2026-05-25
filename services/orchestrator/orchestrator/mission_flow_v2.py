@@ -2454,6 +2454,38 @@ async def _prepare_fusion(
     pod_group_standards = metadata.get("pod_group_standards") or {}
     mission_contract = metadata.get("mission_contract") or {}
 
+    # ── Neo4j dependency-depth sort (S4-04) ──────────────────────────────────
+    # When Neo4j is enabled, reorder pod_group_standards keys so that nodes
+    # with deeper dependency chains (i.e. more things depend on them) are
+    # processed first by generate_master_logic_stream. This avoids producing
+    # a master stream that references unresolved dependencies.
+    if settings.neo4j_enabled and pod_group_standards:
+        try:
+            from . import neo4j_store as _neo4j
+            graph_nodes = await asyncio.to_thread(
+                _neo4j.list_logicnodes_by_depth,
+                settings,
+                mission.mission_id,
+                2000,
+            )
+            if graph_nodes:
+                # Build an ordered node_id list from deepest → shallowest
+                depth_order = [n["node_id"] for n in graph_nodes]
+                ordered: dict[str, Any] = {}
+                # First insert nodes in depth order (they exist in pod_group_standards)
+                for nid in depth_order:
+                    if nid in pod_group_standards:
+                        ordered[nid] = pod_group_standards[nid]
+                # Append any remaining nodes not yet in the ordered dict
+                for nid, val in pod_group_standards.items():
+                    if nid not in ordered:
+                        ordered[nid] = val
+                pod_group_standards = ordered
+        except Exception as neo_exc:
+            LOGGER.warning(
+                "v2: neo4j depth sort skipped for %s: %s", mission.mission_id, neo_exc
+            )
+
     try:
         master_stream = await generate_master_logic_stream(
             pod_group_standards=pod_group_standards,

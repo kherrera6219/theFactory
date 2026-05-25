@@ -34,15 +34,13 @@ def _settings(**overrides: object) -> Settings:
     return Settings(**{**base.__dict__, **overrides})
 
 
-def test_embedding_config_defaults_to_deterministic() -> None:
+def test_embedding_config_defaults_to_gemini() -> None:
+    # S1-04: default provider was intentionally changed from "deterministic" to "gemini".
     config = knowledge_embeddings.embedding_config(_settings(), vector_size=64)
 
-    assert config == {
-        "provider": "deterministic",
-        "model": "deterministic-hash-v1",
-        "dimensions": 64,
-        "source": "deterministic",
-    }
+    assert config["provider"] == "gemini"
+    assert config["model"] == "text-embedding-004"
+    assert config["dimensions"] == 64
 
 
 def test_vector_for_content_is_stable_without_provider_key(monkeypatch) -> None:

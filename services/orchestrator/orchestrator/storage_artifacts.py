@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from .models import MissionBuildArtifactRecord
 from .settings import Settings
 from .storage_core import _json_to_dict, _to_iso, db_connect
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _row_to_build_artifact(row: Any) -> MissionBuildArtifactRecord:
@@ -277,6 +280,44 @@ def upsert_build_artifact(
     artifact_text: str | None,
     created_at: str,
 ) -> dict[str, Any]:
+    # ── S4-05: offload large artifact_text to object storage ──────────────────
+    threshold = int(getattr(settings, "object_storage_size_threshold_bytes", 524288))
+    if (
+        settings.object_storage_enabled
+        and artifact_text
+        and len(artifact_text.encode("utf-8")) > threshold
+    ):
+        try:
+            from . import object_store
+            prefix = settings.object_storage_prefix.strip("/")
+            key = f"{prefix}/{mission_id}/artifacts/{artifact_id}.txt"
+            meta = {
+                "mission-id": mission_id,
+                "artifact-id": artifact_id,
+                "artifact-type": artifact_type,
+                "created-at": created_at,
+            }
+            object_store.put_object(
+                settings,
+                key=key,
+                body=artifact_text.encode("utf-8"),
+                content_type="text/plain; charset=utf-8",
+                metadata=meta,
+            )
+            # Route artifact through S3 — clear inline text to avoid Postgres bloat
+            storage_backend = "s3"
+            storage_ref = key
+            artifact_text = None
+            LOGGER.info(
+                "artifact %s/%s offloaded to object storage key=%s", mission_id, artifact_id, key
+            )
+        except Exception as exc:
+            # Fall back to Postgres inline storage — log but do not fail the mission
+            LOGGER.warning(
+                "object storage offload failed for %s/%s: %s — storing inline",
+                mission_id, artifact_id, exc,
+            )
+
     with db_connect(settings) as conn:
         with conn.cursor() as cur:
             cur.execute(

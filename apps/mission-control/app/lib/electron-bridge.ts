@@ -30,11 +30,8 @@ export const IPC_CHANNELS = {
   FS_SHOW_OPEN: "fs:show-open-dialog",
   FS_SHOW_SAVE: "fs:show-save-dialog",
 
-  // 7D — Auto-update
+  // 7D — App version (auto-update disabled)
   UPDATER_GET_VERSION: "updater:get-version",
-  UPDATER_CHECK: "updater:check",
-  UPDATER_DOWNLOADED: "updater:downloaded",
-  UPDATER_INSTALL: "updater:install",
 
   // Misc
   APP_PLATFORM: "app:platform",
@@ -68,12 +65,8 @@ declare global {
         filters?: Array<{ name: string; extensions: string[] }>;
       }): Promise<string | null>;
 
-      // 7D — Auto-update
+      // 7D — App version (auto-update disabled)
       getAppVersion(): Promise<string>;
-      checkForUpdates(): Promise<{ updateAvailable: boolean; version?: string }>;
-      /** Returns a cleanup function. */
-      onUpdateDownloaded(cb: () => void): () => void;
-      installUpdate(): void;
 
       // Misc
       getPlatform(): Promise<"darwin" | "win32" | "linux">;
@@ -147,28 +140,11 @@ export async function electronShowSaveDialog(options: {
   return window.electronAPI.showSaveDialog(options);
 }
 
-// ── 7D: Auto-update ─────────────────────────────────────────────────────────
+// ── 7D: App version ─────────────────────────────────────────────────────────
+// Auto-update is disabled. Updates are delivered via the NSIS Windows installer.
 
-/** Returns the running app version (e.g. "1.2.3") or null in the browser. */
+/** Returns the running app version (e.g. "0.1.0") or null in the browser. */
 export async function electronGetAppVersion(): Promise<string | null> {
   if (!isElectron() || !window.electronAPI) return null;
   return window.electronAPI.getAppVersion();
-}
-
-/**
- * Ask electron-updater to check for a new release.
- * Returns null outside Electron.
- */
-export async function electronCheckForUpdates(): Promise<{
-  updateAvailable: boolean;
-  version?: string;
-} | null> {
-  if (!isElectron() || !window.electronAPI) return null;
-  return window.electronAPI.checkForUpdates();
-}
-
-/** Quit and install a downloaded update. No-op outside Electron. */
-export function electronInstallUpdate(): void {
-  if (!isElectron()) return;
-  window.electronAPI?.installUpdate();
 }

@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from .settings import Settings
 from .storage_core import _json_to_dict, _to_iso, db_connect
+
+LOGGER = logging.getLogger(__name__)
 
 
 def upsert_logicnode(
@@ -30,12 +33,26 @@ def upsert_logicnode(
             )
             row = cur.fetchone()
 
-    return {
+    result = {
         "mission_id": row[0],
         "node_id": row[1],
         "node": _json_to_dict(row[2]),
         "created_at": _to_iso(row[3]),
     }
+
+    # Mirror into Neo4j graph when enabled — non-fatal if Neo4j is unavailable.
+    if settings.neo4j_enabled:
+        try:
+            from . import neo4j_store
+            neo4j_store.upsert_logicnode(
+                settings, mission_id, node_id, node, created_at
+            )
+        except Exception as exc:  # nosec B110
+            LOGGER.warning(
+                "neo4j logicnode mirror failed for %s/%s: %s", mission_id, node_id, exc
+            )
+
+    return result
 
 
 def list_logicnodes(settings: Settings, mission_id: str, limit: int) -> list[dict[str, Any]]:
