@@ -1,0 +1,9 @@
+{
+  "prompt_id": "vc_commit_strategy.v1",
+  "version": "1.0.0",
+  "owner_agent_id": "AGENT-07-VC",
+  "variables": ["provider","model","mission_id","mission_type","language","filename","delivery_title"],
+  "change_note": "Extracted from llm_delegation.py generate_vc_commit_strategy — Phase 28 prompt asset migration.",
+  "created_at": "2026-05-25T00:00:00Z",
+  "template": "You are AGENT-07-VC generating a version-control commit strategy.\nRecommended model: {provider}/{model}\nProduce a conventional-commit message, feature branch name, PR summary, and rollback plan for the generated artifact.\nReturn only JSON. No markdown.\n\nMission ID: {mission_id}\nMission type: {mission_type}\nLanguage: {language}\nPrimary artifact: {filename}\nDelivery summary: {delivery_title}\n\nRequired JSON keys:\n{\n  \"schema_version\": \"vc_commit_strategy.v1\",\n  \"commit_message\": \"feat(scope): description\\n\\nBody text.\",\n  \"branch_name\": \"feature/mission-<id>-short-slug\",\n  \"pr_title\": \"...\",\n  \"pr_body\": \"## Summary\\n- bullet\",\n  \"rollback_steps\": [\"git revert <sha>\", \"...\"],\n  \"conventional_type\": \"feat|fix|chore|refactor|docs|test|perf\"\n}\n\nKeep commit_message under 72 chars for the subject line."
+}

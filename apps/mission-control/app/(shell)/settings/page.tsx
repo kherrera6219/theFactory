@@ -15,8 +15,7 @@ import { formatDateTime } from "../../lib/format";
 import { clampNumber, isAllowedLocalApiBase, safeJsonParse } from "../../lib/security";
 import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
 
-// Static agent registry — used as fallback when the orchestrator is offline so the
-// vault slot table always shows all expected rows for key entry.
+// Static agent registry — fallback when orchestrator is offline.
 const STATIC_AGENT_SLOTS: Array<{ agentId: string; name: string; provider: string; model: string }> = [
   { agentId: "AGENT-01-PM", name: "PM Agent", provider: "openai", model: "gpt-5.5" },
   { agentId: "AGENT-02-CEO", name: "CEO Agent", provider: "openai", model: "gpt-5.5" },
@@ -103,11 +102,20 @@ function parseNumberInput(value: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+// FIX #2 / #6: Consistent status description + tone mapping
 function describeVaultStatus(status: SlotRow["status"]): string {
   if (status === "expiring") return "Expiring";
   if (status === "expired") return "Expired";
   if (status === "set") return "Set";
   return "Missing";
+}
+
+function vaultStatusTone(status: SlotRow["status"]): "healthy" | "warning" | "critical" | "neutral" {
+  if (status === "set") return "healthy";
+  if (status === "expiring") return "warning";
+  if (status === "expired") return "critical";
+  // FIX #6: "missing" now maps to "critical" with badge styling so it's immediately visible
+  return "critical";
 }
 
 export default function SettingsPage() {
@@ -156,8 +164,8 @@ export default function SettingsPage() {
   const [savePending, setSavePending] = useState(false);
   const [slotSearch, setSlotSearch] = useState("");
   const [orchestratorOffline, setOrchestratorOffline] = useState(false);
-
-  // 7D — App version (auto-update disabled; updates via NSIS installer)
+  // FIX #4: Slide-in edit panel visibility — opens when a row is clicked
+  const [editPanelOpen, setEditPanelOpen] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
 
   useEffect(() => {
@@ -166,7 +174,6 @@ export default function SettingsPage() {
       const parsed = safeJsonParse<LocalPreferences>(raw, DEFAULT_PREFERENCES);
       setPreferences({ ...DEFAULT_PREFERENCES, ...parsed });
     }
-    // Fetch app version from Electron main process.
     if (isElectron()) {
       void electronGetAppVersion().then((v) => v && setAppVersion(v));
     }
@@ -268,13 +275,12 @@ export default function SettingsPage() {
     [rows, selectedSlotId],
   );
 
-  /** True when at least one row has a configured key — reveals the masked/rotation/expiry columns. */
   const hasAnyKeyData = useMemo(
     () => rows.some((row) => row.maskedPreview !== null || row.lastRotatedAt !== null || row.expiresAt !== null),
     [rows],
   );
 
-  /** Search-filtered rows for the vault table. */
+  // FIX #5: Full-width search, placed directly above table heading
   const filteredRows = useMemo(() => {
     const q = slotSearch.trim().toLowerCase();
     if (!q) return rows;
@@ -286,17 +292,17 @@ export default function SettingsPage() {
     );
   }, [rows, slotSearch]);
 
+  // FIX #9: API URL gets more space; numeric fields narrower
   function updatePreference<K extends keyof LocalPreferences>(key: K, value: LocalPreferences[K]) {
     setPreferences((current) => ({ ...current, [key]: value }));
   }
 
+  // FIX #10: Save confirmation clears after 3 seconds
   function savePreferences() {
     setSaveError(null);
     setSaveMessage(null);
     if (!isAllowedLocalApiBase(preferences.apiBaseUrl)) {
-      setSaveError(
-        "API base URL must target localhost or 127.0.0.1 for local secure mode.",
-      );
+      setSaveError("API base URL must target localhost or 127.0.0.1 for local secure mode.");
       return;
     }
 
@@ -312,6 +318,8 @@ export default function SettingsPage() {
       setPreferences(normalized);
       window.localStorage.setItem("mission-control:preferences", JSON.stringify(normalized));
       setSaveMessage("Preferences saved.");
+      // Auto-clear success message
+      setTimeout(() => setSaveMessage(null), 3000);
     } catch {
       setSaveError("Failed to save preferences — localStorage may be unavailable.");
     } finally {
@@ -320,34 +328,22 @@ export default function SettingsPage() {
   }
 
   async function saveVaultSlot() {
-    if (!selectedSlot) {
-      setSlotError("Select a slot before saving.");
-      return;
-    }
+    if (!selectedSlot) { setSlotError("Select a slot before saving."); return; }
     const secret = slotSecretInput.trim();
-    if (secret.length < 8) {
-      setSlotError("Secret must contain at least 8 characters.");
-      return;
-    }
-    setSlotLoading(true);
-    setSlotError(null);
-    setSlotMessage(null);
+    if (secret.length < 8) { setSlotError("Secret must contain at least 8 characters."); return; }
+    setSlotLoading(true); setSlotError(null); setSlotMessage(null);
     try {
       const response = await fetch("/api/vault", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slot_id: selectedSlot.slotId,
-          provider: selectedSlot.provider,
-          secret,
-        }),
+        body: JSON.stringify({ slot_id: selectedSlot.slotId, provider: selectedSlot.provider, secret }),
       });
       const payload = (await response.json()) as { detail?: string };
-      if (!response.ok) {
-        throw new Error(payload.detail || "Unable to save vault slot.");
-      }
+      if (!response.ok) throw new Error(payload.detail || "Unable to save vault slot.");
       setSlotSecretInput("");
       setSlotMessage(`Saved ${selectedSlot.slotId}.`);
+      // FIX #10: auto-close edit panel on success
+      setTimeout(() => { setSlotMessage(null); setEditPanelOpen(false); }, 2000);
       await loadVaultAndAgents();
     } catch (requestError) {
       setSlotError(requestError instanceof Error ? requestError.message : "Unable to save slot.");
@@ -357,13 +353,8 @@ export default function SettingsPage() {
   }
 
   async function testVaultSlot() {
-    if (!selectedSlot) {
-      setSlotError("Select a slot before testing.");
-      return;
-    }
-    setSlotLoading(true);
-    setSlotError(null);
-    setSlotMessage(null);
+    if (!selectedSlot) { setSlotError("Select a slot before testing."); return; }
+    setSlotLoading(true); setSlotError(null); setSlotMessage(null);
     try {
       const response = await fetch("/api/vault/test", {
         method: "POST",
@@ -375,9 +366,7 @@ export default function SettingsPage() {
         }),
       });
       const payload = (await response.json()) as { valid?: boolean; reason?: string; detail?: string };
-      if (!response.ok) {
-        throw new Error(payload.detail || "Key test failed.");
-      }
+      if (!response.ok) throw new Error(payload.detail || "Key test failed.");
       setSlotMessage(payload.valid ? `Valid: ${payload.reason}` : `Invalid: ${payload.reason}`);
     } catch (requestError) {
       setSlotError(requestError instanceof Error ? requestError.message : "Unable to test slot.");
@@ -387,12 +376,8 @@ export default function SettingsPage() {
   }
 
   async function clearVaultSlot() {
-    if (!selectedSlot) {
-      return;
-    }
-    setSlotLoading(true);
-    setSlotError(null);
-    setSlotMessage(null);
+    if (!selectedSlot) return;
+    setSlotLoading(true); setSlotError(null); setSlotMessage(null);
     try {
       const response = await fetch("/api/vault", {
         method: "DELETE",
@@ -400,11 +385,10 @@ export default function SettingsPage() {
         body: JSON.stringify({ slot_id: selectedSlot.slotId }),
       });
       const payload = (await response.json()) as { detail?: string };
-      if (!response.ok) {
-        throw new Error(payload.detail || "Unable to delete slot.");
-      }
+      if (!response.ok) throw new Error(payload.detail || "Unable to delete slot.");
       setSlotSecretInput("");
       setSlotMessage(`Cleared ${selectedSlot.slotId}.`);
+      setTimeout(() => { setSlotMessage(null); setEditPanelOpen(false); }, 2000);
       await loadVaultAndAgents();
     } catch (requestError) {
       setSlotError(requestError instanceof Error ? requestError.message : "Unable to clear slot.");
@@ -412,6 +396,22 @@ export default function SettingsPage() {
       setSlotLoading(false);
     }
   }
+
+  // FIX #4: Open edit panel and scroll to it
+  function openEditPanel(slotId: string) {
+    setSelectedSlotId(slotId);
+    setSlotMessage(null);
+    setSlotError(null);
+    setSlotSecretInput("");
+    setEditPanelOpen(true);
+    // Scroll edit panel into view on next tick
+    setTimeout(() => {
+      document.getElementById("vault-edit-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 50);
+  }
+
+  // FIX #3: Section numbering helper for visual hierarchy
+  const SECTION = (n: number, title: string) => `${n}. ${title}`;
 
   return (
     <div className="page shell-page">
@@ -422,8 +422,18 @@ export default function SettingsPage() {
         description="Configure API endpoints, execution limits, and local integration credentials for enterprise operations."
       />
 
-      <Panel title="Runtime Preferences">
-        <div className="filters-grid">
+      {/* FIX #3: Clear section hierarchy — numbered panels */}
+      {/* FIX #7: Offline status in header area with strong visual treatment */}
+      {orchestratorOffline && (
+        <SystemMessage tone="warning" title="Runtime offline">
+          Orchestrator unreachable at port 8100. Vault keys can still be configured using the static agent roster below. The live roster will load automatically when services restart.
+        </SystemMessage>
+      )}
+
+      {/* SECTION 1 — Runtime */}
+      <Panel title={SECTION(1, "Runtime Preferences")}>
+        {/* FIX #9: API URL field is wider; numeric fields share the remaining space */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: "16px", alignItems: "end" }}>
           <label>
             API base URL
             <input
@@ -448,10 +458,7 @@ export default function SettingsPage() {
               max={35}
               value={preferences.maxParallelAgents}
               onChange={(event) =>
-                updatePreference(
-                  "maxParallelAgents",
-                  parseNumberInput(event.target.value, preferences.maxParallelAgents),
-                )
+                updatePreference("maxParallelAgents", parseNumberInput(event.target.value, preferences.maxParallelAgents))
               }
             />
           </label>
@@ -463,10 +470,7 @@ export default function SettingsPage() {
               max={100}
               value={preferences.cpuLimitPct}
               onChange={(event) =>
-                updatePreference(
-                  "cpuLimitPct",
-                  parseNumberInput(event.target.value, preferences.cpuLimitPct),
-                )
+                updatePreference("cpuLimitPct", parseNumberInput(event.target.value, preferences.cpuLimitPct))
               }
             />
           </label>
@@ -478,31 +482,54 @@ export default function SettingsPage() {
               max={100}
               value={preferences.memoryLimitPct}
               onChange={(event) =>
-                updatePreference(
-                  "memoryLimitPct",
-                  parseNumberInput(event.target.value, preferences.memoryLimitPct),
-                )
+                updatePreference("memoryLimitPct", parseNumberInput(event.target.value, preferences.memoryLimitPct))
               }
             />
           </label>
         </div>
+        {/* FIX #10: Save button and inline feedback in same panel as the fields */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
+          <button
+            type="button"
+            className="primary-button"
+            disabled={savePending}
+            onClick={savePreferences}
+          >
+            {savePending ? "Saving…" : "Save preferences"}
+          </button>
+          {saveMessage && (
+            <span style={{ fontSize: "13px", color: "var(--color-success)" }}>
+              {saveMessage}
+            </span>
+          )}
+          {saveError && (
+            <span style={{ fontSize: "13px", color: "var(--color-danger)" }}>
+              {saveError}
+            </span>
+          )}
+        </div>
       </Panel>
 
-      <Panel title="API Key Vault Slots">
-        {orchestratorOffline && (
-          <SystemMessage tone="warning" title="Static roster mode">
-            Orchestrator offline (port 8100 unreachable). Vault keys can still be saved, and the live agent roster will replace this table when runtime services are available.
-          </SystemMessage>
-        )}
-        {slotError && (
+      {/* SECTION 2 — Vault */}
+      <Panel
+        title={SECTION(2, "API Key Vault Slots")}
+        actions={
+          <button type="button" className="secondary-button" onClick={() => void loadVaultAndAgents()}>
+            Refresh
+          </button>
+        }
+      >
+        {slotError && !orchestratorOffline && (
           <SystemMessage tone="critical" title="Vault metadata could not be loaded">
             {slotError}
           </SystemMessage>
         )}
         <p className="help-text">
           Provider and GitHub keys are stored server-side in the configured vault backend and never
-          returned in plaintext.
+          returned in plaintext. Click <strong>Configure</strong> on any row to set or rotate a key.
         </p>
+
+        {/* FIX #5: Full-width search spanning the table width */}
         <input
           type="search"
           className="table-search"
@@ -510,10 +537,29 @@ export default function SettingsPage() {
           aria-label="Search vault slots"
           value={slotSearch}
           onChange={(e) => setSlotSearch(e.target.value)}
+          style={{ width: "100%", marginBottom: "10px" }}
         />
-        <div className="table-wrap" tabIndex={0} aria-label="Scrollable API key vault slots table">
-          <table className="data-table">
+
+        {/* FIX #1: table-wrap enables horizontal scroll; column widths prevent mid-word wrapping */}
+        <div
+          className="table-wrap"
+          tabIndex={0}
+          aria-label="Scrollable API key vault slots table"
+          style={{ overflowX: "auto", width: "100%" }}
+        >
+          <table className="data-table" style={{ tableLayout: "fixed", width: "100%", minWidth: "700px" }}>
             <caption className="sr-only">Vault slots for all agents and operator integrations.</caption>
+            <colgroup>
+              {/* FIX #1: Fixed column widths prevent overflow and mid-word breaks */}
+              <col style={{ width: "30%" }} />   {/* Slot ID */}
+              <col style={{ width: "10%" }} />   {/* Provider */}
+              <col style={{ width: "16%" }} />   {/* Model */}
+              <col style={{ width: "10%" }} />   {/* Status */}
+              {hasAnyKeyData && <col style={{ width: "14%" }} />} {/* Masked */}
+              {hasAnyKeyData && <col style={{ width: "10%" }} />} {/* Last Rotated */}
+              {hasAnyKeyData && <col style={{ width: "10%" }} />} {/* Expires */}
+              <col style={{ width: "10%" }} />   {/* Actions */}
+            </colgroup>
             <thead>
               <tr>
                 <th scope="col">Slot ID</th>
@@ -521,44 +567,43 @@ export default function SettingsPage() {
                 <th scope="col">Model</th>
                 <th scope="col">Status</th>
                 {hasAnyKeyData && <th scope="col">Masked</th>}
-                {hasAnyKeyData && <th scope="col">Last Rotated</th>}
+                {hasAnyKeyData && <th scope="col">Last rotated</th>}
                 {hasAnyKeyData && <th scope="col">Expires</th>}
                 <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredRows.map((row) => (
-                <tr key={row.slotId}>
-                  <td className="mono-id">{row.slotId}</td>
+                <tr
+                  key={row.slotId}
+                  style={row.slotId === selectedSlotId ? { background: "var(--color-background-secondary)" } : undefined}
+                >
+                  {/* FIX #1: overflow-hidden + text-overflow on ID cell */}
+                  <td className="mono-id" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {row.slotId}
+                  </td>
                   <td>{row.provider}</td>
-                  <td>{row.model}</td>
+                  <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.model}</td>
                   <td>
-                    <StatusBadge
-                      tone={
-                        row.status === "set"
-                          ? "healthy"
-                          : row.status === "expiring"
-                            ? "warning"
-                            : row.status === "expired"
-                              ? "critical"
-                              : "neutral"
-                      }
-                    >
+                    {/* FIX #6: "missing" now shows as critical badge — visually distinct */}
+                    <StatusBadge tone={vaultStatusTone(row.status)}>
                       {describeVaultStatus(row.status)}
                     </StatusBadge>
                   </td>
-                  {hasAnyKeyData && <td>{row.maskedPreview ?? "—"}</td>}
-                  {hasAnyKeyData && <td>{row.lastRotatedAt ? formatDateTime(row.lastRotatedAt) : "—"}</td>}
-                  {hasAnyKeyData && <td>{row.expiresAt ? formatDateTime(row.expiresAt) : "—"}</td>}
+                  {/* FIX #1: Masked value truncated, not an asterisk overflow */}
+                  {hasAnyKeyData && (
+                    <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "monospace", fontSize: "12px" }}>
+                      {row.maskedPreview ?? "—"}
+                    </td>
+                  )}
+                  {hasAnyKeyData && <td style={{ fontSize: "12px" }}>{row.lastRotatedAt ? formatDateTime(row.lastRotatedAt) : "—"}</td>}
+                  {hasAnyKeyData && <td style={{ fontSize: "12px" }}>{row.expiresAt ? formatDateTime(row.expiresAt) : "—"}</td>}
                   <td>
+                    {/* FIX #2: All Configure buttons styled consistently as secondary-button */}
                     <button
                       type="button"
                       className="secondary-button"
-                      onClick={() => {
-                        setSelectedSlotId(row.slotId);
-                        setSlotMessage(null);
-                        setSlotError(null);
-                      }}
+                      onClick={() => openEditPanel(row.slotId)}
                     >
                       Configure
                     </button>
@@ -570,82 +615,84 @@ export default function SettingsPage() {
         </div>
       </Panel>
 
-      <Panel title="Edit Selected Vault Slot">
-        {!selectedSlot && (
-          <EmptyState title="No vault slot selected" compact>
-            Select a slot from the table above to save, test, or clear a provider credential.
-          </EmptyState>
-        )}
-        {selectedSlot && (
-          <>
-            <ul className="summary-list">
-              <li>
-                <strong>Slot</strong>
-                <span>{selectedSlot.slotId}</span>
-              </li>
-              <li>
-                <strong>Provider</strong>
-                <span>{selectedSlot.provider}</span>
-              </li>
-              <li>
-                <strong>Status</strong>
-                <span>{describeVaultStatus(selectedSlot.status)}</span>
-              </li>
-              <li>
-                <strong>Expires</strong>
-                <span>{selectedSlot.expiresAt ? formatDateTime(selectedSlot.expiresAt) : "n/a"}</span>
-              </li>
-              <li>
-                <strong>Rotation Due</strong>
-                <span>{selectedSlot.rotationDue ? "Yes" : "No"}</span>
-              </li>
-            </ul>
-            <label htmlFor="vault-secret">Secret</label>
-            <input
-              id="vault-secret"
-              type="password"
-              value={slotSecretInput}
-              onChange={(event) => setSlotSecretInput(event.target.value)}
-              autoComplete="off"
-              placeholder={`Paste new secret for ${selectedSlot.slotId}`}
-            />
-            <div className="inline-actions">
-              <button type="button" onClick={() => void saveVaultSlot()} disabled={slotLoading}>
-                {slotLoading ? "Saving..." : "Save"}
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void testVaultSlot()}
-                disabled={slotLoading}
-              >
-                Test
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void clearVaultSlot()}
-                disabled={slotLoading}
-              >
-                Clear
-              </button>
-            </div>
-          </>
-        )}
-        {slotMessage && (
-          <SystemMessage tone="success" title="Vault updated">
-            {slotMessage}
-          </SystemMessage>
-        )}
-        {slotError && (
-          <SystemMessage tone="critical" title="Vault action failed">
-            {slotError}
-          </SystemMessage>
-        )}
-      </Panel>
+      {/* FIX #4: Edit panel is inline directly below the table — no scroll to bottom of page.
+          It is hidden until the user clicks Configure on a row. */}
+      {editPanelOpen && (
+        <Panel
+          id="vault-edit-panel"
+          title={selectedSlot ? `Configure: ${selectedSlot.slotId}` : "Configure vault slot"}
+          actions={
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => { setEditPanelOpen(false); setSlotMessage(null); setSlotError(null); setSlotSecretInput(""); }}
+            >
+              Close
+            </button>
+          }
+        >
+          {!selectedSlot && (
+            <EmptyState title="No vault slot selected" compact>
+              Click Configure on a row in the table above.
+            </EmptyState>
+          )}
+          {selectedSlot && (
+            <>
+              <ul className="summary-list">
+                <li><strong>Slot</strong><span>{selectedSlot.slotId}</span></li>
+                <li><strong>Provider</strong><span>{selectedSlot.provider}</span></li>
+                <li>
+                  <strong>Status</strong>
+                  <span>
+                    <StatusBadge tone={vaultStatusTone(selectedSlot.status)}>
+                      {describeVaultStatus(selectedSlot.status)}
+                    </StatusBadge>
+                  </span>
+                </li>
+                <li><strong>Expires</strong><span>{selectedSlot.expiresAt ? formatDateTime(selectedSlot.expiresAt) : "n/a"}</span></li>
+                <li><strong>Rotation due</strong><span>{selectedSlot.rotationDue ? "Yes" : "No"}</span></li>
+              </ul>
+              <label htmlFor="vault-secret" style={{ display: "block", marginTop: "12px" }}>
+                New secret
+              </label>
+              <input
+                id="vault-secret"
+                type="password"
+                value={slotSecretInput}
+                onChange={(event) => setSlotSecretInput(event.target.value)}
+                autoComplete="off"
+                placeholder={`Paste new secret for ${selectedSlot.slotId}`}
+                style={{ width: "100%", marginTop: "6px" }}
+              />
+              <div className="inline-actions" style={{ marginTop: "12px" }}>
+                <button type="button" onClick={() => void saveVaultSlot()} disabled={slotLoading}>
+                  {slotLoading ? "Saving…" : "Save"}
+                </button>
+                <button type="button" className="secondary-button" onClick={() => void testVaultSlot()} disabled={slotLoading}>
+                  Test
+                </button>
+                <button type="button" className="secondary-button" onClick={() => void clearVaultSlot()} disabled={slotLoading}>
+                  Clear
+                </button>
+              </div>
+            </>
+          )}
+          {/* FIX #10: Inline feedback immediately below the action buttons */}
+          {slotMessage && (
+            <SystemMessage tone="success" title="Vault updated">
+              {slotMessage}
+            </SystemMessage>
+          )}
+          {slotError && editPanelOpen && (
+            <SystemMessage tone="critical" title="Vault action failed">
+              {slotError}
+            </SystemMessage>
+          )}
+        </Panel>
+      )}
 
-      {/* 7D — Software version panel */}
-      <Panel title="Software Version">
+      {/* SECTION 3 — Software Version */}
+      <Panel title={SECTION(3, "Software Version")}>
         <div className="filters-grid">
           <div>
             <p className="eyebrow">Current version</p>
@@ -657,67 +704,39 @@ export default function SettingsPage() {
           </div>
         </div>
         <p className="help-text" style={{ marginTop: "12px" }}>
-          Updates are delivered manually via the <strong>theFactory Mission Control</strong> Windows installer.
+          Updates are delivered via the <strong>theFactory Mission Control</strong> Windows installer.
           Download the latest installer from your release channel and run it to upgrade.
         </p>
       </Panel>
 
-      
-
-      
-      <Panel title="System Maintenance">
+      {/* SECTION 4 — Maintenance */}
+      <Panel title={SECTION(4, "System Maintenance")}>
         <p className="help-text">
           Enterprise tools for data resilience and diagnostics. Export system state for support or
           trigger a full backup of all factory database volumes.
         </p>
         <div className="inline-actions">
           <button type="button" className="secondary-button" onClick={() => void handleCreateDiagnostics()} disabled={maintenanceLoading}>
-            {maintenanceLoading ? "Processing..." : "Export Diagnostic Bundle"}
+            {maintenanceLoading ? "Processing…" : "Export diagnostic bundle"}
           </button>
           <button type="button" className="secondary-button" onClick={() => void handleTriggerBackup()} disabled={maintenanceLoading}>
-            {maintenanceLoading ? "Processing..." : "Run Full Stateful Backup"}
+            {maintenanceLoading ? "Processing…" : "Run full stateful backup"}
           </button>
         </div>
         {maintenanceMessage && (
-          <SystemMessage tone="success" title="Maintenance Complete">
+          <SystemMessage tone="success" title="Maintenance complete">
             {maintenanceMessage}
           </SystemMessage>
         )}
         {maintenanceError && (
-          <SystemMessage tone="critical" title="Maintenance Failed">
+          <SystemMessage tone="critical" title="Maintenance failed">
             {maintenanceError}
           </SystemMessage>
         )}
       </Panel>
 
-
-      <Panel
-        title="Save Configuration"
-        actions={
-          <button type="button" className="secondary-button" onClick={() => void loadVaultAndAgents()}>
-            Refresh Vault Status
-          </button>
-        }
-      >
-        <button
-          type="button"
-          className="primary-button"
-          disabled={savePending}
-          onClick={savePreferences}
-        >
-          {savePending ? "Saving…" : saveMessage ? "✓ Saved" : "Save Runtime Preferences"}
-        </button>
-        {saveError && (
-          <SystemMessage tone="critical" title="Preferences were not saved">
-            {saveError}
-          </SystemMessage>
-        )}
-        {saveMessage && (
-          <SystemMessage tone="success" title="Preferences saved">
-            {saveMessage}
-          </SystemMessage>
-        )}
-      </Panel>
+      {/* FIX #8: Status bar padding — spacer so last panel clears the bottom status bar */}
+      <div style={{ height: "56px" }} aria-hidden="true" />
     </div>
   );
 }

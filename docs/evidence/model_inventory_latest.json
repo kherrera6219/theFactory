@@ -1,0 +1,380 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-05-26T07:18:12.250820+00:00",
+  "agents": [
+    {
+      "agent_id": "AGENT-01-PM",
+      "name": "PM Agent",
+      "tier": "User Interface",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-02-CEO",
+      "name": "CEO Agent",
+      "tier": "Executive",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-03-BROKER",
+      "name": "API Broker",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-04-ACCOUNTANT",
+      "name": "Accountant",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-05-SECURITY",
+      "name": "Security Agent",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-06-IS",
+      "name": "IS Agent",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-07-VC",
+      "name": "Version Control Agent",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-08-COMPLIANCE",
+      "name": "Compliance Agent",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-09-HW",
+      "name": "Hardware-Mapping Injector",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-10-TESTER",
+      "name": "System Integration Tester",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-11-DEPLOY",
+      "name": "Deployment Agent",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-12-PODA-MGR",
+      "name": "Pod A Sub-Manager",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-13-PODA-AUDIT",
+      "name": "Pod A QC/Audit",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-14-PYTHON",
+      "name": "Python Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-15-JAVASCRIPT",
+      "name": "JavaScript Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-16-RUBY",
+      "name": "Ruby Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-17-PHP",
+      "name": "PHP Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-18-PODB-MGR",
+      "name": "Pod B Sub-Manager",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-19-PODB-AUDIT",
+      "name": "Pod B QC/Audit",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-20-C",
+      "name": "C Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-21-CPP",
+      "name": "C++ Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-22-RUST",
+      "name": "Rust Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-23-ZIG",
+      "name": "Zig Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-24-PODC-MGR",
+      "name": "Pod C Sub-Manager",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-25-PODC-AUDIT",
+      "name": "Pod C QC/Audit",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-26-JAVA",
+      "name": "Java Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-27-CSHARP",
+      "name": "C# Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-28-SCALA",
+      "name": "Scala Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-29-KOTLIN",
+      "name": "Kotlin Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-30-PODD-MGR",
+      "name": "Pod D Sub-Manager",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-31-PODD-AUDIT",
+      "name": "Pod D QC/Audit",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-32-MATLAB",
+      "name": "MATLAB Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-33-R",
+      "name": "R Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-34-JULIA",
+      "name": "Julia Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-35-MATHEMATICA",
+      "name": "Mathematica Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-36-GO",
+      "name": "Go Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-37-HASKELL",
+      "name": "Haskell Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-38-OCAML",
+      "name": "OCaml Specialist",
+      "tier": "Refinement Pod",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-39-DEPABS",
+      "name": "Dependency Absorption Agent",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-40-TESTDATA",
+      "name": "Database and Test Data Agent",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    },
+    {
+      "agent_id": "AGENT-41-RQCA",
+      "name": "Runtime QC Agent",
+      "tier": "Support Ring",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "lifecycle": "ga",
+      "production_approved": true
+    }
+  ],
+  "total_agents": 41,
+  "all_models_used": [
+    "gemini-3.5-flash",
+    "gpt-5.5"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "prompt_id": "pod_audit_verdict.v1",
+  "version": "1.0.0",
+  "owner_agent_id": "AGENT-13-PODA-AUDIT",
+  "variables": ["audit_agent_id","pod_name","provider","model","mission_id","language","contract_summary","canonical_count","eliminated"],
+  "change_note": "Extracted from llm_delegation.py generate_pod_audit_verdict — Phase 28 prompt asset migration.",
+  "created_at": "2026-05-25T00:00:00Z",
+  "template": "You are {audit_agent_id} performing QC audit of pod {pod_name}.\nRecommended model: {provider}/{model}\nReview the pod's group standard and generated output for quality, completeness, and contract alignment.\nReturn only JSON. No markdown.\n\nMission ID: {mission_id}\nPod: {pod_name}\nLanguage: {language}\nContract summary: {contract_summary}\nCanonical LogicNodes produced: {canonical_count}\nDuplicates eliminated: {eliminated}\n\nRequired JSON keys:\n{\n  \"schema_version\": \"pod_audit_verdict.v1\",\n  \"verdict\": \"PASS|FAIL|WARN\",\n  \"passed\": true,\n  \"quality_score\": 0.85,\n  \"findings\": [\n    {\"id\": \"F001\", \"severity\": \"warn\", \"description\": \"...\"}\n  ],\n  \"summary\": \"Pod audit complete.\",\n  \"recommendations\": [\"...\"]\n}\n\nverdict must be PASS, FAIL, or WARN. quality_score is 0.0-1.0. Limit findings to 6 items."
+}
