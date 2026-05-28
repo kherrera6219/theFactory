@@ -303,10 +303,40 @@ These items cannot be completed with code alone — they require `make up` + rea
   when `mission_pod_assignments` / `mission_logicnodes` DB tables are empty (single-orchestrator
   deployments write through metadata, not the normalized tables)._
 
-- [ ] **S5-02 — Token cost ledger live activation** _(was S1-02)_
-  Run V007 migration (`psql` or `make migrate`). Confirm `llm_usage_events` is
-  populated after a live mission. Render Cost panel in Mission Control with real data.
-  _Prerequisite: S5-01 complete_
+- [ ] **S5-02 — Token cost ledger live activation** _(was S1-02) — code fixes committed, verification pending_
+  All three root-cause bugs fixed in commit `1a0a878` (2026-05-28). Orchestrator rebuilt
+  and running. **One remaining step: submit a live mission and confirm `llm_usage_events`
+  is populated + Cost panel renders real data.**
+  
+  Bugs fixed:
+  - `llm_cost_ledger.py`: `record_llm_usage` used `async with db_connect()` on a sync
+    psycopg3 connection → silent TypeError. Rewrote with `_insert_usage_sync` /
+    `_fetch_usage_rows_sync` helpers + `asyncio.to_thread`.
+  - `mission_flow_v2.py`: `current_mission_id` ContextVar never bound at lifecycle entry
+    → `_record_usage_event` always saw empty `mission_id` → early return. Fixed by
+    importing and setting at `advance_mission_lifecycle_v2` entry. Also set+reset in
+    `runtime.py:advance_mission_lifecycle` with try/finally.
+  - `mission_flow_v2.py _prepare_pm_intake`: clarifying-branch called
+    `emit_state_event_fn(app=app, mission_id=..., new_state=...)` — wrong signature →
+    `TypeError: got unexpected keyword argument 'app'`. Replaced with
+    `storage.transition_mission_state` + correct `emit_state_event_fn(settings=,
+    validator=, redis_client=, mission=, event_type=)` call.
+
+  Verification steps:
+  1. Confirm `llm_usage_events` table exists: `docker exec deploy-postgres-1 psql -U factory_user -d factory_db -c "\d llm_usage_events"`
+  2. Submit mission (use orchestrator port 8001 or API gateway — check `docker compose ps`):
+     ```bash
+     MID="mission-s502-$(date +%s)"
+     curl -X POST http://localhost:8001/v1/missions \
+       -H "Content-Type: application/json" \
+       -d "{\"mission_id\":\"$MID\",\"prompt\":\"Write a Python function called count_vowels that takes a string and returns the count of vowels. Include a docstring and unit tests.\",\"requested_target_language\":\"python\",\"metadata\":{\"mission_type\":\"BUILD_NEW\",\"depth_mode\":\"STANDARD\",\"output_mode\":\"FULL_BUILD\"}}"
+     ```
+  3. Poll until COMPLETE: `curl -s http://localhost:8001/v1/missions/$MID | python -m json.tool | grep state`
+  4. Verify rows: `docker exec deploy-postgres-1 psql -U factory_user -d factory_db -c "SELECT provider, model, input_tokens, output_tokens, estimated_cost_usd FROM llm_usage_events WHERE mission_id='$MID';"`
+  5. Verify API: `curl -s http://localhost:8001/v1/missions/$MID/token-usage | python -m json.tool`
+  6. Open Mission Control → select mission → Cost panel → confirm real numbers render.
+  
+  _Prerequisite: S5-01 complete ✅. Commit 1a0a878 must be running in container._
 
 - [ ] **S5-03 — Gemini embeddings live validation** _(was S1-04)_
   Set `GEMINI_API_KEY` in `.env` and `KNOWLEDGE_EMBEDDING_PROVIDER=gemini`. Run
@@ -341,8 +371,8 @@ These items cannot be completed with code alone — they require `make up` + rea
 
 The application is **fully complete** when:
 
-- [ ] S5-01 passes (live demo with real provider keys, COMPLETE + generated_code)
-- [ ] All Sprint 1–4 code items checked ✅ (S1-03, S1-05, S1-06, S2-01–S2-08, S3-01–S3-03, S4-01 all done)
+- [x] S5-01 passes (live demo with real provider keys, COMPLETE + generated_code) ✅ _2026-05-28_
+- [x] All Sprint 1–4 code items checked ✅ (S1-03, S1-05, S1-06, S2-01–S2-08, S3-01–S3-03, S4-01 all done)
 - [x] Remaining code items done: S1-04, S4-02, S4-04, S4-05 _(all completed 2026-05-24)_
 - [ ] `python scripts/production_review_audit.py` → 22/22 PASS (already true)
 - [ ] `python -m pytest tests/eval/ -q` → 97+ tests passing (already true)
