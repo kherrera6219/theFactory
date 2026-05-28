@@ -10,6 +10,7 @@ model is not in the table is recorded with ``pricing_known=False`` and
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
@@ -62,6 +63,43 @@ def _estimate_cost(
     return round(cost, 8), True
 
 
+def _insert_usage_sync(
+    settings: Any,
+    mission_id: str,
+    agent_id: str,
+    provider: str,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    total: int,
+    cost: float | None,
+    pricing_known: bool,
+    call_succeeded: bool,
+    routing_source: str | None,
+    created_at: datetime,
+) -> None:
+    """Synchronous DB write — called via asyncio.to_thread."""
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO llm_usage_events
+                    (mission_id, agent_id, provider, model,
+                     input_tokens, output_tokens, total_tokens,
+                     estimated_cost_usd, pricing_known,
+                     call_succeeded, routing_source, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    mission_id, agent_id, provider, model,
+                    input_tokens, output_tokens, total,
+                    cost, pricing_known,
+                    call_succeeded, routing_source,
+                    created_at,
+                ),
+            )
+
+
 async def record_llm_usage(
     *,
     settings: Any,
@@ -78,53 +116,46 @@ async def record_llm_usage(
     try:
         total = input_tokens + output_tokens
         cost, pricing_known = _estimate_cost(provider, model, input_tokens, output_tokens)
-        async with db_connect(settings) as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """
-                    INSERT INTO llm_usage_events
-                        (mission_id, agent_id, provider, model,
-                         input_tokens, output_tokens, total_tokens,
-                         estimated_cost_usd, pricing_known,
-                         call_succeeded, routing_source, created_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    """,
-                    (
-                        mission_id, agent_id, provider, model,
-                        input_tokens, output_tokens, total,
-                        cost, pricing_known,
-                        call_succeeded, routing_source,
-                        datetime.now(UTC),
-                    ),
-                )
-                await conn.commit()
+        await asyncio.to_thread(
+            _insert_usage_sync,
+            settings, mission_id, agent_id, provider, model,
+            input_tokens, output_tokens, total,
+            cost, pricing_known,
+            call_succeeded, routing_source,
+            datetime.now(UTC),
+        )
     except Exception:  # noqa: BLE001
         pass  # Cost tracking failure must never break mission flow
+
+
+def _fetch_usage_rows_sync(settings: Any, mission_id: str) -> list:
+    """Synchronous DB read — called via asyncio.to_thread."""
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    agent_id, provider, model,
+                    SUM(input_tokens)::int   AS input_tokens,
+                    SUM(output_tokens)::int  AS output_tokens,
+                    SUM(total_tokens)::int   AS total_tokens,
+                    SUM(estimated_cost_usd)  AS cost_usd,
+                    BOOL_AND(pricing_known)  AS pricing_known,
+                    COUNT(*)::int            AS call_count
+                FROM llm_usage_events
+                WHERE mission_id = %s
+                GROUP BY agent_id, provider, model
+                ORDER BY SUM(total_tokens) DESC
+                """,
+                (mission_id,),
+            )
+            return cur.fetchall()
 
 
 async def get_mission_token_usage(*, settings: Any, mission_id: str) -> dict[str, Any]:
     """Return aggregated token usage summary for a mission."""
     try:
-        async with db_connect(settings) as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """
-                    SELECT
-                        agent_id, provider, model,
-                        SUM(input_tokens)::int   AS input_tokens,
-                        SUM(output_tokens)::int  AS output_tokens,
-                        SUM(total_tokens)::int   AS total_tokens,
-                        SUM(estimated_cost_usd)  AS cost_usd,
-                        BOOL_AND(pricing_known)  AS pricing_known,
-                        COUNT(*)::int            AS call_count
-                    FROM llm_usage_events
-                    WHERE mission_id = %s
-                    GROUP BY agent_id, provider, model
-                    ORDER BY SUM(total_tokens) DESC
-                    """,
-                    (mission_id,),
-                )
-                rows = await cur.fetchall()
+        rows = await asyncio.to_thread(_fetch_usage_rows_sync, settings, mission_id)
     except Exception:  # noqa: BLE001
         rows = []
 

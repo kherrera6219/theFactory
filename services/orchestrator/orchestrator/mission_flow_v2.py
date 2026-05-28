@@ -54,6 +54,8 @@ from .dependency_absorption import (
 from .equivalence_verifier import build_equivalence_report, mission_requires_equivalence
 from .llm_delegation import (
     build_deploy_readiness_assessment,
+    current_mission_id as _llm_current_mission_id,
+    current_settings as _llm_current_settings,
     generate_ceo_delegation,
     generate_code_from_contract,
     generate_integration_tests,
@@ -624,16 +626,34 @@ async def _prepare_pm_intake(
     if ambiguity_score >= 0.7:
         LOGGER.warning("High ambiguity detected for mission %s; pausing for clarification", mission_id)
         metadata["last_ambiguity_score"] = ambiguity_score
-        await emit_state_event_fn(
-            app=app,
-            mission_id=mission_id,
-            new_state=MissionState.clarifying,
-            event_type="MISSION_CLARIFYING",
-            details={
-                "ambiguity_score": ambiguity_score,
-                "questions": feature_contract.get("clarifying_questions"),
-            },
+        metadata["clarifying_questions"] = feature_contract.get("clarifying_questions")
+        await asyncio.to_thread(storage.update_mission_metadata, settings, mission_id, metadata)
+        clarifying_record = await asyncio.to_thread(
+            storage.transition_mission_state,
+            settings,
+            mission_id,
+            MissionState.pm_intake,
+            MissionState.clarifying,
+            "MISSION_CLARIFYING",
         )
+        if clarifying_record is not None:
+            redis_ready = bool(getattr(app.state, "redis_ready", False))
+            redis_client = getattr(app.state, "redis", None)
+            if redis_ready and redis_client is not None:
+                try:
+                    await emit_state_event_fn(
+                        settings=settings,
+                        validator=validator,
+                        redis_client=redis_client,
+                        mission=clarifying_record,
+                        event_type="MISSION_CLARIFYING",
+                    )
+                except Exception as _exc:
+                    LOGGER.warning(
+                        "v2: failed to emit MISSION_CLARIFYING for mission %s: %s",
+                        mission_id,
+                        _exc,
+                    )
         return False
 
     mission_charter = build_mission_charter(
@@ -3021,6 +3041,11 @@ async def advance_mission_lifecycle_v2(
         Async function ``(settings, mission) -> (bool, dict)``
         that checks whether completion artifacts are ready.
     """
+
+    # Bind mission context so _record_usage_event can capture tokens/cost
+    # for every LLM call that runs within this lifecycle advance.
+    _t1 = _llm_current_mission_id.set(mission_id)
+    _t2 = _llm_current_settings.set(settings)
 
     stage_preparers = {
         MissionState.queued: _prepare_pm_intake,
