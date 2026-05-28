@@ -208,6 +208,30 @@ async def _completion_artifacts_ready(
     logicnodes = await asyncio.to_thread(storage.list_logicnodes, settings, mission.mission_id, 1)
     has_assignment = bool(assignment)
     has_logicnodes = bool(logicnodes)
+
+    # Fallback: single-orchestrator deployments write logicnodes/assignments
+    # into the metadata JSON rather than the normalised tables.  Accept either.
+    if not has_assignment or not has_logicnodes:
+        _meta = mission.metadata if isinstance(mission.metadata, dict) else {}
+        def _has_chain_event(meta: dict, evt: str) -> bool:
+            return any(
+                e.get("event_type") == evt
+                for e in meta.get("chain_trace", [])
+                if isinstance(e, dict)
+            )
+
+        if not has_assignment:
+            has_assignment = bool(
+                _meta.get("assigned_pod_manager_agent_id")
+                or _meta.get("assigned_specialist_agent_id")
+                or _has_chain_event(_meta, "MISSION_SPECIALIST_ASSIGNED")
+            )
+        if not has_logicnodes:
+            has_logicnodes = bool(
+                _meta.get("pod_group_standards")
+                or _meta.get("master_logic_stream")
+                or _has_chain_event(_meta, "MISSION_LOGIC_FOLDED")
+            )
     build_artifact_required = build_artifact_support.mission_requires_build_artifact(
         mission.metadata
     )
