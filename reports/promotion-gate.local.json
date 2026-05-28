@@ -1,10 +1,10 @@
 {
   "allowed": false,
   "reasons": [
-    "qualification summary: operator_route_oidc_matrix: latest evidence age 68.306d exceeds 8.0d",
-    "qualification summary: dedicated_agent_canary_trend: latest evidence age 68.306d exceeds 8.0d",
-    "qualification summary: langgraph_v2_prototype_matrix: latest evidence age 68.306d exceeds 8.0d",
-    "qualification summary: mission_artifact_qualification: latest evidence age 30.217d exceeds 8.0d",
+    "qualification summary: operator_route_oidc_matrix: latest evidence age 78.559d exceeds 8.0d",
+    "qualification summary: dedicated_agent_canary_trend: latest evidence age 78.559d exceeds 8.0d",
+    "qualification summary: langgraph_v2_prototype_matrix: latest evidence age 78.558d exceeds 8.0d",
+    "qualification summary: mission_artifact_qualification: latest evidence age 40.47d exceeds 8.0d",
     "required qualification suite failed: operator_route_oidc_matrix",
     "required qualification suite failed: dedicated_agent_canary_trend",
     "required qualification suite failed: langgraph_v2_prototype_matrix",
@@ -14,8 +14,8 @@
   "ref": "refs/heads/main",
   "ci_status": "success",
   "attestation_verified": true,
-  "signed_tag_verified": true,
+  "signed_tag_verified": false,
   "model_inventory_checked": true,
   "qualification_summary_checked": true,
-  "evaluated_at": "2026-05-17T04:17:38.934235+00:00"
+  "evaluated_at": "2026-05-26T07:18:23.650436+00:00"
 }

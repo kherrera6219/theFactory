@@ -1,10 +1,10 @@
 {
-  "run_timestamp_utc": "2026-03-08T17:35:56.349989+00:00",
+  "run_timestamp_utc": "2026-05-28T05:30:20.197002+00:00",
   "allow_prototype_failure": true,
   "pass": true,
   "failure_reasons": [],
   "v1_1_baseline_passed": true,
-  "langgraph_v2_prototype_passed": true,
+  "langgraph_v2_prototype_passed": false,
   "runs": [
     {
       "name": "v1_1_baseline",
@@ -18,13 +18,13 @@
         "--profile-label",
         "v1_1_baseline",
         "--timeout-seconds",
-        "90.0",
+        "240.0",
         "--poll-seconds",
         "1.0",
         "--output-file",
         "docs\\evidence\\mission_artifact_qualification_v1_1_latest.json"
       ],
-      "exit_code": 0,
+      "exit_code": 2,
       "report_path": "docs\\evidence\\mission_artifact_qualification_v1_1_latest.json",
       "passed": true,
       "stderr_tail": null,
@@ -44,9 +44,9 @@
         "--output-file",
         "docs\\evidence\\langgraph_postgres_recovery_qualification_latest.json"
       ],
-      "exit_code": 0,
+      "exit_code": 1,
       "report_path": "docs\\evidence\\langgraph_postgres_recovery_qualification_latest.json",
-      "passed": true,
+      "passed": false,
       "stderr_tail": null,
       "error": null
     }

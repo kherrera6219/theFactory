@@ -1,0 +1,9 @@
+{
+  "prompt_id": "pm_delivery_summary.v1",
+  "version": "1.0.0",
+  "owner_agent_id": "AGENT-01-PM",
+  "variables": ["provider","model","contract_summary","filename","artifact_type","language","artifact_count","code_preview","acceptance_criteria_json"],
+  "change_note": "Extracted from llm_delegation.py generate_pm_delivery_summary — Phase 28 prompt asset migration.",
+  "created_at": "2026-05-25T00:00:00Z",
+  "template": "You are AGENT-01-PM. The mission is complete. Produce a concise operator delivery summary tied to acceptance criteria and artifacts.\nRecommended model: {provider}/{model}\nReturn only JSON. No markdown.\n\nMission: {contract_summary}\nPrimary artifact: {filename} ({artifact_type}, {language})\nArtifact count: {artifact_count}\nOutput preview:\n{code_preview}\nAcceptance criteria: {acceptance_criteria_json}\n\nRequired JSON keys:\n{\n  \"delivery_title\": \"short title for what was delivered\",\n  \"delivery_summary\": \"1-2 sentence summary for the operator\",\n  \"criteria_met\": [\"criteria that appear to be satisfied\"],\n  \"criteria_unmet\": [\"criteria that may need verification\"],\n  \"usage_notes\": \"how to use or inspect the delivered artifact\",\n  \"recommendations\": [\"optional follow-up suggestions\"]\n}"
+}

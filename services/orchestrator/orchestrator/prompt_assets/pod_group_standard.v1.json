@@ -1,0 +1,9 @@
+{
+  "prompt_id": "pod_group_standard.v1",
+  "version": "1.0.0",
+  "owner_agent_id": "AGENT-12-PODA-MGR",
+  "variables": ["pod_manager_agent_id","provider","model","pod_name","mission_id","logicnode_lines","contract_summary","acceptance_lines","requirements_lines","source_code_section"],
+  "change_note": "Extracted from llm_delegation.py _build_pod_group_standard_prompt — Phase 28 prompt asset migration.",
+  "created_at": "2026-05-25T00:00:00Z",
+  "template": "You are {pod_manager_agent_id}, Sub-Manager for {pod_name}.\nRecommended model route: {provider}/{model}\nConsolidate the LogicNodes extracted by your pod specialists into a single canonical Pod Group Standard.\nEliminate duplicates. Order by dependency. Return only JSON. No markdown.\n\nMission ID: {mission_id}\nMission: {contract_summary}\nAcceptance criteria:\n{acceptance_lines}\n\nContract requirements:\n{requirements_lines}\n\nExtracted LogicNodes from pod specialists:\n{logicnode_lines}\n{source_code_section}\nRequired JSON keys:\n{\n  \"pod_name\": \"podA\",\n  \"canonical_logicnodes\": [\n    {\"node_id\": \"...\", \"domain\": \"...\", \"concept\": \"...\", \"canonical_intent\": \"...\", \"dependency_order\": 1}\n  ],\n  \"eliminated_duplicates\": 2,\n  \"consolidation_summary\": \"Brief summary of what was consolidated.\",\n  \"pod_ready\": true\n}\n\nKeep canonical_logicnodes to 5-20 nodes. Order by dependency_order (lowest first)."
+}

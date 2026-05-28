@@ -89,6 +89,12 @@ GEMINI_BASE_URL = os.getenv(
     "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
 ).rstrip("/")
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
+# Gemini 3.5+ thinking level: minimal | low | medium | high (default: medium).
+# Replaces the old integer thinking_budget used in Gemini 2.x/3.0.
+_GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "medium").strip().lower()
+_GEMINI_VALID_THINKING_LEVELS = {"minimal", "low", "medium", "high"}
+if _GEMINI_THINKING_LEVEL not in _GEMINI_VALID_THINKING_LEVELS:
+    _GEMINI_THINKING_LEVEL = "medium"
 
 JSON_OBJECT_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
 _CONTROL_CHAR_PATTERN = re.compile(r"[\u0000-\u001F\u007F]")
@@ -646,6 +652,10 @@ async def _call_gemini(
     payload: dict[str, Any] = {"contents": [{"parts": [{"text": prompt}]}]}
     if system_prompt:
         payload["system_instruction"] = {"parts": [{"text": system_prompt}]}
+    # Gemini 3.5+ uses thinking_level enum (replaces integer thinking_budget).
+    payload["generationConfig"] = {
+        "thinking_level": _GEMINI_THINKING_LEVEL,
+    }
     response = await _post_with_retry(
         f"{GEMINI_BASE_URL}/models/{model}:generateContent",
         json_payload=payload,

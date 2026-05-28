@@ -1,5 +1,5 @@
 {
-  "run_timestamp_utc": "2026-03-08T17:35:56.308095+00:00",
+  "run_timestamp_utc": "2026-05-28T05:30:20.156584+00:00",
   "config": {
     "base_url": "http://localhost:8100",
     "orchestrator_ready_url": "http://localhost:8101/readyz",
@@ -36,31 +36,12 @@
       "--no-deps",
       "orchestrator"
     ],
-    "exit_code": 0,
+    "exit_code": 1,
     "executed": true,
-    "stderr_tail": "ilt \ntime=\"2026-03-08T10:35:34-07:00\" level=warning msg=\"Found orphan containers ([deploy-grafana-1 deploy-promtail-1 deploy-alertmanager-1 deploy-prometheus-1 deploy-loki-1]) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up.\"\n Container deploy-orchestrator-1 Recreate \n Container deploy-orchestrator-1 Recreated \n Container deploy-orchestrator-1 Starting \n Container deploy-orchestrator-1 Started \n",
+    "stderr_tail": "unable to get image 'deploy-orchestrator': failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.\n",
     "error": null
   },
-  "runtime_payload": {
-    "redis_ready": true,
-    "db_ready": true,
-    "qdrant_ready": true,
-    "neo4j_ready": false,
-    "object_storage_ready": false,
-    "protocol_ready": true,
-    "consumer_running": true,
-    "langgraph_enabled": true,
-    "langgraph_fail_open": true,
-    "langgraph_checkpointer": "postgres",
-    "langgraph_checkpointer_setup": true,
-    "langgraph_checkpoint_namespace": "mission-lifecycle-qualification",
-    "langgraph_postgres_checkpointer_setup_done": true,
-    "lifecycle_recovery_bootstrapped": true,
-    "lifecycle_recovery_recovered_count": 3,
-    "lifecycle_recovery_scanned_count": 3,
-    "lifecycle_recovery_last_at": "2026-03-08T17:35:39.311143+00:00",
-    "lifecycle_recovery_last_error": null
-  },
+  "runtime_payload": {},
   "restart_injection": {
     "command": [
       "docker",
@@ -70,51 +51,47 @@
       "restart",
       "orchestrator"
     ],
-    "exit_code": 0,
-    "executed": true,
-    "stderr_tail": " Container deploy-orchestrator-1 Restarting \n Container deploy-orchestrator-1 Started \n",
-    "error": null
+    "exit_code": null,
+    "executed": false,
+    "stderr_tail": null,
+    "error": "restart command did not run"
   },
   "post_restart_readiness": {
-    "passed": true,
-    "polls": 2,
-    "duration_seconds": 2.0146974000381306,
-    "last_status_code": 200,
-    "last_error": null
+    "passed": false,
+    "polls": 0,
+    "duration_seconds": 0.0,
+    "last_status_code": null,
+    "last_error": "probe did not run"
   },
   "mission_probe": {
-    "mission_id": "mission-e3387017-b19e-458b-bcd8-4e04f5a65a8f",
-    "terminal_state": "COMPLETE",
-    "polls": 9,
-    "duration_seconds": 8.231073800008744,
-    "error": null
+    "mission_id": "",
+    "terminal_state": null,
+    "polls": 0,
+    "duration_seconds": 0.0,
+    "error": "mission qualification did not start"
   },
-  "post_restart_completion_seconds": 14.693737199995667,
+  "post_restart_completion_seconds": null,
   "event_validation": {
-    "count": 14,
-    "event_types": [
-      "MISSION_COMPLETE",
-      "MISSION_VERIFIED",
-      "MISSION_FUSION",
-      "MISSION_GATING",
-      "MISSION_RUNNING",
-      "MISSION_SPECIALIST_PLANNED",
-      "MISSION_SPECIALIST_ASSIGNED",
-      "MISSION_POD_MANAGER_ASSIGNED",
-      "MISSION_CEO_DELEGATED",
-      "MISSION_SPECIALIST_PLANNED",
-      "MISSION_SPECIALIST_ASSIGNED",
-      "MISSION_POD_MANAGER_ASSIGNED",
-      "MISSION_CEO_DELEGATED",
-      "MISSION_QUEUED"
-    ],
+    "count": 0,
+    "event_types": [],
     "required_event_types": [
       "MISSION_COMPLETE",
       "MISSION_RUNNING",
       "MISSION_VERIFIED"
     ],
-    "missing_required_event_types": []
+    "missing_required_event_types": [
+      "MISSION_COMPLETE",
+      "MISSION_RUNNING",
+      "MISSION_VERIFIED"
+    ]
   },
-  "pass": true,
-  "failure_reasons": []
+  "pass": false,
+  "failure_reasons": [
+    "orchestrator preconfigure command failed with exit code 1",
+    "orchestrator restart command failed with exit code None",
+    "orchestrator readyz did not recover after restart",
+    "mission terminal state is None",
+    "mission qualification did not start",
+    "mission events probe did not run"
+  ]
 }

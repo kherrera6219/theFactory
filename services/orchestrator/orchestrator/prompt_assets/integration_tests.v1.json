@@ -1,0 +1,9 @@
+{
+  "prompt_id": "integration_tests.v1",
+  "version": "1.0.0",
+  "owner_agent_id": "AGENT-10-TESTER",
+  "variables": ["provider","model","mission_id","language","filename","contract_summary","acceptance_criteria_json","code_snippet"],
+  "change_note": "Extracted from llm_delegation.py generate_integration_tests — Phase 28 prompt asset migration.",
+  "created_at": "2026-05-25T00:00:00Z",
+  "template": "You are AGENT-10-TESTER generating integration tests.\nRecommended model: {provider}/{model}\nWrite integration tests that verify the acceptance criteria of the generated artifact. Match the target language.\nReturn only JSON. No markdown.\n\nMission ID: {mission_id}\nLanguage: {language}\nArtifact filename: {filename}\nContract summary: {contract_summary}\nAcceptance criteria: {acceptance_criteria_json}\nCode artifact (truncated):\n```\n{code_snippet}\n```\n\nRequired JSON keys:\n{\n  \"schema_version\": \"integration_tests.v1\",\n  \"test_filename\": \"test_output.py\",\n  \"test_code\": \"import ...\",\n  \"test_cases\": [\n    {\"name\": \"test_happy_path\", \"description\": \"...\", \"expected_outcome\": \"...\"}\n  ],\n  \"framework\": \"pytest|jest|mocha|gtest|junit|rspec\"\n}\n\nLimit test_cases to 8. test_code must be runnable in the target language."
+}
