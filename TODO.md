@@ -3,6 +3,28 @@
 ## Last reviewed: 2026-05-24 (all items resolved)
 **0 open · 11 closed/corrected**
 
+> **Active workstream (2026-05-29): Local-First Compliance — Bucket A.**
+> See [docs/LOCAL_FIRST_COMPLIANCE_PLAN.md](docs/LOCAL_FIRST_COMPLIANCE_PLAN.md) for the
+> validated, outstanding-only plan derived from the Local-First Security & Error-Handling
+> Standards. Bucket A items (A1–A9) are tracked below; Bucket B (infra re-platform) is a
+> separate product decision and is NOT in progress.
+
+---
+
+## 🔧 Local-First Compliance — Bucket A (in progress 2026-05-29)
+
+- [ ] **A5** Error framework — `shared_runtime/errors.py` (ErrorCategory/ErrorSeverity enums,
+  FactoryError standard object) + `docs/ERROR_CODES.md` registry _(foundation)_
+- [ ] **A6** User-facing error format in Mission Control (Something went wrong / What happened /
+  What you can do / Error code)
+- [ ] **A4** Atomic file writes — `shared_runtime/atomic_io.py` (temp→fsync→verify→replace→.bak)
+- [ ] **A7** DB transaction discipline — wrap multi-statement writes in `conn.transaction()`
+- [ ] **A1** ECDSA P-256 signatures on artifacts/reports/bundles + verify-on-import
+- [ ] **A2** Signing-key protection (DPAPI on Windows; documented fallback on backend)
+- [ ] **A3** Template/plugin integrity verification (fail-closed digest manifest)
+- [ ] **A8** Electron crash handling + safe restart (sanitized local crash report, no upload)
+- [ ] **A9** Offline diagnostics bundle (6 standard artifacts under local Diagnostics folder)
+
 ---
 
 ## ✅ Completed (validated)
