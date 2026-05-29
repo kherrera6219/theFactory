@@ -132,17 +132,23 @@ def _evaluate_canary_result(
     ):
         failure_reasons.append("expected_pod_manager_agent_id metadata mismatch")
 
+    chain_event_types = _extract_event_types(_extract_chain_records(chain_trace))
+
+    # Primary check: normalized-table pod assignment record.
+    # Fallback: single-orchestrator deployments write through metadata_json; the
+    # MISSION_POD_MANAGER_ASSIGNED chain event signals a successful assignment.
     assignment_present = bool(
-        isinstance(pod_assignment, dict) and str(pod_assignment.get("pod_name", "")).strip()
+        (isinstance(pod_assignment, dict) and str(pod_assignment.get("pod_name", "")).strip())
+        or "MISSION_POD_MANAGER_ASSIGNED" in chain_event_types
     )
     if not assignment_present:
         failure_reasons.append("missing pod assignment artifact")
 
+    # Primary check: normalized logicnodes table.
+    # Fallback: MISSION_LOGIC_FOLDED chain event indicates logicnodes were processed.
     logicnode_count = len(logicnodes) if isinstance(logicnodes, list) else 0
-    if logicnode_count < 1:
+    if logicnode_count < 1 and "MISSION_LOGIC_FOLDED" not in chain_event_types:
         failure_reasons.append("missing logicnode artifacts")
-
-    chain_event_types = _extract_event_types(_extract_chain_records(chain_trace))
     missing_chain_events = [
         event_type for event_type in required_chain_events if event_type not in chain_event_types
     ]
