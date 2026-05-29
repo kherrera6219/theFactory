@@ -1,31 +1,332 @@
 {
-  "run_timestamp_utc": "2026-05-29T02:37:49.094850+00:00",
+  "run_timestamp_utc": "2026-05-29T03:30:54.548816+00:00",
+  "base_url": "http://localhost:8100",
+  "auth_modes": [
+    "api_key",
+    "hybrid",
+    "oidc"
+  ],
+  "initial_health_auth_mode": null,
+  "compose_reconfigure": true,
   "pass": false,
   "failure_reasons": [
-    "bootstrap command failed with exit code 1"
+    "readyz failed for mode=hybrid",
+    "health auth_mode mismatch for mode=hybrid observed=oidc",
+    "matrix mismatch mode=hybrid endpoint=/v1/operations/summary scenario=no_auth expected=401 observed=503",
+    "matrix mismatch mode=hybrid endpoint=/v1/operations/summary scenario=api_key expected=200 observed=503",
+    "matrix mismatch mode=hybrid endpoint=/v1/operations/summary scenario=bearer_mutate expected=403 observed=503",
+    "matrix mismatch mode=hybrid endpoint=/v1/operations/summary scenario=bearer_observe expected=200 observed=503",
+    "matrix mismatch mode=hybrid endpoint=/v1/stream/state scenario=no_auth expected=401 observed=503",
+    "matrix mismatch mode=hybrid endpoint=/v1/stream/state scenario=api_key expected=200 observed=503",
+    "matrix mismatch mode=hybrid endpoint=/v1/stream/state scenario=bearer_mutate expected=403 observed=503",
+    "matrix mismatch mode=hybrid endpoint=/v1/stream/state scenario=bearer_observe expected=200 observed=503",
+    "readyz failed for mode=oidc",
+    "health auth_mode mismatch for mode=oidc observed=api_key",
+    "matrix mismatch mode=oidc endpoint=/v1/operations/summary scenario=no_auth expected=401 observed=503",
+    "matrix mismatch mode=oidc endpoint=/v1/operations/summary scenario=api_key expected=401 observed=503",
+    "matrix mismatch mode=oidc endpoint=/v1/operations/summary scenario=bearer_mutate expected=403 observed=503",
+    "matrix mismatch mode=oidc endpoint=/v1/operations/summary scenario=bearer_observe expected=200 observed=503",
+    "matrix mismatch mode=oidc endpoint=/v1/stream/state scenario=no_auth expected=401 observed=503",
+    "matrix mismatch mode=oidc endpoint=/v1/stream/state scenario=api_key expected=401 observed=503",
+    "matrix mismatch mode=oidc endpoint=/v1/stream/state scenario=bearer_mutate expected=403 observed=503",
+    "matrix mismatch mode=oidc endpoint=/v1/stream/state scenario=bearer_observe expected=200 observed=503"
+  ],
+  "matrix_rows": [
+    {
+      "auth_mode": "api_key",
+      "ready": {
+        "passed": true,
+        "polls": 2,
+        "duration_seconds": 2.0658592999971006,
+        "last_status_code": 200,
+        "last_error": null
+      },
+      "health_auth_mode": "api_key",
+      "checks": [
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "no_auth",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "api_key",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_mutate",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "no_auth",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "api_key",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_mutate",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 200,
+          "error": null,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "auth_mode": "hybrid",
+      "ready": {
+        "passed": false,
+        "polls": 44,
+        "duration_seconds": 90.16437900002347,
+        "last_status_code": 503,
+        "last_error": "{\"detail\":{\"ready\":false,\"service\":\"api-gateway\",\"orchestrator_healthy\":true,\"redis_healthy\":false}}"
+      },
+      "health_auth_mode": "oidc",
+      "checks": [
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "no_auth",
+          "expected_status": 401,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "api_key",
+          "expected_status": 200,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_mutate",
+          "expected_status": 403,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "no_auth",
+          "expected_status": 401,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "api_key",
+          "expected_status": 200,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_mutate",
+          "expected_status": 403,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        }
+      ]
+    },
+    {
+      "auth_mode": "oidc",
+      "ready": {
+        "passed": false,
+        "polls": 44,
+        "duration_seconds": 91.21962019999046,
+        "last_status_code": 503,
+        "last_error": "{\"detail\":{\"ready\":false,\"service\":\"api-gateway\",\"orchestrator_healthy\":true,\"redis_healthy\":false}}"
+      },
+      "health_auth_mode": "api_key",
+      "checks": [
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "no_auth",
+          "expected_status": 401,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "api_key",
+          "expected_status": 401,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_mutate",
+          "expected_status": 403,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/operations/summary",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "no_auth",
+          "expected_status": 401,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "api_key",
+          "expected_status": 401,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_mutate",
+          "expected_status": 403,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        },
+        {
+          "endpoint": "/v1/stream/state",
+          "scenario": "bearer_observe",
+          "expected_status": 200,
+          "status_code": 503,
+          "error": null,
+          "passed": false
+        }
+      ]
+    }
   ],
   "compose_steps": [
     {
-      "step": "bootstrap",
+      "step": "configure-api_key",
       "command": [
         "docker",
         "compose",
         "-f",
         "deploy/docker-compose.yaml",
+        "--env-file",
+        "C:\\software\\Holygrail\\theFactory\\.env",
         "up",
         "-d",
-        "redis",
-        "postgres",
-        "qdrant",
-        "orchestrator",
+        "--force-recreate",
+        "--no-deps",
         "--build",
         "api-gateway"
       ],
-      "exit_code": 1,
+      "exit_code": 0,
       "executed": true,
-      "stderr_tail": "ted \n Container deploy-redis-1 Waiting \n Container deploy-postgres-1 Waiting \n Container deploy-postgres-1 Healthy \n Container deploy-redis-1 Healthy \n Container deploy-orchestrator-1 Starting \n Container deploy-orchestrator-1 Started \n Container deploy-orchestrator-1 Waiting \n Container deploy-redis-1 Waiting \n Container deploy-redis-1 Healthy \n Container deploy-orchestrator-1 Error dependency orchestrator failed to start\ndependency failed to start: container deploy-orchestrator-1 is unhealthy\n",
+      "stderr_tail": " Image deploy-api-gateway Building \n Image deploy-api-gateway Built \n Container deploy-api-gateway-1 Recreate \n Container deploy-api-gateway-1 Recreated \n Container deploy-api-gateway-1 Starting \n Container deploy-api-gateway-1 Started \n",
+      "error": null
+    },
+    {
+      "step": "configure-hybrid",
+      "command": [
+        "docker",
+        "compose",
+        "-f",
+        "deploy/docker-compose.yaml",
+        "--env-file",
+        "C:\\software\\Holygrail\\theFactory\\.env",
+        "up",
+        "-d",
+        "--force-recreate",
+        "--no-deps",
+        "--build",
+        "api-gateway"
+      ],
+      "exit_code": 0,
+      "executed": true,
+      "stderr_tail": " Image deploy-api-gateway Building \n Image deploy-api-gateway Built \n Container deploy-api-gateway-1 Recreate \n Container deploy-api-gateway-1 Recreated \n Container deploy-api-gateway-1 Starting \n Container deploy-api-gateway-1 Started \n",
+      "error": null
+    },
+    {
+      "step": "configure-oidc",
+      "command": [
+        "docker",
+        "compose",
+        "-f",
+        "deploy/docker-compose.yaml",
+        "--env-file",
+        "C:\\software\\Holygrail\\theFactory\\.env",
+        "up",
+        "-d",
+        "--force-recreate",
+        "--no-deps",
+        "--build",
+        "api-gateway"
+      ],
+      "exit_code": 0,
+      "executed": true,
+      "stderr_tail": " Image deploy-api-gateway Building \n Image deploy-api-gateway Built \n Container deploy-api-gateway-1 Recreate \n Container deploy-api-gateway-1 Recreated \n Container deploy-api-gateway-1 Starting \n Container deploy-api-gateway-1 Started \n",
       "error": null
     }
-  ],
-  "matrix_rows": []
+  ]
 }
