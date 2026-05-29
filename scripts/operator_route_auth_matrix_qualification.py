@@ -42,7 +42,13 @@ class ReadinessProbe:
 
 
 def _compose_command(compose_file: str, *tail: str) -> list[str]:
-    return ["docker", "compose", "-f", compose_file, *tail]
+    # Always inject --env-file .env so docker compose picks up the real
+    # POSTGRES_PASSWORD rather than the placeholder default in the compose file.
+    env_file = str((Path(compose_file).parent.parent / ".env").resolve())
+    cmd = ["docker", "compose", "-f", compose_file]
+    if Path(env_file).exists():
+        cmd += ["--env-file", env_file]
+    return [*cmd, *tail]
 
 
 def _gateway_up_command(*, compose_file: str, build_gateway: bool) -> list[str]:
