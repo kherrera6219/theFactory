@@ -1045,6 +1045,18 @@ dd {
   flex: 0 0 auto;
 }
 
+/* Local-First standard four-line error format (ErrorMessage component). */
+.error-line {
+  margin: 2px 0;
+  font-size: 0.88rem;
+}
+
+.error-line.error-code code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+}
+
 .system-message.critical {
   background: var(--danger-bg);
   border-color: rgba(239, 68, 68, 0.65);

@@ -43,12 +43,28 @@ const missionApiBase = getMissionApiBase();
 
 export class ApiError extends Error {
   statusCode: number;
+  // Populated when the backend sends a Local-First standard error payload
+  // ({ user_message, recovery_action, error_code }). Absent for plain errors.
+  errorCode?: string;
+  recoveryAction?: string;
 
-  constructor(message: string, statusCode: number) {
+  constructor(
+    message: string,
+    statusCode: number,
+    extra?: { errorCode?: string; recoveryAction?: string },
+  ) {
     super(message);
     this.statusCode = statusCode;
+    this.errorCode = extra?.errorCode;
+    this.recoveryAction = extra?.recoveryAction;
   }
 }
+
+type ParsedError = {
+  message: string;
+  errorCode?: string;
+  recoveryAction?: string;
+};
 
 function withTimeout(timeoutMs: number): { signal: AbortSignal; cleanup: () => void } {
   const controller = new AbortController();
@@ -59,11 +75,35 @@ function withTimeout(timeoutMs: number): { signal: AbortSignal; cleanup: () => v
   };
 }
 
-async function parseError(response: Response): Promise<string> {
+function _extractFactoryUserPayload(detail: any): ParsedError | null {
+  // Local-First standard user payload: { user_message, recovery_action, error_code }.
+  if (
+    detail &&
+    typeof detail === "object" &&
+    typeof detail.user_message === "string" &&
+    detail.user_message.trim().length > 0
+  ) {
+    return {
+      message: detail.user_message,
+      errorCode: typeof detail.error_code === "string" ? detail.error_code : undefined,
+      recoveryAction:
+        typeof detail.recovery_action === "string" ? detail.recovery_action : undefined,
+    };
+  }
+  return null;
+}
+
+async function parseError(response: Response): Promise<ParsedError> {
   try {
-    const payload = (await response.json()) as { detail?: unknown };
+    const payload = (await response.json()) as { detail?: unknown; user_message?: unknown };
+    // Structured FactoryError payload may arrive under `detail` or at the top level.
+    const structured =
+      _extractFactoryUserPayload(payload.detail) ?? _extractFactoryUserPayload(payload);
+    if (structured) {
+      return structured;
+    }
     if (typeof payload.detail === "string" && payload.detail.trim().length > 0) {
-      return payload.detail;
+      return { message: payload.detail };
     }
     if (
       payload.detail &&
@@ -71,19 +111,19 @@ async function parseError(response: Response): Promise<string> {
       "message" in payload.detail &&
       typeof (payload.detail as any).message === "string"
     ) {
-      return (payload.detail as any).message;
+      return { message: (payload.detail as any).message };
     }
   } catch {
     // ignore
   }
 
   if (response.status === 429) {
-    return "Rate limit exceeded. Retry shortly.";
+    return { message: "Rate limit exceeded. Retry shortly." };
   }
   if (response.status >= 500) {
-    return "Service is temporarily unavailable.";
+    return { message: "Service is temporarily unavailable." };
   }
-  return `Request failed with status ${response.status}`;
+  return { message: `Request failed with status ${response.status}` };
 }
 
 export async function fetchJson<T>(input: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
@@ -101,7 +141,11 @@ export async function fetchJson<T>(input: string, init?: RequestInit & { timeout
     });
 
     if (!response.ok) {
-      throw new ApiError(await parseError(response), response.status);
+      const parsed = await parseError(response);
+      throw new ApiError(parsed.message, response.status, {
+        errorCode: parsed.errorCode,
+        recoveryAction: parsed.recoveryAction,
+      });
     }
     const payload = (await response.json()) as T & {
       __gateway_error?: boolean;
@@ -117,6 +161,38 @@ export async function fetchJson<T>(input: string, init?: RequestInit & { timeout
   } finally {
     cleanup();
   }
+}
+
+/**
+ * Structured, secret-free view of an error for user-facing display, following the
+ * Local-First Error Handling Standard §4 (Something went wrong / What happened /
+ * What you can do / Error code). Works for ApiError (with or without structured
+ * fields) and any other Error or string.
+ */
+export type DisplayError = {
+  whatHappened: string;
+  whatYouCanDo: string;
+  errorCode?: string;
+};
+
+export function toDisplayError(err: unknown): DisplayError {
+  if (err instanceof ApiError) {
+    return {
+      whatHappened: err.message,
+      whatYouCanDo: err.recoveryAction ?? "Try again. If the problem persists, retry shortly.",
+      errorCode: err.errorCode,
+    };
+  }
+  if (err instanceof Error) {
+    return {
+      whatHappened: err.message || "An unexpected error occurred.",
+      whatYouCanDo: "Try again. If the problem persists, retry shortly.",
+    };
+  }
+  return {
+    whatHappened: typeof err === "string" && err ? err : "An unexpected error occurred.",
+    whatYouCanDo: "Try again. If the problem persists, retry shortly.",
+  };
 }
 
 export function missionApiUrl(path: string): string {

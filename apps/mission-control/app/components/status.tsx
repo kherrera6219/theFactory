@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { toDisplayError } from "../lib/api-client";
+
 export type StatusTone = "healthy" | "warning" | "critical" | "neutral" | "info";
 
 const TONE_LABELS: Record<StatusTone, string> = {
@@ -42,6 +44,38 @@ export function SystemMessage({ tone, title, children, action }: SystemMessagePr
       </div>
       {action ? <div className="system-message-action">{action}</div> : null}
     </div>
+  );
+}
+
+type ErrorMessageProps = {
+  /** Any thrown value — ApiError, Error, or string. Rendered secret-free. */
+  error: unknown;
+  /** Optional action node (e.g. a Retry button). */
+  action?: ReactNode;
+};
+
+/**
+ * Renders an error using the Local-First Error Handling Standard §4 format:
+ * "Something went wrong / What happened / What you can do / Error code".
+ * Uses toDisplayError() so structured FactoryError payloads and plain errors
+ * both render consistently.
+ */
+export function ErrorMessage({ error, action }: ErrorMessageProps) {
+  const display = toDisplayError(error);
+  return (
+    <SystemMessage tone="critical" title="Something went wrong." action={action}>
+      <p className="error-line">
+        <strong>What happened:</strong> {display.whatHappened}
+      </p>
+      <p className="error-line">
+        <strong>What you can do:</strong> {display.whatYouCanDo}
+      </p>
+      {display.errorCode ? (
+        <p className="error-line error-code">
+          <strong>Error code:</strong> <code>{display.errorCode}</code>
+        </p>
+      ) : null}
+    </SystemMessage>
   );
 }
 

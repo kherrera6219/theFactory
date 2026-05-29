@@ -8,6 +8,7 @@ import {
   missionStateStreamUrl,
   missionApiUrl,
   parseLiveStateStreamMessage,
+  toDisplayError,
   verifyReviewApproval,
 } from "./api-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -110,6 +111,50 @@ describe("api-client", () => {
         statusCode: 429,
       }),
     );
+  });
+
+  it("parses a structured FactoryError payload into ApiError fields", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          detail: {
+            user_message: "A file failed its integrity check.",
+            recovery_action: "Restore a trusted backup.",
+            error_code: "FACTORY-INTEGRITY-001",
+          },
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await expect(
+      fetchJson("http://example.com/load", { method: "GET" }),
+    ).rejects.toEqual(
+      expect.objectContaining({
+        message: "A file failed its integrity check.",
+        statusCode: 400,
+        errorCode: "FACTORY-INTEGRITY-001",
+        recoveryAction: "Restore a trusted backup.",
+      }),
+    );
+  });
+
+  it("toDisplayError renders structured ApiError into the four-line shape", () => {
+    const err = new ApiError("A file failed its integrity check.", 400, {
+      errorCode: "FACTORY-INTEGRITY-001",
+      recoveryAction: "Restore a trusted backup.",
+    });
+    expect(toDisplayError(err)).toEqual({
+      whatHappened: "A file failed its integrity check.",
+      whatYouCanDo: "Restore a trusted backup.",
+      errorCode: "FACTORY-INTEGRITY-001",
+    });
+  });
+
+  it("toDisplayError falls back for plain errors and strings", () => {
+    expect(toDisplayError(new Error("boom")).whatHappened).toBe("boom");
+    expect(toDisplayError("bad").whatHappened).toBe("bad");
+    expect(toDisplayError(new Error("boom")).errorCode).toBeUndefined();
   });
 
   it("returns readiness details when gateway returns an API error", async () => {
