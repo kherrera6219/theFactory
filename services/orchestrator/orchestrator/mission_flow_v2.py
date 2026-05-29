@@ -54,8 +54,6 @@ from .dependency_absorption import (
 from .equivalence_verifier import build_equivalence_report, mission_requires_equivalence
 from .llm_delegation import (
     build_deploy_readiness_assessment,
-    current_mission_id as _llm_current_mission_id,
-    current_settings as _llm_current_settings,
     generate_ceo_delegation,
     generate_code_from_contract,
     generate_integration_tests,
@@ -71,6 +69,12 @@ from .llm_delegation import (
     generate_security_analysis,
     generate_specialist_plan,
     generate_vc_commit_strategy,
+)
+from .llm_delegation import (
+    current_mission_id as _llm_current_mission_id,
+)
+from .llm_delegation import (
+    current_settings as _llm_current_settings,
 )
 from .mission_flow import (
     CEO_AGENT_ID,
