@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 const DEFAULT_GATEWAY_BASE = "http://localhost:8100";
 const gatewayBase = process.env.MISSION_API_BASE_URL ?? DEFAULT_GATEWAY_BASE;
 

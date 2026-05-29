@@ -1,0 +1,90 @@
+{
+  "sprint": "S5-02",
+  "evidence_type": "token_cost_ledger_live",
+  "recorded_at": "2026-05-29T02:23:00.177605Z",
+  "mission_id": "mission-1c70f9e7-d952-4155-bce9-4cb5fee601d5",
+  "final_state": "COMPLETE",
+  "prompt": "Write a Python function called count_vowels(s: str) -> int that counts vowel characters (a, e, i, o, u, case-insensitive). Include a NumPy-style docstring and 5 pytest unit tests covering empty string, all vowels, no vowels, mixed case, and unicode.",
+  "total_tokens": 16811,
+  "total_input_tokens": 8801,
+  "total_output_tokens": 8010,
+  "estimated_cost_usd": 0.164155,
+  "call_count": 14,
+  "unknown_pricing_count": 0,
+  "by_provider": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "input_tokens": 8801,
+      "output_tokens": 8010,
+      "estimated_cost_usd": 0.16415500000000002
+    }
+  ],
+  "by_agent": [
+    {
+      "agent_id": "AGENT-02-CEO",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "input_tokens": 3126,
+      "output_tokens": 2373,
+      "cost_usd": 0.051225
+    },
+    {
+      "agent_id": "AGENT-10-TESTER",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "input_tokens": 837,
+      "output_tokens": 2023,
+      "cost_usd": 0.03453
+    },
+    {
+      "agent_id": "AGENT-14-PYTHON",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "input_tokens": 1203,
+      "output_tokens": 1120,
+      "cost_usd": 0.022815
+    },
+    {
+      "agent_id": "AGENT-01-PM",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "input_tokens": 1181,
+      "output_tokens": 1131,
+      "cost_usd": 0.02287
+    },
+    {
+      "agent_id": "AGENT-12-PODA-MGR",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "input_tokens": 811,
+      "output_tokens": 330,
+      "cost_usd": 0.009005
+    },
+    {
+      "agent_id": "AGENT-05-SECURITY",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "input_tokens": 793,
+      "output_tokens": 251,
+      "cost_usd": 0.00773
+    },
+    {
+      "agent_id": "AGENT-07-VC",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "input_tokens": 436,
+      "output_tokens": 414,
+      "cost_usd": 0.00839
+    },
+    {
+      "agent_id": "AGENT-13-PODA-AUDIT",
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "input_tokens": 414,
+      "output_tokens": 368,
+      "cost_usd": 0.00759
+    }
+  ],
+  "passed": true
+}

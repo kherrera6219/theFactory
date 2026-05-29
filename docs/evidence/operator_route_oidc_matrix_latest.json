@@ -1,5 +1,5 @@
 {
-  "run_timestamp_utc": "2026-05-28T05:28:00.052827+00:00",
+  "run_timestamp_utc": "2026-05-29T02:37:49.094850+00:00",
   "pass": false,
   "failure_reasons": [
     "bootstrap command failed with exit code 1"
@@ -23,7 +23,7 @@
       ],
       "exit_code": 1,
       "executed": true,
-      "stderr_tail": "unable to get image 'redis:7.2-alpine': failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.\n",
+      "stderr_tail": "ted \n Container deploy-redis-1 Waiting \n Container deploy-postgres-1 Waiting \n Container deploy-postgres-1 Healthy \n Container deploy-redis-1 Healthy \n Container deploy-orchestrator-1 Starting \n Container deploy-orchestrator-1 Started \n Container deploy-orchestrator-1 Waiting \n Container deploy-redis-1 Waiting \n Container deploy-redis-1 Healthy \n Container deploy-orchestrator-1 Error dependency orchestrator failed to start\ndependency failed to start: container deploy-orchestrator-1 is unhealthy\n",
       "error": null
     }
   ],

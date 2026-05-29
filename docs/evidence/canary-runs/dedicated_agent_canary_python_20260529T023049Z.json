@@ -1,0 +1,37 @@
+{
+  "run_timestamp_utc": "2026-05-29T02:32:24.623663+00:00",
+  "mission_id": "mission-38edd5d8-328a-4100-8fd7-1db7d93c7a64",
+  "profile_label": "dedicated-agent-canary",
+  "requested_target_language": "python",
+  "expected_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+  "final_state": "CLARIFYING",
+  "assignment_present": false,
+  "logicnode_count": 0,
+  "chain_event_types": [
+    "MISSION_PM_INTAKE"
+  ],
+  "missing_chain_events": [
+    "MISSION_CEO_DELEGATED",
+    "MISSION_POD_MANAGER_ASSIGNED",
+    "MISSION_SPECIALIST_ASSIGNED"
+  ],
+  "routing_enforced": true,
+  "intake_agent_id": "AGENT-01-PM",
+  "executive_agent_id": "AGENT-02-CEO",
+  "observed_expected_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+  "completion_blocked_events": 0,
+  "passed": false,
+  "failure_reasons": [
+    "mission did not reach COMPLETE (state=CLARIFYING)",
+    "missing pod assignment artifact",
+    "missing logicnode artifacts",
+    "missing required chain events: MISSION_CEO_DELEGATED, MISSION_POD_MANAGER_ASSIGNED, MISSION_SPECIALIST_ASSIGNED"
+  ],
+  "rollback_recommended": true,
+  "rollback_reasons": [
+    "mission did not reach COMPLETE (state=CLARIFYING)",
+    "missing pod assignment artifact",
+    "missing logicnode artifacts",
+    "missing required chain events: MISSION_CEO_DELEGATED, MISSION_POD_MANAGER_ASSIGNED, MISSION_SPECIALIST_ASSIGNED"
+  ]
+}
