@@ -82,6 +82,8 @@ jobs:
       - name: Mission Control Build
         run: npm run build
         working-directory: apps/mission-control
+        env:
+          NEXT_BUILD_TARGET: docker
 
       - name: Mission Control Performance Budget (Lighthouse CI)
         run: npm run test:perf
