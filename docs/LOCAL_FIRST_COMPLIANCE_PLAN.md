@@ -1,0 +1,203 @@
+# theFactory — Local-First Compliance Plan (Outstanding Items Only)
+
+**Generated:** 2026-05-29
+**Sources:** `# Local-First Security Architecture.txt`, `# Local-First Error Handling Standa.txt`
+**Method:** Each requirement was validated against the current codebase. **Items already
+implemented are omitted** — this plan lists only what remains.
+
+---
+
+## 0. Architectural Context (read first)
+
+The two standards describe a **single-user, offline, local Windows desktop application**:
+Windows-identity-only auth, DPAPI-protected master key, AES-256-GCM encryption at rest,
+storage under `%LOCALAPPDATA%`, and **no external databases / no external auth**.
+
+theFactory today is a **multi-container Docker backend** — orchestrator + api-gateway +
+pod-workers + **postgres + redis + qdrant + neo4j + minio**, with OIDC / API-key auth and
+a Next.js/Electron Mission Control frontend.
+
+The standard explicitly prohibits *external databases*, *separate application login systems*,
+and *external key management*. So the outstanding items split into two very different buckets:
+
+- **Bucket A — Application-layer hardening** (achievable incrementally, no re-platform):
+  ECDSA signing, error-handling framework, atomic writes, Electron crash handling, diagnostics.
+- **Bucket B — Infrastructure re-platform** (a product decision): replacing postgres/qdrant/
+  neo4j/minio with local encrypted stores, DPAPI key management, and Windows-identity auth.
+  This is a **major architectural change**, not a code cleanup. It is listed for completeness
+  but should be a deliberate, separately-scoped decision.
+
+### Already satisfied (not repeated below)
+SHA-256 artifact/bundle hashing (`build_artifacts.py`), prompt/template SHA-256 on load
+(`prompt_registry.py`), SHA-256 review-approval digests (`review_policy.py`), audit records of
+generated outputs (`audit_events.py`), user-approval-before-execution gate
+(`human_approval_required` → `mission_flow_v2._prepare_pm_intake`), sandboxed code execution
+(`rqca_agent.py` Docker isolation with timeouts), structured JSON logging with level control
+and secret-free output (`shared_runtime/logging_config.py`), generated-output validation before
+acceptance (`equivalence_verifier.py`, `security_compliance.py`), DB migration system with
+version-checked filenames (`migrations.py`), Electron `contextIsolation:true` /
+`nodeIntegration:false` (`electron/main.ts`).
+
+---
+
+## Bucket A — Application-Layer Hardening (achievable now)
+
+### A1. ECDSA P-256 digital signatures on artifacts / reports / bundles
+**Standard:** Security §6, §9 ("Sign exported artifacts", "Sign generated compliance reports",
+"Sign audit bundles", "Verify signatures before import").
+**Current:** Artifacts/bundles are SHA-256 **hashed** (`build_artifacts.py`,
+`verification_method: "sha256"`) but **not signed**. ECDSA appears only in TLS cert generation
+(`scripts/generate_postgres_tls_certs.py`), not in the artifact pipeline.
+**Outstanding:**
+- Add an ECDSA P-256 signing helper (`cryptography.hazmat`) — `sign_artifact(payload) -> sig`,
+  `verify_artifact(payload, sig) -> bool`.
+- Sign build artifacts, compliance reports (`security_compliance_report`), and audit/export
+  bundles; store the signature + public key alongside the existing SHA-256 digest.
+- Verify signatures on any import path (`POST` artifact/evidence ingestion).
+- Protect the signing private key (see A2 for key storage).
+_Files: `services/orchestrator/orchestrator/build_artifacts.py`, `audit_events.py`,
+`security_compliance.py`, new `crypto_signing.py`._
+
+### A2. Signing-key protection (DPAPI on Windows, documented fallback elsewhere)
+**Standard:** Security §3, §6 ("Protect signing keys using DPAPI", "Never store raw keys").
+**Current:** No signing key exists yet (blocked by A1). No DPAPI usage anywhere.
+**Outstanding:**
+- On Windows desktop deployments: protect the ECDSA private key with DPAPI
+  (`CryptProtectData`, `CurrentUser` scope) via a small native shim or `pywin32`.
+- On the Docker backend: document the equivalent (key from a mounted secret / KMS) since DPAPI
+  is Windows-only — this is where Bucket A meets the Bucket B architectural question.
+_Files: new `crypto_keystore.py` (+ Windows DPAPI path)._
+
+### A3. Plugin / template integrity **verification** (not just hashing)
+**Standard:** Security §9 ("Verify template integrity", "Verify plugin integrity").
+**Current:** Prompt templates are hashed on load (`prompt_registry.py`) but the digest is only
+**logged**, never **compared to an expected manifest** — a tampered template would load with a
+different hash and no rejection. No plugin-integrity concept exists.
+**Outstanding:**
+- Add an expected-digest manifest (`prompt_assets/manifest.json`) and fail closed when a
+  loaded template's SHA-256 doesn't match.
+- If/when a plugin system is introduced, require signature verification before load (ties to A1).
+_Files: `services/orchestrator/orchestrator/prompt_registry.py`, new `prompt_assets/manifest.json`._
+
+### A4. Atomic file writes (temp → flush → verify → rename → keep backup)
+**Standard:** Error §11 ("Atomic Write Pattern"), §15 (export writes temp-first then verify).
+**Current:** No atomic-write helper found (no `os.replace`/temp-then-rename pattern). Direct
+writes risk corrupting a valid file on partial failure.
+**Outstanding:**
+- Add `atomic_write(path, data)` — write to `path.tmp`, `flush()`+`fsync()`, verify SHA-256,
+  `os.replace()` into place, preserve previous file as `.bak` on failure.
+- Route artifact/report/evidence/export writes through it.
+_Files: new `shared_runtime/atomic_io.py`; callers in `build_artifacts.py`, export paths._
+
+---
+
+## Bucket A — Error-Handling Framework (achievable now)
+
+### A5. Standard error object + categories + severity + stable error codes
+**Standard:** Error §2 (13 categories), §3 (5 severities), §6 (standard error object), §7
+(`FACTORY-<CATEGORY>-<NUMBER>` codes).
+**Current:** **None present** — no `ErrorCategory`/`ErrorSeverity` enums, no standard error
+object, no `FACTORY-*` codes. Errors are raised/logged ad hoc.
+**Outstanding:**
+- Add `shared_runtime/errors.py` with `ErrorCategory` and `ErrorSeverity` enums and a
+  `FactoryError` dataclass matching the standard's JSON shape (`error_id`, `error_code`,
+  `severity`, `category`, `component`, `operation`, `user_message`, `developer_message`,
+  `recovery_action`, `timestamp`, `correlation_id`).
+- Define a `FACTORY-<CATEGORY>-NNN` code registry.
+- Adopt incrementally at the highest-value boundaries first (mission lifecycle, RQCA,
+  import/export, storage), not a big-bang rewrite.
+_Files: new `shared_runtime/errors.py`, `docs/ERROR_CODES.md` registry._
+
+### A6. User-facing error format (Mission Control)
+**Standard:** Error §4 ("Something went wrong / What happened / What you can do / Error code").
+**Current:** UI surfaces raw `detail` strings (e.g. `api-client.ts` `parseError`); no structured
+"what happened / what you can do / error code" presentation.
+**Outstanding:**
+- Render the `FactoryError` shape in Mission Control error banners with the four-line format.
+- Map gateway error payloads → the structured display.
+_Files: `apps/mission-control/app/lib/api-client.ts`, error-banner components._
+
+### A7. DB transaction discipline (rollback, no partial writes)
+**Standard:** Error §12 ("Use transactions for multi-step writes", "Roll back failed
+transactions", "Never leave partial workspace updates").
+**Current:** 🟡 Partial — `transition_mission_state` uses `conn.transaction()`
+(`storage_missions.py:398`), but most writes use plain `with conn.cursor()` (autocommit), so
+multi-step writes aren't wrapped.
+**Outstanding:**
+- Audit multi-statement write paths; wrap each in `conn.transaction()` so a mid-sequence
+  failure rolls back cleanly.
+_Files: `services/orchestrator/orchestrator/storage_missions.py`, `storage_artifacts.py`,
+`storage_logicnodes.py`._
+
+---
+
+## Bucket A — Desktop / Diagnostics (achievable now)
+
+### A8. Electron crash handling + safe restart
+**Standard:** Error §17 ("Catch unhandled exceptions at the application boundary", "Save
+sanitized crash report locally", "Offer user a safe restart", "Do not upload").
+**Current:** `electron/main.ts` has `contextIsolation`/`nodeIntegration` hardening but **no**
+`process.on('uncaughtException')` / `unhandledRejection` handler and no `crashReporter`.
+**Outstanding:**
+- Add boundary handlers that write a **sanitized** local crash report and offer restart.
+- Ensure no secrets / document contents are included; do **not** upload.
+_Files: `apps/mission-control/electron/main.ts`._
+
+### A9. Offline diagnostics bundle
+**Standard:** Error §18 (`diagnostics.json`, `application.log`, `security.log`, `audit.log`,
+`crash-report.json`, `integrity-report.json` under a local Diagnostics folder).
+**Current:** Structured logs exist but there's no one-click offline diagnostics bundle.
+**Outstanding:**
+- Add a "Generate Diagnostics" action that collects the six artifacts into a local folder,
+  fully offline, secret-free.
+_Files: Mission Control settings page + a backend diagnostics collector._
+
+---
+
+## Bucket B — Infrastructure Re-Platform (product decision required)
+
+> These conflict with the current Docker/multi-DB architecture. Implementing them means
+> re-platforming theFactory to a true local-first desktop app. **Do not start without an
+> explicit decision** — they are not incremental hardening.
+
+### B1. Windows-identity-only auth (remove OIDC / API-key / admin-bypass for desktop mode)
+**Standard:** Security §2, §11 ("Windows identity only", "No application login").
+**Current:** OIDC RS256, API keys, `GATEWAY_ADMIN_BYPASS`. Directly contradicts the standard.
+
+### B2. DPAPI master key + AES-256-GCM encryption at rest
+**Standard:** Security §3 (random 256-bit master key under DPAPI; AES-256-GCM for all sensitive
+data). **Current:** No encryption at rest; data sits in postgres/qdrant/neo4j/minio plaintext.
+
+### B3. `%LOCALAPPDATA%` storage, no external databases
+**Standard:** Security §4, §11 (local storage; "no external databases"). **Current:** Five
+external datastores. Re-platform would replace these with embedded/local encrypted stores
+(e.g. SQLite + local vector index) — a large effort.
+
+---
+
+## Suggested Sequencing
+
+1. **A5 + A6** — error framework + UI format (foundation everything else references).
+2. **A4 + A7** — atomic writes + transaction discipline (data-integrity quick wins).
+3. **A1 + A2 + A3** — ECDSA signing, key protection, integrity verification (security core).
+4. **A8 + A9** — Electron crash handling + diagnostics bundle.
+5. **Bucket B** — only after an explicit local-first re-platform decision.
+
+---
+
+## Validation Notes (how each status was determined)
+
+| Area | Evidence checked | Result |
+|---|---|---|
+| Artifact hashing | `build_artifacts.py` `digest_sha256`, `verification_method:"sha256"` | ✅ done |
+| Template hashing | `prompt_registry.py` computes+logs SHA-256 on load | 🟡 hash yes, verify-vs-manifest no (A3) |
+| Approval digests | `review_policy._review_approval_digest` (SHA-256) | ✅ done |
+| User approval gate | `human_approval_required` → `mission_flow_v2._prepare_pm_intake:383` | ✅ done |
+| Sandboxed execution | `rqca_agent.py` Docker isolation + timeouts | ✅ done |
+| Structured logging | `shared_runtime/logging_config.py` (json + LOG_LEVEL) | ✅ done |
+| ECDSA artifact signing | grep `ecdsa` → only TLS cert script | ❌ outstanding (A1) |
+| DPAPI / AES-GCM at rest | grep `DPAPI`/`AESGCM` → none | ❌ outstanding (A2/B2) |
+| Error codes / object | grep `FACTORY-`/`ErrorCategory` → none | ❌ outstanding (A5) |
+| Atomic writes | grep `os.replace`/atomic → none | ❌ outstanding (A4) |
+| DB transactions | `conn.transaction()` only in `transition_mission_state` | 🟡 partial (A7) |
+| Electron crash handling | grep `uncaughtException`/`crashReporter` in `main.ts` → none | ❌ outstanding (A8) |
