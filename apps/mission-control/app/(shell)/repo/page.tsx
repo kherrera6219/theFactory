@@ -410,7 +410,7 @@ export default function RepoImportPage() {
             .map((file) => `${file.overlay_action}:${file.path}`),
         },
       });
-      router.push(`/missions/${mission.mission_id}`);
+      router.push(`/missions/detail?id=${mission.mission_id}`);
     } catch (launchError) {
       if (launchError instanceof Error && /approval/i.test(launchError.message)) {
         setApprovalReceipt(null);

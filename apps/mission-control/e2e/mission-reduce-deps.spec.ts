@@ -150,7 +150,7 @@ test("mission-reduce-deps SBOM reduction and dependency classifications", async 
     });
   });
 
-  await page.goto(`/missions/${missionId}`);
+  await page.goto(`/missions/detail?id=${missionId}`);
   await expect(page.locator("body")).toBeVisible();
 
   // Verify Dependency Absorption Header

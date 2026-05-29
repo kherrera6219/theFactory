@@ -366,7 +366,7 @@ export default function ChatPage() {
           },
         },
       });
-      router.push(`/missions/${mission.mission_id}`);
+      router.push(`/missions/detail?id=${mission.mission_id}`);
     } catch (launchError) {
       setError(launchError instanceof Error ? launchError.message : "Mission launch failed.");
     } finally {

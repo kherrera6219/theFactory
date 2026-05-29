@@ -494,7 +494,7 @@ export default function MissionsPage() {
                         Duplicate
                       </button>
                       <Link
-                        href={`/missions/${item.mission_id}`}
+                        href={`/missions/detail?id=${item.mission_id}`}
                         className="secondary-button shell-link-button mission-live-link"
                       >
                         View Live

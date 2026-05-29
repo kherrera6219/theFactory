@@ -103,7 +103,7 @@ test("mission-runtime-qc Docker reports and stdout logs rendering", async ({ pag
     });
   });
 
-  await page.goto(`/missions/${missionId}`);
+  await page.goto(`/missions/detail?id=${missionId}`);
   await expect(page.locator("body")).toBeVisible();
 
   // Verify Runtime QC headers
