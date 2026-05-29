@@ -467,7 +467,9 @@ button:disabled {
   text-decoration: none;
   color: #fff;
   border: 1px solid transparent;
-  background: var(--danger);
+  /* RED-600 (#dc2626) gives white text ~4.85:1; RED-500 (--danger #ef4444)
+     was only 3.76:1, failing WCAG AA. --danger stays for text/borders elsewhere. */
+  background: #dc2626;
 }
 
 .danger-button:hover:not(:disabled) {
@@ -1377,7 +1379,9 @@ dd {
 }
 
 .mission-tab.active {
-  color: var(--accent);
+  /* VIOLET-400 (#a78bfa) reaches ~6.6:1 on the slate-900 panel; VIOLET-500
+     (--accent #8b5cf6) was only 4.21:1, failing WCAG AA for text. */
+  color: #a78bfa;
   border-bottom-color: var(--accent);
 }
 
