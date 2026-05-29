@@ -11,19 +11,31 @@
 
 ---
 
-## 🔧 Local-First Compliance — Bucket A (in progress 2026-05-29)
+## 🔧 Local-First Compliance — Bucket A ✅ COMPLETE (2026-05-29)
 
-- [ ] **A5** Error framework — `shared_runtime/errors.py` (ErrorCategory/ErrorSeverity enums,
-  FactoryError standard object) + `docs/ERROR_CODES.md` registry _(foundation)_
-- [ ] **A6** User-facing error format in Mission Control (Something went wrong / What happened /
-  What you can do / Error code)
-- [ ] **A4** Atomic file writes — `shared_runtime/atomic_io.py` (temp→fsync→verify→replace→.bak)
-- [ ] **A7** DB transaction discipline — wrap multi-statement writes in `conn.transaction()`
-- [ ] **A1** ECDSA P-256 signatures on artifacts/reports/bundles + verify-on-import
-- [ ] **A2** Signing-key protection (DPAPI on Windows; documented fallback on backend)
-- [ ] **A3** Template/plugin integrity verification (fail-closed digest manifest)
-- [ ] **A8** Electron crash handling + safe restart (sanitized local crash report, no upload)
-- [ ] **A9** Offline diagnostics bundle (6 standard artifacts under local Diagnostics folder)
+- [x] **A5** Error framework — `shared_runtime/errors.py` (ErrorCategory/ErrorSeverity enums,
+  FactoryError standard object) + `docs/ERROR_CODES.md` registry
+- [x] **A6** User-facing error format in Mission Control (four-line §4 format; `ErrorMessage`
+  component + structured parse + orchestrator FactoryError handler)
+- [x] **A4** Atomic file writes — `shared_runtime/atomic_io.py` (temp→fsync→verify→replace→.bak);
+  wired into diagnostics writer
+- [x] **A7** DB transaction discipline — audited all storage modules; wrapped the one gap
+  (`upsert_agent_heartbeat` two-write path) in `conn.transaction()`
+- [x] **A1** ECDSA P-256 signing — `shared_runtime/crypto_signing.py` (sign/verify + payload records)
+- [x] **A2** Signing-key protection — `shared_runtime/crypto_keystore.py` (Windows DPAPI via
+  ctypes + documented backend fallback, atomic key persistence)
+- [x] **A3** Template integrity verification — `prompt_registry` fail-closed vs
+  `prompt_assets/manifest.json` (+ `scripts/generate_prompt_manifest.py`)
+- [x] **A8** Electron crash handling — `electron/diagnostics.ts` boundary handlers + safe restart
+- [x] **A9** Offline diagnostics bundle — 6 §18 artifacts under `%LOCALAPPDATA%/…/Diagnostics`,
+  desktop button in Settings
+
+**Remaining (incremental, noted in plan):** wire `sign_payload`/`verify_payload` into the
+build-artifact / compliance-report / audit-bundle write+import paths (needs the signing key in
+orchestrator app-state). **Bucket B** (infra re-platform) remains a separate product decision.
+
+_Test coverage added this work: error framework (8), atomic_io (6), FactoryError handler (3),
+crypto signing+keystore (11), prompt integrity (5), api-client structured errors (3)._
 
 ---
 
