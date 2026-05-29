@@ -1,0 +1,13 @@
+{
+  "ceo_delegation.v1": "8ab8e7167d74e20f689bb7dfd353cb272fa3dc41eda67be29c74d1a0334b5708",
+  "ceo_mission_contract.v1": "61b8afef9a700fd92f6647abab4fdd60e7017226c3c66061616b33da64dcd5f8",
+  "integration_tests.v1": "bbbc0adea21ad5e4fb83b2bfdce20d6475d7d6fab5ceeec77c962bc60a5d8160",
+  "master_logic_stream.v1": "0f8b501441b3c5b485c1e0796f3ccad7f3906b2c6a9d917c007a1371c2827e12",
+  "pm_delivery_summary.v1": "f102b3fe635f10ece5010bac85f3c789440184b621e5bef489dceb95943102bf",
+  "pm_feature_contract.v1": "3e5ee089b07c451d33e7c81ada6aedf499cb21ea94ae05c5fee76a711409189b",
+  "pod_audit_verdict.v1": "e431296d94e0aab5b5cf4ce1c2d1d756c5696f6c783c488eed84618e5a016726",
+  "pod_group_standard.v1": "0f8dfaab31a3cf7212427193877ce54f5b17a91f603011ff36baa929b47324b2",
+  "security_threat_analysis.v1": "11bc10055d2f3fc22779768ebbebba58a629f67b99518fd7ae4ff651ddec185f",
+  "specialist_codegen.v1": "3f0918c3d9a7160b7e3796c7594c073863e467537b2592087988f028ba2bff44",
+  "vc_commit_strategy.v1": "eed96cac80a7d46c96cdcc96522e0582d8b7277db1a07e7a25576ab375512d3d"
+}
