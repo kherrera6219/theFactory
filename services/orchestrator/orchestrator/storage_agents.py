@@ -32,7 +32,11 @@ def upsert_agent_heartbeat(
     normalized_workload = min(100, max(0, int(workload_pct)))
 
     with db_connect(settings) as conn:
-        with conn.cursor() as cur:
+        # db_connect uses autocommit=True, so the heartbeat upsert and the
+        # AGENT_STATE_CHANGED event would otherwise commit independently. The
+        # combined transaction() + cursor() wraps both writes so a failure
+        # between them rolls back cleanly (no heartbeat without its event).
+        with conn.transaction(), conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT state
