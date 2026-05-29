@@ -99,6 +99,9 @@ jobs:
       - name: Mission Control E2E Tests
         run: npm run test:e2e
         working-directory: apps/mission-control
+        env:
+          MISSION_CONTROL_BYPASS_AUTH: "true"
+          NEXT_BUILD_TARGET: docker
 
       - name: Test with Coverage
         run: |
