@@ -92,6 +92,7 @@ export async function fetchJson<T>(input: string, init?: RequestInit & { timeout
   try {
     const response = await fetch(input, {
       ...requestInit,
+      cache: "no-store",
       signal: requestInit.signal ?? signal,
       headers: {
         "Content-Type": "application/json",
@@ -190,7 +191,7 @@ export async function getMissionEvents(missionId: string, limit: number): Promis
 }
 
 export async function getMissionChainTrace(missionId: string): Promise<MissionChainTrace> {
-  return fetchJson<MissionChainTrace>(missionApiUrl(`/v1/missions/${missionId}/chain-trace`));
+  return fetchJson<MissionChainTrace>(missionApiUrl(`/v1/missions/${missionId}/chain-trace`), { method: "GET" });
 }
 
 export async function createMission(payload: any): Promise<MissionRecord> {
@@ -225,7 +226,10 @@ export async function getGatewayReadyState(): Promise<{ ready: boolean; detail?:
     await fetchJson(missionApiUrl("/readyz"));
     return { ready: true };
   } catch (error: any) {
-    return { ready: false, detail: error.message };
+    if (error instanceof ApiError) {
+      return { ready: false, detail: error.message };
+    }
+    return { ready: false, detail: "Readiness check failed." };
   }
 }
 
@@ -297,11 +301,19 @@ export async function createPmFeatureContract(payload: any): Promise<PmFeatureCo
   });
 }
 
-export async function createBuilderWorkspaceReview(payload: any): Promise<BuilderPreviewResponse> {
+export async function createBuilderWorkspaceReview(payload: {
+  request: string;
+  constraints?: string[];
+  viewMode?: string;
+}): Promise<BuilderPreviewResponse> {
   return fetchJson<BuilderPreviewResponse>("/api/builder/review", {
     method: "POST",
     timeoutMs: 30_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      request: payload.request,
+      constraints: payload.constraints,
+      view_mode: payload.viewMode,
+    }),
   });
 }
 
@@ -321,11 +333,21 @@ export async function approveReviewArtifact(payload: any): Promise<ReviewApprova
   });
 }
 
-export async function verifyReviewApproval(payload: any): Promise<ReviewApprovalVerificationResult> {
+export async function verifyReviewApproval(payload: {
+  scope: string;
+  approvalId: string;
+  fingerprint: string;
+  receiptDigest: string;
+}): Promise<ReviewApprovalVerificationResult> {
   return fetchJson<ReviewApprovalVerificationResult>("/api/review/verify", {
     method: "POST",
     timeoutMs: 30_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      scope: payload.scope,
+      approval_id: payload.approvalId,
+      fingerprint: payload.fingerprint,
+      receipt_digest: payload.receiptDigest,
+    }),
   });
 }
 

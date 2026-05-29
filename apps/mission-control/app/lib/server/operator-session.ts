@@ -135,12 +135,12 @@ export function getMissionControlAdminKey(): string {
 }
 
 /**
- * Returns true when OPERATOR_SESSION_BYPASS=true is set in the environment.
+ * Returns true when MISSION_CONTROL_BYPASS_AUTH=true is set in the environment.
  * Intended for local development where no admin key setup has been completed.
  * Never set this in production.
  */
 export function isOperatorSessionBypassed(): boolean {
-  return true;
+  return process.env.MISSION_CONTROL_BYPASS_AUTH === "true";
 }
 
 export function getOperatorSessionSecret(): string {
