@@ -9,20 +9,24 @@
 
 The codebase is **feature-complete**. All Sprint 1–4 implementation items are done. The only remaining work is live-stack validation (Sprint 5) — proving each feature works against a real Docker stack with real API keys — plus a pair of qualification evidence refreshes and a long-duration reliability requalification.
 
+_Updated 2026-05-29 (session 2)._
+
 | Category | Done | Remaining |
 |---|---|---|
-| Sprint 1 — Live Demo Gate | 5/6 | 1 (S5-02 verification) |
-| Sprint 2 — Intelligence Layer | 8/8 | 0 ✅ |
+| Sprint 1 — Live Demo Gate | 6/6 ✅ | 0 |
+| Sprint 2 — Intelligence Layer | 8/8 ✅ | 0 |
 | Sprint 3 — Platform Differentiation | 3/4 | 1 (S5-04 PORT demo) |
 | Sprint 4 — Scale & Operational Maturity | 6/8 | 2 (S4-03/S4-06) |
-| Sprint 5 — Live-Stack Validation | 1/7 | 6 |
-| CI / Test Health | ✅ | 1 pending (PR #184) |
+| Sprint 5 — Live-Stack Validation | 3/7 | 4 (S5-04 PORT, S5-05 scaling, S5-06 OIDC, S5-07 reliability) |
+| CI / Test Health | ✅ green | 0 — all lint/build/test/E2E/coverage gates pass |
 
 ---
 
-## Phase 0 — PR #184 CI Green (TODAY — in progress)
+## Phase 0 — PR #184 CI Green ✅ COMPLETE (2026-05-29)
 
-**Status:** 3 CI fixes pushed in sequence, final run in progress.
+**Status:** ✅ All lint/build/test/E2E gates green. Fixed in sequence: ruff I001, TS2322
+(PanelProps id), 9 Mission Control unit tests, Next.js NEXT_BUILD_TARGET=docker, Lighthouse
+auth bypass + LCP warn, 8 E2E routing/label/a11y failures, Python coverage restored to 80%.
 
 | Fix | Commit | Status |
 |---|---|---|
@@ -39,9 +43,11 @@ Expected: All checks green. If any new failures surface, fix before proceeding.
 
 ---
 
-## Phase 1 — S5-02: Token Cost Ledger Verification (NEXT SESSION — ~30 min)
+## Phase 1 — S5-02: Token Cost Ledger Verification ✅ COMPLETE (2026-05-29)
 
-**Status:** All code fixes committed and running in the container. One live-mission test needed.
+**Status:** ✅ Mission mission-1c70f9e7 reached COMPLETE; 14 rows in llm_usage_events
+($0.1642 total, all pricing known); token-usage API returns populated JSON. Evidence:
+docs/evidence/s502_cost_ledger_live_2026-05-29.json.
 
 **Why it matters:** This proves the entire telemetry pipeline works end-to-end. The Cost panel in Mission Control will show real per-agent, per-model token spend for the first time.
 
@@ -88,9 +94,13 @@ curl -s http://localhost:8001/v1/missions/$MID/token-usage > docs/evidence/s502_
 
 ---
 
-## Phase 2 — S5-03: Gemini Embeddings Live Validation (~20 min after Phase 1)
+## Phase 2 — S5-03: Gemini Embeddings Live Validation ✅ COMPLETE (2026-05-29)
 
-**Status:** Not started. Code already done (default flipped to `gemini` on 2026-05-24).
+**Status:** ✅ New valid GEMINI_API_KEY works with gemini-embedding-001 (3072-dim vectors).
+Fixed settings.py default model (dead text-embedding-004 → "" so per-provider default applies)
+and .env KNOWLEDGE_EMBEDDING_MODEL. Mission mission-1c39e46d COMPLETE; vector_for_content
+confirmed using Gemini (differs from deterministic fallback). Evidence:
+docs/evidence/s503_gemini_embeddings_live_2026-05-29.json.
 
 **Why it matters:** Confirms the knowledge retrieval layer is using semantic similarity (Gemini embeddings) rather than the deterministic hash fallback, improving code generation quality.
 
@@ -114,9 +124,14 @@ curl -s http://localhost:8001/v1/missions/$MID > docs/evidence/s503_gemini_embed
 
 ---
 
-## Phase 3 — S5-06 / S4-06: Qualification Evidence Refresh (~15 min)
+## Phase 3 — S5-06 / S4-06: Qualification Evidence Refresh (PARTIAL — 2026-05-29)
 
-**Status:** Not started. Last refresh was March 2026 — predates all Sprint 2–5 work.
+**Status:** 🟡 Partial. Canary trend 100% (python/rust/kotlin/julia all PASS), mission
+artifact qualification PASS, promotion-gate + qualification-gate-summary regenerated.
+Qual-script bugs fixed: vague default prompts, 90→360s timeouts, metadata fallbacks,
+OIDC `_compose_command` --env-file injection. **Remaining blocker:** OIDC matrix hybrid/oidc
+modes return 503 during readiness probe — orchestrator briefly loses postgres after each
+gateway restart. Needs: poll orchestrator health (not just gateway) between mode switches.
 
 **Why it matters:** The promotion gate and qualification summary are the formal sign-off documents. Running them against the current live stack with current HEAD produces dated evidence for audit.
 

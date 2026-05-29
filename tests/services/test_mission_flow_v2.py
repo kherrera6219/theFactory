@@ -417,6 +417,61 @@ async def test_prepare_pm_intake_generates_aim_for_source_analysis_mission() -> 
 
 
 @pytest.mark.asyncio
+async def test_prepare_pm_intake_high_ambiguity_enters_clarifying() -> None:
+    """High ambiguity (>=0.7) must transition QUEUED -> CLARIFYING and emit
+    MISSION_CLARIFYING, then return False to pause the lifecycle."""
+    app = _make_app_state()
+    settings = _make_settings()
+    validator = MagicMock()
+    mission = _make_mission(state=MissionState.queued)
+    mission.metadata = {"mission_type": "BUILD_NEW"}
+    state, fetch_mission, update_metadata, transition_mission_state, _insert = (
+        _make_stateful_storage(mission)
+    )
+    ambiguous_contract = {
+        "schema_version": "feature_contract.v1",
+        "title": "Ambiguous",
+        "summary": "Underspecified request",
+        "ambiguity_score": 0.85,
+        "clarifying_questions": ["Which language?", "What scope?"],
+        "source": "llm",
+    }
+    emit_fn = AsyncMock()
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = fetch_mission
+        mock_storage.update_mission_metadata = update_metadata
+        mock_storage.transition_mission_state = transition_mission_state
+        with patch(
+            "orchestrator.mission_flow_v2.generate_pm_feature_contract",
+            AsyncMock(return_value=ambiguous_contract),
+        ):
+            result = await orchestrator_mission_flow_v2._prepare_pm_intake(
+                app=app,
+                settings=settings,
+                validator=validator,
+                emit_state_event_fn=emit_fn,
+                mission_id="test-m1",
+            )
+
+    # Preparer returns False to pause the lifecycle for clarification.
+    assert result is False
+    # Transition used the actual current state (QUEUED), not PM_INTAKE.
+    assert (
+        MissionState.queued.value,
+        MissionState.clarifying.value,
+        "MISSION_CLARIFYING",
+    ) in state["transitions"]
+    # The clarifying event was published with the correct kwargs shape.
+    emit_fn.assert_awaited_once()
+    _, kwargs = emit_fn.call_args
+    assert kwargs["event_type"] == "MISSION_CLARIFYING"
+    assert "mission" in kwargs and "redis_client" in kwargs
+    assert mission.metadata["last_ambiguity_score"] == 0.85
+    assert mission.metadata["clarifying_questions"] == ["Which language?", "What scope?"]
+
+
+@pytest.mark.asyncio
 async def test_prepare_equivalence_report_records_nonblocking_report() -> None:
     app = _make_app_state()
     settings = _make_settings()

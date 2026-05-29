@@ -171,3 +171,128 @@ def test_other_service_tracing_logs_instrumentation_failures(monkeypatch, caplog
 
     assert "fastapi tracing instrumentation skipped" in caplog.text
     assert "httpx tracing instrumentation skipped" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# orchestrator.tracing.current_span_id
+# ---------------------------------------------------------------------------
+def test_current_span_id_without_span() -> None:
+    span_id = orchestrator_tracing.current_span_id()
+    assert span_id is None or len(span_id) == 16
+
+
+def _install_valid_span(monkeypatch, *, trace_id: int, span_id: int) -> None:
+    """Inject an opentelemetry.trace whose current span has a valid context,
+    covering the hex-formatting branch of current_trace_id/current_span_id."""
+    trace_module = ModuleType("opentelemetry.trace")
+    trace_module.get_current_span = lambda: SimpleNamespace(
+        get_span_context=lambda: SimpleNamespace(
+            is_valid=True, trace_id=trace_id, span_id=span_id
+        )
+    )
+    otel = ModuleType("opentelemetry")
+    otel.trace = trace_module
+    monkeypatch.setitem(sys.modules, "opentelemetry", otel)
+    monkeypatch.setitem(sys.modules, "opentelemetry.trace", trace_module)
+
+
+def test_current_trace_id_valid_span_returns_hex(monkeypatch) -> None:
+    _install_valid_span(monkeypatch, trace_id=0x1234, span_id=0xABCD)
+    trace_id = orchestrator_tracing.current_trace_id()
+    assert trace_id == f"{0x1234:032x}"
+    assert len(trace_id) == 32
+
+
+def test_current_span_id_valid_span_returns_hex(monkeypatch) -> None:
+    _install_valid_span(monkeypatch, trace_id=0x1234, span_id=0xABCD)
+    span_id = orchestrator_tracing.current_span_id()
+    assert span_id == f"{0xABCD:016x}"
+    assert len(span_id) == 16
+
+
+# ---------------------------------------------------------------------------
+# orchestrator.tracing.trace_operation (orchestrator-only decorator)
+# ---------------------------------------------------------------------------
+def test_trace_operation_sync_returns_result(monkeypatch) -> None:
+    monkeypatch.setenv("OTEL_TRACING_ENABLED", "true")
+
+    @orchestrator_tracing.trace_operation("test.sync", attributes={"phase": "unit"})
+    def add(a: int, b: int) -> int:
+        return a + b
+
+    assert add(2, 3) == 5
+
+
+def test_trace_operation_async_returns_result(monkeypatch) -> None:
+    import asyncio
+
+    monkeypatch.setenv("OTEL_TRACING_ENABLED", "true")
+
+    @orchestrator_tracing.trace_operation("test.async", attributes={"phase": "unit"})
+    async def add(a: int, b: int) -> int:
+        return a + b
+
+    assert asyncio.run(add(4, 5)) == 9
+    assert asyncio.iscoroutinefunction(add)
+
+
+def test_trace_operation_disabled_returns_original(monkeypatch) -> None:
+    monkeypatch.setenv("OTEL_TRACING_ENABLED", "false")
+
+    def original(x: int) -> int:
+        return x * 2
+
+    decorated = orchestrator_tracing.trace_operation("test.disabled")(original)
+    # When disabled the decorator returns the function unchanged.
+    assert decorated is original
+    assert decorated(21) == 42
+
+
+def test_trace_operation_no_attributes(monkeypatch) -> None:
+    monkeypatch.setenv("OTEL_TRACING_ENABLED", "true")
+
+    @orchestrator_tracing.trace_operation("test.no-attrs")
+    def noop() -> str:
+        return "done"
+
+    assert noop() == "done"
+
+
+def _install_raising_tracer(monkeypatch) -> None:
+    """Inject an opentelemetry.trace whose get_tracer raises, so the
+    trace_operation wrappers must fall back to calling func directly."""
+    trace_module = ModuleType("opentelemetry.trace")
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("tracer unavailable")
+
+    trace_module.get_tracer = _boom
+    otel = ModuleType("opentelemetry")
+    otel.trace = trace_module
+    monkeypatch.setitem(sys.modules, "opentelemetry", otel)
+    monkeypatch.setitem(sys.modules, "opentelemetry.trace", trace_module)
+
+
+def test_trace_operation_sync_fallback_on_tracer_error(monkeypatch) -> None:
+    monkeypatch.setenv("OTEL_TRACING_ENABLED", "true")
+    _install_raising_tracer(monkeypatch)
+
+    @orchestrator_tracing.trace_operation("test.sync.fallback")
+    def add(a: int, b: int) -> int:
+        return a + b
+
+    # Tracer raises internally; wrapper must still return the real result.
+    assert add(7, 8) == 15
+
+
+def test_trace_operation_async_fallback_on_tracer_error(monkeypatch) -> None:
+    import asyncio
+
+    monkeypatch.setenv("OTEL_TRACING_ENABLED", "true")
+    _install_raising_tracer(monkeypatch)
+
+    @orchestrator_tracing.trace_operation("test.async.fallback")
+    async def add(a: int, b: int) -> int:
+        return a + b
+
+    assert asyncio.run(add(7, 8)) == 15

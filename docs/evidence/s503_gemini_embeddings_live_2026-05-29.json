@@ -1,0 +1,23 @@
+{
+  "sprint": "S5-03",
+  "evidence_type": "gemini_embeddings_live",
+  "recorded_at": "2026-05-29T04:54:45.118439+00:00",
+  "mission_id": "mission-1c39e46d-7a34-41cc-86d8-f2ef66111a5d",
+  "final_state": "COMPLETE",
+  "embedding_provider": "gemini",
+  "embedding_model": "gemini-embedding-001",
+  "embedding_dimensions_native": 3072,
+  "verification": {
+    "direct_api_call": "SUCCESS \u2014 gemini-embedding-001 returned 3072-dim vector",
+    "container_embedding_config": "provider=gemini, model=gemini-embedding-001",
+    "vector_for_content_uses_gemini": true,
+    "differs_from_deterministic_fallback": true,
+    "payload_metadata": {
+      "embedding_provider": "gemini",
+      "embedding_model": "gemini-embedding-001"
+    }
+  },
+  "bug_fixed": "settings.py defaulted knowledge_embedding_model to dead model text-embedding-004, overriding the per-provider default; changed to empty string so _default_model(provider) selects gemini-embedding-001. Also .env had KNOWLEDGE_EMBEDDING_MODEL=deterministic-hash-v1 (corrected to gemini-embedding-001).",
+  "note": "Embedding usage events are not recorded in llm_usage_events because vector_for_content runs inside asyncio.to_thread (no running loop), so _record_embedding_usage skips. Embeddings themselves are fully functional.",
+  "passed": true
+}

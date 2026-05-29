@@ -46,7 +46,10 @@ class Settings:
     milvus_vector_size: int = 64
     milvus_timeout_seconds: float = 3.0
     knowledge_embedding_provider: str = "gemini"
-    knowledge_embedding_model: str = "text-embedding-004"
+    # Empty by default so knowledge_embeddings._default_model() selects the
+    # correct per-provider model (gemini → gemini-embedding-001,
+    # openai → text-embedding-3-small). An explicit env var still overrides.
+    knowledge_embedding_model: str = ""
     knowledge_embedding_timeout_seconds: float = 10.0
     knowledge_refresh_enabled: bool = True
     neo4j_url: str = "http://neo4j:7474"
@@ -215,9 +218,8 @@ def load_settings() -> Settings:
         ).strip().lower()
         or "gemini",
         knowledge_embedding_model=os.getenv(
-            "KNOWLEDGE_EMBEDDING_MODEL", "text-embedding-004"
-        ).strip()
-        or "text-embedding-004",
+            "KNOWLEDGE_EMBEDDING_MODEL", ""
+        ).strip(),
         knowledge_embedding_timeout_seconds=max(
             1.0, float(os.getenv("KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS", "10.0"))
         ),
