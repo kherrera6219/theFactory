@@ -117,17 +117,21 @@ _Files: new `shared_runtime/errors.py`, `docs/ERROR_CODES.md` registry._
 - Map gateway error payloads → the structured display.
 _Files: `apps/mission-control/app/lib/api-client.ts`, error-banner components._
 
-### A7. DB transaction discipline (rollback, no partial writes)
+### A7. DB transaction discipline (rollback, no partial writes) — ✅ DONE 2026-05-29
 **Standard:** Error §12 ("Use transactions for multi-step writes", "Roll back failed
 transactions", "Never leave partial workspace updates").
-**Current:** 🟡 Partial — `transition_mission_state` uses `conn.transaction()`
-(`storage_missions.py:398`), but most writes use plain `with conn.cursor()` (autocommit), so
-multi-step writes aren't wrapped.
-**Outstanding:**
-- Audit multi-statement write paths; wrap each in `conn.transaction()` so a mid-sequence
-  failure rolls back cleanly.
-_Files: `services/orchestrator/orchestrator/storage_missions.py`, `storage_artifacts.py`,
-`storage_logicnodes.py`._
+**Outcome:** Audited every storage module against `db_connect` (which uses
+`autocommit=True`, so each `execute` commits independently). Findings:
+- `transition_mission_state` — already wrapped in `conn.transaction()` ✅
+- `_locked_mission_metadata_update` (and `record_partition_result` via it) — already uses a
+  dedicated `autocommit=False` connection with `with conn:` ✅
+- `storage_artifacts.py`, `storage_logicnodes.py`, `storage_pods.py` — all writers are
+  single-INSERT (atomic under autocommit; no wrapper needed) ✅
+- **`upsert_agent_heartbeat`** (`storage_agents.py`) was the one genuine gap: a heartbeat
+  upsert **plus** an `AGENT_STATE_CHANGED` event INSERT that committed independently. Wrapped
+  both in a combined `with conn.transaction(), conn.cursor() as cur:` so they commit or roll
+  back together.
+_Files: `services/orchestrator/orchestrator/storage_agents.py`._
 
 ---
 
