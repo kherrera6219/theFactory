@@ -88,6 +88,9 @@ jobs:
       - name: Mission Control Performance Budget (Lighthouse CI)
         run: npm run test:perf
         working-directory: apps/mission-control
+        env:
+          MISSION_CONTROL_BYPASS_AUTH: "true"
+          NEXT_BUILD_TARGET: docker
 
       - name: Install Playwright Browser (Chromium)
         run: npx playwright install --with-deps chromium
