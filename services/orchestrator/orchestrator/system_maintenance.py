@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import shutil
@@ -6,6 +5,8 @@ import tarfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from shared_runtime.atomic_io import atomic_write_json
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,13 +37,11 @@ class MaintenanceManager:
                 "mission_id_context": mission_id,
                 "os": os.name,
             }
-            with open(tmp_work_dir / "system_status.json", "w") as f:
-                json.dump(status, f, indent=2)
+            atomic_write_json(tmp_work_dir / "system_status.json", status)
 
             # 2. Collect Sanitized Environment (No Secrets)
             env_data = {k: v for k, v in os.environ.items() if "_KEY" not in k and "_SECRET" not in k and "_PASSWORD" not in k}
-            with open(tmp_work_dir / "environment_sanitized.json", "w") as f:
-                json.dump(env_data, f, indent=2)
+            atomic_write_json(tmp_work_dir / "environment_sanitized.json", env_data)
 
             # 3. Create the tarball
             with tarfile.open(bundle_path, "w:gz") as tar:
