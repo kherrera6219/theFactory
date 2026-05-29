@@ -361,11 +361,15 @@ These items cannot be completed with code alone — they require `make up` + rea
   Confirm partition splitting, parallel processing, and result merge all work.
   _Prerequisite: S5-01 complete_
 
-- [ ] **S5-06 — Live qualification evidence refresh** _(was S4-06)_
-  `make promotion-gate` → `reports/promotion-gate.local.json`.
-  `make qualification-gate-summary` → `reports/qualification-gate-summary.local.json`.
-  Commit updated evidence. (Last refresh: March 2026.)
-  _Prerequisite: S5-01 complete_
+- [ ] **S5-06 — Live qualification evidence refresh** _(was S4-06) — partially complete_
+  Evidence refreshed 2026-05-29. Canary (100% pass), mission artifact qualification (PASS),
+  promotion gate scripts regenerated. Blocked on OIDC matrix hybrid/oidc modes — each
+  gateway restart causes orchestrator to briefly lose postgres (db_ready=false → 503),
+  exceeding readiness probe timeout before switching to hybrid/oidc mode.
+  **Remaining action:** Fix OIDC qual script readiness wait to poll orchestrator health
+  (not just gateway) between mode switches, OR add `--restore-initial-mode false` and
+  longer `--readiness-timeout-seconds`.
+  _Evidence: `reports/promotion-gate.local.json`, `reports/qualification-gate-summary.local.json`_
 
 - [ ] **S5-07 — Long-duration reliability re-qualification** _(was S4-08)_
   `python scripts/long_duration_reliability_qualification.py --output docs/evidence/reliability_qualification_phase28_YYYY-MM-DD.json`
