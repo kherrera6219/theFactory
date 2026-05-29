@@ -143,7 +143,9 @@ a {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-dim);
+  /* SLATE-400 (--ink-muted) reaches ~5.6:1 on the slate-800 sidebar;
+     SLATE-500 (--ink-dim) was only 3.07:1, failing WCAG AA color-contrast. */
+  color: var(--ink-muted);
   user-select: none;
 }
 
