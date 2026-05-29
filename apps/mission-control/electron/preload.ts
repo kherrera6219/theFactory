@@ -55,4 +55,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Misc ──────────────────────────────────────────────────────────────
   getPlatform: (): Promise<"darwin" | "win32" | "linux"> =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_PLATFORM),
+
+  // ── A9: Offline diagnostics bundle ──────────────────────────────────────
+  generateDiagnostics: (): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DIAGNOSTICS_GENERATE),
 });

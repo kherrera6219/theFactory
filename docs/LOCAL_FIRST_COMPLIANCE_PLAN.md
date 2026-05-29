@@ -147,6 +147,16 @@ _Files: `services/orchestrator/orchestrator/storage_agents.py`._
 
 ## Bucket A — Desktop / Diagnostics (achievable now)
 
+> **A8/A9 status (2026-05-29): ✅ DONE.** `electron/diagnostics.ts` adds
+> `installCrashHandlers()` (uncaughtException + unhandledRejection → sanitized local
+> crash-report.json, "Restart/Quit" dialog, `app.relaunch()`, never uploads) wired at the
+> top of `electron/main.ts`, and `generateDiagnostics()` writing the six §18 artifacts
+> (diagnostics.json, application/security/audit.log, crash-report.json, integrity-report.json)
+> under `%LOCALAPPDATA%/…/Diagnostics`. Exposed via IPC `DIAGNOSTICS_GENERATE` +
+> `electronGenerateDiagnostics()` and a desktop-only "Generate offline diagnostics" button
+> in Settings → System Maintenance. Reports record secret-bearing env **names only**, never
+> values or document contents.
+
 ### A8. Electron crash handling + safe restart
 **Standard:** Error §17 ("Catch unhandled exceptions at the application boundary", "Save
 sanitized crash report locally", "Offer user a safe restart", "Do not upload").

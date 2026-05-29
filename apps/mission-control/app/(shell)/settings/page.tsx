@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   isElectron,
   electronGetAppVersion,
+  electronGenerateDiagnostics,
 } from "../../lib/electron-bridge";
 
 import { OperatorUnlockForm } from "../../components/operator-unlock-form";
@@ -132,6 +133,25 @@ export default function SettingsPage() {
       setMaintenanceMessage(`Diagnostic bundle generated at: ${res.bundle_path}`);
     } catch (err: any) {
       setMaintenanceError(err.message || "Failed to generate diagnostics.");
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  }
+
+  // A9 — Offline (desktop-local) diagnostics: works without the backend/internet.
+  async function handleOfflineDiagnostics() {
+    setMaintenanceLoading(true);
+    setMaintenanceMessage(null);
+    setMaintenanceError(null);
+    try {
+      const folder = await electronGenerateDiagnostics();
+      if (folder) {
+        setMaintenanceMessage(`Offline diagnostics saved locally at: ${folder}`);
+      } else {
+        setMaintenanceError("Offline diagnostics are only available in the desktop app.");
+      }
+    } catch (err: any) {
+      setMaintenanceError(err.message || "Failed to generate offline diagnostics.");
     } finally {
       setMaintenanceLoading(false);
     }
@@ -722,6 +742,11 @@ export default function SettingsPage() {
           <button type="button" className="secondary-button" onClick={() => void handleTriggerBackup()} disabled={maintenanceLoading}>
             {maintenanceLoading ? "Processing…" : "Run full stateful backup"}
           </button>
+          {isElectron() && (
+            <button type="button" className="secondary-button" onClick={() => void handleOfflineDiagnostics()} disabled={maintenanceLoading}>
+              {maintenanceLoading ? "Processing…" : "Generate offline diagnostics"}
+            </button>
+          )}
         </div>
         {maintenanceMessage && (
           <SystemMessage tone="success" title="Maintenance complete">
