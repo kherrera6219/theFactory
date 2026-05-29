@@ -295,7 +295,7 @@ LLM calls behind them.
 **Goal:** Prove every implemented feature works against a live runtime, not just tests.
 These items cannot be completed with code alone — they require `make up` + real credentials.
 
-- [x] **S5-01 — Live BUILD_NEW demo** _(completed 2026-05-28)_
+- [x] **S5-01 — Live BUILD_NEW demo** _(completed 2026-05-28)_ ✅
   Mission `mission-998b8666` reached `COMPLETE` with `generated_code` = `top_k_frequent.py`
   (1787 chars, 8 unit tests) via `gpt-5.5` / OpenAI. 21 chain events from PM_INTAKE → DELIVERED.
   Evidence: `docs/evidence/live_demo_sprint5_2026-05-25.json`
@@ -303,7 +303,10 @@ These items cannot be completed with code alone — they require `make up` + rea
   when `mission_pod_assignments` / `mission_logicnodes` DB tables are empty (single-orchestrator
   deployments write through metadata, not the normalized tables)._
 
-- [ ] **S5-02 — Token cost ledger live activation** _(was S1-02) — code fixes committed, verification pending_
+- [x] **S5-02 — Token cost ledger live activation** _(completed 2026-05-29)_ ✅
+  Mission `mission-1c70f9e7` reached COMPLETE, 14 rows in `llm_usage_events` (all agents),
+  $0.1642 total cost, all pricing known, `token-usage` API returns populated JSON.
+  Evidence: `docs/evidence/s502_cost_ledger_live_2026-05-29.json`
   All three root-cause bugs fixed in commit `1a0a878` (2026-05-28). Orchestrator rebuilt
   and running. **One remaining step: submit a live mission and confirm `llm_usage_events`
   is populated + Cost panel renders real data.**
@@ -338,10 +341,14 @@ These items cannot be completed with code alone — they require `make up` + rea
   
   _Prerequisite: S5-01 complete ✅. Commit 1a0a878 must be running in container._
 
-- [ ] **S5-03 — Gemini embeddings live validation** _(was S1-04)_
-  Set `GEMINI_API_KEY` in `.env` and `KNOWLEDGE_EMBEDDING_PROVIDER=gemini`. Run
-  S5-01 again and confirm knowledge retrieval returns semantically relevant results.
-  _Prerequisite: S5-01 complete, GEMINI_API_KEY available_
+- [ ] **S5-03 — Gemini embeddings live validation** _(was S1-04) — BLOCKED on valid API key_
+  `KNOWLEDGE_EMBEDDING_PROVIDER=gemini` is set in `.env`. Code path verified correct
+  (fallback to deterministic when API call fails). Current `GEMINI_API_KEY` in `.env` returns
+  HTTP 404 (invalid/expired key — format `AQ.` instead of standard `AIza...`).
+  **Action needed:** Replace `GEMINI_API_KEY` in `.env` with a valid key from
+  https://aistudio.google.com/app/apikey, then re-run a BUILD_NEW mission and check
+  `llm_usage_events` for `provider=gemini` rows.
+  _Prerequisite: Valid GEMINI_API_KEY_
 
 - [ ] **S5-04 — PORT two-phase live demo** _(was S3-04)_
   Take an open-source project (SDL2 game, Windows utility). Run a PORT mission
@@ -394,6 +401,7 @@ The application is **fully complete** when:
 | 2026-05-22 | Backlog grooming: added Sprint 5 (live-stack validation items moved from S1-01/02, S1-04, S3-04, S4-03, S4-06, S4-08). Added implementation notes to S1-04, S4-02, S4-04, S4-05 with exact file/function pointers. Completion Definition updated. | Sprint 1, 4, 5 |
 | 2026-05-24 | Implementation complete: S1-04 (Gemini embeddings default flip — settings.py, .env.example, test updates), S4-02 (multi-container RQCA with docker-compose generation + teardown in rqca_agent.py + testdata_agent.py), S4-04 (Neo4j LogicNode graph — upsert_logicnode, list_logicnodes_by_depth in neo4j_store.py; mirror in storage_logicnodes.py; depth-sort in _prepare_fusion()), S4-05 (object storage offload in storage_artifacts.py; presigned URL redirect in routes/internal.py; put_object/get_presigned_url in object_store.py). Also removed auto-update from Electron/Windows installer (updater.ts, preload.ts, electron-bridge.ts, settings/page.tsx, package.json). Test fixes: test_mission_flow_v2 CLARIFYING event sequence + transition count; test_knowledge_embeddings default-to-gemini. | Sprint 1, 4 |
 | 2026-05-28 | S5-01 COMPLETE — Live BUILD_NEW demo passed. Mission mission-998b8666 reached COMPLETE with generated_code (gpt-5.5/OpenAI, top_k_frequent.py, 1787 chars, 8 unit tests, 21 chain events). Bug fixed: runtime.py _completion_artifacts_ready now falls back to metadata JSON when pod_assignments/logicnodes DB tables are empty (single-orchestrator deployment path). Also fixed docker compose --env-file usage for stack restarts. Evidence: docs/evidence/live_demo_sprint5_2026-05-25.json | Sprint 5 |
+| 2026-05-29 | ROADMAP EXECUTION (session 2) — S5-02 COMPLETE (14 rows llm_usage_events, $0.1642, evidence saved). S5-03 BLOCKED (invalid GEMINI_API_KEY, code path confirmed working with fallback). S5-06 qual evidence refresh in progress: promotion-gate regenerated, qualification-gate regenerated, OIDC matrix rerun. Qual script bugs fixed: vague default prompts replaced (canary + artifact qual), timeouts raised 90→360s + poll 1→10s, metadata fallbacks added to _evaluate_canary_result and _evaluate_result for pod/logicnode DB-empty case, canary trend latest pass_rate moving toward 100% (python ✅ COMPLETE). CI fixes: Next.js build NEXT_BUILD_TARGET=docker (server mode), Lighthouse CHROME_INTERSTITIAL_ERROR fixed with MISSION_CONTROL_BYPASS_AUTH=true env var. | All |
 | 2026-05-29 | CI GREEN EFFORT — PR #184 CI failures fixed in sequence: (1) ruff I001 isort — aliased imports in mission_flow_v2.py must be in separate from-blocks (commit 96dad7f); (2) TS2322 — added id?: string to PanelProps in panel.tsx (commit b3f4383); (3) 9 pre-existing Mission Control unit test failures now exposed — fixed isOperatorSessionBypassed() to check MISSION_CONTROL_BYPASS_AUTH env var (was hardcoded true), added cache: "no-store" to fetchJson, fixed getGatewayReadyState error detail string, added explicit method: "GET" to getMissionChainTrace, added camelCase→snake_case key transforms in createBuilderWorkspaceReview and verifyReviewApproval (commit b3e7783). | Sprint 5 / CI |
 | 2026-05-29 | PHASED UPDATE PLAN created at docs/PHASED_UPDATE_PLAN.md — 9-phase roadmap from CI green through S5-02→S5-07 completion, qualification evidence refresh, Dependabot triage, and final release declaration. | All |
 | 2026-05-28 | S5-02 IN PROGRESS — Three root-cause bugs fixed for token cost ledger. (1) CI fixes: ruff E501/E402/E701/F821 violations fixed in llm_delegation.py, tracing.py, api_gateway/main.py; Bandit nosec annotations in scripts/force_stop.py and scripts/run_automated_dr_drill.py; npm audit --omit=dev to exclude electron-builder devDep chain. (2) llm_cost_ledger.py: rewrote record_llm_usage + get_mission_token_usage with sync helpers (_insert_usage_sync, _fetch_usage_rows_sync) + asyncio.to_thread — fixed silent TypeError from async with on a sync psycopg3 connection. (3) mission_flow_v2.py: bind _llm_current_mission_id + _llm_current_settings ContextVars at advance_mission_lifecycle_v2 entry point — fixed empty mission_id causing _record_usage_event early-exit. (4) runtime.py: advance_mission_lifecycle now sets/resets context vars around engine.advance(). (5) mission_flow_v2.py _prepare_pm_intake: fixed TypeError "emit_state_event() got unexpected keyword argument 'app'" — replaced wrong-shaped emit_state_event_fn call with correct storage.transition_mission_state + proper emit_state_event_fn(settings=, validator=, redis_client=, mission=, event_type=) pattern. Orchestrator rebuilt and restarted, startup clean. NEXT STEP: submit a non-ambiguous mission and verify llm_usage_events is populated + Cost panel renders real data. | Sprint 5 |

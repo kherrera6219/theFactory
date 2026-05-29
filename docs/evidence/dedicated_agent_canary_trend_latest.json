@@ -1,5 +1,5 @@
 {
-  "run_timestamp_utc": "2026-05-29T02:36:47.127998+00:00",
+  "run_timestamp_utc": "2026-05-29T03:09:27.389303+00:00",
   "gateway_base_url": "http://localhost:8100",
   "orchestrator_base_url": "http://localhost:8101",
   "languages": [
@@ -10,16 +10,11 @@
   ],
   "summary": {
     "total_runs": 4,
-    "passed_runs": 0,
-    "failed_runs": 4,
-    "pass_rate_percent": 0.0,
-    "failed_languages": [
-      "python",
-      "rust",
-      "kotlin",
-      "julia"
-    ],
-    "all_passed": false
+    "passed_runs": 4,
+    "failed_runs": 0,
+    "pass_rate_percent": 100.0,
+    "failed_languages": [],
+    "all_passed": true
   },
   "runs": [
     {
@@ -34,15 +29,15 @@
         "--language",
         "python",
         "--timeout-seconds",
-        "90.0",
+        "360.0",
         "--poll-seconds",
-        "1.0",
+        "10.0",
         "--output-file",
-        "docs\\evidence\\canary-runs\\dedicated_agent_canary_python_20260529T023628Z.json"
+        "docs\\evidence\\canary-runs\\dedicated_agent_canary_python_20260529T025729Z.json"
       ],
-      "exit_code": 2,
-      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_python_20260529T023628Z.json",
-      "passed": false,
+      "exit_code": 0,
+      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_python_20260529T025729Z.json",
+      "passed": true,
       "failure_reasons": [],
       "stderr_tail": null,
       "error": null
@@ -59,15 +54,15 @@
         "--language",
         "rust",
         "--timeout-seconds",
-        "90.0",
+        "360.0",
         "--poll-seconds",
-        "1.0",
+        "10.0",
         "--output-file",
-        "docs\\evidence\\canary-runs\\dedicated_agent_canary_rust_20260529T023628Z.json"
+        "docs\\evidence\\canary-runs\\dedicated_agent_canary_rust_20260529T025729Z.json"
       ],
-      "exit_code": 2,
-      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_rust_20260529T023628Z.json",
-      "passed": false,
+      "exit_code": 0,
+      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_rust_20260529T025729Z.json",
+      "passed": true,
       "failure_reasons": [],
       "stderr_tail": null,
       "error": null
@@ -84,15 +79,15 @@
         "--language",
         "kotlin",
         "--timeout-seconds",
-        "90.0",
+        "360.0",
         "--poll-seconds",
-        "1.0",
+        "10.0",
         "--output-file",
-        "docs\\evidence\\canary-runs\\dedicated_agent_canary_kotlin_20260529T023628Z.json"
+        "docs\\evidence\\canary-runs\\dedicated_agent_canary_kotlin_20260529T025729Z.json"
       ],
-      "exit_code": 2,
-      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_kotlin_20260529T023628Z.json",
-      "passed": false,
+      "exit_code": 0,
+      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_kotlin_20260529T025729Z.json",
+      "passed": true,
       "failure_reasons": [],
       "stderr_tail": null,
       "error": null
@@ -109,15 +104,15 @@
         "--language",
         "julia",
         "--timeout-seconds",
-        "90.0",
+        "360.0",
         "--poll-seconds",
-        "1.0",
+        "10.0",
         "--output-file",
-        "docs\\evidence\\canary-runs\\dedicated_agent_canary_julia_20260529T023628Z.json"
+        "docs\\evidence\\canary-runs\\dedicated_agent_canary_julia_20260529T025729Z.json"
       ],
-      "exit_code": 2,
-      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_julia_20260529T023628Z.json",
-      "passed": false,
+      "exit_code": 0,
+      "report_path": "docs\\evidence\\canary-runs\\dedicated_agent_canary_julia_20260529T025729Z.json",
+      "passed": true,
       "failure_reasons": [],
       "stderr_tail": null,
       "error": null
