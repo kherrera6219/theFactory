@@ -1,21 +1,22 @@
 {
   "allowed": false,
   "reasons": [
-    "qualification summary: operator_route_oidc_matrix: latest evidence age 78.559d exceeds 8.0d",
-    "qualification summary: dedicated_agent_canary_trend: latest evidence age 78.559d exceeds 8.0d",
-    "qualification summary: langgraph_v2_prototype_matrix: latest evidence age 78.558d exceeds 8.0d",
-    "qualification summary: mission_artifact_qualification: latest evidence age 40.47d exceeds 8.0d",
+    "ref 'e1d6da5ddb20ff585c1b5c987af29b23cf4b8e25' does not match allowed promotion patterns",
+    "qualification summary: operator_route_oidc_matrix: bootstrap command failed with exit code 1",
+    "qualification summary: operator_route_oidc_matrix: consecutive passes 0 below required 1",
+    "qualification summary: dedicated_agent_canary_trend: failed languages: python, javascript",
+    "qualification summary: dedicated_agent_canary_trend: consecutive passes 0 below required 1",
+    "qualification summary: mission_artifact_qualification: latest evidence age 43.282d exceeds 8.0d",
     "required qualification suite failed: operator_route_oidc_matrix",
     "required qualification suite failed: dedicated_agent_canary_trend",
-    "required qualification suite failed: langgraph_v2_prototype_matrix",
     "required qualification suite failed: mission_artifact_qualification"
   ],
   "policy_version": 3,
-  "ref": "refs/heads/main",
+  "ref": "e1d6da5ddb20ff585c1b5c987af29b23cf4b8e25",
   "ci_status": "success",
   "attestation_verified": true,
   "signed_tag_verified": false,
   "model_inventory_checked": true,
   "qualification_summary_checked": true,
-  "evaluated_at": "2026-05-26T07:18:23.650436+00:00"
+  "evaluated_at": "2026-05-29T02:30:17.297872+00:00"
 }

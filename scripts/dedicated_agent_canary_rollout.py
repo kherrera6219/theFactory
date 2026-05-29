@@ -353,7 +353,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--prompt",
-        default="Dedicated-agent canary mission",
+        default=(
+            "Write a function called sum_integers that accepts a list of integers "
+            "and returns their sum. Include a docstring and three unit tests."
+        ),
         help="Mission prompt",
     )
     parser.add_argument(
