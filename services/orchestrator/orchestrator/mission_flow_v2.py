@@ -632,11 +632,14 @@ async def _prepare_pm_intake(
         metadata["last_ambiguity_score"] = ambiguity_score
         metadata["clarifying_questions"] = feature_contract.get("clarifying_questions")
         await asyncio.to_thread(storage.update_mission_metadata, settings, mission_id, metadata)
+        # The preparer runs while the mission is still in QUEUED state —
+        # the loop transitions to PM_INTAKE only after the preparer returns True.
+        # Use the actual current state (queued) as expected_state here.
         clarifying_record = await asyncio.to_thread(
             storage.transition_mission_state,
             settings,
             mission_id,
-            MissionState.pm_intake,
+            MissionState.queued,
             MissionState.clarifying,
             "MISSION_CLARIFYING",
         )
