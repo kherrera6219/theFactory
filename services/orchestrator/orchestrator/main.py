@@ -12,10 +12,11 @@ from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import Response
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from shared_runtime.errors import ErrorSeverity, FactoryError
 from shared_runtime.logging_config import configure_logging
 
 from . import milvus_store, neo4j_store, object_store, qdrant_store, storage
@@ -744,6 +745,31 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="HolyGrail Orchestrator", version="0.3.0", lifespan=lifespan)
 configure_tracing(app, service_name="orchestrator")
 _initialize_app_state(app)
+
+
+# Map standard-error severities to HTTP status codes (Local-First Error Handling Standard).
+_SEVERITY_STATUS = {
+    ErrorSeverity.INFO: 200,
+    ErrorSeverity.WARNING: 400,
+    ErrorSeverity.RECOVERABLE: 400,
+    ErrorSeverity.CRITICAL: 500,
+    ErrorSeverity.FATAL: 500,
+}
+
+
+@app.exception_handler(FactoryError)
+async def _factory_error_handler(request: Request, exc: FactoryError) -> JSONResponse:
+    """Render a FactoryError as the secret-free user payload; log the full object.
+
+    The user payload ({user_message, recovery_action, error_code}) is what Mission
+    Control's parseError() upgrades into the four-line standard display. The full
+    standard object (with developer_message) goes to structured logs only.
+    """
+    if exc.correlation_id is None:
+        exc.correlation_id = _request_correlation_id(request)
+    LOGGER.warning("FactoryError %s: %s", exc.error_code, exc.to_dict())
+    status = _SEVERITY_STATUS.get(exc.severity, 500)
+    return JSONResponse(status_code=status, content={"detail": exc.to_user_payload()})
 
 
 def _request_correlation_id(request) -> str:
