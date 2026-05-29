@@ -1172,7 +1172,7 @@ dd {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--ink-dim);
+  color: var(--ink-muted);
   font-size: 0.8rem;
   cursor: pointer;
   transition: color 120ms, background 120ms;
@@ -1194,7 +1194,7 @@ dd {
 /* ── Refresh timestamp label ─────────────────────────────────── */
 .last-refreshed {
   font-size: var(--text-xs, 0.6875rem);
-  color: var(--ink-dim);
+  color: var(--ink-muted);
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
@@ -1258,7 +1258,7 @@ dd {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--ink-dim);
+  color: var(--ink-muted);
 }
 
 .chat-history-list {
@@ -1320,7 +1320,7 @@ dd {
 
 .char-counter {
   font-size: var(--text-xs, 0.6875rem);
-  color: var(--ink-dim);
+  color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2280,7 +2280,7 @@ dd {
 .notif-alert-rec {
   margin: 5px 0 0;
   font-size: 0.78rem;
-  color: var(--ink-dim);
+  color: var(--ink-muted);
   font-style: italic;
 }
 
@@ -2314,7 +2314,7 @@ dd {
 }
 
 .global-search-input::placeholder {
-  color: var(--ink-dim);
+  color: var(--ink-muted);
 }
 
 .global-search-dropdown {
@@ -2482,7 +2482,7 @@ dd {
 
 .audit-sev-marker.sev-critical { color: #fca5a5; }
 .audit-sev-marker.sev-warning  { color: var(--warning); }
-.audit-sev-marker.sev-info     { color: var(--ink-dim); }
+.audit-sev-marker.sev-info     { color: var(--ink-muted); }
 
 .audit-entry-title {
   font-size: 0.88rem;
@@ -2703,7 +2703,7 @@ dd {
   border-radius: 4px;
   padding: 2px 6px;
   font-family: var(--font-mono), monospace;
-  color: var(--ink-dim);
+  color: var(--ink-muted);
   flex-shrink: 0;
 }
 
@@ -2760,7 +2760,7 @@ dd {
 }
 
 .cmd-palette-input::placeholder {
-  color: var(--ink-dim);
+  color: var(--ink-muted);
 }
 
 .cmd-palette-clear {
@@ -2797,7 +2797,7 @@ dd {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-dim);
+  color: var(--ink-muted);
   padding: 10px 16px 4px;
 }
 
@@ -2866,7 +2866,7 @@ dd {
 
 .cmd-item-shortcut {
   font-size: 0.68rem;
-  color: var(--ink-dim);
+  color: var(--ink-muted);
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -2889,7 +2889,7 @@ dd {
   display: flex;
   gap: 20px;
   font-size: 0.7rem;
-  color: var(--ink-dim);
+  color: var(--ink-muted);
   flex-shrink: 0;
 }
 
@@ -2920,7 +2920,7 @@ dd {
 
 .mission-name-edit-btn {
   font-size: 0.75rem;
-  color: var(--ink-dim);
+  color: var(--ink-muted);
   cursor: pointer;
   background: none;
   border: none;
