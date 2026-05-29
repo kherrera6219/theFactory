@@ -35,6 +35,9 @@ export const IPC_CHANNELS = {
 
   // Misc
   APP_PLATFORM: "app:platform",
+
+  // A9 — Offline diagnostics bundle (Local-First Error Handling Standard §18)
+  DIAGNOSTICS_GENERATE: "diagnostics:generate",
 } as const;
 
 // ── Type declaration for contextBridge API ──────────────────────────────────
@@ -70,6 +73,9 @@ declare global {
 
       // Misc
       getPlatform(): Promise<"darwin" | "win32" | "linux">;
+
+      // A9 — Offline diagnostics bundle; resolves to the local folder path.
+      generateDiagnostics(): Promise<string>;
     };
   }
 }
@@ -147,4 +153,15 @@ export async function electronShowSaveDialog(options: {
 export async function electronGetAppVersion(): Promise<string | null> {
   if (!isElectron() || !window.electronAPI) return null;
   return window.electronAPI.getAppVersion();
+}
+
+// ── A9: Offline diagnostics ───────────────────────────────────────────────────
+
+/**
+ * Generates the offline diagnostics bundle (desktop only) and resolves to the
+ * local folder path. Returns null in the browser where there is no Electron host.
+ */
+export async function electronGenerateDiagnostics(): Promise<string | null> {
+  if (!isElectron() || !window.electronAPI) return null;
+  return window.electronAPI.generateDiagnostics();
 }

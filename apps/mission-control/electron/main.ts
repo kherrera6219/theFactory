@@ -3,7 +3,11 @@ import path from "path";
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { setupTray } from "./tray";
 import { setupUpdater } from "./updater";  // version IPC only — auto-update disabled
+import { installCrashHandlers, generateDiagnostics } from "./diagnostics";
 import { IPC_CHANNELS } from "../app/lib/electron-bridge";
+
+// A8 — install application-boundary crash handlers before anything else can throw.
+installCrashHandlers();
 
 const isDev = process.env.ELECTRON_DEV === "1";
 const NEXT_DEV_PORT = 3100; // Match next dev --port in package.json
@@ -131,6 +135,11 @@ app.whenReady().then(() => {
 
   // â”€â”€ IPC: 7E App info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   ipcMain.handle(IPC_CHANNELS.APP_PLATFORM, () => process.platform);
+
+  // â”€â”€ IPC: A9 Offline diagnostics bundle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Generates the standard local diagnostics folder; returns its path. Offline,
+  // secret-free, never uploaded.
+  ipcMain.handle(IPC_CHANNELS.DIAGNOSTICS_GENERATE, () => generateDiagnostics());
 });
 
 // macOS: re-open window when dock icon is clicked and no windows are open.
