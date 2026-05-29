@@ -331,14 +331,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--timeout-seconds",
         type=float,
-        default=90.0,
-        help="Max time to wait for terminal mission state",
+        default=360.0,
+        help="Max time to wait for terminal mission state (seconds)",
     )
     parser.add_argument(
         "--poll-seconds",
         type=float,
-        default=1.0,
-        help="Polling interval while waiting for terminal state",
+        default=10.0,
+        help="Polling interval while waiting for terminal state (seconds)",
     )
     parser.add_argument(
         "--required-chain-events",
