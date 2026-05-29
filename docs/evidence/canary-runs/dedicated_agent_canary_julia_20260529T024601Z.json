@@ -1,0 +1,43 @@
+{
+  "run_timestamp_utc": "2026-05-29T02:52:12.038303+00:00",
+  "mission_id": "mission-5448ef97-88eb-4c01-b84f-331bf74f280a",
+  "profile_label": "dedicated-agent-canary",
+  "requested_target_language": "julia",
+  "expected_pod_manager_agent_id": "AGENT-30-PODD-MGR",
+  "final_state": "FUSION",
+  "assignment_present": false,
+  "logicnode_count": 0,
+  "chain_event_types": [
+    "MISSION_PM_INTAKE",
+    "FEATURE_CONTRACT_CREATED",
+    "MISSION_FETCH_COMPLETE",
+    "MISSION_CEO_DELEGATED",
+    "MISSION_CONTRACT_GENERATED",
+    "LOGIC_CLUSTERS_DECOMPOSED",
+    "CEO_REASONING_SUMMARY",
+    "MISSION_POD_MANAGER_ASSIGNED",
+    "MISSION_SPECIALIST_ASSIGNED",
+    "GENERATED_OUTPUT_CREATED",
+    "MISSION_SPECIALIST_PLANNED",
+    "MISSION_POD_GROUP_STANDARD_PRODUCED",
+    "MISSION_POD_AUDIT_COMPLETE"
+  ],
+  "missing_chain_events": [],
+  "routing_enforced": true,
+  "intake_agent_id": "AGENT-01-PM",
+  "executive_agent_id": "AGENT-02-CEO",
+  "observed_expected_pod_manager_agent_id": "AGENT-30-PODD-MGR",
+  "completion_blocked_events": 0,
+  "passed": false,
+  "failure_reasons": [
+    "mission did not reach COMPLETE (state=FUSION)",
+    "missing pod assignment artifact",
+    "missing logicnode artifacts"
+  ],
+  "rollback_recommended": true,
+  "rollback_reasons": [
+    "mission did not reach COMPLETE (state=FUSION)",
+    "missing pod assignment artifact",
+    "missing logicnode artifacts"
+  ]
+}

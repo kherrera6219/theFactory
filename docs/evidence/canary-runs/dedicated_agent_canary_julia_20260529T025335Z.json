@@ -1,24 +1,10 @@
 {
-  "run_timestamp_utc": "2026-05-29T02:55:53.062487+00:00",
-  "profile_label": "shared-workers",
-  "mission_id": "mission-1de31a86-dc8b-4663-b4a8-1c23dafab2fc",
+  "run_timestamp_utc": "2026-05-29T03:04:01.126660+00:00",
+  "mission_id": "mission-7a2b5f05-7aba-45d1-875c-4f3da65f57d7",
+  "profile_label": "dedicated-agent-canary",
+  "requested_target_language": "julia",
+  "expected_pod_manager_agent_id": "AGENT-30-PODD-MGR",
   "final_state": "COMPLETE",
-  "mission_events": [
-    "MISSION_COMPLETE",
-    "MISSION_VERIFIED",
-    "MISSION_FUSION",
-    "MISSION_POD_GROUP_STANDARD_PRODUCED",
-    "MISSION_GATING",
-    "MISSION_RUNNING",
-    "MISSION_SPECIALIST_PLANNED",
-    "MISSION_SPECIALIST_ASSIGNED",
-    "MISSION_POD_MANAGER_ASSIGNED",
-    "MISSION_CEO_DELEGATED",
-    "MISSION_FETCH",
-    "MISSION_CLARIFYING",
-    "MISSION_PM_INTAKE",
-    "MISSION_QUEUED"
-  ],
   "assignment_present": true,
   "logicnode_count": 0,
   "chain_event_types": [
@@ -39,13 +25,21 @@
     "MISSION_BUILD_ARTIFACT_PACKAGED",
     "MISSION_EQUIVALENCE_VERIFIED",
     "MISSION_SECURITY_COMPLIANCE_PASSED",
+    "MISSION_DEPENDENCY_INVENTORY_CREATED",
+    "MISSION_DEPENDENCY_CLASSIFIED",
     "MISSION_SECURITY_ANALYSIS_COMPLETE",
     "MISSION_VC_COMMIT_STRATEGY_READY",
     "MISSION_INTEGRATION_TESTS_GENERATED",
     "MISSION_DELIVERED"
   ],
   "missing_chain_events": [],
-  "pass": true,
+  "routing_enforced": true,
+  "intake_agent_id": "AGENT-01-PM",
+  "executive_agent_id": "AGENT-02-CEO",
+  "observed_expected_pod_manager_agent_id": "AGENT-30-PODD-MGR",
+  "completion_blocked_events": 0,
   "passed": true,
-  "failure_reasons": []
+  "failure_reasons": [],
+  "rollback_recommended": false,
+  "rollback_reasons": []
 }
