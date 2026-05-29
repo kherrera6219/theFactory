@@ -679,7 +679,7 @@ test("mission lifecycle journey is covered from intake to live detail", async ({
   await expect(page.getByText(/accepted and queued/i)).toBeVisible();
   await page.getByRole("link", { name: "View Live" }).first().click();
 
-  await expect(page).toHaveURL(/\/missions\/mission-e2e-\d+/);
+  await expect(page).toHaveURL(/\/missions\/detail\?id=mission-e2e-\d+/);
   await expect(page.getByRole("heading", { name: /Mission mission-e2e-/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Mission Phase Stepper" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Route Provenance" })).toBeVisible();
@@ -712,7 +712,7 @@ test("settings and vault flows are regression covered", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Local Runtime and Integrations" })).toBeVisible();
 
   const slotRow = page.locator("tr", { hasText: "AGENT-01-PM-API-KEY" });
-  await slotRow.getByRole("button", { name: "Select" }).click();
+  await slotRow.getByRole("button", { name: "Configure" }).click();
 
   await page.getByLabel("Secret").fill("sk-ant-e2e-secret-123456");
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -758,7 +758,7 @@ test("builder workspace generates actionable diff previews", async ({ page }) =>
   await page.getByRole("button", { name: "Apply Review Gate" }).click();
   await expect(page.getByText(/Review gate persisted at/i)).toBeVisible();
   await page.getByRole("button", { name: "Launch Mission" }).click();
-  await expect(page).toHaveURL(/\/missions\/mission-e2e-\d+/);
+  await expect(page).toHaveURL(/\/missions\/detail\?id=mission-e2e-\d+/);
 });
 
 test("repo intake imports files and launches mission", async ({ page }) => {
@@ -787,7 +787,7 @@ test("repo intake imports files and launches mission", async ({ page }) => {
   await expect(page.getByText("Requested target language")).toBeVisible();
   await page.getByRole("button", { name: "Launch Mission" }).click();
 
-  await expect(page).toHaveURL(/\/missions\/mission-e2e-\d+/);
+  await expect(page).toHaveURL(/\/missions\/detail\?id=mission-e2e-\d+/);
   await expect(page.getByRole("heading", { name: /Mission mission-e2e-/i })).toBeVisible();
 });
 
@@ -821,7 +821,9 @@ test("accessibility checks pass on mission flow pages", async ({ page }) => {
   const liveMissionHref = await liveMissionLink.getAttribute("href");
   await liveMissionLink.click();
   if (liveMissionHref) {
-    await expect(page).toHaveURL(new RegExp(`${liveMissionHref.replace("/", "\\/")}$`));
+    // Escape all regex metacharacters (the href now contains "?" and "=").
+    const escapedHref = liveMissionHref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    await expect(page).toHaveURL(new RegExp(`${escapedHref}$`));
   } else {
     await expect(page).toHaveURL(/\/missions\/[^/]+$/);
   }

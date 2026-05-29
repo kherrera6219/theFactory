@@ -248,7 +248,7 @@ export default function MissionHistoryPage() {
                         <td className="muted">{formatDateTime(m.created_at)}</td>
                         <td>
                           <Link
-                            href={`/missions/${m.mission_id}`}
+                            href={`/missions/detail?id=${m.mission_id}`}
                             className="secondary-button shell-link-button"
                           >
                             View Live

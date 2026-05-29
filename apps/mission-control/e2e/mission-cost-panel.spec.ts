@@ -125,7 +125,7 @@ test("mission-cost-panel details and cost distribution", async ({ page }) => {
     });
   });
 
-  await page.goto(`/missions/${missionId}`);
+  await page.goto(`/missions/detail?id=${missionId}`);
   await expect(page.locator("body")).toBeVisible();
 
   // Verify elements in the CostPanel are fully populated

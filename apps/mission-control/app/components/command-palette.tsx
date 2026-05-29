@@ -207,7 +207,7 @@ export function CommandPalette() {
           label: name || m.mission_id.slice(0, 12) + "…",
           sublabel: `${humanizeState(m.state)} · ${formatDateTime(m.created_at)}`,
           icon: "◎",
-          href: `/missions/${m.mission_id}`,
+          href: `/missions/detail?id=${m.mission_id}`,
         };
       });
 

@@ -74,7 +74,7 @@ export function GlobalSearch() {
           id: m.mission_id,
           label: name || m.mission_id.slice(0, 12) + "…",
           sublabel: `${humanizeState(m.state)} · ${formatDateTime(m.created_at)}`,
-          href: `/missions/${m.mission_id}`,
+          href: `/missions/detail?id=${m.mission_id}`,
           group: "Missions" as const,
         };
       });

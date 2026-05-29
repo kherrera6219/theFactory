@@ -159,7 +159,7 @@ export default function BuilderPage() {
           test_plan: preview.test_plan,
         },
       });
-      router.push(`/missions/${mission.mission_id}`);
+      router.push(`/missions/detail?id=${mission.mission_id}`);
     } catch (launchError) {
       if (launchError instanceof Error && /approval/i.test(launchError.message)) {
         setApproval(null);

@@ -143,7 +143,7 @@ test("mission-build-new-complete E2E flow", async ({ page }) => {
   await page.getByRole("link", { name: "View Live" }).first().click();
 
   // Detail verification
-  await expect(page).toHaveURL(new RegExp(`/missions/${missionId}`));
+  await expect(page).toHaveURL(new RegExp(`/missions/detail\\?id=${missionId}`));
   await expect(page.getByText("Delivered")).toBeVisible();
   await expect(page.getByText("Smelt Stream Module")).toBeVisible();
   await expect(page.getByRole("link", { name: "Download Generated Code" }).first()).toBeVisible();
