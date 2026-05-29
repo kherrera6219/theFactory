@@ -19,7 +19,7 @@ def test_parse_args_defaults(monkeypatch) -> None:
     assert args.gateway_base_url == "http://localhost:8100"
     assert args.orchestrator_base_url == "http://localhost:8101"
     assert args.profile_label == "shared-workers"
-    assert args.timeout_seconds == 90.0
+    assert args.timeout_seconds == 360.0
     assert args.required_chain_events == [
         "MISSION_PM_INTAKE",
         "MISSION_CEO_DELEGATED",
