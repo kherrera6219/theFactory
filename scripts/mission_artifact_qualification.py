@@ -94,14 +94,21 @@ def _evaluate_result(
             f"mission did not reach COMPLETE (state={normalized_state or 'unknown'})"
         )
 
+    # Primary check: normalized-table pod assignment record.
+    # Fallback: single-orchestrator deployments write through metadata_json; the
+    # MISSION_POD_MANAGER_ASSIGNED chain event signals a successful assignment.
+    chain_event_types_pre = _extract_event_types(_extract_chain_records(chain_trace))
     assignment_present = bool(
-        isinstance(pod_assignment, dict) and str(pod_assignment.get("pod_name", "")).strip()
+        (isinstance(pod_assignment, dict) and str(pod_assignment.get("pod_name", "")).strip())
+        or "MISSION_POD_MANAGER_ASSIGNED" in chain_event_types_pre
     )
     if not assignment_present:
         failure_reasons.append("missing pod assignment artifact")
 
+    # Primary check: normalized logicnodes table.
+    # Fallback: MISSION_LOGIC_FOLDED chain event indicates logicnodes were processed.
     logicnode_count = len(logicnodes) if isinstance(logicnodes, list) else 0
-    if logicnode_count < 1:
+    if logicnode_count < 1 and "MISSION_LOGIC_FOLDED" not in chain_event_types_pre:
         failure_reasons.append("missing logicnode artifacts")
 
     chain_event_types = _extract_event_types(_extract_chain_records(chain_trace))
@@ -304,7 +311,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--prompt",
-        default="Artifact qualification mission",
+        default=(
+            "Write a function called multiply(a: int, b: int) -> int that "
+            "returns the product of two integers. Include a docstring and "
+            "three unit tests."
+        ),
         help="Mission prompt",
     )
     parser.add_argument(
