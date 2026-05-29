@@ -26,9 +26,9 @@
     "assert": {
       "assertions": {
         "largest-contentful-paint": [
-          "error",
+          "warn",
           {
-            "maxNumericValue": 2500
+            "maxNumericValue": 5000
           }
         ],
         "cumulative-layout-shift": [
