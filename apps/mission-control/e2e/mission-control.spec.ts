@@ -725,12 +725,12 @@ test("settings and vault flows are regression covered", async ({ page }) => {
   await expect(page.getByText(/Cleared AGENT-01-PM-API-KEY\./)).toBeVisible();
 
   await page.getByLabel("API base URL").fill("https://example.com");
-  await page.getByRole("button", { name: "Save Runtime Preferences" }).click();
+  await page.getByRole("button", { name: "Save preferences" }).click();
   await expect(page.getByText(/must target localhost or 127.0.0.1/i)).toBeVisible();
 
   await page.getByLabel("API base URL").fill("http://localhost:8100");
-  await page.getByRole("button", { name: "Save Runtime Preferences" }).click();
-  await expect(page.getByText("Local runtime preferences saved.")).toBeVisible();
+  await page.getByRole("button", { name: "Save preferences" }).click();
+  await expect(page.getByText("Preferences saved.")).toBeVisible();
 });
 
 test("builder workspace generates actionable diff previews", async ({ page }) => {

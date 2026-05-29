@@ -135,9 +135,10 @@ test("mission-cost-panel details and cost distribution", async ({ page }) => {
   await expect(page.getByText("120,000 in / 34,000 out")).toBeVisible();
   await expect(page.locator(".cost-analysis-panel").getByText("14", { exact: true })).toBeVisible();
 
-  // Verify provider breakdown
-  await expect(page.getByText("openai", { exact: true })).toBeVisible();
-  await expect(page.getByText("gpt-5.5", { exact: true })).toBeVisible();
+  // Verify provider breakdown (provider/model can appear in both provider and
+  // agent breakdown sections, so assert the first match).
+  await expect(page.getByText("openai", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("gpt-5.5", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("$1.2000")).toBeVisible();
 
   // Verify agent breakdown
