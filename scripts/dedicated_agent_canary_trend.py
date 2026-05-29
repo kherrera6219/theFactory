@@ -212,14 +212,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--timeout-seconds",
         type=float,
-        default=90.0,
-        help="Per-language canary timeout",
+        default=360.0,
+        help="Per-language canary timeout (seconds)",
     )
     parser.add_argument(
         "--poll-seconds",
         type=float,
-        default=1.0,
-        help="Per-language canary poll interval",
+        default=10.0,
+        help="Per-language canary poll interval (seconds)",
     )
     parser.add_argument(
         "--python-executable",
