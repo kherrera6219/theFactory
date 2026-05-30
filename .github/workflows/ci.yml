@@ -106,7 +106,7 @@ jobs:
       - name: Test with Coverage
         run: |
           mkdir -p reports
-          pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80 --junitxml=reports/junit.xml
+          pytest --cov=services --cov=shared_runtime --cov-report=term-missing --cov-report=xml --cov-fail-under=80 --junitxml=reports/junit.xml
           python scripts/check_coverage_thresholds.py \
             --coverage-file coverage.xml \
             --global-threshold 80 \

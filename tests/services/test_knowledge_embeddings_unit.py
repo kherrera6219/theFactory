@@ -36,10 +36,13 @@ def _settings(**overrides: object) -> Settings:
 
 def test_embedding_config_defaults_to_gemini() -> None:
     # S1-04: default provider was intentionally changed from "deterministic" to "gemini".
+    # S5-03: with knowledge_embedding_model defaulting to "" (no hardcoded model),
+    # embedding_config falls through to the per-provider default → gemini-embedding-001
+    # (the actual model available on the API; text-embedding-004 was dead).
     config = knowledge_embeddings.embedding_config(_settings(), vector_size=64)
 
     assert config["provider"] == "gemini"
-    assert config["model"] == "text-embedding-004"
+    assert config["model"] == "gemini-embedding-001"
     assert config["dimensions"] == 64
 
 

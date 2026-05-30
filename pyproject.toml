@@ -22,7 +22,7 @@ ignore = ["E501"]
 
 [tool.coverage.run]
 branch = true
-source = ["services"]
+source = ["services", "shared_runtime"]
 
 [tool.coverage.report]
 show_missing = true
