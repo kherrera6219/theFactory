@@ -339,45 +339,121 @@ def _upsert_knowledge_safe(
         raise
 
 
+def _attachment_field(att: Any, field: str, default: str) -> str:
+    if isinstance(att, dict):
+        return str(att.get(field, default) or default)
+    return str(getattr(att, field, default) or default)
+
+
+def _attachment_object_key(settings: Any, mission_id: str, file_id: str) -> str:
+    """Derive the object-storage key where an attachment's bytes are stored.
+
+    An attachment may carry an explicit ``object_key`` (set by the API layer at
+    upload time); otherwise we fall back to the conventional
+    ``{prefix}/{mission_id}/attachments/{file_id}`` layout.
+    """
+    prefix = str(getattr(settings, "object_storage_prefix", "missions") or "").strip("/")
+    if prefix:
+        return f"{prefix}/{mission_id}/attachments/{file_id}"
+    return f"{mission_id}/attachments/{file_id}"
+
+
+def _load_attachment_bytes(att: Any, settings: Any, mission_id: str, file_id: str) -> bytes | None:
+    """Return the raw bytes for an attachment, or ``None`` if unavailable.
+
+    Bytes may be supplied inline on the attachment (``content_bytes``) or read
+    back from object storage by key. Any storage failure is swallowed to
+    ``None`` so intake degrades to metadata-only handling.
+    """
+    inline = att.get("content_bytes") if isinstance(att, dict) else getattr(att, "content_bytes", None)
+    if isinstance(inline, (bytes, bytearray)):
+        return bytes(inline)
+
+    explicit_key = _attachment_field(att, "object_key", "")
+    key = explicit_key or _attachment_object_key(settings, mission_id, file_id)
+    try:
+        from .object_store import get_object
+        return get_object(settings, key)
+    except Exception as exc:  # noqa: BLE001 - degrade to metadata-only on any error
+        LOGGER.warning("Attachment byte fetch failed for key %s: %s", key, type(exc).__name__)
+        return None
+
+
 async def _process_mission_attachments(
     *,
     mission_id: str,
     attachments: list[Any],
     settings: Any,
 ) -> dict[str, Any]:
-    """Index mission-specific attachments into the Knowledge Lake."""
+    """Index mission-specific attachments into the Knowledge Lake.
+
+    For each attachment we attempt to load the raw bytes (inline or from object
+    storage) and extract real text via :mod:`orchestrator.document_parser`.
+    Extracted content is indexed into the Knowledge Lake and attached back to the
+    in-memory attachment object as ``content`` so the PM prompt can embed it.
+    When bytes are unavailable (metadata-only intake), we preserve the legacy
+    behaviour of indexing filename/purpose metadata with a logged warning.
+    """
+    from .document_parser import parse_document
+
     processed_count = 0
-    errors = []
-    knowledge_ids = []
+    errors: list[str] = []
+    knowledge_ids: list[str] = []
 
     for att in attachments:
-        # Note: In production, this would use object_store and actual doc extractors (PDF/Word).
-        # Here we index metadata and purpose to enable downstream reasoning.
-        filename = "unknown"
-        file_id = "unknown"
-        purpose = "reference"
-
-        if isinstance(att, dict):
-            filename = att.get("filename", "unknown")
-            file_id = att.get("file_id", "unknown")
-            purpose = att.get("purpose", "reference")
-        else:
-            filename = getattr(att, "filename", "unknown")
-            file_id = getattr(att, "file_id", "unknown")
-            purpose = getattr(att, "purpose", "reference")
+        filename = _attachment_field(att, "filename", "unknown")
+        file_id = _attachment_field(att, "file_id", "unknown")
+        purpose = _attachment_field(att, "purpose", "reference")
+        content_type = _attachment_field(att, "content_type", "")
 
         knowledge_id = f"mission.{mission_id}.att.{file_id}"
 
+        extracted: str | None = None
+        raw = _load_attachment_bytes(att, settings, mission_id, file_id)
+        if raw is not None:
+            extracted = parse_document(raw, content_type, filename)
+            if extracted is None:
+                LOGGER.warning(
+                    "No text extracted from attachment %s (type=%s)", filename, content_type
+                )
+        else:
+            LOGGER.warning(
+                "No bytes available for attachment %s; indexing metadata only", filename
+            )
+
         try:
-            content = {
-                "title": f"Attachment: {filename}",
-                "purpose": purpose,
-                "topics": [
-                    ("file_metadata", f"Filename: {filename}, ID: {file_id}, Purpose: {purpose}")
-                ],
-                "hash": hashlib.sha256(f"{file_id}-{filename}".encode()).hexdigest(),
-                "source": "attachment_extraction"
-            }
+            if extracted:
+                content = {
+                    "type": "attachment",
+                    "title": f"Attachment: {filename}",
+                    "filename": filename,
+                    "purpose": purpose,
+                    "language": "document",
+                    "combined_text": extracted,
+                    "content": extracted,
+                    "topics": [("document_content", extracted)],
+                    "hash": hashlib.sha256(extracted.encode("utf-8")).hexdigest(),
+                    "source": "attachment_extraction",
+                }
+                # Surface the extracted text to dict-form attachments so callers
+                # that reuse this list (e.g. the PM prompt) see the content.
+                if isinstance(att, dict):
+                    att["content"] = extracted
+            else:
+                content = {
+                    "type": "attachment",
+                    "title": f"Attachment: {filename}",
+                    "filename": filename,
+                    "purpose": purpose,
+                    "topics": [
+                        (
+                            "file_metadata",
+                            f"Filename: {filename}, ID: {file_id}, Purpose: {purpose}",
+                        )
+                    ],
+                    "hash": hashlib.sha256(f"{file_id}-{filename}".encode()).hexdigest(),
+                    "source": "attachment_metadata",
+                }
 
             await asyncio.to_thread(
                 _upsert_knowledge_safe,
@@ -395,5 +471,5 @@ async def _process_mission_attachments(
     return {
         "processed_count": processed_count,
         "knowledge_ids": knowledge_ids,
-        "errors": errors
+        "errors": errors,
     }

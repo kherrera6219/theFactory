@@ -199,6 +199,52 @@ async def _persist_metadata(
     return record
 
 
+async def _resolve_attachment_content(
+    *,
+    mission_id: str,
+    attachments: Any,
+    settings: Any,
+) -> list[dict[str, Any]]:
+    """Convert mission attachments to dicts enriched with extracted document text.
+
+    Each attachment is normalised to a dict (``filename``/``content_type``/
+    ``purpose``/``content``). When the raw bytes are available (inline or in
+    object storage) the document is parsed and its text placed in ``content`` so
+    the PM prompt can embed it; otherwise the attachment degrades to metadata
+    only. Never raises — intake proceeds even if every attachment fails to parse.
+    """
+    from ..document_parser import parse_document
+    from ..is_agent import _attachment_field, _load_attachment_bytes
+
+    resolved: list[dict[str, Any]] = []
+    for att in attachments or []:
+        filename = _attachment_field(att, "filename", "unknown")
+        file_id = _attachment_field(att, "file_id", "unknown")
+        purpose = _attachment_field(att, "purpose", "reference")
+        content_type = _attachment_field(att, "content_type", "")
+
+        existing = att.get("content") if isinstance(att, dict) else getattr(att, "content", None)
+        extracted = str(existing).strip() if existing else None
+        if not extracted:
+            try:
+                raw = _load_attachment_bytes(att, settings, mission_id, file_id)
+            except Exception:  # noqa: BLE001 - degrade to metadata-only
+                raw = None
+            if raw is not None:
+                extracted = parse_document(raw, content_type, filename)
+
+        resolved.append(
+            {
+                "file_id": file_id,
+                "filename": filename,
+                "content_type": content_type,
+                "purpose": purpose,
+                "content": extracted or "",
+            }
+        )
+    return resolved
+
+
 async def _prepare_pm_intake(
     *,
     app: Any,
@@ -217,13 +263,18 @@ async def _prepare_pm_intake(
     mission_type = str(metadata.get("mission_type") or "BUILD_NEW").strip().upper()
     depth_mode = str(metadata.get("depth_mode") or "STANDARD").strip().upper()
     output_mode = str(metadata.get("output_mode") or "FULL_BUILD").strip().upper()
+    pm_attachments = await _resolve_attachment_content(
+        mission_id=mission_id,
+        attachments=getattr(mission, "attachments", []),
+        settings=settings,
+    )
     feature_contract = await _pkg().generate_pm_feature_contract(
         prompt=str(mission.prompt or ""),
         mission_type=mission_type,
         depth_mode=depth_mode,
         output_mode=output_mode,
         requested_target_language=mission.requested_target_language,
-        attachments=getattr(mission, "attachments", []),
+        attachments=pm_attachments,
         global_style_directives=getattr(mission, "global_style_directives", []),
     )
 

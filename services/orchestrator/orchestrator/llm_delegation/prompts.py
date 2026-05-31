@@ -259,7 +259,19 @@ def _build_pm_feature_contract_prompt(
     if attachments:
         docs_context = "Attached Reference Documents:\n"
         for att in attachments:
-            docs_context += f"- {att.get('filename')} (Type: {att.get('content_type')}, Purpose: {att.get('purpose')})\n"
+            docs_context += (
+                f"- {att.get('filename')} (Type: {att.get('content_type')}, "
+                f"Purpose: {att.get('purpose')})\n"
+            )
+            extracted = str(att.get("content") or "").strip()
+            if extracted:
+                docs_context += (
+                    f"\n## Attached Document: {att.get('filename')}\n"
+                    f"{extracted[:2000]}"
+                )
+                if len(extracted) > 2000:
+                    docs_context += "..."
+                docs_context += "\n"
         docs_context += "\n"
 
     style_context = ""
