@@ -1,5 +1,6 @@
 import importlib
 import sys
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -118,11 +119,22 @@ def _patch_db(monkeypatch, cursors: list[FakeCursor]) -> list[FakeCursor]:
     queue = list(cursors)
     used: list[FakeCursor] = []
 
-    def _db_connect(_: Settings) -> FakeConn:
+    def _next_conn() -> FakeConn:
         cursor = queue.pop(0)
         used.append(cursor)
         return FakeConn(cursor)
 
+    def _db_connect(_: Settings) -> FakeConn:
+        return _next_conn()
+
+    @contextmanager
+    def _get_connection():
+        yield _next_conn()
+
+    # db_connect is still used by ensure_db_schema/migrations; get_connection
+    # backs all storage operations now that they borrow from the pool.
+    monkeypatch.setattr(storage_core, "db_connect", _db_connect)
+    monkeypatch.setattr(storage, "db_connect", _db_connect)
     for module in (
         storage,
         storage_core,
@@ -132,7 +144,7 @@ def _patch_db(monkeypatch, cursors: list[FakeCursor]) -> list[FakeCursor]:
         storage_artifacts,
         storage_agents,
     ):
-        monkeypatch.setattr(module, "db_connect", _db_connect)
+        monkeypatch.setattr(module, "get_connection", _get_connection)
     return used
 
 

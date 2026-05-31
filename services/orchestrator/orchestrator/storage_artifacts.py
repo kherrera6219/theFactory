@@ -7,7 +7,7 @@ from typing import Any
 
 from .models import MissionBuildArtifactRecord
 from .settings import Settings
-from .storage_core import _json_to_dict, _to_iso, db_connect
+from .storage_core import _json_to_dict, _to_iso, get_connection
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def upsert_audit_report(
     report: dict[str, Any],
     created_at: str,
 ) -> dict[str, Any]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -72,7 +72,7 @@ def upsert_audit_report(
 
 
 def list_audit_reports(settings: Settings, mission_id: str, limit: int) -> list[dict[str, Any]]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -99,7 +99,7 @@ def list_audit_reports(settings: Settings, mission_id: str, limit: int) -> list[
 
 
 def list_recent_audit_reports(settings: Settings, limit: int) -> list[dict[str, Any]]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -137,7 +137,7 @@ def upsert_review_approval(
     expires_at: str | None,
     hmac_digest: str | None,
 ) -> dict[str, Any]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -222,7 +222,7 @@ def upsert_review_approval(
 
 
 def get_review_approval(settings: Settings, approval_id: str) -> dict[str, Any] | None:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -318,7 +318,7 @@ def upsert_build_artifact(
                 mission_id, artifact_id, exc,
             )
 
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -411,7 +411,7 @@ def upsert_build_artifact(
 
 
 def list_build_artifacts(settings: Settings, mission_id: str, limit: int) -> list[dict[str, Any]]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -453,7 +453,7 @@ def get_build_artifact(
     mission_id: str,
     artifact_id: str,
 ) -> dict[str, Any] | None:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -494,7 +494,7 @@ def insert_testdata_manifest(
     base_image = str(manifest.get("base_image") or "").strip() or None
     test_framework = str(manifest.get("test_framework") or "").strip() or None
     source = str(manifest.get("source") or "").strip() or None
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -538,7 +538,7 @@ def insert_testdata_manifest(
 
 
 def get_testdata_manifest(settings: Settings, mission_id: str) -> dict[str, Any] | None:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -577,7 +577,7 @@ def insert_runtime_qc_report(
     execution_result: dict[str, Any],
     qc_assessment: dict[str, Any],
 ) -> dict[str, Any]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -640,7 +640,7 @@ def insert_runtime_qc_report(
 
 
 def get_runtime_qc_report(settings: Settings, mission_id: str) -> dict[str, Any] | None:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """

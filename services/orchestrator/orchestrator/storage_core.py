@@ -8,16 +8,27 @@ Do not import domain storage modules from here (would create circular imports).
 from __future__ import annotations
 
 import json
+import logging
+from contextlib import contextmanager
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Iterator
 
 try:
     import psycopg
 except ModuleNotFoundError:
     psycopg = None  # type: ignore[assignment]
 
+try:
+    from psycopg_pool import ConnectionPool
+except ModuleNotFoundError:
+    ConnectionPool = None  # type: ignore[assignment,misc]
+
 from . import migrations
 from .settings import Settings
+
+logger = logging.getLogger(__name__)
+
+_pool: ConnectionPool | None = None
 
 
 class PodAssignmentConflictError(Exception):
@@ -27,9 +38,64 @@ class PodAssignmentConflictError(Exception):
 
 
 def db_connect(settings: Settings) -> Any:
+    """Open a single, direct connection (no pool).
+
+    Retained for migrations and any caller that needs a connection before the
+    pool is initialized. Storage operations should use ``get_connection``.
+    """
     if psycopg is None:
         raise RuntimeError("psycopg dependency is not installed")
     return psycopg.connect(settings.postgres_url, autocommit=True)
+
+
+def init_connection_pool(settings: Settings) -> ConnectionPool:
+    """Initialize the module-level connection pool (idempotent).
+
+    Connections are configured with ``autocommit=True`` to preserve the
+    transaction semantics of the previous per-call ``db_connect`` behavior.
+    """
+    global _pool
+    if _pool is not None:
+        return _pool
+    if ConnectionPool is None:
+        raise RuntimeError("psycopg-pool dependency is not installed")
+
+    def _configure(conn: Any) -> None:
+        conn.autocommit = True
+
+    _pool = ConnectionPool(
+        conninfo=settings.postgres_url,
+        min_size=settings.db_pool_min_size,
+        max_size=settings.db_pool_max_size,
+        max_waiting=20,
+        timeout=30,
+        configure=_configure,
+        open=True,
+    )
+    return _pool
+
+
+def close_connection_pool() -> None:
+    """Close the module-level connection pool, if open."""
+    global _pool
+    if _pool is not None:
+        _pool.close()
+        _pool = None
+
+
+@contextmanager
+def get_connection() -> Iterator[Any]:
+    """Borrow a connection from the pool for the duration of the block.
+
+    The connection is returned to the pool on block exit. Raises if the pool
+    has not been initialized via ``init_connection_pool``.
+    """
+    if _pool is None:
+        raise RuntimeError(
+            "connection pool is not initialized; call init_connection_pool() first"
+        )
+    with _pool.connection() as conn:
+        yield conn
 
 
 def ensure_db_schema(settings: Settings) -> None:
@@ -42,7 +108,7 @@ def ensure_db_schema(settings: Settings) -> None:
 
         from .models import MissionRecord, MissionState
         from .storage_missions import upsert_mission
-        
+
         system_mission = MissionRecord(
             mission_id="__knowledge_lake__",
             prompt="System knowledge lake bootstrap mission.",
@@ -51,9 +117,8 @@ def ensure_db_schema(settings: Settings) -> None:
             metadata={"source": "system", "name": "Global Knowledge Lake"}
         )
         upsert_mission(settings, system_mission, source_stream_id=None)
-    except Exception:
-        # Ignore if exists or other transient startup issue; migrations are the priority.
-        pass
+    except Exception as e:
+        logger.warning("Knowledge lake bootstrap skipped (may already exist): %s", e)
 
 
 def _to_iso(value: Any) -> str:

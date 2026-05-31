@@ -9,7 +9,7 @@ from typing import Any
 
 from .models import AgentActionEventRecord
 from .settings import Settings
-from .storage_core import _json_to_dict, _json_to_list, _to_iso, db_connect
+from .storage_core import _json_to_dict, _json_to_list, _to_iso, get_connection
 
 
 def upsert_agent_heartbeat(
@@ -31,8 +31,8 @@ def upsert_agent_heartbeat(
     normalized_queue_depth = max(0, int(queue_depth))
     normalized_workload = min(100, max(0, int(workload_pct)))
 
-    with db_connect(settings) as conn:
-        # db_connect uses autocommit=True, so the heartbeat upsert and the
+    with get_connection() as conn:
+        # Pool connections use autocommit=True, so the heartbeat upsert and the
         # AGENT_STATE_CHANGED event would otherwise commit independently. The
         # combined transaction() + cursor() wraps both writes so a failure
         # between them rolls back cleanly (no heartbeat without its event).
@@ -145,7 +145,7 @@ def upsert_agent_heartbeat(
 
 
 def get_agent_heartbeat(settings: Settings, agent_id: str) -> dict[str, Any] | None:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -182,7 +182,7 @@ def get_agent_heartbeat(settings: Settings, agent_id: str) -> dict[str, Any] | N
 
 
 def list_agent_heartbeats(settings: Settings, limit: int) -> list[dict[str, Any]]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -221,7 +221,7 @@ def list_agent_heartbeats(settings: Settings, limit: int) -> list[dict[str, Any]
 
 
 def list_recent_agent_events(settings: Settings, limit: int) -> list[dict[str, Any]]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -353,7 +353,7 @@ def insert_agent_action_event(settings: Settings, record: AgentActionEventRecord
         }
     )
     content_sha256 = _content_digest(normalized)
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -517,7 +517,7 @@ def list_mission_agent_action_events(
     mission_id: str,
     limit: int,
 ) -> list[dict[str, Any]]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -598,7 +598,7 @@ def list_project_agent_action_events(
         ORDER BY created_at DESC, event_id DESC
         LIMIT %s
     """
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 query,
