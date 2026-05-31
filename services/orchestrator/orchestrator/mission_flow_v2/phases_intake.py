@@ -471,7 +471,7 @@ async def _prepare_fetch_phase(
     mission — errors are captured in fetch_result and the mission proceeds.
     """
     from ..is_agent import detect_required_languages, run_fetch_phase
-    from ..knowledge_lake import broadcast_knowledge_ready
+    from ..knowledge_lake import broadcast_knowledge_ready, is_stocked
 
     mission = await asyncio.to_thread(_pkg().storage.fetch_mission, settings, mission_id)
     if mission is None:
@@ -496,6 +496,18 @@ async def _prepare_fetch_phase(
 
     metadata["fetch_result"] = fetch_result
     metadata["knowledge_lake_ready"] = fetch_result["knowledge_ready"]
+
+    # Verify the IS-Agent actually persisted knowledge for this mission by
+    # reading it back from PostgreSQL (the unified source of truth). A mismatch
+    # between "fetch reported ready" and "storage has rows" indicates a silent
+    # write failure that would otherwise leave codegen without context.
+    stocked = await asyncio.to_thread(is_stocked, settings=settings, mission_id=mission_id)
+    metadata["knowledge_lake_stocked"] = stocked
+    if fetch_result.get("knowledge_ready") and not stocked:
+        LOGGER.warning(
+            "FETCH reported knowledge_ready but no rows found in storage for mission %s",
+            mission_id,
+        )
 
     if not _chain_event_exists(metadata, "MISSION_FETCH_COMPLETE"):
         append_chain_event(
