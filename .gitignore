@@ -41,6 +41,13 @@ out/
 # Runtime outputs
 backups/
 
+# Generated test/lint/coverage artifacts (produced by CI and local runs)
+coverage.xml
+ruff_errors.txt
+lint_errors.txt
+.secrets.baseline
+reports/
+
 # Secrets / credentials (populate then encrypt before committing)
 config/agent_api_keys.yaml
 config/agent_api_keys.enc.yaml
