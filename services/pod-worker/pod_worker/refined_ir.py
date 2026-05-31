@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -9,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+LOGGER = logging.getLogger(__name__)
 
 
 class RefinedIRParameter(BaseModel):
@@ -208,6 +211,15 @@ def write_refined_ir_module(
     payload = module.model_dump(by_alias=True)
     serialized = json.dumps(payload, indent=2) + "\n"
     target_path.write_text(serialized, encoding="utf-8")
+    # Best-effort ECDSA signature so FUSION can verify the module's authenticity.
+    # Non-fatal: a signing failure must not block the mission pipeline.
+    try:
+        from shared_runtime.crypto_signing import sign_artifact
+
+        sign_artifact(target_path)
+        LOGGER.info("RIR module signed: %s", target_path)
+    except Exception as e:
+        LOGGER.warning("RIR module signing failed (non-fatal): %s", type(e).__name__)
     relative_path = target_path.relative_to(root).as_posix()
     return RefinedIRStoreWrite(
         path=target_path,

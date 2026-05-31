@@ -63,6 +63,11 @@ services:
 
   orchestrator:
     environment:
+      ENVIRONMENT: production
+      # Each agent authenticates with its own dedicated service key in prod — no
+      # shared-identity fallback. The orchestrator logs a SECURITY warning at boot
+      # if this is left as "shared" while ENVIRONMENT=production.
+      AGENT_SERVICE_KEY_MODE: strict
       # --- LangGraph production settings ---
       LANGGRAPH_ENABLED: "true"
       LANGGRAPH_CHECKPOINTER: postgres

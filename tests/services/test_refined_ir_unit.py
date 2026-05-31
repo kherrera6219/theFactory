@@ -64,3 +64,55 @@ def test_write_refined_ir_module_persists_catalog_file(tmp_path: Path) -> None:
     payload = json.loads(record.path.read_text(encoding="utf-8"))
     assert record.relative_path == "missions/mission-1/agent-14-python.rir.module.json"
     assert payload["module"]["agent_id"] == "AGENT-14-PYTHON"
+
+
+def test_write_refined_ir_module_signs_artifact(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv(
+        "ARTIFACT_SIGNING_KEY_PATH", str(tmp_path / "keys" / "artifact.key")
+    )
+    module = build_refined_ir_module(
+        mission_id="mission-1",
+        agent_id="AGENT-14-PYTHON",
+        source_language="python",
+        target_language="python",
+        logicnodes=[_logicnode()],
+        source_ref="mission://mission-1",
+    )
+    record = write_refined_ir_module(
+        module,
+        store_root=tmp_path,
+        mission_id="mission-1",
+        agent_id="AGENT-14-PYTHON",
+    )
+    from shared_runtime.crypto_signing import SIGNATURE_SUFFIX, verify_artifact
+
+    sidecar = Path(str(record.path) + SIGNATURE_SUFFIX)
+    assert sidecar.exists()
+    assert verify_artifact(record.path) is True
+
+
+def test_write_refined_ir_module_signing_failure_is_non_fatal(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # Force sign_artifact to blow up; the write must still succeed.
+    import shared_runtime.crypto_signing as cs
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("keystore unavailable")
+
+    monkeypatch.setattr(cs, "sign_artifact", _boom)
+    module = build_refined_ir_module(
+        mission_id="mission-2",
+        agent_id="AGENT-14-PYTHON",
+        source_language="python",
+        target_language="python",
+        logicnodes=[_logicnode()],
+        source_ref="mission://mission-2",
+    )
+    record = write_refined_ir_module(
+        module,
+        store_root=tmp_path,
+        mission_id="mission-2",
+        agent_id="AGENT-14-PYTHON",
+    )
+    assert record.path.exists()
