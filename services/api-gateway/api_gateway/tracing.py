@@ -12,6 +12,21 @@ def _enabled() -> bool:
     return os.getenv("OTEL_TRACING_ENABLED", "true").strip().lower() in TRUTHY_VALUES
 
 
+def _sampling_ratio() -> float:
+    """Head-based trace sampling ratio (0.0–1.0).
+
+    Defaults to 0.1 (10%) to bound production trace volume and storage; set
+    OTEL_SAMPLING_RATIO=1.0 in dev to capture every trace. A ParentBased
+    sampler wraps this so child spans honor the parent's sampling decision.
+    """
+    try:
+        ratio = float(os.getenv("OTEL_SAMPLING_RATIO", "0.1"))
+    except ValueError:
+        LOGGER.warning("invalid OTEL_SAMPLING_RATIO; falling back to 0.1")
+        return 0.1
+    return min(1.0, max(0.0, ratio))
+
+
 def configure_tracing(app: Any, *, service_name: str) -> bool:
     if not _enabled():
         return False
@@ -24,6 +39,7 @@ def configure_tracing(app: Any, *, service_name: str) -> bool:
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
     except Exception as exc:
         LOGGER.warning("tracing disabled (dependencies unavailable): %s", exc)
         return False
@@ -32,10 +48,11 @@ def configure_tracing(app: Any, *, service_name: str) -> bool:
         "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
         "http://jaeger:4318/v1/traces",
     ).strip()
+    sampler = ParentBased(root=TraceIdRatioBased(_sampling_ratio()))
     resource = Resource.create({"service.name": service_name})
     provider = trace.get_tracer_provider()
     if not isinstance(provider, TracerProvider):
-        provider = TracerProvider(resource=resource)
+        provider = TracerProvider(resource=resource, sampler=sampler)
         provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
         trace.set_tracer_provider(provider)
 
