@@ -17,6 +17,11 @@ COPY protocol /app/protocol
 RUN useradd --system --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
 USER appuser
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/readyz')" || exit 1
+# Liveness probe: /health returns 200 whenever the process is serving, even if
+# an optional service (Qdrant/Neo4j/object storage) is unavailable. Container
+# health must reflect process liveness, not full readiness — /readyz (which
+# also gates on optional services and consumer startup) is used by orchestration
+# readiness probes, not as the restart/dependency signal.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=5 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')" || exit 1
 CMD ["uvicorn", "orchestrator.main:app", "--host", "0.0.0.0", "--port", "8001"]

@@ -379,12 +379,18 @@ services:
       qdrant:
         condition: service_started
     healthcheck:
+      # Liveness, not readiness: /health returns 200 whenever the process is
+      # serving even if an optional service (Qdrant/Neo4j/object storage) is
+      # unavailable. Dependents gate on this signal via depends_on, so coupling
+      # it to optional-service readiness (as /readyz does) would wedge the whole
+      # stack when an optional backend is absent (e.g. the perf-smoke CI stack,
+      # which boots only redis/postgres/qdrant). /readyz remains for readiness.
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8001/readyz', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=2).read()",
         ]
       interval: 10s
       timeout: 3s

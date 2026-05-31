@@ -299,6 +299,30 @@ def test_readyz_covers_optional_dependency_failures(monkeypatch) -> None:
         app.state.protocol_ready = original_protocol_ready
 
 
+def test_initialize_app_state_degrades_when_validator_load_raises(monkeypatch) -> None:
+    """A non-ProtocolValidationError during validator load must not crash startup.
+
+    Regression: a malformed/unreadable schema or topics file (e.g. raising
+    OSError / JSONDecodeError) previously propagated out of _initialize_app_state
+    — which runs at module import — taking the whole orchestrator process down so
+    even /health could not be served. It must instead degrade to not-ready.
+    """
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    def _boom(_cls: Any, _settings: Any) -> Any:
+        raise OSError("schema file is unreadable")
+
+    monkeypatch.setattr(orchestrator_main.EnvelopeValidator, "load", classmethod(_boom))
+
+    orchestrator_main._initialize_app_state(app)
+
+    assert app.state.protocol_ready is False
+    assert app.state.envelope_validator is None
+    assert "OSError" in (app.state.protocol_error or "")
+
+
 def test_build_non_pod_heartbeat_payloads_routes_support_agents() -> None:
     payloads = orchestrator_heartbeat._build_non_pod_heartbeat_payloads(
         runtime={
