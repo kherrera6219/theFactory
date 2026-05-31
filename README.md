@@ -28,7 +28,7 @@
 - [Overview](#overview)
 - [Implementation Status](docs/IMPLEMENTATION_STATUS.md)
 - [Architecture](#architecture)
-- [38-Agent Runtime Model](#41-agent-runtime-model)
+- [41-Agent Runtime Model](#41-agent-runtime-model)
 - [Mission Lifecycle](#mission-lifecycle)
 - [Language Extraction Engine](#language-extraction-engine)
 - [Services](#services)
@@ -194,15 +194,15 @@ The operator-facing mission model surfaces 7 key checkpoint events. These map to
 
 ---
 
-## 38-Agent Runtime Model
+## 41-Agent Runtime Model
 
-The orchestrator maintains a canonical registry of **38 specialist agents** organized across four tiers:
+The orchestrator maintains a canonical registry of **41 specialist agents** organized across four tiers:
 
 | Tier | Agents | Role |
 |------|--------|------|
 | **Interface** | AGENT-01-PM | Project Manager — mission intake and PM→CEO handoff |
 | **Executive** | AGENT-02-CEO | Chief Executor — mission delegation to pod managers |
-| **Support Ring** | AGENT-03 through AGENT-11 | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy |
+| **Support Ring** | AGENT-03 through AGENT-11, AGENT-39 through AGENT-41 | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, Dependency Absorption, Test Data, Runtime QC |
 | **Pod A** (Dynamic) | Manager, Audit, Python, JavaScript/TypeScript, Ruby, PHP Specialists | Dynamic language refinery |
 | **Pod B** (Systems) | Manager, Audit, C, C++, Rust, Zig, Go Specialists | Systems language refinery |
 | **Pod C** (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | Enterprise language refinery |
@@ -355,7 +355,7 @@ Each extracted concept becomes a **LogicNode** with:
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/v1/operations/summary` | Runtime health summary |
-| `GET` | `/v1/operations/agents` | All 38 agent runtime states |
+| `GET` | `/v1/operations/agents` | All 41 agent runtime states |
 | `GET` | `/v1/operations/agent-integrations` | Agent protocol/LLM/persona profiles |
 | `GET` | `/v1/operations/events` | Recent mission events across all missions |
 | `GET` | `/v1/operations/agent-events` | Recent agent-scoped events |

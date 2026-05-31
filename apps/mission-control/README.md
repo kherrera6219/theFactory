@@ -12,7 +12,7 @@ It is designed for local-first Windows operation and provides real-time visibili
 
 - Display global runtime and mission health.
 - Provide mission operations and status workflows.
-- Visualize 38-agent topology and telemetry.
+- Visualize 41-agent topology and telemetry.
 - Render full agent persona profiles with governance evidence.
 - Surface semantic bus and artifact-level observability.
 - Manage local runtime preferences and vault-backed integration secrets.
@@ -66,7 +66,7 @@ Mission Control expects Gateway routes under:
 - `/chat`: PM-style intake surface.
 - `/missions`: mission list and controls.
 - `/missions/[id]`: mission cockpit detail.
-- `/agents`: 38-agent runtime grid with persona detail.
+- `/agents`: 41-agent runtime grid with persona detail.
 - `/logicnodes`: artifact explorer.
 - `/semantic-bus`: protocol/event monitor.
 - `/databases`: data-plane status.

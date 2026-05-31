@@ -270,7 +270,7 @@ x-api-key: <any-key>
 
 Returns system-wide health: mission counts by state, agent counts by state, uptime.
 
-### Agent Registry (all 38 agents)
+### Agent Registry (all 41 agents)
 
 ```http
 GET /v1/operations/agents
@@ -280,7 +280,7 @@ x-api-key: <any-key>
 **Response structure:**
 ```json
 {
-  "total_agents": 38,
+  "total_agents": 41,
   "agents": [
     {
       "agent_id": "AGENT-01-PM",

@@ -45,14 +45,14 @@ theFactory addresses these directly with task-activated specialist agents, depen
 
 | Capability | What It Means |
 |---|---|
-| Task-activated agent workforce | 38+ specialist roles activate only when needed; no idle workforce, no missing skills |
+| Task-activated agent workforce | 41+ specialist roles activate only when needed; no idle workforce, no missing skills |
 | Multi-provider model routing | Anthropic, OpenAI, Google, and local models routed per agent and per data classification |
 | Dependency absorption | The factory eliminates unnecessary dependencies by extracting their intent and regenerating first-party code |
 | Isolated workspaces | Every mission runs in a disposable workspace; the original source is never modified |
 | Ephemeral runtime environments | PostgreSQL, Redis, and other services provisioned per mission, torn down on completion |
 | AI runtime QC | The factory launches the built application and validates it through a sandboxed browser session |
 | Audit evidence bundle | Every mission produces a verifiable proof package: charter, plan, diff, tests, QC, approvals |
-| Multiple deployment topologies | Default condensed runtime; dedicated agent containers; full 38-agent isolation overlay |
+| Multiple deployment topologies | Default condensed runtime; dedicated agent containers; full 41-agent isolation overlay |
 
 ## How It Works at a Glance
 

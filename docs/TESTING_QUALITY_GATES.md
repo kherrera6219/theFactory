@@ -111,7 +111,7 @@ The following files are individually gated by `scripts/check_coverage_thresholds
 |------|-----------|
 | `services/orchestrator/orchestrator/protocol.py` | Envelope validation — must be exhaustive |
 | `services/orchestrator/orchestrator/runtime.py` | Mission state machine — maintain a high-confidence baseline on the large runtime surface |
-| `services/orchestrator/orchestrator/agent_personas.py` | 38-agent persona data integrity |
+| `services/orchestrator/orchestrator/agent_personas.py` | 41-agent persona data integrity |
 | `services/orchestrator/orchestrator/agent_integrations.py` | Protocol and LLM assignment logic |
 | `services/orchestrator/orchestrator/agent_registry.py` | Runtime agent state management |
 | `services/semantic-bus-mcp/semantic_bus/mcp_server.py` | 6-protocol routing and DLQ |
@@ -163,7 +163,7 @@ Located in `apps/mission-control/e2e/`.
 | Journey | What is Tested |
 |---------|---------------|
 | Mission lifecycle | Create → poll → state transitions → completion |
-| Operations views | Agent roster (38 agents), summary stats |
+| Operations views | Agent roster (41 agents), summary stats |
 | Settings / Vault | Key storage, retrieval, vault API |
 | Builder preview | Diff rendering, file selection |
 | Repository intake | GitHub metadata import, file tree selection |
