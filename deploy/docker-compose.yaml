@@ -176,7 +176,7 @@ services:
 
   pgbouncer:
     <<: [*common-service, *data-service-hardening]
-    image: bitnami/pgbouncer:1.23.1
+    image: pgbouncer/pgbouncer:1.22.1
     environment:
       POSTGRESQL_HOST: postgres
       POSTGRESQL_PORT: 5432
