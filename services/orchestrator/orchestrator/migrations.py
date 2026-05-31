@@ -13,6 +13,11 @@ except ModuleNotFoundError:
     psycopg = None
 
 
+# Fixed advisory-lock id so concurrent orchestrator boots serialize on apply_migrations()
+# instead of racing on the schema_migrations primary key.
+MIGRATION_ADVISORY_LOCK_ID = 12345678
+
+
 @dataclass(frozen=True)
 class MigrationScript:
     version: str
@@ -72,35 +77,42 @@ def apply_migrations(
 
     with connector(settings) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS schema_migrations (
-                    version TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    checksum TEXT NOT NULL,
-                    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-                """
-            )
-            cur.execute("SELECT version, checksum FROM schema_migrations")
-            applied_rows = cur.fetchall() or []
-            applied_checksums = {row[0]: row[1] for row in applied_rows}
-
-            for script in scripts:
-                existing_checksum = applied_checksums.get(script.version)
-                if existing_checksum is not None:
-                    if existing_checksum != script.checksum:
-                        raise RuntimeError(
-                            "migration checksum mismatch for "
-                            f"version {script.version} ({script.name})"
-                        )
-                    continue
-
-                cur.execute(script.sql)
+            # Serialize concurrent migration runs. The lock is held for the duration of
+            # the migration work and released in the finally block (also released on
+            # connection close, but we release explicitly to free it promptly).
+            cur.execute("SELECT pg_advisory_lock(%s)", (MIGRATION_ADVISORY_LOCK_ID,))
+            try:
                 cur.execute(
                     """
-                    INSERT INTO schema_migrations (version, name, checksum)
-                    VALUES (%s, %s, %s)
-                    """,
-                    (script.version, script.name, script.checksum),
+                    CREATE TABLE IF NOT EXISTS schema_migrations (
+                        version TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        checksum TEXT NOT NULL,
+                        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                    """
                 )
+                cur.execute("SELECT version, checksum FROM schema_migrations")
+                applied_rows = cur.fetchall() or []
+                applied_checksums = {row[0]: row[1] for row in applied_rows}
+
+                for script in scripts:
+                    existing_checksum = applied_checksums.get(script.version)
+                    if existing_checksum is not None:
+                        if existing_checksum != script.checksum:
+                            raise RuntimeError(
+                                "migration checksum mismatch for "
+                                f"version {script.version} ({script.name})"
+                            )
+                        continue
+
+                    cur.execute(script.sql)
+                    cur.execute(
+                        """
+                        INSERT INTO schema_migrations (version, name, checksum)
+                        VALUES (%s, %s, %s)
+                        """,
+                        (script.version, script.name, script.checksum),
+                    )
+            finally:
+                cur.execute("SELECT pg_advisory_unlock(%s)", (MIGRATION_ADVISORY_LOCK_ID,))

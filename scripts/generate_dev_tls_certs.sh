@@ -54,7 +54,7 @@ EOF
 ensure_dir "$postgres_dir"
 ensure_dir "$redis_dir"
 
-if [ "$force" != "--force" ] && bundle_exists "$postgres_dir" "server" && bundle_exists "$redis_dir" "redis" ]; then
+if [ "$force" != "--force" ] && bundle_exists "$postgres_dir" "server" && bundle_exists "$redis_dir" "redis"; then
   echo "Dev TLS certs already exist. Use --force to regenerate."
   exit 0
 fi

@@ -75,6 +75,7 @@ _V2_TO_V1_MAP: dict[MissionState, MissionState] = {
     MissionState.intake: MissionState.intake,
     MissionState.queued: MissionState.queued,
     MissionState.pm_intake: MissionState.queued,
+    MissionState.clarifying: MissionState.queued,
     MissionState.fetch: MissionState.queued,
     MissionState.ceo_delegated: MissionState.queued,
     MissionState.pod_assigned: MissionState.queued,
