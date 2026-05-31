@@ -318,6 +318,50 @@ def put_object(
         )
 
 
+def get_object(settings: Settings, key: str) -> bytes | None:
+    """Download raw bytes from object storage at ``key``.
+
+    Returns the object body, or ``None`` when object storage is disabled or the
+    object does not exist. Other errors (auth, network) propagate so callers can
+    distinguish "not stored" from "storage unavailable".
+    """
+    if not settings.object_storage_enabled:
+        return None
+    started = time.perf_counter()
+    success = False
+    try:
+        client = _s3_client(settings)
+        try:
+            response = client.get_object(
+                Bucket=settings.object_storage_bucket,
+                Key=key,
+            )
+        except Exception as exc:
+            if type(exc).__name__ in ("NoSuchKey", "ClientError") and _is_not_found(exc):
+                success = True  # a clean "not found" is not an adapter failure
+                return None
+            raise
+        body = response.get("Body") if isinstance(response, dict) else None
+        data = body.read() if body is not None else b""
+        success = True
+        return data
+    finally:
+        observe_optional_adapter_operation(
+            adapter=_ADAPTER,
+            operation="get_object",
+            duration_seconds=time.perf_counter() - started,
+            success=success,
+        )
+
+
+def _is_not_found(exc: Exception) -> bool:
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        code = str(response.get("Error", {}).get("Code", ""))
+        return code in ("NoSuchKey", "404", "NotFound")
+    return False
+
+
 def get_presigned_url(
     settings: Settings,
     key: str,
