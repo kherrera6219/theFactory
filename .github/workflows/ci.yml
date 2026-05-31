@@ -189,6 +189,16 @@ jobs:
             # jaeger is absent from the perf-smoke stack; disabling tracing
             # skips the per-/health socket probe to jaeger:4318.
             echo "OTEL_TRACING_ENABLED=false"
+            # CI Redis stack uses dev config: plaintext on port 6379, no TLS.
+            # The derived .env has TLS port 6380 + cert paths that don't exist in CI.
+            echo "REDIS_URL=redis://:ci_dev_redis_password_0123456789abcd@redis:6379/0"
+            # PgBouncer in CI uses edoburu image which defaults to md5 auth.
+            # Postgres pg_hba.conf uses scram-sha-256, causing "wrong password type".
+            # Override PgBouncer to use scram-sha-256 to match.
+            echo "PGBOUNCER_AUTH_TYPE=scram-sha-256"
+            # Also override MIGRATION_POSTGRES_URL to bypass PgBouncer for migrations.
+            # Use direct Postgres with plaintext (no TLS in CI dev stack).
+            echo "MIGRATION_POSTGRES_URL=postgresql://postgres:ci_dev_postgres_password_0123456789ab@postgres:5432/ulr?sslmode=disable"
           } >> .env
           cp .env deploy/.env
 
