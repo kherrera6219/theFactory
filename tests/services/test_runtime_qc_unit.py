@@ -93,3 +93,47 @@ def test_rqca_assessment_fallback_marks_fail_not_safe() -> None:
 
     assert result["qc_verdict"] == "FAIL"
     assert result["deployment_safe"] is False
+
+
+def test_rqca_assessment_skipped_is_degraded_not_safe() -> None:
+    """When runtime QC could not execute (DRY_RUN/SKIPPED), the assessment must
+    be reported as degraded/advisory — not a fake deployment-safe pass."""
+    for verdict in ("SKIPPED", "DRY_RUN"):
+        result = asyncio.run(
+            llm_delegation.generate_rqca_assessment(
+                mission_id="mission-1",
+                execution_result={"verdict": verdict, "passed": True},
+                mission_contract={},
+                language="python",
+            )
+        )
+        assert result["qc_verdict"] == "ADVISORY"
+        assert result["status"] == "degraded"
+        assert result["advisory"] is True
+        assert result["deployment_safe"] is False
+
+
+def test_security_analysis_offline_fallback_is_degraded() -> None:
+    """The offline security gate must report degraded status, not passed=True."""
+    result = llm_delegation._fallback_security_analysis(
+        mission_id="mission-1", language="python"
+    )
+    assert result["passed"] is False
+    assert result["status"] == "degraded"
+    assert result["advisory"] is True
+    assert result["deployment_safe"] is False
+    assert result["reason"] == "LLM unavailable — gate bypassed"
+
+
+def test_pod_audit_offline_fallback_is_degraded() -> None:
+    """The offline pod-audit gate must report degraded status, not a fake PASS."""
+    result = llm_delegation._fallback_pod_audit_verdict(
+        mission_id="mission-1",
+        pod_name="podA",
+        audit_agent_id="AGENT-13-PODA-AUDIT",
+    )
+    assert result["passed"] is False
+    assert result["verdict"] == "DEGRADED"
+    assert result["status"] == "degraded"
+    assert result["advisory"] is True
+    assert result["reason"] == "LLM unavailable — gate bypassed"

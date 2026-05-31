@@ -99,13 +99,21 @@ async def generate_rqca_assessment(
     verdict = str(execution_result.get("verdict") or "SKIPPED").strip().upper()
     passed = bool(execution_result.get("passed", False))
     if verdict in {"DRY_RUN", "SKIPPED"}:
+        # Runtime QC could not actually execute the artifact (no sandbox / Docker
+        # unavailable / unsupported language). Report this honestly as a degraded
+        # advisory rather than claiming the artifact is deployment-safe. The
+        # mission can still continue (advisory=True) but the operator sees that
+        # the gate was bypassed instead of a fake green check.
         return {
             "qc_verdict": "ADVISORY",
+            "status": "degraded",
+            "reason": "Runtime QC did not execute — sandbox unavailable; gate bypassed",
+            "advisory": True,
             "confidence": "LOW",
             "execution_verdict": verdict,
             "findings": [],
             "remediation": [],
-            "deployment_safe": True,
+            "deployment_safe": False,
             "source": "advisory",
             "assessed_at": datetime.now(UTC).isoformat(),
         }

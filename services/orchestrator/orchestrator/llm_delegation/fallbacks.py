@@ -394,19 +394,31 @@ def _fallback_pod_group_standard(
 
 
 def _fallback_security_analysis(*, mission_id: str, language: str) -> dict[str, Any]:
+    """Offline fallback for the security gate.
+
+    The LLM is unavailable, so the gate could not actually run. Report this
+    honestly as ``degraded`` with ``passed=False`` rather than a fake green
+    ``passed=True``. The ``advisory=True`` flag means the mission can still
+    continue (offline development is supported) but the operator sees a warning
+    instead of a clean pass.
+    """
     LLM_FALLBACK_TOTAL.labels(agent_id="AGENT-05-SECURITY", reason="offline").inc()
     return {
         "schema_version": "security_analysis.v1",
         "mission_id": _clean_text(mission_id, max_length=96),
         "agent_id": "AGENT-05-SECURITY",
-        "risk_level": "low",
-        "deployment_safe": True,
+        "risk_level": "unknown",
+        "deployment_safe": False,
         "threats": [],
         "summary": (
-            "Security analysis skipped — LLM provider unavailable. Manual review recommended."
+            "Security analysis could not run — LLM provider unavailable. "
+            "Gate bypassed (advisory); manual review required before production."
         ),
         "recommendations": ["Perform manual security review before production deployment."],
-        "passed": True,
+        "passed": False,
+        "status": "degraded",
+        "reason": "LLM unavailable — gate bypassed",
+        "advisory": True,
         "source": "fallback",
         "created_at": datetime.now(UTC).isoformat(),
     }
@@ -507,18 +519,28 @@ _DEFAULT_AUDIT_AGENT = "AGENT-13-PODA-AUDIT"
 def _fallback_pod_audit_verdict(
     *, mission_id: str, pod_name: str, audit_agent_id: str
 ) -> dict[str, Any]:
+    """Offline fallback for the pod-audit gate.
+
+    The LLM could not run the audit, so report ``degraded`` with
+    ``passed=False`` rather than granting a fake ``PASS``. ``advisory=True``
+    keeps the pipeline moving (offline development) while making the bypass
+    visible to operators.
+    """
     return {
         "schema_version": "pod_audit_verdict.v1",
         "mission_id": mission_id,
         "pod_name": pod_name,
         "agent_id": audit_agent_id,
-        "verdict": "PASS",
-        "passed": True,
-        "quality_score": 0.75,
+        "verdict": "DEGRADED",
+        "passed": False,
+        "status": "degraded",
+        "reason": "LLM unavailable — gate bypassed",
+        "advisory": True,
+        "quality_score": 0.0,
         "findings": [],
         "summary": (
-            "Pod audit skipped — LLM provider unavailable. "
-            "Deterministic pass granted for pipeline continuity."
+            "Pod audit could not run — LLM provider unavailable. "
+            "Gate bypassed (advisory); rerun with LLM access for an authoritative verdict."
         ),
         "recommendations": ["Rerun pod audit with LLM access for authoritative verdict."],
         "source": "fallback",
