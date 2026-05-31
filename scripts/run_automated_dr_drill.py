@@ -5,6 +5,7 @@
 import json
 import os
 import subprocess
+import sys
 import time
 import urllib.request
 from datetime import datetime, timezone
@@ -187,5 +188,8 @@ def main():
     print(f"Latest pointer updated: {latest_evidence_path}")
     print("=========================================================")
 
+    # Propagate the drill outcome so callers (e.g. `make dr`, CI) fail on a failed drill.
+    return 0 if passed else 1
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

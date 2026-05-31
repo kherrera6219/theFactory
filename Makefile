@@ -6,7 +6,7 @@ check-env:
 force-stop:
 	@python scripts/force_stop.py
 
-.PHONY: check-env up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai demo audit promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs
+.PHONY: check-env up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai demo audit promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr dr-ps1 perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs
 # validate: full pre-merge gate — lint + schema check + pytest + UI lint/test
 
 up: check-env tls-certs
@@ -151,6 +151,9 @@ endif
 		--output-file reports/backup-verification.local.json
 
 dr:
+	python scripts/run_automated_dr_drill.py $(if $(DRY_RUN),--dry-run,)
+
+dr-ps1:
 	powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1
 
 perf:
