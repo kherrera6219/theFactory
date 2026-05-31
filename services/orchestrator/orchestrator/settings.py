@@ -116,12 +116,22 @@ class Settings:
     protocol_bus_consumer_enabled: bool = True
     db_pool_min_size: int = 2
     db_pool_max_size: int = 10
+    # Direct-to-Postgres URL used only for schema migrations, which take a
+    # session-level advisory lock and so cannot run through PgBouncer's
+    # transaction pooling. Empty falls back to ``postgres_url`` (see the
+    # ``migration_postgres_url`` property) so non-pooled setups are unaffected.
+    migration_postgres_url_override: str = ""
     audit_retention_days: int = 90
     logicnode_schema_path: Path = Path("schemas/logicnode.schema.json")
     environment: str = "development"
     # "shared" — agents without a dedicated key fall back to the shared service key.
     # "strict" — each agent must have its own key (no shared-identity fallback).
     agent_service_key_mode: str = "shared"
+
+    @property
+    def migration_postgres_url(self) -> str:
+        """Connection URL for schema migrations (Postgres directly, no bouncer)."""
+        return self.migration_postgres_url_override.strip() or self.postgres_url
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -222,6 +232,11 @@ def load_settings() -> Settings:
     return Settings(
         redis_url=os.getenv("REDIS_URL", "redis://redis:6379/0"),
         postgres_url=os.getenv("POSTGRES_URL", "postgresql://postgres:postgres@postgres:5432/ulr"),
+        # Migrations take a session-level advisory lock and must run on a stable
+        # session. PgBouncer transaction pooling reassigns the backend (and runs
+        # DISCARD ALL) between statements, silently dropping that lock — so point
+        # migrations directly at Postgres. Empty falls back to postgres_url.
+        migration_postgres_url_override=os.getenv("MIGRATION_POSTGRES_URL", "").strip(),
         db_pool_min_size=max(0, int(os.getenv("DB_POOL_MIN_SIZE", "2"))),
         db_pool_max_size=max(1, int(os.getenv("DB_POOL_MAX_SIZE", "10"))),
         audit_retention_days=max(1, int(os.getenv("AUDIT_RETENTION_DAYS", "90"))),

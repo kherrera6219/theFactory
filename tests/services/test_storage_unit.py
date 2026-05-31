@@ -171,9 +171,14 @@ def test_ensure_db_schema_executes_queries(monkeypatch) -> None:
     storage.ensure_db_schema(_settings())
     assert used
     assert len(cursor.executed) >= 3
-    assert "schema_migrations" in cursor.executed[0][0]
-    assert "SELECT version, checksum FROM schema_migrations" in cursor.executed[1][0]
-    assert cursor.executed[-1][1][0] == "007"
+    # Migrations are bracketed by a session-level advisory lock/unlock.
+    assert "pg_advisory_lock" in cursor.executed[0][0]
+    assert any("schema_migrations" in query for query, _ in cursor.executed)
+    assert any(
+        "SELECT version, checksum FROM schema_migrations" in query
+        for query, _ in cursor.executed
+    )
+    assert any("pg_advisory_unlock" in query for query, _ in cursor.executed)
 
 
 def test_row_and_json_helpers() -> None:

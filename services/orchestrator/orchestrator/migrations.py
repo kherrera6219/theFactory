@@ -29,9 +29,13 @@ class MigrationScript:
 def _default_connect(settings: Settings) -> Any:
     if psycopg is None:
         raise RuntimeError("psycopg dependency is not installed")
-    # prepare_threshold=None disables server-side prepared statements so the
-    # migration connection is safe behind PgBouncer transaction pooling.
-    return psycopg.connect(settings.postgres_url, autocommit=True, prepare_threshold=None)
+    # Migrations connect via migration_postgres_url (Postgres directly), not
+    # through PgBouncer: the session-level advisory lock taken in apply_migrations
+    # would not survive transaction-pool backend reassignment. prepare_threshold=None
+    # keeps parity with the pooled connection settings.
+    return psycopg.connect(
+        settings.migration_postgres_url, autocommit=True, prepare_threshold=None
+    )
 
 
 def _migration_dir() -> Path:
