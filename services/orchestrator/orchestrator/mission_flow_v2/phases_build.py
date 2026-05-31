@@ -146,6 +146,17 @@ async def _prepare_pod_assignment(
         },
         content_hash_source=normalized,
     )
+
+    # Emit a Protocol Alpha (directive) message for the CEO → Pod Manager
+    # delegation. Fire-and-forget — a bus outage must never block mission flow.
+    await _send_alpha_delegation_directive(
+        settings=settings,
+        mission_id=mission_id,
+        pod_manager_agent_id=pod_manager_agent_id,
+        specialist_agent_id=specialist_agent_id,
+        requested_target_language=mission.requested_target_language,
+    )
+
     return (
         await _persist_metadata(
             app=app,
@@ -157,6 +168,46 @@ async def _prepare_pod_assignment(
         )
         is not None
     )
+
+
+async def _send_alpha_delegation_directive(
+    *,
+    settings: Any,
+    mission_id: str,
+    pod_manager_agent_id: str,
+    specialist_agent_id: str,
+    requested_target_language: str | None,
+) -> None:
+    """Broadcast the CEO → Pod Manager assignment as a Protocol Alpha directive.
+
+    Non-blocking: the bus call runs in a thread and any failure is swallowed by
+    the producer (it logs and returns False) so mission progression is unaffected.
+    """
+    from ..protocol_bus_producer import send_alpha_directive  # noqa: PLC0415
+
+    try:
+        await asyncio.to_thread(
+            send_alpha_directive,
+            settings=settings,
+            sender=CEO_AGENT_ID,
+            recipient=pod_manager_agent_id,
+            target_pod=_pod_key_for_manager(pod_manager_agent_id),
+            directive_type="pod_manager_delegation",
+            directive={
+                "mission_id": mission_id,
+                "pod_manager_agent_id": pod_manager_agent_id,
+                "specialist_agent_id": specialist_agent_id,
+                "requested_target_language": requested_target_language,
+            },
+            correlation_id=f"alpha-{mission_id}-{pod_manager_agent_id}",
+        )
+    except Exception:
+        # Defensive: send_alpha_directive already swallows its own errors, but
+        # the thread dispatch itself must never bubble into mission flow.
+        LOGGER.warning(
+            "Alpha directive dispatch failed for mission %s (non-blocking)",
+            mission_id,
+        )
 
 
 async def _prepare_specialist_assignment(

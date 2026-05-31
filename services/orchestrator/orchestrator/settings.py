@@ -108,6 +108,12 @@ class Settings:
     #   "dedicated"       — dedicated-agents profile; one container per pod manager
     #   "full-dedicated"  — full-dedicated-agents profile; one container per language specialist
     topology_mode: str = "condensed"
+    # Protocol Bus MCP — typed protocol-lane router (:8090 in-network, :8102 host).
+    # protocol_bus_api_key is the shared MCP_API_KEY the bus validates via
+    # hmac.compare_digest; producers also send X-Agent-Id matching their sender.
+    protocol_bus_url: str = "http://protocol-bus-mcp:8090"
+    protocol_bus_api_key: str = ""
+    protocol_bus_consumer_enabled: bool = True
     db_pool_min_size: int = 2
     db_pool_max_size: int = 10
     logicnode_schema_path: Path = Path("schemas/logicnode.schema.json")
@@ -355,4 +361,19 @@ def load_settings() -> Settings:
             60, int(os.getenv("STALE_CONSUMER_REAP_INTERVAL_SECONDS", "3600"))
         ),
         topology_mode=os.getenv("TOPOLOGY_MODE", "condensed").strip().lower() or "condensed",
+        # In-network the bus listens on :8090 (the :8102 in compose is the host
+        # port mapping). PROTOCOL_BUS_API_KEY is the canonical name; MCP_API_KEY
+        # is accepted as a backward-compatible alias since the bus validates that
+        # single shared key.
+        protocol_bus_url=os.getenv(
+            "PROTOCOL_BUS_URL", "http://protocol-bus-mcp:8090"
+        ).strip()
+        or "http://protocol-bus-mcp:8090",
+        protocol_bus_api_key=(
+            os.getenv("PROTOCOL_BUS_API_KEY", "").strip()
+            or os.getenv("MCP_API_KEY", "").strip()
+        ),
+        protocol_bus_consumer_enabled=_as_bool(
+            os.getenv("PROTOCOL_BUS_CONSUMER_ENABLED", "true"), True
+        ),
     )

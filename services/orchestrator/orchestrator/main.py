@@ -97,6 +97,10 @@ def _initialize_app_state(app: FastAPI) -> None:
         app.state.self_heal_task = None
     if getattr(app.state, "agent_heartbeat_task", None) is None:
         app.state.agent_heartbeat_task = None
+    if getattr(app.state, "protocol_bus_consumer_task", None) is None:
+        app.state.protocol_bus_consumer_task = None
+    if getattr(app.state, "protocol_bus_consumer", None) is None:
+        app.state.protocol_bus_consumer = None
     if getattr(app.state, "lifecycle_recovery_task", None) is None:
         app.state.lifecycle_recovery_task = None
     if getattr(app.state, "lifecycle_tasks", None) is None:
@@ -434,6 +438,93 @@ async def knowledge_lake_refresh_loop(app: FastAPI) -> None:
             LOGGER.exception("knowledge lake refresh loop iteration failed")
 
 
+# Agent identity the orchestrator uses when subscribing to the Protocol Bus.
+# AGENT-03-BROKER is the message-broker agent in the registry — the natural
+# orchestrator-side consumer identity for the typed protocol lanes.
+ORCHESTRATOR_BUS_AGENT_ID = "AGENT-03-BROKER"
+
+
+async def _handle_sigma_knowledge_ready(message: dict[str, Any]) -> None:
+    """Sigma lane handler: confirm Knowledge Lake availability on a ready event.
+
+    The IS-Agent broadcasts a Sigma ``knowledge_ready`` event after FETCH indexes
+    bootstrap docs. On receipt we re-check ``is_stocked`` against PostgreSQL (the
+    source of truth) and log confirmed availability so a silent write/broadcast
+    divergence surfaces in the logs rather than only on the producer side.
+    """
+    from .knowledge_lake import is_stocked  # noqa: PLC0415
+
+    payload = message.get("payload") or {}
+    content = payload.get("content") if isinstance(payload, dict) else None
+    content = content if isinstance(content, dict) else {}
+    mission_id = str(content.get("mission_id") or "")
+    languages = content.get("languages")
+    languages = languages if isinstance(languages, list) else []
+
+    if not mission_id:
+        LOGGER.debug("Sigma knowledge_ready event without mission_id; ignoring")
+        return
+
+    settings = app.state.settings
+    stocked = await asyncio.to_thread(is_stocked, settings=settings, mission_id=mission_id)
+    if stocked:
+        LOGGER.info(
+            "Sigma knowledge_ready confirmed: mission=%s languages=%s knowledge present in lake",
+            mission_id,
+            languages,
+        )
+    else:
+        LOGGER.warning(
+            "Sigma knowledge_ready received for mission=%s but no rows found in storage "
+            "(possible write/broadcast divergence)",
+            mission_id,
+        )
+
+
+async def protocol_bus_consumer_loop(app: FastAPI) -> None:
+    """Run the Protocol Bus consumer, restarting it if the Redis client rotates.
+
+    Subscribes the orchestrator to the Sigma lane (knowledge-ready events). The
+    consumer is resilient: it waits for the async Redis client to be ready and
+    restarts on transient failures without crashing the lifespan.
+    """
+    from .protocol_bus_consumer import ProtocolBusConsumer  # noqa: PLC0415
+
+    settings = app.state.settings
+    if not getattr(settings, "protocol_bus_consumer_enabled", True):
+        LOGGER.info("Protocol Bus consumer disabled via PROTOCOL_BUS_CONSUMER_ENABLED")
+        return
+
+    handlers = {"sigma": _handle_sigma_knowledge_ready}
+
+    while True:
+        try:
+            redis_ready, _ = await ensure_runtime_ready(app)
+            redis_client = getattr(app.state, "redis", None)
+            if not redis_ready or redis_client is None:
+                await asyncio.sleep(2.0)
+                continue
+
+            consumer = ProtocolBusConsumer(
+                redis_client=redis_client,
+                agent_id=ORCHESTRATOR_BUS_AGENT_ID,
+                handlers=handlers,
+            )
+            app.state.protocol_bus_consumer = consumer
+            await consumer.start()
+            # start() only returns when the consumer stops (e.g. all lanes
+            # errored out); loop back to re-establish after a short pause.
+            await asyncio.sleep(2.0)
+        except asyncio.CancelledError:
+            consumer = getattr(app.state, "protocol_bus_consumer", None)
+            if consumer is not None:
+                consumer.stop()
+            raise
+        except Exception:
+            LOGGER.exception("protocol bus consumer loop iteration failed")
+            await asyncio.sleep(2.0)
+
+
 def _state_for_agent(
     *,
     category: str,
@@ -714,6 +805,9 @@ async def lifespan(app: FastAPI):
     app.state.agent_heartbeat_task = asyncio.create_task(agent_heartbeat_loop(app))
     app.state.knowledge_refresh_task = asyncio.create_task(knowledge_lake_refresh_loop(app))
     app.state.stale_consumer_reap_task = asyncio.create_task(stale_consumer_reap_loop(app))
+    app.state.protocol_bus_consumer_task = asyncio.create_task(
+        protocol_bus_consumer_loop(app)
+    )
 
     yield
 
@@ -740,6 +834,12 @@ async def lifespan(app: FastAPI):
         stale_consumer_reap_task.cancel()
         with suppress(asyncio.CancelledError):
             await stale_consumer_reap_task
+
+    protocol_bus_consumer_task = getattr(app.state, "protocol_bus_consumer_task", None)
+    if protocol_bus_consumer_task is not None:
+        protocol_bus_consumer_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await protocol_bus_consumer_task
 
     self_heal_task = getattr(app.state, "self_heal_task", None)
     if self_heal_task is not None:
