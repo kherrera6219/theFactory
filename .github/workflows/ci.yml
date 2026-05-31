@@ -60,6 +60,15 @@ jobs:
         run: npm ci
         working-directory: apps/mission-control
 
+      - name: Verify generated API types are in sync
+        run: |
+          npm run gen:api
+          if ! git diff --exit-code -- app/lib/types/api.gen.ts; then
+            echo "::error::Generated API types are out of date. Run 'npm run gen:api' in apps/mission-control and commit the result." >&2
+            exit 1
+          fi
+        working-directory: apps/mission-control
+
       - name: Validate schemas
         run: |
           python scripts/validate_schemas.py
