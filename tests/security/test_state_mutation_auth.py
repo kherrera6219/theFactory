@@ -36,3 +36,74 @@ def test_orchestrator_create_mission_requires_internal_api_key() -> None:
         json={"mission_id": "mission-1", "prompt": "Build API"},
     )
     assert response.status_code == 401
+
+
+def test_orchestrator_mission_reads_require_api_key() -> None:
+    # H-4: mission prompts/metadata/source must not be world-readable.
+    client = TestClient(orchestrator_app)
+    for path in (
+        "/missions",
+        "/missions/mission-1",
+        "/missions/mission-1/events",
+    ):
+        response = client.get(path)
+        assert response.status_code == 401, path
+
+
+def test_gateway_mission_reads_require_auth(monkeypatch) -> None:
+    # H-4: gateway must not elevate anonymous callers with its internal key.
+    import api_gateway.main as gw
+
+    monkeypatch.setattr(gw, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(gw, "GATEWAY_ADMIN_BYPASS", False)
+    client = TestClient(api_app)
+    for path in (
+        "/v1/missions",
+        "/v1/missions/mission-1",
+        "/v1/missions/mission-1/events",
+    ):
+        response = client.get(path)
+        assert response.status_code == 401, path
+
+
+def test_gateway_operations_require_auth_in_api_key_mode(monkeypatch) -> None:
+    # C-2: operator routes had no gateway-side auth in api_key mode.
+    import api_gateway.main as gw
+
+    monkeypatch.setattr(gw, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(gw, "GATEWAY_ADMIN_BYPASS", False)
+    client = TestClient(api_app)
+    for path in (
+        "/v1/operations/summary",
+        "/v1/operations/events",
+        "/v1/missions/mission-1/token-usage",
+    ):
+        response = client.get(path)
+        assert response.status_code == 401, path
+
+
+def test_gateway_operations_allow_valid_read_key(monkeypatch) -> None:
+    # C-2: a configured key with the read role is accepted.
+    import api_gateway.main as gw
+
+    monkeypatch.setattr(gw, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(gw, "GATEWAY_ADMIN_BYPASS", False)
+    monkeypatch.setattr(gw, "_gateway_api_key_roles", lambda: {"read-key": {"read"}})
+
+    async def _fake_internal(_path, *, params=None):
+        return {"ok": True}
+
+    monkeypatch.setattr(gw, "_proxy_get_internal", _fake_internal)
+    client = TestClient(api_app)
+    response = client.get(
+        "/v1/operations/summary",
+        headers={"X-API-Key": "read-key"},
+    )
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+    forbidden = client.get(
+        "/v1/operations/summary",
+        headers={"X-API-Key": "unknown-key"},
+    )
+    assert forbidden.status_code == 401

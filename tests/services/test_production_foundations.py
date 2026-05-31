@@ -219,6 +219,7 @@ def test_gateway_stream_state_endpoint(monkeypatch) -> None:
                 ]
             raise asyncio.CancelledError
 
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
     stream_redis = StreamRedis()
     with TestClient(api_app) as client:
         api_app.state.redis = stream_redis
@@ -240,7 +241,8 @@ def test_gateway_stream_state_endpoint(monkeypatch) -> None:
     assert "MISSION_RUNNING" in body
 
 
-def test_gateway_stream_state_endpoint_requires_redis() -> None:
+def test_gateway_stream_state_endpoint_requires_redis(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
     with TestClient(api_app) as client:
         api_app.state.redis = None
         api_app.state.redis_ready = False
@@ -696,6 +698,7 @@ def test_gateway_internal_operations_routes(monkeypatch) -> None:
         return [{"path": path, "params": params}]
 
     monkeypatch.setattr(api_gateway_main, "_proxy_get_internal", _proxy_get_internal)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     with TestClient(api_app) as client:
         assert client.get("/v1/missions/mission-1/pod-assignment").status_code == 200

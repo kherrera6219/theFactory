@@ -117,6 +117,7 @@ def test_resolve_mutation_headers_hybrid_mode_requires_internal_key_for_bearer(m
 
 def test_resolve_mutation_headers_oidc_mode_requires_bearer(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ISSUER_URL", "https://issuer.example")
     with TestClient(api_app):
         try:
             api_gateway_main._resolve_mutation_forward_headers(
@@ -131,6 +132,7 @@ def test_resolve_mutation_headers_oidc_mode_requires_bearer(monkeypatch) -> None
 
 def test_resolve_mutation_headers_oidc_mode_requires_role(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ISSUER_URL", "https://issuer.example")
     monkeypatch.setattr(
         api_gateway_main,
         "_decode_oidc_token",
@@ -148,14 +150,42 @@ def test_resolve_mutation_headers_oidc_mode_requires_role(monkeypatch) -> None:
             raise AssertionError("expected HTTPException for missing oidc role")
 
 
-def test_require_operator_access_api_key_mode_noop(monkeypatch) -> None:
+def test_require_operator_access_api_key_mode_requires_key(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
-    monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
+    # Missing key -> 401
+    try:
+        api_gateway_main._require_operator_access(x_api_key=None, authorization=None)
+    except HTTPException as exc:
+        assert exc.status_code == 401
+    else:
+        raise AssertionError("expected HTTPException for missing api key")
+
+    # Unknown key -> 401
+    monkeypatch.setattr(
+        api_gateway_main, "_gateway_api_key_roles", lambda: {"good-key": {"read"}}
+    )
+    try:
+        api_gateway_main._require_operator_access(x_api_key="bad-key", authorization=None)
+    except HTTPException as exc:
+        assert exc.status_code == 401
+    else:
+        raise AssertionError("expected HTTPException for unknown api key")
+
+    # Valid key with read role -> allowed (no exception)
+    api_gateway_main._require_operator_access(x_api_key="good-key", authorization=None)
+
+
+def test_require_operator_access_api_key_mode_bypass(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
+    # Bypass short-circuits all auth.
     api_gateway_main._require_operator_access(x_api_key=None, authorization=None)
 
 
 def test_require_operator_access_oidc_mode_requires_bearer(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ISSUER_URL", "https://issuer.example")
     monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
     monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
     with TestClient(api_app):
@@ -169,6 +199,7 @@ def test_require_operator_access_oidc_mode_requires_bearer(monkeypatch) -> None:
 
 def test_require_operator_access_oidc_requires_operator_role(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ISSUER_URL", "https://issuer.example")
     monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
     monkeypatch.setattr(api_gateway_main, "OIDC_OPERATOR_ROLE", "observe")
     monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
@@ -198,6 +229,7 @@ def test_require_operator_access_hybrid_allows_api_key(monkeypatch) -> None:
 def test_update_state_forwards_internal_key_in_oidc_mode(monkeypatch) -> None:
     _FakeAsyncClient.captured_headers = []
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ISSUER_URL", "https://issuer.example")
     monkeypatch.setattr(api_gateway_main, "INTERNAL_SERVICE_API_KEY", "internal-key")
     monkeypatch.setattr(
         api_gateway_main,
@@ -241,6 +273,7 @@ def test_operations_summary_requires_oidc_operator_role(monkeypatch) -> None:
         return {"ok": True}
 
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ISSUER_URL", "https://issuer.example")
     monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
     monkeypatch.setattr(api_gateway_main, "OIDC_OPERATOR_ROLE", "observe")
     monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
@@ -271,3 +304,46 @@ def test_operations_summary_requires_oidc_operator_role(monkeypatch) -> None:
         )
         assert allowed.status_code == 200
         assert allowed.json()["ok"] is True
+
+
+def test_validate_startup_auth_config_oidc_requires_issuer(monkeypatch) -> None:
+    # H-2: oidc mode without an issuer must fail startup.
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ISSUER_URL", "")
+    try:
+        api_gateway_main._validate_startup_auth_config()
+    except RuntimeError as exc:
+        assert "OIDC_ISSUER_URL" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for missing OIDC_ISSUER_URL in oidc mode")
+
+
+def test_validate_startup_auth_config_hybrid_missing_audience_ok(monkeypatch) -> None:
+    # H-2: hybrid mode without audience only warns (does not fail).
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "hybrid")
+    monkeypatch.setattr(api_gateway_main, "OIDC_AUDIENCE", "")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ISSUER_URL", "")
+    api_gateway_main._validate_startup_auth_config()
+
+
+def test_maintenance_routes_proxy_call_signatures(monkeypatch) -> None:
+    # H-3: diagnostics passed params=, backup omitted json_body — both raised TypeError.
+    captured: list[tuple[str, dict[str, Any] | None, dict[str, Any] | None]] = []
+
+    async def _fake_post_internal(path, *, json_body=None, params=None):
+        captured.append((path, json_body, params))
+        return {"ok": True}
+
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
+    monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _fake_post_internal)
+
+    with TestClient(api_app) as client:
+        diag = client.post("/v1/maintenance/diagnostics", params={"mission_id": "m-1"})
+        assert diag.status_code == 200
+        backup = client.post("/v1/maintenance/backup")
+        assert backup.status_code == 200
+
+    paths = [c[0] for c in captured]
+    assert "/internal/maintenance/diagnostics" in paths
+    assert "/internal/maintenance/backup" in paths
