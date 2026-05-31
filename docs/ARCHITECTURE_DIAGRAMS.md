@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 

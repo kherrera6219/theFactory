@@ -1,7 +1,7 @@
 # Incident Runbook — Protocol Bus
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -18,6 +18,19 @@ Audience: Operators, developers, maintainers, and auditors
 | Protocol validation failures | MEDIUM | Messages appear in DLQ (`GET /dlq?protocol=<name>`) |
 | Redis stream stall | HIGH | Consumer group lag growing; agents not receiving messages |
 | DLQ growing | MEDIUM | `/dlq` returns increasing message count across protocols |
+| Replay rejection (409) | LOW | `POST /send` returns 409 — duplicate correlation-id within TTL window. Expected behavior, not an incident unless the rate is high. |
+| Redis unavailability causing 503 | HIGH | `POST /send` returns 503 with "Dedup service unavailable" or "Backpressure service unavailable" — Redis is unreachable. Treat as a Redis incident. |
+
+---
+
+## Step 0 — New Behavior Reference
+
+As of PR #188, the protocol bus now:
+- Returns HTTP 409 when a duplicate correlation-id is detected within the replay TTL window
+- Returns HTTP 503 (not silently pass) when Redis is unreachable for dedup or backpressure checks
+- Checks backpressure depth on ALL resolved channels, not just the first
+
+These are improvements. A 503 means Redis is down; a 409 means a legitimate replay rejection.
 
 ---
 

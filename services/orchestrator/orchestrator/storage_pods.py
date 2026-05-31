@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from .settings import Settings
-from .storage_core import PodAssignmentConflictError, _json_to_dict, _to_iso, db_connect
+from .storage_core import PodAssignmentConflictError, _json_to_dict, _to_iso, get_connection
 
 
 def upsert_pod_assignment(
@@ -15,7 +15,7 @@ def upsert_pod_assignment(
     metadata: dict[str, Any],
     assigned_at: str,
 ) -> dict[str, Any]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -55,7 +55,7 @@ def upsert_pod_assignment(
 
 
 def get_pod_assignment(settings: Settings, mission_id: str) -> dict[str, Any] | None:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -80,7 +80,7 @@ def get_pod_assignment(settings: Settings, mission_id: str) -> dict[str, Any] | 
 
 
 def list_pod_assignments(settings: Settings, limit: int) -> list[dict[str, Any]]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -106,7 +106,7 @@ def list_pod_assignments(settings: Settings, limit: int) -> list[dict[str, Any]]
 
 
 def summarize_projects(settings: Settings, limit: int) -> list[dict[str, Any]]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """

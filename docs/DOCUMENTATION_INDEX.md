@@ -1,7 +1,7 @@
 # Documentation Index
 
-Document version: 2026.04.25  
-Last updated: 2026-04-25  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -17,6 +17,8 @@ This is the master map for theFactory documentation. The live documentation set 
 6. [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md)
 7. [REPOSITORY_BUILD_MAP_2026-03-29.md](REPOSITORY_BUILD_MAP_2026-03-29.md)
 8. [RELEASE_COMPLETION_PLAN.md](RELEASE_COMPLETION_PLAN.md)
+9. [../MIGRATION.md](../MIGRATION.md)
+   - migration notes for semantic→protocol bus rename
 
 ## Product Identity, Doctrine, and Strategy
 
@@ -147,6 +149,8 @@ This is the master map for theFactory documentation. The live documentation set 
   - release qualification, audits, and phase evidence
 - [runbooks/](runbooks/)
   - incident and recurring qualification procedures
+- [protocol_bus_incident_runbook.md](runbooks/protocol_bus_incident_runbook.md)
+  - Protocol Bus incident response (renamed from semantic_bus_incident_runbook.md)
 
 ## Archive
 

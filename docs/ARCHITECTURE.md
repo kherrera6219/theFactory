@@ -1,7 +1,7 @@
 # Architecture — theFactory
 
-Document version: 2026.04.14  
-Last updated: 2026-04-14  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -115,8 +115,12 @@ The system is organized into three planes:
 
 ### Protocol Bus MCP (`services/protocol-bus-mcp`, `:8102`)
 
+A six-protocol typed message bus with DLQ, replay detection (409 on duplicate correlation-id), and fail-closed Redis error handling (503 on Redis unavailability).
+
 - **Protocol routing:** Validates and routes alpha/beta/delta/sigma/omega/rho bus messages
 - **Schema enforcement:** JSON Schema validation of event envelopes per `schemas/event.envelope.schema.json`
+- **Replay detection:** Duplicate correlation-id returns `409`
+- **Fail-closed Redis handling:** Redis unavailability returns `503`
 - **Dead-letter queue:** `GET /dlq?protocol=<name>` — inspects failed messages
 - **Sender validation:** `x-agent-id` must match message `sender` field
 
@@ -194,7 +198,7 @@ QUEUED ──► RUNNING ──► VERIFIED ──► COMPLETE
 |------|--------|-------|
 | Interface | AGENT-01-PM (Project Manager) | 1 |
 | Executive | AGENT-02-CEO (Chief Executor) | 1 |
-| Support Ring | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, DepAbsorption, TestData, RuntimeQC | 12 |
+| Support Ring | AGENT-03 through AGENT-14 — Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, DEPABS, TESTDATA, RQCA | 12 |
 | Pod A (Dynamic) | Manager, Audit, Python, JS, Ruby, PHP Specialists | 6 |
 | Pod B (Systems) | Manager, Audit, C, C++, Rust, Zig, Go Specialists | 7 |
 | Pod C (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | 6 |
@@ -219,7 +223,7 @@ Each agent exposes two parallel representations:
 
 **Extensions:** `standards_alignment` (NIST AI RMF · ISO/IEC 42001 · OWASP ASVS) · `evidence_sources`
 
-Implementation: `services/orchestrator/orchestrator/agent_personas.py`
+Implementation: `services/orchestrator/orchestrator/agent_personas.py` — each agent is now backed by a single unified `AgentPersona` dataclass record rather than parallel per-field dicts.
 
 ---
 
@@ -239,7 +243,7 @@ Concept ID format: `{PREFIX}-{DOMAIN:3d}-{CONCEPT:3d}` — e.g. `DYN-006-001` (a
 
 Implementation: `services/pod-worker/pod_worker/concept_catalog.py` · `language_extractor.py`
 
-Specialist routing remains narrower than extraction coverage. Some extracted languages still fall back to a more general specialist path.
+Go, Haskell, and OCaml now ship as full concrete `SpecialistAgent` subclasses rather than fallback stubs, so specialist routing covers their extracted languages directly.
 
 ---
 

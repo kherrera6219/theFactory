@@ -1,7 +1,7 @@
 # Getting Started
 
-Document version: 2026.04.14  
-Last updated: 2026-04-14  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Canonical  
 Audience: Operators and developers
 

@@ -45,15 +45,20 @@ from .storage_core import (
     _json_to_dict,
     _json_to_list,
     _to_iso,
+    close_connection_pool,
     db_connect,
     ensure_db_schema,
+    get_connection,
+    init_connection_pool,
 )
 from .storage_logicnodes import (
     list_knowledge,
     list_logicnodes,
     list_recent_logicnodes,
     upsert_knowledge,
+    upsert_knowledge_batch,
     upsert_logicnode,
+    upsert_logicnodes_batch,
 )
 from .storage_missions import (
     count_missions,
@@ -81,6 +86,9 @@ __all__ = [
     # core
     "PodAssignmentConflictError",
     "db_connect",
+    "get_connection",
+    "init_connection_pool",
+    "close_connection_pool",
     "ensure_db_schema",
     "_to_iso",
     "_json_to_dict",
@@ -106,9 +114,11 @@ __all__ = [
     "summarize_projects",
     # logicnodes
     "upsert_logicnode",
+    "upsert_logicnodes_batch",
     "list_logicnodes",
     "list_recent_logicnodes",
     "upsert_knowledge",
+    "upsert_knowledge_batch",
     "list_knowledge",
     # artifacts
     "upsert_audit_report",

@@ -19,6 +19,9 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["E402"]
+# Re-export façades: submodule symbols are intentionally surfaced on the
+# package namespace for backward-compatible imports and test monkeypatching.
+"services/orchestrator/orchestrator/llm_delegation/__init__.py" = ["F401"]
 
 [tool.coverage.run]
 branch = true

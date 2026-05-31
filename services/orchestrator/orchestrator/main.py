@@ -53,6 +53,7 @@ from .runtime import (
 from .runtime import (
     ensure_runtime_ready,
     runtime_self_heal_loop,
+    stale_consumer_reap_loop,
     start_lifecycle_task,  # noqa: F401  (re-exported for route modules)
 )
 from .settings import load_settings
@@ -682,6 +683,14 @@ async def lifespan(app: FastAPI):
     asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=20))
     _initialize_app_state(app)
 
+    try:
+        storage.init_connection_pool(app.state.settings)
+    except Exception:
+        # Fail open: if the pool cannot be created at boot (dependency missing
+        # or DB unreachable), readiness stays false via ensure_runtime_ready and
+        # the self-heal loop retries. Storage calls surface the error lazily.
+        LOGGER.warning("connection pool initialization failed at startup", exc_info=True)
+
     await ensure_runtime_ready(app)
     # Load versioned prompt assets into registry
     from .prompt_registry import load_prompt_assets  # noqa: PLC0415
@@ -690,6 +699,7 @@ async def lifespan(app: FastAPI):
     app.state.self_heal_task = asyncio.create_task(runtime_self_heal_loop(app))
     app.state.agent_heartbeat_task = asyncio.create_task(agent_heartbeat_loop(app))
     app.state.knowledge_refresh_task = asyncio.create_task(knowledge_lake_refresh_loop(app))
+    app.state.stale_consumer_reap_task = asyncio.create_task(stale_consumer_reap_loop(app))
 
     yield
 
@@ -710,6 +720,12 @@ async def lifespan(app: FastAPI):
         knowledge_refresh_task.cancel()
         with suppress(asyncio.CancelledError):
             await knowledge_refresh_task
+
+    stale_consumer_reap_task = getattr(app.state, "stale_consumer_reap_task", None)
+    if stale_consumer_reap_task is not None:
+        stale_consumer_reap_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await stale_consumer_reap_task
 
     self_heal_task = getattr(app.state, "self_heal_task", None)
     if self_heal_task is not None:
@@ -740,6 +756,8 @@ async def lifespan(app: FastAPI):
             await aclose()
         else:
             await app.state.redis.close()
+
+    storage.close_connection_pool()
 
 
 app = FastAPI(title="HolyGrail Orchestrator", version="0.3.0", lifespan=lifespan)

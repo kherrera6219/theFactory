@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.05.23
-Last updated: 2026-05-23
+Document version: 2026.05.30
+Last updated: 2026-05-30
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -14,6 +14,8 @@ runtime exactly. When they conflict with this document, this document wins.
 ---
 
 ## Project Status
+
+**Version: v1.2.0** (improvement batch 2026-05-30, PRs #185–#194).
 
 As of 2026-05-20, Phases 1–27 are complete. The platform has a full Smelt-Cycle
 pipeline (INTAKE → FETCH → SMELT → GATING → FUSION → SQUEEZE → DELIVERY), a 41-agent
@@ -31,6 +33,48 @@ remaining blocker for a public launch claim is the live provider-key demo (item 
 ---
 
 ## What Is Implemented
+
+### v1.2.0 Improvement Batch (2026-05-30)
+
+Ten correctness, consistency, and quality improvements landed across PRs #185–#194:
+
+- **#185 — Agent count reconciliation**: Reconciled the agent count to **41** throughout
+  all docs and code; removed conflicting tallies.
+- **#186 — Module decomposition**: Split `llm_delegation.py` (3,493 lines) and
+  `mission_flow_v2.py` (3,161 lines) into cohesive per-provider / per-phase module packages.
+- **#187 — Go/Haskell/OCaml specialists**: Implemented concrete `SpecialistAgent`
+  subclasses for Go, Haskell, and OCaml — these were previously falling back silently to
+  `BaseAgent`.
+- **#188 — MCP dedup/backpressure hardening**: Wired MCP replay detection (409 on duplicate
+  correlation-id); replaced `except/pass` with fail-closed **503** on Redis errors for dedup
+  and backpressure; backpressure now checks all channels.
+- **#189 — Unified envelope contract**: Unified the MCP envelope and
+  `event.envelope.schema.json` into a single shared contract; replaced hand-rolled validation
+  with `jsonschema.validate()` in the orchestrator.
+- **#190 — Protocol bus rename**: Renamed `semantic-bus-mcp` → `protocol-bus-mcp` throughout
+  (service, routes, UI, docs, env vars) — routing is lexical, not semantic.
+- **#191 — Removed committed artifacts**: Removed committed generated artifacts
+  (`coverage.xml`, `ruff_errors.txt`, `.secrets.baseline`, `reports/`) from VCS; added to
+  `.gitignore`; CI already archives them as build artifacts.
+- **#192 — runtime.py coverage**: Raised the `runtime.py` test coverage floor from 60% → 80%;
+  `runtime.py` is now at **100% line / 99% branch** coverage.
+- **#193 — Typed API client + real status codes**: Replaced all `any` types in
+  `api-client.ts` with OpenAPI-generated types; gateway proxy now forwards real HTTP status
+  codes (404/500/503) instead of `200` + `__gateway_error`.
+- **#194 — Unified agent personas**: Consolidated `agent_personas.py` from ~10 parallel dicts
+  into a unified `AgentPersona` dataclass per agent; added a drift-prevention test.
+
+#### Known gaps resolved in this batch
+
+The following previously-tracked known gaps are now closed:
+
+- ~~GO/HASKELL/OCAML specialists silently falling back to `BaseAgent`~~ — ✅ Fixed in #187
+- ~~MCP replay detection not wired / `except/pass` on Redis~~ — ✅ Fixed in #188
+- ~~Divergent envelope schemas~~ — ✅ Fixed in #189
+- ~~Committed generated artifacts~~ — ✅ Fixed in #191
+- ~~`runtime.py` 60% coverage floor~~ — ✅ Fixed in #192
+- ~~`any` types in `api-client.ts` / gateway `200`-on-error~~ — ✅ Fixed in #193
+
 ### Multi-Modal Context & Professional Grounding (2026-05-23)
 
 - **Multi-modal intake**: PM Agent now accepts PDF, Word, MD, and PowerPoint documents; IS Agent indexes these into the Knowledge Lake.
@@ -308,6 +352,7 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 | `git log --all -- deploy/redis/certs/redis.key` | ✅ No output |
 | DR drill RTO | ✅ 37.13s (target: ≤30 min) |
 | Coverage gate | ✅ ≥80% enforced in CI and pyproject.toml |
+| `runtime.py` per-module coverage floor | ✅ Raised 60% → 80% (#192); actual 100% line / 99% branch |
 
 ---
 

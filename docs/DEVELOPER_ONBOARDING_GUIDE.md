@@ -1,7 +1,7 @@
 # Developer Onboarding Guide
 
-Document version: 2026.04.15  
-Last updated: 2026-04-15  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Canonical  
 Audience: Contributors, maintainers, and new developers
 
@@ -143,7 +143,7 @@ curl http://localhost:8100/health
 # Orchestrator
 curl http://localhost:8101/health
 
-# Protocol Bus MCP
+# Protocol Bus MCP (formerly Semantic Bus MCP)
 curl http://localhost:8102/health
 
 # Dashboard
@@ -181,7 +181,7 @@ curl http://localhost:8100/v1/missions/<mission_id>
 make test
 ```
 
-Runs pytest with `--cov-fail-under=80` global gate plus `scripts/check_coverage_thresholds.py` for critical per-module floors. Current baseline: **709 passing backend tests, 5 skipped, and 81.76% services coverage**.
+Runs pytest with `--cov-fail-under=80` global gate plus `scripts/check_coverage_thresholds.py` for critical per-module floors. `make test` now enforces an **80% floor on `runtime.py`** (raised from 60%). Current baseline: **709 passing backend tests, 5 skipped, and 81.76% services coverage**.
 
 ### Fast Tests (no coverage)
 
@@ -275,7 +275,7 @@ theFactory/
 │   │   ├── (shell)/               ← Layout shell (sidebar, header)
 │   │   ├── missions/              ← Mission list + detail views
 │   │   ├── agents/                ← 41-agent roster + detail
-│   │   ├── protocol-bus/          ← Live protocol bus view
+│   │   ├── protocol-bus/          ← Live Protocol Bus view
 │   │   ├── builder/               ← Repository intake flow
 │   │   └── settings/              ← Vault and config
 │   ├── lib/                       ← API client, SSE client, helpers
@@ -286,7 +286,7 @@ theFactory/
 │   ├── orchestrator/orchestrator/ ← Orchestrator (main.py, runtime.py, agent_personas.py)
 │   ├── pod-worker/pod_worker/     ← Pod worker (main.py, language_extractor.py, concept_catalog.py)
 │   ├── audit-worker/audit_worker/ ← Audit worker
-│   ├── protocol-bus-mcp/          ← Protocol bus MCP
+│   ├── protocol-bus-mcp/          ← Protocol Bus MCP
 │   └── dashboard/                 ← Dashboard service
 │
 ├── tests/
@@ -299,7 +299,7 @@ theFactory/
 │   └── monitoring/                ← Prometheus, Grafana, Alertmanager configs
 │
 ├── schemas/                       ← JSON Schema contracts
-├── protocol/                      ← Protocol bus topic catalog
+├── protocol/                      ← Protocol Bus topic catalog
 ├── scripts/                       ← Operational and audit scripts
 ├── docs/                          ← All documentation
 └── assets/design-tokens/          ← CSS design token source of truth
@@ -309,7 +309,7 @@ theFactory/
 
 | File | What it does |
 |------|-------------|
-| `services/orchestrator/orchestrator/agent_personas.py` | 41-agent persona profile dataset |
+| `services/orchestrator/orchestrator/agent_personas.py` | 41-agent persona profile dataset; uses a unified `AgentPersona` dataclass (no parallel dict maintenance needed when adding agents) |
 | `services/orchestrator/orchestrator/agent_registry.py` | Agent runtime state and registry |
 | `services/orchestrator/orchestrator/runtime.py` | Mission lifecycle state machine |
 | `services/orchestrator/orchestrator/langgraph_lifecycle.py` | LangGraph StateGraph |
