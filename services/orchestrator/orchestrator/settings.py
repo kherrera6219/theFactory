@@ -104,6 +104,7 @@ class Settings:
     topology_mode: str = "condensed"
     db_pool_min_size: int = 2
     db_pool_max_size: int = 10
+    logicnode_schema_path: Path = Path("schemas/logicnode.schema.json")
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -200,6 +201,11 @@ def load_settings() -> Settings:
         event_schema_path=Path(
             os.getenv(
                 "EVENT_SCHEMA_PATH", str(repo_root / "schemas" / "event.envelope.schema.json")
+            )
+        ),
+        logicnode_schema_path=Path(
+            os.getenv(
+                "LOGICNODE_SCHEMA_PATH", str(repo_root / "schemas" / "logicnode.schema.json")
             )
         ),
         topics_path=Path(os.getenv("TOPICS_PATH", str(repo_root / "protocol" / "topics.yaml"))),
