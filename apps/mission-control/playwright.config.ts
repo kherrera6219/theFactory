@@ -26,6 +26,10 @@ const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_SERVER === "true";
 
 export default defineConfig({
   testDir: "./e2e",
+  // Electron E2E runs against a launched desktop app, not the Next web server.
+  // It has its own config (playwright.electron.config.ts) and must not be swept
+  // into the default chromium/web-server run.
+  testIgnore: ["**/electron.spec.ts"],
   timeout: 30_000,
   expect: {
     timeout: 5_000,

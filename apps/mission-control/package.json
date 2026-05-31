@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "node scripts/run-npm-exec-clean-env.mjs playwright test",
+    "test:e2e:electron": "node scripts/run-npm-exec-clean-env.mjs playwright test --config=playwright.electron.config.ts",
     "test:perf": "node scripts/run-npm-exec-clean-env.mjs lhci autorun --config=./lighthouserc.json",
     "electron:dev": "npm run tokens:sync && cross-env ELECTRON_DEV=1 tsc --project electron/tsconfig.json && electron .",
     "electron:build": "node scripts/build-electron.mjs",
