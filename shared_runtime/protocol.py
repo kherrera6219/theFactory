@@ -96,59 +96,50 @@ def _format_schema_error(exc: JSONSchemaValidationError) -> str:
 
 
 # ---------------------------------------------------------------------------
-# In-process replay detection (single-node, no Redis dependency)
-# For distributed replay detection, use RedisReplayGuard in your service.
+# Distributed replay detection via Redis SET NX EX.
+#
+# Replay detection MUST be shared across all Protocol Bus instances: a
+# per-process guard lets a replayed event slip through whenever the original
+# and the replay are routed to different instances. The Redis ``SET key NX EX``
+# primitive records the correlation_id atomically across every instance — the
+# first writer wins, every subsequent writer (within TTL) is a detected replay.
 # ---------------------------------------------------------------------------
 
-class _InProcessReplayGuard:
-    """Simple TTL-based in-process replay guard.
+REPLAY_KEY_PREFIX = "replay:"
 
-    Suitable for single-process use. For multi-instance deployments, pair
-    this with a Redis SET NX EX guard (RedisReplayGuard pattern).
+
+async def check_replay(
+    correlation_id: str,
+    redis_client: Any,
+    *,
+    ttl_seconds: int = 300,
+) -> None:
+    """Record *correlation_id* in Redis and raise on a replay.
+
+    Uses ``SET key NX EX`` so detection is shared across every Protocol Bus
+    instance. The first call within the TTL window writes the key and returns
+    normally; any subsequent call sees the existing key and raises
+    ``ReplayDetectedError``.
+
+    2026 best practice: a 5-minute TTL covers typical distributed clock skew.
     """
-
-    def __init__(self, max_entries: int = 100_000) -> None:
-        self._seen: dict[str, float] = {}
-        self._max_entries = max_entries
-
-    def reset(self) -> None:
-        """Clear all recorded event_ids. Intended for test isolation."""
-        self._seen.clear()
-
-    def check_and_record(self, event_id: str, *, ttl_seconds: float = 300.0) -> None:
-        """Raise ReplayDetectedError if *event_id* was recently seen.
-
-        2026 best practice: 5-minute TTL covers typical distributed clock skew.
-        """
-        import time
-        now = time.monotonic()
-        # Evict expired entries (lazy cleanup)
-        if len(self._seen) >= self._max_entries:
-            expired = [k for k, ts in self._seen.items() if now - ts > ttl_seconds]
-            for k in expired:
-                del self._seen[k]
-
-        if event_id in self._seen:
-            age = now - self._seen[event_id]
-            if age < ttl_seconds:
-                LOGGER.warning("replay detected for event_id=%s (age=%.1fs)", event_id, age)
-                raise ReplayDetectedError(f"duplicate event_id: {event_id}")
-
-        self._seen[event_id] = now
+    key = f"{REPLAY_KEY_PREFIX}{correlation_id}"
+    result = await redis_client.set(key, "1", nx=True, ex=ttl_seconds)
+    if result is None:  # key already existed → replay
+        LOGGER.warning("replay detected for correlation_id=%s", correlation_id)
+        raise ReplayDetectedError(f"duplicate correlation_id: {correlation_id}")
 
 
-# Module-level singleton for convenience (process-local)
-_DEFAULT_REPLAY_GUARD = _InProcessReplayGuard()
+async def reset_replay_guard(redis_client: Any) -> None:
+    """Clear all recorded replay keys. Intended for test isolation.
 
-
-def check_replay(event_id: str, *, ttl_seconds: float = 300.0) -> None:
-    """Check *event_id* against the module-level replay guard.
-
-    Raises ReplayDetectedError if the event was already seen within TTL.
+    Removes every key under the ``replay:`` prefix from *redis_client*.
     """
-    _DEFAULT_REPLAY_GUARD.check_and_record(event_id, ttl_seconds=ttl_seconds)
-
-
-def reset_replay_guard() -> None:
-    """Reset the module-level replay guard. Intended for test isolation."""
-    _DEFAULT_REPLAY_GUARD.reset()
+    cursor = 0
+    pattern = f"{REPLAY_KEY_PREFIX}*"
+    while True:
+        cursor, keys = await redis_client.scan(cursor=cursor, match=pattern, count=500)
+        if keys:
+            await redis_client.delete(*keys)
+        if cursor == 0:
+            break
