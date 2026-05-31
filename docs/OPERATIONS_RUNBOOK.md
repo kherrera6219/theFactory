@@ -1,7 +1,7 @@
 # Operations Runbook
 
-Document version: 2026.04.15  
-Last updated: 2026-04-15  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Canonical  
 Audience: Operators, maintainers, and on-call responders
 
@@ -10,12 +10,28 @@ Audience: Operators, maintainers, and on-call responders
 1. `docker compose -f deploy/docker-compose.yaml ps`
 2. `curl http://localhost:8100/health`
 3. `curl http://localhost:8101/health`
-4. `curl http://localhost:8180/health`
-5. `curl http://localhost:3100`
-6. `curl http://localhost:8100/readyz`
-7. `curl http://localhost:8101/readyz`
-8. `curl http://localhost:8100/metrics | head`
-9. `curl http://localhost:8101/metrics | head`
+4. `curl http://localhost:8102/health`  # Protocol Bus MCP (formerly Semantic Bus MCP)
+5. `curl http://localhost:8180/health`
+6. `curl http://localhost:3100`
+7. `curl http://localhost:8100/readyz`
+8. `curl http://localhost:8101/readyz`
+9. `curl http://localhost:8100/metrics | head`
+10. `curl http://localhost:8101/metrics | head`
+
+## Protocol Bus
+
+> Formerly **Semantic Bus**. The service is `protocol-bus-mcp` (was `semantic-bus-mcp`).
+
+1. Health check:
+   - `curl http://localhost:8102/health`
+2. Logs:
+   - `docker compose -f deploy/docker-compose.yaml logs protocol-bus-mcp --tail 100`
+3. Restart the bus:
+   - `docker compose -f deploy/docker-compose.yaml restart protocol-bus-mcp`
+4. Expected `POST /send` behavior:
+   - Returns **409** on a duplicate correlation-id. This is replay detection — expected behavior, not an incident.
+   - Returns **503** when Redis is unreachable. The bus now fails closed (this was previously a silent pass).
+     - Treat a 503 as a **Redis incident**, not a bus incident — check Redis health and recovery steps before touching `protocol-bus-mcp`.
 
 ## Monitoring Stack
 
