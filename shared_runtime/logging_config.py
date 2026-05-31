@@ -49,6 +49,32 @@ _STANDARD_ATTRS = frozenset(
 )
 
 
+class TraceIdFilter(logging.Filter):
+    """Inject the current OTEL trace/span IDs onto every log record.
+
+    Attaching the IDs as record attributes lets the JSON formatter emit them
+    as top-level fields, so aggregated logs can be correlated to OTEL traces.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            from opentelemetry import trace
+        except Exception:
+            record.trace_id = "0" * 32
+            record.span_id = "0" * 16
+            return True
+
+        span = trace.get_current_span()
+        ctx = span.get_span_context()
+        if ctx is not None and ctx.is_valid:
+            record.trace_id = format(ctx.trace_id, "032x")
+            record.span_id = format(ctx.span_id, "016x")
+        else:
+            record.trace_id = "0" * 32
+            record.span_id = "0" * 16
+        return True
+
+
 class JsonFormatter(logging.Formatter):
     """Format log records as one JSON object per line."""
 
@@ -62,6 +88,8 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "service": self._service_name,
+            "trace_id": getattr(record, "trace_id", "0" * 32),
+            "span_id": getattr(record, "span_id", "0" * 16),
             "message": record.getMessage(),
         }
         if record.exc_info:
@@ -91,6 +119,7 @@ def configure_logging(service_name: str) -> None:
 
     handler = logging.StreamHandler(sys.stdout)
     if log_format == "json":
+        handler.addFilter(TraceIdFilter())
         handler.setFormatter(JsonFormatter(service_name=service_name))
     else:
         handler.setFormatter(
