@@ -1,7 +1,7 @@
 # Architecture — theFactory
 
-Document version: 2026.04.14  
-Last updated: 2026-04-14  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -47,7 +47,7 @@ The system is organized into three planes:
 ╔══════════════════════════════════════════════════════════════════╗
 ║                     MISSION CONTROL UI                          ║
 ║              Next.js 16 · TypeScript · SSE Transport            ║
-║ Home · Chat · Missions · Agents · Semantic Bus · Builder/Repo   ║
+║ Home · Chat · Missions · Agents · Protocol Bus · Builder/Repo   ║
 ╚══════════════════════╤═══════════════════════════════════════════╝
                        │ REST + SSE
 ╔══════════════════════▼═══════════════════════════════════════════╗
@@ -65,7 +65,7 @@ The system is organized into three planes:
 ║  Operations APIs · OTEL traces         ║ │
 ╚══════════╤═════════════════════════════╝ │
            │ Redis Streams          ╔══════▼══════════════════════╗
-           │                       ║   SEMANTIC BUS MCP :8102    ║
+           │                       ║   PROTOCOL BUS MCP :8102    ║
            │                       ║   6-protocol validation      ║
            │                       ║   alpha/beta/delta/           ║
            │                       ║   sigma/omega/rho            ║
@@ -113,10 +113,14 @@ The system is organized into three planes:
 - **Data-plane adapters:** Qdrant (active), Milvus/Neo4j/object storage (feature-flagged)
 - **OTel tracing:** Jaeger OTLP export
 
-### Semantic Bus MCP (`services/semantic-bus-mcp`, `:8102`)
+### Protocol Bus MCP (`services/protocol-bus-mcp`, `:8102`)
+
+A six-protocol typed message bus with DLQ, replay detection (409 on duplicate correlation-id), and fail-closed Redis error handling (503 on Redis unavailability).
 
 - **Protocol routing:** Validates and routes alpha/beta/delta/sigma/omega/rho bus messages
 - **Schema enforcement:** JSON Schema validation of event envelopes per `schemas/event.envelope.schema.json`
+- **Replay detection:** Duplicate correlation-id returns `409`
+- **Fail-closed Redis handling:** Redis unavailability returns `503`
 - **Dead-letter queue:** `GET /dlq?protocol=<name>` — inspects failed messages
 - **Sender validation:** `x-agent-id` must match message `sender` field
 
@@ -148,11 +152,11 @@ The system is organized into three planes:
 ### Mission Control (`apps/mission-control`, `:3100`)
 
 - **Operator console:** Full Next.js 16 App Router application
-- **Primary operator surfaces:** Home/dashboard, chat intake, missions, projects, agents, semantic bus, databases, repo import, and settings
+- **Primary operator surfaces:** Home/dashboard, chat intake, missions, projects, agents, protocol bus, databases, repo import, and settings
 - **Grounded review flows:** Workspace builder review and GitHub repo review with durable approval records and mission launch bundles
 - **Project audit timeline:** `Projects` shows per-project audit history with event, mission, agent, service, tool, and duration drill-down backed by the gateway/orchestrator audit APIs
 - **Live transport:** SSE EventSource + polling fallback with `stream|poll|paused` mode indicator
-- **Windowed rendering:** Virtual scrolling for Semantic Bus and agent roster views (high-volume)
+- **Windowed rendering:** Virtual scrolling for Protocol Bus and agent roster views (high-volume)
 
 ---
 
@@ -194,7 +198,7 @@ QUEUED ──► RUNNING ──► VERIFIED ──► COMPLETE
 |------|--------|-------|
 | Interface | AGENT-01-PM (Project Manager) | 1 |
 | Executive | AGENT-02-CEO (Chief Executor) | 1 |
-| Support Ring | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, DepAbsorption, TestData, RuntimeQC | 12 |
+| Support Ring | AGENT-03 through AGENT-14 — Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, DEPABS, TESTDATA, RQCA | 12 |
 | Pod A (Dynamic) | Manager, Audit, Python, JS, Ruby, PHP Specialists | 6 |
 | Pod B (Systems) | Manager, Audit, C, C++, Rust, Zig, Go Specialists | 7 |
 | Pod C (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | 6 |
@@ -219,7 +223,7 @@ Each agent exposes two parallel representations:
 
 **Extensions:** `standards_alignment` (NIST AI RMF · ISO/IEC 42001 · OWASP ASVS) · `evidence_sources`
 
-Implementation: `services/orchestrator/orchestrator/agent_personas.py`
+Implementation: `services/orchestrator/orchestrator/agent_personas.py` — each agent is now backed by a single unified `AgentPersona` dataclass record rather than parallel per-field dicts.
 
 ---
 
@@ -239,7 +243,7 @@ Concept ID format: `{PREFIX}-{DOMAIN:3d}-{CONCEPT:3d}` — e.g. `DYN-006-001` (a
 
 Implementation: `services/pod-worker/pod_worker/concept_catalog.py` · `language_extractor.py`
 
-Specialist routing remains narrower than extraction coverage. Some extracted languages still fall back to a more general specialist path.
+Go, Haskell, and OCaml now ship as full concrete `SpecialistAgent` subclasses rather than fallback stubs, so specialist routing covers their extracted languages directly.
 
 ---
 
@@ -283,7 +287,7 @@ The default runtime does not use a separate `missions.audit` stream.
 
 ## Event Bus Architecture
 
-The Semantic Bus MCP enforces a **6-protocol message taxonomy**:
+The Protocol Bus MCP enforces a **6-protocol message taxonomy**:
 
 | Protocol | Direction | Purpose |
 |----------|-----------|---------|
@@ -353,7 +357,7 @@ See [`ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](ADR_SECURITY_MODEL_API_
 | Promtail | — | Log shipping agent |
 | Jaeger | 16686 | Distributed trace visualization |
 
-**Instrumented services:** api-gateway · orchestrator · pod-worker · audit-worker · semantic-bus-mcp · dashboard · agent-runtime (full-dedicated profile)
+**Instrumented services:** api-gateway · orchestrator · pod-worker · audit-worker · protocol-bus-mcp · dashboard · agent-runtime (full-dedicated profile)
 
 ---
 
@@ -361,11 +365,11 @@ See [`ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](ADR_SECURITY_MODEL_API_
 
 | Artifact | Purpose |
 |---------|---------|
-| `schemas/event.envelope.schema.json` | Semantic bus message envelope contract |
+| `schemas/event.envelope.schema.json` | Protocol bus message envelope contract |
 | `schemas/logicnode.schema.json` | Language-agnostic LogicNode contract |
 | `schemas/rir.module.schema.json` | Refined-IR module contract |
 | `schemas/rir.fn.schema.json` | Refined-IR function contract |
-| `protocol/topics.yaml` | Semantic bus topic catalog |
+| `protocol/topics.yaml` | Protocol bus topic catalog |
 | `ledger/schema.sql` | Traceability ledger table definitions |
 | `docs/openapi/api-gateway.v1.json` | Gateway OpenAPI spec |
 | `docs/openapi/orchestrator.v1.json` | Orchestrator OpenAPI spec |
