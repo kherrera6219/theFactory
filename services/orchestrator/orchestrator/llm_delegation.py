@@ -17,9 +17,9 @@ from shared_runtime.pii_guard import redact_pii
 
 from .agent_integrations import build_agent_integration_record
 from .agent_personas import (
-    _LANGUAGE_GUIDANCE,
-    _LANGUAGE_TOOLING,
     build_agent_system_prompt,
+    get_language_guidance,
+    get_language_tooling,
 )
 from .agent_registry import AGENT_REGISTRY, AgentDefinition
 from .hw_agent import build_hw_context_block
@@ -466,8 +466,8 @@ def _normalize_text_list(value: Any, *, limit: int = 5) -> list[str]:
 
 def _language_context(language: str | None) -> str:
     language_key = _clean_text(language or "", max_length=32).lower()
-    guidance = _LANGUAGE_GUIDANCE.get(language_key, "")
-    tooling = _LANGUAGE_TOOLING.get(language_key, "")
+    guidance = get_language_guidance(language_key)
+    tooling = get_language_tooling(language_key)
     if not guidance and not tooling:
         return ""
     lines = ["Language discipline:"]

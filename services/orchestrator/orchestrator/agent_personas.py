@@ -1,8 +1,24 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
-from .agent_registry import AgentDefinition
+from .agent_registry import AGENT_REGISTRY, AgentDefinition
+
+
+@dataclass(frozen=True)
+class LanguagePersona:
+    """Per-language persona record consolidating the previously-parallel
+    label / guidance / tooling dicts.
+
+    Adding a new language specialist now requires a single entry here instead
+    of editing three separate dicts that could (and did) drift out of sync.
+    """
+
+    label: str
+    guidance: str
+    tooling: str
+
 
 _PROTOCOL_NAMES: dict[str, str] = {
     "alpha": "Directive",
@@ -29,63 +45,126 @@ _PROTOCOL_FORMATS: dict[str, str] = {
     "rho": "Operational telemetry and traffic-control broadcasts.",
 }
 
-_LANGUAGE_LABELS: dict[str, str] = {
-    "python": "Python",
-    "javascript": "JavaScript/TypeScript",
-    "ruby": "Ruby",
-    "php": "PHP",
-    "c": "C",
-    "cpp": "C++",
-    "rust": "Rust",
-    "zig": "Zig",
-    "java": "Java",
-    "csharp": "C#",
-    "scala": "Scala",
-    "kotlin": "Kotlin",
-    "matlab": "MATLAB",
-    "r": "R",
-    "julia": "Julia",
-    "mathematica": "Mathematica",
+LANGUAGE_PERSONAS: dict[str, LanguagePersona] = {
+    "python": LanguagePersona(
+        label="Python",
+        guidance="Certified Python Expert: PEP 8/585/604 compliance, strict Type Hinting (mypy), and modern async concurrency patterns.",
+        tooling="Python runtime and ecosystem references",
+    ),
+    "javascript": LanguagePersona(
+        label="JavaScript/TypeScript",
+        guidance="Certified JS/TS Architect: ECMAScript 2024+, OWASP Top 10 for Node.js, and type-safe React/Next.js infrastructure.",
+        tooling="JavaScript/TypeScript runtime and framework references",
+    ),
+    "ruby": LanguagePersona(
+        label="Ruby",
+        guidance="Certified Rubyist: Ruby 3.3+ YJIT optimization, Rails 7+ secure patterns, and dry-rb functional composition.",
+        tooling="Ruby runtime and Rails/gem ecosystem references",
+    ),
+    "php": LanguagePersona(
+        label="PHP",
+        guidance="Certified PHP Engineer: PSR-1/12/20 standards, static analysis (PHPStan Level 9), and Composer-driven architectural safety.",
+        tooling="PHP runtime and framework references",
+    ),
+    "c": LanguagePersona(
+        label="C",
+        guidance="Certified Systems Engineer: MISRA C:2012 compliance, buffer-safety (CWE-119), and deterministic memory alignment.",
+        tooling="C toolchain and systems ABI references",
+    ),
+    "cpp": LanguagePersona(
+        label="C++",
+        guidance="Certified C++ Specialist: C++20/23 'Modern' patterns, RAII/Rule-of-Zero, and zero-overhead abstraction discipline.",
+        tooling="C++ toolchain and STL/compiler references",
+    ),
+    "rust": LanguagePersona(
+        label="Rust",
+        guidance="Certified Rust Architect: Advanced Ownership/Lifetime safety, zero-unsafe policy, and high-performance tokio/async-std design.",
+        tooling="Rust toolchain and cargo ecosystem references",
+    ),
+    "zig": LanguagePersona(
+        label="Zig",
+        guidance="Certified Zig Developer: Manual memory management rigor, comptime-oriented generic design, and error-set traceability.",
+        tooling="Zig compiler and standard library references",
+    ),
+    "go": LanguagePersona(
+        label="Go",
+        guidance="Certified Go Engineer: Effective Go patterns, goroutine/channel concurrency safety, and high-throughput microservice design.",
+        tooling="Go toolchain and module ecosystem references",
+    ),
+    "java": LanguagePersona(
+        label="Java",
+        guidance="Certified Java Architect: Jakarta EE/Spring Boot security, JVM garbage collection tuning, and SOLID enterprise patterns.",
+        tooling="JDK/JVM and enterprise framework references",
+    ),
+    "csharp": LanguagePersona(
+        label="C#",
+        guidance="Certified .NET Architect: C# 12+ features, async/await deep internals, and cloud-native microservice architecture.",
+        tooling=".NET runtime and framework references",
+    ),
+    "scala": LanguagePersona(
+        label="Scala",
+        guidance="Certified Scala Engineer: ZIO/Cats-Effect functional ecosystems, tagless-final design, and high-fidelity type-level programming.",
+        tooling="Scala/JVM compiler and functional libraries",
+    ),
+    "kotlin": LanguagePersona(
+        label="Kotlin",
+        guidance="Certified Kotlin Specialist: Multiplatform (KMP) architecture, Coroutine/Flow safety, and advanced null-safety discipline.",
+        tooling="Kotlin/JVM toolchain and coroutine references",
+    ),
+    "haskell": LanguagePersona(
+        label="Haskell",
+        guidance="Certified Functional Architect: GHC 9+ optimizations, Category Theory application, and formal verification of purity.",
+        tooling="GHC toolchain and Hackage ecosystem references",
+    ),
+    "ocaml": LanguagePersona(
+        label="OCaml",
+        guidance="Certified OCaml Engineer: Strong static inference, module-system mastery, and high-reliability systems programming.",
+        tooling="OCaml toolchain and opam ecosystem references",
+    ),
+    "matlab": LanguagePersona(
+        label="MATLAB",
+        guidance="Certified MATLAB Engineer: Vectorized performance optimization, Simulink model-to-code safety, and numerical precision audit.",
+        tooling="MATLAB numerical and engineering references",
+    ),
+    "r": LanguagePersona(
+        label="R",
+        guidance="Certified R Specialist: Tidyverse discipline, Bioconductor/CRAN reliability, and statistically-defensible model generation.",
+        tooling="R language and statistics package references",
+    ),
+    "julia": LanguagePersona(
+        label="Julia",
+        guidance="Certified Julia Developer: Multiple dispatch optimization, LLVM-backend awareness, and high-performance scientific kernels.",
+        tooling="Julia language and scientific package references",
+    ),
+    "mathematica": LanguagePersona(
+        label="Mathematica",
+        guidance="Certified symbolic analyst: Wolfram Language symbolic-expression safety and high-fidelity computational proofs.",
+        tooling="Wolfram language and symbolic engine references",
+    ),
 }
-_LANGUAGE_GUIDANCE: dict[str, str] = {
-    "python": "Certified Python Expert: PEP 8/585/604 compliance, strict Type Hinting (mypy), and modern async concurrency patterns.",
-    "javascript": "Certified JS/TS Architect: ECMAScript 2024+, OWASP Top 10 for Node.js, and type-safe React/Next.js infrastructure.",
-    "ruby": "Certified Rubyist: Ruby 3.3+ YJIT optimization, Rails 7+ secure patterns, and dry-rb functional composition.",
-    "php": "Certified PHP Engineer: PSR-1/12/20 standards, static analysis (PHPStan Level 9), and Composer-driven architectural safety.",
-    "c": "Certified Systems Engineer: MISRA C:2012 compliance, buffer-safety (CWE-119), and deterministic memory alignment.",
-    "cpp": "Certified C++ Specialist: C++20/23 'Modern' patterns, RAII/Rule-of-Zero, and zero-overhead abstraction discipline.",
-    "rust": "Certified Rust Architect: Advanced Ownership/Lifetime safety, zero-unsafe policy, and high-performance tokio/async-std design.",
-    "zig": "Certified Zig Developer: Manual memory management rigor, comptime-oriented generic design, and error-set traceability.",
-    "go": "Certified Go Engineer: Effective Go patterns, goroutine/channel concurrency safety, and high-throughput microservice design.",
-    "java": "Certified Java Architect: Jakarta EE/Spring Boot security, JVM garbage collection tuning, and SOLID enterprise patterns.",
-    "csharp": "Certified .NET Architect: C# 12+ features, async/await deep internals, and cloud-native microservice architecture.",
-    "scala": "Certified Scala Engineer: ZIO/Cats-Effect functional ecosystems, tagless-final design, and high-fidelity type-level programming.",
-    "kotlin": "Certified Kotlin Specialist: Multiplatform (KMP) architecture, Coroutine/Flow safety, and advanced null-safety discipline.",
-    "haskell": "Certified Functional Architect: GHC 9+ optimizations, Category Theory application, and formal verification of purity.",
-    "ocaml": "Certified OCaml Engineer: Strong static inference, module-system mastery, and high-reliability systems programming.",
-    "matlab": "Certified MATLAB Engineer: Vectorized performance optimization, Simulink model-to-code safety, and numerical precision audit.",
-    "r": "Certified R Specialist: Tidyverse discipline, Bioconductor/CRAN reliability, and statistically-defensible model generation.",
-    "julia": "Certified Julia Developer: Multiple dispatch optimization, LLVM-backend awareness, and high-performance scientific kernels.",
-    "mathematica": "Certified symbolic analyst: Wolfram Language symbolic-expression safety and high-fidelity computational proofs.",
-}
-_LANGUAGE_TOOLING: dict[str, str] = {
-    "python": "Python runtime and ecosystem references",
-    "javascript": "JavaScript/TypeScript runtime and framework references",
-    "ruby": "Ruby runtime and Rails/gem ecosystem references",
-    "php": "PHP runtime and framework references",
-    "c": "C toolchain and systems ABI references",
-    "cpp": "C++ toolchain and STL/compiler references",
-    "rust": "Rust toolchain and cargo ecosystem references",
-    "zig": "Zig compiler and standard library references",
-    "java": "JDK/JVM and enterprise framework references",
-    "csharp": ".NET runtime and framework references",
-    "scala": "Scala/JVM compiler and functional libraries",
-    "kotlin": "Kotlin/JVM toolchain and coroutine references",
-    "matlab": "MATLAB numerical and engineering references",
-    "r": "R language and statistics package references",
-    "julia": "Julia language and scientific package references",
-    "mathematica": "Wolfram language and symbolic engine references",
-}
+
+def get_language_persona(language: str) -> LanguagePersona | None:
+    """Return the consolidated persona record for a language key, or None."""
+    return LANGUAGE_PERSONAS.get(language)
+
+
+def get_language_label(language: str) -> str:
+    """Display label for a language key, falling back to a title-cased key."""
+    persona = LANGUAGE_PERSONAS.get(language)
+    return persona.label if persona is not None else language.title()
+
+
+def get_language_guidance(language: str, default: str = "") -> str:
+    """Engineering guidance for a language key, or ``default`` when unknown."""
+    persona = LANGUAGE_PERSONAS.get(language)
+    return persona.guidance if persona is not None else default
+
+
+def get_language_tooling(language: str, default: str = "") -> str:
+    """Tooling references for a language key, or ``default`` when unknown."""
+    persona = LANGUAGE_PERSONAS.get(language)
+    return persona.tooling if persona is not None else default
+
 
 _CATEGORY_EDUCATION: dict[str, list[str]] = {
     "interface": [
@@ -591,7 +670,7 @@ def _dedupe(values: list[str]) -> list[str]:
 def _specialty_label(agent: AgentDefinition) -> str | None:
     if not agent.specialties:
         return None
-    return _LANGUAGE_LABELS.get(agent.specialties[0], agent.specialties[0].title())
+    return get_language_label(agent.specialties[0])
 
 
 def _job_title_for_agent(agent: AgentDefinition) -> str:
@@ -628,9 +707,9 @@ def _education_for_agent(agent: AgentDefinition) -> list[str]:
     entries.extend(_SHORT_CODE_EDUCATION.get(agent.short_code, []))
     if agent.category == "specialist" and agent.specialties:
         specialty = agent.specialties[0]
-        language_label = _LANGUAGE_LABELS.get(specialty, specialty.title())
+        language_label = get_language_label(specialty)
         entries.append(f"{language_label} language internals and ecosystem best practices.")
-        entries.append(_LANGUAGE_GUIDANCE.get(specialty, "Language-specific standards discipline."))
+        entries.append(get_language_guidance(specialty, "Language-specific standards discipline."))
     return _dedupe(entries)
 
 
@@ -649,7 +728,7 @@ def _methods_for_agent(agent: AgentDefinition) -> list[str]:
     if agent.category == "specialist" and agent.specialties:
         specialty = agent.specialties[0]
         entries.append(
-            _LANGUAGE_GUIDANCE.get(specialty, "Maintain language-specific quality controls.")
+            get_language_guidance(specialty, "Maintain language-specific quality controls.")
         )
     return _dedupe(entries)
 
@@ -678,7 +757,7 @@ def _tools_for_agent(
         entries.append(f"Primary model route: {provider}/{model}")
     if agent.category == "specialist" and agent.specialties:
         specialty = agent.specialties[0]
-        entries.append(_LANGUAGE_TOOLING.get(specialty, "Language tooling references"))
+        entries.append(get_language_tooling(specialty, "Language tooling references"))
     return _dedupe(entries)
 
 
@@ -726,7 +805,7 @@ def _cache_hints_for_agent(agent: AgentDefinition) -> list[str]:
     entries.extend(_SHORT_CODE_CACHE_HINTS.get(agent.short_code, []))
     if agent.category == "specialist" and agent.specialties:
         specialty = agent.specialties[0]
-        language_label = _LANGUAGE_LABELS.get(specialty, specialty.title())
+        language_label = get_language_label(specialty)
         entries.append(
             f"{language_label} language references and upgrade notes"
         )
@@ -1039,3 +1118,69 @@ def build_agent_system_prompt(agent: AgentDefinition) -> str:
         "Return only the schema requested by the user prompt. Do not add markdown.",
     ]
     return "\n".join(line for line in lines if line.strip())
+
+
+@dataclass(frozen=True)
+class AgentPersona:
+    """Single per-agent persona record.
+
+    Consolidates the static slices that were previously assembled on demand
+    from the category/short-code/language lookup tables. Every agent in
+    ``AGENT_REGISTRY`` has exactly one ``AgentPersona`` in ``AGENT_PERSONAS``,
+    keyed by ``agent_id``. Adding an agent is now a single edit here (plus the
+    registry entry) rather than a change across many parallel dicts.
+    """
+
+    agent_id: str
+    short_code: str
+    title: str
+    primary_function: str
+    scope: str
+    master_instruction: str
+    primary_protocol: str
+    specialty_language: str | None = None
+    education_certifications: list[str] = field(default_factory=list)
+    traits_skills: list[str] = field(default_factory=list)
+    methods_procedures: list[str] = field(default_factory=list)
+    cache_hints: list[str] = field(default_factory=list)
+    standard_ids: list[str] = field(default_factory=list)
+
+
+def build_agent_persona(agent: AgentDefinition) -> AgentPersona:
+    """Compose the static ``AgentPersona`` record for a registry agent.
+
+    Runtime-dependent fields (tools, model routing, supported protocols) are
+    intentionally excluded — those still flow through
+    ``build_agent_persona_profile`` which takes per-mission inputs.
+    """
+    specialty = agent.specialties[0] if agent.specialties else None
+    return AgentPersona(
+        agent_id=agent.agent_id,
+        short_code=agent.short_code,
+        title=_job_title_for_agent(agent),
+        primary_function=agent.role,
+        scope=_job_scope_for_agent(agent),
+        master_instruction=_master_instruction(
+            agent, protocols=[], llm_recommendation={}
+        ),
+        primary_protocol=_protocol_profile(agent, [])["primary_code"],
+        specialty_language=specialty,
+        education_certifications=_education_for_agent(agent),
+        traits_skills=_traits_for_agent(agent),
+        methods_procedures=_methods_for_agent(agent),
+        cache_hints=_cache_hints_for_agent(agent),
+        standard_ids=_standards_for_agent(agent),
+    )
+
+
+# Unified per-agent persona registry keyed by agent_id. Built from the single
+# source of truth (AGENT_REGISTRY) so it can never drift out of coverage; the
+# consistency test in tests/services guards this invariant.
+AGENT_PERSONAS: dict[str, AgentPersona] = {
+    agent.agent_id: build_agent_persona(agent) for agent in AGENT_REGISTRY
+}
+
+
+def get_agent_persona(agent_id: str) -> AgentPersona | None:
+    """Return the consolidated persona record for an agent_id, or None."""
+    return AGENT_PERSONAS.get(agent_id)
