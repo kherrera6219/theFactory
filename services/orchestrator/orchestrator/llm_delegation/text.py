@@ -29,8 +29,15 @@ _SECRET_LIKE_PATTERN = re.compile(
 )
 
 
+# Hard cap on the string length fed to the redaction regexes. Inputs are
+# uncontrolled (LLM output, mission context) and the email pattern can backtrack
+# super-linearly, so we bound the scan length before any regex runs (ReDoS guard).
+_MAX_CLEAN_INPUT_CHARS = 50000
+
+
 def _clean_text(value: Any, *, max_length: int = 160) -> str:
-    text = _CONTROL_CHAR_PATTERN.sub(" ", str(value)).strip()
+    text = str(value)[:_MAX_CLEAN_INPUT_CHARS]
+    text = _CONTROL_CHAR_PATTERN.sub(" ", text).strip()
     text = _EMAIL_PATTERN.sub("[redacted-email]", text)
     text = _SECRET_LIKE_PATTERN.sub("[redacted-secret]", text)
     return text[:max_length]
