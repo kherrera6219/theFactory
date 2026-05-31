@@ -40,16 +40,20 @@ class PodAssignmentConflictError(Exception):
 def db_connect(settings: Settings) -> Any:
     """Open a single, direct connection (no pool).
 
-    Retained for migrations and any caller that needs a connection before the
-    pool is initialized. Storage operations should use ``get_connection``.
+    Used for schema migrations, which take a session-level advisory lock and so
+    require a stable session. Connects via ``migration_postgres_url`` (Postgres
+    directly) rather than ``postgres_url`` (PgBouncer): in transaction-pool mode
+    the bouncer reassigns the backend and runs DISCARD ALL between statements,
+    silently releasing the advisory lock mid-migration. Storage operations use
+    the pool via ``get_connection``.
     """
     if psycopg is None:
         raise RuntimeError("psycopg dependency is not installed")
     # prepare_threshold=None disables psycopg's automatic server-side prepared
-    # statements. Required when connecting through PgBouncer in transaction-pool
-    # mode, where connections are reassigned between transactions and named
-    # prepared statements would not survive.
-    return psycopg.connect(settings.postgres_url, autocommit=True, prepare_threshold=None)
+    # statements, kept for parity with the pooled path.
+    return psycopg.connect(
+        settings.migration_postgres_url, autocommit=True, prepare_threshold=None
+    )
 
 
 def init_connection_pool(settings: Settings) -> ConnectionPool:
