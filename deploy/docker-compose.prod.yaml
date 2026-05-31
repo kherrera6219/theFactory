@@ -58,6 +58,8 @@ services:
       LOG_LEVEL: WARNING
       LOG_FORMAT: json
       AUDIT_LOG_ENABLED: "true"
+      # Sample 10% of traces in prod to bound Jaeger volume / storage.
+      OTEL_SAMPLING_RATIO: "0.1"
 
   orchestrator:
     environment:
@@ -75,6 +77,7 @@ services:
       # --- observability ---
       LOG_LEVEL: WARNING
       LOG_FORMAT: json
+      OTEL_SAMPLING_RATIO: "0.1"
 
   # PROD: set MCP_HOST_BIND=127.0.0.1 in the prod .env so the MCP port is only
   # reachable on the host loopback. Internal service-to-service traffic uses
