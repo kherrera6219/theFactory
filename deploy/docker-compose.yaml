@@ -176,31 +176,29 @@ services:
 
   pgbouncer:
     <<: [*common-service, *data-service-hardening]
-    image: pgbouncer/pgbouncer:1.22.1
+    image: edoburu/pgbouncer:v1.24.1-p1
     environment:
-      POSTGRESQL_HOST: postgres
-      POSTGRESQL_PORT: 5432
-      POSTGRESQL_DATABASE: ${POSTGRES_DB:-ulr}
-      POSTGRESQL_USERNAME: ${POSTGRES_USER:-postgres}
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}
-      PGBOUNCER_DATABASE: ${POSTGRES_DB:-ulr}
-      PGBOUNCER_PORT: ${PGBOUNCER_PORT:-5432}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}
+      DB_NAME: ${POSTGRES_DB:-ulr}
       # Transaction pooling is the standard mode for stateless Python microservices.
       # NOTE: SET (session), LISTEN/NOTIFY, and protocol-level prepared statements are
       # NOT supported in this mode. Verified absent from the codebase before enabling.
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_MAX_CLIENT_CONN: 200
-      PGBOUNCER_DEFAULT_POOL_SIZE: 25
-      PGBOUNCER_MIN_POOL_SIZE: 5
-      PGBOUNCER_RESERVE_POOL_SIZE: 5
-      PGBOUNCER_RESERVE_POOL_TIMEOUT: 5
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 25
+      MIN_POOL_SIZE: 5
+      RESERVE_POOL_SIZE: 5
+      RESERVE_POOL_TIMEOUT: 5
       # PgBouncer -> Postgres uses verify-full TLS against the same CA the
       # orchestrator used for its previous direct connection, so the bouncer hop
       # does not weaken transport security to the real database. The orchestrator
       # -> PgBouncer hop stays on the internal hgr-network (sslmode=disable in the
-      # POSTGRES_URL) because the bitnami image does not ship a server cert.
-      PGBOUNCER_SERVER_TLS_SSLMODE: verify-full
-      PGBOUNCER_SERVER_TLS_CA_FILE: /run/postgres-certs/ca.crt
+      # POSTGRES_URL) because the edoburu image does not ship a server cert.
+      SERVER_TLS_SSLMODE: verify-full
+      SERVER_TLS_CA_FILE: /run/postgres-certs/ca.crt
     volumes: *postgres-client-certs
     ports:
       - "127.0.0.1:${PGBOUNCER_HOST_PORT:-5432}:${PGBOUNCER_PORT:-5432}"
