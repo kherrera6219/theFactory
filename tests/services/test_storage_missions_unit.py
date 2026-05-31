@@ -89,7 +89,7 @@ def test_row_to_mission():
     assert mission.mission_type == MissionType.build_new
     assert mission.project_id == "p1"
 
-@patch("orchestrator.storage_missions.db_connect")
+@patch("orchestrator.storage_missions.get_connection")
 def test_fetch_mission(mock_connect):
     mock_conn = MagicMock()
     mock_connect.return_value.__enter__.return_value = mock_conn
@@ -108,7 +108,7 @@ def test_fetch_mission(mock_connect):
     assert mission is not None
     assert mission.mission_id == "m1"
 
-@patch("orchestrator.storage_missions.db_connect")
+@patch("orchestrator.storage_missions.get_connection")
 def test_count_missions(mock_connect):
     mock_conn = MagicMock()
     mock_connect.return_value.__enter__.return_value = mock_conn

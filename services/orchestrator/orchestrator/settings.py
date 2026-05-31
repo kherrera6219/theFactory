@@ -100,6 +100,8 @@ class Settings:
     #   "dedicated"       — dedicated-agents profile; one container per pod manager
     #   "full-dedicated"  — full-dedicated-agents profile; one container per language specialist
     topology_mode: str = "condensed"
+    db_pool_min_size: int = 2
+    db_pool_max_size: int = 10
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -173,6 +175,8 @@ def load_settings() -> Settings:
     return Settings(
         redis_url=os.getenv("REDIS_URL", "redis://redis:6379/0"),
         postgres_url=os.getenv("POSTGRES_URL", "postgresql://postgres:postgres@postgres:5432/ulr"),
+        db_pool_min_size=max(0, int(os.getenv("DB_POOL_MIN_SIZE", "2"))),
+        db_pool_max_size=max(1, int(os.getenv("DB_POOL_MAX_SIZE", "10"))),
         qdrant_url=os.getenv("QDRANT_URL", "http://qdrant:6333"),
         qdrant_api_key=os.getenv("QDRANT_API_KEY", ""),
         milvus_uri=os.getenv("MILVUS_URI", "http://milvus:19530"),
