@@ -235,3 +235,30 @@ Audience: Operators, maintainers, and on-call responders
    - or `make langgraph-v2-prototype`
 14. DORA metrics summary:
    - `python scripts/dora_metrics_summary.py --output-file docs/evidence/dora_metrics_latest.json`
+
+## Release Environments & Approvals
+
+The `Build & Release` workflow (`.github/workflows/release.yml`) runs on `v*` tag
+pushes and is gated by two GitHub Environments. The workflow declares the
+environments, but the protection rules (reviewers, wait timers, secrets) must be
+configured once in **repo Settings → Environments**.
+
+| Environment | Job | Purpose | Required configuration |
+|---|---|---|---|
+| `staging` | `staging-validation` | Pre-production validation of the release candidate (tag format / signing checks) before any artifact is published. | Optional required reviewers or a wait timer. Add staging-only secrets here. |
+| `production` | `release` | Builds and publishes the Electron installers to the GitHub Release. Runs only after `staging-validation` succeeds. | **Required reviewers (at least one)** so the tag push pauses for manual approval before publishing. Scope `CSC_LINK` / `CSC_KEY_PASSWORD` code-signing secrets here. |
+
+Setup steps (one-time, in GitHub UI):
+
+1. Settings → Environments → **New environment** → name it `production`.
+   - Enable **Required reviewers** and add the release approvers.
+   - (Recommended) Enable **Deployment branch and tag rules**, restricting to `v*` tags.
+   - Add production-only secrets (e.g. code-signing certs) here, not as repo secrets.
+2. Repeat for `staging`. Required reviewers are optional; use a wait timer if you
+   want a soak period before promotion.
+3. After configuration, a `v*` tag push will: run `staging-validation`, then pause
+   the `release` job pending approval from a `production` reviewer. Approve from the
+   Actions run page to publish.
+
+Until reviewers are added, the environments exist but impose no gate — configure
+them before relying on the approval flow.
