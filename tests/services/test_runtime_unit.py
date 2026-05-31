@@ -1234,6 +1234,337 @@ def test_runtime_self_heal_loop(monkeypatch) -> None:
     assert calls["count"] == 1
 
 
+def test_prepare_mission_chain_returns_false_when_metadata_update_fails(monkeypatch) -> None:
+    app = _app_state(redis=FakeRedis(), redis_ready=True)
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={},
+        state=MissionState.queued,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: mission)
+    monkeypatch.setattr(runtime.storage, "update_mission_metadata", lambda *_args: None)
+
+    prepared = asyncio.run(
+        runtime._prepare_mission_chain_for_running(
+            app=app,
+            settings=_settings(),
+            validator=FakeEnvelopeValidator(),
+            mission_id="mission-1",
+        )
+    )
+    assert prepared is False
+
+
+def test_prepare_mission_chain_skips_emit_when_redis_unavailable(monkeypatch) -> None:
+    app = _app_state(redis=None, redis_ready=False)
+    inserted_events: list[str] = []
+    emitted_events: list[str] = []
+
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={},
+        state=MissionState.queued,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: mission)
+    monkeypatch.setattr(runtime.storage, "update_mission_metadata", lambda *_args: mission)
+    monkeypatch.setattr(
+        runtime.storage,
+        "insert_mission_event",
+        lambda _s, _m, _p, _n, event_type: inserted_events.append(event_type),
+    )
+
+    async def _emit(**kwargs):
+        emitted_events.append(kwargs["event_type"])
+
+    monkeypatch.setattr(runtime, "emit_state_event", _emit)
+
+    prepared = asyncio.run(
+        runtime._prepare_mission_chain_for_running(
+            app=app,
+            settings=_settings(),
+            validator=FakeEnvelopeValidator(),
+            mission_id="mission-1",
+        )
+    )
+
+    assert prepared is True
+    assert inserted_events  # events were persisted
+    assert emitted_events == []  # but never emitted to the stream
+
+
+def test_ensure_verified_build_artifact_upserts_and_records_metadata(monkeypatch) -> None:
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={"source_code": "print('a')", "selected_agent_id": "AGENT-14-PYTHON"},
+        state=MissionState.verified,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.build_artifact_support,
+        "mission_requires_build_artifact",
+        lambda _metadata: True,
+    )
+
+    upserted: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(
+        runtime.storage,
+        "upsert_build_artifact",
+        lambda *args: upserted.append(args),
+    )
+
+    updated_record = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={"source_code": "print('a')"},
+        state=MissionState.verified,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+    monkeypatch.setattr(
+        runtime.storage,
+        "update_mission_metadata",
+        lambda *_args: updated_record,
+    )
+
+    result = asyncio.run(
+        runtime._ensure_verified_build_artifact(settings=_settings(), mission=mission)
+    )
+    assert upserted  # artifact was persisted
+    assert result is updated_record
+
+
+def test_ensure_verified_build_artifact_falls_back_when_update_returns_none(monkeypatch) -> None:
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={"source_code": "print('a')"},
+        state=MissionState.verified,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.build_artifact_support,
+        "mission_requires_build_artifact",
+        lambda _metadata: True,
+    )
+    monkeypatch.setattr(runtime.storage, "upsert_build_artifact", lambda *_args: None)
+    monkeypatch.setattr(runtime.storage, "update_mission_metadata", lambda *_args: None)
+
+    result = asyncio.run(
+        runtime._ensure_verified_build_artifact(settings=_settings(), mission=mission)
+    )
+    # When the metadata update returns None the original mission is returned.
+    assert result is mission
+
+
+def test_emit_running_phase_checkpoints_swallows_insert_failure(monkeypatch) -> None:
+    app = _app_state(redis=FakeRedis(), redis_ready=True)
+    mission = _mission_record(MissionState.running)
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+
+    def _insert_fail(*_args):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(runtime.storage, "insert_mission_event", _insert_fail)
+
+    emitted: list[str] = []
+
+    async def _emit(**kwargs):
+        emitted.append(kwargs["event_type"])
+
+    monkeypatch.setattr(runtime, "emit_state_event", _emit)
+
+    # Insert failure on every checkpoint should be swallowed and skip emission.
+    asyncio.run(
+        runtime._emit_running_phase_checkpoints(
+            app=app,
+            settings=_settings(),
+            validator=FakeEnvelopeValidator(),
+            mission=mission,
+        )
+    )
+    assert emitted == []
+
+
+def test_write_intake_dlq_swallows_redis_failure(monkeypatch) -> None:
+    class BrokenRedis(FakeRedis):
+        async def xadd(self, *args, **kwargs):
+            raise RuntimeError("dlq stream unavailable")
+
+    # Must not raise even though the DLQ write itself fails.
+    asyncio.run(
+        runtime._write_intake_dlq(
+            _settings(),
+            BrokenRedis(),
+            "1-0",
+            {"envelope": "{}", "payload": "{}"},
+            "boom",
+        )
+    )
+
+
+def test_write_intake_dlq_writes_entry() -> None:
+    redis_client = FakeRedis()
+    settings = _settings()
+    asyncio.run(
+        runtime._write_intake_dlq(
+            settings,
+            redis_client,
+            "1-0",
+            {"envelope": "env", "payload": "pay"},
+            "parse error",
+        )
+    )
+    assert redis_client.xadd_calls
+    stream, payload = redis_client.xadd_calls[0]
+    assert stream == settings.intake_dlq_stream
+    assert payload["error"] == "parse error"
+    assert payload["entry_id"] == "1-0"
+    assert payload["envelope"] == "env"
+    assert payload["payload"] == "pay"
+
+
+def test_consume_intake_stream_skips_existing_mission(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    payload = {
+        "mission_id": "mission-1",
+        "prompt": "Build API",
+        "requested_target_language": "python",
+        "metadata": {"source": "test"},
+        "created_at": "2026-03-01T00:00:00+00:00",
+    }
+    redis_client.xreadgroup_responses = [
+        [("missions.intake", [("1-0", {"payload": json.dumps(payload), "envelope": "{}"})])],
+        asyncio.CancelledError(),
+    ]
+    app = _app_state(redis=redis_client, lifecycle_tasks={})
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    upsert_calls: list[str] = []
+    lifecycle_calls: list[str] = []
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    # Mission already exists -> idempotent skip, no upsert / lifecycle start.
+    monkeypatch.setattr(
+        runtime.storage,
+        "fetch_mission",
+        lambda *_args: _mission_record(MissionState.queued),
+    )
+    monkeypatch.setattr(
+        runtime.storage, "upsert_mission", lambda *_args: upsert_calls.append("upsert")
+    )
+    monkeypatch.setattr(
+        runtime, "start_lifecycle_task", lambda _app, mid: lifecycle_calls.append(mid)
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+    assert upsert_calls == []
+    assert lifecycle_calls == []
+    # Existing missions are skipped (idempotent) but the entry is still acked
+    # via the finally block so it is not redelivered.
+    assert redis_client.xack_calls == [("missions.intake", "orchestrator", "1-0")]
+
+
+def test_consume_intake_stream_poison_message_goes_to_dlq_and_acks(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    # Undeserializable payload triggers json.JSONDecodeError -> DLQ + ack.
+    redis_client.xreadgroup_responses = [
+        [("missions.intake", [("1-0", {"payload": "not-json", "envelope": "{}"})])],
+        asyncio.CancelledError(),
+    ]
+    app = _app_state(redis=redis_client, lifecycle_tasks={})
+
+    dlq_calls: list[str] = []
+
+    async def _write_dlq(_settings, _redis, entry_id, _fields, _error):
+        dlq_calls.append(entry_id)
+
+    monkeypatch.setattr(runtime, "_write_intake_dlq", _write_dlq)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+    assert dlq_calls == ["1-0"]
+    assert redis_client.xack_calls == [("missions.intake", "orchestrator", "1-0")]
+
+
+def test_consume_intake_stream_reraises_non_nogroup_response_error() -> None:
+    redis_client = FakeRedis()
+    redis_client.xreadgroup_responses = [runtime.ResponseError("WRONGTYPE not a stream")]
+    app = _app_state(redis=redis_client, lifecycle_tasks={})
+
+    with pytest.raises(runtime.ResponseError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+
+def test_consume_intake_stream_connection_error_retries(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    # A generic connection failure should flip redis_ready off, sleep, then retry.
+    # Once the response list empties, the next xreadgroup raises CancelledError,
+    # which exits the loop after a single sleep.
+    redis_client.xreadgroup_responses = [ConnectionError("redis down")]
+    app = _app_state(redis=redis_client, lifecycle_tasks={}, redis_ready=True)
+
+    slept: list[float] = []
+
+    async def _sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+    assert app.state.redis_ready is False
+    assert slept == [1.0]
+
+
+def test_runtime_self_heal_loop_reraises_cancellation_from_ensure(monkeypatch) -> None:
+    async def _ensure(_app):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(runtime, "ensure_runtime_ready", _ensure)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.runtime_self_heal_loop(_app_state()))
+
+
 def test_runtime_module_import_fallback_without_redis(monkeypatch) -> None:
     module_path = ROOT / "services" / "orchestrator" / "orchestrator" / "runtime.py"
     real_import = builtins.__import__

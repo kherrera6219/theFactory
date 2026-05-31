@@ -54,7 +54,7 @@ test:
 		--module-threshold services/audit-worker/audit_worker/main.py=90 \
 		--module-threshold services/semantic-bus-mcp/semantic_bus/mcp_server.py=100 \
 		--module-threshold services/orchestrator/orchestrator/protocol.py=100 \
-		--module-threshold services/orchestrator/orchestrator/runtime.py=60 \
+		--module-threshold services/orchestrator/orchestrator/runtime.py=80 \
 		--module-threshold services/orchestrator/orchestrator/agent_personas.py=100 \
 		--module-threshold services/orchestrator/orchestrator/agent_integrations.py=100 \
 		--module-threshold services/orchestrator/orchestrator/agent_registry.py=100
