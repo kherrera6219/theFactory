@@ -693,3 +693,82 @@ def test_protocol_bus_module_import_accepts_explicit_api_key_without_warning(mon
     asyncio.run(_run())
     assert messages == []
     assert redis_client.closed is True
+
+
+# ---------------------------------------------------------------------------
+# Per-agent HMAC signing (Phase 3)
+# ---------------------------------------------------------------------------
+def test_agent_hmac_secret_env_resolution(monkeypatch) -> None:
+    monkeypatch.setenv("AGENT_HMAC_SECRET_02_CEO", "  topsecret-value  ")
+    assert mcp_main._agent_hmac_secret("AGENT-02-CEO") == "topsecret-value"
+    assert mcp_main._agent_hmac_secret("AGENT-99-NOPE") is None
+
+
+def test_send_rejects_missing_signature_when_enabled(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_main, "AGENT_HMAC_SIGNING_ENABLED", True)
+    monkeypatch.setenv("AGENT_HMAC_SECRET_02_CEO", "secret-with-good-entropy-1234")
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
+            json=_alpha_payload(),
+        )
+    assert response.status_code == 401
+    assert "missing agent signature" in response.json()["detail"]
+
+
+def test_send_rejects_invalid_signature_when_enabled(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_main, "AGENT_HMAC_SIGNING_ENABLED", True)
+    monkeypatch.setenv("AGENT_HMAC_SECRET_02_CEO", "secret-with-good-entropy-1234")
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={
+                "x-agent-id": "AGENT-02-CEO",
+                "x-api-key": mcp_main.MCP_API_KEY,
+                "x-agent-signature": "9999999999:deadbeef",
+            },
+            json=_alpha_payload(),
+        )
+    assert response.status_code == 401
+    assert "invalid agent signature" in response.json()["detail"]
+
+
+def test_send_accepts_valid_signature_when_enabled(monkeypatch) -> None:
+    from shared_runtime.agent_auth import sign_agent_message
+
+    secret = "secret-with-good-entropy-1234"
+    monkeypatch.setattr(mcp_main, "AGENT_HMAC_SIGNING_ENABLED", True)
+    monkeypatch.setenv("AGENT_HMAC_SECRET_02_CEO", secret)
+    body = _alpha_payload()
+    sig = sign_agent_message("AGENT-02-CEO", secret, body["payload"])
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={
+                "x-agent-id": "AGENT-02-CEO",
+                "x-api-key": mcp_main.MCP_API_KEY,
+                "x-agent-signature": sig,
+            },
+            json=body,
+        )
+    assert response.status_code == 200
+
+
+def test_send_ignores_signature_when_disabled(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_main, "AGENT_HMAC_SIGNING_ENABLED", False)
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
+            json=_alpha_payload(),
+        )
+    assert response.status_code == 200

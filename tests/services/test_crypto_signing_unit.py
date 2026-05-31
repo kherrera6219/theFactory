@@ -107,3 +107,45 @@ def test_load_or_create_signing_key_persists_and_reloads(tmp_path) -> None:
     data = b"persisted"
     sig = signing.sign(key2, data)
     assert signing.verify(signing.public_key_to_pem(key1), data, sig) is True
+
+
+# ---------------------------------------------------------------------------
+# sign_artifact / verify_artifact (file-on-disk signing)
+# ---------------------------------------------------------------------------
+def test_sign_artifact_roundtrip(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv(
+        "ARTIFACT_SIGNING_KEY_PATH", str(tmp_path / "keys" / "artifact.key")
+    )
+    artifact = tmp_path / "out.rir.module.json"
+    artifact.write_text('{"a": 1}\n', encoding="utf-8")
+    record = signing.sign_artifact(artifact)
+    assert record["algorithm"] == signing.ALGORITHM
+    sidecar = tmp_path / ("out.rir.module.json" + signing.SIGNATURE_SUFFIX)
+    assert sidecar.exists()
+    assert signing.verify_artifact(artifact) is True
+
+
+def test_verify_artifact_detects_tampering(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv(
+        "ARTIFACT_SIGNING_KEY_PATH", str(tmp_path / "keys" / "artifact.key")
+    )
+    artifact = tmp_path / "out.json"
+    artifact.write_text("original", encoding="utf-8")
+    signing.sign_artifact(artifact)
+    artifact.write_text("tampered", encoding="utf-8")
+    assert signing.verify_artifact(artifact) is False
+
+
+def test_verify_artifact_missing_sidecar_returns_false(tmp_path) -> None:
+    artifact = tmp_path / "unsigned.json"
+    artifact.write_text("x", encoding="utf-8")
+    assert signing.verify_artifact(artifact) is False
+
+
+def test_verify_artifact_malformed_sidecar_returns_false(tmp_path) -> None:
+    artifact = tmp_path / "a.json"
+    artifact.write_text("x", encoding="utf-8")
+    (tmp_path / ("a.json" + signing.SIGNATURE_SUFFIX)).write_text(
+        "not json", encoding="utf-8"
+    )
+    assert signing.verify_artifact(artifact) is False

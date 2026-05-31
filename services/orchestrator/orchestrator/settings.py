@@ -118,6 +118,10 @@ class Settings:
     db_pool_max_size: int = 10
     audit_retention_days: int = 90
     logicnode_schema_path: Path = Path("schemas/logicnode.schema.json")
+    environment: str = "development"
+    # "shared" — agents without a dedicated key fall back to the shared service key.
+    # "strict" — each agent must have its own key (no shared-identity fallback).
+    agent_service_key_mode: str = "shared"
 
     @property
     def api_key_roles(self) -> dict[str, set[str]]:
@@ -180,7 +184,17 @@ def load_settings() -> Settings:
     readonly_key = os.getenv("ORCHESTRATOR_READONLY_API_KEY", "")
     internal_key = os.getenv("INTERNAL_SERVICE_API_KEY", "")
     extra_keys = os.getenv("ORCHESTRATOR_API_KEYS", "")
-    is_production = os.getenv("ENVIRONMENT", "development").strip().lower() == "production"
+    environment = os.getenv("ENVIRONMENT", "development").strip().lower() or "development"
+    is_production = environment == "production"
+    agent_service_key_mode = (
+        os.getenv("AGENT_SERVICE_KEY_MODE", "shared").strip().lower() or "shared"
+    )
+    if is_production and agent_service_key_mode == "shared":
+        logging.getLogger(__name__).warning(
+            "SECURITY: agent_service_key_mode=shared in production — all agents "
+            "share one identity. Set AGENT_SERVICE_KEY_MODE=strict so each agent "
+            "authenticates with its own dedicated service key."
+        )
     if is_production:
         if not any([admin_key, readonly_key, internal_key, extra_keys.strip()]):
             raise RuntimeError(
@@ -378,4 +392,6 @@ def load_settings() -> Settings:
         protocol_bus_consumer_enabled=_as_bool(
             os.getenv("PROTOCOL_BUS_CONSUMER_ENABLED", "true"), True
         ),
+        environment=environment,
+        agent_service_key_mode=agent_service_key_mode,
     )
