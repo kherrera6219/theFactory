@@ -104,7 +104,7 @@ jobs:
 
       - name: Run gitleaks (full history scan)
         # 2026 best practice: scan full git history, not just staged changes
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
