@@ -18,7 +18,7 @@ This guide explains how to use theFactory through Mission Control for the main o
 - `Projects`
   - per-project audit timeline across missions and agents
 - `Agents`
-  - 38-agent runtime topology and persona drill-down
+  - 41-agent runtime topology and persona drill-down
 - `LogicNodes`
   - extracted mission-linked graph fragments
 - `Semantic Bus`

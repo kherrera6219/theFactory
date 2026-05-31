@@ -682,7 +682,7 @@ class SpecialistAgent(BaseAgent):
 
 
 # ---------------------------------------------------------------------------
-# Per-language specialist concrete classes (16 languages, 4 pods)
+# Per-language specialist concrete classes (19 languages, 4 pods)
 # ---------------------------------------------------------------------------
 
 # Pod A — Dynamic languages

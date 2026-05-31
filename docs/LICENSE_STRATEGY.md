@@ -55,7 +55,7 @@ This approach is patterned on widely-adopted open-core projects in the developer
 The MIT-licensed core includes, at minimum:
 
 - API gateway, orchestrator, pod workers, audit worker, semantic bus MCP, dashboard
-- The 38-agent registry and persona definitions
+- The 41-agent registry and persona definitions
 - Mission lifecycle (Mission Flow v2 and any successor default lifecycles)
 - Language extraction engine and the concept catalog
 - Refined IR foundation

@@ -15,7 +15,7 @@ Companion diagrams: [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md)
 - [Runtime Topology](#runtime-topology)
 - [Service Responsibilities](#service-responsibilities)
 - [Mission Lifecycle](#mission-lifecycle)
-- [38-Agent Model](#38-agent-model)
+- [41-Agent Model](#41-agent-model)
 - [Language Extraction Engine](#language-extraction-engine)
 - [Data Plane](#data-plane)
 - [Event Bus Architecture](#event-bus-architecture)
@@ -29,7 +29,7 @@ Companion diagrams: [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md)
 
 ## System Overview
 
-theFactory is a **38-agent multi-agent software refinery** built on a microservice architecture. Missions (software build requests) enter through the API Gateway, are delegated through an agent hierarchy, processed by language-specialist pod workers, and completed with audit evidence.
+theFactory is a **41-agent multi-agent software refinery** built on a microservice architecture. Missions (software build requests) enter through the API Gateway, are delegated through an agent hierarchy, processed by language-specialist pod workers, and completed with audit evidence.
 
 The system is organized into three planes:
 
@@ -60,7 +60,7 @@ The system is organized into three planes:
 ║         ORCHESTRATOR :8101             ║ │
 ║  FastAPI · LangGraph StateGraph        ║ │
 ║  Postgres checkpointer (optional)      ║ │
-║  38-agent registry + persona profiles  ║ │
+║  41-agent registry + persona profiles  ║ │
 ║  Qdrant/Milvus/Neo4j/S3 adapter plane  ║ │
 ║  Operations APIs · OTEL traces         ║ │
 ╚══════════╤═════════════════════════════╝ │
@@ -104,7 +104,7 @@ The system is organized into three planes:
 - **Mission state machine:** `QUEUED → RUNNING → VERIFIED → COMPLETE | FAILED`
 - **Lifecycle engines:** shipped defaults currently execute mission-flow v2 first, with optional LangGraph and legacy fallback
 - **Project identity:** every mission now carries a durable `project_id` resolved at intake and persisted on the mission record
-- **Agent registry:** Canonical 38-agent dataset with runtime telemetry + 8-part persona profiles
+- **Agent registry:** Canonical 41-agent dataset with runtime telemetry + 8-part persona profiles
 - **Pod assignment:** Routes missions to pod streams based on `requested_target_language`
 - **Build/package artifacts:** source-bundle missions package a durable Postgres-backed build artifact at `VERIFIED` with digest, manifest, build log, and retrieval metadata
 - **Durable review approvals:** Builder and repo review approvals persist as orchestrator-backed approval records rather than local filesystem receipts
@@ -186,7 +186,7 @@ QUEUED ──► RUNNING ──► VERIFIED ──► COMPLETE
 
 ---
 
-## 38-Agent Model
+## 41-Agent Model
 
 ### Tier Structure
 
@@ -194,12 +194,12 @@ QUEUED ──► RUNNING ──► VERIFIED ──► COMPLETE
 |------|--------|-------|
 | Interface | AGENT-01-PM (Project Manager) | 1 |
 | Executive | AGENT-02-CEO (Chief Executor) | 1 |
-| Support Ring | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy | 9 |
+| Support Ring | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, DepAbsorption, TestData, RuntimeQC | 12 |
 | Pod A (Dynamic) | Manager, Audit, Python, JS, Ruby, PHP Specialists | 6 |
 | Pod B (Systems) | Manager, Audit, C, C++, Rust, Zig, Go Specialists | 7 |
 | Pod C (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | 6 |
 | Pod D (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica, Haskell, OCaml Specialists | 8 |
-| **Total** | | **38** |
+| **Total** | | **41** |
 
 ### Agent Runtime State Model
 

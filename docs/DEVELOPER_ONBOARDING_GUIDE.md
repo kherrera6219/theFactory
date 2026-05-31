@@ -274,7 +274,7 @@ theFactory/
 │   ├── app/                        ← App Router pages and layouts
 │   │   ├── (shell)/               ← Layout shell (sidebar, header)
 │   │   ├── missions/              ← Mission list + detail views
-│   │   ├── agents/                ← 38-agent roster + detail
+│   │   ├── agents/                ← 41-agent roster + detail
 │   │   ├── semantic-bus/          ← Live semantic bus view
 │   │   ├── builder/               ← Repository intake flow
 │   │   └── settings/              ← Vault and config
@@ -309,7 +309,7 @@ theFactory/
 
 | File | What it does |
 |------|-------------|
-| `services/orchestrator/orchestrator/agent_personas.py` | 38-agent persona profile dataset |
+| `services/orchestrator/orchestrator/agent_personas.py` | 41-agent persona profile dataset |
 | `services/orchestrator/orchestrator/agent_registry.py` | Agent runtime state and registry |
 | `services/orchestrator/orchestrator/runtime.py` | Mission lifecycle state machine |
 | `services/orchestrator/orchestrator/langgraph_lifecycle.py` | LangGraph StateGraph |
@@ -408,7 +408,7 @@ python scripts/check_coverage_thresholds.py
 - [ ] `make test` passes — services coverage gate stays at or above 80%
 - [ ] `make audit` passes — 17/17 checks
 - [ ] Mission Control UI opens at `http://localhost:3100`
-- [ ] Agent roster shows 38 agents at `http://localhost:8100/v1/operations/agents`
+- [ ] Agent roster shows 41 agents at `http://localhost:8100/v1/operations/agents`
 - [ ] `make lint` passes — 0 ruff errors
 - [ ] Read [`ARCHITECTURE.md`](ARCHITECTURE.md) for system topology
 - [ ] Read [`AGENTS.md`](../AGENTS.md) for AI agent developer guidelines
