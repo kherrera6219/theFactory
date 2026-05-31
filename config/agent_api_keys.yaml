@@ -48,9 +48,9 @@ agents:
     pod: "User Interface"
     primary_provider: "openai"
     primary_model: "gpt-5.5"
-    llm_profile: "openai_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    llm_profile: "openai_exec"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: "" # <-- Per-agent key (optional)
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -64,8 +64,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_exec"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: "" # <-- Per-agent key (optional)
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -77,10 +77,10 @@ agents:
     role: "API routing, key management, and rate-limit control"
     pod: "Support Ring"
     primary_provider: "gemini"
-    primary_model: "gemini-2.5-flash"
+    primary_model: "gemini-3.5-flash"
     llm_profile: "gemini_ops_fast"
     fallback_provider: "openai"
-    fallback_model: "gpt-5.2"
+    fallback_model: "gpt-5.5"
     api_key_override: ""
 
   - agent_id: "AGENT-04-ACCOUNTANT"
@@ -88,10 +88,10 @@ agents:
     role: "Token-cost monitoring and budget enforcement"
     pod: "Support Ring"
     primary_provider: "openai"
-    primary_model: "gpt-5.2"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_instant_ops"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-05-SECURITY"
@@ -99,10 +99,10 @@ agents:
     role: "Security scanning and threat detection"
     pod: "Support Ring"
     primary_provider: "openai"
-    primary_model: "claude-opus-4-6"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_deep_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-06-IS"
@@ -110,9 +110,9 @@ agents:
     role: "Knowledge indexing and standards updates"
     pod: "Support Ring"
     primary_provider: "gemini"
-    primary_model: "gemini-2.5-pro"
+    primary_model: "gemini-3.5-flash"
     llm_profile: "gemini_knowledge"
-    fallback_provider: "anthropic"
+    fallback_provider: "openai"
     fallback_model: "gpt-5.5"
     api_key_override: ""
 
@@ -123,8 +123,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-08-COMPLIANCE"
@@ -132,10 +132,10 @@ agents:
     role: "License compatibility and legal provenance checks"
     pod: "Support Ring"
     primary_provider: "openai"
-    primary_model: "claude-opus-4-6"
+    primary_model: "gpt-5.5"
     llm_profile: "openai_deep_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-09-HW"
@@ -143,7 +143,7 @@ agents:
     role: "CPU/GPU optimization and hardware-specific mapping"
     pod: "Support Ring"
     primary_provider: "gemini"
-    primary_model: "gemini-2.5-pro"
+    primary_model: "gemini-3.5-flash"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
     fallback_model: "gpt-5.5"
@@ -154,10 +154,10 @@ agents:
     role: "End-to-end validation and performance benchmarking"
     pod: "Support Ring"
     primary_provider: "openai"
-    primary_model: "claude-opus-4-6"
-    llm_profile: "openai_deep_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_codegen"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-11-DEPLOY"
@@ -165,10 +165,10 @@ agents:
     role: "Binary packaging, delivery, and environment setup"
     pod: "Support Ring"
     primary_provider: "gemini"
-    primary_model: "gemini-2.5-flash"
+    primary_model: "gemini-3.5-flash"
     llm_profile: "gemini_ops_balanced"
     fallback_provider: "openai"
-    fallback_model: "gpt-5.2"
+    fallback_model: "gpt-5.5"
     api_key_override: ""
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -182,8 +182,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_exec"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-13-PODA-AUDIT"
@@ -193,8 +193,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-14-PYTHON"
@@ -204,8 +204,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-15-JAVASCRIPT"
@@ -215,8 +215,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-16-RUBY"
@@ -226,8 +226,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-17-PHP"
@@ -237,8 +237,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -252,8 +252,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_exec"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-19-PODB-AUDIT"
@@ -263,8 +263,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-20-C"
@@ -274,8 +274,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-21-CPP"
@@ -285,8 +285,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-22-RUST"
@@ -296,8 +296,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-23-ZIG"
@@ -307,8 +307,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_codegen"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -322,8 +322,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_exec"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-25-PODC-AUDIT"
@@ -333,8 +333,8 @@ agents:
     primary_provider: "openai"
     primary_model: "gpt-5.5"
     llm_profile: "openai_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-26-JAVA"
@@ -343,9 +343,9 @@ agents:
     pod: "Pod C"
     primary_provider: "openai"
     primary_model: "gpt-5.5"
-    llm_profile: "openai_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    llm_profile: "openai_codegen"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-27-CSHARP"
@@ -354,9 +354,9 @@ agents:
     pod: "Pod C"
     primary_provider: "openai"
     primary_model: "gpt-5.5"
-    llm_profile: "openai_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    llm_profile: "openai_codegen"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-28-SCALA"
@@ -365,9 +365,9 @@ agents:
     pod: "Pod C"
     primary_provider: "openai"
     primary_model: "gpt-5.5"
-    llm_profile: "openai_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    llm_profile: "openai_codegen"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   - agent_id: "AGENT-29-KOTLIN"
@@ -376,9 +376,9 @@ agents:
     pod: "Pod C"
     primary_provider: "openai"
     primary_model: "gpt-5.5"
-    llm_profile: "openai_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    llm_profile: "openai_codegen"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
     api_key_override: ""
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -390,7 +390,7 @@ agents:
     role: "Coordinate mathematical-language extraction and fusion in Pod D"
     pod: "Pod D"
     primary_provider: "gemini"
-    primary_model: "gemini-2.5-pro"
+    primary_model: "gemini-3.5-flash"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
     fallback_model: "gpt-5.5"
@@ -400,11 +400,11 @@ agents:
     name: "Pod D QC/Audit"
     role: "Verify Pod D LogicNodes before pod-level release"
     pod: "Pod D"
-    primary_provider: "openai"
-    primary_model: "claude-opus-4-6"
-    llm_profile: "openai_deep_audit"
-    fallback_provider: ~
-    fallback_model: ~
+    primary_provider: "gemini"
+    primary_model: "gemini-3.5-flash"
+    llm_profile: "gemini_stem"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.5"
     api_key_override: ""
 
   - agent_id: "AGENT-32-MATLAB"
@@ -412,7 +412,7 @@ agents:
     role: "Extract computational intent from MATLAB workloads"
     pod: "Pod D"
     primary_provider: "gemini"
-    primary_model: "gemini-2.5-pro"
+    primary_model: "gemini-3.5-flash"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
     fallback_model: "gpt-5.5"
@@ -423,7 +423,7 @@ agents:
     role: "Extract computational intent from R workloads"
     pod: "Pod D"
     primary_provider: "gemini"
-    primary_model: "gemini-2.5-pro"
+    primary_model: "gemini-3.5-flash"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
     fallback_model: "gpt-5.5"
@@ -434,7 +434,7 @@ agents:
     role: "Extract computational intent from Julia workloads"
     pod: "Pod D"
     primary_provider: "gemini"
-    primary_model: "gemini-2.5-pro"
+    primary_model: "gemini-3.5-flash"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
     fallback_model: "gpt-5.5"
@@ -445,8 +445,94 @@ agents:
     role: "Extract computational intent from Mathematica workloads"
     pod: "Pod D"
     primary_provider: "gemini"
-    primary_model: "gemini-2.5-pro"
+    primary_model: "gemini-3.5-flash"
     llm_profile: "gemini_stem"
     fallback_provider: "openai"
     fallback_model: "gpt-5.5"
+    api_key_override: ""
+
+  - agent_id: "AGENT-36-GO"
+    name: "Go Specialist"
+    role: "Extract computational intent from Go workloads"
+    pod: "Pod B"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_codegen"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
+    primary_api_key: ~
+    fallback_api_key: ~
+    api_key_override: ""
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # POD D EXTENSION — Functional Languages (Haskell, OCaml)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - agent_id: "AGENT-37-HASKELL"
+    name: "Haskell Specialist"
+    role: "Extract computational intent from Haskell workloads"
+    pod: "Pod D"
+    primary_provider: "gemini"
+    primary_model: "gemini-3.5-flash"
+    llm_profile: "gemini_stem"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.5"
+    primary_api_key: ~
+    fallback_api_key: ~
+    api_key_override: ""
+
+  - agent_id: "AGENT-38-OCAML"
+    name: "OCaml Specialist"
+    role: "Extract computational intent from OCaml workloads"
+    pod: "Pod D"
+    primary_provider: "gemini"
+    primary_model: "gemini-3.5-flash"
+    llm_profile: "gemini_stem"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.5"
+    primary_api_key: ~
+    fallback_api_key: ~
+    api_key_override: ""
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SUPPORT RING — Capability Expansion (Phase 1)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - agent_id: "AGENT-39-DEPABS"
+    name: "Dependency Absorption Agent"
+    role: "Dependency absorption: intent extraction, equivalence planning, and SBOM delta"
+    pod: "Support Ring"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_codegen"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
+    primary_api_key: ~
+    fallback_api_key: ~
+    api_key_override: ""
+
+  - agent_id: "AGENT-40-TESTDATA"
+    name: "Database and Test Data Agent"
+    role: "Ephemeral test environment provisioning, schema setup, and synthetic data generation"
+    pod: "Support Ring"
+    primary_provider: "gemini"
+    primary_model: "gemini-3.5-flash"
+    llm_profile: "gemini_ops_fast"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.5"
+    primary_api_key: ~
+    fallback_api_key: ~
+    api_key_override: ""
+
+  - agent_id: "AGENT-41-RQCA"
+    name: "Runtime QC Agent"
+    role: "AI-driven browser and CLI runtime quality control in ephemeral sandbox environments"
+    pod: "Support Ring"
+    primary_provider: "openai"
+    primary_model: "gpt-5.5"
+    llm_profile: "openai_audit"
+    fallback_provider: "openai"
+    fallback_model: "gpt-5.4-mini"
+    primary_api_key: ~
+    fallback_api_key: ~
     api_key_override: ""
