@@ -305,6 +305,15 @@ def list_missions_in_states(
     return [row_to_mission(row) for row in rows]
 
 
+def _resolve_engine_label(settings: Settings) -> str:
+    """Map the active lifecycle engine to a Prometheus label value."""
+    if getattr(settings, "mission_flow_v2_enabled", True):
+        return "v2"
+    if getattr(settings, "langgraph_enabled", False):
+        return "langgraph"
+    return "legacy"
+
+
 def insert_mission_event(
     settings: Settings,
     mission_id: str,
@@ -326,6 +335,29 @@ def insert_mission_event(
                     event_type,
                 ),
             )
+
+    # Observability: record the transition for Prometheus. A self-loop
+    # (previous == new) is a checkpoint event, not a real transition, so skip it
+    # to avoid double-counting the active gauge and outcomes.
+    if previous_state == new_state:
+        return
+    from .orchestrator_metrics import record_mission_transition
+
+    started_at_epoch: float | None = None
+    if new_state in {MissionState.complete, MissionState.failed}:
+        try:
+            mission = fetch_mission(settings, mission_id)
+            if mission is not None and mission.created_at is not None:
+                started_at_epoch = mission.created_at.timestamp()
+        except Exception:  # noqa: BLE001
+            started_at_epoch = None
+
+    record_mission_transition(
+        from_state=previous_state.value if previous_state else None,
+        to_state=new_state.value,
+        engine=_resolve_engine_label(settings),
+        started_at_epoch=started_at_epoch,
+    )
 
 
 def list_mission_events(settings: Settings, mission_id: str, limit: int) -> list[MissionEvent]:

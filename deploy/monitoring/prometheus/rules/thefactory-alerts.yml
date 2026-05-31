@@ -138,6 +138,28 @@ groups:
           description: Audit worker p99 task latency is above 10s for agent {{ $labels.agent_id }}.
           runbook: docs/OPERATIONS_RUNBOOK.md
 
+  - name: thefactory-mission-lifecycle
+    rules:
+      - alert: MissionStuckInRunning
+        expr: factory_missions_active{state="RUNNING"} > 0 and (time() - factory_mission_last_transition_timestamp) > 3600
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: Mission stuck in RUNNING state for > 1 hour
+          description: At least one mission is RUNNING and no state transition has occurred for over an hour.
+          runbook: docs/OPERATIONS_RUNBOOK.md
+
+      - alert: MissionFailureRateHigh
+        expr: rate(factory_mission_outcomes_total{outcome="failed"}[15m]) > 0.2
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: Mission failure rate above 20% over 15 minutes
+          description: The mission terminal-failure rate has exceeded 0.2/s over the last 15 minutes.
+          runbook: docs/OPERATIONS_RUNBOOK.md
+
   - name: thefactory-optional-data-plane
     rules:
       - alert: Neo4jAdapterNotReady
