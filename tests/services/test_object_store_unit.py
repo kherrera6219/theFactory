@@ -266,6 +266,69 @@ def test_put_audit_report_falls_back_when_object_lock_unsupported(monkeypatch) -
     assert record["etag"] == "etag-2"
 
 
+def test_put_audit_report_raises_when_legal_hold_lock_unsupported(monkeypatch) -> None:
+    fake = _FakeS3Client()
+
+    def _put_object(**kwargs):
+        fake.put_calls.append(kwargs)
+        if "ObjectLockMode" in kwargs:
+            raise RuntimeError("lock unsupported")
+        return {"ETag": '"etag-plain"'}
+
+    fake.put_object = _put_object
+    monkeypatch.setattr(object_store, "ensure_bucket", lambda _settings: None)
+    monkeypatch.setattr(object_store, "_s3_client", lambda _settings: fake)
+    before = data_plane_metrics.OBJECT_STORAGE_LEGAL_HOLD_FALLBACK_TOTAL._value.get()
+
+    with pytest.raises(RuntimeError, match="lock unsupported"):
+        object_store.put_audit_report(
+            _settings(object_storage_legal_hold_on_fail=True),
+            "mission-1",
+            "audit-legal",
+            "FAILED",
+            {"score": 3},
+            "2026-03-03T00:00:00+00:00",
+        )
+
+    # The locked write was attempted, but no unprotected fallback write happened.
+    assert len(fake.put_calls) == 1
+    assert "ObjectLockMode" in fake.put_calls[0]
+    after = data_plane_metrics.OBJECT_STORAGE_LEGAL_HOLD_FALLBACK_TOTAL._value.get()
+    assert after == before + 1
+
+
+def test_put_audit_report_warns_and_writes_for_retention_only(monkeypatch, caplog) -> None:
+    fake = _FakeS3Client()
+
+    def _put_object(**kwargs):
+        fake.put_calls.append(kwargs)
+        if "ObjectLockMode" in kwargs:
+            raise RuntimeError("lock unsupported")
+        return {"ETag": '"etag-retention"'}
+
+    fake.put_object = _put_object
+    monkeypatch.setattr(object_store, "ensure_bucket", lambda _settings: None)
+    monkeypatch.setattr(object_store, "_s3_client", lambda _settings: fake)
+
+    with caplog.at_level("WARNING", logger="orchestrator.object_store"):
+        record = object_store.put_audit_report(
+            _settings(object_storage_legal_hold_on_fail=False),
+            "mission-1",
+            "audit-retention",
+            "PASS",
+            {"score": 4},
+            "2026-03-03T00:00:00+00:00",
+        )
+
+    # Locked attempt then unprotected fallback write.
+    assert len(fake.put_calls) == 2
+    assert "ObjectLockMode" in fake.put_calls[0]
+    assert "ObjectLockMode" not in fake.put_calls[1]
+    assert record["etag"] == "etag-retention"
+    assert record["legal_hold"] is False
+    assert any("retention will not be enforced" in message for message in caplog.messages)
+
+
 def test_list_audit_artifacts_sorts_last_modified(monkeypatch) -> None:
     fake = _FakeS3Client()
     fake.contents = [

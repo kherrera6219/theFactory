@@ -32,6 +32,11 @@ OPTIONAL_ADAPTER_MIRROR_WRITE_LATENCY_SECONDS = Histogram(
     "Latency of mirror writes to optional adapters",
     ("adapter", "artifact"),
 )
+OBJECT_STORAGE_LEGAL_HOLD_FALLBACK_TOTAL = Counter(
+    "object_storage_legal_hold_fallback_total",
+    "Times a legal-hold write could not apply Object Lock because the bucket "
+    "does not support it (the write is refused rather than written unprotected)",
+)
 
 
 def set_optional_adapter_enabled(adapter: str, *, enabled: bool) -> None:

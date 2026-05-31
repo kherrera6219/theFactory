@@ -3,17 +3,21 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import logging
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import quote
 
 from .data_plane_metrics import (
+    OBJECT_STORAGE_LEGAL_HOLD_FALLBACK_TOTAL,
     observe_optional_adapter_operation,
     set_optional_adapter_enabled,
     set_optional_adapter_ready,
 )
 from .settings import Settings
+
+LOGGER = logging.getLogger(__name__)
 
 _BUCKET_CACHE: set[str] = set()
 _ADAPTER = "object_storage"
@@ -175,6 +179,20 @@ def put_audit_report(
     report: dict[str, Any],
     created_at: str,
 ) -> dict[str, Any]:
+    """Persist an audit report to object storage with retention / legal hold.
+
+    The write first attempts an Object-Lock-protected ``put_object`` (COMPLIANCE
+    retention, plus a legal hold when the audit failed). If the bucket does not
+    support Object Lock, behaviour depends on whether a legal hold was required:
+
+    * **legal_hold=True** — the failure is loud: an error is logged, the
+      ``object_storage_legal_hold_fallback_total`` counter is incremented, and the
+      original exception is re-raised. A legal-hold write must never silently
+      succeed as an unprotected object.
+    * **legal_hold=False** (retention only) — a warning is logged and the report
+      is written without a lock. Retention will not be enforced, which is
+      acceptable for non-legal-hold artifacts.
+    """
     started = time.perf_counter()
     success = False
     try:
@@ -216,8 +234,25 @@ def put_audit_report(
             if legal_hold:
                 lock_args["ObjectLockLegalHoldStatus"] = "ON"
             response = client.put_object(**lock_args)
-        except Exception:
-            # Fallback for buckets without object-lock support.
+        except Exception as exc:
+            if legal_hold:
+                # A legal hold must never silently degrade to an unprotected
+                # write. Make the failure loud and refuse the write.
+                OBJECT_STORAGE_LEGAL_HOLD_FALLBACK_TOTAL.inc()
+                LOGGER.error(
+                    "Object Lock not supported on bucket %s; refusing to write "
+                    "legal-hold audit report %s for mission %s without a lock.",
+                    settings.object_storage_bucket,
+                    audit_id,
+                    mission_id,
+                )
+                raise
+            # Retention-only writes may proceed without a lock; retention will
+            # not be enforced for this object.
+            LOGGER.warning(
+                "Object Lock not supported on bucket; retention will not be "
+                "enforced. Object written without lock."
+            )
             response = client.put_object(**base_args)
 
         etag = str(response.get("ETag", "")).strip('"') if isinstance(response, dict) else ""
