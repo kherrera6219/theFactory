@@ -33,7 +33,7 @@ def _schema() -> dict[str, Any]:
             "timestamp": {"type": "string"},
             "producer": {"type": "string"},
             "correlation_id": {"type": "string"},
-            "payload_ref": {"type": "string"},
+            "payload_ref": {"type": "string", "pattern": "^registry://"},
             "schema": {"type": "string"},
             "priority": {"type": "string", "enum": ["NORMAL", "HIGH"]},
         },
