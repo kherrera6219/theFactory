@@ -1,4 +1,9 @@
-"""Tests for semantic-bus-mcp deduplication and backpressure — Phase 3."""
+"""Tests for semantic-bus-mcp replay detection, deduplication and backpressure.
+
+Issue #188: replay detection is wired into the /send handler (returns 409 on a
+duplicate correlation_id), and dedup/backpressure now fail closed (HTTP 503) on
+Redis errors instead of silently disabling themselves.
+"""
 from __future__ import annotations
 
 import importlib
@@ -6,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -14,9 +20,20 @@ sys.path.insert(0, str(ROOT / "services" / "semantic-bus-mcp"))
 mcp_main = importlib.import_module("semantic_bus.mcp_server")
 app = mcp_main.app
 
+from shared_runtime import protocol as protocol_guard  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_replay_guard():
+    """Replay guard is a process-local singleton — reset between tests so a
+    correlation_id used in one test does not trip replay detection in another."""
+    protocol_guard.reset_replay_guard()
+    yield
+    protocol_guard.reset_replay_guard()
+
 
 # ---------------------------------------------------------------------------
-# Extended FakeRedis — adds set() NX/EX and xlen() for Phase 3 features
+# Extended FakeRedis — adds set() NX/EX and xlen() for dedup/backpressure tests
 # ---------------------------------------------------------------------------
 
 class FakeRedisWithDedup:
@@ -86,10 +103,10 @@ def _alpha_payload(correlation_id: str | None = None) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Deduplication tests
+# Replay detection tests (issue #188)
 # ---------------------------------------------------------------------------
 
-class TestMessageDeduplication:
+class TestReplayDetection:
     def test_first_send_accepted(self):
         with TestClient(app) as client:
             app.state.redis = FakeRedisWithDedup()
@@ -97,35 +114,31 @@ class TestMessageDeduplication:
             response = client.post(
                 "/send",
                 headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
-                json=_alpha_payload(correlation_id="corr-unique-001"),
+                json=_alpha_payload(correlation_id="corr-replay-unique"),
             )
         assert response.status_code == 200
-        assert response.json().get("deduplicated") is not True
 
-    def test_duplicate_correlation_id_returns_200_deduplicated(self):
+    def test_duplicate_correlation_id_returns_409(self):
         fake = FakeRedisWithDedup()
         with TestClient(app) as client:
             app.state.redis = fake
             app.state.redis_ready = True
             headers = {"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY}
 
-            # First send — accepted
             r1 = client.post(
-                "/send",
-                headers=headers,
-                json=_alpha_payload(correlation_id="corr-dup-001"),
+                "/send", headers=headers, json=_alpha_payload(correlation_id="corr-replay-dup")
             )
             assert r1.status_code == 200
-            assert r1.json().get("deduplicated") is not True
 
-            # Second send with same correlation_id — deduplicated
+            # Same correlation_id replayed — rejected before publishing
             r2 = client.post(
-                "/send",
-                headers=headers,
-                json=_alpha_payload(correlation_id="corr-dup-001"),
+                "/send", headers=headers, json=_alpha_payload(correlation_id="corr-replay-dup")
             )
-            assert r2.status_code == 200
-            assert r2.json().get("deduplicated") is True
+        assert r2.status_code == 409
+        assert "replay detected" in r2.json().get("detail", "")
+        # The replayed message must NOT have been written to the stream a second time.
+        stream_entries = fake.streams.get("protocol:alpha:AGENT-12-PODA-MGR", [])
+        assert len(stream_entries) == 1
 
     def test_different_correlation_ids_both_accepted(self):
         fake = FakeRedisWithDedup()
@@ -139,32 +152,15 @@ class TestMessageDeduplication:
 
         assert r1.status_code == 200
         assert r2.status_code == 200
-        assert r1.json().get("deduplicated") is not True
-        assert r2.json().get("deduplicated") is not True
-        # Both were written to stream
         stream_entries = fake.streams.get("protocol:alpha:AGENT-12-PODA-MGR", [])
         assert len(stream_entries) == 2
 
-    def test_dedup_degraded_gracefully_when_set_raises(self, monkeypatch):
-        """If Redis SET raises an exception, message should still be delivered."""
-        fake = FakeRedisWithDedup()
 
-        async def _raise_set(*_args, **_kwargs):
-            raise RuntimeError("Redis unavailable")
+# ---------------------------------------------------------------------------
+# Deduplication tests (Redis SET NX EX) — must fail closed on Redis errors
+# ---------------------------------------------------------------------------
 
-        fake.set = _raise_set
-
-        with TestClient(app) as client:
-            app.state.redis = fake
-            app.state.redis_ready = True
-            response = client.post(
-                "/send",
-                headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
-                json=_alpha_payload(correlation_id="corr-degrade"),
-            )
-        # Should succeed despite dedup failure (best-effort dedup)
-        assert response.status_code == 200
-
+class TestMessageDeduplication:
     def test_dedup_key_stored_in_redis(self):
         fake = FakeRedisWithDedup()
         corr = "corr-stored-key"
@@ -178,16 +174,58 @@ class TestMessageDeduplication:
             )
         assert f"mcp:dedup:{corr}" in fake._kv
 
+    def test_cross_process_dedup_returns_200_idempotent(self):
+        """A correlation_id unseen by THIS process's replay guard but already
+        recorded in Redis (e.g. handled by another instance) is deduplicated:
+        the handler returns 200 with deduplicated=True and does not republish."""
+        fake = FakeRedisWithDedup()
+        corr = "corr-cross-process"
+        # Simulate another instance having already recorded this correlation_id.
+        fake._kv[f"mcp:dedup:{corr}"] = "1"
+        with TestClient(app) as client:
+            app.state.redis = fake
+            app.state.redis_ready = True
+            response = client.post(
+                "/send",
+                headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
+                json=_alpha_payload(correlation_id=corr),
+            )
+        assert response.status_code == 200
+        assert response.json().get("deduplicated") is True
+        assert fake.streams.get("protocol:alpha:AGENT-12-PODA-MGR", []) == []
+
+    def test_dedup_redis_failure_raises_503(self):
+        """A Redis failure on the dedup guard must fail closed (503), not silently
+        proceed without deduplication."""
+        fake = FakeRedisWithDedup()
+
+        async def _raise_set(*_args, **_kwargs):
+            raise RuntimeError("Redis unavailable")
+
+        fake.set = _raise_set
+
+        with TestClient(app) as client:
+            app.state.redis = fake
+            app.state.redis_ready = True
+            response = client.post(
+                "/send",
+                headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
+                json=_alpha_payload(correlation_id="corr-dedup-fail"),
+            )
+        assert response.status_code == 503
+        assert response.json().get("detail") == "Dedup service unavailable"
+        # Nothing should have been published.
+        assert fake.streams.get("protocol:alpha:AGENT-12-PODA-MGR", []) == []
+
 
 # ---------------------------------------------------------------------------
-# Backpressure tests
+# Backpressure tests — fail closed on Redis errors, check ALL channels
 # ---------------------------------------------------------------------------
 
 class TestBackpressure:
     def test_accepts_message_below_limit(self, monkeypatch):
         monkeypatch.setattr(mcp_main, "BACKPRESSURE_QUEUE_LIMIT", 100)
         fake = FakeRedisWithDedup()
-        # Add 50 entries — below limit
         for i in range(50):
             fake.streams.setdefault("protocol:alpha:AGENT-12-PODA-MGR", []).append(
                 (f"{i}-0", {"data": "x"})
@@ -205,7 +243,6 @@ class TestBackpressure:
     def test_rejects_message_over_limit(self, monkeypatch):
         monkeypatch.setattr(mcp_main, "BACKPRESSURE_QUEUE_LIMIT", 5)
         fake = FakeRedisWithDedup()
-        # Pre-populate stream beyond limit
         for i in range(10):
             fake.streams.setdefault("protocol:alpha:AGENT-12-PODA-MGR", []).append(
                 (f"{i}-0", {"data": "x"})
@@ -222,8 +259,55 @@ class TestBackpressure:
         assert "backpressure" in response.json().get("detail", "")
         assert response.headers.get("Retry-After") == "5"
 
-    def test_backpressure_degraded_gracefully_when_xlen_raises(self, monkeypatch):
-        """If xlen raises, backpressure check is best-effort — message should still go."""
+    def test_rejects_when_any_channel_over_limit(self, monkeypatch):
+        """Multi-recipient send must check ALL resolved channels: if ANY channel
+        is over the limit, the request is rejected with 503."""
+        monkeypatch.setattr(mcp_main, "BACKPRESSURE_QUEUE_LIMIT", 5)
+        fake = FakeRedisWithDedup()
+        # First channel well below limit, second channel over the limit.
+        fake.streams["protocol:alpha:AGENT-12-PODA-MGR"] = [
+            (f"{i}-0", {"data": "x"}) for i in range(2)
+        ]
+        fake.streams["protocol:alpha:AGENT-13-PODB-MGR"] = [
+            (f"{i}-0", {"data": "x"}) for i in range(10)
+        ]
+        payload = _alpha_payload(correlation_id="bp-multi-over")
+        payload["recipient"] = ["AGENT-12-PODA-MGR", "AGENT-13-PODB-MGR"]
+        with TestClient(app) as client:
+            app.state.redis = fake
+            app.state.redis_ready = True
+            response = client.post(
+                "/send",
+                headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
+                json=payload,
+            )
+        assert response.status_code == 503
+        assert "backpressure" in response.json().get("detail", "")
+
+    def test_accepts_when_all_channels_below_limit(self, monkeypatch):
+        monkeypatch.setattr(mcp_main, "BACKPRESSURE_QUEUE_LIMIT", 100)
+        fake = FakeRedisWithDedup()
+        fake.streams["protocol:alpha:AGENT-12-PODA-MGR"] = [
+            (f"{i}-0", {"data": "x"}) for i in range(10)
+        ]
+        fake.streams["protocol:alpha:AGENT-13-PODB-MGR"] = [
+            (f"{i}-0", {"data": "x"}) for i in range(20)
+        ]
+        payload = _alpha_payload(correlation_id="bp-multi-below")
+        payload["recipient"] = ["AGENT-12-PODA-MGR", "AGENT-13-PODB-MGR"]
+        with TestClient(app) as client:
+            app.state.redis = fake
+            app.state.redis_ready = True
+            response = client.post(
+                "/send",
+                headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
+                json=payload,
+            )
+        assert response.status_code == 200
+
+    def test_backpressure_redis_failure_raises_503(self, monkeypatch):
+        """If the backpressure depth check raises, the request must fail closed
+        (503) rather than failing open and allowing a silent flood."""
         monkeypatch.setattr(mcp_main, "BACKPRESSURE_QUEUE_LIMIT", 5)
         fake = FakeRedisWithDedup()
 
@@ -238,6 +322,9 @@ class TestBackpressure:
             response = client.post(
                 "/send",
                 headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
-                json=_alpha_payload(correlation_id="bp-degrade"),
+                json=_alpha_payload(correlation_id="bp-fail"),
             )
-        assert response.status_code == 200
+        assert response.status_code == 503
+        assert response.json().get("detail") == "Backpressure service unavailable"
+        # Nothing should have been published.
+        assert fake.streams.get("protocol:alpha:AGENT-12-PODA-MGR", []) == []

@@ -97,6 +97,10 @@ class _InProcessReplayGuard:
         self._seen: dict[str, float] = {}
         self._max_entries = max_entries
 
+    def reset(self) -> None:
+        """Clear all recorded event_ids. Intended for test isolation."""
+        self._seen.clear()
+
     def check_and_record(self, event_id: str, *, ttl_seconds: float = 300.0) -> None:
         """Raise ReplayDetectedError if *event_id* was recently seen.
 
@@ -129,3 +133,8 @@ def check_replay(event_id: str, *, ttl_seconds: float = 300.0) -> None:
     Raises ReplayDetectedError if the event was already seen within TTL.
     """
     _DEFAULT_REPLAY_GUARD.check_and_record(event_id, ttl_seconds=ttl_seconds)
+
+
+def reset_replay_guard() -> None:
+    """Reset the module-level replay guard. Intended for test isolation."""
+    _DEFAULT_REPLAY_GUARD.reset()

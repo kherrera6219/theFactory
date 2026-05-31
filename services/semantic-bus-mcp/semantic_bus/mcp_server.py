@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from shared_runtime import protocol as protocol_guard
 from shared_runtime.logging_config import configure_logging
 
 from .tracing import configure_tracing
@@ -81,6 +82,11 @@ DLQ_WRITES = Counter(
 MESSAGES_DEDUPLICATED = Counter(
     "semantic_bus_mcp_messages_deduplicated_total",
     "Total duplicate messages rejected by MCP",
+    ("protocol",),
+)
+MESSAGES_REPLAYED = Counter(
+    "semantic_bus_mcp_messages_replayed_total",
+    "Total replayed messages rejected by MCP",
     ("protocol",),
 )
 # 2026 best practice: backpressure threshold — 503 when queue exceeds limit
@@ -457,50 +463,78 @@ async def send_message(
     if redis_client is None or not bool(getattr(app.state, "redis_ready", False)):
         raise HTTPException(status_code=503, detail="redis unavailable")
 
-    # 2026 best practice: message deduplication via Redis SET NX EX
+    # Replay detection: reject events whose correlation_id was already processed
+    # within the TTL window. This guards against replay attacks before the
+    # message is published to any Redis stream.
+    try:
+        protocol_guard.check_replay(
+            envelope.correlation_id, ttl_seconds=MESSAGE_DEDUP_TTL_SECONDS
+        )
+    except protocol_guard.ReplayDetectedError as exc:
+        MESSAGES_REPLAYED.labels(protocol=payload.protocol).inc()
+        LOGGER.warning(
+            "semantic-bus-mcp: replay rejected correlation_id=%s",
+            envelope.correlation_id,
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=f"replay detected for correlation_id: {envelope.correlation_id}",
+        ) from exc
+
+    # 2026 best practice: message deduplication via Redis SET NX EX.
+    # A Redis failure here must fail closed (503) — silently skipping the dedup
+    # guard would let duplicate messages through unnoticed.
     dedup_key = f"mcp:dedup:{envelope.correlation_id}"
     try:
         already_seen = not await redis_client.set(
             dedup_key, "1", nx=True, ex=MESSAGE_DEDUP_TTL_SECONDS
         )
-        if already_seen:
-            MESSAGES_DEDUPLICATED.labels(protocol=payload.protocol).inc()
-            LOGGER.info(
-                "semantic-bus-mcp: duplicate message rejected correlation_id=%s",
-                envelope.correlation_id,
-            )
-            # Return 200 (idempotent) rather than 409 — clients shouldn't error on dedup
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "message_id": envelope.message_id,
-                    "schema_version": payload.schema_version,
-                    "protocol": payload.protocol,
-                    "channels": channels,
-                    "queued_at": envelope.timestamp,
-                    "deduplicated": True,
-                },
-            )
-    except Exception:
-        LOGGER.warning("semantic-bus-mcp: dedup check failed, proceeding without dedup guard")
+    except Exception as exc:
+        LOGGER.error("semantic-bus-mcp: dedup check failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Dedup service unavailable") from exc
+    if already_seen:
+        MESSAGES_DEDUPLICATED.labels(protocol=payload.protocol).inc()
+        LOGGER.info(
+            "semantic-bus-mcp: duplicate message rejected correlation_id=%s",
+            envelope.correlation_id,
+        )
+        # Return 200 (idempotent) rather than 409 — clients shouldn't error on dedup
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message_id": envelope.message_id,
+                "schema_version": payload.schema_version,
+                "protocol": payload.protocol,
+                "channels": channels,
+                "queued_at": envelope.timestamp,
+                "deduplicated": True,
+            },
+        )
 
-    # 2026 best practice: backpressure — check queue depth before accepting more
+    # 2026 best practice: backpressure — check queue depth before accepting more.
+    # Failing open here would let the system be flooded silently, so a Redis
+    # failure must fail closed (503). Every resolved channel is inspected: if
+    # ANY channel is over the limit, the request is rejected.
     try:
-        queue_depth = await redis_client.xlen(channels[0]) if channels else 0
+        queue_depths = {
+            channel: await redis_client.xlen(channel) for channel in channels
+        }
+    except Exception as exc:
+        LOGGER.error("semantic-bus-mcp: backpressure check failed: %s", exc)
+        raise HTTPException(
+            status_code=503, detail="Backpressure service unavailable"
+        ) from exc
+    for channel, queue_depth in queue_depths.items():
         if queue_depth > BACKPRESSURE_QUEUE_LIMIT:
             LOGGER.warning(
-                "semantic-bus-mcp: backpressure triggered queue_depth=%d limit=%d",
-                queue_depth, BACKPRESSURE_QUEUE_LIMIT,
+                "semantic-bus-mcp: backpressure triggered channel=%s queue_depth=%d limit=%d",
+                channel, queue_depth, BACKPRESSURE_QUEUE_LIMIT,
             )
             raise HTTPException(
                 status_code=503,
                 detail="queue backpressure limit exceeded; retry later",
                 headers={"Retry-After": "5"},
             )
-    except HTTPException:
-        raise
-    except Exception:
-        pass  # backpressure check is best-effort
 
     try:
         for channel in channels:
