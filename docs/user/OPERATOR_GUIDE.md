@@ -1,7 +1,7 @@
 # Mission Control Operator Guide
 
-Document version: 2026.04.14  
-Last updated: 2026-04-14  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Canonical  
 Audience: Operators, reviewers, and technical users
 
@@ -18,11 +18,12 @@ This guide explains how to use theFactory through Mission Control for the main o
 - `Projects`
   - per-project audit timeline across missions and agents
 - `Agents`
-  - 38-agent runtime topology and persona drill-down
+  - 41-agent runtime topology and persona drill-down
 - `LogicNodes`
   - extracted mission-linked graph fragments
-- `Semantic Bus`
+- `Protocol Bus`
   - event and protocol traffic inspection
+  - Live protocol message stream with `stream|poll|paused` transport diagnostics. Messages returning 409 indicate replay detection (expected); 503 indicates Redis unavailability.
 - `Databases`
   - data-plane readiness and adapter status
 - `Builder`
