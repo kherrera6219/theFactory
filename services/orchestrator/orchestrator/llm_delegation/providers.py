@@ -1,0 +1,434 @@
+from __future__ import annotations
+
+import importlib
+import logging
+import time
+from typing import Any
+
+import httpx
+
+from shared_runtime.pii_guard import redact_pii
+
+from .agents import _system_prompt_for_agent
+from .config import (
+    _GEMINI_THINKING_LEVEL,
+    _RETRYABLE_HTTP_ERRORS,
+    ANTHROPIC_BASE_URL,
+    ANTHROPIC_TIMEOUT_SECONDS,
+    ANTHROPIC_VERSION,
+    GEMINI_BASE_URL,
+    GEMINI_TIMEOUT_SECONDS,
+    LLM_SAFETY_BLOCK_ENABLED,
+    OPENAI_BASE_URL,
+    OPENAI_TIMEOUT_SECONDS,
+    _record_usage_event,
+    current_agent_id,
+)
+from .health import _record_provider_health
+from .text import (
+    _extract_anthropic_text,
+    _extract_decision_payload,
+    _extract_gemini_text,
+    _extract_openai_text,
+)
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _pkg() -> Any:
+    """Return the public ``llm_delegation`` package module.
+
+    Transport helpers resolve a handful of mutable symbols (API keys, retry
+    constants, ``httpx``/``asyncio``, and the provider call functions) through
+    this accessor so that tests which ``monkeypatch.setattr`` them on the
+    package namespace continue to affect the live call sites after the
+    monolith was split into this package (issue #186).
+    """
+    return importlib.import_module(__package__)
+
+def _retry_delay_for_response(response: httpx.Response, default_delay: float) -> float:
+    retry_after = response.headers.get("Retry-After")
+    if retry_after is None:
+        return default_delay
+    try:
+        parsed_delay = float(retry_after)
+    except ValueError:
+        return default_delay
+    return max(default_delay, parsed_delay)
+
+
+async def _post_with_retry(
+    url: str,
+    *,
+    json_payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout: float,
+    call_context: str,
+    params: dict[str, str] | None = None,
+) -> httpx.Response | None:
+    """POST *url* with exponential-backoff retry on transient failures.
+
+    Returns the response on success (any status code), or ``None`` after all
+    retry attempts are exhausted.  The caller is responsible for checking the
+    status code and treating non-2xx as an error.
+    """
+    pkg = _pkg()
+    max_retries = pkg._LLM_MAX_RETRIES
+    delay = pkg._LLM_RETRY_BASE_SECONDS
+    for attempt in range(1, max_retries + 1):
+        try:
+            async with pkg.httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(url, json=json_payload, headers=headers, params=params)
+            # Retry on 429 and 5xx responses only.
+            if response.status_code == 429 or response.status_code >= 500:
+                if attempt < max_retries:
+                    retry_delay = _retry_delay_for_response(response, delay)
+                    LOGGER.warning(
+                        "%s attempt %d/%d returned %s — retrying in %.1fs",
+                        call_context,
+                        attempt,
+                        max_retries,
+                        response.status_code,
+                        retry_delay,
+                    )
+                    await pkg.asyncio.sleep(retry_delay)
+                    delay *= 2
+                    continue
+            return response
+        except _RETRYABLE_HTTP_ERRORS as exc:
+            if attempt < max_retries:
+                LOGGER.warning(
+                    "%s attempt %d/%d network error (%s) — retrying in %.1fs",
+                    call_context, attempt, max_retries, exc, delay,
+                )
+                await pkg.asyncio.sleep(delay)
+                delay *= 2
+            else:
+                LOGGER.warning("%s all %d attempts failed: %s", call_context, max_retries, exc)
+    return None
+
+
+async def _call_openai(
+    model: str,
+    prompt: str,
+    *,
+    call_context: str,
+    system_prompt: str | None = None,
+) -> dict[str, Any] | None:
+    openai_api_key = _pkg().OPENAI_API_KEY
+    if not openai_api_key:
+        return None
+    messages: list[dict[str, str]] = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+    payload = {
+        "model": model,
+        "input": messages,
+        "reasoning": {"effort": "medium"},
+    }
+    headers = {"Authorization": f"Bearer {openai_api_key}"}
+    response = await _pkg()._post_with_retry(
+        f"{OPENAI_BASE_URL}/responses",
+        json_payload=payload,
+        headers=headers,
+        timeout=OPENAI_TIMEOUT_SECONDS,
+        call_context=f"{call_context} openai",
+    )
+    if response is None:
+        return None
+    if response.status_code >= 400:
+        LOGGER.warning("%s openai status=%s", call_context, response.status_code)
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    text = _extract_openai_text(body)
+    parsed = _extract_decision_payload(text)
+    if isinstance(parsed, dict):
+        usage = body.get("usage") or {}
+        parsed["__input_tokens__"] = int(
+            usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0) or 0
+        )
+        parsed["__output_tokens__"] = int(
+            usage.get("output_tokens", 0) or usage.get("completion_tokens", 0) or 0
+        )
+    return parsed
+
+
+async def _call_anthropic(
+    model: str,
+    prompt: str,
+    *,
+    call_context: str,
+    system_prompt: str | None = None,
+) -> dict[str, Any] | None:
+    anthropic_api_key = _pkg().ANTHROPIC_API_KEY
+    if not anthropic_api_key:
+        return None
+    # S4-01: Prompt cache optimization — mark the system prompt and first user
+    # turn as ephemeral cache breakpoints for high-frequency CEO/PM calls.
+    # The anthropic-beta header enables the prompt-caching feature.
+    user_content: list[dict[str, Any]] | str
+    if len(prompt) > 1024:
+        # Only cache large prompts; small ones don't benefit enough to justify
+        # the cache-write token overhead.
+        user_content = [{"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}]
+    else:
+        user_content = prompt
+    payload: dict[str, Any] = {
+        "model": model,
+        "max_tokens": 900,
+        "messages": [{"role": "user", "content": user_content}],
+    }
+    if system_prompt:
+        payload["system"] = [
+            {"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}
+        ]
+    headers = {
+        "x-api-key": anthropic_api_key,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "anthropic-beta": "prompt-caching-2024-07-31",
+        "content-type": "application/json",
+    }
+    response = await _pkg()._post_with_retry(
+        f"{ANTHROPIC_BASE_URL}/messages",
+        json_payload=payload,
+        headers=headers,
+        timeout=ANTHROPIC_TIMEOUT_SECONDS,
+        call_context=f"{call_context} anthropic",
+    )
+    if response is None:
+        return None
+    if response.status_code >= 400:
+        LOGGER.warning("%s anthropic status=%s", call_context, response.status_code)
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    text = _extract_anthropic_text(body)
+    parsed = _extract_decision_payload(text)
+    if isinstance(parsed, dict):
+        usage = body.get("usage") or {}
+        parsed["__input_tokens__"] = int(usage.get("input_tokens", 0) or 0)
+        parsed["__output_tokens__"] = int(usage.get("output_tokens", 0) or 0)
+    return parsed
+
+
+async def _call_gemini(
+    model: str,
+    prompt: str,
+    *,
+    call_context: str,
+    system_prompt: str | None = None,
+) -> dict[str, Any] | None:
+    gemini_api_key = _pkg().GEMINI_API_KEY
+    if not gemini_api_key:
+        return None
+    payload: dict[str, Any] = {"contents": [{"parts": [{"text": prompt}]}]}
+    if system_prompt:
+        payload["system_instruction"] = {"parts": [{"text": system_prompt}]}
+    # Gemini 3.5+ uses thinking_level enum (replaces integer thinking_budget).
+    payload["generationConfig"] = {
+        "thinking_level": _GEMINI_THINKING_LEVEL,
+    }
+    response = await _pkg()._post_with_retry(
+        f"{GEMINI_BASE_URL}/models/{model}:generateContent",
+        json_payload=payload,
+        headers={"content-type": "application/json"},
+        timeout=GEMINI_TIMEOUT_SECONDS,
+        call_context=f"{call_context} gemini",
+        params={"key": gemini_api_key},
+    )
+    if response is None:
+        return None
+    if response.status_code >= 400:
+        LOGGER.warning("%s gemini status=%s", call_context, response.status_code)
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    text = _extract_gemini_text(body)
+    parsed = _extract_decision_payload(text)
+    if isinstance(parsed, dict):
+        meta = body.get("usageMetadata") or {}
+        parsed["__input_tokens__"] = int(meta.get("promptTokenCount", 0) or 0)
+        parsed["__output_tokens__"] = int(meta.get("candidatesTokenCount", 0) or 0)
+    return parsed
+
+
+async def _call_provider(
+    *,
+    provider: str,
+    model: str,
+    prompt: str,
+    call_context: str,
+    system_prompt: str | None = None,
+) -> dict[str, Any] | None:
+    normalized = provider.strip().lower()
+
+    async def _call_backend(func: Any) -> dict[str, Any] | None:
+        try:
+            return await func(
+                model,
+                prompt,
+                call_context=call_context,
+                system_prompt=system_prompt,
+            )
+        except TypeError as exc:
+            if "system_prompt" not in str(exc):
+                raise
+            return await func(model, prompt, call_context=call_context)
+
+    pkg = _pkg()
+    started = time.perf_counter()
+    result: dict[str, Any] | None = None
+    try:
+        if normalized == "anthropic":
+            result = await _call_backend(pkg._call_anthropic)
+        elif normalized == "gemini":
+            result = await _call_backend(pkg._call_gemini)
+        else:
+            result = await _call_backend(pkg._call_openai)
+        return result
+    finally:
+        try:
+            _record_provider_health(
+                provider=normalized or "openai",
+                model=model,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                success=isinstance(result, dict),
+            )
+        except Exception:
+            LOGGER.warning("failed to record provider health telemetry", exc_info=True)
+
+
+async def _call_with_recommendation(
+    *,
+    recommendation: dict[str, Any],
+    prompt: str,
+    call_context: str,
+    system_prompt: str | None = None,
+) -> tuple[dict[str, Any] | None, str, str, str]:
+    provider = str(recommendation.get("provider", "openai")).strip().lower()
+    model = str(recommendation.get("model", "gpt-5.5")).strip()
+
+    # Safety envelope — scan outbound prompt before any LLM call
+    from ..llm_safety import (  # noqa: PLC0415
+        check_outbound_prompt,
+        sanitize_outbound_prompt,
+    )
+    _safety_violations = check_outbound_prompt(prompt, call_context)
+    if _safety_violations:
+        LOGGER.warning("LLM safety outbound violations [%s]: %s", call_context, _safety_violations)
+        if LLM_SAFETY_BLOCK_ENABLED:
+            return None, provider, model, "blocked_safety"
+        prompt = sanitize_outbound_prompt(prompt)  # noqa: PLW2901
+
+    async def _provider_call(
+        *,
+        route_provider: str,
+        route_model: str,
+        route_context: str,
+    ) -> dict[str, Any] | None:
+        call_provider = _pkg()._call_provider
+        try:
+            return await call_provider(
+                provider=route_provider,
+                model=route_model,
+                prompt=prompt,
+                call_context=route_context,
+                system_prompt=system_prompt,
+            )
+        except TypeError as exc:
+            if "system_prompt" not in str(exc):
+                raise
+            return await call_provider(
+                provider=route_provider,
+                model=route_model,
+                prompt=prompt,
+                call_context=route_context,
+            )
+
+    parsed = await _provider_call(
+        route_provider=provider,
+        route_model=model,
+        route_context=call_context,
+    )
+    if isinstance(parsed, dict):
+        _record_usage_event(
+            getattr(recommendation, "__settings__", None),
+            str(recommendation.get("__mission_id__", "") or ""),
+            str(recommendation.get("__agent_id__", "") or ""),
+            provider, model,
+            int(parsed.pop("__input_tokens__", 0) or 0),
+            int(parsed.pop("__output_tokens__", 0) or 0),
+            True, "primary",
+        )
+        return parsed, provider, model, "primary"
+
+    fallback_provider = str(recommendation.get("fallback_provider", "")).strip().lower()
+    fallback_model = str(recommendation.get("fallback_model", "")).strip()
+    if not fallback_provider or not fallback_model:
+        return None, provider, model, "primary"
+
+    if fallback_provider == provider and fallback_model == model:
+        return None, provider, model, "primary"
+
+    fallback = await _provider_call(
+        route_provider=fallback_provider,
+        route_model=fallback_model,
+        route_context=f"{call_context} (fallback)",
+    )
+    if isinstance(fallback, dict):
+        _record_usage_event(
+            getattr(recommendation, "__settings__", None),
+            str(recommendation.get("__mission_id__", "") or ""),
+            str(recommendation.get("__agent_id__", "") or ""),
+            fallback_provider, fallback_model,
+            int(fallback.pop("__input_tokens__", 0) or 0),
+            int(fallback.pop("__output_tokens__", 0) or 0),
+            True, "fallback",
+        )
+        return fallback, fallback_provider, fallback_model, "fallback"
+    return None, provider, model, "primary"
+
+
+async def _call_with_agent_system(
+    *,
+    recommendation: dict[str, Any],
+    prompt: str,
+    call_context: str,
+    agent_id: str,
+) -> tuple[dict[str, Any] | None, str, str, str]:
+    """Call the recommendation helper with persona system prompt when supported."""
+    # Security Hardening: Redact PII from the prompt before sending to provider
+    redacted_prompt, matches = redact_pii(prompt)
+    if matches:
+        LOGGER.info("PII redaction active for %s: %d matches scrubbed", agent_id, len(matches))
+    prompt = redacted_prompt
+
+    call_with_recommendation = _pkg()._call_with_recommendation
+    token = current_agent_id.set(agent_id)
+    try:
+        try:
+            return await call_with_recommendation(
+                recommendation=recommendation,
+                prompt=prompt,
+                call_context=call_context,
+                system_prompt=_system_prompt_for_agent(agent_id),
+            )
+        except TypeError as exc:
+            if "system_prompt" not in str(exc):
+                raise
+            return await call_with_recommendation(
+                recommendation=recommendation,
+                prompt=prompt,
+                call_context=call_context,
+            )
+    finally:
+        current_agent_id.reset(token)
+

@@ -1,0 +1,744 @@
+from __future__ import annotations
+
+import asyncio
+import importlib
+import logging
+from typing import Any
+
+from .. import build_artifacts as build_artifact_support
+from ..agent_scaling import (
+    compute_scaling_decision,
+    embed_scaling_decision,
+    is_scalable_agent,
+)
+from ..llm_delegation import (
+    generate_pod_audit_verdict,
+)
+from ..mission_flow import (
+    CEO_AGENT_ID,
+    append_chain_event,
+    resolve_pod_manager_agent_id,
+    resolve_specialist_agent_id,
+    with_chain_defaults,
+)
+from ..models import MissionState
+from ..port_coordinator import run_port_extraction_phase
+from .base import (
+    _chain_event_exists,
+    _mission_context,
+    _pod_key_for_manager,
+    _record_artifact,
+    _scaling_workload_items,
+    _setting_bool,
+    _setting_int,
+    _validate_agent_id,
+)
+from .phases_intake import _persist_metadata
+
+LOGGER = logging.getLogger(__name__)
+
+def _pkg() -> Any:
+    """Return the public ``mission_flow_v2`` package module.
+
+    Dependencies that tests patch on the package namespace (``storage``,
+    ``record_audit_event``, ``generate_aim`` and the LLM ``generate_*``
+    helpers) are resolved through this accessor so that
+    ``unittest.mock.patch('orchestrator.mission_flow_v2.<name>')`` keeps
+    reaching the live call sites after the monolith was split into this
+    package (issue #186).
+    """
+    return importlib.import_module(__package__)
+
+
+async def _prepare_pod_assignment(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+) -> bool:
+    mission = await asyncio.to_thread(_pkg().storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    ceo_delegation = (
+        metadata.get("ceo_delegation") if isinstance(metadata.get("ceo_delegation"), dict) else {}
+    )
+    pod_manager_agent_id = _validate_agent_id(
+        ceo_delegation.get("pod_manager_agent_id"),
+        fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+    )
+    default_specialist_agent_id = _validate_agent_id(
+        ceo_delegation.get("specialist_agent_id"),
+        fallback=resolve_specialist_agent_id(mission.requested_target_language),
+    )
+
+    pod_manager_delegation = await _pkg().generate_pod_manager_delegation(
+        mission_context={
+            **_mission_context(mission, metadata),
+            "ceo_delegation": ceo_delegation,
+            "logic_clusters": metadata.get("logic_clusters"),
+        },
+        requested_target_language=mission.requested_target_language,
+        pod_manager_agent_id=pod_manager_agent_id,
+        default_specialist_agent_id=default_specialist_agent_id,
+    )
+    specialist_agent_id = _validate_agent_id(
+        pod_manager_delegation.get("specialist_agent_id"),
+        fallback=default_specialist_agent_id,
+    )
+    normalized = dict(pod_manager_delegation)
+    normalized["pod_manager_agent_id"] = pod_manager_agent_id
+    normalized["specialist_agent_id"] = specialist_agent_id
+
+    metadata["pod_manager_delegation"] = normalized
+    metadata["assigned_pod_manager_agent_id"] = pod_manager_agent_id
+    metadata["assigned_specialist_agent_id"] = specialist_agent_id
+    metadata["selected_agent_id"] = pod_manager_agent_id
+    metadata["agent_id"] = pod_manager_agent_id
+
+    if not _chain_event_exists(metadata, "MISSION_POD_MANAGER_ASSIGNED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_POD_MANAGER_ASSIGNED",
+            agent_id=pod_manager_agent_id,
+            details={
+                "specialist_agent_id": specialist_agent_id,
+                "source": normalized.get("source"),
+                "llm_route": normalized.get("llm_route"),
+                "model_provider": normalized.get("model_provider"),
+                "model": normalized.get("model"),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="pod_assigned",
+        event_type="MISSION_POD_MANAGER_ASSIGNED",
+        agent_id=pod_manager_agent_id,
+        details={
+            "specialist_agent_id": specialist_agent_id,
+            "source": normalized.get("source"),
+            "llm_route": normalized.get("llm_route"),
+            "model_provider": normalized.get("model_provider"),
+            "model": normalized.get("model"),
+        },
+    )
+    await _pkg().record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=mission,
+        agent_id=pod_manager_agent_id,
+        service_name="orchestrator",
+        event_type="AGENT_DELEGATION_PLANNED",
+        object_type="delegation",
+        object_id="pod_manager",
+        tool_name="llm_delegation",
+        payload_summary={
+            "source": normalized.get("source"),
+            "llm_route": normalized.get("llm_route"),
+            "model_provider": normalized.get("model_provider"),
+            "model": normalized.get("model"),
+            "pod_manager_agent_id": pod_manager_agent_id,
+            "specialist_agent_id": specialist_agent_id,
+        },
+        content_hash_source=normalized,
+    )
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission_id,
+            metadata=metadata,
+        )
+        is not None
+    )
+
+
+async def _prepare_specialist_assignment(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+) -> bool:
+    mission = await asyncio.to_thread(_pkg().storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    pod_manager_agent_id = _validate_agent_id(
+        metadata.get("assigned_pod_manager_agent_id"),
+        fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+    )
+    specialist_agent_id = _validate_agent_id(
+        metadata.get("assigned_specialist_agent_id"),
+        fallback=resolve_specialist_agent_id(mission.requested_target_language),
+    )
+
+    metadata["assigned_pod_manager_agent_id"] = pod_manager_agent_id
+    metadata["assigned_specialist_agent_id"] = specialist_agent_id
+    metadata["selected_agent_id"] = specialist_agent_id
+    metadata["agent_id"] = specialist_agent_id
+
+    if not _chain_event_exists(metadata, "MISSION_SPECIALIST_ASSIGNED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_SPECIALIST_ASSIGNED",
+            agent_id=specialist_agent_id,
+            details={"pod_manager_agent_id": pod_manager_agent_id},
+        )
+    _record_artifact(
+        metadata,
+        stage="specialist_assigned",
+        event_type="MISSION_SPECIALIST_ASSIGNED",
+        agent_id=specialist_agent_id,
+        details={"pod_manager_agent_id": pod_manager_agent_id},
+    )
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission_id,
+            metadata=metadata,
+        )
+        is not None
+    )
+
+
+async def _prepare_specialist_plan(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission_id: str,
+) -> bool:
+    mission = await asyncio.to_thread(_pkg().storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        return False
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+
+    # PORT two-phase: run extraction phase on first pass
+    if (
+        str(metadata.get("mission_type") or "").strip().upper() == "PORT"
+        and _setting_bool(settings, "port_two_phase_enabled")
+        and str(metadata.get("port_phase") or "").strip().lower() == "extraction"
+    ):
+        extraction_updates = await run_port_extraction_phase(
+            mission_id=mission_id,
+            mission=mission,
+            metadata=metadata,
+            settings=settings,
+        )
+        for key, value in extraction_updates.items():
+            metadata[key] = value
+        # Persist extraction results — port_phase is now "generation".
+        # The lifecycle engine will re-enter _prepare_specialist_plan on the
+        # next SPECIALIST_ASSIGNED transition and take the generation path.
+        updated = await asyncio.to_thread(
+            _pkg().storage.update_mission_metadata, settings, mission_id, metadata
+        )
+        return updated is not None
+
+    pod_manager_agent_id = _validate_agent_id(
+        metadata.get("assigned_pod_manager_agent_id"),
+        fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+    )
+    specialist_agent_id = _validate_agent_id(
+        metadata.get("assigned_specialist_agent_id"),
+        fallback=resolve_specialist_agent_id(mission.requested_target_language),
+    )
+
+    # PORT generation phase: inject source logicnodes into context
+    port_source_logicnodes = None
+    if (
+        str(metadata.get("mission_type") or "").strip().upper() == "PORT"
+        and _setting_bool(settings, "port_two_phase_enabled")
+        and str(metadata.get("port_phase") or "").strip().lower() == "generation"
+    ):
+        port_source_logicnodes = metadata.get("port_source_logicnodes") or []
+        specialist_agent_id = _validate_agent_id(
+            metadata.get("assigned_specialist_agent_id"),
+            fallback=resolve_specialist_agent_id(
+                metadata.get("port_target_language") or mission.requested_target_language
+            ),
+        )
+
+    specialist_plan = await _pkg().generate_specialist_plan(
+        mission_context={
+            **_mission_context(mission, metadata),
+            "ceo_delegation": metadata.get("ceo_delegation"),
+            "pod_manager_delegation": metadata.get("pod_manager_delegation"),
+        },
+        requested_target_language=mission.requested_target_language,
+        specialist_agent_id=specialist_agent_id,
+        pod_manager_agent_id=pod_manager_agent_id,
+    )
+    normalized = dict(specialist_plan)
+    normalized["specialist_agent_id"] = specialist_agent_id
+    normalized["pod_manager_agent_id"] = pod_manager_agent_id
+    metadata["specialist_plan"] = normalized
+    metadata["selected_agent_id"] = specialist_agent_id
+    metadata["agent_id"] = specialist_agent_id
+
+    mission_contract = metadata.get("mission_contract")
+    output_mode = str(metadata.get("output_mode") or "FULL_BUILD").strip().upper()
+    if (
+        isinstance(mission_contract, dict)
+        and output_mode != "ANALYZE_ONLY"
+        and not isinstance(metadata.get("generated_output"), dict)
+    ):
+        # Build codegen context — inject PORT source logicnodes when in generation phase
+        _codegen_context: dict[str, Any] = {
+            **_mission_context(mission, metadata),
+            "mission_contract": mission_contract,
+            "specialist_plan": normalized,
+        }
+        if port_source_logicnodes:
+            _codegen_context["port_source_logicnodes"] = port_source_logicnodes
+            _codegen_context["port_source_language"] = metadata.get("port_source_language", "")
+            _codegen_context["port_target_language"] = metadata.get("port_target_language", "")
+
+        _target_lang = (
+            str(metadata.get("port_target_language") or "").strip()
+            or mission.requested_target_language
+            or "python"
+        )
+        generated_output = await _pkg().generate_code_from_contract(
+            mission_context=_codegen_context,
+            specialist_agent_id=specialist_agent_id,
+            mission_contract=mission_contract,
+            logicnodes=list(port_source_logicnodes) if port_source_logicnodes else [],
+            target_language=_target_lang,
+        )
+        metadata["generated_output"] = generated_output
+        if not _chain_event_exists(metadata, "GENERATED_OUTPUT_CREATED"):
+            append_chain_event(
+                metadata,
+                event_type="GENERATED_OUTPUT_CREATED",
+                agent_id=specialist_agent_id,
+                details={
+                    "source": generated_output.get("source"),
+                    "filename": generated_output.get("filename"),
+                    "language": generated_output.get("language"),
+                    "code_length_chars": generated_output.get("code_length_chars", 0),
+                    "model_provider": generated_output.get("model_provider"),
+                    "model": generated_output.get("model"),
+                },
+            )
+        # PORT generation phase complete
+        if port_source_logicnodes and not _chain_event_exists(
+            metadata, "MISSION_PORT_GENERATION_COMPLETE"
+        ):
+            append_chain_event(
+                metadata,
+                event_type="MISSION_PORT_GENERATION_COMPLETE",
+                agent_id=specialist_agent_id,
+                details={
+                    "target_language": metadata.get("port_target_language", ""),
+                    "source_logicnode_count": len(port_source_logicnodes),
+                    "filename": generated_output.get("filename"),
+                    "source": generated_output.get("source"),
+                },
+            )
+
+    should_emit = not _chain_event_exists(metadata, "MISSION_SPECIALIST_PLANNED")
+    if should_emit:
+        append_chain_event(
+            metadata,
+            event_type="MISSION_SPECIALIST_PLANNED",
+            agent_id=specialist_agent_id,
+            details={
+                "pod_manager_agent_id": pod_manager_agent_id,
+                "source": normalized.get("source"),
+                "llm_route": normalized.get("llm_route"),
+                "model_provider": normalized.get("model_provider"),
+                "model": normalized.get("model"),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="specialist_planned",
+        event_type="MISSION_SPECIALIST_PLANNED",
+        agent_id=specialist_agent_id,
+        details={
+            "pod_manager_agent_id": pod_manager_agent_id,
+            "source": normalized.get("source"),
+            "llm_route": normalized.get("llm_route"),
+            "model_provider": normalized.get("model_provider"),
+            "model": normalized.get("model"),
+        },
+    )
+    await _pkg().record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=mission,
+        agent_id=specialist_agent_id,
+        service_name="orchestrator",
+        event_type="AGENT_PLAN_GENERATED",
+        object_type="plan",
+        object_id="specialist",
+        tool_name="llm_delegation",
+        payload_summary={
+            "source": normalized.get("source"),
+            "llm_route": normalized.get("llm_route"),
+            "model_provider": normalized.get("model_provider"),
+            "model": normalized.get("model"),
+            "deliverable_count": len(normalized.get("deliverables", []) or []),
+            "risk_note_count": len(normalized.get("risk_notes", []) or []),
+        },
+        content_hash_source=normalized,
+    )
+    generated_output_for_audit = metadata.get("generated_output")
+    if isinstance(generated_output_for_audit, dict):
+        await _pkg().record_audit_event(
+            app,
+            mission_id=mission_id,
+            mission=mission,
+            agent_id=specialist_agent_id,
+            service_name="orchestrator",
+            event_type="GENERATED_OUTPUT_CREATED",
+            object_type="generated_output",
+            object_id=str(generated_output_for_audit.get("filename") or "generated_output"),
+            tool_name="llm_delegation",
+            payload_summary={
+                "source": generated_output_for_audit.get("source"),
+                "filename": generated_output_for_audit.get("filename"),
+                "language": generated_output_for_audit.get("language"),
+                "code_length_chars": generated_output_for_audit.get("code_length_chars", 0),
+            },
+            content_hash_source=generated_output_for_audit,
+        )
+
+    # Compute scaling decision when feature is enabled.
+    if _setting_bool(settings, "agent_scaling_enabled", False) and is_scalable_agent(
+        specialist_agent_id
+    ):
+        workload_items = _scaling_workload_items(metadata, normalized)
+        scaling = compute_scaling_decision(
+            agent_id=specialist_agent_id,
+            workload_items=workload_items,
+            max_instances=_setting_int(settings, "agent_scaling_max_instances", 4),
+            items_per_instance=_setting_int(settings, "agent_scaling_items_per_instance", 3),
+        )
+        embed_scaling_decision(metadata, scaling)
+        metadata["scaling_partition_events_emitted"] = False
+        if not _chain_event_exists(metadata, "MISSION_SCALING_DECIDED"):
+            append_chain_event(
+                metadata,
+                event_type="MISSION_SCALING_DECIDED",
+                agent_id=specialist_agent_id,
+                details={
+                    "instance_count": scaling.instance_count,
+                    "reason": scaling.reason,
+                    "scaling_version": scaling.scaling_version,
+                },
+            )
+        _record_artifact(
+            metadata,
+            stage="scaling_decided",
+            event_type="MISSION_SCALING_DECIDED",
+            agent_id=specialist_agent_id,
+            details=scaling.to_dict(),
+        )
+        await _pkg().record_audit_event(
+            app,
+            mission_id=mission_id,
+            mission=mission,
+            agent_id=specialist_agent_id,
+            service_name="orchestrator",
+            event_type="MISSION_SCALING_DECIDED",
+            object_type="scaling_plan",
+            object_id=specialist_agent_id,
+            payload_summary=scaling.to_dict(),
+            content_hash_source=scaling.to_dict(),
+        )
+
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission_id,
+            metadata=metadata,
+            emit_event_type="MISSION_SPECIALIST_PLANNED" if should_emit else None,
+            event_state=MissionState.specialist_assigned if should_emit else None,
+        )
+        is not None
+    )
+
+
+async def _persist_runtime_phase_artifact(
+    *,
+    settings: Any,
+    mission: Any,
+    event_type: str,
+) -> Any:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    selected_agent_id = _validate_agent_id(
+        metadata.get("selected_agent_id"),
+        fallback=metadata.get("assigned_specialist_agent_id") or CEO_AGENT_ID,
+    )
+    _record_artifact(
+        metadata,
+        stage=mission.state.value.lower(),
+        event_type=event_type,
+        agent_id=selected_agent_id,
+        details={"state": mission.state.value},
+    )
+    updated = await asyncio.to_thread(
+        _pkg().storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission
+
+
+async def _produce_pod_group_standard(
+    *,
+    app: Any,
+    settings: Any,
+    validator: Any,
+    emit_state_event_fn: Any,
+    mission: Any,
+) -> Any:
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    pod_manager_agent_id = _validate_agent_id(
+        metadata.get("assigned_pod_manager_agent_id"),
+        fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+    )
+    pod_name = _pod_key_for_manager(pod_manager_agent_id)
+    existing_standards = metadata.get("pod_group_standards")
+    if isinstance(existing_standards, dict) and isinstance(existing_standards.get(pod_name), dict):
+        return mission
+
+    mission_contract = metadata.get("mission_contract")
+    if not isinstance(mission_contract, dict):
+        mission_contract = {}
+    raw_logicnodes = await asyncio.to_thread(
+        _pkg().storage.list_logicnodes,
+        settings,
+        mission.mission_id,
+        500,
+    )
+    logicnodes = raw_logicnodes if isinstance(raw_logicnodes, list) else []
+    standard = await _pkg().generate_pod_group_standard(
+        pod_name=pod_name,
+        pod_manager_agent_id=pod_manager_agent_id,
+        mission_id=mission.mission_id,
+        logicnodes=[record for record in logicnodes if isinstance(record, dict)],
+        mission_contract=mission_contract,
+        source_code=str(metadata.get("source_code") or metadata.get("prompt") or ""),
+    )
+    standards = dict(existing_standards) if isinstance(existing_standards, dict) else {}
+    standards[pod_name] = standard
+    metadata["pod_group_standards"] = standards
+    metadata["selected_agent_id"] = pod_manager_agent_id
+    metadata["agent_id"] = pod_manager_agent_id
+
+    canonical_nodes = standard.get("canonical_logicnodes")
+    canonical_count = len(canonical_nodes) if isinstance(canonical_nodes, list) else 0
+    if not _chain_event_exists(metadata, "MISSION_POD_GROUP_STANDARD_PRODUCED"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_POD_GROUP_STANDARD_PRODUCED",
+            agent_id=pod_manager_agent_id,
+            details={
+                "pod": pod_name,
+                "canonical_logicnode_count": canonical_count,
+                "eliminated_duplicates": standard.get("eliminated_duplicates", 0),
+                "source": standard.get("source"),
+                "llm_route": standard.get("llm_route"),
+                "model_provider": standard.get("model_provider"),
+                "model": standard.get("model"),
+            },
+        )
+    coverage_verdict = standard.get("coverage_verdict")
+    if (
+        isinstance(coverage_verdict, dict)
+        and bool(coverage_verdict.get("coverage_thin", False))
+        and not _chain_event_exists(metadata, "MISSION_POD_STANDARD_THIN_COVERAGE")
+    ):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_POD_STANDARD_THIN_COVERAGE",
+            agent_id=pod_manager_agent_id,
+            details={
+                "pod": pod_name,
+                "raw_logicnode_count": coverage_verdict.get("raw_logicnode_count"),
+                "canonical_logicnode_count": coverage_verdict.get(
+                    "canonical_logicnode_count"
+                ),
+                "expected_minimum_canonical_logicnodes": coverage_verdict.get(
+                    "expected_minimum_canonical_logicnodes"
+                ),
+                "findings": coverage_verdict.get("findings", []),
+            },
+        )
+    _record_artifact(
+        metadata,
+        stage="pod_group_standard",
+        event_type="MISSION_POD_GROUP_STANDARD_PRODUCED",
+        agent_id=pod_manager_agent_id,
+        details={
+            "pod": pod_name,
+            "canonical_logicnode_count": canonical_count,
+            "eliminated_duplicates": standard.get("eliminated_duplicates", 0),
+        },
+    )
+    await _pkg().record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id=pod_manager_agent_id,
+        service_name="orchestrator",
+        event_type="MISSION_POD_GROUP_STANDARD_PRODUCED",
+        object_type="pod_group_standard",
+        object_id=pod_name,
+        tool_name="llm_delegation",
+        payload_summary={
+            "pod": pod_name,
+            "canonical_logicnode_count": canonical_count,
+            "eliminated_duplicates": standard.get("eliminated_duplicates", 0),
+            "source": standard.get("source"),
+            "model_provider": standard.get("model_provider"),
+            "model": standard.get("model"),
+        },
+        content_hash_source=standard,
+    )
+
+    # S2-05: Pod audit verdict — QC agent reviews the pod standard.
+    _raw_gen_output = metadata.get("generated_output")
+    generated_output = _raw_gen_output if isinstance(_raw_gen_output, dict) else None
+    pod_audit = await generate_pod_audit_verdict(
+        mission_id=mission.mission_id,
+        pod_name=pod_name,
+        mission_context=_mission_context(mission, metadata),
+        pod_group_standard=standard,
+        generated_output=generated_output,
+    )
+    pod_audits = dict(metadata.get("pod_audit_verdicts") or {})
+    pod_audits[pod_name] = pod_audit
+    metadata["pod_audit_verdicts"] = pod_audits
+    if not _chain_event_exists(metadata, "MISSION_POD_AUDIT_COMPLETE"):
+        append_chain_event(
+            metadata,
+            event_type="MISSION_POD_AUDIT_COMPLETE",
+            agent_id=pod_audit.get("agent_id", pod_manager_agent_id),
+            details={
+                "pod": pod_name,
+                "verdict": pod_audit.get("verdict"),
+                "quality_score": pod_audit.get("quality_score"),
+                "source": pod_audit.get("source"),
+            },
+        )
+
+    return (
+        await _persist_metadata(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=emit_state_event_fn,
+            mission_id=mission.mission_id,
+            metadata=metadata,
+            emit_event_type="MISSION_POD_GROUP_STANDARD_PRODUCED",
+            event_state=MissionState.gating,
+        )
+        or mission
+    )
+
+
+async def _ensure_verified_build_artifact(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+) -> Any:
+    if not build_artifact_support.mission_requires_build_artifact(mission.metadata):
+        return mission
+
+    artifact_metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
+    if build_artifact_support.mission_has_generated_output(artifact_metadata):
+        artifact_record = build_artifact_support.build_generated_output_artifact(
+            mission_id=mission.mission_id,
+            requested_target_language=mission.requested_target_language,
+            metadata=artifact_metadata,
+        )
+    else:
+        artifact_record = build_artifact_support.build_source_bundle_artifact(
+            mission_id=mission.mission_id,
+            requested_target_language=mission.requested_target_language,
+            metadata=artifact_metadata,
+        )
+    await asyncio.to_thread(
+        _pkg().storage.upsert_build_artifact,
+        settings,
+        mission.mission_id,
+        artifact_record["artifact_id"],
+        artifact_record["artifact_type"],
+        artifact_record["stage"],
+        artifact_record["status"],
+        artifact_record["storage_backend"],
+        artifact_record["storage_ref"],
+        artifact_record["digest_sha256"],
+        artifact_record["size_bytes"],
+        artifact_record["manifest"],
+        artifact_record["verification"],
+        artifact_record["build_log"],
+        artifact_record["artifact_text"],
+        artifact_record["created_at"],
+    )
+    await _pkg().record_audit_event(
+        app,
+        mission_id=mission.mission_id,
+        mission=mission,
+        agent_id=str(
+            (
+                mission.metadata.get("selected_agent_id")
+                if isinstance(mission.metadata, dict)
+                else None
+            )
+            or CEO_AGENT_ID
+        ),
+        service_name="orchestrator",
+        event_type="MISSION_BUILD_ARTIFACT_WRITTEN",
+        object_type="build_artifact",
+        object_id=str(artifact_record["artifact_id"]),
+        payload_summary={
+            "artifact_type": artifact_record["artifact_type"],
+            "stage": artifact_record["stage"],
+            "status": artifact_record["status"],
+            "digest_sha256": artifact_record["digest_sha256"],
+            "size_bytes": artifact_record["size_bytes"],
+        },
+        content_hash_source=artifact_record,
+    )
+
+    metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+    selected_agent_id = _validate_agent_id(
+        metadata.get("selected_agent_id"),
+        fallback=metadata.get("assigned_specialist_agent_id") or CEO_AGENT_ID,
+    )
+    build_artifact_support.record_build_artifact_metadata(
+        metadata,
+        agent_id=selected_agent_id,
+        artifact_record=artifact_record,
+    )
+    updated = await asyncio.to_thread(
+        _pkg().storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    return updated or mission
+
