@@ -60,7 +60,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   - `query_documentation(language, concept, top_k)` — vector similarity search with keyword-overlap fallback
   - `index_documentation(language, library, content)` — upserts a documentation chunk with deterministic embedding
   - `get_language_context(language)` — merged documentation text for prompt injection, capped at 8,000 chars
-  - `broadcast_knowledge_ready(languages, mission_id)` — publishes Protocol Sigma `knowledge_ready` event to the semantic bus; fire-and-forget, never blocks mission progression
+  - `broadcast_knowledge_ready(languages, mission_id)` — publishes Protocol Sigma `knowledge_ready` event to the protocol bus; fire-and-forget, never blocks mission progression
 - `tests/services/test_is_agent_fetch_unit.py` (new, 465 lines) — 30 unit tests covering:
   - `detect_required_languages`: explicit target, TypeScript → js+ts expansion, source-code sniffing, unsupported language fallback
   - `run_fetch_phase`: per-language indexing, skip/error capture, result schema, storage-failure isolation, empty-language handling
@@ -77,13 +77,13 @@ Executed the full 8-finding remediation plan from `docs/reviews/production-remed
 
 #### Security
 - **OIDC alg-confusion surface removed:** `OIDC_ALLOWED_ALGORITHMS` default flipped from `RS256,HS256` → `RS256` so a forged HS256 token signed with the JWKS public key can never be accepted (api-gateway/main.py:77).
-- **Constant-time API-key compare:** `orchestrator/auth.py` now uses `_match_api_key()` with `hmac.compare_digest`; `semantic-bus-mcp/mcp_server.py:410` flipped from `!=` to `hmac.compare_digest`. Eliminates the timing-side-channel on API-key validation.
+- **Constant-time API-key compare:** `orchestrator/auth.py` now uses `_match_api_key()` with `hmac.compare_digest`; `protocol-bus-mcp/mcp_server.py:410` flipped from `!=` to `hmac.compare_digest`. Eliminates the timing-side-channel on API-key validation.
 - **JWT error no longer leaks token fragments:** `api-gateway/main.py:716` logs the exception *class name* only. PyJWT's message can include decoded header/claims.
 - **MCP port no longer exposed on 0.0.0.0:** `deploy/docker-compose.yaml` now uses `${MCP_HOST_BIND:-0.0.0.0}:${MCP_HOST_PORT:-8102}:8090`. Prod `.env` must set `MCP_HOST_BIND=127.0.0.1` (documented in `.env.example`).
 - **LangGraph fail-open disabled in prod:** `deploy/docker-compose.prod.yaml` sets `LANGGRAPH_FAIL_OPEN: "false"` so checkpointer outages surface instead of silently masking state loss.
 
 #### Observability
-- **Structured JSON logging:** new `shared_runtime/logging_config.py` with stdlib-only `JsonFormatter` and `configure_logging(service_name)`. Gated by `LOG_FORMAT` (plain|json, default plain). Wired into all 7 services: api-gateway, orchestrator, pod-worker, audit-worker, agent-runtime, dashboard, semantic-bus-mcp. Prod overlay now sets `LOG_FORMAT: json` for every service.
+- **Structured JSON logging:** new `shared_runtime/logging_config.py` with stdlib-only `JsonFormatter` and `configure_logging(service_name)`. Gated by `LOG_FORMAT` (plain|json, default plain). Wired into all 7 services: api-gateway, orchestrator, pod-worker, audit-worker, agent-runtime, dashboard, protocol-bus-mcp. Prod overlay now sets `LOG_FORMAT: json` for every service.
 
 #### Build
 - **Base images pinned to minor+patch+OS release:** all 7 Python Dockerfiles use `python:3.11-slim-bookworm`; mission-control uses `node:22-alpine3.20`. Digest-pinning deferred (tracked in the plan doc).
@@ -170,7 +170,7 @@ Executed the full 8-finding remediation plan from `docs/reviews/production-remed
 
 #### Added
 - **Color-coded status badges (High):** Runtime Health rows in `dashboard/page.tsx` and Runtime Dependencies in `agents/page.tsx` now use existing `.connection-chip.live/.stale/.retrying` classes with `role="status"` and `aria-label` attributes instead of plain text
-- **Compact PageHeader variant (Medium):** `PageHeader` component now accepts a `compact` boolean prop; renders a slim border-bottom bar (1.3rem h1, no panel chrome) on all operational pages (Agents, Chat, Missions, LogicNodes, Semantic Bus, Databases, Repo, Settings, Alerts, Builder, Performance, Projects). Home/Launch Pad keeps the full hero panel
+- **Compact PageHeader variant (Medium):** `PageHeader` component now accepts a `compact` boolean prop; renders a slim border-bottom bar (1.3rem h1, no panel chrome) on all operational pages (Agents, Chat, Missions, LogicNodes, Protocol Bus, Databases, Repo, Settings, Alerts, Builder, Performance, Projects). Home/Launch Pad keeps the full hero panel
 - **Dynamic shell header title (Medium):** New `ShellHeaderMeta` client component uses `usePathname()` + `NAV_ITEMS` lookup to display the active page name in the header (e.g., "Local Runtime — Agents") instead of the hardcoded static subtitle
 - **HTTPS warning in Settings (Low-Medium):** API base URL input now shows a `.warning-box` when the configured value is non-HTTPS and non-localhost
 - **Actionable empty states (Medium):** "Top Mission States" (dashboard) shows "Launch your first mission →" link; Agents Grid distinguishes "no agents found" (backend link to Settings) vs "no agents match filters" (filter hint); Alerts "Active and Recent Alerts" shows "All systems operating normally" when empty
@@ -196,7 +196,7 @@ Executed the full 8-finding remediation plan from `docs/reviews/production-remed
 ### Phase 4 — Production Hardening (2026-03-31)
 
 #### Changed
-- `deploy/docker-compose.prod.yaml` — comprehensive production overlay: activates `PII_GUARD_MODE=redact` and `PROMPT_GUARD_MODE=block` for api-gateway and orchestrator; tightens circuit breaker to 3 failures / 60s recovery for all dedicated agent workers; reduces semantic bus backpressure limit to 5 000 and extends dedup TTL to 600s; sets `LOG_LEVEL=WARNING` across all services; adds `AUDIT_LOG_ENABLED=true`
+- `deploy/docker-compose.prod.yaml` — comprehensive production overlay: activates `PII_GUARD_MODE=redact` and `PROMPT_GUARD_MODE=block` for api-gateway and orchestrator; tightens circuit breaker to 3 failures / 60s recovery for all dedicated agent workers; reduces protocol bus backpressure limit to 5 000 and extends dedup TTL to 600s; sets `LOG_LEVEL=WARNING` across all services; adds `AUDIT_LOG_ENABLED=true`
 - `.github/workflows/ci.yml` — added CycloneDX JSON SBOM generation alongside existing SPDX JSON (both formats uploaded as CI artifacts); SLSA provenance already generated via `actions/attest-build-provenance@v2`
 
 ### Phase 3 — Intelligence Layer Upgrade (2026-03-31)
@@ -205,11 +205,11 @@ Executed the full 8-finding remediation plan from `docs/reviews/production-remed
 - `services/pod-worker/pod_worker/ast_extractor.py` — AST-based Python extraction using the built-in `ast` module; provides `AstFunctionInfo`, `AstClassInfo`, `AstImportInfo`, and `AstExtractionResult` with accurate function/class/import detection, type annotation extraction, decorator capture, and docstring harvesting; graceful fallback on SyntaxError
 - `tests/services/test_ast_extractor.py` — 36 unit tests covering function/class/import extraction, async detection, decorator capture, edge cases, and frozen-dataclass immutability
 - `tests/services/test_circuit_breaker.py` — 18 unit tests for the CLOSED→OPEN→HALF-OPEN circuit breaker state machine in agent-runtime
-- `tests/services/test_semantic_bus_dedup.py` — 8 integration tests for message deduplication (Redis SET NX EX on `correlation_id`) and backpressure (503 + `Retry-After: 5` when queue > limit), including graceful-degradation coverage
+- `tests/services/test_protocol_bus_dedup.py` — 8 integration tests for message deduplication (Redis SET NX EX on `correlation_id`) and backpressure (503 + `Retry-After: 5` when queue > limit), including graceful-degradation coverage
 
 #### Changed
 - `services/agent-runtime/agent_runtime/main.py` — added `_CircuitBreaker` class (CLOSED/OPEN/HALF states, configurable `CIRCUIT_FAILURE_THRESHOLD` and `CIRCUIT_RECOVERY_SECONDS`); integrated into `_request()` to fail-fast when orchestrator is unreachable; added `AGENT_CIRCUIT_OPEN` Prometheus counter
-- `services/semantic-bus-mcp/semantic_bus/mcp_server.py` — added message deduplication via Redis SET NX EX keyed on `correlation_id` (idempotent 200 response with `"deduplicated": true`); added backpressure check via `xlen` against `BACKPRESSURE_QUEUE_LIMIT` (default 10 000) with `Retry-After: 5` header; added `MESSAGES_DEDUPLICATED` Prometheus counter
+- `services/protocol-bus-mcp/protocol_bus/mcp_server.py` — added message deduplication via Redis SET NX EX keyed on `correlation_id` (idempotent 200 response with `"deduplicated": true`); added backpressure check via `xlen` against `BACKPRESSURE_QUEUE_LIMIT` (default 10 000) with `Retry-After: 5` header; added `MESSAGES_DEDUPLICATED` Prometheus counter
 
 ### Phase 2 — Security Hardening (2026-03-31)
 
@@ -218,7 +218,7 @@ Executed the full 8-finding remediation plan from `docs/reviews/production-remed
 - `shared_runtime/prompt_guard.py` — prompt injection detection and sanitization; patterns for system-tag delimiter smuggling, INST-tag injection, human-turn injection, role override, jailbreak keywords, agent-ID injection, prompt extraction, and base64 content; `check_prompt` returns `InjectionResult` with risk level; `sanitize_prompt` strips known attack vectors
 - `tests/services/test_pii_guard.py` — 22 unit tests for all PII detection, redaction, and dict-scanning paths
 - `tests/services/test_prompt_guard.py` — 17 unit tests covering all injection patterns, sanitization, and risk-level escalation
-- `apps/mission-control/e2e/mission-control-extended.spec.ts` — 13 Playwright E2E tests covering mission failure path, full v2 lifecycle, vault/settings, agents grid, semantic bus monitor, accessibility, and databases page
+- `apps/mission-control/e2e/mission-control-extended.spec.ts` — 13 Playwright E2E tests covering mission failure path, full v2 lifecycle, vault/settings, agents grid, protocol bus monitor, accessibility, and databases page
 - `tests/eval/golden_delegation_cases.json` — expanded from 6 to 30 golden delegation cases including all language specialists, 6 adversarial injection cases, and 3 regression/isolation cases
 - `docs/runbooks/dr_validation_runbook.md` — DR drill runbook for PostgreSQL backup/restore, full cold-start, orchestrator failure + LangGraph checkpoint recovery, and Redis stream recovery
 
@@ -305,7 +305,7 @@ Executed the full 8-finding remediation plan from `docs/reviews/production-remed
 - Additional distributed tracing wiring modules:
   - `services/pod-worker/pod_worker/tracing.py`
   - `services/audit-worker/audit_worker/tracing.py`
-  - `services/semantic-bus-mcp/semantic_bus/tracing.py`
+  - `services/protocol-bus-mcp/protocol_bus/tracing.py`
   - `services/dashboard/dashboard/tracing.py`
 - Mission Control token sync helper for container-safe styling:
   - `apps/mission-control/scripts/sync-design-tokens.mjs`
@@ -347,7 +347,7 @@ Executed the full 8-finding remediation plan from `docs/reviews/production-remed
 - Mission Control e2e regression tooling:
   - Playwright config in `apps/mission-control/playwright.config.ts`
   - critical-path e2e suite in `apps/mission-control/e2e/mission-control.spec.ts`
-- Semantic Bus MCP service (`services/semantic-bus-mcp`) with:
+- Protocol Bus MCP service (`services/protocol-bus-mcp`) with:
   - six-protocol payload validation (alpha/beta/delta/sigma/omega/rho)
   - `/send`, `/health`, `/readyz`, `/metrics`, and `/dlq` endpoints
   - payload size enforcement and sender identity checks
@@ -355,7 +355,7 @@ Executed the full 8-finding remediation plan from `docs/reviews/production-remed
   - restart policies, log rotation, healthchecks, resource controls
   - dedicated `hgr-network`
   - optional extended data plane services (MinIO/Milvus profile)
-  - Jaeger and semantic-bus-mcp service definitions
+  - Jaeger and protocol-bus-mcp service definitions
 - Redis runtime config at `deploy/redis/redis.conf`.
 - Worker metrics endpoints in pod-worker and audit-worker.
 - Worker readiness endpoints:
@@ -366,12 +366,12 @@ Executed the full 8-finding remediation plan from `docs/reviews/production-remed
   - `docs/DATA_CLASSIFICATION_POLICY.md`
   - `docs/DEVELOPER_ONBOARDING_GUIDE.md`
   - `docs/API_INTEGRATION_GUIDE.md`
-  - `docs/runbooks/semantic_bus_incident_runbook.md`
+  - `docs/runbooks/protocol_bus_incident_runbook.md`
 - Core coverage validation utility:
   - `scripts/check_coverage_thresholds.py`
 - Core agent/runtime test suite expansion:
   - `tests/services/test_agent_core_unit.py`
-  - targeted branch tests for protocol/runtime, semantic-bus, pod-worker, and audit-worker paths
+  - targeted branch tests for protocol/runtime, protocol-bus, pod-worker, and audit-worker paths
 - Testing policy documentation:
   - `docs/TESTING_QUALITY_GATES.md`
 - Qdrant knowledge integration baseline:
@@ -390,7 +390,7 @@ Executed the full 8-finding remediation plan from `docs/reviews/production-remed
   - `docs/UPDATED_PHASE_PLAN_2026-03-03.md`
 - Mission Control live transport baseline:
   - API Gateway SSE endpoint `GET /v1/stream/state` with mission filtering, keepalive, and `Last-Event-ID` resume support
-  - frontend EventSource transport integration for mission detail, Semantic Bus, and agent operations views
+  - frontend EventSource transport integration for mission detail, Protocol Bus, and agent operations views
   - `tests/services/test_api_gateway_live_stream_unit.py`
   - phase evidence in `docs/evidence/phase27_mission_control_live_transport_validation_2026-03-04.md`
 - Smelt-cycle runtime reconciliation baseline:

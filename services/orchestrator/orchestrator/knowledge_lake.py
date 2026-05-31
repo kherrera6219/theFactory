@@ -183,7 +183,7 @@ def broadcast_knowledge_ready(
     languages: list[str],
     mission_id: str,
 ) -> bool:
-    """Publish a Protocol Sigma knowledge_ready event to the semantic bus.
+    """Publish a Protocol Sigma knowledge_ready event to the protocol bus.
 
     Returns True if the event was published successfully.  The mission
     proceeds regardless — this is fire-and-forget telemetry.

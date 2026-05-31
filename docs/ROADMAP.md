@@ -267,7 +267,7 @@ For shipped defaults and active validation status, use [`IMPLEMENTATION_STATUS.m
   - supports mission filtering, optional agent-event inclusion, keepalive, and `Last-Event-ID` resume.
 - Added Mission Control EventSource transport for:
   - mission detail view,
-  - Semantic Bus view,
+  - Protocol Bus view,
   - agent operations view.
 - Added fallback design:
   - explicit polling fallback path remains active when stream is unavailable,
@@ -398,7 +398,7 @@ For shipped defaults and active validation status, use [`IMPLEMENTATION_STATUS.m
   - generated diff review with explicit apply gate,
   - mission configuration and launch (locked until gate applied).
 - Added windowed virtualization for high-volume Mission Control views:
-  - Semantic Bus event stream table,
+  - Protocol Bus event stream table,
   - agent roster table,
   - selected-agent log stream panel.
 - Expanded frontend regression coverage:
@@ -486,7 +486,7 @@ For shipped defaults and active validation status, use [`IMPLEMENTATION_STATUS.m
     - `tests/services/test_langgraph_lifecycle_unit.py`
 - Added tracing entrypoint wiring verification coverage:
   - `tests/services/test_tracing_wiring_unit.py`
-  - verifies `configure_tracing(...)` invocation in audit-worker, semantic-bus-mcp, dashboard,
+  - verifies `configure_tracing(...)` invocation in audit-worker, protocol-bus-mcp, dashboard,
     and pod-worker entrypoints.
 - Hardened compose baseline with no-new-privileges control:
   - `deploy/docker-compose.yaml` (`x-common-service.security_opt`)

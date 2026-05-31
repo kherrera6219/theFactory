@@ -47,7 +47,7 @@ The system is organized into three planes:
 ╔══════════════════════════════════════════════════════════════════╗
 ║                     MISSION CONTROL UI                          ║
 ║              Next.js 16 · TypeScript · SSE Transport            ║
-║ Home · Chat · Missions · Agents · Semantic Bus · Builder/Repo   ║
+║ Home · Chat · Missions · Agents · Protocol Bus · Builder/Repo   ║
 ╚══════════════════════╤═══════════════════════════════════════════╝
                        │ REST + SSE
 ╔══════════════════════▼═══════════════════════════════════════════╗
@@ -65,7 +65,7 @@ The system is organized into three planes:
 ║  Operations APIs · OTEL traces         ║ │
 ╚══════════╤═════════════════════════════╝ │
            │ Redis Streams          ╔══════▼══════════════════════╗
-           │                       ║   SEMANTIC BUS MCP :8102    ║
+           │                       ║   PROTOCOL BUS MCP :8102    ║
            │                       ║   6-protocol validation      ║
            │                       ║   alpha/beta/delta/           ║
            │                       ║   sigma/omega/rho            ║
@@ -113,7 +113,7 @@ The system is organized into three planes:
 - **Data-plane adapters:** Qdrant (active), Milvus/Neo4j/object storage (feature-flagged)
 - **OTel tracing:** Jaeger OTLP export
 
-### Semantic Bus MCP (`services/semantic-bus-mcp`, `:8102`)
+### Protocol Bus MCP (`services/protocol-bus-mcp`, `:8102`)
 
 - **Protocol routing:** Validates and routes alpha/beta/delta/sigma/omega/rho bus messages
 - **Schema enforcement:** JSON Schema validation of event envelopes per `schemas/event.envelope.schema.json`
@@ -148,11 +148,11 @@ The system is organized into three planes:
 ### Mission Control (`apps/mission-control`, `:3100`)
 
 - **Operator console:** Full Next.js 16 App Router application
-- **Primary operator surfaces:** Home/dashboard, chat intake, missions, projects, agents, semantic bus, databases, repo import, and settings
+- **Primary operator surfaces:** Home/dashboard, chat intake, missions, projects, agents, protocol bus, databases, repo import, and settings
 - **Grounded review flows:** Workspace builder review and GitHub repo review with durable approval records and mission launch bundles
 - **Project audit timeline:** `Projects` shows per-project audit history with event, mission, agent, service, tool, and duration drill-down backed by the gateway/orchestrator audit APIs
 - **Live transport:** SSE EventSource + polling fallback with `stream|poll|paused` mode indicator
-- **Windowed rendering:** Virtual scrolling for Semantic Bus and agent roster views (high-volume)
+- **Windowed rendering:** Virtual scrolling for Protocol Bus and agent roster views (high-volume)
 
 ---
 
@@ -283,7 +283,7 @@ The default runtime does not use a separate `missions.audit` stream.
 
 ## Event Bus Architecture
 
-The Semantic Bus MCP enforces a **6-protocol message taxonomy**:
+The Protocol Bus MCP enforces a **6-protocol message taxonomy**:
 
 | Protocol | Direction | Purpose |
 |----------|-----------|---------|
@@ -353,7 +353,7 @@ See [`ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](ADR_SECURITY_MODEL_API_
 | Promtail | — | Log shipping agent |
 | Jaeger | 16686 | Distributed trace visualization |
 
-**Instrumented services:** api-gateway · orchestrator · pod-worker · audit-worker · semantic-bus-mcp · dashboard · agent-runtime (full-dedicated profile)
+**Instrumented services:** api-gateway · orchestrator · pod-worker · audit-worker · protocol-bus-mcp · dashboard · agent-runtime (full-dedicated profile)
 
 ---
 
@@ -361,11 +361,11 @@ See [`ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](ADR_SECURITY_MODEL_API_
 
 | Artifact | Purpose |
 |---------|---------|
-| `schemas/event.envelope.schema.json` | Semantic bus message envelope contract |
+| `schemas/event.envelope.schema.json` | Protocol bus message envelope contract |
 | `schemas/logicnode.schema.json` | Language-agnostic LogicNode contract |
 | `schemas/rir.module.schema.json` | Refined-IR module contract |
 | `schemas/rir.fn.schema.json` | Refined-IR function contract |
-| `protocol/topics.yaml` | Semantic bus topic catalog |
+| `protocol/topics.yaml` | Protocol bus topic catalog |
 | `ledger/schema.sql` | Traceability ledger table definitions |
 | `docs/openapi/api-gateway.v1.json` | Gateway OpenAPI spec |
 | `docs/openapi/orchestrator.v1.json` | Orchestrator OpenAPI spec |

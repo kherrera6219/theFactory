@@ -158,7 +158,7 @@ const EVENT_TABLE_HEIGHT_PX = 440;
 const EVENT_ROW_HEIGHT_PX = 44;
 const EVENT_OVERSCAN_ROWS = 8;
 
-export default function SemanticBusPage() {
+export default function ProtocolBusPage() {
   const [events, setEvents] = useState<BusEventRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -188,7 +188,7 @@ export default function SemanticBusPage() {
       setError(null);
     } catch (loadError) {
       setError(
-        loadError instanceof Error ? loadError.message : "Unable to load semantic bus events.",
+        loadError instanceof Error ? loadError.message : "Unable to load protocol bus events.",
       );
       setEvents([]);
     } finally {
@@ -202,9 +202,9 @@ export default function SemanticBusPage() {
 
   useEffect(() => {
     const toggleLive = () => setIsLive((current) => !current);
-    window.addEventListener("semantic-bus-toggle-live", toggleLive);
+    window.addEventListener("protocol-bus-toggle-live", toggleLive);
     return () => {
-      window.removeEventListener("semantic-bus-toggle-live", toggleLive);
+      window.removeEventListener("protocol-bus-toggle-live", toggleLive);
     };
   }, []);
 
@@ -337,7 +337,7 @@ export default function SemanticBusPage() {
     <div className="page shell-page">
       <PageHeader
         compact
-        eyebrow="Semantic Bus"
+        eyebrow="Protocol Bus"
         title="Protocol Event Monitor"
         description="Inspect envelope traffic by protocol, topic, producer, and priority to detect routing anomalies."
       />
@@ -413,7 +413,7 @@ export default function SemanticBusPage() {
             onClick={() =>
               downloadJson(
                 filteredEvents,
-                `semantic-bus-${new Date().toISOString().slice(0, 10)}.json`,
+                `protocol-bus-${new Date().toISOString().slice(0, 10)}.json`,
               )
             }
           >
@@ -421,9 +421,9 @@ export default function SemanticBusPage() {
           </button>
         }
       >
-        {loading && <p className="muted">Loading recent semantic bus events...</p>}
+        {loading && <p className="muted">Loading recent protocol bus events...</p>}
         {error && (
-          <SystemMessage tone="critical" title="Semantic bus events are unavailable">
+          <SystemMessage tone="critical" title="Protocol bus events are unavailable">
             {error} Live events will appear once the runtime stream or polling endpoint is available.
           </SystemMessage>
         )}
@@ -433,13 +433,13 @@ export default function SemanticBusPage() {
         <div
           className="table-wrap virtualized-table-wrap"
           tabIndex={0}
-          aria-label="Scrollable semantic bus event table"
+          aria-label="Scrollable protocol bus event table"
           style={{ maxHeight: `${EVENT_TABLE_HEIGHT_PX}px` }}
           onScroll={(event) => setEventTableScrollTop(event.currentTarget.scrollTop)}
         >
           <table className="data-table">
             <caption className="sr-only">
-              Semantic bus event stream including protocol, producer, topic, priority, and summary.
+              Protocol bus event stream including protocol, producer, topic, priority, and summary.
             </caption>
             <thead>
               <tr>

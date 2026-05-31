@@ -48,7 +48,7 @@ The API Gateway runs at `http://localhost:8100`.
 - `Missions`: recent missions and mission state transitions
 - `Agents`: live roster, workload, and heartbeat telemetry
 - `LogicNodes`: extracted graph fragments and mission-linked nodes
-- `Semantic Bus`: protocol traffic and live event inspection
+- `Protocol Bus`: protocol traffic and live event inspection
 - `Databases`: optional data-plane adapter health and summary
 - `Repo Import`: grounded GitHub review and launch flow
 - `Settings`: preferences, vault slots, and integration state

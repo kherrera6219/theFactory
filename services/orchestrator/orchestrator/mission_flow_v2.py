@@ -863,7 +863,7 @@ async def _prepare_fetch_phase(
             },
         )
 
-    # Publish Protocol Sigma knowledge_ready event to the semantic bus.
+    # Publish Protocol Sigma knowledge_ready event to the protocol bus.
     # Fire-and-forget — never blocks mission progression on bus failure.
     if fetch_result.get("knowledge_ready") and fetch_result.get("indexed_languages"):
         await asyncio.to_thread(

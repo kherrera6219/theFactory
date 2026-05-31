@@ -1,12 +1,12 @@
-# Incident Runbook — Semantic Bus
+# Incident Runbook — Protocol Bus
 
 Document version: 2026.03.29  
 Last updated: 2026-03-29  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
-**Applies to:** Semantic Bus MCP service (`:8102`), Redis Streams-based event routing, protocol message failures
-**Impact:** When the semantic bus is degraded, agent-to-agent protocol messages fail or are dropped to the DLQ. Core mission HTTP flow continues unaffected.
+**Applies to:** Protocol Bus MCP service (`:8102`), Redis Streams-based event routing, protocol message failures
+**Impact:** When the protocol bus is degraded, agent-to-agent protocol messages fail or are dropped to the DLQ. Core mission HTTP flow continues unaffected.
 
 ---
 
@@ -14,7 +14,7 @@ Audience: Operators, developers, maintainers, and auditors
 
 | Symptom | Severity | Signs |
 |---------|----------|-------|
-| Semantic Bus MCP down | HIGH | `http://localhost:8102/health` returns non-200 or no response |
+| Protocol Bus MCP down | HIGH | `http://localhost:8102/health` returns non-200 or no response |
 | Protocol validation failures | MEDIUM | Messages appear in DLQ (`GET /dlq?protocol=<name>`) |
 | Redis stream stall | HIGH | Consumer group lag growing; agents not receiving messages |
 | DLQ growing | MEDIUM | `/dlq` returns increasing message count across protocols |
@@ -28,10 +28,10 @@ Audience: Operators, developers, maintainers, and auditors
 curl http://localhost:8102/health
 
 # Check container status
-docker compose -f deploy/docker-compose.yaml ps semantic-bus-mcp
+docker compose -f deploy/docker-compose.yaml ps protocol-bus-mcp
 
 # Check recent logs
-docker compose -f deploy/docker-compose.yaml logs semantic-bus-mcp --tail 100
+docker compose -f deploy/docker-compose.yaml logs protocol-bus-mcp --tail 100
 ```
 
 ---
@@ -48,14 +48,14 @@ docker compose -f deploy/docker-compose.yaml exec redis \
 
 # Check pending message count (lag)
 docker compose -f deploy/docker-compose.yaml exec redis \
-  redis-cli XPENDING missions.state semantic-bus-group - + 10
+  redis-cli XPENDING missions.state protocol-bus-group - + 10
 
 # Check stream length
 docker compose -f deploy/docker-compose.yaml exec redis \
   redis-cli XLEN missions.state
 ```
 
-**High lag (> 100 pending)** indicates the semantic bus is not consuming. Restart the consumer.
+**High lag (> 100 pending)** indicates the protocol bus is not consuming. Restart the consumer.
 
 **Zero-length streams with healthy lag** may indicate the stream keys were flushed — check for Redis restarts.
 
@@ -101,10 +101,10 @@ Reference: `schemas/event.envelope.schema.json`
 
 ## Step 5 — Remediate
 
-### Restart Semantic Bus MCP
+### Restart Protocol Bus MCP
 
 ```bash
-docker compose -f deploy/docker-compose.yaml restart semantic-bus-mcp
+docker compose -f deploy/docker-compose.yaml restart protocol-bus-mcp
 ```
 
 After restart:
@@ -128,10 +128,10 @@ curl http://localhost:8102/dlq?protocol=alpha > /tmp/dlq-alpha.json
 ```bash
 # Force consumer group reset (use ONLY if stream is confirmed clean)
 docker compose -f deploy/docker-compose.yaml exec redis \
-  redis-cli XGROUP SETID missions.state semantic-bus-group '$'
+  redis-cli XGROUP SETID missions.state protocol-bus-group '$'
 
 # Restart all consumers
-docker compose -f deploy/docker-compose.yaml restart semantic-bus-mcp pod-worker audit-worker
+docker compose -f deploy/docker-compose.yaml restart protocol-bus-mcp pod-worker audit-worker
 ```
 
 ---
@@ -165,7 +165,7 @@ curl http://localhost:8102/dlq?protocol=sigma | jq 'length'
 
 ## Escalation
 
-If semantic bus does not recover within 15 minutes:
+If protocol bus does not recover within 15 minutes:
 1. Check Redis cluster health: `docker compose logs redis --tail 200`
 2. Check for memory pressure: `docker stats`
 3. Consider temporary bypass: agents can fall back to direct REST if bus is unavailable
@@ -177,5 +177,5 @@ If semantic bus does not recover within 15 minutes:
 
 - Protocol schemas: `schemas/event.envelope.schema.json`
 - Topic catalog: `protocol/topics.yaml`
-- MCP API docs: `docs/API_INTEGRATION_GUIDE.md#semantic-bus-mcp`
+- MCP API docs: `docs/API_INTEGRATION_GUIDE.md#protocol-bus-mcp`
 - Observability: `docs/OBSERVABILITY_STACK.md`

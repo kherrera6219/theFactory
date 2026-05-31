@@ -260,7 +260,7 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 ## Mission Control
 
 - **Next.js 16** operator console at `apps/mission-control`.
-- **Views**: chat intake, missions list, mission detail, agents, semantic-bus, builder,
+- **Views**: chat intake, missions list, mission detail, agents, protocol-bus, builder,
   repo-import, databases, settings, projects audit.
 - **Mission Detail panels** (22 total across 3 categories):
   - `intelligence/`: AIM, DependencyAbsorption, EquivalenceReport, Fusion, KnowledgeLake,

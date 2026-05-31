@@ -23,7 +23,7 @@ from shared_runtime.logging_config import configure_logging
 
 from .tracing import configure_tracing
 
-configure_logging("semantic-bus-mcp")
+configure_logging("protocol-bus-mcp")
 
 try:
     import redis.asyncio as redis
@@ -60,32 +60,32 @@ ALLOWED_PROTOCOLS = ("alpha", "beta", "delta", "sigma", "omega", "rho")
 PRIORITY_LEVELS = ("low", "normal", "high", "critical")
 
 REQUEST_COUNTER = Counter(
-    "semantic_bus_mcp_http_requests_total",
-    "Total HTTP requests served by semantic-bus MCP",
+    "protocol_bus_mcp_http_requests_total",
+    "Total HTTP requests served by protocol-bus MCP",
     ("method", "path", "status_code"),
 )
 REQUEST_LATENCY = Histogram(
-    "semantic_bus_mcp_http_request_duration_seconds",
-    "HTTP request latency in seconds for semantic-bus MCP",
+    "protocol_bus_mcp_http_request_duration_seconds",
+    "HTTP request latency in seconds for protocol-bus MCP",
     ("method", "path"),
 )
 MESSAGES_QUEUED = Counter(
-    "semantic_bus_mcp_messages_queued_total",
+    "protocol_bus_mcp_messages_queued_total",
     "Total protocol messages queued by MCP",
     ("protocol",),
 )
 DLQ_WRITES = Counter(
-    "semantic_bus_mcp_dlq_writes_total",
+    "protocol_bus_mcp_dlq_writes_total",
     "Total dead-letter writes by MCP",
     ("protocol",),
 )
 MESSAGES_DEDUPLICATED = Counter(
-    "semantic_bus_mcp_messages_deduplicated_total",
+    "protocol_bus_mcp_messages_deduplicated_total",
     "Total duplicate messages rejected by MCP",
     ("protocol",),
 )
 MESSAGES_REPLAYED = Counter(
-    "semantic_bus_mcp_messages_replayed_total",
+    "protocol_bus_mcp_messages_replayed_total",
     "Total replayed messages rejected by MCP",
     ("protocol",),
 )
@@ -147,6 +147,7 @@ class SigmaPayload(BaseModel):
 
     schema_version: str = Field(min_length=1, max_length=32)
     knowledge_type: str = Field(min_length=1, max_length=120)
+    # reserved for future semantic routing — not computed, stored, or matched today
     embedding_ref: str = Field(min_length=1, max_length=255)
     relevance_scope: str = Field(min_length=1, max_length=120)
     content: dict[str, Any] = Field(default_factory=dict)
@@ -307,7 +308,7 @@ async def lifespan(app: FastAPI):
     if not _MCP_API_KEY_RAW:
         LOGGER.error(_DEV_SESSION_NOTICE)
     LOGGER.info(
-        "semantic-bus-mcp starting (environment=%s, mcp_api_key_set=%s)",
+        "protocol-bus-mcp starting (environment=%s, mcp_api_key_set=%s)",
         ENVIRONMENT,
         bool(_MCP_API_KEY_RAW),
     )
@@ -318,7 +319,7 @@ async def lifespan(app: FastAPI):
             app.state.redis = redis.from_url(REDIS_URL, decode_responses=True)
             app.state.redis_ready = bool(await app.state.redis.ping())
         except Exception as exc:
-            LOGGER.warning("semantic-bus-mcp failed to initialize redis client: %s", exc)
+            LOGGER.warning("protocol-bus-mcp failed to initialize redis client: %s", exc)
             app.state.redis = None
             app.state.redis_ready = False
     yield
@@ -335,8 +336,8 @@ async def lifespan(app: FastAPI):
                     await result
 
 
-app = FastAPI(title="HolyGrail Semantic Bus MCP", version="0.1.0", lifespan=lifespan)
-configure_tracing(app, service_name="semantic-bus-mcp")
+app = FastAPI(title="HolyGrail Protocol Bus MCP", version="0.1.0", lifespan=lifespan)
+configure_tracing(app, service_name="protocol-bus-mcp")
 
 
 @app.middleware("http")
@@ -364,12 +365,12 @@ async def health() -> dict[str, Any]:
             redis_ready = bool(await redis_client.ping())
             app.state.redis_ready = redis_ready
         except Exception as exc:
-            LOGGER.warning("semantic-bus-mcp redis ping failed during health check: %s", exc)
+            LOGGER.warning("protocol-bus-mcp redis ping failed during health check: %s", exc)
             redis_ready = False
             app.state.redis_ready = False
     return {
         "ok": redis_ready,
-        "service": "semantic-bus-mcp",
+        "service": "protocol-bus-mcp",
         "redis_ready": redis_ready,
         "allowed_protocols": list(ALLOWED_PROTOCOLS),
         "max_message_bytes": MAX_MESSAGE_BYTES,
@@ -387,11 +388,11 @@ async def readyz() -> dict[str, Any]:
         app.state.redis_ready = redis_ready
     except Exception as exc:
         app.state.redis_ready = False
-        LOGGER.warning("semantic-bus-mcp redis ping failed during readiness check")
+        LOGGER.warning("protocol-bus-mcp redis ping failed during readiness check")
         raise HTTPException(status_code=503, detail="redis unavailable") from exc
     if not redis_ready:
         raise HTTPException(status_code=503, detail="redis unavailable")
-    return {"ready": True, "service": "semantic-bus-mcp", "redis_ready": redis_ready}
+    return {"ready": True, "service": "protocol-bus-mcp", "redis_ready": redis_ready}
 
 
 @app.get("/metrics")
@@ -454,11 +455,11 @@ async def send_message(
         (x_api_key or "").strip().encode("utf-8"),
         MCP_API_KEY.encode("utf-8"),
     ):
-        LOGGER.warning("semantic-bus-mcp rejected request due to invalid api key")
+        LOGGER.warning("protocol-bus-mcp rejected request due to invalid api key")
         raise HTTPException(status_code=403, detail="invalid mcp api key")
     if (x_agent_id or "").strip() != payload.sender:
         LOGGER.warning(
-            "semantic-bus-mcp rejected sender mismatch header=%s sender=%s",
+            "protocol-bus-mcp rejected sender mismatch header=%s sender=%s",
             (x_agent_id or "").strip(),
             payload.sender,
         )
@@ -501,7 +502,7 @@ async def send_message(
     except protocol_guard.ReplayDetectedError as exc:
         MESSAGES_REPLAYED.labels(protocol=payload.protocol).inc()
         LOGGER.warning(
-            "semantic-bus-mcp: replay rejected correlation_id=%s",
+            "protocol-bus-mcp: replay rejected correlation_id=%s",
             envelope.correlation_id,
         )
         raise HTTPException(
@@ -518,12 +519,12 @@ async def send_message(
             dedup_key, "1", nx=True, ex=MESSAGE_DEDUP_TTL_SECONDS
         )
     except Exception as exc:
-        LOGGER.error("semantic-bus-mcp: dedup check failed: %s", exc)
+        LOGGER.error("protocol-bus-mcp: dedup check failed: %s", exc)
         raise HTTPException(status_code=503, detail="Dedup service unavailable") from exc
     if already_seen:
         MESSAGES_DEDUPLICATED.labels(protocol=payload.protocol).inc()
         LOGGER.info(
-            "semantic-bus-mcp: duplicate message rejected correlation_id=%s",
+            "protocol-bus-mcp: duplicate message rejected correlation_id=%s",
             envelope.correlation_id,
         )
         # Return 200 (idempotent) rather than 409 — clients shouldn't error on dedup
@@ -548,14 +549,14 @@ async def send_message(
             channel: await redis_client.xlen(channel) for channel in channels
         }
     except Exception as exc:
-        LOGGER.error("semantic-bus-mcp: backpressure check failed: %s", exc)
+        LOGGER.error("protocol-bus-mcp: backpressure check failed: %s", exc)
         raise HTTPException(
             status_code=503, detail="Backpressure service unavailable"
         ) from exc
     for channel, queue_depth in queue_depths.items():
         if queue_depth > BACKPRESSURE_QUEUE_LIMIT:
             LOGGER.warning(
-                "semantic-bus-mcp: backpressure triggered channel=%s queue_depth=%d limit=%d",
+                "protocol-bus-mcp: backpressure triggered channel=%s queue_depth=%d limit=%d",
                 channel, queue_depth, BACKPRESSURE_QUEUE_LIMIT,
             )
             raise HTTPException(
@@ -579,7 +580,7 @@ async def send_message(
         MESSAGES_QUEUED.labels(protocol=payload.protocol).inc()
     except Exception as exc:
         await _write_dlq(redis_client, payload.protocol, body, str(exc))
-        LOGGER.exception("semantic-bus-mcp failed to publish protocol message")
+        LOGGER.exception("protocol-bus-mcp failed to publish protocol message")
         raise HTTPException(status_code=503, detail="failed to publish message") from exc
 
     return JSONResponse(

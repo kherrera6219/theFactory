@@ -5,7 +5,7 @@ Last updated: 2026-03-29
 Status: Canonical  
 Audience: Integrators, developers, and operators
 
-**Base URLs:** Gateway `http://localhost:8100` · Semantic Bus MCP `http://localhost:8102`
+**Base URLs:** Gateway `http://localhost:8100` · Protocol Bus MCP `http://localhost:8102`
 **OpenAPI specs:** [`docs/openapi/api-gateway.v1.json`](openapi/api-gateway.v1.json) · [`docs/openapi/orchestrator.v1.json`](openapi/orchestrator.v1.json)
 
 ---
@@ -17,7 +17,7 @@ Audience: Integrators, developers, and operators
 - [Mission API](#mission-api)
 - [Operations API](#operations-api)
 - [Live Transport (SSE)](#live-transport-sse)
-- [Semantic Bus MCP](#semantic-bus-mcp)
+- [Protocol Bus MCP](#protocol-bus-mcp)
 - [Dedicated-Agent Routing](#dedicated-agent-routing)
 - [Error Codes](#error-codes)
 - [SDK & Client Examples](#sdk--client-examples)
@@ -349,7 +349,7 @@ source.onerror = () => {
 
 ---
 
-## Semantic Bus MCP
+## Protocol Bus MCP
 
 ### Send Message
 

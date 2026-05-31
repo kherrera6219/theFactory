@@ -130,8 +130,8 @@ This is the master map for theFactory documentation. The live documentation set 
   - current provider/model matrix reference
 - [AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md](AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md)
   - persona evidence model reference
-- [AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md](AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md)
-  - semantic bus and data-system reference plan
+- [AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md](AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md)
+  - protocol bus and data-system reference plan
 
 ## ADRs
 

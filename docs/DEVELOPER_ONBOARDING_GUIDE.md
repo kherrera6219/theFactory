@@ -110,7 +110,7 @@ docker compose -f deploy/docker-compose.yaml up -d --build
 docker compose -f deploy/docker-compose.yaml up -d --build
 ```
 
-This starts: api-gateway · orchestrator · pod-worker · audit-worker · semantic-bus-mcp · dashboard · redis · postgres · qdrant
+This starts: api-gateway · orchestrator · pod-worker · audit-worker · protocol-bus-mcp · dashboard · redis · postgres · qdrant
 
 **First startup takes 2–5 minutes** while images build and database migrations run.
 
@@ -143,7 +143,7 @@ curl http://localhost:8100/health
 # Orchestrator
 curl http://localhost:8101/health
 
-# Semantic Bus MCP
+# Protocol Bus MCP
 curl http://localhost:8102/health
 
 # Dashboard
@@ -275,7 +275,7 @@ theFactory/
 │   │   ├── (shell)/               ← Layout shell (sidebar, header)
 │   │   ├── missions/              ← Mission list + detail views
 │   │   ├── agents/                ← 41-agent roster + detail
-│   │   ├── semantic-bus/          ← Live semantic bus view
+│   │   ├── protocol-bus/          ← Live protocol bus view
 │   │   ├── builder/               ← Repository intake flow
 │   │   └── settings/              ← Vault and config
 │   ├── lib/                       ← API client, SSE client, helpers
@@ -286,7 +286,7 @@ theFactory/
 │   ├── orchestrator/orchestrator/ ← Orchestrator (main.py, runtime.py, agent_personas.py)
 │   ├── pod-worker/pod_worker/     ← Pod worker (main.py, language_extractor.py, concept_catalog.py)
 │   ├── audit-worker/audit_worker/ ← Audit worker
-│   ├── semantic-bus-mcp/          ← Semantic bus MCP
+│   ├── protocol-bus-mcp/          ← Protocol bus MCP
 │   └── dashboard/                 ← Dashboard service
 │
 ├── tests/
@@ -299,7 +299,7 @@ theFactory/
 │   └── monitoring/                ← Prometheus, Grafana, Alertmanager configs
 │
 ├── schemas/                       ← JSON Schema contracts
-├── protocol/                      ← Semantic bus topic catalog
+├── protocol/                      ← Protocol bus topic catalog
 ├── scripts/                       ← Operational and audit scripts
 ├── docs/                          ← All documentation
 └── assets/design-tokens/          ← CSS design token source of truth
