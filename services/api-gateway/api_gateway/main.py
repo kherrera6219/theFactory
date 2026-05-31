@@ -53,6 +53,15 @@ INTAKE_TOPIC = os.getenv("INTAKE_TOPIC", "intake.feature_contract.created")
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))
 CORS_ALLOW_ORIGINS = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:3100")
 INTERNAL_SERVICE_API_KEY = os.getenv("INTERNAL_SERVICE_API_KEY", "")
+# Gateway-side API key registry used to authorize callers in api_key mode.
+# Mirrors the orchestrator's role model so the gateway never elevates anonymous
+# callers with its own privileged INTERNAL_SERVICE_API_KEY.
+#   ORCHESTRATOR_ADMIN_API_KEY    -> {admin, mutate, internal, read}
+#   ORCHESTRATOR_READONLY_API_KEY -> {read}
+#   ORCHESTRATOR_API_KEYS         -> "key=role1,role2;otherkey=role3"
+ORCHESTRATOR_ADMIN_API_KEY = os.getenv("ORCHESTRATOR_ADMIN_API_KEY", "").strip()
+ORCHESTRATOR_READONLY_API_KEY = os.getenv("ORCHESTRATOR_READONLY_API_KEY", "").strip()
+ORCHESTRATOR_API_KEYS = os.getenv("ORCHESTRATOR_API_KEYS", "")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
 AUTH_MODE = os.getenv("AUTH_MODE", "api_key").strip().lower()
 OIDC_ISSUER_URL = os.getenv("OIDC_ISSUER_URL", "").strip()
@@ -65,10 +74,10 @@ OIDC_ENFORCE_OPERATOR_ROUTES = (
     os.getenv("OIDC_ENFORCE_OPERATOR_ROUTES", "true").strip().lower()
     in {"1", "true", "yes", "on"}
 )
-# Set to "false" in production to enforce operator access checks.
-# Defaults to "true" (bypass enabled) for development convenience; tests should disable it.
+# DANGER: when true, ALL operator-route authorization is disabled. Defaults to "false";
+# set true only for local dev debugging. A startup warning is logged if enabled in production.
 GATEWAY_ADMIN_BYPASS: bool = (
-    os.getenv("GATEWAY_ADMIN_BYPASS", "true").strip().lower() in {"1", "true", "yes", "on"}
+    os.getenv("GATEWAY_ADMIN_BYPASS", "false").strip().lower() in {"1", "true", "yes", "on"}
 )
 OIDC_ROLE_CLAIMS = tuple(
     claim.strip()
@@ -84,7 +93,7 @@ OIDC_ALLOWED_ALGORITHMS = [
     algorithm.strip()
     for algorithm in os.getenv("OIDC_ALLOWED_ALGORITHMS", "RS256").split(",")
     if algorithm.strip()
-]
+] or ["RS256"]
 OIDC_LEEWAY_SECONDS = max(0.0, float(os.getenv("OIDC_LEEWAY_SECONDS", "60")))
 IDEMPOTENCY_TTL_SECONDS = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "86400"))
 IDEMPOTENCY_KEY_PREFIX = "idempotency:missions"
@@ -448,7 +457,7 @@ async def _reconcile_idempotent_mission(
     mission_id: str,
 ) -> MissionRecord | None:
     try:
-        existing_mission = await _proxy_get(f"/missions/{mission_id}")
+        existing_mission = await _proxy_get_internal(f"/missions/{mission_id}")
     except HTTPException as exc:
         if exc.status_code == 404:
             return None
@@ -657,6 +666,58 @@ async def _state_stream_sse_generator(
             await asyncio.sleep(1.0)
 
 
+def _gateway_api_key_roles() -> dict[str, set[str]]:
+    """Build the gateway's API-key→roles map from configured keys.
+
+    Mirrors the orchestrator's role model so api_key-mode callers are
+    authorized at the gateway instead of being silently elevated with the
+    privileged internal service key.
+    """
+    mapping: dict[str, set[str]] = {}
+    if ORCHESTRATOR_ADMIN_API_KEY:
+        mapping[ORCHESTRATOR_ADMIN_API_KEY] = {"admin", "mutate", "internal", "read"}
+    if INTERNAL_SERVICE_API_KEY.strip():
+        mapping.setdefault(
+            INTERNAL_SERVICE_API_KEY.strip(), {"worker", "mutate", "internal", "read"}
+        )
+    if ORCHESTRATOR_READONLY_API_KEY:
+        mapping.setdefault(ORCHESTRATOR_READONLY_API_KEY, {"read"})
+    for entry in (part.strip() for part in ORCHESTRATOR_API_KEYS.split(";") if part.strip()):
+        if "=" not in entry:
+            continue
+        key, roles_csv = entry.split("=", 1)
+        roles = {role.strip().lower() for role in roles_csv.split(",") if role.strip()}
+        if key.strip() and roles:
+            mapping[key.strip()] = roles
+    return mapping
+
+
+def _match_gateway_api_key(candidate: str) -> set[str] | None:
+    # Constant-time compare against every configured key to avoid leaking which
+    # keys exist via timing. Mirrors orchestrator.auth._match_api_key.
+    candidate_bytes = candidate.encode("utf-8")
+    matched: set[str] | None = None
+    for stored_key, roles in _gateway_api_key_roles().items():
+        if hmac.compare_digest(candidate_bytes, stored_key.encode("utf-8")):
+            matched = roles
+    return matched
+
+
+def _require_api_key_role(x_api_key: str | None, required_role: str) -> None:
+    """Validate ``X-API-Key`` against configured gateway keys for api_key mode.
+
+    Raises 401 if the header is missing or unknown, 403 if the key lacks the
+    required role.
+    """
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="x-api-key header is required")
+    roles = _match_gateway_api_key(x_api_key)
+    if roles is None:
+        raise HTTPException(status_code=401, detail="invalid api key")
+    if required_role and required_role not in roles:
+        raise HTTPException(status_code=403, detail="insufficient role for endpoint")
+
+
 def _extract_bearer_token(authorization: str | None) -> str | None:
     if not authorization:
         return None
@@ -800,11 +861,20 @@ def _require_operator_access(
 ) -> None:
     if GATEWAY_ADMIN_BYPASS:
         return
-    if not OIDC_ENFORCE_OPERATOR_ROUTES or AUTH_MODE == "api_key":
+
+    mode = AUTH_MODE
+
+    if mode == "api_key":
+        # Operator routes proxy to privileged internal orchestrator endpoints using
+        # the gateway's internal key, so the gateway MUST authorize the caller here.
+        # Minimum `read` role required — never skip auth for non-health routes.
+        _require_api_key_role(x_api_key, "read")
+        return
+
+    if not OIDC_ENFORCE_OPERATOR_ROUTES:
         return
 
     bearer_token = _extract_bearer_token(authorization)
-    mode = AUTH_MODE
 
     if mode == "hybrid":
         if bearer_token:
@@ -828,6 +898,56 @@ def _require_operator_access(
         claims = _decode_oidc_token(bearer_token)
         if not _claim_includes_required_role(claims, OIDC_OPERATOR_ROLE):
             raise HTTPException(status_code=403, detail="insufficient oidc role for operator route")
+        return
+
+    raise HTTPException(status_code=500, detail="gateway auth mode configuration error")
+
+
+def _require_reader_access(
+    *,
+    x_api_key: str | None,
+    authorization: str | None,
+) -> None:
+    """Require minimum read authorization for resource-read routes.
+
+    Mission prompts, metadata, and source code must not be world-readable.
+    Enforced across all auth modes (api_key validates X-API-Key with `read`
+    role; hybrid/oidc validate a bearer token carrying the read role, or an
+    X-API-Key in hybrid mode).
+    """
+    if GATEWAY_ADMIN_BYPASS:
+        return
+
+    mode = AUTH_MODE
+
+    if mode == "api_key":
+        _require_api_key_role(x_api_key, "read")
+        return
+
+    bearer_token = _extract_bearer_token(authorization)
+
+    if mode == "hybrid":
+        if bearer_token:
+            claims = _decode_oidc_token(bearer_token)
+            if not _claim_includes_required_role(claims, "read"):
+                raise HTTPException(
+                    status_code=403, detail="insufficient oidc role for endpoint"
+                )
+            return
+        if x_api_key:
+            _require_api_key_role(x_api_key, "read")
+            return
+        raise HTTPException(
+            status_code=401,
+            detail="authorization bearer token or x-api-key header is required",
+        )
+
+    if mode == "oidc":
+        if not bearer_token:
+            raise HTTPException(status_code=401, detail="authorization bearer token is required")
+        claims = _decode_oidc_token(bearer_token)
+        if not _claim_includes_required_role(claims, "read"):
+            raise HTTPException(status_code=403, detail="insufficient oidc role for endpoint")
         return
 
     raise HTTPException(status_code=500, detail="gateway auth mode configuration error")
@@ -1227,8 +1347,31 @@ async def _gemini_builder_preview(
     return preview
 
 
+def _validate_startup_auth_config() -> None:
+    """Fail fast or warn on insecure auth configuration at startup."""
+    if GATEWAY_ADMIN_BYPASS and ENVIRONMENT == "production":
+        LOGGER.warning(
+            "GATEWAY_ADMIN_BYPASS=true in production — ALL operator route "
+            "authorization is DISABLED. Set GATEWAY_ADMIN_BYPASS=false."
+        )
+
+    if "HS256" in OIDC_ALLOWED_ALGORITHMS:
+        LOGGER.warning(
+            "OIDC_ALLOWED_ALGORITHMS includes HS256 — algorithm confusion attack "
+            "risk (attacker uses the public key as the HMAC secret). Use RS256 only."
+        )
+
+    if AUTH_MODE in {"hybrid", "oidc"}:
+        if not OIDC_AUDIENCE:
+            LOGGER.warning("OIDC_AUDIENCE not set — JWT audience verification disabled")
+        if AUTH_MODE == "oidc" and not OIDC_ISSUER_URL:
+            raise RuntimeError("OIDC_ISSUER_URL required when AUTH_MODE=oidc")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _validate_startup_auth_config()
+
     app.state.redis = None
     app.state.redis_ready = False
 
@@ -1659,20 +1802,6 @@ async def create_mission(
 
 
 
-async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            response = await client.get(f"{ORCHESTRATOR_URL}{path}", params=params)
-    except Exception as exc:
-        LOGGER.warning("orchestrator query failed for %s: %s", path, exc)
-        raise HTTPException(status_code=502, detail="orchestrator unavailable") from exc
-    if response.status_code == 404:
-        raise HTTPException(status_code=404, detail="resource not found")
-    if response.status_code >= 400:
-        raise HTTPException(status_code=502, detail="orchestrator query failed")
-    return response.json()
-
-
 async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None) -> Any:
     internal_key = _require_internal_service_api_key()
     try:
@@ -1694,13 +1823,19 @@ async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None
     return response.json()
 
 
-async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> Any:
+async def _proxy_post_internal(
+    path: str,
+    *,
+    json_body: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+) -> Any:
     internal_key = _require_internal_service_api_key()
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
             response = await client.post(
                 f"{ORCHESTRATOR_URL}{path}",
                 json=json_body,
+                params=params,
                 headers={"x-api-key": internal_key},
             )
     except httpx.RequestError as exc:
@@ -1723,20 +1858,34 @@ async def _proxy_post_internal(path: str, *, json_body: dict[str, Any]) -> Any:
 
 
 @app.get("/v1/missions/{mission_id}")
-async def get_mission(mission_id: str) -> dict[str, Any]:
-    return await _proxy_get(f"/missions/{mission_id}")
+async def get_mission(
+    mission_id: str,
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
+    return await _proxy_get_internal(f"/missions/{mission_id}")
 
 
 @app.get("/v1/missions")
-async def list_missions(limit: int = Query(default=20, ge=1, le=200)) -> list[dict[str, Any]]:
-    return await _proxy_get("/missions", params={"limit": limit})
+async def list_missions(
+    limit: int = Query(default=20, ge=1, le=200),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> list[dict[str, Any]]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
+    return await _proxy_get_internal("/missions", params={"limit": limit})
 
 
 @app.get("/v1/missions/{mission_id}/events")
 async def get_mission_events(
-    mission_id: str, limit: int = Query(default=50, ge=1, le=500)
+    mission_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
-    return await _proxy_get(f"/missions/{mission_id}/events", params={"limit": limit})
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
+    return await _proxy_get_internal(f"/missions/{mission_id}/events", params={"limit": limit})
 
 
 @app.get("/v1/missions/{mission_id}/pod-assignment")
