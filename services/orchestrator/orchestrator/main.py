@@ -65,8 +65,10 @@ LOGGER = logging.getLogger(__name__)
 SETTINGS = load_settings()
 MUTATION_AUTH = require_roles(SETTINGS, {"mutate", "admin", "worker"})
 INTERNAL_AUTH = require_roles(SETTINGS, {"internal", "admin", "worker"})
+READ_AUTH = require_roles(SETTINGS, {"read", "mutate", "admin", "worker", "internal"})
 MUTATION_AUTH_DEP = Depends(MUTATION_AUTH)
 INTERNAL_AUTH_DEP = Depends(INTERNAL_AUTH)
+READ_AUTH_DEP = Depends(READ_AUTH)
 
 
 LIFECYCLE_RECOVERY_RETRY_SECONDS = max(

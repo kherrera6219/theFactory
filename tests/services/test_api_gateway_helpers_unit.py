@@ -199,7 +199,7 @@ def test_create_mission_reconciles_unknown_idempotent_writes(monkeypatch) -> Non
     async def _unexpected_proxy_post_internal(*_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError("create_mission should reconcile from orchestrator before retrying")
 
-    async def _proxy_get(path: str, *, params: dict[str, Any] | None = None) -> Any:
+    async def _proxy_get_internal(path: str, *, params: dict[str, Any] | None = None) -> Any:
         assert params is None
         assert path == f"/missions/{mission_id}"
         return {
@@ -215,7 +215,7 @@ def test_create_mission_reconciles_unknown_idempotent_writes(monkeypatch) -> Non
         }
 
     monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _unexpected_proxy_post_internal)
-    monkeypatch.setattr(api_gateway_main, "_proxy_get", _proxy_get)
+    monkeypatch.setattr(api_gateway_main, "_proxy_get_internal", _proxy_get_internal)
 
     result = asyncio.run(api_gateway_main.create_mission(payload, idempotency_key="idem-1"))
 
@@ -418,6 +418,8 @@ def test_resolve_mutation_forward_headers_covers_mode_branches(monkeypatch) -> N
 
 def test_require_operator_access_covers_hybrid_oidc_and_invalid_modes(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
+    # Non-api_key mode with operator enforcement disabled is a no-op.
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "hybrid")
     monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", False)
     api_gateway_main._require_operator_access(x_api_key=None, authorization=None)
 
@@ -599,11 +601,16 @@ def test_proxy_helpers_cover_success_and_error_paths(monkeypatch) -> None:
             return self._response
 
     monkeypatch.setattr(
+        api_gateway_main,
+        "_require_internal_service_api_key",
+        lambda: "internal-key",
+    )
+    monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
         lambda timeout: _Client(_FakeResponse(200, {"ok": True})),
     )
-    assert asyncio.run(api_gateway_main._proxy_get("/missions")) == {"ok": True}
+    assert asyncio.run(api_gateway_main._proxy_get_internal("/missions")) == {"ok": True}
 
     monkeypatch.setattr(
         api_gateway_main.httpx,
@@ -611,7 +618,7 @@ def test_proxy_helpers_cover_success_and_error_paths(monkeypatch) -> None:
         lambda timeout: _Client(_FakeResponse(404, {})),
     )
     with pytest.raises(HTTPException, match="resource not found"):
-        asyncio.run(api_gateway_main._proxy_get("/missions/missing"))
+        asyncio.run(api_gateway_main._proxy_get_internal("/missions/missing"))
 
     monkeypatch.setattr(
         api_gateway_main.httpx,
@@ -619,21 +626,16 @@ def test_proxy_helpers_cover_success_and_error_paths(monkeypatch) -> None:
         lambda timeout: _Client(_FakeResponse(500, {})),
     )
     with pytest.raises(HTTPException, match="query failed"):
-        asyncio.run(api_gateway_main._proxy_get("/missions/error"))
+        asyncio.run(api_gateway_main._proxy_get_internal("/missions/error"))
 
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",
-        lambda timeout: _Client(error=RuntimeError("offline")),
+        lambda timeout: _Client(error=api_gateway_main.httpx.ConnectError("offline")),
     )
     with pytest.raises(HTTPException, match="orchestrator unavailable"):
-        asyncio.run(api_gateway_main._proxy_get("/missions/offline"))
+        asyncio.run(api_gateway_main._proxy_get_internal("/missions/offline"))
 
-    monkeypatch.setattr(
-        api_gateway_main,
-        "_require_internal_service_api_key",
-        lambda: "internal-key",
-    )
     monkeypatch.setattr(
         api_gateway_main.httpx,
         "AsyncClient",

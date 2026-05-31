@@ -58,6 +58,7 @@ def _override_auth_dependencies():
     )
     app.dependency_overrides[orchestrator_main.MUTATION_AUTH] = lambda: auth_context
     app.dependency_overrides[orchestrator_main.INTERNAL_AUTH] = lambda: auth_context
+    app.dependency_overrides[orchestrator_main.READ_AUTH] = lambda: auth_context
     yield
     app.dependency_overrides.clear()
 
