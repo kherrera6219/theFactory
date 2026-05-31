@@ -22,7 +22,13 @@ if _SERVICES_ORCHESTRATOR not in sys.path:
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
 
-def _mock_settings(*, qdrant_enabled: bool = True, mcp_url: str = "") -> Any:
+def _mock_settings(
+    *,
+    qdrant_enabled: bool = True,
+    mcp_url: str = "",
+    protocol_bus_url: str | None = None,
+    protocol_bus_api_key: str = "",
+) -> Any:
     s = MagicMock()
     s.qdrant_enabled = qdrant_enabled
     s.qdrant_url = "http://qdrant:6333"
@@ -33,6 +39,11 @@ def _mock_settings(*, qdrant_enabled: bool = True, mcp_url: str = "") -> Any:
     s.knowledge_refresh_enabled = True
     s.knowledge_embedding_provider = "deterministic"
     s.knowledge_embedding_model = "deterministic-hash-v1"
+    # Protocol Bus client config. The producer prefers protocol_bus_url; when a
+    # test only sets mcp_url we mirror it here so the legacy-fallback path is
+    # exercised through a concrete string rather than a MagicMock attr.
+    s.protocol_bus_url = protocol_bus_url if protocol_bus_url is not None else mcp_url
+    s.protocol_bus_api_key = protocol_bus_api_key
     s.mcp_url = mcp_url
     s.mcp_api_key = ""
     return s
@@ -541,13 +552,16 @@ class TestBroadcastKnowledgeReady:
         assert result is False
 
     def test_sigma_payload_structure(self):
-        """Verify the published payload contains required Sigma fields."""
+        """Verify the published body is a bus-valid SendMessageRequest+SigmaPayload."""
         import json
 
         from orchestrator.knowledge_lake import broadcast_knowledge_ready
 
-        settings = _mock_settings(mcp_url="http://protocol-bus-mcp:8090")
-        captured_body: list[bytes] = []
+        settings = _mock_settings(
+            protocol_bus_url="http://protocol-bus-mcp:8090",
+            protocol_bus_api_key="secret-key",
+        )
+        captured: list[Any] = []
 
         mock_response = MagicMock()
         mock_response.status = 200
@@ -555,7 +569,7 @@ class TestBroadcastKnowledgeReady:
         mock_response.__exit__ = MagicMock(return_value=False)
 
         def capture_urlopen(req, timeout=None):
-            captured_body.append(req.data)
+            captured.append(req)
             return mock_response
 
         with patch("orchestrator.knowledge_lake.urlopen", side_effect=capture_urlopen):
@@ -565,14 +579,78 @@ class TestBroadcastKnowledgeReady:
                 mission_id="test-mission-payload",
             )
 
-        assert captured_body
-        payload = json.loads(captured_body[0])
-        assert payload["protocol"] == "sigma"
-        assert payload["knowledge_type"] == "documentation"
-        assert payload["sender_agent_id"] == "AGENT-06-IS"
-        assert payload["mission_id"] == "test-mission-payload"
-        assert payload["knowledge_ready"] is True
-        assert "python" in payload["languages"]
+        assert captured
+        req = captured[0]
+        # SendMessageRequest envelope shape expected by protocol-bus-mcp /send.
+        body = json.loads(req.data)
+        assert body["protocol"] == "sigma"
+        assert body["sender"] == "AGENT-06-IS"
+        assert body["recipient"] == "broadcast"
+        assert body["schema_version"] == "v1"
+        assert body["priority"] == "normal"
+        # Bus auth headers: X-Agent-Id must equal the sender; X-API-Key carries
+        # the configured shared key.
+        assert req.get_header("X-agent-id") == "AGENT-06-IS"
+        assert req.get_header("X-api-key") == "secret-key"
+        # SigmaPayload shape (schema_version/knowledge_type/embedding_ref/
+        # relevance_scope/content) — extra="forbid" on the bus, so only these.
+        sigma = body["payload"]
+        assert set(sigma) == {
+            "schema_version",
+            "knowledge_type",
+            "embedding_ref",
+            "relevance_scope",
+            "content",
+        }
+        assert sigma["knowledge_type"] == "documentation"
+        assert sigma["content"]["mission_id"] == "test-mission-payload"
+        assert sigma["content"]["knowledge_ready"] is True
+        assert "python" in sigma["content"]["languages"]
+
+    def test_sigma_payload_validates_against_bus_model(self):
+        """The produced payload must pass the bus SigmaPayload + SendMessageRequest."""
+        import json
+        import sys
+        from pathlib import Path
+
+        bus_path = str(
+            Path(__file__).resolve().parents[2]
+            / "services"
+            / "protocol-bus-mcp"
+        )
+        if bus_path not in sys.path:
+            sys.path.insert(0, bus_path)
+        from orchestrator.knowledge_lake import broadcast_knowledge_ready
+        from protocol_bus.mcp_server import (  # type: ignore
+            SendMessageRequest,
+            _validate_protocol_payload,
+        )
+
+        settings = _mock_settings(
+            protocol_bus_url="http://protocol-bus-mcp:8090",
+            protocol_bus_api_key="secret-key",
+        )
+        captured: list[Any] = []
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.__enter__ = lambda s: mock_response
+        mock_response.__exit__ = MagicMock(return_value=False)
+
+        def capture_urlopen(req, timeout=None):
+            captured.append(req)
+            return mock_response
+
+        with patch("orchestrator.knowledge_lake.urlopen", side_effect=capture_urlopen):
+            broadcast_knowledge_ready(
+                settings=settings,
+                languages=["python", "go"],
+                mission_id="m-1",
+            )
+
+        body = json.loads(captured[0].data)
+        # Round-trips through the exact bus validators without raising.
+        validated = SendMessageRequest.model_validate(body)
+        _validate_protocol_payload(validated.protocol, validated.payload)
 
 
 # ---------------------------------------------------------------------------

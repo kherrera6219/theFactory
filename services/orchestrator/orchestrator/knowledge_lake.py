@@ -214,23 +214,37 @@ def get_language_context(*, settings: Any, language: str) -> str | None:
     return merged
 
 
+# Agent identity used when the IS-Agent broadcasts on the Sigma lane. Must match
+# the Protocol Bus AGENT_ID_PATTERN (^AGENT-\d{2}-[A-Z0-9-]+$) and is echoed in
+# the X-Agent-Id header, which the bus requires to equal the envelope sender.
+_IS_AGENT_ID = "AGENT-06-IS"
+
+
 def broadcast_knowledge_ready(
     *,
     settings: Any,
     languages: list[str],
     mission_id: str,
 ) -> bool:
-    """Publish a Protocol Sigma knowledge_ready event to the protocol bus.
+    """Publish a Protocol Sigma knowledge_ready event to the Protocol Bus.
 
-    Returns True if the event was published successfully.  The mission
-    proceeds regardless — this is fire-and-forget telemetry.
+    Sends a schema-valid ``SendMessageRequest`` whose ``payload`` conforms to the
+    bus ``SigmaPayload`` model (``schema_version``/``knowledge_type``/
+    ``embedding_ref``/``relevance_scope``/``content``). The IS-Agent broadcasts on
+    the ``protocol:sigma:broadcast`` lane so any subscriber (e.g. the orchestrator
+    Sigma consumer) can react to freshly-stocked knowledge.
+
+    Returns True if the event was accepted (HTTP < 300).  The mission proceeds
+    regardless — this is fire-and-forget telemetry.
     """
     if not languages:
         return False
 
-    mcp_url = _mcp_url(settings)
-    if not mcp_url:
-        LOGGER.debug("knowledge_lake.broadcast_knowledge_ready: MCP URL not configured, skipping")
+    bus_url = _protocol_bus_url(settings)
+    if not bus_url:
+        LOGGER.debug(
+            "knowledge_lake.broadcast_knowledge_ready: Protocol Bus URL not configured, skipping"
+        )
         return False
 
     import json
@@ -238,28 +252,45 @@ def broadcast_knowledge_ready(
     from datetime import UTC, datetime
     from urllib.request import Request
 
-    payload = {
-        "protocol": "sigma",
-        "sender_agent_id": "AGENT-06-IS",
-        "correlation_id": str(uuid.uuid4()),
-        "mission_id": mission_id,
+    ordered_languages = sorted(languages)
+    sigma_payload = {
+        "schema_version": "v1",
         "knowledge_type": "documentation",
-        "content_summary": f"Bootstrap docs indexed for: {', '.join(sorted(languages))}",
-        "vector_store_ref": _KNOWLEDGE_LAKE_ID,
-        "languages": sorted(languages),
-        "knowledge_ready": True,
-        "indexed_at": datetime.now(UTC).isoformat(),
+        # embedding_ref is reserved for future semantic routing; today it carries
+        # the global Knowledge Lake scope id so consumers can locate the source.
+        "embedding_ref": _KNOWLEDGE_LAKE_ID,
+        "relevance_scope": f"mission:{mission_id}",
+        "content": {
+            "mission_id": mission_id,
+            "languages": ordered_languages,
+            "knowledge_ready": True,
+            "vector_store_ref": _KNOWLEDGE_LAKE_ID,
+            "content_summary": (
+                f"Bootstrap docs indexed for: {', '.join(ordered_languages)}"
+            ),
+            "indexed_at": datetime.now(UTC).isoformat(),
+        },
+    }
+    request_body = {
+        "schema_version": "v1",
+        "protocol": "sigma",
+        "sender": _IS_AGENT_ID,
+        "recipient": "broadcast",
+        "correlation_id": f"sigma-{mission_id}-{uuid.uuid4()}",
+        "priority": "normal",
+        "payload": sigma_payload,
     }
 
     try:
-        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        body = json.dumps(request_body, separators=(",", ":")).encode("utf-8")
         req = Request(
-            f"{mcp_url.rstrip('/')}/send",
+            f"{bus_url.rstrip('/')}/send",
             data=body,
             method="POST",
             headers={
                 "Content-Type": "application/json",
-                "X-API-Key": str(getattr(settings, "mcp_api_key", "") or ""),
+                "X-API-Key": _protocol_bus_api_key(settings),
+                "X-Agent-Id": _IS_AGENT_ID,
             },
         )
         with urlopen(req, timeout=5.0) as resp:  # nosec B310
@@ -267,7 +298,7 @@ def broadcast_knowledge_ready(
         if status < 300:
             LOGGER.info(
                 "knowledge_lake: Sigma knowledge_ready published for mission %s languages=%s",
-                mission_id, languages,
+                mission_id, ordered_languages,
             )
             return True
         LOGGER.warning(
@@ -370,9 +401,30 @@ def _mirror_to_qdrant(
         LOGGER.warning("knowledge_lake: Qdrant mirror failed for %s: %s", knowledge_id, exc)
 
 
-def _mcp_url(settings: Any) -> str | None:
-    url = str(getattr(settings, "mcp_url", "") or "").strip()
+def _protocol_bus_url(settings: Any) -> str | None:
+    """Resolve the Protocol Bus base URL.
+
+    Prefers ``protocol_bus_url`` and falls back to the legacy ``mcp_url`` attr so
+    callers and tests that still set the old name keep working.
+    """
+    url = str(
+        getattr(settings, "protocol_bus_url", "")
+        or getattr(settings, "mcp_url", "")
+        or ""
+    ).strip()
     return url or None
+
+
+def _protocol_bus_api_key(settings: Any) -> str:
+    """Resolve the Protocol Bus shared API key (``protocol_bus_api_key``).
+
+    Falls back to the legacy ``mcp_api_key`` attr for backward compatibility.
+    """
+    return str(
+        getattr(settings, "protocol_bus_api_key", "")
+        or getattr(settings, "mcp_api_key", "")
+        or ""
+    )
 
 
 def _vector_search(
