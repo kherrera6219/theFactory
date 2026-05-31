@@ -80,7 +80,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "cross-env": "^7.0.3",
-    "electron": "^34.5.8",
+    "electron": "^42.3.0",
     "electron-builder": "^25.1.8",
     "jsdom": "29.0.2",
     "openapi-typescript": "^7.13.0",
