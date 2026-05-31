@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import re
+import shlex
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -74,6 +77,43 @@ def _default_run_command(filename: str, language: str) -> str:
     }.get(language.lower(), f"cat /workspace/{filename}")
 
 
+# Per-language commands that run the generated test file via the language's
+# test framework so pass/fail reflects assertions, not just "artifact exited 0".
+# "{filename}" and "{test_filename}" are substituted with shell-quoted paths.
+_DEFAULT_TEST_COMMAND_TEMPLATES: dict[str, str] = {
+    "python": "python -m pytest -q /workspace/{test_filename}",
+    "javascript": "node --test /workspace/{test_filename}",
+    "typescript": "node --test /workspace/{test_filename}",
+}
+
+
+def _resolve_test_command(
+    *,
+    filename: str,
+    test_filename: str,
+    language: str,
+    settings: Any,
+) -> str | None:
+    """Resolve the command RQCA should run to determine pass/fail.
+
+    Prefers an operator-supplied ``RQCA_TEST_COMMAND_TEMPLATE`` then a built-in
+    per-language test-framework template. Returns ``None`` when no test file was
+    generated or no template applies, in which case the caller falls back to
+    executing the artifact directly. Substituted values are shell-quoted.
+    """
+    if not test_filename:
+        return None
+    template = str(getattr(settings, "rqca_test_command_template", "") or "").strip()
+    if not template:
+        template = _DEFAULT_TEST_COMMAND_TEMPLATES.get(language.lower(), "")
+    if not template:
+        return None
+    return template.format(
+        filename=shlex.quote(f"/workspace/{filename}").strip("'"),
+        test_filename=shlex.quote(test_filename).strip("'"),
+    )
+
+
 async def run_runtime_qc(
     *,
     mission_id: str,
@@ -135,7 +175,17 @@ async def run_runtime_qc(
         test_code=str((integration_tests or {}).get("test_code") or ""),
         testdata_manifest=testdata_manifest,
         language=normalized_language,
+        settings=settings,
     )
+
+
+# Service names must be valid compose keys; anything else is rejected/sanitized.
+_SERVICE_NAME_RE = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def _safe_service_name(value: Any, fallback: str) -> str:
+    name = _SERVICE_NAME_RE.sub("-", str(value or "").strip()) or fallback
+    return name[:63]
 
 
 def _build_rqca_compose_yml(
@@ -144,11 +194,18 @@ def _build_rqca_compose_yml(
     code_tmpdir: str,
     testdata_manifest: dict[str, Any],
 ) -> str:
-    """Build a minimal docker-compose YAML for multi-container RQCA.
+    """Build a minimal, hardened docker-compose YAML for multi-container RQCA.
 
     The manifest's ``services`` list should be a list of dicts with at least
     ``name`` (str) and ``image`` (str).  The first entry is treated as the
     test-runner; additional entries are supporting services (e.g. Postgres).
+
+    Every service carries the same sandbox hardening as the single-container
+    path: dropped capabilities, no-new-privileges, read-only root filesystem,
+    and CPU/memory caps. All operator-supplied values (image, command, env,
+    names) are passed through ``json.dumps`` so they are emitted as quoted YAML
+    scalars rather than interpolated verbatim — this prevents manifest
+    injection via crafted images/commands/env values.
 
     Example manifest shape::
 
@@ -161,6 +218,10 @@ def _build_rqca_compose_yml(
              "environment": {"POSTGRES_PASSWORD": "test"}}
           ]
         }
+
+    Supporting services (index > 0) keep an internal network so the test-runner
+    can reach them; the test-runner itself has no published ports and a
+    read-only mount of the workspace.
     """
     services = testdata_manifest.get("services") or []
     try:
@@ -171,35 +232,54 @@ def _build_rqca_compose_yml(
         memory_mb = int(testdata_manifest.get("memory_limit_mb") or 256)
     except (TypeError, ValueError):
         memory_mb = 256
+    try:
+        cpus = float(testdata_manifest.get("cpus") or 1.0)
+    except (TypeError, ValueError):
+        cpus = 1.0
     timeout = max(1, min(timeout, _MAX_TIMEOUT_SECONDS))
     memory_mb = max(64, min(memory_mb, _MAX_MEMORY_MB))
+    cpus = max(0.25, min(cpus, 2.0))
+
+    def _q(value: Any) -> str:
+        # Emit any scalar as a JSON string, which is valid YAML and prevents the
+        # value from being interpreted as YAML structure or shell tokens.
+        return json.dumps(str(value))
 
     lines: list[str] = ["services:"]
     for i, svc in enumerate(services):
         if not isinstance(svc, dict):
             continue
-        name = str(svc.get("name") or f"svc{i}").replace(" ", "-")
+        name = _safe_service_name(svc.get("name"), f"svc{i}")
         image = str(svc.get("image") or "python:3.11-slim")
         command = svc.get("command", "")
         env = svc.get("environment") or {}
 
         lines.append(f"  {name}:")
-        lines.append(f"    image: {image}")
+        lines.append(f"    image: {_q(image)}")
         lines.append(f"    mem_limit: {memory_mb}m")
+        lines.append(f"    cpus: {cpus}")
+        lines.append("    read_only: true")
+        lines.append("    tmpfs:")
+        lines.append("      - /tmp")
+        lines.append("    cap_drop:")
+        lines.append("      - ALL")
+        lines.append("    security_opt:")
+        lines.append("      - no-new-privileges:true")
         if i == 0:
-            # test-runner mounts the workspace and is the exit-code source
+            # test-runner mounts the workspace read-only and is the exit-code source
+            lines.append("    working_dir: /workspace")
             lines.append("    volumes:")
-            lines.append(f"      - {code_tmpdir}:/workspace:ro")
+            lines.append(f"      - {_q(code_tmpdir + ':/workspace:ro')}")
         if command:
-            lines.append(f"    command: {command}")
+            lines.append(f"    command: {_q(command)}")
         if isinstance(env, dict) and env:
             lines.append("    environment:")
             for k, v in env.items():
-                lines.append(f"      {k}: {v}")
+                lines.append(f"      {_q(str(k))}: {_q(v)}")
         if i == 0 and len(services) > 1:
             # test-runner waits for supporting services
             dep_names = [
-                str(s.get("name") or f"svc{j}").replace(" ", "-")
+                _safe_service_name(s.get("name"), f"svc{j}")
                 for j, s in enumerate(services[1:], start=1)
             ]
             lines.append("    depends_on:")
@@ -218,10 +298,23 @@ async def _execute_in_sandbox(
     test_code: str,
     testdata_manifest: dict[str, Any],
     language: str,
+    settings: Any = None,
 ) -> dict[str, Any]:
     base_image = str(testdata_manifest.get("base_image") or "python:3.11-slim")
+    test_filename = f"test_{filename}" if test_code.strip() else ""
+    # When a test file was generated, prefer running the language's test framework
+    # against it so pass/fail reflects assertions rather than "artifact exited 0".
+    # An explicit manifest run_command still wins for backwards compatibility.
+    test_command = _resolve_test_command(
+        filename=filename,
+        test_filename=test_filename,
+        language=language,
+        settings=settings,
+    )
     run_command = str(
-        testdata_manifest.get("run_command") or _default_run_command(filename, language)
+        testdata_manifest.get("run_command")
+        or test_command
+        or _default_run_command(filename, language)
     )
     install_commands = [
         str(command) for command in (testdata_manifest.get("install_commands") or [])[:10]
@@ -246,18 +339,31 @@ async def _execute_in_sandbox(
 
         if multi_container and testdata_manifest.get("services"):
             # ── Multi-container path: build compose file, run with docker compose ──
+            # Inject the resolved run/test command into the test-runner service
+            # when the manifest didn't specify one, so the same command-selection
+            # logic (test framework over bare execution) applies to compose too.
+            raw_services = testdata_manifest.get("services") or []
+            services_with_command: list[Any] = []
+            for idx, svc in enumerate(raw_services):
+                if idx == 0 and isinstance(svc, dict) and not svc.get("command"):
+                    svc = {**svc, "command": run_command}
+                services_with_command.append(svc)
+            compose_manifest = {**testdata_manifest, "services": services_with_command}
             compose_yml = _build_rqca_compose_yml(
                 mission_id=mission_id,
                 filename=filename,
                 code_tmpdir=tmpdir,
-                testdata_manifest=testdata_manifest,
+                testdata_manifest=compose_manifest,
             )
             compose_file = workspace / "docker-compose.rqca.yml"
             compose_file.write_text(compose_yml, encoding="utf-8")
-            services = testdata_manifest.get("services") or []
+            services = services_with_command
             runner_name = (
-                str(services[0].get("name") or "test-runner").replace(" ", "-")
-                if services else "test-runner"
+                _safe_service_name(
+                    services[0].get("name") if isinstance(services[0], dict) else None,
+                    "svc0",
+                )
+                if services else "svc0"
             )
             docker_args = [
                 docker_bin, "compose",

@@ -1404,7 +1404,52 @@ async def lifespan(app: FastAPI):
             await app.state.redis.close()
 
 
-app = FastAPI(title="HolyGrail API Gateway", version="0.3.0", lifespan=lifespan)
+_OPENAPI_TAGS = [
+    {"name": "system", "description": "Liveness, readiness, and Prometheus metrics. Public, unauthenticated."},
+    {"name": "missions", "description": "Mission lifecycle: create, inspect, stream state, and retrieve artifacts."},
+    {"name": "mission-evidence", "description": "Per-mission audit reports, build artifacts, knowledge, and logic nodes."},
+    {"name": "operations", "description": "Operator/console aggregate views across all missions and agents."},
+    {"name": "builder", "description": "Builder and PM authoring endpoints (feature contracts, previews)."},
+    {"name": "maintenance", "description": "Operator maintenance actions (diagnostics, backups)."},
+]
+
+# Paths that are intentionally public (no X-API-Key required). Everything else
+# is gated by an api_key dependency in the route body and is documented as such.
+_PUBLIC_PATHS = {"/", "/health", "/readyz", "/metrics"}
+
+
+def _openapi_tag_for_path(path: str) -> str:
+    if path in _PUBLIC_PATHS:
+        return "system"
+    if path.startswith("/v1/operations"):
+        return "operations"
+    if path.startswith("/v1/maintenance"):
+        return "maintenance"
+    if path.startswith("/v1/builder") or path.startswith("/v1/pm"):
+        return "builder"
+    if path.startswith("/v1/missions") and any(
+        path.endswith(suffix) or f"/{suffix}" in path
+        for suffix in (
+            "audit-reports", "audit-artifacts", "audit-events", "build-artifacts",
+            "knowledge", "knowledge-graph", "logicnodes", "token-usage",
+            "chain-trace", "pod-assignment",
+        )
+    ):
+        return "mission-evidence"
+    return "missions"
+
+
+app = FastAPI(
+    title="HolyGrail API Gateway",
+    version="0.3.0",
+    lifespan=lifespan,
+    description=(
+        "Public ingress for theFactory (Holy Grail Refinery). Mission, operations, "
+        "builder, and maintenance routes require an `X-API-Key` header; system "
+        "health/metrics routes are public."
+    ),
+    openapi_tags=_OPENAPI_TAGS,
+)
 configure_tracing(app, service_name="api-gateway")
 app.add_middleware(
     CORSMiddleware,
@@ -1414,6 +1459,55 @@ app.add_middleware(
     allow_headers=CORS_ALLOW_HEADERS,
     expose_headers=CORS_EXPOSE_HEADERS,
 )
+
+
+def _custom_openapi() -> dict[str, Any]:
+    """Enrich the generated schema with security, tags, and auth error responses.
+
+    Authentication is enforced inside route bodies via the ``X-API-Key`` header
+    dependency rather than FastAPI ``Security`` objects, so the generated schema
+    would otherwise show no security requirement and omit 401/403. This hook
+    declares the ``api_key`` scheme, applies it to every non-public operation,
+    groups operations by tag, and documents the auth failure responses.
+    """
+    if app.openapi_schema:
+        return app.openapi_schema
+    from fastapi.openapi.utils import get_openapi
+
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+        tags=_OPENAPI_TAGS,
+    )
+    schema.setdefault("components", {}).setdefault("securitySchemes", {})["api_key"] = {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Gateway API key. Role (read/mutate/admin) is derived from the key.",
+    }
+    auth_responses = {
+        "401": {"description": "Missing or invalid X-API-Key header."},
+        "403": {"description": "API key lacks the required role for this operation."},
+    }
+    for path, operations in schema.get("paths", {}).items():
+        tag = _openapi_tag_for_path(path)
+        is_public = path in _PUBLIC_PATHS
+        for method, operation in operations.items():
+            if method not in {"get", "post", "put", "delete", "patch"}:
+                continue
+            operation["tags"] = [tag]
+            if not is_public:
+                operation["security"] = [{"api_key": []}]
+                operation.setdefault("responses", {})
+                for code, body in auth_responses.items():
+                    operation["responses"].setdefault(code, body)
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = _custom_openapi
 
 
 def _request_correlation_id(request: Request) -> str:

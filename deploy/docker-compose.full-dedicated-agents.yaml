@@ -490,6 +490,43 @@ services:
       AGENT_38_OCAML_SERVICE_API_KEY: ${AGENT_38_OCAML_SERVICE_API_KEY:-}
       SERVICE_API_KEY: ${AGENT_38_OCAML_SERVICE_API_KEY:-}
 
+  # ── Support Ring — Factory Capability Expansion (Phase 1) ──────────────
+  # DEPABS (#39), TESTDATA (#40), RQCA (#41) are support-category agents.
+  # They run on the agent-runtime template (not pod workers) and complete the
+  # 41-agent full-dedicated topology.
+  agent-39-depabs:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-39-depabs
+      AGENT_RUNTIME_NAME: dedicated-agent-39-depabs
+      WORKER_AGENT_ID: AGENT-39-DEPABS
+      AGENT_BINDING: AGENT-39-DEPABS
+      AGENT_39_DEPABS_SERVICE_API_KEY: ${AGENT_39_DEPABS_SERVICE_API_KEY:-}
+      SERVICE_API_KEY: ${AGENT_39_DEPABS_SERVICE_API_KEY:-}
+
+  agent-40-testdata:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-40-testdata
+      AGENT_RUNTIME_NAME: dedicated-agent-40-testdata
+      WORKER_AGENT_ID: AGENT-40-TESTDATA
+      AGENT_BINDING: AGENT-40-TESTDATA
+      AGENT_40_TESTDATA_SERVICE_API_KEY: ${AGENT_40_TESTDATA_SERVICE_API_KEY:-}
+      SERVICE_API_KEY: ${AGENT_40_TESTDATA_SERVICE_API_KEY:-}
+
+  agent-41-rqca:
+    <<: *agent-runtime-template
+    environment:
+      <<: *agent-runtime-env
+      AGENT_RUNTIME_GROUP: dedicated-agent-41-rqca
+      AGENT_RUNTIME_NAME: dedicated-agent-41-rqca
+      WORKER_AGENT_ID: AGENT-41-RQCA
+      AGENT_BINDING: AGENT-41-RQCA
+      AGENT_41_RQCA_SERVICE_API_KEY: ${AGENT_41_RQCA_SERVICE_API_KEY:-}
+      SERVICE_API_KEY: ${AGENT_41_RQCA_SERVICE_API_KEY:-}
+
 networks:
   hgr-network:
     name: hgr-network

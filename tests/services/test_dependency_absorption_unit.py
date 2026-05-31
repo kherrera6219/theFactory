@@ -117,6 +117,67 @@ def test_execute_absorption_ignores_gated_plan() -> None:
     assert result["absorption_count"] == 0
 
 
+def test_validate_js_syntax_accepts_valid_and_rejects_invalid() -> None:
+    import shutil
+
+    if shutil.which("node") is None:
+        # node not available — validator must fail open (skip) rather than block.
+        assert dependency_absorption.validate_js_syntax("this is ) not js (") is True
+        return
+    assert dependency_absorption.validate_js_syntax("const x = 1;\n") is True
+    assert dependency_absorption.validate_js_syntax("const x = ;;;\n") is False
+
+
+def test_js_import_present_only_matches_import_positions() -> None:
+    src = (
+        "import slugify from 'slugify';\n"
+        "const x = require('left-pad');\n"
+        "const label = 'this mentions clsx but does not import it';\n"
+    )
+    assert dependency_absorption._js_import_present(src, "slugify") is True
+    assert dependency_absorption._js_import_present(src, "left-pad") is True
+    # clsx appears only inside an unrelated string literal — must not match.
+    assert dependency_absorption._js_import_present(src, "clsx") is False
+
+
+def test_detect_used_symbols_js_ignores_string_literal_mentions() -> None:
+    src = "const label = 'uses left-pad in a string';\n"
+    assert dependency_absorption._detect_used_symbols(src, "left-pad", "javascript") == []
+
+
+def test_splice_replacement_js_rejects_broken_syntax() -> None:
+    import shutil
+
+    if shutil.which("node") is None:
+        return  # validation skipped without node; nothing to assert
+    source, status, _reason = dependency_absorption._splice_replacement(
+        source="import lp from 'left-pad';\nconsole.log(lp);\n",
+        library="left-pad",
+        language="javascript",
+        replacement={"replacement_code": "\nfunction broken( {\n"},
+    )
+    assert status == "syntax_error"
+    # On failure the original source is returned unchanged.
+    assert "import lp from 'left-pad'" in source
+
+
+def test_splice_replacement_js_accepts_valid_replacement() -> None:
+    source, status, _reason = dependency_absorption._splice_replacement(
+        source="import lp from 'left-pad';\nconsole.log(lp(1, 3));\n",
+        library="left-pad",
+        language="javascript",
+        replacement={
+            "replacement_code": (
+                "\nfunction leftPad(v, w, c = ' ') { "
+                "return String(v).padStart(w, c); }\n"
+            )
+        },
+    )
+    assert status == "ok"
+    assert "import lp from 'left-pad'" not in source
+    assert "function leftPad" in source
+
+
 def test_build_sbom_delta_uses_inventory_dependencies() -> None:
     result = dependency_absorption.build_sbom_delta(
         original_dependencies=[{"name": "left-pad"}, {"name": "cryptography"}],
