@@ -205,6 +205,8 @@ class MissionAttachment(BaseModel):
     size_bytes: int = 0
     purpose: str | None = "reference"  # reference | PRD | spec | legacy_source
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    object_key: str | None = None  # explicit object-storage key for the file bytes
+    content: str | None = None  # extracted document text, populated during intake
 
 class MissionRecord(BaseModel):
     mission_id: str

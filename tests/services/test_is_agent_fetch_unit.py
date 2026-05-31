@@ -188,6 +188,111 @@ class TestRunFetchPhase:
 
 
 # ---------------------------------------------------------------------------
+# _process_mission_attachments — multi-modal parsing (Phase 2)
+# ---------------------------------------------------------------------------
+
+class TestProcessMissionAttachments:
+    def _run(self, coro):
+        return asyncio.run(coro)
+
+    def _process(self, attachments, *, get_object_return=None, get_object_raises=None):
+        from orchestrator.is_agent import _process_mission_attachments
+
+        settings = _mock_settings()
+        settings.object_storage_enabled = True
+        settings.object_storage_prefix = "missions"
+
+        upserts: list = []
+
+        def fake_upsert(*, settings, mission_id, knowledge_id, content, created_at):
+            upserts.append((knowledge_id, content))
+
+        def fake_get_object(_settings, _key):
+            if get_object_raises is not None:
+                raise get_object_raises
+            return get_object_return
+
+        with (
+            patch("orchestrator.is_agent._upsert_knowledge_safe", side_effect=fake_upsert),
+            patch("orchestrator.object_store.get_object", side_effect=fake_get_object),
+        ):
+            result = self._run(
+                _process_mission_attachments(
+                    mission_id="m-1",
+                    attachments=attachments,
+                    settings=settings,
+                )
+            )
+        return result, upserts
+
+    def test_inline_bytes_are_parsed_and_indexed(self):
+        att = {
+            "file_id": "f1",
+            "filename": "notes.md",
+            "content_type": "text/markdown",
+            "purpose": "spec",
+            "content_bytes": b"# Heading\n\nReal extracted content",
+        }
+        result, upserts = self._process([att])
+        assert result["processed_count"] == 1
+        assert len(upserts) == 1
+        _, content = upserts[0]
+        assert content["source"] == "attachment_extraction"
+        assert "Real extracted content" in content["combined_text"]
+        # extracted text surfaced back onto the attachment for the PM prompt
+        assert "Real extracted content" in att["content"]
+
+    def test_object_store_bytes_are_parsed(self):
+        att = {
+            "file_id": "f2",
+            "filename": "spec.txt",
+            "content_type": "text/plain",
+            "purpose": "PRD",
+        }
+        result, upserts = self._process([att], get_object_return=b"stored body text")
+        assert result["processed_count"] == 1
+        _, content = upserts[0]
+        assert "stored body text" in content["combined_text"]
+
+    def test_metadata_only_fallback_when_no_bytes(self):
+        att = {
+            "file_id": "f3",
+            "filename": "image.png",
+            "content_type": "image/png",
+            "purpose": "reference",
+        }
+        # get_object returns None -> no bytes available
+        result, upserts = self._process([att], get_object_return=None)
+        assert result["processed_count"] == 1
+        _, content = upserts[0]
+        assert content["source"] == "attachment_metadata"
+        assert "content" not in att or not att.get("content")
+
+    def test_unparseable_type_with_bytes_falls_back_to_metadata(self):
+        att = {
+            "file_id": "f4",
+            "filename": "logo.png",
+            "content_type": "image/png",
+            "content_bytes": b"\x89PNG binary",
+        }
+        result, upserts = self._process([att])
+        assert result["processed_count"] == 1
+        _, content = upserts[0]
+        assert content["source"] == "attachment_metadata"
+
+    def test_get_object_error_degrades_to_metadata(self):
+        att = {
+            "file_id": "f5",
+            "filename": "spec.txt",
+            "content_type": "text/plain",
+        }
+        result, upserts = self._process([att], get_object_raises=RuntimeError("s3 down"))
+        assert result["processed_count"] == 1
+        _, content = upserts[0]
+        assert content["source"] == "attachment_metadata"
+
+
+# ---------------------------------------------------------------------------
 # knowledge_lake.is_stocked
 # ---------------------------------------------------------------------------
 
