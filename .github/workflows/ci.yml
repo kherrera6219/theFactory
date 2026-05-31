@@ -129,7 +129,7 @@ jobs:
             --module-threshold services/orchestrator/orchestrator/agent_registry.py=100
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0e5bdce66 # v4.6.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: test-artifacts-py${{ matrix.python-version }}
           path: |
@@ -329,7 +329,7 @@ jobs:
           format: cyclonedx-json
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0e5bdce66 # v4.6.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: sbom
           path: |
@@ -413,7 +413,7 @@ jobs:
           PY
 
       - name: Upload release manifest artifact
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0e5bdce66 # v4.6.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: release-manifest
           path: reports/release-manifest.json
@@ -547,7 +547,7 @@ jobs:
           PY
 
       - name: Upload release trust artifacts
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0e5bdce66 # v4.6.0
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: release-trust-artifacts
           path: |
