@@ -18,6 +18,30 @@
 #   - Reduced log verbosity
 
 services:
+  # --- Data plane: TLS-only in production ---
+  redis:
+    # Mount the TLS-only config (port 0 disables the plaintext 6379 listener).
+    # Dev keeps the base redis.conf with plaintext open for local debugging.
+    volumes:
+      - ./redis/redis.prod.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./redis/entrypoint.sh:/usr/local/bin/docker-entrypoint-init-tls.sh:ro
+      - ./.local/redis-certs:/usr/local/etc/redis/certs:ro
+      - redis-data:/data
+
+  postgres:
+    # Use the prod entrypoint, which points Postgres at an SSL-required
+    # pg_hba.conf so plaintext remote connections are rejected (local socket
+    # stays trusted for container-internal tooling).
+    entrypoint:
+      - /bin/bash
+      - /docker-entrypoint-init-tls.sh
+    volumes:
+      - ./postgres/entrypoint.prod.sh:/docker-entrypoint-init-tls.sh:ro
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./.local/postgres-certs:/run/postgres-certs:ro
+      - postgres-data:/var/lib/postgresql/data
+
   api-gateway:
     environment:
       # --- auth ---

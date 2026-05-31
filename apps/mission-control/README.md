@@ -109,7 +109,7 @@ Agent detail includes:
 ## Security and Accessibility Notes
 
 - TypeScript strict mode is enabled.
-- Security headers are set via `next.config.mjs`.
+- A Content-Security-Policy is enforced via a `<meta http-equiv>` tag in the root layout (`app/layout.tsx`). The static Electron build uses `output: export`, where `next.config.mjs` `headers()` is ignored, so the CSP ships as a meta tag instead.
 - API consumption uses timeout-based request guards and resilient parsing.
 - Mission Control privileged routes fail closed without a valid signed operator session.
 - Review approvals fail closed if the orchestrator internal base URL, service API key, or approval HMAC secret is missing.
