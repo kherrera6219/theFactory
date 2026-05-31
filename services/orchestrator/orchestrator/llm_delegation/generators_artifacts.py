@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 import logging
+import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -20,6 +21,11 @@ from .text import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+# Upper bound on the number of unified LogicNodes the Grand Fusion keeps. The
+# previous hard-coded ``[:20]``/``[:10]`` slices silently dropped real nodes;
+# this cap is generous and configurable so large missions are not truncated.
+MAX_FUSION_NODES = int(os.getenv("MAX_FUSION_NODES", "500"))
 
 
 def _pkg() -> Any:
@@ -334,25 +340,34 @@ async def generate_master_logic_stream(
 
     if not isinstance(parsed, dict):
         all_nodes: list[dict[str, Any]] = []
-        seen_concepts: set[str] = set()
+        # Dedup on (domain, concept): the same concept name in different domains
+        # is a distinct node and must not collapse. Keying on bare concept lost
+        # real cross-domain nodes.
+        seen_keys: set[tuple[str, str]] = set()
         order = 1
         for pod_name, standard in pod_group_standards.items():
-            for node in (standard.get("canonical_logicnodes") or [])[:10]:
+            for node in standard.get("canonical_logicnodes") or []:
+                if len(all_nodes) >= MAX_FUSION_NODES:
+                    break
                 concept = str(node.get("concept") or "")
-                if concept not in seen_concepts:
-                    seen_concepts.add(concept)
+                domain = str(node.get("domain") or "generic")
+                dedup_key = (domain, concept)
+                if dedup_key not in seen_keys:
+                    seen_keys.add(dedup_key)
                     all_nodes.append({
                         "node_id": f"unified-{order:03d}",
-                        "domain": node.get("domain", "generic"),
+                        "domain": domain,
                         "concept": concept,
                         "canonical_intent": node.get("intent", ""),
                         "source_pods": [pod_name],
                         "dependency_order": order,
                     })
                     order += 1
+            if len(all_nodes) >= MAX_FUSION_NODES:
+                break
         eliminated = max(0, total_input_nodes - len(all_nodes))
         return {
-            "master_logic_stream": all_nodes[:20],
+            "master_logic_stream": all_nodes,
             "total_unified_nodes": len(all_nodes),
             "eliminated_across_pods": eliminated,
             "ready_for_codegen": len(all_nodes) > 0,
@@ -364,7 +379,7 @@ async def generate_master_logic_stream(
         stream = []
 
     return {
-        "master_logic_stream": stream[:25],
+        "master_logic_stream": stream[:MAX_FUSION_NODES],
         "total_unified_nodes": int(parsed.get("total_unified_nodes") or len(stream)),
         "eliminated_across_pods": int(parsed.get("eliminated_across_pods") or 0),
         "ready_for_codegen": bool(parsed.get("ready_for_codegen", True)),

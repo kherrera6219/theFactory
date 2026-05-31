@@ -1284,3 +1284,180 @@ def test_generate_specialist_plan_normalizes_blank_agent_inputs(monkeypatch) -> 
     assert result["pod_manager_agent_id"] == "AGENT-18-PODB-MGR"
     assert result["deliverables"] == ["one task"]
     assert result["risk_notes"] == ["minor risk"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 Fix 3: per-provider circuit breaker
+# ---------------------------------------------------------------------------
+def test_circuit_breaker_opens_after_threshold_failures() -> None:
+    llm_delegation.reset_circuit_breakers()
+    provider = "openai"
+    for _ in range(llm_delegation.CIRCUIT_OPEN_THRESHOLD - 1):
+        llm_delegation.record_failure(provider, now=100.0)
+    assert llm_delegation.is_circuit_open(provider, now=100.0) is False
+    assert llm_delegation.get_circuit_state(provider, now=100.0) == "closed"
+    # The threshold-th failure opens the circuit.
+    llm_delegation.record_failure(provider, now=100.0)
+    assert llm_delegation.is_circuit_open(provider, now=100.0) is True
+    assert llm_delegation.get_circuit_state(provider, now=100.0) == "open"
+    llm_delegation.reset_circuit_breakers()
+
+
+def test_circuit_breaker_half_open_after_cooldown_then_closes_on_success() -> None:
+    llm_delegation.reset_circuit_breakers()
+    provider = "anthropic"
+    for _ in range(llm_delegation.CIRCUIT_OPEN_THRESHOLD):
+        llm_delegation.record_failure(provider, now=200.0)
+    assert llm_delegation.get_circuit_state(provider, now=200.0) == "open"
+    # Still open just before cooldown elapses.
+    just_before = 200.0 + llm_delegation.CIRCUIT_OPEN_SECONDS - 0.1
+    assert llm_delegation.is_circuit_open(provider, now=just_before) is True
+    # After cooldown the circuit is half-open: a probe call is allowed through.
+    after = 200.0 + llm_delegation.CIRCUIT_OPEN_SECONDS + 0.1
+    assert llm_delegation.get_circuit_state(provider, now=after) == "half_open"
+    assert llm_delegation.is_circuit_open(provider, now=after) is False
+    # A success on the probe closes the circuit fully.
+    llm_delegation.record_success(provider)
+    assert llm_delegation.get_circuit_state(provider, now=after) == "closed"
+    llm_delegation.reset_circuit_breakers()
+
+
+def test_circuit_breaker_success_resets_failure_counter() -> None:
+    llm_delegation.reset_circuit_breakers()
+    provider = "gemini"
+    for _ in range(llm_delegation.CIRCUIT_OPEN_THRESHOLD - 1):
+        llm_delegation.record_failure(provider, now=300.0)
+    llm_delegation.record_success(provider)
+    # After a success the counter is back to zero, so one more failure must not open.
+    llm_delegation.record_failure(provider, now=300.0)
+    assert llm_delegation.is_circuit_open(provider, now=300.0) is False
+    llm_delegation.reset_circuit_breakers()
+
+
+def test_circuit_breaker_skips_open_primary_and_uses_fallback(monkeypatch) -> None:
+    llm_delegation.reset_circuit_breakers()
+    # Open the primary provider's circuit up front.
+    for _ in range(llm_delegation.CIRCUIT_OPEN_THRESHOLD):
+        llm_delegation.record_failure("anthropic")
+    assert llm_delegation.is_circuit_open("anthropic") is True
+
+    calls: list[str] = []
+
+    async def _call_provider(*, provider: str, model: str, prompt: str, call_context: str):
+        _ = model, prompt, call_context
+        calls.append(provider)
+        return {"specialist_agent_id": "AGENT-14-PYTHON"}
+
+    monkeypatch.setattr(llm_delegation, "_call_provider", _call_provider)
+    parsed, provider, model, route = asyncio.run(
+        llm_delegation._call_with_recommendation(
+            recommendation={
+                "provider": "anthropic",
+                "model": "claude",
+                "fallback_provider": "openai",
+                "fallback_model": "gpt-5.5",
+            },
+            prompt="prompt",
+            call_context="ctx",
+        )
+    )
+    # Primary was skipped (never called); only the fallback was invoked.
+    assert calls == ["openai"]
+    assert route == "fallback"
+    assert provider == "openai"
+    assert parsed == {"specialist_agent_id": "AGENT-14-PYTHON"}
+    llm_delegation.reset_circuit_breakers()
+
+
+def test_circuit_breaker_state_surfaced_in_health_summary() -> None:
+    llm_delegation.reset_circuit_breakers()
+    llm_delegation._provider_health_samples.clear()
+    for _ in range(llm_delegation.CIRCUIT_OPEN_THRESHOLD):
+        llm_delegation.record_failure("openai", now=1000.0)
+    summary = llm_delegation.get_provider_health_summary(now=1000.0)
+    assert summary["schema_version"] == "provider_health.v2"
+    provider = summary["providers"]["openai"]
+    assert provider["circuit_state"] == "open"
+    assert provider["consecutive_failures"] == llm_delegation.CIRCUIT_OPEN_THRESHOLD
+    llm_delegation.reset_circuit_breakers()
+    llm_delegation._provider_health_samples.clear()
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 Fix 2: FUSION dedup keys on (domain, concept), no silent truncation
+# ---------------------------------------------------------------------------
+def _fusion_standards(nodes: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {"podA": {"canonical_logicnodes": nodes}}
+
+
+def test_fusion_fallback_keeps_same_concept_across_domains(monkeypatch) -> None:
+    async def _no_llm(*, recommendation, prompt, call_context, agent_id):
+        _ = recommendation, prompt, call_context, agent_id
+        return None, "openai", "gpt-5.5", "primary"
+
+    monkeypatch.setattr(
+        llm_delegation.generators_artifacts, "_call_with_agent_system", _no_llm
+    )
+    standards = _fusion_standards([
+        {"domain": "parsing", "concept": "reader", "intent": "read"},
+        {"domain": "export", "concept": "reader", "intent": "read other"},
+    ])
+    result = asyncio.run(
+        llm_delegation.generate_master_logic_stream(
+            pod_group_standards=standards,
+            mission_contract={},
+            mission_context={"mission_id": "m-1"},
+        )
+    )
+    stream = result["master_logic_stream"]
+    # Same concept name, different domains → both preserved (not collapsed).
+    assert result["total_unified_nodes"] == 2
+    domains = {n["domain"] for n in stream}
+    assert domains == {"parsing", "export"}
+
+
+def test_fusion_fallback_dedups_same_domain_and_concept(monkeypatch) -> None:
+    async def _no_llm(*, recommendation, prompt, call_context, agent_id):
+        _ = recommendation, prompt, call_context, agent_id
+        return None, "openai", "gpt-5.5", "primary"
+
+    monkeypatch.setattr(
+        llm_delegation.generators_artifacts, "_call_with_agent_system", _no_llm
+    )
+    standards = _fusion_standards([
+        {"domain": "parsing", "concept": "reader", "intent": "a"},
+        {"domain": "parsing", "concept": "reader", "intent": "b"},
+    ])
+    result = asyncio.run(
+        llm_delegation.generate_master_logic_stream(
+            pod_group_standards=standards,
+            mission_contract={},
+            mission_context={"mission_id": "m-2"},
+        )
+    )
+    assert result["total_unified_nodes"] == 1
+    assert result["eliminated_across_pods"] == 1
+
+
+def test_fusion_fallback_does_not_truncate_below_cap(monkeypatch) -> None:
+    async def _no_llm(*, recommendation, prompt, call_context, agent_id):
+        _ = recommendation, prompt, call_context, agent_id
+        return None, "openai", "gpt-5.5", "primary"
+
+    monkeypatch.setattr(
+        llm_delegation.generators_artifacts, "_call_with_agent_system", _no_llm
+    )
+    # 30 distinct nodes: the old code truncated at 20; the new cap is 500.
+    nodes = [
+        {"domain": f"domain-{i}", "concept": f"concept-{i}", "intent": "x"}
+        for i in range(30)
+    ]
+    result = asyncio.run(
+        llm_delegation.generate_master_logic_stream(
+            pod_group_standards=_fusion_standards(nodes),
+            mission_contract={},
+            mission_context={"mission_id": "m-3"},
+        )
+    )
+    assert result["total_unified_nodes"] == 30
+    assert len(result["master_logic_stream"]) == 30

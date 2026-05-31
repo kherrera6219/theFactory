@@ -27,7 +27,12 @@ from .config import (
     _record_usage_event,
     current_agent_id,
 )
-from .health import _record_provider_health
+from .health import (
+    _record_provider_health,
+    is_circuit_open,
+    record_failure,
+    record_success,
+)
 from .text import (
     _extract_anthropic_text,
     _extract_decision_payload,
@@ -407,11 +412,25 @@ async def _call_with_recommendation(
                 call_context=route_context,
             )
 
-    parsed = await _provider_call(
-        route_provider=provider,
-        route_model=model,
-        route_context=call_context,
-    )
+    # Circuit breaker: skip the primary provider entirely while its circuit is
+    # open, routing straight to the fallback instead of issuing a doomed call.
+    primary_circuit_open = is_circuit_open(provider)
+    if primary_circuit_open:
+        LOGGER.warning(
+            "%s skipping provider %s — circuit breaker open", call_context, provider
+        )
+        parsed = None
+    else:
+        parsed = await _provider_call(
+            route_provider=provider,
+            route_model=model,
+            route_context=call_context,
+        )
+        if isinstance(parsed, dict):
+            record_success(provider)
+        else:
+            record_failure(provider)
+
     if isinstance(parsed, dict):
         _record_usage_event(
             getattr(recommendation, "__settings__", None),
@@ -432,12 +451,21 @@ async def _call_with_recommendation(
     if fallback_provider == provider and fallback_model == model:
         return None, provider, model, "primary"
 
+    if is_circuit_open(fallback_provider):
+        LOGGER.warning(
+            "%s skipping fallback provider %s — circuit breaker open",
+            call_context,
+            fallback_provider,
+        )
+        return None, provider, model, "primary"
+
     fallback = await _provider_call(
         route_provider=fallback_provider,
         route_model=fallback_model,
         route_context=f"{call_context} (fallback)",
     )
     if isinstance(fallback, dict):
+        record_success(fallback_provider)
         _record_usage_event(
             getattr(recommendation, "__settings__", None),
             str(recommendation.get("__mission_id__", "") or ""),
@@ -448,6 +476,7 @@ async def _call_with_recommendation(
             True, "fallback",
         )
         return fallback, fallback_provider, fallback_model, "fallback"
+    record_failure(fallback_provider)
     return None, provider, model, "primary"
 
 
