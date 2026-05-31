@@ -306,6 +306,10 @@ services:
       # holds the verify-full TLS connection to the real Postgres; this hop stays
       # on the internal network so sslmode=disable is used here.
       POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}@pgbouncer:${PGBOUNCER_PORT:-5432}/${POSTGRES_DB:-ulr}?sslmode=disable
+      # Schema migrations take a session-level advisory lock and must bypass the
+      # bouncer (transaction pooling drops session locks between statements), so
+      # they connect to Postgres directly over verify-full TLS.
+      MIGRATION_POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}@postgres:5432/${POSTGRES_DB:-ulr}?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt
       AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-90}
       INTAKE_STREAM: missions.intake
       INTAKE_TOPIC: intake.feature_contract.created
@@ -367,6 +371,8 @@ services:
       - "${ORCHESTRATOR_HOST_PORT:-8101}:8001"
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
       pgbouncer:
         condition: service_healthy

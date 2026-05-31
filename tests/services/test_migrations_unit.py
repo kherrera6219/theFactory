@@ -74,6 +74,58 @@ class FakeConn:
         return False
 
 
+def test_migrations_use_direct_url_not_pgbouncer(tmp_path: Path) -> None:
+    """apply_migrations must connect via migration_postgres_url, not postgres_url.
+
+    The session-level advisory lock taken during migrations does not survive
+    PgBouncer transaction pooling, so migrations connect to Postgres directly.
+    """
+    script_path = tmp_path / "V001_init.sql"
+    script_path.write_text("CREATE TABLE IF NOT EXISTS t (id INT);", encoding="utf-8")
+
+    settings = Settings(
+        redis_url="redis://redis:6379/0",
+        postgres_url="postgresql://u:p@pgbouncer:5432/ulr?sslmode=disable",
+        intake_stream="missions.intake",
+        state_stream="missions.state",
+        max_stream_len=1000,
+        consumer_group="orchestrator",
+        consumer_name="orchestrator-test",
+        auto_transition_enabled=True,
+        transition_step_seconds=1.0,
+        intake_topic="intake.feature_contract.created",
+        default_priority="NORMAL",
+        producer_name="orchestrator",
+        event_schema_path=ROOT / "schemas" / "event.envelope.schema.json",
+        topics_path=ROOT / "protocol" / "topics.yaml",
+        admin_api_key="admin-key",
+        internal_service_api_key="worker-key",
+        readonly_api_key="viewer-key",
+        extra_api_keys="",
+        migration_postgres_url_override=(
+            "postgresql://u:p@postgres:5432/ulr?sslmode=verify-full"
+        ),
+    )
+
+    seen_urls: list[str] = []
+
+    def fake_connect(settings_obj: Settings) -> FakeConn:
+        seen_urls.append(settings_obj.migration_postgres_url)
+        return FakeConn(FakeCursor(fetchall_results=[[]]))
+
+    migrations.apply_migrations(settings, connect=fake_connect, migrations_dir=tmp_path)
+
+    assert seen_urls == ["postgresql://u:p@postgres:5432/ulr?sslmode=verify-full"]
+    # And the migration URL must differ from the pooled (pgbouncer) URL.
+    assert settings.migration_postgres_url != settings.postgres_url
+
+
+def test_migration_url_falls_back_to_postgres_url() -> None:
+    settings = _settings()
+    assert settings.migration_postgres_url_override == ""
+    assert settings.migration_postgres_url == settings.postgres_url
+
+
 def test_parse_version_validation() -> None:
     assert migrations._parse_version(Path("V001_init.sql")) == "001"
 
