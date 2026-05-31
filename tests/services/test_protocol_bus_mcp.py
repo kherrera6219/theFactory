@@ -16,22 +16,20 @@ sys.path.insert(0, str(ROOT / "services" / "protocol-bus-mcp"))
 mcp_main = importlib.import_module("protocol_bus.mcp_server")
 app = mcp_main.app
 
-from shared_runtime import protocol as protocol_guard  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _reset_replay_guard():
-    protocol_guard.reset_replay_guard()
-    yield
-    protocol_guard.reset_replay_guard()
-
 
 class FakeRedis:
+    """In-memory async Redis double.
+
+    Shared instances simulate a single distributed Redis backing multiple
+    Protocol Bus processes — replay detection must hold across them.
+    """
+
     def __init__(self) -> None:
         self.streams: dict[str, list[tuple[str, dict[str, str]]]] = {}
         self._kv: dict[str, str] = {}
         self.raise_on_ping: Exception | None = None
         self.raise_on_stream: str | None = None
+        self.raise_on_set: Exception | None = None
 
     async def ping(self) -> bool:
         if self.raise_on_ping is not None:
@@ -46,10 +44,34 @@ class FakeRedis:
         nx: bool = False,
         ex: int | None = None,
     ) -> bool | None:
+        if self.raise_on_set is not None:
+            raise self.raise_on_set
         if nx and key in self._kv:
             return None
         self._kv[key] = value
         return True
+
+    async def scan(
+        self,
+        cursor: int = 0,
+        match: str | None = None,
+        count: int = 500,
+    ) -> tuple[int, list[str]]:
+        _ = count
+        import fnmatch
+
+        keys = list(self._kv)
+        if match is not None:
+            keys = [k for k in keys if fnmatch.fnmatch(k, match)]
+        return 0, keys
+
+    async def delete(self, *keys: str) -> int:
+        removed = 0
+        for key in keys:
+            if key in self._kv:
+                del self._kv[key]
+                removed += 1
+        return removed
 
     async def xlen(self, stream: str) -> int:
         return len(self.streams.get(stream, []))

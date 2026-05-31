@@ -496,8 +496,10 @@ async def send_message(
     # within the TTL window. This guards against replay attacks before the
     # message is published to any Redis stream.
     try:
-        protocol_guard.check_replay(
-            envelope.correlation_id, ttl_seconds=MESSAGE_DEDUP_TTL_SECONDS
+        await protocol_guard.check_replay(
+            envelope.correlation_id,
+            redis_client,
+            ttl_seconds=MESSAGE_DEDUP_TTL_SECONDS,
         )
     except protocol_guard.ReplayDetectedError as exc:
         MESSAGES_REPLAYED.labels(protocol=payload.protocol).inc()
@@ -508,6 +510,13 @@ async def send_message(
         raise HTTPException(
             status_code=409,
             detail=f"replay detected for correlation_id: {envelope.correlation_id}",
+        ) from exc
+    except Exception as exc:
+        # A Redis failure during replay detection must fail closed (503) —
+        # silently skipping the guard would let replays through unnoticed.
+        LOGGER.error("protocol-bus-mcp: replay check failed: %s", exc)
+        raise HTTPException(
+            status_code=503, detail="Replay detection service unavailable"
         ) from exc
 
     # 2026 best practice: message deduplication via Redis SET NX EX.
