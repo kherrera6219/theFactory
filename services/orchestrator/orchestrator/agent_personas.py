@@ -89,7 +89,7 @@ LANGUAGE_PERSONAS: dict[str, LanguagePersona] = {
     "go": LanguagePersona(
         label="Go",
         guidance="Certified Go Engineer: Effective Go patterns, goroutine/channel concurrency safety, and high-throughput microservice design.",
-        tooling="Go toolchain and module ecosystem references",
+        tooling="Go toolchain, go vet/gofmt, and module ecosystem references",
     ),
     "java": LanguagePersona(
         label="Java",
@@ -114,12 +114,12 @@ LANGUAGE_PERSONAS: dict[str, LanguagePersona] = {
     "haskell": LanguagePersona(
         label="Haskell",
         guidance="Certified Functional Architect: GHC 9+ optimizations, Category Theory application, and formal verification of purity.",
-        tooling="GHC toolchain and Hackage ecosystem references",
+        tooling="GHC/Cabal/Stack toolchain and HLint formatter references",
     ),
     "ocaml": LanguagePersona(
         label="OCaml",
         guidance="Certified OCaml Engineer: Strong static inference, module-system mastery, and high-reliability systems programming.",
-        tooling="OCaml toolchain and opam ecosystem references",
+        tooling="OCaml compiler, dune build tool, and ocamlformat references",
     ),
     "matlab": LanguagePersona(
         label="MATLAB",
