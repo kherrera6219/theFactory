@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "protocol-bus-mcp"))
@@ -704,6 +705,37 @@ def test_agent_hmac_secret_env_resolution(monkeypatch) -> None:
     assert mcp_main._agent_hmac_secret("AGENT-99-NOPE") is None
 
 
+def test_agent_hmac_secret_without_agent_prefix(monkeypatch) -> None:
+    # An id that does not start with "AGENT-" skips the prefix-stripping branch.
+    monkeypatch.setenv("AGENT_HMAC_SECRET_CUSTOM_ID", "  another-secret  ")
+    assert mcp_main._agent_hmac_secret("custom-id") == "another-secret"
+
+
+def test_event_envelope_validates_timestamp() -> None:
+    envelope = mcp_main.EventEnvelope(
+        event_id="evt-1",
+        topic="protocol.alpha",
+        timestamp="2026-03-01T00:00:00Z",
+        producer="AGENT-02-CEO",
+        correlation_id="corr-1",
+        payload_ref="registry://alpha/1",
+        schema="alpha.v1",
+        priority="HIGH",
+    )
+    assert envelope.event_id == "evt-1"
+    with pytest.raises(ValidationError):
+        mcp_main.EventEnvelope(
+            event_id="evt-2",
+            topic="protocol.alpha",
+            timestamp="2026-03-01T00:00:00",
+            producer="AGENT-02-CEO",
+            correlation_id="corr-2",
+            payload_ref="registry://alpha/2",
+            schema="alpha.v1",
+            priority="HIGH",
+        )
+
+
 def test_send_rejects_missing_signature_when_enabled(monkeypatch) -> None:
     monkeypatch.setattr(mcp_main, "AGENT_HMAC_SIGNING_ENABLED", True)
     monkeypatch.setenv("AGENT_HMAC_SECRET_02_CEO", "secret-with-good-entropy-1234")
@@ -717,6 +749,26 @@ def test_send_rejects_missing_signature_when_enabled(monkeypatch) -> None:
         )
     assert response.status_code == 401
     assert "missing agent signature" in response.json()["detail"]
+
+
+def test_send_rejects_when_signing_enabled_but_no_secret_configured(monkeypatch) -> None:
+    # Signature header present, but the sender has no AGENT_HMAC_SECRET_* configured.
+    monkeypatch.setattr(mcp_main, "AGENT_HMAC_SIGNING_ENABLED", True)
+    monkeypatch.delenv("AGENT_HMAC_SECRET_02_CEO", raising=False)
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={
+                "x-agent-id": "AGENT-02-CEO",
+                "x-api-key": mcp_main.MCP_API_KEY,
+                "x-agent-signature": "9999999999:deadbeef",
+            },
+            json=_alpha_payload(),
+        )
+    assert response.status_code == 401
+    assert "agent signing secret not configured" in response.json()["detail"]
 
 
 def test_send_rejects_invalid_signature_when_enabled(monkeypatch) -> None:
