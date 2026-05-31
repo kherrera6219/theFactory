@@ -129,6 +129,18 @@ def _initialize_app_state(app: FastAPI) -> None:
             app.state.protocol_ready = False
             app.state.protocol_error = str(exc)
 
+    # Warm the LogicNode schema validator once so the /internal/logicnodes
+    # write boundary validates many nodes without re-reading the schema file.
+    if getattr(app.state, "logicnode_schema_ready", None) is None:
+        from .logicnode_schema import _load_validator
+
+        try:
+            _load_validator(str(app.state.settings.logicnode_schema_path))
+            app.state.logicnode_schema_ready = True
+        except Exception as exc:  # pragma: no cover - deployment misconfiguration
+            app.state.logicnode_schema_ready = False
+            LOGGER.error("failed to load logicnode schema at startup: %s", exc)
+
 
 async def _ensure_db_ready(app: FastAPI) -> tuple[bool, bool]:
     _initialize_app_state(app)

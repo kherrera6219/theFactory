@@ -100,9 +100,16 @@ from .generators_artifacts import (
     generate_vc_commit_strategy,
 )
 from .health import (
+    CIRCUIT_OPEN_SECONDS,
+    CIRCUIT_OPEN_THRESHOLD,
     _provider_health_samples,
     _record_provider_health,
+    get_circuit_state,
     get_provider_health_summary,
+    is_circuit_open,
+    record_failure,
+    record_success,
+    reset_circuit_breakers,
 )
 from .normalizers import (
     _normalize_codegen_result,
@@ -195,5 +202,12 @@ __all__ = [
     "generate_security_analysis",
     "generate_specialist_plan",
     "generate_vc_commit_strategy",
+    "get_circuit_state",
     "get_provider_health_summary",
+    "is_circuit_open",
+    "record_failure",
+    "record_success",
+    "reset_circuit_breakers",
+    "CIRCUIT_OPEN_SECONDS",
+    "CIRCUIT_OPEN_THRESHOLD",
 ]

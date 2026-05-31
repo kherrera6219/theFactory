@@ -260,6 +260,135 @@ def _default_agent_id_for_event(event_type: str, target_language: str | None) ->
     return DEFAULT_POD_MANAGER_AGENT_IDS.get(POD_NAME.strip().lower())
 
 
+def _build_schema_node(
+    *,
+    node_id: str,
+    concept_id: str,
+    concept: str,
+    domain: str,
+    intent: str,
+    extraction_language: str,
+    target_language: str,
+    source_file: str,
+    snippet: str,
+    agent_id: str,
+    extra_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a node dict conforming to schemas/logicnode.schema.json.
+
+    The schema requires ``node_id``/``cmd``/``payload``/``priority``/``intent``/
+    ``types``/``provenance`` with ``additionalProperties: false``, so all of the
+    descriptive extraction fields (concept name, source language, confidence,
+    …) live inside the free-form ``payload`` object.
+    """
+    snippet_hash = hashlib.sha256((snippet or "").encode()).hexdigest()
+    payload: dict[str, Any] = {
+        "origin": "pod-worker",
+        "pod_name": POD_NAME,
+        "concept_id": concept_id,
+        "concept": concept,
+        "domain": domain,
+        "node_name": f"{domain}.{concept}",
+        "source_language": extraction_language,
+        "target_language": target_language or "generic",
+    }
+    if extra_payload:
+        payload.update(extra_payload)
+    return {
+        "node_id": node_id,
+        # The concept identifier doubles as the command identifier for the node.
+        "cmd": concept_id,
+        "payload": payload,
+        "priority": "NORMAL",
+        "intent": intent or "",
+        # Extractors do not infer I/O types yet; emit empty arrays for the schema.
+        "types": {"in": [], "out": []},
+        "provenance": {
+            "source_ref": source_file or extraction_language,
+            "snippet_hash": snippet_hash,
+            "miner_agent": agent_id or POD_NAME,
+            "timestamp": datetime.now(UTC).isoformat(),
+        },
+    }
+
+
+def _coerce_schema_node(
+    logicnode: dict[str, Any],
+    *,
+    node_id: str,
+    extraction_language: str,
+    target_language: str,
+    agent_id: str,
+) -> dict[str, Any]:
+    """Return a schema-conformant ``node`` dict for *logicnode*.
+
+    Logicnodes produced by the extractor already carry a schema-valid ``node``;
+    those returned by agent pipelines may not, so build one from the available
+    descriptive fields here so the orchestrator write boundary accepts them.
+    """
+    existing = logicnode.get("node")
+    if isinstance(existing, dict) and "provenance" in existing and "cmd" in existing:
+        return existing
+    concept = str(logicnode.get("concept", "extracted_intent") or "extracted_intent")
+    domain = str(logicnode.get("domain", "generic") or "generic")
+    extra_payload: dict[str, Any] = {}
+    if isinstance(existing, dict):
+        # Preserve any descriptive fields the agent attached under the legacy
+        # shape by folding them into the schema-free payload object.
+        legacy_payload = existing.get("payload")
+        if isinstance(legacy_payload, dict):
+            extra_payload.update(legacy_payload)
+        for key in ("node_name", "source_language", "target_language"):
+            if key in existing:
+                extra_payload[key] = existing[key]
+    return _build_schema_node(
+        node_id=node_id,
+        concept_id=concept,
+        concept=concept,
+        domain=domain,
+        intent=str(logicnode.get("intent", "") or ""),
+        extraction_language=extraction_language,
+        target_language=target_language,
+        source_file=str(logicnode.get("source_file", "") or ""),
+        snippet=str(extra_payload.get("evidence", "") or ""),
+        agent_id=agent_id,
+        extra_payload=extra_payload or None,
+    )
+
+
+def _routing_stub_logicnode(
+    *,
+    mission_id: str,
+    extraction_language: str,
+    target_language: str,
+    agent_id: str,
+    node_id: str | None = None,
+) -> dict[str, Any]:
+    """Build a schema-conformant fallback node when extraction yields nothing."""
+    stub_node_id = node_id or f"{POD_NAME}.core.{mission_id}"
+    schema_node = _build_schema_node(
+        node_id=stub_node_id,
+        concept_id="core",
+        concept="routing_stub",
+        domain="core",
+        intent="",
+        extraction_language=extraction_language,
+        target_language=target_language,
+        source_file=f"mission://{mission_id}",
+        snippet="",
+        agent_id=agent_id,
+        extra_payload={"node_name": f"{POD_NAME}-logicnode-core"},
+    )
+    return {
+        "node_id": stub_node_id,
+        "concept": "routing_stub",
+        "domain": "core",
+        "language": extraction_language,
+        "agent_id": agent_id,
+        "node": schema_node,
+    }
+
+
 def _logicnodes_from_extraction(
     *,
     mission_id: str,
@@ -267,6 +396,7 @@ def _logicnodes_from_extraction(
     extraction_language: str,
     concepts: list[Any],
     source_file: str = "",
+    agent_id: str = "",
 ) -> list[dict[str, Any]]:
     # Discriminate node_id by source file + line so that multiple occurrences of
     # the same concept across files/lines do not collapse to one row under the
@@ -277,34 +407,37 @@ def _logicnodes_from_extraction(
         concept_id = str(getattr(concept, "concept_id", "") or "core")
         source_line = getattr(concept, "source_line", None)
         line_token = str(source_line) if source_line is not None else "0"
+        concept_name = str(getattr(concept, "concept", "") or "extracted_intent")
+        domain = str(getattr(concept, "domain", "") or "generic")
+        intent = str(getattr(concept, "intent", "") or "")
+        node_id = f"{POD_NAME}.{concept_id}.{mission_id}.{file_hash}.{line_token}"
+        schema_node = _build_schema_node(
+            node_id=node_id,
+            concept_id=concept_id,
+            concept=concept_name,
+            domain=domain,
+            intent=intent,
+            extraction_language=extraction_language,
+            target_language=target_language,
+            source_file=source_file,
+            snippet=str(getattr(concept, "evidence", "") or ""),
+            agent_id=agent_id,
+            extra_payload={
+                "confidence": getattr(concept, "confidence", 0.0),
+                "source_line": getattr(concept, "source_line", None),
+                "evidence": getattr(concept, "evidence", ""),
+                "extraction_method": getattr(concept, "extraction_method", "regex"),
+                "source_range": getattr(concept, "source_range", None),
+            },
+        )
         logicnodes.append(
             {
-                "node_id": f"{POD_NAME}.{concept_id}.{mission_id}.{file_hash}.{line_token}",
-                "concept": str(getattr(concept, "concept", "") or "extracted_intent"),
-                "domain": str(getattr(concept, "domain", "") or "generic"),
+                "node_id": node_id,
+                "concept": concept_name,
+                "domain": domain,
                 "language": extraction_language,
-                "agent_id": "",
-                "node": {
-                    "node_name": (
-                        f"{getattr(concept, 'domain', 'generic')}."
-                        f"{getattr(concept, 'concept', 'extracted_intent')}"
-                    ),
-                    "source_language": extraction_language,
-                    "target_language": target_language or "generic",
-                    "payload": {
-                        "origin": "pod-worker",
-                        "pod_name": POD_NAME,
-                        "concept_id": concept_id,
-                        "domain": getattr(concept, "domain", "generic"),
-                        "concept": getattr(concept, "concept", "extracted_intent"),
-                        "intent": getattr(concept, "intent", ""),
-                        "confidence": getattr(concept, "confidence", 0.0),
-                        "source_line": getattr(concept, "source_line", None),
-                        "evidence": getattr(concept, "evidence", ""),
-                        "extraction_method": getattr(concept, "extraction_method", "regex"),
-                        "source_range": getattr(concept, "source_range", None),
-                    },
-                },
+                "agent_id": agent_id,
+                "node": schema_node,
             }
         )
     return logicnodes
@@ -1167,23 +1300,17 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             extraction_language=extraction_language,
             concepts=result.concepts,
             source_file=source_file,
+            agent_id=resolved_agent_id,
         )
 
     if not extracted_logicnodes:
         extracted_logicnodes = [
-            {
-                "node_id": f"{POD_NAME}.core.{mission_id}",
-                "concept": "routing_stub",
-                "domain": "core",
-                "language": extraction_language,
-                "agent_id": resolved_agent_id,
-                "node": {
-                    "node_name": f"{POD_NAME}-logicnode-core",
-                    "source_language": extraction_language,
-                    "target_language": target_language or "generic",
-                    "payload": {"origin": "pod-worker", "pod_name": POD_NAME},
-                },
-            }
+            _routing_stub_logicnode(
+                mission_id=mission_id,
+                extraction_language=extraction_language,
+                target_language=target_language,
+                agent_id=resolved_agent_id,
+            )
         ]
 
     for logicnode in extracted_logicnodes:
@@ -1266,20 +1393,13 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
         )
     for logicnode in final_logicnodes:
         node_id = str(logicnode.get("node_id", "")).strip() or f"{POD_NAME}.core.{mission_id}"
-        node_payload = logicnode.get("node")
-        if not isinstance(node_payload, dict):
-            node_payload = {
-                "node_name": str(logicnode.get("concept", "extracted_intent")),
-                "source_language": extraction_language,
-                "target_language": target_language or "generic",
-                "payload": {
-                    "origin": "pod-worker",
-                    "pod_name": POD_NAME,
-                    "agent_id": resolved_agent_id,
-                    "domain": logicnode.get("domain", "generic"),
-                    "concept": logicnode.get("concept", "extracted_intent"),
-                },
-            }
+        node_payload = _coerce_schema_node(
+            logicnode,
+            node_id=node_id,
+            extraction_language=extraction_language,
+            target_language=target_language,
+            agent_id=resolved_agent_id,
+        )
         await _request(
             "POST",
             "/internal/logicnodes",
@@ -1462,23 +1582,17 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
             extraction_language=extraction_language,
             concepts=result.concepts,
             source_file=source_file,
+            agent_id=resolved_agent_id,
         )
 
     if not extracted_logicnodes:
         extracted_logicnodes = [
-            {
-                "node_id": f"{POD_NAME}.core.{mission_id}",
-                "concept": "routing_stub",
-                "domain": "core",
-                "language": extraction_language,
-                "agent_id": resolved_agent_id,
-                "node": {
-                    "node_name": f"{POD_NAME}-logicnode-core",
-                    "source_language": extraction_language,
-                    "target_language": target_language or "generic",
-                    "payload": {"origin": "pod-worker", "pod_name": POD_NAME},
-                },
-            }
+            _routing_stub_logicnode(
+                mission_id=mission_id,
+                extraction_language=extraction_language,
+                target_language=target_language,
+                agent_id=resolved_agent_id,
+            )
         ]
 
     for logicnode in extracted_logicnodes:
@@ -1581,21 +1695,14 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
         node_id = str(logicnode.get("node_id", "")).strip() or (
             f"{POD_NAME}.core.{mission_id}.{partition_id}"
         )
-        node_payload = logicnode.get("node")
-        if not isinstance(node_payload, dict):
-            node_payload = {
-                "node_name": str(logicnode.get("concept", "extracted_intent")),
-                "source_language": extraction_language,
-                "target_language": target_language or "generic",
-                "payload": {
-                    "origin": "pod-worker",
-                    "pod_name": POD_NAME,
-                    "agent_id": resolved_agent_id,
-                    "partition_id": partition_id,
-                    "domain": logicnode.get("domain", "generic"),
-                    "concept": logicnode.get("concept", "extracted_intent"),
-                },
-            }
+        node_payload = _coerce_schema_node(
+            logicnode,
+            node_id=node_id,
+            extraction_language=extraction_language,
+            target_language=target_language,
+            agent_id=resolved_agent_id,
+        )
+        node_payload["payload"]["partition_id"] = partition_id
         await _request(
             "POST",
             "/internal/logicnodes",
