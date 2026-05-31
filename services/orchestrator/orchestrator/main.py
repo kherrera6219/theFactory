@@ -53,6 +53,7 @@ from .runtime import (
 from .runtime import (
     ensure_runtime_ready,
     runtime_self_heal_loop,
+    stale_consumer_reap_loop,
     start_lifecycle_task,  # noqa: F401  (re-exported for route modules)
 )
 from .settings import load_settings
@@ -690,6 +691,7 @@ async def lifespan(app: FastAPI):
     app.state.self_heal_task = asyncio.create_task(runtime_self_heal_loop(app))
     app.state.agent_heartbeat_task = asyncio.create_task(agent_heartbeat_loop(app))
     app.state.knowledge_refresh_task = asyncio.create_task(knowledge_lake_refresh_loop(app))
+    app.state.stale_consumer_reap_task = asyncio.create_task(stale_consumer_reap_loop(app))
 
     yield
 
@@ -710,6 +712,12 @@ async def lifespan(app: FastAPI):
         knowledge_refresh_task.cancel()
         with suppress(asyncio.CancelledError):
             await knowledge_refresh_task
+
+    stale_consumer_reap_task = getattr(app.state, "stale_consumer_reap_task", None)
+    if stale_consumer_reap_task is not None:
+        stale_consumer_reap_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await stale_consumer_reap_task
 
     self_heal_task = getattr(app.state, "self_heal_task", None)
     if self_heal_task is not None:
