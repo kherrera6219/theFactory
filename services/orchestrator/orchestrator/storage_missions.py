@@ -25,7 +25,7 @@ from .models import (
 )
 from .project_identity import resolve_project_id, with_project_identity
 from .settings import Settings
-from .storage_core import _json_to_dict, _to_iso, db_connect, psycopg
+from .storage_core import _json_to_dict, _to_iso, get_connection, psycopg
 
 FETCH_MISSION_SQL = """
     SELECT
@@ -210,7 +210,7 @@ def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: 
     project_id = str(
         record.project_id or resolve_project_id(metadata, mission_id=record.mission_id)
     )
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -249,7 +249,7 @@ def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: 
 
 
 def fetch_mission(settings: Settings, mission_id: str) -> MissionRecord | None:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(FETCH_MISSION_SQL, (mission_id,))
             row = cur.fetchone()
@@ -266,7 +266,7 @@ def update_mission_metadata(
 ) -> MissionRecord | None:
     normalized_metadata = with_project_identity(metadata, mission_id=mission_id)
     project_id = resolve_project_id(normalized_metadata, mission_id=mission_id)
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 UPDATE_MISSION_METADATA_SQL,
@@ -280,7 +280,7 @@ def update_mission_metadata(
 
 
 def list_missions(settings: Settings, limit: int) -> list[MissionRecord]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(LIST_MISSIONS_SQL, (limit,))
             rows = cur.fetchall()
@@ -297,7 +297,7 @@ def list_missions_in_states(
     if not normalized_states:
         return []
 
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(LIST_MISSIONS_IN_STATES_SQL, (normalized_states, max(1, int(limit))))
             rows = cur.fetchall()
@@ -312,7 +312,7 @@ def insert_mission_event(
     new_state: MissionState,
     event_type: str,
 ) -> None:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -329,7 +329,7 @@ def insert_mission_event(
 
 
 def list_mission_events(settings: Settings, mission_id: str, limit: int) -> list[MissionEvent]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -359,7 +359,7 @@ def list_mission_events(settings: Settings, mission_id: str, limit: int) -> list
 
 
 def list_recent_mission_events(settings: Settings, limit: int) -> list[MissionEvent]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -394,7 +394,7 @@ def transition_mission_state(
     new_state: MissionState,
     event_type: str,
 ) -> MissionRecord | None:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
                 if expected_state is None:
@@ -425,7 +425,7 @@ def transition_mission_state(
 
 
 def count_missions(settings: Settings) -> int:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM missions")
             row = cur.fetchone()
@@ -433,7 +433,7 @@ def count_missions(settings: Settings) -> int:
 
 
 def mission_state_counts(settings: Settings) -> dict[str, int]:
-    with db_connect(settings) as conn:
+    with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
