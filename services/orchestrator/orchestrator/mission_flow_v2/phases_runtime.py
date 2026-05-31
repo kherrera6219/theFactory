@@ -374,6 +374,42 @@ async def _prepare_runtime_qc(
     return updated or mission, not blocked, runtime_qc_report
 
 
+def _verify_rir_module_signatures(mission_id: str) -> None:
+    """Best-effort ECDSA signature check on persisted RIR modules for *mission_id*.
+
+    No-op unless REFINED_IR_STORE_PATH is configured. Never raises and never
+    blocks fusion — an invalid or missing signature is logged as a warning so
+    operators can investigate while the mission proceeds.
+    """
+    import os
+
+    store_path = os.getenv("REFINED_IR_STORE_PATH", "").strip()
+    if not store_path:
+        return
+    try:
+        from pathlib import Path
+
+        from shared_runtime.crypto_signing import verify_artifact
+
+        mission_dir = Path(store_path) / "missions" / mission_id
+        if not mission_dir.is_dir():
+            return
+        for module_path in sorted(mission_dir.glob("*.rir.module.json")):
+            if verify_artifact(module_path):
+                LOGGER.info("RIR module signature verified: %s", module_path)
+            else:
+                LOGGER.warning(
+                    "RIR module signature missing or invalid (non-fatal): %s",
+                    module_path,
+                )
+    except Exception as exc:
+        LOGGER.warning(
+            "RIR module signature verification skipped for %s: %s",
+            mission_id,
+            type(exc).__name__,
+        )
+
+
 async def _prepare_fusion(
     *,
     app: Any,
@@ -392,6 +428,12 @@ async def _prepare_fusion(
 
     pod_group_standards = metadata.get("pod_group_standards") or {}
     mission_contract = metadata.get("mission_contract") or {}
+
+    # Verify ECDSA signatures on any persisted RIR modules before fusing them.
+    # Warn-only by design — a missing/invalid signature must not block the
+    # mission (signing is best-effort on the pod-worker side and the feature is
+    # opt-in via REFINED_IR_STORE_PATH).
+    _verify_rir_module_signatures(mission.mission_id)
 
     # ── Neo4j dependency-depth sort (S4-04) ──────────────────────────────────
     # When Neo4j is enabled, reorder pod_group_standards keys so that nodes

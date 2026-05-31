@@ -21,7 +21,10 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
+import os
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from cryptography.exceptions import InvalidSignature
@@ -30,6 +33,14 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
 
 ALGORITHM = "ECDSA-P256-SHA256"
+
+LOGGER = logging.getLogger(__name__)
+
+# Default on-disk location of the protected ECDSA signing key. Overridable so
+# each service can point at its mounted secret / KMS-provisioned key.
+_DEFAULT_KEYSTORE_PATH = "/app/secrets/artifact-signing-key.pem"
+# Sidecar suffix appended to an artifact path to hold its signature record.
+SIGNATURE_SUFFIX = ".sig.json"
 
 
 def generate_signing_key() -> ec.EllipticCurvePrivateKey:
@@ -128,3 +139,46 @@ def verify_payload(payload: Any, signature_record: dict[str, Any]) -> bool:
     if not isinstance(pem, str) or not isinstance(signature, str):
         return False
     return verify(pem.encode("ascii"), data, signature)
+
+
+def _keystore_path() -> str:
+    return os.getenv("ARTIFACT_SIGNING_KEY_PATH", "").strip() or _DEFAULT_KEYSTORE_PATH
+
+
+def sign_artifact(
+    artifact_path: str | os.PathLike[str],
+    *,
+    keystore_path: str | os.PathLike[str] | None = None,
+) -> dict[str, Any]:
+    """Sign the file at *artifact_path*, writing a ``<path>.sig.json`` sidecar.
+
+    The signature record (see :func:`sign_payload`) is computed over the artifact's
+    raw bytes so an importer can later verify the file on disk byte-for-byte. The
+    signing key is loaded (or created on first use) via the protected keystore.
+    Returns the signature record.
+    """
+    from shared_runtime.crypto_keystore import load_or_create_signing_key
+
+    path = Path(artifact_path)
+    key = load_or_create_signing_key(keystore_path or _keystore_path())
+    record = sign_payload(key, path.read_bytes())
+    sidecar = Path(str(path) + SIGNATURE_SUFFIX)
+    sidecar.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    return record
+
+
+def verify_artifact(artifact_path: str | os.PathLike[str]) -> bool:
+    """Verify the file at *artifact_path* against its ``<path>.sig.json`` sidecar.
+
+    Returns False if the sidecar is missing, malformed, or the signature does not
+    match the current file bytes.
+    """
+    path = Path(artifact_path)
+    sidecar = Path(str(path) + SIGNATURE_SUFFIX)
+    if not sidecar.exists():
+        return False
+    try:
+        record = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return verify_payload(path.read_bytes(), record)

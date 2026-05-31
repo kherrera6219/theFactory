@@ -19,6 +19,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from shared_runtime import protocol as protocol_guard
+from shared_runtime.agent_auth import verify_agent_message
 from shared_runtime.logging_config import configure_logging
 
 from .tracing import configure_tracing
@@ -52,6 +53,29 @@ if not _MCP_API_KEY_RAW:
     )
 MCP_API_KEY = _MCP_API_KEY_RAW if _MCP_API_KEY_RAW else secrets.token_hex(32)
 MAX_RECIPIENTS = int(os.getenv("MAX_RECIPIENTS", "32"))
+
+# Per-agent HMAC message signing (opt-in, backward compatible). When enabled, the
+# X-Agent-Signature header is verified against a per-agent secret resolved from
+# AGENT_HMAC_SECRET_{SHORT_CODE} env vars (SHORT_CODE = agent id minus the AGENT-
+# prefix, dashes → underscores; e.g. AGENT-31-PYTHON → AGENT_HMAC_SECRET_31_PYTHON).
+AGENT_HMAC_SIGNING_ENABLED = (
+    os.getenv("AGENT_HMAC_SIGNING_ENABLED", "false").strip().lower()
+    in ("1", "true", "yes", "on")
+)
+AGENT_HMAC_MAX_AGE_SECONDS = int(os.getenv("AGENT_HMAC_MAX_AGE_SECONDS", "60"))
+
+
+def _agent_hmac_secret(agent_id: str) -> str | None:
+    """Resolve the per-agent HMAC secret env var for *agent_id*.
+
+    AGENT-31-PYTHON → AGENT_HMAC_SECRET_31_PYTHON. Returns None if unset/blank.
+    """
+    short_code = agent_id.strip().upper()
+    if short_code.startswith("AGENT-"):
+        short_code = short_code[len("AGENT-"):]
+    env_name = f"AGENT_HMAC_SECRET_{short_code.replace('-', '_')}"
+    secret = os.getenv(env_name, "").strip()
+    return secret or None
 
 LOGGER = logging.getLogger(__name__)
 AGENT_ID_PATTERN = re.compile(r"^AGENT-\d{2}-[A-Z0-9-]+$")
@@ -434,6 +458,7 @@ async def send_message(
     request: Request,
     x_agent_id: str | None = Header(default=None),
     x_api_key: str | None = Header(default=None),
+    x_agent_signature: str | None = Header(default=None),
 ) -> JSONResponse:
     raw_body = await request.body()
     if len(raw_body) > MAX_MESSAGE_BYTES:
@@ -464,6 +489,37 @@ async def send_message(
             payload.sender,
         )
         raise HTTPException(status_code=403, detail="sender identity mismatch")
+
+    # Per-agent HMAC signing (opt-in). When enabled, every sender must present a
+    # valid X-Agent-Signature over the message payload, signed with that agent's
+    # secret. When disabled, the header is ignored — backward compatible.
+    if AGENT_HMAC_SIGNING_ENABLED:
+        if not x_agent_signature:
+            LOGGER.warning(
+                "protocol-bus-mcp rejected sender=%s: missing X-Agent-Signature "
+                "while AGENT_HMAC_SIGNING_ENABLED",
+                payload.sender,
+            )
+            raise HTTPException(status_code=401, detail="missing agent signature")
+        secret = _agent_hmac_secret(payload.sender)
+        if not secret:
+            LOGGER.warning(
+                "protocol-bus-mcp rejected sender=%s: no HMAC secret configured",
+                payload.sender,
+            )
+            raise HTTPException(status_code=401, detail="agent signing secret not configured")
+        if not verify_agent_message(
+            payload.sender,
+            secret,
+            payload.payload,
+            x_agent_signature,
+            max_age_seconds=AGENT_HMAC_MAX_AGE_SECONDS,
+        ):
+            LOGGER.warning(
+                "protocol-bus-mcp rejected sender=%s: invalid agent signature",
+                payload.sender,
+            )
+            raise HTTPException(status_code=401, detail="invalid agent signature")
 
     recipients = _normalized_recipients(payload.recipient)
     channels = _resolve_channels(payload.protocol, recipients)
