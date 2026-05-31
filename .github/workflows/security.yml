@@ -149,12 +149,34 @@ jobs:
           npm audit --audit-level=high --omit=dev
 
       - name: License scan (Node)
-        # 2026 best practice: block copyleft in frontend deps
+        # 2026 best practice: block copyleft in frontend deps.
+        # No `|| true`: a copyleft violation must fail the job.
         run: |
           cd apps/mission-control
-          npx license-checker --production --failOn "GPL-2.0;GPL-3.0;AGPL-3.0" --json \
-            | python3 -c "
+          set -o pipefail
+          npx license-checker --production --json --out /tmp/node-licenses.json
+          python3 - <<'EOF'
           import json, sys
-          data = json.load(sys.stdin)
-          print(f'Node license scan passed — {len(data)} packages checked.')
-          " || true
+          BLOCKED_PREFIXES = ("GPL-2.0", "GPL-3.0", "AGPL-3.0", "LGPL-2.1", "LGPL-3.0")
+          data = json.load(open("/tmp/node-licenses.json"))
+          def _is_blocked(license_field) -> bool:
+              # license-checker may report a string or a list of strings.
+              values = license_field if isinstance(license_field, list) else [license_field]
+              for value in values:
+                  text = str(value or "")
+                  for prefix in BLOCKED_PREFIXES:
+                      if prefix in text:
+                          return True
+              return False
+          violations = [
+              f"{name} ({meta.get('licenses', 'UNKNOWN')})"
+              for name, meta in data.items()
+              if _is_blocked(meta.get("licenses", "UNKNOWN"))
+          ]
+          if violations:
+              print("BLOCKED copyleft licenses found in Node dependencies:")
+              for v in violations:
+                  print(f"  {v}")
+              sys.exit(1)
+          print(f"Node license scan passed — {len(data)} packages checked, 0 copyleft violations.")
+          EOF

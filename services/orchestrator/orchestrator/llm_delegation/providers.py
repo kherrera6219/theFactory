@@ -295,15 +295,28 @@ async def _call_provider(
             result = await _call_backend(pkg._call_openai)
         return result
     finally:
+        elapsed_seconds = time.perf_counter() - started
         try:
             _record_provider_health(
                 provider=normalized or "openai",
                 model=model,
-                latency_ms=(time.perf_counter() - started) * 1000,
+                latency_ms=elapsed_seconds * 1000,
                 success=isinstance(result, dict),
             )
         except Exception:
             LOGGER.warning("failed to record provider health telemetry", exc_info=True)
+        try:
+            from .metrics import record_llm_request
+
+            record_llm_request(
+                provider=normalized or "openai",
+                model=model,
+                agent_id=current_agent_id.get() or "unknown",
+                status="success" if isinstance(result, dict) else "error",
+                duration_seconds=elapsed_seconds,
+            )
+        except Exception:
+            LOGGER.warning("failed to record llm request metric", exc_info=True)
 
 
 async def _call_with_recommendation(
