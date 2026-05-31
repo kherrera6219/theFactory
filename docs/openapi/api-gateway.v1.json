@@ -1,6 +1,90 @@
 {
   "components": {
     "schemas": {
+      "BuilderPreviewRequest": {
+        "properties": {
+          "constraints": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Constraints",
+            "type": "array"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "pattern": "^(openai|anthropic|gemini|offline)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "reasoning_effort": {
+            "anyOf": [
+              {
+                "pattern": "^(none|minimal|low|medium|high|xhigh)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Effort"
+          },
+          "request": {
+            "maxLength": 4000,
+            "minLength": 3,
+            "title": "Request",
+            "type": "string"
+          },
+          "thinking_budget": {
+            "anyOf": [
+              {
+                "maximum": 65536.0,
+                "minimum": -1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking Budget"
+          },
+          "view_mode": {
+            "anyOf": [
+              {
+                "pattern": "^(desktop|tablet|mobile)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View Mode"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "title": "BuilderPreviewRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -14,8 +98,62 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "MissionAttachment": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "file_id": {
+            "title": "File Id",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "reference",
+            "title": "Purpose"
+          },
+          "size_bytes": {
+            "default": 0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file_id",
+          "filename",
+          "content_type"
+        ],
+        "title": "MissionAttachment",
+        "type": "object"
+      },
       "MissionCreate": {
         "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/MissionAttachment"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "global_style_directives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Global Style Directives",
+            "type": "array"
+          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",
@@ -36,6 +174,18 @@
               }
             ],
             "title": "Requested Target Language"
+          },
+          "source_code": {
+            "anyOf": [
+              {
+                "maxLength": 512000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Code"
           }
         },
         "required": [
@@ -58,6 +208,17 @@
           "mission_id": {
             "title": "Mission Id",
             "type": "string"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
           },
           "prompt": {
             "title": "Prompt",
@@ -114,6 +275,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -145,9 +313,18 @@
         "title": "ValidationError",
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "api_key": {
+        "description": "Gateway API key. Role (read/mutate/admin) is derived from the key.",
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      }
     }
   },
   "info": {
+    "description": "Public ingress for theFactory (Holy Grail Refinery). Mission, operations, builder, and maintenance routes require an `X-API-Key` header; system health/metrics routes are public.",
     "title": "HolyGrail API Gateway",
     "version": "0.3.0"
   },
@@ -172,7 +349,10 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Index"
+        "summary": "Index",
+        "tags": [
+          "system"
+        ]
       }
     },
     "/health": {
@@ -192,7 +372,10 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Health"
+        "summary": "Health",
+        "tags": [
+          "system"
+        ]
       }
     },
     "/metrics": {
@@ -208,7 +391,10 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Metrics"
+        "summary": "Metrics",
+        "tags": [
+          "system"
+        ]
       }
     },
     "/readyz": {
@@ -228,7 +414,236 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Readyz"
+        "summary": "Readyz",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/v1/builder/preview": {
+      "post": {
+        "operationId": "create_builder_preview_v1_builder_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuilderPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Builder Preview V1 Builder Preview Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create Builder Preview",
+        "tags": [
+          "builder"
+        ]
+      }
+    },
+    "/v1/maintenance/backup": {
+      "post": {
+        "operationId": "trigger_gateway_backup_v1_maintenance_backup_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Trigger Gateway Backup V1 Maintenance Backup Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Trigger Gateway Backup",
+        "tags": [
+          "maintenance"
+        ]
+      }
+    },
+    "/v1/maintenance/diagnostics": {
+      "post": {
+        "operationId": "create_gateway_diagnostics_v1_maintenance_diagnostics_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mission_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mission Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Gateway Diagnostics V1 Maintenance Diagnostics Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create Gateway Diagnostics",
+        "tags": [
+          "maintenance"
+        ]
       }
     },
     "/v1/missions": {
@@ -245,6 +660,38 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -264,6 +711,12 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -275,7 +728,15 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Missions"
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List Missions",
+        "tags": [
+          "missions"
+        ]
       },
       "post": {
         "operationId": "create_mission_v1_missions_post",
@@ -308,7 +769,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
                 "schema": {
@@ -317,6 +778,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
           },
           "422": {
             "content": {
@@ -329,7 +796,15 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Create Mission"
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create Mission",
+        "tags": [
+          "missions"
+        ]
       }
     },
     "/v1/missions/{mission_id}": {
@@ -343,6 +818,38 @@
             "schema": {
               "title": "Mission Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
             }
           }
         ],
@@ -359,6 +866,12 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -370,12 +883,81 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Mission"
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission",
+        "tags": [
+          "missions"
+        ]
       }
     },
-    "/v1/missions/{mission_id}/events": {
+    "/v1/missions/{mission_id}/artifact": {
       "get": {
-        "operationId": "get_mission_events_v1_missions__mission_id__events_get",
+        "operationId": "download_mission_artifact_v1_missions__mission_id__artifact_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "artifact_type",
+            "required": false,
+            "schema": {
+              "default": "generated_code",
+              "title": "Artifact Type",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Download Mission Artifact",
+        "tags": [
+          "missions"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/audit-artifacts": {
+      "get": {
+        "operationId": "get_mission_audit_artifacts_v1_missions__mission_id__audit_artifacts_get",
         "parameters": [
           {
             "in": "path",
@@ -408,12 +990,18 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
-                  "title": "Response Get Mission Events V1 Missions  Mission Id  Events Get",
+                  "title": "Response Get Mission Audit Artifacts V1 Missions  Mission Id  Audit Artifacts Get",
                   "type": "array"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
           },
           "422": {
             "content": {
@@ -426,7 +1014,711 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Get Mission Events"
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Audit Artifacts",
+        "tags": [
+          "mission-evidence"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/audit-events": {
+      "get": {
+        "operationId": "get_mission_audit_events_v1_missions__mission_id__audit_events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Mission Audit Events V1 Missions  Mission Id  Audit Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Audit Events",
+        "tags": [
+          "mission-evidence"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/audit-reports": {
+      "get": {
+        "operationId": "get_mission_audit_reports_v1_missions__mission_id__audit_reports_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Mission Audit Reports V1 Missions  Mission Id  Audit Reports Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Audit Reports",
+        "tags": [
+          "mission-evidence"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/build-artifacts": {
+      "get": {
+        "operationId": "get_mission_build_artifacts_v1_missions__mission_id__build_artifacts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Mission Build Artifacts V1 Missions  Mission Id  Build Artifacts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Build Artifacts",
+        "tags": [
+          "mission-evidence"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/build-artifacts/{artifact_id}": {
+      "get": {
+        "operationId": "get_mission_build_artifact_v1_missions__mission_id__build_artifacts__artifact_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "title": "Artifact Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mission Build Artifact V1 Missions  Mission Id  Build Artifacts  Artifact Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Build Artifact",
+        "tags": [
+          "mission-evidence"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/chain-trace": {
+      "get": {
+        "operationId": "get_mission_chain_trace_v1_missions__mission_id__chain_trace_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mission Chain Trace V1 Missions  Mission Id  Chain Trace Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Chain Trace",
+        "tags": [
+          "mission-evidence"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/events": {
+      "get": {
+        "operationId": "get_mission_events_v1_missions__mission_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Mission Events V1 Missions  Mission Id  Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Events",
+        "tags": [
+          "missions"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/knowledge": {
+      "get": {
+        "operationId": "get_mission_knowledge_v1_missions__mission_id__knowledge_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Mission Knowledge V1 Missions  Mission Id  Knowledge Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Knowledge",
+        "tags": [
+          "mission-evidence"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/knowledge-graph": {
+      "get": {
+        "operationId": "get_mission_knowledge_graph_v1_missions__mission_id__knowledge_graph_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Mission Knowledge Graph V1 Missions  Mission Id  Knowledge Graph Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Knowledge Graph",
+        "tags": [
+          "mission-evidence"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/logicnodes": {
+      "get": {
+        "operationId": "get_mission_logicnodes_v1_missions__mission_id__logicnodes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Mission Logicnodes V1 Missions  Mission Id  Logicnodes Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Logicnodes",
+        "tags": [
+          "mission-evidence"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/pod-assignment": {
+      "get": {
+        "operationId": "get_mission_pod_assignment_v1_missions__mission_id__pod_assignment_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mission Pod Assignment V1 Missions  Mission Id  Pod Assignment Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Pod Assignment",
+        "tags": [
+          "mission-evidence"
+        ]
       }
     },
     "/v1/missions/{mission_id}/state": {
@@ -457,6 +1749,22 @@
               ],
               "title": "X-Api-Key"
             }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
           }
         ],
         "requestBody": {
@@ -482,6 +1790,12 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -493,8 +1807,1294 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Update Mission State"
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Update Mission State",
+        "tags": [
+          "missions"
+        ]
+      }
+    },
+    "/v1/missions/{mission_id}/token-usage": {
+      "get": {
+        "operationId": "get_mission_token_usage_v1_missions__mission_id__token_usage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Mission Token Usage V1 Missions  Mission Id  Token Usage Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Mission Token Usage",
+        "tags": [
+          "mission-evidence"
+        ]
+      }
+    },
+    "/v1/operations/agent-events": {
+      "get": {
+        "operationId": "get_operations_agent_events_v1_operations_agent_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Operations Agent Events V1 Operations Agent Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Operations Agent Events",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/operations/agent-integrations": {
+      "get": {
+        "operationId": "get_operations_agent_integrations_v1_operations_agent_integrations_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Operations Agent Integrations V1 Operations Agent Integrations Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Operations Agent Integrations",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/operations/agents": {
+      "get": {
+        "operationId": "get_operations_agents_v1_operations_agents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mission_limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "maximum": 5000,
+              "minimum": 50,
+              "title": "Mission Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "assignment_limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "maximum": 5000,
+              "minimum": 50,
+              "title": "Assignment Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_limit",
+            "required": false,
+            "schema": {
+              "default": 300,
+              "maximum": 2000,
+              "minimum": 50,
+              "title": "Event Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Operations Agents V1 Operations Agents Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Operations Agents",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/operations/alerts": {
+      "get": {
+        "operationId": "get_operations_alerts_v1_operations_alerts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Operations Alerts V1 Operations Alerts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Operations Alerts",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/operations/events": {
+      "get": {
+        "operationId": "get_operations_events_v1_operations_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Operations Events V1 Operations Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Operations Events",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/operations/logicnodes": {
+      "get": {
+        "operationId": "get_operations_logicnodes_v1_operations_logicnodes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mission_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mission Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Operations Logicnodes V1 Operations Logicnodes Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Operations Logicnodes",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/operations/pod-assignments": {
+      "get": {
+        "operationId": "get_operations_pod_assignments_v1_operations_pod_assignments_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Operations Pod Assignments V1 Operations Pod Assignments Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Operations Pod Assignments",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/operations/projects": {
+      "get": {
+        "operationId": "get_operations_projects_v1_operations_projects_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Operations Projects V1 Operations Projects Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Operations Projects",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/operations/projects/{project_id}/audit-events": {
+      "get": {
+        "operationId": "get_project_audit_events_v1_operations_projects__project_id__audit_events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mission_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mission Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tool_name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tool Name"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Project Audit Events V1 Operations Projects  Project Id  Audit Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Project Audit Events",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/operations/summary": {
+      "get": {
+        "operationId": "get_operations_summary_v1_operations_summary_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Operations Summary V1 Operations Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get Operations Summary",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/pm/feature-contract": {
+      "post": {
+        "operationId": "create_pm_feature_contract_v1_pm_feature_contract_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Pm Feature Contract V1 Pm Feature Contract Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create Pm Feature Contract",
+        "tags": [
+          "builder"
+        ]
+      }
+    },
+    "/v1/stream/state": {
+      "get": {
+        "operationId": "stream_state_events_v1_stream_state_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mission_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mission Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_agent_events",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Include Agent Events",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header."
+          },
+          "403": {
+            "description": "API key lacks the required role for this operation."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Stream State Events",
+        "tags": [
+          "missions"
+        ]
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "description": "Liveness, readiness, and Prometheus metrics. Public, unauthenticated.",
+      "name": "system"
+    },
+    {
+      "description": "Mission lifecycle: create, inspect, stream state, and retrieve artifacts.",
+      "name": "missions"
+    },
+    {
+      "description": "Per-mission audit reports, build artifacts, knowledge, and logic nodes.",
+      "name": "mission-evidence"
+    },
+    {
+      "description": "Operator/console aggregate views across all missions and agents.",
+      "name": "operations"
+    },
+    {
+      "description": "Builder and PM authoring endpoints (feature contracts, previews).",
+      "name": "builder"
+    },
+    {
+      "description": "Operator maintenance actions (diagnostics, backups).",
+      "name": "maintenance"
+    }
+  ]
 }

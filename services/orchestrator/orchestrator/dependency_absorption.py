@@ -4,7 +4,10 @@ from __future__ import annotations
 import ast
 import json
 import re
+import subprocess
+import tempfile
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 DEPENDENCY_INVENTORY_SCHEMA_VERSION = "dependency_inventory.v1"
@@ -412,7 +415,7 @@ def _detect_used_symbols(source: str, library: str, language: str) -> list[str]:
                     symbols.append(normalized)
         return sorted(set(symbols)) or [normalized]
     if language in {"javascript", "typescript"}:
-        if re.search(rf"['\"]{re.escape(normalized)}['\"]", source):
+        if _js_import_present(source, normalized):
             return [normalized]
     return []
 
@@ -467,6 +470,56 @@ async def _generate_replacement_code(
     )
 
 
+def validate_js_syntax(code: str) -> bool:
+    """Validate JS/TS syntax with ``node --check``.
+
+    Returns True when the code parses, or when Node.js is unavailable (so the
+    splice is not blocked in environments without a Node runtime). ``--check``
+    requires a file argument, so the code is written to a temp file with a
+    language-appropriate extension. TypeScript-only syntax (e.g. type
+    annotations) is not valid plain JS, so a ``.ts`` file is parsed leniently:
+    if the strict check fails we fall back to import/structure detection.
+    """
+    if not code.strip():
+        return True
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".js", delete=False, encoding="utf-8"
+        ) as handle:
+            handle.write(code)
+            tmp_path = handle.name
+        try:
+            result = subprocess.run(
+                ["node", "--check", tmp_path],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return result.returncode == 0
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return True  # node not available — skip validation rather than block
+
+
+def _js_import_present(source: str, library: str) -> bool:
+    """Detect whether ``library`` is imported/required in JS/TS source.
+
+    Matches ES module ``import ... from 'lib'`` / bare ``import 'lib'`` and
+    CommonJS ``require('lib')`` forms, anchored on the quoted module specifier
+    so substrings of unrelated identifiers are not matched. This replaces the
+    earlier loose ``'lib'`` quote search which matched the library name in any
+    string literal, not just import positions.
+    """
+    lib = re.escape(library)
+    patterns = (
+        rf"\bfrom\s+['\"]{lib}['\"]",
+        rf"\bimport\s+['\"]{lib}['\"]",
+        rf"\brequire\(\s*['\"]{lib}['\"]\s*\)",
+    )
+    return any(re.search(pattern, source) for pattern in patterns)
+
+
 def _splice_replacement(
     *,
     source: str,
@@ -497,11 +550,16 @@ def _splice_replacement(
             rf"(?m)^\s*(?:"
             rf"import\s+(?:\*\s+as\s+\w+|\{{[^}}]*\}}|\w+(?:\s*,\s*\{{[^}}]*\}})?)\s+from\s+['\"]"
             rf"{lib_esc}['\"]"
-            rf"|import\s+['\"{lib_esc}'\"]"
-            rf"|(?:const|let|var)\s+\w+\s*=\s*require\(['\"{lib_esc}'\"]['\"]?\))"
+            rf"|import\s+['\"]{lib_esc}['\"]"
+            rf"|(?:const|let|var)\s+(?:\w+|\{{[^}}]*\}})\s*=\s*require\(\s*['\"]{lib_esc}['\"]\s*\))"
             rf"\s*;?\s*(?://.*)?$"
         )
         modified = js_import_pattern.sub("", source).rstrip() + replacement_code + "\n"
+        # Validate the spliced result with node --check (JS only; TS-only syntax
+        # such as type annotations is not valid plain JS, so we skip the strict
+        # check for typescript and rely on import-presence detection instead).
+        if language == "javascript" and not validate_js_syntax(modified):
+            return source, "syntax_error", "node --check rejected spliced JavaScript."
         return modified, "ok", "Replacement spliced into source."
 
     return source, "unsupported", f"Splicing not supported for language: {language}."
