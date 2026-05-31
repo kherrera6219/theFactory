@@ -126,5 +126,5 @@ test("mission-runtime-qc Docker reports and stdout logs rendering", async ({ pag
   await expect(page.getByText("pytest", { exact: true })).toBeVisible();
   await expect(page.getByText("pytest tests/services/pod-worker/ --tb=short")).toBeVisible();
   await expect(page.getByText("30s / 512MB")).toBeVisible();
-  await expect(page.getByText("2", { exact: true })).toBeVisible(); // Synthetic inputs count
+  await expect(page.getByLabel("Runtime QC").getByText("2", { exact: true })).toBeVisible(); // Synthetic inputs count
 });
