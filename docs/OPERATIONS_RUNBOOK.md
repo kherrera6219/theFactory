@@ -148,6 +148,47 @@ Audience: Operators, maintainers, and on-call responders
 3. Regenerate local cert material when required:
    - `python scripts/generate_postgres_tls_certs.py`
 
+## PgBouncer Connection Pooling
+
+The orchestrator connects to Postgres through the `pgbouncer` sidecar
+(transaction pooling mode), not directly. PgBouncer holds the `verify-full` TLS
+connection to the real Postgres; the orchestrator → PgBouncer hop stays on the
+internal `hgr-network` (`sslmode=disable` in `POSTGRES_URL`).
+
+1. Confirm services target the bouncer, not Postgres directly:
+   - `docker compose -f deploy/docker-compose.yaml config | rg "@pgbouncer:"`
+2. Confirm PgBouncer → Postgres uses verify-full TLS:
+   - `docker compose -f deploy/docker-compose.yaml config | rg "PGBOUNCER_SERVER_TLS_SSLMODE|PGBOUNCER_SERVER_TLS_CA_FILE"`
+3. Check the bouncer is healthy:
+   - `docker compose -f deploy/docker-compose.yaml exec pgbouncer pg_isready -h localhost`
+4. Transaction-mode constraints (verified absent from the codebase): no
+   `SET`/session state, no `LISTEN`/`NOTIFY`, no server-side prepared statements.
+   All psycopg connect sites set `prepare_threshold=None` to keep this guarantee —
+   do not remove that when editing `storage_core.py`, `storage_missions.py`, or
+   `migrations.py`.
+
+## Immutable Audit Log and Retention
+
+Audit tables (`mission_state_events`, `agent_runtime_events`,
+`agent_action_events`, `llm_usage_events`, `mission_audit_reports`) are
+append-only and tamper-evident:
+
+- **Immutability (V009):** `DELETE` is revoked from the application role on
+  `mission_audit_reports`, `agent_action_events`, and `llm_usage_events`. The
+  REVOKEs are wrapped in a `DO ... EXCEPTION WHEN insufficient_privilege` block,
+  so if the migration runs under a least-privileged role that cannot revoke,
+  boot does not fail — a DBA must then apply the REVOKEs out of band as a
+  superuser/owner:
+  - `REVOKE DELETE ON mission_audit_reports, agent_action_events, llm_usage_events FROM <app_role>;`
+- **Retention (V008):** `prune_audit_tables(retention_days)` is `SECURITY
+  DEFINER`, so it deletes aged rows with the owner's privileges even after the
+  REVOKE above. Default window is `AUDIT_RETENTION_DAYS` (90).
+- **Run retention:**
+  - `make prune-audit` (override with `RETENTION_DAYS=30 make prune-audit`)
+  - or `curl -X POST -H "x-api-key: $ORCHESTRATOR_ADMIN_API_KEY" "http://localhost:8101/v1/maintenance/prune-audit?retention_days=90"`
+- Schedule `make prune-audit` from cron/systemd-timer; it is idempotent and safe
+  to run repeatedly.
+
 ## Recovery Steps
 
 1. Restart stack:

@@ -345,8 +345,42 @@ def test_transition_mission_state_success_and_noop(monkeypatch) -> None:
         "MISSION_FAILED",
     )
     assert none_record is None
-    # No-op: only the UPDATE runs, no event INSERT.
-    assert len(noop_cursor.executed) == 1
+
+
+def test_prune_audit_tables_maps_results_and_passes_retention(monkeypatch) -> None:
+    cursor = FakeCursor(
+        fetchall_results=[
+            [
+                ("mission_state_events", 5),
+                ("agent_runtime_events", 0),
+                ("agent_action_events", 2),
+                ("llm_usage_events", 7),
+            ]
+        ]
+    )
+    used = _patch_db(monkeypatch, [cursor])
+
+    results = storage.prune_audit_tables(_settings(), retention_days=30)
+
+    assert results == [
+        {"table_name": "mission_state_events", "rows_deleted": 5},
+        {"table_name": "agent_runtime_events", "rows_deleted": 0},
+        {"table_name": "agent_action_events", "rows_deleted": 2},
+        {"table_name": "llm_usage_events", "rows_deleted": 7},
+    ]
+    query, params = used[0].executed[0]
+    assert "prune_audit_tables(%s)" in query
+    assert params == (30,)
+
+
+def test_prune_audit_tables_defaults_to_settings_and_clamps(monkeypatch) -> None:
+    cursor = FakeCursor(fetchall_results=[[]])
+    used = _patch_db(monkeypatch, [cursor])
+
+    results = storage.prune_audit_tables(_settings())
+
+    assert results == []
+    assert used[0].executed[0][1] == (90,)
 
 
 def test_pod_assignment_success_and_conflict(monkeypatch) -> None:

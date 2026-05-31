@@ -176,7 +176,14 @@ def check_compose_environment_profile_controls() -> AuditResult:
         missing_items.append("docker-compose missing redis tls client verification")
     if "ssl_cert_reqs=none" in compose_text:
         missing_items.append("docker-compose still allows redis insecure tls mode")
-    if "sslmode=verify-full" not in compose_text:
+    # verify-full TLS to Postgres is now terminated by the PgBouncer sidecar
+    # (PGBOUNCER_SERVER_TLS_SSLMODE: verify-full); the orchestrator->PgBouncer
+    # hop stays on the internal network. Accept either the legacy direct URL
+    # form (sslmode=verify-full) or the PgBouncer server-TLS form.
+    if (
+        "sslmode=verify-full" not in compose_text
+        and "pgbouncer_server_tls_sslmode: verify-full" not in compose_text
+    ):
         missing_items.append("docker-compose missing postgres verify-full wiring")
     if "./.local/postgres-certs" not in compose_text:
         missing_items.append("docker-compose missing postgres client/server cert mounts")
