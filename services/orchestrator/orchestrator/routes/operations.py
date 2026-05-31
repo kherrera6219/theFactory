@@ -19,7 +19,7 @@ from ..heartbeat_service import (
     _workload_for_agent,
 )
 from ..models import MissionRecord
-from ._deps import INTERNAL_AUTH_DEP
+from ._deps import INTERNAL_AUTH_DEP, MUTATION_AUTH_DEP
 
 LOGGER = logging.getLogger(__name__)
 
@@ -633,3 +633,33 @@ async def get_operations_alerts(
         blocked_completion_count=blocked_completion_count,
         limit=limit,
     )
+
+
+@router.post("/v1/maintenance/prune-audit")
+async def prune_audit(
+    request: Request,
+    retention_days: int | None = Query(default=None, ge=1, le=3650),
+    _: AuthContext = MUTATION_AUTH_DEP,
+) -> dict[str, Any]:
+    """Delete audit rows older than the retention window.
+
+    Invokes the SECURITY DEFINER ``prune_audit_tables()`` SQL function so it keeps
+    working after DELETE is revoked from the application role (immutable audit).
+    ``retention_days`` overrides the configured AUDIT_RETENTION_DAYS for this run.
+    """
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    effective_days = retention_days or app.state.settings.audit_retention_days
+    results = await asyncio.to_thread(
+        storage.prune_audit_tables,
+        app.state.settings,
+        effective_days,
+    )
+    return {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "retention_days": effective_days,
+        "total_rows_deleted": sum(int(item["rows_deleted"]) for item in results),
+        "tables": results,
+    }

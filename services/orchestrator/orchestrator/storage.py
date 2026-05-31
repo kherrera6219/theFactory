@@ -24,6 +24,7 @@ from .storage_agents import (
     list_mission_agent_action_events,
     list_project_agent_action_events,
     list_recent_agent_events,
+    prune_audit_tables,
     upsert_agent_heartbeat,
 )
 from .storage_artifacts import (
@@ -142,4 +143,5 @@ __all__ = [
     "insert_agent_action_event",
     "list_mission_agent_action_events",
     "list_project_agent_action_events",
+    "prune_audit_tables",
 ]

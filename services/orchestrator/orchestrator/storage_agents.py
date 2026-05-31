@@ -615,3 +615,19 @@ def list_project_agent_action_events(
             )
             rows = cur.fetchall()
     return [_row_to_agent_action_event(row) for row in rows]
+
+
+def prune_audit_tables(settings: Settings, retention_days: int | None = None) -> list[dict[str, Any]]:
+    """Delete audit rows older than the retention window via prune_audit_tables().
+
+    Calls the SECURITY DEFINER SQL function (migration V008) so retention keeps
+    working even after V009 revokes DELETE on the audit tables from the app role.
+    Returns one ``{"table_name", "rows_deleted"}`` entry per audit table.
+    """
+    days = retention_days if retention_days is not None else settings.audit_retention_days
+    days = max(1, int(days))
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT table_name, rows_deleted FROM prune_audit_tables(%s)", (days,))
+            rows = cur.fetchall()
+    return [{"table_name": str(row[0]), "rows_deleted": int(row[1])} for row in rows]
