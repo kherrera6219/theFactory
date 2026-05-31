@@ -1,6 +1,6 @@
 import { execSync } from "child_process";
 import path from "path";
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { setupTray } from "./tray";
 import { setupUpdater } from "./updater";  // version IPC only — auto-update disabled
 import { installCrashHandlers, generateDiagnostics } from "./diagnostics";
@@ -56,6 +56,23 @@ function createWindow(): void {
     : `file://${path.join(__dirname, "../out/index.html")}`;
 
   void mainWindow.loadURL(appUrl);
+
+  // Security — keep external URLs out of the app window. Anything that isn't a
+  // localhost dev URL or the local file:// bundle opens in the system browser.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (!url.startsWith("http://localhost") && !url.startsWith("file://")) {
+      void shell.openExternal(url);
+      return { action: "deny" };
+    }
+    return { action: "allow" };
+  });
+
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!url.startsWith("http://localhost") && !url.startsWith("file://")) {
+      event.preventDefault();
+      void shell.openExternal(url);
+    }
+  });
 
   // Open DevTools in dev mode.
   if (isDev) {
