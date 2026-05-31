@@ -25,9 +25,9 @@ from jsonschema import Draft202012Validator
 from jsonschema import ValidationError as JSONSchemaValidationError
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "services" / "semantic-bus-mcp"))
+sys.path.insert(0, str(ROOT / "services" / "protocol-bus-mcp"))
 
-from semantic_bus.mcp_server import EventEnvelope, _validate_protocol_payload  # noqa: E402
+from protocol_bus.mcp_server import EventEnvelope, _validate_protocol_payload  # noqa: E402
 
 from shared_runtime.protocol import ProtocolValidationError, validate_envelope  # noqa: E402
 
@@ -98,7 +98,7 @@ def _envelope_for(protocol: str) -> EventEnvelope:
             "event_id": f"evt-{protocol}",
             "topic": f"protocol.{protocol}.event",
             "timestamp": "2026-03-01T00:00:00+00:00",
-            "producer": "semantic-bus-mcp",
+            "producer": "protocol-bus-mcp",
             "correlation_id": f"corr-{protocol}",
             "payload_ref": f"registry://protocol/{protocol}/payload",
             "schema": f"protocol.{protocol}.v1",

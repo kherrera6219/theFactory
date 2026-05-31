@@ -505,19 +505,20 @@ class TestGoHaskellOcamlSpecialists:
         self, agent_id: str, label: str
     ) -> None:
         from orchestrator.agent_personas import (
-            _LANGUAGE_LABELS,
-            _LANGUAGE_TOOLING,
+            LANGUAGE_PERSONAS,
             build_agent_system_prompt,
+            get_language_label,
+            get_language_tooling,
         )
 
         definition = next(d for d in AGENT_REGISTRY if d.agent_id == agent_id)
         language_key = definition.specialties[0]
         # Language label and tooling must be registered (not generic fallbacks).
-        assert _LANGUAGE_LABELS[language_key] == label
-        assert language_key in _LANGUAGE_TOOLING
+        assert get_language_label(language_key) == label
+        assert language_key in LANGUAGE_PERSONAS
         prompt = build_agent_system_prompt(definition)
         assert label in prompt
-        assert _LANGUAGE_TOOLING[language_key] in prompt
+        assert get_language_tooling(language_key) in prompt
 
 
 # ---------------------------------------------------------------------------
