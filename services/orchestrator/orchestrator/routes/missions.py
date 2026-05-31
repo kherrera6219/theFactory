@@ -18,7 +18,7 @@ from ..models import (
     MissionStateUpdate,
 )
 from ..project_identity import resolve_project_id, with_project_identity
-from ._deps import INTERNAL_AUTH_DEP, MUTATION_AUTH_DEP
+from ._deps import INTERNAL_AUTH_DEP, MUTATION_AUTH_DEP, READ_AUTH_DEP
 
 LOGGER = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ async def create_mission(
     return record
 
 
-@router.get("/missions/{mission_id}")
+@router.get("/missions/{mission_id}", dependencies=[READ_AUTH_DEP])
 async def get_mission(request: Request, mission_id: str) -> MissionRecord:
     import orchestrator.main as _main
 
@@ -113,7 +113,7 @@ async def get_mission(request: Request, mission_id: str) -> MissionRecord:
     return await _main._fetch_existing_mission(app, mission_id)
 
 
-@router.get("/missions")
+@router.get("/missions", dependencies=[READ_AUTH_DEP])
 async def list_missions(
     request: Request,
     limit: int = Query(default=20, ge=1, le=200),
@@ -125,7 +125,7 @@ async def list_missions(
     return await asyncio.to_thread(storage.list_missions, app.state.settings, limit)
 
 
-@router.get("/missions/{mission_id}/events")
+@router.get("/missions/{mission_id}/events", dependencies=[READ_AUTH_DEP])
 async def get_mission_events(
     request: Request,
     mission_id: str,
