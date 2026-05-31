@@ -16,10 +16,20 @@ sys.path.insert(0, str(ROOT / "services" / "semantic-bus-mcp"))
 mcp_main = importlib.import_module("semantic_bus.mcp_server")
 app = mcp_main.app
 
+from shared_runtime import protocol as protocol_guard  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_replay_guard():
+    protocol_guard.reset_replay_guard()
+    yield
+    protocol_guard.reset_replay_guard()
+
 
 class FakeRedis:
     def __init__(self) -> None:
         self.streams: dict[str, list[tuple[str, dict[str, str]]]] = {}
+        self._kv: dict[str, str] = {}
         self.raise_on_ping: Exception | None = None
         self.raise_on_stream: str | None = None
 
@@ -27,6 +37,22 @@ class FakeRedis:
         if self.raise_on_ping is not None:
             raise self.raise_on_ping
         return True
+
+    async def set(
+        self,
+        key: str,
+        value: str,
+        *,
+        nx: bool = False,
+        ex: int | None = None,
+    ) -> bool | None:
+        if nx and key in self._kv:
+            return None
+        self._kv[key] = value
+        return True
+
+    async def xlen(self, stream: str) -> int:
+        return len(self.streams.get(stream, []))
 
     async def xadd(
         self,
