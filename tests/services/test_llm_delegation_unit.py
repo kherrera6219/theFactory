@@ -5,12 +5,26 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
 llm_delegation = importlib.import_module("orchestrator.llm_delegation")
 agent_integrations = importlib.import_module("orchestrator.agent_integrations")
+
+
+@pytest.fixture(autouse=True)
+def _reset_circuit_breakers():
+    """Ensure each test starts with a closed circuit breaker.
+
+    The breaker state is module-global; without this reset, consecutive
+    failures recorded by earlier tests would leave the circuit open and
+    silently reroute LLM-path tests to the fallback provider.
+    """
+    llm_delegation.reset_circuit_breakers()
+    yield
+    llm_delegation.reset_circuit_breakers()
 
 
 def test_extract_decision_payload_parses_json_block() -> None:
