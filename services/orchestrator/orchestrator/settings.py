@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import socket
 from dataclasses import dataclass
@@ -166,13 +167,30 @@ def load_settings() -> Settings:
     readonly_key = os.getenv("ORCHESTRATOR_READONLY_API_KEY", "")
     internal_key = os.getenv("INTERNAL_SERVICE_API_KEY", "")
     extra_keys = os.getenv("ORCHESTRATOR_API_KEYS", "")
-    if os.getenv("ENVIRONMENT", "").strip().lower() == "production":
+    is_production = os.getenv("ENVIRONMENT", "development").strip().lower() == "production"
+    if is_production:
         if not any([admin_key, readonly_key, internal_key, extra_keys.strip()]):
             raise RuntimeError(
                 "ENVIRONMENT=production requires at least one of "
                 "ORCHESTRATOR_ADMIN_API_KEY, ORCHESTRATOR_READONLY_API_KEY, "
                 "INTERNAL_SERVICE_API_KEY, or ORCHESTRATOR_API_KEYS to be set"
             )
+
+    # langgraph_fail_open lets the LangGraph engine fall back to the legacy path
+    # on error. Convenient in development, but in production a silent fallback can
+    # mask a broken graph, so default to fail-closed there. An explicit env var
+    # still wins in either direction.
+    _langgraph_fail_open_default = "false" if is_production else "true"
+    _langgraph_fail_open = _as_bool(
+        os.getenv("LANGGRAPH_FAIL_OPEN", _langgraph_fail_open_default),
+        not is_production,
+    )
+    if is_production and _langgraph_fail_open:
+        logging.getLogger(__name__).warning(
+            "LANGGRAPH_FAIL_OPEN=true in production — LangGraph errors will "
+            "silently fall back to the legacy engine instead of failing the "
+            "mission. Set LANGGRAPH_FAIL_OPEN=false for fail-closed behavior."
+        )
 
     return Settings(
         redis_url=os.getenv("REDIS_URL", "redis://redis:6379/0"),
@@ -264,7 +282,7 @@ def load_settings() -> Settings:
             os.getenv("OBJECT_STORAGE_REQUIRE_TLS", "false"), False
         ),
         langgraph_enabled=_as_bool(os.getenv("LANGGRAPH_ENABLED", "false"), False),
-        langgraph_fail_open=_as_bool(os.getenv("LANGGRAPH_FAIL_OPEN", "true"), True),
+        langgraph_fail_open=_langgraph_fail_open,
         langgraph_checkpointer=os.getenv("LANGGRAPH_CHECKPOINTER", "none").strip().lower()
         or "none",
         langgraph_thread_prefix=os.getenv("LANGGRAPH_THREAD_PREFIX", "mission").strip()
