@@ -175,6 +175,20 @@ jobs:
             echo "AUTH_MODE=api_key"
             echo "KNOWLEDGE_EMBEDDING_PROVIDER=deterministic"
             echo "KNOWLEDGE_EMBEDDING_MODEL=deterministic-hash-v1"
+            # .env.example points MIGRATION_POSTGRES_URL's sslrootcert at the
+            # host path (deploy/.local/...), which does not exist inside the
+            # orchestrator container (certs are mounted at /run/postgres-certs).
+            # The wrong path makes every schema-migration connection fail, so
+            # db_ready never flips true and each /health probe re-runs the
+            # failing migration until the 3s healthcheck times out. Override
+            # with the in-container cert path so migrations succeed.
+            echo "MIGRATION_POSTGRES_URL=postgresql://postgres:ci_dev_postgres_password_0123456789ab@postgres:5432/ulr?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt"
+            # protocol-bus-mcp is not part of the perf-smoke stack; keep the
+            # optional consumer off so it never adds startup work in CI.
+            echo "PROTOCOL_BUS_CONSUMER_ENABLED=false"
+            # jaeger is absent from the perf-smoke stack; disabling tracing
+            # skips the per-/health socket probe to jaeger:4318.
+            echo "OTEL_TRACING_ENABLED=false"
           } >> .env
           cp .env deploy/.env
 

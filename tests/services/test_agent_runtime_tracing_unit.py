@@ -32,8 +32,9 @@ def _install_fake_otel(monkeypatch, *, fail_fastapi: bool = False, fail_httpx: b
     provider_state = {"provider": object(), "fastapi_calls": [], "httpx_calls": 0}
 
     class FakeTracerProvider:
-        def __init__(self, *, resource):
+        def __init__(self, *, resource, **kwargs):
             self.resource = resource
+            self.kwargs = kwargs
             self.processors = []
 
         def add_span_processor(self, processor):
@@ -42,6 +43,14 @@ def _install_fake_otel(monkeypatch, *, fail_fastapi: bool = False, fail_httpx: b
     class FakeBatchSpanProcessor:
         def __init__(self, exporter):
             self.exporter = exporter
+
+    class FakeTraceIdRatioBased:
+        def __init__(self, ratio):
+            self.ratio = ratio
+
+    class FakeParentBased:
+        def __init__(self, *, root):
+            self.root = root
 
     class FakeOTLPSpanExporter:
         def __init__(self, *, endpoint):
@@ -96,6 +105,7 @@ def _install_fake_otel(monkeypatch, *, fail_fastapi: bool = False, fail_httpx: b
         "opentelemetry.sdk.resources": ModuleType("opentelemetry.sdk.resources"),
         "opentelemetry.sdk.trace": ModuleType("opentelemetry.sdk.trace"),
         "opentelemetry.sdk.trace.export": ModuleType("opentelemetry.sdk.trace.export"),
+        "opentelemetry.sdk.trace.sampling": ModuleType("opentelemetry.sdk.trace.sampling"),
     }
     modules["opentelemetry"].trace = trace_module
     modules["opentelemetry.exporter.otlp.proto.http.trace_exporter"].OTLPSpanExporter = (
@@ -108,6 +118,8 @@ def _install_fake_otel(monkeypatch, *, fail_fastapi: bool = False, fail_httpx: b
     modules["opentelemetry.sdk.resources"].Resource = FakeResource
     modules["opentelemetry.sdk.trace"].TracerProvider = FakeTracerProvider
     modules["opentelemetry.sdk.trace.export"].BatchSpanProcessor = FakeBatchSpanProcessor
+    modules["opentelemetry.sdk.trace.sampling"].ParentBased = FakeParentBased
+    modules["opentelemetry.sdk.trace.sampling"].TraceIdRatioBased = FakeTraceIdRatioBased
     for name, module in modules.items():
         monkeypatch.setitem(sys.modules, name, module)
     return provider_state

@@ -390,12 +390,15 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=2).read()",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=4).read()",
         ]
       interval: 10s
-      timeout: 3s
+      timeout: 6s
       retries: 5
-      start_period: 30s
+      # First boot runs schema migrations and primes the connection pool before
+      # /health reports db_ready; give that work room on cold CI runners so the
+      # probe does not flap before the orchestrator finishes initializing.
+      start_period: 60s
     read_only: true
     tmpfs:
       - /tmp
