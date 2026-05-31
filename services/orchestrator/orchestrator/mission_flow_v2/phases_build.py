@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from .. import build_artifacts as build_artifact_support
+from .. import knowledge_lake
 from ..agent_scaling import (
     compute_scaling_decision,
     embed_scaling_decision,
@@ -312,6 +313,21 @@ async def _prepare_specialist_plan(
             or mission.requested_target_language
             or "python"
         )
+        # Knowledge Lake retrieval (Phase 2): inject documentation context the
+        # IS-Agent stocked during FETCH into the specialist codegen prompt.
+        knowledge_context = await asyncio.to_thread(
+            knowledge_lake.get_language_context,
+            settings=settings,
+            language=_target_lang,
+        )
+        if knowledge_context:
+            _codegen_context["knowledge_context"] = knowledge_context
+            LOGGER.info(
+                "Injected Knowledge Lake context for mission %s language=%s (%d chars)",
+                mission_id,
+                _target_lang,
+                len(knowledge_context),
+            )
         generated_output = await _pkg().generate_code_from_contract(
             mission_context=_codegen_context,
             specialist_agent_id=specialist_agent_id,

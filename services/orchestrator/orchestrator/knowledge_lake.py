@@ -1,15 +1,26 @@
-"""knowledge_lake.py — Qdrant-backed semantic query layer for the Knowledge Lake.
+"""knowledge_lake.py — PostgreSQL-backed query layer for the Knowledge Lake.
 
-Provides the high-level interface used by the IS Agent and pod workers to
-query documentation context from Qdrant.  The low-level Qdrant I/O lives in
-``qdrant_store.py``; this module adds:
+PostgreSQL (``mission_knowledge`` table) is the single source of truth: the IS
+Agent writes bootstrap/attachment docs there via ``storage.upsert_knowledge``,
+and the query functions in this module read them back via
+``storage.list_knowledge``.  This closes the historical write/read split where
+IS-Agent wrote to PostgreSQL but the query layer read from Qdrant (a separate,
+never-synced store).
 
-- ``query_documentation`` — semantic similarity search over indexed docs
-- ``is_stocked``          — check whether a language's bootstrap docs exist
-- ``index_documentation`` — upsert a documentation chunk with embedding
-- ``get_language_context`` — convenience wrapper returning merged text for extraction
+Qdrant is reserved for semantic similarity search: when a real embedding is
+available (``KNOWLEDGE_EMBEDDING_PROVIDER`` set to ``gemini`` or ``openai``)
+``index_documentation`` ALSO writes to Qdrant so vector search can be layered
+on later.  When no provider is configured, PostgreSQL keyword search is the
+only retrieval path.
 
-All functions are safe to call when Qdrant is unavailable — they return
+- ``query_documentation`` — keyword search over indexed docs (PostgreSQL),
+  with optional Qdrant vector pre-search when embeddings are configured
+- ``is_stocked``          — check whether a mission has knowledge entries
+- ``index_documentation`` — upsert a documentation chunk (PostgreSQL + Qdrant)
+- ``get_language_context`` — merged text for prompt injection (PostgreSQL)
+- ``embed_text``          — configurable real-embedding helper
+
+All functions are safe to call when storage is unavailable — they return
 empty/False results and log a warning rather than raising.
 """
 from __future__ import annotations
@@ -18,7 +29,10 @@ import logging
 from typing import Any
 from urllib.request import urlopen  # noqa: S310 — patched in tests; only http/https used
 
-from .qdrant_store import list_knowledge, upsert_knowledge
+# PostgreSQL is the source of truth for knowledge reads/writes. ``list_knowledge``
+# and ``upsert_knowledge`` are re-exported into this module's namespace so the
+# query functions below resolve them as module globals (tests patch them here).
+from .storage import list_knowledge, upsert_knowledge
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,20 +47,35 @@ _MAX_CONTEXT_CHARS = 8_000
 # Public API
 # ---------------------------------------------------------------------------
 
-def is_stocked(*, settings: Any, language: str) -> bool:
-    """Return True if bootstrap documentation for *language* is indexed in Qdrant."""
-    if not _qdrant_enabled(settings):
-        return False
-    knowledge_id = f"docs.{language.strip().lower()}.bootstrap"
+def is_stocked(
+    *,
+    settings: Any,
+    mission_id: str | None = None,
+    language: str | None = None,
+) -> bool:
+    """Return True if the Knowledge Lake has entries for the given scope.
+
+    Reads from PostgreSQL (``mission_knowledge``).  When *language* is provided,
+    checks the global lake for that language's bootstrap doc.  When only
+    *mission_id* is provided, checks whether the mission has any knowledge rows.
+    """
+    scope_id = _KNOWLEDGE_LAKE_ID if language else (mission_id or _KNOWLEDGE_LAKE_ID)
     try:
-        records = list_knowledge(settings, _KNOWLEDGE_LAKE_ID, limit=50)
+        records = list_knowledge(settings, scope_id, limit=50)
+    except Exception as exc:
+        LOGGER.warning(
+            "knowledge_lake.is_stocked error for mission=%s language=%s: %s",
+            mission_id, language, exc,
+        )
+        return False
+
+    if language:
+        knowledge_id = f"docs.{language.strip().lower()}.bootstrap"
         return any(
             isinstance(r, dict) and r.get("knowledge_id") == knowledge_id
             for r in records
         )
-    except Exception as exc:
-        LOGGER.warning("knowledge_lake.is_stocked error for %s: %s", language, exc)
-        return False
+    return any(isinstance(r, dict) for r in records)
 
 
 def query_documentation(
@@ -61,26 +90,27 @@ def query_documentation(
     Returns a list of matching records ordered by relevance (descending).
     Each record: ``{"knowledge_id": str, "content": dict, "score": float}``.
 
-    Falls back to a scroll-based keyword filter when Qdrant vector search is
+    Falls back to a PostgreSQL keyword filter when Qdrant vector search is
     unavailable or returns no results.
     """
-    if not _qdrant_enabled(settings):
-        return []
-
     language_key = language.strip().lower()
     concept_key = concept.strip().lower()
 
-    # Attempt vector similarity search first
-    results = _vector_search(
-        settings=settings,
-        language_key=language_key,
-        concept_key=concept_key,
-        top_k=top_k,
-    )
-    if results:
-        return results
+    # Attempt vector similarity search first, but only when a real embedding
+    # provider is configured AND Qdrant is enabled — otherwise the vectors are
+    # deterministic hashes and similarity is meaningless, so skip straight to
+    # PostgreSQL keyword search.
+    if _semantic_search_enabled(settings):
+        results = _vector_search(
+            settings=settings,
+            language_key=language_key,
+            concept_key=concept_key,
+            top_k=top_k,
+        )
+        if results:
+            return results
 
-    # Fallback: scroll global knowledge lake and score by keyword overlap
+    # PostgreSQL keyword search over the global knowledge lake.
     return _keyword_search(
         settings=settings,
         language_key=language_key,
@@ -98,11 +128,13 @@ def index_documentation(
 ) -> bool:
     """Upsert a documentation chunk into the Knowledge Lake.
 
-    Returns True on success, False on failure.
-    """
-    if not _qdrant_enabled(settings):
-        return False
+    PostgreSQL is the source of truth, so the chunk is always written there.
+    When a real embedding provider is configured AND Qdrant is enabled, the
+    same chunk is also mirrored to Qdrant for semantic similarity search.
 
+    Returns True when the PostgreSQL write succeeds, False on failure. The
+    Qdrant mirror is best-effort and never fails the call.
+    """
     language_key = language.strip().lower()
     library_key = library.strip().lower().replace(" ", "_")
     knowledge_id = f"docs.{language_key}.{library_key}"
@@ -118,16 +150,16 @@ def index_documentation(
         "combined_text": content,
         "hash": content_hash,
     }
+    created_at = datetime.now(UTC).isoformat()
     try:
         upsert_knowledge(
             settings,
             _KNOWLEDGE_LAKE_ID,
             knowledge_id,
             payload,
-            datetime.now(UTC).isoformat(),
+            created_at,
         )
         LOGGER.debug("knowledge_lake.index_documentation: upserted %s", knowledge_id)
-        return True
     except Exception as exc:
         LOGGER.warning(
             "knowledge_lake.index_documentation failed for %s/%s: %s",
@@ -135,17 +167,22 @@ def index_documentation(
         )
         return False
 
+    _mirror_to_qdrant(
+        settings=settings,
+        knowledge_id=knowledge_id,
+        payload=payload,
+        created_at=created_at,
+    )
+    return True
+
 
 def get_language_context(*, settings: Any, language: str) -> str | None:
     """Return merged documentation text for *language* suitable for prompt injection.
 
-    Queries the global Knowledge Lake for bootstrap docs of the target language
-    and returns a truncated string.  Returns None when nothing is indexed or
-    Qdrant is unavailable.
+    Queries the global Knowledge Lake (PostgreSQL ``mission_knowledge``) for
+    bootstrap docs of the target language and returns a truncated string.
+    Returns None when nothing is indexed or storage is unavailable.
     """
-    if not _qdrant_enabled(settings):
-        return None
-
     language_key = language.strip().lower()
     knowledge_id = f"docs.{language_key}.bootstrap"
 
@@ -252,6 +289,85 @@ def broadcast_knowledge_ready(
 
 def _qdrant_enabled(settings: Any) -> bool:
     return bool(getattr(settings, "qdrant_enabled", False))
+
+
+def _embedding_provider(settings: Any) -> str:
+    """Return the configured embedding provider, normalized to lower-case.
+
+    ``none`` and the legacy ``deterministic`` value both mean "no real
+    embeddings" — only ``gemini`` / ``openai`` produce semantically meaningful
+    vectors worth indexing in Qdrant.
+    """
+    provider = str(
+        getattr(settings, "knowledge_embedding_provider", "none") or "none"
+    ).strip().lower()
+    return provider
+
+
+def _semantic_search_enabled(settings: Any) -> bool:
+    """True only when a real embedding provider AND Qdrant are both available."""
+    return _qdrant_enabled(settings) and _embedding_provider(settings) in {"gemini", "openai"}
+
+
+async def embed_text(text: str, settings: Any) -> list[float] | None:
+    """Return a real embedding vector for *text*, or None when unavailable.
+
+    Provider is selected by ``KNOWLEDGE_EMBEDDING_PROVIDER``:
+
+    - ``gemini`` → Gemini embedding API
+    - ``openai`` → OpenAI embedding API
+    - ``none`` / ``deterministic`` (default) → returns None (Qdrant indexing is
+      skipped and callers fall back to PostgreSQL keyword search)
+
+    Network calls are delegated to ``knowledge_embeddings`` and run in a thread
+    so this coroutine never blocks the event loop. Returns None on any failure.
+    """
+    provider = _embedding_provider(settings)
+    if provider not in {"gemini", "openai"}:
+        return None
+
+    cleaned = str(text or "").strip()
+    if not cleaned:
+        return None
+
+    vector_size = int(getattr(settings, "qdrant_vector_size", 64) or 64)
+    try:
+        import asyncio
+
+        from .knowledge_embeddings import _gemini_embedding, _openai_embedding
+
+        embed_fn = _gemini_embedding if provider == "gemini" else _openai_embedding
+        vector = await asyncio.to_thread(
+            embed_fn, settings, text=cleaned, dimensions=vector_size
+        )
+        return vector or None
+    except Exception as exc:
+        LOGGER.warning("knowledge_lake.embed_text (%s) failed: %s", provider, exc)
+        return None
+
+
+def _mirror_to_qdrant(
+    *,
+    settings: Any,
+    knowledge_id: str,
+    payload: dict[str, Any],
+    created_at: str,
+) -> None:
+    """Best-effort mirror of a knowledge chunk to Qdrant for semantic search.
+
+    Only runs when a real embedding provider is configured and Qdrant is
+    enabled. Never raises — Qdrant is a secondary index, not the source of
+    truth, so a mirror failure must not fail the PostgreSQL write.
+    """
+    if not _semantic_search_enabled(settings):
+        return
+    try:
+        from .qdrant_store import upsert_knowledge as qdrant_upsert
+
+        qdrant_upsert(settings, _KNOWLEDGE_LAKE_ID, knowledge_id, payload, created_at)
+        LOGGER.debug("knowledge_lake: mirrored %s to Qdrant", knowledge_id)
+    except Exception as exc:
+        LOGGER.warning("knowledge_lake: Qdrant mirror failed for %s: %s", knowledge_id, exc)
 
 
 def _mcp_url(settings: Any) -> str | None:

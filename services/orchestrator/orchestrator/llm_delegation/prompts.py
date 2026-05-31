@@ -6,6 +6,7 @@ from typing import Any
 from ..hw_agent import build_hw_context_block
 from .text import (
     _clean_text,
+    _format_knowledge_context,
     _format_upstream_risks,
     _format_upstream_style,
     _language_context,
@@ -342,6 +343,7 @@ def _build_codegen_prompt(
         if isinstance(node, dict):
             logicnode_lines.append(_clean_text(json.dumps(node, sort_keys=True), max_length=220))
     risk_context = _format_upstream_risks(mission_context)
+    knowledge_context = _format_knowledge_context(mission_context.get("knowledge_context"))
     hw_context = build_hw_context_block(
         mission_type=str(mission_context.get("mission_type") or "BUILD_NEW"),
         language=target_language,
@@ -380,6 +382,7 @@ def _build_codegen_prompt(
         f"Mission: {contract_summary}\n"
         f"Target language: {_clean_text(target_language, max_length=32)}\n"
         f"{_language_context(target_language)}"
+        f"{knowledge_context}"
         f"{risk_context}"
         f"{hw_context}"
         f"{port_source_context}"
