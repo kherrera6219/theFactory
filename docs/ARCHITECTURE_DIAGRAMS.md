@@ -20,7 +20,7 @@ For the detailed runtime, identity, approval, artifact, and telemetry flows, see
 | Container view | Shows the main runtime services and relationships inside the platform |
 | Mission lifecycle state view | Shows canonical mission-state progression and the optional v2 path |
 | Mission runtime sequence | Shows the end-to-end mission execution path |
-| Multi-agent topology view | Shows the 38-agent hierarchy and delegation structure |
+| Multi-agent topology view | Shows the 41-agent hierarchy and delegation structure |
 | Data and knowledge plane view | Shows streams, persistence, vector stores, graph store, and artifacts |
 | Deployment profile view | Shows the base stack and overlay-based runtime modes |
 | Security and trust-boundary view | Shows auth boundaries, service keys, and TLS-protected internal paths |

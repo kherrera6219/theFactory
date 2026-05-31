@@ -21,7 +21,7 @@ SCALING_VERSION: Final[str] = "v1"
 # Hard ceiling — never spawn more than this regardless of config.
 ABSOLUTE_MAX_INSTANCES: Final[int] = 8
 
-# Specialist agent IDs that support scaling (all 16 coding agents).
+# Specialist agent IDs that support scaling (all 19 coding agents).
 SCALABLE_AGENT_IDS: Final[frozenset[str]] = frozenset(
     {
         # Pod A — dynamic languages

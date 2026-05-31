@@ -190,8 +190,8 @@ test.describe("Settings and vault", () => {
 // ─── Test suite: agents grid ──────────────────────────────────────────────────
 
 test.describe("Agents registry view", () => {
-  test("agents page renders all 38 agents without error", async ({ page }) => {
-    const mockAgents = Array.from({ length: 38 }, (_, i) => ({
+  test("agents page renders all 41 agents without error", async ({ page }) => {
+    const mockAgents = Array.from({ length: 41 }, (_, i) => ({
       agent_id: `AGENT-${String(i + 1).padStart(2, "0")}-TEST`,
       state: "idle",
       queue_depth: 0,

@@ -41,7 +41,7 @@ A change is done only when every applicable item below is satisfied for the modi
 ## 5. Runtime Topology
 
 - [ ] Runtime/topology assertions remain accurate for the shipped default topology
-- [ ] No UI or docs imply all 38 agents are isolated processes unless the dedicated profile is active
+- [ ] No UI or docs imply all 41 agents are isolated processes unless the dedicated profile is active
 - [ ] Heartbeat/runtime metadata remains accurate and tested when changed
 
 ## 6. Security

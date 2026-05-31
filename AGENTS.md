@@ -29,7 +29,7 @@ It accepts a natural-language mission and delivers working software through a fu
 The 41-agent registry exists in code. The deployed default is condensed.
 The `full-dedicated-agents` Compose profile provides per-language isolated containers.
 
-> Never assume all 38 agents are real isolated processes. Check `AGENT_AUTOFILL_NON_POD_HEARTBEATS`
+> Never assume all 41 agents are real isolated processes. Check `AGENT_AUTOFILL_NON_POD_HEARTBEATS`
 > to know whether non-pod agent heartbeats are synthesized.
 
 ## 3. Lifecycle Engine
@@ -181,6 +181,6 @@ The pod-worker extracts concepts from source code using regex by default. Three 
 | `services/orchestrator/orchestrator/mission_flow_v2.py` | High | 3004 lines — primary runtime path. Intelligence layer completions (Sprint 2) go here. |
 | `services/orchestrator/orchestrator/main.py` | High | ~926 lines. Heartbeat synthesis extracted to `heartbeat_service.py`; knowledge_lake_refresh_loop added (Sprint 2 item complete). |
 | `services/orchestrator/orchestrator/runtime.py` | Medium | Delegates engine selection to `lifecycle_interface.py` via `get_lifecycle_engine()` factory. |
-| `services/orchestrator/orchestrator/agent_registry.py` | Medium | Source of truth for all 38 agent definitions |
+| `services/orchestrator/orchestrator/agent_registry.py` | Medium | Source of truth for all 41 agent definitions |
 
 See `docs/codex/DEFINITION_OF_DONE.md` and `docs/codex/REVIEW_CHECKLIST.md` for change gates.

@@ -29,7 +29,7 @@ Define the supported compose overlay set for local development, staging qualific
 ## Overlay Notes
 
 - `deploy/docker-compose.full-dedicated-agents.yaml` is a topology expansion overlay, not a separate environment tier.
-- The current overlay isolates PM, CEO, support-ring roles, pod-audit roles, and all specialist services across the full 38-agent runtime topology.
+- The current overlay isolates PM, CEO, support-ring roles, pod-audit roles, and all specialist services across the full 41-agent runtime topology.
 - After regenerating local TLS certificates or changing cert mount paths, recreate affected containers so Docker does not keep stale bind mounts from an earlier compose revision.
 
 ## Security Baseline

@@ -59,7 +59,7 @@ Audience: Operators, maintainers, and on-call responders
 
 1. Check runtime snapshot includes all agents:
    - `curl -H "x-api-key: operator-key" http://localhost:8100/v1/operations/agents | jq ".total_agents"`
-   - expected: `38`
+   - expected: `41`
 2. Validate persona profile object exists:
    - `curl -H "x-api-key: operator-key" http://localhost:8100/v1/operations/agents | jq ".agents[0].persona_profile | keys"`
 3. Validate standards/evidence extension fields:
@@ -112,7 +112,7 @@ Audience: Operators, maintainers, and on-call responders
 6. Verify dedicated worker consumer groups exist after startup or Redis restart:
    - `docker exec deploy-orchestrator-1 python -c "import os, redis; r=redis.Redis.from_url(os.environ['REDIS_URL'], decode_responses=True); print(r.xinfo_groups('missions.state'))"`
 7. Current dedicated coverage note:
-   - The overlay now provisions dedicated PM/CEO/support/pod-audit containers plus specialist workers across the full 38-agent runtime, including Go, Haskell, and OCaml.
+   - The overlay now provisions dedicated PM/CEO/support/pod-audit containers plus specialist workers across the full 41-agent runtime, including Go, Haskell, and OCaml.
 
 ## Redis TLS Checks
 
