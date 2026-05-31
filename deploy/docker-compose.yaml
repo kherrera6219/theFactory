@@ -192,6 +192,7 @@ services:
       MIN_POOL_SIZE: 5
       RESERVE_POOL_SIZE: 5
       RESERVE_POOL_TIMEOUT: 5
+      AUTH_TYPE: scram-sha-256
       # PgBouncer -> Postgres uses verify-full TLS against the same CA the
       # orchestrator used for its previous direct connection, so the bouncer hop
       # does not weaken transport security to the real database. The orchestrator
