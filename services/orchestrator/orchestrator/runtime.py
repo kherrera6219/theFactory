@@ -414,6 +414,128 @@ async def ensure_consumer_group(settings: Settings, redis_client: Any) -> None:
             raise
 
 
+def _owned_consumer_groups(settings: Settings) -> tuple[tuple[str, str], ...]:
+    """Stream/consumer-group pairs the orchestrator owns and is responsible for reaping.
+
+    DLQ streams (``factory:dlq:*``) are intentionally excluded — they are
+    unidirectional and have no consumer groups to reap.
+    """
+    return ((settings.intake_stream, settings.consumer_group),)
+
+
+def _consumer_field(consumer: Any, key: str, default: Any) -> Any:
+    if isinstance(consumer, dict):
+        if key in consumer:
+            return consumer[key]
+        return consumer.get(key.encode(), default)
+    return default
+
+
+async def _reap_group(
+    settings: Settings,
+    redis_client: Any,
+    stream: str,
+    group: str,
+) -> None:
+    try:
+        consumers = await redis_client.xinfo_consumers(stream, group)
+    except ResponseError as exc:
+        # Group/stream may not exist yet (e.g. before first intake); nothing to reap.
+        if "NOGROUP" in str(exc) or "no such key" in str(exc).lower():
+            return
+        raise
+
+    current_consumer = settings.consumer_name
+    for consumer in consumers or []:
+        name = _consumer_field(consumer, "name", "")
+        if isinstance(name, bytes):
+            name = name.decode()
+        name = str(name)
+        idle = int(_consumer_field(consumer, "idle", 0) or 0)
+        pending = int(_consumer_field(consumer, "pending", 0) or 0)
+
+        if idle <= settings.stale_consumer_idle_ms:
+            continue
+        if name == current_consumer:
+            # Never reap the consumer this process is actively using.
+            continue
+
+        if pending > 0:
+            # Reassign the dead consumer's pending entries to the live consumer so
+            # they get reprocessed, then drop the stale consumer.
+            try:
+                await redis_client.xautoclaim(
+                    stream,
+                    group,
+                    current_consumer,
+                    min_idle_time=settings.stale_consumer_idle_ms,
+                    start_id="0-0",
+                )
+            except ResponseError as exc:
+                LOGGER.warning(
+                    "xautoclaim failed for stale consumer %s on %s/%s: %s",
+                    name,
+                    stream,
+                    group,
+                    exc,
+                )
+                continue
+
+        try:
+            await redis_client.xgroup_delconsumer(stream, group, name)
+        except ResponseError as exc:
+            LOGGER.warning(
+                "failed to delete stale consumer %s on %s/%s: %s",
+                name,
+                stream,
+                group,
+                exc,
+            )
+            continue
+
+        LOGGER.info(
+            "reaped stale consumer %s on %s/%s (idle=%dms, pending=%d)",
+            name,
+            stream,
+            group,
+            idle,
+            pending,
+        )
+
+
+async def reap_stale_consumers(settings: Settings, redis_client: Any) -> None:
+    """Remove dead consumers that accumulate across container restarts.
+
+    Each restart with a hostname-derived consumer name leaves a stale consumer
+    in the PEL. This sweeps groups the orchestrator owns, reassigning any
+    pending entries via XAUTOCLAIM before deleting the stale consumer.
+    """
+    for stream, group in _owned_consumer_groups(settings):
+        try:
+            await _reap_group(settings, redis_client, stream, group)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            LOGGER.warning(
+                "stale-consumer reap failed for %s/%s: %s", stream, group, exc
+            )
+
+
+async def stale_consumer_reap_loop(app: FastAPI) -> None:
+    settings: Settings = app.state.settings
+    while True:
+        redis_ready = bool(getattr(app.state, "redis_ready", False))
+        redis_client = getattr(app.state, "redis", None)
+        if redis_ready and redis_client is not None:
+            try:
+                await reap_stale_consumers(settings, redis_client)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                LOGGER.exception("stale consumer reap iteration failed")
+        await asyncio.sleep(settings.stale_consumer_reap_interval_seconds)
+
+
 async def _write_intake_dlq(
     settings: Settings,
     redis_client: Any,
@@ -639,6 +761,10 @@ async def ensure_runtime_ready(app: FastAPI) -> tuple[bool, bool]:
         ):
             try:
                 await ensure_consumer_group(settings, redis_client)
+                try:
+                    await reap_stale_consumers(settings, redis_client)
+                except Exception:
+                    LOGGER.exception("startup stale-consumer reap failed")
                 app.state.consumer_task = asyncio.create_task(consume_intake_stream(app))
             except Exception:
                 app.state.consumer_task = None
