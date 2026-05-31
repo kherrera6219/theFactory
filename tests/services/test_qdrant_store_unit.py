@@ -62,6 +62,52 @@ def test_ensure_collection_creates_when_missing(monkeypatch) -> None:
     assert calls[1][2] == {"vectors": {"size": 8, "distance": "Cosine"}}
 
 
+def test_ensure_collection_creates_mission_id_payload_index(monkeypatch) -> None:
+    qdrant_store._COLLECTION_CACHE.clear()
+    calls: list[tuple[str, str, dict[str, object] | None]] = []
+
+    def _request(settings: Settings, method: str, path: str, payload=None):
+        _ = settings
+        calls.append((method, path, payload))
+        if method == "GET":
+            raise RuntimeError("missing collection")
+        return {"status": "ok"}
+
+    monkeypatch.setattr(qdrant_store, "_request_json", _request)
+
+    qdrant_store.ensure_collection(_settings())
+
+    index_calls = [
+        (method, path, payload)
+        for method, path, payload in calls
+        if path.startswith("/collections/mission_knowledge/index")
+    ]
+    assert index_calls == [
+        (
+            "PUT",
+            "/collections/mission_knowledge/index?wait=true",
+            {"field_name": "mission_id", "field_schema": "keyword"},
+        )
+    ]
+
+
+def test_ensure_collection_payload_index_is_idempotent(monkeypatch) -> None:
+    qdrant_store._COLLECTION_CACHE.clear()
+
+    def _request(settings: Settings, method: str, path: str, payload=None):
+        _ = settings, payload
+        if method == "GET":
+            return {"status": "ok"}
+        if path.startswith("/collections/mission_knowledge/index"):
+            raise RuntimeError("index already exists")
+        return {"status": "ok"}
+
+    monkeypatch.setattr(qdrant_store, "_request_json", _request)
+
+    # Must not raise even when the index already exists on the server.
+    qdrant_store.ensure_collection(_settings())
+
+
 def test_request_json_sends_api_key_header(monkeypatch) -> None:
     headers_seen: dict[str, str] = {}
 

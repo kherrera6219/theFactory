@@ -116,7 +116,30 @@ def ensure_collection(settings: Settings) -> None:
             payload={"vectors": {"size": settings.qdrant_vector_size, "distance": "Cosine"}},
         )
 
+    _ensure_payload_index(settings, "mission_id")
+
     _COLLECTION_CACHE.add(cache_key)
+
+
+def _ensure_payload_index(settings: Settings, field_name: str) -> None:
+    """Create a keyword payload index on ``field_name`` (idempotent).
+
+    ``list_knowledge`` filters by the ``mission_id`` payload field. Without an
+    index Qdrant performs a linear scan over the collection, so we ensure a
+    keyword index exists. Creating an index that already exists is treated as a
+    no-op so this can run on every initialization.
+    """
+    try:
+        _request_json(
+            settings,
+            "PUT",
+            f"/collections/{settings.qdrant_collection}/index?wait=true",
+            payload={"field_name": field_name, "field_schema": "keyword"},
+        )
+    except Exception:
+        # Index already exists (or the server rejected a duplicate); the field
+        # is indexed either way, so keep initialization idempotent.
+        pass
 
 
 def qdrant_ready(settings: Settings) -> bool:
