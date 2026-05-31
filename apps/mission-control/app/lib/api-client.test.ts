@@ -97,6 +97,22 @@ describe("api-client", () => {
     expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("throws an ApiError carrying the upstream status for proxied backend errors", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "Mission not found." }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(fetchJson("/api/gateway/v1/missions/missing", { method: "GET" })).rejects.toEqual(
+      expect.objectContaining({
+        message: "Mission not found.",
+        statusCode: 404,
+      }),
+    );
+  });
+
   it("maps 429 responses to friendly ApiError messages", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response("{}", {

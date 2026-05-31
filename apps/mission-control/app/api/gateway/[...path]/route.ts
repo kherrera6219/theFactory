@@ -33,26 +33,9 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       cache: "no-store",
     });
 
-    if (!upstream.ok) {
-      let detail = "Local runtime gateway returned an error.";
-      try {
-        const payload = (await upstream.clone().json()) as { detail?: unknown };
-        if (typeof payload.detail === "string" && payload.detail.trim().length > 0) {
-          detail = payload.detail;
-        }
-      } catch {
-        detail = upstream.statusText || detail;
-      }
-      return Response.json(
-        {
-          __gateway_error: true,
-          status: upstream.status,
-          detail,
-        },
-        { status: 200 },
-      );
-    }
-
+    // Forward the upstream response verbatim, preserving its HTTP status code
+    // so callers can branch on it (404 → 404, 500 → 500, 503 → 503). The body
+    // is streamed through unchanged for both success and error responses.
     const responseHeaders = new Headers(upstream.headers);
     responseHeaders.delete("content-encoding");
     responseHeaders.delete("content-length");
@@ -62,14 +45,14 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       headers: responseHeaders,
     });
   } catch {
+    // The backend is unreachable (connection refused, DNS failure, timeout).
+    // Report it as a genuine 503 so the client treats it as a service outage.
     return Response.json(
       {
-        __gateway_error: true,
-        status: 503,
         detail:
           "Local runtime gateway is unavailable. Start the runtime or update MISSION_API_BASE_URL to enable live data.",
       },
-      { status: 200 },
+      { status: 503 },
     );
   }
 }

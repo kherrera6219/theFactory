@@ -24,6 +24,20 @@ import type {
   ReviewApprovalReceipt,
   ReviewApprovalVerificationResult,
 } from "./types";
+import type { LlmUsageSummary } from "./types";
+import type {
+  BuilderPreviewRequest,
+  ErrorResponseBody,
+  FactoryErrorPayload,
+  MissionCreatePayload,
+  MissionStateVaultUpdate,
+  OperationsAgentsQuery,
+  OperationsLogicNodesQuery,
+  PmFeatureContractRequest,
+  ProjectAuditEventsQuery,
+  RepoReviewRequest,
+  ReviewApprovalRequest,
+} from "./types/api";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -75,27 +89,25 @@ function withTimeout(timeoutMs: number): { signal: AbortSignal; cleanup: () => v
   };
 }
 
-function _extractFactoryUserPayload(detail: any): ParsedError | null {
+function _extractFactoryUserPayload(detail: unknown): ParsedError | null {
   // Local-First standard user payload: { user_message, recovery_action, error_code }.
-  if (
-    detail &&
-    typeof detail === "object" &&
-    typeof detail.user_message === "string" &&
-    detail.user_message.trim().length > 0
-  ) {
-    return {
-      message: detail.user_message,
-      errorCode: typeof detail.error_code === "string" ? detail.error_code : undefined,
-      recoveryAction:
-        typeof detail.recovery_action === "string" ? detail.recovery_action : undefined,
-    };
+  if (detail && typeof detail === "object") {
+    const candidate = detail as FactoryErrorPayload;
+    if (typeof candidate.user_message === "string" && candidate.user_message.trim().length > 0) {
+      return {
+        message: candidate.user_message,
+        errorCode: typeof candidate.error_code === "string" ? candidate.error_code : undefined,
+        recoveryAction:
+          typeof candidate.recovery_action === "string" ? candidate.recovery_action : undefined,
+      };
+    }
   }
   return null;
 }
 
 async function parseError(response: Response): Promise<ParsedError> {
   try {
-    const payload = (await response.json()) as { detail?: unknown; user_message?: unknown };
+    const payload = (await response.json()) as ErrorResponseBody;
     // Structured FactoryError payload may arrive under `detail` or at the top level.
     const structured =
       _extractFactoryUserPayload(payload.detail) ?? _extractFactoryUserPayload(payload);
@@ -109,9 +121,9 @@ async function parseError(response: Response): Promise<ParsedError> {
       payload.detail &&
       typeof payload.detail === "object" &&
       "message" in payload.detail &&
-      typeof (payload.detail as any).message === "string"
+      typeof (payload.detail as { message?: unknown }).message === "string"
     ) {
-      return { message: (payload.detail as any).message };
+      return { message: (payload.detail as { message: string }).message };
     }
   } catch {
     // ignore
@@ -147,17 +159,7 @@ export async function fetchJson<T>(input: string, init?: RequestInit & { timeout
         recoveryAction: parsed.recoveryAction,
       });
     }
-    const payload = (await response.json()) as T & {
-      __gateway_error?: boolean;
-      detail?: string;
-      status?: number;
-    };
-
-    if (payload && typeof payload === "object" && payload.__gateway_error) {
-      throw new ApiError(payload.detail || "Internal Gateway Error", payload.status || 500);
-    }
-
-    return payload;
+    return (await response.json()) as T;
   } finally {
     cleanup();
   }
@@ -270,7 +272,7 @@ export async function getMissionChainTrace(missionId: string): Promise<MissionCh
   return fetchJson<MissionChainTrace>(missionApiUrl(`/v1/missions/${missionId}/chain-trace`), { method: "GET" });
 }
 
-export async function createMission(payload: any): Promise<MissionRecord> {
+export async function createMission(payload: MissionCreatePayload): Promise<MissionRecord> {
   return fetchJson<MissionRecord>(missionApiUrl("/v1/missions"), {
     method: "POST",
     headers: { "Idempotency-Key": buildIdempotencyKey() },
@@ -278,16 +280,21 @@ export async function createMission(payload: any): Promise<MissionRecord> {
   });
 }
 
-export async function updateMissionMetadata(missionId: string, metadata: any): Promise<MissionRecord> {
+export async function updateMissionMetadata(
+  missionId: string,
+  metadata: Record<string, unknown>,
+): Promise<MissionRecord> {
   return fetchJson<MissionRecord>(missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}`), {
     method: "PATCH",
     body: JSON.stringify({ metadata }),
   });
 }
 
-export async function updateMissionStateWithVault(payload: any): Promise<any> {
+export async function updateMissionStateWithVault(
+  payload: MissionStateVaultUpdate,
+): Promise<MissionRecord> {
   // In Admin Mode, this might be simplified, but keep for compat
-  return fetchJson("/api/operator/mission-state", {
+  return fetchJson<MissionRecord>("/api/operator/mission-state", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -301,7 +308,7 @@ export async function getGatewayReadyState(): Promise<{ ready: boolean; detail?:
   try {
     await fetchJson(missionApiUrl("/readyz"));
     return { ready: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof ApiError) {
       return { ready: false, detail: error.message };
     }
@@ -313,7 +320,7 @@ export async function getOperationsSummary(): Promise<OperationsSummary> {
   return fetchJson<OperationsSummary>(missionApiUrl("/v1/operations/summary"));
 }
 
-export async function getOperationsAgents(params?: any): Promise<OperationsAgentsSnapshot> {
+export async function getOperationsAgents(params?: OperationsAgentsQuery): Promise<OperationsAgentsSnapshot> {
   const searchParams = new URLSearchParams({
     mission_limit: String(params?.missionLimit ?? 1000),
     assignment_limit: String(params?.assignmentLimit ?? 1000),
@@ -330,7 +337,7 @@ export async function listOperationsEvents(limit: number): Promise<MissionEvent[
   return fetchJson<MissionEvent[]>(missionApiUrl(`/v1/operations/events?limit=${limit}`));
 }
 
-export async function listOperationsLogicNodes(params: any): Promise<OperationsLogicNodeRecord[]> {
+export async function listOperationsLogicNodes(params: OperationsLogicNodesQuery): Promise<OperationsLogicNodeRecord[]> {
   const searchParams = new URLSearchParams({ limit: String(params.limit) });
   if (params.missionId) searchParams.set("mission_id", params.missionId);
   return fetchJson<OperationsLogicNodeRecord[]>(missionApiUrl(`/v1/operations/logicnodes?${searchParams.toString()}`));
@@ -344,7 +351,7 @@ export async function listOperationsProjects(limit: number): Promise<OperationsP
   return fetchJson<OperationsProjectRecord[]>(missionApiUrl(`/v1/operations/projects?limit=${limit}`));
 }
 
-export async function listProjectAuditEvents(params: any): Promise<OperationsAuditEventRecord[]> {
+export async function listProjectAuditEvents(params: ProjectAuditEventsQuery): Promise<OperationsAuditEventRecord[]> {
   const searchParams = new URLSearchParams({ limit: String(params.limit) });
   if (params.missionId) searchParams.set("mission_id", params.missionId);
   return fetchJson<OperationsAuditEventRecord[]>(missionApiUrl(`/v1/operations/projects/${params.projectId}/audit-events?${searchParams.toString()}`));
@@ -362,14 +369,14 @@ export async function listMissionAuditEvents(missionId: string, limit = 100): Pr
   return fetchJson<OperationsAuditEventRecord[]>(missionApiUrl(`/v1/missions/${missionId}/audit-events?limit=${limit}`));
 }
 
-export async function createBuilderPreview(payload: any): Promise<BuilderPreviewResponse> {
+export async function createBuilderPreview(payload: BuilderPreviewRequest): Promise<BuilderPreviewResponse> {
   return fetchJson<BuilderPreviewResponse>(missionApiUrl("/v1/builder/preview"), {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function createPmFeatureContract(payload: any): Promise<PmFeatureContractResponse> {
+export async function createPmFeatureContract(payload: PmFeatureContractRequest): Promise<PmFeatureContractResponse> {
   return fetchJson<PmFeatureContractResponse>("/api/pm/feature-contract", {
     method: "POST",
     timeoutMs: 30_000,
@@ -393,7 +400,7 @@ export async function createBuilderWorkspaceReview(payload: {
   });
 }
 
-export async function createRepoReview(payload: any): Promise<RepoReviewResponse> {
+export async function createRepoReview(payload: RepoReviewRequest): Promise<RepoReviewResponse> {
   return fetchJson<RepoReviewResponse>("/api/repo/review", {
     method: "POST",
     timeoutMs: 30_000,
@@ -401,7 +408,7 @@ export async function createRepoReview(payload: any): Promise<RepoReviewResponse
   });
 }
 
-export async function approveReviewArtifact(payload: any): Promise<ReviewApprovalReceipt> {
+export async function approveReviewArtifact(payload: ReviewApprovalRequest): Promise<ReviewApprovalReceipt> {
   return fetchJson<ReviewApprovalReceipt>("/api/review/approve", {
     method: "POST",
     timeoutMs: 30_000,
@@ -427,9 +434,9 @@ export async function verifyReviewApproval(payload: {
   });
 }
 
-export async function getMissionTokenUsage(missionId: string): Promise<any | null> {
+export async function getMissionTokenUsage(missionId: string): Promise<LlmUsageSummary | null> {
   try {
-    return await fetchJson(missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}/token-usage`));
+    return await fetchJson<LlmUsageSummary>(missionApiUrl(`/v1/missions/${encodeURIComponent(missionId)}/token-usage`));
   } catch {
     return null;
   }

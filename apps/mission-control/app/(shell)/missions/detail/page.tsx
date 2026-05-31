@@ -332,9 +332,9 @@ export default function MissionDetailPage() {
     setActionError(null);
     try {
       await updateMissionStateWithVault({
-        missionId: mission.mission_id,
-        newState: "FAILED",
-        expectedState: mission.state,
+        mission_id: mission.mission_id,
+        new_state: "FAILED",
+        expected_state: mission.state,
       });
       await loadDetails();
     } catch (requestError) {
