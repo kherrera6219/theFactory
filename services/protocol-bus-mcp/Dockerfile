@@ -2,7 +2,7 @@
 FROM python:3.11-slim-bookworm@sha256:8dca233de9f3d9bb410665f00a4da6dd06f331083137e0e98ccf227236fcc438 AS builder
 RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
-COPY services/semantic-bus-mcp/requirements.txt .
+COPY services/protocol-bus-mcp/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: lean runtime image — no pip, no build artefacts
@@ -10,11 +10,11 @@ FROM python:3.11-slim-bookworm@sha256:8dca233de9f3d9bb410665f00a4da6dd06f3310831
 WORKDIR /app
 ENV PATH=/opt/venv/bin:$PATH
 COPY --from=builder /opt/venv /opt/venv
-COPY services/semantic-bus-mcp /app
+COPY services/protocol-bus-mcp /app
 COPY shared_runtime /app/shared_runtime
 RUN useradd --system --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
 USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8090/readyz')" || exit 1
-CMD ["uvicorn", "semantic_bus.mcp_server:app", "--host", "0.0.0.0", "--port", "8090"]
+CMD ["uvicorn", "protocol_bus.mcp_server:app", "--host", "0.0.0.0", "--port", "8090"]

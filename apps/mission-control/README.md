@@ -6,7 +6,7 @@ Status: Canonical
 
 Mission Control is the Next.js operator console for theFactory.
 
-It is designed for local-first Windows operation and provides real-time visibility into missions, agents, semantic-bus activity, and runtime controls.
+It is designed for local-first Windows operation and provides real-time visibility into missions, agents, protocol-bus activity, and runtime controls.
 
 ## Responsibilities
 
@@ -14,7 +14,7 @@ It is designed for local-first Windows operation and provides real-time visibili
 - Provide mission operations and status workflows.
 - Visualize 41-agent topology and telemetry.
 - Render full agent persona profiles with governance evidence.
-- Surface semantic bus and artifact-level observability.
+- Surface protocol bus and artifact-level observability.
 - Manage local runtime preferences and vault-backed integration secrets.
 
 ## Run Locally
@@ -68,7 +68,7 @@ Mission Control expects Gateway routes under:
 - `/missions/[id]`: mission cockpit detail.
 - `/agents`: 41-agent runtime grid with persona detail.
 - `/logicnodes`: artifact explorer.
-- `/semantic-bus`: protocol/event monitor.
+- `/protocol-bus`: protocol/event monitor.
 - `/databases`: data-plane status.
 - `/repo`: repo scope and source controls.
 - `/settings`: runtime preferences and secret-slot management.

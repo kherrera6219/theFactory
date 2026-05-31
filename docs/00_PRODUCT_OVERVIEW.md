@@ -71,7 +71,7 @@ PM intake
   → release handoff
 ```
 
-A mission begins when an operator submits a natural-language request through Mission Control or the API gateway. The PM agent (AGENT-01) formalizes it into a Mission Charter, the CEO agent (AGENT-02) plans delegation, and specialist agents activate to execute the plan. The semantic bus routes events between agents on Redis Streams. The orchestrator persists state in PostgreSQL and emits live updates over Server-Sent Events. The audit worker verifies completion and produces the evidence bundle.
+A mission begins when an operator submits a natural-language request through Mission Control or the API gateway. The PM agent (AGENT-01) formalizes it into a Mission Charter, the CEO agent (AGENT-02) plans delegation, and specialist agents activate to execute the plan. The protocol bus routes events between agents on Redis Streams. The orchestrator persists state in PostgreSQL and emits live updates over Server-Sent Events. The audit worker verifies completion and produces the evidence bundle.
 
 For full architecture detail, see [`ARCHITECTURE.md`](ARCHITECTURE.md), [`ARCHITECTURE_DIAGRAMS.md`](ARCHITECTURE_DIAGRAMS.md), and [`ARCHITECTURE_DATA_FLOWS.md`](ARCHITECTURE_DATA_FLOWS.md).
 

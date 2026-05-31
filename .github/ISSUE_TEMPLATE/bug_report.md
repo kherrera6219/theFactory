@@ -16,7 +16,7 @@ assignees: []
 - [ ] api-gateway
 - [ ] pod-worker
 - [ ] audit-worker
-- [ ] semantic-bus-mcp
+- [ ] protocol-bus-mcp
 - [ ] agent-runtime
 - [ ] mission-control (frontend)
 - [ ] deploy / CI

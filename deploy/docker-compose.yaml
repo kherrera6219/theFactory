@@ -425,11 +425,11 @@ services:
     mem_limit: 768m
     cpus: 0.75
 
-  semantic-bus-mcp:
+  protocol-bus-mcp:
     <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
       context: ..
-      dockerfile: services/semantic-bus-mcp/Dockerfile
+      dockerfile: services/protocol-bus-mcp/Dockerfile
     environment:
       REDIS_URL: rediss://:${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}@redis:6380/0?ssl_cert_reqs=required&ssl_ca_certs=/run/redis-certs/ca.crt
       MCP_PORT: 8090

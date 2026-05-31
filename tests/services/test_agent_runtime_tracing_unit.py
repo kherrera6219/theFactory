@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "services" / "api-gateway"))
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 sys.path.insert(0, str(ROOT / "services" / "pod-worker"))
 sys.path.insert(0, str(ROOT / "services" / "audit-worker"))
-sys.path.insert(0, str(ROOT / "services" / "semantic-bus-mcp"))
+sys.path.insert(0, str(ROOT / "services" / "protocol-bus-mcp"))
 sys.path.insert(0, str(ROOT / "services" / "dashboard"))
 
 agent_runtime_tracing = importlib.import_module("agent_runtime.tracing")
@@ -20,7 +20,7 @@ gateway_tracing = importlib.import_module("api_gateway.tracing")
 orchestrator_tracing = importlib.import_module("orchestrator.tracing")
 pod_worker_tracing = importlib.import_module("pod_worker.tracing")
 audit_worker_tracing = importlib.import_module("audit_worker.tracing")
-semantic_bus_tracing = importlib.import_module("semantic_bus.tracing")
+protocol_bus_tracing = importlib.import_module("protocol_bus.tracing")
 dashboard_tracing = importlib.import_module("dashboard.tracing")
 
 
@@ -124,7 +124,7 @@ def test_configure_tracing_success_path(monkeypatch) -> None:
         orchestrator_tracing,
         pod_worker_tracing,
         audit_worker_tracing,
-        semantic_bus_tracing,
+        protocol_bus_tracing,
         dashboard_tracing,
     ]
     for module in modules:

@@ -13,7 +13,7 @@
 #   - PII detection (redact mode)
 #   - Prompt injection guard (block mode)
 #   - Tighter circuit breaker thresholds for agent-runtime
-#   - Lower backpressure limit for semantic bus
+#   - Lower backpressure limit for protocol bus
 #   - OIDC auth enforcement
 #   - Reduced log verbosity
 
@@ -55,7 +55,7 @@ services:
   # PROD: set MCP_HOST_BIND=127.0.0.1 in the prod .env so the MCP port is only
   # reachable on the host loopback. Internal service-to-service traffic uses
   # the Docker bridge network and does not rely on the published port.
-  semantic-bus-mcp:
+  protocol-bus-mcp:
     environment:
       # Phase 3 — lower backpressure limit in prod to protect downstream consumers
       MCP_BACKPRESSURE_LIMIT: "5000"

@@ -19,14 +19,14 @@ groups:
           summary: Orchestrator is down
           description: Prometheus cannot scrape orchestrator for 2 minutes.
 
-      - alert: SemanticBusMcpDown
-        expr: up{job="semantic-bus-mcp"} == 0
+      - alert: ProtocolBusMcpDown
+        expr: up{job="protocol-bus-mcp"} == 0
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: Semantic Bus MCP is down
-          description: Prometheus cannot scrape semantic-bus-mcp for 2 minutes.
+          summary: Protocol Bus MCP is down
+          description: Prometheus cannot scrape protocol-bus-mcp for 2 minutes.
 
       - alert: PodWorkerDown
         expr: min(up{job="pod-workers"}) == 0

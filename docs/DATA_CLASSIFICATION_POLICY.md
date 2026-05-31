@@ -22,7 +22,7 @@ Audience: Operators, developers, maintainers, and security reviewers
 
 This policy defines mandatory handling controls for all data created, processed, stored, or transmitted by theFactory. It applies to:
 
-- All runtime services (api-gateway, orchestrator, pod-worker, audit-worker, semantic-bus-mcp, dashboard)
+- All runtime services (api-gateway, orchestrator, pod-worker, audit-worker, protocol-bus-mcp, dashboard)
 - All data stores (PostgreSQL, Redis, Qdrant, Neo4j, MinIO/S3)
 - All operators, developers, and automated systems with access to the platform
 - All environments (development, staging, production)

@@ -50,7 +50,7 @@ pip install -r services/api-gateway/requirements.txt
 pip install -r services/orchestrator/requirements.txt
 pip install -r services/pod-worker/requirements.txt
 pip install -r services/audit-worker/requirements.txt
-pip install -r services/semantic-bus-mcp/requirements.txt
+pip install -r services/protocol-bus-mcp/requirements.txt
 
 # 4. Install Mission Control dependencies
 cd apps/mission-control && npm ci && cd ../..

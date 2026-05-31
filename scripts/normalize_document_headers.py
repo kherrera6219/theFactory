@@ -12,7 +12,7 @@ STATUS_OVERRIDES = {
     "ACCESSIBILITY_STATEMENT.md": "Draft; accessibility review required",
     "AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md": "Reference",
     "AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md": "Reference",
-    "AGENT_SEMANTIC_BUS_DATA_SYSTEMS_PLAN.md": "Reference",
+    "AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md": "Reference",
     "LEGACY_PROFILE_ID_MAPPING_INDEX.md": "Reference",
     "PRIVACY_POLICY.md": "Draft; legal review required",
     "ROADMAP.md": "Historical reference",

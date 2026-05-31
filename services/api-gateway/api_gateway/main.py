@@ -1522,7 +1522,7 @@ async def _emit_intake_telemetry(
     mission_id: str,
     mission_payload: dict[str, Any]
 ) -> None:
-    """Publish mission intake event to the Semantic Bus."""
+    """Publish mission intake event to the Protocol Bus."""
     payload_ref = f"registry://missions/{mission_id}/intake"
     try:
         envelope = _build_envelope(correlation_id=mission_id, payload_ref=payload_ref)

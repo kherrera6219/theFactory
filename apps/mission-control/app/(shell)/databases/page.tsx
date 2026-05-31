@@ -64,7 +64,7 @@ function buildCards(summary: OperationsSummary | null, health: GatewayHealth | n
   return [
     {
       id: "redis",
-      name: "Semantic Bus",
+      name: "Protocol Bus",
       engine: "Redis",
       status: redisHealthy ? "healthy" : "degraded",
       details: redisHealthy ? "Pub/Sub and stream transport operational." : "Redis connection unavailable.",

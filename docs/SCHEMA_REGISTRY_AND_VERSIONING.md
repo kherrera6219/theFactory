@@ -24,7 +24,7 @@ This document defines how theFactory manages the lifecycle of JSON schemas: how 
 
 ## Why Governance Matters
 
-Schemas are the contracts between services. theFactory has multiple long-running services (api-gateway, orchestrator, pod-worker, audit-worker, semantic-bus-mcp, mission-control) that exchange structured messages. Without governance:
+Schemas are the contracts between services. theFactory has multiple long-running services (api-gateway, orchestrator, pod-worker, audit-worker, protocol-bus-mcp, mission-control) that exchange structured messages. Without governance:
 
 - Producers add fields and break consumers
 - Consumers reject unknown fields and break producers

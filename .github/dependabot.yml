@@ -50,7 +50,7 @@ updates:
     labels: [dependencies, security]
 
   - package-ecosystem: pip
-    directory: /services/semantic-bus-mcp
+    directory: /services/protocol-bus-mcp
     schedule:
       interval: weekly
       day: monday

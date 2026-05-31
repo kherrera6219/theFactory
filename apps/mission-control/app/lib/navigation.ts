@@ -29,7 +29,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/agents", label: "Agents", description: "Agent and pod monitoring" },
       { href: "/logicnodes", label: "LogicNodes", description: "Logic graph explorer and details" },
-      { href: "/semantic-bus", label: "Semantic Bus", description: "Live protocol stream and filters" },
+      { href: "/protocol-bus", label: "Protocol Bus", description: "Live protocol stream and filters" },
       { href: "/alerts", label: "Alerts", description: "System alerts and health events" },
       { href: "/performance", label: "Performance", description: "Mission throughput and latency metrics" },
     ],
