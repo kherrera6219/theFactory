@@ -3,12 +3,15 @@ services:
     environment:
       AUTH_MODE: api_key
       API_RATE_LIMIT_PER_MINUTE: 240
+      # Capture every trace locally for debugging; prod samples at 10%.
+      OTEL_SAMPLING_RATIO: "1.0"
   orchestrator:
     environment:
       LANGGRAPH_ENABLED: "false"
       LANGGRAPH_CHECKPOINTER: none
       OBJECT_STORAGE_ENABLED: "false"
       NEO4J_ENABLED: "false"
+      OTEL_SAMPLING_RATIO: "1.0"
   mission-control:
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_GATEWAY_HOST_PORT:-8100}

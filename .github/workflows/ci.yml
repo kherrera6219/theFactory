@@ -137,6 +137,77 @@ jobs:
             coverage.xml
           if-no-files-found: error
 
+  perf-smoke:
+    name: Performance Smoke (p95 gate)
+    # Heavy job that boots the Docker stack — runs on manual dispatch and on
+    # pushes to main only, so it never blocks ordinary pull requests.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install perf smoke deps
+        run: python -m pip install --upgrade pip httpx
+
+      - name: Generate dev TLS certs
+        run: sh scripts/generate_dev_tls_certs.sh
+
+      - name: Write CI .env
+        run: |
+          # Derive a CI .env from the example, swapping every CHANGE_ME secret
+          # for a deterministic 32-char dev value so check_env.py passes.
+          sed -E \
+            -e 's/CHANGE_ME_local_dev_redis_password_32chars/ci_dev_redis_password_0123456789abcd/g' \
+            -e 's/CHANGE_ME_local_dev_postgres_password_32chars/ci_dev_postgres_password_0123456789ab/g' \
+            -e 's/CHANGE_ME[A-Za-z0-9_]*/ci_dev_secret_value_0123456789abcdef/g' \
+            .env.example > .env
+          {
+            echo "INTERNAL_SERVICE_API_KEY=ci-internal-service-key"
+            echo "ORCHESTRATOR_ADMIN_API_KEY=ci-admin-key"
+            echo "AUTH_MODE=api_key"
+            echo "KNOWLEDGE_EMBEDDING_PROVIDER=deterministic"
+            echo "KNOWLEDGE_EMBEDDING_MODEL=deterministic-hash-v1"
+          } >> .env
+          cp .env deploy/.env
+
+      - name: Start core stack
+        run: |
+          docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml \
+            up -d --build redis postgres qdrant orchestrator api-gateway
+
+      - name: Wait for API gateway health
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://localhost:8100/health >/dev/null 2>&1; then
+              echo "api-gateway healthy after ${attempt} attempt(s)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::api-gateway did not become healthy in time" >&2
+          docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml ps
+          docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml logs --tail=100 api-gateway orchestrator
+          exit 1
+
+      - name: Run performance smoke test (p95 <= 2s)
+        run: python scripts/perf_smoke.py --base-url http://localhost:8100
+
+      - name: Dump stack logs on failure
+        if: failure()
+        run: docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml logs --tail=200
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml down -v
+
   docker-build:
     name: Docker Build Validation
     needs: lint-test
