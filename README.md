@@ -16,7 +16,7 @@
 
 </div>
 
-> **Version:** 1.1.0 · **Last updated:** 2026-05-23 · **Status:** Canonical
+> **Version:** 1.2.0 · **Last updated:** 2026-05-30 · **Status:** Canonical
 
 ---
 
@@ -113,7 +113,7 @@ For the implemented lifecycle (Mission Flow v2 — 11-phase state machine) see [
 Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 
 - **Multi-modal context ingestion** — native support for PDF, Word, MD, and PowerPoint indexing via IS-Agent\n- **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
-- **Semantic bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
+- **Protocol bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
 - **41-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
 - **Language-aware code analysis** — regex-first extraction engine for 20 routed language keys across 4 pod groups; Python, JavaScript/TypeScript, and Java each have full AST-backed structural extractors (feature-flagged, production-ready)
 - **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
@@ -145,7 +145,7 @@ Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTA
 └──┬──────┬──────────┬───────────────┬───────────────────────────┘
    │      │ Redis    │               │
    │   Streams   ┌──▼────────────────▼──┐
-   │      │      │   SEMANTIC BUS MCP    │
+   │      │      │   PROTOCOL BUS MCP    │
    │      │      │   :8102               │
    │      │      │   6-protocol routing  │
    │      │      └───────────────────────┘
@@ -198,15 +198,19 @@ The operator-facing mission model surfaces 7 key checkpoint events. These map to
 
 The orchestrator maintains a canonical registry of **41 specialist agents** organized across four tiers:
 
-| Tier | Agents | Role |
-|------|--------|------|
-| **Interface** | AGENT-01-PM | Project Manager — mission intake and PM→CEO handoff |
-| **Executive** | AGENT-02-CEO | Chief Executor — mission delegation to pod managers |
-| **Support Ring** | AGENT-03 through AGENT-11, AGENT-39 through AGENT-41 | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, Dependency Absorption, Test Data, Runtime QC |
-| **Pod A** (Dynamic) | Manager, Audit, Python, JavaScript/TypeScript, Ruby, PHP Specialists | Dynamic language refinery |
-| **Pod B** (Systems) | Manager, Audit, C, C++, Rust, Zig, Go Specialists | Systems language refinery |
-| **Pod C** (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | Enterprise language refinery |
-| **Pod D** (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica, Haskell, OCaml Specialists | Mathematical language refinery |
+| Tier | Count | Agents | Role |
+|------|-------|--------|------|
+| **Interface** | 1 | AGENT-01-PM | Project Manager — mission intake and PM→CEO handoff |
+| **Executive** | 1 | AGENT-02-CEO | Chief Executor — mission delegation to pod managers |
+| **Support Ring** | 12 | AGENT-03 through AGENT-14 | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, DEPABS, TESTDATA, RQCA |
+| **Pod Managers** | 4 | Pod A/B/C/D Managers | Pod-level mission coordination |
+| **Pod Auditors** | 4 | Pod A/B/C/D Auditors | Pod-level verification |
+| **Specialists** | 19 | Language specialists across all pods | Language-specific code analysis and generation |
+| **Total** | **41** | | |
+
+**Support Ring detail (AGENT-03 through AGENT-14):** Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, DEPABS (dependency absorption), TESTDATA (test data), RQCA (runtime QC + code analysis).
+
+**Specialist language implementations (19):** Python, JavaScript/TypeScript (TypeScript aliases to JavaScript — 20 routed keys, 19 specialist implementations), Ruby, PHP (Pod A); C, C++, Rust, Zig, Go (Pod B); Java, C#, Scala, Kotlin (Pod C); MATLAB, R, Julia, Mathematica, Haskell, OCaml (Pod D).
 
 ### Agent Runtime State
 
@@ -238,6 +242,8 @@ Each agent exposes:
   }
 }
 ```
+
+Agent persona definitions are unified records: `agent_personas.py` uses a single `AgentPersona` dataclass per agent, and a test enforces that every registry agent has a corresponding persona entry.
 
 ### LLM Provider Assignment
 
@@ -294,6 +300,8 @@ No LLM calls are required for this phase.
 | D — Mathematical | MATLAB, R, Julia, Mathematica, Haskell, OCaml | `MATH-` | ~75 |
 | **Total** | **20 routed language keys** (19 specialist implementations; TypeScript aliases to JavaScript) | | **232 patterns** |
 
+All 19 specialist implementations are fully concrete `SpecialistAgent` subclasses, including Go, Haskell, and OCaml.
+
 Each extracted concept becomes a **LogicNode** with:
 - `concept_id` (e.g. `DYN-006-001` for async function, `SYS-011-001` for Rust `Result<T>`)
 - `confidence` score (0.0–1.0)
@@ -308,7 +316,7 @@ Each extracted concept becomes a **LogicNode** with:
 |---------|------|------|-------------|
 | `api-gateway` | 8100 | FastAPI | Public API boundary, auth, rate limiting, SSE transport |
 | `orchestrator` | 8101 | FastAPI | Mission state machine, agent registry, operations APIs |
-| `semantic-bus-mcp` | 8102 | FastAPI | 6-protocol semantic bus with DLQ |
+| `protocol-bus-mcp` | 8102 | FastAPI | 6-protocol typed message bus with DLQ, replay detection, and fail-closed Redis error handling |
 | `pod-worker` | — | FastAPI | Language-aware pod stream worker (4 pod variants) |
 | `audit-worker` | — | FastAPI | Verification stream processing |
 | `dashboard` | 8180 | FastAPI | Lightweight operational status UI |
@@ -369,13 +377,17 @@ Each extracted concept becomes a **LogicNode** with:
 |--------|------|-------------|
 | `GET` | `/v1/stream/state` | SSE stream with `mission_id` filter, `Last-Event-ID` resume, keepalive |
 
-### Semantic Bus MCP (`http://localhost:8102`)
+### Protocol Bus MCP (`http://localhost:8102`)
+
+The protocol bus is a six-protocol typed message bus. Routing is lexical/channel-based. `SigmaPayload.embedding_ref` is reserved for future semantic routing but is not currently implemented.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/send` | Send validated bus message (alpha/beta/delta/sigma/omega/rho) |
+| `POST` | `/send` | Send validated bus message (alpha/beta/delta/sigma/omega/rho); returns HTTP 409 on replay detection, HTTP 503 on Redis unavailability |
 | `GET` | `/dlq` | Inspect dead-letter queue |
 | `GET` | `/health` · `/readyz` · `/metrics` | Standard probes |
+
+**Hardened behavior:** Replay detection returns HTTP 409. Redis unavailability (dedup/backpressure) returns HTTP 503 — errors do not fail silently. Backpressure checks all channels, not just the first.
 
 ### OpenAPI Exports
 - [`docs/openapi/api-gateway.v1.json`](docs/openapi/api-gateway.v1.json)
@@ -400,7 +412,7 @@ Each extracted concept becomes a **LogicNode** with:
 | Mission Detail | Live event timeline, Smelt-cycle phase stepper (SSE-driven), chain-of-command, LogicNode/knowledge drill-down, and build-artifact visibility |
 | Agents | 41-agent roster grid with persona drill-down and windowed live logs |
 | LogicNodes | Logic artifact explorer with mission filtering, confidence summaries, and source lineage |
-| Semantic Bus | Live message stream with `stream|poll|paused` transport diagnostics and windowed rendering |
+| Protocol Bus | Live message stream with `stream|poll|paused` transport diagnostics and windowed rendering |
 | Projects | Project portfolio, mission rollups, and project-level audit timeline |
 | Alerts | Incident and alert center with acknowledge/resolve workflow |
 | Performance | Runtime readiness, dependency health, and mission-state capacity snapshot |
@@ -409,7 +421,7 @@ Each extracted concept becomes a **LogicNode** with:
 | Databases | Shared data-system readiness and diagnostics |
 | Settings | Provider key management, vault-backed secrets, and local environment controls |
 
-Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`, `LogicNodes`, `Semantic Bus`, `Databases`, `Repo Import`, and `Settings`. Additional shipped operator routes include `Mission Detail`, `Builder`, `Projects`, `Alerts`, `Performance`, and `/dashboard` as a direct launch-pad alias.
+Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`, `LogicNodes`, `Protocol Bus`, `Databases`, `Repo Import`, and `Settings`. Additional shipped operator routes include `Mission Detail`, `Builder`, `Projects`, `Alerts`, `Performance`, and `/dashboard` as a direct launch-pad alias.
 
 **Additional operator experience features (Phase 6-7, shipped 2026-05-22):**
 
@@ -423,14 +435,15 @@ Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`,
 | Electron Desktop Shell | Custom frameless titlebar with platform-aware window controls; system tray with mission status; local repo browsing via native file dialog; auto-update infrastructure (`electron-updater`); full IPC bridge with contextBridge security |
 
 **Technology:**
-- Next.js 16 App Router, TypeScript (strict mode)
+- Next.js 16 App Router, TypeScript (strict mode, fully typed at network boundary — no `any` at API client layer)
 - Dark SLATE design system (`#0F172A` base, Refinery Violet `#8B5CF6` accent)
 - Inter (display) + JetBrains Mono (code) fonts per Style Guide
 - Generated CSS custom-property token system sourced from `assets/design-tokens/tokens.json` and emitted to `app/generated-tokens.css`
 - Responsive breakpoints include 1440px wide desktop, 1024px standard desktop, and a 920px tablet/mobile collapse
 - SSE live transport with `stream|poll|paused` mode diagnostics
 - Signed `HttpOnly` operator session cookie for sensitive Mission Control server routes
-- Windowed rendering for high-volume agent and semantic bus views
+- Windowed rendering for high-volume agent and protocol bus views
+- Gateway proxy forwards real HTTP status codes (404→404, 500→500, 503→503); a CI step regenerates OpenAPI types and fails if they drift
 - Electron-ready: `electron/main.ts`, `electron/preload.ts`, `electron/tray.ts`, `electron/updater.ts`; `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`
 
 ---
@@ -563,7 +576,7 @@ curl http://localhost:8100/health
 # Orchestrator
 curl http://localhost:8101/health
 
-# Semantic Bus MCP
+# Protocol Bus MCP
 curl http://localhost:8102/health
 ```
 
@@ -583,7 +596,7 @@ make monitor-up
 |---------|------|
 | API Gateway | `8100` |
 | Orchestrator | `8101` |
-| Semantic Bus MCP | `8102` |
+| Protocol Bus MCP | `8102` |
 | Dashboard | `8180` |
 | Mission Control | `3100` |
 | Redis | `6380` |
@@ -682,7 +695,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | Gate | Target | Enforcement |
 |------|--------|-------------|
 | Global Python coverage | ≥ 80% | CI + `make test` |
-| Critical module coverage | Strict per-file floors (`60%`–`100%`) | `scripts/check_coverage_thresholds.py` |
+| Critical module coverage | Strict per-file floors (`80%`–`100%`); `runtime.py` floor is `80%` (currently at 100% line / 99% branch) | `scripts/check_coverage_thresholds.py` |
 | Production audit | 22/22 checks | `scripts/production_review_audit.py` |
 | Frontend lint | 0 errors | CI |
 | Frontend unit tests | currently passing | `apps/mission-control` Vitest |
@@ -692,6 +705,7 @@ npm run test:e2e   # Playwright critical-path E2E
 | gitleaks secret scan | 0 findings | `security.yml` |
 | pip-audit SCA | 0 known vulns | `security.yml` |
 | Release attestation | signed provenance | CI release gate |
+| OpenAPI type drift | 0 drift | CI regenerates types; fails on divergence |
 
 The main CI workflow must remain valid GitHub Actions YAML before any gate can run. Artifact download retries are not configured with unsupported step keys; if retry behavior is needed, it should be implemented through an explicit retry action or shell retry wrapper.
 
@@ -755,7 +769,7 @@ OIDC_AUDIENCE=holygrail-api
 MISSION_FLOW_V2_ENABLED=true       # shipped default runtime path
 LANGGRAPH_ENABLED=false            # optional alternative lifecycle engine
 LANGGRAPH_CHECKPOINTER=none        # none | memory | postgres
-LANGGRAPH_FAIL_OPEN=true
+LANGGRAPH_FAIL_OPEN=true           # defaults to true outside prod; set to false in staging/prod to avoid masking engine failures
 
 # Feature Flags
 QDRANT_ENABLED=true
@@ -853,11 +867,11 @@ theFactory/
 │   ├── orchestrator/             # Mission state machine, agent registry
 │   ├── pod-worker/               # Language extraction + LogicNode workers
 │   ├── audit-worker/             # Verification stream processor
-│   ├── semantic-bus-mcp/         # 6-protocol semantic bus
+│   ├── protocol-bus-mcp/         # 6-protocol typed message bus
 │   ├── dashboard/                # Lightweight ops status UI
 │   └── agent-runtime/            # Full dedicated single-agent runtime
 ├── schemas/                      # Event envelope, LogicNode, RIR contracts
-├── protocol/                     # Semantic bus topic catalog
+├── protocol/                     # Protocol bus topic catalog
 ├── ledger/                       # Traceability ledger schema
 ├── assets/design-tokens/         # CSS design token source of truth
 ├── deploy/                       # Docker Compose stacks + monitoring config
@@ -928,7 +942,7 @@ theFactory/
 | Testing & CI | ✅ Backend pytest, frontend unit tests, Playwright, AI eval gate, docs validation, SBOM, and release-trust evidence are in place |
 | Data Systems | ✅ Core path complete; current-source docs now match shipped readiness |
 | Mission Control UI | ✅ Real operator UI with grounded builder, repo-review, chat launch, LogicNode, project, alert, performance, and artifact views |
-| Language Extraction Engine | ✅ 20 routed language keys across 4 pods |
+| Language Extraction Engine | ✅ 20 routed language keys across 4 pods; 19 specialist implementations (all fully concrete, including Go, Haskell, OCaml) |
 | Mission Lifecycle | ✅ v2 lifecycle is the shipped default, mission creation is synchronous/read-after-write, and source-bundle artifact gating is enforced |
 | CEO→Pod Delegation Chain | ✅ Complete baseline |
 | LLM API Call Wiring | ✅ Complete baseline with provider-aware routing and fallback |
