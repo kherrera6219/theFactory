@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -20,7 +20,7 @@ For the detailed runtime, identity, approval, artifact, and telemetry flows, see
 | Container view | Shows the main runtime services and relationships inside the platform |
 | Mission lifecycle state view | Shows canonical mission-state progression and the optional v2 path |
 | Mission runtime sequence | Shows the end-to-end mission execution path |
-| Multi-agent topology view | Shows the 38-agent hierarchy and delegation structure |
+| Multi-agent topology view | Shows the 41-agent hierarchy and delegation structure |
 | Data and knowledge plane view | Shows streams, persistence, vector stores, graph store, and artifacts |
 | Deployment profile view | Shows the base stack and overlay-based runtime modes |
 | Security and trust-boundary view | Shows auth boundaries, service keys, and TLS-protected internal paths |
@@ -38,7 +38,7 @@ flowchart TB
         Dashboard["Dashboard\nFastAPI :8180"]
         Gateway["API Gateway\nFastAPI :8100"]
         Orchestrator["Orchestrator\nFastAPI :8101"]
-        SemanticBus["Semantic Bus MCP\nFastAPI :8102"]
+        ProtocolBus["Protocol Bus MCP\nFastAPI :8102"]
         PodWorkers["Pod Workers\npodA / podB / podC / podD"]
         AuditWorker["Audit Worker"]
         AgentRuntime["Agent Runtime\nfull-dedicated-agents profile"]
@@ -56,7 +56,7 @@ flowchart TB
     MissionControl <--> Gateway
     Gateway -. "JWT validation when enabled" .-> IdP
     Gateway <--> Orchestrator
-    SemanticBus <--> Redis
+    ProtocolBus <--> Redis
     PodWorkers <--> Redis
     AuditWorker <--> Redis
     AgentRuntime <--> Redis
@@ -83,7 +83,7 @@ flowchart LR
 
     subgraph Core["Core Control Plane"]
         Orch["Orchestrator\nFastAPI :8101"]
-        Bus["Semantic Bus MCP\nFastAPI :8102"]
+        Bus["Protocol Bus MCP\nFastAPI :8102"]
     end
 
     subgraph Execution["Execution Plane"]
@@ -315,7 +315,7 @@ flowchart TB
 flowchart LR
     GW["API Gateway"]
     Orch["Orchestrator"]
-    Bus["Semantic Bus MCP"]
+    Bus["Protocol Bus MCP"]
     Pod["Pod Workers"]
     Audit["Audit Worker"]
     AgentRT["Agent Runtime"]
@@ -347,7 +347,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    Base["Base runtime\napi-gateway\norchestrator\nsemantic-bus-mcp\npod-worker x4\naudit-worker\ndashboard\nmission-control\nredis\npostgres\nqdrant\njaeger"]
+    Base["Base runtime\napi-gateway\norchestrator\nprotocol-bus-mcp\npod-worker x4\naudit-worker\ndashboard\nmission-control\nredis\npostgres\nqdrant\njaeger"]
     Monitoring["Monitoring stack\nPrometheus\nGrafana\nLoki\nPromtail\nAlertmanager"]
     Prod["Production overlay\ndeploy/docker-compose.prod.yaml\nstrict worker key mode\nTLS verification settings"]
     Extended["extended-data-plane profile\nMilvus\nNeo4j\nMinIO"]
