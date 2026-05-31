@@ -61,7 +61,12 @@ function makeId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return `${prefix}-${crypto.randomUUID()}`;
   }
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const bytes = crypto.getRandomValues(new Uint8Array(8));
+    const suffix = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    return `${prefix}-${Date.now()}-${suffix}`;
+  }
+  return `${prefix}-${Date.now()}`;
 }
 
 function fileLabel(file: File): string {

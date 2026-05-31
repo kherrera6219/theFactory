@@ -35,8 +35,8 @@ async def readyz(response: Response) -> dict[str, Any]:
         if not api_gateway_ok:
             api_gateway_error = f"upstream status {upstream.status_code}"
     except Exception as exc:
-        api_gateway_error = str(exc)
-        LOGGER.warning("dashboard readiness check failed: %s", exc)
+        api_gateway_error = type(exc).__name__
+        LOGGER.warning("dashboard readiness check failed: %s", type(exc).__name__)
 
     ready = api_gateway_ok
     if not ready:
@@ -61,8 +61,8 @@ async def snapshot() -> dict[str, Any]:
             "api_gateway": response.json(),
         }
     except Exception as exc:
-        LOGGER.warning("dashboard snapshot failed: %s", exc)
-        return {"ok": False, "error": f"snapshot unavailable: {exc}"}
+        LOGGER.warning("dashboard snapshot failed: %s", type(exc).__name__)
+        return {"ok": False, "error": f"snapshot unavailable: {type(exc).__name__}"}
 
 
 @app.get("/", response_class=HTMLResponse)
