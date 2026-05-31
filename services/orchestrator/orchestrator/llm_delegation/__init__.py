@@ -58,6 +58,8 @@ from .config import (
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
     OPENAI_TIMEOUT_SECONDS,
+    PROMPT_GUARD_BLOCK_ENABLED,
+    PROMPT_GUARD_BLOCK_LEVEL,
     _record_usage_event,
     current_agent_id,
     current_mission_id,
@@ -129,6 +131,7 @@ from .providers import (
     _call_with_recommendation,
     _post_with_retry,
     _retry_delay_for_response,
+    check_user_input,
 )
 from .text import (
     JSON_OBJECT_PATTERN,
@@ -170,7 +173,10 @@ __all__ = [
     "OPENAI_API_KEY",
     "OPENAI_BASE_URL",
     "OPENAI_TIMEOUT_SECONDS",
+    "PROMPT_GUARD_BLOCK_ENABLED",
+    "PROMPT_GUARD_BLOCK_LEVEL",
     "build_deploy_readiness_assessment",
+    "check_user_input",
     "current_agent_id",
     "current_mission_id",
     "current_settings",

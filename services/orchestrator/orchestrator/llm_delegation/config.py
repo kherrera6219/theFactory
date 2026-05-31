@@ -17,6 +17,16 @@ LLM_SAFETY_BLOCK_ENABLED = (
     in {"1", "true", "yes"}
 )
 
+# OWASP LLM01 (Prompt Injection) defense. When enabled, prompts whose injection
+# risk meets PROMPT_GUARD_BLOCK_LEVEL are blocked before reaching any provider;
+# otherwise the detection is logged and the call proceeds. Default: enabled.
+PROMPT_GUARD_BLOCK_ENABLED = (
+    os.getenv("PROMPT_GUARD_BLOCK_ENABLED", "true").strip().lower()
+    in {"1", "true", "yes"}
+)
+# Minimum risk level (low < medium < high < critical) that triggers a block.
+PROMPT_GUARD_BLOCK_LEVEL = os.getenv("PROMPT_GUARD_BLOCK_LEVEL", "high").strip().lower()
+
 current_mission_id: ContextVar[str | None] = ContextVar("current_mission_id", default=None)
 current_settings: ContextVar[Any | None] = ContextVar("current_settings", default=None)
 current_agent_id: ContextVar[str | None] = ContextVar("current_agent_id", default=None)

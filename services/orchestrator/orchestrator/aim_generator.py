@@ -100,7 +100,12 @@ async def generate_aim(
 ) -> dict[str, Any]:
     """Generate a bounded, source-safe Application Intelligence Map."""
     del settings
-    from .llm_delegation import _call_with_recommendation, _ceo_recommendation, _clean_text
+    from .llm_delegation import (
+        _call_with_recommendation,
+        _ceo_recommendation,
+        _clean_text,
+        check_user_input,
+    )
 
     generated_at = datetime.now(UTC).isoformat()
     extraction_summary = _extract_all_languages(
@@ -140,11 +145,24 @@ async def generate_aim(
         "}\n"
     )
 
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
-        recommendation=recommendation,
-        prompt=prompt_text,
-        call_context="application intelligence map generation",
+    # OWASP LLM01 — block injected operator free-text before it reaches the LLM.
+    operator_input_safe = check_user_input(
+        f"{prompt}\n{mission_type}",
+        "application intelligence map generation",
     )
+    if not operator_input_safe:
+        parsed, resolved_provider, resolved_model, llm_route = (
+            None,
+            provider,
+            model,
+            "blocked_injection",
+        )
+    else:
+        parsed, resolved_provider, resolved_model, llm_route = await _call_with_recommendation(
+            recommendation=recommendation,
+            prompt=prompt_text,
+            call_context="application intelligence map generation",
+        )
 
     return _normalize_aim(
         parsed=parsed if isinstance(parsed, dict) else None,

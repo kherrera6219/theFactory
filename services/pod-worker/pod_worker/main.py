@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import inspect
 import json
 import logging
@@ -265,13 +266,20 @@ def _logicnodes_from_extraction(
     target_language: str,
     extraction_language: str,
     concepts: list[Any],
+    source_file: str = "",
 ) -> list[dict[str, Any]]:
+    # Discriminate node_id by source file + line so that multiple occurrences of
+    # the same concept across files/lines do not collapse to one row under the
+    # ON CONFLICT(node_id) upsert (last-write-wins) and silently lose data.
+    file_hash = hashlib.sha256((source_file or extraction_language).encode()).hexdigest()[:8]
     logicnodes: list[dict[str, Any]] = []
     for concept in concepts:
         concept_id = str(getattr(concept, "concept_id", "") or "core")
+        source_line = getattr(concept, "source_line", None)
+        line_token = str(source_line) if source_line is not None else "0"
         logicnodes.append(
             {
-                "node_id": f"{POD_NAME}.{concept_id}.{mission_id}",
+                "node_id": f"{POD_NAME}.{concept_id}.{mission_id}.{file_hash}.{line_token}",
                 "concept": str(getattr(concept, "concept", "") or "extracted_intent"),
                 "domain": str(getattr(concept, "domain", "") or "generic"),
                 "language": extraction_language,
@@ -1121,6 +1129,11 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
         or (mission_metadata.get("source_code") if isinstance(mission_metadata, dict) else None)
         or ""
     )
+    source_file = str(
+        payload.get("source_file")
+        or (mission_metadata.get("source_file") if isinstance(mission_metadata, dict) else None)
+        or source_code
+    )
     extraction_language = target_language or "python"  # default Pod A primary
     extraction_summary: dict = {"language": extraction_language, "concepts_found": 0}
     extracted_logicnodes: list[dict[str, Any]] = []
@@ -1153,6 +1166,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             target_language=target_language,
             extraction_language=extraction_language,
             concepts=result.concepts,
+            source_file=source_file,
         )
 
     if not extracted_logicnodes:
@@ -1412,6 +1426,11 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
         or ""
     )
     source_code = _subset_source_bundle(source_code, _partition_items(payload))
+    source_file = str(
+        payload.get("source_file")
+        or (mission_metadata.get("source_file") if isinstance(mission_metadata, dict) else None)
+        or source_code
+    )
     extraction_language = target_language or "python"
     extraction_summary: dict[str, Any] = {"language": extraction_language, "concepts_found": 0}
     extracted_logicnodes: list[dict[str, Any]] = []
@@ -1442,6 +1461,7 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
             target_language=target_language,
             extraction_language=extraction_language,
             concepts=result.concepts,
+            source_file=source_file,
         )
 
     if not extracted_logicnodes:
