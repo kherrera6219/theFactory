@@ -86,6 +86,11 @@ class Settings:
     testdata_agent_enabled: bool = False
     rqca_agent_enabled: bool = False
     rqca_enforcement_enabled: bool = False
+    # Per-language template for the command RQCA runs to determine pass/fail.
+    # "{filename}" is the artifact name and "{test_filename}" is the test file
+    # (test_<filename>). Defaults run the language's test framework against the
+    # test file when one was generated rather than just executing the artifact.
+    rqca_test_command_template: str = ""
     docker_bin: str = "docker"
     depabs_execution_enabled: bool = False
     port_two_phase_enabled: bool = False
@@ -311,6 +316,7 @@ def load_settings() -> Settings:
         rqca_enforcement_enabled=_as_bool(
             os.getenv("RQCA_ENFORCEMENT_ENABLED", "false"), False
         ),
+        rqca_test_command_template=os.getenv("RQCA_TEST_COMMAND_TEMPLATE", "").strip(),
         docker_bin=os.getenv("DOCKER_BIN", "docker").strip() or "docker",
         depabs_execution_enabled=_as_bool(
             os.getenv("DEPABS_EXECUTION_ENABLED", "false"), False

@@ -113,6 +113,69 @@ def test_rqca_assessment_skipped_is_degraded_not_safe() -> None:
         assert result["deployment_safe"] is False
 
 
+def test_rqca_compose_yaml_is_hardened_and_sanitized() -> None:
+    manifest = {
+        "multi_container": True,
+        "memory_limit_mb": 256,
+        "services": [
+            {"name": "test runner!", "image": "python:3.11-slim",
+             "command": "python /workspace/output.py"},
+            {"name": "db", "image": "postgres:16-alpine",
+             "environment": {"POSTGRES_PASSWORD": "p@ss: word\ninjected: true"}},
+        ],
+    }
+    yml = rqca_agent._build_rqca_compose_yml(
+        mission_id="mission-1",
+        filename="output.py",
+        code_tmpdir="/tmp/hgr-rqca-abc",
+        testdata_manifest=manifest,
+    )
+    # Same hardening as the single-container path applied to every service.
+    assert "cap_drop:" in yml
+    assert "no-new-privileges:true" in yml
+    assert "read_only: true" in yml
+    assert yml.count("read_only: true") == 2
+    assert "cpus:" in yml
+    # Service name sanitized to a valid compose key (no spaces / punctuation).
+    assert "test-runner-" in yml
+    assert "test runner!" not in yml
+    # Env value with a newline+colon must not become a structural YAML key.
+    assert "\n      injected: true" not in yml
+    # The crafted value is emitted as a single quoted scalar.
+    assert '"POSTGRES_PASSWORD"' in yml
+
+
+def test_rqca_resolve_test_command_prefers_test_framework() -> None:
+    cmd = rqca_agent._resolve_test_command(
+        filename="solution.py",
+        test_filename="test_solution.py",
+        language="python",
+        settings=SimpleNamespace(rqca_test_command_template=""),
+    )
+    assert cmd is not None
+    assert "pytest" in cmd
+    assert "test_solution.py" in cmd
+    # No test file → no test command (caller falls back to running the artifact).
+    assert rqca_agent._resolve_test_command(
+        filename="solution.py",
+        test_filename="",
+        language="python",
+        settings=SimpleNamespace(),
+    ) is None
+
+
+def test_rqca_resolve_test_command_honors_operator_template() -> None:
+    cmd = rqca_agent._resolve_test_command(
+        filename="solution.py",
+        test_filename="test_solution.py",
+        language="python",
+        settings=SimpleNamespace(
+            rqca_test_command_template="custom-runner {test_filename}"
+        ),
+    )
+    assert cmd == "custom-runner test_solution.py"
+
+
 def test_security_analysis_offline_fallback_is_degraded() -> None:
     """The offline security gate must report degraded status, not passed=True."""
     result = llm_delegation._fallback_security_analysis(
