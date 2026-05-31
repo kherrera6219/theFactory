@@ -56,7 +56,10 @@ def test_snapshot_failure(monkeypatch) -> None:
     monkeypatch.setattr(dashboard_main.httpx, "AsyncClient", FailingClient)
     result = asyncio.run(dashboard_main.snapshot())
     assert result["ok"] is False
-    assert "network down" in result["error"]
+    # Error responses expose only the exception type, not the raw message,
+    # to avoid leaking sensitive content (CodeQL clear-text logging hardening).
+    assert "RuntimeError" in result["error"]
+    assert "network down" not in result["error"]
 
 
 def test_index_contains_dashboard_title() -> None:
