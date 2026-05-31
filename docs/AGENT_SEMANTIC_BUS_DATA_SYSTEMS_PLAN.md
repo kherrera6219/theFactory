@@ -1,11 +1,11 @@
-# Agent Semantic Bus and Data Systems Plan
+# Agent Protocol Bus and Data Systems Plan
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.05.30  
+Last updated: 2026-05-30  
 Status: Reference  
 Audience: Operators, developers, maintainers, and auditors
 
-> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+> Historical note (2026-03-29): This document predates the current 41-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
 
 Date: 2026-03-03
 
@@ -13,7 +13,7 @@ Date: 2026-03-03
 
 This document reconciles:
 
-- Holygrail source documentation in `C:\software\Holygrail` (agent architecture, communication, data architecture, semantic bus, database setup, knowledge lake, and communication patterns).
+- Holygrail source documentation in `C:\software\Holygrail` (agent architecture, communication, data architecture, protocol bus, database setup, knowledge lake, and communication patterns).
 - Current implementation in `C:\software\Holygrail\theFactory`.
 - Current production standards from official vendor documentation for Redis, PostgreSQL, Neo4j, and object storage.
 
@@ -30,6 +30,18 @@ Current implementation status in docs and code:
 - Qdrant is now active in the orchestrator internal knowledge retrieval path with best-effort dual-write from PostgreSQL.
 - Neo4j is now available as a feature-flagged optional adapter for relationship traversal use cases.
 - Object storage is now available as a feature-flagged optional adapter for large immutable artifacts (binaries, audit evidence, large payload bundles).
+
+## Protocol Bus Overview
+
+The bus (`protocol-bus-mcp`) is a six-protocol typed message bus with lexical channel-string routing. The six protocols (alpha/beta/delta/sigma/omega/rho) define message lanes by purpose, not by semantic content. Sigma messages carry an `embedding_ref` field reserved for future semantic routing but not currently used for routing decisions.
+
+### Hardened Behavior
+
+The current hardened behavior of `protocol-bus-mcp` is:
+
+- Replay detection: duplicate correlation-ids return 409 within the TTL window.
+- Fail-closed on Redis: dedup and backpressure failures return 503 (previously a silent pass).
+- Multi-channel backpressure: all resolved channels are checked, not just the first.
 
 ## Phase 1 Completed in Repo
 
@@ -74,7 +86,7 @@ Implemented in this phase:
 
 Legend:
 
-- Bus Role: semantic-bus direction and protocol ownership.
+- Bus Role: protocol-bus direction and protocol ownership.
 - Data Systems: currently expected internal systems for the agent (`redis`, `postgresql`, `qdrant`, `neo4j` feature_flagged optional, `object_storage` feature_flagged optional).
 - Canonical machine-readable output is available at `/v1/operations/agent-integrations`.
 
