@@ -7,6 +7,9 @@ from pathlib import Path
 from re import Pattern
 from typing import Any
 
+from jsonschema import Draft202012Validator
+from jsonschema import ValidationError as JSONSchemaValidationError
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -51,34 +54,45 @@ def validate_envelope(
     *,
     schema: dict[str, Any],
     topics: set[str],
-    payload_ref_pattern: Pattern[str],
+    payload_ref_pattern: Pattern[str] | None = None,
 ) -> None:
-    required = schema.get("required", [])
-    properties = schema.get("properties", {})
-    missing = [field for field in required if field not in envelope]
-    if missing:
-        raise ProtocolValidationError(f"missing fields: {', '.join(missing)}")
-    if schema.get("additionalProperties") is False:
-        unknown = [field for field in envelope if field not in properties]
-        if unknown:
-            raise ProtocolValidationError(f"unexpected fields: {', '.join(unknown)}")
+    """Validate an event envelope against the canonical JSON Schema.
+
+    Structural validation (required fields, additionalProperties, types, the
+    ``payload_ref`` ``registry://`` pattern, the ``priority`` enum, and the
+    ``date-time`` timestamp format) is delegated to ``jsonschema`` so that
+    ``schemas/event.envelope.schema.json`` is the single source of truth. The
+    only check kept here is the topic-catalog membership, which lives in an
+    external YAML file (``protocol/topics.yaml``) rather than the schema.
+
+    ``payload_ref_pattern`` is accepted for backwards compatibility but is no
+    longer used — the pattern is enforced by the schema itself.
+    """
+    _ = payload_ref_pattern
+    # FormatChecker activates the "date-time" and "pattern" assertions in the
+    # schema (jsonschema treats "format" as advisory unless a checker is given).
+    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    try:
+        validator.validate(envelope)
+    except JSONSchemaValidationError as exc:
+        raise ProtocolValidationError(_format_schema_error(exc)) from exc
+    # jsonschema's "date-time" format check only enforces a full RFC 3339 string
+    # when the optional rfc3339-validator package is installed; enforce the
+    # timezone-required invariant explicitly so it holds without that dependency.
+    if "timestamp" in envelope:
+        try:
+            parse_date_time(str(envelope["timestamp"]))
+        except Exception as exc:
+            raise ProtocolValidationError(f"invalid timestamp: {exc}") from exc
     if envelope.get("topic") not in topics:
         raise ProtocolValidationError("unknown topic")
-    if not payload_ref_pattern.match(str(envelope.get("payload_ref", ""))):
-        raise ProtocolValidationError("invalid payload_ref")
-    allowed_priorities = set(properties.get("priority", {}).get("enum", ["NORMAL", "HIGH"]))
-    if envelope.get("priority") not in allowed_priorities:
-        raise ProtocolValidationError(
-            f"priority must be one of: {', '.join(sorted(allowed_priorities))}"
-        )
-    try:
-        parse_date_time(str(envelope["timestamp"]))
-    except Exception as exc:
-        raise ProtocolValidationError(f"invalid timestamp: {exc}") from exc
-    for field, spec in properties.items():
-        expected_type = spec.get("type")
-        if field in envelope and expected_type == "string" and not isinstance(envelope[field], str):
-            raise ProtocolValidationError(f"field '{field}' must be string")
+
+
+def _format_schema_error(exc: JSONSchemaValidationError) -> str:
+    location = ".".join(str(part) for part in exc.absolute_path)
+    if location:
+        return f"envelope field '{location}' invalid: {exc.message}"
+    return f"envelope invalid: {exc.message}"
 
 
 # ---------------------------------------------------------------------------

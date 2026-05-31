@@ -173,6 +173,34 @@ class RhoPayload(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class EventEnvelope(BaseModel):
+    """Canonical event envelope — the single source of truth for the published
+    envelope shape, mirroring ``schemas/event.envelope.schema.json``.
+
+    The orchestrator and api-gateway validate dict payloads against that JSON
+    Schema via ``jsonschema``; this Pydantic model is the typed counterpart so
+    the MCP layer shares the same contract. The ``tests/services/
+    test_envelope_schema_contract.py`` contract test asserts the two
+    representations stay in sync across all six protocol types.
+    """
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    event_id: str = Field(min_length=1)
+    topic: str = Field(min_length=1)
+    timestamp: str
+    producer: str
+    correlation_id: str
+    payload_ref: str = Field(pattern=r"^registry://")
+    schema_: str = Field(alias="schema")
+    priority: Literal["NORMAL", "HIGH"]
+
+    @model_validator(mode="after")
+    def _validate_timestamp(self) -> "EventEnvelope":
+        _parse_datetime(self.timestamp)
+        return self
+
+
 class MessageEnvelope(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 

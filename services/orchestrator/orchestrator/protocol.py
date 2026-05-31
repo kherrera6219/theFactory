@@ -7,23 +7,23 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from shared_runtime.protocol import ProtocolValidationError as _SharedProtocolValidationError
+from shared_runtime.protocol import parse_date_time as _shared_parse_date_time
+from shared_runtime.protocol import validate_envelope as _shared_validate_envelope
+
 from .models import MissionRecord
 from .settings import Settings
 
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 
 
-class ProtocolValidationError(Exception):
-    pass
+# Re-exported so existing callers/tests can catch the orchestrator-local name while
+# the shared jsonschema validator raises the canonical shared error type.
+ProtocolValidationError = _SharedProtocolValidationError
 
 
 def _parse_date_time(value: str) -> datetime:
-    if value.endswith("Z"):
-        value = value[:-1] + "+00:00"
-    parsed = datetime.fromisoformat(value)
-    if parsed.tzinfo is None:
-        raise ValueError("timestamp must include timezone")
-    return parsed
+    return _shared_parse_date_time(value)
 
 
 @dataclass
@@ -53,44 +53,12 @@ class EnvelopeValidator:
         return cls(settings=settings, schema=schema, topics=topics)
 
     def validate(self, envelope: dict[str, Any]) -> None:
-        required = self.schema.get("required", [])
-        properties = self.schema.get("properties", {})
-
-        missing = [field for field in required if field not in envelope]
-        if missing:
-            raise ProtocolValidationError(f"envelope missing required fields: {', '.join(missing)}")
-
-        if self.schema.get("additionalProperties") is False:
-            unknown = [field for field in envelope if field not in properties]
-            if unknown:
-                raise ProtocolValidationError(f"unexpected envelope fields: {', '.join(unknown)}")
-
-        topic = str(envelope.get("topic", ""))
-        if topic not in self.topics:
-            raise ProtocolValidationError(f"topic '{topic}' is not in protocol catalog")
-
-        payload_ref = str(envelope.get("payload_ref", ""))
-        if not PAYLOAD_REF_PATTERN.match(payload_ref):
-            raise ProtocolValidationError("payload_ref must start with registry://")
-
-        priority = envelope.get("priority")
-        allowed = set(properties.get("priority", {}).get("enum", ["NORMAL", "HIGH"]))
-        if priority not in allowed:
-            raise ProtocolValidationError(f"priority must be one of: {', '.join(sorted(allowed))}")
-
-        try:
-            _parse_date_time(str(envelope["timestamp"]))
-        except Exception as exc:
-            raise ProtocolValidationError(f"invalid timestamp: {exc}") from exc
-
-        for field, spec in properties.items():
-            expected_type = spec.get("type")
-            if (
-                field in envelope
-                and expected_type == "string"
-                and not isinstance(envelope[field], str)
-            ):
-                raise ProtocolValidationError(f"field '{field}' must be string")
+        _shared_validate_envelope(
+            envelope,
+            schema=self.schema,
+            topics=self.topics,
+            payload_ref_pattern=PAYLOAD_REF_PATTERN,
+        )
 
     def build_state_envelope(self, mission: MissionRecord, event_type: str) -> dict[str, Any]:
         topic = self.settings.topic_for_state(mission.state.value)
