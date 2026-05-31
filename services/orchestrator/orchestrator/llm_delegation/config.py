@@ -32,6 +32,19 @@ def _record_usage_event(  # noqa: PLR0913
         mission_id = current_mission_id.get() or ""
     if not agent_id:
         agent_id = current_agent_id.get() or ""
+
+    # Prometheus token/cost metrics are independent of the per-mission DB
+    # ledger and must be recorded even when mission_id is unknown.
+    try:
+        from .metrics import record_llm_usage as _record_metric_usage  # noqa: PLC0415
+
+        _record_metric_usage(
+            provider=provider, model=model,
+            input_tokens=int(inp or 0), output_tokens=int(out or 0),
+        )
+    except Exception:
+        pass
+
     if not mission_id:
         return
     try:

@@ -165,6 +165,12 @@ LIVE_STREAM_ERRORS = Counter(
     "Total errors observed in api-gateway live stream",
     ("reason",),
 )
+AUTH_FAILURES_TOTAL = Counter(
+    "factory_auth_failures_total",
+    "Authentication failures",
+    # reason = invalid_key | expired_token | insufficient_role | missing_auth
+    ("reason", "route_prefix"),
+)
 configure_logging("api-gateway")
 LOGGER = logging.getLogger(__name__)
 VALID_AUTH_MODES = {"api_key", "hybrid", "oidc"}
@@ -798,6 +804,10 @@ def _decode_oidc_token(token: str) -> dict[str, Any]:
         # PyJWT raises many subtypes (InvalidSignatureError, ExpiredSignatureError, etc.)
         # Log class only — the exception message may contain token fragments.
         LOGGER.warning("oidc bearer token rejected: %s", type(exc).__name__)
+        # Surface expiry distinctly so observability can separate expired tokens
+        # from genuinely invalid ones (drives factory_auth_failures_total reason).
+        if type(exc).__name__ == "ExpiredSignatureError":
+            raise HTTPException(status_code=401, detail="expired bearer token") from exc
         raise HTTPException(status_code=401, detail="invalid bearer token") from exc
 
     if not isinstance(decoded, dict):
@@ -1473,8 +1483,52 @@ async def _security_hardening_headers(request: Request, call_next):
     # Strict Transport Security (HSTS) if not on plain HTTP dev
     if ENVIRONMENT != "development":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
-        
+
     return response
+
+
+def _classify_auth_failure_reason(status_code: int, detail: str) -> str:
+    """Map an auth-related HTTP error to a factory_auth_failures_total reason.
+
+    reason = invalid_key | expired_token | insufficient_role | missing_auth
+    """
+    text = (detail or "").lower()
+    if status_code == 403 or "insufficient" in text:
+        return "insufficient_role"
+    if "expired" in text:
+        return "expired_token"
+    if "required" in text or "missing" in text:
+        return "missing_auth"
+    return "invalid_key"
+
+
+def _route_prefix(path: str) -> str:
+    """Collapse a request path to a low-cardinality route prefix label."""
+    parts = [p for p in path.split("/") if p]
+    if not parts:
+        return "/"
+    if parts[0] == "v1" and len(parts) >= 2:
+        return f"/v1/{parts[1]}"
+    return f"/{parts[0]}"
+
+
+@app.exception_handler(HTTPException)
+async def _auth_failure_metrics_handler(request: Request, exc: HTTPException):
+    """Record authentication/authorization failures, then delegate to the
+    default HTTPException rendering so response behavior is unchanged."""
+    if exc.status_code in (401, 403):
+        try:
+            AUTH_FAILURES_TOTAL.labels(
+                reason=_classify_auth_failure_reason(exc.status_code, str(exc.detail)),
+                route_prefix=_route_prefix(request.url.path),
+            ).inc()
+        except Exception:  # noqa: BLE001
+            LOGGER.warning("failed to record auth failure metric", exc_info=True)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=getattr(exc, "headers", None),
+    )
 
 
 @app.middleware("http")
