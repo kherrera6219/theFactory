@@ -23,7 +23,13 @@ from jsonschema import ValidationError as JSONSchemaValidationError
 
 LOGGER = logging.getLogger(__name__)
 
-_DEFAULT_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "schemas" / "logicnode.schema.json"
+# Path works both in container (/app/orchestrator/logicnode_schema.py → parents[1])
+# and in dev repo (services/orchestrator/orchestrator/logicnode_schema.py → parents[3])
+_here = Path(__file__).resolve()
+_DEFAULT_SCHEMA_PATH = next(
+    (p / "schemas" / "logicnode.schema.json" for p in _here.parents if (p / "schemas" / "logicnode.schema.json").exists()),
+    _here.parents[min(3, len(_here.parents) - 1)] / "schemas" / "logicnode.schema.json"
+)
 
 
 @lru_cache(maxsize=8)
