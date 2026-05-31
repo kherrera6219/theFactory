@@ -9,14 +9,14 @@ sys.path.insert(0, str(ROOT / "services" / "api-gateway"))
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 sys.path.insert(0, str(ROOT / "services" / "pod-worker"))
 sys.path.insert(0, str(ROOT / "services" / "audit-worker"))
-sys.path.insert(0, str(ROOT / "services" / "semantic-bus-mcp"))
+sys.path.insert(0, str(ROOT / "services" / "protocol-bus-mcp"))
 sys.path.insert(0, str(ROOT / "services" / "dashboard"))
 
 gateway_tracing = importlib.import_module("api_gateway.tracing")
 orchestrator_tracing = importlib.import_module("orchestrator.tracing")
 pod_worker_tracing = importlib.import_module("pod_worker.tracing")
 audit_worker_tracing = importlib.import_module("audit_worker.tracing")
-semantic_bus_tracing = importlib.import_module("semantic_bus.tracing")
+protocol_bus_tracing = importlib.import_module("protocol_bus.tracing")
 dashboard_tracing = importlib.import_module("dashboard.tracing")
 
 
@@ -124,7 +124,7 @@ def test_other_services_configure_tracing_disabled(monkeypatch) -> None:
     assert pod_worker_tracing.configure_tracing(_DummyApp(), service_name="pod-worker") is False
     assert audit_worker_tracing.configure_tracing(_DummyApp(), service_name="audit-worker") is False
     assert (
-        semantic_bus_tracing.configure_tracing(_DummyApp(), service_name="semantic-bus-mcp")
+        protocol_bus_tracing.configure_tracing(_DummyApp(), service_name="protocol-bus-mcp")
         is False
     )
     assert dashboard_tracing.configure_tracing(_DummyApp(), service_name="dashboard") is False
@@ -144,7 +144,7 @@ def test_trace_enabled_parser(monkeypatch) -> None:
     assert orchestrator_tracing._enabled() is False
     assert pod_worker_tracing._enabled() is False
     assert audit_worker_tracing._enabled() is False
-    assert semantic_bus_tracing._enabled() is False
+    assert protocol_bus_tracing._enabled() is False
     assert dashboard_tracing._enabled() is False
     monkeypatch.delenv("OTEL_TRACING_ENABLED", raising=False)
     assert os.getenv("OTEL_TRACING_ENABLED") is None
@@ -161,9 +161,9 @@ def test_other_service_tracing_logs_instrumentation_failures(monkeypatch, caplog
             is True
         )
         assert (
-            semantic_bus_tracing.configure_tracing(
+            protocol_bus_tracing.configure_tracing(
                 _DummyApp(),
-                service_name="semantic-bus-mcp",
+                service_name="protocol-bus-mcp",
             )
             is True
         )

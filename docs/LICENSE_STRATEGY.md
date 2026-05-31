@@ -45,7 +45,7 @@ If a contributor or partner relied on the previous "proprietary" statement, they
 
 theFactory adopts an **open-core** strategy:
 
-- **Core (open):** the runtime services, agent registry, mission lifecycle, language extraction, semantic bus, builder/repo review, and the documentation that describes them. All under MIT.
+- **Core (open):** the runtime services, agent registry, mission lifecycle, language extraction, protocol bus, builder/repo review, and the documentation that describes them. All under MIT.
 - **Commercial (separate):** advanced enterprise capabilities (multi-tenancy, approved-dependency registry, advanced compliance reporting, air-gapped deployment hardening, premium runtime QC features, support and SLA) shipped as separately-licensed distributions.
 
 This approach is patterned on widely-adopted open-core projects in the developer-tools and infrastructure space. It permits broad community adoption while preserving the option to fund continued development through commercial editions.
@@ -54,7 +54,7 @@ This approach is patterned on widely-adopted open-core projects in the developer
 
 The MIT-licensed core includes, at minimum:
 
-- API gateway, orchestrator, pod workers, audit worker, semantic bus MCP, dashboard
+- API gateway, orchestrator, pod workers, audit worker, protocol bus MCP, dashboard
 - The 38-agent registry and persona definitions
 - Mission lifecycle (Mission Flow v2 and any successor default lifecycles)
 - Language extraction engine and the concept catalog

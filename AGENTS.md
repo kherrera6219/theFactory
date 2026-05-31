@@ -95,14 +95,14 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 | `services/pod-worker/pod_worker/extractors/` | **High** | Core semantic engine. Fixture tests required for changes. |
 | `shared/schemas/` | **High** | Schema changes break all services. Coordinate. |
 | `services/api-gateway/` | **Medium** | Auth modes, key isolation, rate limiting |
-| `services/semantic-bus-mcp/` | **Medium** | Protocol routing. Do not rename streams without updating all consumers. |
+| `services/protocol-bus-mcp/` | **Medium** | Protocol routing. Do not rename streams without updating all consumers. |
 | `apps/mission-control/` | **Medium** | UI must match actual backend behavior |
 
 ---
 
 ## Repository Structure & Module Organization
 - `apps/mission-control`: Next.js operator UI (routes under `app/`, unit tests, and Playwright e2e).
-- `services/`: backend services (`api-gateway`, `orchestrator`, `pod-worker`, `audit-worker`, `semantic-bus-mcp`, `dashboard`).
+- `services/`: backend services (`api-gateway`, `orchestrator`, `pod-worker`, `audit-worker`, `protocol-bus-mcp`, `dashboard`).
 - `scripts/`: operational tooling (audit, perf, reliability, backup/DR, debug sweep, OpenAPI export).
 - `tests/`: Python tests split by domain (`tests/services`, `tests/scripts`).
 - `deploy/`: Docker Compose stacks and monitoring config.

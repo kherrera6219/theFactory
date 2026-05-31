@@ -654,7 +654,7 @@ def test_gateway_builder_preview_gemini(monkeypatch) -> None:
                         {
                             "content": {
                                 "parts": [
-                                    {"text": "Create semantic bus review panel."},
+                                    {"text": "Create protocol bus review panel."},
                                     {"text": "Keep route contracts unchanged."},
                                 ]
                             }
@@ -676,7 +676,7 @@ def test_gateway_builder_preview_gemini(monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["source"] == "gemini"
-    assert payload["diff_summary"][0] == "Create semantic bus review panel."
+    assert payload["diff_summary"][0] == "Create protocol bus review panel."
 
 
 def test_gateway_internal_operations_routes(monkeypatch) -> None:

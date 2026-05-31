@@ -113,7 +113,7 @@ For the implemented lifecycle (Mission Flow v2 — 11-phase state machine) see [
 Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 
 - **Multi-modal context ingestion** — native support for PDF, Word, MD, and PowerPoint indexing via IS-Agent\n- **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
-- **Semantic bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
+- **Protocol bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
 - **41-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
 - **Language-aware code analysis** — regex-first extraction engine for 20 routed language keys across 4 pod groups; Python, JavaScript/TypeScript, and Java each have full AST-backed structural extractors (feature-flagged, production-ready)
 - **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
@@ -145,7 +145,7 @@ Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTA
 └──┬──────┬──────────┬───────────────┬───────────────────────────┘
    │      │ Redis    │               │
    │   Streams   ┌──▼────────────────▼──┐
-   │      │      │   SEMANTIC BUS MCP    │
+   │      │      │   PROTOCOL BUS MCP    │
    │      │      │   :8102               │
    │      │      │   6-protocol routing  │
    │      │      └───────────────────────┘
@@ -308,7 +308,7 @@ Each extracted concept becomes a **LogicNode** with:
 |---------|------|------|-------------|
 | `api-gateway` | 8100 | FastAPI | Public API boundary, auth, rate limiting, SSE transport |
 | `orchestrator` | 8101 | FastAPI | Mission state machine, agent registry, operations APIs |
-| `semantic-bus-mcp` | 8102 | FastAPI | 6-protocol semantic bus with DLQ |
+| `protocol-bus-mcp` | 8102 | FastAPI | 6-protocol protocol bus with DLQ |
 | `pod-worker` | — | FastAPI | Language-aware pod stream worker (4 pod variants) |
 | `audit-worker` | — | FastAPI | Verification stream processing |
 | `dashboard` | 8180 | FastAPI | Lightweight operational status UI |
@@ -369,7 +369,7 @@ Each extracted concept becomes a **LogicNode** with:
 |--------|------|-------------|
 | `GET` | `/v1/stream/state` | SSE stream with `mission_id` filter, `Last-Event-ID` resume, keepalive |
 
-### Semantic Bus MCP (`http://localhost:8102`)
+### Protocol Bus MCP (`http://localhost:8102`)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -400,7 +400,7 @@ Each extracted concept becomes a **LogicNode** with:
 | Mission Detail | Live event timeline, Smelt-cycle phase stepper (SSE-driven), chain-of-command, LogicNode/knowledge drill-down, and build-artifact visibility |
 | Agents | 41-agent roster grid with persona drill-down and windowed live logs |
 | LogicNodes | Logic artifact explorer with mission filtering, confidence summaries, and source lineage |
-| Semantic Bus | Live message stream with `stream|poll|paused` transport diagnostics and windowed rendering |
+| Protocol Bus | Live message stream with `stream|poll|paused` transport diagnostics and windowed rendering |
 | Projects | Project portfolio, mission rollups, and project-level audit timeline |
 | Alerts | Incident and alert center with acknowledge/resolve workflow |
 | Performance | Runtime readiness, dependency health, and mission-state capacity snapshot |
@@ -409,7 +409,7 @@ Each extracted concept becomes a **LogicNode** with:
 | Databases | Shared data-system readiness and diagnostics |
 | Settings | Provider key management, vault-backed secrets, and local environment controls |
 
-Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`, `LogicNodes`, `Semantic Bus`, `Databases`, `Repo Import`, and `Settings`. Additional shipped operator routes include `Mission Detail`, `Builder`, `Projects`, `Alerts`, `Performance`, and `/dashboard` as a direct launch-pad alias.
+Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`, `LogicNodes`, `Protocol Bus`, `Databases`, `Repo Import`, and `Settings`. Additional shipped operator routes include `Mission Detail`, `Builder`, `Projects`, `Alerts`, `Performance`, and `/dashboard` as a direct launch-pad alias.
 
 **Additional operator experience features (Phase 6-7, shipped 2026-05-22):**
 
@@ -430,7 +430,7 @@ Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`,
 - Responsive breakpoints include 1440px wide desktop, 1024px standard desktop, and a 920px tablet/mobile collapse
 - SSE live transport with `stream|poll|paused` mode diagnostics
 - Signed `HttpOnly` operator session cookie for sensitive Mission Control server routes
-- Windowed rendering for high-volume agent and semantic bus views
+- Windowed rendering for high-volume agent and protocol bus views
 - Electron-ready: `electron/main.ts`, `electron/preload.ts`, `electron/tray.ts`, `electron/updater.ts`; `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`
 
 ---
@@ -563,7 +563,7 @@ curl http://localhost:8100/health
 # Orchestrator
 curl http://localhost:8101/health
 
-# Semantic Bus MCP
+# Protocol Bus MCP
 curl http://localhost:8102/health
 ```
 
@@ -583,7 +583,7 @@ make monitor-up
 |---------|------|
 | API Gateway | `8100` |
 | Orchestrator | `8101` |
-| Semantic Bus MCP | `8102` |
+| Protocol Bus MCP | `8102` |
 | Dashboard | `8180` |
 | Mission Control | `3100` |
 | Redis | `6380` |
@@ -853,11 +853,11 @@ theFactory/
 │   ├── orchestrator/             # Mission state machine, agent registry
 │   ├── pod-worker/               # Language extraction + LogicNode workers
 │   ├── audit-worker/             # Verification stream processor
-│   ├── semantic-bus-mcp/         # 6-protocol semantic bus
+│   ├── protocol-bus-mcp/         # 6-protocol protocol bus
 │   ├── dashboard/                # Lightweight ops status UI
 │   └── agent-runtime/            # Full dedicated single-agent runtime
 ├── schemas/                      # Event envelope, LogicNode, RIR contracts
-├── protocol/                     # Semantic bus topic catalog
+├── protocol/                     # Protocol bus topic catalog
 ├── ledger/                       # Traceability ledger schema
 ├── assets/design-tokens/         # CSS design token source of truth
 ├── deploy/                       # Docker Compose stacks + monitoring config

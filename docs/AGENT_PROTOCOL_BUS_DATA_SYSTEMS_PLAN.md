@@ -1,4 +1,4 @@
-# Agent Semantic Bus and Data Systems Plan
+# Agent Protocol Bus and Data Systems Plan
 
 Document version: 2026.03.29  
 Last updated: 2026-03-29  
@@ -13,7 +13,7 @@ Date: 2026-03-03
 
 This document reconciles:
 
-- Holygrail source documentation in `C:\software\Holygrail` (agent architecture, communication, data architecture, semantic bus, database setup, knowledge lake, and communication patterns).
+- Holygrail source documentation in `C:\software\Holygrail` (agent architecture, communication, data architecture, protocol bus, database setup, knowledge lake, and communication patterns).
 - Current implementation in `C:\software\Holygrail\theFactory`.
 - Current production standards from official vendor documentation for Redis, PostgreSQL, Neo4j, and object storage.
 
@@ -74,7 +74,7 @@ Implemented in this phase:
 
 Legend:
 
-- Bus Role: semantic-bus direction and protocol ownership.
+- Bus Role: protocol-bus direction and protocol ownership.
 - Data Systems: currently expected internal systems for the agent (`redis`, `postgresql`, `qdrant`, `neo4j` feature_flagged optional, `object_storage` feature_flagged optional).
 - Canonical machine-readable output is available at `/v1/operations/agent-integrations`.
 

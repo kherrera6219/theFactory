@@ -21,7 +21,7 @@ This guide explains how to use theFactory through Mission Control for the main o
   - 38-agent runtime topology and persona drill-down
 - `LogicNodes`
   - extracted mission-linked graph fragments
-- `Semantic Bus`
+- `Protocol Bus`
   - event and protocol traffic inspection
 - `Databases`
   - data-plane readiness and adapter status

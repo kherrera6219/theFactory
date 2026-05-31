@@ -1,4 +1,4 @@
-"""Tests for semantic-bus-mcp deduplication and backpressure — Phase 3."""
+"""Tests for protocol-bus-mcp deduplication and backpressure — Phase 3."""
 from __future__ import annotations
 
 import importlib
@@ -9,9 +9,9 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "services" / "semantic-bus-mcp"))
+sys.path.insert(0, str(ROOT / "services" / "protocol-bus-mcp"))
 
-mcp_main = importlib.import_module("semantic_bus.mcp_server")
+mcp_main = importlib.import_module("protocol_bus.mcp_server")
 app = mcp_main.app
 
 

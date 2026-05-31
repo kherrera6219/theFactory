@@ -11,9 +11,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "services" / "semantic-bus-mcp"))
+sys.path.insert(0, str(ROOT / "services" / "protocol-bus-mcp"))
 
-mcp_main = importlib.import_module("semantic_bus.mcp_server")
+mcp_main = importlib.import_module("protocol_bus.mcp_server")
 app = mcp_main.app
 
 
@@ -151,7 +151,7 @@ def test_health_endpoint_with_ready_redis() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["ok"] is True
-    assert payload["service"] == "semantic-bus-mcp"
+    assert payload["service"] == "protocol-bus-mcp"
 
 
 def test_readyz_endpoint_with_ready_redis() -> None:
@@ -508,8 +508,8 @@ def test_lifespan_handles_aclose(monkeypatch) -> None:
     assert redis_client.closed is True
 
 
-def test_semantic_bus_module_import_fallback_without_redis(monkeypatch) -> None:
-    module_path = ROOT / "services" / "semantic-bus-mcp" / "semantic_bus" / "mcp_server.py"
+def test_protocol_bus_module_import_fallback_without_redis(monkeypatch) -> None:
+    module_path = ROOT / "services" / "protocol-bus-mcp" / "protocol_bus" / "mcp_server.py"
     real_import = builtins.__import__
 
     class _DummyMetric:
@@ -545,16 +545,16 @@ def test_semantic_bus_module_import_fallback_without_redis(monkeypatch) -> None:
         return real_import(name, globals, locals, fromlist, level)
 
     monkeypatch.setattr(builtins, "__import__", _blocked_import)
-    spec = importlib.util.spec_from_file_location("semantic_bus.mcp_server_no_redis", module_path)
+    spec = importlib.util.spec_from_file_location("protocol_bus.mcp_server_no_redis", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.redis is None
 
 
-def test_semantic_bus_module_import_enforces_explicit_production_api_key(monkeypatch) -> None:
-    module_path = ROOT / "services" / "semantic-bus-mcp" / "semantic_bus" / "mcp_server.py"
-    module_name = "semantic_bus.mcp_server_production_guard"
+def test_protocol_bus_module_import_enforces_explicit_production_api_key(monkeypatch) -> None:
+    module_path = ROOT / "services" / "protocol-bus-mcp" / "protocol_bus" / "mcp_server.py"
+    module_name = "protocol_bus.mcp_server_production_guard"
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.delenv("MCP_API_KEY", raising=False)
     sys.modules.pop(module_name, None)
@@ -565,9 +565,9 @@ def test_semantic_bus_module_import_enforces_explicit_production_api_key(monkeyp
         spec.loader.exec_module(module)
 
 
-def test_semantic_bus_module_import_accepts_explicit_api_key_without_warning(monkeypatch) -> None:
-    module_path = ROOT / "services" / "semantic-bus-mcp" / "semantic_bus" / "mcp_server.py"
-    module_name = "semantic_bus.mcp_server_with_explicit_key"
+def test_protocol_bus_module_import_accepts_explicit_api_key_without_warning(monkeypatch) -> None:
+    module_path = ROOT / "services" / "protocol-bus-mcp" / "protocol_bus" / "mcp_server.py"
+    module_name = "protocol_bus.mcp_server_with_explicit_key"
     real_import = builtins.__import__
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("MCP_API_KEY", "stable-test-key")

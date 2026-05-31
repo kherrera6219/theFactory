@@ -209,15 +209,15 @@ test.describe("Agents registry view", () => {
   });
 });
 
-// ─── Test suite: semantic bus ─────────────────────────────────────────────────
+// ─── Test suite: protocol bus ─────────────────────────────────────────────────
 
-test.describe("Semantic bus monitor", () => {
-  test("semantic bus page loads without crashing", async ({ page }) => {
+test.describe("Protocol bus monitor", () => {
+  test("protocol bus page loads without crashing", async ({ page }) => {
     await page.route(/.*(?:\/api\/gateway)?\/v1\/operations\/.*/, async (route) => {
       return fulfillJson(route, 200, { events: [], total: 0 });
     });
 
-    await page.goto("/semantic-bus");
+    await page.goto("/protocol-bus");
     await expect(page.locator("body")).toBeVisible({ timeout: 10_000 });
     await expect(page).not.toHaveURL(/error/);
   });

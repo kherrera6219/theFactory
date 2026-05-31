@@ -40,7 +40,7 @@ jobs:
           pip-audit -r services/dashboard/requirements.txt
           pip-audit -r services/pod-worker/requirements.txt
           pip-audit -r services/audit-worker/requirements.txt
-          pip-audit -r services/semantic-bus-mcp/requirements.txt
+          pip-audit -r services/protocol-bus-mcp/requirements.txt
 
       - name: Run Bandit SAST
         run: bandit -r services scripts shared_runtime -ll
@@ -53,7 +53,7 @@ jobs:
             -r services/orchestrator/requirements.txt \
             -r services/pod-worker/requirements.txt \
             -r services/audit-worker/requirements.txt \
-            -r services/semantic-bus-mcp/requirements.txt
+            -r services/protocol-bus-mcp/requirements.txt
           pip-licenses --format=json --output-file=/tmp/python-licenses.json
           python - <<'EOF'
           import json, sys

@@ -45,10 +45,10 @@ if (
 }
 if (
     -not (
-        $mcpMetrics | Select-String -Pattern "semantic_bus_mcp_http_requests_total" -SimpleMatch
+        $mcpMetrics | Select-String -Pattern "protocol_bus_mcp_http_requests_total" -SimpleMatch
     )
 ) {
-    throw "mcp metrics missing semantic_bus_mcp_http_requests_total"
+    throw "mcp metrics missing protocol_bus_mcp_http_requests_total"
 }
 
 Write-Host "== Recent orchestrator logs =="

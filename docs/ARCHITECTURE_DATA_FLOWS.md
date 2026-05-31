@@ -49,7 +49,7 @@ Key properties:
 - The gateway owns public intake concerns such as auth, idempotency, rate limiting, and correlation IDs.
 - The gateway reserves a `mission_id` against each idempotency key before the internal create call and reconciles ambiguous upstream failures against that reserved identifier on retry.
 - The orchestrator owns mission state, agent routing, approval persistence, build-artifact persistence, and internal operations views.
-- Redis Streams connect the orchestrator, pod workers, semantic bus, audit worker, and optional dedicated runtime containers.
+- Redis Streams connect the orchestrator, pod workers, protocol bus, audit worker, and optional dedicated runtime containers.
 
 ## Review Approval and Mission Launch Flow
 
@@ -143,7 +143,7 @@ Key properties:
 
 ```mermaid
 flowchart LR
-    Services["Gateway / Orchestrator / Pod Workers / Audit / Semantic Bus / Agent Runtime"]
+    Services["Gateway / Orchestrator / Pod Workers / Audit / Protocol Bus / Agent Runtime"]
     Prometheus["Prometheus"]
     Loki["Loki / Promtail"]
     Jaeger["Jaeger OTLP"]

@@ -174,7 +174,7 @@ Open `http://localhost:3100` in your browser.
 - **Missions page** — see live state progression through all 11 phases
 - **Mission Detail** — chain trace, LogicNodes, generated output, audit evidence
 - **Agents page** — toggle Runtime vs Conceptual view of all 38 agents
-- **Semantic Bus** — live Protocol stream monitor
+- **Protocol Bus** — live Protocol stream monitor
 
 ---
 

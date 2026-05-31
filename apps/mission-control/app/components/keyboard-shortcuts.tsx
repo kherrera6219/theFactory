@@ -14,13 +14,13 @@ const SHORTCUTS: ShortcutEntry[] = [
   { combo: "Ctrl+M", action: "Open Missions" },
   { combo: "Ctrl+A", action: "Open Agents" },
   { combo: "Ctrl+L", action: "Open LogicNodes" },
-  { combo: "Ctrl+B", action: "Open Semantic Bus" },
+  { combo: "Ctrl+B", action: "Open Protocol Bus" },
   { combo: "Ctrl+,", action: "Open Settings" },
   { combo: "Ctrl+?", action: "Show shortcut sheet" },
   { combo: "Ctrl+G", action: "Reopen guided tour" },
   { combo: "Ctrl+F", action: "Focus search input on page" },
   { combo: "Ctrl+R", action: "Hard refresh current page" },
-  { combo: "Space", action: "Toggle Semantic Bus live stream (on /semantic-bus)" },
+  { combo: "Space", action: "Toggle Protocol Bus live stream (on /protocol-bus)" },
 ];
 
 export function KeyboardShortcuts() {
@@ -48,9 +48,9 @@ export function KeyboardShortcuts() {
         return;
       }
       if (!ctrl) {
-        if (key === " " && pathname === "/semantic-bus") {
+        if (key === " " && pathname === "/protocol-bus") {
           event.preventDefault();
-          window.dispatchEvent(new CustomEvent("semantic-bus-toggle-live"));
+          window.dispatchEvent(new CustomEvent("protocol-bus-toggle-live"));
         }
         return;
       }
@@ -82,7 +82,7 @@ export function KeyboardShortcuts() {
       }
       if (key === "b") {
         event.preventDefault();
-        router.push("/semantic-bus");
+        router.push("/protocol-bus");
         return;
       }
       if (key === ",") {

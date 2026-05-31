@@ -164,7 +164,7 @@ _CATEGORY_METHODS: dict[str, list[str]] = {
     ],
     "executive": [
         "Decompose mission scope into pod-level assignments.",
-        "Coordinate semantic bus directives and cross-pod dependencies.",
+        "Coordinate protocol bus directives and cross-pod dependencies.",
         "Consolidate pod outputs into a unified mission strategy.",
     ],
     "support": [
@@ -192,7 +192,7 @@ _CATEGORY_METHODS: dict[str, list[str]] = {
 _CATEGORY_TOOLS: dict[str, list[str]] = {
     "interface": [
         "Mission Control UI",
-        "Semantic Bus status streams",
+        "Protocol Bus status streams",
         "Feature contract templates",
         "Document-to-text extraction pipeline",
         "Pre-flight risk assessment engine",
@@ -200,7 +200,7 @@ _CATEGORY_TOOLS: dict[str, list[str]] = {
     ],
     "executive": [
         "Global mission state graph",
-        "Semantic Bus orchestration channels",
+        "Protocol Bus orchestration channels",
         "Cross-pod dependency trackers",
     ],
     "support": [

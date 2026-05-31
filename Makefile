@@ -17,7 +17,7 @@ down:
 
 up-full-dedicated: tls-certs
 	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build \
-		redis postgres qdrant jaeger orchestrator api-gateway semantic-bus-mcp audit-worker dashboard mission-control \
+		redis postgres qdrant jaeger orchestrator api-gateway protocol-bus-mcp audit-worker dashboard mission-control \
 		pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker pod-c-dedicated-mgr-worker pod-d-dedicated-mgr-worker \
 		agent-01-pm agent-02-ceo agent-03-broker agent-04-accountant agent-05-security agent-06-is agent-07-vc agent-08-compliance agent-09-hw agent-10-tester agent-11-deploy \
 		agent-13-poda-audit agent-19-podb-audit agent-25-podc-audit agent-31-podd-audit \
@@ -52,7 +52,7 @@ test:
 		--global-threshold 80 \
 		--module-threshold services/pod-worker/pod_worker/main.py=80 \
 		--module-threshold services/audit-worker/audit_worker/main.py=90 \
-		--module-threshold services/semantic-bus-mcp/semantic_bus/mcp_server.py=100 \
+		--module-threshold services/protocol-bus-mcp/protocol_bus/mcp_server.py=100 \
 		--module-threshold services/orchestrator/orchestrator/protocol.py=100 \
 		--module-threshold services/orchestrator/orchestrator/runtime.py=60 \
 		--module-threshold services/orchestrator/orchestrator/agent_personas.py=100 \
