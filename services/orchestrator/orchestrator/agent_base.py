@@ -20,10 +20,13 @@ lifecycle methods, and a set of typed subclasses for each agent category:
       ├── CppAgent
       ├── RustAgent
       ├── ZigAgent
+      ├── GoAgent
       ├── JavaAgent
       ├── CSharpAgent
       ├── ScalaAgent
       ├── KotlinAgent
+      ├── HaskellAgent
+      ├── OcamlAgent
       ├── MatlabAgent
       ├── RAgent
       ├── JuliaAgent
@@ -682,7 +685,7 @@ class SpecialistAgent(BaseAgent):
 
 
 # ---------------------------------------------------------------------------
-# Per-language specialist concrete classes (16 languages, 4 pods)
+# Per-language specialist concrete classes (19 languages, 4 pods)
 # ---------------------------------------------------------------------------
 
 # Pod A — Dynamic languages
@@ -731,6 +734,11 @@ class ZigAgent(SpecialistAgent):
     extraction_guidance = "Explicit allocation and predictable compile-time behavior."
 
 
+class GoAgent(SpecialistAgent):
+    language_key = "go"
+    extraction_guidance = "Goroutine/channel concurrency safety and idiomatic Go simplicity."
+
+
 # Pod C — Enterprise languages
 
 
@@ -752,6 +760,16 @@ class ScalaAgent(SpecialistAgent):
 class KotlinAgent(SpecialistAgent):
     language_key = "kotlin"
     extraction_guidance = "Null safety and coroutine-driven concurrency design."
+
+
+class HaskellAgent(SpecialistAgent):
+    language_key = "haskell"
+    extraction_guidance = "Purely functional correctness, lazy evaluation, and type-class rigor."
+
+
+class OcamlAgent(SpecialistAgent):
+    language_key = "ocaml"
+    extraction_guidance = "Strong static inference and module-system-driven reliability."
 
 
 # Pod D — Mathematical languages
@@ -790,10 +808,13 @@ _SPECIALIST_BY_LANGUAGE: dict[str, type[SpecialistAgent]] = {
     "cpp": CppAgent,
     "rust": RustAgent,
     "zig": ZigAgent,
+    "go": GoAgent,
     "java": JavaAgent,
     "csharp": CSharpAgent,
     "scala": ScalaAgent,
     "kotlin": KotlinAgent,
+    "haskell": HaskellAgent,
+    "ocaml": OcamlAgent,
     "matlab": MatlabAgent,
     "r": RAgent,
     "julia": JuliaAgent,
