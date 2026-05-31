@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 
 from shared_runtime.pii_guard import redact_pii
+from shared_runtime.prompt_guard import check_prompt
 
 from .agents import _system_prompt_for_agent
 from .config import (
@@ -21,6 +22,8 @@ from .config import (
     LLM_SAFETY_BLOCK_ENABLED,
     OPENAI_BASE_URL,
     OPENAI_TIMEOUT_SECONDS,
+    PROMPT_GUARD_BLOCK_ENABLED,
+    PROMPT_GUARD_BLOCK_LEVEL,
     _record_usage_event,
     current_agent_id,
 )
@@ -33,6 +36,32 @@ from .text import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+# Ordered severity for prompt-injection risk levels (OWASP LLM01).
+_PROMPT_RISK_PRIORITY = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+
+
+def check_user_input(text: str, call_context: str) -> bool:
+    """OWASP LLM01 — scan a *user-supplied* fragment for prompt injection.
+
+    Returns True when the fragment is safe to embed in an outbound prompt, and
+    False when it should be blocked. Apply this to untrusted free-text
+    (mission/operator description, file content, chat messages) BEFORE it is
+    interpolated into a prompt — never to system-authored prompt scaffolding,
+    which legitimately contains agent IDs and instruction phrasing.
+
+    Blocking is governed by ``PROMPT_GUARD_BLOCK_ENABLED`` and
+    ``PROMPT_GUARD_BLOCK_LEVEL``; below the threshold the hit is logged only.
+    """
+    if not text:
+        return True
+    result = check_prompt(text)
+    if not result.is_suspicious:
+        return True
+    LOGGER.warning("prompt injection detected [%s]: %s", call_context, result.summary)
+    block_threshold = _PROMPT_RISK_PRIORITY.get(PROMPT_GUARD_BLOCK_LEVEL, 3)
+    detected = _PROMPT_RISK_PRIORITY.get(result.risk_level, 0)
+    return not (PROMPT_GUARD_BLOCK_ENABLED and detected >= block_threshold)
 
 
 def _pkg() -> Any:
@@ -329,6 +358,18 @@ async def _call_with_recommendation(
     provider = str(recommendation.get("provider", "openai")).strip().lower()
     model = str(recommendation.get("model", "gpt-5.5")).strip()
 
+    # Security Hardening: redact PII from the prompt before sending to any
+    # provider. Placed here (not in _call_with_agent_system) so that ALL callers
+    # benefit, including the direct _call_with_recommendation paths.
+    redacted_prompt, pii_matches = redact_pii(prompt)
+    if pii_matches:
+        LOGGER.info(
+            "PII redaction active for %s: %d matches scrubbed",
+            call_context,
+            len(pii_matches),
+        )
+        prompt = redacted_prompt
+
     # Safety envelope — scan outbound prompt before any LLM call
     from ..llm_safety import (  # noqa: PLC0415
         check_outbound_prompt,
@@ -418,12 +459,8 @@ async def _call_with_agent_system(
     agent_id: str,
 ) -> tuple[dict[str, Any] | None, str, str, str]:
     """Call the recommendation helper with persona system prompt when supported."""
-    # Security Hardening: Redact PII from the prompt before sending to provider
-    redacted_prompt, matches = redact_pii(prompt)
-    if matches:
-        LOGGER.info("PII redaction active for %s: %d matches scrubbed", agent_id, len(matches))
-    prompt = redacted_prompt
-
+    # PII redaction and OWASP LLM01 prompt-injection scanning happen at the
+    # _call_with_recommendation chokepoint below, so all callers are covered.
     call_with_recommendation = _pkg()._call_with_recommendation
     token = current_agent_id.set(agent_id)
     try:

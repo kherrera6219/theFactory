@@ -633,6 +633,62 @@ def test_handle_running_mission_with_source_extraction(monkeypatch) -> None:
     assert len(published) == 2
 
 
+def test_logicnodes_from_extraction_node_id_is_unique_per_occurrence() -> None:
+    """Same concept at different files/lines must yield distinct node_ids.
+
+    Regression for the node_id collision where f"{POD}.{concept}.{mission}" caused
+    multiple occurrences to collapse to one row via ON CONFLICT upsert.
+    """
+
+    def _concept(line: int) -> SimpleNamespace:
+        return SimpleNamespace(
+            concept_id="dyn-001",
+            domain="list_operations",
+            concept="map_collection",
+            intent="transform",
+            confidence=0.91,
+            source_line=line,
+            evidence="map pattern",
+        )
+
+    # Same concept, same line, but two different source files.
+    nodes_file_a = pod_worker_main._logicnodes_from_extraction(
+        mission_id="mission-1",
+        target_language="python",
+        extraction_language="python",
+        concepts=[_concept(1)],
+        source_file="src/a.py",
+    )
+    nodes_file_b = pod_worker_main._logicnodes_from_extraction(
+        mission_id="mission-1",
+        target_language="python",
+        extraction_language="python",
+        concepts=[_concept(1)],
+        source_file="src/b.py",
+    )
+    # Same file, same concept, two different lines.
+    nodes_two_lines = pod_worker_main._logicnodes_from_extraction(
+        mission_id="mission-1",
+        target_language="python",
+        extraction_language="python",
+        concepts=[_concept(1), _concept(7)],
+        source_file="src/a.py",
+    )
+
+    id_a = nodes_file_a[0]["node_id"]
+    id_b = nodes_file_b[0]["node_id"]
+    id_line1, id_line7 = (n["node_id"] for n in nodes_two_lines)
+
+    # Distinct files -> distinct ids; distinct lines -> distinct ids.
+    assert id_a != id_b
+    assert id_line1 != id_line7
+    # Same file + same line -> identical id (deterministic, upsert-safe dedupe).
+    assert id_a == id_line1
+    # Format remains backwards-compatible: prefix is still POD.concept.mission.*
+    assert id_a.startswith("podA.dyn-001.mission-1.")
+    assert id_a.endswith(".1")
+
+
 def test_health_function() -> None:
     class PingRedis:
         async def ping(self) -> bool:
