@@ -208,11 +208,29 @@ class TestIsStocked:
         with patch("orchestrator.knowledge_lake.list_knowledge", return_value=[]):
             assert is_stocked(settings=settings, language="python") is False
 
-    def test_false_when_qdrant_disabled(self):
+    def test_reads_postgres_regardless_of_qdrant(self):
+        # PostgreSQL is the source of truth — reads no longer gate on Qdrant.
         from orchestrator.knowledge_lake import is_stocked
 
         settings = _mock_settings(qdrant_enabled=False)
-        assert is_stocked(settings=settings, language="python") is False
+        fake_records = [{"knowledge_id": "docs.python.bootstrap", "content": {}}]
+        with patch("orchestrator.knowledge_lake.list_knowledge", return_value=fake_records):
+            assert is_stocked(settings=settings, language="python") is True
+
+    def test_true_when_mission_has_any_rows(self):
+        from orchestrator.knowledge_lake import is_stocked
+
+        settings = _mock_settings()
+        fake_records = [{"knowledge_id": "docs.python.bootstrap", "content": {}}]
+        with patch("orchestrator.knowledge_lake.list_knowledge", return_value=fake_records):
+            assert is_stocked(settings=settings, mission_id="mission-42") is True
+
+    def test_false_when_mission_has_no_rows(self):
+        from orchestrator.knowledge_lake import is_stocked
+
+        settings = _mock_settings()
+        with patch("orchestrator.knowledge_lake.list_knowledge", return_value=[]):
+            assert is_stocked(settings=settings, mission_id="mission-42") is False
 
     def test_false_on_exception(self):
         from orchestrator.knowledge_lake import is_stocked
@@ -252,11 +270,22 @@ class TestGetLanguageContext:
             result = get_language_context(settings=settings, language="python")
         assert result is None
 
-    def test_returns_none_when_qdrant_disabled(self):
+    def test_reads_postgres_regardless_of_qdrant(self):
         from orchestrator.knowledge_lake import get_language_context
 
-        result = get_language_context(settings=_mock_settings(qdrant_enabled=False), language="python")
-        assert result is None
+        settings = _mock_settings(qdrant_enabled=False)
+        fake_records = [{
+            "knowledge_id": "docs.python.bootstrap",
+            "content": {
+                "language": "python",
+                "kind": "bootstrap_documentation",
+                "combined_text": "Python list: append, extend, pop.",
+            },
+        }]
+        with patch("orchestrator.knowledge_lake.list_knowledge", return_value=fake_records):
+            result = get_language_context(settings=settings, language="python")
+        assert result is not None
+        assert "append" in result
 
     def test_truncates_long_context(self):
         from orchestrator.knowledge_lake import _MAX_CONTEXT_CHARS, get_language_context
@@ -294,16 +323,46 @@ class TestIndexDocumentation:
         call_kwargs = mock_upsert.call_args[0]
         assert call_kwargs[2] == "docs.python.mylib"
 
-    def test_returns_false_when_qdrant_disabled(self):
+    def test_succeeds_when_qdrant_disabled_postgres_only(self):
+        # PostgreSQL is the source of truth; indexing succeeds without Qdrant.
         from orchestrator.knowledge_lake import index_documentation
 
-        result = index_documentation(
-            settings=_mock_settings(qdrant_enabled=False),
-            language="python",
-            library="x",
-            content="y",
-        )
-        assert result is False
+        with patch("orchestrator.knowledge_lake.upsert_knowledge") as mock_upsert:
+            result = index_documentation(
+                settings=_mock_settings(qdrant_enabled=False),
+                language="python",
+                library="x",
+                content="y",
+            )
+        assert result is True
+        mock_upsert.assert_called_once()
+
+    def test_mirrors_to_qdrant_when_embeddings_configured(self):
+        from orchestrator.knowledge_lake import index_documentation
+
+        settings = _mock_settings()
+        settings.knowledge_embedding_provider = "gemini"
+        with (
+            patch("orchestrator.knowledge_lake.upsert_knowledge"),
+            patch("orchestrator.qdrant_store.upsert_knowledge") as mock_qdrant,
+        ):
+            result = index_documentation(
+                settings=settings, language="python", library="x", content="y"
+            )
+        assert result is True
+        mock_qdrant.assert_called_once()
+
+    def test_no_qdrant_mirror_when_provider_none(self):
+        from orchestrator.knowledge_lake import index_documentation
+
+        settings = _mock_settings()
+        settings.knowledge_embedding_provider = "none"
+        with (
+            patch("orchestrator.knowledge_lake.upsert_knowledge"),
+            patch("orchestrator.qdrant_store.upsert_knowledge") as mock_qdrant,
+        ):
+            index_documentation(settings=settings, language="python", library="x", content="y")
+        mock_qdrant.assert_not_called()
 
     def test_returns_false_on_exception(self):
         from orchestrator.knowledge_lake import index_documentation
@@ -419,7 +478,10 @@ class TestQueryDocumentation:
     def test_falls_back_to_keyword_search_when_no_vector_results(self):
         from orchestrator.knowledge_lake import query_documentation
 
+        # Semantic provider configured so the vector path is attempted first,
+        # then falls back to PostgreSQL keyword search on empty results.
         settings = _mock_settings()
+        settings.knowledge_embedding_provider = "gemini"
         fake_records = [
             {
                 "knowledge_id": "docs.python.bootstrap",
@@ -446,20 +508,27 @@ class TestQueryDocumentation:
         assert len(results) > 0
         assert results[0]["knowledge_id"] == "docs.python.bootstrap"
 
-    def test_returns_empty_when_qdrant_disabled(self):
+    def test_keyword_search_used_when_no_embedding_provider(self):
+        # With the default (non-semantic) provider, vector search is skipped
+        # entirely and PostgreSQL keyword search is the only path.
         from orchestrator.knowledge_lake import query_documentation
 
-        results = query_documentation(
-            settings=_mock_settings(qdrant_enabled=False),
-            language="python",
-            concept="asyncio",
-        )
+        settings = _mock_settings(qdrant_enabled=False)
+        with (
+            patch("orchestrator.knowledge_lake._vector_search") as mock_vec,
+            patch("orchestrator.knowledge_lake.list_knowledge", return_value=[]),
+        ):
+            results = query_documentation(
+                settings=settings, language="python", concept="asyncio"
+            )
         assert results == []
+        mock_vec.assert_not_called()
 
     def test_vector_results_take_priority(self):
         from orchestrator.knowledge_lake import query_documentation
 
         settings = _mock_settings()
+        settings.knowledge_embedding_provider = "gemini"
         vector_results = [
             {"knowledge_id": "docs.python.asyncio", "content": {}, "score": 0.95}
         ]
@@ -468,3 +537,133 @@ class TestQueryDocumentation:
                 settings=settings, language="python", concept="asyncio"
             )
         assert results == vector_results
+
+
+# ---------------------------------------------------------------------------
+# embed_text — configurable real embeddings with fallback
+# ---------------------------------------------------------------------------
+
+class TestEmbedText:
+    def test_returns_none_for_default_provider(self):
+        from orchestrator.knowledge_lake import embed_text
+
+        settings = _mock_settings()
+        settings.knowledge_embedding_provider = "none"
+        assert asyncio.run(embed_text("hello", settings)) is None
+
+    def test_returns_none_for_deterministic_provider(self):
+        from orchestrator.knowledge_lake import embed_text
+
+        settings = _mock_settings()
+        settings.knowledge_embedding_provider = "deterministic"
+        assert asyncio.run(embed_text("hello", settings)) is None
+
+    def test_returns_none_for_empty_text(self):
+        from orchestrator.knowledge_lake import embed_text
+
+        settings = _mock_settings()
+        settings.knowledge_embedding_provider = "gemini"
+        assert asyncio.run(embed_text("   ", settings)) is None
+
+    def test_gemini_provider_calls_gemini_embedding(self):
+        from orchestrator.knowledge_lake import embed_text
+
+        settings = _mock_settings()
+        settings.knowledge_embedding_provider = "gemini"
+        vec = [0.1, 0.2, 0.3]
+        with patch(
+            "orchestrator.knowledge_embeddings._gemini_embedding", return_value=vec
+        ) as mock_g:
+            result = asyncio.run(embed_text("doc text", settings))
+        assert result == vec
+        mock_g.assert_called_once()
+
+    def test_openai_provider_calls_openai_embedding(self):
+        from orchestrator.knowledge_lake import embed_text
+
+        settings = _mock_settings()
+        settings.knowledge_embedding_provider = "openai"
+        vec = [0.4, 0.5]
+        with patch(
+            "orchestrator.knowledge_embeddings._openai_embedding", return_value=vec
+        ) as mock_o:
+            result = asyncio.run(embed_text("doc text", settings))
+        assert result == vec
+        mock_o.assert_called_once()
+
+    def test_falls_back_to_none_on_provider_failure(self):
+        from orchestrator.knowledge_lake import embed_text
+
+        settings = _mock_settings()
+        settings.knowledge_embedding_provider = "gemini"
+        with patch(
+            "orchestrator.knowledge_embeddings._gemini_embedding",
+            side_effect=RuntimeError("api down"),
+        ):
+            assert asyncio.run(embed_text("doc text", settings)) is None
+
+    def test_returns_none_when_provider_yields_empty(self):
+        from orchestrator.knowledge_lake import embed_text
+
+        settings = _mock_settings()
+        settings.knowledge_embedding_provider = "openai"
+        with patch("orchestrator.knowledge_embeddings._openai_embedding", return_value=None):
+            assert asyncio.run(embed_text("doc text", settings)) is None
+
+
+# ---------------------------------------------------------------------------
+# Knowledge injection into the specialist codegen prompt
+# ---------------------------------------------------------------------------
+
+class TestCodegenKnowledgeInjection:
+    def test_knowledge_context_appears_in_codegen_prompt(self):
+        from orchestrator.llm_delegation.prompts import _build_codegen_prompt
+
+        prompt = _build_codegen_prompt(
+            mission_context={
+                "mission_id": "m1",
+                "knowledge_context": "list: append, extend, pop. dict: get, items.",
+            },
+            mission_contract={"contract_summary": "Build a CSV reader"},
+            logicnodes=[],
+            target_language="python",
+            specialist_agent_id="AGENT-PY",
+            recommended_provider="openai",
+            recommended_model="gpt-5.5",
+        )
+        assert "Knowledge Lake" in prompt
+        assert "append, extend, pop" in prompt
+
+    def test_no_knowledge_section_when_absent(self):
+        from orchestrator.llm_delegation.prompts import _build_codegen_prompt
+
+        prompt = _build_codegen_prompt(
+            mission_context={"mission_id": "m1"},
+            mission_contract={"contract_summary": "Build a CSV reader"},
+            logicnodes=[],
+            target_language="python",
+            specialist_agent_id="AGENT-PY",
+            recommended_provider="openai",
+            recommended_model="gpt-5.5",
+        )
+        assert "Knowledge Lake" not in prompt
+
+    def test_accepts_query_documentation_record_list(self):
+        from orchestrator.llm_delegation.prompts import _build_codegen_prompt
+
+        prompt = _build_codegen_prompt(
+            mission_context={
+                "mission_id": "m1",
+                "knowledge_context": [
+                    {"knowledge_id": "docs.python.bootstrap",
+                     "content": {"combined_text": "asyncio: gather, sleep, create_task."}},
+                ],
+            },
+            mission_contract={"contract_summary": "Build an async worker"},
+            logicnodes=[],
+            target_language="python",
+            specialist_agent_id="AGENT-PY",
+            recommended_provider="openai",
+            recommended_model="gpt-5.5",
+        )
+        assert "gather, sleep, create_task" in prompt

@@ -82,6 +82,7 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 | runtime.py coverage floor 60% | ✅ Fixed — raised to 80%, actual coverage 100% line (#192) |
 | `any` types in api-client.ts; gateway 200-on-error | ✅ Fixed — OpenAPI-generated types, real HTTP status codes (#193) |
 | agent_personas.py parallel dict drift | ✅ Fixed — unified `AgentPersona` dataclass per agent (#194) |
+| Knowledge Lake write/read split (IS-Agent → PostgreSQL, query layer → Qdrant; zero query call sites) | ✅ Fixed (Phase 2) — `knowledge_lake.py` reads PostgreSQL (`storage.list_knowledge`) as the single source of truth; `get_language_context` injected into specialist codegen (`phases_build.py`); `is_stocked` verifies write-back in FETCH; `embed_text` adds gemini/openai/none providers with Qdrant mirror for semantic search |
 
 > runtime.py coverage floor raised to 80% (actual: 100% line / 99% branch) via 12 new branch-coverage tests (#192).
 

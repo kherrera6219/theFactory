@@ -225,6 +225,43 @@ def _string_list(value: Any, *, limit: int, max_length: int = 120) -> list[str]:
     ]
 
 
+_MAX_KNOWLEDGE_CONTEXT_CHARS = 8_000
+
+
+def _format_knowledge_context(knowledge: Any) -> str:
+    """Render Knowledge Lake documentation for injection into a codegen prompt.
+
+    Accepts either the merged string returned by
+    ``knowledge_lake.get_language_context`` or the list of records returned by
+    ``knowledge_lake.query_documentation``. Returns an empty string when there
+    is nothing to inject.
+    """
+    if isinstance(knowledge, str):
+        text = knowledge.strip()
+    elif isinstance(knowledge, list):
+        parts: list[str] = []
+        for item in knowledge:
+            if not isinstance(item, dict):
+                continue
+            content = item.get("content")
+            snippet = ""
+            if isinstance(content, dict):
+                snippet = str(content.get("combined_text") or "").strip()
+            elif isinstance(content, str):
+                snippet = content.strip()
+            if snippet:
+                parts.append(snippet)
+        text = "\n\n".join(parts)
+    else:
+        return ""
+
+    if not text:
+        return ""
+    if len(text) > _MAX_KNOWLEDGE_CONTEXT_CHARS:
+        text = text[:_MAX_KNOWLEDGE_CONTEXT_CHARS] + "\n...[truncated]"
+    return "\nRelevant documentation from the Knowledge Lake:\n" + text + "\n"
+
+
 def _format_upstream_risks(metadata: dict[str, Any]) -> str:
     """Summarize upstream PM/CEO risk signals for downstream prompts."""
     lines: list[str] = []
