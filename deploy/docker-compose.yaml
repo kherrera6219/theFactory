@@ -174,6 +174,48 @@ services:
       retries: 5
       start_period: 30s
 
+  pgbouncer:
+    <<: [*common-service, *data-service-hardening]
+    image: bitnami/pgbouncer:1.23.1
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_DATABASE: ${POSTGRES_DB:-ulr}
+      POSTGRESQL_USERNAME: ${POSTGRES_USER:-postgres}
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}
+      PGBOUNCER_DATABASE: ${POSTGRES_DB:-ulr}
+      PGBOUNCER_PORT: ${PGBOUNCER_PORT:-5432}
+      # Transaction pooling is the standard mode for stateless Python microservices.
+      # NOTE: SET (session), LISTEN/NOTIFY, and protocol-level prepared statements are
+      # NOT supported in this mode. Verified absent from the codebase before enabling.
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 200
+      PGBOUNCER_DEFAULT_POOL_SIZE: 25
+      PGBOUNCER_MIN_POOL_SIZE: 5
+      PGBOUNCER_RESERVE_POOL_SIZE: 5
+      PGBOUNCER_RESERVE_POOL_TIMEOUT: 5
+      # PgBouncer -> Postgres uses verify-full TLS against the same CA the
+      # orchestrator used for its previous direct connection, so the bouncer hop
+      # does not weaken transport security to the real database. The orchestrator
+      # -> PgBouncer hop stays on the internal hgr-network (sslmode=disable in the
+      # POSTGRES_URL) because the bitnami image does not ship a server cert.
+      PGBOUNCER_SERVER_TLS_SSLMODE: verify-full
+      PGBOUNCER_SERVER_TLS_CA_FILE: /run/postgres-certs/ca.crt
+    volumes: *postgres-client-certs
+    ports:
+      - "127.0.0.1:${PGBOUNCER_HOST_PORT:-5432}:${PGBOUNCER_PORT:-5432}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "${PGBOUNCER_PORT:-5432}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 256m
+    cpus: 0.5
+
   minio:
     <<: [*common-service, *data-service-hardening]
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
@@ -262,7 +304,11 @@ services:
       MILVUS_COLLECTION: ${MILVUS_COLLECTION:-mission_knowledge}
       MILVUS_VECTOR_SIZE: ${MILVUS_VECTOR_SIZE:-64}
       MILVUS_TIMEOUT_SECONDS: ${MILVUS_TIMEOUT_SECONDS:-3.0}
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}@postgres:5432/${POSTGRES_DB:-ulr}?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt
+      # Routed through the PgBouncer sidecar (transaction pooling). The bouncer
+      # holds the verify-full TLS connection to the real Postgres; this hop stays
+      # on the internal network so sslmode=disable is used here.
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}@pgbouncer:${PGBOUNCER_PORT:-5432}/${POSTGRES_DB:-ulr}?sslmode=disable
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-90}
       INTAKE_STREAM: missions.intake
       INTAKE_TOPIC: intake.feature_contract.created
       STATE_STREAM: missions.state
@@ -281,7 +327,7 @@ services:
       LANGGRAPH_FAIL_OPEN: ${LANGGRAPH_FAIL_OPEN:-true}
       LANGGRAPH_CHECKPOINTER: ${LANGGRAPH_CHECKPOINTER:-none}
       LANGGRAPH_THREAD_PREFIX: ${LANGGRAPH_THREAD_PREFIX:-mission}
-      LANGGRAPH_CHECKPOINTER_POSTGRES_URL: ${LANGGRAPH_CHECKPOINTER_POSTGRES_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}@postgres:5432/${POSTGRES_DB:-ulr}?sslmode=verify-full&sslrootcert=/run/postgres-certs/ca.crt}
+      LANGGRAPH_CHECKPOINTER_POSTGRES_URL: ${LANGGRAPH_CHECKPOINTER_POSTGRES_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}@pgbouncer:${PGBOUNCER_PORT:-5432}/${POSTGRES_DB:-ulr}?sslmode=disable}
       LANGGRAPH_CHECKPOINTER_SETUP: ${LANGGRAPH_CHECKPOINTER_SETUP:-false}
       LANGGRAPH_CHECKPOINT_NAMESPACE: ${LANGGRAPH_CHECKPOINT_NAMESPACE:-}
       ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-}
@@ -320,7 +366,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
+      pgbouncer:
         condition: service_healthy
       qdrant:
         condition: service_started

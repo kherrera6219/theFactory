@@ -487,7 +487,9 @@ def _locked_mission_metadata_update(
     if psycopg is None:
         raise RuntimeError("psycopg dependency is not installed")
 
-    conn = psycopg.connect(settings.postgres_url, autocommit=False)
+    # prepare_threshold=None keeps this connection PgBouncer-safe (transaction
+    # pooling mode does not support server-side prepared statements).
+    conn = psycopg.connect(settings.postgres_url, autocommit=False, prepare_threshold=None)
     try:
         with conn:
             with conn.cursor() as cur:

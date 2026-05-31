@@ -110,6 +110,7 @@ class Settings:
     topology_mode: str = "condensed"
     db_pool_min_size: int = 2
     db_pool_max_size: int = 10
+    audit_retention_days: int = 90
     logicnode_schema_path: Path = Path("schemas/logicnode.schema.json")
 
     @property
@@ -203,6 +204,7 @@ def load_settings() -> Settings:
         postgres_url=os.getenv("POSTGRES_URL", "postgresql://postgres:postgres@postgres:5432/ulr"),
         db_pool_min_size=max(0, int(os.getenv("DB_POOL_MIN_SIZE", "2"))),
         db_pool_max_size=max(1, int(os.getenv("DB_POOL_MAX_SIZE", "10"))),
+        audit_retention_days=max(1, int(os.getenv("AUDIT_RETENTION_DAYS", "90"))),
         qdrant_url=os.getenv("QDRANT_URL", "http://qdrant:6333"),
         qdrant_api_key=os.getenv("QDRANT_API_KEY", ""),
         milvus_uri=os.getenv("MILVUS_URI", "http://milvus:19530"),

@@ -45,7 +45,11 @@ def db_connect(settings: Settings) -> Any:
     """
     if psycopg is None:
         raise RuntimeError("psycopg dependency is not installed")
-    return psycopg.connect(settings.postgres_url, autocommit=True)
+    # prepare_threshold=None disables psycopg's automatic server-side prepared
+    # statements. Required when connecting through PgBouncer in transaction-pool
+    # mode, where connections are reassigned between transactions and named
+    # prepared statements would not survive.
+    return psycopg.connect(settings.postgres_url, autocommit=True, prepare_threshold=None)
 
 
 def init_connection_pool(settings: Settings) -> ConnectionPool:
@@ -62,6 +66,10 @@ def init_connection_pool(settings: Settings) -> ConnectionPool:
 
     def _configure(conn: Any) -> None:
         conn.autocommit = True
+        # Disable server-side prepared statements so the pool is safe behind
+        # PgBouncer transaction pooling (connections are reassigned between
+        # transactions and named prepared statements would not persist).
+        conn.prepare_threshold = None
 
     _pool = ConnectionPool(
         conninfo=settings.postgres_url,
