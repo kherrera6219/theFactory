@@ -132,6 +132,13 @@ def _initialize_app_state(app: FastAPI) -> None:
         except ProtocolValidationError as exc:
             app.state.protocol_ready = False
             app.state.protocol_error = str(exc)
+        except Exception as exc:  # pragma: no cover - deployment misconfiguration
+            # A malformed/unreadable schema or topics file must not crash the
+            # process at import or startup — degrade to not-ready and let the
+            # self-heal loop retry so the orchestrator can still serve /health.
+            app.state.protocol_ready = False
+            app.state.protocol_error = f"{type(exc).__name__}: {exc}"
+            LOGGER.error("failed to load envelope validator at startup: %s", exc)
 
     # Warm the LogicNode schema validator once so the /internal/logicnodes
     # write boundary validates many nodes without re-reading the schema file.
@@ -796,10 +803,22 @@ async def lifespan(app: FastAPI):
         # the self-heal loop retries. Storage calls surface the error lazily.
         LOGGER.warning("connection pool initialization failed at startup", exc_info=True)
 
-    await ensure_runtime_ready(app)
-    # Load versioned prompt assets into registry
+    try:
+        await ensure_runtime_ready(app)
+    except Exception:
+        # ensure_runtime_ready is internally fail-open, but never let a startup
+        # readiness probe crash the lifespan — the self-heal loop retries.
+        LOGGER.warning("initial ensure_runtime_ready failed at startup", exc_info=True)
+
+    # Load versioned prompt assets into registry. Non-fatal: a missing or
+    # malformed prompt-assets directory must degrade (no prompts registered)
+    # rather than crash startup.
     from .prompt_registry import load_prompt_assets  # noqa: PLC0415
-    await asyncio.to_thread(load_prompt_assets)
+    try:
+        await asyncio.to_thread(load_prompt_assets)
+    except Exception:
+        LOGGER.warning("prompt asset loading failed at startup", exc_info=True)
+
     app.state.lifecycle_recovery_task = asyncio.create_task(lifecycle_recovery_loop(app))
     app.state.self_heal_task = asyncio.create_task(runtime_self_heal_loop(app))
     app.state.agent_heartbeat_task = asyncio.create_task(agent_heartbeat_loop(app))
