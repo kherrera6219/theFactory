@@ -11,8 +11,8 @@ def test_tracing_is_wired_for_service_entrypoints() -> None:
         ROOT / "services" / "audit-worker" / "audit_worker" / "main.py": (
             'configure_tracing(app, service_name="audit-worker")'
         ),
-        ROOT / "services" / "semantic-bus-mcp" / "semantic_bus" / "mcp_server.py": (
-            'configure_tracing(app, service_name="semantic-bus-mcp")'
+        ROOT / "services" / "protocol-bus-mcp" / "protocol_bus" / "mcp_server.py": (
+            'configure_tracing(app, service_name="protocol-bus-mcp")'
         ),
         ROOT / "services" / "dashboard" / "dashboard" / "main.py": (
             'configure_tracing(app, service_name="dashboard")'

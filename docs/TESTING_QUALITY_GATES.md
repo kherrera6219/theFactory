@@ -114,7 +114,7 @@ The following files are individually gated by `scripts/check_coverage_thresholds
 | `services/orchestrator/orchestrator/agent_personas.py` | 41-agent persona data integrity |
 | `services/orchestrator/orchestrator/agent_integrations.py` | Protocol and LLM assignment logic |
 | `services/orchestrator/orchestrator/agent_registry.py` | Runtime agent state management |
-| `services/semantic-bus-mcp/semantic_bus/mcp_server.py` | 6-protocol routing and DLQ |
+| `services/protocol-bus-mcp/protocol_bus/mcp_server.py` | 6-protocol routing and DLQ |
 | `services/pod-worker/pod_worker/main.py` | Mission routing and agent binding enforcement |
 | `services/audit-worker/audit_worker/main.py` | Verification stream processing |
 
@@ -124,7 +124,7 @@ The following files are individually gated by `scripts/check_coverage_thresholds
 | `services/orchestrator/orchestrator/agent_personas.py` | `100%` |
 | `services/orchestrator/orchestrator/agent_integrations.py` | `100%` |
 | `services/orchestrator/orchestrator/agent_registry.py` | `100%` |
-| `services/semantic-bus-mcp/semantic_bus/mcp_server.py` | `100%` |
+| `services/protocol-bus-mcp/protocol_bus/mcp_server.py` | `100%` |
 | `services/audit-worker/audit_worker/main.py` | `90%` |
 | `services/pod-worker/pod_worker/main.py` | `80%` |
 | `services/orchestrator/orchestrator/runtime.py` | `80%` (measured: 100% line / 99% branch) |

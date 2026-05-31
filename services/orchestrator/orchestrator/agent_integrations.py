@@ -246,7 +246,7 @@ def _store_bindings_for_agent(agent: AgentDefinition) -> list[dict[str, Any]]:
             "name": "redis",
             "status": "implemented",
             "usage": [
-                "semantic bus pub/sub and stream transport",
+                "protocol bus pub/sub and stream transport",
                 "idempotency/cache primitives",
             ],
         },
@@ -332,7 +332,7 @@ def build_agent_integration_record(agent: AgentDefinition) -> dict[str, Any]:
         "category": agent.category,
         "specialties": list(agent.specialties),
         "protocols": protocols,
-        "semantic_bus": {
+        "protocol_bus": {
             "publish_topics": topic_bindings["publish"],
             "consume_topics": topic_bindings["consume"],
         },

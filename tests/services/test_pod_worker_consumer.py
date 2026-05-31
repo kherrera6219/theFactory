@@ -155,3 +155,206 @@ def test_consumer_recreates_missing_group(monkeypatch) -> None:
         asyncio.run(pod_worker_main._consumer_loop(app))
 
     assert recreated == ["MissingGroupThenCancelRedis"]
+
+
+def test_pod_manager_assignment_skips_missing_mission_id() -> None:
+    asyncio.run(
+        pod_worker_main._handle_pod_manager_assignment(None, {"mission_id": ""})
+    )
+
+
+def test_pod_manager_assignment_skips_unsupported_language(monkeypatch) -> None:
+    monkeypatch.setattr(
+        pod_worker_main, "_mission_targets_supported_language", lambda lang: False
+    )
+    asyncio.run(
+        pod_worker_main._handle_pod_manager_assignment(
+            None,
+            {"mission_id": "m-1", "requested_target_language": "cobol"},
+        )
+    )
+
+
+def test_pod_manager_assignment_skips_binding_mismatch(monkeypatch) -> None:
+    async def _no_match(mission_id, payload) -> bool:
+        return False
+
+    monkeypatch.setattr(
+        pod_worker_main, "_mission_targets_supported_language", lambda lang: True
+    )
+    monkeypatch.setattr(pod_worker_main, "_mission_matches_agent_binding", _no_match)
+    asyncio.run(
+        pod_worker_main._handle_pod_manager_assignment(
+            None,
+            {"mission_id": "m-1", "requested_target_language": "python"},
+        )
+    )
+
+
+def test_pod_manager_assignment_skips_unbound_agent(monkeypatch) -> None:
+    async def _match(mission_id, payload) -> bool:
+        return True
+
+    async def _snapshot(mission_id):
+        return {"metadata": {}}
+
+    monkeypatch.setattr(
+        pod_worker_main, "_mission_targets_supported_language", lambda lang: True
+    )
+    monkeypatch.setattr(pod_worker_main, "_mission_matches_agent_binding", _match)
+    monkeypatch.setattr(pod_worker_main, "_fetch_mission_snapshot", _snapshot)
+    monkeypatch.setattr(pod_worker_main, "_agent_id_from_payload", lambda payload: None)
+    monkeypatch.setattr(pod_worker_main, "_agent_id_from_metadata", lambda metadata: None)
+
+    async def _no_agent(mission_id):
+        return None
+
+    monkeypatch.setattr(pod_worker_main, "_fetch_mission_agent_id", _no_agent)
+    monkeypatch.setattr(
+        pod_worker_main, "_default_agent_id_for_event", lambda event, lang: None
+    )
+    asyncio.run(
+        pod_worker_main._handle_pod_manager_assignment(
+            None,
+            {"mission_id": "m-1", "requested_target_language": "python"},
+        )
+    )
+
+
+def test_pod_manager_assignment_returns_when_already_assigned(monkeypatch) -> None:
+    heartbeats: list[str] = []
+
+    async def _match(mission_id, payload) -> bool:
+        return True
+
+    async def _snapshot(mission_id):
+        return {"metadata": {}}
+
+    async def _heartbeat(**kwargs) -> bool:
+        heartbeats.append(kwargs.get("state", ""))
+        return True
+
+    async def _assigned(mission_id) -> bool:
+        return True
+
+    monkeypatch.setattr(
+        pod_worker_main, "_mission_targets_supported_language", lambda lang: True
+    )
+    monkeypatch.setattr(pod_worker_main, "_mission_matches_agent_binding", _match)
+    monkeypatch.setattr(pod_worker_main, "_fetch_mission_snapshot", _snapshot)
+    monkeypatch.setattr(
+        pod_worker_main, "_agent_id_from_payload", lambda payload: "AGENT-15-PY"
+    )
+    monkeypatch.setattr(pod_worker_main, "_post_agent_heartbeat", _heartbeat)
+    monkeypatch.setattr(pod_worker_main, "_has_assignment", _assigned)
+    asyncio.run(
+        pod_worker_main._handle_pod_manager_assignment(
+            None,
+            {"mission_id": "m-1", "requested_target_language": "python"},
+        )
+    )
+
+    assert heartbeats == ["RUNNING"]
+
+
+def test_pod_manager_assignment_full_pipeline(monkeypatch) -> None:
+    heartbeats: list[str] = []
+    audit_events: list[str] = []
+    published: list[str] = []
+    requests: list[tuple[str, str]] = []
+
+    async def _match(mission_id, payload) -> bool:
+        return True
+
+    async def _snapshot(mission_id):
+        return {"metadata": {"assigned_specialist_agent_id": "AGENT-16-PY"}}
+
+    async def _heartbeat(**kwargs) -> bool:
+        heartbeats.append(kwargs.get("state", ""))
+        return True
+
+    async def _not_assigned(mission_id) -> bool:
+        return False
+
+    async def _request(method, path, **kwargs):
+        requests.append((method, path))
+        return SimpleNamespace(status_code=200, json=lambda: {})
+
+    async def _emit_audit(**kwargs) -> None:
+        audit_events.append(kwargs.get("event_type", ""))
+
+    async def _publish(redis_obj, channel, mission_id, payload) -> None:
+        published.append(channel)
+
+    def _pipeline(**kwargs):
+        return {
+            "agent": SimpleNamespace(category="pod_manager"),
+            "result": {},
+            "validation": {"ok": True},
+            "report": {"summary": "done"},
+            "logicnodes": [],
+        }
+
+    monkeypatch.setattr(
+        pod_worker_main, "_mission_targets_supported_language", lambda lang: True
+    )
+    monkeypatch.setattr(pod_worker_main, "_mission_matches_agent_binding", _match)
+    monkeypatch.setattr(pod_worker_main, "_fetch_mission_snapshot", _snapshot)
+    monkeypatch.setattr(
+        pod_worker_main, "_agent_id_from_payload", lambda payload: "AGENT-15-PY"
+    )
+    monkeypatch.setattr(pod_worker_main, "_post_agent_heartbeat", _heartbeat)
+    monkeypatch.setattr(pod_worker_main, "_has_assignment", _not_assigned)
+    monkeypatch.setattr(pod_worker_main, "_request", _request)
+    monkeypatch.setattr(pod_worker_main, "_emit_audit_event", _emit_audit)
+    monkeypatch.setattr(pod_worker_main, "_publish_event", _publish)
+    monkeypatch.setattr(pod_worker_main, "_run_agent_pipeline", _pipeline)
+
+    asyncio.run(
+        pod_worker_main._handle_pod_manager_assignment(
+            None,
+            {"mission_id": "m-1", "requested_target_language": "python"},
+        )
+    )
+
+    assert heartbeats == ["RUNNING", "ACTIVE"]
+    assert "AGENT_EXECUTION_STARTED" in audit_events
+    assert "AGENT_EXECUTION_COMPLETED" in audit_events
+    assert "AGENT_REPORT_PERSISTED" in audit_events
+    assert any(channel.startswith("cluster.assigned.") for channel in published)
+
+
+def test_pod_manager_assignment_skips_on_assignment_conflict(monkeypatch) -> None:
+    async def _match(mission_id, payload) -> bool:
+        return True
+
+    async def _snapshot(mission_id):
+        return {"metadata": {}}
+
+    async def _heartbeat(**kwargs) -> bool:
+        return True
+
+    async def _not_assigned(mission_id) -> bool:
+        return False
+
+    async def _request(method, path, **kwargs):
+        return SimpleNamespace(status_code=409, json=lambda: {})
+
+    monkeypatch.setattr(
+        pod_worker_main, "_mission_targets_supported_language", lambda lang: True
+    )
+    monkeypatch.setattr(pod_worker_main, "_mission_matches_agent_binding", _match)
+    monkeypatch.setattr(pod_worker_main, "_fetch_mission_snapshot", _snapshot)
+    monkeypatch.setattr(
+        pod_worker_main, "_agent_id_from_payload", lambda payload: "AGENT-15-PY"
+    )
+    monkeypatch.setattr(pod_worker_main, "_post_agent_heartbeat", _heartbeat)
+    monkeypatch.setattr(pod_worker_main, "_has_assignment", _not_assigned)
+    monkeypatch.setattr(pod_worker_main, "_request", _request)
+
+    asyncio.run(
+        pod_worker_main._handle_pod_manager_assignment(
+            None,
+            {"mission_id": "m-1", "requested_target_language": "python"},
+        )
+    )

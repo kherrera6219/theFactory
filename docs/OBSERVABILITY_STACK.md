@@ -173,7 +173,7 @@ All `critical` and `high` alerts route to the pager webhook receiver in Alertman
 | orchestrator | ✅ OTel OTLP traces to Jaeger |
 | pod-worker | ✅ OTel OTLP traces to Jaeger |
 | audit-worker | ✅ OTel OTLP traces to Jaeger |
-| semantic-bus-mcp | ✅ OTel OTLP traces to Jaeger |
+| protocol-bus-mcp | ✅ OTel OTLP traces to Jaeger |
 | dashboard | ✅ OTel OTLP traces to Jaeger |
 | agent-runtime | ✅ OTel OTLP traces to Jaeger when the full dedicated profile is active |
 
@@ -190,7 +190,7 @@ Configured via `configure_tracing(app, service_name="<name>")` in each service's
 ### Using Jaeger
 
 1. Open Jaeger UI: `http://localhost:16686`
-2. Select service from dropdown (api-gateway · orchestrator · pod-worker · audit-worker · semantic-bus-mcp · dashboard · agent-runtime)
+2. Select service from dropdown (api-gateway · orchestrator · pod-worker · audit-worker · protocol-bus-mcp · dashboard · agent-runtime)
 3. Search by `mission_id` tag to trace a specific mission end-to-end
 4. View spans across service boundaries to identify latency contributors
 

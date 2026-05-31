@@ -180,8 +180,8 @@ export default function DashboardPage() {
             <h3>Agent Grid</h3>
             <p>Inspect pod health, workload distribution, and stalled workers.</p>
           </Link>
-          <Link href="/semantic-bus" className="shortcut-card">
-            <h3>Semantic Bus</h3>
+          <Link href="/protocol-bus" className="shortcut-card">
+            <h3>Protocol Bus</h3>
             <p>Trace live protocol messages and identify delivery bottlenecks.</p>
           </Link>
           <Link href="/repo" className="shortcut-card">

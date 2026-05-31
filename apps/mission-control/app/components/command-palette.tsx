@@ -18,7 +18,7 @@ const NAV_SHORTCUTS: Record<string, string> = {
   "/missions": "Ctrl+M",
   "/agents": "Ctrl+A",
   "/logicnodes": "Ctrl+L",
-  "/semantic-bus": "Ctrl+B",
+  "/protocol-bus": "Ctrl+B",
   "/settings": "Ctrl+,",
 };
 

@@ -1,4 +1,4 @@
-"""Tests for semantic-bus-mcp replay detection, deduplication and backpressure.
+"""Tests for protocol-bus-mcp replay detection, deduplication and backpressure.
 
 Issue #188: replay detection is wired into the /send handler (returns 409 on a
 duplicate correlation_id), and dedup/backpressure now fail closed (HTTP 503) on
@@ -15,9 +15,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "services" / "semantic-bus-mcp"))
+sys.path.insert(0, str(ROOT / "services" / "protocol-bus-mcp"))
 
-mcp_main = importlib.import_module("semantic_bus.mcp_server")
+mcp_main = importlib.import_module("protocol_bus.mcp_server")
 app = mcp_main.app
 
 from shared_runtime import protocol as protocol_guard  # noqa: E402

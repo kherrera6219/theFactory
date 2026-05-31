@@ -322,7 +322,7 @@ class TestBroadcastKnowledgeReady:
     def test_publishes_sigma_event_and_returns_true(self):
         from orchestrator.knowledge_lake import broadcast_knowledge_ready
 
-        settings = _mock_settings(mcp_url="http://semantic-bus-mcp:8090")
+        settings = _mock_settings(mcp_url="http://protocol-bus-mcp:8090")
 
         mock_response = MagicMock()
         mock_response.status = 200
@@ -356,7 +356,7 @@ class TestBroadcastKnowledgeReady:
     def test_returns_false_on_http_error(self):
         from orchestrator.knowledge_lake import broadcast_knowledge_ready
 
-        settings = _mock_settings(mcp_url="http://semantic-bus-mcp:8090")
+        settings = _mock_settings(mcp_url="http://protocol-bus-mcp:8090")
         with patch("orchestrator.knowledge_lake.urlopen", side_effect=OSError("connection refused")):
             result = broadcast_knowledge_ready(
                 settings=settings,
@@ -368,7 +368,7 @@ class TestBroadcastKnowledgeReady:
     def test_returns_false_for_empty_languages(self):
         from orchestrator.knowledge_lake import broadcast_knowledge_ready
 
-        settings = _mock_settings(mcp_url="http://semantic-bus-mcp:8090")
+        settings = _mock_settings(mcp_url="http://protocol-bus-mcp:8090")
         result = broadcast_knowledge_ready(
             settings=settings,
             languages=[],
@@ -382,7 +382,7 @@ class TestBroadcastKnowledgeReady:
 
         from orchestrator.knowledge_lake import broadcast_knowledge_ready
 
-        settings = _mock_settings(mcp_url="http://semantic-bus-mcp:8090")
+        settings = _mock_settings(mcp_url="http://protocol-bus-mcp:8090")
         captured_body: list[bytes] = []
 
         mock_response = MagicMock()

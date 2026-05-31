@@ -47,7 +47,7 @@ jobs:
           pip install -r services/dashboard/requirements.txt
           pip install -r services/pod-worker/requirements.txt
           pip install -r services/audit-worker/requirements.txt
-          pip install -r services/semantic-bus-mcp/requirements.txt
+          pip install -r services/protocol-bus-mcp/requirements.txt
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -121,7 +121,7 @@ jobs:
             --global-threshold 80 \
             --module-threshold services/pod-worker/pod_worker/main.py=80 \
             --module-threshold services/audit-worker/audit_worker/main.py=90 \
-            --module-threshold services/semantic-bus-mcp/semantic_bus/mcp_server.py=100 \
+            --module-threshold services/protocol-bus-mcp/protocol_bus/mcp_server.py=100 \
             --module-threshold services/orchestrator/orchestrator/protocol.py=100 \
             --module-threshold services/orchestrator/orchestrator/runtime.py=80 \
             --module-threshold services/orchestrator/orchestrator/agent_personas.py=100 \
@@ -151,7 +151,7 @@ jobs:
           - dashboard
           - pod-worker
           - audit-worker
-          - semantic-bus-mcp
+          - protocol-bus-mcp
     steps:
       - name: Checkout
         uses: actions/checkout@v4

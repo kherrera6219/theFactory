@@ -201,7 +201,7 @@ export default function AuditPage() {
         compact
         eyebrow="Configuration"
         title="Audit &amp; Activity Log"
-        description="Chronological activity log aggregating mission state changes, system alerts, and semantic bus events."
+        description="Chronological activity log aggregating mission state changes, system alerts, and protocol bus events."
       />
 
       <Panel

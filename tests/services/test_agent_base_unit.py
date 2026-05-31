@@ -10,6 +10,8 @@ from orchestrator.agent_base import (
     CppAgent,
     CSharpAgent,
     ExecutiveAgent,
+    GoAgent,
+    HaskellAgent,
     InterfaceAgent,
     JavaAgent,
     JavaScriptAgent,
@@ -17,6 +19,7 @@ from orchestrator.agent_base import (
     KotlinAgent,
     MathematicaAgent,
     MatlabAgent,
+    OcamlAgent,
     PhpAgent,
     PodAuditAgent,
     PodManagerAgent,
@@ -135,6 +138,40 @@ class TestMakeAgentFactory:
         agent = make_agent("AGENT-35-MATHEMATICA")
         assert isinstance(agent, MathematicaAgent)
 
+    def test_go_specialist(self) -> None:
+        agent = make_agent("AGENT-36-GO")
+        assert isinstance(agent, GoAgent)
+        assert isinstance(agent, SpecialistAgent)
+        assert type(agent) is not BaseAgent
+
+    def test_haskell_specialist(self) -> None:
+        agent = make_agent("AGENT-37-HASKELL")
+        assert isinstance(agent, HaskellAgent)
+        assert isinstance(agent, SpecialistAgent)
+        assert type(agent) is not BaseAgent
+
+    def test_ocaml_specialist(self) -> None:
+        agent = make_agent("AGENT-38-OCAML")
+        assert isinstance(agent, OcamlAgent)
+        assert isinstance(agent, SpecialistAgent)
+        assert type(agent) is not BaseAgent
+
+    def test_all_specialists_resolve_to_non_base_class(self) -> None:
+        """Every specialist registry entry must resolve to a concrete subclass.
+
+        Regression guard for issue #187: GO/HASKELL/OCAML silently fell back to
+        the SpecialistAgent base because no concrete subclass was registered.
+        """
+        specialists = [d for d in AGENT_REGISTRY if d.category == "specialist"]
+        assert specialists, "registry has no specialist entries"
+        for definition in specialists:
+            agent = make_agent(definition.agent_id)
+            assert type(agent) is not BaseAgent, definition.agent_id
+            assert type(agent) is not SpecialistAgent, (
+                f"{definition.agent_id} fell back to the SpecialistAgent base "
+                f"instead of a language-specific subclass"
+            )
+
     def test_unknown_agent_id_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown agent_id"):
             make_agent("AGENT-99-BOGUS")
@@ -167,10 +204,13 @@ class TestMakeSpecialistForLanguage:
             ("cpp", CppAgent),
             ("rust", RustAgent),
             ("zig", ZigAgent),
+            ("go", GoAgent),
             ("java", JavaAgent),
             ("csharp", CSharpAgent),
             ("scala", ScalaAgent),
             ("kotlin", KotlinAgent),
+            ("haskell", HaskellAgent),
+            ("ocaml", OcamlAgent),
             ("matlab", MatlabAgent),
             ("r", RAgent),
             ("julia", JuliaAgent),
@@ -373,8 +413,8 @@ class TestPythonAgent:
 
 ALL_SPECIALIST_LANGUAGES = [
     "python", "javascript", "ruby", "php",
-    "c", "cpp", "rust", "zig",
-    "java", "csharp", "scala", "kotlin",
+    "c", "cpp", "rust", "zig", "go",
+    "java", "csharp", "scala", "kotlin", "haskell", "ocaml",
     "matlab", "r", "julia", "mathematica",
 ]
 
@@ -401,6 +441,84 @@ class TestAllSpecialistLanguages:
         # extraction_guidance must be a non-empty string
         guidance = getattr(agent, "extraction_guidance", "")
         assert isinstance(guidance, str) and len(guidance) > 0
+
+
+# ---------------------------------------------------------------------------
+# Go / Haskell / OCaml specialists (issue #187)
+# ---------------------------------------------------------------------------
+
+
+class TestGoHaskellOcamlSpecialists:
+    @pytest.mark.parametrize(
+        "agent_id,expected_cls,language_key",
+        [
+            ("AGENT-36-GO", GoAgent, "go"),
+            ("AGENT-37-HASKELL", HaskellAgent, "haskell"),
+            ("AGENT-38-OCAML", OcamlAgent, "ocaml"),
+        ],
+    )
+    def test_factory_returns_concrete_class(
+        self, agent_id: str, expected_cls: type, language_key: str
+    ) -> None:
+        agent = make_agent(agent_id)
+        assert type(agent) is expected_cls
+        assert type(agent) is not BaseAgent
+        assert type(agent) is not SpecialistAgent
+        assert agent.language_key == language_key  # type: ignore[attr-defined]
+        assert agent.extraction_guidance  # type: ignore[attr-defined]
+
+    @pytest.mark.parametrize(
+        "agent_id,language_key",
+        [
+            ("AGENT-36-GO", "go"),
+            ("AGENT-37-HASKELL", "haskell"),
+            ("AGENT-38-OCAML", "ocaml"),
+        ],
+    )
+    def test_execute_returns_valid_agent_result(
+        self, agent_id: str, language_key: str
+    ) -> None:
+        agent = make_agent(agent_id)
+        result = agent.execute(
+            "m1",
+            {"source_payload": "func main() {}", "requested_target_language": language_key},
+        )
+        assert isinstance(result, AgentResult)
+        assert result.status == "ok"
+        assert result.artifacts[0]["type"] == "logicnode_set"
+        assert result.artifacts[0]["language"] == language_key
+        validation = agent.validate("m1", result.artifacts)
+        assert isinstance(validation, ValidationResult)
+        report = agent.report("m1", result, validation)
+        assert isinstance(report, AgentReport)
+        assert report.verdict in {"PASS", "FAIL", "PARTIAL"}
+
+    @pytest.mark.parametrize(
+        "agent_id,label",
+        [
+            ("AGENT-36-GO", "Go"),
+            ("AGENT-37-HASKELL", "Haskell"),
+            ("AGENT-38-OCAML", "OCaml"),
+        ],
+    )
+    def test_system_prompt_contains_language_and_tooling(
+        self, agent_id: str, label: str
+    ) -> None:
+        from orchestrator.agent_personas import (
+            LANGUAGE_PERSONAS,
+            build_agent_system_prompt,
+            get_language_label,
+            get_language_tooling,
+        )
+
+        definition = next(d for d in AGENT_REGISTRY if d.agent_id == agent_id)
+        language_key = definition.specialties[0]
+        # Language label and tooling must be registered (not generic fallbacks).
+        assert get_language_label(language_key) == label
+        assert language_key in LANGUAGE_PERSONAS
+        prompt = build_agent_system_prompt(definition)
+        assert label in prompt
+        assert get_language_tooling(language_key) in prompt
 
 
 # ---------------------------------------------------------------------------

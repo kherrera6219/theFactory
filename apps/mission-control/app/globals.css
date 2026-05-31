@@ -2418,7 +2418,7 @@ dd {
   z-index: 1050;
 }
 
-/* ── Semantic Bus sparkline (5E) ─────────────────────────────── */
+/* ── Protocol Bus sparkline (5E) ─────────────────────────────── */
 
 .bus-sparkline-wrap {
   display: flex;

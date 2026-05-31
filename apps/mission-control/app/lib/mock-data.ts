@@ -154,10 +154,10 @@ export const ALERTS: AlertRecord[] = [
   },
   {
     id: "alt-02",
-    title: "Semantic Bus Backlog Growing",
+    title: "Protocol Bus Backlog Growing",
     severity: "medium",
     state: "acknowledged",
-    source: "semantic-bus",
+    source: "protocol-bus",
     createdAt: new Date(now - 160_000).toISOString(),
     recommendation: "Scale consumer throughput or throttle low-priority events.",
   },
