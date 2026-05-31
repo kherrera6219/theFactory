@@ -72,6 +72,21 @@ async def generate_pm_feature_contract(
     recommendation = _pkg()._pm_recommendation()
     provider = str(recommendation.get("provider", "anthropic")).strip().lower()
     model = str(recommendation.get("model", "claude-sonnet-4-6")).strip()
+    # OWASP LLM01 — scan the operator-supplied mission description (and any
+    # attached file content) before it is embedded in the prompt. On a blocked
+    # injection, fall back to the deterministic contract instead of delegating.
+    attachment_text = "\n".join(
+        str(item.get("content", ""))
+        for item in (attachments or [])
+        if isinstance(item, dict)
+    )
+    if not _pkg().check_user_input(f"{prompt}\n{attachment_text}", "pm feature contract"):
+        return _fallback_pm_feature_contract(
+            prompt=prompt,
+            mission_type=mission_type,
+            requested_target_language=requested_target_language,
+            recommendation=recommendation,
+        )
     pm_prompt = _build_pm_feature_contract_prompt(
         prompt=prompt,
         mission_type=mission_type,
