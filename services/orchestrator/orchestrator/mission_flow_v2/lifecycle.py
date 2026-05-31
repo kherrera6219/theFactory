@@ -133,7 +133,7 @@ async def _advance_verified_to_complete(
                 LOGGER.warning(
                     "v2: failed to emit completion block event for mission %s: %s",
                     mission_id,
-                    exc,
+                    type(exc).__name__,
                 )
         return False
 
@@ -166,7 +166,7 @@ async def _advance_verified_to_complete(
                 LOGGER.warning(
                     "v2: failed to emit equivalence block event for mission %s: %s",
                     mission_id,
-                    exc,
+                    type(exc).__name__,
                 )
         LOGGER.info(
             "v2: mission %s blocked by equivalence report %s",
@@ -209,7 +209,7 @@ async def _advance_verified_to_complete(
                     "v2: failed to emit security/compliance block event for "
                     "mission %s: %s",
                     mission_id,
-                    exc,
+                    type(exc).__name__,
                 )
         LOGGER.info(
             "v2: mission %s blocked by security/compliance report %s",
@@ -250,7 +250,7 @@ async def _advance_verified_to_complete(
                     "v2: failed to emit dependency absorption block event for "
                     "mission %s: %s",
                     mission_id,
-                    exc,
+                    type(exc).__name__,
                 )
         LOGGER.info(
             "v2: mission %s blocked by dependency absorption report %s",
@@ -354,7 +354,7 @@ async def _advance_runtime_phases(
             LOGGER.warning(
                 "v2: failed to package verified build artifact for mission %s: %s",
                 mission_id,
-                exc,
+                type(exc).__name__,
             )
     if new_state == MissionState.running:
         record = await _emit_partition_work_items(
@@ -492,7 +492,7 @@ async def advance_mission_lifecycle_v2(
                     "v2: failed to emit %s for mission %s: %s",
                     event_type,
                     mission_id,
-                    exc,
+                    type(exc).__name__,
                 )
 
         if new_state == MissionState.gating:
