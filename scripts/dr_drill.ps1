@@ -1,3 +1,8 @@
+# SUPERSEDED: This script always writes `passed = $true` and does not exercise a real
+# restore. It is retained only for Windows operators who specifically need the PowerShell
+# path (`make dr-ps1`). The canonical, cross-platform drill that actually performs
+# backup/disaster/restore and reports a real pass/fail is scripts/run_automated_dr_drill.py
+# (`make dr`). Prefer that for any qualification or CI use.
 param(
     [switch]$DryRun,
     [string]$Timestamp

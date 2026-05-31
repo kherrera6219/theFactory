@@ -11,7 +11,8 @@ services:
       - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      # Bind to loopback only — Prometheus has no auth and must not be exposed externally.
+      - "127.0.0.1:9090:9090"
     networks:
       - hgr-monitoring
       - hgr-app
@@ -27,21 +28,24 @@ services:
     volumes:
       - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     ports:
-      - "9093:9093"
+      # Bind to loopback only — Alertmanager has no auth and must not be exposed externally.
+      - "127.0.0.1:9093:9093"
     networks:
       - hgr-monitoring
 
   grafana:
     image: grafana/grafana:11.1.0
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      # Credentials must be supplied via the environment / .env — never default to admin/admin.
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "3001:3000"
+      # Bind to loopback only — reach Grafana via SSH tunnel / reverse proxy in prod.
+      - "127.0.0.1:3001:3000"
     depends_on:
       - prometheus
       - loki

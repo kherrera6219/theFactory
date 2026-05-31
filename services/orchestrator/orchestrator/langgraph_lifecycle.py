@@ -631,14 +631,6 @@ async def maybe_advance_mission_lifecycle(
 
         return _route
 
-    def _build_transition_node(index: int):
-        expected_state, new_state, event_type = TRANSITIONS[index]
-
-        async def _node(state: MissionLifecycleState) -> MissionLifecycleState:
-            return await _run_transition(state, expected_state, new_state, event_type)
-
-        return _node
-
     active_transitions = _select_transitions(settings)
 
     workflow = StateGraph(MissionLifecycleState)
