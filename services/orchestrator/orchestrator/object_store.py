@@ -234,7 +234,7 @@ def put_audit_report(
             if legal_hold:
                 lock_args["ObjectLockLegalHoldStatus"] = "ON"
             response = client.put_object(**lock_args)
-        except Exception as exc:
+        except Exception:
             if legal_hold:
                 # A legal hold must never silently degrade to an unprotected
                 # write. Make the failure loud and refuse the write.
