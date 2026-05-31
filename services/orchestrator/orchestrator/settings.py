@@ -95,6 +95,8 @@ class Settings:
     agent_scaling_items_per_instance: int = 3
     intake_dlq_stream: str = "factory:dlq:intake-stream"
     intake_dlq_max_len: int = 1000
+    stale_consumer_idle_ms: int = 300_000
+    stale_consumer_reap_interval_seconds: int = 3600
     # topology_mode describes which compose profile is active:
     #   "condensed"       — default; shared pod workers, synthesized non-pod heartbeats
     #   "dedicated"       — dedicated-agents profile; one container per pod manager
@@ -312,5 +314,11 @@ def load_settings() -> Settings:
         intake_dlq_stream=os.getenv("INTAKE_DLQ_STREAM", "factory:dlq:intake-stream").strip()
         or "factory:dlq:intake-stream",
         intake_dlq_max_len=max(100, int(os.getenv("INTAKE_DLQ_MAX_LEN", "1000"))),
+        stale_consumer_idle_ms=max(
+            1000, int(os.getenv("STALE_CONSUMER_IDLE_MS", "300000"))
+        ),
+        stale_consumer_reap_interval_seconds=max(
+            60, int(os.getenv("STALE_CONSUMER_REAP_INTERVAL_SECONDS", "3600"))
+        ),
         topology_mode=os.getenv("TOPOLOGY_MODE", "condensed").strip().lower() or "condensed",
     )
