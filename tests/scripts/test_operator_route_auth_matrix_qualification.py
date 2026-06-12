@@ -19,6 +19,7 @@ def test_parse_args_defaults(monkeypatch) -> None:
     monkeypatch.setattr(sys, "argv", ["operator_route_auth_matrix_qualification.py"])
     args = qualification.parse_args()
     assert args.base_url == "http://localhost:8100"
+    assert args.orchestrator_url == "http://localhost:8101"
     assert args.compose_file == "deploy/docker-compose.yaml"
     assert args.auth_modes == ["api_key", "hybrid", "oidc"]
     assert args.compose_reconfigure is True
@@ -26,11 +27,15 @@ def test_parse_args_defaults(monkeypatch) -> None:
     assert args.build_gateway is True
     assert args.output_file == "docs/evidence/operator_route_oidc_matrix_latest.json"
     assert args.history_file == "docs/evidence/operator_route_oidc_matrix_history.jsonl"
+    assert args.operator_api_key in {"operator-key", "bf99cac84f380d705e4fbde69ba980667255280aeff3750f0cf7b633ed30621e"}
+    assert args.oidc_issuer_url == "http://operator-matrix-test"
 
 
 def test_expected_status_matrix() -> None:
-    assert qualification._expected_status("api_key", "no_auth") == 200
+    assert qualification._expected_status("api_key", "no_auth") == 401
     assert qualification._expected_status("api_key", "api_key") == 200
+    assert qualification._expected_status("api_key", "bearer_mutate") == 401
+    assert qualification._expected_status("api_key", "bearer_observe") == 401
     assert qualification._expected_status("hybrid", "no_auth") == 401
     assert qualification._expected_status("hybrid", "api_key") == 200
     assert qualification._expected_status("hybrid", "bearer_mutate") == 403
