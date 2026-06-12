@@ -16,8 +16,8 @@ _Updated 2026-05-29 (session 2)._
 | Sprint 1 — Live Demo Gate | 6/6 ✅ | 0 |
 | Sprint 2 — Intelligence Layer | 8/8 ✅ | 0 |
 | Sprint 3 — Platform Differentiation | 3/4 | 1 (S5-04 PORT demo) |
-| Sprint 4 — Scale & Operational Maturity | 6/8 | 2 (S4-03/S4-06) |
-| Sprint 5 — Live-Stack Validation | 3/7 | 4 (S5-04 PORT, S5-05 scaling, S5-06 OIDC, S5-07 reliability) |
+| Sprint 4 — Scale & Operational Maturity | 7/8 | 1 (S4-03) |
+| Sprint 5 — Live-Stack Validation | 4/7 | 3 (S5-04 PORT, S5-05 scaling, S5-07 reliability) |
 | CI / Test Health | ✅ green | 0 — all lint/build/test/E2E/coverage gates pass |
 
 ---
@@ -124,14 +124,13 @@ curl -s http://localhost:8001/v1/missions/$MID > docs/evidence/s503_gemini_embed
 
 ---
 
-## Phase 3 — S5-06 / S4-06: Qualification Evidence Refresh (PARTIAL — 2026-05-29)
+## Phase 3 — S5-06 / S4-06: Qualification Evidence Refresh ✅ COMPLETE (2026-06-11)
 
-**Status:** 🟡 Partial. Canary trend 100% (python/rust/kotlin/julia all PASS), mission
+**Status:** ✅ Complete. Canary trend 100% (python/rust/kotlin/julia all PASS), mission
 artifact qualification PASS, promotion-gate + qualification-gate-summary regenerated.
-Qual-script bugs fixed: vague default prompts, 90→360s timeouts, metadata fallbacks,
-OIDC `_compose_command` --env-file injection. **Remaining blocker:** OIDC matrix hybrid/oidc
-modes return 503 during readiness probe — orchestrator briefly loses postgres after each
-gateway restart. Needs: poll orchestrator health (not just gateway) between mode switches.
+OIDC qualification script fixed to poll both gateway and orchestrator `/readyz` endpoints
+to resolve pg connection drops during auth mode switch. All matrix checks passed (100% PASS).
+Evidence files: `operator_route_oidc_matrix_latest.json` refreshed.
 
 **Why it matters:** The promotion gate and qualification summary are the formal sign-off documents. Running them against the current live stack with current HEAD produces dated evidence for audit.
 
@@ -249,20 +248,9 @@ docker logs deploy-orchestrator-1 -f 2>&1 | grep -i "partition\|scaling\|shard"
 
 ---
 
-## Phase 6 — IMPLEMENTATION_STATUS.md Cleanup (30 min, any session)
+## Phase 6 — IMPLEMENTATION_STATUS.md Cleanup ✅ COMPLETE (2026-06-12)
 
-**Status:** The doc is stale — items 17 (Multi-container RQCA), 19 (Neo4j), 20 (Object storage) are marked open but were completed 2026-05-24. Item 1 (live demo), item 4 (Gemini) also need updating.
-
-```
-Items to mark done in IMPLEMENTATION_STATUS.md:
-- Item 1: Live provider-key BUILD_NEW demo → done (S5-01, 2026-05-28)
-- Item 4: Activate Gemini embeddings → done (S1-04, 2026-05-24)
-- Item 17: Multi-container RQCA → done (S4-02, 2026-05-24)
-- Item 19: Neo4j knowledge graph → done (S4-04, 2026-05-24)
-- Item 20: Object storage for large artifacts → done (S4-05, 2026-05-24)
-- Item 21: Live qualification evidence refresh → update after Phase 3 above
-- Item 23: Long-duration reliability re-qual → update after Phase 7 below
-```
+**Status:** ✅ Complete. `IMPLEMENTATION_STATUS.md` cleaned up and synchronized with the latest feature completion statuses (Items 2, 4, 17, 19, 20, and 21 marked DONE).
 
 Also update `SPRINT_BACKLOG.md`:
 - S1-01: Mark as superseded by S5-01 ✅

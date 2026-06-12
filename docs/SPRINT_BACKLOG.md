@@ -258,7 +258,7 @@ LLM calls behind them.
   `services/orchestrator/orchestrator/routes/missions.py`,
   `services/orchestrator/orchestrator/settings.py`_
 
-- [ ] **S4-06 — Live qualification evidence refresh**
+- [x] **S4-06 — Live qualification evidence refresh** ✅ DONE 2026-06-12
   With the live stack running, execute:
   ```
   python scripts/promotion_gate.py \
@@ -385,13 +385,13 @@ The application is **fully complete** when:
 - [x] S5-01 passes (live demo with real provider keys, COMPLETE + generated_code) ✅ _2026-05-28_
 - [x] All Sprint 1–4 code items checked ✅ (S1-03, S1-05, S1-06, S2-01–S2-08, S3-01–S3-03, S4-01 all done)
 - [x] Remaining code items done: S1-04, S4-02, S4-04, S4-05 _(all completed 2026-05-24)_
-- [ ] `python scripts/production_review_audit.py` → 22/22 PASS (already true)
-- [ ] `python -m pytest tests/eval/ -q` → 97+ tests passing (already true)
+- [x] `python scripts/production_review_audit.py` → 22/22 PASS ✅ _2026-05-29_
+- [x] `python -m pytest tests/eval/ -q` → 97+ tests passing ✅ _2026-05-29_
 - [x] `python -m ruff check services tests scripts` → clean ✅ _2026-05-29_
 - [x] `npm run lint` → 0 errors ✅ _2026-05-29 (Mission Control tsc clean on CI)_
 - [ ] Sprint 5 live-stack items — S5-01 ✅, S5-02 ✅, S5-03 ✅, S5-06 ✅ done; S5-04 (PORT demo),
       S5-05 (agent scaling), S5-07 (4h reliability) remaining
-- [ ] `docs/IMPLEMENTATION_STATUS.md` Open Work section empty or updated
+- [x] `docs/IMPLEMENTATION_STATUS.md` Open Work section empty or updated ✅ _2026-06-12_
 
 ---
 

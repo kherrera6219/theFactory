@@ -234,14 +234,14 @@ Update the `[ ]` on the S5-02 line to `[x]` and add completion date + evidence r
 
 | Item | Status | Blocker |
 |---|---|---|
-| **S5-02** — Token cost ledger | Code done, **verification pending** | Run one mission (Section 5 above) |
-| **S5-03** — Gemini embeddings live | Not started | S5-02 done + GEMINI_API_KEY in .env |
-| **S5-04** — PORT two-phase live demo | Not started | S5-02 done + open-source source project |
+| **S5-02** — Token cost ledger | ✅ **Complete** | None |
+| **S5-03** — Gemini embeddings live | ✅ **Complete** | None |
+| **S5-04** — PORT two-phase live demo | Not started | open-source source project |
 | **S5-05** — Agent scaling (20+ files) | Not started | `AGENT_SCALING_ENABLED=true` in .env |
-| **S5-06** — Qualification evidence refresh | Not started | `make promotion-gate` command |
+| **S5-06** — Qualification evidence refresh | ✅ **Complete** | None |
 | **S5-07** — Reliability re-qual (4h) | Not started | Stack up for 4+ continuous hours |
 | **S4-03** (also S5-05) | Not started | Same as S5-05 |
-| **S4-06** (also S5-06) | Not started | Same as S5-06 |
+| **S4-06** (also S5-06) | ✅ **Complete** | None |
 
 ---
 

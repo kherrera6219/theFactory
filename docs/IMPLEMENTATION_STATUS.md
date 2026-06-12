@@ -363,13 +363,11 @@ Items are ordered by impact. The first two block any external launch claim.
 ### Sprint 1 — Live Demo Gate
 1. ~~**Live provider-key BUILD_NEW demo**~~ — ✅ **DONE (2026-05-23)** — `python scripts/demo_missions.py --live` must
    reach COMPLETE with non-empty `generated_code`. Highest priority item in the project.
-2. **Token cost ledger activation** — Run V007 migration against live stack, confirm
-   `llm_usage_events` is being populated, render Cost panel with real data.
+2. ~~**Token cost ledger activation**~~ — ✅ **DONE (2026-05-29)** `llm_usage_events` table populated during live missions, Cost panel renders real data.
 3. ~~**Flip Python AST extractor to default-on**~~ — ✅ **DONE (2026-05-22)** All three
    extractors now default-on in `docker-compose.yaml` (`:-true`) and `.env.example` (`=true`).
    JS and Java were already done; Python added `PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}` to all pod-worker containers.
-4. **Activate Gemini embeddings** — Set `KNOWLEDGE_EMBEDDING_PROVIDER=gemini` default
-   after live demo confirms no knowledge retrieval regressions.
+4. ~~**Activate Gemini embeddings**~~ — ✅ **DONE (2026-05-29)** `KNOWLEDGE_EMBEDDING_PROVIDER=gemini` active and verified.
 5. ~~**Flip equivalence + security compliance enforcement**~~ — ✅ **DONE (2026-05-22)**
    `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED=true` and
    `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED=true` set in `.env.example`.
@@ -408,16 +406,12 @@ Items are ordered by impact. The first two block any external launch claim.
 16. ~~**Prompt cache optimization**~~ — ✅ **DONE (2026-05-22)** `cache_control: {"type": "ephemeral"}`
     added to system prompt and user content >1024 chars in `_call_anthropic()`. Header
     `anthropic-beta: prompt-caching-2024-07-31` added.
-17. **Multi-container RQCA** — Docker Compose generation from TESTDATA manifest for
-    missions requiring more than one container (web server + DB + client).
+17. ~~**Multi-container RQCA**~~ — ✅ **DONE (2026-05-24)** Docker Compose generation from TESTDATA manifest implemented and verified.
 18. **Agent scaling live validation** — Run a large multi-file repo mission with
     `AGENT_SCALING_ENABLED=true`; validate partition splitting, execution, and result merge.
-19. **Neo4j knowledge graph activation** — Enable `NEO4J_ENABLED=true`; wire LogicNode
-    dependency graph for FUSION ordering and cross-mission knowledge reuse.
-20. **Object storage for large artifacts** — Enable `OBJECT_STORAGE_ENABLED=true` for
-    missions producing large output (full app ports, game modernizations).
-21. **Live qualification evidence refresh** — Run `make promotion-gate` against a live
-    stack to regenerate `reports/promotion-gate.local.json` (currently March 2026).
+19. ~~**Neo4j knowledge graph activation**~~ — ✅ **DONE (2026-05-24)** LogicNode dependency graph wired for FUSION ordering.
+20. ~~**Object storage for large artifacts**~~ — ✅ **DONE (2026-05-24)** Object storage offloading to S3/MinIO implemented and verified.
+21. ~~**Live qualification evidence refresh**~~ — ✅ **DONE (2026-06-11)** Refreshed evidence (`promotion-gate.local.json` and `qualification-gate-summary.local.json`) with a 100% pass rate.
 22. ~~**Lighthouse CI enforcement**~~ — ✅ **DONE (2026-05-22)** `test:perf` step exists in `.github/workflows/ci.yml` (line 87); `package.json` has `"test:perf": "lhci autorun --config=./lighthouserc.json"` script.
 23. **Long-duration reliability re-qualification** — Re-run reliability baseline against
     the Phase 15–27 stack (`reliability_qualification_baseline_2026-03-03.json` is stale).
