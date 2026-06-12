@@ -1,7 +1,7 @@
 # Documentation Index
 
-Document version: 2026.05.30  
-Last updated: 2026-05-30  
+Document version: 2026.06.11  
+Last updated: 2026-06-11  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -77,6 +77,17 @@ This is the master map for theFactory documentation. The live documentation set 
 - [../CHANGELOG.md](../CHANGELOG.md)
   - change history
 
+## LLM Integration and Prompt Engineering
+
+- [LLM_DELEGATION.md](LLM_DELEGATION.md)
+  - provider-aware LLM routing engine: provider selection, retry/fallback policy, cost guard, offline mode
+- [PROMPT_REGISTRY_AND_ASSETS.md](PROMPT_REGISTRY_AND_ASSETS.md)
+  - prompt registry, prompt asset conventions, versioning, audit traceability
+- [AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md](AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md)
+  - current provider/model matrix reference per agent
+- [AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md](AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md)
+  - persona evidence model reference
+
 ## User and Operator Documentation
 
 - [user/GETTING_STARTED.md](user/GETTING_STARTED.md)
@@ -128,10 +139,6 @@ This is the master map for theFactory documentation. The live documentation set 
   - control/evidence mapping
 - [LEGACY_PROFILE_ID_MAPPING_INDEX.md](LEGACY_PROFILE_ID_MAPPING_INDEX.md)
   - legacy ID reference retained for compatibility analysis
-- [AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md](AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md)
-  - current provider/model matrix reference
-- [AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md](AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md)
-  - persona evidence model reference
 - [AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md](AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md)
   - protocol bus and data-system reference plan
 
