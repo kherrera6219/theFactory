@@ -320,7 +320,7 @@ export default function MissionDetailPage() {
     const confirmed = await confirm({
       title: "Cancel Mission?",
       message:
-        `This will immediately stop all active agents for mission ${mission.mission_id.slice(0, 16)}…` +
+        `This will immediately stop all active agents for mission ${mission.mission_id.slice(0, 16)}\u2026` +
         " Any work in progress will be lost and the mission will be marked FAILED. This cannot be undone.",
       confirmText: "Yes, Cancel Mission",
       cancelText: "Keep Running",
@@ -372,7 +372,7 @@ export default function MissionDetailPage() {
       });
       setMission(updated);
     } catch {
-      setActionError("Could not save mission name — the backend may not support PATCH yet.");
+      setActionError("Could not save mission name \u2014 the backend may not support PATCH yet.");
     } finally {
       setNameSaving(false);
     }
@@ -428,7 +428,7 @@ export default function MissionDetailPage() {
                       aria-label="Cancel editing"
                       onClick={() => setEditingName(false)}
                     >
-                      ✕
+                      \u2715
                     </button>
                   </>
                 ) : (
@@ -438,23 +438,23 @@ export default function MissionDetailPage() {
                       <>
                         <span>{missionName}</span>
                         <span className="mono-id" style={{ fontSize: "0.6em", opacity: 0.55 }}>
-                          {mission.mission_id.slice(0, 8)}…
+                          {mission.mission_id.slice(0, 8)}\u2026
                         </span>
 
                         {(mission?.metadata as Record<string, unknown> | undefined)?.source === "fallback" && (
                           <span className="status-badge error" role="alert" aria-live="polite" style={{ marginLeft: "1rem", verticalAlign: "middle" }} title="Mission generated via LLM fallback route due to provider outage.">
-                            ⚠️ FALLBACK ROUTE
+                            \u26A0\uFE0F FALLBACK ROUTE
                           </span>
                         )}
                       </>
                     ) : (
                       <>
                         Mission{" "}
-                        <span className="mono-id">{mission.mission_id.slice(0, 12)}…</span>
+                        <span className="mono-id">{mission.mission_id.slice(0, 12)}\u2026</span>
 
                         {(mission?.metadata as Record<string, unknown> | undefined)?.source === "fallback" && (
                           <span className="status-badge error" role="alert" aria-live="polite" style={{ marginLeft: "1rem", verticalAlign: "middle" }} title="Mission generated via LLM fallback route due to provider outage.">
-                            ⚠️ FALLBACK ROUTE
+                            \u26A0\uFE0F FALLBACK ROUTE
                           </span>
                         )}
                       </>
@@ -466,7 +466,7 @@ export default function MissionDetailPage() {
                       title="Click to rename this mission"
                       onClick={startEditName}
                     >
-                      {nameSaving ? "…" : "✎"}
+                      {nameSaving ? "\u2026" : "\u270E"}
                     </button>
                   </>
                 )}
@@ -513,14 +513,22 @@ export default function MissionDetailPage() {
           </div>
           <div className="delivery-banner-actions">
             {generatedCodeArtifact && (
-              <a
-                className="primary-button shell-link-button"
-                href={missionApiUrl(
-                  `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
-                )}
-              >
-                Download Generated Code
-              </a>
+              <>
+                <Link
+                  href={`/missions/output?id=${encodeURIComponent(missionId)}`}
+                  className="primary-button shell-link-button"
+                >
+                  View Generated Code
+                </Link>
+                <a
+                  className="secondary-button shell-link-button"
+                  href={missionApiUrl(
+                    `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
+                  )}
+                >
+                  Download
+                </a>
+              </>
             )}
             {!generatedCodeArtifact && deliverySummary.primary_artifact_type && (
               <span className="muted">{deliverySummary.primary_artifact_type}</span>
@@ -540,14 +548,12 @@ export default function MissionDetailPage() {
                 className={`phase-step ${complete ? "complete" : ""} ${active ? "active" : ""}`}
                 aria-current={active ? "step" : undefined}
               >
-                {/* 4E: aria-label gives screen readers explicit state, not just the symbol glyph */}
                 <span
                   className="phase-marker"
                   aria-label={complete ? "Completed" : active ? "Active" : "Pending"}
                 >
-                  {complete ? "✓" : active ? "●" : "○"}
+                  {complete ? "\u2713" : active ? "\u25CF" : "\u25CB"}
                 </span>
-                {/* 6A: Tooltip shows the phase definition from the domain glossary */}
                 {GLOSSARY[phase.toUpperCase().replace(/\s/g, "_")] ??
                 GLOSSARY[phase] ? (
                   <Tooltip
