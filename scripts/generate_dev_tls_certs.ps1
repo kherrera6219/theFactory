@@ -20,7 +20,7 @@ $dockerArgs = @(
     "alpine:3.21",
     "sh",
     "-lc",
-    "apk add --no-cache openssl >/dev/null && sh scripts/generate_dev_tls_certs.sh$generateArgs"
+    "apk add --no-cache openssl >/dev/null && tr -d '\r' < scripts/generate_dev_tls_certs.sh > /tmp/generate_dev_tls_certs.sh && sh /tmp/generate_dev_tls_certs.sh$generateArgs"
 )
 
 & docker @dockerArgs
