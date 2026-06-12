@@ -2,9 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { missionApiUrl } from '../../../../../lib/api-client';
-import { humanizeState } from '../../../../../lib/format';
-import type { MissionRecord, MissionBuildArtifactRecord } from '../../../../../lib/types';
+import { missionApiUrl } from '../../../../lib/api-client';
+import { humanizeState } from '../../../../lib/format';
+import type { MissionRecord, MissionBuildArtifactRecord } from '../../../../lib/types';
 
 interface OutputHeaderProps {
   missionId: string;

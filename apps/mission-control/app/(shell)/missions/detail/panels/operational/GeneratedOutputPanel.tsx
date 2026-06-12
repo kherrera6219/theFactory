@@ -4,10 +4,10 @@ import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Panel } from '../../../../components/panel';
-import { missionApiUrl } from '../../../../lib/api-client';
-import { requestedLanguageFromPath } from '../../../../lib/language';
-import type { MissionBuildArtifactRecord } from '../../../../lib/types';
+import { Panel } from '../../../../../components/panel';
+import { missionApiUrl } from '../../../../../lib/api-client';
+import { requestedLanguageFromPath } from '../../../../../lib/language';
+import type { MissionBuildArtifactRecord } from '../../../../../lib/types';
 
 interface GeneratedOutputPanelProps {
   missionId: string;

@@ -3,6 +3,6 @@ pytest-cov==7.1.0
 pytest-asyncio==1.4.0
 httpx==0.28.1
 jsonschema==4.26.0
-ruff==0.15.15
+ruff==0.15.16
 bandit==1.9.4
 defusedxml==0.7.1

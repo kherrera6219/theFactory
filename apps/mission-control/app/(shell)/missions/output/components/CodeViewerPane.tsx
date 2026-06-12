@@ -3,8 +3,8 @@
 import React, { useMemo } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { requestedLanguageFromPath } from '../../../../../lib/language';
-import type { MissionBuildArtifactRecord } from '../../../../../lib/types';
+import { requestedLanguageFromPath } from '../../../../lib/language';
+import type { MissionBuildArtifactRecord } from '../../../../lib/types';
 
 interface CodeViewerPaneProps {
   artifact: MissionBuildArtifactRecord | null;

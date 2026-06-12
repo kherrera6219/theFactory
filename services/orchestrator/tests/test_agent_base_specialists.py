@@ -11,14 +11,13 @@ the base SpecialistAgent or BaseAgent directly.
 from __future__ import annotations
 
 import pytest
-
 from orchestrator.agent_base import (
+    _SPECIALIST_BY_LANGUAGE,
     BaseAgent,
     GoAgent,
     HaskellAgent,
     OcamlAgent,
     SpecialistAgent,
-    _SPECIALIST_BY_LANGUAGE,
     make_agent,
     make_specialist_for_language,
 )
@@ -201,7 +200,7 @@ def test_all_specialist_language_keys_in_dispatch_map() -> None:
 
     assert not missing, (
         "The following specialist languages are missing from "
-        f"_SPECIALIST_BY_LANGUAGE in agent_base.py:\n"
+        "_SPECIALIST_BY_LANGUAGE in agent_base.py:\n"
         + "\n".join(f"  - {entry}" for entry in missing)
         + "\nAdd the missing class(es) and register them in the dispatch map."
     )

@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { getMission, getMissionChainTrace } from '../../../../../lib/api-client';
+import { getMission, getMissionChainTrace } from '../../../../lib/api-client';
 import type {
   MissionRecord,
   MissionChainTrace,
   MissionBuildArtifactRecord,
-} from '../../../../../lib/types';
+} from '../../../../lib/types';
 
 export interface ArtifactDataState {
   mission: MissionRecord | null;
