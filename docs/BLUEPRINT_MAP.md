@@ -258,3 +258,35 @@ services/dashboard/
 ├── Dockerfile                 # Multi-stage lean runtime
 └── requirements.txt           # fastapi, httpx, uvicorn, opentelemetry
 ```
+
+---
+
+## 4. Architectural Cross-Cutting Observations (Phase 4)
+
+During the detailed folder-by-folder audit, several cross-cutting design patterns and structural optimizations were analyzed:
+
+### 4.1. DRY (Don't Repeat Yourself) vs. Service Isolation
+- **Findings**:
+  - The module `tracing.py` (which configures OpenTelemetry for FastAPI and httpx) is replicated identically across four services: `agent-runtime`, `pod-worker`, `audit-worker`, and `dashboard`.
+  - In a standard python project, this boilerplate is a candidate for consolidation.
+  - **Refactoring Potential**: Since the `shared_runtime` package is already copied into almost every container's Dockerfile (e.g. `COPY shared_runtime /app/shared_runtime`), this tracing code could be safely moved to a centralized module `shared_runtime/tracing.py` and imported by each service, eliminating duplicate boilerplate while maintaining strict container isolation.
+
+### 4.2. Code Sharing Boundaries
+- **Findings**:
+  - To preserve the Single Source of Truth (SSOT) for the 41-agent registries and persona profiles, `pod-worker` imports the agent creation helper (`make_agent`) directly from the orchestrator package.
+  - At container build time, the Dockerfile handles this dependency via `COPY services/orchestrator/orchestrator /app/orchestrator`.
+  - This is an acceptable container build coupling that prevents duplicating LLM delegation and agent metadata definitions across different code folders.
+
+### 4.3. Dual-Write Consistency & Fallbacks
+- **Findings**:
+  - The orchestrator and pod workers write primary transactional state directly to PostgreSQL.
+  - Mirroring write-back to Neo4j (graph relations) and Qdrant (vector knowledge lake) runs on an async, best-effort path wrapped in try/except blocks. If Neo4j or Qdrant goes offline, the system degrades gracefully without crashing the core smelt pipeline.
+
+---
+
+## 5. Maintenance & Legacy Pruning (Phase 4)
+
+- **Legacy Folder Removal**: 
+  - Audited and deleted the empty `services/semantic-bus-mcp/` folder.
+  - This folder was a leftover from the communication bus renaming (#190) from `semantic-bus` to `protocol-bus` (lexical routing channels).
+  - This clean-up prevents developers from checking out or referencing stale service directories.
