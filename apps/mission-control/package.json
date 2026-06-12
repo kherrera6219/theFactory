@@ -7,7 +7,7 @@
     "tokens:sync": "node scripts/sync-design-tokens.mjs",
     "dev": "npm run tokens:sync && next dev -p 3100",
     "build": "npm run tokens:sync && cross-env NEXT_BUILD_TARGET=docker next build",
-    "start": "next start",
+    "start": "cross-env NEXT_BUILD_TARGET=docker next start",
     "lint": "tsc --noEmit",
     "gen:api": "openapi-typescript ../../docs/openapi/api-gateway.v1.json -o app/lib/types/api.gen.ts",
     "test": "vitest run",
