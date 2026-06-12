@@ -79,6 +79,16 @@ def build_generated_output_artifact(
         "verified_at": generated_at,
         "artifact_digest_sha256": digest_sha256,
     }
+    try:
+        from shared_runtime.crypto_keystore import load_or_create_signing_key
+        from shared_runtime.crypto_signing import _keystore_path, sign_payload
+        key = load_or_create_signing_key(_keystore_path())
+        signature_record = sign_payload(key, generated_code)
+        verification["signature_record"] = signature_record
+        verification["verification_method"] = "ECDSA-P256-SHA256"
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("failed to sign generated code artifact: %s", exc)
     build_log = "\n".join(
         [
             f"[{generated_at}] generated-code packaging started for mission {mission_id}",
@@ -145,6 +155,16 @@ def build_source_bundle_artifact(
         "verified_at": generated_at,
         "bundle_digest_sha256": digest_sha256,
     }
+    try:
+        from shared_runtime.crypto_keystore import load_or_create_signing_key
+        from shared_runtime.crypto_signing import _keystore_path, sign_payload
+        key = load_or_create_signing_key(_keystore_path())
+        signature_record = sign_payload(key, source_code)
+        verification["signature_record"] = signature_record
+        verification["verification_method"] = "ECDSA-P256-SHA256"
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("failed to sign source bundle artifact: %s", exc)
     build_log = "\n".join(
         [
             f"[{generated_at}] package started for mission {mission_id}",

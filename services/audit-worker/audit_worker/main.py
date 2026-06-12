@@ -208,13 +208,23 @@ async def _post_audit(mission_id: str, status: str, summary: str, report: dict[s
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
         for attempt in range(1, REQUEST_MAX_RETRIES + 1):
             try:
+                report_payload = {"summary": summary, **report}
+                try:
+                    from shared_runtime.crypto_keystore import load_or_create_signing_key
+                    from shared_runtime.crypto_signing import _keystore_path, sign_payload
+                    key = load_or_create_signing_key(_keystore_path())
+                    signature_record = sign_payload(key, report_payload)
+                    report_payload["signature_record"] = signature_record
+                except Exception as exc:
+                    LOGGER.warning("failed to sign audit report in audit-worker: %s", exc)
+
                 response = await client.post(
                     f"{ORCHESTRATOR_URL}/internal/audit-reports",
                     json={
                         "mission_id": mission_id,
                         "audit_id": f"audit-worker.{mission_id}",
                         "status": status,
-                        "report": {"summary": summary, **report},
+                        "report": report_payload,
                     },
                     headers=headers,
                 )
