@@ -59,6 +59,7 @@ This index is the canonical entry point for all theFactory documentation. Every 
 | [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | Day-to-day developer reference — common commands, service ports, env vars | Developers |
 | [API_INTEGRATION_GUIDE.md](API_INTEGRATION_GUIDE.md) | Full API reference for all Gateway and Orchestrator endpoints | Developers, Integrators |
 | [ERROR_CODES.md](ERROR_CODES.md) | Complete error code catalogue with causes and remediation steps | Developers, Operators |
+| [ORCHESTRATOR_MAIN.md](ORCHESTRATOR_MAIN.md) | `main.py` reference — app.state keys, lifespan startup/shutdown sequence, all 6 background tasks, auth deps, direct endpoints, middleware, error handling, agent heuristics, and route module inventory | Developers |
 | [RUNTIME_AND_AGENT_BASE.md](RUNTIME_AND_AGENT_BASE.md) | `runtime.py` execution engine (intake loop, lifecycle tasks, state events, self-heal) and `agent_base.py` class hierarchy (BaseAgent, 6 categories, 19 specialist classes, make_agent() factory) | Developers |
 | [EQUIVALENCE_VERIFIER.md](EQUIVALENCE_VERIFIER.md) | Equivalence verification system — how the system proves behavioral equivalence between mission input and output | Developers |
 | [IS_AGENT.md](IS_AGENT.md) | Integration Standards (IS) Agent — integration catalog and compliance checks | Developers |
@@ -126,7 +127,6 @@ The following code files are known to have no dedicated documentation as of this
 
 | Code File | Size | Priority | Notes |
 |---|---|---|---|
-| `main.py` | 44 KB | 🔴 High | All FastAPI routes, startup sequence — highest-value undocumented file |
 | `models.py` | 13 KB | 🔴 High | All Pydantic/SQLAlchemy models — the schema source of truth |
 | `storage_missions.py` | 19 KB | 🟠 Medium | Mission persistence layer |
 | `storage_agents.py` | 21 KB | 🟠 Medium | Agent state persistence |
@@ -134,6 +134,9 @@ The following code files are known to have no dedicated documentation as of this
 | `storage_core.py` + `storage.py` | 10 KB | 🟠 Medium | Base storage abstractions |
 | `storage_pods.py` | 6 KB | 🟠 Medium | Pod state persistence |
 | `security_compliance.py` | 11 KB | 🟠 Medium | Runtime SAST/secret scanning enforcement |
+| `routes/internal.py` | 44 KB | 🟠 Medium | Worker callback endpoints — LogicNodes, heartbeats, artifacts, audit |
+| `routes/operations.py` | 25 KB | 🟠 Medium | Operator dashboard endpoints — agent snapshot, pod status, knowledge lake |
+| `routes/missions.py` | 12 KB | 🟠 Medium | Mission CRUD and state transition endpoints |
 | `agent_integrations.py` | 15 KB | 🟡 Low | Integration catalog agent |
 | `migrations.py` + `migrations/` | 4 KB | 🟡 Low | DB schema migration runner |
 | `auth.py` | 1.5 KB | 🟡 Low | Runtime auth enforcement (ADR covers the policy) |
