@@ -1,0 +1,55 @@
+flowchart TB
+    Operator["Operator\n(Browser / Desktop Shell)"]
+    APIClient["API Client\n(REST API Calls)"]
+
+    subgraph EntryZone["Entry & Operator Surfaces"]
+        MC["Mission Control UI\nNext.js :3100"]
+        GW["API Gateway\nFastAPI :8100"]
+        Dash["Dashboard\nFastAPI :8180"]
+    end
+
+    subgraph CoreServices["Core Control Plane"]
+        Orch["Orchestrator\nFastAPI :8101"]
+        Bus["Protocol Bus MCP\nFastAPI :8102"]
+    end
+
+    subgraph ExecutionZone["Execution Plane"]
+        PodA["Pod A Worker\n(Dynamic languages)"]
+        PodB["Pod B Worker\n(Systems languages)"]
+        PodC["Pod C Worker\n(Enterprise languages)"]
+        PodD["Pod D Worker\n(Mathematical languages)"]
+        Audit["Audit Worker\n(Attestation & Handoff)"]
+    end
+
+    subgraph StateZone["State, Knowledge & Observability"]
+        Postgres[(PostgreSQL\nState & Metrics)]
+        RedisStreams[(Redis Streams\nEvent Queue)]
+        Qdrant[(Qdrant\nVector Knowledge)]
+        Neo4j[(Neo4j\nConcept Graph)]
+        Minio[(MinIO / S3\nObject Storage)]
+        Milvus[(Milvus\nAlternative Vector)]
+        Jaeger[(Jaeger\nDistributed Traces)]
+    end
+
+    Operator -->|HTTP / IPC| MC
+    Operator -->|HTTP| Dash
+    APIClient -->|REST / HTTPS| GW
+    MC <-->|REST + SSE| GW
+    GW <-->|REST Proxy| Orch
+    GW -.->|Audit Logs| Postgres
+    Orch <-->|Durable Checkpointing| Postgres
+    Orch <-->|SIGMA Bus| RedisStreams
+    Orch <-->|Embeddings Query| Qdrant
+    Orch -.->|Graph Linkage| Neo4j
+    Orch -.->|Large Bundle Offload| Minio
+    Orch -.->|Milvus Adapter| Milvus
+
+    Bus <-->|Stream Sub/Pub| RedisStreams
+    Bus -->|Validate Envelopes| RedisStreams
+    PodA <-->|Subscribe / Publish| RedisStreams
+    PodB <-->|Subscribe / Publish| RedisStreams
+    PodC <-->|Subscribe / Publish| RedisStreams
+    PodD <-->|Subscribe / Publish| RedisStreams
+    Audit <-->|Subscribe / Publish| RedisStreams
+
+    EntryZone & CoreServices & ExecutionZone -.->|Trace Export| Jaeger

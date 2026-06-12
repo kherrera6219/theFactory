@@ -1,0 +1,49 @@
+sequenceDiagram
+    autonumber
+    actor Operator
+    participant MC as Mission Control UI
+    participant GW as API Gateway (:8100)
+    participant Orch as Orchestrator (:8101)
+    participant Bus as Protocol Bus (:8102)
+    participant Workers as Pod Workers
+    participant Audit as Audit Worker
+    participant Postgres as PostgreSQL DB
+
+    Operator->>MC: Trigger new mission
+    MC->>GW: POST /v1/missions (idempotent request)
+    GW->>Orch: create_mission()
+    Orch->>Postgres: Insert mission state (PM_INTAKE)
+    Orch-->>GW: mission_id
+    GW-->>MC: mission created
+
+    rect rgb(20, 20, 30)
+        note right of Orch: Smelt Cycle Begins (MissionFlow v2)
+        Orch->>Bus: Publish Alpha Directive (α)
+        Bus->>Workers: Dispatch Intake task
+        Workers->>Orch: Return PM Charter (PM_INTAKE -> QUEUED)
+    end
+
+    rect rgb(25, 25, 40)
+        note right of Orch: Core Execution (SMELT & FUSION)
+        Orch->>Bus: Publish Beta Directive (β)
+        Bus->>Workers: Dispatch extraction tasks
+        Workers->>Workers: Extract LogicNodes (AST + Regex)
+        Workers->>Orch: Return LogicNodes (Sigma Knowledge σ)
+        Orch->>Postgres: Upsert LogicNodes
+        Orch->>Orch: Merge to master logic stream
+    end
+
+    rect rgb(30, 20, 20)
+        note right of Orch: Gating, Verification, Delivery
+        Orch->>Bus: Publish Delta Directive (δ)
+        Bus->>Audit: Dispatch verification task
+        Audit->>Orch: GET /internal/review-approvals
+        Orch-->>Audit: return review data
+        Audit->>Audit: Verify signatures & equivalence
+        Audit->>Orch: POST verification_report (VERIFIED)
+        Orch->>Orch: Package build artifact with ECDSA signature
+        Orch->>Postgres: Mark mission state (COMPLETE)
+        Orch->>MC: SSE event state transition (COMPLETE)
+    end
+    
+    Operator->>MC: View generated code & cost summary

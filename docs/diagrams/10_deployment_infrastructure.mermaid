@@ -1,0 +1,54 @@
+flowchart TB
+    Client["Operator / External Client"]
+
+    subgraph Host["Physical / Host Server Environment"]
+        subgraph Ports["Host Port Mappings"]
+            Port3100["Port 3100: Mission Control"]
+            Port8100["Port 8100: API Gateway"]
+            Port8180["Port 8180: Dashboard"]
+            Port5434["Port 5434: PgBouncer"]
+            Port6380["Port 6380: Redis"]
+        end
+
+        subgraph DockerCompose["Docker Compose Stack"]
+            subgraph BaseStack["Base Compose Profile (condensed)"]
+                MC_Container["deploy-mission-control-1\n(Next.js Node WebApp)"]
+                GW_Container["deploy-api-gateway-1\n(FastAPI Gateway)"]
+                Orch_Container["deploy-orchestrator-1\n(FastAPI Orchestrator)"]
+                Bus_Container["deploy-protocol-bus-mcp-1\n(FastAPI MCP Bus)"]
+                PodWorkers_Container["deploy-pod-worker-1\n(Shared worker container for A/B/C/D)"]
+                Audit_Container["deploy-audit-worker-1\n(Python Audit execution)"]
+                Db["deploy-postgres-1\n(PostgreSQL Database)"]
+                Cache["deploy-redis-1\n(Redis Streams & Cache)"]
+            end
+
+            subgraph DedicatedProfile["Dedicated Profile (dedicated-agents)"]
+                PodA_Mgr["deploy-pod-a-manager-1"]
+                PodB_Mgr["deploy-pod-b-manager-1"]
+                PodC_Mgr["deploy-pod-c-manager-1"]
+                PodD_Mgr["deploy-pod-d-manager-1"]
+            end
+
+            subgraph FullDedicatedProfile["Full Dedicated Profile (full-dedicated-agents)"]
+                LangSpecialists["Isolated language specialist containers\n(One container per SpecialistAgent class)"]
+            end
+        end
+    end
+
+    Client -->|Browser| Port3100
+    Client -->|REST API| Port8100
+    Client -->|Stats| Port8180
+
+    Port3100 --> MC_Container
+    Port8100 --> GW_Container
+    Port8180 --> BaseStack
+    Port5434 --> Db
+    Port6380 --> Cache
+
+    GW_Container <--> Orch_Container
+    Orch_Container <--> Bus_Container
+    Bus_Container <--> PodWorkers_Container
+    Bus_Container <--> Audit_Container
+
+    Orch_Container -.->|Overlay control| PodA_Mgr & PodB_Mgr & PodC_Mgr & PodD_Mgr
+    Orch_Container -.->|Overlay control| LangSpecialists

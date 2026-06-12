@@ -1,0 +1,26 @@
+flowchart TB
+    Operator["Operator / MC UI"]
+    Client["External API Client"]
+
+    subgraph Gateway["API Gateway Component Boundary"]
+        Entry["ASGI Server\n(Uvicorn / FastAPI)"]
+        Auth["Auth Manager\n(Bearer / API-Key / OIDC)"]
+        Limiter["Rate Limiter\n(Sliding Window)"]
+        Idemp["Idempotency Filter\n(SHA-256 Validation)"]
+        Stream["SSE Stream Controller\n(v1/stream/state)"]
+        Proxy["REST Proxy Router\n(/v1/operations/*)"]
+    end
+
+    Redis[(Redis Cache & Lock)]
+    Orch["Orchestrator\nFastAPI :8101"]
+
+    Operator & Client -->|Requests| Entry
+    Entry -->|Validates Keys/Tokens| Auth
+    Auth -->|Check Rate Limits| Limiter
+    Limiter -->|Query Window| Redis
+    Entry -->|Inspect IDEMPOTENCY-KEY| Idemp
+    Idemp -->|Check/Set Lock| Redis
+    Entry -->|Live Subscription| Stream
+    Stream <-->|Polls Health & Events| Redis
+    Entry -->|Route Ops| Proxy
+    Proxy -->|Forward Calls| Orch

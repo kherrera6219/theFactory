@@ -1,0 +1,42 @@
+flowchart TD
+    Orch["Orchestrator"]
+    Workers["Pod Workers"]
+    Audit["Audit Worker"]
+
+    subgraph RelationalStore["Relational / Checkpoint Layer"]
+        Postgres[(PostgreSQL)]
+    end
+
+    subgraph MessagingStream["Pub/Sub Event Broker"]
+        RedisStreams[(Redis Streams)]
+    end
+
+    subgraph VectorKnowledge["Semantic Knowledge Base"]
+        Qdrant[(Qdrant Vector DB)]
+        Milvus[(Milvus Vector DB)]
+    end
+
+    subgraph ConceptGraph["Dependency Graph"]
+        Neo4j[(Neo4j Graph DB)]
+    end
+
+    subgraph ObjectStorage["Large Payload Storage"]
+        Minio[(MinIO / S3)]
+    end
+
+    Orch -->|1. Write State & Checkpoints| Postgres
+    Orch -->|2. Publish α/β/δ Directives| RedisStreams
+    RedisStreams -->|3. Consume Directives| Workers
+    Workers -->|4. Query/Cache Templates| RedisStreams
+    Workers -->|5. Extract & Write LogicNodes| Qdrant
+    Workers -.->|6. Sink Concept Links| Neo4j
+    Workers -->|7. Publish σ Knowledge Event| RedisStreams
+    RedisStreams -->|8. Fetch σ Payload| Orch
+    Orch -.->|9. Map LogicNode Dependencies| Neo4j
+    Orch -.->|10. Backup Source Bundle| Minio
+    Orch -->|11. Query Reference Context| Qdrant
+    Orch -.->|12. Sync Milvus Indexes| Milvus
+    Orch -->|13. Publish δ Audit Event| RedisStreams
+    RedisStreams -->|14. Consume Audit Event| Audit
+    Audit -->|15. Validate Attestation| Postgres
+    Audit -->|16. POST Complete Verdict| Orch

@@ -1,0 +1,23 @@
+flowchart TB
+    Orch["Orchestrator"]
+    Workers["Pod Workers"]
+
+    subgraph Bus["Protocol Bus MCP Component Boundary"]
+        Entry["ASGI Server\n(FastAPI :8102)"]
+        Router["6-Protocol Router\n(α, β, δ, σ, ω, ρ)"]
+        Validator["Schema Validator\n(jsonschema.validate)"]
+        Dedup["Replay & Dedup Filter\n(Correlation-ID Check)"]
+        Backpressure["Backpressure Controller\n(Fail-Closed Check)"]
+    end
+
+    RedisStreams[(Redis Streams\nalpha | beta | delta | sigma | omega | rho)]
+    RedisDedup[(Redis Cache\nduplicates | locks)]
+
+    Orch & Workers -->|Publish Events| Entry
+    Entry -->|Check Correlation-ID| Dedup
+    Dedup -->|Lookup Key| RedisDedup
+    Dedup -->|Check Load| Backpressure
+    Backpressure -->|Query Stream Lengths| RedisStreams
+    Entry -->|Validate Envelope Schema| Validator
+    Validator -->|Parse Event Protocol| Router
+    Router -->|Push to Stream| RedisStreams
