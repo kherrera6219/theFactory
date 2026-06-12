@@ -1,74 +1,101 @@
 'use client';
 
 import React from 'react';
-import { Panel } from '../../../../components/panel';
-import type { MissionBuildArtifactRecord } from '../../../../lib/types';
+import type { MissionBuildArtifactRecord } from '../../../../../lib/types';
 
 interface FileTreePaneProps {
   artifacts: MissionBuildArtifactRecord[];
   selectedArtifactId: string | null;
-  onSelect: (artifactId: string) => void;
+  onSelect: (id: string) => void;
 }
 
-function artifactIcon(artifactType: string): string {
-  if (artifactType === 'generated_code') return '\u{1F4C4}';
-  if (artifactType.includes('test')) return '\u2705';
-  if (artifactType.includes('doc')) return '\u{1F4D6}';
-  if (artifactType.includes('audit') || artifactType.includes('report')) return '\u{1F4CB}';
-  return '\u{1F4E6}';
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-function artifactFilename(artifact: MissionBuildArtifactRecord): string {
-  const manifestFilename = (artifact.manifest as { filename?: string } | undefined)?.filename;
-  if (manifestFilename) return manifestFilename;
-  return artifact.artifact_type.replace(/_/g, '-') + '.' + artifact.artifact_id.slice(0, 6);
-}
-
-export function FileTreePane({
-  artifacts,
-  selectedArtifactId,
-  onSelect,
-}: FileTreePaneProps) {
-  if (artifacts.length <= 1) return null;
+/**
+ * Sticky left sidebar listing all build artifacts when there is more than one.
+ * Clicking a row sets it as the active file in the CodeViewerPane.
+ */
+export function FileTreePane({ artifacts, selectedArtifactId, onSelect }: FileTreePaneProps) {
+  if (artifacts.length === 0) return null;
 
   return (
-    <Panel title="Files">
-      <ul role="listbox" aria-label="Mission artifacts" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+    <nav
+      aria-label="Artifact file tree"
+      style={{
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-md)',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          padding: '0.5rem 0.75rem',
+          borderBottom: '1px solid var(--color-border)',
+          background: 'var(--color-surface-offset)',
+          fontSize: 'var(--text-xs)',
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          color: 'var(--color-text-muted)',
+        }}
+      >
+        Files ({artifacts.length})
+      </div>
+      <ul role="list" style={{ margin: 0, padding: 0, listStyle: 'none' }}>
         {artifacts.map((artifact) => {
+          const filename = String(
+            (artifact.manifest as { filename?: string } | undefined)?.filename ??
+              artifact.artifact_id,
+          );
           const isSelected = artifact.artifact_id === selectedArtifactId;
           return (
             <li key={artifact.artifact_id}>
               <button
                 type="button"
-                role="option"
-                aria-selected={isSelected}
                 onClick={() => onSelect(artifact.artifact_id)}
+                aria-current={isSelected ? 'true' : undefined}
                 style={{
                   width: '100%',
-                  textAlign: 'left',
-                  padding: '0.4rem 0.6rem',
-                  borderRadius: 'var(--radius-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.15rem',
+                  padding: '0.5rem 0.75rem',
                   background: isSelected ? 'var(--color-primary-highlight)' : 'transparent',
                   color: isSelected ? 'var(--color-primary)' : 'var(--color-text)',
-                  fontFamily: 'var(--font-mono, monospace)',
-                  fontSize: '0.82em',
-                  cursor: 'pointer',
+                  textAlign: 'left',
                   border: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
+                  borderBottom: '1px solid var(--color-divider)',
+                  cursor: 'pointer',
+                  fontSize: 'var(--text-sm)',
                   transition: 'background var(--transition-interactive)',
                 }}
               >
-                <span aria-hidden>{artifactIcon(artifact.artifact_type)}</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {artifactFilename(artifact)}
+                <span
+                  className="mono-id"
+                  style={{
+                    fontSize: '0.82em',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title={filename}
+                >
+                  {filename}
+                </span>
+                <span style={{ fontSize: '0.75em', color: 'var(--color-text-muted)' }}>
+                  {formatBytes(artifact.size_bytes)}
                 </span>
               </button>
             </li>
           );
         })}
       </ul>
-    </Panel>
+    </nav>
   );
 }

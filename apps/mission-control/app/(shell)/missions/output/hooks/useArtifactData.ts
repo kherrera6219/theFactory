@@ -1,26 +1,27 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  getMission,
-  getMissionChainTrace,
-} from '../../../../lib/api-client';
+import { getMission, getMissionChainTrace } from '../../../../../lib/api-client';
 import type {
-  MissionBuildArtifactRecord,
-  MissionChainTrace,
   MissionRecord,
-} from '../../../../lib/types';
+  MissionChainTrace,
+  MissionBuildArtifactRecord,
+} from '../../../../../lib/types';
 
-export type ArtifactDataState = {
+export interface ArtifactDataState {
   mission: MissionRecord | null;
   chainTrace: MissionChainTrace | null;
   generatedCodeArtifact: MissionBuildArtifactRecord | null;
   allArtifacts: MissionBuildArtifactRecord[];
   loading: boolean;
   error: string | null;
-  reload: () => void;
-};
+}
 
+/**
+ * Fetches mission + chain-trace data for the Output page.
+ * Re-fetches whenever missionId changes. All data is derived from
+ * getMissionChainTrace — no new API endpoints are required.
+ */
 export function useArtifactData(missionId: string): ArtifactDataState {
   const [mission, setMission] = useState<MissionRecord | null>(null);
   const [chainTrace, setChainTrace] = useState<MissionChainTrace | null>(null);
@@ -28,18 +29,21 @@ export function useArtifactData(missionId: string): ArtifactDataState {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!missionId) return;
+    if (!missionId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const [missionData, trace] = await Promise.all([
+      const [missionData, traceData] = await Promise.all([
         getMission(missionId),
         getMissionChainTrace(missionId),
       ]);
       setMission(missionData);
-      setChainTrace(trace);
+      setChainTrace(traceData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load artifact data.');
+      setError(err instanceof Error ? err.message : 'Failed to load artifact data.');
     } finally {
       setLoading(false);
     }
@@ -49,17 +53,9 @@ export function useArtifactData(missionId: string): ArtifactDataState {
     void load();
   }, [load]);
 
-  const allArtifacts = chainTrace?.build_artifacts ?? [];
+  const allArtifacts: MissionBuildArtifactRecord[] = chainTrace?.build_artifacts ?? [];
   const generatedCodeArtifact =
     allArtifacts.find((a) => a.artifact_type === 'generated_code') ?? null;
 
-  return {
-    mission,
-    chainTrace,
-    generatedCodeArtifact,
-    allArtifacts,
-    loading,
-    error,
-    reload: () => void load(),
-  };
+  return { mission, chainTrace, generatedCodeArtifact, allArtifacts, loading, error };
 }
