@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
@@ -35,6 +36,7 @@ export default function AlertsPage() {
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [severityFilter, setSeverityFilter] = useState<"all" | AlertRecord["severity"]>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +70,13 @@ export default function AlertsPage() {
   }, []);
 
   const openCount = useMemo(() => alerts.filter((item) => item.state === "open").length, [alerts]);
+  const visibleAlerts = useMemo(
+    () =>
+      severityFilter === "all"
+        ? alerts
+        : alerts.filter((item) => item.severity === severityFilter),
+    [alerts, severityFilter],
+  );
 
   function advanceAlert(alertId: string) {
     setAlerts((current) =>
@@ -94,7 +103,15 @@ export default function AlertsPage() {
       <Panel title="Alert Summary">
         {loading && <p className="muted">Collecting live alert signals...</p>}
         {error && (
-          <SystemMessage tone="critical" title="Alert signals are unavailable">
+          <SystemMessage
+            tone="critical"
+            title="Alert signals are unavailable"
+            action={
+              <Link href="/settings" className="secondary-button shell-link-button">
+                Configure Runtime
+              </Link>
+            }
+          >
             {error} Incident data will appear when the operations API is reachable.
           </SystemMessage>
         )}
@@ -102,13 +119,30 @@ export default function AlertsPage() {
       </Panel>
 
       <Panel title="Active and Recent Alerts">
+        <div className="filter-tabs" aria-label="Alert severity filters">
+          {(["all", "critical", "high", "medium", "low"] as const).map((severity) => (
+            <button
+              key={severity}
+              type="button"
+              className={severityFilter === severity ? "active" : ""}
+              onClick={() => setSeverityFilter(severity)}
+            >
+              {severity === "all" ? "All" : severity}
+            </button>
+          ))}
+        </div>
         {!loading && !error && alerts.length === 0 && (
           <EmptyState title="No active alerts" compact>
             Alert history and remediation recommendations will appear here when the operations service reports incidents.
           </EmptyState>
         )}
+        {!loading && !error && alerts.length > 0 && visibleAlerts.length === 0 && (
+          <EmptyState title="No alerts match this severity" compact>
+            Select another severity filter to review the current alert queue.
+          </EmptyState>
+        )}
         <ul className="card-list">
-          {alerts.map((alert) => (
+          {visibleAlerts.map((alert) => (
             <li key={alert.id} className={`info-card alert-${alert.severity}`}>
               <div className="panel-title-row">
                 <h3>{alert.title}</h3>

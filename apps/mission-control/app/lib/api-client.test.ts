@@ -184,7 +184,7 @@ describe("api-client", () => {
     const ready = await getGatewayReadyState();
     expect(ready).toEqual({
       ready: false,
-      detail: "orchestrator unavailable",
+      detail: "The orchestrator service is not reachable.",
     });
   });
 

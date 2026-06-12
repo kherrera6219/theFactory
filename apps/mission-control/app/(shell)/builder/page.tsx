@@ -235,7 +235,7 @@ export default function BuilderPage() {
         )}
       </Panel>
 
-      <Panel title={`Step 2: Review Patch Contract${reviewLocked ? " (locked)" : ""}`}>
+      <Panel title="Step 2: Review Patch Contract" className={reviewLocked ? "step-panel locked" : "step-panel"}>
         <div className="inline-actions">
           <button
             type="button"
@@ -260,7 +260,13 @@ export default function BuilderPage() {
           </button>
         </div>
         <div className={`preview-shell ${viewMode}`}>
-          {!preview && <p>No preview generated yet.</p>}
+          {!preview && (
+            <div className="preview-placeholder" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+          )}
           {preview && (
             <ul className="card-list">
               {(preview.files ?? []).map((file) => (
@@ -277,7 +283,7 @@ export default function BuilderPage() {
         </div>
         <div className="stack-gap">
           {!preview && (
-            <EmptyState title="No patch contract generated yet" compact>
+            <EmptyState title="No patch contract generated yet" compact variant="locked">
               Stage a request to inspect affected files, proposed changes, risk notes, and test plan before launch.
             </EmptyState>
           )}
@@ -355,9 +361,9 @@ export default function BuilderPage() {
         )}
       </Panel>
 
-      <Panel title={`Step 3: Launch Mission${launchLocked ? " (locked)" : ""}`}>
+      <Panel title="Step 3: Launch Mission" className={launchLocked ? "step-panel locked" : "step-panel"}>
         {launchLocked && (
-          <EmptyState title="Launch is locked by review approval" compact>
+          <EmptyState title="Launch is locked by review approval" compact variant="locked">
             Apply the Step 2 review gate to persist the patch contract before launching a mission.
           </EmptyState>
         )}

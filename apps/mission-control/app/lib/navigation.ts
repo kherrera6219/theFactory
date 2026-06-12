@@ -23,7 +23,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/builder", label: "Builder", description: "Guided mission builder with review preview" },
       { href: "/missions", label: "Missions", description: "Mission lifecycle control center" },
       { href: "/projects", label: "Projects", description: "Operations projects and audit trail" },
-      { href: "/missions/history", label: "History", description: "Full mission archive with filtering" },
+      { href: "/missions/history", label: "Mission History", description: "Full archive under mission operations" },
     ],
   },
   {

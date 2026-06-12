@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
@@ -113,7 +114,15 @@ export default function ProjectsPage() {
       <Panel title="Project Portfolio">
         {loading && <p className="muted">Building portfolio from mission metadata...</p>}
         {error && (
-          <SystemMessage tone="critical" title="Project portfolio is unavailable">
+          <SystemMessage
+            tone="critical"
+            title="Project portfolio is unavailable"
+            action={
+              <Link href="/settings" className="secondary-button shell-link-button">
+                Configure Runtime
+              </Link>
+            }
+          >
             {error} Project signals are derived from mission metadata and will populate when the runtime is live.
           </SystemMessage>
         )}
@@ -173,6 +182,11 @@ export default function ProjectsPage() {
             {auditError}
           </SystemMessage>
         )}
+        {!auditLoading && !auditError && !selectedProject && (
+          <EmptyState title="Select a project to view audit events" compact>
+            Project audit trails appear after imported repositories or grouped missions produce runtime evidence.
+          </EmptyState>
+        )}
         {!auditLoading && !auditError && selectedProject && (
           <p className="muted">
             Showing the latest {auditEvents.length} recorded agent actions for <strong>{selectedProject.project_id}</strong>.
@@ -228,9 +242,9 @@ export default function ProjectsPage() {
               <h3>{template.title}</h3>
               <p>{template.summary}</p>
               <p className="muted">Category: {template.category}</p>
-              <p className="muted" aria-live="polite">
-                Template launch is not wired in Mission Control yet.
-              </p>
+              <span className="coming-soon-tag" aria-live="polite">
+                Coming soon
+              </span>
             </li>
           ))}
         </ul>

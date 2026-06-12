@@ -80,6 +80,39 @@ type ParsedError = {
   recoveryAction?: string;
 };
 
+function normalizeApiErrorMessage(message: string): ParsedError {
+  const normalized = message.trim();
+  const lower = normalized.toLowerCase();
+
+  if (lower.includes("x-api-key") || lower.includes("api key")) {
+    return {
+      message: "Mission Control is not authorized to read live runtime data.",
+      recoveryAction:
+        "Open Settings and configure the local runtime API key, then refresh this view.",
+      errorCode: "MISSION_CONTROL_API_KEY_REQUIRED",
+    };
+  }
+
+  if (lower.includes("failed to fetch") || lower.includes("gateway is unavailable")) {
+    return {
+      message: "The local runtime gateway is not reachable.",
+      recoveryAction:
+        "Start the Docker runtime stack, verify http://localhost:8100/health, then retry.",
+      errorCode: "LOCAL_RUNTIME_UNREACHABLE",
+    };
+  }
+
+  if (lower.includes("orchestrator unavailable")) {
+    return {
+      message: "The orchestrator service is not reachable.",
+      recoveryAction: "Wait for the runtime health checks to settle, then refresh this view.",
+      errorCode: "ORCHESTRATOR_UNREACHABLE",
+    };
+  }
+
+  return { message: normalized };
+}
+
 function withTimeout(timeoutMs: number): { signal: AbortSignal; cleanup: () => void } {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -115,7 +148,7 @@ async function parseError(response: Response): Promise<ParsedError> {
       return structured;
     }
     if (typeof payload.detail === "string" && payload.detail.trim().length > 0) {
-      return { message: payload.detail };
+      return normalizeApiErrorMessage(payload.detail);
     }
     if (
       payload.detail &&
@@ -123,7 +156,7 @@ async function parseError(response: Response): Promise<ParsedError> {
       "message" in payload.detail &&
       typeof (payload.detail as { message?: unknown }).message === "string"
     ) {
-      return { message: (payload.detail as { message: string }).message };
+      return normalizeApiErrorMessage((payload.detail as { message: string }).message);
     }
   } catch {
     // ignore
