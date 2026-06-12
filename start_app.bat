@@ -6,7 +6,7 @@ echo.
 
 echo [1/2] Starting backend services via Docker...
 where make >nul 2>nul
-if %ERRORLEVEL% EQU 0 (
+if not errorlevel 1 (
     call make up
 ) else (
     echo GNU Make was not found on PATH; using the Windows fallback.
@@ -15,13 +15,18 @@ if %ERRORLEVEL% EQU 0 (
         set "PGBOUNCER_HOST_PORT=5434"
     )
     python scripts\check_env.py
-    if %ERRORLEVEL% NEQ 0 goto backend_failed
+    if errorlevel 1 goto backend_failed
     powershell -ExecutionPolicy Bypass -File scripts\generate_dev_tls_certs.ps1
-    if %ERRORLEVEL% NEQ 0 goto backend_failed
+    if errorlevel 1 goto backend_failed
     docker compose -f deploy\docker-compose.yaml up -d --build
 )
-if %ERRORLEVEL% NEQ 0 goto backend_failed
+if errorlevel 1 goto backend_failed
 echo.
+
+if /I "%~1"=="--backend-only" (
+    echo Backend services started successfully.
+    exit /b 0
+)
 
 echo [2/2] Starting Mission Control UI...
 cd apps\mission-control
