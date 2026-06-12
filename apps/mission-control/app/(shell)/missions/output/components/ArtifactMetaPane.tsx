@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { MissionBuildArtifactRecord, MissionChainTrace } from '../../../../../lib/types';
+import type { MissionBuildArtifactRecord, MissionChainTrace } from '../../../../lib/types';
 
 interface ArtifactMetaPaneProps {
   artifact: MissionBuildArtifactRecord | null;

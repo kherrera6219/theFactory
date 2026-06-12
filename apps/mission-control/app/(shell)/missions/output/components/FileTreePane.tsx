@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { MissionBuildArtifactRecord } from '../../../../../lib/types';
+import type { MissionBuildArtifactRecord } from '../../../../lib/types';
 
 interface FileTreePaneProps {
   artifacts: MissionBuildArtifactRecord[];
