@@ -99,3 +99,71 @@ theFactory/
 **Hardened Properties**:
 - **VCS Cleanness**: Git history and root configs are audited and verified clean of all private credentials.
 - **Ruff Linting**: Max line length is set to 100 with strict style rules.
+
+---
+
+## 2. State & Orchestration (Phase 2 Audit)
+
+### 2.1. Orchestrator Service (`services/orchestrator/`)
+The core workflow engine and transaction manager.
+
+```
+services/orchestrator/
+├── orchestrator/              # Source package
+│   ├── llm_delegation/        # LLM interaction layer (split per provider)
+│   │   ├── __init__.py        # Exports call_llm and prompt formatting dispatchers
+│   │   ├── providers.py       # API clients for OpenAI, Anthropic, and Gemini
+│   │   ├── fallbacks.py       # Offline/timeout mock response generators
+│   │   ├── health.py          # LLM API healthchecks and token budgets
+│   │   └── ...                # prompts, text, metrics, normalizers
+│   ├── mission_flow_v2/       # Granular 7-phase Smelt-Cycle execution
+│   │   ├── __init__.py        # Main v2 runner and gate logic
+│   │   ├── phases_intake.py   # INTAKE and FETCH transitions
+│   │   ├── phases_build.py    # SMELT, GATING, and FUSION transitions
+│   │   ├── phases_delivery.py # SQUEEZE and DELIVERY transitions
+│   │   ├── phases_runtime.py  # Runtime execution and callback handling
+│   │   └── base.py            # Base phase logic and context helpers
+│   ├── routes/                # HTTP API route endpoints
+│   ├── storage.py             # Façade layer re-exporting submodules
+│   ├── storage_core.py        # Connection pooling and PgBouncer prepared-stmt bypass
+│   ├── storage_missions.py    # Mission CRUD, state event logging, and transitions
+│   ├── storage_pods.py        # Pod work assignments and scaling results
+│   ├── storage_logicnodes.py  # Language-agnostic LogicNode writes (Neo4j mirror)
+│   ├── storage_artifacts.py   # Build artifact metadata and offloads
+│   ├── storage_agents.py      # Heartbeats and cryptographically chained event ledger
+│   ├── lifecycle_interface.py # stateless LifecycleEngine Protocol selector
+│   ├── agent_registry.py      # Declarative source of truth for 41 agents
+│   ├── agent_personas.py      # 8-part persona dataclass definitions
+│   ├── main.py                # App entrypoint (Uvicorn router)
+│   └── settings.py            # App configurations and adapter flags
+├── Dockerfile                 # Multi-stage container run as non-root
+└── requirements.txt           # fastapi, psycopg, redis, boto3, jmespath, neo4j
+```
+
+**Wiring & Infrastructure**:
+- **Database Connection Pool**: Managed in `storage_core.py` using `psycopg_pool.ConnectionPool` with `autocommit=True` and `prepare_threshold=None` (PgBouncer compatibility).
+- **Dual-write adapter sync**: Writes to PostgreSQL tables primary, and mirrors write-back async/best-effort to Neo4j (`storage_logicnodes.py`) and object storage (`storage_artifacts.py`) if enabled.
+
+---
+
+### 2.2. Shared Runtime (`shared_runtime/`)
+Common security, logging, and cryptographic primitives.
+
+```
+shared_runtime/
+├── agent_auth.py              # HMAC signature authentication checks
+├── agent_keys.py              # Cryptographic key loading and verification
+├── atomic_io.py               # Atomic write (tempfile -> verify -> replace)
+├── crypto_keystore.py         # DPAPI-protected keystore (fallback to plain)
+├── crypto_signing.py          # ECDSA P-256 keypair generation and signing
+├── errors.py                  # Standard error codes and FactoryError class
+├── logging_config.py          # Structured JSON logging formatters
+├── pii_guard.py               # Redaction patterns for private/sensitive keys
+├── prompt_guard.py            # OWASP LLM01 injection scanning
+└── protocol.py                # Envelope schema validation (shared schema)
+```
+
+**Security & Error Handling**:
+- **ECDSA P-256 Signing**: Signing key pair is protected using DPAPI on Windows and standard storage on Unix. Used to sign and verify compliance and artifact bundles.
+- **Prompt Guard**: Regulated by `PROMPT_GUARD_BLOCK_ENABLED` and `PROMPT_GUARD_BLOCK_LEVEL`. If triggered, injection result is logged and blocked securely.
+- **Errors standard**: Centralized error model (`FactoryError`) for consistent frontend parsing.
