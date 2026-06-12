@@ -178,8 +178,10 @@ def test_integration_protocol_topic_store_and_llm_fallback_paths(monkeypatch) ->
     assert "neo4j" not in specialist_stores
 
     llm = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-XX-UNKNOWN"))
-    assert llm["profile"] == "openai_exec"
-    assert llm["provider"] == "openai"
+    assert llm["profile"] == "gemini_flash_high"
+    assert llm["provider"] == "gemini"
+    assert llm["model"] == "gemini-3.5-flash"
+    assert llm["thinking_level"] == "high"
 
     records = [
         {"protocols": ["rho"], "data_systems": [{"name": "redis"}], "llm_recommendation": None},

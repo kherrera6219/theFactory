@@ -782,10 +782,13 @@ OTEL_TRACING_ENABLED=true
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
 
 # LLM Providers
-LLM_PROVIDER=offline               # offline | openai | anthropic | gemini
-ANTHROPIC_API_KEY_ARCH=sk-ant-...
-OPENAI_API_KEY_CEO=sk-...
-GOOGLE_API_KEY_MATLAB=...
+LLM_PROVIDER=gemini                # gemini default; UI model choices: gpt-5.5 | claude-opus-4-8 | gemini-3.5-flash
+GEMINI_API_KEY=AIza...
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_THINKING_LEVEL=high
+OPENAI_MODEL=gpt-5.5
+OPENAI_REASONING_EFFORT=high
+ANTHROPIC_MODEL=claude-opus-4-8
 
 # Agent Scaling (experimental)
 AGENT_SCALING_ENABLED=false

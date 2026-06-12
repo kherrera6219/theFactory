@@ -159,7 +159,7 @@ async def _call_openai(
     payload = {
         "model": model,
         "input": messages,
-        "reasoning": {"effort": "medium"},
+        "reasoning": {"effort": "high"},
     }
     headers = {"Authorization": f"Bearer {openai_api_key}"}
     response = await _pkg()._post_with_retry(
@@ -360,8 +360,8 @@ async def _call_with_recommendation(
     call_context: str,
     system_prompt: str | None = None,
 ) -> tuple[dict[str, Any] | None, str, str, str]:
-    provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.5")).strip()
+    provider = str(recommendation.get("provider", "gemini")).strip().lower()
+    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
 
     # Security Hardening: redact PII from the prompt before sending to any
     # provider. Placed here (not in _call_with_agent_system) so that ALL callers

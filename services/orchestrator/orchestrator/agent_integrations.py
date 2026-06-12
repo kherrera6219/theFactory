@@ -21,6 +21,16 @@ _POD_TOPICS: Final[dict[str, str]] = {
     "podd": "cluster.assigned.podD",
 }
 _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
+    "gemini_flash_high": {
+        "provider": "gemini",
+        "model": "gemini-3.5-flash",
+        "mode": "thinking",
+        "thinking_level": "high",
+        "reason": (
+            "Test default: route all agents to Gemini Flash 3.5 with high thinking "
+            "for efficient, single-provider validation."
+        ),
+    },
     "openai_exec": {
         "provider": "openai",
         "model": "gpt-5.5",
@@ -308,8 +318,8 @@ def _store_bindings_for_agent(agent: AgentDefinition) -> list[dict[str, Any]]:
 
 
 def _llm_recommendation_for_agent(agent: AgentDefinition) -> dict[str, Any]:
-    profile_key = _AGENT_LLM_PROFILE_MAP.get(agent.agent_id, "openai_exec")
-    profile = _LLM_PROFILES.get(profile_key, _LLM_PROFILES["openai_exec"])
+    profile_key = "gemini_flash_high"
+    profile = _LLM_PROFILES[profile_key]
     recommendation = dict(profile)
     recommendation["profile"] = profile_key
     recommendation["rank"] = "primary"
