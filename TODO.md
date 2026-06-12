@@ -30,9 +30,7 @@
 - [x] **A9** Offline diagnostics bundle — 6 §18 artifacts under `%LOCALAPPDATA%/…/Diagnostics`,
   desktop button in Settings
 
-**Remaining (incremental, noted in plan):** wire `sign_payload`/`verify_payload` into the
-build-artifact / compliance-report / audit-bundle write+import paths (needs the signing key in
-orchestrator app-state). **Bucket B** (infra re-platform) remains a separate product decision.
+**Remaining (incremental, noted in plan):** None for Bucket A. Wired `sign_payload`/`verify_payload` into the build-artifact, compliance-report, and audit-report write+import paths (completed 2026-06-12). **Bucket B** (infra re-platform) remains a separate product decision.
 
 _Test coverage added this work: error framework (8), atomic_io (6), FactoryError handler (3),
 crypto signing+keystore (11), prompt integrity (5), api-client structured errors (3)._

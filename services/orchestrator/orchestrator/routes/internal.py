@@ -784,6 +784,16 @@ async def upsert_audit_report(
         if isinstance(payload.created_at, datetime)
         else (payload.created_at or datetime.now(UTC).isoformat())
     )
+
+    report_dict = payload.report
+    if isinstance(report_dict, dict) and "signature_record" in report_dict:
+        from shared_runtime.crypto_signing import verify_payload
+        signature_record = report_dict["signature_record"]
+        payload_to_verify = {k: v for k, v in report_dict.items() if k != "signature_record"}
+        if not verify_payload(payload_to_verify, signature_record):
+            raise HTTPException(status_code=422, detail="invalid digital signature on audit report")
+    elif app.state.settings.environment == "production":
+        raise HTTPException(status_code=422, detail="digital signature is required in production environment")
     record = await asyncio.to_thread(
         storage.upsert_audit_report,
         app.state.settings,
@@ -1044,6 +1054,16 @@ async def get_build_artifact(
                     status_code=502,
                     detail=f"Could not generate presigned URL: {exc}",
                 ) from exc
+
+    if (
+        record
+        and record.get("artifact_text") is not None
+        and isinstance(record.get("verification"), dict)
+        and "signature_record" in record["verification"]
+    ):
+        from shared_runtime.crypto_signing import verify_payload
+        is_valid = verify_payload(record["artifact_text"], record["verification"]["signature_record"])
+        record["verification"]["verified"] = is_valid
 
     return MissionBuildArtifactRecord(**record)
 

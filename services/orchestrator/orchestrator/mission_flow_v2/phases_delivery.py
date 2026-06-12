@@ -298,6 +298,15 @@ async def _prepare_security_compliance_report(
         metadata=metadata,
         enforcement_enabled=enforcement_enabled,
     )
+    try:
+        from shared_runtime.crypto_keystore import load_or_create_signing_key
+        from shared_runtime.crypto_signing import _keystore_path, sign_payload
+        report_to_sign = {k: v for k, v in report.items() if k != "signature_record"}
+        key = load_or_create_signing_key(_keystore_path())
+        signature_record = sign_payload(key, report_to_sign)
+        report["signature_record"] = signature_record
+    except Exception as exc:
+        LOGGER.warning("failed to sign security compliance report: %s", exc)
     metadata["security_compliance_report"] = report
     if report.get("blocking"):
         event_type = "MISSION_SECURITY_COMPLIANCE_BLOCKED"
