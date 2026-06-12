@@ -1,6 +1,6 @@
 # theFactory Documentation Index
 
-**Version:** 2026.06.11-r4  
+**Version:** 2026.06.11-r5  
 **Maintained by:** Documentation Guild  
 **Last reviewed:** 2026-06-11
 
@@ -69,6 +69,17 @@ This index is the canonical entry point for all theFactory documentation. Every 
 
 ---
 
+## Configuration and Observability
+
+| File | Description | Audience |
+|---|---|---|
+| [SETTINGS_REFERENCE.md](SETTINGS_REFERENCE.md) | `settings.py` — complete reference for every `Settings` field, env var, default, and computed property; includes production hardening checklist | Developers, Operators |
+| [TRACING.md](TRACING.md) | `tracing.py` — OpenTelemetry distributed tracing: `configure_tracing()`, `@trace_operation` decorator, sampling strategy, Jaeger setup, and log correlation | Developers, Operators |
+| [OBSERVABILITY_STACK.md](OBSERVABILITY_STACK.md) | Full observability stack — Prometheus metrics, Grafana dashboards, alert rules, and log aggregation | Operators, Developers |
+| [METRICS_SOURCE_MODULES.md](METRICS_SOURCE_MODULES.md) | `data_plane_metrics.py` and `orchestrator_metrics.py` — all Prometheus counter/histogram/gauge definitions, label cardinality rules, Grafana dashboard mapping, and the metrics-to-alerting contract | Developers, Operators |
+
+---
+
 ## Domain Models and Schema
 
 | File | Description | Audience |
@@ -133,20 +144,11 @@ This index is the canonical entry point for all theFactory documentation. Every 
 
 ---
 
-## Observability
-
-| File | Description | Audience |
-|---|---|---|
-| [OBSERVABILITY_STACK.md](OBSERVABILITY_STACK.md) | Full observability stack — Prometheus metrics, Grafana dashboards, alert rules, and log aggregation | Operators, Developers |
-| [METRICS_SOURCE_MODULES.md](METRICS_SOURCE_MODULES.md) | `data_plane_metrics.py` and `orchestrator_metrics.py` — all Prometheus counter/histogram/gauge definitions, label cardinality rules, Grafana dashboard mapping, and the metrics-to-alerting contract | Developers, Operators |
-
----
-
 ## Supporting Modules
 
 | File | Description | Audience |
 |---|---|---|
-| [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) | Reference for all smaller orchestrator modules: `migrations.py`, `auth.py`, `review_policy.py`, `protocol.py`, `project_identity.py`, `hw_agent.py`, `testdata_agent.py`, `system_maintenance.py`, `agent_integrations.py` | Developers |
+| [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) | Reference for all smaller orchestrator modules: `migrations.py`, `auth.py`, `review_policy.py`, `protocol.py`, `project_identity.py`, `hw_agent.py`, `testdata_agent.py`, `system_maintenance.py`, `agent_integrations.py`, `port_coordinator.py` | Developers |
 
 ---
 
@@ -205,6 +207,8 @@ All high, medium, and low priority undocumented modules have been resolved. The 
 | `aim_generator.py` | 🟠 Medium | ✅ Documented | [APPLICATION_INTELLIGENCE_MAP.md](APPLICATION_INTELLIGENCE_MAP.md) |
 | `agent_scaling.py` | 🟠 Medium | ✅ Documented | [AGENT_SCALING_AND_HEARTBEAT.md](AGENT_SCALING_AND_HEARTBEAT.md) |
 | `heartbeat_service.py` | 🟠 Medium | ✅ Documented | [AGENT_SCALING_AND_HEARTBEAT.md](AGENT_SCALING_AND_HEARTBEAT.md) |
+| `settings.py` | 🔴 High | ✅ Documented | [SETTINGS_REFERENCE.md](SETTINGS_REFERENCE.md) |
+| `tracing.py` | 🟠 Medium | ✅ Documented | [TRACING.md](TRACING.md) |
 | `port_coordinator.py` | 🟠 Medium | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `agent_integrations.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `migrations.py` + `migrations/` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
@@ -216,4 +220,4 @@ All high, medium, and low priority undocumented modules have been resolved. The 
 | `protocol.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `project_identity.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 
-> The documentation gap tracker is now clear. New undocumented modules should be added here as they are introduced.
+> The documentation gap tracker is now fully clear. Every orchestrator module is documented. New undocumented modules should be added here as they are introduced.
