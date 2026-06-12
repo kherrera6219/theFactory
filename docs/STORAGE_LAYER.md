@@ -1,234 +1,266 @@
-# Storage Layer
+# Storage Layer Reference
 
-**Source files:** `services/orchestrator/orchestrator/storage_core.py`, `storage.py`, `storage_missions.py`, `storage_agents.py`, `storage_artifacts.py`, `storage_logicnodes.py`, `storage_pods.py`  
-**Role:** The complete persistence layer for the orchestrator. Provides PostgreSQL CRUD, connection pooling, schema migration, and all domain-specific read/write operations behind a single re-export façade.
-
----
-
-## Architecture
-
-The storage layer is split into domain modules for maintainability. A single façade file (`storage.py`) re-exports every public symbol so all callers use `from . import storage; storage.fetch_mission(...)` without needing to know which domain module a function lives in.
-
-```
-storage.py (façade — re-exports everything)
-├── storage_core.py       — DB connection pool, migration entry point, JSON/datetime helpers
-├── storage_missions.py   — Mission CRUD, state-event log, partition-result recording
-├── storage_pods.py       — Pod assignments, project aggregation
-├── storage_logicnodes.py — LogicNode and knowledge-fragment persistence
-├── storage_artifacts.py  — Audit reports, review approvals, build artifacts
-└── storage_agents.py     — Agent heartbeats and runtime event log
-```
+**Files:** `services/orchestrator/orchestrator/storage_core.py` and all `storage_*.py` modules  
+**Last documented:** 2026-06-11
 
 ---
 
-## `storage_core.py` — DB Infrastructure
+## Overview
+
+The orchestrator's storage layer is organized as a **thin-module pattern**: a shared infrastructure module (`storage_core.py`) provides the connection pool, migration runner, JSON serialization helpers, and the one custom exception — and every domain area has its own `storage_<domain>.py` module that imports from core without creating circular dependencies.
+
+All writes go through PostgreSQL (via `psycopg` + `psycopg-pool`). Redis is used for state streams and heartbeat fan-out only — it is not the system of record for anything.
+
+```
+storage_core.py            — connection pool, migrations, JSON helpers
+storage_missions.py        — mission CRUD + state machine enforcement
+storage_events.py          — mission_events append-only log
+storage_pod_assignments.py — pod assignment records
+storage_logic_nodes.py     — LogicNode and knowledge lake entries
+storage_knowledge.py       — knowledge lake fragments (language-indexed)
+storage_audit.py           — audit reports + AgentActionEvent ledger
+storage_artifacts.py       — build artifact records
+storage_heartbeats.py      — agent heartbeat liveness records
+storage_approvals.py       — human review approval records
+```
+
+---
+
+## `storage_core.py` — Shared Infrastructure
 
 ### Connection Strategy
 
-The orchestrator uses two connection paths:
+The layer uses **two separate connection paths** for two different use cases:
 
-| Path | Function | Used by | Notes |
-|---|---|---|---|
-| **Direct connection** | `db_connect()` | Schema migrations only | Connects directly to PostgreSQL (not via PgBouncer). Takes a session-level advisory lock that requires a stable session. |
-| **Connection pool** | `get_connection()` | All storage operations | `psycopg_pool` pool behind PgBouncer. `autocommit=True`, `prepare_threshold=None` (disables server-side prepared statements for PgBouncer transaction-pool compatibility). |
+| Path | Function | DSN Used | When |
+|------|----------|----------|------|
+| Pool | `get_connection()` | `settings.postgres_url` (PgBouncer) | All normal storage operations |
+| Direct | `db_connect()` | `settings.migration_postgres_url` (Postgres direct) | Schema migrations only |
 
-> **Why two paths?** PgBouncer in transaction-pool mode reassigns the backend and issues `DISCARD ALL` between statements, which silently releases advisory locks mid-migration. Migrations must bypass the bouncer.
+The split exists because schema migrations take a **session-level advisory lock** (`pg_advisory_lock`). In PgBouncer transaction-pool mode the bouncer reassigns the backend connection between statements and runs `DISCARD ALL`, which silently releases advisory locks mid-migration. The direct connection bypasses the bouncer for the duration of the migration run only.
 
-### Pool Management
+> **PgBouncer safety:** Both connection paths disable server-side prepared statements (`prepare_threshold=None`). Named prepared statements are connection-scoped and would not survive PgBouncer's connection reassignment.
 
-```python
-init_connection_pool(settings)  # Call once at startup (idempotent)
-close_connection_pool()         # Call at shutdown
+---
 
-with get_connection() as conn:  # Borrow a connection for a block
-    with conn.cursor() as cur:
-        cur.execute(...)
-```
-
-`init_connection_pool()` is called in `main.py`'s lifespan startup. `close_connection_pool()` is called on shutdown. Both are safe to call multiple times.
-
-### Schema Migrations
+### Connection Pool
 
 ```python
-ensure_db_schema(settings)
+init_connection_pool(settings: Settings) -> ConnectionPool
 ```
 
-Runs all pending Alembic migrations (via `migrations.apply_migrations()`) then bootstraps the `__knowledge_lake__` system mission used as the foreign-key anchor for global knowledge-lake entries.
+Initializes the module-level `_pool` singleton (idempotent — safe to call multiple times). Called once during service startup in `main.py`.
 
-### Helpers
+| Pool Parameter | Value | Source |
+|---|---|---|
+| `min_size` | `settings.db_pool_min_size` | `DB_POOL_MIN_SIZE` env var |
+| `max_size` | `settings.db_pool_max_size` | `DB_POOL_MAX_SIZE` env var |
+| `max_waiting` | `20` | Hardcoded |
+| `timeout` | `30s` | Hardcoded |
 
-| Function | Description |
-|---|---|
-| `_to_iso(value)` | Convert `datetime` to UTC ISO-8601 string |
-| `_json_to_dict(value)` | Safely deserialize a JSONB column to `dict` |
-| `_json_to_list(value)` | Safely deserialize a JSONB column to `list` |
-| `FactoryJsonEncoder` | `json.JSONEncoder` subclass that handles `datetime` and Pydantic models |
-| `factory_json_dumps(payload)` | Consistently serialize to sorted, compact JSON using `FactoryJsonEncoder` |
+```python
+@contextmanager
+def get_connection() -> Iterator[Any]
+```
+
+Context manager. Borrows a connection from the pool for the duration of the block and returns it on exit. Raises `RuntimeError` if the pool was not initialized. All storage domain modules use this — never `db_connect()`.
+
+```python
+close_connection_pool() -> None
+```
+
+Closes the pool and resets `_pool` to `None`. Called in `main.py`'s shutdown handler.
+
+---
+
+### Schema Migration
+
+```python
+ensure_db_schema(settings: Settings) -> None
+```
+
+Runs `migrations.apply_migrations(settings, connect=db_connect)` using the direct connection. After migrations complete, it bootstraps the `__knowledge_lake__` system mission — a synthetic `MissionRecord` with `mission_id="__knowledge_lake__"`, state `COMPLETE` — to prevent foreign key violations when the IS Agent pre-indexes language documentation entries into the Knowledge Lake before any real mission exists.
+
+The bootstrap is idempotent — it catches and warns on conflict rather than raising.
+
+---
+
+### JSON & Datetime Helpers
+
+| Helper | Signature | Purpose |
+|--------|-----------|--------|
+| `_to_iso` | `(Any) -> str` | Converts `datetime` to UTC ISO string; falls back to `str()` |
+| `_json_to_dict` | `(Any) -> dict` | Safely parses JSON strings or passes through dicts; returns `{}` on empty/null |
+| `_json_to_list` | `(Any) -> list` | Safely parses JSON strings or passes through lists; returns `[]` on empty/null |
+| `FactoryJsonEncoder` | `JSONEncoder` | Extends the stdlib encoder to serialize `datetime` (UTC ISO) and Pydantic models via `model_dump()` |
+| `factory_json_dumps` | `(Any) -> str` | Canonical serializer used throughout; produces sorted-key, compact JSON for deterministic SHA-256 hashing |
+
+> **Why `sort_keys=True`?** Deterministic key ordering ensures the SHA-256 digest of a payload is stable regardless of Python dict insertion order. This is required for the `event_digest_sha256` and `content_sha256` fields in the audit chain to be reproducible.
+
+---
 
 ### `PodAssignmentConflictError`
 
-Raised by `storage_pods.upsert_pod_assignment()` when a mission is already assigned to a different pod. Callers inspect `exc.existing_assignment` to retrieve the conflicting record.
-
----
-
-## `storage_missions.py` — Mission Persistence
-
-### Mission CRUD
-
-| Function | Description |
-|---|---|
-| `upsert_mission(settings, record, source_stream_id)` | Insert or update a mission row. Embeds charter fields into `metadata_json`. Resolves `project_id` if not set. |
-| `fetch_mission(settings, mission_id)` | Fetch a single mission by ID. Returns `None` if not found. |
-| `update_mission_metadata(settings, mission_id, metadata)` | Update `metadata_json` and re-resolve `project_id`. Returns updated `MissionRecord`. |
-| `list_missions(settings, limit)` | List most recent missions, ordered by `created_at DESC`. |
-| `list_missions_in_states(settings, states, limit)` | List missions currently in any of the given states, ordered by `created_at ASC` (FIFO for queue pickup). |
-| `count_missions(settings)` | Count all missions. |
-| `mission_state_counts(settings)` | Return a `{state: count}` dict for all states. |
-
-### State Transitions
-
 ```python
-transition_mission_state(
-    settings, mission_id,
-    expected_state,  # None = unconditional
-    new_state,
-    event_type
-) -> MissionRecord | None
+class PodAssignmentConflictError(Exception):
+    existing_assignment: dict[str, Any]
 ```
 
-Executes atomically within a single PostgreSQL transaction:
-1. `UPDATE missions SET state = %s WHERE mission_id = %s [AND state = %s]`
-2. `INSERT INTO mission_state_events ...`
+Raised by `storage_pod_assignments.upsert_pod_assignment()` when a mission is already assigned to a different pod and a second assignment is attempted. The `existing_assignment` dict carries the current assignment for the caller to inspect.
 
-If `expected_state` is provided, the update is conditional — if the current state does not match, the function returns `None` without raising. This is optimistic concurrency for parallel agent writes.
+---
 
-### Event Log
+## Domain Storage Modules
+
+Each module follows the same pattern: stateless functions that accept `settings: Settings` as their first argument and use `get_connection()` internally. None of them import from each other — only from `storage_core`.
+
+### `storage_missions.py`
+
+Manages the `missions` PostgreSQL table.
 
 | Function | Description |
-|---|---|
-| `insert_mission_event(...)` | Write a state event and emit Prometheus metrics via `orchestrator_metrics.record_mission_transition()`. Skips metric emission for self-loop events (checkpoint vs. real transition). |
-| `list_mission_events(settings, mission_id, limit)` | Get event history for a mission. |
-| `list_recent_mission_events(settings, limit)` | Get the most recent events across all missions. |
+|----------|-------------|
+| `upsert_mission(settings, record, source_stream_id)` | INSERT OR UPDATE a `MissionRecord`; writes a `MISSION_INTAKE` event on first insert |
+| `fetch_mission(settings, mission_id)` | Returns a `MissionRecord` or `None` if not found |
+| `list_missions(settings, state, limit, offset)` | Returns a list of `MissionRecord` filtered by state |
+| `update_mission_state(settings, mission_id, new_state, expected_state, event_type)` | Enforces `VALID_TRANSITIONS`; uses `expected_state` for optimistic locking; emits a `MissionEvent` on success |
+| `update_mission_metadata(settings, mission_id, metadata)` | Merges new keys into `metadata` JSON column; does not overwrite existing keys |
 
-### Charter Field Embedding
-
-`MissionType`, `DepthMode`, `OutputMode`, and `DataClassification` are stored in `metadata_json` under `__mission_type__`, `__depth_mode__`, `__output_mode__`, `__data_classification__` keys. `_embed_charter_fields()` writes them on upsert; `_charter_fields_from_metadata()` reads them on row hydration in `row_to_mission()`.
-
-### Partition Results (Agent Scaling)
-
-```python
-record_partition_result(settings, mission_id, result: dict)
-```
-
-Used by scaled parallel agents to record their partition's output. Uses `_locked_mission_metadata_update()` — a direct (non-pooled) connection with row-level `SELECT FOR UPDATE` to safely merge concurrent partition results into `metadata_json`. When `all_partitions_complete()` returns `True`, `merge_partition_results()` is called and the merged result is written as `merged_partition_result`.
+The `CLARIFYING` state has a special case: `update_mission_state` with `new_state=CLARIFYING` also writes the clarification prompt text into `metadata["pm_clarification_prompt"]` so the PM Agent can read it when the mission transitions back to `PM_INTAKE`.
 
 ---
 
-## `storage_pods.py` — Pod Assignments
+### `storage_events.py`
+
+Manages the `mission_events` PostgreSQL table. Events are **append-only** — no updates or deletes.
 
 | Function | Description |
-|---|---|
-| `upsert_pod_assignment(settings, record)` | Insert or update a pod assignment. Raises `PodAssignmentConflictError` if a different pod is already assigned to the same mission. |
-| `get_pod_assignment(settings, mission_id)` | Fetch a mission's current pod assignment. |
-| `list_pod_assignments(settings, limit)` | List all pod assignments. |
-| `summarize_projects(settings)` | Aggregate mission counts per project — used by the operations dashboard. |
+|----------|-------------|
+| `write_event(settings, event)` | Inserts a `MissionEvent`; called by `update_mission_state` and directly by agents for non-state events |
+| `list_events(settings, mission_id, limit)` | Returns events for a mission in ascending `ts` order |
+| `get_event_count(settings, mission_id)` | Returns the total number of events for a mission |
 
 ---
 
-## `storage_logicnodes.py` — LogicNode and Knowledge Persistence
+### `storage_pod_assignments.py`
 
-LogicNodes are the core semantic artifacts produced by pod workers — typed, tagged knowledge fragments with confidence scores and source line references.
+Manages the `pod_assignments` table (one row per mission, unique constraint on `mission_id`).
 
 | Function | Description |
-|---|---|
-| `upsert_logicnode(settings, node)` | Persist a single LogicNode. |
-| `upsert_logicnodes_batch(settings, nodes)` | Batch upsert for pod worker bulk writes. |
-| `list_logicnodes(settings, mission_id, limit)` | List LogicNodes for a mission. |
-| `list_recent_logicnodes(settings, limit)` | List most recently created LogicNodes across all missions. |
-| `upsert_knowledge(settings, fragment)` | Persist a knowledge-lake fragment (language-indexed reusable knowledge). |
-| `upsert_knowledge_batch(settings, fragments)` | Batch upsert for knowledge fragments. |
-| `list_knowledge(settings, language, limit)` | Retrieve knowledge fragments for a given language tag. |
+|----------|-------------|
+| `upsert_pod_assignment(settings, upsert)` | Writes or updates a pod assignment; raises `PodAssignmentConflictError` if a different pod is already assigned |
+| `fetch_pod_assignment(settings, mission_id)` | Returns the current pod assignment dict or `None` |
 
 ---
 
-## `storage_artifacts.py` — Audit and Build Artifacts
+### `storage_logic_nodes.py`
 
-Persists the evidence bundle components produced by the audit worker and pod workers.
-
-| Function | Group | Description |
-|---|---|---|
-| `upsert_audit_report(...)` | Audit | Insert or update a structured audit report for a mission |
-| `list_audit_reports(settings, mission_id)` | Audit | List audit reports for a mission |
-| `list_recent_audit_reports(settings, limit)` | Audit | List most recent audit reports across all missions |
-| `upsert_review_approval(...)` | Review | Persist a human or automated review approval record |
-| `get_review_approval(settings, mission_id)` | Review | Fetch the review approval for a mission |
-| `upsert_build_artifact(...)` | Build | Persist a build artifact (compiled output, test results, coverage report) |
-| `list_build_artifacts(settings, mission_id)` | Build | List build artifacts for a mission |
-| `get_build_artifact(settings, mission_id, artifact_type)` | Build | Fetch a specific artifact type |
-| `insert_testdata_manifest(...)` | TestData | Persist a test data manifest generated by the testdata agent |
-| `get_testdata_manifest(settings, mission_id)` | TestData | Fetch the test data manifest for a mission |
-| `insert_runtime_qc_report(...)` | QC | Persist a Runtime QC report from `rqca_agent.py` |
-| `get_runtime_qc_report(settings, mission_id)` | QC | Fetch the QC report for a mission |
-
----
-
-## `storage_agents.py` — Agent Heartbeats and Event Log
-
-Provides persistence for the agent observability layer — heartbeats (liveness signals) and the agent action event log (audit trail of what each agent did).
+Manages the `logic_nodes` table. Logic nodes are tagged semantic concepts extracted from source code during pod worker analysis (e.g. `DYN-006-001 async function, confidence=0.94, line=47`).
 
 | Function | Description |
-|---|---|
-| `upsert_agent_heartbeat(settings, heartbeat)` | Update an agent's liveness record with current state and timestamp |
-| `get_agent_heartbeat(settings, agent_id)` | Fetch a single agent's heartbeat record |
-| `list_agent_heartbeats(settings)` | List all agent heartbeats — used by the operations dashboard agent snapshot |
-| `create_agent_action_event(...)` | Construct an `AgentActionEvent` model |
-| `insert_agent_action_event(settings, event)` | Persist an agent action event |
-| `list_recent_agent_events(settings, limit)` | List most recent agent events across all agents |
-| `list_mission_agent_action_events(settings, mission_id, limit)` | List all events for agents working on a specific mission |
-| `list_project_agent_action_events(settings, project_id, limit)` | List all events for a project (cross-mission) |
-| `prune_audit_tables(settings, older_than_days)` | Delete heartbeat and event records older than N days — called by the background maintenance task in `main.py` |
+|----------|-------------|
+| `upsert_logic_node(settings, upsert)` | Inserts or updates a `LogicNodeUpsert`; validates the node dict against the registered JSON schema |
+| `list_logic_nodes(settings, mission_id, tag_prefix, limit)` | Returns logic nodes for a mission, optionally filtered by tag prefix (e.g. `DYN-`, `SYS-`) |
+| `get_logic_node_count(settings, mission_id)` | Returns the total node count for a mission |
 
 ---
 
-## Data Flow: Write Path
+### `storage_knowledge.py`
 
-```
-Agent / Route handler
-    │
-    ▼
-storage.upsert_mission() / storage.transition_mission_state() / ...
-    │
-    ▼
-Domain module (storage_missions, storage_pods, ...)
-    │  Validates against VALID_TRANSITIONS (for state updates)
-    │  Embeds charter fields (for mission upserts)
-    ▼
-get_connection() → PgBouncer → PostgreSQL
-    │
-    ▼
-Prometheus metrics emitted (for state transitions)
-```
+Manages the `knowledge_lake` table. Knowledge lake entries are pre-indexed language documentation and specification fragments used by the IS Agent during the `FETCH` phase.
 
-## Data Flow: Schema Migration Path
+| Function | Description |
+|----------|-------------|
+| `upsert_knowledge(settings, upsert)` | Inserts or updates a `KnowledgeUpsert` for the given `mission_id` + `knowledge_id` |
+| `fetch_knowledge(settings, mission_id, knowledge_id)` | Returns a single knowledge entry or `None` |
+| `list_knowledge(settings, mission_id, limit)` | Lists all knowledge entries for a mission |
 
-```
-main.py lifespan startup
-    │
-    ▼
-ensure_db_schema(settings)
-    │
-    ├── db_connect() → PostgreSQL (direct, not via PgBouncer)
-    │   └── migrations.apply_migrations() — advisory lock, run pending migrations
-    │
-    └── upsert_mission() — bootstrap __knowledge_lake__ system mission
-```
+> The `__knowledge_lake__` synthetic mission (bootstrapped by `ensure_db_schema`) acts as the parent for all language-level global knowledge entries, keeping them accessible without requiring a real mission context.
+
+---
+
+### `storage_audit.py`
+
+Manages the `audit_reports` and `agent_action_events` tables.
+
+| Function | Description |
+|----------|-------------|
+| `upsert_audit_report(settings, upsert)` | Writes or updates a pod or RQCA audit report |
+| `fetch_audit_report(settings, mission_id, audit_id)` | Retrieves a specific audit report |
+| `list_audit_reports(settings, mission_id)` | Lists all audit reports for a mission |
+| `write_agent_action_event(settings, upsert)` | Appends a new `AgentActionEventRecord`; computes `event_digest_sha256` and `prev_event_digest_sha256` using `factory_json_dumps` before insert |
+| `list_agent_action_events(settings, mission_id, agent_id, limit)` | Returns audit ledger entries; filterable by agent |
+
+The `write_agent_action_event` function is the **only write path to the audit ledger**. It fetches the digest of the most recent event for the same `mission_id` before inserting, creating the hash chain. This is done inside a single `get_connection()` block to prevent races on the `prev_event_digest_sha256` field.
+
+---
+
+### `storage_artifacts.py`
+
+Manages the `build_artifacts` table. Artifacts are the tangible outputs of each mission phase — generated code, tests, docs, AIM documents, and compliance reports.
+
+| Function | Description |
+|----------|-------------|
+| `upsert_build_artifact(settings, record)` | Inserts or updates a `MissionBuildArtifactRecord` |
+| `fetch_build_artifact(settings, mission_id, artifact_id)` | Returns a single artifact or `None` |
+| `list_build_artifacts(settings, mission_id, artifact_type, stage)` | Lists artifacts; filterable by `artifact_type` and `stage` |
+| `update_artifact_verification(settings, mission_id, artifact_id, verification)` | Merges verification results into the `verification` JSON column |
+
+---
+
+### `storage_heartbeats.py`
+
+Manages the `agent_heartbeats` table. One row per agent ID; updated on each heartbeat. Used by the dashboard and operator console to display live agent status.
+
+| Function | Description |
+|----------|-------------|
+| `upsert_heartbeat(settings, upsert)` | Inserts or updates an `AgentHeartbeatUpsert`; sets `last_heartbeat` to `utcnow()` if not provided |
+| `list_heartbeats(settings, stale_after_seconds)` | Returns all heartbeats; `stale_after_seconds` lets callers filter for agents that have not reported recently |
+
+---
+
+### `storage_approvals.py`
+
+Manages the `review_approvals` table. Approval records are written when a human operator resolves a `HUMAN_REVIEW` escalation gate.
+
+| Function | Description |
+|----------|-------------|
+| `upsert_review_approval(settings, upsert)` | Writes a `ReviewApprovalUpsert`; computes `receipt_digest` from the approval content |
+| `fetch_review_approval(settings, fingerprint)` | Looks up an approval by content fingerprint |
+| `list_review_approvals(settings, mission_id, scope)` | Lists approvals; filterable by scope (`builder` or `repo`) |
+
+---
+
+## Error Handling Conventions
+
+| Scenario | Behavior |
+|----------|----------|
+| Mission not found | Returns `None` — callers must check |
+| Invalid state transition | `ValueError` with transition details |
+| Pod assignment conflict | `PodAssignmentConflictError` with existing assignment |
+| Pool not initialized | `RuntimeError` from `get_connection()` |
+| `psycopg` not installed | `RuntimeError` from `db_connect()` |
+| JSON parse failure | `_json_to_dict` / `_json_to_list` return `{}` / `[]` — never raises |
+| Knowledge lake bootstrap conflict | Warning log; execution continues |
+
+---
+
+## Settings Reference
+
+All storage configuration comes from `settings.py` environment variables:
+
+| Setting | Env Var | Description |
+|---------|---------|-------------|
+| `postgres_url` | `POSTGRES_URL` | PgBouncer DSN for pooled storage operations |
+| `migration_postgres_url` | `MIGRATION_POSTGRES_URL` | Direct Postgres DSN for schema migrations |
+| `db_pool_min_size` | `DB_POOL_MIN_SIZE` | Minimum pool connections (default: `2`) |
+| `db_pool_max_size` | `DB_POOL_MAX_SIZE` | Maximum pool connections (default: `10`) |
 
 ---
 
 ## Rules and Constraints
 
-- **Never call `db_connect()` for normal operations** — it bypasses the pool and is reserved for migrations only. All agent and route code must use `get_connection()`.
-- **`prepare_threshold=None` on all connections** — required for PgBouncer transaction-pool compatibility. Never set a non-None prepare threshold.
-- **`factory_json_dumps()` for all JSONB writes** — ensures consistent sorting and UTC datetime serialization.
-- **`prune_audit_tables()` is called by the background task in `main.py`** — do not call it directly from agent code.
-- **`record_partition_result()` uses a direct (non-pooled) connection** — this is intentional; `SELECT FOR UPDATE` on the mission row requires a full transaction connection, not an autocommit pooled one.
+- **Never call `db_connect()` for normal operations** — reserved for migrations only. All agent and route code must use `get_connection()`.
+- **`prepare_threshold=None` on all connections** — required for PgBouncer transaction-pool compatibility.
+- **`factory_json_dumps()` for all JSONB writes** — ensures consistent sorting and UTC datetime serialization for reproducible SHA-256 hashes.
+- **`write_agent_action_event()` is the only audit ledger write path** — do not insert directly into `agent_action_events`.
