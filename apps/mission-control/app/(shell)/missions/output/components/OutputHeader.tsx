@@ -2,9 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { humanizeState } from '../../../../lib/format';
-import { missionApiUrl } from '../../../../lib/api-client';
-import type { MissionRecord, MissionBuildArtifactRecord } from '../../../../lib/types';
+import { missionApiUrl } from '../../../../../lib/api-client';
+import { humanizeState } from '../../../../../lib/format';
+import type { MissionRecord, MissionBuildArtifactRecord } from '../../../../../lib/types';
 
 interface OutputHeaderProps {
   missionId: string;
@@ -14,6 +14,10 @@ interface OutputHeaderProps {
   copied: boolean;
 }
 
+/**
+ * Top bar for the Output page.
+ * Shows: Back link | Mission name + state badge | Download anchor | Copy button.
+ */
 export function OutputHeader({
   missionId,
   mission,
@@ -22,71 +26,82 @@ export function OutputHeader({
   copied,
 }: OutputHeaderProps) {
   const missionName = String(
-    (mission?.metadata as Record<string, unknown> | undefined)?.name ?? ''
+    (mission?.metadata as Record<string, unknown> | undefined)?.name ?? '',
   );
-  const displayTitle = missionName || `Mission ${missionId.slice(0, 12)}\u2026`;
+  const displayName = missionName
+    ? missionName
+    : mission
+    ? `Mission ${mission.mission_id.slice(0, 12)}…`
+    : 'Mission Output';
+
+  const stateLabel = mission ? humanizeState(mission.state) : null;
 
   return (
-    <div
+    <header
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        gap: '1rem',
         flexWrap: 'wrap',
-        gap: '0.75rem',
-        marginBottom: '1.5rem',
+        marginBottom: '1.25rem',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+      {/* Left: back + title */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
         <Link
           href={`/missions/detail?id=${encodeURIComponent(missionId)}`}
           className="secondary-button shell-link-button"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+          aria-label="Back to mission detail"
         >
-          <span aria-hidden>&#8592;</span> Mission Detail
+          ← Back
         </Link>
-        <span
+        <h1
           style={{
-            fontSize: 'var(--text-lg, 1.125rem)',
+            fontSize: 'var(--text-xl, 1.5rem)',
             fontWeight: 600,
-            color: 'var(--color-text)',
+            margin: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
-          {displayTitle}
-        </span>
-        {mission?.state && (
+          {displayName}
+        </h1>
+        {stateLabel && (
           <span
-            className={`status-badge ${
-              mission.state === 'COMPLETE' ? 'success' : 'default'
-            }`}
+            className={`status-badge ${mission?.state === 'COMPLETE' ? 'success' : ''}`}
+            aria-label={`Mission state: ${stateLabel}`}
           >
-            {humanizeState(mission.state)}
+            {stateLabel}
           </span>
         )}
       </div>
 
+      {/* Right: actions */}
       <div className="inline-actions">
         {generatedCodeArtifact && (
-          <>
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onCopy}
-              aria-label="Copy generated code to clipboard"
-            >
-              {copied ? '\u2713 Copied' : 'Copy Code'}
-            </button>
-            <a
-              className="primary-button shell-link-button"
-              href={missionApiUrl(
-                `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`
-              )}
-            >
-              Download
-            </a>
-          </>
+          <a
+            className="secondary-button shell-link-button"
+            href={missionApiUrl(
+              `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
+            )}
+            aria-label="Download generated code"
+          >
+            Download
+          </a>
+        )}
+        {generatedCodeArtifact?.artifact_text && (
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onCopy}
+            aria-label="Copy code to clipboard"
+          >
+            {copied ? '✓ Copied' : 'Copy'}
+          </button>
         )}
       </div>
-    </div>
+    </header>
   );
 }
