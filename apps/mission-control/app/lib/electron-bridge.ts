@@ -33,6 +33,9 @@ export const IPC_CHANNELS = {
   // 7D — App version (auto-update disabled)
   UPDATER_GET_VERSION: "updater:get-version",
 
+  // 7F — Shell: open artifact output directory in system file manager
+  SHELL_OPEN_ARTIFACT_DIR: "shell:openArtifactDir",
+
   // Misc
   APP_PLATFORM: "app:platform",
 
@@ -70,6 +73,9 @@ declare global {
 
       // 7D — App version (auto-update disabled)
       getAppVersion(): Promise<string>;
+
+      // 7F — Shell: open artifact directory in system file manager
+      openArtifactDir(dirPath: string): Promise<void>;
 
       // Misc
       getPlatform(): Promise<"darwin" | "win32" | "linux">;
@@ -153,6 +159,21 @@ export async function electronShowSaveDialog(options: {
 export async function electronGetAppVersion(): Promise<string | null> {
   if (!isElectron() || !window.electronAPI) return null;
   return window.electronAPI.getAppVersion();
+}
+
+// ── 7F: Shell — open artifact directory ─────────────────────────────────────
+
+/**
+ * Opens the artifact output directory (or the parent folder of a file path)
+ * in the system file manager (Finder / Explorer / Nautilus).
+ *
+ * Only functional in the Electron desktop shell. No-op in the browser.
+ * Used by the Output page's "Open in Folder" button (rendered only when
+ * isElectron() is true).
+ */
+export async function shellOpenArtifactDir(dirPath: string): Promise<void> {
+  if (!isElectron() || !window.electronAPI) return;
+  return window.electronAPI.openArtifactDir(dirPath);
 }
 
 // ── A9: Offline diagnostics ───────────────────────────────────────────────────

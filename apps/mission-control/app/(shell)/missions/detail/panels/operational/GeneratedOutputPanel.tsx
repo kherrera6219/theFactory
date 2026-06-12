@@ -1,21 +1,17 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Panel } from '../../../../../components/panel';
-import { missionApiUrl } from '../../../../../lib/api-client';
-import type { MissionBuildArtifactRecord } from '../../../../../lib/types';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Panel } from '../../../../components/panel';
+import { missionApiUrl } from '../../../../lib/api-client';
+import { requestedLanguageFromPath } from '../../../../lib/language';
+import type { MissionBuildArtifactRecord } from '../../../../lib/types';
 
 interface GeneratedOutputPanelProps {
   missionId: string;
   generatedCodeArtifact: MissionBuildArtifactRecord | null;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function countLines(text: string): number {
@@ -23,121 +19,165 @@ function countLines(text: string): number {
   return text.split('\n').length;
 }
 
+/**
+ * Artifacts tab summary card — shows a syntax-highlighted preview of the
+ * generated code with copy-to-clipboard and a link to the full Output page.
+ *
+ * For the full-page viewer navigate to /missions/output?id={missionId}.
+ */
 export function GeneratedOutputPanel({
   missionId,
   generatedCodeArtifact,
 }: GeneratedOutputPanelProps) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = useCallback(() => {
-    if (!generatedCodeArtifact?.artifact_text) return;
-    void navigator.clipboard.writeText(generatedCodeArtifact.artifact_text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }, [generatedCodeArtifact?.artifact_text]);
-
   const filename = String(
     (generatedCodeArtifact?.manifest as { filename?: string } | undefined)?.filename ??
       generatedCodeArtifact?.artifact_id ??
-      'output'
+      'output',
   );
+
+  const language = useMemo(() => {
+    const routingKey = (generatedCodeArtifact?.manifest as { language?: string } | undefined)
+      ?.language;
+    if (routingKey) return routingKey;
+    return requestedLanguageFromPath(filename) ?? 'text';
+  }, [generatedCodeArtifact, filename]);
 
   const lineCount = generatedCodeArtifact?.artifact_text
     ? countLines(generatedCodeArtifact.artifact_text)
     : null;
 
-  return (
-    <Panel title="Generated Output">
-      {!generatedCodeArtifact && (
-        <p className="muted">No generated-code artifact recorded yet.</p>
+  async function handleCopy() {
+    if (!generatedCodeArtifact?.artifact_text) return;
+    await navigator.clipboard.writeText(generatedCodeArtifact.artifact_text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  const headerActions = (
+    <div className="inline-actions">
+      {generatedCodeArtifact?.artifact_text && (
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => void handleCopy()}
+          aria-label="Copy generated code to clipboard"
+        >
+          {copied ? '✓ Copied' : 'Copy'}
+        </button>
       )}
       {generatedCodeArtifact && (
-        <>
-          <dl>
-            <div>
-              <dt>File</dt>
-              <dd className="mono-id">{filename}</dd>
-            </div>
-            <div>
-              <dt>Size</dt>
-              <dd>
-                {formatBytes(generatedCodeArtifact.size_bytes)}
-                {lineCount !== null && (
-                  <span className="muted" style={{ marginLeft: '0.5rem' }}>
-                    &mdash; {lineCount.toLocaleString()} lines
-                  </span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>Digest</dt>
-              <dd className="mono-id" style={{ fontSize: '0.78em', wordBreak: 'break-all' }}>
-                {generatedCodeArtifact.digest_sha256 ?? 'n/a'}
-              </dd>
-            </div>
-            <div>
-              <dt>Storage</dt>
-              <dd>{generatedCodeArtifact.storage_backend}</dd>
-            </div>
-          </dl>
+        <a
+          className="secondary-button shell-link-button"
+          href={missionApiUrl(
+            `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`,
+          )}
+          aria-label="Download generated code"
+        >
+          Download
+        </a>
+      )}
+      <Link
+        href={`/missions/output?id=${encodeURIComponent(missionId)}`}
+        className="primary-button shell-link-button"
+      >
+        View Full Output →
+      </Link>
+    </div>
+  );
 
-          <div className="inline-actions" style={{ marginTop: '0.75rem' }}>
-            <Link
-              href={`/missions/output?id=${encodeURIComponent(missionId)}`}
-              className="primary-button shell-link-button"
-            >
-              View Output
-            </Link>
-            <a
-              className="secondary-button shell-link-button"
-              href={missionApiUrl(
-                `/v1/missions/${encodeURIComponent(missionId)}/artifact?artifact_type=generated_code`
+  return (
+    <Panel title="Generated Output" actions={headerActions}>
+      {!generatedCodeArtifact ? (
+        <p className="muted">No generated-code artifact recorded yet for this mission.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {/* Toolbar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.3rem 0.6rem',
+              background: 'var(--color-surface-offset)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span
+                className="mono-id"
+                style={{ fontSize: '0.8em', color: 'var(--color-text-muted)' }}
+              >
+                {filename}
+              </span>
+              {lineCount !== null && (
+                <span
+                  style={{
+                    fontSize: '0.7em',
+                    color: 'var(--color-text-faint)',
+                    background: 'var(--color-surface-offset-2)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-full)',
+                    padding: '0.1rem 0.45rem',
+                  }}
+                >
+                  {lineCount.toLocaleString()} lines
+                </span>
               )}
+            </div>
+            <span
+              style={{
+                fontSize: '0.7em',
+                color: 'var(--color-text-faint)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+              }}
             >
-              Download
-            </a>
+              {language}
+            </span>
           </div>
 
-          {generatedCodeArtifact.artifact_text && (
-            <div className="code-block" style={{ position: 'relative', marginTop: '1rem' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.35rem 0.75rem',
-                  borderBottom: '1px solid var(--color-border)',
-                  background: 'var(--color-surface-offset)',
-                  borderRadius: 'var(--radius-md) var(--radius-md) 0 0',
-                }}
-              >
-                <span className="mono-id" style={{ fontSize: '0.78em', color: 'var(--color-text-muted)' }}>
-                  {filename}
-                </span>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  style={{ padding: '0.2rem 0.6rem', fontSize: '0.78em' }}
-                  onClick={handleCopy}
-                  aria-label="Copy code to clipboard"
-                >
-                  {copied ? '✓ Copied' : 'Copy'}
-                </button>
-              </div>
-              <pre
-                style={{
-                  margin: 0,
-                  borderRadius: '0 0 var(--radius-md) var(--radius-md)',
-                  maxHeight: '380px',
-                  overflow: 'auto',
-                }}
-              >
-                {generatedCodeArtifact.artifact_text}
-              </pre>
-            </div>
+          {/* Code viewer */}
+          {generatedCodeArtifact.artifact_text ? (
+            <SyntaxHighlighter
+              language={language}
+              style={vscDarkPlus}
+              showLineNumbers
+              wrapLongLines={false}
+              customStyle={{
+                margin: 0,
+                borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
+                fontSize: '0.78em',
+                maxHeight: '420px',
+                overflowY: 'auto',
+                background: '#1e1e1e',
+              }}
+              lineNumberStyle={{
+                minWidth: '2.8em',
+                paddingRight: '0.8em',
+                color: '#555',
+                userSelect: 'none',
+              }}
+            >
+              {generatedCodeArtifact.artifact_text}
+            </SyntaxHighlighter>
+          ) : (
+            <p
+              style={{
+                padding: '1rem',
+                color: 'var(--color-text-muted)',
+                fontStyle: 'italic',
+                background: '#1e1e1e',
+                margin: 0,
+                borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
+              }}
+            >
+              Artifact recorded — text content stored externally.
+            </p>
           )}
-        </>
+        </div>
       )}
     </Panel>
   );

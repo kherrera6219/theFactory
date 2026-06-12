@@ -26,7 +26,7 @@ function checkDockerAvailability(): { available: boolean; error?: string } {
 }
 
 
-// â”€â”€ Window creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Window creation ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -34,23 +34,23 @@ function createWindow(): void {
     height: 900,
     minWidth: 1024,
     minHeight: 640,
-    // 7A â€” Hide native frame; ElectronTitlebar component draws its own.
+    // 7A — Hide native frame; ElectronTitlebar component draws its own.
     frame: false,
     // Matches --hgr-bg token so there's no flash of white on load.
     backgroundColor: "#0d1117",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,   // Mandatory â€” prevents prototype-pollution attacks.
-      nodeIntegration: false,   // Never enable â€” direct Node access in renderer is unsafe.
+      contextIsolation: true,   // Mandatory — prevents prototype-pollution attacks.
+      nodeIntegration: false,   // Never enable — direct Node access in renderer is unsafe.
       sandbox: true,            // Renderer can only use contextBridge APIs.
-      spellcheck: true,         // 4F â€” Screen reader / accessibility aid.
+      spellcheck: true,         // 4F — Screen reader / accessibility aid.
       // Disable features not used; reduces attack surface.
       // webgl: false, // Enabled for any future visualizations
       plugins: false,
     },
   });
 
-  // Load the Next.js app â€” dev server in development, static export in production.
+  // Load the Next.js app — dev server in development, static export in production.
   const appUrl = isDev
     ? `http://localhost:${NEXT_DEV_PORT}`
     : `file://${path.join(__dirname, "../out/index.html")}`;
@@ -93,7 +93,7 @@ function createWindow(): void {
   });
 }
 
-// â”€â”€ App lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── App lifecycle ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
   const docker = checkDockerAvailability();
@@ -102,13 +102,13 @@ app.whenReady().then(() => {
   }
   createWindow();
 
-  // 7B â€” System tray.
+  // 7B — System tray.
   setupTray(mainWindow);
 
-  // 7D â€” Auto-update.
+  // 7D — Auto-update.
   setupUpdater();
 
-  // â”€â”€ IPC: 7A Window controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── IPC: 7A Window controls ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   ipcMain.on(IPC_CHANNELS.WINDOW_MINIMIZE, () => mainWindow?.minimize());
 
   ipcMain.on(IPC_CHANNELS.WINDOW_MAXIMIZE, () => {
@@ -123,9 +123,9 @@ app.whenReady().then(() => {
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, () => mainWindow?.isMaximized() ?? false);
 
-  // â”€â”€ IPC: 7B Tray updates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── IPC: 7B Tray updates ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  // â”€â”€ IPC: 7C File system dialogs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€      
+  // ── IPC: 7C File system dialogs ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────      
   ipcMain.handle(IPC_CHANNELS.FS_SHOW_OPEN, async (_, options: {
     title?: string;
     properties?: ("openFile" | "openDirectory" | "multiSelections")[];
@@ -150,10 +150,21 @@ app.whenReady().then(() => {
     return result.canceled ? null : result.filePath;
   });
 
-  // â”€â”€ IPC: 7E App info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── IPC: 7F Shell artifact directory ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  // Opens the artifact output directory in the system file manager (Finder /
+  // Explorer / Nautilus). Path comes from the artifact's storage_path field.
+  // If dirPath points to a file (contains a '.'), opens its parent directory.
+  // Only called from the Output page when isElectron() is true.
+  ipcMain.handle(IPC_CHANNELS.SHELL_OPEN_ARTIFACT_DIR, async (_, dirPath: string) => {
+    if (!dirPath || typeof dirPath !== "string") return;
+    const target = path.basename(dirPath).includes(".") ? path.dirname(dirPath) : dirPath;
+    await shell.openPath(target);
+  });
+
+  // ── IPC: 7E App info ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   ipcMain.handle(IPC_CHANNELS.APP_PLATFORM, () => process.platform);
 
-  // â”€â”€ IPC: A9 Offline diagnostics bundle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── IPC: A9 Offline diagnostics bundle ───────────────────────────────────────────────────────────────────────────────────────────────────────────
   // Generates the standard local diagnostics folder; returns its path. Offline,
   // secret-free, never uploaded.
   ipcMain.handle(IPC_CHANNELS.DIAGNOSTICS_GENERATE, () => generateDiagnostics());
