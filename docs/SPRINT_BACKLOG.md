@@ -365,15 +365,11 @@ These items cannot be completed with code alone — they require `make up` + rea
   Confirm partition splitting, parallel processing, and result merge all work.
   _Prerequisite: S5-01 complete_
 
-- [ ] **S5-06 — Live qualification evidence refresh** _(was S4-06) — partially complete_
-  Evidence refreshed 2026-05-29. Canary (100% pass), mission artifact qualification (PASS),
-  promotion gate scripts regenerated. Blocked on OIDC matrix hybrid/oidc modes — each
-  gateway restart causes orchestrator to briefly lose postgres (db_ready=false → 503),
-  exceeding readiness probe timeout before switching to hybrid/oidc mode.
-  **Remaining action:** Fix OIDC qual script readiness wait to poll orchestrator health
-  (not just gateway) between mode switches, OR add `--restore-initial-mode false` and
-  longer `--readiness-timeout-seconds`.
-  _Evidence: `reports/promotion-gate.local.json`, `reports/qualification-gate-summary.local.json`_
+- [x] **S5-06 — Live qualification evidence refresh** _(was S4-06) — COMPLETE_
+  Evidence refreshed 2026-06-12. Fixed OIDC qual script readiness wait to poll orchestrator
+  health in addition to gateway, updated expected status codes for api_key mode scenarios,
+  and set default operator API key to INTERNAL_SERVICE_API_KEY. All matrix checks passed (100% PASS).
+  _Evidence: `reports/promotion-gate.local.json`, `reports/qualification-gate-summary.local.json`_, `docs/evidence/operator_route_oidc_matrix_latest.json`
 
 - [ ] **S5-07 — Long-duration reliability re-qualification** _(was S4-08)_
   `python scripts/long_duration_reliability_qualification.py --output docs/evidence/reliability_qualification_phase28_YYYY-MM-DD.json`
@@ -393,8 +389,8 @@ The application is **fully complete** when:
 - [ ] `python -m pytest tests/eval/ -q` → 97+ tests passing (already true)
 - [x] `python -m ruff check services tests scripts` → clean ✅ _2026-05-29_
 - [x] `npm run lint` → 0 errors ✅ _2026-05-29 (Mission Control tsc clean on CI)_
-- [ ] Sprint 5 live-stack items — S5-01 ✅, S5-02 ✅, S5-03 ✅ done; S5-04 (PORT demo),
-      S5-05 (agent scaling), S5-06 (OIDC matrix in qual gate), S5-07 (4h reliability) remaining
+- [ ] Sprint 5 live-stack items — S5-01 ✅, S5-02 ✅, S5-03 ✅, S5-06 ✅ done; S5-04 (PORT demo),
+      S5-05 (agent scaling), S5-07 (4h reliability) remaining
 - [ ] `docs/IMPLEMENTATION_STATUS.md` Open Work section empty or updated
 
 ---
