@@ -167,3 +167,94 @@ shared_runtime/
 - **ECDSA P-256 Signing**: Signing key pair is protected using DPAPI on Windows and standard storage on Unix. Used to sign and verify compliance and artifact bundles.
 - **Prompt Guard**: Regulated by `PROMPT_GUARD_BLOCK_ENABLED` and `PROMPT_GUARD_BLOCK_LEVEL`. If triggered, injection result is logged and blocked securely.
 - **Errors standard**: Centralized error model (`FactoryError`) for consistent frontend parsing.
+
+---
+
+## 3. Worker & Bus Services (Phase 3 Audit)
+
+### 3.1. Pod Worker Service (`services/pod-worker/`)
+Static analysis, semantic routing, and LogicNode creation.
+
+```
+services/pod-worker/
+├── pod_worker/                # Source package
+│   ├── main.py                # Consumer loops (XREADGROUP), smelting, and DB writes
+│   ├── language_extractor.py  # Router and regex-based concept extractors (20 languages)
+│   ├── concept_catalog.py     # 232 static analysis concept patterns
+│   ├── ast_extractor.py       # Python AST-backed extractor
+│   ├── java_ast_extractor.py  # Java AST javalang parser
+│   ├── js_ast_extractor.py    # JavaScript/TypeScript esprima parser
+│   ├── refined_ir.py          # Data models for functions and classes
+│   └── tracing.py             # OpenTelemetry tracing configuration
+├── Dockerfile                 # Multi-stage build with non-root user (copies orchestrator files)
+└── requirements.txt           # fastapi, redis, esprima, javalang, opentelemetry
+```
+
+**Smelting Flow**:
+- **AST Parsing**: Enabled via flags (e.g. `PYTHON_AST_EXTRACTOR_ENABLED=true`). Falls back silently to regex if parsing fails (robustness).
+- **Fallback Node**: If extraction returns no results, it writes a standard fallback node (`_routing_stub_logicnode`) so the pipeline does not stall.
+
+---
+
+### 3.2. Audit Worker Service (`services/audit-worker/`)
+State stream auditing and report compiling.
+
+```
+services/audit-worker/
+├── audit_worker/              # Source package
+│   ├── main.py                # State stream consumer, verification checks, and report submission
+│   └── tracing.py             # OpenTelemetry tracing configuration
+├── Dockerfile                 # Multi-stage lean runtime run as non-root
+└── requirements.txt           # fastapi, redis, httpx, opentelemetry
+```
+
+---
+
+### 3.3. Protocol Bus MCP (`services/protocol-bus-mcp/`)
+Reliable message broker and lexical router.
+
+```
+services/protocol-bus-mcp/
+├── protocol_bus/              # Source package
+│   ├── mcp_server.py          # Message endpoints, schema validations, and reliability gates
+│   └── tracing.py             # OpenTelemetry tracing configuration
+├── Dockerfile                 # Lean runtime run as non-root
+└── requirements.txt           # fastapi, redis, uvicorn, prometheus-client
+```
+
+**Resilience Gates**:
+- **Replay Protection**: Rejects duplicate correlation IDs, failing closed (503) if Redis is unavailable.
+- **Deduplication**: Message-level `SET NX EX` check (5-minute TTL).
+- **Backpressure**: Rejects requests if any channel queue depth exceeds 10,000 (returns 503 with `Retry-After: 5`).
+- **DLQ Routing**: Discards malformed publishes to the `dlq:<protocol>` Redis stream.
+
+---
+
+### 3.4. Agent Runtime Service (`services/agent-runtime/`)
+Dedicated worker agent execution loop.
+
+```
+services/agent-runtime/
+├── agent_runtime/             # Source package
+│   ├── main.py                # Heartbeat daemon, stream listener, and circuit breaker
+│   └── tracing.py             # OpenTelemetry tracing configuration
+├── Dockerfile                 # Dedicated container setup
+└── requirements.txt           # uvicorn, redis, httpx, opentelemetry
+```
+
+**Wiring**:
+- **Circuit Breaker**: Trips and fails fast if the orchestrator is unreachable, preventing CPU spin loops.
+
+---
+
+### 3.5. Operations Dashboard (`services/dashboard/`)
+Lightweight operational health monitor.
+
+```
+services/dashboard/
+├── dashboard/                 # Source package
+│   ├── main.py                # FastAPI server (HTML UI / snapshot proxier)
+│   └── tracing.py             # OpenTelemetry tracing configuration
+├── Dockerfile                 # Multi-stage lean runtime
+└── requirements.txt           # fastapi, httpx, uvicorn, opentelemetry
+```
