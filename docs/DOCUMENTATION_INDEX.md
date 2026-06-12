@@ -1,6 +1,6 @@
 # theFactory Documentation Index
 
-**Version:** 2026.06.11  
+**Version:** 2026.06.11-r2  
 **Maintained by:** Documentation Guild  
 **Last reviewed:** 2026-06-11
 
@@ -68,6 +68,32 @@ This index is the canonical entry point for all theFactory documentation. Every 
 
 ---
 
+## Domain Models and Schema
+
+| File | Description | Audience |
+|---|---|---|
+| [MODELS_AND_DOMAIN_SCHEMA.md](MODELS_AND_DOMAIN_SCHEMA.md) | `models.py` — all enums (MissionType, DepthMode, OutputMode, DataClassification), MissionState machine, VALID_TRANSITIONS map, EventType literals, and all Pydantic models (MissionRecord, MissionEvent, MissionCreate, MissionClarifyRequest, etc.) | Developers, Architects |
+
+---
+
+## Storage Layer
+
+| File | Description | Audience |
+|---|---|---|
+| [STORAGE_LAYER.md](STORAGE_LAYER.md) | Complete storage layer reference — `storage_core.py` (connection pool, migration entry, helpers), `storage.py` façade, and all 5 domain modules: missions, pods, logicnodes, artifacts, agents | Developers |
+| [SCHEMA_REGISTRY_AND_VERSIONING.md](SCHEMA_REGISTRY_AND_VERSIONING.md) | Schema registry and DB versioning strategy — charter field embedding, migration governance, and backward-compatibility rules | Developers, Architects |
+
+---
+
+## API Routes
+
+| File | Description | Audience |
+|---|---|---|
+| [ROUTES_REFERENCE.md](ROUTES_REFERENCE.md) | All three route modules — `missions.py` (mission CRUD and lifecycle), `operations.py` (dashboard and ops endpoints), `internal.py` (worker callback endpoints for LogicNodes, heartbeats, artifacts, audit) | Developers, Integrators |
+| [API_INTEGRATION_GUIDE.md](API_INTEGRATION_GUIDE.md) | Full request/response examples for all public API endpoints | Developers, Integrators |
+
+---
+
 ## LLM Integration and Prompt Engineering
 
 | File | Description | Audience |
@@ -92,23 +118,36 @@ This index is the canonical entry point for all theFactory documentation. Every 
 
 ---
 
+## Security & Compliance
+
+| File | Description | Audience |
+|---|---|---|
+| [SECURITY_COMPLIANCE_MODULE.md](SECURITY_COMPLIANCE_MODULE.md) | `security_compliance.py` — runtime enforcement of data classification tiers, sensitive pattern detection, and `local_only` agent enforcement for Tier 3 missions | Security, Developers |
+| [DATA_CLASSIFICATION_POLICY.md](DATA_CLASSIFICATION_POLICY.md) | Data classification tiers and handling requirements for all data types in theFactory | Security, Compliance |
+| [COMPLIANCE_EVIDENCE_MAPPING.md](COMPLIANCE_EVIDENCE_MAPPING.md) | Maps compliance controls (SOC2, ISO 27001) to evidence artifacts in the system | Compliance, Security |
+| [SENSITIVE_CODE_HANDLING_POLICY.md](SENSITIVE_CODE_HANDLING_POLICY.md) | Sensitive code handling policy — detection rules, escalation thresholds, and operator override procedures | Security, Developers |
+| [LICENSE_STRATEGY.md](LICENSE_STRATEGY.md) | Open-source license strategy and dependency license compliance | Legal, Developers |
+| [ACCESSIBILITY_STATEMENT.md](ACCESSIBILITY_STATEMENT.md) | Accessibility statement for the Mission Control UI | Product, Legal |
+
+---
+
+## Supporting Modules
+
+| File | Description | Audience |
+|---|---|---|
+| [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) | Reference for all smaller orchestrator modules: `migrations.py`, `auth.py`, `review_policy.py`, `protocol.py`, `project_identity.py`, `hw_agent.py`, `testdata_agent.py`, `system_maintenance.py`, `agent_integrations.py` | Developers |
+
+---
+
 ## Deployment & Operations
 
 | File | Description | Audience |
 |---|---|---|
 | [DEPLOYMENT_DR_PLAYBOOK.md](DEPLOYMENT_DR_PLAYBOOK.md) | Deployment and Disaster Recovery playbook — full runbooks for deploy, rollback, and DR scenarios | Operators |
 | [COMPOSE_ENVIRONMENT_PROFILES.md](COMPOSE_ENVIRONMENT_PROFILES.md) | Docker Compose environment profiles — which profile to use for local dev, staging, and production | Developers, Operators |
-
----
-
-## Security & Compliance
-
-| File | Description | Audience |
-|---|---|---|
-| [DATA_CLASSIFICATION_POLICY.md](DATA_CLASSIFICATION_POLICY.md) | Data classification tiers and handling requirements for all data types in theFactory | Security, Compliance |
-| [COMPLIANCE_EVIDENCE_MAPPING.md](COMPLIANCE_EVIDENCE_MAPPING.md) | Maps compliance controls (SOC2, ISO 27001) to evidence artifacts in the system | Compliance, Security |
-| [LICENSE_STRATEGY.md](LICENSE_STRATEGY.md) | Open-source license strategy and dependency license compliance | Legal, Developers |
-| [ACCESSIBILITY_STATEMENT.md](ACCESSIBILITY_STATEMENT.md) | Accessibility statement for the Mission Control UI | Product, Legal |
+| [OBSERVABILITY_STACK.md](OBSERVABILITY_STACK.md) | Full observability stack — Prometheus metrics, Grafana dashboards, alert rules, and log aggregation | Operators, Developers |
+| [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) | Day-to-day operations runbook — incident response, alert triage, and escalation procedures | Operators |
+| [RUNTIME_QC_AND_TEST_ENVIRONMENTS.md](RUNTIME_QC_AND_TEST_ENVIRONMENTS.md) | Runtime QC system and test environment management | Developers, Operators |
 
 ---
 
@@ -118,31 +157,35 @@ This index is the canonical entry point for all theFactory documentation. Every 
 |---|---|---|
 | [DOCUMENTATION_STANDARDS.md](DOCUMENTATION_STANDARDS.md) | Standards for writing and maintaining theFactory documentation | All contributors |
 | [DIAGRAM_STANDARDS.md](DIAGRAM_STANDARDS.md) | Standards for creating and maintaining architecture diagrams | Developers |
+| [PRODUCTION_STANDARDS_REFERENCES.md](PRODUCTION_STANDARDS_REFERENCES.md) | Production standards and external reference standards cited in theFactory design | Architects, Developers |
+| [LOCAL_FIRST_COMPLIANCE_PLAN.md](LOCAL_FIRST_COMPLIANCE_PLAN.md) | Local-first compliance plan — how theFactory meets compliance requirements in fully air-gapped deployments | Security, Compliance |
 
 ---
 
-## Documentation Coverage Gap Tracker
+## Documentation Coverage Status
 
-The following code files are known to have no dedicated documentation as of this version. They are tracked here to ensure they are addressed in future documentation sprints.
+All high and medium priority undocumented modules from the previous gap tracker have been resolved as of **2026-06-11**.
 
-| Code File | Size | Priority | Notes |
+| Code File | Priority | Status | Doc |
 |---|---|---|---|
-| `models.py` | 13 KB | 🔴 High | All Pydantic/SQLAlchemy models — the schema source of truth |
-| `storage_missions.py` | 19 KB | 🟠 Medium | Mission persistence layer |
-| `storage_agents.py` | 21 KB | 🟠 Medium | Agent state persistence |
-| `storage_artifacts.py` | 22 KB | 🟠 Medium | Evidence bundle storage |
-| `storage_core.py` + `storage.py` | 10 KB | 🟠 Medium | Base storage abstractions |
-| `storage_pods.py` | 6 KB | 🟠 Medium | Pod state persistence |
-| `security_compliance.py` | 11 KB | 🟠 Medium | Runtime SAST/secret scanning enforcement |
-| `routes/internal.py` | 44 KB | 🟠 Medium | Worker callback endpoints — LogicNodes, heartbeats, artifacts, audit |
-| `routes/operations.py` | 25 KB | 🟠 Medium | Operator dashboard endpoints — agent snapshot, pod status, knowledge lake |
-| `routes/missions.py` | 12 KB | 🟠 Medium | Mission CRUD and state transition endpoints |
-| `agent_integrations.py` | 15 KB | 🟡 Low | Integration catalog agent |
-| `migrations.py` + `migrations/` | 4 KB | 🟡 Low | DB schema migration runner |
-| `auth.py` | 1.5 KB | 🟡 Low | Runtime auth enforcement (ADR covers the policy) |
-| `review_policy.py` | 1 KB | 🟡 Low | HUMAN_REVIEW escalation policy |
-| `hw_agent.py` | 2 KB | 🟡 Low | Hardware-awareness agent |
-| `testdata_agent.py` | 4 KB | 🟡 Low | Test fixture generation agent |
-| `system_maintenance.py` | 3 KB | 🟡 Low | Maintenance mode triggers |
-| `protocol.py` | 4 KB | 🟡 Low | Protocol message schema (bus docs cover streams, not schema) |
-| `project_identity.py` | 1.6 KB | 🟡 Low | Project namespace/identity stamping |
+| `models.py` | 🔴 High | ✅ Documented | [MODELS_AND_DOMAIN_SCHEMA.md](MODELS_AND_DOMAIN_SCHEMA.md) |
+| `storage_missions.py` | 🟠 Medium | ✅ Documented | [STORAGE_LAYER.md](STORAGE_LAYER.md) |
+| `storage_agents.py` | 🟠 Medium | ✅ Documented | [STORAGE_LAYER.md](STORAGE_LAYER.md) |
+| `storage_artifacts.py` | 🟠 Medium | ✅ Documented | [STORAGE_LAYER.md](STORAGE_LAYER.md) |
+| `storage_core.py` + `storage.py` | 🟠 Medium | ✅ Documented | [STORAGE_LAYER.md](STORAGE_LAYER.md) |
+| `storage_pods.py` | 🟠 Medium | ✅ Documented | [STORAGE_LAYER.md](STORAGE_LAYER.md) |
+| `security_compliance.py` | 🟠 Medium | ✅ Documented | [SECURITY_COMPLIANCE_MODULE.md](SECURITY_COMPLIANCE_MODULE.md) |
+| `routes/internal.py` | 🟠 Medium | ✅ Documented | [ROUTES_REFERENCE.md](ROUTES_REFERENCE.md) |
+| `routes/operations.py` | 🟠 Medium | ✅ Documented | [ROUTES_REFERENCE.md](ROUTES_REFERENCE.md) |
+| `routes/missions.py` | 🟠 Medium | ✅ Documented | [ROUTES_REFERENCE.md](ROUTES_REFERENCE.md) |
+| `agent_integrations.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `migrations.py` + `migrations/` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `auth.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `review_policy.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `hw_agent.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `testdata_agent.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `system_maintenance.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `protocol.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `project_identity.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+
+> The documentation gap tracker is now clear. New undocumented modules should be added here as they are introduced.
