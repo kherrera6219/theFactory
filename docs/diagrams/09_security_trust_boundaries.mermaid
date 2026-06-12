@@ -1,0 +1,46 @@
+flowchart TB
+    Operator["Operator\n(Browser)"]
+    APIClient["API Client"]
+
+    subgraph TrustZone_Public["Public untrusted boundary (HTTP/HTTPS)"]
+        MC["Mission Control Server"]
+        GW["API Gateway"]
+    end
+
+    subgraph TrustZone_Internal["Internal secure boundary (Mutual TLS / Service Token)"]
+        Orch["Orchestrator\n(FastAPI)"]
+        Bus["Protocol Bus\n(MCP :8102)"]
+        Workers["Pod Workers\n(Python/JS/Java/Mathematical)"]
+        Audit["Audit Worker"]
+    end
+
+    subgraph StateStore["Protected Datastores"]
+        Postgres[(PostgreSQL\nTLS Encrypted)]
+        Redis[(Redis\nTLS Encrypted)]
+    end
+
+    subgraph HostKeystore["Host Security Layer"]
+        DPAPI["Windows DPAPI\n(Keystore A2)"]
+        PEM["PEM Secrets fallback\n(Docker secret mount)"]
+    end
+
+    Operator -->|1. Signed operator session cookie| MC
+    APIClient -->|2. x-api-key or OIDC JWT| GW
+    MC -->|3. INTERNAL_SERVICE_API_KEY| GW
+    GW -->|4. Forward auth request| Orch
+    Orch -->|5. Query active sessions (TLS)| Redis
+    Orch -->|6. Load credentials (TLS)| Postgres
+
+    Orch -->|7. Access Protected Key| DPAPI
+    Orch -->|7. Access Protected Key| PEM
+
+    Orch <-->|8. Signed Events (TLS)| Bus
+    Bus <-->|9. Signed Payload Event (TLS)| Workers
+    Bus <-->|10. Evidence Verification (TLS)| Audit
+
+    subgraph LLMSafety["LLM Safety Envelope"]
+        Safety["llm_safety.py\n(Secret Sanitizer & Prompt Injection Block)"]
+    end
+
+    Orch & Workers -->|11. Filter outbound prompt| Safety
+    Safety -->|12. Request codegen| LLM["LLM Provider APIs\n(HTTPS)"]

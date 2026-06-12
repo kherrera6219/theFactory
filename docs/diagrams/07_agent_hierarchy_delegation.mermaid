@@ -1,0 +1,79 @@
+flowchart TD
+    CEO["AGENT-01-CEO\n(Strategic Orchestration)"]
+    PM["AGENT-02-PM / Grand Manager\n(Requirements, Intake & Delivery)"]
+
+    subgraph SupportRing["Interface & Support Ring"]
+        Broker["AGENT-03-BROKER"]
+        Deploy["AGENT-04-DEPLOY"]
+        Sec["AGENT-05-SECURITY"]
+        Comp["AGENT-06-COMPLIANCE"]
+        VC["AGENT-07-VC"]
+        IS["AGENT-08-IS"]
+        HW["AGENT-09-HW"]
+        Tester["AGENT-10-TESTER"]
+    end
+
+    subgraph PodA["Pod A — Dynamic (AGENT-11 Mgr)"]
+        A_Aud["AGENT-13-AUDIT"]
+        A_Py["AGENT-12-PYTHON"]
+        A_JS["AGENT-14-JS"]
+        A_TS["AGENT-15-TS"]
+        A_Ruby["AGENT-16-RUBY"]
+        A_PHP["AGENT-32-PHP"]
+        A_Lua["AGENT-33-LUA"]
+    end
+
+    subgraph PodB["Pod B — Systems (AGENT-17 Mgr)"]
+        B_Aud["AGENT-19-AUDIT"]
+        B_C["AGENT-18-C"]
+        B_Cpp["AGENT-20-CPP"]
+        B_Rust["AGENT-21-RUST"]
+        B_Go["AGENT-22-GO"]
+        B_Zig["AGENT-34-ZIG"]
+        B_Swift["AGENT-35-SWIFT"]
+    end
+
+    subgraph PodC["Pod C — Enterprise (AGENT-23 Mgr)"]
+        C_Aud["AGENT-25-AUDIT"]
+        C_Java["AGENT-24-JAVA"]
+        C_Cs["AGENT-26-CSHARP"]
+        C_Scala["AGENT-27-SCALA"]
+        C_Kotlin["AGENT-28-KOTLIN"]
+    end
+
+    subgraph PodD["Pod D — Mathematical (AGENT-29 Mgr)"]
+        D_Aud["AGENT-31-AUDIT"]
+        D_R["AGENT-30-R"]
+        D_Matlab["AGENT-00-MATLAB"]
+        D_Julia["AGENT-00-JULIA"]
+        D_Math["AGENT-00-MATHEMATICA"]
+        D_Hask["AGENT-00-HASKELL"]
+        D_Ocaml["AGENT-00-OCAML"]
+    end
+
+    subgraph Specialized["Specialized Intelligence Slots"]
+        Cost["AGENT-36-COSTACCT"]
+        Sbom["AGENT-37-SBOMGEN"]
+        Val["AGENT-38-CHAINVAL"]
+        Depabs["AGENT-39-DEPABS"]
+        Testdata["AGENT-40-TESTDATA"]
+        Rqca["AGENT-41-RQCA"]
+    end
+
+    CEO -->|Directs| PM
+    PM -->|Validates| SupportRing
+    CEO -->|Delegates Tasks| PodA & PodB & PodC & PodD
+    
+    PodA --> A_Aud
+    A_Aud --> A_Py & A_JS & A_TS & A_Ruby & A_PHP & A_Lua
+    
+    PodB --> B_Aud
+    B_Aud --> B_C & B_Cpp & B_Rust & B_Go & B_Zig & B_Swift
+
+    PodC --> C_Aud
+    C_Aud --> C_Java & C_Cs & C_Scala & C_Kotlin
+
+    PodD --> D_Aud
+    D_Aud --> D_R & D_Matlab & D_Julia & D_Math & D_Hask & D_Ocaml
+
+    PM -->|Invokes Audits/QC| Specialized

@@ -1,0 +1,34 @@
+flowchart TB
+    Operator["Operator\n(Uses Mission Control UI / CLI)"]
+    APIClient["External API Client\n(Mutates/Queries Missions via REST)"]
+    IdP["OIDC Identity Provider\n(Enables Operator Authentication)"]
+
+    subgraph Platform["theFactory (System Boundary)"]
+        MC["Mission Control UI\nNext.js :3100"]
+        GW["API Gateway\nFastAPI :8100"]
+        Orch["Orchestrator\nFastAPI :8101"]
+        Bus["Protocol Bus MCP\nFastAPI :8102"]
+        Workers["Pod Workers\nPod A / B / C / D"]
+        Audit["Audit Worker\nVerification & Handoff"]
+    end
+
+    subgraph External["External Services & Datastores"]
+        LLM["LLM Providers\nOpenAI / Anthropic / Gemini"]
+        Postgres["PostgreSQL DB"]
+        Redis["Redis Stream/Cache"]
+        Qdrant["Qdrant Vector DB"]
+    end
+
+    Operator -->|Accesses UI| MC
+    APIClient -->|REST API Calls| GW
+    MC <-->|REST + SSE| GW
+    GW -.->|Validates Tokens| IdP
+    GW <-->|REST Proxy| Orch
+    Orch <-->|Redis Streams / RPC| Bus
+    Bus <-->|Choreographed Events| Workers
+    Workers -->|Indexes Knowledge| Qdrant
+    Workers -->|Queries LLM API| LLM
+    Orch -->|Queries LLM API| LLM
+    Orch <-->|Saves State| Postgres
+    Orch <-->|Deduplication/Locking| Redis
+    Audit -->|Validates Evidence| Orch
