@@ -23,6 +23,21 @@ SCENARIOS = ("no_auth", "api_key", "bearer_mutate", "bearer_observe")
 OPERATOR_ENDPOINTS = ("/v1/operations/summary", "/v1/stream/state")
 
 
+def _load_env_file() -> None:
+    env_file = Path(__file__).resolve().parent.parent / ".env"
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, val = line.split("=", 1)
+                os.environ[key.strip()] = val.strip()
+
+_load_env_file()
+
+
+
 @dataclass
 class CommandResult:
     command: list[str]
@@ -103,7 +118,12 @@ def _run_command(
 def _expected_status(auth_mode: str, scenario: str) -> int:
     mode = auth_mode.strip().lower()
     if mode == "api_key":
-        return 200
+        return {
+            "no_auth": 401,
+            "api_key": 200,
+            "bearer_mutate": 401,
+            "bearer_observe": 401,
+        }[scenario]
     if mode == "hybrid":
         return {
             "no_auth": 401,
@@ -191,7 +211,7 @@ def _headers_for_scenario(
 async def _wait_ready(
     client: httpx.AsyncClient,
     *,
-    ready_url: str,
+    ready_urls: list[str],
     timeout_seconds: float,
     poll_seconds: float,
 ) -> ReadinessProbe:
@@ -202,20 +222,27 @@ async def _wait_ready(
     last_error: str | None = None
     while time.monotonic() < deadline:
         polls += 1
-        try:
-            response = await client.get(ready_url)
-            last_status = response.status_code
-            if response.status_code < 400:
-                return ReadinessProbe(
-                    passed=True,
-                    polls=polls,
-                    duration_seconds=time.monotonic() - started,
-                    last_status_code=last_status,
-                    last_error=None,
-                )
-            last_error = response.text[:200]
-        except Exception as exc:
-            last_error = repr(exc)
+        all_passed = True
+        for url in ready_urls:
+            try:
+                response = await client.get(url)
+                last_status = response.status_code
+                if response.status_code >= 400:
+                    all_passed = False
+                    last_error = f"{url} returned status {response.status_code}: {response.text[:200]}"
+                    break
+            except Exception as exc:
+                all_passed = False
+                last_error = f"{url} failed: {repr(exc)}"
+                break
+        if all_passed:
+            return ReadinessProbe(
+                passed=True,
+                polls=polls,
+                duration_seconds=time.monotonic() - started,
+                last_status_code=last_status,
+                last_error=None,
+            )
         await asyncio.sleep(poll_seconds)
     return ReadinessProbe(
         passed=False,
@@ -287,7 +314,8 @@ def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
 
 async def run(args: argparse.Namespace) -> int:
     base_url = args.base_url.rstrip("/")
-    ready_url = f"{base_url}/readyz"
+    orchestrator_url = args.orchestrator_url.rstrip("/")
+    ready_urls = [f"{base_url}/readyz", f"{orchestrator_url}/readyz"]
     matrix_rows: list[dict[str, Any]] = []
     compose_steps: list[dict[str, Any]] = []
 
@@ -365,7 +393,7 @@ async def run(args: argparse.Namespace) -> int:
 
             readiness = await _wait_ready(
                 client,
-                ready_url=ready_url,
+                ready_urls=ready_urls,
                 timeout_seconds=args.ready_timeout_seconds,
                 poll_seconds=args.ready_poll_seconds,
             )
@@ -485,6 +513,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--base-url", default="http://localhost:8100", help="API gateway URL")
     parser.add_argument(
+        "--orchestrator-url",
+        default="http://localhost:8101",
+        help="Orchestrator URL",
+    )
+    parser.add_argument(
         "--compose-file",
         default="deploy/docker-compose.yaml",
         help="Compose file used to reconfigure api-gateway auth mode",
@@ -498,7 +531,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--operator-api-key",
-        default="operator-key",
+        default=os.getenv("INTERNAL_SERVICE_API_KEY") or "operator-key",
         help="Operator API key used for api_key and hybrid scenarios",
     )
     parser.add_argument(
@@ -518,7 +551,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--oidc-issuer-url",
-        default="",
+        default="http://operator-matrix-test",
         help="Optional OIDC issuer claim",
     )
     parser.add_argument(
