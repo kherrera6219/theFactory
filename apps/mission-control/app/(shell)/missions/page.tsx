@@ -129,6 +129,7 @@ export default function MissionsPage() {
   const etaText = ETA_BY_STATE[normalizedState] ?? "calculating";
   const selectedMissionId = mission?.mission_id ?? null;
   const canPoll = mission !== null && !isTerminalState(mission.state);
+  const runtimeUnavailable = Boolean(missionListError && !mission);
 
   function rememberSelectedMission(missionId: string) {
     if (typeof window !== "undefined") {
@@ -451,7 +452,15 @@ export default function MissionsPage() {
           </ul>
         )}
         {missionListError && (
-          <SystemMessage tone="critical" title="Recent missions are unavailable">
+          <SystemMessage
+            tone="critical"
+            title="Recent missions are unavailable"
+            action={
+              <Link href="/settings" className="secondary-button shell-link-button">
+                Configure Runtime
+              </Link>
+            }
+          >
             {missionListError} Start the local runtime or update the API base URL, then refresh this panel.
           </SystemMessage>
         )}
@@ -516,17 +525,20 @@ export default function MissionsPage() {
             tone={
               connectionState === "live"
                 ? "healthy"
-                : connectionState === "retrying"
+                : runtimeUnavailable
+                  ? "critical"
+                  : connectionState === "retrying"
                   ? "warning"
                   : connectionState === "stale"
                     ? "critical"
                     : "neutral"
             }
           >
-            {connectionState === "idle" && "Idle"}
+            {runtimeUnavailable && "Offline"}
+            {!runtimeUnavailable && connectionState === "idle" && "Idle"}
             {connectionState === "live" && "Live"}
-            {connectionState === "retrying" && "Retrying"}
-            {connectionState === "stale" && "Stale"}
+            {!runtimeUnavailable && connectionState === "retrying" && "Retrying"}
+            {!runtimeUnavailable && connectionState === "stale" && "Stale"}
           </StatusBadge>
         }
       >
@@ -560,8 +572,10 @@ export default function MissionsPage() {
           </SystemMessage>
         )}
         {!mission && (
-          <EmptyState title="No mission selected" compact>
-            Launch a new mission or select one from recent missions to monitor progress, events, and retry state.
+          <EmptyState title={runtimeUnavailable ? "Runtime is offline" : "No mission selected"} compact variant={runtimeUnavailable ? "offline" : "empty"}>
+            {runtimeUnavailable
+              ? "Mission status will become available after the local runtime accepts authenticated requests."
+              : "Launch a new mission or select one from recent missions to monitor progress, events, and retry state."}
           </EmptyState>
         )}
         {mission && (

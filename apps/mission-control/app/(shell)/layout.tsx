@@ -43,17 +43,17 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
           <div className="shell-header-actions">
             <StatusBadge
               tone="warning"
-              label="Offline-ready — live data requires API keys and a running local runtime"
+              label="Offline-capable shell. Live data still requires API keys and a running local runtime."
             >
-              Offline-ready
+              Runtime Shell
             </StatusBadge>
             {/* 5A — Notification bell */}
             <NotificationBell />
             <Link href="/chat" className="primary-button shell-link-button">
-              New Mission
+              Launch via Chat
             </Link>
             <Link href="/missions" className="secondary-button shell-link-button">
-              Mission Center
+              Mission Status
             </Link>
           </div>
         </header>

@@ -81,8 +81,16 @@ export default function DashboardPage() {
         actions={lastRefreshedLabel ? <span className="last-refreshed">{lastRefreshedLabel}</span> : undefined}
       >
         {error && (
-          <SystemMessage tone="critical" title="Mission metrics are unavailable">
-            The UI is running, but the local gateway did not return dashboard data. Add API keys and start the runtime before the live-data review.
+          <SystemMessage
+            tone="critical"
+            title="Mission metrics are unavailable"
+            action={
+              <Link href="/settings" className="secondary-button shell-link-button">
+                Configure API Keys
+              </Link>
+            }
+          >
+            The UI is running, but the local gateway did not return dashboard data. Configure runtime access, then refresh this view.
           </SystemMessage>
         )}
         <div className="kpi-grid" aria-label="Mission metrics">
@@ -148,10 +156,17 @@ export default function DashboardPage() {
           <EmptyState
             title={error ? "Mission state data is offline" : "No mission state data yet"}
             action={
-              <Link href="/chat" className="secondary-button shell-link-button">
-                Launch mission
-              </Link>
+              error ? (
+                <Link href="/settings" className="secondary-button shell-link-button">
+                  Start Runtime First
+                </Link>
+              ) : (
+                <Link href="/chat" className="secondary-button shell-link-button">
+                  Launch Mission
+                </Link>
+              )
             }
+            variant={error ? "offline" : "empty"}
           >
             {error
               ? "State charts will populate when the local runtime can return mission telemetry."

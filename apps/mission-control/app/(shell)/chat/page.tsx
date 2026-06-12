@@ -424,7 +424,7 @@ export default function ChatPage() {
           </button>
           {groupedSessions.length === 0 && (
             <p className="muted" style={{ fontSize: "0.8rem" }}>
-              Previous conversations will appear here after you send a message.
+              No past sessions. Start a conversation to begin a mission.
             </p>
           )}
           {groupedSessions.map(([group, groupSessions]) => (
@@ -473,8 +473,12 @@ export default function ChatPage() {
         </div>
       </Panel>
 
-      <Panel title="Attach Files and Message">
-        <p className="help-text">Accepted formats: {ACCEPTED_EXTENSIONS.join(" ")}</p>
+      <Panel title="Message & Files">
+        <ul className="extension-chip-list" aria-label="Accepted file formats">
+          {ACCEPTED_EXTENSIONS.map((extension) => (
+            <li key={extension}>{extension}</li>
+          ))}
+        </ul>
         <div
           className="drop-zone"
           onDragOver={(event) => event.preventDefault()}
@@ -523,7 +527,7 @@ export default function ChatPage() {
           placeholder="Analyze this repository and identify reliability risks before delivery."
           autoFocus
         />
-        <div className="inline-actions">
+        <div className="chat-send-row">
           <button type="button" onClick={() => void sendMessage()} disabled={thinking || launching}>
             {thinking ? "Sending..." : "Send"}
           </button>
