@@ -1,182 +1,145 @@
-# Documentation Index
+# theFactory Documentation Index
 
-Document version: 2026.06.11b  
-Last updated: 2026-06-11  
-Status: Canonical  
-Audience: Operators, developers, maintainers, and auditors
+**Version:** 2026.06.11  
+**Maintained by:** Documentation Guild  
+**Last reviewed:** 2026-06-11
 
-This is the master map for theFactory documentation. The live documentation set follows [DOCUMENTATION_STANDARDS.md](DOCUMENTATION_STANDARDS.md) and is organized by user need and operational ownership. Superseded material lives under `docs/archive/`.
+This index is the canonical entry point for all theFactory documentation. Every doc file in `docs/` is listed here with a one-line description and its primary audience. Files not listed here are considered undiscovered and should be added in the next documentation sprint.
 
-## Start Here
+---
 
-1. [../README.md](../README.md)
-2. [00_PRODUCT_OVERVIEW.md](00_PRODUCT_OVERVIEW.md)
-3. [WHAT_THEFACTORY_IS_AND_IS_NOT.md](WHAT_THEFACTORY_IS_AND_IS_NOT.md)
-4. [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
-5. [ARCHITECTURE.md](ARCHITECTURE.md)
-6. [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md)
-7. [REPOSITORY_BUILD_MAP_2026-03-29.md](REPOSITORY_BUILD_MAP_2026-03-29.md)
-8. [RELEASE_COMPLETION_PLAN.md](RELEASE_COMPLETION_PLAN.md)
-9. [../MIGRATION.md](../MIGRATION.md)
-   - migration notes for semantic→protocol bus rename
+## How to Use This Index
 
-## Product Identity, Doctrine, and Strategy
+- **Operators** start with [Product Overview](#product--system-overview) and [Deployment & DR](#deployment--operations)
+- **Developers** start with [Developer Onboarding](#developer-documentation) then branch to the subsystem they are working on
+- **Architects** start with [Architecture](#architecture) and the ADR log
+- **Security / Compliance** start with [Security & Compliance](#security--compliance)
 
-- [00_PRODUCT_OVERVIEW.md](00_PRODUCT_OVERVIEW.md)
-  - five-minute product orientation
-- [WHAT_THEFACTORY_IS_AND_IS_NOT.md](WHAT_THEFACTORY_IS_AND_IS_NOT.md)
-  - canonical positioning, scope boundaries, comparison to vibe coding
-- [DEPENDENCY_ABSORPTION_DOCTRINE.md](DEPENDENCY_ABSORPTION_DOCTRINE.md)
-  - dependency absorption doctrine, decision hierarchy, safety blocks
-- [APPLICATION_INTELLIGENCE_MAP.md](APPLICATION_INTELLIGENCE_MAP.md)
-  - application intelligence map artifact and consumers
-- [RUNTIME_QC_AND_TEST_ENVIRONMENTS.md](RUNTIME_QC_AND_TEST_ENVIRONMENTS.md)
-  - ephemeral test environments and AI runtime QC
-- [SENSITIVE_CODE_HANDLING_POLICY.md](SENSITIVE_CODE_HANDLING_POLICY.md)
-  - source code classification, provider routing, redaction
-- [SCHEMA_REGISTRY_AND_VERSIONING.md](SCHEMA_REGISTRY_AND_VERSIONING.md)
-  - schema registry, versioning rules, compatibility
-- [LICENSE_STRATEGY.md](LICENSE_STRATEGY.md)
-  - open-core strategy and MIT license confirmation
+---
 
-## Canonical Product and Architecture Docs
+## Product & System Overview
 
-- [DOCUMENTATION_STANDARDS.md](DOCUMENTATION_STANDARDS.md)
-  - documentation conventions, archive rules, and quality gate
-- [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
-  - shipped defaults, validation snapshot, and current follow-up work
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-  - topology, services, data plane, and lifecycle baseline
-- [ARCHITECTURE_DIAGRAMS.md](ARCHITECTURE_DIAGRAMS.md)
-  - context, container, deployment, runtime, and trust-boundary diagrams
-- [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md)
-  - mission, approval, artifact, identity, and telemetry flows
-- [REPOSITORY_BUILD_MAP_2026-03-29.md](REPOSITORY_BUILD_MAP_2026-03-29.md)
-  - generated full repository tree
-- [ROADMAP.md](ROADMAP.md)
-  - current roadmap and maturity direction
-- [RELEASE_COMPLETION_PLAN.md](RELEASE_COMPLETION_PLAN.md)
-  - production-release phase plan and out-of-band blockers
-- [reviews/end-to-end-review-2026-04-15.md](reviews/end-to-end-review-2026-04-15.md)
-  - latest end-to-end review closeout with resolved findings and live qualification evidence
-- [reviews/review-todo-action-plan-2026-04-15.md](reviews/review-todo-action-plan-2026-04-15.md)
-  - phase-based remediation closeout and remaining hardening follow-up
+| File | Description | Audience |
+|---|---|---|
+| [00_PRODUCT_OVERVIEW.md](00_PRODUCT_OVERVIEW.md) | Top-level product description, value proposition, and v1.2.0 feature set | All |
+| [BLUEPRINT_MAP.md](BLUEPRINT_MAP.md) | Full system blueprint — the single authoritative map of all services, agents, and data flows | All |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem | All |
+
+---
+
+## Architecture
+
+| File | Description | Audience |
+|---|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Full system architecture — services, data stores, agent topology, and deployment model | Architects, Developers |
+| [ARCHITECTURE_DIAGRAMS.md](ARCHITECTURE_DIAGRAMS.md) | Mermaid/PlantUML architecture diagrams for all major subsystems | Architects |
+| [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md) | Detailed data flow diagrams for mission intake, processing, and completion | Architects, Developers |
+| [DIAGRAM_STANDARDS.md](DIAGRAM_STANDARDS.md) | Standards for creating and maintaining architecture diagrams | Developers |
+| [APPLICATION_INTELLIGENCE_MAP.md](APPLICATION_INTELLIGENCE_MAP.md) | AIM generator — how the system produces a structured map of application intelligence from a mission | Architects, Developers |
+
+---
+
+## Architecture Decision Records (ADRs)
+
+| File | Decision | Date |
+|---|---|---|
+| [ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md](ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md) | Agent runtime topology — 41-agent, 4-pod, 4-tier structure | 2026-03-04 |
+| [ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md](ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md) | Mission Flow v2 promoted to default; v1 retained as fallback | 2026-03-08 |
+| [ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md](ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md) | Mission Flow v2 design and adoption plan | 2026-03-08 |
+| [ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md](ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md) | API key auth chosen over OIDC for v1.2.0; OIDC deferred | 2026-03-04 |
+| [ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md](ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md) | Catalogue of intentionally deferred scope items and rationale | 2026-03-08 |
+
+---
 
 ## Developer Documentation
 
-- [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)
-  - day-to-day engineering workflow
-- [DEVELOPER_ONBOARDING_GUIDE.md](DEVELOPER_ONBOARDING_GUIDE.md)
-  - local setup and first-day validation
-- [TESTING_QUALITY_GATES.md](TESTING_QUALITY_GATES.md)
-  - test strategy, thresholds, and release checks
-- [DIAGRAM_STANDARDS.md](DIAGRAM_STANDARDS.md)
-  - required diagram types and conventions
-- [../CONTRIBUTING.md](../CONTRIBUTING.md)
-  - contribution workflow
-- [../CHANGELOG.md](../CHANGELOG.md)
-  - change history
+| File | Description | Audience |
+|---|---|---|
+| [DEVELOPER_ONBOARDING_GUIDE.md](DEVELOPER_ONBOARDING_GUIDE.md) | Complete new-developer onboarding — environment setup, first run, test suite, contribution workflow | Developers |
+| [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | Day-to-day developer reference — common commands, service ports, env vars | Developers |
+| [API_INTEGRATION_GUIDE.md](API_INTEGRATION_GUIDE.md) | Full API reference for all Gateway and Orchestrator endpoints | Developers, Integrators |
+| [ERROR_CODES.md](ERROR_CODES.md) | Complete error code catalogue with causes and remediation steps | Developers, Operators |
+| [RUNTIME_AND_AGENT_BASE.md](RUNTIME_AND_AGENT_BASE.md) | `runtime.py` execution engine (intake loop, lifecycle tasks, state events, self-heal) and `agent_base.py` class hierarchy (BaseAgent, 6 categories, 19 specialist classes, make_agent() factory) | Developers |
+| [EQUIVALENCE_VERIFIER.md](EQUIVALENCE_VERIFIER.md) | Equivalence verification system — how the system proves behavioral equivalence between mission input and output | Developers |
+| [IS_AGENT.md](IS_AGENT.md) | Integration Standards (IS) Agent — integration catalog and compliance checks | Developers |
+| [DEMO_MISSION_SETUP.md](DEMO_MISSION_SETUP.md) | Step-by-step guide to setting up and running a demo mission | Developers, Operators |
+| [LEGACY_PROFILE_ID_MAPPING_INDEX.md](LEGACY_PROFILE_ID_MAPPING_INDEX.md) | Legacy agent profile ID mapping — compatibility reference for pre-v1.2.0 agent IDs | Developers |
+
+---
 
 ## LLM Integration and Prompt Engineering
 
-- [LLM_DELEGATION.md](LLM_DELEGATION.md)
-  - provider-aware LLM routing engine: provider selection, retry/fallback policy, cost guard, offline mode
-- [PROMPT_REGISTRY_AND_ASSETS.md](PROMPT_REGISTRY_AND_ASSETS.md)
-  - prompt registry, prompt asset conventions, versioning, audit traceability
-- [LLM_SAFETY_AND_DOCUMENT_PARSER.md](LLM_SAFETY_AND_DOCUMENT_PARSER.md)
-  - pre-dispatch safety filter: redaction, local_only enforcement, document ingestion parser
-- [AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md](AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md)
-  - current provider/model matrix reference per agent
-- [AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md](AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md)
-  - persona evidence model reference
+| File | Description | Audience |
+|---|---|---|
+| [LLM_DELEGATION.md](LLM_DELEGATION.md) | `llm_delegation/` package — provider routing, retry/fallback, cost guard, offline mode, and adding new providers | Developers, Architects |
+| [PROMPT_REGISTRY_AND_ASSETS.md](PROMPT_REGISTRY_AND_ASSETS.md) | `prompt_registry.py` and `prompt_assets/` — versioned prompt vault, asset naming, SHA-256 fingerprinting, and audit traceability | Developers |
+| [LLM_SAFETY_AND_DOCUMENT_PARSER.md](LLM_SAFETY_AND_DOCUMENT_PARSER.md) | LLM safety filters and document parser — input/output sanitization and safe parsing for mission payloads | Developers, Security |
+| [AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md](AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md) | Per-agent LLM provider and model assignments — which model each of the 41 agents uses by default | Architects, Developers |
+| [AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md](AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md) | Evidence that all 41 agent personas meet the persona standards defined in `agent_personas.py` | Architects |
 
-## Orchestrator Internals
+---
 
-- [IS_AGENT.md](IS_AGENT.md)
-  - Integration Specialist agent: external API invocation, credential injection, circuit-break, audit
-- [KNOWLEDGE_LAKE_AND_EMBEDDINGS.md](KNOWLEDGE_LAKE_AND_EMBEDDINGS.md)
-  - runtime semantic memory: Knowledge Lake abstraction, embedding pipeline, multi-store routing
-- [EQUIVALENCE_VERIFIER.md](EQUIVALENCE_VERIFIER.md)
-  - semantic and structural verification engine: AIM baseline vs. delivered artifact comparison
-- [AGENT_SCALING_AND_HEARTBEAT.md](AGENT_SCALING_AND_HEARTBEAT.md)
-  - dynamic agent pool scaling, heartbeat liveness tracking, dead-agent recovery
-- [PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md](PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md)
-  - ephemeral port allocation, LogicNode schema definition, storage layer, tag taxonomy
+## Agent System
 
-## User and Operator Documentation
+| File | Description | Audience |
+|---|---|---|
+| [AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md](AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md) | Protocol Bus — 6-stream Redis Streams architecture (alpha/beta/delta/sigma/omega/rho) and data system plan | Architects, Developers |
+| [AGENT_SCALING_AND_HEARTBEAT.md](AGENT_SCALING_AND_HEARTBEAT.md) | Agent scaling strategy and heartbeat service — how agents are scaled and health-monitored | Operators, Developers |
+| [AGENT_SERVICE_KEY_ISOLATION.md](AGENT_SERVICE_KEY_ISOLATION.md) | Service key isolation — per-agent credential isolation model and enforcement | Security, Developers |
+| [KNOWLEDGE_LAKE_AND_EMBEDDINGS.md](KNOWLEDGE_LAKE_AND_EMBEDDINGS.md) | Knowledge Lake — multi-store embedding pipeline (Qdrant, Milvus, Neo4j) and retrieval strategy | Developers, Architects |
+| [DEPENDENCY_ABSORPTION_DOCTRINE.md](DEPENDENCY_ABSORPTION_DOCTRINE.md) | Dependency Absorption — the doctrine of eliminating unnecessary dependencies and the DEPABS agent implementation | Developers, Architects |
 
-- [user/GETTING_STARTED.md](user/GETTING_STARTED.md)
-  - first-success setup and basic workflows
-- [user/OPERATOR_GUIDE.md](user/OPERATOR_GUIDE.md)
-  - screen-by-screen operator instructions
+---
 
-## API and Reference Documentation
+## Deployment & Operations
 
-- [api/README.md](api/README.md)
-  - API entry point and interactive docs
-- [API_INTEGRATION_GUIDE.md](API_INTEGRATION_GUIDE.md)
-  - auth, examples, rate limits, and integration behavior
-- [openapi/api-gateway.v1.json](openapi/api-gateway.v1.json)
-  - gateway OpenAPI contract
-- [openapi/orchestrator.v1.json](openapi/orchestrator.v1.json)
-  - orchestrator OpenAPI contract
+| File | Description | Audience |
+|---|---|---|
+| [DEPLOYMENT_DR_PLAYBOOK.md](DEPLOYMENT_DR_PLAYBOOK.md) | Deployment and Disaster Recovery playbook — full runbooks for deploy, rollback, and DR scenarios | Operators |
+| [COMPOSE_ENVIRONMENT_PROFILES.md](COMPOSE_ENVIRONMENT_PROFILES.md) | Docker Compose environment profiles — which profile to use for local dev, staging, and production | Developers, Operators |
 
-## Operations, Security, and Governance
+---
 
-- [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md)
-  - operational commands and validation procedures
-- [DEPLOYMENT_DR_PLAYBOOK.md](DEPLOYMENT_DR_PLAYBOOK.md)
-  - deployment and disaster-recovery process
-- [OBSERVABILITY_STACK.md](OBSERVABILITY_STACK.md)
-  - telemetry stack and alerting baseline
-- [RELEASE_TRUST_PROMOTION_GATE.md](RELEASE_TRUST_PROMOTION_GATE.md)
-  - release trust, attestation, and promotion checks
-- [COMPOSE_ENVIRONMENT_PROFILES.md](COMPOSE_ENVIRONMENT_PROFILES.md)
-  - environment profiles and compose behavior
-- [DATA_CLASSIFICATION_POLICY.md](DATA_CLASSIFICATION_POLICY.md)
-  - data handling and classification rules
-- [MODEL_PROMOTION_GOVERNANCE.md](MODEL_PROMOTION_GOVERNANCE.md)
-  - AI model rollout and rollback governance
-- [AGENT_SERVICE_KEY_ISOLATION.md](AGENT_SERVICE_KEY_ISOLATION.md)
-  - internal key isolation and remaining hardening work
-- [PRIVACY_POLICY.md](PRIVACY_POLICY.md)
-  - privacy posture
-- [TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)
-  - usage terms
-- [ACCESSIBILITY_STATEMENT.md](ACCESSIBILITY_STATEMENT.md)
-  - accessibility commitment and gaps
+## Security & Compliance
 
-## Standards and Supporting References
+| File | Description | Audience |
+|---|---|---|
+| [DATA_CLASSIFICATION_POLICY.md](DATA_CLASSIFICATION_POLICY.md) | Data classification tiers and handling requirements for all data types in theFactory | Security, Compliance |
+| [COMPLIANCE_EVIDENCE_MAPPING.md](COMPLIANCE_EVIDENCE_MAPPING.md) | Maps compliance controls (SOC2, ISO 27001) to evidence artifacts in the system | Compliance, Security |
+| [LICENSE_STRATEGY.md](LICENSE_STRATEGY.md) | Open-source license strategy and dependency license compliance | Legal, Developers |
+| [ACCESSIBILITY_STATEMENT.md](ACCESSIBILITY_STATEMENT.md) | Accessibility statement for the Mission Control UI | Product, Legal |
 
-- [PRODUCTION_STANDARDS_REFERENCES.md](PRODUCTION_STANDARDS_REFERENCES.md)
-  - external standards and official references used by this repo
-- [COMPLIANCE_EVIDENCE_MAPPING.md](COMPLIANCE_EVIDENCE_MAPPING.md)
-  - control/evidence mapping
-- [LEGACY_PROFILE_ID_MAPPING_INDEX.md](LEGACY_PROFILE_ID_MAPPING_INDEX.md)
-  - legacy ID reference retained for compatibility analysis
-- [AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md](AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md)
-  - protocol bus and data-system reference plan
+---
 
-## ADRs
+## Standards & Supporting References
 
-- [ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md](ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md)
-- [ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md](ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md)
-- [ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md](ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md)
-- [ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md](ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md)
-- [ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md](ADR_STRATEGIC_DEFERRED_SCOPE_DECISIONS_2026-03-08.md)
+| File | Description | Audience |
+|---|---|---|
+| [DOCUMENTATION_STANDARDS.md](DOCUMENTATION_STANDARDS.md) | Standards for writing and maintaining theFactory documentation | All contributors |
+| [DIAGRAM_STANDARDS.md](DIAGRAM_STANDARDS.md) | Standards for creating and maintaining architecture diagrams | Developers |
 
-## Evidence and Runbooks
+---
 
-- [evidence/](evidence/)
-  - release qualification, audits, and phase evidence
-- [runbooks/](runbooks/)
-  - incident and recurring qualification procedures
-- [protocol_bus_incident_runbook.md](runbooks/protocol_bus_incident_runbook.md)
-  - Protocol Bus incident response (renamed from semantic_bus_incident_runbook.md)
+## Documentation Coverage Gap Tracker
 
-## Archive
+The following code files are known to have no dedicated documentation as of this version. They are tracked here to ensure they are addressed in future documentation sprints.
 
-- [archive/README.md](archive/README.md)
-  - archive policy and layout
-- `archive/2026-03-29/`
-  - superseded audits, planning artifacts, source `.docx` material, and legacy documentation bundles
+| Code File | Size | Priority | Notes |
+|---|---|---|---|
+| `main.py` | 44 KB | 🔴 High | All FastAPI routes, startup sequence — highest-value undocumented file |
+| `models.py` | 13 KB | 🔴 High | All Pydantic/SQLAlchemy models — the schema source of truth |
+| `storage_missions.py` | 19 KB | 🟠 Medium | Mission persistence layer |
+| `storage_agents.py` | 21 KB | 🟠 Medium | Agent state persistence |
+| `storage_artifacts.py` | 22 KB | 🟠 Medium | Evidence bundle storage |
+| `storage_core.py` + `storage.py` | 10 KB | 🟠 Medium | Base storage abstractions |
+| `storage_pods.py` | 6 KB | 🟠 Medium | Pod state persistence |
+| `security_compliance.py` | 11 KB | 🟠 Medium | Runtime SAST/secret scanning enforcement |
+| `agent_integrations.py` | 15 KB | 🟡 Low | Integration catalog agent |
+| `migrations.py` + `migrations/` | 4 KB | 🟡 Low | DB schema migration runner |
+| `auth.py` | 1.5 KB | 🟡 Low | Runtime auth enforcement (ADR covers the policy) |
+| `review_policy.py` | 1 KB | 🟡 Low | HUMAN_REVIEW escalation policy |
+| `hw_agent.py` | 2 KB | 🟡 Low | Hardware-awareness agent |
+| `testdata_agent.py` | 4 KB | 🟡 Low | Test fixture generation agent |
+| `system_maintenance.py` | 3 KB | 🟡 Low | Maintenance mode triggers |
+| `protocol.py` | 4 KB | 🟡 Low | Protocol message schema (bus docs cover streams, not schema) |
+| `project_identity.py` | 1.6 KB | 🟡 Low | Project namespace/identity stamping |
