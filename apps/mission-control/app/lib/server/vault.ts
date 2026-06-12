@@ -6,11 +6,13 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 type VaultProvider = "openai" | "anthropic" | "gemini" | "github" | "operator";
+type VaultModel = "gpt-5.5" | "claude-opus-4-8" | "gemini-3.5-flash";
 type VaultBackend = "memory" | "local-encrypted" | "hashicorp-vault";
 
 type VaultEntry = {
   slotId: string;
   provider: VaultProvider;
+  model?: VaultModel;
   secret: string;
   createdAt: string;
   updatedAt: string;
@@ -39,6 +41,7 @@ type VaultFileData = {
 export type VaultSlotRecord = {
   slot_id: string;
   provider: VaultProvider;
+  model?: VaultModel;
   status: "set" | "expiring" | "expired" | "missing";
   last_rotated_at: string | null;
   masked_preview: string | null;
@@ -96,6 +99,17 @@ function normalizeProvider(value: string): VaultProvider {
   if (candidate === "gemini") return "gemini";
   if (candidate === "github") return "github";
   return "operator";
+}
+
+function normalizeModel(value: string | undefined, provider: VaultProvider): VaultModel | undefined {
+  const candidate = (value ?? "").trim();
+  if (candidate === "gpt-5.5") return "gpt-5.5";
+  if (candidate === "claude-opus-4-8") return "claude-opus-4-8";
+  if (candidate === "gemini-3.5-flash") return "gemini-3.5-flash";
+  if (provider === "openai") return "gpt-5.5";
+  if (provider === "anthropic") return "claude-opus-4-8";
+  if (provider === "gemini") return "gemini-3.5-flash";
+  return undefined;
 }
 
 function normalizeSlotId(slotId: string): string {
@@ -160,6 +174,7 @@ function toSlotRecord(entry: VaultEntry, backend: VaultBackend): VaultSlotRecord
   return {
     slot_id: entry.slotId,
     provider: entry.provider,
+    model: entry.model,
     status,
     last_rotated_at: entry.updatedAt,
     masked_preview: maskSecret(entry.secret),
@@ -246,7 +261,12 @@ function localListVaultSlots(): VaultSlotRecord[] {
     .map((item) => toSlotRecord(item, "local-encrypted"));
 }
 
-function localUpsertVaultSlot(slotId: string, provider: string, secret: string): VaultSlotRecord {
+function localUpsertVaultSlot(
+  slotId: string,
+  provider: string,
+  secret: string,
+  model?: string,
+): VaultSlotRecord {
   const normalizedSlot = normalizeSlotId(slotId);
   const normalizedSecret = secret.trim();
   if (!normalizedSlot || !normalizedSecret) {
@@ -255,9 +275,11 @@ function localUpsertVaultSlot(slotId: string, provider: string, secret: string):
   const updatedAt = new Date().toISOString();
   const ttlSeconds = DEFAULT_SLOT_TTL_SECONDS;
   const existing = getLocalVaultMemory().get(normalizedSlot);
+  const normalizedProvider = normalizeProvider(provider);
   const entry: VaultEntry = {
     slotId: normalizedSlot,
-    provider: normalizeProvider(provider),
+    provider: normalizedProvider,
+    model: normalizeModel(model, normalizedProvider),
     secret: normalizedSecret,
     createdAt: existing?.createdAt ?? updatedAt,
     updatedAt,
@@ -290,7 +312,12 @@ function memoryListVaultSlots(): VaultSlotRecord[] {
     .map((item) => toSlotRecord(item, "memory"));
 }
 
-function memoryUpsertVaultSlot(slotId: string, provider: string, secret: string): VaultSlotRecord {
+function memoryUpsertVaultSlot(
+  slotId: string,
+  provider: string,
+  secret: string,
+  model?: string,
+): VaultSlotRecord {
   const normalizedSlot = normalizeSlotId(slotId);
   const normalizedSecret = secret.trim();
   if (!normalizedSlot || !normalizedSecret) {
@@ -299,9 +326,11 @@ function memoryUpsertVaultSlot(slotId: string, provider: string, secret: string)
 
   const updatedAt = new Date().toISOString();
   const ttlSeconds = DEFAULT_SLOT_TTL_SECONDS;
+  const normalizedProvider = normalizeProvider(provider);
   const entry: VaultEntry = {
     slotId: normalizedSlot,
-    provider: normalizeProvider(provider),
+    provider: normalizedProvider,
+    model: normalizeModel(model, normalizedProvider),
     secret: normalizedSecret,
     createdAt: updatedAt,
     updatedAt,
@@ -415,6 +444,7 @@ async function vaultReadEntry(slotId: string): Promise<VaultEntry | null> {
     data?: {
       data?: {
         provider?: string;
+        model?: string;
         secret?: string;
         created_at?: string;
         updated_at?: string;
@@ -432,9 +462,11 @@ async function vaultReadEntry(slotId: string): Promise<VaultEntry | null> {
   if (!data?.secret) {
     return null;
   }
+  const provider = normalizeProvider(String(data.provider ?? "operator"));
   return {
     slotId,
-    provider: normalizeProvider(String(data.provider ?? "operator")),
+    provider,
+    model: normalizeModel(data.model, provider),
     secret: String(data.secret),
     createdAt: String(data.created_at ?? data.updated_at ?? new Date().toISOString()),
     updatedAt: String(data.updated_at ?? new Date().toISOString()),
@@ -471,6 +503,7 @@ async function vaultUpsertVaultSlot(
   slotId: string,
   provider: string,
   secret: string,
+  model?: string,
 ): Promise<VaultSlotRecord> {
   const normalizedSlot = normalizeSlotId(slotId);
   const normalizedSecret = secret.trim();
@@ -479,6 +512,8 @@ async function vaultUpsertVaultSlot(
   }
   const updatedAt = new Date().toISOString();
   const ttlSeconds = DEFAULT_SLOT_TTL_SECONDS;
+  const normalizedProvider = normalizeProvider(provider);
+  const normalizedModel = normalizeModel(model, normalizedProvider);
   const token = await resolveVaultToken();
   await vaultFetchJson(vaultEntryDataPath(normalizedSlot), {
     method: "POST",
@@ -486,7 +521,8 @@ async function vaultUpsertVaultSlot(
     body: JSON.stringify({
       data: {
         slot_id: normalizedSlot,
-        provider: normalizeProvider(provider),
+        provider: normalizedProvider,
+        model: normalizedModel,
         secret: normalizedSecret,
         created_at: updatedAt,
         updated_at: updatedAt,
@@ -498,7 +534,8 @@ async function vaultUpsertVaultSlot(
   return toSlotRecord(
     {
       slotId: normalizedSlot,
-      provider: normalizeProvider(provider),
+      provider: normalizedProvider,
+      model: normalizedModel,
       secret: normalizedSecret,
       createdAt: updatedAt,
       updatedAt,
@@ -547,11 +584,12 @@ export async function upsertVaultSlot(
   slotId: string,
   provider: string,
   secret: string,
+  model?: string,
 ): Promise<VaultSlotRecord> {
   const backend = getVaultBackend();
-  if (backend === "local-encrypted") return localUpsertVaultSlot(slotId, provider, secret);
-  if (backend === "hashicorp-vault") return vaultUpsertVaultSlot(slotId, provider, secret);
-  return memoryUpsertVaultSlot(slotId, provider, secret);
+  if (backend === "local-encrypted") return localUpsertVaultSlot(slotId, provider, secret, model);
+  if (backend === "hashicorp-vault") return vaultUpsertVaultSlot(slotId, provider, secret, model);
+  return memoryUpsertVaultSlot(slotId, provider, secret, model);
 }
 
 export async function deleteVaultSlot(slotId: string): Promise<boolean> {
@@ -573,6 +611,9 @@ export function testSecret(provider: string, secret: string): { valid: boolean; 
   const candidate = secret.trim();
   if (candidate.length < 8) {
     return { valid: false, reason: "Secret appears too short." };
+  }
+  if (candidate.startsWith("AIza")) {
+    return { valid: true, reason: "Gemini key accepted for cross-model test mode." };
   }
 
   if (normalizedProvider === "openai") {

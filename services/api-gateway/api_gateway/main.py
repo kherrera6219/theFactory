@@ -119,15 +119,15 @@ CORS_EXPOSE_HEADERS = [
     "X-Trace-Id",
 ]
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "offline").strip().lower()
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5")
 OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "20"))
-OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower()
+OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "high").strip().lower()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 ANTHROPIC_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1").rstrip("/")
-ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8").strip()
 ANTHROPIC_TIMEOUT_SECONDS = float(os.getenv("ANTHROPIC_TIMEOUT_SECONDS", "20"))
 ANTHROPIC_VERSION = os.getenv("ANTHROPIC_VERSION", "2023-06-01").strip()
 ANTHROPIC_THINKING_MODE = os.getenv("ANTHROPIC_THINKING_MODE", "enabled").strip().lower()
@@ -139,7 +139,12 @@ GEMINI_BASE_URL = os.getenv(
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash").strip()
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "-1"))
-GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "medium").strip().lower()
+GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "high").strip().lower()
+ALLOWED_LLM_MODELS: dict[str, str] = {
+    "gpt-5.5": "openai",
+    "claude-opus-4-8": "anthropic",
+    "gemini-3.5-flash": "gemini",
+}
 
 REQUEST_COUNTER = Counter(
     "api_gateway_http_requests_total",
@@ -1153,6 +1158,25 @@ def _to_gemini_thinking_level(reasoning_effort: str | None) -> str:
     if effort in {"high", "xhigh"}:
         return "high"
     return "medium"
+
+
+def _resolve_preview_model_route(provider: str, model: str | None) -> tuple[str, str | None]:
+    normalized_provider = provider.strip().lower()
+    selected_model = model.strip() if isinstance(model, str) and model.strip() else None
+    if selected_model is None:
+        return normalized_provider, None
+    resolved_provider = ALLOWED_LLM_MODELS.get(selected_model)
+    if resolved_provider is None:
+        raise HTTPException(
+            status_code=400,
+            detail="model must be one of: " + ", ".join(sorted(ALLOWED_LLM_MODELS)),
+        )
+    if normalized_provider not in {"offline", resolved_provider}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"model {selected_model} must use provider {resolved_provider}",
+        )
+    return resolved_provider, selected_model
 
 
 async def _openai_builder_preview(
@@ -2352,8 +2376,10 @@ async def create_builder_preview(payload: BuilderPreviewRequest) -> dict[str, An
     if len(normalized_request) < 3:
         raise HTTPException(status_code=400, detail="request must be at least 3 characters")
 
-    provider = (payload.provider or LLM_PROVIDER).strip().lower()
-    selected_model = payload.model.strip() if isinstance(payload.model, str) and payload.model.strip() else None
+    provider, selected_model = _resolve_preview_model_route(
+        (payload.provider or LLM_PROVIDER).strip().lower(),
+        payload.model,
+    )
 
     normalized_payload = payload.model_copy(update={
         "request": normalized_request,

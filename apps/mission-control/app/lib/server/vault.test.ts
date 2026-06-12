@@ -47,6 +47,7 @@ describe("vault backend", () => {
     expect(slots[0]).toMatchObject({
       slot_id: "AGENT-01-PM-API-KEY",
       provider: "anthropic",
+      model: "claude-opus-4-8",
       backend: "memory",
       status: "set",
       rotation_due: false,

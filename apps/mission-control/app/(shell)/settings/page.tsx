@@ -16,50 +16,93 @@ import { formatDateTime } from "../../lib/format";
 import { clampNumber, isAllowedLocalApiBase, safeJsonParse } from "../../lib/security";
 import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
 
+type ModelOption = {
+  label: string;
+  provider: "openai" | "anthropic" | "gemini";
+  model: "gpt-5.5" | "claude-opus-4-8" | "gemini-3.5-flash";
+  endpoint: string;
+  effort: "high";
+};
+
+const MODEL_OPTIONS: ModelOption[] = [
+  {
+    label: "Gemini Flash 3.5",
+    provider: "gemini",
+    model: "gemini-3.5-flash",
+    endpoint: "POST /v1beta/models/gemini-3.5-flash:generateContent",
+    effort: "high",
+  },
+  {
+    label: "ChatGPT 5.5",
+    provider: "openai",
+    model: "gpt-5.5",
+    endpoint: "POST /v1/responses",
+    effort: "high",
+  },
+  {
+    label: "Claude Opus 4.8",
+    provider: "anthropic",
+    model: "claude-opus-4-8",
+    endpoint: "POST /v1/messages",
+    effort: "high",
+  },
+];
+
+const DEFAULT_MODEL_OPTION = MODEL_OPTIONS[0];
+
+function modelOptionFor(model: string | null | undefined): ModelOption {
+  return MODEL_OPTIONS.find((option) => option.model === model) ?? DEFAULT_MODEL_OPTION;
+}
+
 // Static agent registry — fallback when orchestrator is offline.
 const STATIC_AGENT_SLOTS: Array<{ agentId: string; name: string; provider: string; model: string }> = [
-  { agentId: "AGENT-01-PM", name: "PM Agent", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-02-CEO", name: "CEO Agent", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-03-BROKER", name: "API Broker", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-04-ACCOUNTANT", name: "Accountant", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-05-SECURITY", name: "Security Agent", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-06-IS", name: "IS Agent", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-07-VC", name: "Version Control Agent", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-08-COMPLIANCE", name: "Compliance Agent", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-09-HW", name: "Hardware-Mapping Injector", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-10-TESTER", name: "System Integration Tester", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-11-DEPLOY", name: "Deployment Agent", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-12-PODA-MGR", name: "Pod A Sub-Manager", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-13-PODA-AUDIT", name: "Pod A QC/Audit", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-14-PYTHON", name: "Python Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-15-JAVASCRIPT", name: "JavaScript Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-16-RUBY", name: "Ruby Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-17-PHP", name: "PHP Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-18-PODB-MGR", name: "Pod B Sub-Manager", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-19-PODB-AUDIT", name: "Pod B QC/Audit", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-20-C", name: "C Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-21-CPP", name: "C++ Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-22-RUST", name: "Rust Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-23-ZIG", name: "Zig Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-24-PODC-MGR", name: "Pod C Sub-Manager", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-25-PODC-AUDIT", name: "Pod C QC/Audit", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-26-JAVA", name: "Java Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-27-CSHARP", name: "C# Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-28-SCALA", name: "Scala Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-29-KOTLIN", name: "Kotlin Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-30-PODD-MGR", name: "Pod D Sub-Manager", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-31-PODD-AUDIT", name: "Pod D QC/Audit", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-32-MATLAB", name: "MATLAB Specialist", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-33-R", name: "R Specialist", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-34-JULIA", name: "Julia Specialist", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-35-MATHEMATICA", name: "Mathematica Specialist", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-36-GO", name: "Go Specialist", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-37-HASKELL", name: "Haskell Specialist", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-38-OCAML", name: "OCaml Specialist", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-39-DEPABS", name: "Dependency Absorption Agent", provider: "openai", model: "gpt-5.5" },
-  { agentId: "AGENT-40-TESTDATA", name: "Database and Test Data Agent", provider: "gemini", model: "gemini-3.5-flash" },
-  { agentId: "AGENT-41-RQCA", name: "Runtime QC Agent", provider: "openai", model: "gpt-5.5" },
-];
+  ["AGENT-01-PM", "PM Agent"],
+  ["AGENT-02-CEO", "CEO Agent"],
+  ["AGENT-03-BROKER", "API Broker"],
+  ["AGENT-04-ACCOUNTANT", "Accountant"],
+  ["AGENT-05-SECURITY", "Security Agent"],
+  ["AGENT-06-IS", "IS Agent"],
+  ["AGENT-07-VC", "Version Control Agent"],
+  ["AGENT-08-COMPLIANCE", "Compliance Agent"],
+  ["AGENT-09-HW", "Hardware-Mapping Injector"],
+  ["AGENT-10-TESTER", "System Integration Tester"],
+  ["AGENT-11-DEPLOY", "Deployment Agent"],
+  ["AGENT-12-PODA-MGR", "Pod A Sub-Manager"],
+  ["AGENT-13-PODA-AUDIT", "Pod A QC/Audit"],
+  ["AGENT-14-PYTHON", "Python Specialist"],
+  ["AGENT-15-JAVASCRIPT", "JavaScript Specialist"],
+  ["AGENT-16-RUBY", "Ruby Specialist"],
+  ["AGENT-17-PHP", "PHP Specialist"],
+  ["AGENT-18-PODB-MGR", "Pod B Sub-Manager"],
+  ["AGENT-19-PODB-AUDIT", "Pod B QC/Audit"],
+  ["AGENT-20-C", "C Specialist"],
+  ["AGENT-21-CPP", "C++ Specialist"],
+  ["AGENT-22-RUST", "Rust Specialist"],
+  ["AGENT-23-ZIG", "Zig Specialist"],
+  ["AGENT-24-PODC-MGR", "Pod C Sub-Manager"],
+  ["AGENT-25-PODC-AUDIT", "Pod C QC/Audit"],
+  ["AGENT-26-JAVA", "Java Specialist"],
+  ["AGENT-27-CSHARP", "C# Specialist"],
+  ["AGENT-28-SCALA", "Scala Specialist"],
+  ["AGENT-29-KOTLIN", "Kotlin Specialist"],
+  ["AGENT-30-PODD-MGR", "Pod D Sub-Manager"],
+  ["AGENT-31-PODD-AUDIT", "Pod D QC/Audit"],
+  ["AGENT-32-MATLAB", "MATLAB Specialist"],
+  ["AGENT-33-R", "R Specialist"],
+  ["AGENT-34-JULIA", "Julia Specialist"],
+  ["AGENT-35-MATHEMATICA", "Mathematica Specialist"],
+  ["AGENT-36-GO", "Go Specialist"],
+  ["AGENT-37-HASKELL", "Haskell Specialist"],
+  ["AGENT-38-OCAML", "OCaml Specialist"],
+  ["AGENT-39-DEPABS", "Dependency Absorption Agent"],
+  ["AGENT-40-TESTDATA", "Database and Test Data Agent"],
+  ["AGENT-41-RQCA", "Runtime QC Agent"],
+].map(([agentId, name]) => ({
+  agentId,
+  name,
+  provider: DEFAULT_MODEL_OPTION.provider,
+  model: DEFAULT_MODEL_OPTION.model,
+}));
 
 type LocalPreferences = {
   apiBaseUrl: string;
@@ -71,6 +114,7 @@ type LocalPreferences = {
 type VaultSlotRecord = {
   slot_id: string;
   provider: string;
+  model?: string;
   status: "set" | "expiring" | "expired" | "missing";
   last_rotated_at: string | null;
   masked_preview: string | null;
@@ -175,6 +219,7 @@ export default function SettingsPage() {
   const [snapshot, setSnapshot] = useState<OperationsAgentIntegrationsSnapshot | null>(null);
   const [vaultSlots, setVaultSlots] = useState<VaultSlotRecord[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<string>("");
+  const [selectedModel, setSelectedModel] = useState<ModelOption["model"]>(DEFAULT_MODEL_OPTION.model);
   const [slotSecretInput, setSlotSecretInput] = useState("");
   const [slotLoading, setSlotLoading] = useState(false);
   const [slotMessage, setSlotMessage] = useState<string | null>(null);
@@ -245,8 +290,8 @@ export default function SettingsPage() {
       const existing = slotMap.get(slotId.toUpperCase());
       return {
         slotId,
-        provider: agent.provider,
-        model: agent.model,
+        provider: existing?.provider ?? agent.provider,
+        model: existing?.model ?? agent.model,
         title: `${agent.agentId} (${agent.name})`,
         status: existing?.status ?? ("missing" as const),
         lastRotatedAt: existing?.last_rotated_at ?? null,
@@ -294,6 +339,8 @@ export default function SettingsPage() {
     () => rows.find((row) => row.slotId === selectedSlotId) ?? null,
     [rows, selectedSlotId],
   );
+  const selectedModelOption = modelOptionFor(selectedModel);
+  const selectedSlotCanChooseModel = Boolean(selectedSlot?.slotId.startsWith("AGENT-"));
 
   const hasAnyKeyData = useMemo(
     () => rows.some((row) => row.maskedPreview !== null || row.lastRotatedAt !== null || row.expiresAt !== null),
@@ -356,7 +403,12 @@ export default function SettingsPage() {
       const response = await fetch("/api/vault", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slot_id: selectedSlot.slotId, provider: selectedSlot.provider, secret }),
+        body: JSON.stringify({
+          slot_id: selectedSlot.slotId,
+          provider: selectedSlotCanChooseModel ? selectedModelOption.provider : selectedSlot.provider,
+          model: selectedSlotCanChooseModel ? selectedModelOption.model : selectedSlot.model,
+          secret,
+        }),
       });
       const payload = (await response.json()) as { detail?: string };
       if (!response.ok) throw new Error(payload.detail || "Unable to save vault slot.");
@@ -381,7 +433,8 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slot_id: selectedSlot.slotId,
-          provider: selectedSlot.provider,
+          provider: selectedSlotCanChooseModel ? selectedModelOption.provider : selectedSlot.provider,
+          model: selectedSlotCanChooseModel ? selectedModelOption.model : selectedSlot.model,
           secret: slotSecretInput.trim().length > 0 ? slotSecretInput.trim() : undefined,
         }),
       });
@@ -419,7 +472,9 @@ export default function SettingsPage() {
 
   // FIX #4: Open edit panel and scroll to it
   function openEditPanel(slotId: string) {
+    const row = rows.find((candidate) => candidate.slotId === slotId);
     setSelectedSlotId(slotId);
+    setSelectedModel(modelOptionFor(row?.model).model);
     setSlotMessage(null);
     setSlotError(null);
     setSlotSecretInput("");
@@ -660,7 +715,14 @@ export default function SettingsPage() {
             <>
               <ul className="summary-list">
                 <li><strong>Slot</strong><span>{selectedSlot.slotId}</span></li>
-                <li><strong>Provider</strong><span>{selectedSlot.provider}</span></li>
+                <li>
+                  <strong>Provider</strong>
+                  <span>{selectedSlotCanChooseModel ? selectedModelOption.provider : selectedSlot.provider}</span>
+                </li>
+                <li>
+                  <strong>Model</strong>
+                  <span>{selectedSlotCanChooseModel ? selectedModelOption.model : selectedSlot.model}</span>
+                </li>
                 <li>
                   <strong>Status</strong>
                   <span>
@@ -672,6 +734,30 @@ export default function SettingsPage() {
                 <li><strong>Expires</strong><span>{selectedSlot.expiresAt ? formatDateTime(selectedSlot.expiresAt) : "n/a"}</span></li>
                 <li><strong>Rotation due</strong><span>{selectedSlot.rotationDue ? "Yes" : "No"}</span></li>
               </ul>
+              {selectedSlotCanChooseModel && (
+                <label htmlFor="vault-model" style={{ display: "block", marginTop: "12px" }}>
+                  Model
+                  <select
+                    id="vault-model"
+                    value={selectedModel}
+                    onChange={(event) =>
+                      setSelectedModel(modelOptionFor(event.target.value).model)
+                    }
+                    style={{ width: "100%", marginTop: "6px" }}
+                  >
+                    {MODEL_OPTIONS.map((option) => (
+                      <option key={option.model} value={option.model}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {selectedSlotCanChooseModel && (
+                <p className="help-text" style={{ marginTop: "8px" }}>
+                  {selectedModelOption.provider} / {selectedModelOption.endpoint} / effort {selectedModelOption.effort}
+                </p>
+              )}
               <label htmlFor="vault-secret" style={{ display: "block", marginTop: "12px" }}>
                 New secret
               </label>

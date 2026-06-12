@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 type VaultWritePayload = {
   slot_id?: string;
   provider?: string;
+  model?: string;
   secret?: string;
 };
 
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as VaultWritePayload;
     const slotId = payload.slot_id?.trim() ?? "";
     const provider = payload.provider?.trim() ?? "";
+    const model = payload.model?.trim() ?? "";
     const secret = payload.secret?.trim() ?? "";
     if (!slotId || !provider || !secret) {
       return NextResponse.json(
@@ -26,7 +28,7 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    const saved = await upsertVaultSlot(slotId, provider, secret);
+    const saved = await upsertVaultSlot(slotId, provider, secret, model);
     return NextResponse.json({ slot: saved });
   } catch (error) {
     return NextResponse.json(

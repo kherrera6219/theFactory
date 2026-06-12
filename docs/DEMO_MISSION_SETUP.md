@@ -54,41 +54,32 @@ POSTGRES_PASSWORD=<any 32-char string>
 APPROVAL_HMAC_SECRET=<any 32-char hex>
 ```
 
-### 3b — Set LLM provider (pick ONE)
+### 3b — Set LLM provider
 
-**Option A — OpenAI (recommended, all agents use gpt-5.5 by default)**
+**Default test path — Gemini Flash 3.5 (all agents)**
 ```
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...your key...
-```
-
-**Option B — Anthropic only**
-```
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-...your key...
-```
-
-**Option C — Both (OpenAI primary, Anthropic fallback)**
-```
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-**Option D — Gemini (Pod D / math agents)**
-```
+LLM_PROVIDER=gemini
 GEMINI_API_KEY=AIza...your key...
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_THINKING_LEVEL=high
 ```
-Gemini is used by Pod D agents (MATLAB, R, Julia, Haskell) and the IS Agent.
-If you only have OpenAI/Anthropic, Pod D missions will use their fallback models.
+
+Mission Control Settings still lets you select one of three vault-slot model routes:
+```
+OPENAI_MODEL=gpt-5.5
+OPENAI_REASONING_EFFORT=high
+ANTHROPIC_MODEL=claude-opus-4-8
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_THINKING_LEVEL=high
+```
+
+For this test pass, all 41 agents default to Gemini Flash 3.5 with high thinking.
 
 ### 3c — Verify model strings are valid
 
 The current model assignments in `agent_integrations.py` are:
-- CEO / exec agents: `gpt-5.5` (OpenAI)
-- Code specialists: `gpt-5.5` (OpenAI)
-- Math / IS agents: `gemini-3.5-flash` (Gemini)
-- Audit agents: `claude-sonnet-4-6` (Anthropic)
+- All agents: `gemini-3.5-flash` (Gemini, high thinking)
+- Settings dropdown choices: `gpt-5.5`, `claude-opus-4-8`, `gemini-3.5-flash`
 
 If any of these model strings are invalid for your account, the agent falls back
 to deterministic routing — the mission will complete but output will be a stub.

@@ -43,6 +43,7 @@ describe("vault route", () => {
         body: JSON.stringify({
           slot_id: "AGENT-01-PM-API-KEY",
           provider: "anthropic",
+          model: "claude-opus-4-8",
           secret: "sk-ant-test-123456",
         }),
       }),
@@ -53,6 +54,7 @@ describe("vault route", () => {
       "AGENT-01-PM-API-KEY",
       "anthropic",
       "sk-ant-test-123456",
+      "claude-opus-4-8",
     );
   });
 

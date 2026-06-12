@@ -153,8 +153,8 @@ async def generate_pm_delivery_summary(
 ) -> dict[str, Any]:
     """PM Agent produces a final delivery summary for completed missions."""
     recommendation = _pkg()._agent_recommendation("AGENT-01-PM")
-    provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.5")).strip()
+    provider = str(recommendation.get("provider", "gemini")).strip().lower()
+    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
 
     primary_artifact = next(
         (
@@ -286,8 +286,8 @@ async def generate_master_logic_stream(
         }
 
     recommendation = _pkg()._ceo_recommendation()
-    provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.5")).strip()
+    provider = str(recommendation.get("provider", "gemini")).strip().lower()
+    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
 
     pods_summary = []
     total_input_nodes = 0
@@ -408,8 +408,8 @@ async def generate_security_analysis(
     unavailable so the gating phase is never blocked by provider outages.
     """
     recommendation = _pkg()._agent_recommendation("AGENT-05-SECURITY")
-    provider = str(recommendation.get("provider", "anthropic")).strip().lower()
-    model = str(recommendation.get("model", "claude-sonnet-4-6")).strip()
+    provider = str(recommendation.get("provider", "gemini")).strip().lower()
+    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
 
     code_snippet = _clean_text(
         str((generated_output or {}).get("generated_code") or ""), max_length=4000
@@ -515,8 +515,8 @@ async def generate_vc_commit_strategy(
     message, branch name, PR summary, and rollback plan.
     """
     recommendation = _pkg()._agent_recommendation("AGENT-07-VC")
-    provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.5")).strip()
+    provider = str(recommendation.get("provider", "gemini")).strip().lower()
+    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
 
     language = _clean_text(
         str(
@@ -610,8 +610,8 @@ async def generate_integration_tests(
     manifest of test cases.  Falls back to a stub test when LLM is unavailable.
     """
     recommendation = _pkg()._agent_recommendation("AGENT-10-TESTER")
-    provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.5")).strip()
+    provider = str(recommendation.get("provider", "gemini")).strip().lower()
+    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
 
     language = _clean_text(
         str(
@@ -717,8 +717,8 @@ async def generate_pod_audit_verdict(
     normalized_pod = pod_name.strip().lower()
     audit_agent_id = _POD_AUDIT_AGENTS.get(normalized_pod, _DEFAULT_AUDIT_AGENT)
     recommendation = _pkg()._agent_recommendation(audit_agent_id)
-    provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.5")).strip()
+    provider = str(recommendation.get("provider", "gemini")).strip().lower()
+    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
 
     canonical_count = len(pod_group_standard.get("canonical_logicnodes") or [])
     eliminated = int(pod_group_standard.get("eliminated_duplicates") or 0)

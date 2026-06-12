@@ -90,12 +90,12 @@ GEMINI_BASE_URL = os.getenv(
     "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
 ).rstrip("/")
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
-# Gemini 3.5+ thinking level: minimal | low | medium | high (default: medium).
+# Gemini 3.5+ thinking level: minimal | low | medium | high (default: high).
 # Replaces the old integer thinking_budget used in Gemini 2.x/3.0.
-_GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "medium").strip().lower()
+_GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "high").strip().lower()
 _GEMINI_VALID_THINKING_LEVELS = {"minimal", "low", "medium", "high"}
 if _GEMINI_THINKING_LEVEL not in _GEMINI_VALID_THINKING_LEVELS:
-    _GEMINI_THINKING_LEVEL = "medium"
+    _GEMINI_THINKING_LEVEL = "high"
 
 
 _VALID_AGENT_IDS = {agent.agent_id for agent in AGENT_REGISTRY}

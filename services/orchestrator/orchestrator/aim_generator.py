@@ -113,8 +113,8 @@ async def generate_aim(
         primary_language=requested_target_language,
     )
     recommendation = _ceo_recommendation()
-    provider = str(recommendation.get("provider", "openai")).strip().lower()
-    model = str(recommendation.get("model", "gpt-5.5")).strip()
+    provider = str(recommendation.get("provider", "gemini")).strip().lower()
+    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
     bounded_feature_contract = _bounded_feature_contract(feature_contract)
 
     prompt_text = (
