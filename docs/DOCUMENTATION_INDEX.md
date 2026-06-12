@@ -1,6 +1,6 @@
 # theFactory Documentation Index
 
-**Version:** 2026.06.11-r3  
+**Version:** 2026.06.11-r4  
 **Maintained by:** Documentation Guild  
 **Last reviewed:** 2026-06-11
 
@@ -36,6 +36,7 @@ This index is the canonical entry point for all theFactory documentation. Every 
 | [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md) | Detailed data flow diagrams for mission intake, processing, and completion | Architects, Developers |
 | [DIAGRAM_STANDARDS.md](DIAGRAM_STANDARDS.md) | Standards for creating and maintaining architecture diagrams | Developers |
 | [APPLICATION_INTELLIGENCE_MAP.md](APPLICATION_INTELLIGENCE_MAP.md) | AIM generator — how the system produces a structured map of application intelligence from a mission | Architects, Developers |
+| [MISSION_FLOW_V2.md](MISSION_FLOW_V2.md) | `mission_flow_v2/` package — the 11-phase state machine engine: all phase modules, MissionFlowContext, transition guards, recovery, and LangGraph vs v2 selection | Developers, Architects |
 
 ---
 
@@ -173,11 +174,19 @@ This index is the canonical entry point for all theFactory documentation. Every 
 
 ## Documentation Coverage Status
 
-All high, medium, and low priority undocumented modules from the previous gap tracker have been resolved. The tracker below is the full historical record and current status.
+All high, medium, and low priority undocumented modules have been resolved. The tracker below is the full historical record and current status.
 
 | Code File | Priority | Status | Doc |
 |---|---|---|---|
 | `models.py` | 🔴 High | ✅ Documented | [MODELS_AND_DOMAIN_SCHEMA.md](MODELS_AND_DOMAIN_SCHEMA.md) |
+| `mission_flow_v2/__init__.py` | 🔴 High | ✅ Documented | [MISSION_FLOW_V2.md](MISSION_FLOW_V2.md) |
+| `mission_flow_v2/lifecycle.py` | 🔴 High | ✅ Documented | [MISSION_FLOW_V2.md](MISSION_FLOW_V2.md) |
+| `mission_flow_v2/base.py` | 🔴 High | ✅ Documented | [MISSION_FLOW_V2.md](MISSION_FLOW_V2.md) |
+| `mission_flow_v2/transitions.py` | 🔴 High | ✅ Documented | [MISSION_FLOW_V2.md](MISSION_FLOW_V2.md) |
+| `mission_flow_v2/phases_intake.py` | 🔴 High | ✅ Documented | [MISSION_FLOW_V2.md](MISSION_FLOW_V2.md) |
+| `mission_flow_v2/phases_build.py` | 🔴 High | ✅ Documented | [MISSION_FLOW_V2.md](MISSION_FLOW_V2.md) |
+| `mission_flow_v2/phases_runtime.py` | 🔴 High | ✅ Documented | [MISSION_FLOW_V2.md](MISSION_FLOW_V2.md) |
+| `mission_flow_v2/phases_delivery.py` | 🔴 High | ✅ Documented | [MISSION_FLOW_V2.md](MISSION_FLOW_V2.md) |
 | `storage_missions.py` | 🟠 Medium | ✅ Documented | [STORAGE_LAYER.md](STORAGE_LAYER.md) |
 | `storage_agents.py` | 🟠 Medium | ✅ Documented | [STORAGE_LAYER.md](STORAGE_LAYER.md) |
 | `storage_artifacts.py` | 🟠 Medium | ✅ Documented | [STORAGE_LAYER.md](STORAGE_LAYER.md) |
@@ -193,6 +202,10 @@ All high, medium, and low priority undocumented modules from the previous gap tr
 | `logicnode_schema.py` | 🟠 Medium | ✅ Documented | [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md) |
 | `data_plane_metrics.py` | 🟠 Medium | ✅ Documented | [METRICS_SOURCE_MODULES.md](METRICS_SOURCE_MODULES.md) |
 | `orchestrator_metrics.py` | 🟠 Medium | ✅ Documented | [METRICS_SOURCE_MODULES.md](METRICS_SOURCE_MODULES.md) |
+| `aim_generator.py` | 🟠 Medium | ✅ Documented | [APPLICATION_INTELLIGENCE_MAP.md](APPLICATION_INTELLIGENCE_MAP.md) |
+| `agent_scaling.py` | 🟠 Medium | ✅ Documented | [AGENT_SCALING_AND_HEARTBEAT.md](AGENT_SCALING_AND_HEARTBEAT.md) |
+| `heartbeat_service.py` | 🟠 Medium | ✅ Documented | [AGENT_SCALING_AND_HEARTBEAT.md](AGENT_SCALING_AND_HEARTBEAT.md) |
+| `port_coordinator.py` | 🟠 Medium | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `agent_integrations.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `migrations.py` + `migrations/` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `auth.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
