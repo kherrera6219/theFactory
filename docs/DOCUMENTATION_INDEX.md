@@ -1,6 +1,6 @@
 # Documentation Index
 
-Document version: 2026.06.11  
+Document version: 2026.06.11b  
 Last updated: 2026-06-11  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
@@ -83,10 +83,25 @@ This is the master map for theFactory documentation. The live documentation set 
   - provider-aware LLM routing engine: provider selection, retry/fallback policy, cost guard, offline mode
 - [PROMPT_REGISTRY_AND_ASSETS.md](PROMPT_REGISTRY_AND_ASSETS.md)
   - prompt registry, prompt asset conventions, versioning, audit traceability
+- [LLM_SAFETY_AND_DOCUMENT_PARSER.md](LLM_SAFETY_AND_DOCUMENT_PARSER.md)
+  - pre-dispatch safety filter: redaction, local_only enforcement, document ingestion parser
 - [AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md](AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md)
   - current provider/model matrix reference per agent
 - [AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md](AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md)
   - persona evidence model reference
+
+## Orchestrator Internals
+
+- [IS_AGENT.md](IS_AGENT.md)
+  - Integration Specialist agent: external API invocation, credential injection, circuit-break, audit
+- [KNOWLEDGE_LAKE_AND_EMBEDDINGS.md](KNOWLEDGE_LAKE_AND_EMBEDDINGS.md)
+  - runtime semantic memory: Knowledge Lake abstraction, embedding pipeline, multi-store routing
+- [EQUIVALENCE_VERIFIER.md](EQUIVALENCE_VERIFIER.md)
+  - semantic and structural verification engine: AIM baseline vs. delivered artifact comparison
+- [AGENT_SCALING_AND_HEARTBEAT.md](AGENT_SCALING_AND_HEARTBEAT.md)
+  - dynamic agent pool scaling, heartbeat liveness tracking, dead-agent recovery
+- [PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md](PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md)
+  - ephemeral port allocation, LogicNode schema definition, storage layer, tag taxonomy
 
 ## User and Operator Documentation
 
