@@ -1,6 +1,6 @@
 # theFactory Documentation Index
 
-**Version:** 2026.06.11-r2  
+**Version:** 2026.06.11-r3  
 **Maintained by:** Documentation Guild  
 **Last reviewed:** 2026-06-11
 
@@ -73,6 +73,7 @@ This index is the canonical entry point for all theFactory documentation. Every 
 | File | Description | Audience |
 |---|---|---|
 | [MODELS_AND_DOMAIN_SCHEMA.md](MODELS_AND_DOMAIN_SCHEMA.md) | `models.py` — all enums (MissionType, DepthMode, OutputMode, DataClassification), MissionState machine, VALID_TRANSITIONS map, EventType literals, and all Pydantic models (MissionRecord, MissionEvent, MissionCreate, MissionClarifyRequest, etc.) | Developers, Architects |
+| [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md) | `logicnode_schema.py` — LogicNode dataclass, field glossary, confidence scoring bands, tag taxonomy (10 categories), language keys (20), pattern ID format, pod routing rules, storage contract, and evolution policy | Developers, Architects |
 
 ---
 
@@ -131,6 +132,15 @@ This index is the canonical entry point for all theFactory documentation. Every 
 
 ---
 
+## Observability
+
+| File | Description | Audience |
+|---|---|---|
+| [OBSERVABILITY_STACK.md](OBSERVABILITY_STACK.md) | Full observability stack — Prometheus metrics, Grafana dashboards, alert rules, and log aggregation | Operators, Developers |
+| [METRICS_SOURCE_MODULES.md](METRICS_SOURCE_MODULES.md) | `data_plane_metrics.py` and `orchestrator_metrics.py` — all Prometheus counter/histogram/gauge definitions, label cardinality rules, Grafana dashboard mapping, and the metrics-to-alerting contract | Developers, Operators |
+
+---
+
 ## Supporting Modules
 
 | File | Description | Audience |
@@ -145,7 +155,6 @@ This index is the canonical entry point for all theFactory documentation. Every 
 |---|---|---|
 | [DEPLOYMENT_DR_PLAYBOOK.md](DEPLOYMENT_DR_PLAYBOOK.md) | Deployment and Disaster Recovery playbook — full runbooks for deploy, rollback, and DR scenarios | Operators |
 | [COMPOSE_ENVIRONMENT_PROFILES.md](COMPOSE_ENVIRONMENT_PROFILES.md) | Docker Compose environment profiles — which profile to use for local dev, staging, and production | Developers, Operators |
-| [OBSERVABILITY_STACK.md](OBSERVABILITY_STACK.md) | Full observability stack — Prometheus metrics, Grafana dashboards, alert rules, and log aggregation | Operators, Developers |
 | [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) | Day-to-day operations runbook — incident response, alert triage, and escalation procedures | Operators |
 | [RUNTIME_QC_AND_TEST_ENVIRONMENTS.md](RUNTIME_QC_AND_TEST_ENVIRONMENTS.md) | Runtime QC system and test environment management | Developers, Operators |
 
@@ -164,7 +173,7 @@ This index is the canonical entry point for all theFactory documentation. Every 
 
 ## Documentation Coverage Status
 
-All high and medium priority undocumented modules from the previous gap tracker have been resolved as of **2026-06-11**.
+All high, medium, and low priority undocumented modules from the previous gap tracker have been resolved. The tracker below is the full historical record and current status.
 
 | Code File | Priority | Status | Doc |
 |---|---|---|---|
@@ -178,6 +187,12 @@ All high and medium priority undocumented modules from the previous gap tracker 
 | `routes/internal.py` | 🟠 Medium | ✅ Documented | [ROUTES_REFERENCE.md](ROUTES_REFERENCE.md) |
 | `routes/operations.py` | 🟠 Medium | ✅ Documented | [ROUTES_REFERENCE.md](ROUTES_REFERENCE.md) |
 | `routes/missions.py` | 🟠 Medium | ✅ Documented | [ROUTES_REFERENCE.md](ROUTES_REFERENCE.md) |
+| `llm_delegation/` (package) | 🟠 Medium | ✅ Documented | [LLM_DELEGATION.md](LLM_DELEGATION.md) |
+| `prompt_registry.py` + `prompt_assets/` | 🟠 Medium | ✅ Documented | [PROMPT_REGISTRY_AND_ASSETS.md](PROMPT_REGISTRY_AND_ASSETS.md) |
+| `llm_safety.py` | 🟠 Medium | ✅ Documented | [LLM_SAFETY_AND_DOCUMENT_PARSER.md](LLM_SAFETY_AND_DOCUMENT_PARSER.md) |
+| `logicnode_schema.py` | 🟠 Medium | ✅ Documented | [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md) |
+| `data_plane_metrics.py` | 🟠 Medium | ✅ Documented | [METRICS_SOURCE_MODULES.md](METRICS_SOURCE_MODULES.md) |
+| `orchestrator_metrics.py` | 🟠 Medium | ✅ Documented | [METRICS_SOURCE_MODULES.md](METRICS_SOURCE_MODULES.md) |
 | `agent_integrations.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `migrations.py` + `migrations/` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `auth.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
