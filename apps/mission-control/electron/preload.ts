@@ -52,6 +52,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getAppVersion: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.UPDATER_GET_VERSION),
 
+  // ── 7F: Shell — open artifact directory ─────────────────────────────────
+  openArtifactDir: (dirPath: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL_OPEN_ARTIFACT_DIR, dirPath),
+
   // ── Misc ──────────────────────────────────────────────────────────────
   getPlatform: (): Promise<"darwin" | "win32" | "linux"> =>
     ipcRenderer.invoke(IPC_CHANNELS.APP_PLATFORM),

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useArtifactData } from './hooks/useArtifactData';
 import { OutputHeader } from './components/OutputHeader';
@@ -8,7 +8,20 @@ import { FileTreePane } from './components/FileTreePane';
 import { CodeViewerPane } from './components/CodeViewerPane';
 import { ArtifactMetaPane } from './components/ArtifactMetaPane';
 
-export default function MissionOutputPage() {
+/**
+ * Full-page Output viewer — the dedicated destination for "show me what you built".
+ *
+ * Route: /missions/output?id={missionId}
+ * (Flat query-param pattern matching /missions/detail — no [id] dynamic segment.)
+ *
+ * Layout:
+ *   Desktop: [FileTree (if >1 file)] | [CodeViewer] | [ArtifactMeta]
+ *   Mobile:  stacked single column
+ *
+ * No new API endpoints. All data comes from getMissionChainTrace which already
+ * returns build_artifacts, generated_output, and delivery_summary.
+ */
+export default function OutputPage() {
   const searchParams = useSearchParams();
   const missionId = searchParams.get('id') ?? '';
 
@@ -18,63 +31,65 @@ export default function MissionOutputPage() {
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const activeArtifact = useMemo(() => {
-    if (selectedArtifactId) {
-      return allArtifacts.find((a) => a.artifact_id === selectedArtifactId) ?? generatedCodeArtifact;
-    }
-    return generatedCodeArtifact;
-  }, [selectedArtifactId, allArtifacts, generatedCodeArtifact]);
+  // Active artifact: explicit selection → generated_code → first artifact → null
+  const activeArtifact =
+    allArtifacts.find((a) => a.artifact_id === selectedArtifactId) ??
+    generatedCodeArtifact ??
+    allArtifacts[0] ??
+    null;
 
-  const handleCopy = useCallback(() => {
-    const text = activeArtifact?.artifact_text;
-    if (!text) return;
-    void navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }, [activeArtifact?.artifact_text]);
+  const handleCopy = useCallback(async () => {
+    if (!activeArtifact?.artifact_text) return;
+    await navigator.clipboard.writeText(activeArtifact.artifact_text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [activeArtifact]);
+
+  if (error) {
+    return (
+      <div className="panel-error-state" role="alert">
+        <p>{error}</p>
+      </div>
+    );
+  }
 
   const showFileTree = allArtifacts.length > 1;
 
   return (
-    <div className="page shell-page">
-      {error && <p className="error-box">{error}</p>}
-
+    <div
+      style={{
+        padding: 'var(--space-6)',
+        maxWidth: 'var(--content-wide)',
+        margin: '0 auto',
+      }}
+    >
       <OutputHeader
         missionId={missionId}
         mission={mission}
-        generatedCodeArtifact={generatedCodeArtifact}
-        onCopy={handleCopy}
+        generatedCodeArtifact={activeArtifact}
+        onCopy={() => void handleCopy()}
         copied={copied}
       />
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: showFileTree
-            ? '220px 1fr minmax(260px, 320px)'
-            : '1fr minmax(260px, 320px)',
-          gap: '1rem',
+          gridTemplateColumns: showFileTree ? '200px 1fr 260px' : '1fr 260px',
+          gap: 'var(--space-4)',
           alignItems: 'start',
         }}
       >
         {showFileTree && (
-          <div style={{ position: 'sticky', top: '1rem' }}>
-            <FileTreePane
-              artifacts={allArtifacts}
-              selectedArtifactId={selectedArtifactId ?? generatedCodeArtifact?.artifact_id ?? null}
-              onSelect={setSelectedArtifactId}
-            />
-          </div>
+          <FileTreePane
+            artifacts={allArtifacts}
+            selectedArtifactId={selectedArtifactId ?? activeArtifact?.artifact_id ?? null}
+            onSelect={setSelectedArtifactId}
+          />
         )}
 
-        <div style={{ minWidth: 0 }}>
-          <CodeViewerPane artifact={activeArtifact} loading={loading} />
-        </div>
+        <CodeViewerPane artifact={activeArtifact} loading={loading} />
 
-        <div style={{ position: 'sticky', top: '1rem' }}>
-          <ArtifactMetaPane artifact={activeArtifact} chainTrace={chainTrace} />
-        </div>
+        <ArtifactMetaPane artifact={activeArtifact} chainTrace={chainTrace} />
       </div>
     </div>
   );
