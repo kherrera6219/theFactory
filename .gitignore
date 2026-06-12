@@ -47,6 +47,7 @@ ruff_errors.txt
 lint_errors.txt
 .secrets.baseline
 reports/
+artifacts/
 
 # Secrets / credentials (populate then encrypt before committing)
 config/agent_api_keys.yaml
