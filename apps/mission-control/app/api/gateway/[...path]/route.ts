@@ -1,3 +1,5 @@
+import { getVaultSecret } from "../../../lib/server/vault";
+
 const DEFAULT_GATEWAY_BASE = "http://localhost:8100";
 const gatewayBase = process.env.MISSION_API_BASE_URL ?? DEFAULT_GATEWAY_BASE;
 
@@ -25,10 +27,19 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
   const method = request.method.toUpperCase();
   const body = method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer();
 
+  const headers = forwardedHeaders(request);
+  const operatorKey = await getVaultSecret("OPERATOR-API-KEY");
+
+  if (!headers.has("x-api-key")) {
+    if (operatorKey) {
+      headers.set("x-api-key", operatorKey);
+    }
+  }
+
   try {
     const upstream = await fetch(targetUrl(path, request.url), {
       method,
-      headers: forwardedHeaders(request),
+      headers,
       body,
       cache: "no-store",
     });
