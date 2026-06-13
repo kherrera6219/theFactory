@@ -234,7 +234,6 @@ jobs:
 
   docker-build:
     name: Docker Build Validation
-    needs: lint-test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -292,10 +291,10 @@ jobs:
           category: trivy-image-${{ matrix.service }}
 
   electron-e2e:
-    name: Electron E2E Smoke (manual)
-    # Phase 3 stub: opt-in only until the suite is stabilized in CI. Trigger via
-    # the "Run workflow" button (workflow_dispatch).
-    if: github.event_name == 'workflow_dispatch'
+    name: Electron E2E Smoke
+    # Production signal: run on main pushes and release tags, with manual
+    # dispatch retained for explicit operator validation.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -333,7 +332,6 @@ jobs:
 
   sbom:
     name: SBOM
-    needs: lint-test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -371,7 +369,7 @@ jobs:
       - lint-test
       - docker-build
       - sbom
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: always() && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -379,6 +377,23 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      - name: Require upstream production gates
+        run: |
+          failed=0
+          if [ "${{ needs.lint-test.result }}" != "success" ]; then
+            echo "::error::Lint and Test gate result: ${{ needs.lint-test.result }}"
+            failed=1
+          fi
+          if [ "${{ needs.docker-build.result }}" != "success" ]; then
+            echo "::error::Docker Build Validation gate result: ${{ needs.docker-build.result }}"
+            failed=1
+          fi
+          if [ "${{ needs.sbom.result }}" != "success" ]; then
+            echo "::error::SBOM gate result: ${{ needs.sbom.result }}"
+            failed=1
+          fi
+          exit "$failed"
+
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
