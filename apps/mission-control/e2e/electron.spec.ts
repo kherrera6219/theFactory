@@ -24,15 +24,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   if (!app) return;
-  await Promise.race([
-    app.close(),
-    new Promise<void>((resolve) => {
-      setTimeout(() => {
-        app.process().kill();
-        resolve();
-      }, 5_000);
-    }),
-  ]);
+  app.process().kill();
 });
 
 test("app launches and shows the operator window", async () => {
