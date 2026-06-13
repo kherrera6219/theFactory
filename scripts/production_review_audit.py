@@ -23,6 +23,10 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
+def _has_any_path(paths: list[Path]) -> bool:
+    return any(path.exists() for path in paths)
+
+
 def _result(
     check_id: str,
     priority: str,
@@ -247,9 +251,16 @@ def check_operational_docs() -> AuditResult:
         REPO_ROOT / "docs" / "DEPLOYMENT_DR_PLAYBOOK.md",
         REPO_ROOT / "docs" / "OBSERVABILITY_STACK.md",
         REPO_ROOT / "docs" / "IMPLEMENTATION_STATUS.md",
-        REPO_ROOT / "docs" / "RELEASE_COMPLETION_PLAN.md",
+        REPO_ROOT / "docs" / "CURRENT_TODO.md",
+        REPO_ROOT / "docs" / "HANDOFF_CURRENT.md",
     ]
     missing = [str(path) for path in required_docs if not path.exists()]
+    release_plan_reference = [
+        REPO_ROOT / "docs" / "RELEASE_TRUST_PROMOTION_GATE.md",
+        REPO_ROOT / "docs" / "archive" / "2026-06-13" / "RELEASE_COMPLETION_PLAN.md",
+    ]
+    if not _has_any_path(release_plan_reference):
+        missing.append("missing current release gate doc or archived release completion plan")
     passed = not missing
     return _result(
         check_id="DOC-005",
@@ -543,9 +554,19 @@ def check_long_duration_reliability_controls() -> AuditResult:
     required_paths = [
         REPO_ROOT / "scripts" / "reliability_qualification.py",
         REPO_ROOT / "scripts" / "reliability_qualification.ps1",
-        REPO_ROOT / "docs" / "LONG_DURATION_RELIABILITY_QUALIFICATION.md",
+        REPO_ROOT / "docs" / "CURRENT_TODO.md",
     ]
     missing_items = [f"missing artifact: {path}" for path in required_paths if not path.exists()]
+    reliability_doc_reference = [
+        REPO_ROOT / "docs" / "TESTING_QUALITY_GATES.md",
+        REPO_ROOT
+        / "docs"
+        / "archive"
+        / "2026-06-13"
+        / "LONG_DURATION_RELIABILITY_QUALIFICATION.md",
+    ]
+    if not _has_any_path(reliability_doc_reference):
+        missing_items.append("missing reliability qualification documentation reference")
     if not evidence_files:
         missing_items.append("missing reliability evidence report in docs/evidence")
     if "reliability:" not in makefile_text:
