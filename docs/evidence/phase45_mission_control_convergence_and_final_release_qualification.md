@@ -43,7 +43,7 @@ Phase 45 reconciled the remaining Mission Control and current-source documentati
   - Added backup-verification and DR report references
 - `README.md`
   - Added `make eval-ai` and `make backup-verify`
-- `docs/RELEASE_COMPLETION_PLAN.md`
+- `docs/archive/2026-06-13/RELEASE_COMPLETION_PLAN.md`
   - Added repo-local execution status and remaining out-of-band blockers
 
 ## Final Qualification Sweep

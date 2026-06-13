@@ -1,7 +1,7 @@
 # Documentation Archive
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.06.13
+Last updated: 2026-06-13
 Status: Canonical  
 Audience: Maintainers and auditors
 
@@ -15,6 +15,8 @@ This directory contains superseded documentation, imported source materials, and
   - original `.docx` source documents retained for traceability
 - `2026-03-29/legacy-workspace/`
   - prior legacy documentation bundles and extracted notes
+- `2026-06-13/`
+  - superseded roadmap, sprint backlog, phased update, release completion, reliability qualification, and dated runtime-mapping documents moved out of the live docs root
 
 ## Rules
 

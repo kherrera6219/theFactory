@@ -152,4 +152,4 @@ These are documented in detail in [`WHAT_THEFACTORY_IS_AND_IS_NOT.md`](WHAT_THEF
 | Understand schema governance | [`SCHEMA_REGISTRY_AND_VERSIONING.md`](SCHEMA_REGISTRY_AND_VERSIONING.md) |
 | Understand the license model | [`LICENSE_STRATEGY.md`](LICENSE_STRATEGY.md) |
 | Check what is shipped today | [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) |
-| See the roadmap | [`ROADMAP.md`](ROADMAP.md) |
+| See current status | [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) |

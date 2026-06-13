@@ -917,12 +917,12 @@ theFactory/
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture and topology |
 | [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md) | System, runtime, deployment, and multi-agent diagrams |
 | [`docs/ARCHITECTURE_DATA_FLOWS.md`](docs/ARCHITECTURE_DATA_FLOWS.md) | Mission, approval, artifact, identity, and telemetry flows |
-| [`docs/REPOSITORY_BUILD_MAP_2026-03-29.md`](docs/REPOSITORY_BUILD_MAP_2026-03-29.md) | Generated complete repository file and folder map |
+| [`docs/REPOSITORY_BUILD_MAP_2026-06-13.md`](docs/REPOSITORY_BUILD_MAP_2026-06-13.md) | Generated complete repository file and folder map |
 | [`docs/DOCUMENTATION_STANDARDS.md`](docs/DOCUMENTATION_STANDARDS.md) | Documentation quality, versioning, and archive rules |
 | [`docs/DIAGRAM_STANDARDS.md`](docs/DIAGRAM_STANDARDS.md) | Enterprise diagram set and standards basis |
 | [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md) | Full documentation map |
 | [`docs/api/README.md`](docs/api/README.md) | API entry point, Swagger locations, and versioned OpenAPI files |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Product roadmap |
+| [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Current application status and active validation work |
 | [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) | Operational procedures |
 | [`docs/DEPLOYMENT_DR_PLAYBOOK.md`](docs/DEPLOYMENT_DR_PLAYBOOK.md) | Deployment and disaster recovery |
 | [`docs/OBSERVABILITY_STACK.md`](docs/OBSERVABILITY_STACK.md) | Monitoring and alerting guide |
