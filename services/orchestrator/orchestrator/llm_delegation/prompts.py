@@ -253,6 +253,7 @@ def _build_pm_feature_contract_prompt(
     recommended_model: str,
     attachments: list[dict[str, Any]] | None = None,
     global_style_directives: list[str] | None = None,
+    source_code: str | None = None,
 ) -> str:
     safe_prompt = _clean_text(prompt, max_length=1200)
 
@@ -282,6 +283,10 @@ def _build_pm_feature_contract_prompt(
             style_context += f"- {directive}\n"
         style_context += "\n"
 
+    source_code_context = ""
+    if source_code:
+        source_code_context = f"\n\nAttached Workspace Files & Diagrams:\n{source_code}\n\n"
+
     return (
         "You are AGENT-01-PM. Convert the operator request and attached context into a product-level "
         "Feature Contract for a software factory mission. Act as a proactive product partner.\n"
@@ -293,7 +298,8 @@ def _build_pm_feature_contract_prompt(
         "Requested target language: "
         f"{_clean_text(requested_target_language or 'auto', max_length=32).lower()}\n"
         f"{docs_context}{style_context}"
-        f"Operator request: {safe_prompt}\n\n"
+        f"Operator request: {safe_prompt}\n"
+        f"{source_code_context}\n"
         "Required JSON keys:\n"
         "{\n"
         '  "title": "short title",\n'
