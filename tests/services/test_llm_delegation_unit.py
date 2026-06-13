@@ -39,14 +39,14 @@ def test_extract_decision_payload_parses_json_block() -> None:
     assert parsed["pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
 
 
-def test_agent_model_inventory_uses_current_codex_model() -> None:
+def test_agent_model_inventory_defaults_to_gemini_flash() -> None:
     snapshot = agent_integrations.build_agent_integrations_snapshot()
     models = {
         str(record.get("llm_recommendation", {}).get("model", ""))
         for record in snapshot.get("agents", [])
         if isinstance(record, dict)
     }
-    assert "gpt-5.5" in models
+    assert models == {"gemini-3.5-flash"}
     assert "gpt-5.2-codex" not in models
 
 

@@ -1092,9 +1092,9 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert "object_storage" in integration_payload["feature_flagged_data_plane"]
     assert "milvus" in integration_payload["feature_flagged_data_plane"]
     assert integration_payload["planned_data_plane"] == []
-    assert integration_payload["llm_provider_counts"]["openai"] > 0
+    assert "openai" not in integration_payload["llm_provider_counts"]
     assert "anthropic" not in integration_payload["llm_provider_counts"]
-    assert integration_payload["llm_provider_counts"]["gemini"] > 0
+    assert integration_payload["llm_provider_counts"]["gemini"] == 41
     assert any(record["agent_id"] == "AGENT-01-PM" for record in integration_payload["agents"])
     assert all("llm_recommendation" in record for record in integration_payload["agents"])
     assert all("persona_profile" in record for record in integration_payload["agents"])
