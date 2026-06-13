@@ -108,5 +108,5 @@ def generate_build_map(repo_root: Path, output_path: Path) -> None:
 
 if __name__ == "__main__":
     repository_root = Path(__file__).resolve().parents[1]
-    target_path = repository_root / "docs" / "REPOSITORY_BUILD_MAP_2026-03-29.md"
+    target_path = repository_root / "docs" / "REPOSITORY_BUILD_MAP_2026-06-13.md"
     generate_build_map(repository_root, target_path)

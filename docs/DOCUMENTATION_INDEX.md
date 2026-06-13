@@ -27,6 +27,7 @@ This index is the canonical entry point for all theFactory documentation. Every 
 | File | Description | Audience |
 |---|---|---|
 | [00_PRODUCT_OVERVIEW.md](00_PRODUCT_OVERVIEW.md) | Top-level product description, value proposition, and v1.2.0 feature set | All |
+| [WHAT_THEFACTORY_IS_AND_IS_NOT.md](WHAT_THEFACTORY_IS_AND_IS_NOT.md) | Canonical positioning statement for current scope, non-goals, and evaluation boundaries | All |
 | [BLUEPRINT_MAP.md](BLUEPRINT_MAP.md) | Full system blueprint — the single authoritative map of all services, agents, and data flows | All |
 | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem | All |
 
@@ -39,6 +40,8 @@ This index is the canonical entry point for all theFactory documentation. Every 
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Full system architecture — services, data stores, agent topology, and deployment model | Architects, Developers |
 | [ARCHITECTURE_DIAGRAMS.md](ARCHITECTURE_DIAGRAMS.md) | Mermaid/PlantUML architecture diagrams for all major subsystems | Architects |
 | [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md) | Detailed data flow diagrams for mission intake, processing, and completion | Architects, Developers |
+| [diagrams/README.md](diagrams/README.md) | Diagram directory guide and maintenance expectations | Architects, Developers |
+| [diagrams/ENTERPRISE_ARCHITECTURE_DIAGRAMS.md](diagrams/ENTERPRISE_ARCHITECTURE_DIAGRAMS.md) | Enterprise architecture diagrams aligned to C4 and arc42 patterns | Architects |
 | [DIAGRAM_STANDARDS.md](DIAGRAM_STANDARDS.md) | Standards for creating and maintaining architecture diagrams | Developers |
 | [APPLICATION_INTELLIGENCE_MAP.md](APPLICATION_INTELLIGENCE_MAP.md) | AIM generator — how the system produces a structured map of application intelligence from a mission | Architects, Developers |
 | [MISSION_FLOW_V2.md](MISSION_FLOW_V2.md) | `mission_flow_v2/` package — the 11-phase state machine engine: all phase modules, MissionFlowContext, transition guards, recovery, and LangGraph vs v2 selection | Developers, Architects |
@@ -63,7 +66,13 @@ This index is the canonical entry point for all theFactory documentation. Every 
 |---|---|---|
 | [DEVELOPER_ONBOARDING_GUIDE.md](DEVELOPER_ONBOARDING_GUIDE.md) | Complete new-developer onboarding — environment setup, first run, test suite, contribution workflow | Developers |
 | [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | Day-to-day developer reference — common commands, service ports, env vars | Developers |
+| [REPOSITORY_BUILD_MAP_2026-06-13.md](REPOSITORY_BUILD_MAP_2026-06-13.md) | Generated complete repository file and folder map | Developers, Maintainers |
+| [codex/DEFINITION_OF_DONE.md](codex/DEFINITION_OF_DONE.md) | Codex-oriented definition of done for repository work | Developers, Maintainers |
+| [codex/REVIEW_CHECKLIST.md](codex/REVIEW_CHECKLIST.md) | Codex-oriented review checklist for implementation changes | Developers, Maintainers |
+| [TESTING_QUALITY_GATES.md](TESTING_QUALITY_GATES.md) | Current test commands, quality gates, coverage policy, and release-check expectations | Developers, Maintainers |
 | [API_INTEGRATION_GUIDE.md](API_INTEGRATION_GUIDE.md) | Full API reference for all Gateway and Orchestrator endpoints | Developers, Integrators |
+| [api/README.md](api/README.md) | OpenAPI artifact index and generation notes | Developers, Integrators |
+| [enterprise/API_SPECIFICATION_GUIDE.md](enterprise/API_SPECIFICATION_GUIDE.md) | Enterprise API specification guide for external integrators | Developers, Integrators |
 | [ERROR_CODES.md](ERROR_CODES.md) | Complete error code catalogue with causes and remediation steps | Developers, Operators |
 | [ORCHESTRATOR_MAIN.md](ORCHESTRATOR_MAIN.md) | `main.py` reference — app.state keys, lifespan startup/shutdown sequence, all 6 background tasks, auth deps, direct endpoints, middleware, error handling, agent heuristics, and route module inventory | Developers |
 | [RUNTIME_AND_AGENT_BASE.md](RUNTIME_AND_AGENT_BASE.md) | `runtime.py` execution engine (intake loop, lifecycle tasks, state events, self-heal) and `agent_base.py` class hierarchy (BaseAgent, 6 categories, 19 specialist classes, make_agent() factory) | Developers |
@@ -91,6 +100,7 @@ This index is the canonical entry point for all theFactory documentation. Every 
 |---|---|---|
 | [MODELS_AND_DOMAIN_SCHEMA.md](MODELS_AND_DOMAIN_SCHEMA.md) | `models.py` — all enums (MissionType, DepthMode, OutputMode, DataClassification), MissionState machine, VALID_TRANSITIONS map, EventType literals, and all Pydantic models (MissionRecord, MissionEvent, MissionCreate, MissionClarifyRequest, etc.) | Developers, Architects |
 | [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md) | `logicnode_schema.py` — LogicNode dataclass, field glossary, confidence scoring bands, tag taxonomy (10 categories), language keys (20), pattern ID format, pod routing rules, storage contract, and evolution policy | Developers, Architects |
+| [PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md](PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md) | Port coordinator and LogicNode schema compatibility reference | Developers, Architects |
 
 ---
 
@@ -117,6 +127,7 @@ This index is the canonical entry point for all theFactory documentation. Every 
 | File | Description | Audience |
 |---|---|---|
 | [LLM_DELEGATION.md](LLM_DELEGATION.md) | `llm_delegation/` package — provider routing, retry/fallback, cost guard, offline mode, and adding new providers | Developers, Architects |
+| [MODEL_PROMOTION_GOVERNANCE.md](MODEL_PROMOTION_GOVERNANCE.md) | Release-promotion rules for approved default and selectable model routes | Maintainers, AI operators |
 | [PROMPT_REGISTRY_AND_ASSETS.md](PROMPT_REGISTRY_AND_ASSETS.md) | `prompt_registry.py` and `prompt_assets/` — versioned prompt vault, asset naming, SHA-256 fingerprinting, and audit traceability | Developers |
 | [LLM_SAFETY_AND_DOCUMENT_PARSER.md](LLM_SAFETY_AND_DOCUMENT_PARSER.md) | LLM safety filters and document parser — input/output sanitization and safe parsing for mission payloads | Developers, Security |
 | [AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md](AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md) | Current per-agent LLM defaults and the approved Mission Control 3-model catalog | Architects, Developers |
@@ -162,9 +173,27 @@ This index is the canonical entry point for all theFactory documentation. Every 
 | File | Description | Audience |
 |---|---|---|
 | [DEPLOYMENT_DR_PLAYBOOK.md](DEPLOYMENT_DR_PLAYBOOK.md) | Deployment and Disaster Recovery playbook — full runbooks for deploy, rollback, and DR scenarios | Operators |
+| [enterprise/OPERATIONS_DR_PLAYBOOK.md](enterprise/OPERATIONS_DR_PLAYBOOK.md) | Enterprise operations and disaster recovery playbook | Operators |
 | [COMPOSE_ENVIRONMENT_PROFILES.md](COMPOSE_ENVIRONMENT_PROFILES.md) | Docker Compose environment profiles — which profile to use for local dev, staging, and production | Developers, Operators |
 | [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) | Day-to-day operations runbook — incident response, alert triage, and escalation procedures | Operators |
+| [RELEASE_TRUST_PROMOTION_GATE.md](RELEASE_TRUST_PROMOTION_GATE.md) | Release trust gate, attestation expectations, and promotion evidence requirements | Maintainers, Operators |
 | [RUNTIME_QC_AND_TEST_ENVIRONMENTS.md](RUNTIME_QC_AND_TEST_ENVIRONMENTS.md) | Runtime QC system and test environment management | Developers, Operators |
+| [runbooks/dr_validation_runbook.md](runbooks/dr_validation_runbook.md) | Disaster-recovery validation procedure | Operators |
+| [runbooks/protocol_bus_incident_runbook.md](runbooks/protocol_bus_incident_runbook.md) | Protocol Bus incident triage and recovery procedure | Operators |
+| [runbooks/dedicated_agent_canary_runbook.md](runbooks/dedicated_agent_canary_runbook.md) | Dedicated-agent canary validation procedure | Operators |
+| [runbooks/optional_data_plane_incident_runbook.md](runbooks/optional_data_plane_incident_runbook.md) | Optional data-plane incident triage procedure | Operators |
+| [runbooks/qualification_matrix_runbook.md](runbooks/qualification_matrix_runbook.md) | Qualification matrix execution and evidence procedure | Operators, Maintainers |
+
+---
+
+## User and Legal Documentation
+
+| File | Description | Audience |
+|---|---|---|
+| [user/GETTING_STARTED.md](user/GETTING_STARTED.md) | First-run operator guide for local Mission Control usage | Operators |
+| [user/OPERATOR_GUIDE.md](user/OPERATOR_GUIDE.md) | Mission Control operator workflows and runtime operations | Operators |
+| [PRIVACY_POLICY.md](PRIVACY_POLICY.md) | Product privacy policy | Legal, Operators |
+| [TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md) | Product terms of service | Legal, Operators |
 
 ---
 

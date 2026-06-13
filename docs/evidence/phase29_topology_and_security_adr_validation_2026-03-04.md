@@ -19,7 +19,7 @@ Close the final two Word-doc reconciliation gaps by publishing canonical decisio
 
 ## Canonical Backlog Reconciliation
 - Updated:
-  - `docs/ROADMAP.md`
+  - `docs/archive/2026-06-13/ROADMAP.md`
   - `docs/archive/2026-03-29/historical/UPDATED_TODO_FROM_WORD_AUDIT_2026-03-03.md`
   - `docs/COMPLETION_TODO_2026-03-02.md`
   - `docs/UPDATED_PHASE_PLAN_2026-03-03.md`

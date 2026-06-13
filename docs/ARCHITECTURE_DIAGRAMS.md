@@ -398,7 +398,7 @@ flowchart LR
 ## Maintenance Notes
 
 - Keep these diagrams aligned with `deploy/docker-compose*.yaml`, `services/orchestrator`, and the
-  canonical docs in `README.md`, `ARCHITECTURE.md`, `OPERATIONS_RUNBOOK.md`, and `ROADMAP.md`.
+  canonical docs in `README.md`, `ARCHITECTURE.md`, `OPERATIONS_RUNBOOK.md`, and `IMPLEMENTATION_STATUS.md`.
 - Treat `MISSION_FLOW_V2_ENABLED=false` as the production baseline unless the runtime defaults
   change in code.
 - Update the multi-agent topology view whenever `services/orchestrator/orchestrator/agent_registry.py`

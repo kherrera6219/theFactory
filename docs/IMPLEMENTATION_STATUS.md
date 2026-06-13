@@ -191,7 +191,7 @@ The following previously-tracked known gaps are now closed:
 - **97 offline eval and unit tests** passing: 74 golden delegation, 6 PM contract evals,
   7 prompt registry evals, 10 safety evals.
 - **`make eval` target**: runs all offline evals without a live stack.
-- **ROADMAP Phase 40–52** appended. **AGENTS.md** last-validated 2026-05-19.
+- Historical phase log updated through Phase 52. **AGENTS.md** last-validated 2026-05-19.
 - **`IMPLEMENTATION_STATUS.md`** (this document): updated to reflect Phase 27 complete.
 
 ### Mission Control UI/UX — Phases 6 and 7 (2026-05-22)

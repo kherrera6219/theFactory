@@ -21,7 +21,7 @@ Close the Smelt-cycle fidelity gap by reconciling runtime telemetry with determi
   - mission event timeline shows mapped phase labels
   - fallback inference supports older missions without checkpoint events
 - Published mapping policy:
-  - `docs/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`
+  - `docs/archive/2026-06-13/SMELT_CYCLE_RUNTIME_MAPPING_2026-03-04.md`
 
 ## Regression Coverage
 - Backend lifecycle tests:
