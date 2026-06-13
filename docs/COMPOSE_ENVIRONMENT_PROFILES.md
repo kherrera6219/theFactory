@@ -1,7 +1,7 @@
 # Compose Environment Profiles
 
-Document version: 2026.04.15  
-Last updated: 2026-04-15  
+Document version: 2026.06.13
+Last updated: 2026-06-13
 Status: Canonical  
 Audience: Operators, developers, and maintainers
 
@@ -12,7 +12,7 @@ Define the supported compose overlay set for local development, staging qualific
 ## Files
 
 - `deploy/docker-compose.yaml`: shared baseline stack and hardening defaults.
-- `deploy/docker-compose.full-dedicated-agents.yaml`: optional topology overlay that adds isolated PM/CEO/support/pod-audit and covered specialist workers on top of the baseline stack.
+- `deploy/docker-compose.full-dedicated-agents.yaml`: default startup topology overlay that adds isolated PM/CEO/support/pod-audit and covered specialist workers on top of the baseline stack.
 - `deploy/docker-compose.dev.yaml`: local developer profile.
 - `deploy/docker-compose.staging.yaml`: pre-production qualification profile.
 - `deploy/docker-compose.prod.yaml`: production release profile.
@@ -22,13 +22,15 @@ Define the supported compose overlay set for local development, staging qualific
 - Dev: `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml up -d --build`
 - Staging: `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.staging.yaml up -d --build`
 - Prod: `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml up -d --build`
-- Full dedicated topology: `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build`
+- Default full dedicated topology: `make up`
+- Condensed topology: `make up-condensed`
+- Raw full dedicated compose: `docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build`
 - Validation: `make compose-validate`
 - Release evidence validation: `make release-evidence-verify`
 
 ## Overlay Notes
 
-- `deploy/docker-compose.full-dedicated-agents.yaml` is a topology expansion overlay, not a separate environment tier.
+- `deploy/docker-compose.full-dedicated-agents.yaml` is the default topology expansion overlay, not a separate environment tier.
 - The current overlay isolates PM, CEO, support-ring roles, pod-audit roles, and all specialist services across the full 41-agent runtime topology.
 - After regenerating local TLS certificates or changing cert mount paths, recreate affected containers so Docker does not keep stale bind mounts from an earlier compose revision.
 

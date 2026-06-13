@@ -38,7 +38,7 @@ def main():
     res = subprocess.run("make down", shell=True)
     if res.returncode != 0:
         print("Fallback: Using direct docker compose down...")
-        subprocess.run("docker compose --env-file .env -f deploy/docker-compose.yaml down -v", shell=True)
+        subprocess.run("docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents down -v", shell=True)
     
     # 2. Aggressive Port Cleanup
     print("\n[2/3] Cleaning up lingering local processes and port bindings...")

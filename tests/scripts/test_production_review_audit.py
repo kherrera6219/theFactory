@@ -202,7 +202,11 @@ def test_check_compose_environment_profile_controls_passes(tmp_path, monkeypatch
     _write(tmp_path / "docs" / "COMPOSE_ENVIRONMENT_PROFILES.md", "# Profiles\n")
     _write(
         tmp_path / "Makefile",
-        "up-full-dedicated:\n\tdocker compose up agent-36-go agent-37-haskell agent-38-ocaml\n",
+        (
+            "up-full-dedicated:\n"
+            "\tdocker compose up minio milvus neo4j "
+            "agent-36-go agent-37-haskell agent-38-ocaml\n"
+        ),
     )
     monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
 
