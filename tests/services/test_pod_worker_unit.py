@@ -629,7 +629,10 @@ def test_handle_running_mission_with_source_extraction(monkeypatch) -> None:
     assert any(path == "/internal/pod-assignment" for _, path, _ in calls)
     logicnode_calls = [entry for entry in calls if entry[1] == "/internal/logicnodes"]
     assert len(logicnode_calls) == 1
-    assert logicnode_calls[0][2]["json_body"]["node_id"].startswith("podA.dyn-001.")
+    node_id = logicnode_calls[0][2]["json_body"]["node_id"]
+    assert node_id.startswith("podA.")
+    assert ".mission-1." in node_id
+    assert node_id.endswith(".1")
     assert len(published) == 2
 
 

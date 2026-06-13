@@ -516,7 +516,15 @@ reliability:
         tmp_path / "docs" / "OPERATIONS_RUNBOOK.md",
         "powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1\n",
     )
-    _write(tmp_path / "docs" / "LONG_DURATION_RELIABILITY_QUALIFICATION.md", "# Reliability\n")
+    _write(tmp_path / "docs" / "CURRENT_TODO.md", "# Current TODO\n")
+    _write(
+        tmp_path
+        / "docs"
+        / "archive"
+        / "2026-06-13"
+        / "LONG_DURATION_RELIABILITY_QUALIFICATION.md",
+        "# Reliability\n",
+    )
     _write(
         tmp_path / "docs" / "evidence" / "reliability_qualification_baseline_2026-03-03.json",
         "{}\n",
