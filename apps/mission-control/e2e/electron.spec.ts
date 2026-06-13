@@ -24,7 +24,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   if (!app) return;
-  app.process().kill();
+  await app.close();
 });
 
 test("app launches and shows the operator window", async () => {

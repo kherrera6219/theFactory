@@ -117,8 +117,10 @@ app.whenReady().then(() => {
   }
   createWindow();
 
-  // 7B — System tray.
-  setupTray(mainWindow);
+  // 7B — System tray. Skip in E2E so Playwright can close the app cleanly.
+  if (!isE2E) {
+    setupTray(mainWindow);
+  }
 
   // 7D — Auto-update.
   setupUpdater();
