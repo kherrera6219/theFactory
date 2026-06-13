@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import re
 import time
 from typing import Any
 
@@ -152,10 +153,49 @@ async def _call_openai(
     openai_api_key = _pkg().OPENAI_API_KEY
     if not openai_api_key:
         return None
-    messages: list[dict[str, str]] = []
+    messages: list[dict[str, Any]] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
+    
+    # Regex to find: data:<mime>;base64,<data>
+    pattern = re.compile(r"data:((?:image|application)/[a-zA-Z0-9.+-]+);base64,([a-zA-Z0-9+/=\s]+)")
+    last_idx = 0
+    openai_parts = []
+    has_media = False
+
+    for match in pattern.finditer(prompt):
+        start, end = match.span()
+        text_before = prompt[last_idx:start].strip()
+        if text_before:
+            openai_parts.append({"type": "text", "text": text_before})
+
+        mime_type = match.group(1)
+        base64_data = re.sub(r"\s+", "", match.group(2))
+
+        if mime_type.startswith("image/"):
+            openai_parts.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{mime_type};base64,{base64_data}"
+                }
+            })
+            has_media = True
+        else:
+            openai_parts.append({
+                "type": "text",
+                "text": f"\n[Attached file: {mime_type}]\n"
+            })
+        last_idx = end
+
+    text_after = prompt[last_idx:].strip()
+    if text_after:
+        openai_parts.append({"type": "text", "text": text_after})
+
+    if has_media:
+        messages.append({"role": "user", "content": openai_parts})
+    else:
+        messages.append({"role": "user", "content": prompt})
+
     payload = {
         "model": model,
         "input": messages,
@@ -261,7 +301,36 @@ async def _call_gemini(
     gemini_api_key = _pkg().GEMINI_API_KEY
     if not gemini_api_key:
         return None
-    payload: dict[str, Any] = {"contents": [{"parts": [{"text": prompt}]}]}
+    # Parse prompt for base64 parts
+    pattern = re.compile(r"data:((?:image|application)/[a-zA-Z0-9.+-]+);base64,([a-zA-Z0-9+/=\s]+)")
+    last_idx = 0
+    gemini_parts = []
+
+    for match in pattern.finditer(prompt):
+        start, end = match.span()
+        text_before = prompt[last_idx:start].strip()
+        if text_before:
+            gemini_parts.append({"text": text_before})
+
+        mime_type = match.group(1)
+        base64_data = re.sub(r"\s+", "", match.group(2))
+
+        gemini_parts.append({
+            "inlineData": {
+                "mimeType": mime_type,
+                "data": base64_data
+            }
+        })
+        last_idx = end
+
+    text_after = prompt[last_idx:].strip()
+    if text_after:
+        gemini_parts.append({"text": text_after})
+
+    if not gemini_parts:
+        gemini_parts.append({"text": prompt})
+
+    payload: dict[str, Any] = {"contents": [{"parts": gemini_parts}]}
     if system_prompt:
         payload["system_instruction"] = {"parts": [{"text": system_prompt}]}
     # Gemini 3.5+ uses thinking_level enum (replaces integer thinking_budget).

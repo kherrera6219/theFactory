@@ -40,22 +40,45 @@ type ChatSession = {
   messageCount: number;
   messages: ChatMessage[];
 };
-const ACCEPTED_EXTENSIONS = [
-  ".py",
-  ".js",
-  ".ts",
-  ".java",
-  ".c",
-  ".cpp",
-  ".rs",
-  ".go",
-  ".rb",
-  ".php",
-  ".cs",
-  ".scala",
-  ".r",
-  ".m",
-];
+function isBinaryFile(file: File): boolean {
+  const binaryExtensions = [
+    ".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".bmp",
+    ".pdf", ".docx", ".doc", ".xls", ".xlsx", ".ppt", ".pptx"
+  ];
+  const lowerName = file.name.toLowerCase();
+  return binaryExtensions.some(ext => lowerName.endsWith(ext));
+}
+
+function FileChipPreview({ file }: { file: File }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const isImage = file.type.startsWith("image/") || [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"].some(ext => file.name.toLowerCase().endsWith(ext));
+    if (!isImage) return;
+
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [file]);
+
+  const sizeKb = Math.max(1, Math.round(file.size / 1024));
+
+  return (
+    <li className="chip-item" style={{ display: "inline-flex", flexDirection: "column", gap: "6px", padding: "12px", border: "1px solid var(--border-strong)", borderRadius: "8px", background: "var(--bg-elevated)", color: "var(--ink)" }}>
+      <span style={{ fontSize: "12px", fontWeight: "bold" }}>{file.name} ({sizeKb}KB)</span>
+      {previewUrl && (
+        <img
+          src={previewUrl}
+          alt={file.name}
+          style={{ maxWidth: "200px", maxHeight: "150px", objectFit: "contain", borderRadius: "4px", marginTop: "4px" }}
+        />
+      )}
+    </li>
+  );
+}
 
 function makeId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -201,7 +224,7 @@ export default function ChatPage() {
     setFiles([]);
   }
 
-  const fileChips = useMemo(() => files.map((item) => fileLabel(item)), [files]);
+
 
   function resetConversation() {
     saveCurrentSession();
@@ -244,12 +267,14 @@ export default function ChatPage() {
     ]);
 
     try {
+      const sourceCode = await readFilesAsText(files);
       const detected = detectLanguages(files);
       let acknowledgement = "Request received. I have prepared a feature contract.";
       let generatedContract: DisplayFeatureContract;
       try {
         const pmPreview = await createPmFeatureContract({
           prompt: normalized,
+          source_code: sourceCode || undefined,
           requestedTargetLanguage: inferRequestedTargetLanguage({
             prompt: normalized,
             filePaths: files.map((file) => file.name),
@@ -333,10 +358,17 @@ export default function ChatPage() {
         (file) =>
           new Promise<string>((resolve) => {
             const reader = new FileReader();
-            reader.onload = () =>
-              resolve(`// --- ${file.name} ---\n${reader.result as string}`);
-            reader.onerror = () => resolve(`// --- ${file.name} --- (unreadable)`);
-            reader.readAsText(file);
+            if (isBinaryFile(file)) {
+              reader.onload = () =>
+                resolve(`// --- ${file.name} (binary) ---\n${reader.result as string}`);
+              reader.onerror = () => resolve(`// --- ${file.name} --- (unreadable)`);
+              reader.readAsDataURL(file);
+            } else {
+              reader.onload = () =>
+                resolve(`// --- ${file.name} ---\n${reader.result as string}`);
+              reader.onerror = () => resolve(`// --- ${file.name} --- (unreadable)`);
+              reader.readAsText(file);
+            }
           }),
       ),
     );
@@ -474,11 +506,7 @@ export default function ChatPage() {
       </Panel>
 
       <Panel title="Message & Files">
-        <ul className="extension-chip-list" aria-label="Accepted file formats">
-          {ACCEPTED_EXTENSIONS.map((extension) => (
-            <li key={extension}>{extension}</li>
-          ))}
-        </ul>
+
         <div
           className="drop-zone"
           onDragOver={(event) => event.preventDefault()}
@@ -503,12 +531,10 @@ export default function ChatPage() {
             }}
           />
         </label>
-        {fileChips.length > 0 && (
-          <ul className="chip-list" aria-label="Attached files">
-            {fileChips.map((chip) => (
-              <li key={chip} className="chip-item">
-                {chip}
-              </li>
+        {files.length > 0 && (
+          <ul className="chip-list" aria-label="Attached files" style={{ display: "flex", flexWrap: "wrap", gap: "10px", listStyle: "none", padding: 0, marginTop: "12px", marginBottom: "12px" }}>
+            {files.map((file, idx) => (
+              <FileChipPreview key={`${file.name}-${idx}`} file={file} />
             ))}
           </ul>
         )}

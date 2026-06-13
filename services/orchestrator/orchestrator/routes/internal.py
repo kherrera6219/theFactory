@@ -316,6 +316,9 @@ async def create_pm_feature_contract(
     _: AuthContext = INTERNAL_AUTH_DEP,
 ) -> dict[str, Any]:
     prompt = str(payload.get("prompt") or payload.get("request") or "").strip()
+    source_code = payload.get("source_code")
+    if source_code:
+        prompt = f"{prompt}\n\n{source_code}"
     if len(prompt) < 3:
         raise HTTPException(status_code=400, detail="prompt must be at least 3 characters")
 
