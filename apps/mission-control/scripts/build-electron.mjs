@@ -7,9 +7,13 @@ const apiDir = path.join(appDir, 'api');
 const hiddenApiDir = path.join(appDir, '_api_hidden');
 const nextDir = path.join(process.cwd(), '.next');
 
-function run(cmd, args) {
+function run(cmd, args, env = {}) {
     console.log(`Running: ${cmd} ${args.join(' ')}`);
-    const res = spawnSync(cmd, args, { stdio: 'inherit', shell: true });
+    const res = spawnSync(cmd, args, {
+        env: { ...process.env, ...env },
+        stdio: 'inherit',
+        shell: true,
+    });
     if (res.status !== 0) {
         process.exit(res.status || 1);
     }
@@ -37,7 +41,7 @@ try {
     }
 
     // 4. Next build
-    run('npx', ['next', 'build']);
+    run('npx', ['next', 'build'], { NEXT_BUILD_TARGET: 'electron' });
 
     // 5. Restore API directory
     if (fs.existsSync(hiddenApiDir)) {
