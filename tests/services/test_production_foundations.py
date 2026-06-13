@@ -761,6 +761,7 @@ def test_orchestrator_readyz_reports_ready(monkeypatch) -> None:
 
     monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
     monkeypatch.setattr(orchestrator_main.qdrant_store, "qdrant_ready", lambda *_: True)
+    monkeypatch.setattr(orchestrator_main.milvus_store, "milvus_ready", lambda *_: True)
     monkeypatch.setattr(orchestrator_main.neo4j_store, "neo4j_ready", lambda *_: True)
     monkeypatch.setattr(orchestrator_main.object_store, "object_storage_ready", lambda *_: True)
     with TestClient(orchestrator_app) as client:
@@ -782,6 +783,7 @@ def test_orchestrator_readyz_returns_503_when_consumer_not_running(monkeypatch) 
 
     monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
     monkeypatch.setattr(orchestrator_main.qdrant_store, "qdrant_ready", lambda *_: True)
+    monkeypatch.setattr(orchestrator_main.milvus_store, "milvus_ready", lambda *_: True)
     monkeypatch.setattr(orchestrator_main.neo4j_store, "neo4j_ready", lambda *_: True)
     monkeypatch.setattr(orchestrator_main.object_store, "object_storage_ready", lambda *_: True)
     with TestClient(orchestrator_app) as client:

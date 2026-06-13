@@ -382,8 +382,9 @@ async def get_operations_summary(
     ) if app.state.settings.object_storage_enabled else None
 
     # Observability readiness
-    jaeger_ready = False
+    jaeger_ready = None
     if os.getenv("OTEL_TRACING_ENABLED", "true").lower() in {"1", "true", "yes", "on"}:
+        jaeger_ready = False
         import socket
         try:
             with socket.create_connection(("jaeger", 4318), timeout=0.5):

@@ -995,8 +995,9 @@ async def health() -> dict[str, Any]:
             object_store.object_storage_ready, app.state.settings
         )
 
-    jaeger_ready = False
+    jaeger_ready = None
     if os.getenv("OTEL_TRACING_ENABLED", "true").lower() in {"1", "true", "yes", "on"}:
+        jaeger_ready = False
         # Simple reachability check for Jaeger OTLP port
         import socket
         try:

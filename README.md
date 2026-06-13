@@ -859,13 +859,9 @@ docker compose -f deploy/docker-compose.monitoring.yaml up -d
 
 Starts Prometheus, Grafana, Loki, Promtail, Alertmanager, and Jaeger.
 
-### Optional Data Plane
+### Core Data Plane & Internal Databases
 
-```bash
-docker compose -f deploy/docker-compose.yaml --profile extended-data-plane up -d
-```
-
-Adds Milvus, MinIO object storage, and Neo4j connection support for feature-flagged data-plane adapters.
+All internal database systems (Milvus vector database, MinIO object storage, and Neo4j graph database) are integrated and start automatically by default as part of the base compose stack.
 
 ---
 
