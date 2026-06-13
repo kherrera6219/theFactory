@@ -107,6 +107,7 @@ services:
     environment:
       MISSION_FLOW_V2_ENABLED: "true"
       AGENT_AUTOFILL_NON_POD_HEARTBEATS: "false"
+      TOPOLOGY_MODE: "full-dedicated"
 
   agent-01-pm:
     <<: *agent-runtime-template

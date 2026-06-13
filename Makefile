@@ -10,14 +10,8 @@ force-stop:
 # validate: full pre-merge gate — lint + schema check + pytest + UI lint/test
 
 up: check-env tls-certs
-	docker compose --env-file .env -f deploy/docker-compose.yaml up -d --build
-
-down:
-	docker compose --env-file .env -f deploy/docker-compose.yaml down -v
-
-up-full-dedicated: tls-certs
-	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build \
-		redis postgres qdrant jaeger orchestrator api-gateway protocol-bus-mcp audit-worker dashboard mission-control \
+	docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build \
+		redis postgres pgbouncer qdrant minio milvus neo4j jaeger orchestrator api-gateway protocol-bus-mcp audit-worker dashboard mission-control \
 		pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker pod-c-dedicated-mgr-worker pod-d-dedicated-mgr-worker \
 		agent-01-pm agent-02-ceo agent-03-broker agent-04-accountant agent-05-security agent-06-is agent-07-vc agent-08-compliance agent-09-hw agent-10-tester agent-11-deploy \
 		agent-13-poda-audit agent-19-podb-audit agent-25-podc-audit agent-31-podd-audit \
@@ -27,8 +21,17 @@ up-full-dedicated: tls-certs
 		agent-32-matlab agent-33-r agent-34-julia agent-35-mathematica agent-37-haskell agent-38-ocaml \
 		agent-39-depabs agent-40-testdata agent-41-rqca
 
-down-full-dedicated:
-	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents down -v
+down:
+	docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents down -v
+
+up-full-dedicated: up
+down-full-dedicated: down
+
+up-condensed: check-env tls-certs
+	docker compose --env-file .env -f deploy/docker-compose.yaml up -d --build
+
+down-condensed:
+	docker compose --env-file .env -f deploy/docker-compose.yaml down -v
 
 monitor-up:
 	docker compose -f deploy/docker-compose.monitoring.yaml up -d

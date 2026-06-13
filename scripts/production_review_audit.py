@@ -209,7 +209,14 @@ def check_compose_environment_profile_controls() -> AuditResult:
     for service_name in ("agent-36-go:", "agent-37-haskell:", "agent-38-ocaml:"):
         if service_name not in full_dedicated_compose_text:
             missing_items.append(f"full dedicated overlay missing {service_name[:-1]} service")
-    for service_name in ("agent-36-go", "agent-37-haskell", "agent-38-ocaml"):
+    for service_name in (
+        "minio",
+        "milvus",
+        "neo4j",
+        "agent-36-go",
+        "agent-37-haskell",
+        "agent-38-ocaml",
+    ):
         if service_name not in makefile_text:
             missing_items.append(f"make up-full-dedicated missing {service_name}")
 

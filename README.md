@@ -656,10 +656,12 @@ npm run test:e2e   # Playwright critical-path E2E
 
 | Command | Description |
 |---------|-------------|
-| `make up` | Build and start core stack |
+| `make up` | Build and start the full-dedicated runtime topology |
 | `make down` | Stop stack and remove volumes |
-| `make up-full-dedicated` | Build and start the strict full-dedicated runtime overlay |
-| `make down-full-dedicated` | Stop the strict full-dedicated runtime overlay and remove volumes |
+| `make up-full-dedicated` | Alias for the default full-dedicated runtime topology |
+| `make down-full-dedicated` | Alias for the default full-dedicated runtime shutdown |
+| `make up-condensed` | Build and start the lightweight condensed worker topology |
+| `make down-condensed` | Stop the lightweight condensed worker topology and remove volumes |
 | `make validate` | Validate schema contracts |
 | `make lint` | Ruff on backend, tests, and scripts |
 | `make test` | Pytest with coverage gates (≥80% global, strict per-module floors on critical runtime files) |
@@ -819,16 +821,27 @@ Full reference: [`.env.example`](.env.example)
 
 ## Deployment Profiles
 
-### Default (Condensed Workers)
+### Default (Full Dedicated Runtime)
 
 ```bash
 make up
 
 # Equivalent raw compose command
-docker compose -f deploy/docker-compose.yaml up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
-All pod work runs through shared pod-worker instances. Suitable for development and standard production.
+Starts the full isolated 41-agent runtime topology by default, including the core data plane services used by health reporting and optional backend adapters.
+
+### Condensed Workers
+
+```bash
+make up-condensed
+
+# Equivalent raw compose command
+docker compose --env-file .env -f deploy/docker-compose.yaml up -d --build
+```
+
+All pod work runs through shared pod-worker instances. Suitable for lightweight development.
 
 ### Dedicated Agents
 
@@ -846,10 +859,10 @@ Spawns dedicated manager-worker containers per pod with `AGENT_BINDING` enforcem
 make up-full-dedicated
 
 # Equivalent raw compose command
-docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
-Adds dedicated `agent-runtime` containers for PM, CEO, support, and pod-audit roles plus dedicated specialist workers for all 20 routed language keys, including Go, Haskell, and OCaml. The overlay now provisions the full isolated 41-agent runtime topology on top of the shared baseline stack.
+Alias for the default startup topology. Adds dedicated `agent-runtime` containers for PM, CEO, support, and pod-audit roles plus dedicated specialist workers for all 20 routed language keys, including Go, Haskell, and OCaml. The overlay provisions the full isolated 41-agent runtime topology on top of the shared baseline stack.
 
 ### Monitoring Stack
 

@@ -66,7 +66,12 @@ class TraceIdFilter(logging.Filter):
 
         span = trace.get_current_span()
         ctx = span.get_span_context()
-        if ctx is not None and ctx.is_valid:
+        if (
+            ctx is not None
+            and getattr(ctx, "is_valid", False)
+            and hasattr(ctx, "trace_id")
+            and hasattr(ctx, "span_id")
+        ):
             record.trace_id = format(ctx.trace_id, "032x")
             record.span_id = format(ctx.span_id, "016x")
         else:
