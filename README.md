@@ -16,7 +16,7 @@
 
 </div>
 
-> **Version:** 1.2.0 · **Last updated:** 2026-05-30 · **Status:** Canonical
+> **Version:** 1.2.0 · **Last updated:** 2026-06-13 · **Status:** Canonical
 
 ---
 
@@ -223,10 +223,10 @@ Each agent exposes:
   "queue_depth": 0,
   "active_mission_id": null,
   "llm_recommendation": {
-    "provider": "openai",
-    "model": "gpt-4o",
-    "thinking": "standard",
-    "fallback_model": "gpt-4o-mini"
+    "provider": "gemini",
+    "model": "gemini-3.5-flash",
+    "mode": "thinking",
+    "thinking_level": "high"
   },
   "persona_profile": {
     "job_role": "...",
@@ -253,13 +253,18 @@ Runtime persona and delegation metadata currently support provider-aware recomme
 - **OpenAI**
 - **Google Gemini**
 
+Current runtime default: all 41 agents route to Gemini Flash 3.5
+(`gemini-3.5-flash`) with high thinking. Mission Control Settings exposes three
+operator-selectable vault-slot model routes for testing: ChatGPT 5.5, Claude
+Opus 4.8, and Gemini Flash 3.5. OpenAI and Anthropic remain supported provider
+routes, but they are not the default assignment for any agent.
+
 The live runtime exposes recommended provider/model metadata through:
 
 - `GET /internal/operations/agent-integrations`
 - `GET /v1/operations/agent-integrations`
 
-Reference matrix: [`docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`](docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md)  
-Historical note: that matrix is retained as a reference document and still contains some historically-scoped planning language.
+Reference matrix: [`docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`](docs/AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md)
 
 ---
 
@@ -722,7 +727,12 @@ python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
 The live run is the launch-demo proof point. It requires a running stack and
 provider-key configuration when generated LLM output is part of the claim.
 
-**Validation snapshot (2026-05-19):** `python scripts/validate_documentation.py` and `python scripts/production_review_audit.py` (22/22 checks passing) are passing in-repo. The broader test and qualification snapshot is tracked in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md), including the current backend pytest baseline (`889 passed, 5 skipped`), the `>=80%` Python coverage gate, Mission Control Vitest and Playwright coverage (23/23 passing specs), the disaster recovery (DR) RTO metrics of **37.13s** in [`docs/evidence/dr_drill_phase26_latest.json`](docs/evidence/dr_drill_phase26_latest.json), and the latest strict full-dedicated runtime evidence in [`docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json`](docs/evidence/mission_artifact_qualification_full_dedicated_local_2026-04-15.json) and [`docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json`](docs/evidence/dedicated_agent_canary_full_dedicated_local_2026-04-15.json).
+**Validation snapshot (2026-06-13):** the current Gemini-first model-routing
+update passed focused Ruff checks, targeted backend tests for agent integration
+and settings, Mission Control lint/test/build, and Docker image builds for the
+API Gateway, Orchestrator, and Mission Control services. Live provider-key
+mission validation remains the operator proof point before claiming real LLM
+output in a launch demo.
 
 ---
 

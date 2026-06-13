@@ -1,5 +1,9 @@
 # LogicNode Schema Reference
 
+Document version: 2026.06.13
+Status: Canonical
+Audience: Developers and operators
+
 **Source file:** `services/orchestrator/orchestrator/logicnode_schema.py`  
 **Version:** v1.2.0  
 **Last updated:** 2026-06-11

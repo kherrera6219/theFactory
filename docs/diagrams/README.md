@@ -1,5 +1,10 @@
 # theFactory — Architectural Diagrams Directory
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Developers and operators
+
 This directory contains the canonical enterprise architecture diagrams for **theFactory**, aligned with Microsoft Enterprise documentation standards, C4 Modeling, and the arc42 architecture template.
 
 ---

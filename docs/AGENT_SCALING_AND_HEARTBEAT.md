@@ -1,5 +1,7 @@
 # Agent Scaling and Heartbeat
 
+Last updated: 2026-06-13
+
 Document version: 2026.06.11  
 Status: Canonical  
 Audience: Operators and developers

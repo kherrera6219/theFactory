@@ -1,12 +1,12 @@
 # ADR - 35-Agent Runtime Topology (2026-03-04)
 
-> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+> Historical note (2026-06-13): This ADR name is retained for traceability, but the current runtime is 41 agents. Treat original `35-agent` wording as historical planning terminology.
 
 ## Status
 Accepted
 
 ## Context
-- The platform has a canonical 35-agent registry with full persona/telemetry coverage.
+- The platform has a canonical registry, now expanded to 41 agents, with full persona/telemetry coverage.
 - Runtime execution today is condensed into shared pod workers (A/B/C/D) plus orchestrator routing.
 - Design docs historically referenced dedicated per-agent containers; this creates a topology mismatch versus the live baseline.
 

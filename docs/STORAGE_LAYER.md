@@ -1,5 +1,10 @@
 # Storage Layer Reference
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Developers and operators
+
 **Files:** `services/orchestrator/orchestrator/storage_core.py` and all `storage_*.py` modules  
 **Last documented:** 2026-06-11
 

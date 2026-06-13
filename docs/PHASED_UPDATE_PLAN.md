@@ -1,4 +1,9 @@
 # theFactory — Phased Update Plan
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Developers and operators
+
 **Generated:** 2026-05-29  
 **Based on:** SPRINT_BACKLOG.md, IMPLEMENTATION_STATUS.md, session audit trail, git log  
 **Current HEAD:** `b3f4383` (main)

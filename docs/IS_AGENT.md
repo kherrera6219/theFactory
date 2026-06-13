@@ -1,5 +1,7 @@
 # IS Agent — Integration Specialist
 
+Last updated: 2026-06-13
+
 Document version: 2026.06.11  
 Status: Canonical  
 Audience: Developers, architects, and operators
@@ -88,7 +90,10 @@ class IntegrationResult:
 
 ## Integration Catalogue
 
-The full integration catalogue lives in `agent_integrations.py`. The IS Agent looks up each call by its `integration_key` string at runtime — it never hardcodes endpoint URLs. See [AGENT_INTEGRATIONS_CATALOGUE.md](./AGENT_INTEGRATIONS_CATALOGUE.md) for the catalogue reference (to be authored when the catalogue stabilises post-v1.3).
+The full integration catalogue lives in `agent_integrations.py`. The IS Agent
+looks up each call by its `integration_key` string at runtime — it never
+hardcodes endpoint URLs. This section remains the docs reference until a
+dedicated generated catalogue is added.
 
 ## Operational Notes
 

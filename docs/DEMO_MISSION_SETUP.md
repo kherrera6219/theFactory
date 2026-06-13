@@ -1,6 +1,12 @@
 # Live Demo Mission — Setup Guide
 ## theFactory / Holy Grail Refinery
-**Date:** 2026-05-22 | **Prerequisite:** Docker Desktop running, repo cloned
+
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Operators and developers
+
+**Date:** 2026-06-13 | **Prerequisite:** Docker Desktop running, repo cloned
 
 ---
 
@@ -178,7 +184,7 @@ Before running, confirm these are set (not `CHANGE_ME`):
 - [ ] `MCP_API_KEY` — non-default value
 - [ ] `REDIS_PASSWORD` — consistent with what's used in TLS certs
 - [ ] `POSTGRES_PASSWORD` — consistent with DB
-- [ ] `LLM_PROVIDER` — set to `openai`, `anthropic`, or `gemini` (not `offline`)
-- [ ] At least one of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` set
+- [ ] `LLM_PROVIDER` — set to `gemini` for the default all-agent test path
+- [ ] `GEMINI_API_KEY` — set for live LLM output
 
-The script will catch and report the `LLM_PROVIDER=offline` case before submitting.
+The script will catch and report missing/disabled provider configuration before submitting.

@@ -1,5 +1,10 @@
 # Orchestrator Service — `main.py` Reference
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Developers and operators
+
 **File:** `services/orchestrator/orchestrator/main.py`  
 **FastAPI app title:** `HolyGrail Orchestrator`  
 **FastAPI version:** `0.3.0`  

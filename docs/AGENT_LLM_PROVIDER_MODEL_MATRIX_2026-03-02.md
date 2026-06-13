@@ -1,136 +1,98 @@
-# Agent LLM Provider and Model Matrix
+# Agent LLM Provider Model Matrix
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
-Status: Reference  
-Audience: Operators, developers, maintainers, and auditors
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical runtime matrix
+Audience: Architects, developers, AI operators, and release reviewers
 
-> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+This document is the current model-routing source of truth for the 41-agent
+runtime. Older phase plans and archived evidence may still mention 35-agent,
+38-agent, or mixed OpenAI/Gemini defaults. Those references are historical.
 
-> **STATUS UPDATE 2026-05-20:** All Anthropic model routes have been migrated. No agent uses claude-opus-4-7 or claude-sonnet-4-6 as a primary model. The current provider split is: **OpenAI gpt-5.5** (28 agents — PM, CEO, executives, pod managers, code specialists, security, compliance, pod auditors A/B/C, tester, DEPABS, RQCA) and **Gemini gemini-3.5-flash** (13 agents — all STEM/mathematical specialists, Pod D manager and auditor, IS, HW, Broker, Deploy, TestData). See `docs/IMPLEMENTATION_STATUS.md` for the canonical current-state model table.
+## Current Default
 
-Date: 2026-03-08
+As of commit `1b10d8c`, every runtime agent recommendation defaults to:
 
-## Objective
+| Provider | Model | Runtime mode | Effort / thinking |
+|---|---|---|---|
+| Gemini | `gemini-3.5-flash` | `thinking` | `high` |
 
-Select the best primary provider/model for each of the 35 agents, and align runtime support to:
+The default test path is Gemini-first so all agents can be validated with one
+Google API key during local operator testing.
 
-- OpenAI (including thinking controls)
-- Anthropic
-- Gemini
+## Operator-Selectable Model Catalog
 
-This matrix is now reflected in runtime operations output:
+Mission Control Settings and the Gateway builder preview expose only these
+three model routes. All routes default to high effort / high thinking.
 
-- `GET /internal/operations/agent-integrations`
-- `GET /v1/operations/agent-integrations`
-
-## Selection Inputs
-
-OpenAI references indicate:
-
-- GPT-5.5 is the current default executive/general reasoning route.
-- GPT-5.3-Codex is the newest coding-focused model in current API docs.
-- Reasoning effort controls support thinking-depth tuning.
-
-Anthropic references indicate:
-
-- Claude Opus 4.7 is positioned for highest-complexity reasoning.
-- Claude Sonnet 4.6 is optimized for strong quality with better speed/cost.
-- 1M token context and extended/adaptive thinking are available on current major tiers.
-
-Gemini references indicate:
-
-- Gemini 3.1 Pro Preview is the strongest current Gemini deep-reasoning route for STEM and knowledge workloads.
-- Gemini 3.1 Flash-Lite is the current low-latency route for operational tasks.
-- Gemini 3.1 Pro is still preview-lifecycle in the Google docs, so promotion policy must explicitly allow it before production release claims.
-
-## Per-Agent Primary Recommendation
-
-| Agent ID | Agent | Provider | Model | Thinking Profile |
+| UI label | Provider key | Model ID | Provider endpoint | High-effort field |
 |---|---|---|---|---|
-| AGENT-01-PM | PM Agent | Anthropic | claude-sonnet-4-6 | enabled, budget 8192 |
-| AGENT-02-CEO | CEO Agent | OpenAI | gpt-5.5 | high reasoning effort |
-| AGENT-03-BROKER | API Broker | Gemini | gemini-3.1-flash-lite | thinking level low; fallback `openai/gpt-5.5` |
-| AGENT-04-ACCOUNTANT | Accountant | OpenAI | gpt-5.5 | low reasoning effort |
-| AGENT-05-SECURITY | Security Agent | Anthropic | claude-opus-4-7 | adaptive thinking |
-| AGENT-06-IS | IS Agent | Gemini | gemini-3.1-pro-preview | thinking level high; fallback `anthropic/claude-sonnet-4-6` |
-| AGENT-07-VC | Version Control Agent | OpenAI | gpt-5.3-codex | xhigh reasoning effort |
-| AGENT-08-COMPLIANCE | Compliance Agent | Anthropic | claude-opus-4-7 | adaptive thinking |
-| AGENT-09-HW | Hardware-Mapping Injector | Gemini | gemini-3.1-pro-preview | thinking level high; fallback `openai/gpt-5.5` |
-| AGENT-10-TESTER | System Integration Tester | Anthropic | claude-opus-4-7 | adaptive thinking |
-| AGENT-11-DEPLOY | Deployment Agent | Gemini | gemini-3.1-flash-lite | thinking level medium; fallback `openai/gpt-5.5` |
-| AGENT-12-PODA-MGR | Pod A Sub-Manager | OpenAI | gpt-5.5 | high reasoning effort |
-| AGENT-13-PODA-AUDIT | Pod A QC/Audit | Anthropic | claude-sonnet-4-6 | enabled, budget 8192 |
-| AGENT-14-PYTHON | Python Specialist | OpenAI | gpt-5.3-codex | xhigh reasoning effort |
-| AGENT-15-JAVASCRIPT | JavaScript Specialist | OpenAI | gpt-5.3-codex | xhigh reasoning effort |
-| AGENT-16-RUBY | Ruby Specialist | OpenAI | gpt-5.3-codex | xhigh reasoning effort |
-| AGENT-17-PHP | PHP Specialist | OpenAI | gpt-5.3-codex | xhigh reasoning effort |
-| AGENT-18-PODB-MGR | Pod B Sub-Manager | OpenAI | gpt-5.5 | high reasoning effort |
-| AGENT-19-PODB-AUDIT | Pod B QC/Audit | Anthropic | claude-sonnet-4-6 | enabled, budget 8192 |
-| AGENT-20-C | C Specialist | OpenAI | gpt-5.3-codex | xhigh reasoning effort |
-| AGENT-21-CPP | C++ Specialist | OpenAI | gpt-5.3-codex | xhigh reasoning effort |
-| AGENT-22-RUST | Rust Specialist | OpenAI | gpt-5.3-codex | xhigh reasoning effort |
-| AGENT-23-ZIG | Zig Specialist | OpenAI | gpt-5.3-codex | xhigh reasoning effort |
-| AGENT-24-PODC-MGR | Pod C Sub-Manager | OpenAI | gpt-5.5 | high reasoning effort |
-| AGENT-25-PODC-AUDIT | Pod C QC/Audit | Anthropic | claude-sonnet-4-6 | enabled, budget 8192 |
-| AGENT-26-JAVA | Java Specialist | Anthropic | claude-sonnet-4-6 | enabled, budget 8192 |
-| AGENT-27-CSHARP | C# Specialist | Anthropic | claude-sonnet-4-6 | enabled, budget 8192 |
-| AGENT-28-SCALA | Scala Specialist | Anthropic | claude-sonnet-4-6 | enabled, budget 8192 |
-| AGENT-29-KOTLIN | Kotlin Specialist | Anthropic | claude-sonnet-4-6 | enabled, budget 8192 |
-| AGENT-30-PODD-MGR | Pod D Sub-Manager | Gemini | gemini-3.1-pro-preview | thinking level high; fallback `openai/gpt-5.5` |
-| AGENT-31-PODD-AUDIT | Pod D QC/Audit | Anthropic | claude-opus-4-7 | adaptive thinking |
-| AGENT-32-MATLAB | MATLAB Specialist | Gemini | gemini-3.1-pro-preview | thinking level high |
-| AGENT-33-R | R Specialist | Gemini | gemini-3.1-pro-preview | thinking level high |
-| AGENT-34-JULIA | Julia Specialist | Gemini | gemini-3.1-pro-preview | thinking level high |
-| AGENT-35-MATHEMATICA | Mathematica Specialist | Gemini | gemini-3.1-pro-preview | thinking level high |
+| Gemini Flash 3.5 | `gemini` | `gemini-3.5-flash` | `POST /v1beta/models/gemini-3.5-flash:generateContent` | Gemini thinking level `high` |
+| ChatGPT 5.5 | `openai` | `gpt-5.5` | `POST /v1/responses` | `reasoning.effort=high` |
+| Claude Opus 4.8 | `anthropic` | `claude-opus-4-8` | `POST /v1/messages` | Thinking enabled with high token budget |
 
-## Runtime Configuration for Initial Key-Based Tests
+The non-Gemini routes are available for vault-slot testing and future
+comparison, but they are not the default assignment for any agent.
 
-Set one key per provider in `.env`:
+## Per-Agent Defaults
 
-- `OPENAI_API_KEY=...`
-- `ANTHROPIC_API_KEY=...`
-- `GEMINI_API_KEY=...`
+| Agent ID | Agent | Provider | Model | Effort / thinking |
+|---|---|---|---|---|
+| AGENT-01-PM | PM Agent | Gemini | `gemini-3.5-flash` | high |
+| AGENT-02-CEO | CEO Agent | Gemini | `gemini-3.5-flash` | high |
+| AGENT-03-BROKER | API Broker | Gemini | `gemini-3.5-flash` | high |
+| AGENT-04-ACCOUNTANT | Accountant | Gemini | `gemini-3.5-flash` | high |
+| AGENT-05-SECURITY | Security Agent | Gemini | `gemini-3.5-flash` | high |
+| AGENT-06-IS | IS Agent | Gemini | `gemini-3.5-flash` | high |
+| AGENT-07-VC | Version Control Agent | Gemini | `gemini-3.5-flash` | high |
+| AGENT-08-COMPLIANCE | Compliance Agent | Gemini | `gemini-3.5-flash` | high |
+| AGENT-09-HW | Hardware-Mapping Injector | Gemini | `gemini-3.5-flash` | high |
+| AGENT-10-TESTER | System Integration Tester | Gemini | `gemini-3.5-flash` | high |
+| AGENT-11-DEPLOY | Deployment Agent | Gemini | `gemini-3.5-flash` | high |
+| AGENT-12-PODA-MGR | Pod A Sub-Manager | Gemini | `gemini-3.5-flash` | high |
+| AGENT-13-PODA-AUDIT | Pod A QC/Audit | Gemini | `gemini-3.5-flash` | high |
+| AGENT-14-PYTHON | Python Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-15-JAVASCRIPT | JavaScript Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-16-RUBY | Ruby Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-17-PHP | PHP Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-18-PODB-MGR | Pod B Sub-Manager | Gemini | `gemini-3.5-flash` | high |
+| AGENT-19-PODB-AUDIT | Pod B QC/Audit | Gemini | `gemini-3.5-flash` | high |
+| AGENT-20-C | C Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-21-CPP | C++ Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-22-RUST | Rust Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-23-ZIG | Zig Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-24-PODC-MGR | Pod C Sub-Manager | Gemini | `gemini-3.5-flash` | high |
+| AGENT-25-PODC-AUDIT | Pod C QC/Audit | Gemini | `gemini-3.5-flash` | high |
+| AGENT-26-JAVA | Java Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-27-CSHARP | C# Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-28-SCALA | Scala Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-29-KOTLIN | Kotlin Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-30-PODD-MGR | Pod D Sub-Manager | Gemini | `gemini-3.5-flash` | high |
+| AGENT-31-PODD-AUDIT | Pod D QC/Audit | Gemini | `gemini-3.5-flash` | high |
+| AGENT-32-MATLAB | MATLAB Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-33-R | R Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-34-JULIA | Julia Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-35-MATHEMATICA | Mathematica Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-36-GO | Go Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-37-HASKELL | Haskell Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-38-OCAML | OCaml Specialist | Gemini | `gemini-3.5-flash` | high |
+| AGENT-39-DEPABS | Dependency Absorption Agent | Gemini | `gemini-3.5-flash` | high |
+| AGENT-40-TESTDATA | Database and Test Data Agent | Gemini | `gemini-3.5-flash` | high |
+| AGENT-41-RQCA | Runtime QC Agent | Gemini | `gemini-3.5-flash` | high |
 
-Then select provider under test for builder endpoint:
+## Runtime Defaults
 
-- `LLM_PROVIDER=openai|anthropic|gemini`
+The shipped local defaults are:
 
-Optional thinking controls:
+```env
+LLM_PROVIDER=gemini
+GEMINI_MODEL=gemini-3.5-flash
+GEMINI_THINKING_LEVEL=high
+OPENAI_MODEL=gpt-5.5
+OPENAI_REASONING_EFFORT=high
+ANTHROPIC_MODEL=claude-opus-4-8
+ANTHROPIC_THINKING_BUDGET_TOKENS=8192
+```
 
-- OpenAI: `OPENAI_REASONING_EFFORT=none|minimal|low|medium|high|xhigh`
-- Anthropic: `ANTHROPIC_THINKING_MODE=enabled|adaptive`
-- Gemini: `GEMINI_THINKING_LEVEL=low|medium|high` and `GEMINI_THINKING_BUDGET=-1|0|N`
-
-## Coding-Model Strategy Decision
-
-- OpenAI pod specialists: use coding model (`gpt-5.3-codex`) for language-specialist and VC coding loops.
-- Tester stays on Claude Opus 4.7 to prioritize adversarial test design and failure-mode reasoning over code-generation throughput.
-- Anthropic pod agents: keep Claude general models (`claude-sonnet-4-6` primary, Opus for deep audits) because Anthropic does not publish a separate codex-style API model; Claude Code runs on Claude models.
-- Gemini pod agents: use general Gemini reasoning models (`gemini-3.1-pro-preview` / `gemini-3.1-flash-lite`), since Google does not expose a separate coding-only model family in Gemini API; coding performance is built into these general models.
-
-## Sources
-
-OpenAI (official):
-
-- https://platform.openai.com/docs/models
-- https://platform.openai.com/docs/guides/reasoning
-- https://platform.openai.com/docs/guides/code-generation
-- https://platform.openai.com/docs/pricing
-
-Anthropic (official):
-
-- https://docs.anthropic.com/en/docs/about-claude/models/overview
-- https://docs.anthropic.com/en/api/messages
-- https://docs.anthropic.com/en/docs/claude-code/model-config
-
-Google Gemini (official):
-
-- https://ai.google.dev/gemini-api/docs/models
-- https://ai.google.dev/gemini-api/docs/text-generation
-- https://ai.google.dev/gemini-api/docs/thinking
-- https://ai.google.dev/gemini-api/docs/changelog
-- https://ai.google.dev/gemini-api/docs/pricing
-- https://developers.google.com/gemini-code-assist/docs/models
-
-
+Provider keys remain externally supplied. Without a live key, the orchestrator
+falls back to deterministic output so local runtime checks can still complete.

@@ -1,5 +1,10 @@
 # theFactory — Local-First Compliance Plan (Outstanding Items Only)
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Developers and operators
+
 **Generated:** 2026-05-29
 **Sources:** `# Local-First Security Architecture.txt`, `# Local-First Error Handling Standa.txt`
 **Method:** Each requirement was validated against the current codebase. **Items already

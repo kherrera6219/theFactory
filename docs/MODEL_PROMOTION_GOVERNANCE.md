@@ -1,7 +1,7 @@
 # Model Promotion Governance
 
-Document version: 2026.05.20  
-Last updated: 2026-05-20  
+Document version: 2026.06.13
+Last updated: 2026-06-13
 Status: Canonical  
 Audience: Maintainers, AI operators, and release reviewers
 
@@ -13,8 +13,12 @@ Prevent release promotion when runtime-default LLM routes use preview, experimen
 
 - Release promotion requires a machine-readable agent model inventory.
 - `deploy/promotion-policy.json` blocks lifecycle stages `preview`, `experimental`, and `rolling`.
-- All 41 agents use two GA stable models: `gpt-5.5` (OpenAI, 28 agents) and
-  `gemini-3.5-flash` (Gemini, 13 agents). No Anthropic routes are active.
+- All 41 agents default to `gemini-3.5-flash` with high thinking for the
+  Gemini-first local test path.
+- Mission Control exposes exactly three operator-selectable model routes:
+  `gemini-3.5-flash`, `gpt-5.5`, and `claude-opus-4-8`. These routes are
+  allowed for vault-slot testing, but only Gemini Flash 3.5 is assigned as an
+  agent default.
 - `allowlist_models` in `deploy/promotion-policy.json` is empty; no preview
   waivers are active.
 - Preview routes may only be promoted if added to the policy allowlist.
@@ -37,4 +41,6 @@ Prevent release promotion when runtime-default LLM routes use preview, experimen
    explicitly allowlisted with a current provider-doc reference.
 2. Confirm weekly qualification evidence is current and passing.
 3. Confirm release attestation verification is passing in CI.
-4. Only then allow `main` or release-tag promotion.
+4. Confirm the Mission Control model catalog still contains only the approved
+   three routes.
+5. Only then allow `main` or release-tag promotion.

@@ -1,5 +1,9 @@
 # Orchestrator Route Modules Reference
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+
 **Package:** `services/orchestrator/orchestrator/routes/`  
 **Version:** 2026.06.11  
 **Audience:** Developers, Integrators

@@ -1,11 +1,11 @@
 # Agent Persona Standards Evidence
 
 Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Last updated: 2026-06-13
 Status: Reference  
 Audience: Operators, developers, maintainers, and auditors
 
-> Historical note (2026-03-29): This document predates the current 38-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+> Current note (2026-06-13): This evidence reference is aligned to the current 41-agent runtime.
 
 Date: 2026-03-02
 
@@ -29,7 +29,7 @@ Define production-grade external standards used to enrich agent persona profiles
 
 ## Role Mapping Strategy
 
-All 35 agents receive:
+All 41 agents receive:
 - `nist-csf-2.0`
 - `nist-ai-rmf-1.0`
 - `iso-iec-42001-2023`
