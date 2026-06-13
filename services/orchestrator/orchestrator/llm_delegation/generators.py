@@ -68,6 +68,7 @@ async def generate_pm_feature_contract(
     requested_target_language: str | None,
     attachments: list[dict[str, Any]] | None = None,
     global_style_directives: list[str] | None = None,
+    source_code: str | None = None,
 ) -> dict[str, Any]:
     recommendation = _pkg()._pm_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
@@ -97,6 +98,7 @@ async def generate_pm_feature_contract(
         recommended_model=model,
         attachments=attachments,
         global_style_directives=global_style_directives,
+        source_code=source_code,
     )
     parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,

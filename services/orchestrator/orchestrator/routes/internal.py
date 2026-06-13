@@ -317,8 +317,6 @@ async def create_pm_feature_contract(
 ) -> dict[str, Any]:
     prompt = str(payload.get("prompt") or payload.get("request") or "").strip()
     source_code = payload.get("source_code")
-    if source_code:
-        prompt = f"{prompt}\n\n{source_code}"
     if len(prompt) < 3:
         raise HTTPException(status_code=400, detail="prompt must be at least 3 characters")
 
@@ -331,6 +329,7 @@ async def create_pm_feature_contract(
 
     feature_contract = await generate_pm_feature_contract(
         prompt=prompt,
+        source_code=source_code,
         mission_type=mission_type,
         depth_mode=depth_mode,
         output_mode=output_mode,
