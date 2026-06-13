@@ -1,7 +1,7 @@
 # Repository Build Map
 
 Document version: 2026.03.29
-Generated at: 2026-06-13T19:18:38+00:00
+Generated at: 2026-06-13T19:43:53+00:00
 Repository root: `C:\software\Holygrail\theFactory`
 
 This map is generated from the current filesystem so it can be reproduced and reviewed as code.
@@ -15,7 +15,7 @@ This map is generated from the current filesystem so it can be reproduced and re
 ## Summary
 
 - Directories included: `315`
-- Files included: `1899`
+- Files included: `1902`
 
 ## Tree
 
@@ -1798,6 +1798,7 @@ theFactory
 │   ├── BLUEPRINT_MAP.md
 │   ├── COMPLIANCE_EVIDENCE_MAPPING.md
 │   ├── COMPOSE_ENVIRONMENT_PROFILES.md
+│   ├── CURRENT_TODO.md
 │   ├── DATA_CLASSIFICATION_POLICY.md
 │   ├── DEMO_MISSION_SETUP.md
 │   ├── DEPENDENCY_ABSORPTION_DOCTRINE.md
@@ -1809,6 +1810,7 @@ theFactory
 │   ├── DOCUMENTATION_STANDARDS.md
 │   ├── EQUIVALENCE_VERIFIER.md
 │   ├── ERROR_CODES.md
+│   ├── HANDOFF_CURRENT.md
 │   ├── IMPLEMENTATION_STATUS.md
 │   ├── IS_AGENT.md
 │   ├── KNOWLEDGE_LAKE_AND_EMBEDDINGS.md
@@ -1830,6 +1832,7 @@ theFactory
 │   ├── PRODUCTION_STANDARDS_REFERENCES.md
 │   ├── PROMPT_REGISTRY_AND_ASSETS.md
 │   ├── RELEASE_TRUST_PROMOTION_GATE.md
+│   ├── REPOSITORY_BUILD_MAP_2026-06-13.md
 │   ├── ROUTES_REFERENCE.md
 │   ├── RUNTIME_AND_AGENT_BASE.md
 │   ├── RUNTIME_QC_AND_TEST_ENVIRONMENTS.md
