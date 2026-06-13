@@ -18,7 +18,7 @@ if not errorlevel 1 (
     if errorlevel 1 goto backend_failed
     powershell -ExecutionPolicy Bypass -File scripts\generate_dev_tls_certs.ps1
     if errorlevel 1 goto backend_failed
-    docker compose -f deploy\docker-compose.yaml up -d --build
+    docker compose --env-file .env -f deploy\docker-compose.yaml up -d --build
 )
 if errorlevel 1 goto backend_failed
 echo.

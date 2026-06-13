@@ -347,16 +347,14 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    Base["Base runtime\napi-gateway\norchestrator\nprotocol-bus-mcp\npod-worker x4\naudit-worker\ndashboard\nmission-control\nredis\npostgres\nqdrant\njaeger"]
+    Base["Base runtime\napi-gateway\norchestrator\nprotocol-bus-mcp\npod-worker x4\naudit-worker\ndashboard\nmission-control\nredis\npostgres\nqdrant\njaeger\nMilvus\nNeo4j\nMinIO"]
     Monitoring["Monitoring stack\nPrometheus\nGrafana\nLoki\nPromtail\nAlertmanager"]
     Prod["Production overlay\ndeploy/docker-compose.prod.yaml\nstrict worker key mode\nTLS verification settings"]
-    Extended["extended-data-plane profile\nMilvus\nNeo4j\nMinIO"]
     Dedicated["dedicated-agents profile\ndedicated pod-manager workers"]
     FullDedicated["full-dedicated-agents overlay\nagent-runtime containers\ndedicated specialist workers\nMISSION_FLOW_V2_ENABLED=true"]
 
     Base --> Monitoring
     Base --> Prod
-    Base --> Extended
     Base --> Dedicated
     Base --> FullDedicated
     Dedicated --> FullDedicated

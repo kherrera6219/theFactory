@@ -10,10 +10,10 @@ force-stop:
 # validate: full pre-merge gate — lint + schema check + pytest + UI lint/test
 
 up: check-env tls-certs
-	docker compose -f deploy/docker-compose.yaml up -d --build
+	docker compose --env-file .env -f deploy/docker-compose.yaml up -d --build
 
 down:
-	docker compose -f deploy/docker-compose.yaml down -v
+	docker compose --env-file .env -f deploy/docker-compose.yaml down -v
 
 up-full-dedicated: tls-certs
 	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build \
@@ -24,7 +24,8 @@ up-full-dedicated: tls-certs
 		agent-14-python agent-15-javascript agent-16-ruby agent-17-php \
 		agent-20-c agent-21-cpp agent-22-rust agent-23-zig agent-36-go \
 		agent-26-java agent-27-csharp agent-28-scala agent-29-kotlin \
-		agent-32-matlab agent-33-r agent-34-julia agent-35-mathematica agent-37-haskell agent-38-ocaml
+		agent-32-matlab agent-33-r agent-34-julia agent-35-mathematica agent-37-haskell agent-38-ocaml \
+		agent-39-depabs agent-40-testdata agent-41-rqca
 
 down-full-dedicated:
 	docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents down -v

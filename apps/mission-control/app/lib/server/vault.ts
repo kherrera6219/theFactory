@@ -575,9 +575,29 @@ async function vaultGetVaultSecret(slotId: string): Promise<string | null> {
 
 export async function listVaultSlots(): Promise<VaultSlotRecord[]> {
   const backend = getVaultBackend();
-  if (backend === "local-encrypted") return localListVaultSlots();
-  if (backend === "hashicorp-vault") return vaultListVaultSlots();
-  return memoryListVaultSlots();
+  let slots: VaultSlotRecord[] = [];
+  if (backend === "local-encrypted") slots = localListVaultSlots();
+  else if (backend === "hashicorp-vault") slots = await vaultListVaultSlots();
+  else slots = memoryListVaultSlots();
+
+  const hasOperatorKey = slots.some((s) => s.slot_id === "OPERATOR-API-KEY");
+  if (!hasOperatorKey) {
+    const fallback = process.env.INTERNAL_SERVICE_API_KEY?.trim();
+    if (fallback) {
+      slots.push({
+        slot_id: "OPERATOR-API-KEY",
+        provider: "operator",
+        status: "set",
+        last_rotated_at: new Date().toISOString(),
+        masked_preview: maskSecret(fallback),
+        expires_at: null,
+        ttl_seconds: null,
+        rotation_due: false,
+        backend: backend,
+      });
+    }
+  }
+  return slots;
 }
 
 export async function upsertVaultSlot(
@@ -600,10 +620,20 @@ export async function deleteVaultSlot(slotId: string): Promise<boolean> {
 }
 
 export async function getVaultSecret(slotId: string): Promise<string | null> {
+  const normalizedSlot = normalizeSlotId(slotId);
   const backend = getVaultBackend();
-  if (backend === "local-encrypted") return localGetVaultSecret(slotId);
-  if (backend === "hashicorp-vault") return vaultGetVaultSecret(slotId);
-  return memoryGetVaultSecret(slotId);
+  let secret: string | null = null;
+  if (backend === "local-encrypted") secret = localGetVaultSecret(normalizedSlot);
+  else if (backend === "hashicorp-vault") secret = await vaultGetVaultSecret(normalizedSlot);
+  else secret = memoryGetVaultSecret(normalizedSlot);
+
+  if (!secret && normalizedSlot === "OPERATOR-API-KEY") {
+    const fallback = process.env.INTERNAL_SERVICE_API_KEY?.trim();
+    if (fallback) {
+      return fallback;
+    }
+  }
+  return secret;
 }
 
 export function testSecret(provider: string, secret: string): { valid: boolean; reason: string } {

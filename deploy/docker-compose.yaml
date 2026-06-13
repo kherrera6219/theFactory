@@ -131,8 +131,6 @@ services:
       - "${NEO4J_BOLT_HOST_PORT:-7687}:7687"
     volumes:
       - neo4j-data:/data
-    profiles:
-      - extended-data-plane
     healthcheck:
       test:
         [
@@ -227,8 +225,6 @@ services:
       - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
     volumes:
       - minio-data:/data
-    profiles:
-      - extended-data-plane
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
       interval: 10s
@@ -240,13 +236,15 @@ services:
     <<: [*common-service, *data-service-hardening]
     image: milvusdb/milvus:v2.4.13
     command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: "/var/lib/milvus/etcd"
+      COMMON_STORAGETYPE: "local"
     ports:
       - "${MILVUS_HOST_PORT:-19530}:19530"
       - "${MILVUS_METRICS_HOST_PORT:-9091}:9091"
     volumes:
       - milvus-data:/var/lib/milvus
-    profiles:
-      - extended-data-plane
 
   jaeger:
     <<: [*common-service, *data-service-hardening]
