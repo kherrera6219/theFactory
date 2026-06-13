@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({ ...payload, prompt }),
       cache: "no-store",
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(60_000),
     });
 
     const text = await upstream.text();
@@ -65,6 +65,13 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(parsed);
   } catch (error) {
+    const marker = error instanceof Error ? `${error.name} ${error.message}`.toLowerCase() : "";
+    if (marker.includes("abort") || marker.includes("timeout") || marker.includes("timed out")) {
+      return NextResponse.json(
+        { detail: "The PM feature-contract request timed out while the runtime was warming up." },
+        { status: 504 },
+      );
+    }
     return NextResponse.json(
       { detail: error instanceof Error ? error.message : "PM feature-contract request failed." },
       { status: 500 },

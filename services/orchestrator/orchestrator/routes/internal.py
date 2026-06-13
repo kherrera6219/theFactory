@@ -40,6 +40,40 @@ LOGGER = logging.getLogger(__name__)
 
 router = APIRouter()
 
+MISSION_TYPE_ALIASES = {
+    "": "BUILD_NEW",
+    "BUILD": "BUILD_NEW",
+    "BUILD_NEW": "BUILD_NEW",
+    "CREATE": "BUILD_NEW",
+    "FEATURE": "BUILD_NEW",
+    "FULL_BUILD": "BUILD_NEW",
+    "IMPLEMENTATION": "BUILD_NEW",
+    "NEW": "BUILD_NEW",
+    "IMPORT_MODERNIZE": "IMPORT_MODERNIZE",
+    "MODERNIZE": "IMPORT_MODERNIZE",
+    "PORT": "PORT",
+    "DEBUG": "DEBUG_REPAIR",
+    "DEBUG_REPAIR": "DEBUG_REPAIR",
+    "REPAIR": "DEBUG_REPAIR",
+    "SECURITY": "SECURITY_HARDEN",
+    "SECURITY_HARDEN": "SECURITY_HARDEN",
+    "REDUCE_DEPENDENCIES": "REDUCE_DEPENDENCIES",
+    "DEPENDENCY_REDUCTION": "REDUCE_DEPENDENCIES",
+    "RUN_QC": "RUN_QC",
+    "QC": "RUN_QC",
+    "ARCHITECTURE": "ARCHITECTURE_DOCS",
+    "ARCHITECTURE_DOCS": "ARCHITECTURE_DOCS",
+    "ANALYZE": "ANALYZE_ONLY",
+    "ANALYZE_ONLY": "ANALYZE_ONLY",
+    "ANALYSIS": "ANALYZE_ONLY",
+    "SELF_ANALYZE": "SELF_ANALYZE",
+}
+
+
+def _normalize_pm_mission_type(value: Any) -> str:
+    normalized = str(value or "BUILD_NEW").strip().upper().replace("-", "_").replace(" ", "_")
+    return MISSION_TYPE_ALIASES.get(normalized, "BUILD_NEW")
+
 
 # ---------------------------------------------------------------------------
 # Mission chain-trace helpers (moved from main.py)
@@ -320,10 +354,12 @@ async def create_pm_feature_contract(
     if len(prompt) < 3:
         raise HTTPException(status_code=400, detail="prompt must be at least 3 characters")
 
-    mission_type = str(payload.get("mission_type") or "BUILD_NEW").strip().upper()
+    mission_type = _normalize_pm_mission_type(payload.get("mission_type"))
     depth_mode = str(payload.get("depth_mode") or "STANDARD").strip().upper()
     output_mode = str(payload.get("output_mode") or "FULL_BUILD").strip().upper()
     requested_target_language = payload.get("requested_target_language")
+    if requested_target_language is None:
+        requested_target_language = payload.get("requestedTargetLanguage")
     if requested_target_language is not None:
         requested_target_language = str(requested_target_language).strip() or None
 

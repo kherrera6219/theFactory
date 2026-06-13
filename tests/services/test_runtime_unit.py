@@ -1555,6 +1555,24 @@ def test_consume_intake_stream_connection_error_retries(monkeypatch) -> None:
     assert slept == [1.0]
 
 
+def test_consume_intake_stream_timeout_is_idle_poll(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    redis_client.xreadgroup_responses = [
+        runtime.RedisTimeoutError("Timeout reading from redis:6380"),
+    ]
+    app = _app_state(redis=redis_client, lifecycle_tasks={}, redis_ready=True)
+
+    async def _sleep(_seconds):
+        raise AssertionError("idle stream timeouts should not back off")
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+    assert app.state.redis_ready is True
+
+
 def test_runtime_self_heal_loop_reraises_cancellation_from_ensure(monkeypatch) -> None:
     async def _ensure(_app):
         raise asyncio.CancelledError

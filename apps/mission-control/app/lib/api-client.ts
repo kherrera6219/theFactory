@@ -171,6 +171,15 @@ async function parseError(response: Response): Promise<ParsedError> {
   return { message: `Request failed with status ${response.status}` };
 }
 
+function isAbortOrTimeoutError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const candidate = error as { name?: unknown; message?: unknown };
+  const marker = `${String(candidate.name ?? "")} ${String(candidate.message ?? "")}`.toLowerCase();
+  return marker.includes("abort") || marker.includes("timeout") || marker.includes("timed out");
+}
+
 export async function fetchJson<T>(input: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...requestInit } = init ?? {};
   const { signal, cleanup } = withTimeout(timeoutMs);
@@ -193,6 +202,14 @@ export async function fetchJson<T>(input: string, init?: RequestInit & { timeout
       });
     }
     return (await response.json()) as T;
+  } catch (error) {
+    if (isAbortOrTimeoutError(error)) {
+      throw new ApiError("The local runtime took too long to respond.", 408, {
+        errorCode: "LOCAL_RUNTIME_REQUEST_TIMEOUT",
+        recoveryAction: "Wait for the runtime to finish warming up, then retry the request.",
+      });
+    }
+    throw error;
   } finally {
     cleanup();
   }
@@ -405,6 +422,7 @@ export async function listMissionAuditEvents(missionId: string, limit = 100): Pr
 export async function createBuilderPreview(payload: BuilderPreviewRequest): Promise<BuilderPreviewResponse> {
   return fetchJson<BuilderPreviewResponse>(missionApiUrl("/v1/builder/preview"), {
     method: "POST",
+    timeoutMs: 30_000,
     body: JSON.stringify(payload),
   });
 }
