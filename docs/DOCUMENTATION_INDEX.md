@@ -30,6 +30,8 @@ This index is the canonical entry point for all theFactory documentation. Every 
 | [WHAT_THEFACTORY_IS_AND_IS_NOT.md](WHAT_THEFACTORY_IS_AND_IS_NOT.md) | Canonical positioning statement for current scope, non-goals, and evaluation boundaries | All |
 | [BLUEPRINT_MAP.md](BLUEPRINT_MAP.md) | Full system blueprint — the single authoritative map of all services, agents, and data flows | All |
 | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem | All |
+| [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list and outstanding production-readiness work | Maintainers, Operators |
+| [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff for maintainers and AI coding agents | Maintainers, AI coding agents |
 
 ---
 

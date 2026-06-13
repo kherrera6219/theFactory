@@ -382,65 +382,51 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 
 ---
 
-## Open Work (Sprint Backlog)
+## Current Backlog
 
-Items are ordered by impact. The first two block any external launch claim.
+The archived sprint backlog is no longer the source of truth. Use this section
+and `docs/CURRENT_TODO.md` for active work.
 
-### Sprint 1 — Live Demo Gate
-1. ~~**Live provider-key BUILD_NEW demo**~~ — ✅ **DONE (2026-05-23)** — `python scripts/demo_missions.py --live` must
-   reach COMPLETE with non-empty `generated_code`. Highest priority item in the project.
-2. ~~**Token cost ledger activation**~~ — ✅ **DONE (2026-05-29)** `llm_usage_events` table populated during live missions, Cost panel renders real data.
-3. ~~**Flip Python AST extractor to default-on**~~ — ✅ **DONE (2026-05-22)** All three
-   extractors now default-on in `docker-compose.yaml` (`:-true`) and `.env.example` (`=true`).
-   JS and Java were already done; Python added `PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}` to all pod-worker containers.
-4. ~~**Activate Gemini embeddings**~~ — ✅ **DONE (2026-05-29)** `KNOWLEDGE_EMBEDDING_PROVIDER=gemini` active and verified.
-5. ~~**Flip equivalence + security compliance enforcement**~~ — ✅ **DONE (2026-05-22)**
-   `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED=true` and
-   `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED=true` set in `.env.example`.
+### Completed today (2026-06-13)
 
-### Sprint 2 — Intelligence Layer Completions
-6. ~~**PM clarification workflow**~~ — ✅ **DONE (2026-05-22)** `CLARIFYING` MissionState
-   added to `models.py` with `V2_STATES` and `VALID_TRANSITIONS` entry. `MissionClarifyRequest`
-   model added. `POST /v1/missions/{id}/clarify` endpoint in `routes/missions.py` transitions
-   `CLARIFYING → PM_INTAKE` and writes `pm_clarification` to metadata.
-7. ~~**Support agent LLM activation**~~ — ✅ **DONE (2026-05-22)**
-   `generate_security_analysis()` (AGENT-05-SECURITY, `security_analysis.v1`),
-   `generate_vc_commit_strategy()` (AGENT-07-VC, `vc_commit_strategy.v1`), and
-   `generate_integration_tests()` (AGENT-10-TESTER, `integration_tests.v1`) added to
-   `llm_delegation.py` and wired into `_prepare_delivery_summary()` in `mission_flow_v2.py`.
-8. ~~**LLM semantic pod audit**~~ — ✅ **DONE (2026-05-22)**
-   `generate_pod_audit_verdict()` added to `llm_delegation.py`, routes to the correct audit
-   agent per pod (AGENT-13/19/25/31-AUDIT). Wired at end of `_produce_pod_group_standard()`.
-9. ~~**COMPLETE-transition deploy readiness**~~ — ✅ **DONE (2026-05-22)** `build_deploy_readiness_assessment()` called in the VERIFIED→COMPLETE gate of `mission_flow_v2.py` (imported from `llm_delegation.py`). Result stored in `metadata["deploy_readiness"]`.
-10. ~~**Knowledge lake scheduled refresh**~~ — ✅ **DONE (2026-05-22)** `knowledge_lake_refresh_loop()` implemented in `main.py` (line 401) and started at lifespan startup (line 698). Interval via `KNOWLEDGE_REFRESH_INTERVAL_SECONDS`.
-11. ~~**`pm_clarification` / `llm_usage_summary` backend wiring**~~ — ✅ **DONE (2026-05-22)** Both wired in `_prepare_delivery_summary()`: `pm_clarification` emits `MISSION_CLARIFICATION_APPLIED` chain event; `llm_usage_summary` fetched from `get_mission_token_usage()` and stored in `metadata["llm_usage_summary"]`.
+- Routed all 41 agents to Gemini Flash 3.5 with high thinking and added the
+  Mission Control 3-model selector for ChatGPT 5.5, Claude Opus 4.8, and Gemini
+  Flash 3.5.
+- Updated active docs to match the Gemini-first runtime and archived superseded
+  roadmap, backlog, phased-update, release-completion, reliability, and dated
+  runtime-mapping documents under `docs/archive/2026-06-13/`.
+- Regenerated the current repository build map as
+  `docs/REPOSITORY_BUILD_MAP_2026-06-13.md`.
+- Fixed stale model-inventory test expectations so CI no longer expects OpenAI
+  defaults after the Gemini-first routing update.
+- Hardened CI production signaling so Docker build validation, SBOM generation,
+  Electron E2E smoke, and Release Trust are no longer silently skipped on
+  production refs.
 
-### Sprint 3 — Platform Differentiation
-12. ~~**JS/TypeScript DEPABS splicing**~~ — ✅ **DONE (2026-05-22)** Added JS/TS branch to
-    `_splice_replacement()` in `dependency_absorption.py` using regex for `import X from 'lib'`,
-    `import {...}`, `import 'lib'`, and `require('lib')` patterns.
-13. ~~**RQCA for compiled languages**~~ — ✅ **DONE (2026-05-22)** `_COMPILED_LANGUAGE_CONFIG`
-    added to `rqca_agent.py` with Docker images and compile+run commands for C (gcc:13),
-    C++ (gcc:13), Rust (rust:1.78), and C# (dotnet/sdk:8.0).
-14. ~~**PORT two-phase activation**~~ — ✅ **DONE (2026-05-22)** `PORT_TWO_PHASE_ENABLED=true`
-    set in `.env.example`.
-15. **Desktop/game porting demo** — Take an open-source Windows game or utility, run a
-    PORT mission, produce output targeting Linux/macOS. First concrete proof of the
-    platform differentiator.
+### Production blockers
 
-### Sprint 4 — Scale and Operational Maturity
-16. ~~**Prompt cache optimization**~~ — ✅ **DONE (2026-05-22)** `cache_control: {"type": "ephemeral"}`
-    added to system prompt and user content >1024 chars in `_call_anthropic()`. Header
-    `anthropic-beta: prompt-caching-2024-07-31` added.
-17. ~~**Multi-container RQCA**~~ — ✅ **DONE (2026-05-24)** Docker Compose generation from TESTDATA manifest implemented and verified.
-18. **Agent scaling live validation** — Run a large multi-file repo mission with
-    `AGENT_SCALING_ENABLED=true`; validate partition splitting, execution, and result merge.
-19. ~~**Neo4j knowledge graph activation**~~ — ✅ **DONE (2026-05-24)** LogicNode dependency graph wired for FUSION ordering.
-20. ~~**Object storage for large artifacts**~~ — ✅ **DONE (2026-05-24)** Object storage offloading to S3/MinIO implemented and verified.
-21. ~~**Live qualification evidence refresh**~~ — ✅ **DONE (2026-06-11)** Refreshed evidence (`promotion-gate.local.json` and `qualification-gate-summary.local.json`) with a 100% pass rate.
-22. ~~**Lighthouse CI enforcement**~~ — ✅ **DONE (2026-05-22)** `test:perf` step exists in `.github/workflows/ci.yml` (line 87); `package.json` has `"test:perf": "lhci autorun --config=./lighthouserc.json"` script.
-23. **Long-duration reliability re-qualification** — Re-run reliability baseline against
-    the Phase 15–27 stack (`reliability_qualification_baseline_2026-03-03.json` is stale).
+1. **Fresh Gemini live mission proof**: run the local stack with a real
+   `GEMINI_API_KEY`, submit a BUILD_NEW mission, and capture evidence that the
+   mission reaches COMPLETE with non-empty LLM-generated output.
+2. **CI green after production-gate hardening**: confirm the post-`867d3ec`
+   GitHub Actions run completes with all production-critical gates running and
+   passing.
+3. **Repository-host protections**: enforce branch protection, required status
+   checks, secret scanning, and release attestation verification in GitHub
+   settings.
+4. **Production-environment evidence**: produce target-environment DR,
+   retention, backup/restore, and operational evidence outside the local repo.
+5. **Legal/policy approval**: review and approve privacy, terms, and external
+   publication policy documents before partner-facing release.
+
+### Non-blocking validation backlog
+
+- Run a PORT mission against a real open-source Windows game or utility and
+  capture cross-platform output evidence.
+- Run agent-scaling live validation with `AGENT_SCALING_ENABLED=true` on a
+  multi-file repository mission.
+- Re-run long-duration reliability qualification against the current
+  Gemini-first, production-gate-hardened baseline.
 
 ---
 
