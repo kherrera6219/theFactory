@@ -65,6 +65,7 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 - **Web (Pod A)**: Enforce PEP 8/604, ECMAScript 2024, and OWASP safety.
 - **Enterprise (Pod C)**: Enforce SOLID patterns, JVM hygiene, and .NET async correctness.
 - **Admin Mode**: Authentication is now implicitly tied to the host OS; full administrative capabilities are enabled by default for zero-friction local usage.
+- **Multimodal Assets**: The PM Agent chat intake accepts all document formats (e.g., PDF) and image types (e.g., diagrams), converting them to Base64 Data URLs that are parsed by the provider layer (`providers.py`) and sent natively to multimodal LLMs (`inlineData` for Gemini, `image_url` for OpenAI).
 
 ## 6. Known Open Gaps
 
