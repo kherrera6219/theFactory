@@ -1,11 +1,11 @@
 # Agent Protocol Bus and Data Systems Plan
 
 Document version: 2026.05.30  
-Last updated: 2026-05-30  
+Last updated: 2026-06-13
 Status: Reference  
 Audience: Operators, developers, maintainers, and auditors
 
-> Historical note (2026-03-29): This document predates the current 41-agent runtime. Treat any `35-agent` references below as historical planning terminology unless explicitly updated in a newer canonical document.
+> Current note (2026-06-13): This active plan is aligned to the 41-agent runtime.
 
 Date: 2026-03-03
 
@@ -23,7 +23,7 @@ Implemented in `theFactory` now:
 
 - Redis stream/message backbone for mission and agent events.
 - PostgreSQL as the primary mission, event, artifact, and telemetry state store.
-- 35-agent orchestrator registry with live operations snapshots and heartbeat/state telemetry.
+- 41-agent orchestrator registry with live operations snapshots and heartbeat/state telemetry.
 
 Current implementation status in docs and code:
 
@@ -61,7 +61,7 @@ Implemented in this phase:
 
 Also implemented after initial Phase 1 baseline:
 
-- Added full 8-part persona profile generation for all 35 agents:
+- Added full 8-part persona profile generation for all 41 agents:
   - `services/orchestrator/orchestrator/agent_personas.py`
 - Added standards/evidence extension fields in operations payloads:
   - `persona_profile.standards_alignment`

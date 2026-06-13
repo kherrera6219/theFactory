@@ -1,12 +1,16 @@
 # theFactory — Sprint Backlog
-**Created:** 2026-05-20
-**Status:** Active
-**Phase 26/27:** ✅ Complete (2026-05-20)
-**Scope:** Total completion from Phase 27 baseline to fully live, production-deployed system
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Audience: Maintainers
 
-This file is the authoritative sprint backlog. Items are ordered by impact within each sprint.
-Check off `[x]` as items complete. Each item maps to a numbered section in
-`docs/IMPLEMENTATION_STATUS.md` Open Work.
+**Created:** 2026-05-20
+**Status:** Superseded historical backlog
+**Phase 26/27:** ✅ Complete (2026-05-20)
+**Scope:** Historical completion work from the Phase 27 baseline
+
+This file is retained as historical sprint evidence. It is no longer the
+authoritative current-work list. Use `docs/IMPLEMENTATION_STATUS.md` for current
+runtime status and open validation work.
 
 ---
 

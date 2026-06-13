@@ -1,5 +1,10 @@
 # theFactory Architecture Blueprint & File Map
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Developers and operators
+
 This document serves as the canonical blueprint and file map of **theFactory** repository, detailing components, routing architectures, and data structures. This map is updated phase-by-phase during the repository audit.
 
 ---

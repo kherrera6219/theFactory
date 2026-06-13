@@ -1,8 +1,13 @@
 # theFactory Documentation Index
 
-**Version:** 2026.06.11-r5  
+Document version: 2026.06.13-r1
+Last updated: 2026-06-13
+Status: Canonical
+Audience: All contributors
+
+**Version:** 2026.06.13-r1
 **Maintained by:** Documentation Guild  
-**Last reviewed:** 2026-06-11
+**Last reviewed:** 2026-06-13
 
 This index is the canonical entry point for all theFactory documentation. Every doc file in `docs/` is listed here with a one-line description and its primary audience. Files not listed here are considered undiscovered and should be added in the next documentation sprint.
 
@@ -114,7 +119,7 @@ This index is the canonical entry point for all theFactory documentation. Every 
 | [LLM_DELEGATION.md](LLM_DELEGATION.md) | `llm_delegation/` package — provider routing, retry/fallback, cost guard, offline mode, and adding new providers | Developers, Architects |
 | [PROMPT_REGISTRY_AND_ASSETS.md](PROMPT_REGISTRY_AND_ASSETS.md) | `prompt_registry.py` and `prompt_assets/` — versioned prompt vault, asset naming, SHA-256 fingerprinting, and audit traceability | Developers |
 | [LLM_SAFETY_AND_DOCUMENT_PARSER.md](LLM_SAFETY_AND_DOCUMENT_PARSER.md) | LLM safety filters and document parser — input/output sanitization and safe parsing for mission payloads | Developers, Security |
-| [AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md](AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md) | Per-agent LLM provider and model assignments — which model each of the 41 agents uses by default | Architects, Developers |
+| [AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md](AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md) | Current per-agent LLM defaults and the approved Mission Control 3-model catalog | Architects, Developers |
 | [AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md](AGENT_PERSONA_STANDARDS_EVIDENCE_2026-03-02.md) | Evidence that all 41 agent personas meet the persona standards defined in `agent_personas.py` | Architects |
 
 ---

@@ -1,5 +1,7 @@
 # LLM Safety Filter and Document Parser
 
+Last updated: 2026-06-13
+
 Document version: 2026.06.11  
 Status: Canonical  
 Audience: Developers and security reviewers

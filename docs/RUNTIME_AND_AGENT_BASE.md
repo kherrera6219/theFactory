@@ -1,5 +1,9 @@
 # Runtime Engine and Agent Base Class Reference
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Audience: Developers and operators
+
 **Version:** 2026.06.11  
 **Code files:** `services/orchestrator/orchestrator/runtime.py` (27 KB) and `services/orchestrator/orchestrator/agent_base.py` (30 KB)  
 **Status:** Production — shipped in every deployment

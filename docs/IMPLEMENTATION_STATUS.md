@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.05.30
-Last updated: 2026-05-30
+Document version: 2026.06.13
+Last updated: 2026-06-13
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -15,24 +15,38 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ## Project Status
 
-**Version: v1.2.0** (improvement batch 2026-05-30, PRs #185–#194).
+**Version: v1.2.0** (current baseline with Gemini-first model routing update,
+2026-06-13).
 
-As of 2026-05-20, Phases 1–27 are complete. The platform has a full Smelt-Cycle
+As of 2026-06-13, Phases 1–27 are complete. The platform has a full Smelt-Cycle
 pipeline (INTAKE → FETCH → SMELT → GATING → FUSION → SQUEEZE → DELIVERY), a 41-agent
 registry, versioned prompt assets with LLM safety governance, a 22/22-passing production
 review audit, 97 offline eval and unit tests, and a 23-spec Playwright E2E suite. Git
 history is clean of private keys. Disaster recovery RTO is 37.13s.
 
-**Current active phase:** Sprint 1 — Live Demo Gate. The next required step is running
-`python scripts/demo_missions.py --live` with real provider API keys and confirming a
+**Current active phase:** Gemini-first operator validation. The next required
+step is running the local stack with a real Gemini key and confirming a
 BUILD_NEW mission reaches COMPLETE with non-empty `generated_code`.
 
 **Release blockers:** None for the Phases 1–27 implementation baseline. The only
-remaining blocker for a public launch claim is the live provider-key demo (item 1 below).
+remaining blocker for a public launch claim after the model-routing update is a
+fresh live Gemini provider-key demo.
 
 ---
 
 ## What Is Implemented
+
+### Gemini-first model routing update (2026-06-13)
+
+- All 41 agents default to `gemini/gemini-3.5-flash` with high thinking.
+- Mission Control Settings exposes a 3-model selector for vault-slot testing:
+  ChatGPT 5.5, Claude Opus 4.8, and Gemini Flash 3.5.
+- Vault slot metadata persists provider and model selection alongside secret
+  status; key values remain redacted.
+- Gateway preview/model validation allows only the approved 3-model catalog.
+- Local validation passed focused Ruff checks, targeted backend tests for agent
+  integrations and settings, Mission Control lint/test/build, and Docker image
+  builds for API Gateway, Orchestrator, and Mission Control.
 
 ### v1.2.0 Improvement Batch (2026-05-30)
 
@@ -238,11 +252,19 @@ The following previously-tracked known gaps are now closed:
 | `AGENT_SCALING_ENABLED` | `false` | Partitioning logic wired; not validated live |
 | `NEO4J_ENABLED` | `false` | Optional knowledge graph adapter |
 | `OBJECT_STORAGE_ENABLED` | `false` | Optional MinIO/S3 adapter |
-| `KNOWLEDGE_EMBEDDING_PROVIDER` | `deterministic` | Set to `gemini` to activate |
+| `KNOWLEDGE_EMBEDDING_PROVIDER` | `gemini` in local env template | Gemini embeddings active when `GEMINI_API_KEY` is set |
+| `LLM_PROVIDER` | `gemini` | Default LLM provider for all agent routes |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Default model for all 41 agents |
+| `GEMINI_THINKING_LEVEL` | `high` | Default effort for Gemini route |
+| `OPENAI_MODEL` | `gpt-5.5` | Available in Mission Control model selector only |
+| `OPENAI_REASONING_EFFORT` | `high` | Default effort for OpenAI route |
+| `ANTHROPIC_MODEL` | `claude-opus-4-8` | Available in Mission Control model selector only |
+| `ANTHROPIC_THINKING_BUDGET_TOKENS` | `8192` | High-effort Anthropic thinking budget |
 
-**LLM model assignments (as of 2026-05-20):**
-- OpenAI (28 agents): `gpt-5.5` — PM, CEO, executives, all pod managers, all code specialists, security, compliance, pod auditors A/B/C, tester, DEPABS, RQCA
-- Gemini (13 agents): `gemini-3.5-flash` (GA — Google I/O May 2026) — all STEM/mathematical specialists (MATLAB, R, Julia, Mathematica, Haskell, OCaml), Pod D manager and auditor, IS, HW, Broker, Deploy, TestData
+**LLM model assignments (as of 2026-06-13):**
+- Gemini (41 agents): `gemini-3.5-flash` with high thinking.
+- Mission Control selectable non-default routes: `gpt-5.5` and
+  `claude-opus-4-8`.
 
 ---
 
@@ -306,6 +328,9 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 - **Next.js 16** operator console at `apps/mission-control`.
 - **Views**: chat intake, missions list, mission detail, agents, protocol-bus, builder,
   repo-import, databases, settings, projects audit.
+- **Settings vault model selector**: each API key slot can store one of the
+  approved provider/model routes: ChatGPT 5.5, Claude Opus 4.8, or Gemini Flash
+  3.5. Gemini Flash 3.5 is the runtime default for all agents.
 - **Mission Detail panels** (22 total across 3 categories):
   - `intelligence/`: AIM, DependencyAbsorption, EquivalenceReport, Fusion, KnowledgeLake,
     LogicClusters, PodGroupStandards, RuntimeQc, SecurityCompliance
@@ -338,7 +363,7 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 
 ---
 
-## Validation Snapshot (as of 2026-05-22)
+## Validation Snapshot (as of 2026-06-13)
 
 | Check | Result |
 |---|---|
@@ -353,6 +378,7 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 | DR drill RTO | ✅ 37.13s (target: ≤30 min) |
 | Coverage gate | ✅ ≥80% enforced in CI and pyproject.toml |
 | `runtime.py` per-module coverage floor | ✅ Raised 60% → 80% (#192); actual 100% line / 99% branch |
+| Gemini-first focused checks | ✅ Ruff, targeted pytest, Mission Control lint/test/build, and Docker image builds passed |
 
 ---
 

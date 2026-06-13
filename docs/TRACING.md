@@ -1,5 +1,9 @@
 # OpenTelemetry Tracing
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+
 **Code file:** `services/orchestrator/orchestrator/tracing.py`  
 **Audience:** Developers, Operators  
 **Last reviewed:** 2026-06-11

@@ -1,5 +1,8 @@
 # Mission Flow v2 — Internals Reference
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+
 **Version:** 2026.06.11  
 **Code package:** `services/orchestrator/orchestrator/mission_flow_v2/`  
 **Status:** Default production engine as of ADR_MISSION_FLOW_V2_STATUS_2026-03-08  

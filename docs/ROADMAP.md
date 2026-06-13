@@ -1,11 +1,11 @@
 # Build Roadmap
 
 Document version: 2026.05.22  
-Last updated: 2026-05-22  
+Last updated: 2026-06-13
 Status: Active — Phases 1–54 complete; Sprint 1–4 open (see SPRINT_BACKLOG.md)  
 Audience: Operators, developers, maintainers, and auditors
 
-> **Phase log note (updated 2026-05-22):** Phases 1–52 were planned/completed by 2026-05-20. Phases 53–54 (Mission Control UI/UX Phase 4+6 and Electron shell) completed 2026-05-22. Any `35-agent` references in early phases are historical planning terminology — the current runtime is 38 agents.
+> **Phase log note (updated 2026-06-13):** Phases 1–52 were planned/completed by 2026-05-20. Phases 53–54 (Mission Control UI/UX Phase 4+6 and Electron shell) completed 2026-05-22. Any `35-agent` references in early phases are historical planning terminology — the current runtime is 41 agents.
 
 For shipped defaults and active validation status, use [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md). For open sprint work, use [`SPRINT_BACKLOG.md`](SPRINT_BACKLOG.md).
 
@@ -54,7 +54,7 @@ For shipped defaults and active validation status, use [`IMPLEMENTATION_STATUS.m
 
 ## Phase 7: Agent Persona and Governance Alignment
 
-- Full 8-part persona profiles for all 35 agents in operations APIs.
+- Full 8-part persona profiles for all 41 agents in operations APIs.
 - Mission Control agent-detail rendering for persona profile data.
 - Standards/evidence extension:
   - NIST CSF 2.0

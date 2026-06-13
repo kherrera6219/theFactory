@@ -1,5 +1,10 @@
 # Orchestrator Models Reference
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Developers and operators
+
 **File:** `services/orchestrator/orchestrator/models.py`  
 **Last documented:** 2026-06-11
 

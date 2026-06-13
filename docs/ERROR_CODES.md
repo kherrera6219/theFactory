@@ -1,5 +1,10 @@
 # theFactory — Error Code Registry
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Developers and operators
+
 **Standard:** Local-First Error Handling Standard §7 — `FACTORY-<CATEGORY>-<NNN>`.
 **Source of truth for categories/severities:** `shared_runtime/errors.py`
 (`ErrorCategory`, `ErrorSeverity`, `make_error_code`).

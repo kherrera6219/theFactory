@@ -1,5 +1,10 @@
 # Security Compliance Module
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Developers and operators
+
 **Source file:** `services/orchestrator/orchestrator/security_compliance.py`  
 **Size:** ~11 KB  
 **Role:** Runtime enforcement of the security and compliance policy defined in `DATA_CLASSIFICATION_POLICY.md` and `SENSITIVE_CODE_HANDLING_POLICY.md`. Called at mission intake and before LLM delegation for Tier 2/3 missions.

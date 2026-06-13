@@ -1,7 +1,7 @@
 # Mission Control
 
-Document version: 2026.05.17  
-Last updated: 2026-05-17  
+Document version: 2026.06.13
+Last updated: 2026-06-13
 Status: Canonical
 
 Mission Control is the Next.js operator console for theFactory.
@@ -15,7 +15,8 @@ It is designed for local-first Windows operation and provides real-time visibili
 - Visualize 41-agent topology and telemetry.
 - Render full agent persona profiles with governance evidence.
 - Surface protocol bus and artifact-level observability.
-- Manage local runtime preferences and vault-backed integration secrets.
+- Manage local runtime preferences, vault-backed integration secrets, and
+  per-slot model metadata for the approved 3-model catalog.
 
 ## Run Locally
 
@@ -31,10 +32,15 @@ It is designed for local-first Windows operation and provides real-time visibili
    - `npm run dev`
 4. Build production bundle:
    - `npm run build`
-5. Start production server:
+5. Start the server build:
    - `npm run start`
 6. Lint:
    - `npm run lint`
+
+`npm run build` and `npm run start` set `NEXT_BUILD_TARGET=docker`, which keeps
+server routes such as `/api/gateway/[...path]` available. Static export builds
+are only for Electron packaging; they must be served from `out/` rather than
+started with `next start`.
 
 ## Environment
 
@@ -48,6 +54,10 @@ It is designed for local-first Windows operation and provides real-time visibili
 - `MISSION_CONTROL_SESSION_TTL_SECONDS` (default `28800`)
 - `MISSION_CONTROL_SESSION_SECURE` (`true` for HTTPS production deployments)
 - `VAULT_ADMIN_KEY` (optional break-glass header auth for scripted `/api/vault` access)
+- Vault model metadata:
+  - Supported UI model routes: `gpt-5.5`, `claude-opus-4-8`,
+    `gemini-3.5-flash`
+  - Runtime default: all 41 agents use `gemini-3.5-flash` with high thinking
 - Optional HashiCorp Vault KV backend:
   - `VAULT_ADDR`
   - `VAULT_TOKEN` or `VAULT_ROLE_ID` + `VAULT_SECRET_ID`
@@ -95,7 +105,7 @@ Agent detail includes:
 
 - `/api/vault`:
   - GET vault slot metadata
-  - POST save slot secret
+  - POST save slot secret plus provider/model metadata
   - DELETE clear slot
 - `/api/vault/test`:
   - validate provider key formats or test checks
@@ -109,7 +119,7 @@ Agent detail includes:
 ## Security and Accessibility Notes
 
 - TypeScript strict mode is enabled.
-- A Content-Security-Policy is enforced via a `<meta http-equiv>` tag in the root layout (`app/layout.tsx`). The static Electron build uses `output: export`, where `next.config.mjs` `headers()` is ignored, so the CSP ships as a meta tag instead.
+- A Content-Security-Policy is enforced via a `<meta http-equiv>` tag in the root layout (`app/layout.tsx`). Static Electron export builds use `output: export`, where `next.config.mjs` `headers()` is ignored, so the CSP ships as a meta tag instead.
 - API consumption uses timeout-based request guards and resilient parsing.
 - Mission Control privileged routes fail closed without a valid signed operator session.
 - Review approvals fail closed if the orchestrator internal base URL, service API key, or approval HMAC secret is missing.

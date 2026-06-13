@@ -1,5 +1,10 @@
 # Metrics Source Modules Reference
 
+Document version: 2026.06.13
+Last updated: 2026-06-13
+Status: Canonical
+Audience: Developers and operators
+
 **Source files:**
 - `services/orchestrator/orchestrator/data_plane_metrics.py`
 - `services/orchestrator/orchestrator/orchestrator_metrics.py`
