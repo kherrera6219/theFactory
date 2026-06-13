@@ -1,6 +1,7 @@
 import {
   approveReviewArtifact,
   ApiError,
+  createBuilderPreview,
   createBuilderWorkspaceReview,
   fetchJson,
   getGatewayReadyState,
@@ -111,6 +112,34 @@ describe("api-client", () => {
         statusCode: 404,
       }),
     );
+  });
+
+  it("normalizes aborted requests into actionable timeout errors", async () => {
+    fetchMock.mockRejectedValueOnce(new DOMException("signal is aborted without reason", "AbortError"));
+
+    await expect(fetchJson("/api/gateway/v1/slow", { method: "GET" })).rejects.toEqual(
+      expect.objectContaining({
+        message: "The local runtime took too long to respond.",
+        statusCode: 408,
+        errorCode: "LOCAL_RUNTIME_REQUEST_TIMEOUT",
+      }),
+    );
+  });
+
+  it("gives builder preview requests a longer warmup timeout", async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ plan: [], warnings: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await createBuilderPreview({ request: "Build a Windows Snake RPG", view_mode: "desktop" });
+
+    const call = fetchMock.mock.calls[0];
+    expect(call[1]?.signal).toBeDefined();
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 30_000);
   });
 
   it("maps 429 responses to friendly ApiError messages", async () => {

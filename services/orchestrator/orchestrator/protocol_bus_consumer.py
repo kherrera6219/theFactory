@@ -31,6 +31,13 @@ from typing import Any, Awaitable, Callable
 
 LOGGER = logging.getLogger(__name__)
 
+try:
+    from redis.exceptions import TimeoutError as RedisTimeoutError
+except ModuleNotFoundError:
+
+    class RedisTimeoutError(Exception):
+        pass
+
 # Handler signature: async def handler(message: dict[str, Any]) -> None
 Handler = Callable[[dict[str, Any]], Awaitable[None]]
 
@@ -113,6 +120,13 @@ class ProtocolBusConsumer:
                 )
             except asyncio.CancelledError:
                 raise
+            except RedisTimeoutError as exc:
+                LOGGER.debug(
+                    "ProtocolBusConsumer xread timed out while idle on lane %s: %s",
+                    protocol,
+                    exc,
+                )
+                continue
             except Exception as exc:
                 LOGGER.warning(
                     "ProtocolBusConsumer xread failed on lane %s: %s", protocol, exc

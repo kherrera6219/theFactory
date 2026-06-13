@@ -31,10 +31,13 @@ except ModuleNotFoundError:
     redis = None
 
 try:
-    from redis.exceptions import ResponseError
+    from redis.exceptions import ResponseError, TimeoutError as RedisTimeoutError
 except ModuleNotFoundError:
 
     class ResponseError(Exception):
+        pass
+
+    class RedisTimeoutError(Exception):
         pass
 
 
@@ -668,6 +671,10 @@ async def consume_intake_stream(app: FastAPI) -> None:
                 app.state.redis_ready = True
                 continue
             raise
+        except RedisTimeoutError as exc:
+            LOGGER.debug("intake stream read timed out while idle: %s", exc)
+            app.state.redis_ready = True
+            continue
         except Exception:
             app.state.redis_ready = False
             LOGGER.exception("intake consumer loop failed; retrying")

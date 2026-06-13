@@ -67,6 +67,19 @@ class FakeStreamRedis:
         return out
 
 
+class TimeoutThenDataRedis(FakeStreamRedis):
+    def __init__(self, seeded: dict[str, list[tuple[str, dict[str, str]]]], timeout_error: Exception):
+        super().__init__(seeded)
+        self._timeout_error = timeout_error
+        self._timed_out = False
+
+    async def xread(self, streams: dict[str, str], count: int = 20, block: int = 0):
+        if not self._timed_out:
+            self._timed_out = True
+            raise self._timeout_error
+        return await super().xread(streams, count=count, block=block)
+
+
 def _envelope_entry(protocol: str, content: dict[str, Any], sender: str = "AGENT-06-IS"):
     envelope = {
         "message_id": "msg-1",
@@ -211,6 +224,35 @@ class TestProtocolBusConsumer:
         # Only the good entry reaches the handler; the malformed one is dropped.
         assert len(received) == 1
         assert received[0]["payload"]["content"]["mission_id"] == "ok"
+
+    def test_stream_timeout_is_idle_poll(self):
+        from orchestrator.protocol_bus_consumer import ProtocolBusConsumer, RedisTimeoutError
+
+        channel = "protocol:sigma:broadcast"
+        entry = _envelope_entry("sigma", {"mission_id": "after-timeout"})
+        redis = TimeoutThenDataRedis(
+            {channel: [entry]},
+            RedisTimeoutError("Timeout reading from redis:6380"),
+        )
+
+        received: list[dict[str, Any]] = []
+
+        async def handler(message: dict[str, Any]) -> None:
+            received.append(message)
+            consumer.stop()
+
+        consumer = ProtocolBusConsumer(
+            redis_client=redis,
+            agent_id="AGENT-03-BROKER",
+            handlers={"sigma": handler},
+            block_ms=1,
+        )
+
+        asyncio.run(asyncio.wait_for(consumer.start(), timeout=2.0))
+
+        assert redis.read_calls == 1
+        assert len(received) == 1
+        assert received[0]["payload"]["content"]["mission_id"] == "after-timeout"
 
 
 # ---------------------------------------------------------------------------

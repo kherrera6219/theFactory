@@ -111,6 +111,48 @@ def test_internal_provider_health_endpoint(monkeypatch) -> None:
     assert response.json()["providers"]["openai"]["call_count"] == 1
 
 
+def test_internal_pm_feature_contract_normalizes_preview_payload(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    async def _generate_pm_feature_contract(**kwargs):
+        captured.update(kwargs)
+        return {
+            "title": "Windows Snake RPG",
+            "summary": "Build a Windows desktop-focused Snake RPG in Next.js.",
+            "target_languages": ["typescript"],
+            "functional_requirements": ["Keyboard-driven Snake gameplay"],
+            "acceptance_criteria": ["Runs locally on Windows"],
+            "risk_notes": [],
+            "risk_assessment": {"complexity": "medium"},
+            "human_approval_required": False,
+            "source": "test",
+        }
+
+    monkeypatch.setattr(
+        orchestrator_internal,
+        "generate_pm_feature_contract",
+        _generate_pm_feature_contract,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/internal/pm/feature-contract",
+        headers={"x-api-key": "worker-key"},
+        json={
+            "prompt": "Build a Windows-focused Snake RPG game using Next.js.",
+            "mission_type": "implementation",
+            "requestedTargetLanguage": "typescript",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert captured["mission_type"] == "BUILD_NEW"
+    assert captured["requested_target_language"] == "typescript"
+    assert body["mission_charter"]["mission_type"] == "BUILD_NEW"
+    assert body["mission_charter"]["target"]["primary_language"] == "typescript"
+
+
 def test_internal_runtime_qc_endpoint_reads_storage(monkeypatch) -> None:
     monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
     monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)
