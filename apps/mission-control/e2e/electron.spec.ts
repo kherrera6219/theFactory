@@ -14,12 +14,18 @@ let page: Page;
 test.beforeAll(async () => {
   app = await electron.launch({
     args: [ELECTRON_MAIN],
+    env: {
+      ...process.env,
+      ELECTRON_E2E: "1",
+    },
   });
   page = await app.firstWindow();
 });
 
 test.afterAll(async () => {
-  await app?.close();
+  await app?.close().catch(async () => {
+    await app?.process().kill();
+  });
 });
 
 test("app launches and shows the operator window", async () => {

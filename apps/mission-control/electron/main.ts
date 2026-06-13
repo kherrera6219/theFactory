@@ -1,5 +1,7 @@
 import { execSync } from "child_process";
+import fs from "fs";
 import path from "path";
+import { pathToFileURL } from "url";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { setupTray } from "./tray";
 import { setupUpdater } from "./updater";  // version IPC only — auto-update disabled
@@ -10,6 +12,7 @@ import { IPC_CHANNELS } from "../app/lib/electron-bridge";
 installCrashHandlers();
 
 const isDev = process.env.ELECTRON_DEV === "1";
+const isE2E = process.env.ELECTRON_E2E === "1";
 const NEXT_DEV_PORT = 3100; // Match next dev --port in package.json
 
 let mainWindow: BrowserWindow | null = null;
@@ -23,6 +26,16 @@ function checkDockerAvailability(): { available: boolean; error?: string } {
       error: "Docker Desktop or Docker Engine was not found on this system. theFactory backend requires Docker to operate." 
     };
   }
+}
+
+function exportedAppUrl(): string {
+  const candidates = [
+    path.join(app.getAppPath(), "out", "index.html"),
+    path.join(process.cwd(), "out", "index.html"),
+    path.join(__dirname, "..", "..", "..", "out", "index.html"),
+  ];
+  const indexPath = candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
+  return pathToFileURL(indexPath).toString();
 }
 
 
@@ -51,11 +64,11 @@ function createWindow(): void {
   });
 
   // Load the Next.js app — dev server in development, static export in production.
-  const appUrl = isDev
-    ? `http://localhost:${NEXT_DEV_PORT}`
-    : `file://${path.join(__dirname, "../out/index.html")}`;
+  const appUrl = isDev ? `http://localhost:${NEXT_DEV_PORT}` : exportedAppUrl();
 
-  void mainWindow.loadURL(appUrl);
+  void mainWindow.loadURL(appUrl).catch((error) => {
+    console.error(`Failed to load Mission Control UI from ${appUrl}:`, error);
+  });
 
   // Security — keep external URLs out of the app window. Anything that isn't a
   // localhost dev URL or the local file:// bundle opens in the system browser.
@@ -96,9 +109,11 @@ function createWindow(): void {
 // ── App lifecycle ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
-  const docker = checkDockerAvailability();
-  if (!docker.available) {
-    dialog.showErrorBox("Infrastructure Missing", docker.error!);
+  if (!isE2E) {
+    const docker = checkDockerAvailability();
+    if (!docker.available) {
+      dialog.showErrorBox("Infrastructure Missing", docker.error!);
+    }
   }
   createWindow();
 
