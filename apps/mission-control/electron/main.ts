@@ -74,7 +74,9 @@ function createWindow(): void {
   // localhost dev URL or the local file:// bundle opens in the system browser.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith("http://localhost") && !url.startsWith("file://")) {
-      void shell.openExternal(url);
+      if (!isE2E) {
+        void shell.openExternal(url);
+      }
       return { action: "deny" };
     }
     return { action: "allow" };
@@ -83,7 +85,9 @@ function createWindow(): void {
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith("http://localhost") && !url.startsWith("file://")) {
       event.preventDefault();
-      void shell.openExternal(url);
+      if (!isE2E) {
+        void shell.openExternal(url);
+      }
     }
   });
 
