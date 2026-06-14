@@ -120,6 +120,21 @@ class TestApiGatewayInternalKeyHardening:
             "INTERNAL_SERVICE_API_KEY must default to '' not 'worker-key'"
         )
 
+    def test_compose_passes_operator_keys_to_api_gateway(self):
+        """Gateway operator-route auth needs the same key env as its role map."""
+        compose = Path("deploy/docker-compose.yaml").read_text(encoding="utf-8")
+        marker = "  api-gateway:"
+        start = compose.index(marker)
+        next_service = compose.index("\n  mission-control:", start)
+        api_gateway_block = compose[start:next_service]
+
+        assert "ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-}" in api_gateway_block
+        assert (
+            "ORCHESTRATOR_READONLY_API_KEY: ${ORCHESTRATOR_READONLY_API_KEY:-}"
+            in api_gateway_block
+        )
+        assert "ORCHESTRATOR_API_KEYS: ${ORCHESTRATOR_API_KEYS:-}" in api_gateway_block
+
 
 # ---------------------------------------------------------------------------
 # Vault route authentication

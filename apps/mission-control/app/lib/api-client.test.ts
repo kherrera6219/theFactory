@@ -3,6 +3,7 @@ import {
   ApiError,
   createBuilderPreview,
   createBuilderWorkspaceReview,
+  createPmFeatureContract,
   fetchJson,
   getGatewayReadyState,
   getMissionChainTrace,
@@ -140,6 +141,51 @@ describe("api-client", () => {
     const call = fetchMock.mock.calls[0];
     expect(call[1]?.signal).toBeDefined();
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 30_000);
+  });
+
+  it("normalizes builder preview camelCase request fields", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ plan: [], warnings: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await createBuilderPreview({
+      request: "Build a Windows Snake RPG",
+      viewMode: "desktop",
+      requestedTargetLanguage: "typescript",
+    });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body).toMatchObject({
+      request: "Build a Windows Snake RPG",
+      view_mode: "desktop",
+      requested_target_language: "typescript",
+    });
+    expect(body.viewMode).toBeUndefined();
+    expect(body.requestedTargetLanguage).toBeUndefined();
+  });
+
+  it("normalizes PM feature contract camelCase request fields", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ feature_contract: { title: "Snake RPG" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await createPmFeatureContract({
+      prompt: "Build a Windows Snake RPG",
+      requestedTargetLanguage: "typescript",
+    });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body).toMatchObject({
+      prompt: "Build a Windows Snake RPG",
+      requested_target_language: "typescript",
+    });
+    expect(body.requestedTargetLanguage).toBeUndefined();
   });
 
   it("maps 429 responses to friendly ApiError messages", async () => {

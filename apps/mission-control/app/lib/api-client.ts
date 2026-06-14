@@ -420,18 +420,44 @@ export async function listMissionAuditEvents(missionId: string, limit = 100): Pr
 }
 
 export async function createBuilderPreview(payload: BuilderPreviewRequest): Promise<BuilderPreviewResponse> {
+  const {
+    viewMode,
+    requestedTargetLanguage,
+    ...rest
+  } = payload as BuilderPreviewRequest & {
+    viewMode?: unknown;
+    requestedTargetLanguage?: unknown;
+  };
+  const normalizedPayload = {
+    ...rest,
+    ...(rest.view_mode === undefined && typeof viewMode === "string" ? { view_mode: viewMode } : {}),
+    ...(rest.requested_target_language === undefined && typeof requestedTargetLanguage === "string"
+      ? { requested_target_language: requestedTargetLanguage }
+      : {}),
+  };
+
   return fetchJson<BuilderPreviewResponse>(missionApiUrl("/v1/builder/preview"), {
     method: "POST",
     timeoutMs: 30_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(normalizedPayload),
   });
 }
 
 export async function createPmFeatureContract(payload: PmFeatureContractRequest): Promise<PmFeatureContractResponse> {
+  const { requestedTargetLanguage, ...rest } = payload as PmFeatureContractRequest & {
+    requestedTargetLanguage?: unknown;
+  };
+  const normalizedPayload = {
+    ...rest,
+    ...(rest.requested_target_language === undefined && typeof requestedTargetLanguage === "string"
+      ? { requested_target_language: requestedTargetLanguage }
+      : {}),
+  };
+
   return fetchJson<PmFeatureContractResponse>("/api/pm/feature-contract", {
     method: "POST",
     timeoutMs: 30_000,
-    body: JSON.stringify(payload),
+    body: JSON.stringify(normalizedPayload),
   });
 }
 
