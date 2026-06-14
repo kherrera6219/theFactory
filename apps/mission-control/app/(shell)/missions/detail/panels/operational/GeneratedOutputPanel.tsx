@@ -93,6 +93,20 @@ export function GeneratedOutputPanel({
         <p className="muted">No generated-code artifact recorded yet for this mission.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {/* File System Path Card */}
+          <div
+            style={{
+              padding: '0.4rem 0.8rem',
+              background: 'var(--color-surface-offset)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.85em',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            📁 Exported locally to: <code className="mono-id" style={{ color: 'var(--color-primary-light, #38bdf8)' }}>output/{missionId}/</code>
+          </div>
+
           {/* Toolbar */}
           <div
             style={{

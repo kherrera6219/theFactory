@@ -370,6 +370,7 @@ services:
       # Canonical output path: deploy/.local/redis-certs and deploy/.local/postgres-certs
       - ./.local/redis-certs:/run/redis-certs:ro
       - ./.local/postgres-certs:/run/postgres-certs:ro
+      - ../output:/app/output
     ports:
       - "${ORCHESTRATOR_HOST_PORT:-8101}:8001"
     depends_on:

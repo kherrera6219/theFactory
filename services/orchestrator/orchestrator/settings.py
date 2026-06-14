@@ -127,6 +127,7 @@ class Settings:
     migration_postgres_url_override: str = ""
     audit_retention_days: int = 90
     logicnode_schema_path: Path = Path("schemas/logicnode.schema.json")
+    delivery_dir: Path = Path("output")
     environment: str = "development"
     # "shared" — agents without a dedicated key fall back to the shared service key.
     # "strict" — each agent must have its own key (no shared-identity fallback).
@@ -273,6 +274,7 @@ def load_settings() -> Settings:
             )
         ),
         topics_path=Path(os.getenv("TOPICS_PATH", str(repo_root / "protocol" / "topics.yaml"))),
+        delivery_dir=Path(os.getenv("DELIVERY_DIR", str(repo_root / "output"))),
         admin_api_key=admin_key,
         internal_service_api_key=internal_key,
         readonly_api_key=readonly_key,

@@ -725,6 +725,69 @@ async def _produce_pod_group_standard(
     )
 
 
+def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dict[str, Any]) -> None:
+    try:
+        import os
+        from pathlib import Path
+
+        delivery_dir = Path(settings.delivery_dir)
+        mission_dir = delivery_dir / mission_id
+        
+        # Ensure mission directory exists
+        mission_dir.mkdir(parents=True, exist_ok=True)
+        
+        artifact_type = artifact_record.get("artifact_type")
+        artifact_text = artifact_record.get("artifact_text")
+        if not artifact_text:
+            return
+
+        manifest = artifact_record.get("manifest") or {}
+
+        if artifact_type == "generated_code":
+            filename = str(manifest.get("filename") or "generated.txt")
+            # Clean up paths to prevent directory traversal
+            filename = os.path.basename(filename)
+            file_path = mission_dir / filename
+            file_path.write_text(artifact_text, encoding="utf-8")
+            LOGGER.info("Wrote generated code to %s", file_path)
+
+        elif artifact_type == "source_bundle_package":
+            # Parse files out of the source bundle
+            import re
+            pattern = re.compile(r"^## FILE (.+)$", re.MULTILINE)
+            matches = list(pattern.finditer(artifact_text))
+            
+            if not matches:
+                # Fallback to inline source if no ## FILE markers found
+                filename = str(manifest.get("filename") or "inline_source.txt")
+                filename = os.path.basename(filename)
+                file_path = mission_dir / filename
+                file_path.write_text(artifact_text, encoding="utf-8")
+                LOGGER.info("Wrote inline source to %s", file_path)
+            else:
+                for index, match in enumerate(matches):
+                    rel_path = str(match.group(1)).strip()
+                    # Prevent directory traversal
+                    rel_path = os.path.normpath(rel_path)
+                    if rel_path.startswith("..") or os.path.isabs(rel_path):
+                        rel_path = os.path.normpath(os.path.basename(rel_path))
+                    
+                    content_start = match.end()
+                    content_end = (
+                        matches[index + 1].start()
+                        if index + 1 < len(matches)
+                        else len(artifact_text)
+                    )
+                    content = artifact_text[content_start:content_end].lstrip("\r\n")
+                    
+                    file_path = mission_dir / rel_path
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(content, encoding="utf-8")
+                    LOGGER.info("Wrote source bundle file to %s", file_path)
+    except Exception as exc:
+        LOGGER.warning("failed to write build artifact to disk for mission %s: %s", mission_id, exc)
+
+
 async def _ensure_verified_build_artifact(
     *,
     app: Any,
@@ -764,6 +827,13 @@ async def _ensure_verified_build_artifact(
         artifact_record["build_log"],
         artifact_record["artifact_text"],
         artifact_record["created_at"],
+    )
+    # Write to local delivery directory on host
+    await asyncio.to_thread(
+        _write_artifact_to_disk,
+        settings,
+        mission.mission_id,
+        artifact_record,
     )
     await _pkg().record_audit_event(
         app,
