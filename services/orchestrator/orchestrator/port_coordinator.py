@@ -186,7 +186,8 @@ async def run_port_extraction_phase(
                 feature_contract=metadata.get("feature_contract") or {},
                 settings=settings,
             )
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("port_coordinator: AIM extraction failed for mission %s: %s", mission_id, exc)
             source_aim = {"source": "error", "files": []}
 
     # Generate specialist plan for source extraction
@@ -204,7 +205,8 @@ async def run_port_extraction_phase(
             specialist_agent_id=source_specialist,
             pod_manager_agent_id=source_pod_manager,
         )
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("port_coordinator: specialist plan failed for mission %s: %s", mission_id, exc)
         source_plan = {"source": "fallback"}
 
     # Extract LogicNodes from AIM file entries
@@ -237,9 +239,14 @@ async def run_port_extraction_phase(
         },
     )
 
+    extraction_degraded = (
+        source_aim.get("source") in {"error", "fallback"}
+        or source_plan.get("source") == "fallback"
+    )
     return {
         "port_source_logicnodes": source_logicnodes,
         "port_source_aim": source_aim,
         "port_source_plan": source_plan,
         "port_phase": "generation",
+        "extraction_degraded": extraction_degraded,
     }

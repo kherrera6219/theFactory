@@ -6,6 +6,24 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Multiagent System Bug Fixes (2026-06-13)
+
+#### Fixed
+- **Silent exception swallowing** — four locations where `except Exception: pass` or bare
+  `except Exception:` gave operators zero visibility into failures:
+  - `is_agent.py` — `_knowledge_is_indexed` and `_knowledge_is_current` now log at DEBUG
+    when a storage error forces a `False` fallback (was silent, causing repeated re-indexing).
+  - `dependency_absorption.py` — DEPABS LLM replacement failure now logs at WARNING with
+    language/library context and returns `{"error": str(exc)}` so callers can detect it.
+    Also added missing `logging` module + `LOGGER` to this file.
+  - `knowledge_embeddings.py` — outer `except Exception` in `_record_embedding_usage` now
+    logs at DEBUG (cost-ledger failures are non-fatal but should be observable).
+  - `port_coordinator.py` — AIM extraction and specialist plan failures now log at WARNING
+    with mission_id instead of silently degrading.
+- **Port extraction degradation flag** — `coordinate_port_extraction()` now returns
+  `"extraction_degraded": True` when either the AIM extraction or specialist plan fell
+  back to an error stub, so RQCA and downstream agents know to expect reduced fidelity.
+
 ### Knowledge Lake Unit Tests (2026-06-13)
 
 #### Added

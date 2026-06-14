@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import ast
 import json
+import logging
 import re
 import subprocess
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+LOGGER = logging.getLogger(__name__)
 
 DEPENDENCY_INVENTORY_SCHEMA_VERSION = "dependency_inventory.v1"
 DEPENDENCY_CLASSIFICATION_SCHEMA_VERSION = "dependency_classification_report.v1"
@@ -963,5 +966,9 @@ async def _llm_generate_replacement(
             "source": "llm",
         }
 
-    except Exception:  # noqa: BLE001
-        return {"filename": "", "replacement_code": ""}
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning(
+            "dependency_absorption: LLM replacement call failed for %s/%s: %s",
+            language, library, exc,
+        )
+        return {"filename": "", "replacement_code": "", "error": str(exc)}
