@@ -76,6 +76,7 @@ def vector_for_content(
     knowledge_id: str,
     content: dict[str, Any],
     vector_size: int,
+    task_type: str = "RETRIEVAL_DOCUMENT",
 ) -> list[float]:
     config = embedding_config(settings, vector_size=vector_size)
     text = _content_text(content)
@@ -92,7 +93,7 @@ def vector_for_content(
         if vector is not None:
             return _fit_dimensions(vector, vector_size)
     if config["provider"] == "gemini":
-        vector = _gemini_embedding(settings, text=text, dimensions=vector_size)
+        vector = _gemini_embedding(settings, text=text, dimensions=vector_size, task_type=task_type)
         _record_embedding_usage(
             settings,
             mission_id,
@@ -193,7 +194,9 @@ def _openai_embedding(settings: Any, *, text: str, dimensions: int) -> list[floa
 
 
 
-def _gemini_embedding(settings: Any, *, text: str, dimensions: int) -> list[float] | None:
+def _gemini_embedding(
+    settings: Any, *, text: str, dimensions: int, task_type: str = "RETRIEVAL_DOCUMENT"
+) -> list[float] | None:
     api_key = (
         str(getattr(settings, "knowledge_embedding_api_key", "") or "").strip()
         or os.getenv("GEMINI_API_KEY", "").strip()
@@ -215,7 +218,7 @@ def _gemini_embedding(settings: Any, *, text: str, dimensions: int) -> list[floa
     payload = {
         "model": model,
         "content": {"parts": [{"text": text}]},
-        "task_type": "RETRIEVAL_DOCUMENT",
+        "task_type": task_type,
     }
     if dimensions and dimensions != 768:
         payload["output_dimensionality"] = dimensions

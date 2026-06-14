@@ -1,116 +1,176 @@
 # Knowledge Lake and Embeddings
 
 Last updated: 2026-06-13
-
-Document version: 2026.06.11  
-Status: Canonical  
-Audience: Developers and architects
+Status: Canonical
+Audience: Developers and operators
 
 ## Overview
 
-The **Knowledge Lake** is theFactory's runtime semantic memory. It is an abstraction layer over three vector stores (Qdrant, Milvus, Neo4j) and one relational store (PostgreSQL) that allows all agents to read from and write to a shared, mission-scoped knowledge graph without coupling to any single backend. The **Embeddings** module provides the vector generation pipeline that populates the lake.
+The **Knowledge Lake** is a PostgreSQL-backed shared documentation store that the IS Agent
+(AGENT-06-IS) populates during the FETCH phase of Mission Flow v2.  Language specialists read from
+it during the BUILD phase to get library/API context injected into their prompts.
+
+**Key design decisions:**
+
+- PostgreSQL (`mission_knowledge` table) is the **single source of truth** — all reads and writes go
+  there first.
+- Qdrant is an **optional semantic mirror** — when a real embedding provider is configured, indexed
+  chunks are also written to Qdrant so vector similarity search can be layered on top.  Qdrant
+  failures never fail the PostgreSQL write.
+- When no real embedding provider is configured (the compose default), the system falls back to
+  PostgreSQL keyword overlap search.  No stale hash vectors are written to Qdrant.
 
 ## Code Locations
 
-| File | Size | Role |
-|---|---|---|
-| `services/orchestrator/orchestrator/knowledge_lake.py` | 19 KB | Knowledge Lake abstraction and query interface |
-| `services/orchestrator/orchestrator/knowledge_embeddings.py` | 9 KB | Embedding pipeline (chunking, model dispatch, upsert) |
+| File | Role |
+|------|------|
+| `services/orchestrator/orchestrator/knowledge_lake.py` | Public API — module-level functions, not a class |
+| `services/orchestrator/orchestrator/knowledge_embeddings.py` | Vector generation — Gemini, OpenAI, and deterministic (SHA-256) providers |
+| `services/orchestrator/orchestrator/storage_logicnodes.py` | Storage layer — `upsert_knowledge`, `list_knowledge` against `mission_knowledge` table |
+| `services/orchestrator/orchestrator/qdrant_store.py` | Qdrant helpers — `ensure_collection`, `upsert_knowledge`, `_request_json` |
 
 ## Architecture
 
 ```
-  Agents / Mission Flow v2
+  IS Agent (AGENT-06-IS) — FETCH phase
           │
+          │  index_documentation(language, library, content)
           ▼
-   KnowledgeLake (knowledge_lake.py)
-     ├── write(node, namespace)     → routes to correct backend
-     ├── query(query, namespace)    → fan-out + re-rank
-     ├── get_graph(mission_id)      → Neo4j traversal
-     └── purge(mission_id)         → coordinated TTL eviction
+  knowledge_lake.py
+     ├── upsert_knowledge()        → PostgreSQL mission_knowledge (always)
+     └── _mirror_to_qdrant()       → Qdrant (only when real embedding + Qdrant enabled)
+
+  Language Specialists — BUILD phase
           │
-          ├──► Qdrant (qdrant_store.py)       ← semantic similarity search
-          ├──► Milvus (milvus_store.py)        ← high-throughput vector ops
-          ├──► Neo4j  (neo4j_store.py)         ← graph traversal and relationship queries
-          └──► PostgreSQL (storage_core.py)    ← authoritative record store
+          │  get_language_context(language)
+          ▼
+  knowledge_lake.py
+     └── list_knowledge()          → PostgreSQL (always)
 
-  KnowledgeEmbeddings (knowledge_embeddings.py)
-     ├── chunk(text)                → token-aware chunking
-     ├── embed(chunks)              → model dispatch (local or API)
-     └── upsert(vectors, store)     → fan-out write to Qdrant + Milvus
+  query_documentation(language, concept)  [used by codegen agents]
+     ├── _semantic_search_enabled()?
+     │     yes → _vector_search()  → Qdrant similarity search
+     │     no  → skip
+     └── _keyword_search()         → PostgreSQL keyword overlap (fallback / only path)
 ```
 
-## Knowledge Lake API
+## Public API
 
-### `write(node: KnowledgeNode, namespace: str) → str`
+All entry points are module-level functions in `knowledge_lake.py`. There is no class.
 
-Persists a `KnowledgeNode` to the appropriate store(s) determined by node type:
+### `is_stocked(*, settings, mission_id=None, language=None) → bool`
 
-| Node type | Primary store | Secondary store |
-|---|---|---|
-| `LOGICNODE` | Qdrant | PostgreSQL |
-| `DEPENDENCY` | Milvus | PostgreSQL |
-| `RELATIONSHIP` | Neo4j | — |
-| `DOCUMENT` | Qdrant | PostgreSQL |
-| `ARTIFACT` | PostgreSQL | Object Store |
+Returns True if the Knowledge Lake has entries for the given scope.  Reads PostgreSQL.
 
-### `query(query: str, namespace: str, top_k: int = 10) → list[KnowledgeResult]`
+- Pass `language` to check whether the global bootstrap doc for that language is indexed.
+- Pass `mission_id` (without language) to check whether a mission has any knowledge rows.
 
-Issues a semantic query. The lake fans out to Qdrant and Milvus in parallel, merges results by cosine similarity score, re-ranks using the mission's AIM context, and returns the top-k results.
+### `index_documentation(*, settings, language, library, content) → bool`
 
-### `get_graph(mission_id: str) → KnowledgeGraph`
+Upserts a documentation chunk.  PostgreSQL is always written; Qdrant is written only when
+`_semantic_search_enabled()` returns True (real provider configured, Qdrant enabled, and a
+non-empty API key available).
 
-Returns the full Neo4j subgraph for a mission — nodes, edges, and relationship types.
+Returns True when the PostgreSQL write succeeds.
 
-### `purge(mission_id: str)`
+### `query_documentation(*, settings, language, concept, top_k=5) → list[dict]`
 
-Evicts all vectors, graph nodes, and PostgreSQL records scoped to the mission. Called by the lifecycle recovery module on mission tombstone.
+Retrieves the most relevant knowledge records for a language and concept.
 
-## Key Dataclasses
+1. If semantic search is enabled, tries Qdrant vector search first (using `RETRIEVAL_QUERY` task
+   type and the concept as natural-language query text).
+2. Falls back to PostgreSQL keyword overlap scoring if Qdrant returns nothing or is unavailable.
 
-```python
-@dataclass
-class KnowledgeNode:
-    node_id: str
-    node_type: Literal["LOGICNODE", "DEPENDENCY", "RELATIONSHIP", "DOCUMENT", "ARTIFACT"]
-    content: str
-    metadata: dict
-    namespace: str           # usually mission_id
-    embedding: list[float] | None  # populated by KnowledgeEmbeddings before write
+Each result: `{"knowledge_id": str, "content": dict, "score": float}`
 
-@dataclass
-class KnowledgeResult:
-    node_id: str
-    node_type: str
-    content: str
-    score: float             # cosine similarity [0.0, 1.0]
-    source_store: str        # "qdrant" | "milvus" | "neo4j"
-```
+### `get_language_context(*, settings, language) → str | None`
+
+Returns the bootstrap documentation text for a language as a single string (truncated to 8 000
+characters).  Used by codegen specialists to inject library context into their system prompts.
+Returns None when nothing is indexed or storage is unavailable.
+
+### `embed_text(text, settings) → list[float] | None`
+
+Async helper that returns a real embedding vector for arbitrary text, or None when no real provider
+is configured.  Runs the provider call in a thread via `asyncio.to_thread` so the event loop is
+never blocked.
+
+### `broadcast_knowledge_ready(*, settings, languages, mission_id) → bool`
+
+Publishes a `knowledge_ready` event to the Protocol Bus (Sigma lane) so subscribers know that
+bootstrap documentation has been indexed for the listed languages.  Fire-and-forget — the mission
+proceeds regardless of the result.
 
 ## Embedding Pipeline
 
-`knowledge_embeddings.py` performs three steps before every `write` call:
+`knowledge_embeddings.py` provides three provider paths:
 
-1. **Chunking** — splits content into overlapping token windows (default 512 tokens, 64-token overlap). Uses a tokenizer matched to the active embedding model.
-2. **Model dispatch** — selects embedding model from `settings.py` → `EMBEDDING_MODEL`. Supports local `sentence-transformers` models and OpenAI `text-embedding-3-small/large`. Falls back to local model when `LLM_OFFLINE_MODE=true`.
-3. **Upsert** — writes chunk vectors to Qdrant (primary) and Milvus (secondary) with the `node_id` and `namespace` as payload metadata.
+| Provider | Env var | Model | Notes |
+|----------|---------|-------|-------|
+| `gemini` | `GEMINI_API_KEY` or `KNOWLEDGE_EMBEDDING_API_KEY` | `gemini-embedding-001` | Uses Gemini embedContent API; supports `task_type` (RETRIEVAL_DOCUMENT / RETRIEVAL_QUERY) |
+| `openai` | `OPENAI_API_KEY` or `KNOWLEDGE_EMBEDDING_API_KEY` | `text-embedding-3-large` | Uses OpenAI /v1/embeddings; `dimensions` parameter passed directly |
+| `deterministic` | — | SHA-256 hash | No API call; produces vectors that are stable but semantically meaningless (not suitable for similarity search) |
 
-## Namespace Isolation
+`KNOWLEDGE_EMBEDDING_API_KEY` is checked first; if empty, the matching global provider key is used.
 
-Every write and query is scoped to a `namespace` (typically `mission_id`). This prevents cross-mission data bleed. The purge operation uses namespace as the eviction key across all stores.
+### Fallback chain
 
-## Configuration (`settings.py` keys)
+```
+vector_for_content(content, task_type="RETRIEVAL_DOCUMENT")
+  ├── provider == "openai"  → _openai_embedding()  → returns vector or None
+  ├── provider == "gemini"  → _gemini_embedding(task_type=task_type)  → returns vector or None
+  └── either returns None   → _deterministic_vector()  (SHA-256, always succeeds)
+```
 
-| Key | Default | Description |
-|---|---|---|
-| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Embedding model name |
-| `KNOWLEDGE_LAKE_TOP_K` | `10` | Default query result count |
-| `KNOWLEDGE_LAKE_CHUNK_SIZE` | `512` | Token window size for chunking |
-| `KNOWLEDGE_LAKE_CHUNK_OVERLAP` | `64` | Overlap window in tokens |
-| `KNOWLEDGE_LAKE_RERANK_ENABLED` | `true` | Enable AIM-context re-ranking |
+The deterministic fallback guarantees `vector_for_content` never raises — but its output is
+useless for similarity search and is only written to Qdrant when `_semantic_search_enabled()`
+has already confirmed a real key is available (so in practice the fallback path is only exercised
+when indexing, not in Qdrant).
 
-## Operational Notes
+## Semantic Search Gate
 
-- Query latency is reported on the Grafana **Knowledge Lake Query Latency** panel (p50/p95/p99).
-- Namespace purge failures are logged at `ERROR` level and retried once on the next lifecycle recovery cycle.
-- Milvus is optional: if `MILVUS_ENABLED=false`, all vector writes go to Qdrant only.
+`_semantic_search_enabled(settings)` returns True **only** when all three conditions hold:
+
+1. `QDRANT_ENABLED=true` and a Qdrant URL is reachable
+2. `KNOWLEDGE_EMBEDDING_PROVIDER` is `gemini` or `openai`
+3. A non-empty API key exists (`KNOWLEDGE_EMBEDDING_API_KEY`, or `GEMINI_API_KEY` / `OPENAI_API_KEY` matching the provider)
+
+If condition 3 fails, semantic search is silently disabled and the system uses PostgreSQL keyword
+search only — no hash vectors are written to Qdrant.
+
+## Configuration
+
+| Env var | Default (compose) | Description |
+|---------|-------------------|-------------|
+| `KNOWLEDGE_EMBEDDING_PROVIDER` | `deterministic` | `gemini`, `openai`, or `deterministic` |
+| `KNOWLEDGE_EMBEDDING_API_KEY` | *(empty)* | Dedicated embedding key; overrides global provider key |
+| `KNOWLEDGE_EMBEDDING_MODEL` | *(empty → per-provider default)* | Override embedding model name |
+| `KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS` | `10.0` | HTTP timeout for embedding API calls |
+| `QDRANT_ENABLED` | `true` | Enable Qdrant mirror (semantic search requires this AND a real provider) |
+| `QDRANT_URL` | `http://qdrant:6333` | Qdrant endpoint |
+| `QDRANT_VECTOR_SIZE` | `256` | Embedding dimensions (minimum recommended: 256) |
+| `QDRANT_COLLECTION` | `mission_knowledge` | Qdrant collection name |
+| `KNOWLEDGE_REFRESH_ENABLED` | `true` | Allow IS Agent to re-index on refresh cycles |
+| `KNOWLEDGE_REFRESH_INTERVAL_SECONDS` | `3600` | How often the IS Agent refreshes bootstrap docs |
+
+> **Compose default is `deterministic`**: Out-of-the-box `make up` uses SHA-256 hash vectors.
+> To enable real semantic search, set `KNOWLEDGE_EMBEDDING_PROVIDER=gemini` (or `openai`) and
+> supply a matching API key in your `.env`, then restart the orchestrator.
+
+## Global Scope Bootstrap
+
+On startup, `ensure_db_schema()` creates a synthetic `MissionRecord` with
+`mission_id="__knowledge_lake__"` in state `COMPLETE`.  All global language bootstrap docs (e.g.
+`docs.python.bootstrap`, `docs.javascript.bootstrap`) are parented under this sentinel mission to
+satisfy the foreign-key constraint on `mission_knowledge` without needing a real mission context.
+
+## Known Limitations
+
+- **No chunking**: Each `index_documentation` call writes the entire library content as one chunk.
+  Large docs are stored whole; retrieval precision degrades for very long content.
+- **No re-ranking**: `query_documentation` returns Qdrant cosine scores or keyword overlap scores
+  directly — no AIM-context re-ranking exists.
+- **No mission-scoped knowledge**: All bootstrap docs are written to the global
+  `__knowledge_lake__` scope.  Per-mission knowledge isolation is not currently implemented.
+- **Milvus and Neo4j are not used here**: They are separate feature-flagged subsystems and are not
+  part of the Knowledge Lake pipeline.
