@@ -6,6 +6,27 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Multiagent Audit — Remaining HIGH Items (2026-06-13)
+
+#### Fixed / Resolved
+- **LangGraph thread ID design clarified** (`langgraph_lifecycle.py`) — Added code comment
+  explaining the stable `prefix:mission_id` format is intentional for stateful resumption
+  (same mission_id must re-use the same thread to continue from the last checkpoint).
+  Added DEBUG log of the thread_id for traceability. Safety relies on UUID-v4 mission IDs
+  never being reused — enforced by the `missions` table PRIMARY KEY constraint.
+- **Heartbeat interval mismatch guard** (`heartbeat_service.py`) — Added module-level
+  warning when `AGENT_HEARTBEAT_STALE_SECONDS < 3 × AGENT_HEARTBEAT_INTERVAL_SECONDS`.
+  Catches operator misconfiguration before it causes agents to appear spuriously stale
+  (pod/specialist agents default to 15 s intervals vs the orchestrator's 5 s default).
+- **Agent health coverage in `/health` endpoint** (`main.py`) — The `/health` response now
+  includes `agents_total`, `agents_with_heartbeat`, `agents_missing_heartbeat`, and
+  `agents_missing_ids`. Also logs a WARNING at health-check time for any registered agent
+  with no recent heartbeat, making it visible when `agent-runtime` or `pod-worker` is down.
+- **Sigma lane handler verified** (`main.py:505`) — Confirmed `handlers = {"sigma":
+  _handle_sigma_knowledge_ready}` is correctly wired at startup. Handler re-checks
+  PostgreSQL `is_stocked` on receipt and logs a WARNING on write/broadcast divergence.
+  Removed from open issues — no code change needed.
+
 ### Multiagent System Bug Fixes (2026-06-13)
 
 #### Fixed
