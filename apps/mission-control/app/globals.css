@@ -1467,6 +1467,10 @@ dd {
   gap: 16px;
 }
 
+.mission-tab-panels[hidden] {
+  display: none !important;
+}
+
 .filters-grid {
   display: grid;
   gap: 12px;
