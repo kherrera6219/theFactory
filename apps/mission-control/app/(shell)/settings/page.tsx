@@ -797,8 +797,53 @@ export default function SettingsPage() {
         </Panel>
       )}
 
-      {/* SECTION 3 — Software Version */}
-      <Panel title={SECTION(3, "Software Version")}>
+      {/* SECTION 3 — Knowledge Embeddings */}
+      <Panel title={SECTION(3, "Knowledge Embeddings")}>
+        <p className="help-text">
+          The orchestrator embeds knowledge-lake documents so agents can perform semantic similarity
+          search over library documentation. Embedding configuration is read from{" "}
+          <strong>container environment variables</strong> — set these in your{" "}
+          <code>.env</code> file and restart the orchestrator to take effect.
+        </p>
+        <ul className="summary-list">
+          <li>
+            <strong>Provider env var</strong>
+            <span className="mono-id">KNOWLEDGE_EMBEDDING_PROVIDER</span>
+          </li>
+          <li>
+            <strong>Compose default</strong>
+            <span>
+              <code>deterministic</code> — SHA-256 hash vectors, not semantically meaningful
+            </span>
+          </li>
+          <li>
+            <strong>Dedicated key env var</strong>
+            <span className="mono-id">KNOWLEDGE_EMBEDDING_API_KEY</span>
+          </li>
+          <li>
+            <strong>Key fallback</strong>
+            <span>
+              <code>GEMINI_API_KEY</code> or <code>OPENAI_API_KEY</code> (matched to provider)
+            </span>
+          </li>
+          <li>
+            <strong>Vector dimensions</strong>
+            <span>
+              <code>QDRANT_VECTOR_SIZE</code> — default 256 (minimum recommended for semantic separation)
+            </span>
+          </li>
+        </ul>
+        <SystemMessage tone="warning" title="Real embeddings are off by default">
+          To enable semantic search: set <code>KNOWLEDGE_EMBEDDING_PROVIDER=gemini</code> (or{" "}
+          <code>openai</code>) and supply an API key via{" "}
+          <code>KNOWLEDGE_EMBEDDING_API_KEY</code> (or the matching{" "}
+          <code>GEMINI_API_KEY</code> / <code>OPENAI_API_KEY</code>) in your{" "}
+          <code>.env</code> file, then restart the orchestrator container.
+        </SystemMessage>
+      </Panel>
+
+      {/* SECTION 4 — Software Version */}
+      <Panel title={SECTION(4, "Software Version")}>
         <div className="filters-grid">
           <div>
             <p className="eyebrow">Current version</p>
@@ -815,8 +860,8 @@ export default function SettingsPage() {
         </p>
       </Panel>
 
-      {/* SECTION 4 — Maintenance */}
-      <Panel title={SECTION(4, "System Maintenance")}>
+      {/* SECTION 5 — Maintenance */}
+      <Panel title={SECTION(5, "System Maintenance")}>
         <p className="help-text">
           Enterprise tools for data resilience and diagnostics. Export system state for support or
           trigger a full backup of all factory database volumes.

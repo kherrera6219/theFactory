@@ -6,6 +6,27 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Knowledge Embedding Key + Semantic Search Gate (2026-06-13)
+
+#### Added
+- **Dedicated Embedding API Key**: New `KNOWLEDGE_EMBEDDING_API_KEY` env var (wired through
+  `settings.py` and `docker-compose.yaml`) lets operators use a separate API key for embedding
+  calls, independent of the global `GEMINI_API_KEY` / `OPENAI_API_KEY` used for LLM generation.
+  Both `_gemini_embedding` and `_openai_embedding` prefer this dedicated key when set.
+- **Embedding Key Gate in Semantic Search**: `_semantic_search_enabled()` in `knowledge_lake.py`
+  now also checks that a real API key is actually available (via the new dedicated key or the
+  matching provider env var) before enabling Qdrant indexing. Previously it only checked provider
+  name and Qdrant enabled-flag, so deterministic hash vectors were being silently written to Qdrant
+  even with no provider key configured.
+- **Settings UI — Knowledge Embeddings Panel**: A new "3. Knowledge Embeddings" section in the
+  Settings page explains the embedding configuration, the `deterministic` compose default, the
+  `KNOWLEDGE_EMBEDDING_API_KEY` env var, and how to enable real semantic search.
+
+#### Changed
+- **Qdrant Vector Size Default**: Raised `qdrant_vector_size` default from 64 to 256 in
+  `settings.py` and `docker-compose.yaml`. 64 dimensions is too low for meaningful semantic
+  separation between code documentation chunks; 256 is the practical floor for cosine similarity.
+
 ### PM Chat Intake & Gateway Auth Fixes (2026-06-13)
 
 #### Added

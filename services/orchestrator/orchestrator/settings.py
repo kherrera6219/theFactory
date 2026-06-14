@@ -38,7 +38,7 @@ class Settings:
     qdrant_api_key: str = ""
     qdrant_enabled: bool = True
     qdrant_collection: str = "mission_knowledge"
-    qdrant_vector_size: int = 64
+    qdrant_vector_size: int = 256
     qdrant_timeout_seconds: float = 3.0
     milvus_uri: str = "http://milvus:19530"
     milvus_token: str = ""
@@ -51,6 +51,10 @@ class Settings:
     # correct per-provider model (gemini → gemini-embedding-001,
     # openai → text-embedding-3-small). An explicit env var still overrides.
     knowledge_embedding_model: str = ""
+    # Dedicated embedding API key. When set, overrides GEMINI_API_KEY /
+    # OPENAI_API_KEY for embedding calls, allowing separate quota management.
+    # Empty means fall back to the global provider key.
+    knowledge_embedding_api_key: str = ""
     knowledge_embedding_timeout_seconds: float = 10.0
     knowledge_refresh_enabled: bool = True
     neo4j_url: str = "http://neo4j:7474"
@@ -277,7 +281,7 @@ def load_settings() -> Settings:
         and bool(os.getenv("QDRANT_URL", "http://qdrant:6333").strip()),
         qdrant_collection=os.getenv("QDRANT_COLLECTION", "mission_knowledge").strip()
         or "mission_knowledge",
-        qdrant_vector_size=max(8, int(os.getenv("QDRANT_VECTOR_SIZE", "64"))),
+        qdrant_vector_size=max(8, int(os.getenv("QDRANT_VECTOR_SIZE", "256"))),
         qdrant_timeout_seconds=max(0.5, float(os.getenv("QDRANT_TIMEOUT_SECONDS", "3.0"))),
         milvus_enabled=_as_bool(os.getenv("MILVUS_ENABLED", "false"), False)
         and bool(os.getenv("MILVUS_URI", "http://milvus:19530").strip()),
@@ -292,6 +296,7 @@ def load_settings() -> Settings:
         knowledge_embedding_model=os.getenv(
             "KNOWLEDGE_EMBEDDING_MODEL", ""
         ).strip(),
+        knowledge_embedding_api_key=os.getenv("KNOWLEDGE_EMBEDDING_API_KEY", "").strip(),
         knowledge_embedding_timeout_seconds=max(
             1.0, float(os.getenv("KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS", "10.0"))
         ),

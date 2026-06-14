@@ -136,7 +136,10 @@ def _content_text(content: dict[str, Any]) -> str:
 
 
 def _openai_embedding(settings: Any, *, text: str, dimensions: int) -> list[float] | None:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    api_key = (
+        str(getattr(settings, "knowledge_embedding_api_key", "") or "").strip()
+        or os.getenv("OPENAI_API_KEY", "").strip()
+    )
     if not api_key:
         return None
     base_url = str(
@@ -191,7 +194,10 @@ def _openai_embedding(settings: Any, *, text: str, dimensions: int) -> list[floa
 
 
 def _gemini_embedding(settings: Any, *, text: str, dimensions: int) -> list[float] | None:
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    api_key = (
+        str(getattr(settings, "knowledge_embedding_api_key", "") or "").strip()
+        or os.getenv("GEMINI_API_KEY", "").strip()
+    )
     if not api_key:
         return None
     base_url = str(
