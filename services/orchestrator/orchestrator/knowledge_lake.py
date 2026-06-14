@@ -462,8 +462,9 @@ def _vector_search(
             settings,
             mission_id=_KNOWLEDGE_LAKE_ID,
             knowledge_id=f"query.{language_key}.{concept_key}",
-            content={"language": language_key, "concept": concept_key},
+            content={"combined_text": concept_key},
             vector_size=settings.qdrant_vector_size,
+            task_type="RETRIEVAL_QUERY",
         )
         response = _request_json(
             settings,

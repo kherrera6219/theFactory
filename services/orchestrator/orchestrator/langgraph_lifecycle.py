@@ -687,7 +687,18 @@ async def maybe_advance_mission_lifecycle(
                     "but langgraph-checkpoint-postgres is not installed"
                 )
                 return False
-            checkpoint_url = settings.langgraph_checkpointer_postgres_url or settings.postgres_url
+            checkpoint_url = settings.langgraph_checkpointer_postgres_url
+            if not checkpoint_url:
+                # Falling back to settings.postgres_url would use PgBouncer in
+                # transaction-pool mode, which drops session-level advisory locks
+                # between statements — silently corrupting checkpoint state.
+                # Require an explicit direct-to-Postgres URL instead.
+                LOGGER.error(
+                    "LANGGRAPH_CHECKPOINTER=postgres requires LANGGRAPH_CHECKPOINTER_POSTGRES_URL "
+                    "to be set to a direct Postgres connection string (not PgBouncer). "
+                    "Skipping LangGraph lifecycle to avoid silent checkpoint corruption."
+                )
+                return False
             async with AsyncPostgresSaver.from_conn_string(checkpoint_url) as checkpointer:
                 setup_done = bool(
                     getattr(app.state, "langgraph_postgres_checkpointer_setup_done", False)

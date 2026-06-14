@@ -6,7 +6,7 @@ Status: Canonical
 Audience: Developers and operators
 
 **Files:** `services/orchestrator/orchestrator/storage_core.py` and all `storage_*.py` modules  
-**Last documented:** 2026-06-11
+**Last documented:** 2026-06-13
 
 ---
 
@@ -16,17 +16,16 @@ The orchestrator's storage layer is organized as a **thin-module pattern**: a sh
 
 All writes go through PostgreSQL (via `psycopg` + `psycopg-pool`). Redis is used for state streams and heartbeat fan-out only — it is not the system of record for anything.
 
+The public surface is re-exported through `storage.py` — callers always import from `storage`, never from the domain files directly.
+
 ```
-storage_core.py            — connection pool, migrations, JSON helpers
-storage_missions.py        — mission CRUD + state machine enforcement
-storage_events.py          — mission_events append-only log
-storage_pod_assignments.py — pod assignment records
-storage_logic_nodes.py     — LogicNode and knowledge lake entries
-storage_knowledge.py       — knowledge lake fragments (language-indexed)
-storage_audit.py           — audit reports + AgentActionEvent ledger
-storage_artifacts.py       — build artifact records
-storage_heartbeats.py      — agent heartbeat liveness records
-storage_approvals.py       — human review approval records
+storage_core.py         — connection pool, migrations, JSON helpers, PodAssignmentConflictError
+storage_missions.py     — mission CRUD + state machine + event log (table: mission_state_events)
+storage_pods.py         — pod assignments (table: mission_pod_assignments) + project summaries
+storage_logicnodes.py   — LogicNode records + knowledge lake entries (table: mission_knowledge)
+storage_artifacts.py    — audit reports, review approvals, build artifacts, testdata, RQCA reports
+storage_agents.py       — agent heartbeats + action event audit ledger
+storage.py              — re-export façade (callers import from here, not from domain files)
 ```
 
 ---
@@ -135,104 +134,121 @@ The `CLARIFYING` state has a special case: `update_mission_state` with `new_stat
 
 ---
 
-### `storage_events.py`
+### `storage_missions.py` — Mission CRUD and Event Log
 
-Manages the `mission_events` PostgreSQL table. Events are **append-only** — no updates or deletes.
+Manages the `missions` and `mission_state_events` PostgreSQL tables. State events are
+**append-only** — no updates or deletes.
 
 | Function | Description |
 |----------|-------------|
-| `write_event(settings, event)` | Inserts a `MissionEvent`; called by `update_mission_state` and directly by agents for non-state events |
-| `list_events(settings, mission_id, limit)` | Returns events for a mission in ascending `ts` order |
-| `get_event_count(settings, mission_id)` | Returns the total number of events for a mission |
+| `upsert_mission(settings, record, source_stream_id)` | INSERT OR UPDATE a `MissionRecord`; writes a `MISSION_INTAKE` event on first insert |
+| `fetch_mission(settings, mission_id)` | Returns a `MissionRecord` or `None` if not found |
+| `list_missions(settings, state, limit, offset)` | Returns a list of `MissionRecord` filtered by state |
+| `update_mission_state(settings, mission_id, new_state, expected_state, event_type)` | Enforces `VALID_TRANSITIONS`; uses `expected_state` for optimistic locking; emits a `MissionEvent` on success |
+| `update_mission_metadata(settings, mission_id, metadata)` | Merges new keys into `metadata` JSON column; does not overwrite existing keys |
+| `insert_mission_event(settings, mission_id, ...)` | Appends a row to `mission_state_events` |
+| `list_mission_events(settings, mission_id, limit)` | Returns events for a mission in ascending `ts` order |
+| `transition_mission_state(settings, mission_id, ...)` | Atomic state transition with event write |
+
+The `CLARIFYING` state has a special case: `update_mission_state` with `new_state=CLARIFYING` also writes the clarification prompt text into `metadata["pm_clarification_prompt"]` so the PM Agent can read it when the mission transitions back to `PM_INTAKE`.
 
 ---
 
-### `storage_pod_assignments.py`
+### `storage_pods.py` — Pod Assignments
 
-Manages the `pod_assignments` table (one row per mission, unique constraint on `mission_id`).
+Manages the `mission_pod_assignments` table (one row per mission, unique constraint on `mission_id`).
 
 | Function | Description |
 |----------|-------------|
 | `upsert_pod_assignment(settings, upsert)` | Writes or updates a pod assignment; raises `PodAssignmentConflictError` if a different pod is already assigned |
-| `fetch_pod_assignment(settings, mission_id)` | Returns the current pod assignment dict or `None` |
+| `get_pod_assignment(settings, mission_id)` | Returns the current pod assignment dict or `None` |
+| `list_pod_assignments(settings, limit)` | Returns all pod assignments |
+| `summarize_projects(settings, limit)` | Returns project-level mission groupings from the `missions` table |
 
 ---
 
-### `storage_logic_nodes.py`
+### `storage_logicnodes.py` — LogicNodes and Knowledge Lake
 
-Manages the `logic_nodes` table. Logic nodes are tagged semantic concepts extracted from source code during pod worker analysis (e.g. `DYN-006-001 async function, confidence=0.94, line=47`).
+Manages the `logic_nodes` and `mission_knowledge` PostgreSQL tables.
 
-| Function | Description |
-|----------|-------------|
-| `upsert_logic_node(settings, upsert)` | Inserts or updates a `LogicNodeUpsert`; validates the node dict against the registered JSON schema |
-| `list_logic_nodes(settings, mission_id, tag_prefix, limit)` | Returns logic nodes for a mission, optionally filtered by tag prefix (e.g. `DYN-`, `SYS-`) |
-| `get_logic_node_count(settings, mission_id)` | Returns the total node count for a mission |
-
----
-
-### `storage_knowledge.py`
-
-Manages the `knowledge_lake` table. Knowledge lake entries are pre-indexed language documentation and specification fragments used by the IS Agent during the `FETCH` phase.
+**LogicNode functions** — tagged semantic concepts extracted from source code during pod worker analysis (e.g. `DYN-006-001 async function, confidence=0.94, line=47`):
 
 | Function | Description |
 |----------|-------------|
-| `upsert_knowledge(settings, upsert)` | Inserts or updates a `KnowledgeUpsert` for the given `mission_id` + `knowledge_id` |
-| `fetch_knowledge(settings, mission_id, knowledge_id)` | Returns a single knowledge entry or `None` |
+| `upsert_logicnode(settings, upsert)` | Inserts or updates a `LogicNodeUpsert`; validates the node dict against the registered JSON schema |
+| `upsert_logicnodes_batch(settings, upserts)` | Batch upsert of multiple LogicNodes in one transaction |
+| `list_logicnodes(settings, mission_id, limit)` | Returns logic nodes for a mission |
+| `list_recent_logicnodes(settings, limit)` | Returns recent logic nodes across all missions |
+
+**Knowledge Lake functions** — pre-indexed language documentation used by the IS Agent during FETCH:
+
+| Function | Description |
+|----------|-------------|
+| `upsert_knowledge(settings, mission_id, knowledge_id, content, created_at)` | Inserts or updates a knowledge entry in `mission_knowledge` |
+| `upsert_knowledge_batch(settings, entries)` | Batch upsert of multiple knowledge entries |
 | `list_knowledge(settings, mission_id, limit)` | Lists all knowledge entries for a mission |
 
 > The `__knowledge_lake__` synthetic mission (bootstrapped by `ensure_db_schema`) acts as the parent for all language-level global knowledge entries, keeping them accessible without requiring a real mission context.
 
 ---
 
-### `storage_audit.py`
+### `storage_artifacts.py` — Audit Reports, Review Approvals, and Build Artifacts
 
-Manages the `audit_reports` and `agent_action_events` tables.
+Manages `audit_reports`, `review_approvals`, `build_artifacts`, testdata manifests, and runtime QC reports.
+
+**Audit reports:**
 
 | Function | Description |
 |----------|-------------|
 | `upsert_audit_report(settings, upsert)` | Writes or updates a pod or RQCA audit report |
-| `fetch_audit_report(settings, mission_id, audit_id)` | Retrieves a specific audit report |
-| `list_audit_reports(settings, mission_id)` | Lists all audit reports for a mission |
-| `write_agent_action_event(settings, upsert)` | Appends a new `AgentActionEventRecord`; computes `event_digest_sha256` and `prev_event_digest_sha256` using `factory_json_dumps` before insert |
-| `list_agent_action_events(settings, mission_id, agent_id, limit)` | Returns audit ledger entries; filterable by agent |
+| `list_audit_reports(settings, mission_id, limit)` | Lists all audit reports for a mission |
+| `list_recent_audit_reports(settings, limit)` | Lists recent audit reports across all missions |
 
-The `write_agent_action_event` function is the **only write path to the audit ledger**. It fetches the digest of the most recent event for the same `mission_id` before inserting, creating the hash chain. This is done inside a single `get_connection()` block to prevent races on the `prev_event_digest_sha256` field.
-
----
-
-### `storage_artifacts.py`
-
-Manages the `build_artifacts` table. Artifacts are the tangible outputs of each mission phase — generated code, tests, docs, AIM documents, and compliance reports.
-
-| Function | Description |
-|----------|-------------|
-| `upsert_build_artifact(settings, record)` | Inserts or updates a `MissionBuildArtifactRecord` |
-| `fetch_build_artifact(settings, mission_id, artifact_id)` | Returns a single artifact or `None` |
-| `list_build_artifacts(settings, mission_id, artifact_type, stage)` | Lists artifacts; filterable by `artifact_type` and `stage` |
-| `update_artifact_verification(settings, mission_id, artifact_id, verification)` | Merges verification results into the `verification` JSON column |
-
----
-
-### `storage_heartbeats.py`
-
-Manages the `agent_heartbeats` table. One row per agent ID; updated on each heartbeat. Used by the dashboard and operator console to display live agent status.
-
-| Function | Description |
-|----------|-------------|
-| `upsert_heartbeat(settings, upsert)` | Inserts or updates an `AgentHeartbeatUpsert`; sets `last_heartbeat` to `utcnow()` if not provided |
-| `list_heartbeats(settings, stale_after_seconds)` | Returns all heartbeats; `stale_after_seconds` lets callers filter for agents that have not reported recently |
-
----
-
-### `storage_approvals.py`
-
-Manages the `review_approvals` table. Approval records are written when a human operator resolves a `HUMAN_REVIEW` escalation gate.
+**Review approvals** (`review_approvals` table) — written when a human operator resolves a `HUMAN_REVIEW` escalation gate:
 
 | Function | Description |
 |----------|-------------|
 | `upsert_review_approval(settings, upsert)` | Writes a `ReviewApprovalUpsert`; computes `receipt_digest` from the approval content |
-| `fetch_review_approval(settings, fingerprint)` | Looks up an approval by content fingerprint |
-| `list_review_approvals(settings, mission_id, scope)` | Lists approvals; filterable by scope (`builder` or `repo`) |
+| `get_review_approval(settings, approval_id)` | Looks up an approval by ID |
+
+**Build artifacts** — the tangible outputs of each mission phase (generated code, tests, docs, compliance reports):
+
+| Function | Description |
+|----------|-------------|
+| `upsert_build_artifact(settings, mission_id, ...)` | Inserts or updates a `MissionBuildArtifactRecord` |
+| `list_build_artifacts(settings, mission_id, limit)` | Lists build artifacts for a mission |
+| `get_build_artifact(settings, mission_id, artifact_id)` | Returns a single artifact or `None` |
+| `insert_testdata_manifest(settings, ...)` | Writes a testdata manifest record |
+| `get_testdata_manifest(settings, mission_id)` | Returns the testdata manifest or `None` |
+| `insert_runtime_qc_report(settings, ...)` | Writes a runtime QC (RQCA) report |
+| `get_runtime_qc_report(settings, mission_id)` | Returns the RQCA report or `None` |
+
+---
+
+### `storage_agents.py` — Agent Heartbeats and Action Event Audit Ledger
+
+Manages `agent_runtime_heartbeats`, `agent_runtime_events`, and `agent_action_events` tables.
+
+**Heartbeats** — one row per agent ID, updated on each heartbeat; used by the dashboard to display live agent status:
+
+| Function | Description |
+|----------|-------------|
+| `upsert_agent_heartbeat(settings, upsert)` | Inserts or updates an agent heartbeat row in `agent_runtime_heartbeats` |
+| `get_agent_heartbeat(settings, agent_id)` | Returns the current heartbeat dict for an agent or `None` |
+| `list_agent_heartbeats(settings, limit)` | Returns all heartbeats |
+| `list_recent_agent_events(settings, limit)` | Returns recent runtime events from `agent_runtime_events` |
+
+**Audit ledger** — the `agent_action_events` table is a **hash-chained, append-only** record of every significant action taken by every agent:
+
+| Function | Description |
+|----------|-------------|
+| `insert_agent_action_event(settings, record)` | Appends a new `AgentActionEventRecord`; computes `event_digest_sha256` and `prev_event_digest_sha256` using `factory_json_dumps` before insert |
+| `create_agent_action_event(settings, ...)` | Higher-level wrapper that constructs the record and calls `insert_agent_action_event` |
+| `list_mission_agent_action_events(settings, mission_id, ...)` | Returns audit ledger entries for a mission |
+| `list_project_agent_action_events(settings, ...)` | Returns audit ledger entries across a project |
+| `prune_audit_tables(settings, retention_days)` | Deletes audit rows older than the retention window |
+
+`insert_agent_action_event` is the **only write path to the audit ledger**. It fetches the digest of the most recent event for the same `mission_id` before inserting, creating the hash chain. This is done inside a single `get_connection()` block to prevent races on the `prev_event_digest_sha256` field.
 
 ---
 
