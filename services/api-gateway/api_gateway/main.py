@@ -2172,10 +2172,18 @@ async def download_mission_artifact(
             continue
         if str(record.get("artifact_type", "")) != artifact_type:
             continue
-        artifact_text = record.get("artifact_text")
+        artifact_id = record.get("artifact_id")
+        if not artifact_id:
+            continue
+        full_record = await _proxy_get_internal(
+            f"/internal/missions/{mission_id}/build-artifacts/{artifact_id}",
+        )
+        if not isinstance(full_record, dict):
+            continue
+        artifact_text = full_record.get("artifact_text")
         if not isinstance(artifact_text, str) or not artifact_text:
             continue
-        manifest = record.get("manifest") if isinstance(record.get("manifest"), dict) else {}
+        manifest = full_record.get("manifest") if isinstance(full_record.get("manifest"), dict) else {}
         filename = str(manifest.get("filename") or "artifact.txt")
         filename = filename.replace("\\", "_").replace("/", "_").replace("..", "_")
         language = str(manifest.get("language") or "text").strip().lower()
