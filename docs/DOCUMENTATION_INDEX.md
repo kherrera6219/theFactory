@@ -1,11 +1,11 @@
 # theFactory Documentation Index
 
-Document version: 2026.06.13-r1
+Document version: 2026.06.13-r2
 Last updated: 2026-06-13
 Status: Canonical
 Audience: All contributors
 
-**Version:** 2026.06.13-r1
+**Version:** 2026.06.13-r2
 **Maintained by:** Documentation Guild  
 **Last reviewed:** 2026-06-13
 
@@ -144,7 +144,7 @@ This index is the canonical entry point for all theFactory documentation. Every 
 | [AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md](AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md) | Protocol Bus — 6-stream Redis Streams architecture (alpha/beta/delta/sigma/omega/rho) and data system plan | Architects, Developers |
 | [AGENT_SCALING_AND_HEARTBEAT.md](AGENT_SCALING_AND_HEARTBEAT.md) | Agent scaling strategy and heartbeat service — how agents are scaled and health-monitored | Operators, Developers |
 | [AGENT_SERVICE_KEY_ISOLATION.md](AGENT_SERVICE_KEY_ISOLATION.md) | Service key isolation — per-agent credential isolation model and enforcement | Security, Developers |
-| [KNOWLEDGE_LAKE_AND_EMBEDDINGS.md](KNOWLEDGE_LAKE_AND_EMBEDDINGS.md) | Knowledge Lake — multi-store embedding pipeline (Qdrant, Milvus, Neo4j) and retrieval strategy | Developers, Architects |
+| [KNOWLEDGE_LAKE_AND_EMBEDDINGS.md](KNOWLEDGE_LAKE_AND_EMBEDDINGS.md) | Knowledge Lake — PostgreSQL-first documentation store with optional Qdrant semantic mirror; three embedding providers (Gemini/OpenAI/deterministic), semantic search gate, and `task_type` contract | Developers, Architects |
 | [DEPENDENCY_ABSORPTION_DOCTRINE.md](DEPENDENCY_ABSORPTION_DOCTRINE.md) | Dependency Absorption — the doctrine of eliminating unnecessary dependencies and the DEPABS agent implementation | Developers, Architects |
 
 ---
