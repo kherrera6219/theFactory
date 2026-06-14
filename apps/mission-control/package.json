@@ -5,7 +5,7 @@
   "main": "dist/electron/electron/main.js",
   "scripts": {
     "tokens:sync": "node scripts/sync-design-tokens.mjs",
-    "dev": "npm run tokens:sync && next dev -p 3100",
+    "dev": "npm run tokens:sync && cross-env NEXT_BUILD_TARGET=docker next dev -p 3100",
     "build": "npm run tokens:sync && cross-env NEXT_BUILD_TARGET=docker next build",
     "start": "cross-env NEXT_BUILD_TARGET=docker next start",
     "lint": "tsc --noEmit",

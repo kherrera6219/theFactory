@@ -314,6 +314,17 @@ export default function SettingsPage() {
         rotationDue: slotMap.get("OPERATOR-API-KEY")?.rotation_due ?? false,
       },
       {
+        slotId: "KNOWLEDGE-EMBEDDING-API-KEY",
+        provider: slotMap.get("KNOWLEDGE-EMBEDDING-API-KEY")?.provider ?? "gemini",
+        model: slotMap.get("KNOWLEDGE-EMBEDDING-API-KEY")?.model ?? "gemini-embedding-001",
+        title: "Knowledge Embedding Key",
+        status: slotMap.get("KNOWLEDGE-EMBEDDING-API-KEY")?.status ?? "missing",
+        lastRotatedAt: slotMap.get("KNOWLEDGE-EMBEDDING-API-KEY")?.last_rotated_at ?? null,
+        maskedPreview: slotMap.get("KNOWLEDGE-EMBEDDING-API-KEY")?.masked_preview ?? null,
+        expiresAt: slotMap.get("KNOWLEDGE-EMBEDDING-API-KEY")?.expires_at ?? null,
+        rotationDue: slotMap.get("KNOWLEDGE-EMBEDDING-API-KEY")?.rotation_due ?? false,
+      },
+      {
         slotId: "GITHUB-TOKEN",
         provider: "github",
         model: "repo-scope",
@@ -504,6 +515,8 @@ export default function SettingsPage() {
           Orchestrator unreachable at port 8100. Vault keys can still be configured using the static agent roster below. The live roster will load automatically when services restart.
         </SystemMessage>
       )}
+
+      <OperatorUnlockForm />
 
       {/* SECTION 1 — Runtime */}
       <Panel title={SECTION(1, "Runtime Preferences")}>
@@ -801,11 +814,15 @@ export default function SettingsPage() {
       <Panel title={SECTION(3, "Knowledge Embeddings")}>
         <p className="help-text">
           The orchestrator embeds knowledge-lake documents so agents can perform semantic similarity
-          search over library documentation. Embedding configuration is read from{" "}
-          <strong>container environment variables</strong> — set these in your{" "}
-          <code>.env</code> file and restart the orchestrator to take effect.
+          search over library documentation. Store the embedding key in the vault slot below for
+          operator setup tracking, and mirror it to the orchestrator environment when containers are
+          started.
         </p>
         <ul className="summary-list">
+          <li>
+            <strong>Vault slot</strong>
+            <span className="mono-id">KNOWLEDGE-EMBEDDING-API-KEY</span>
+          </li>
           <li>
             <strong>Provider env var</strong>
             <span className="mono-id">KNOWLEDGE_EMBEDDING_PROVIDER</span>
@@ -833,6 +850,15 @@ export default function SettingsPage() {
             </span>
           </li>
         </ul>
+        <div className="inline-actions" style={{ marginTop: "12px" }}>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => openEditPanel("KNOWLEDGE-EMBEDDING-API-KEY")}
+          >
+            Configure embedding key
+          </button>
+        </div>
         <SystemMessage tone="warning" title="Real embeddings are off by default">
           To enable semantic search: set <code>KNOWLEDGE_EMBEDDING_PROVIDER=gemini</code> (or{" "}
           <code>openai</code>) and supply an API key via{" "}

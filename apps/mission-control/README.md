@@ -17,6 +17,8 @@ It is designed for local-first Windows operation and provides real-time visibili
 - Surface protocol bus and artifact-level observability.
 - Manage local runtime preferences, vault-backed integration secrets, and
   per-slot model metadata for the approved 3-model catalog.
+- Surface operator unlock, Operator Runtime Key, and Knowledge Embedding Key
+  setup paths before privileged PM/review flows are used.
 
 ## Run Locally
 
@@ -37,10 +39,11 @@ It is designed for local-first Windows operation and provides real-time visibili
 6. Lint:
    - `npm run lint`
 
-`npm run build` and `npm run start` set `NEXT_BUILD_TARGET=docker`, which keeps
-server routes such as `/api/gateway/[...path]` available. Static export builds
-are only for Electron packaging; they must be served from `out/` rather than
-started with `next start`.
+`npm run dev`, `npm run build`, and `npm run start` set
+`NEXT_BUILD_TARGET=docker`, which keeps server routes such as
+`/api/gateway/[...path]`, `/api/vault`, and `/api/pm/feature-contract`
+available. Static export builds are only for Electron packaging; they must be
+served from `out/` rather than started with `next start`.
 
 ## Environment
 
@@ -58,6 +61,12 @@ started with `next start`.
   - Supported UI model routes: `gpt-5.5`, `claude-opus-4-8`,
     `gemini-3.5-flash`
   - Runtime default: all 41 agents use `gemini-3.5-flash` with high thinking
+- Required vault slots for local mission testing:
+  - `OPERATOR-API-KEY`: forwards privileged PM Agent, builder/repo review,
+    and mission-state requests to the API Gateway after operator unlock
+  - `KNOWLEDGE-EMBEDDING-API-KEY`: tracks the key intended for semantic
+    knowledge-lake embeddings; mirror this value to
+    `KNOWLEDGE_EMBEDDING_API_KEY` in the orchestrator container environment
 - Optional HashiCorp Vault KV backend:
   - `VAULT_ADDR`
   - `VAULT_TOKEN` or `VAULT_ROLE_ID` + `VAULT_SECRET_ID`
@@ -88,6 +97,11 @@ Mission Control expects Gateway routes under:
 Agent detail includes:
 
 - Runtime telemetry (state, queue, workload, missions).
+- Runtime class:
+  - `WORKER` means the agent runs through the shared pod-worker runtime.
+  - `MANAGED` means the orchestrator manages the control/support role and emits
+    its heartbeat. This is expected for interface, executive, and support agents
+    in the default condensed local topology.
 - 8-part persona structure:
   - job role
   - education/certifications

@@ -54,6 +54,26 @@ describe("vault backend", () => {
     });
   });
 
+  it("preserves knowledge embedding model metadata", async () => {
+    const vault = await importVaultModule();
+
+    await vault.upsertVaultSlot(
+      "knowledge-embedding-api-key",
+      "gemini",
+      "AIza-test-123456",
+      "gemini-embedding-001",
+    );
+
+    const [slot] = await vault.listVaultSlots();
+
+    expect(slot).toMatchObject({
+      slot_id: "KNOWLEDGE-EMBEDDING-API-KEY",
+      provider: "gemini",
+      model: "gemini-embedding-001",
+      status: "set",
+    });
+  });
+
   it("enforces TTL expiry for in-memory secrets", async () => {
     process.env.VAULT_SLOT_TTL_SECONDS = "3600";
     process.env.VAULT_SLOT_ROTATION_WARNING_SECONDS = "600";

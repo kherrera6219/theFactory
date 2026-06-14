@@ -129,6 +129,25 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown error";
 }
 
+function isOperatorAuthError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("operator authentication required") ||
+    normalized.includes("operator session") ||
+    normalized.includes("operator api key not found")
+  );
+}
+
+function operatorRecoveryMessage(message: string): string {
+  if (isOperatorAuthError(message)) {
+    return (
+      "Mission Control must be unlocked and the Operator Runtime Key must be configured " +
+      "before the PM Agent can generate a feature contract."
+    );
+  }
+  return message;
+}
+
 /** Derive a short title from the first user message. */
 function deriveTitle(msgs: ChatMessage[]): string {
   const first = msgs.find((m) => m.role === "user");
@@ -372,8 +391,9 @@ export default function ChatPage() {
       setContract(generatedContract);
       setInput("");
     } catch (requestError) {
-      const message =
+      const rawMessage =
         requestError instanceof Error ? requestError.message : "Unable to reach PM services.";
+      const message = operatorRecoveryMessage(rawMessage);
       setMessages((current) => [
         ...current,
         {
@@ -600,7 +620,14 @@ export default function ChatPage() {
         </div>
         {error && (
           <SystemMessage tone="warning" title="Message needs attention">
-            {error}
+            <p>{error}</p>
+            {isOperatorAuthError(error) && (
+              <div className="inline-actions" style={{ marginTop: "12px" }}>
+                <button type="button" className="secondary-button" onClick={() => router.push("/settings")}>
+                  Open Settings
+                </button>
+              </div>
+            )}
           </SystemMessage>
         )}
       </Panel>

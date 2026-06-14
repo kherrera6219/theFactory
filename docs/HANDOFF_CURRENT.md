@@ -1,6 +1,6 @@
 # Current Handoff
 
-Document version: 2026.06.13-b
+Document version: 2026.06.13-c
 Last updated: 2026-06-13
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -13,13 +13,50 @@ before consulting archived plans.
 ## Current Branch State
 
 - Branch: `main`
-- Latest commit: `44cb9c8` — *fix: silence bare exceptions in multiagent system*
+- Current change set: Mission Control operator setup, embedding key UI, live
+  agent validation, and runtime label polish.
 - All tests pass (except `test_agent_base_unit.py` which requires the orchestrator
   package on PYTHONPATH — it always fails in isolation; run from
   `services/orchestrator/` or via the services test runner).
 - Runtime model policy: all 41 agents default to `gemini/gemini-3.5-flash` with
   high thinking.
 - Mission Control model selector: ChatGPT 5.5, Claude Opus 4.8, Gemini Flash 3.5.
+- Mission Control privileged PM/review flows require both an operator unlock
+  session and `OPERATOR-API-KEY` saved in the vault.
+- Agent grid runtime labels:
+  - `WORKER`: shared pod-worker runtime for specialists, pod managers, and pod audits.
+  - `MANAGED`: orchestrator-managed interface/executive/support role heartbeat.
+  This is intentional in the condensed local topology; dedicated per-agent
+  containers are optional deployment scope, not a current requirement.
+
+---
+
+## Work Completed in This Session (2026-06-13, batch 3)
+
+### Mission Control Operator Recovery + Key Setup
+
+**Problem:** PM Agent chat failed with `Operator authentication required` and a
+fallback timeout, leaving the operator without a recovery path. Settings
+documented embedding environment variables but did not expose an embedding key
+slot in the vault table.
+
+| File | Change |
+|------|--------|
+| `apps/mission-control/app/(shell)/chat/page.tsx` | Converts operator auth/key failures into a user-facing recovery message with an `Open Settings` action |
+| `apps/mission-control/app/api/pm/feature-contract/route.ts` | Missing `OPERATOR-API-KEY` now returns actionable setup guidance |
+| `apps/mission-control/app/(shell)/settings/page.tsx` | Renders operator unlock, adds `KNOWLEDGE-EMBEDDING-API-KEY` vault row, and adds a Knowledge Embeddings configure action |
+| `apps/mission-control/app/lib/server/vault.ts` | Preserves embedding model metadata (`gemini-embedding-001`, `text-embedding-3-*`) |
+| `apps/mission-control/app/(shell)/agents/page.tsx` | Renames confusing `SYNTHETIC` badge to `MANAGED` and uses neutral styling |
+
+**Validation:** `npm --prefix apps/mission-control run lint`, focused vault
+Vitest suite, and `npm --prefix apps/mission-control run build` passed locally.
+Live backend validation also passed after starting the full dedicated stack:
+`/v1/operations/agents` returned 41/41 agents with `heartbeat_source=live`,
+all in `IDLE`; runtime readiness showed Redis, PostgreSQL, Qdrant, Milvus,
+Neo4j, object storage, protocol validation, and consumer task ready/running.
+The local Google test key was saved to `KNOWLEDGE-EMBEDDING-API-KEY` and a
+real Gemini `gemini-embedding-001:embedContent` call returned a 3072-dimension
+embedding vector.
 
 ---
 
