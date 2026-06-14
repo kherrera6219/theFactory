@@ -125,6 +125,29 @@ function summarizeScope(text: string): string {
   return `${normalized.slice(0, 117)}...`;
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
+/** Derive a short title from the first user message. */
+function deriveTitle(msgs: ChatMessage[]): string {
+  const first = msgs.find((m) => m.role === "user");
+  if (!first) return "New conversation";
+  const text = first.text.slice(0, 60);
+  return text.length < first.text.length ? `${text}…` : text;
+}
+
+/** Build a persisted session snapshot from the current message list. */
+function buildSession(messages: ChatMessage[], id: string): ChatSession {
+  return {
+    id,
+    title: deriveTitle(messages),
+    savedAt: new Date().toISOString(),
+    messageCount: messages.length,
+    messages,
+  };
+}
+
 function initialWelcomeMessage(): ChatMessage {
   return {
     id: "welcome",
@@ -181,6 +204,27 @@ export default function ChatPage() {
     } catch { /* ignore malformed data */ }
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!messages.some((message) => message.role === "user")) return;
+
+    const id = activeSessionId ?? makeId("session");
+    const session = buildSession(messages, id);
+
+    setSessions((current) => {
+      const updated = [session, ...current.filter((item) => item.id !== id)].slice(0, MAX_HISTORY_SESSIONS);
+      try {
+        window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+      } catch {
+        // Storage quota exceeded; keep the in-memory session list for this page.
+      }
+      return updated;
+    });
+    if (!activeSessionId) {
+      setActiveSessionId(id);
+    }
+  }, [messages, activeSessionId]);
+
   function saveSessions(updated: ChatSession[]) {
     setSessions(updated);
     try {
@@ -188,25 +232,11 @@ export default function ChatPage() {
     } catch { /* storage quota exceeded — silently ignore */ }
   }
 
-  /** Derive a short title from the first user message. */
-  function deriveTitle(msgs: ChatMessage[]): string {
-    const first = msgs.find((m) => m.role === "user");
-    if (!first) return "New conversation";
-    const text = first.text.slice(0, 60);
-    return text.length < first.text.length ? `${text}…` : text;
-  }
-
   function saveCurrentSession() {
     const userMessages = messages.filter((m) => m.role === "user");
     if (userMessages.length === 0) return; // Nothing worth saving.
     const id = activeSessionId ?? makeId("session");
-    const session: ChatSession = {
-      id,
-      title: deriveTitle(messages),
-      savedAt: new Date().toISOString(),
-      messageCount: messages.length,
-      messages,
-    };
+    const session = buildSession(messages, id);
     const updated = [session, ...sessions.filter((s) => s.id !== id)]
       .slice(0, MAX_HISTORY_SESSIONS);
     saveSessions(updated);
@@ -271,6 +301,7 @@ export default function ChatPage() {
       const detected = detectLanguages(files);
       let acknowledgement = "Request received. I have prepared a feature contract.";
       let generatedContract: DisplayFeatureContract;
+      let pmPreviewError: unknown = null;
       try {
         const pmPreview = await createPmFeatureContract({
           prompt: normalized,
@@ -301,15 +332,24 @@ export default function ChatPage() {
           launchPrompt: normalized,
           source: pmPreview.source,
         };
-      } catch {
-        const preview = await createBuilderPreview({
-          request: normalized,
-          constraints:
-            files.length > 0
-              ? [`Attached files: ${files.map((item) => item.name).join(", ")}`]
-              : [],
-          viewMode: "desktop",
-        });
+      } catch (contractError) {
+        pmPreviewError = contractError;
+        let preview;
+        try {
+          preview = await createBuilderPreview({
+            request: normalized,
+            constraints:
+              files.length > 0
+                ? [`Attached files: ${files.map((item) => item.name).join(", ")}`]
+                : [],
+            viewMode: "desktop",
+          });
+        } catch (fallbackError) {
+          throw new Error(
+            `PM feature contract failed: ${errorMessage(pmPreviewError)}. ` +
+              `Fallback preview failed: ${errorMessage(fallbackError)}.`,
+          );
+        }
         acknowledgement =
           preview.plan.length > 0
             ? preview.plan.map((step) => `${step.title}: ${step.description}`).join(" ")

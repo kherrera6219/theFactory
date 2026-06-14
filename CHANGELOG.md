@@ -6,6 +6,32 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### PM Chat Intake & Gateway Auth Fixes (2026-06-13)
+
+#### Added
+- **Chat Session Auto-Save**: PM Agent Chat now persists the active conversation
+  to `localStorage` as messages arrive (capped at `MAX_HISTORY_SESSIONS`), so a
+  reload no longer loses in-progress sessions.
+
+#### Changed
+- **Resilient Contract Fallback**: When the PM feature-contract call fails and
+  the builder-preview fallback also fails, the chat surfaces a combined error
+  message instead of masking the original failure with the fallback error.
+
+#### Fixed
+- **Dropped Request Fields**: `createBuilderPreview` and `createPmFeatureContract`
+  now normalize camelCase request fields (`viewMode`, `requestedTargetLanguage`)
+  to the snake_case keys the API gateway expects. Previously the index signature
+  on the request types let camelCase keys serialize silently, so the requested
+  target language was discarded before reaching the backend.
+- **Gateway Operator-Route Auth**: `deploy/docker-compose.yaml` now passes
+  `ORCHESTRATOR_ADMIN_API_KEY`, `ORCHESTRATOR_READONLY_API_KEY`, and
+  `ORCHESTRATOR_API_KEYS` to the `api-gateway` service so operator-route auth has
+  the same key environment as its role map.
+- **Lint Gate**: Split the aliased `redis.exceptions` import in
+  `services/orchestrator/orchestrator/runtime.py` onto its own line to satisfy
+  the `ruff` import-sorting rule (I001) that was failing the Lint and Test gate.
+
 ## [1.1.0] - 2026-05-23
 
 ### Enterprise Hardening & Native Windows Conversion

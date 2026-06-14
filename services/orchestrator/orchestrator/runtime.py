@@ -31,7 +31,8 @@ except ModuleNotFoundError:
     redis = None
 
 try:
-    from redis.exceptions import ResponseError, TimeoutError as RedisTimeoutError
+    from redis.exceptions import ResponseError
+    from redis.exceptions import TimeoutError as RedisTimeoutError
 except ModuleNotFoundError:
 
     class ResponseError(Exception):
