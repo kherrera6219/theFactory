@@ -71,6 +71,21 @@ export default function OutputPage() {
         copied={copied}
       />
 
+      {/* File System Path Card */}
+      <div
+        style={{
+          padding: '0.5rem 1rem',
+          background: 'var(--color-surface-offset)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: 'var(--text-sm, 0.875rem)',
+          color: 'var(--color-text-muted)',
+          marginBottom: 'var(--space-4)',
+        }}
+      >
+        📁 Exported locally to: <code className="mono-id" style={{ color: 'var(--color-primary-light, #38bdf8)' }}>output/{missionId}/</code>
+      </div>
+
       <div
         style={{
           display: 'grid',
