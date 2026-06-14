@@ -64,9 +64,10 @@ def _record_embedding_usage(
                     )
                 )
         except RuntimeError:
-            pass
-    except Exception:
-        pass
+            pass  # no running event loop — cost ledger skipped
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).debug("embedding cost ledger skipped: %s", exc)
 
 
 def vector_for_content(

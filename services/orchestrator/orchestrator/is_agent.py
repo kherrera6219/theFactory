@@ -179,7 +179,8 @@ def _check_knowledge_exists(*, settings: Any, knowledge_id: str) -> bool:
             isinstance(r, dict) and r.get("knowledge_id") == knowledge_id
             for r in records
         )
-    except Exception:
+    except Exception as exc:
+        LOGGER.debug("_knowledge_is_indexed: storage error for %s: %s", knowledge_id, exc)
         return False
 
 
@@ -196,7 +197,8 @@ def _knowledge_is_current(*, settings: Any, knowledge_id: str, content_hash: str
             if isinstance(content, dict) and content.get("hash") == content_hash:
                 return True
         return False
-    except Exception:
+    except Exception as exc:
+        LOGGER.debug("_knowledge_is_current: storage error for %s: %s", knowledge_id, exc)
         return False
 
 
