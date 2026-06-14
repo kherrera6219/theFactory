@@ -281,7 +281,6 @@ jobs:
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
           ignore-unfixed: true
-          skip-version-check: true
           # exit-code 0: upload findings to Security tab but don't block the build.
           # Real CVEs will appear in GitHub Security → Code scanning alerts.
           # Change to "1" once a baseline suppression file (.trivyignore) is in place.
@@ -289,6 +288,7 @@ jobs:
 
       - name: Upload Trivy results
         if: always()
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
         with:
           sarif_file: trivy-results.sarif
