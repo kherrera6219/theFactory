@@ -1024,7 +1024,7 @@ async def health() -> dict[str, Any]:
                 else:
                     agents_missing_heartbeat.append(_agent.agent_id)
             if agents_missing_heartbeat:
-                LOGGER.warning(
+                LOGGER.debug(
                     "health check: %d/%d agents have no recent heartbeat: %s",
                     len(agents_missing_heartbeat),
                     len(AGENT_REGISTRY),

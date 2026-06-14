@@ -329,7 +329,10 @@ services:
       LANGGRAPH_FAIL_OPEN: ${LANGGRAPH_FAIL_OPEN:-true}
       LANGGRAPH_CHECKPOINTER: ${LANGGRAPH_CHECKPOINTER:-none}
       LANGGRAPH_THREAD_PREFIX: ${LANGGRAPH_THREAD_PREFIX:-mission}
-      LANGGRAPH_CHECKPOINTER_POSTGRES_URL: ${LANGGRAPH_CHECKPOINTER_POSTGRES_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-CHANGE_ME_local_dev_postgres_password_32chars}@pgbouncer:${PGBOUNCER_PORT:-5432}/${POSTGRES_DB:-ulr}?sslmode=disable}
+      # LangGraph's Postgres checkpointer requires a stable direct Postgres
+      # session. Do not default this to PgBouncer; operators must opt in with a
+      # direct URL when LANGGRAPH_CHECKPOINTER=postgres.
+      LANGGRAPH_CHECKPOINTER_POSTGRES_URL: ${LANGGRAPH_CHECKPOINTER_POSTGRES_URL:-}
       LANGGRAPH_CHECKPOINTER_SETUP: ${LANGGRAPH_CHECKPOINTER_SETUP:-false}
       LANGGRAPH_CHECKPOINT_NAMESPACE: ${LANGGRAPH_CHECKPOINT_NAMESPACE:-}
       ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-}
@@ -382,9 +385,9 @@ services:
       # Liveness, not readiness: /health returns 200 whenever the process is
       # serving even if an optional service (Qdrant/Neo4j/object storage) is
       # unavailable. Dependents gate on this signal via depends_on, so coupling
-      # it to optional-service readiness (as /readyz does) would wedge the whole
-      # stack when an optional backend is absent (e.g. the perf-smoke CI stack,
-      # which boots only redis/postgres/qdrant). /readyz remains for readiness.
+      # it to optional-service readiness (as /readyz does) would wedge reduced
+      # local stacks when optional backends are intentionally disabled. /readyz
+      # remains the stricter readiness signal.
       test:
         [
           "CMD",
