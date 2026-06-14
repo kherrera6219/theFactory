@@ -6,7 +6,13 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 type VaultProvider = "openai" | "anthropic" | "gemini" | "github" | "operator";
-type VaultModel = "gpt-5.5" | "claude-opus-4-8" | "gemini-3.5-flash";
+type VaultModel =
+  | "gpt-5.5"
+  | "claude-opus-4-8"
+  | "gemini-3.5-flash"
+  | "gemini-embedding-001"
+  | "text-embedding-3-large"
+  | "text-embedding-3-small";
 type VaultBackend = "memory" | "local-encrypted" | "hashicorp-vault";
 
 type VaultEntry = {
@@ -106,6 +112,9 @@ function normalizeModel(value: string | undefined, provider: VaultProvider): Vau
   if (candidate === "gpt-5.5") return "gpt-5.5";
   if (candidate === "claude-opus-4-8") return "claude-opus-4-8";
   if (candidate === "gemini-3.5-flash") return "gemini-3.5-flash";
+  if (candidate === "gemini-embedding-001") return "gemini-embedding-001";
+  if (candidate === "text-embedding-3-large") return "text-embedding-3-large";
+  if (candidate === "text-embedding-3-small") return "text-embedding-3-small";
   if (provider === "openai") return "gpt-5.5";
   if (provider === "anthropic") return "claude-opus-4-8";
   if (provider === "gemini") return "gemini-3.5-flash";

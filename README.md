@@ -406,6 +406,9 @@ The protocol bus is a six-protocol typed message bus. Routing is lexical/channel
 - Docker stack: `http://localhost:3100`
 - Direct dev server: `http://localhost:3000` (`npm run dev`)
 - Privileged Mission Control routes require an operator unlock session established with `MISSION_CONTROL_ADMIN_KEY`.
+- PM Agent chat, repo review, builder review, and mission-state changes also require the
+  `OPERATOR-API-KEY` vault slot to be configured so Mission Control can forward
+  authenticated requests to the local API Gateway.
 
 **Features:**
 
@@ -427,6 +430,16 @@ The protocol bus is a six-protocol typed message bus. Routing is lexical/channel
 | Settings | Provider key management, vault-backed secrets, and local environment controls |
 
 Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`, `LogicNodes`, `Protocol Bus`, `Databases`, `Repo Import`, and `Settings`. Additional shipped operator routes include `Mission Detail`, `Builder`, `Projects`, `Alerts`, `Performance`, and `/dashboard` as a direct launch-pad alias.
+
+**Agent runtime labels:**
+
+Mission Control shows 41 logical agents. In the default condensed runtime,
+specialist, pod-manager, and pod-audit agents run through shared pod-worker
+containers and appear as `WORKER`. Interface, executive, and support agents are
+orchestrator-managed control roles; the orchestrator emits their runtime
+heartbeats and the UI labels them `MANAGED`. This is expected and does not mean
+those agents are broken or fake. A fully isolated per-agent container topology
+is optional future/deployment scope, not the default local product path.
 
 **Additional operator experience features (Phase 6-7, shipped 2026-05-22):**
 
@@ -772,6 +785,14 @@ APPROVAL_TTL_SECONDS=86400
 # Mission Control vault endpoint break-glass key for scripted /api/vault access (optional)
 VAULT_ADMIN_KEY=<generate with openssl rand -hex 32>
 AUTH_MODE=api_key                  # api_key | hybrid | oidc
+
+# Knowledge embeddings
+# UI setup slot: KNOWLEDGE-EMBEDDING-API-KEY in Mission Control Settings
+# Runtime env consumed by orchestrator containers:
+KNOWLEDGE_EMBEDDING_PROVIDER=gemini
+KNOWLEDGE_EMBEDDING_API_KEY=<same key or dedicated embedding key>
+KNOWLEDGE_EMBEDDING_MODEL=gemini-embedding-001
+KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS=10.0
 
 # OIDC (when AUTH_MODE=hybrid|oidc)
 OIDC_ISSUER_URL=https://your-idp/.well-known/openid-configuration

@@ -360,6 +360,11 @@ The fully isolated per-agent topology exists via optional profiles in
 `deploy/docker-compose.full-dedicated-agents.yaml` and `up-full-dedicated` make target.
 In the condensed topology, interface/executive/support-agent heartbeats are synthesized
 by the orchestrator rather than emitted by separate worker processes.
+Mission Control labels these orchestrator-managed control/support roles as `MANAGED`.
+Specialist, pod-manager, and pod-audit agents run through shared pod-worker
+containers and are labeled `WORKER`. A one-container-per-agent topology is not
+required for the default local product path; use the full dedicated-agent compose
+profile only when strict runtime isolation is a deployment requirement.
 
 **Concurrency model:** Task-based/serverless — 3–4 agents active concurrently at any
 time; each agent can spawn sub-agent clones to parallelize extraction. Cost model is
@@ -411,6 +416,19 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 - **Settings vault model selector**: each API key slot can store one of the
   approved provider/model routes: ChatGPT 5.5, Claude Opus 4.8, or Gemini Flash
   3.5. Gemini Flash 3.5 is the runtime default for all agents.
+- **Operator setup recovery**: PM Agent chat now converts missing operator
+  unlock/key failures into a recovery action that sends the operator to Settings.
+  Configure `OPERATOR-API-KEY` before PM feature-contract generation.
+- **Embedding setup visibility**: Settings exposes
+  `KNOWLEDGE-EMBEDDING-API-KEY` in the vault table and Knowledge Embeddings
+  panel. The orchestrator still consumes `KNOWLEDGE_EMBEDDING_API_KEY` from the
+  container environment, so local stack startup must mirror the vault value into
+  the runtime environment for semantic search.
+- **Live runtime validation (2026-06-13)**: full dedicated stack returned 41/41
+  agents with live heartbeats through `/v1/operations/agents`; all agents were
+  idle and all data-plane/runtime readiness flags were healthy. The local Google
+  test key saved to `KNOWLEDGE-EMBEDDING-API-KEY` also succeeded against the
+  Gemini `gemini-embedding-001` endpoint and returned a 3072-dimension vector.
 - **Mission Detail panels** (22 total across 3 categories):
   - `intelligence/`: AIM, DependencyAbsorption, EquivalenceReport, Fusion, KnowledgeLake,
     LogicClusters, PodGroupStandards, RuntimeQc, SecurityCompliance

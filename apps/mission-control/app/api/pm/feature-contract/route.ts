@@ -36,7 +36,10 @@ export async function POST(request: Request) {
     const operatorKey = await getVaultSecret("OPERATOR-API-KEY");
     if (!operatorKey) {
       return NextResponse.json(
-        { detail: "Operator API key not found in vault slot OPERATOR-API-KEY." },
+        {
+          detail:
+            "Operator API key not found in vault slot OPERATOR-API-KEY. Open Settings, unlock Mission Control, and configure the Operator Runtime Key.",
+        },
         { status: 400 },
       );
     }

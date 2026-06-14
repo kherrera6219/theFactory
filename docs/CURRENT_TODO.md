@@ -28,6 +28,9 @@ current work.
 
 6. **Run the Gemini live mission proof**
    - Start the local stack with a real `GEMINI_API_KEY` and `KNOWLEDGE_EMBEDDING_PROVIDER=gemini`.
+   - Confirm Mission Control is unlocked, `OPERATOR-API-KEY` is saved in the
+     vault, and `KNOWLEDGE-EMBEDDING-API-KEY` is saved/tested before submitting
+     the mission.
    - Submit a BUILD_NEW mission.
    - Capture evidence that the mission reaches COMPLETE with non-empty
      LLM-generated output from `gemini-3.5-flash` and that semantic search
