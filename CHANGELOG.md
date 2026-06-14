@@ -6,6 +6,23 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Knowledge Lake Unit Tests (2026-06-13)
+
+#### Added
+- **`tests/services/test_knowledge_lake_unit.py`** — 37 new tests covering the entire
+  `knowledge_lake.py` module (previously zero coverage): `_embedding_key_available`,
+  `_semantic_search_enabled`, `is_stocked`, `index_documentation`, `_mirror_to_qdrant`,
+  `query_documentation` routing, `_vector_search` (including a regression test confirming
+  `content={"combined_text": concept_key}` and `task_type="RETRIEVAL_QUERY"` are passed),
+  `_keyword_search`, and `get_language_context`.
+- **Embeddings tests** — 5 new tests appended to `test_knowledge_embeddings_unit.py`:
+  Gemini happy path, `task_type` forwarding to the Gemini API body, `RETRIEVAL_QUERY`
+  correctly propagated, and `KNOWLEDGE_EMBEDDING_API_KEY` overriding both `GEMINI_API_KEY`
+  and `OPENAI_API_KEY`.
+- **LangGraph PgBouncer guard test** — 1 new test in `test_langgraph_lifecycle_unit.py`
+  asserting that an empty `LANGGRAPH_CHECKPOINTER_POSTGRES_URL` returns False (rather than
+  silently falling back to the PgBouncer URL and corrupting checkpoint state).
+
 ### Knowledge Embedding Key + Semantic Search Gate (2026-06-13)
 
 #### Added

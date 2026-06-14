@@ -558,6 +558,34 @@ def test_maybe_advance_blocks_completion_without_artifacts(monkeypatch) -> None:
     assert "MISSION_COMPLETION_BLOCKED" in inserted_events
 
 
+def test_postgres_mode_returns_false_when_url_empty(monkeypatch) -> None:
+    """Regression: empty LANGGRAPH_CHECKPOINTER_POSTGRES_URL must not fall back
+    to settings.postgres_url (PgBouncer transaction-pool). The function should
+    log an error and return False to avoid silent checkpoint corruption."""
+    monkeypatch.setattr(langgraph_lifecycle, "StateGraph", FakeStateGraph)
+    monkeypatch.setattr(langgraph_lifecycle, "AsyncPostgresSaver", object)  # truthy, dependency present
+
+    advanced = asyncio.run(
+        langgraph_lifecycle.maybe_advance_mission_lifecycle(
+            app=_app_state(),
+            mission_id="mission-1",
+            settings=_settings(
+                langgraph_enabled=True,
+                langgraph_checkpointer="postgres",
+                langgraph_checkpointer_postgres_url="",  # intentionally empty
+            ),
+            validator=object(),
+            emit_state_event_fn=lambda **_kwargs: asyncio.sleep(0),
+        )
+    )
+
+    assert advanced is False, (
+        "An empty LANGGRAPH_CHECKPOINTER_POSTGRES_URL must cause the lifecycle to "
+        "abort (return False) rather than falling back to the PgBouncer URL and "
+        "silently corrupting checkpoint state."
+    )
+
+
 def test_maybe_advance_requires_build_artifact_for_source_bundle(monkeypatch) -> None:
     monkeypatch.setattr(langgraph_lifecycle, "StateGraph", FakeStateGraph)
     mission = MissionRecord(

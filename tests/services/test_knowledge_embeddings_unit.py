@@ -111,3 +111,154 @@ def test_openai_embedding_uses_dimensions_and_vector(monkeypatch) -> None:
     assert vector == [0.1, 0.2, 0.3]
     assert requests[0]["url"].endswith("/embeddings")
     assert requests[0]["body"]["dimensions"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Gemini happy path
+# ---------------------------------------------------------------------------
+
+def test_gemini_embedding_happy_path(monkeypatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+    requests: list[dict] = []
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_a):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps({"embedding": {"values": [0.5, 0.6, 0.7]}}).encode()
+
+    def _fake_urlopen(request, timeout: float):
+        requests.append({
+            "url": request.full_url,
+            "body": json.loads(request.data.decode()),
+            "timeout": timeout,
+        })
+        return _FakeResponse()
+
+    monkeypatch.setattr(knowledge_embeddings, "urlopen", _fake_urlopen)
+    vector = knowledge_embeddings.vector_for_content(
+        _settings(
+            knowledge_embedding_provider="gemini",
+            knowledge_embedding_model="gemini-embedding-001",
+        ),
+        mission_id="mission-1",
+        knowledge_id="knowledge-1",
+        content={"combined_text": "test text"},
+        vector_size=3,
+    )
+
+    assert vector == [0.5, 0.6, 0.7]
+    assert "embedContent" in requests[0]["url"]
+    assert requests[0]["body"]["task_type"] == "RETRIEVAL_DOCUMENT"
+
+
+def test_gemini_task_type_forwarded_to_api(monkeypatch) -> None:
+    """task_type must be sent in the Gemini request body — RETRIEVAL_QUERY for search."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+    captured_bodies: list[dict] = []
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_a):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps({"embedding": {"values": [0.1, 0.2, 0.3]}}).encode()
+
+    def _fake_urlopen(request, timeout: float):
+        captured_bodies.append(json.loads(request.data.decode()))
+        return _FakeResponse()
+
+    monkeypatch.setattr(knowledge_embeddings, "urlopen", _fake_urlopen)
+
+    knowledge_embeddings.vector_for_content(
+        _settings(knowledge_embedding_provider="gemini"),
+        mission_id="m",
+        knowledge_id="k",
+        content={"combined_text": "query text"},
+        vector_size=3,
+        task_type="RETRIEVAL_QUERY",
+    )
+
+    assert len(captured_bodies) == 1
+    assert captured_bodies[0]["task_type"] == "RETRIEVAL_QUERY"
+
+
+def test_knowledge_embedding_api_key_overrides_gemini_env(monkeypatch) -> None:
+    """KNOWLEDGE_EMBEDDING_API_KEY takes precedence over GEMINI_API_KEY."""
+    monkeypatch.setenv("GEMINI_API_KEY", "global-gemini-key")
+    captured_urls: list[str] = []
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_a):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps({"embedding": {"values": [0.1, 0.2]}}).encode()
+
+    def _fake_urlopen(request, timeout: float):
+        captured_urls.append(request.full_url)
+        return _FakeResponse()
+
+    monkeypatch.setattr(knowledge_embeddings, "urlopen", _fake_urlopen)
+    knowledge_embeddings.vector_for_content(
+        _settings(
+            knowledge_embedding_provider="gemini",
+            knowledge_embedding_api_key="dedicated-key",
+        ),
+        mission_id="m",
+        knowledge_id="k",
+        content={"combined_text": "text"},
+        vector_size=2,
+    )
+
+    assert len(captured_urls) == 1
+    assert "dedicated-key" in captured_urls[0]
+    assert "global-gemini-key" not in captured_urls[0]
+
+
+def test_knowledge_embedding_api_key_overrides_openai_env(monkeypatch) -> None:
+    """KNOWLEDGE_EMBEDDING_API_KEY takes precedence over OPENAI_API_KEY."""
+    monkeypatch.setenv("OPENAI_API_KEY", "global-openai-key")
+    captured_headers: list[dict] = []
+
+    class _FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_a):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps({"data": [{"embedding": [0.1, 0.2]}]}).encode()
+
+    def _fake_urlopen(request, timeout: float):
+        captured_headers.append(dict(request.headers))
+        return _FakeResponse()
+
+    monkeypatch.setattr(knowledge_embeddings, "urlopen", _fake_urlopen)
+    knowledge_embeddings.vector_for_content(
+        _settings(
+            knowledge_embedding_provider="openai",
+            knowledge_embedding_model="text-embedding-3-large",
+            knowledge_embedding_api_key="dedicated-openai-key",
+        ),
+        mission_id="m",
+        knowledge_id="k",
+        content={"combined_text": "text"},
+        vector_size=2,
+    )
+
+    assert len(captured_headers) == 1
+    auth = captured_headers[0].get("Authorization") or captured_headers[0].get("authorization") or ""
+    assert "dedicated-openai-key" in auth
+    assert "global-openai-key" not in auth
