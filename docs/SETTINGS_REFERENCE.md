@@ -112,33 +112,33 @@ The design follows three rules:
 | `qdrant_vector_size` | `QDRANT_VECTOR_SIZE` | `64` | Embedding vector dimension |
 | `qdrant_timeout_seconds` | `QDRANT_TIMEOUT_SECONDS` | `3.0` | Per-request timeout |
 
-### Milvus (Vector Store — Optional)
+### Milvus (Vector Store)
 
 | Field | Env Var | Default | Description |
 |---|---|---|---|
 | `milvus_uri` | `MILVUS_URI` | `http://milvus:19530` | Milvus URI |
 | `milvus_token` | `MILVUS_TOKEN` | `""` | Milvus authentication token |
-| `milvus_enabled` | `MILVUS_ENABLED` | `false` | Enable Milvus (off by default) |
+| `milvus_enabled` | `MILVUS_ENABLED` | `true` | Enable Milvus (on by default) |
 | `milvus_collection` | `MILVUS_COLLECTION` | `mission_knowledge` | Collection name |
 | `milvus_vector_size` | `MILVUS_VECTOR_SIZE` | `64` | Embedding vector dimension |
 | `milvus_timeout_seconds` | `MILVUS_TIMEOUT_SECONDS` | `3.0` | Per-request timeout |
 
-### Neo4j (Graph Store — Optional)
+### Neo4j (Graph Store)
 
 | Field | Env Var | Default | Description |
 |---|---|---|---|
 | `neo4j_url` | `NEO4J_URL` | `http://neo4j:7474` | Neo4j HTTP URL |
-| `neo4j_enabled` | `NEO4J_ENABLED` | `false` | Enable Neo4j integration |
+| `neo4j_enabled` | `NEO4J_ENABLED` | `true` | Enable Neo4j integration (on by default) |
 | `neo4j_username` | `NEO4J_USERNAME` | `neo4j` | Auth username |
 | `neo4j_password` | `NEO4J_PASSWORD` | `""` | Auth password |
 | `neo4j_database` | `NEO4J_DATABASE` | `neo4j` | Target database name |
 | `neo4j_timeout_seconds` | `NEO4J_TIMEOUT_SECONDS` | `3.0` | Per-request timeout |
 
-### Object Storage (MinIO/S3 — Optional)
+### Object Storage (MinIO/S3)
 
 | Field | Env Var | Default | Description |
 |---|---|---|---|
-| `object_storage_enabled` | `OBJECT_STORAGE_ENABLED` | `false` | Enable S3-compatible object storage |
+| `object_storage_enabled` | `OBJECT_STORAGE_ENABLED` | `true` | Enable S3-compatible object storage (on by default) |
 | `object_storage_endpoint` | `OBJECT_STORAGE_ENDPOINT` | `http://minio:9000` | S3-compatible endpoint |
 | `object_storage_access_key` | `OBJECT_STORAGE_ACCESS_KEY` | `""` | Access key |
 | `object_storage_secret_key` | `OBJECT_STORAGE_SECRET_KEY` | `""` | Secret key |

@@ -66,7 +66,7 @@ Commits `d52d978`, `bdf73b2`, `c07da61`, `44cb9c8`, `41d76c6`, `364a086`:
   (`mission_state_events`, `mission_pod_assignments`, `mission_knowledge`,
   `agent_runtime_heartbeats`, `agent_action_events`), accurate function tables per module.
 - `README.md` Data Systems table: Milvus/Neo4j/MinIO corrected from `✅ Active` to
-  `⚙️ Integrated / off by default`.
+  `⚙️ Integrated / off by default` *(later reversed in batch 3 — see below)*.
 
 **Settings UI:**
 - New "3. Knowledge Embeddings" panel in Mission Control Settings explaining
@@ -98,6 +98,19 @@ Commits `d52d978`, `bdf73b2`, `c07da61`, `44cb9c8`, `41d76c6`, `364a086`:
 - `/health` endpoint extended: `agents_total`, `agents_with_heartbeat`,
   `agents_missing_heartbeat`, `agents_missing_ids` fields + WARNING log for gaps.
 - Sigma lane handler confirmed wired at `main.py:505`; no code change needed.
+
+### All extended data stores enabled by default (2026-06-13, batch 3)
+
+Commit `6cd65f5`:
+
+- `settings.py`: `milvus_enabled`, `neo4j_enabled`, and `object_storage_enabled`
+  dataclass defaults and `from_env()` fallbacks changed `False → True`.
+- `docker-compose.yaml`: `MILVUS_ENABLED` default changed `false → true` (Neo4j and
+  MinIO were already `true` in compose but `False` in the Python defaults — now consistent).
+- `docker-compose.dev.yaml`: removed hard `NEO4J_ENABLED: "false"` and
+  `OBJECT_STORAGE_ENABLED: "false"` overrides so dev now inherits the base defaults.
+- `README.md`, `SETTINGS_REFERENCE.md`, `DEVELOPER_ONBOARDING_GUIDE.md`,
+  `ARCHITECTURE.md`, `COMPOSE_ENVIRONMENT_PROFILES.md` all updated.
 
 ### Gemini-first model routing update (2026-06-13)
 
@@ -313,8 +326,9 @@ The following previously-tracked known gaps are now closed:
 | `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | `true` | ✅ 2026-05-22 — `.env.example`=`true` |
 | `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `true` | ✅ 2026-05-22 — `.env.example`=`true` |
 | `AGENT_SCALING_ENABLED` | `false` | Partitioning logic wired; not validated live |
-| `NEO4J_ENABLED` | `false` | Optional knowledge graph adapter |
-| `OBJECT_STORAGE_ENABLED` | `false` | Optional MinIO/S3 adapter |
+| `MILVUS_ENABLED` | `true` | Extended vector store; on by default |
+| `NEO4J_ENABLED` | `true` | Knowledge graph adapter; on by default |
+| `OBJECT_STORAGE_ENABLED` | `true` | MinIO/S3 artifact retention; on by default |
 | `KNOWLEDGE_EMBEDDING_PROVIDER` | `deterministic` (compose) / `gemini` (settings.py) | Compose default is SHA-256 hash vectors (no API key needed). Set to `gemini` or `openai` + supply key for real semantic search |
 | `KNOWLEDGE_EMBEDDING_API_KEY` | *(empty)* | Dedicated embedding key; overrides `GEMINI_API_KEY` / `OPENAI_API_KEY` for separate quota |
 | `QDRANT_VECTOR_SIZE` | `256` | Raised from 64 (2026-06-13) — minimum for meaningful cosine separation |
@@ -363,8 +377,9 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 - **Redis Streams**: `missions.intake`, `missions.state`, `missions.pod.A|B|C|D`,
   `agents.heartbeats`.
 - **Qdrant**: active vector store; replaced pgvector. Embedding metadata in all payloads.
-- **Neo4j**: optional; `NEO4J_ENABLED=false`.
-- **Object storage**: optional MinIO/S3; `OBJECT_STORAGE_ENABLED=false`.
+- **Neo4j**: active by default; `NEO4J_ENABLED=true`.
+- **Milvus**: active by default; `MILVUS_ENABLED=true`.
+- **Object storage**: active by default; `OBJECT_STORAGE_ENABLED=true`.
 
 ---
 

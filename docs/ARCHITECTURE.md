@@ -36,7 +36,7 @@ The system is organized into three planes:
 | Plane | Components |
 |-------|-----------|
 | **Control Plane** | API Gateway, Orchestrator, Mission Control UI |
-| **Data Plane** | PostgreSQL, Redis, Qdrant, Neo4j (optional), MinIO/S3 (optional), Milvus (optional) |
+| **Data Plane** | PostgreSQL, Redis, Qdrant, Neo4j, Milvus, MinIO/S3 |
 | **Observability Plane** | Prometheus, Grafana, Loki, Promtail, Alertmanager, Jaeger |
 
 ---
