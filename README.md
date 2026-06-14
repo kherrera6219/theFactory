@@ -460,9 +460,9 @@ Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`,
 | **PostgreSQL** | ✅ Active | Missions, events, pod assignments, LogicNodes, knowledge, audits, agent heartbeats |
 | **Redis** | ✅ Active | Streams (event bus), rate limiting, idempotency keys, heartbeat telemetry |
 | **Qdrant** | ✅ Active | Knowledge retrieval and indexing; PostgreSQL keyword fallback when no embedding key |
-| **Milvus** | ⚙️ Integrated / off by default | Extended vector store; container starts, app integration requires `MILVUS_ENABLED=true` |
-| **Neo4j** | ⚙️ Integrated / off by default | Graph queries; container starts, app integration requires `NEO4J_ENABLED=true` |
-| **MinIO/S3** | ⚙️ Integrated / off by default | Artifact retention / legal-hold; requires `OBJECT_STORAGE_ENABLED=true` |
+| **Milvus** | ✅ Active | Extended vector store; `MILVUS_ENABLED=true` by default |
+| **Neo4j** | ✅ Active | Knowledge graph; `NEO4J_ENABLED=true` by default |
+| **MinIO/S3** | ✅ Active | Artifact retention / legal-hold; `OBJECT_STORAGE_ENABLED=true` by default |
 
 **Schema governance:** Versioned SQL migrations with checksum-tracked `schema_migrations` table (`V001_...` naming).
 
@@ -874,7 +874,7 @@ Starts Prometheus, Grafana, Loki, Promtail, Alertmanager, and Jaeger.
 
 ### Core Data Plane & Internal Databases
 
-Milvus, MinIO, and Neo4j containers start automatically as part of the base compose stack, but their application integrations are **off by default** (feature-flagged). Enable them via `MILVUS_ENABLED=true`, `OBJECT_STORAGE_ENABLED=true`, or `NEO4J_ENABLED=true` in your `.env` file.
+Milvus, Neo4j, and MinIO containers start automatically as part of the base compose stack and their application integrations are **on by default**. Disable any of them via `MILVUS_ENABLED=false`, `NEO4J_ENABLED=false`, or `OBJECT_STORAGE_ENABLED=false` in your `.env` file if you want a lighter local stack.
 
 ---
 

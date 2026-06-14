@@ -9,8 +9,6 @@ services:
     environment:
       LANGGRAPH_ENABLED: "false"
       LANGGRAPH_CHECKPOINTER: none
-      OBJECT_STORAGE_ENABLED: "false"
-      NEO4J_ENABLED: "false"
       OTEL_SAMPLING_RATIO: "1.0"
   mission-control:
     environment:

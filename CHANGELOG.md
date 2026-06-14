@@ -6,6 +6,22 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Extended Data Stores Enabled by Default (2026-06-13)
+
+#### Changed
+- **Milvus, Neo4j, and MinIO/object storage now on by default** — all three
+  containers already started automatically in the base compose stack; the
+  application-level integration flags now match:
+  - `settings.py`: `milvus_enabled`, `neo4j_enabled`, `object_storage_enabled`
+    dataclass defaults and `from_env()` fallbacks changed `False → True`.
+  - `docker-compose.yaml`: `MILVUS_ENABLED` default changed `false → true`.
+  - `docker-compose.dev.yaml`: removed hard `NEO4J_ENABLED: "false"` and
+    `OBJECT_STORAGE_ENABLED: "false"` overrides so the dev stack now runs all
+    three stores by default (same as staging/prod).
+- **Documentation updated** — `README.md` data systems table, `SETTINGS_REFERENCE.md`,
+  `DEVELOPER_ONBOARDING_GUIDE.md`, `ARCHITECTURE.md`, `COMPOSE_ENVIRONMENT_PROFILES.md`,
+  and `IMPLEMENTATION_STATUS.md` all updated to reflect new defaults.
+
 ### Multiagent Audit — Remaining HIGH Items (2026-06-13)
 
 #### Fixed / Resolved

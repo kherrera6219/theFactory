@@ -54,12 +54,12 @@ Define the supported compose overlay set for local development, staging qualific
 - Dev:
   - `AUTH_MODE=api_key`
   - LangGraph disabled
-  - optional `neo4j` and object-storage integrations disabled
+  - Neo4j, Milvus, and object storage all on (base compose defaults)
 - Staging:
   - `AUTH_MODE=hybrid`
   - LangGraph enabled with in-memory checkpointing
-  - optional `neo4j` and object-storage integrations enabled for qualification
+  - Neo4j, Milvus, and object storage all on
 - Prod:
   - `AUTH_MODE=oidc`
   - LangGraph enabled with Postgres checkpointing
-  - optional `neo4j` and object-storage integrations enabled
+  - Neo4j, Milvus, and object storage all on
