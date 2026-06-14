@@ -42,7 +42,7 @@ class Settings:
     qdrant_timeout_seconds: float = 3.0
     milvus_uri: str = "http://milvus:19530"
     milvus_token: str = ""
-    milvus_enabled: bool = False
+    milvus_enabled: bool = True
     milvus_collection: str = "mission_knowledge"
     milvus_vector_size: int = 64
     milvus_timeout_seconds: float = 3.0
@@ -58,12 +58,12 @@ class Settings:
     knowledge_embedding_timeout_seconds: float = 10.0
     knowledge_refresh_enabled: bool = True
     neo4j_url: str = "http://neo4j:7474"
-    neo4j_enabled: bool = False
+    neo4j_enabled: bool = True
     neo4j_username: str = "neo4j"
     neo4j_password: str = ""
     neo4j_database: str = "neo4j"
     neo4j_timeout_seconds: float = 3.0
-    object_storage_enabled: bool = False
+    object_storage_enabled: bool = True
     object_storage_endpoint: str = "http://minio:9000"
     object_storage_access_key: str = ""
     object_storage_secret_key: str = ""
@@ -283,7 +283,7 @@ def load_settings() -> Settings:
         or "mission_knowledge",
         qdrant_vector_size=max(8, int(os.getenv("QDRANT_VECTOR_SIZE", "256"))),
         qdrant_timeout_seconds=max(0.5, float(os.getenv("QDRANT_TIMEOUT_SECONDS", "3.0"))),
-        milvus_enabled=_as_bool(os.getenv("MILVUS_ENABLED", "false"), False)
+        milvus_enabled=_as_bool(os.getenv("MILVUS_ENABLED", "true"), True)
         and bool(os.getenv("MILVUS_URI", "http://milvus:19530").strip()),
         milvus_collection=os.getenv("MILVUS_COLLECTION", "mission_knowledge").strip()
         or "mission_knowledge",
@@ -303,13 +303,13 @@ def load_settings() -> Settings:
         knowledge_refresh_enabled=_as_bool(
             os.getenv("KNOWLEDGE_REFRESH_ENABLED", "true"), True
         ),
-        neo4j_enabled=_as_bool(os.getenv("NEO4J_ENABLED", "false"), False)
+        neo4j_enabled=_as_bool(os.getenv("NEO4J_ENABLED", "true"), True)
         and bool(os.getenv("NEO4J_URL", "http://neo4j:7474").strip()),
         neo4j_username=os.getenv("NEO4J_USERNAME", "neo4j"),
         neo4j_password=os.getenv("NEO4J_PASSWORD", ""),
         neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j").strip() or "neo4j",
         neo4j_timeout_seconds=max(0.5, float(os.getenv("NEO4J_TIMEOUT_SECONDS", "3.0"))),
-        object_storage_enabled=_as_bool(os.getenv("OBJECT_STORAGE_ENABLED", "false"), False)
+        object_storage_enabled=_as_bool(os.getenv("OBJECT_STORAGE_ENABLED", "true"), True)
         and bool(os.getenv("OBJECT_STORAGE_ENDPOINT", "http://minio:9000").strip()),
         object_storage_bucket=os.getenv("OBJECT_STORAGE_BUCKET", "mission-audit-artifacts").strip()
         or "mission-audit-artifacts",
