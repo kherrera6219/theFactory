@@ -26,6 +26,7 @@ empty/False results and log a warning rather than raising.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 from urllib.request import urlopen  # noqa: S310 — patched in tests; only http/https used
 
@@ -335,9 +336,26 @@ def _embedding_provider(settings: Any) -> str:
     return provider
 
 
+def _embedding_key_available(settings: Any) -> bool:
+    """Return True when a non-empty API key exists for the configured provider."""
+    dedicated = str(getattr(settings, "knowledge_embedding_api_key", "") or "").strip()
+    if dedicated:
+        return True
+    provider = _embedding_provider(settings)
+    if provider == "gemini":
+        return bool(os.getenv("GEMINI_API_KEY", "").strip())
+    if provider == "openai":
+        return bool(os.getenv("OPENAI_API_KEY", "").strip())
+    return False
+
+
 def _semantic_search_enabled(settings: Any) -> bool:
-    """True only when a real embedding provider AND Qdrant are both available."""
-    return _qdrant_enabled(settings) and _embedding_provider(settings) in {"gemini", "openai"}
+    """True only when a real embedding provider, Qdrant, and a valid API key are all available."""
+    return (
+        _qdrant_enabled(settings)
+        and _embedding_provider(settings) in {"gemini", "openai"}
+        and _embedding_key_available(settings)
+    )
 
 
 async def embed_text(text: str, settings: Any) -> list[float] | None:
