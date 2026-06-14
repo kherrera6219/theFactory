@@ -1006,6 +1006,33 @@ async def health() -> dict[str, Any]:
         except Exception:
             jaeger_ready = False
 
+    # Cross-reference AGENT_REGISTRY against recent heartbeats so missing agents
+    # are visible at the /health endpoint rather than only surfacing when a mission stalls.
+    agents_with_heartbeat: list[str] = []
+    agents_missing_heartbeat: list[str] = []
+    if db_ready:
+        try:
+            heartbeats = await asyncio.to_thread(
+                storage.list_agent_heartbeats, app.state.settings, limit=200
+            )
+            live_ids = {
+                str(h.get("agent_id", "")) for h in heartbeats if isinstance(h, dict)
+            }
+            for _agent in AGENT_REGISTRY:
+                if _agent.agent_id in live_ids:
+                    agents_with_heartbeat.append(_agent.agent_id)
+                else:
+                    agents_missing_heartbeat.append(_agent.agent_id)
+            if agents_missing_heartbeat:
+                LOGGER.warning(
+                    "health check: %d/%d agents have no recent heartbeat: %s",
+                    len(agents_missing_heartbeat),
+                    len(AGENT_REGISTRY),
+                    agents_missing_heartbeat[:10],
+                )
+        except Exception as exc:
+            LOGGER.debug("health check: agent heartbeat query failed: %s", exc)
+
     return {
         "ok": True,
         "service": "orchestrator",
@@ -1029,6 +1056,10 @@ async def health() -> dict[str, Any]:
         ),
         "protocol_ready": bool(getattr(app.state, "protocol_ready", False)),
         "protocol_error": getattr(app.state, "protocol_error", None),
+        "agents_total": len(AGENT_REGISTRY),
+        "agents_with_heartbeat": len(agents_with_heartbeat),
+        "agents_missing_heartbeat": len(agents_missing_heartbeat),
+        "agents_missing_ids": agents_missing_heartbeat if agents_missing_heartbeat else None,
         **_langgraph_runtime_payload(app),
     }
 

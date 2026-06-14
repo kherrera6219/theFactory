@@ -13,45 +13,8 @@ current work.
 
 ## Highest Priority
 
-1. **Fix: LangGraph thread ID collision on mission replay** *(HIGH — data corruption risk)*
-   - **File:** `services/orchestrator/orchestrator/langgraph_lifecycle.py` ~line 106
-   - **Problem:** `thread_id = f"{prefix}:{mission_id}"`. If a mission is replayed with
-     the same ID, the new run merges checkpoint state with the original run, silently
-     corrupting it.
-   - **Fix:** Append a short UUID segment: `f"{prefix}:{mission_id}:{uuid.uuid4().hex[:8]}"`.
-     Store the generated thread ID in mission metadata so the same run re-uses it on
-     subsequent calls within a session.
-
-2. **Fix: Heartbeat interval mismatch** *(HIGH — false-healthy agent readings)*
-   - **Files:** `services/orchestrator/orchestrator/heartbeat_service.py:30-34`,
-     `services/agent-runtime/agent_runtime/main.py:58`
-   - **Problem:** Orchestrator generates synthetic heartbeats every 5 s
-     (`AGENT_HEARTBEAT_INTERVAL_SECONDS`). `agent-runtime` sends real heartbeats every
-     15 s. If `AGENT_HEARTBEAT_STALE_SECONDS` is set below 15 s, agents will
-     spuriously appear stale.
-   - **Fix:** Ensure `AGENT_HEARTBEAT_STALE_SECONDS` > `max(orchestrator_interval,
-     agent_runtime_interval)`. Default to 45 s (already correct) but add a startup
-     validation warning when `AGENT_HEARTBEAT_STALE_SECONDS` < 20.
-
-3. **Fix: No startup validation that all 41 agents have live heartbeats** *(HIGH — silent stall risk)*
-   - **File:** `services/orchestrator/orchestrator/main.py` (startup block)
-   - **Problem:** The orchestrator accepts missions and routes them to agents without
-     verifying that agent-runtime is healthy. If agent-runtime is down, all
-     support-agent missions (`BROKER`, `ACCOUNTANT`, `SECURITY`, `IS`, `VC`, etc.)
-     silently stall with no feedback.
-   - **Fix:** Add a `/health/agents` endpoint (or startup log) that iterates
-     `AGENT_REGISTRY`, calls `list_agent_heartbeats()`, and logs a WARNING for each
-     agent with no recent heartbeat. Non-blocking — do not fail startup — but make
-     the gap visible.
-
-4. **Verify: Protocol bus sigma-lane handler binding** *(HIGH — knowledge-ready events may be dropped)*
-   - **File:** `services/orchestrator/orchestrator/protocol_bus_consumer.py`
-   - **Problem:** The sigma lane is defined in the 6-lane registry but the handler
-     registration in `main.py`'s bus consumer initialization was not confirmed
-     end-to-end in the audit.
-   - **Action:** Trace the `handlers` dict passed to `ProtocolBusConsumer.__init__()`;
-     confirm `"sigma"` key is present and routes to the correct knowledge-ready
-     handler. Add a startup log that prints registered lane handlers.
+> **All 4 audit HIGH items from 2026-06-13 are resolved (see CHANGELOG).** Current
+> highest priority items are from the prior batch.
 
 ---
 

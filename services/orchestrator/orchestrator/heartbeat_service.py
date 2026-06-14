@@ -40,6 +40,21 @@ AGENT_AUTOFILL_NON_POD_HEARTBEATS = (
     in {"1", "true", "yes", "on"}
 )
 
+# agent-runtime sends heartbeats on the same AGENT_HEARTBEAT_INTERVAL_SECONDS env var
+# but defaults to 15 s (vs the orchestrator's 5 s default). The stale threshold must
+# exceed the maximum possible interval to prevent agents from appearing spuriously stale.
+_MIN_SAFE_STALE_SECONDS = max(AGENT_HEARTBEAT_INTERVAL_SECONDS * 3, 20)
+if AGENT_HEARTBEAT_STALE_SECONDS < _MIN_SAFE_STALE_SECONDS:
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "AGENT_HEARTBEAT_STALE_SECONDS=%d is less than 3× the orchestrator heartbeat "
+        "interval (%gs). pod/specialist agents using a longer heartbeat interval "
+        "(default 15 s) may appear spuriously stale. Recommend >= %d s.",
+        AGENT_HEARTBEAT_STALE_SECONDS,
+        AGENT_HEARTBEAT_INTERVAL_SECONDS,
+        int(_MIN_SAFE_STALE_SECONDS),
+    )
+
 
 async def _emit_agent_telemetry_event(
     app: FastAPI,

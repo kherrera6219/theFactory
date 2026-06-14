@@ -104,7 +104,14 @@ def _resolve_checkpointer(settings: Settings) -> Any | None:
 
 def _build_graph_config(settings: Settings, mission_id: str) -> dict[str, Any]:
     prefix = settings.langgraph_thread_prefix.strip() or "mission"
-    configurable: dict[str, Any] = {"thread_id": f"{prefix}:{mission_id}"}
+    # Thread ID is intentionally stable across calls for the same mission_id so
+    # LangGraph can resume from the last checkpoint when `maybe_advance_mission_lifecycle`
+    # is called multiple times during a mission's lifecycle. Replay safety relies on
+    # mission IDs being UUID-v4 values that are never reused — enforced by the
+    # `missions` table PRIMARY KEY constraint.
+    thread_id = f"{prefix}:{mission_id}"
+    LOGGER.debug("LangGraph thread_id=%s for mission %s", thread_id, mission_id)
+    configurable: dict[str, Any] = {"thread_id": thread_id}
     if settings.langgraph_checkpoint_namespace:
         configurable["checkpoint_ns"] = settings.langgraph_checkpoint_namespace
     return {"configurable": configurable}
