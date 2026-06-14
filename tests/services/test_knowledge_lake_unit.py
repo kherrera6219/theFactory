@@ -484,8 +484,6 @@ def test_get_language_context_returns_combined_text(monkeypatch) -> None:
 
 
 def test_get_language_context_normalises_language_key(monkeypatch) -> None:
-    seen_knowledge_ids: list[str] = []
-
     def _fake_list(settings, mission_id, limit):
         return [{"knowledge_id": "docs.javascript.bootstrap", "content": {"combined_text": "JS docs."}}]
 

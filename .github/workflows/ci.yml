@@ -13,6 +13,9 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   lint-test:
     name: Lint and Test (Python ${{ matrix.python-version }})
@@ -202,10 +205,10 @@ jobs:
           } >> .env
           cp .env deploy/.env
 
-      - name: Start core stack
+      - name: Start default data-plane stack
         run: |
           docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml \
-            up -d --build redis postgres qdrant orchestrator api-gateway
+            up -d --build redis postgres qdrant neo4j minio milvus orchestrator api-gateway
 
       - name: Wait for API gateway health
         run: |

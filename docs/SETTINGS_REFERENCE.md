@@ -109,7 +109,7 @@ The design follows three rules:
 | `qdrant_api_key` | `QDRANT_API_KEY` | `""` | Optional Qdrant API key |
 | `qdrant_enabled` | `QDRANT_ENABLED` | `true` | Enable Qdrant integration (also requires URL to be set) |
 | `qdrant_collection` | `QDRANT_COLLECTION` | `mission_knowledge` | Collection name |
-| `qdrant_vector_size` | `QDRANT_VECTOR_SIZE` | `64` | Embedding vector dimension |
+| `qdrant_vector_size` | `QDRANT_VECTOR_SIZE` | `256` | Embedding vector dimension |
 | `qdrant_timeout_seconds` | `QDRANT_TIMEOUT_SECONDS` | `3.0` | Per-request timeout |
 
 ### Milvus (Vector Store)
