@@ -290,6 +290,65 @@ def validate_mission_charter_schema(charter: dict[str, Any]) -> dict[str, Any]:
     return charter
 
 
+def _build_pm_planning_package(
+    *,
+    feature_contract: dict[str, Any],
+    requested_target_language: str | None,
+    mission_type: str,
+    gates: list[str],
+) -> dict[str, Any]:
+    requirements = list(feature_contract.get("functional_requirements") or [])[:8]
+    constraints = list(feature_contract.get("non_functional_requirements") or [])[:6]
+    acceptance = list(feature_contract.get("acceptance_criteria") or [])[:8]
+    risk_notes = list(feature_contract.get("risk_notes") or [])[:6]
+    objective = str(feature_contract.get("summary") or "Complete the requested mission.").strip()
+    language = (requested_target_language or "auto").strip().lower() or "auto"
+    return {
+        "statement_of_work": {
+            "objective": objective,
+            "mission_type": mission_type.strip().upper() or "BUILD_NEW",
+            "target_language": language,
+            "deliverables": requirements or ["Complete the requested mission deliverable."],
+            "out_of_scope": [],
+        },
+        "product_requirements": {
+            "functional_requirements": requirements,
+            "non_functional_requirements": constraints,
+            "acceptance_criteria": acceptance,
+        },
+        "phased_build_plan": [
+            {
+                "phase": "intake",
+                "owner_agent_id": "AGENT-01-PM",
+                "objective": "Confirm scope, assumptions, acceptance criteria, and operator approval.",
+            },
+            {
+                "phase": "delegation",
+                "owner_agent_id": "AGENT-02-CEO",
+                "objective": "Translate the approved PM plan into pod and support-ring work packages.",
+            },
+            {
+                "phase": "implementation",
+                "owner_agent_id": "selected_specialist",
+                "objective": "Build the requested artifact against the mission contract and LogicNodes.",
+            },
+            {
+                "phase": "verification",
+                "owner_agent_id": "audit_and_support_ring",
+                "objective": "Run required gates and prove each acceptance criterion.",
+            },
+        ],
+        "risk_register": [
+            {"risk": risk, "mitigation": "Carry into CEO delegation and verification gates."}
+            for risk in risk_notes
+        ],
+        "test_strategy": {
+            "acceptance_tests": acceptance or ["Mission completes without error."],
+            "required_gates": gates,
+        },
+    }
+
+
 def build_mission_charter(
     *,
     mission_id: str,
@@ -316,6 +375,12 @@ def build_mission_charter(
     normalized_mission_type = mission_type.strip().upper() or "BUILD_NEW"
     normalized_depth_mode = depth_mode.strip().upper() or "STANDARD"
     normalized_output_mode = output_mode.strip().upper() or "FULL_BUILD"
+    planning_package = _build_pm_planning_package(
+        feature_contract=feature_contract,
+        requested_target_language=requested_target_language,
+        mission_type=normalized_mission_type,
+        gates=gates,
+    )
     charter = {
         "schema": "mission_charter.v1",
         "schema_version": "1.0.0",
@@ -351,8 +416,14 @@ def build_mission_charter(
         "scope": {
             "in_scope": list(feature_contract.get("functional_requirements") or [])[:8],
             "out_of_scope": [],
-            "assumptions": list(feature_contract.get("risk_notes") or [])[:5],
+            "assumptions": list(feature_contract.get("assumptions") or [])[:5],
         },
+        "planning_package": planning_package,
+        "statement_of_work": planning_package["statement_of_work"],
+        "product_requirements": planning_package["product_requirements"],
+        "phased_build_plan": planning_package["phased_build_plan"],
+        "risk_register": planning_package["risk_register"],
+        "test_strategy": planning_package["test_strategy"],
         "success_criteria": list(feature_contract.get("acceptance_criteria") or [])
         or ["Mission completes without error."],
         "definition_of_done": {

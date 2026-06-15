@@ -116,6 +116,7 @@ def _fallback_pm_feature_contract(
         in {"IMPORT_MODERNIZE", "PORT", "DEBUG_REPAIR", "SECURITY_HARDEN"},
         "risk_notes": ["Feature contract generated via deterministic fallback."],
         "clarifying_questions": [],
+        "intake_status": "ready",
         "source": "fallback",
         "model_provider": recommendation.get("provider"),
         "model": recommendation.get("model"),

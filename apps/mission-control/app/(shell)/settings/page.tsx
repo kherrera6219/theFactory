@@ -303,17 +303,6 @@ export default function SettingsPage() {
 
     const extraSlots: SlotRow[] = [
       {
-        slotId: "OPERATOR-API-KEY",
-        provider: "operator",
-        model: "mission-state-control",
-        title: "Operator Runtime Key",
-        status: slotMap.get("OPERATOR-API-KEY")?.status ?? "missing",
-        lastRotatedAt: slotMap.get("OPERATOR-API-KEY")?.last_rotated_at ?? null,
-        maskedPreview: slotMap.get("OPERATOR-API-KEY")?.masked_preview ?? null,
-        expiresAt: slotMap.get("OPERATOR-API-KEY")?.expires_at ?? null,
-        rotationDue: slotMap.get("OPERATOR-API-KEY")?.rotation_due ?? false,
-      },
-      {
         slotId: "KNOWLEDGE-EMBEDDING-API-KEY",
         provider: slotMap.get("KNOWLEDGE-EMBEDDING-API-KEY")?.provider ?? "gemini",
         model: slotMap.get("KNOWLEDGE-EMBEDDING-API-KEY")?.model ?? "gemini-embedding-001",

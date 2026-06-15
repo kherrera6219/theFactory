@@ -13,21 +13,56 @@ before consulting archived plans.
 ## Current Branch State
 
 - Branch: `main`
-- Current change set: Mission Control operator setup, embedding key UI, live
-  agent validation, and runtime label polish.
+- Current change set: EDCP phase planning, PM clarification gating, richer PM
+  planning artifacts, unlocked-local UX cleanup, embedding key UI, live agent
+  validation, and runtime label polish.
 - All tests pass (except `test_agent_base_unit.py` which requires the orchestrator
   package on PYTHONPATH — it always fails in isolation; run from
   `services/orchestrator/` or via the services test runner).
 - Runtime model policy: all 41 agents default to `gemini/gemini-3.5-flash` with
   high thinking.
 - Mission Control model selector: ChatGPT 5.5, Claude Opus 4.8, Gemini Flash 3.5.
-- Mission Control privileged PM/review flows require both an operator unlock
-  session and `OPERATOR-API-KEY` saved in the vault.
+- Mission Control local mode starts unlocked. PM/review proxy routes use the
+  internal service key from stack configuration; there is no user-facing
+  Operator Runtime Key vault row.
 - Agent grid runtime labels:
   - `WORKER`: shared pod-worker runtime for specialists, pod managers, and pod audits.
   - `MANAGED`: orchestrator-managed interface/executive/support role heartbeat.
   This is intentional in the condensed local topology; dedicated per-agent
   containers are optional deployment scope, not a current requirement.
+
+---
+
+## Work Completed in This Session (2026-06-14, batch 2 — EDCP Plan + PM Intake Corrections)
+
+### Event-Driven Control Plane Phase Plan
+
+**Problem:** The current mission lifecycle is a direct in-process function
+pipeline; Protocol Bus messages are mostly telemetry rather than the command
+backbone.
+
+| File | Change |
+|------|--------|
+| `docs/EDCP_Phase_Plan.md` | Added phased plan EDCP-01 through EDCP-05: bus durability, missing lane senders, PM to CEO handoff, CEO to pod Alpha promotion, support-ring Delta gates, and final demotion of `missions.state` to projection-only |
+
+**Key rule:** Do not start EDCP implementation until a live Gemini BUILD_NEW
+mission reaches COMPLETE with non-empty generated code.
+
+### PM Intake Clarification + Planning Package
+
+**Problem:** The PM Agent could turn a detailed but underspecified request into
+a generic launchable plan without asking clarifying questions.
+
+| File | Change |
+|------|--------|
+| `services/orchestrator/orchestrator/llm_delegation/normalizers.py` | Preserves `intake_status` from PM model output |
+| `services/orchestrator/orchestrator/llm_delegation/text.py` | Treats `intake_status=needs_clarification` as authoritative for ambiguity scoring |
+| `services/orchestrator/orchestrator/mission_flow_v2/base.py` | Adds SOW, product requirements, phased build plan, risk register, and test strategy fields to mission charters |
+| `apps/mission-control/app/(shell)/chat/page.tsx` | Shows clarifying questions instead of creating a launchable contract when PM says scope is not ready |
+| `apps/mission-control/app/(shell)/settings/page.tsx` | Removes the user-facing Operator Runtime Key vault row |
+
+**Validation:** Focused PM/mission-flow Python suite passed: 125 tests. Ruff
+passed for touched orchestrator packages and tests.
 
 ---
 
@@ -90,8 +125,8 @@ slot in the vault table.
 
 | File | Change |
 |------|--------|
-| `apps/mission-control/app/(shell)/chat/page.tsx` | Converts operator auth/key failures into a user-facing recovery message with an `Open Settings` action |
-| `apps/mission-control/app/api/pm/feature-contract/route.ts` | Missing `OPERATOR-API-KEY` now returns actionable setup guidance |
+| `apps/mission-control/app/(shell)/chat/page.tsx` | Converts runtime auth/key failures into a local-stack recovery message |
+| `apps/mission-control/app/api/pm/feature-contract/route.ts` | Internal service key fallback routes PM feature-contract calls without a user-facing operator key slot |
 | `apps/mission-control/app/(shell)/settings/page.tsx` | Renders operator unlock, adds `KNOWLEDGE-EMBEDDING-API-KEY` vault row, and adds a Knowledge Embeddings configure action |
 | `apps/mission-control/app/lib/server/vault.ts` | Preserves embedding model metadata (`gemini-embedding-001`, `text-embedding-3-*`) |
 | `apps/mission-control/app/(shell)/agents/page.tsx` | Renames confusing `SYNTHETIC` badge to `MANAGED` and uses neutral styling |

@@ -329,6 +329,7 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
     assert fallback["schema_version"] == "feature_contract.v1"
     assert fallback["source"] == "fallback"
     assert fallback["target_languages"] == ["python"]
+    assert fallback["intake_status"] == "ready"
 
     normalized = llm_delegation._normalize_pm_feature_contract(
         {
@@ -338,6 +339,8 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
             "acceptance_criteria": [],
             "estimated_complexity": "extreme",
             "human_approval_required": "yes",
+            "intake_status": "needs_clarification",
+            "clarifying_questions": ["Which delimiter formats must be supported?"],
         },
         provider="anthropic",
         model="claude-sonnet-4-6",
@@ -348,6 +351,8 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
     assert len(normalized["functional_requirements"]) == 8
     assert normalized["estimated_complexity"] == "medium"
     assert normalized["human_approval_required"] is True
+    assert normalized["intake_status"] == "needs_clarification"
+    assert normalized["ambiguity_score"] >= 0.7
 
 
 def test_logic_cluster_fallback_groups_contract_domains() -> None:
@@ -1192,6 +1197,24 @@ def test_pm_ambiguity_score_tracks_questions_and_short_prompt() -> None:
         "short prompt",
     )
     assert score >= 0.8
+
+
+def test_pm_ambiguity_score_treats_intake_status_as_authoritative() -> None:
+    score = llm_delegation._pm_ambiguity_score(
+        {
+            "intake_status": "needs_clarification",
+            "clarifying_questions": ["Which GUI toolkit should the desktop app use?"],
+            "risk_notes": [],
+            "estimated_complexity": "medium",
+            "functional_requirements": ["Build a complete desktop app"],
+            "human_approval_required": False,
+        },
+        (
+            "Build a complete local desktop RPG Snake application with movement, "
+            "collision, leveling, skill selection, enemy scaling, and automated tests."
+        ),
+    )
+    assert score >= 0.7
 
 
 def test_extract_text_helpers_return_none_for_invalid_shapes() -> None:

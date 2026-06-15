@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.06.13-b
-Last updated: 2026-06-13
+Document version: 2026.06.14-a
+Last updated: 2026-06-14
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -24,9 +24,11 @@ registry, versioned prompt assets with LLM safety governance, a 22/22-passing pr
 review audit, 97 offline eval and unit tests, and a 23-spec Playwright E2E suite. Git
 history is clean of private keys. Disaster recovery RTO is 37.13s.
 
-**Current active phase:** Gemini-first operator validation. The next required
-step is running the local stack with a real Gemini key and confirming a
-BUILD_NEW mission reaches COMPLETE with non-empty `generated_code`.
+**Current active phase:** Gemini-first operator validation, followed by EDCP
+readiness. The next required step is running the local stack with a real Gemini
+key and confirming a BUILD_NEW mission reaches COMPLETE with non-empty
+`generated_code`. Do not start EDCP control-plane inversion until that proof
+passes.
 
 **Release blockers:** None for the Phases 1–27 implementation baseline. The only
 remaining blocker for a public launch claim after the model-routing update is a
@@ -123,6 +125,21 @@ Commit `6cd65f5`:
 - Local validation passed focused Ruff checks, targeted backend tests for agent
   integrations and settings, Mission Control lint/test/build, and Docker image
   builds for API Gateway, Orchestrator, and Mission Control.
+
+### EDCP plan and PM intake correction (2026-06-14)
+
+- Added `docs/EDCP_Phase_Plan.md`, the event-driven control-plane roadmap for
+  turning the current direct-call lifecycle into bus-driven PM to CEO to
+  support/pod handoffs.
+- PM feature-contract normalization now preserves `intake_status`; when the PM
+  marks a request `needs_clarification`, ambiguity scoring reliably pauses the
+  mission for clarifying questions instead of creating a generic plan.
+- Mission charters now include a PM planning package: statement of work, product
+  requirements, phased build plan, risk register, and test strategy.
+- Mission Control chat now displays PM clarifying questions and withholds the
+  launchable contract until scope is ready.
+- Local Mission Control remains unlocked by default. The internal service key is
+  stack configuration, not a user-facing Operator Runtime Key vault row.
 
 ### v1.2.0 Improvement Batch (2026-05-30)
 
@@ -416,9 +433,10 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 - **Settings vault model selector**: each API key slot can store one of the
   approved provider/model routes: ChatGPT 5.5, Claude Opus 4.8, or Gemini Flash
   3.5. Gemini Flash 3.5 is the runtime default for all agents.
-- **Operator setup recovery**: PM Agent chat now converts missing operator
-  unlock/key failures into a recovery action that sends the operator to Settings.
-  Configure `OPERATOR-API-KEY` before PM feature-contract generation.
+- **Local unlocked UX**: PM Agent chat treats auth/key failures as local runtime
+  configuration issues, not user credential setup. There is no user-facing
+  Operator Runtime Key vault row; internal service authentication comes from
+  stack configuration.
 - **Embedding setup visibility**: Settings exposes
   `KNOWLEDGE-EMBEDDING-API-KEY` in the vault table and Knowledge Embeddings
   panel. The orchestrator still consumes `KNOWLEDGE_EMBEDDING_API_KEY` from the

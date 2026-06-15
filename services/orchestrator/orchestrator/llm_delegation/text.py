@@ -294,6 +294,9 @@ def _format_upstream_style(metadata: dict[str, Any]) -> str:
 def _pm_ambiguity_score(contract: dict[str, Any], prompt: str) -> float:
     """Score feature-contract ambiguity from 0.0 to 1.0."""
     score = 0.0
+    intake_status = str(contract.get("intake_status") or "").strip().lower()
+    if intake_status == "needs_clarification":
+        score += 0.55
     questions = contract.get("clarifying_questions")
     if isinstance(questions, list):
         score += min(len(questions) * 0.15, 0.45)
