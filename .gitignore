@@ -40,6 +40,8 @@ out/
 
 # Runtime outputs
 backups/
+MagicMock/
+output/
 
 # Generated test/lint/coverage artifacts (produced by CI and local runs)
 coverage.xml
