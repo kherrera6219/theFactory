@@ -57,15 +57,26 @@ if not defined INTERNAL_SERVICE_API_KEY (
 if not defined INTERNAL_SERVICE_API_KEY (
     set "INTERNAL_SERVICE_API_KEY=CHANGE_ME_local_dev_internal_service_key_32chars"
 )
+
+:: Read MISSION_API_BASE_URL from .env if not already set (points local Next.js at the host gateway)
+if not defined MISSION_API_BASE_URL (
+    if exist "%~dp0.env" (
+        for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0.env") do (
+            if /I "%%A"=="API_GATEWAY_HOST_PORT" set "_GW_PORT=%%B"
+        )
+    )
+    if not defined _GW_PORT set "_GW_PORT=8100"
+    set "MISSION_API_BASE_URL=http://localhost:%_GW_PORT%"
+)
 cd apps\mission-control
 
 :: Build and start Mission Control in production mode so this script mirrors the
 :: production image (Next.js standalone output). Pass --dev to
 :: start_app.bat to fall back to the hot-reloading dev server.
 if "%DEV_MODE%"=="true" (
-    start "Mission Control UI (dev)" cmd /k "echo Starting Next.js Dev Server... && npm run tokens:sync && npx next dev -p 3000"
+    start "Mission Control UI (dev)" cmd /k "set INTERNAL_SERVICE_API_KEY=%INTERNAL_SERVICE_API_KEY% && set MISSION_API_BASE_URL=%MISSION_API_BASE_URL% && echo Starting Next.js Dev Server... && npm run tokens:sync && npx next dev -p 3000"
 ) else (
-    start "Mission Control UI" cmd /k "echo Building Next.js production bundle... && npm run build && echo Starting production server... && npm run start"
+    start "Mission Control UI" cmd /k "set INTERNAL_SERVICE_API_KEY=%INTERNAL_SERVICE_API_KEY% && set MISSION_API_BASE_URL=%MISSION_API_BASE_URL% && echo Building Next.js production bundle... && npm run build && echo Starting production server... && npm run start"
 )
 
 echo.
