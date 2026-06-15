@@ -80,6 +80,71 @@ class TimeoutThenDataRedis(FakeStreamRedis):
         return await super().xread(streams, count=count, block=block)
 
 
+class FakeGroupRedis:
+    """Minimal async Redis supporting consumer-group reads and acknowledgements."""
+
+    def __init__(
+        self,
+        seeded: dict[str, list[tuple[str, dict[str, str]]]],
+        *,
+        pending_first: bool = True,
+    ):
+        self._seeded = seeded
+        self._pending_first = pending_first
+        self.groups_created: list[tuple[str, str, str, bool]] = []
+        self.acked: list[tuple[str, str, str]] = []
+        self.xreadgroup_streams: list[dict[str, str]] = []
+        self.read_calls = 0
+
+    async def ping(self) -> bool:
+        return True
+
+    async def xgroup_create(
+        self,
+        *,
+        name: str,
+        groupname: str,
+        id: str = "0-0",
+        mkstream: bool = False,
+    ):
+        self.groups_created.append((name, groupname, id, mkstream))
+        return True
+
+    async def xreadgroup(
+        self,
+        *,
+        groupname: str,
+        consumername: str,
+        streams: dict[str, str],
+        count: int = 20,
+        block: int = 0,
+    ):
+        _ = groupname, consumername, count, block
+        self.read_calls += 1
+        self.xreadgroup_streams.append(dict(streams))
+        if not self._pending_first and all(last_id == "0" for last_id in streams.values()):
+            await asyncio.sleep(0)
+            return []
+        result: list[tuple[str, list[tuple[str, dict[str, str]]]]] = []
+        for channel in streams:
+            entries = self._seeded.get(channel, [])
+            pending = [
+                (entry_id, fields)
+                for entry_id, fields in entries
+                if (channel, "protocol-bus-orchestrator", entry_id) not in self.acked
+            ]
+            if pending:
+                result.append((channel, pending))
+        if result:
+            return result
+        await asyncio.sleep(0)
+        return []
+
+    async def xack(self, channel: str, groupname: str, entry_id: str):
+        self.acked.append((channel, groupname, entry_id))
+        return 1
+
+
 def _envelope_entry(protocol: str, content: dict[str, Any], sender: str = "AGENT-06-IS"):
     envelope = {
         "message_id": "msg-1",
@@ -254,6 +319,101 @@ class TestProtocolBusConsumer:
         assert len(received) == 1
         assert received[0]["payload"]["content"]["mission_id"] == "after-timeout"
 
+    def test_consumer_group_mode_creates_groups_dispatches_and_acks(self):
+        from orchestrator.protocol_bus_consumer import ProtocolBusConsumer
+
+        channel = "protocol:omega:AGENT-03-BROKER"
+        entry = _envelope_entry(
+            "omega",
+            {"message_type": "mission_charter_ready", "mission_id": "m-10"},
+            sender="AGENT-01-PM",
+        )
+        redis = FakeGroupRedis({channel: [entry]})
+        received: list[dict[str, Any]] = []
+
+        async def handler(message: dict[str, Any]) -> None:
+            received.append(message)
+            consumer.stop()
+
+        consumer = ProtocolBusConsumer(
+            redis_client=redis,
+            agent_id="AGENT-03-BROKER",
+            handlers={"omega": handler},
+            use_consumer_group=True,
+            consumer_group="protocol-bus-orchestrator",
+            consumer_name="AGENT-03-BROKER",
+            block_ms=1,
+        )
+
+        asyncio.run(asyncio.wait_for(consumer.start(), timeout=2.0))
+
+        assert {item[0] for item in redis.groups_created} == {
+            "protocol:omega:AGENT-03-BROKER",
+            "protocol:omega:broadcast",
+        }
+        assert redis.acked == [(channel, "protocol-bus-orchestrator", "1-0")]
+        assert received[0]["payload"]["content"]["mission_id"] == "m-10"
+
+    def test_consumer_group_mode_reads_new_messages_after_pending_check(self):
+        from orchestrator.protocol_bus_consumer import ProtocolBusConsumer
+
+        channel = "protocol:beta:AGENT-03-BROKER"
+        entry = _envelope_entry("beta", {"logicnode_id": "ln-1"}, sender="AGENT-14-PYTHON")
+        redis = FakeGroupRedis({channel: [entry]}, pending_first=False)
+        received: list[dict[str, Any]] = []
+
+        async def handler(message: dict[str, Any]) -> None:
+            received.append(message)
+            consumer.stop()
+
+        consumer = ProtocolBusConsumer(
+            redis_client=redis,
+            agent_id="AGENT-03-BROKER",
+            handlers={"beta": handler},
+            use_consumer_group=True,
+            block_ms=1,
+        )
+
+        asyncio.run(asyncio.wait_for(consumer.start(), timeout=2.0))
+
+        assert redis.xreadgroup_streams[0] == {
+            "protocol:beta:AGENT-03-BROKER": "0",
+            "protocol:beta:broadcast": "0",
+        }
+        assert redis.xreadgroup_streams[1] == {
+            "protocol:beta:AGENT-03-BROKER": ">",
+            "protocol:beta:broadcast": ">",
+        }
+        assert redis.acked == [(channel, "protocol-bus-orchestrator", "1-0")]
+        assert received[0]["payload"]["content"]["logicnode_id"] == "ln-1"
+
+    def test_consumer_group_mode_does_not_ack_failed_handler(self):
+        from orchestrator.protocol_bus_consumer import ProtocolBusConsumer
+
+        channel = "protocol:delta:AGENT-03-BROKER"
+        entry = _envelope_entry("delta", {"mission_id": "m-11"}, sender="AGENT-13-PODA-AUDIT")
+        redis = FakeGroupRedis({channel: [entry]})
+        calls = {"n": 0}
+
+        async def handler(message: dict[str, Any]) -> None:
+            _ = message
+            calls["n"] += 1
+            consumer.stop()
+            raise RuntimeError("audit handler failed")
+
+        consumer = ProtocolBusConsumer(
+            redis_client=redis,
+            agent_id="AGENT-03-BROKER",
+            handlers={"delta": handler},
+            use_consumer_group=True,
+            block_ms=1,
+        )
+
+        asyncio.run(asyncio.wait_for(consumer.start(), timeout=2.0))
+
+        assert calls["n"] == 1
+        assert redis.acked == []
+
 
 # ---------------------------------------------------------------------------
 # Alpha producer
@@ -380,3 +540,72 @@ class TestAlphaProducer:
                 directive={},
             )
         assert ok is False
+
+
+class TestEdcpProducerHelpers:
+    def _capture_send(self, send_fn, **kwargs):
+        captured: list[Any] = []
+        resp = MagicMock()
+        resp.status = 200
+        resp.__enter__ = lambda s: resp
+        resp.__exit__ = MagicMock(return_value=False)
+
+        def capture(req, timeout=None):
+            _ = timeout
+            captured.append(req)
+            return resp
+
+        with patch("orchestrator.protocol_bus_producer.urlopen", side_effect=capture):
+            ok = send_fn(settings=_producer_settings(), **kwargs)
+        assert ok is True
+        return json.loads(captured[0].data)
+
+    def test_omega_beta_delta_helpers_validate_against_bus_models(self):
+        bus_path = str(
+            Path(__file__).resolve().parents[2] / "services" / "protocol-bus-mcp"
+        )
+        if bus_path not in sys.path:
+            sys.path.insert(0, bus_path)
+
+        from orchestrator.protocol_bus_producer import (
+            send_beta_result,
+            send_delta_audit,
+            send_omega_message,
+        )
+        from protocol_bus.mcp_server import (  # type: ignore
+            SendMessageRequest,
+            _validate_protocol_payload,
+        )
+
+        bodies = [
+            self._capture_send(
+                send_omega_message,
+                sender="AGENT-01-PM",
+                recipient="AGENT-03-BROKER",
+                user_intent="Mission charter ready",
+                feature_contract={"message_type": "mission_charter_ready", "mission_id": "m-1"},
+            ),
+            self._capture_send(
+                send_beta_result,
+                sender="AGENT-14-PYTHON",
+                recipient="AGENT-12-PODA-MGR",
+                logicnode_id="logicnode-1",
+                confidence_score=0.91,
+                source_language="python",
+                payload={"artifact_id": "artifact-1"},
+            ),
+            self._capture_send(
+                send_delta_audit,
+                sender="AGENT-13-PODA-AUDIT",
+                recipient="AGENT-02-CEO",
+                audit_result="pass",
+                verification_method="unit-test",
+                tolerance_score=0.99,
+                findings={"passed": True},
+            ),
+        ]
+
+        assert [body["protocol"] for body in bodies] == ["omega", "beta", "delta"]
+        for body in bodies:
+            validated = SendMessageRequest.model_validate(body)
+            _validate_protocol_payload(validated.protocol, validated.payload)

@@ -516,6 +516,11 @@ async def protocol_bus_consumer_loop(app: FastAPI) -> None:
                 redis_client=redis_client,
                 agent_id=ORCHESTRATOR_BUS_AGENT_ID,
                 handlers=handlers,
+                use_consumer_group=bool(
+                    getattr(settings, "event_driven_control_plane_enabled", False)
+                ),
+                consumer_group="protocol-bus-orchestrator",
+                consumer_name=ORCHESTRATOR_BUS_AGENT_ID,
             )
             app.state.protocol_bus_consumer = consumer
             await consumer.start()

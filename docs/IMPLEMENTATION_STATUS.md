@@ -24,11 +24,11 @@ registry, versioned prompt assets with LLM safety governance, a 22/22-passing pr
 review audit, 97 offline eval and unit tests, and a 23-spec Playwright E2E suite. Git
 history is clean of private keys. Disaster recovery RTO is 37.13s.
 
-**Current active phase:** Gemini-first operator validation, followed by EDCP
-readiness. The next required step is running the local stack with a real Gemini
-key and confirming a BUILD_NEW mission reaches COMPLETE with non-empty
-`generated_code`. Do not start EDCP control-plane inversion until that proof
-passes.
+**Current active phase:** Gemini-first operator validation, followed by EDCP-02
+PM-to-CEO handoff work. EDCP-01 foundation is complete. The next required step
+is running the local stack with a real Gemini key and confirming a BUILD_NEW
+mission reaches COMPLETE with non-empty `generated_code`. Do not start
+load-bearing EDCP control-plane inversion until that proof passes.
 
 **Release blockers:** None for the Phases 1–27 implementation baseline. The only
 remaining blocker for a public launch claim after the model-routing update is a
@@ -140,6 +140,19 @@ Commit `6cd65f5`:
   launchable contract until scope is ready.
 - Local Mission Control remains unlocked by default. The internal service key is
   stack configuration, not a user-facing Operator Runtime Key vault row.
+
+### EDCP-01 bus durability foundation (2026-06-14)
+
+- `ProtocolBusConsumer` now supports opt-in Redis consumer-group mode with
+  `XGROUP CREATE`, `XREADGROUP`, and `XACK`. The existing `XREAD` path remains
+  the default while `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`.
+- Added `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false` to orchestrator settings,
+  `.env.example`, and compose.
+- Added Protocol Bus producer helpers for future handoffs/results:
+  `send_omega_message`, `send_beta_result`, and `send_delta_audit`.
+- Added regression tests for grouped consumption/ack behavior, failed-handler
+  non-ack behavior, payload schema validation, and settings flag parsing.
+- EDCP-02 through EDCP-05 remain pending.
 
 ### v1.2.0 Improvement Batch (2026-05-30)
 

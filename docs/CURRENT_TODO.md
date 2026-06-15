@@ -38,10 +38,13 @@ current work.
    - Store evidence under `docs/evidence/` and update
      `docs/IMPLEMENTATION_STATUS.md`.
 
-7. **Execute EDCP readiness work after live mission proof**
+7. **Execute EDCP load-bearing handoff work after live mission proof**
    - Use `docs/EDCP_Phase_Plan.md` as the phase plan for converting the current
      direct-call mission pipeline into an event-driven control plane.
-   - Do not start EDCP-01 until the Gemini live mission proof above produces a
+   - EDCP-01 foundation is complete: bus consumer-group mode, missing
+     Omega/Beta/Delta sender helpers, and the disabled-by-default control-plane
+     flag are in place.
+   - Do not start EDCP-02 until the Gemini live mission proof above produces a
      COMPLETE mission with non-empty generated code.
 
 8. **Confirm production host controls**

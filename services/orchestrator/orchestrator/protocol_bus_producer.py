@@ -6,8 +6,9 @@ The bus authenticates each request with the shared ``X-API-Key`` (validated via
 header to equal the envelope ``sender``. Senders must match the bus
 ``AGENT_ID_PATTERN`` (``^AGENT-\\d{2}-[A-Z0-9-]+$``).
 
-All sends are fire-and-forget: failures are logged and swallowed so a bus outage
-never blocks mission flow.
+Sends remain non-raising by default. EDCP command paths can decide whether a
+``False`` return should block their own progression once a lane becomes
+load-bearing.
 """
 from __future__ import annotations
 
@@ -143,6 +144,106 @@ def send_alpha_directive(
         sender=sender,
         recipient=recipient,
         payload=payload,
+        priority=priority,
+        correlation_id=correlation_id,
+    )
+
+
+def send_omega_message(
+    *,
+    settings: Any,
+    sender: str,
+    recipient: str | list[str],
+    user_intent: str,
+    feature_contract: dict[str, Any] | None = None,
+    visual_blueprint: dict[str, Any] | None = None,
+    attachments: list[dict[str, Any]] | None = None,
+    global_style_directives: list[str] | None = None,
+    priority: str = "normal",
+    correlation_id: str | None = None,
+) -> bool:
+    """Send a Protocol Omega user-intent / planning-handoff message.
+
+    Omega's current bus schema is intentionally user-intent oriented. Internal
+    handoff metadata such as ``message_type`` should ride inside
+    ``feature_contract`` until EDCP-02 promotes a specific charter-ready event.
+    """
+    payload = {
+        "schema_version": "v1",
+        "feature_contract": feature_contract or {},
+        "visual_blueprint": visual_blueprint or {},
+        "user_intent": user_intent or "mission handoff",
+        "attachments": attachments or [],
+        "global_style_directives": global_style_directives or [],
+    }
+    return send_protocol_message(
+        settings=settings,
+        protocol="omega",
+        sender=sender,
+        recipient=recipient,
+        payload=payload,
+        priority=priority,
+        correlation_id=correlation_id,
+    )
+
+
+def send_beta_result(
+    *,
+    settings: Any,
+    sender: str,
+    recipient: str | list[str],
+    logicnode_id: str,
+    confidence_score: float,
+    source_language: str,
+    payload: dict[str, Any] | None = None,
+    priority: str = "normal",
+    correlation_id: str | None = None,
+) -> bool:
+    """Send a Protocol Beta work-product / LogicNode result message."""
+    beta_payload = {
+        "schema_version": "v1",
+        "logicnode_id": logicnode_id,
+        "confidence_score": float(confidence_score),
+        "source_language": source_language,
+        "payload": payload or {},
+    }
+    return send_protocol_message(
+        settings=settings,
+        protocol="beta",
+        sender=sender,
+        recipient=recipient,
+        payload=beta_payload,
+        priority=priority,
+        correlation_id=correlation_id,
+    )
+
+
+def send_delta_audit(
+    *,
+    settings: Any,
+    sender: str,
+    recipient: str | list[str],
+    audit_result: str,
+    verification_method: str,
+    tolerance_score: float,
+    findings: dict[str, Any] | None = None,
+    priority: str = "normal",
+    correlation_id: str | None = None,
+) -> bool:
+    """Send a Protocol Delta audit/verification result message."""
+    delta_payload = {
+        "schema_version": "v1",
+        "audit_result": audit_result,
+        "verification_method": verification_method,
+        "tolerance_score": float(tolerance_score),
+        "findings": findings or {},
+    }
+    return send_protocol_message(
+        settings=settings,
+        protocol="delta",
+        sender=sender,
+        recipient=recipient,
+        payload=delta_payload,
         priority=priority,
         correlation_id=correlation_id,
     )
