@@ -38,11 +38,25 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           detail:
-            "Operator API key not found in vault slot OPERATOR-API-KEY. Open Settings, unlock Mission Control, and configure the Operator Runtime Key.",
+            "Operator API key not found in vault slot OPERATOR-API-KEY. Open Settings and configure the Operator Runtime Key.",
         },
         { status: 400 },
       );
     }
+
+    const geminiKey = await getVaultSecret("GEMINI-API-KEY");
+    const openaiKey = await getVaultSecret("OPENAI-API-KEY");
+    const anthropicKey = await getVaultSecret("ANTHROPIC-API-KEY");
+
+    const modifiedPayload = {
+      ...payload,
+      prompt,
+      vault: {
+        gemini_api_key: geminiKey || "",
+        openai_api_key: openaiKey || "",
+        anthropic_api_key: anthropicKey || "",
+      },
+    };
 
     const upstream = await fetch(`${API_BASE_URL}/v1/pm/feature-contract`, {
       method: "POST",
@@ -50,7 +64,7 @@ export async function POST(request: Request) {
         "Content-Type": "application/json",
         "x-api-key": operatorKey,
       },
-      body: JSON.stringify({ ...payload, prompt }),
+      body: JSON.stringify(modifiedPayload),
       cache: "no-store",
       signal: AbortSignal.timeout(60_000),
     });

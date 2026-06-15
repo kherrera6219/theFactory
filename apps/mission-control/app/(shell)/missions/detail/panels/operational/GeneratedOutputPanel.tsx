@@ -8,6 +8,7 @@ import { Panel } from '../../../../../components/panel';
 import { missionApiUrl } from '../../../../../lib/api-client';
 import { requestedLanguageFromPath } from '../../../../../lib/language';
 import type { MissionBuildArtifactRecord } from '../../../../../lib/types';
+import { copyToClipboard } from '../../../../../lib/clipboard';
 
 interface GeneratedOutputPanelProps {
   missionId: string;
@@ -50,9 +51,11 @@ export function GeneratedOutputPanel({
 
   async function handleCopy() {
     if (!generatedCodeArtifact?.artifact_text) return;
-    await navigator.clipboard.writeText(generatedCodeArtifact.artifact_text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    const success = await copyToClipboard(generatedCodeArtifact.artifact_text);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
   }
 
   const headerActions = (
@@ -89,110 +92,126 @@ export function GeneratedOutputPanel({
 
   return (
     <Panel title="Generated Output" actions={headerActions}>
-      {!generatedCodeArtifact ? (
-        <p className="muted">No generated-code artifact recorded yet for this mission.</p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {/* File System Path Card */}
-          <div
-            style={{
-              padding: '0.4rem 0.8rem',
-              background: 'var(--color-surface-offset)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.85em',
-              color: 'var(--color-text-muted)',
-            }}
-          >
-            📁 Exported locally to: <code className="mono-id" style={{ color: 'var(--color-primary-light, #38bdf8)' }}>output/{missionId}/</code>
-          </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {/* File System Path Card */}
+        <Link
+          href={`/missions/output?id=${encodeURIComponent(missionId)}`}
+          style={{
+            padding: '0.4rem 0.8rem',
+            background: 'var(--color-surface-offset)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '0.85em',
+            color: 'var(--color-text-muted)',
+            display: 'block',
+            textDecoration: 'none',
+            cursor: 'pointer',
+            transition: 'background 120ms, border-color 120ms',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--color-surface-offset-2, #2d3748)';
+            e.currentTarget.style.borderColor = '#4a5568';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--color-surface-offset)';
+            e.currentTarget.style.borderColor = 'var(--color-border)';
+          }}
+        >
+          📁 Exported locally to: <code className="mono-id" style={{ color: 'var(--color-primary-light, #38bdf8)', textDecoration: 'underline' }}>output/{missionId}/</code> <span style={{ float: 'right', fontSize: '0.9em', color: 'var(--color-primary-light, #38bdf8)' }}>Review Artifacts →</span>
+        </Link>
 
-          {/* Toolbar */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0.3rem 0.6rem',
-              background: 'var(--color-surface-offset)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <span
-                className="mono-id"
-                style={{ fontSize: '0.8em', color: 'var(--color-text-muted)' }}
-              >
-                {filename}
-              </span>
-              {lineCount !== null && (
+        {!generatedCodeArtifact ? (
+          <p className="muted" style={{ margin: '0.5rem 0 0' }}>No generated-code artifact recorded yet for this mission.</p>
+        ) : (
+          <>
+            {/* Toolbar */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.3rem 0.6rem',
+                background: 'var(--color-surface-offset)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
+                marginTop: '0.2rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <span
-                  style={{
-                    fontSize: '0.7em',
-                    color: 'var(--color-text-faint)',
-                    background: 'var(--color-surface-offset-2)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-full)',
-                    padding: '0.1rem 0.45rem',
-                  }}
+                  className="mono-id"
+                  style={{ fontSize: '0.8em', color: 'var(--color-text-muted)' }}
                 >
-                  {lineCount.toLocaleString()} lines
+                  {filename}
                 </span>
-              )}
+                {lineCount !== null && (
+                  <span
+                    style={{
+                      fontSize: '0.7em',
+                      color: 'var(--color-text-faint)',
+                      background: 'var(--color-surface-offset-2)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-full)',
+                      padding: '0.1rem 0.45rem',
+                    }}
+                  >
+                    {lineCount.toLocaleString()} lines
+                  </span>
+                )}
+              </div>
+              <span
+                style={{
+                  fontSize: '0.7em',
+                  color: 'var(--color-text-faint)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                {language}
+              </span>
             </div>
-            <span
-              style={{
-                fontSize: '0.7em',
-                color: 'var(--color-text-faint)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-              }}
-            >
-              {language}
-            </span>
-          </div>
 
-          {/* Code viewer */}
-          {generatedCodeArtifact.artifact_text ? (
-            <SyntaxHighlighter
-              language={language}
-              style={vscDarkPlus}
-              showLineNumbers
-              wrapLongLines={false}
-              customStyle={{
-                margin: 0,
-                borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
-                fontSize: '0.78em',
-                maxHeight: '420px',
-                overflowY: 'auto',
-                background: '#1e1e1e',
-              }}
-              lineNumberStyle={{
-                minWidth: '2.8em',
-                paddingRight: '0.8em',
-                color: '#555',
-                userSelect: 'none',
-              }}
-            >
-              {generatedCodeArtifact.artifact_text}
-            </SyntaxHighlighter>
-          ) : (
-            <p
-              style={{
-                padding: '1rem',
-                color: 'var(--color-text-muted)',
-                fontStyle: 'italic',
-                background: '#1e1e1e',
-                margin: 0,
-                borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
-              }}
-            >
-              Artifact recorded — text content stored externally.
-            </p>
-          )}
-        </div>
-      )}
+            {/* Code viewer */}
+            {generatedCodeArtifact.artifact_text ? (
+              <SyntaxHighlighter
+                language={language}
+                style={vscDarkPlus}
+                showLineNumbers
+                wrapLongLines={false}
+                customStyle={{
+                  margin: 0,
+                  borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
+                  fontSize: '0.78em',
+                  maxHeight: '420px',
+                  overflowY: 'auto',
+                  background: '#1e1e1e',
+                }}
+                lineNumberStyle={{
+                  minWidth: '2.8em',
+                  paddingRight: '0.8em',
+                  color: '#555',
+                  userSelect: 'none',
+                }}
+              >
+                {generatedCodeArtifact.artifact_text}
+              </SyntaxHighlighter>
+            ) : (
+              <p
+                style={{
+                  padding: '1rem',
+                  color: 'var(--color-text-muted)',
+                  fontStyle: 'italic',
+                  background: '#1e1e1e',
+                  margin: 0,
+                  borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
+                }}
+              >
+                Artifact recorded — text content stored externally.
+              </p>
+            )}
+          </>
+        )}
+      </div>
     </Panel>
   );
 }

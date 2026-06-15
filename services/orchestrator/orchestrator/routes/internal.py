@@ -349,6 +349,8 @@ async def create_pm_feature_contract(
     payload: dict[str, Any],
     _: AuthContext = INTERNAL_AUTH_DEP,
 ) -> dict[str, Any]:
+    from ..llm_delegation.config import current_vault_secrets
+
     prompt = str(payload.get("prompt") or payload.get("request") or "").strip()
     source_code = payload.get("source_code")
     if len(prompt) < 3:
@@ -363,14 +365,20 @@ async def create_pm_feature_contract(
     if requested_target_language is not None:
         requested_target_language = str(requested_target_language).strip() or None
 
-    feature_contract = await generate_pm_feature_contract(
-        prompt=prompt,
-        source_code=source_code,
-        mission_type=mission_type,
-        depth_mode=depth_mode,
-        output_mode=output_mode,
-        requested_target_language=requested_target_language,
-    )
+    vault = payload.get("vault") or {}
+    token_vault = current_vault_secrets.set(vault)
+    try:
+        feature_contract = await generate_pm_feature_contract(
+            prompt=prompt,
+            source_code=source_code,
+            mission_type=mission_type,
+            depth_mode=depth_mode,
+            output_mode=output_mode,
+            requested_target_language=requested_target_language,
+        )
+    finally:
+        current_vault_secrets.reset(token_vault)
+
     mission_charter = build_mission_charter(
         mission_id=str(payload.get("mission_id") or "preview"),
         prompt=prompt,

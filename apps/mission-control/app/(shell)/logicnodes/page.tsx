@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { PageHeader } from "../../components/page-header";
@@ -29,7 +29,7 @@ function extractNodeSummary(node: Record<string, unknown>): {
   return { intent, domain, status, confidence };
 }
 
-export default function LogicNodesPage() {
+function LogicNodesPageContent() {
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [missionFilter, setMissionFilter] = useState(searchParams.get("mission") ?? "");
@@ -168,5 +168,13 @@ export default function LogicNodesPage() {
         )}
       </Panel>
     </div>
+  );
+}
+
+export default function LogicNodesPage() {
+  return (
+    <Suspense fallback={<div className="panel-loading-state"><p>Loading logic nodes...</p></div>}>
+      <LogicNodesPageContent />
+    </Suspense>
   );
 }

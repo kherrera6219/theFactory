@@ -141,8 +141,8 @@ function isOperatorAuthError(message: string): boolean {
 function operatorRecoveryMessage(message: string): string {
   if (isOperatorAuthError(message)) {
     return (
-      "Mission Control must be unlocked and the Operator Runtime Key must be configured " +
-      "before the PM Agent can generate a feature contract."
+      "Mission Control is unlocked for local operation. Configure the Operator Runtime Key " +
+      "in Settings before the PM Agent can generate a feature contract."
     );
   }
   return message;
@@ -185,6 +185,9 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([initialWelcomeMessage()]);
   const [contract, setContract] = useState<DisplayFeatureContract | null>(null);
   const [editingContract, setEditingContract] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editLanguages, setEditLanguages] = useState("");
+  const [editScope, setEditScope] = useState("");
   const [thinking, setThinking] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -669,7 +672,14 @@ export default function ChatPage() {
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={() => setEditingContract(true)}
+                  onClick={() => {
+                    if (contract) {
+                      setEditTitle(contract.title);
+                      setEditLanguages(contract.languages || "Auto-detect");
+                      setEditScope(contract.scope);
+                      setEditingContract(true);
+                    }
+                  }}
                 >
                   Edit
                 </button>
@@ -677,58 +687,116 @@ export default function ChatPage() {
             </>
           )}
 
-          {editingContract && (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                setEditingContract(false);
-              }}
-            >
-              <label htmlFor="contract-title">Mission Title</label>
-              <input
-                id="contract-title"
-                type="text"
-                value={contract.title}
-                onChange={(event) =>
-                  setContract((current) =>
-                    current ? { ...current, title: sanitizeUserText(event.target.value) } : current,
-                  )
-                }
-              />
-              <label htmlFor="contract-lang">Languages</label>
-              <input
-                id="contract-lang"
-                type="text"
-                value={contract.languages}
-                onChange={(event) =>
-                  setContract((current) =>
-                    current
-                      ? { ...current, languages: sanitizeUserText(event.target.value) || "Auto-detect" }
-                      : current,
-                  )
-                }
-              />
-              <label htmlFor="contract-scope">Scope</label>
-              <textarea
-                id="contract-scope"
-                rows={3}
-                value={contract.scope}
-                onChange={(event) =>
-                  setContract((current) =>
-                    current ? { ...current, scope: summarizeScope(event.target.value) } : current,
-                  )
-                }
-              />
-              <div className="inline-actions">
-                <button type="submit">Save Contract</button>
-              </div>
-            </form>
-          )}
         </Panel>
       )}
         </div>{/* end chat-main */}
 
       </div>
+
+
+      {/* ── Feature Contract Edit Modal ──────────────────────────────── */}
+      {editingContract && contract && (
+        <div
+          className="contract-edit-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="contract-edit-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditingContract(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setEditingContract(false);
+          }}
+          tabIndex={-1}
+        >
+          <div className="contract-edit-modal">
+            <div className="contract-edit-modal-header">
+              <h2 id="contract-edit-title" style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700 }}>
+                ✏️ Edit Feature Contract
+              </h2>
+              <button
+                type="button"
+                className="contract-edit-close-btn"
+                aria-label="Close editor"
+                onClick={() => setEditingContract(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form
+              className="contract-edit-modal-body"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const newTitle = sanitizeUserText(editTitle);
+                const newLangs = sanitizeUserText(editLanguages) || "Auto-detect";
+                const newScope = editScope.trim();
+                setContract((c) =>
+                  c
+                    ? {
+                        ...c,
+                        title: newTitle || c.title,
+                        languages: newLangs,
+                        scope: newScope || c.scope,
+                      }
+                    : c,
+                );
+                setEditingContract(false);
+              }}
+            >
+              <div className="contract-edit-field">
+                <label htmlFor="modal-contract-title" className="contract-edit-label">
+                  Mission Title
+                </label>
+                <input
+                  id="modal-contract-title"
+                  type="text"
+                  className="contract-edit-input"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Enter a descriptive mission title…"
+                  autoFocus
+                />
+              </div>
+              <div className="contract-edit-field">
+                <label htmlFor="modal-contract-lang" className="contract-edit-label">
+                  Languages
+                </label>
+                <input
+                  id="modal-contract-lang"
+                  type="text"
+                  className="contract-edit-input"
+                  value={editLanguages}
+                  onChange={(e) => setEditLanguages(e.target.value)}
+                  placeholder="e.g. Python, TypeScript…"
+                />
+              </div>
+              <div className="contract-edit-field contract-edit-field--grow">
+                <label htmlFor="modal-contract-scope" className="contract-edit-label">
+                  Scope
+                  <span className="contract-edit-label-hint">Describe the full requirements for this mission</span>
+                </label>
+                <textarea
+                  id="modal-contract-scope"
+                  className="contract-edit-textarea"
+                  value={editScope}
+                  onChange={(e) => setEditScope(e.target.value)}
+                  placeholder="Describe the full requirements, constraints, and goals for this mission…"
+                />
+              </div>
+              <div className="contract-edit-modal-footer">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setEditingContract(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit">Save Contract</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

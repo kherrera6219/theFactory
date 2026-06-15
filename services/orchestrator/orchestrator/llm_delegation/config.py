@@ -30,6 +30,10 @@ PROMPT_GUARD_BLOCK_LEVEL = os.getenv("PROMPT_GUARD_BLOCK_LEVEL", "high").strip()
 current_mission_id: ContextVar[str | None] = ContextVar("current_mission_id", default=None)
 current_settings: ContextVar[Any | None] = ContextVar("current_settings", default=None)
 current_agent_id: ContextVar[str | None] = ContextVar("current_agent_id", default=None)
+current_vault_secrets: ContextVar[dict[str, str] | None] = ContextVar(
+    "current_vault_secrets",
+    default=None,
+)
 
 # Lazy import to avoid circular — resolved at call time.
 def _record_usage_event(  # noqa: PLR0913

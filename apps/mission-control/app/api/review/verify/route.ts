@@ -10,7 +10,7 @@ const ORCHESTRATOR_INTERNAL_BASE_URL =
 const INTERNAL_SERVICE_API_KEY = process.env.INTERNAL_SERVICE_API_KEY?.trim() || "";
 
 type ReviewApprovalVerificationRequest = {
-  scope?: "builder" | "repo";
+  scope?: "builder" | "repo" | "delivery";
   approval_id?: string;
   fingerprint?: string;
   receipt_digest?: string;
@@ -18,7 +18,7 @@ type ReviewApprovalVerificationRequest = {
 
 type ReviewApprovalRecord = {
   approval_id?: string;
-  scope?: "builder" | "repo";
+  scope?: "builder" | "repo" | "delivery";
   fingerprint?: string;
   summary?: string;
   receipt_digest?: string;

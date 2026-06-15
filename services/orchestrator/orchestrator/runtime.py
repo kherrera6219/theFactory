@@ -702,17 +702,29 @@ def start_lifecycle_task(app: FastAPI, mission_id: str) -> None:
 
 
 async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
-    from .llm_delegation import current_mission_id, current_settings
+    from . import storage
+    from .llm_delegation import current_mission_id, current_settings, current_vault_secrets
 
     settings: Settings = app.state.settings
     token_mid = current_mission_id.set(mission_id)
     token_set = current_settings.set(settings)
+
+    vault_secrets = {}
+    try:
+        mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+        if mission and mission.metadata and isinstance(mission.metadata.get("vault"), dict):
+            vault_secrets = mission.metadata["vault"]
+    except Exception as exc:
+        LOGGER.warning("Failed to fetch mission vault secrets for %s: %s", mission_id, exc)
+
+    token_vault = current_vault_secrets.set(vault_secrets)
     try:
         engine = get_lifecycle_engine(settings)
         await engine.advance(app, mission_id)
     finally:
         current_mission_id.reset(token_mid)
         current_settings.reset(token_set)
+        current_vault_secrets.reset(token_vault)
 
 
 async def ensure_runtime_ready(app: FastAPI) -> tuple[bool, bool]:

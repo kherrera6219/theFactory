@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { copyToClipboard } from "../lib/clipboard";
 
 type CopyIdProps = {
   /** The full identifier string to copy to clipboard. */
@@ -22,12 +23,10 @@ export function CopyId({ id, display }: CopyIdProps) {
 
   async function handleCopy(event: React.MouseEvent) {
     event.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(id);
+    const success = await copyToClipboard(id);
+    if (success) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard not available (e.g. insecure context) — silently ignore.
     }
   }
 

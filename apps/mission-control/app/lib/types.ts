@@ -918,7 +918,7 @@ export type BuilderPreviewResponse = {
 
 export type ReviewApprovalReceipt = {
   approval_id: string;
-  scope: "builder" | "repo";
+  scope: "builder" | "repo" | "delivery";
   fingerprint: string;
   approved_at: string;
   expires_at?: string | null;
@@ -930,7 +930,7 @@ export type ReviewApprovalReceipt = {
 export type ReviewApprovalVerificationResult = {
   valid: boolean;
   approval_id: string;
-  scope: "builder" | "repo";
+  scope: "builder" | "repo" | "delivery";
   fingerprint: string;
   approved_at: string;
   expires_at: string | null;

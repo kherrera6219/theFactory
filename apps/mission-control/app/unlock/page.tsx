@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
-// The operator unlock form has moved to Settings → Operator Admin Session.
-// This route now redirects so any bookmarked or linked /unlock URLs still work.
+// Local Mission Control starts unlocked. Keep this redirect so bookmarked or
+// linked /unlock URLs land on the Settings runtime/key configuration page.
 export default function UnlockPage() {
   redirect("/settings");
 }

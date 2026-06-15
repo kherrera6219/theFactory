@@ -17,8 +17,8 @@ It is designed for local-first Windows operation and provides real-time visibili
 - Surface protocol bus and artifact-level observability.
 - Manage local runtime preferences, vault-backed integration secrets, and
   per-slot model metadata for the approved 3-model catalog.
-- Surface operator unlock, Operator Runtime Key, and Knowledge Embedding Key
-  setup paths before privileged PM/review flows are used.
+- Surface Operator Runtime Key and Knowledge Embedding Key setup paths before
+  privileged PM/review flows are used. Local Mission Control starts unlocked.
 
 ## Run Locally
 
@@ -29,7 +29,7 @@ It is designed for local-first Windows operation and provides real-time visibili
    - `ORCHESTRATOR_INTERNAL_BASE_URL` for durable review approval persistence
    - `INTERNAL_SERVICE_API_KEY` matching the orchestrator internal service key
    - `APPROVAL_HMAC_SECRET` for signed approval records and launch-time integrity checks
-   - `MISSION_CONTROL_ADMIN_KEY` and `MISSION_CONTROL_SESSION_SECRET` for the operator unlock/session flow
+   - `OPERATOR_SESSION_BYPASS=true` for the default local unlocked operator console
 3. Start dev server:
    - `npm run dev`
 4. Build production bundle:
@@ -52,8 +52,10 @@ served from `out/` rather than started with `next start`.
 - `INTERNAL_SERVICE_API_KEY` (required for review approval persistence)
 - `APPROVAL_HMAC_SECRET` (required for review approval signing and verification)
 - `APPROVAL_TTL_SECONDS` (default `86400`)
-- `MISSION_CONTROL_ADMIN_KEY` (required to unlock privileged Mission Control routes)
-- `MISSION_CONTROL_SESSION_SECRET` (recommended distinct signing secret for operator sessions)
+- `OPERATOR_SESSION_BYPASS` (default `true` in the local Docker profile; keeps Mission Control unlocked from startup)
+- `MISSION_CONTROL_BYPASS_AUTH` (legacy alias for the same local bypass behavior)
+- `MISSION_CONTROL_ADMIN_KEY` (optional only when running a locked deployment profile)
+- `MISSION_CONTROL_SESSION_SECRET` (optional signing secret for locked deployment profiles)
 - `MISSION_CONTROL_SESSION_TTL_SECONDS` (default `28800`)
 - `MISSION_CONTROL_SESSION_SECURE` (`true` for HTTPS production deployments)
 - `VAULT_ADMIN_KEY` (optional break-glass header auth for scripted `/api/vault` access)
@@ -135,10 +137,11 @@ Agent detail includes:
 - TypeScript strict mode is enabled.
 - A Content-Security-Policy is enforced via a `<meta http-equiv>` tag in the root layout (`app/layout.tsx`). Static Electron export builds use `output: export`, where `next.config.mjs` `headers()` is ignored, so the CSP ships as a meta tag instead.
 - API consumption uses timeout-based request guards and resilient parsing.
-- Mission Control privileged routes fail closed without a valid signed operator session.
+- Mission Control local operation starts unlocked through `OPERATOR_SESSION_BYPASS=true`.
+  Locked deployment profiles can disable bypass and require a signed operator session.
 - Review approvals fail closed if the orchestrator internal base URL, service API key, or approval HMAC secret is missing.
 - Accessibility includes semantic tables, captions, skip-navigation support, and keyboard focus visibility.
-- Local operation mode intentionally avoids external account-login requirements, but still requires the local operator unlock key.
+- Local operation mode intentionally avoids external account-login and operator-unlock requirements.
 
 ## Related Backend Endpoints
 
