@@ -4,6 +4,7 @@ import {
   attachOperatorSessionCookie,
   getMissionControlAdminKey,
   getOperatorSessionTtlSeconds,
+  isOperatorSessionConfigured,
   isOperatorSessionBypassed,
   verifyOperatorAdminKey,
 } from "../../../lib/server/operator-session";
@@ -22,7 +23,9 @@ export async function POST(request: Request) {
       ttl_seconds: getOperatorSessionTtlSeconds(),
       bypass: true,
     });
-    attachOperatorSessionCookie(response);
+    if (isOperatorSessionConfigured()) {
+      attachOperatorSessionCookie(response);
+    }
     return response;
   }
 

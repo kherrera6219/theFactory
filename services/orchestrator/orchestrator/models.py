@@ -347,7 +347,7 @@ class AgentActionEventRecord(BaseModel):
 
 
 class ReviewApprovalUpsert(BaseModel):
-    scope: Literal["builder", "repo"]
+    scope: Literal["builder", "repo", "delivery"]
     fingerprint: str = Field(min_length=12, max_length=200)
     summary: str = Field(min_length=3, max_length=400)
     approved_at: datetime | None = None
@@ -358,7 +358,7 @@ class ReviewApprovalUpsert(BaseModel):
 
 class ReviewApprovalRecord(BaseModel):
     approval_id: str
-    scope: Literal["builder", "repo"]
+    scope: Literal["builder", "repo", "delivery"]
     fingerprint: str
     summary: str
     metadata: dict[str, Any] = Field(default_factory=dict)

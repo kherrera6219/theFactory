@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.06.13-c
-Last updated: 2026-06-13
+Document version: 2026.06.14-a
+Last updated: 2026-06-14
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -28,6 +28,54 @@ before consulting archived plans.
   - `MANAGED`: orchestrator-managed interface/executive/support role heartbeat.
   This is intentional in the condensed local topology; dedicated per-agent
   containers are optional deployment scope, not a current requirement.
+
+---
+
+## Work Completed in This Session (2026-06-14, batch 1 — UI Polish: Mission Output, Navigation & Editing)
+
+### Mission Output Folder Browser + Dedicated Workspace
+
+**Problem:** Completed missions had no clear path to find the generated code or
+release the product. The mission detail page showed metadata only, with no
+artifact browser or download/release action accessible from the main UI.
+
+| File | Change |
+|------|--------|
+| `apps/mission-control/app/(shell)/missions/detail/page.tsx` | Added **Artifacts** tab with full folder tree browser: collapsible directories, file icons by extension, copy-to-clipboard and full text preview per file; release flow wired to download endpoint |
+| `apps/mission-control/app/api/missions/[id]/artifacts/route.ts` | New `GET` route returning structured artifact manifest (path, size, type) from the orchestrator artifacts store |
+| `services/api-gateway/main.py` | Fixed 404 on `/v1/missions/{id}/artifacts` — route was missing; now delegates to orchestrator artifact list endpoint |
+| `apps/mission-control/app/(shell)/missions/detail/page.tsx` | Sub-tabs (Overview / Artifacts / Logs / LogicNodes) now fully wired: active tab renders correct panel, stale empty-state replaced |
+
+**Validation:** TypeScript `--noEmit` clean; `npm run build` passed.
+
+---
+
+### Auto-Expanding Sidebar (Chat page)
+
+**Problem:** The Conversations sidebar on the Chat page was hidden/pushed off-screen
+when sidebar content overflowed, wasting horizontal space in the main body.
+
+| File | Change |
+|------|--------|
+| `apps/mission-control/app/globals.css` | `.chat-history-sidebar` changed from fixed `width: 240px` to `flex: 0 0 240px; min-width: 0; overflow: hidden` so it never overflows its grid cell; `.chat-history-item-title` constrained with `max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap` so long titles no longer cause layout blowout |
+
+---
+
+### Feature Contract Edit Modal
+
+**Problem:** Clicking **Edit** on the Feature Contract panel opened a cramped
+inline form with a 3-row textarea — insufficient for long mission descriptions.
+
+| File | Change |
+|------|--------|
+| `apps/mission-control/app/(shell)/chat/page.tsx` | Added `editTitle`, `editLanguages`, `editScope` state; Edit button pre-populates these and sets `editingContract=true`; inline form removed and replaced by full-screen modal rendered inside the page root div |
+| `apps/mission-control/app/globals.css` | Added `.contract-edit-backdrop` (fixed full-screen, blurred overlay), `.contract-edit-modal` (760 px max, 90 vh, spring animation), header/body/footer/input/textarea classes with focus rings; responsive sheet-from-bottom on mobile |
+
+**Modal behaviours:** Escape key, backdrop click, and Cancel button all close
+without saving. Save applies `sanitizeUserText` to Title/Languages and trims
+Scope before writing back to contract state.
+
+**Validation:** TypeScript `--noEmit` clean; `npm run build` passed.
 
 ---
 

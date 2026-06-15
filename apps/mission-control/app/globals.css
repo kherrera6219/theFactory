@@ -189,6 +189,7 @@ a {
   min-width: 0;
   height: 100vh;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1319,6 +1320,7 @@ dd {
   top: 0;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .chat-history-title {
@@ -1349,16 +1351,25 @@ dd {
 }
 
 .chat-history-item {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  margin-top: 0;
+  background: transparent;
+  color: var(--ink);
   padding: 6px 8px;
   border-radius: var(--radius-md);
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background 120ms;
+  transition: background 120ms, border-color 120ms;
+  box-shadow: none;
 }
 
 .chat-history-item:hover {
   background: var(--bg-elevated);
   border-color: var(--border);
+  transform: none !important;
 }
 
 .chat-history-item.active {
@@ -3164,5 +3175,178 @@ dd {
   font-size: 0.75rem;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+
+/* ── Feature Contract Edit Modal ──────────────────────────────────────────── */
+
+.contract-edit-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: backdropFadeIn 0.18s ease;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.contract-edit-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  width: 100%;
+  max-width: 760px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: modalSlideIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* Header */
+.contract-edit-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.contract-edit-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 0;
+  transition: background 0.14s, color 0.14s;
+}
+
+.contract-edit-close-btn:hover {
+  background: var(--border);
+  color: var(--ink);
+}
+
+/* Body / form */
+.contract-edit-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.contract-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Grow the scope field to fill available modal height */
+.contract-edit-field--grow {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.contract-edit-field--grow .contract-edit-textarea {
+  flex: 1 1 auto;
+  min-height: 180px;
+  resize: vertical;
+}
+
+.contract-edit-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.contract-edit-label-hint {
+  font-size: 0.7rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-subtle, var(--ink-muted));
+}
+
+.contract-edit-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 0.95rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.contract-edit-input:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+.contract-edit-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 0.93rem;
+  font-family: inherit;
+  line-height: 1.55;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.contract-edit-textarea:focus {
+  outline: none;
+  border-color: var(--accent, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+/* Footer */
+.contract-edit-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+/* Responsive: stack on mobile */
+@media (max-width: 540px) {
+  .contract-edit-backdrop {
+    padding: 12px;
+    align-items: flex-end;
+  }
+  .contract-edit-modal {
+    max-height: 92vh;
+    border-radius: 14px 14px 0 0;
+  }
 }
 

@@ -318,11 +318,61 @@ def _store_bindings_for_agent(agent: AgentDefinition) -> list[dict[str, Any]]:
 
 
 def _llm_recommendation_for_agent(agent: AgentDefinition) -> dict[str, Any]:
-    profile_key = "gemini_flash_high"
-    profile = _LLM_PROFILES[profile_key]
+    import os
+    try:
+        from .llm_delegation.config import current_vault_secrets
+        vault = current_vault_secrets.get() or {}
+    except Exception:
+        vault = {}
+
+    openai_key = vault.get("openai_api_key") or os.getenv("OPENAI_API_KEY", "").strip()
+    gemini_key = vault.get("gemini_api_key") or os.getenv("GEMINI_API_KEY", "").strip()
+
+    llm_provider = os.getenv("LLM_PROVIDER", "").strip().lower()
+
+    if llm_provider == "openai":
+        use_openai = True
+    elif llm_provider == "gemini":
+        use_openai = False
+    else:
+        if openai_key and not gemini_key:
+            use_openai = True
+        else:
+            use_openai = False
+
+    if use_openai:
+        profile_key = _AGENT_LLM_PROFILE_MAP.get(agent.agent_id, "openai_exec")
+        if profile_key.startswith("gemini_"):
+            mapping = {
+                "gemini_ops_fast": "openai_instant_ops",
+                "gemini_ops_balanced": "openai_exec",
+                "gemini_stem": "openai_codegen",
+                "gemini_knowledge": "openai_deep_audit",
+                "gemini_flash_high": "openai_exec",
+            }
+            profile_key = mapping.get(profile_key, "openai_exec")
+    else:
+        profile_key = _AGENT_LLM_PROFILE_MAP.get(agent.agent_id, "gemini_flash_high")
+        if profile_key.startswith("openai_") and not openai_key:
+            profile_key = "gemini_flash_high"
+
+    profile = _LLM_PROFILES.get(profile_key, _LLM_PROFILES["gemini_flash_high"])
     recommendation = dict(profile)
     recommendation["profile"] = profile_key
     recommendation["rank"] = "primary"
+
+    if recommendation.get("provider") == "openai" and recommendation.get("model") == "gpt-5.5":
+        openai_model = os.getenv("OPENAI_MODEL", "gpt-4o").strip()
+        if openai_model == "gpt-5.5" or not openai_model:
+            openai_model = "gpt-4o"
+        recommendation["model"] = openai_model
+
+    if recommendation.get("fallback_provider") == "openai" and recommendation.get("fallback_model") == "gpt-5.5":
+        openai_model = os.getenv("OPENAI_MODEL", "gpt-4o").strip()
+        if openai_model == "gpt-5.5" or not openai_model:
+            openai_model = "gpt-4o"
+        recommendation["fallback_model"] = openai_model
+
     return recommendation
 
 

@@ -1,5 +1,7 @@
 'use client';
 
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import { missionApiUrl } from '../../../../lib/api-client';
@@ -12,6 +14,9 @@ interface OutputHeaderProps {
   generatedCodeArtifact: MissionBuildArtifactRecord | null;
   onCopy: () => void;
   copied: boolean;
+  accepted: boolean;
+  accepting: boolean;
+  onAccept: () => void;
 }
 
 /**
@@ -24,6 +29,9 @@ export function OutputHeader({
   generatedCodeArtifact,
   onCopy,
   copied,
+  accepted,
+  accepting,
+  onAccept,
 }: OutputHeaderProps) {
   const missionName = String(
     (mission?.metadata as Record<string, unknown> | undefined)?.name ?? '',
@@ -80,6 +88,47 @@ export function OutputHeader({
 
       {/* Right: actions */}
       <div className="inline-actions">
+        {accepted ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6px 12px',
+              borderRadius: 'var(--radius-control)',
+              background: 'var(--success-bg, rgba(16, 185, 129, 0.15))',
+              color: 'var(--success, #10b981)',
+              fontWeight: 600,
+              fontSize: '0.9em',
+              border: '1px solid var(--success, #10b981)',
+            }}
+          >
+            ✓ Accepted
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onAccept}
+            disabled={accepting}
+            style={{
+              minHeight: '38px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: 'none',
+              borderRadius: 'var(--radius-control)',
+              background: 'linear-gradient(120deg, var(--accent), var(--accent-dim))',
+              color: '#fff',
+            }}
+          >
+            {accepting ? 'Accepting...' : 'Accept Code'}
+          </button>
+        )}
         {generatedCodeArtifact && (
           <a
             className="secondary-button shell-link-button"

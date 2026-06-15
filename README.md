@@ -405,7 +405,8 @@ The protocol bus is a six-protocol typed message bus. Routing is lexical/channel
 **Access:**
 - Docker stack: `http://localhost:3100`
 - Direct dev server: `http://localhost:3000` (`npm run dev`)
-- Privileged Mission Control routes require an operator unlock session established with `MISSION_CONTROL_ADMIN_KEY`.
+- Local Mission Control starts unlocked through `OPERATOR_SESSION_BYPASS=true` in the default Docker profile.
+  Locked deployment profiles can disable bypass and require an operator session.
 - PM Agent chat, repo review, builder review, and mission-state changes also require the
   `OPERATOR-API-KEY` vault slot to be configured so Mission Control can forward
   authenticated requests to the local API Gateway.
@@ -771,9 +772,11 @@ ORCHESTRATOR_READONLY_API_KEY=<generate with openssl rand -hex 32>
 ORCHESTRATOR_API_KEYS=<your-operator-key>=mutate,read
 INTERNAL_SERVICE_API_KEY=<generate with openssl rand -hex 32>
 
-# Mission Control operator unlock + session (apps/mission-control)
-MISSION_CONTROL_ADMIN_KEY=<generate with openssl rand -hex 32>
-MISSION_CONTROL_SESSION_SECRET=<generate with openssl rand -hex 32>
+# Mission Control local operator session (apps/mission-control)
+OPERATOR_SESSION_BYPASS=true
+MISSION_CONTROL_BYPASS_AUTH=true      # legacy alias for OPERATOR_SESSION_BYPASS
+MISSION_CONTROL_ADMIN_KEY=<optional only when bypass is false>
+MISSION_CONTROL_SESSION_SECRET=<optional only when bypass is false>
 MISSION_CONTROL_SESSION_TTL_SECONDS=28800
 MISSION_CONTROL_SESSION_SECURE=false
 

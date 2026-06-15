@@ -36,11 +36,36 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
     }
   }
 
+  let requestBody = body;
+  if (method === "POST" && path && path.length === 2 && path[0] === "v1" && path[1] === "missions" && body) {
+    try {
+      const decoder = new TextDecoder("utf-8");
+      const text = decoder.decode(body);
+      const payload = JSON.parse(text);
+
+      const geminiKey = await getVaultSecret("GEMINI-API-KEY");
+      const openaiKey = await getVaultSecret("OPENAI-API-KEY");
+      const anthropicKey = await getVaultSecret("ANTHROPIC-API-KEY");
+
+      payload.metadata = payload.metadata || {};
+      payload.metadata.vault = {
+        gemini_api_key: geminiKey || "",
+        openai_api_key: openaiKey || "",
+        anthropic_api_key: anthropicKey || "",
+      };
+
+      const encoder = new TextEncoder();
+      requestBody = encoder.encode(JSON.stringify(payload)).buffer;
+    } catch (err) {
+      console.error("Failed to inject vault secrets in proxy route:", err);
+    }
+  }
+
   try {
     const upstream = await fetch(targetUrl(path, request.url), {
       method,
       headers,
-      body,
+      body: requestBody,
       cache: "no-store",
     });
 

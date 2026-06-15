@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 
 import { PageHeader } from "../../../components/page-header";
 import { Panel } from "../../../components/panel";
@@ -85,7 +85,7 @@ function nodeConfidence(node: OperationsLogicNodeRecord): number | null {
   return null;
 }
 
-export default function MissionDetailPage() {
+function MissionDetailPageContent() {
   const searchParams = useSearchParams();
   const missionId = searchParams.get("id") ?? "";
   const confirm = useConfirm();
@@ -653,5 +653,13 @@ export default function MissionDetailPage() {
         <ErrorBoundary><MissionEventLogPanel events={events} model={phaseDescriptor.model} /></ErrorBoundary>
       </div>
     </div>
+  );
+}
+
+export default function MissionDetailPage() {
+  return (
+    <Suspense fallback={<div className="panel-loading-state"><p>Loading mission details...</p></div>}>
+      <MissionDetailPageContent />
+    </Suspense>
   );
 }

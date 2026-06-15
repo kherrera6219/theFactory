@@ -14,7 +14,7 @@ const ORCHESTRATOR_INTERNAL_BASE_URL =
 const INTERNAL_SERVICE_API_KEY = process.env.INTERNAL_SERVICE_API_KEY?.trim() || "";
 
 type ReviewApprovalRequest = {
-  scope?: "builder" | "repo";
+  scope?: "builder" | "repo" | "delivery";
   fingerprint?: string;
   summary?: string;
   metadata?: Record<string, unknown>;
@@ -40,8 +40,8 @@ export async function POST(request: Request) {
   }
 
   const scope = payload.scope;
-  if (scope !== "builder" && scope !== "repo") {
-    return NextResponse.json({ detail: "scope must be builder or repo." }, { status: 400 });
+  if (scope !== "builder" && scope !== "repo" && scope !== "delivery") {
+    return NextResponse.json({ detail: "scope must be builder, repo, or delivery." }, { status: 400 });
   }
 
   const fingerprint = sanitizeText(payload.fingerprint, 200);

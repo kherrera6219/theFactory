@@ -150,7 +150,9 @@ async def _call_openai(
     call_context: str,
     system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
-    openai_api_key = _pkg().OPENAI_API_KEY
+    vault_secrets = getattr(_pkg(), "current_vault_secrets", None)
+    vault_map = vault_secrets.get() if vault_secrets else {}
+    openai_api_key = vault_map.get("openai_api_key") or _pkg().OPENAI_API_KEY
     if not openai_api_key:
         return None
     messages: list[dict[str, Any]] = []
@@ -238,7 +240,9 @@ async def _call_anthropic(
     call_context: str,
     system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
-    anthropic_api_key = _pkg().ANTHROPIC_API_KEY
+    vault_secrets = getattr(_pkg(), "current_vault_secrets", None)
+    vault_map = vault_secrets.get() if vault_secrets else {}
+    anthropic_api_key = vault_map.get("anthropic_api_key") or _pkg().ANTHROPIC_API_KEY
     if not anthropic_api_key:
         return None
     # S4-01: Prompt cache optimization — mark the system prompt and first user
@@ -298,7 +302,9 @@ async def _call_gemini(
     call_context: str,
     system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
-    gemini_api_key = _pkg().GEMINI_API_KEY
+    vault_secrets = getattr(_pkg(), "current_vault_secrets", None)
+    vault_map = vault_secrets.get() if vault_secrets else {}
+    gemini_api_key = vault_map.get("gemini_api_key") or _pkg().GEMINI_API_KEY
     if not gemini_api_key:
         return None
     # Parse prompt for base64 parts

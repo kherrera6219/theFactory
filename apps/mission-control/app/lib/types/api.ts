@@ -106,7 +106,7 @@ export type RepoReviewRequest = {
 
 /** Request payload for POST /api/review/approve. */
 export type ReviewApprovalRequest = {
-  scope: "builder" | "repo" | string;
+  scope: "builder" | "repo" | "delivery" | string;
   fingerprint: string;
   summary?: string;
   metadata?: Record<string, unknown>;
