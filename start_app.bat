@@ -74,9 +74,9 @@ cd apps\mission-control
 :: production image (Next.js standalone output). Pass --dev to
 :: start_app.bat to fall back to the hot-reloading dev server.
 if "%DEV_MODE%"=="true" (
-    start "Mission Control UI (dev)" cmd /k "set INTERNAL_SERVICE_API_KEY=%INTERNAL_SERVICE_API_KEY% && set MISSION_API_BASE_URL=%MISSION_API_BASE_URL% && echo Starting Next.js Dev Server... && npm run tokens:sync && npx next dev -p 3000"
+    start "Mission Control UI (dev)" cmd /k "set ^"INTERNAL_SERVICE_API_KEY=%INTERNAL_SERVICE_API_KEY%^" && set ^"MISSION_API_BASE_URL=%MISSION_API_BASE_URL%^" && echo Starting Next.js Dev Server... && npm run tokens:sync && npx next dev -p 3000"
 ) else (
-    start "Mission Control UI" cmd /k "set INTERNAL_SERVICE_API_KEY=%INTERNAL_SERVICE_API_KEY% && set MISSION_API_BASE_URL=%MISSION_API_BASE_URL% && echo Building Next.js production bundle... && npm run build && echo Starting production server... && npm run start"
+    start "Mission Control UI" cmd /k "set ^"INTERNAL_SERVICE_API_KEY=%INTERNAL_SERVICE_API_KEY%^" && set ^"MISSION_API_BASE_URL=%MISSION_API_BASE_URL%^" && echo Building Next.js production bundle... && npm run build && echo Starting production server... && npm run start"
 )
 
 echo.

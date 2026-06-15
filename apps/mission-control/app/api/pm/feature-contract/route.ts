@@ -6,7 +6,7 @@ import { getVaultSecret } from "../../../lib/server/vault";
 export const runtime = "nodejs";
 
 const API_BASE_URL =
-  process.env.MISSION_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8100";
+  (process.env.MISSION_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8100").trim();
 
 type FeatureContractPayload = {
   prompt?: string;

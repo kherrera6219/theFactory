@@ -1,11 +1,11 @@
 import { getVaultSecret } from "../../../lib/server/vault";
 
 const DEFAULT_GATEWAY_BASE = "http://localhost:8100";
-const gatewayBase = process.env.MISSION_API_BASE_URL ?? DEFAULT_GATEWAY_BASE;
+const gatewayBase = (process.env.MISSION_API_BASE_URL ?? DEFAULT_GATEWAY_BASE).trim();
 
 // Server-side internal service key — used for /internal/* routes that require
 // orchestrator-level auth rather than a user-facing operator key.
-const INTERNAL_SERVICE_API_KEY = process.env.INTERNAL_SERVICE_API_KEY ?? "";
+const INTERNAL_SERVICE_API_KEY = (process.env.INTERNAL_SERVICE_API_KEY ?? "").trim();
 
 type RouteContext = {
   params: Promise<{ path?: string[] }>;
