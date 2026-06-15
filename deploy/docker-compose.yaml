@@ -218,8 +218,8 @@ services:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-CHANGE_ME_local_dev_minio_root_user}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-CHANGE_ME_local_dev_minio_root_password_32chars}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     ports:
       - "${MINIO_HOST_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
@@ -281,7 +281,7 @@ services:
       NEO4J_ENABLED: ${NEO4J_ENABLED:-true}
       NEO4J_URL: ${NEO4J_URL:-http://neo4j:7474}
       NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j-password-change-me}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-CHANGE_ME_local_dev_neo4j_password}
       NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
       NEO4J_TIMEOUT_SECONDS: ${NEO4J_TIMEOUT_SECONDS:-3.0}
       OBJECT_STORAGE_ENABLED: ${OBJECT_STORAGE_ENABLED:-true}
