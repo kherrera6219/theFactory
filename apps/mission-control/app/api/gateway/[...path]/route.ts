@@ -3,6 +3,10 @@ import { getVaultSecret } from "../../../lib/server/vault";
 const DEFAULT_GATEWAY_BASE = "http://localhost:8100";
 const gatewayBase = process.env.MISSION_API_BASE_URL ?? DEFAULT_GATEWAY_BASE;
 
+// Server-side internal service key — used for /internal/* routes that require
+// orchestrator-level auth rather than a user-facing operator key.
+const INTERNAL_SERVICE_API_KEY = process.env.INTERNAL_SERVICE_API_KEY ?? "";
+
 type RouteContext = {
   params: Promise<{ path?: string[] }>;
 };
@@ -28,11 +32,18 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
   const body = method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer();
 
   const headers = forwardedHeaders(request);
-  const operatorKey = await getVaultSecret("OPERATOR-API-KEY");
 
   if (!headers.has("x-api-key")) {
-    if (operatorKey) {
-      headers.set("x-api-key", operatorKey);
+    // /internal/* routes are orchestrator-internal and require INTERNAL_SERVICE_API_KEY.
+    // All other routes use the vault operator key (user-facing gateway auth).
+    const isInternalRoute = Array.isArray(path) && path[0] === "internal";
+    if (isInternalRoute && INTERNAL_SERVICE_API_KEY) {
+      headers.set("x-api-key", INTERNAL_SERVICE_API_KEY);
+    } else {
+      const operatorKey = await getVaultSecret("OPERATOR-API-KEY");
+      if (operatorKey) {
+        headers.set("x-api-key", operatorKey);
+      }
     }
   }
 

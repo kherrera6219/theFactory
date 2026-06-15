@@ -255,7 +255,14 @@ export default function SettingsPage() {
     if (integrationsResult.status === "fulfilled") {
       setSnapshot(integrationsResult.value);
     } else {
-      setOrchestratorOffline(true);
+      // Only mark offline for actual network/connection failures (503, fetch error).
+      // Auth errors (401/403) mean the backend IS reachable — don't hide the page.
+      const reason = integrationsResult.reason;
+      const is503 = reason && typeof reason === "object" && "statusCode" in reason && reason.statusCode === 503;
+      const isFetchError = reason instanceof Error && (reason.message === "Failed to fetch" || reason.message.includes("NetworkError") || reason.message.includes("ECONNREFUSED"));
+      if (is503 || isFetchError) {
+        setOrchestratorOffline(true);
+      }
     }
 
     if (vaultResult.status === "fulfilled") {
@@ -848,13 +855,31 @@ export default function SettingsPage() {
             Configure embedding key
           </button>
         </div>
-        <SystemMessage tone="warning" title="Real embeddings are off by default">
-          To enable semantic search: set <code>KNOWLEDGE_EMBEDDING_PROVIDER=gemini</code> (or{" "}
-          <code>openai</code>) and supply an API key via{" "}
-          <code>KNOWLEDGE_EMBEDDING_API_KEY</code> (or the matching{" "}
-          <code>GEMINI_API_KEY</code> / <code>OPENAI_API_KEY</code>) in your{" "}
-          <code>.env</code> file, then restart the orchestrator container.
-        </SystemMessage>
+        {(() => {
+          const embeddingSlot = vaultSlots.find(
+            (s) => s.slot_id.toUpperCase() === "KNOWLEDGE-EMBEDDING-API-KEY",
+          );
+          const embeddingSet = embeddingSlot && embeddingSlot.status !== "missing";
+          if (embeddingSet) {
+            return (
+              <SystemMessage tone="success" title="Embedding key configured">
+                The <code>KNOWLEDGE-EMBEDDING-API-KEY</code> vault slot is{" "}
+                <strong>{embeddingSlot.status}</strong>. Semantic search is active when the
+                orchestrator container is running with this key in its environment.
+              </SystemMessage>
+            );
+          }
+          return (
+            <SystemMessage tone="warning" title="Real embeddings are off by default">
+              To enable semantic search: set <code>KNOWLEDGE_EMBEDDING_PROVIDER=gemini</code> (or{" "}
+              <code>openai</code>) and supply an API key via{" "}
+              <code>KNOWLEDGE_EMBEDDING_API_KEY</code> (or the matching{" "}
+              <code>GEMINI_API_KEY</code> / <code>OPENAI_API_KEY</code>) in your{" "}
+              <code>.env</code> file, or use the <strong>Configure embedding key</strong> button
+              above to store it in the vault.
+            </SystemMessage>
+          );
+        })()}
       </Panel>
 
       {/* SECTION 4 — Software Version */}
