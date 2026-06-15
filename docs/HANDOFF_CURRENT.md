@@ -132,6 +132,20 @@ Scope before writing back to contract state.
 
 ---
 
+### UI Auth and Settings Fixes
+
+**Problem:** The UI Settings page falsely reported "Runtime offline" and the Databases page reported "Not authorized" because the local Next.js proxy was missing the `INTERNAL_SERVICE_API_KEY` for internal orchestrator routes. The "Real embeddings are off" warning was also hardcoded to always display.
+
+| File | Change |
+|------|--------|
+| `apps/mission-control/app/api/gateway/[...path]/route.ts` | Modified the proxy to inject `INTERNAL_SERVICE_API_KEY` from the server environment for `/internal/*` routes. |
+| `apps/mission-control/app/(shell)/settings/page.tsx` | Conditionally displays the embedding warning (now shows a success badge if the vault slot is set), and `orchestratorOffline` is now only triggered on actual network errors (503 or fetch failure). |
+| `start_app.bat` | Exports `INTERNAL_SERVICE_API_KEY` and `MISSION_API_BASE_URL` into the spawned Next.js dev/prod server process so server-side API routes have the key available when running outside Docker. |
+
+**Validation:** UI renders correctly and authenticates against the orchestrator.
+
+---
+
 ## Work Completed in This Session (2026-06-13, batch 3)
 
 ### Mission Control Operator Recovery + Key Setup
