@@ -13,9 +13,9 @@ before consulting archived plans.
 ## Current Branch State
 
 - Branch: `main`
-- Current change set: EDCP phase planning, PM clarification gating, richer PM
-  planning artifacts, unlocked-local UX cleanup, embedding key UI, live agent
-  validation, and runtime label polish.
+- Current change set: EDCP-01 bus durability foundation, EDCP phase planning,
+  PM clarification gating, richer PM planning artifacts, unlocked-local UX
+  cleanup, embedding key UI, live agent validation, and runtime label polish.
 - All tests pass (except `test_agent_base_unit.py` which requires the orchestrator
   package on PYTHONPATH — it always fails in isolation; run from
   `services/orchestrator/` or via the services test runner).
@@ -34,6 +34,23 @@ before consulting archived plans.
 ---
 
 ## Work Completed in This Session (2026-06-14, batch 2 — EDCP Plan + PM Intake Corrections)
+
+### EDCP-01 Bus Durability Foundation
+
+**Problem:** EDCP could not safely make Protocol Bus events load-bearing while
+the orchestrator consumer only used non-durable `XREAD` from `$`.
+
+| File | Change |
+|------|--------|
+| `services/orchestrator/orchestrator/protocol_bus_consumer.py` | Added opt-in consumer-group mode with `XGROUP CREATE`, `XREADGROUP`, and `XACK`; legacy `XREAD` remains default |
+| `services/orchestrator/orchestrator/protocol_bus_producer.py` | Added `send_omega_message`, `send_beta_result`, and `send_delta_audit` helpers |
+| `services/orchestrator/orchestrator/settings.py` | Added `event_driven_control_plane_enabled` defaulting false |
+| `.env.example`, `deploy/docker-compose.yaml` | Added `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false` |
+| `tests/services/test_protocol_bus_consumer.py` | Added grouped consumption, ack/non-ack, and schema-validation tests |
+
+**Validation:** `test_protocol_bus_consumer.py` and
+`test_orchestrator_agent_key_mode.py` pass; Ruff passes for touched Python
+files. EDCP-02 through EDCP-05 remain pending.
 
 ### Event-Driven Control Plane Phase Plan
 

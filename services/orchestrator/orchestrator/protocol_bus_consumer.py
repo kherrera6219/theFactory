@@ -3,10 +3,11 @@ protocol-bus-mcp server publishes.
 
 The MCP ``/send`` endpoint resolves each message to one or more Redis stream
 channels named ``protocol:{protocol}:{recipient}`` (or
-``protocol:{protocol}:broadcast``) and appends the envelope with ``XADD``. This
-consumer tails those streams with ``XREAD`` (the bus does not create consumer
-groups, so plain ``XREAD`` from a tracked last-id is the matching read model)
-and dispatches each decoded message to a per-protocol async handler.
+``protocol:{protocol}:broadcast``) and appends the envelope with ``XADD``. By
+default this consumer tails those streams with ``XREAD`` from a tracked last-id
+to preserve the pre-EDCP runtime behavior. EDCP command lanes can opt into
+durable Redis consumer groups, where this class creates the groups, reads with
+``XREADGROUP``, and acknowledges handled entries with ``XACK``.
 
 Every message handed to a handler is a ``dict`` with the keys the bus writes
 into each stream entry:
@@ -32,10 +33,14 @@ from typing import Any, Awaitable, Callable
 LOGGER = logging.getLogger(__name__)
 
 try:
+    from redis.exceptions import ResponseError as RedisResponseError
     from redis.exceptions import TimeoutError as RedisTimeoutError
 except ModuleNotFoundError:
 
     class RedisTimeoutError(Exception):
+        pass
+
+    class RedisResponseError(Exception):
         pass
 
 # Handler signature: async def handler(message: dict[str, Any]) -> None
@@ -47,9 +52,9 @@ class ProtocolBusConsumer:
 
     For each protocol with a registered handler the consumer tails two channels:
     the agent-directed channel (``protocol:{proto}:{agent_id}``) and the
-    broadcast channel (``protocol:{proto}:broadcast``). New entries are read with
-    ``XREAD`` starting at ``$`` (only messages published after start), so the
-    consumer never reprocesses history on restart.
+    broadcast channel (``protocol:{proto}:broadcast``). The default read model
+    is legacy ``XREAD`` from ``$``. EDCP callers can enable consumer-group mode
+    to read pending entries for the stable consumer first, then new entries.
     """
 
     PROTOCOLS = ["alpha", "beta", "delta", "sigma", "omega", "rho"]
@@ -62,6 +67,9 @@ class ProtocolBusConsumer:
         *,
         block_ms: int = 5000,
         count: int = 20,
+        use_consumer_group: bool = False,
+        consumer_group: str = "protocol-bus-orchestrator",
+        consumer_name: str | None = None,
     ) -> None:
         """handlers: {protocol_name: async callable(message) -> None}."""
         self.redis = redis_client
@@ -73,6 +81,9 @@ class ProtocolBusConsumer:
         }
         self.block_ms = block_ms
         self.count = count
+        self.use_consumer_group = use_consumer_group
+        self.consumer_group = consumer_group
+        self.consumer_name = consumer_name or agent_id
         self._running = False
 
     @property
@@ -92,9 +103,10 @@ class ProtocolBusConsumer:
             return
         self._running = True
         LOGGER.info(
-            "ProtocolBusConsumer starting for agent=%s lanes=%s",
+            "ProtocolBusConsumer starting for agent=%s lanes=%s group_mode=%s",
             self.agent_id,
             sorted(self.handlers),
+            self.use_consumer_group,
         )
         try:
             await asyncio.gather(
@@ -106,6 +118,10 @@ class ProtocolBusConsumer:
     async def _consume_lane(self, protocol: str) -> None:
         agent_channel = f"protocol:{protocol}:{self.agent_id}"
         broadcast_channel = f"protocol:{protocol}:broadcast"
+        if self.use_consumer_group:
+            await self._consume_lane_grouped(protocol, [agent_channel, broadcast_channel])
+            return
+
         # "$" means "only entries added after we begin reading". We then advance
         # the per-channel cursor to the last id we saw on each iteration.
         cursors: dict[str, str] = {agent_channel: "$", broadcast_channel: "$"}
@@ -143,6 +159,81 @@ class ProtocolBusConsumer:
                     cursors[channel] = entry_id
                     await self._dispatch(protocol, handler, channel, entry_id, fields)
 
+    async def _consume_lane_grouped(self, protocol: str, channels: list[str]) -> None:
+        handler = self.handlers[protocol]
+        await self._ensure_consumer_groups(channels)
+        pending_streams = {channel: "0" for channel in channels}
+        new_streams = {channel: ">" for channel in channels}
+        while self._running:
+            try:
+                records = await self.redis.xreadgroup(
+                    groupname=self.consumer_group,
+                    consumername=self.consumer_name,
+                    streams=pending_streams,
+                    count=self.count,
+                    block=1,
+                )
+                if not records:
+                    records = await self.redis.xreadgroup(
+                        groupname=self.consumer_group,
+                        consumername=self.consumer_name,
+                        streams=new_streams,
+                        count=self.count,
+                        block=self.block_ms,
+                    )
+            except asyncio.CancelledError:
+                raise
+            except RedisTimeoutError as exc:
+                LOGGER.debug(
+                    "ProtocolBusConsumer xreadgroup timed out while idle on lane %s: %s",
+                    protocol,
+                    exc,
+                )
+                continue
+            except Exception as exc:
+                LOGGER.warning(
+                    "ProtocolBusConsumer xreadgroup failed on lane %s: %s", protocol, exc
+                )
+                await asyncio.sleep(1.0)
+                continue
+
+            if not records:
+                continue
+
+            for channel, entries in records:
+                for entry_id, fields in entries:
+                    handled = await self._dispatch(protocol, handler, channel, entry_id, fields)
+                    if handled:
+                        await self._ack_entry(protocol, channel, entry_id)
+
+    async def _ensure_consumer_groups(self, channels: list[str]) -> None:
+        for channel in channels:
+            try:
+                await self.redis.xgroup_create(
+                    name=channel,
+                    groupname=self.consumer_group,
+                    id="0-0",
+                    mkstream=True,
+                )
+            except RedisResponseError as exc:
+                if "BUSYGROUP" in str(exc).upper():
+                    continue
+                raise
+
+    async def _ack_entry(self, protocol: str, channel: str, entry_id: str) -> None:
+        try:
+            await self.redis.xack(channel, self.consumer_group, entry_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            LOGGER.warning(
+                "ProtocolBusConsumer xack failed on lane %s channel=%s entry=%s: %s",
+                protocol,
+                channel,
+                entry_id,
+                exc,
+            )
+
     async def _dispatch(
         self,
         protocol: str,
@@ -150,12 +241,13 @@ class ProtocolBusConsumer:
         channel: str,
         entry_id: str,
         fields: dict[str, Any],
-    ) -> None:
+    ) -> bool:
         message = self._decode_entry(channel, entry_id, fields)
         if message is None:
-            return
+            return True
         try:
             await handler(message)
+            return True
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -164,6 +256,7 @@ class ProtocolBusConsumer:
                 protocol,
                 entry_id,
             )
+            return False
 
     @staticmethod
     def _decode_entry(

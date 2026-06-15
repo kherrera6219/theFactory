@@ -118,6 +118,7 @@ class Settings:
     protocol_bus_url: str = "http://protocol-bus-mcp:8090"
     protocol_bus_api_key: str = ""
     protocol_bus_consumer_enabled: bool = True
+    event_driven_control_plane_enabled: bool = False
     db_pool_min_size: int = 2
     db_pool_max_size: int = 10
     # Direct-to-Postgres URL used only for schema migrations, which take a
@@ -413,6 +414,9 @@ def load_settings() -> Settings:
         ),
         protocol_bus_consumer_enabled=_as_bool(
             os.getenv("PROTOCOL_BUS_CONSUMER_ENABLED", "true"), True
+        ),
+        event_driven_control_plane_enabled=_as_bool(
+            os.getenv("EVENT_DRIVEN_CONTROL_PLANE_ENABLED", "false"), False
         ),
         environment=environment,
         agent_service_key_mode=agent_service_key_mode,

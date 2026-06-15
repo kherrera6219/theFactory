@@ -2,7 +2,7 @@
 
 **Document version:** 2026.06.14
 **Created:** 2026-06-14
-**Status:** Proposed — not yet scheduled
+**Status:** In progress — EDCP-01 complete, EDCP-02 pending
 **Audience:** Maintainers
 **Authoritative status doc:** `docs/IMPLEMENTATION_STATUS.md` (the archived
 `docs/archive/2026-06-13/SPRINT_BACKLOG.md` is historical only)
@@ -29,17 +29,18 @@ the target architecture from the 2026-06-14 communication review.
 
 ---
 
-## Hard prerequisites (do not start EDCP until both hold)
+## Hard prerequisites
 
-1. **S1-01 must pass first.** A live BUILD_NEW mission must reach `COMPLETE`
-   with non-empty `generated_code`. Do not invert control flow on a pipeline
-   that has not yet been proven to produce real output end to end.
-2. **Bus durability gap is the first thing EDCP fixes.** `ProtocolBusConsumer`
-   reads with plain `XREAD` from `$` and the bus creates **no consumer groups**
-   (`protocol_bus_consumer.py` docstring + `_consume_lane`). A consuming agent
-   that restarts loses every command published while it was down, with no ack
-   or redelivery. An event-driven CEO on this read model is strictly worse than
-   the current direct call. Durability (EDCP-01) gates everything after it.
+1. **S1-01 must pass before load-bearing handoff inversion.** A live BUILD_NEW
+   mission must reach `COMPLETE` with non-empty `generated_code` before EDCP-02
+   or later phases make bus events the sole trigger for mission progression.
+   Do not invert control flow on a pipeline that has not yet been proven to
+   produce real output end to end.
+2. **Bus durability gap is fixed by EDCP-01.** `ProtocolBusConsumer` now has an
+   opt-in Redis consumer-group mode (`XGROUP CREATE` / `XREADGROUP` / `XACK`)
+   behind `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false` by default. The legacy
+   `XREAD` path remains the default until a later EDCP phase flips control-flow
+   behavior.
 
 ---
 
@@ -92,18 +93,21 @@ topic if conflating with Omega is undesirable.
 
 ---
 
-## EDCP-01 — Bus durability + missing lane senders (foundation)
+## EDCP-01 — Bus durability + missing lane senders (foundation) — COMPLETE
 
 **Goal:** Make the bus *capable* of carrying commands. No flow changes.
 
+**Status:** Complete as of 2026-06-14. Runtime behavior is unchanged with
+`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`.
+
 **Files & functions**
-- `protocol_bus_consumer.py` → `ProtocolBusConsumer._consume_lane`: add a
+- `protocol_bus_consumer.py` → `ProtocolBusConsumer._consume_lane`: added a
   consumer-group mode (`XGROUP CREATE` / `XREADGROUP` / `XACK`) with a persisted
   last-id, selectable per consumer. Keep `XREAD`-from-`$` as the default until
   the flag flips.
-- `protocol_bus_producer.py`: add `send_omega_message` (handoff/status),
+- `protocol_bus_producer.py`: added `send_omega_message` (handoff/status),
   `send_beta_result`, `send_delta_audit`. Additive; nothing calls them yet.
-- `settings.py` + `.env.example`: add `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`.
+- `settings.py` + `.env.example`: added `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`.
 
 **Exit criteria**
 
@@ -113,6 +117,10 @@ topic if conflating with Omega is undesirable.
 | 2 | New producer helpers build bus-valid envelopes for Omega/Beta/Delta (schema validation passes) |
 | 3 | `EVENT_DRIVEN_CONTROL_PLANE_ENABLED` present, default `false`; flag off ⇒ no behavioral change |
 | 4 | `python -m ruff check services tests scripts` clean; existing tests green |
+
+**Validation:** `test_protocol_bus_consumer.py` and
+`test_orchestrator_agent_key_mode.py` pass; Ruff passes for touched Python
+files.
 
 **Rollback:** none needed — purely additive.
 
