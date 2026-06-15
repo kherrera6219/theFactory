@@ -35,15 +35,18 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
 
   if (!headers.has("x-api-key")) {
     // /internal/* routes are orchestrator-internal and require INTERNAL_SERVICE_API_KEY.
-    // All other routes use the vault operator key (user-facing gateway auth).
     const isInternalRoute = Array.isArray(path) && path[0] === "internal";
+    const operatorKey = await getVaultSecret("OPERATOR-API-KEY");
+
     if (isInternalRoute && INTERNAL_SERVICE_API_KEY) {
+      // Hard requirement: orchestrator-internal routes MUST use the internal key.
       headers.set("x-api-key", INTERNAL_SERVICE_API_KEY);
-    } else {
-      const operatorKey = await getVaultSecret("OPERATOR-API-KEY");
-      if (operatorKey) {
-        headers.set("x-api-key", operatorKey);
-      }
+    } else if (operatorKey) {
+      // User-facing route with a vault key configured.
+      headers.set("x-api-key", operatorKey);
+    } else if (INTERNAL_SERVICE_API_KEY) {
+      // Local unlocked mode: no vault key, fallback to internal key for everything.
+      headers.set("x-api-key", INTERNAL_SERVICE_API_KEY);
     }
   }
 

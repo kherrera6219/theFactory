@@ -31,7 +31,9 @@ export async function POST(request: Request) {
     }
 
     const operatorKey = await getVaultSecret("OPERATOR-API-KEY");
-    if (!operatorKey) {
+    const internalKey = process.env.INTERNAL_SERVICE_API_KEY ?? "";
+    const activeKey = operatorKey || internalKey;
+    if (!activeKey) {
       return NextResponse.json(
         { detail: "Internal service key is not configured for mission state updates." },
         { status: 400 },
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": operatorKey,
+        "x-api-key": activeKey,
       },
       body: JSON.stringify({
         new_state: newState,

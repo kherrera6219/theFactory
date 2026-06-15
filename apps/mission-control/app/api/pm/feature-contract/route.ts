@@ -34,7 +34,9 @@ export async function POST(request: Request) {
     }
 
     const operatorKey = await getVaultSecret("OPERATOR-API-KEY");
-    if (!operatorKey) {
+    const internalKey = process.env.INTERNAL_SERVICE_API_KEY ?? "";
+    const activeKey = operatorKey || internalKey;
+    if (!activeKey) {
       return NextResponse.json(
         {
           detail:
@@ -62,7 +64,7 @@ export async function POST(request: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": operatorKey,
+        "x-api-key": activeKey,
       },
       body: JSON.stringify(modifiedPayload),
       cache: "no-store",
