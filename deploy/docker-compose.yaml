@@ -200,7 +200,7 @@ services:
       SERVER_TLS_CA_FILE: /run/postgres-certs/ca.crt
     volumes: *postgres-client-certs
     ports:
-      - "127.0.0.1:${PGBOUNCER_HOST_PORT:-5432}:${PGBOUNCER_PORT:-5432}"
+      - "127.0.0.1:${PGBOUNCER_HOST_PORT:-5434}:${PGBOUNCER_PORT:-5432}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -337,7 +337,7 @@ services:
       LANGGRAPH_CHECKPOINTER_SETUP: ${LANGGRAPH_CHECKPOINTER_SETUP:-false}
       LANGGRAPH_CHECKPOINT_NAMESPACE: ${LANGGRAPH_CHECKPOINT_NAMESPACE:-}
       ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-}
-      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}
       ORCHESTRATOR_READONLY_API_KEY: ${ORCHESTRATOR_READONLY_API_KEY:-}
       ORCHESTRATOR_API_KEYS: ${ORCHESTRATOR_API_KEYS:-}
       ORCHESTRATOR_PORT: 8001
@@ -429,7 +429,7 @@ services:
       API_RATE_LIMIT_PER_MINUTE: 120
       RATE_LIMIT_WINDOW_SECONDS: 60
       AUTH_MODE: ${AUTH_MODE:-api_key}
-      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}
       ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-}
       ORCHESTRATOR_READONLY_API_KEY: ${ORCHESTRATOR_READONLY_API_KEY:-}
       ORCHESTRATOR_API_KEYS: ${ORCHESTRATOR_API_KEYS:-}
@@ -572,7 +572,7 @@ services:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_GATEWAY_HOST_PORT:-8100}
       MISSION_API_BASE_URL: http://api-gateway:8000
       ORCHESTRATOR_INTERNAL_BASE_URL: ${ORCHESTRATOR_INTERNAL_BASE_URL:-http://orchestrator:8001}
-      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}
       APPROVAL_HMAC_SECRET: ${APPROVAL_HMAC_SECRET:-}
       APPROVAL_TTL_SECONDS: ${APPROVAL_TTL_SECONDS:-86400}
       MISSION_CONTROL_ADMIN_KEY: ${MISSION_CONTROL_ADMIN_KEY:-}
@@ -619,7 +619,7 @@ services:
       PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-}}
+      SERVICE_API_KEY: ${POD_A_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -666,7 +666,7 @@ services:
       PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-}}
+      SERVICE_API_KEY: ${POD_B_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -713,7 +713,7 @@ services:
       PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-}}
+      SERVICE_API_KEY: ${POD_C_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -760,7 +760,7 @@ services:
       PYTHON_AST_EXTRACTOR_ENABLED: ${PYTHON_AST_EXTRACTOR_ENABLED:-true}
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-}}
+      SERVICE_API_KEY: ${POD_D_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -805,7 +805,7 @@ services:
       AGENT_BINDING: AGENT-12-PODA-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AGENT_12_PODA_MGR_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-}}
+      SERVICE_API_KEY: ${AGENT_12_PODA_MGR_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -857,7 +857,7 @@ services:
       AGENT_BINDING: AGENT-18-PODB-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AGENT_18_PODB_MGR_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-}}
+      SERVICE_API_KEY: ${AGENT_18_PODB_MGR_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -909,7 +909,7 @@ services:
       AGENT_BINDING: AGENT-24-PODC-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AGENT_24_PODC_MGR_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-}}
+      SERVICE_API_KEY: ${AGENT_24_PODC_MGR_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -961,7 +961,7 @@ services:
       AGENT_BINDING: AGENT-30-PODD-MGR
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AGENT_30_PODD_MGR_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-}}
+      SERVICE_API_KEY: ${AGENT_30_PODD_MGR_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}}
     volumes: *redis-client-certs
     depends_on:
       redis:
@@ -1004,7 +1004,7 @@ services:
       WORKER_AGENT_ID: AGENT-10-TESTER
       AGENT_SERVICE_KEY_MODE: ${AGENT_SERVICE_KEY_MODE:-shared}
       ORCHESTRATOR_URL: http://orchestrator:8001
-      SERVICE_API_KEY: ${AUDIT_SERVICE_API_KEY:-}
+      SERVICE_API_KEY: ${AUDIT_SERVICE_API_KEY:-${INTERNAL_SERVICE_API_KEY:-CHANGE_ME_local_dev_internal_service_key_32chars}}
     volumes: *redis-client-certs
     depends_on:
       redis:
