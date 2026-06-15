@@ -48,9 +48,8 @@ the target architecture from the 2026-06-14 communication review.
 
 - **Strangler pattern.** The working direct-call loop stays intact. Each phase
   moves a single seam onto the bus and is independently revertable.
-- **One flag.** `EVENT_DRIVEN_CONTROL_PLANE_ENABLED` (new
-  `settings.event_driven_control_plane_enabled`, default `false`, added to
-  `settings.py` and `.env.example`). Every phase ships with the flag off
+- **One flag.** `EVENT_DRIVEN_CONTROL_PLANE_ENABLED`
+  (`settings.event_driven_control_plane_enabled`, default `false`). Every phase ships with the flag off
   changing nothing at runtime — consistent with the existing flag discipline
   (`AGENT_SCALING_ENABLED`, `MISSION_*_ENFORCEMENT_ENABLED`, all `=false`/gated
   by default).

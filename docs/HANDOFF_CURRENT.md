@@ -62,8 +62,9 @@ backbone.
 |------|--------|
 | `docs/EDCP_Phase_Plan.md` | Added phased plan EDCP-01 through EDCP-05: bus durability, missing lane senders, PM to CEO handoff, CEO to pod Alpha promotion, support-ring Delta gates, and final demotion of `missions.state` to projection-only |
 
-**Key rule:** Do not start EDCP implementation until a live Gemini BUILD_NEW
-mission reaches COMPLETE with non-empty generated code.
+**Key rule:** EDCP-01 foundation is complete. Do not start EDCP-02 or later
+load-bearing control-plane inversion until a live Gemini BUILD_NEW mission
+reaches COMPLETE with non-empty generated code.
 
 ### PM Intake Clarification + Planning Package
 
