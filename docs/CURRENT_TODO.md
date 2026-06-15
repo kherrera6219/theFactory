@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.06.13-b
-Last updated: 2026-06-13
+Document version: 2026.06.14-a
+Last updated: 2026-06-14
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -28,9 +28,9 @@ current work.
 
 6. **Run the Gemini live mission proof**
    - Start the local stack with a real `GEMINI_API_KEY` and `KNOWLEDGE_EMBEDDING_PROVIDER=gemini`.
-   - Confirm Mission Control is unlocked, `OPERATOR-API-KEY` is saved in the
-     vault, and `KNOWLEDGE-EMBEDDING-API-KEY` is saved/tested before submitting
-     the mission.
+   - Confirm Mission Control starts unlocked and `KNOWLEDGE-EMBEDDING-API-KEY`
+     is saved/tested before submitting the mission. The internal service key is
+     stack configuration, not a user-facing vault setup step.
    - Submit a BUILD_NEW mission.
    - Capture evidence that the mission reaches COMPLETE with non-empty
      LLM-generated output from `gemini-3.5-flash` and that semantic search
@@ -38,7 +38,13 @@ current work.
    - Store evidence under `docs/evidence/` and update
      `docs/IMPLEMENTATION_STATUS.md`.
 
-7. **Confirm production host controls**
+7. **Execute EDCP readiness work after live mission proof**
+   - Use `docs/EDCP_Phase_Plan.md` as the phase plan for converting the current
+     direct-call mission pipeline into an event-driven control plane.
+   - Do not start EDCP-01 until the Gemini live mission proof above produces a
+     COMPLETE mission with non-empty generated code.
+
+8. **Confirm production host controls**
    - Enforce branch protection and required status checks in GitHub settings.
    - Confirm secret scanning and push protection are enabled.
    - Confirm release attestation verification is required for release promotion.
@@ -47,16 +53,16 @@ current work.
 
 ## Release Readiness Follow-Ups
 
-8. **Produce target-environment DR evidence**
+9. **Produce target-environment DR evidence**
    - Run backup/restore and disaster-recovery checks in the target deployment
      environment.
    - Do not rely on local-only DR evidence for partner-facing claims.
 
-9. **Legal and policy approval**
+10. **Legal and policy approval**
    - Review `docs/PRIVACY_POLICY.md` and `docs/TERMS_OF_SERVICE.md`.
    - Get approval before external publication or partner distribution.
 
-10. **Long-duration reliability requalification**
+11. **Long-duration reliability requalification**
     - Re-run the reliability qualification against the current Gemini-first
       baseline and hardened CI policy.
     - Archive the old baseline only after replacement evidence is captured.
@@ -65,17 +71,17 @@ current work.
 
 ## Product Validation Backlog
 
-11. **PORT differentiator demo**
+12. **PORT differentiator demo**
     - Run a PORT mission on a real open-source Windows game or utility.
     - Capture output targeting Linux/macOS and evidence the two-phase PORT path.
     - Validate that `extraction_degraded=True` is surfaced in RQCA when AIM
       extraction fails (new flag added 2026-06-13).
 
-12. **Agent scaling live validation**
+13. **Agent scaling live validation**
     - Run a multi-file repo mission with `AGENT_SCALING_ENABLED=true`.
     - Validate partition splitting, execution, and result merge.
 
-13. **Partner-facing proof package**
+14. **Partner-facing proof package**
     - Assemble the current docs index, CI run, SBOM, Release Trust output, live
       Gemini mission evidence, and DR evidence into a concise review package.
 

@@ -141,8 +141,8 @@ function isOperatorAuthError(message: string): boolean {
 function operatorRecoveryMessage(message: string): string {
   if (isOperatorAuthError(message)) {
     return (
-      "Mission Control is unlocked for local operation. Configure the Operator Runtime Key " +
-      "in Settings before the PM Agent can generate a feature contract."
+      "Mission Control is unlocked for local operation, but the local runtime rejected the request. " +
+      "Restart the app stack and confirm the gateway and orchestrator services are healthy."
     );
   }
   return message;
@@ -173,7 +173,7 @@ function initialWelcomeMessage(): ChatMessage {
     role: "pm",
     text:
       "Hello. I am your PM Agent. Describe what you want to build or analyze, " +
-      "and attach source files if needed.",
+      "and attach source files if needed. I will ask clarifying questions before launch when scope is not ready.",
     ts: "",
   };
 }
@@ -334,10 +334,28 @@ export default function ChatPage() {
           }),
         });
         const featureContract = pmPreview.feature_contract;
+        const clarifyingQuestions = featureContract.clarifying_questions ?? [];
+        const needsClarification =
+          featureContract.intake_status === "needs_clarification" ||
+          (typeof featureContract.ambiguity_score === "number" &&
+            featureContract.ambiguity_score >= 0.7);
+        if (needsClarification && clarifyingQuestions.length > 0) {
+          acknowledgement = [
+            "I need a few decisions before I can create a reliable mission plan:",
+            ...clarifyingQuestions.map((question, index) => `${index + 1}. ${question}`),
+          ].join("\n");
+          setMessages((current) => [
+            ...current,
+            { id: makeId("pm"), role: "pm", text: acknowledgement, ts: new Date().toISOString() },
+          ]);
+          setContract(null);
+          setInput("");
+          return;
+        }
         acknowledgement =
           featureContract.acceptance_criteria.length > 0
             ? [
-                featureContract.summary,
+                `I drafted a feature contract for review. ${featureContract.summary}`,
                 `Acceptance: ${featureContract.acceptance_criteria.slice(0, 2).join("; ")}`,
               ]
                 .filter(Boolean)

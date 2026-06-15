@@ -88,7 +88,7 @@ function normalizeApiErrorMessage(message: string): ParsedError {
     return {
       message: "Mission Control is not authorized to read live runtime data.",
       recoveryAction:
-        "Open Settings and configure the local runtime API key, then refresh this view.",
+        "Restart the local runtime stack and confirm INTERNAL_SERVICE_API_KEY is configured consistently for the gateway and orchestrator.",
       errorCode: "MISSION_CONTROL_API_KEY_REQUIRED",
     };
   }

@@ -133,6 +133,9 @@ export type FeatureContract = {
   human_approval_required: boolean;
   risk_notes: string[];
   clarifying_questions: string[];
+  assumptions?: string[];
+  intake_status?: "needs_clarification" | "ready";
+  ambiguity_score?: number;
   source: "llm" | "fallback";
   llm_route?: string;
   model_provider?: string;

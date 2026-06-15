@@ -32,6 +32,9 @@ def _normalize_pm_feature_contract(
     prompt: str,
     requested_target_language: str | None,
 ) -> dict[str, Any]:
+    intake_status = _clean_text(raw.get("intake_status", "ready"), max_length=32).lower()
+    if intake_status not in {"needs_clarification", "ready"}:
+        intake_status = "ready"
     complexity = _clean_text(raw.get("estimated_complexity", "medium"), max_length=24).lower()
     if complexity not in {"low", "medium", "high", "very_high"}:
         complexity = "medium"
@@ -76,6 +79,7 @@ def _normalize_pm_feature_contract(
         "human_approval_required": human_approval,
         "risk_notes": _string_list(raw.get("risk_notes"), limit=5),
         "clarifying_questions": _string_list(raw.get("clarifying_questions"), limit=5),
+        "intake_status": intake_status,
         "source": "llm",
         "llm_route": route,
         "model_provider": provider,

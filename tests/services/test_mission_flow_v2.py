@@ -50,6 +50,11 @@ def test_build_mission_charter_validates_against_schema() -> None:
     assert charter["mission_type"] == "BUILD_NEW"
     assert charter["target_outcome"] == "Build a Python CSV reader"
     assert charter["success_criteria"] == ["Returns a list of dictionaries"]
+    assert charter["statement_of_work"]["objective"] == "Build a Python CSV reader"
+    assert charter["product_requirements"]["functional_requirements"] == ["Read CSV rows"]
+    assert charter["phased_build_plan"][0]["owner_agent_id"] == "AGENT-01-PM"
+    assert charter["risk_register"][0]["risk"] == "Validate input path"
+    assert charter["test_strategy"]["acceptance_tests"] == ["Returns a list of dictionaries"]
 
 
 def test_mission_charter_schema_validation_rejects_missing_required_field() -> None:

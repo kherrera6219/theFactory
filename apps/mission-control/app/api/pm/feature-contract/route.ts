@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           detail:
-            "Operator API key not found in vault slot OPERATOR-API-KEY. Open Settings and configure the Operator Runtime Key.",
+            "Internal service key is not configured. Set INTERNAL_SERVICE_API_KEY for the local Mission Control stack.",
         },
         { status: 400 },
       );

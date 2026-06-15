@@ -304,15 +304,32 @@ def _build_pm_feature_contract_prompt(
         "{\n"
         '  "title": "short title",\n'
         '  "summary": "one paragraph",\n'
+        '  "intake_status": "needs_clarification | ready",\n'
         '  "functional_requirements": ["specific requirements"],\n'
         '  "non_functional_requirements": ["constraints"],\n'
-        '  "acceptance_criteria": ["testable criteria"],\n'
+        '  "acceptance_criteria": ["testable pass/fail criteria"],\n'
+        '  "assumptions": ["assumptions you are making in order to proceed"],\n'
         '  "target_languages": ["language names"],\n'
         '  "estimated_complexity": "low | medium | high | very_high",\n'
         '  "human_approval_required": true,\n'
-        '  "risk_notes": ["risks"],\n'
-        '  "clarifying_questions": ["questions if needed"]\n'
-        "}\n"
+        '  "risk_notes": ["material risks or constraints"],\n'
+        '  "clarifying_questions": ["specific, answerable questions about missing execution detail"]\n'
+        "}\n\n"
+        "Intake discipline (this is the core of your job — do not skip it):\n"
+        "- Before writing requirements, check whether the request actually specifies, at minimum: "
+        "the runtime/platform target, the libraries or dependency constraints, the input/data "
+        "shape, the expected user interface or output format, the scope boundaries (what is "
+        "explicitly out of scope), and the definition of done.\n"
+        "- If ANY execution-critical dimension above is missing or ambiguous, set "
+        '"intake_status":"needs_clarification" and return 3-5 specific, answerable '
+        "clarifying_questions that target exactly those gaps. Do NOT invent the missing detail and "
+        "do NOT pad with generic requirements.\n"
+        '- Only set "intake_status":"ready" when the request is concrete enough to build without '
+        'guessing; in that case list every material assumption you are relying on under '
+        '"assumptions".\n'
+        "- Clarifying questions must be concrete and decision-shaped (e.g. \"No GUI library was "
+        "named — should the desktop window use pygame or tkinter?\"), never generic (\"What "
+        "features would you like?\").\n"
     )
 
 

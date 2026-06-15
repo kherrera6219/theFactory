@@ -1,7 +1,7 @@
 # Mission Control
 
-Document version: 2026.06.13
-Last updated: 2026-06-13
+Document version: 2026.06.14
+Last updated: 2026-06-14
 Status: Canonical
 
 Mission Control is the Next.js operator console for theFactory.
@@ -17,8 +17,9 @@ It is designed for local-first Windows operation and provides real-time visibili
 - Surface protocol bus and artifact-level observability.
 - Manage local runtime preferences, vault-backed integration secrets, and
   per-slot model metadata for the approved 3-model catalog.
-- Surface Operator Runtime Key and Knowledge Embedding Key setup paths before
-  privileged PM/review flows are used. Local Mission Control starts unlocked.
+- Surface agent model keys and Knowledge Embedding Key setup paths. Local Mission
+  Control starts unlocked; the internal service key is stack configuration, not
+  a user-facing vault row.
 
 ## Run Locally
 
@@ -49,7 +50,7 @@ served from `out/` rather than started with `next start`.
 
 - `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8100`)
 - `ORCHESTRATOR_INTERNAL_BASE_URL` (default `http://localhost:8101`)
-- `INTERNAL_SERVICE_API_KEY` (required for review approval persistence)
+- `INTERNAL_SERVICE_API_KEY` (required for internal service-to-service calls and review approval persistence)
 - `APPROVAL_HMAC_SECRET` (required for review approval signing and verification)
 - `APPROVAL_TTL_SECONDS` (default `86400`)
 - `OPERATOR_SESSION_BYPASS` (default `true` in the local Docker profile; keeps Mission Control unlocked from startup)
@@ -64,8 +65,8 @@ served from `out/` rather than started with `next start`.
     `gemini-3.5-flash`
   - Runtime default: all 41 agents use `gemini-3.5-flash` with high thinking
 - Required vault slots for local mission testing:
-  - `OPERATOR-API-KEY`: forwards privileged PM Agent, builder/repo review,
-    and mission-state requests to the API Gateway after operator unlock
+  - Agent API key slots (`AGENT-01-PM-API-KEY` through `AGENT-41-RQCA-API-KEY`)
+    for the approved 3-model catalog.
   - `KNOWLEDGE-EMBEDDING-API-KEY`: tracks the key intended for semantic
     knowledge-lake embeddings; mirror this value to
     `KNOWLEDGE_EMBEDDING_API_KEY` in the orchestrator container environment
