@@ -66,7 +66,7 @@ if not defined MISSION_API_BASE_URL (
         )
     )
     if not defined _GW_PORT set "_GW_PORT=8100"
-    set "MISSION_API_BASE_URL=http://localhost:%_GW_PORT%"
+    set "MISSION_API_BASE_URL=http://127.0.0.1:%_GW_PORT%"
 )
 cd apps\mission-control
 
