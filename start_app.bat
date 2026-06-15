@@ -47,6 +47,16 @@ if "%BACKEND_ONLY%"=="true" (
 )
 
 echo [2/2] Starting Mission Control UI...
+if not defined INTERNAL_SERVICE_API_KEY (
+    if exist "%~dp0.env" (
+        for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0.env") do (
+            if /I "%%A"=="INTERNAL_SERVICE_API_KEY" set "INTERNAL_SERVICE_API_KEY=%%B"
+        )
+    )
+)
+if not defined INTERNAL_SERVICE_API_KEY (
+    set "INTERNAL_SERVICE_API_KEY=CHANGE_ME_local_dev_internal_service_key_32chars"
+)
 cd apps\mission-control
 
 :: Build and start Mission Control in production mode so this script mirrors the
