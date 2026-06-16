@@ -169,8 +169,9 @@ DATA PLANE
   PostgreSQL :5433  ─ missions, events, assignments, logicnodes, audits
   Redis :6380       ─ streams, rate limiting, idempotency, heartbeats
   Qdrant :6334      ─ active knowledge retrieval (PG fallback)
-  Neo4j             ─ optional graph adapter (feature-flagged)
-  MinIO/S3          ─ optional object storage (legal-hold, 90-day retention)
+  Milvus :19530     ─ extended vector store (on by default)
+  Neo4j :7474       ─ knowledge graph adapter (on by default)
+  MinIO/S3 :9000    ─ object storage (legal-hold, 90-day retention; on by default)
 
 OBSERVABILITY PLANE
   Prometheus · Grafana · Loki · Promtail · Alertmanager · Jaeger OTLP
@@ -854,7 +855,7 @@ make up
 docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
-Starts the full isolated 41-agent runtime topology by default, including the core data plane services used by health reporting and optional backend adapters.
+Starts the full isolated 41-agent runtime topology by default, including the full data plane (PostgreSQL, Redis, Qdrant, Milvus, Neo4j, MinIO) — all backend adapters are on by default.
 
 ### Condensed Workers
 

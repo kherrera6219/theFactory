@@ -254,9 +254,9 @@ Go, Haskell, and OCaml now ship as full concrete `SpecialistAgent` subclasses ra
 | PostgreSQL | 5433 | ✅ Active | Primary persistence — single application database with versioned migrations |
 | Redis | 6380 | ✅ Active | Streams, rate limiting, idempotency, heartbeats |
 | Qdrant | 6334 | ✅ Active | Knowledge retrieval and vector indexing (PG fallback) |
-| Milvus | 19530 | ⚙️ Feature-flagged | Optional vector-store path for extended retrieval flows |
-| Neo4j | — | ⚙️ Feature-flagged | Graph queries for mission/audit relationships |
-| MinIO/S3 | — | ⚙️ Feature-flagged | Immutable artifact retention (legal-hold, 90-day policy) |
+| Milvus | 19530 | ✅ Active | Extended vector-store path for retrieval flows; `MILVUS_ENABLED=true` by default |
+| Neo4j | 7474 | ✅ Active | Graph queries for mission/audit relationships; `NEO4J_ENABLED=true` by default |
+| MinIO/S3 | 9000 | ✅ Active | Immutable artifact retention (legal-hold, 90-day policy); `OBJECT_STORAGE_ENABLED=true` by default |
 
 ### Database Schema (PostgreSQL)
 
