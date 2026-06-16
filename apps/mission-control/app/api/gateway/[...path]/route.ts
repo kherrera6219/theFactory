@@ -1,6 +1,6 @@
 import { getVaultSecret } from "../../../lib/server/vault";
 
-const DEFAULT_GATEWAY_BASE = "http://localhost:8100";
+const DEFAULT_GATEWAY_BASE = "http://127.0.0.1:8100";
 const gatewayBase = (process.env.MISSION_API_BASE_URL ?? DEFAULT_GATEWAY_BASE).trim();
 
 // Server-side internal service key — used for /internal/* routes that require

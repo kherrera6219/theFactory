@@ -66,8 +66,11 @@ if not defined MISSION_API_BASE_URL (
         )
     )
     if not defined _GW_PORT set "_GW_PORT=8100"
-    set "MISSION_API_BASE_URL=http://127.0.0.1:%_GW_PORT%"
 )
+:: Build MISSION_API_BASE_URL as a standalone statement so %_GW_PORT% expands at
+:: execution time. Previously this lived inside the if-block above, where cmd
+:: parse-time expansion produced a portless URL ("http://127.0.0.1:") -> 503.
+if not defined MISSION_API_BASE_URL set "MISSION_API_BASE_URL=http://127.0.0.1:%_GW_PORT%"
 cd apps\mission-control
 
 :: Build and start Mission Control in production mode so this script mirrors the
