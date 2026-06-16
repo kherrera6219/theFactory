@@ -1704,6 +1704,17 @@ async def _security_and_rate_limit(request: Request, call_next):
     return response
 
 
+_URL_CREDENTIAL_RE = re.compile(r"(?P<prefix>[a-zA-Z][a-zA-Z0-9+.\-]*://[^:@/]*):[^@/]*@")
+
+
+def _redact_url_credentials(url: str) -> str:
+    """Mask any password embedded in a URL's userinfo so health/diagnostic
+    output never leaks secrets (e.g. the Redis connection password)."""
+    if not url:
+        return url
+    return _URL_CREDENTIAL_RE.sub(r"\g<prefix>:***@", url)
+
+
 @app.get("/health")
 async def health() -> dict[str, Any]:
     dependency_status = await _dependency_status()
@@ -1713,7 +1724,7 @@ async def health() -> dict[str, Any]:
         "service": "api-gateway",
         "orchestrator_url": ORCHESTRATOR_URL,
         "orchestrator_healthy": dependency_status["orchestrator_healthy"],
-        "redis_url": REDIS_URL,
+        "redis_url": _redact_url_credentials(REDIS_URL),
         "redis_healthy": dependency_status["redis_healthy"],
         "intake_stream": INTAKE_STREAM,
         "state_stream": STATE_STREAM,
