@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.06.14-a
-Last updated: 2026-06-14
+Document version: 2026.06.16-a
+Last updated: 2026-06-16
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -13,8 +13,31 @@ current work.
 
 ## Highest Priority
 
-> **All 4 audit HIGH items from 2026-06-13 are resolved (see CHANGELOG).** Current
-> highest priority items are from the prior batch.
+> **All 4 audit HIGH items from 2026-06-13 are resolved (see CHANGELOG).**
+
+### Immediate operational steps (2026-06-16)
+
+0a. **Rebuild and restart to lock in local fixes.** Three local commits are not
+    yet reflected in the running stack: `f726de4` (PM `assumptions` persistence),
+    `04e4fef` (standalone-UI gateway proxy 503 / portless `MISSION_API_BASE_URL`
+    fix + proxy default → `127.0.0.1`), and `d743d4e` (redact Redis password from
+    api-gateway `/health`). After stopping the app, rebuild the `orchestrator`,
+    `api-gateway`, and `mission-control` images and relaunch the standalone UI
+    via the fixed `start_app.bat` so all three are baked in.
+
+0b. **Push the three local commits to `origin/main`** once the rebuild verifies
+    clean. They are currently local-only.
+
+### Recently resolved (2026-06-16)
+
+- Standalone UI "Runtime offline / databases not connected" — root cause was a
+  portless `MISSION_API_BASE_URL` produced by cmd parse-time expansion in
+  `start_app.bat`; the backend and all data systems (Postgres, Redis, Qdrant,
+  Milvus, Neo4j, object storage, Jaeger) were verified healthy via the live
+  operations summary. Fixed in `04e4fef`.
+- PM feature-contract `assumptions` field now persisted through the normalizer
+  and deterministic fallback (`f726de4`).
+- api-gateway `/health` no longer leaks the Redis password (`d743d4e`).
 
 ---
 

@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.06.14-a
-Last updated: 2026-06-14
+Document version: 2026.06.16-a
+Last updated: 2026-06-16
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -13,6 +13,8 @@ before consulting archived plans.
 ## Current Branch State
 
 - Branch: `main`
+- Unpushed local commits (newest first): `d743d4e` (redact Redis password from `/health`), `04e4fef` (standalone-UI gateway proxy 503 fix), `f726de4` (PM `assumptions` persistence). Push to origin pending operator approval.
+- Live stack verified healthy 2026-06-16: gateway `/health` ok, `/readyz` 200; operations summary reports db/redis/qdrant/milvus/neo4j/object_storage/jaeger all ready; 41/41 agents healthy.
 - Current change set: EDCP-01 bus durability foundation, EDCP phase planning,
   PM clarification gating, richer PM planning artifacts, unlocked-local UX
   cleanup, embedding key UI, live agent validation, and runtime label polish.
@@ -30,6 +32,75 @@ before consulting archived plans.
   - `MANAGED`: orchestrator-managed interface/executive/support role heartbeat.
   This is intentional in the condensed local topology; dedicated per-agent
   containers are optional deployment scope, not a current requirement.
+
+---
+
+## Work Completed in This Session (2026-06-16 — Runtime Connectivity, PM Assumptions, Health Redaction)
+
+### Standalone UI "Runtime offline / databases not connected" — root caused and fixed
+
+**Problem:** The standalone Mission Control UI (the non-container instance on
+port 3000 launched by `start_app.bat`) reported "Runtime offline — Orchestrator
+unreachable at port 8100", and the Databases page showed every adapter as
+Disabled/Degraded. The backend was actually fully healthy: `docker ps` showed
+the gateway, orchestrator, Postgres, Redis, Qdrant and all 41 agents up, and
+`curl 127.0.0.1:8100/health` returned `ok:true` with `redis_healthy:true`.
+
+**Root cause:** `start_app.bat` assembled `MISSION_API_BASE_URL` as
+`http://127.0.0.1:%_GW_PORT%` *inside* a cmd `if (...)` block, where `%_GW_PORT%`
+expands at parse time — before the `set "_GW_PORT=8100"` line in the same block
+runs. `API_GATEWAY_HOST_PORT` is not in `.env`, so the result was a portless URL
+`http://127.0.0.1:` → port 80 → the Next.js proxy's upstream `fetch` threw →
+`/api/gateway/*` returned 503. The Databases page renders every adapter flag as
+"Disabled" and Redis/Postgres as "Degraded" whenever the operations-summary
+fetch fails, so the screenshot statuses were UI fallback artifacts, not real
+backend state.
+
+| File | Change |
+|------|--------|
+| `start_app.bat` | Assemble `MISSION_API_BASE_URL` as a standalone statement after `_GW_PORT` is set, outside the `if`-block, so the port is included |
+| `apps/mission-control/app/api/gateway/[...path]/route.ts` | Hardened `DEFAULT_GATEWAY_BASE` from `http://localhost:8100` to `http://127.0.0.1:8100` so an unset env cannot hit the Windows IPv6 (`::1`) path |
+
+**Verification:** Container UI proxy (`:3100`) returns 200; live operations
+summary confirms `db_ready`, redis/protocol, `qdrant_ready`, `milvus_ready`,
+`neo4j_ready`, `object_storage_ready`, and `jaeger_ready` all `True`. Commit
+`04e4fef`. The running :3000 process still has the stale env until
+rebuilt/restarted.
+
+### PM feature-contract `assumptions` field now persisted
+
+**Problem:** The PM prompt asks the model for an `assumptions` list, but the
+normalizer and deterministic fallback dropped it, so the field never reached the
+mission charter.
+
+| File | Change |
+|------|--------|
+| `services/orchestrator/orchestrator/llm_delegation/normalizers.py` | Persists `assumptions` (string list, limit 6) on the normalized contract |
+| `services/orchestrator/orchestrator/llm_delegation/fallbacks.py` | Sets `assumptions: []` on the deterministic fallback contract |
+
+**Verification:** Ruff clean for the four `llm_delegation` files. Commit `f726de4`.
+
+### api-gateway `/health` no longer leaks the Redis password
+
+**Problem:** `GET /health` returned `redis_url` verbatim, including the Redis
+password in the URL userinfo.
+
+| File | Change |
+|------|--------|
+| `services/api-gateway/api_gateway/main.py` | Added `_redact_url_credentials()`; `/health` now returns `rediss://:***@redis:6380/...` with host/port/cert path preserved |
+
+**Verification:** Ruff clean; redaction confirmed on a sample URL. Commit `d743d4e`.
+
+### Pending before next run
+
+- These three commits (`f726de4`, `04e4fef`, `d743d4e`) are **local only** —
+  push to origin when approved.
+- The standalone :3000 UI must be rebuilt/restarted to pick up `04e4fef`
+  (operator is orchestrating stop → rebuild → restart). The `orchestrator`,
+  `api-gateway`, and `mission-control` images should be rebuilt so all three
+  commits are baked into the running stack.
+- The Gemini live BUILD_NEW proof (S1-01) is still the gate before any
+  EDCP-02+ load-bearing control-plane work.
 
 ---
 
@@ -273,9 +344,10 @@ Four HIGH items from the multiagent audit are not yet fixed:
 3. **Heartbeat interval mismatch** — orchestrator pulses every 5 s
    (`AGENT_HEARTBEAT_INTERVAL_SECONDS`); `agent-runtime` defaults to 15 s. The
    stale threshold must exceed the agent-runtime interval.
-4. **Sigma lane handler binding unverified** — the sigma (knowledge-ready) lane is
-   defined in `protocol_bus_consumer.py` but the handler registration path was not
-   confirmed end-to-end in the audit.
+4. **Sigma lane handler binding — VERIFIED 2026-06-16.** `main.py`
+   `protocol_bus_consumer_loop` registers `handlers = {"sigma": _handle_sigma_knowledge_ready}`
+   on a `ProtocolBusConsumer` (agent `AGENT-03-BROKER`), guarded by
+   `PROTOCOL_BUS_CONSUMER_ENABLED`. Binding path confirmed end-to-end.
 
 ---
 
