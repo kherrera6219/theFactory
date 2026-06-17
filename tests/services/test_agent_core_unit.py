@@ -219,3 +219,71 @@ def test_agent_registry_normalize_language() -> None:
     assert agent_registry.normalize_language(" py ") == "python"
     assert agent_registry.normalize_language(" C++ ") == "cpp"
     assert agent_registry.normalize_language("unknown-lang") == "unknown-lang"
+
+
+def test_llm_recommendation_provider_and_override_branches(monkeypatch) -> None:
+    cfg = importlib.import_module("orchestrator.llm_delegation.config")
+
+    # LLM_PROVIDER=openai forces the OpenAI path; a gemini_* profile is mapped to
+    # its OpenAI equivalent (gemini_stem -> openai_codegen).
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4.1")
+    monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "gemini_stem"})
+    rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    assert rec["profile"] == "openai_codegen"
+    assert rec["provider"] == "openai"
+    assert rec["model"] == "gpt-4.1"
+
+    # LLM_PROVIDER=gemini keeps the Gemini path; gemini_ops_fast carries an OpenAI
+    # fallback whose pinned gpt-5.5 is rewritten to the configured OPENAI_MODEL.
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.5")
+    monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "gemini_ops_fast"})
+    rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    assert rec["provider"] == "gemini"
+    assert rec["fallback_model"] == "gpt-4o"  # gpt-5.5 rewritten via empty/placeholder guard
+
+    # No LLM_PROVIDER + an OpenAI key but no Gemini key auto-selects OpenAI; the
+    # primary openai_exec profile's pinned gpt-5.5 is likewise rewritten.
+    monkeypatch.setenv("LLM_PROVIDER", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.5")
+    monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "openai_exec"})
+    rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    assert rec["provider"] == "openai"
+    assert rec["model"] == "gpt-4o"
+
+    # Auto-detect with a Gemini key present (and no OpenAI key) stays on Gemini.
+    monkeypatch.setenv("LLM_PROVIDER", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("GEMINI_API_KEY", "g-test-key")
+    monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "gemini_flash_high"})
+    rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    assert rec["provider"] == "gemini"
+
+    # Gemini path with an OpenAI-pinned profile but no OpenAI key downgrades to Gemini.
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "openai_exec"})
+    rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    assert rec["profile"] == "gemini_flash_high"
+    assert rec["provider"] == "gemini"
+
+    # Fallback rewrite leaves a non-placeholder OPENAI_MODEL untouched.
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4.1")
+    monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "gemini_ops_fast"})
+    rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    assert rec["fallback_model"] == "gpt-4.1"
+
+    # Vault lookup failure is swallowed and falls back to an empty vault.
+    class _RaisingVar:
+        def get(self):  # noqa: ANN201 - test stub
+            raise RuntimeError("vault unavailable")
+
+    monkeypatch.setattr(cfg, "current_vault_secrets", _RaisingVar())
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {})
+    rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    assert rec["provider"] == "gemini"
