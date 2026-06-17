@@ -150,8 +150,13 @@ async def _call_openai(
     call_context: str,
     system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
-    vault_secrets = getattr(_pkg(), "current_vault_secrets", None)
-    vault_map = vault_secrets.get() if vault_secrets else {}
+    # Per-mission vault keys set by runtime.py from the Mission Control vault take
+    # precedence over the process-level .env keys. This is what lets operators
+    # manage provider keys entirely from the Settings page (required for the
+    # packaged Windows app, where editing .env is not an option). Read the
+    # ContextVar directly from .config so it works regardless of package exports.
+    from .config import current_vault_secrets
+    vault_map = current_vault_secrets.get() or {}
     openai_api_key = vault_map.get("openai_api_key") or _pkg().OPENAI_API_KEY
     if not openai_api_key:
         return None
@@ -240,8 +245,13 @@ async def _call_anthropic(
     call_context: str,
     system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
-    vault_secrets = getattr(_pkg(), "current_vault_secrets", None)
-    vault_map = vault_secrets.get() if vault_secrets else {}
+    # Per-mission vault keys set by runtime.py from the Mission Control vault take
+    # precedence over the process-level .env keys. This is what lets operators
+    # manage provider keys entirely from the Settings page (required for the
+    # packaged Windows app, where editing .env is not an option). Read the
+    # ContextVar directly from .config so it works regardless of package exports.
+    from .config import current_vault_secrets
+    vault_map = current_vault_secrets.get() or {}
     anthropic_api_key = vault_map.get("anthropic_api_key") or _pkg().ANTHROPIC_API_KEY
     if not anthropic_api_key:
         return None
@@ -302,8 +312,13 @@ async def _call_gemini(
     call_context: str,
     system_prompt: str | None = None,
 ) -> dict[str, Any] | None:
-    vault_secrets = getattr(_pkg(), "current_vault_secrets", None)
-    vault_map = vault_secrets.get() if vault_secrets else {}
+    # Per-mission vault keys set by runtime.py from the Mission Control vault take
+    # precedence over the process-level .env keys. This is what lets operators
+    # manage provider keys entirely from the Settings page (required for the
+    # packaged Windows app, where editing .env is not an option). Read the
+    # ContextVar directly from .config so it works regardless of package exports.
+    from .config import current_vault_secrets
+    vault_map = current_vault_secrets.get() or {}
     gemini_api_key = vault_map.get("gemini_api_key") or _pkg().GEMINI_API_KEY
     if not gemini_api_key:
         return None
