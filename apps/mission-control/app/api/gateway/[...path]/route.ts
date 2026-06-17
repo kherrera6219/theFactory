@@ -33,6 +33,12 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
 
   const headers = forwardedHeaders(request);
 
+  // Tracks whether we injected a vault operator key that differs from the
+  // internal service key, so we can self-heal if the gateway rejects it. A
+  // stale OPERATOR-API-KEY left in the local vault from a prior session (after
+  // backend keys are rotated) would otherwise break every operator route.
+  let injectedStaleableOperatorKey = false;
+
   if (!headers.has("x-api-key")) {
     // /internal/* routes are orchestrator-internal and require INTERNAL_SERVICE_API_KEY.
     const isInternalRoute = Array.isArray(path) && path[0] === "internal";
@@ -44,6 +50,8 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
     } else if (operatorKey) {
       // User-facing route with a vault key configured.
       headers.set("x-api-key", operatorKey);
+      injectedStaleableOperatorKey =
+        Boolean(INTERNAL_SERVICE_API_KEY) && operatorKey !== INTERNAL_SERVICE_API_KEY;
     } else if (INTERNAL_SERVICE_API_KEY) {
       // Local unlocked mode: no vault key, fallback to internal key for everything.
       headers.set("x-api-key", INTERNAL_SERVICE_API_KEY);
@@ -76,12 +84,31 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
   }
 
   try {
-    const upstream = await fetch(targetUrl(path, request.url), {
+    let upstream = await fetch(targetUrl(path, request.url), {
       method,
       headers,
       body: requestBody,
       cache: "no-store",
     });
+
+    // Self-heal: if the gateway rejected a stale operator key from the local
+    // vault (401/403), retry once with the internal service key, which is always
+    // valid in local mode. Prevents a leftover OPERATOR-API-KEY from silently
+    // breaking the operations/databases views after backend keys rotate.
+    if (
+      injectedStaleableOperatorKey &&
+      (upstream.status === 401 || upstream.status === 403) &&
+      INTERNAL_SERVICE_API_KEY
+    ) {
+      const retryHeaders = new Headers(headers);
+      retryHeaders.set("x-api-key", INTERNAL_SERVICE_API_KEY);
+      upstream = await fetch(targetUrl(path, request.url), {
+        method,
+        headers: retryHeaders,
+        body: requestBody,
+        cache: "no-store",
+      });
+    }
 
     // Forward the upstream response verbatim, preserving its HTTP status code
     // so callers can branch on it (404 → 404, 500 → 500, 503 → 503). The body
