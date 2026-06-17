@@ -262,9 +262,11 @@ def test_llm_recommendation_provider_and_override_branches(monkeypatch) -> None:
     rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
     assert rec["provider"] == "gemini"
 
-    # Gemini path with an OpenAI-pinned profile but no OpenAI key downgrades to Gemini.
+    # Explicit Gemini mode downgrades an OpenAI-pinned profile to Gemini even when
+    # an OpenAI key IS configured (regression guard: previously the agent stayed on
+    # OpenAI whenever any OpenAI key was present, silently overriding LLM_PROVIDER=gemini).
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
-    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-present-but-should-be-ignored")
     monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "openai_exec"})
     rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
     assert rec["profile"] == "gemini_flash_high"

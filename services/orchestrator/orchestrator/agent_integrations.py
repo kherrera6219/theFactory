@@ -352,8 +352,13 @@ def _llm_recommendation_for_agent(agent: AgentDefinition) -> dict[str, Any]:
             }
             profile_key = mapping.get(profile_key, "openai_exec")
     else:
+        # Not in OpenAI mode (explicit LLM_PROVIDER=gemini, or auto-detect without
+        # an OpenAI-only setup). Route every agent to Gemini — including agents
+        # whose default profile is OpenAI-pinned — even when an OpenAI key is also
+        # configured. Previously these stayed on OpenAI whenever any OpenAI key was
+        # present, which silently overrode an explicit Gemini selection.
         profile_key = _AGENT_LLM_PROFILE_MAP.get(agent.agent_id, "gemini_flash_high")
-        if profile_key.startswith("openai_") and not openai_key:
+        if profile_key.startswith("openai_"):
             profile_key = "gemini_flash_high"
 
     profile = _LLM_PROFILES.get(profile_key, _LLM_PROFILES["gemini_flash_high"])
