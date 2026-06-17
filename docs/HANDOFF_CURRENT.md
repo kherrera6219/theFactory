@@ -1,6 +1,6 @@
 # Current Handoff
 
-Document version: 2026.06.17-a
+Document version: 2026.06.17-b
 Last updated: 2026-06-17
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -10,16 +10,68 @@ before consulting archived plans.
 
 ---
 
+## Work Completed in This Session (2026-06-17 — PM Happy Path PROVEN: gateway internal-proxy timeout)
+
+**Blocker #1 (the Gemini happy path) is closed at the API level.** The remaining
+PM failure after the four delegation fixes was a single misconfigured timeout, not
+an LLM defect.
+
+**Symptom:** A real mission in the chat UI failed with *"PM feature contract
+failed: The orchestrator service is not reachable. Fallback preview failed:
+Request failed with status 422."*
+
+**Root cause:** `services/api-gateway/api_gateway/main.py` `_proxy_post_internal`
+used a hardcoded `httpx.AsyncClient(timeout=4.0)`. The orchestrator's
+`/internal/pm/feature-contract` invokes Gemini 3.5-flash with high thinking, which
+takes ~9–19 s. The gateway gave up at exactly 4.02 s, raised `httpx.RequestError`,
+and returned `502 "orchestrator unavailable"` — surfaced to the operator as the
+misleading "not reachable". Latency masquerading as connectivity. (The
+`/v1/builder/preview` path calls Gemini directly with its own longer timeout, which
+is why builder preview worked while PM did not — a useful diagnostic contrast.)
+
+**Fix:** `_proxy_post_internal` now takes a per-call `timeout` (default still `4.0`
+for fast DB-write mutations); the PM feature-contract route passes `timeout=90.0`
+to match/exceed the UI route's 60 s. Other internal POST proxies
+(`_persist_mission_upstream` → `/missions`, maintenance endpoints) are fast and
+left at the 4 s default.
+
+**Proof (live, against the rebuilt gateway):**
+- `POST /v1/pm/feature-contract` → `HTTP 200` in 9–19 s (was `502` at 4.02 s).
+- Response: `source: llm`, `model_provider: gemini`, `model: gemini-3.5-flash`,
+  `degraded: None` — a real, rich, prompt-specific feature contract, not the 1 KB
+  deterministic stub. Verified across three distinct prompts.
+- Gemini was already proven working via `/v1/builder/preview` (`source: gemini`).
+
+**State:** Gateway image rebuilt and recreated; full dedicated stack healthy
+(gateway `/health` 200, orchestrator `/readyz` 200, Docker Mission Control `:3100`
+serving). The four prior delegation fixes were all correct and necessary — they got
+Gemini working; this timeout was the last gate in front of it.
+
+**Still open (secondary, off the critical path):**
+- Operations `422`: Mission Control sends
+  `/v1/operations/agents?mission_limit=0&assignment_limit=0&event_limit=0`, but the
+  gateway enforces `ge=50` on those params → 422 → status bar mislabels the healthy
+  runtime as "Runtime Shell". Fix UI to send ≥50 (or omit) or relax the gateway to
+  `ge=0`.
+- UI fallback preview `422`: the chat page's `createBuilderPreview` fallback 422'd
+  even though a direct `POST /v1/builder/preview` returns 200 — body/validation
+  mismatch in the `/api/gateway` proxy path. The timeout fix makes this fallback
+  rarely fire, but it is still a latent contract bug.
+
+---
+
 ## Current Branch State
 
-- Branch: `main` — pushed and in sync with `origin/main`. Latest commit `664a5cd`.
+- Branch: `main`. Latest handoff/fix commit adds the gateway internal-proxy
+  timeout fix (see session log below); push when convenient.
 - **CI was fully green** as of `941aca9` (all 12 jobs). Several backend-only
-  commits have landed since (`44f557f`, `4fdab0a`, `b6d0848`, `664a5cd`); CI on
-  these should be re-confirmed at the start of the next session.
-- **LLM delegation now works end to end on Gemini** (see session log below):
-  routing honors `LLM_PROVIDER=gemini`, vault keys reach the providers, and the
-  Gemini payload uses the correct `thinkingConfig.thinkingLevel`. The running
-  orchestrator was rebuilt + recreated with all of these.
+  commits have landed since (`44f557f`, `4fdab0a`, `b6d0848`, `664a5cd`, plus the
+  gateway timeout fix); CI on these should be re-confirmed.
+- **PM/LLM happy path PROVEN on Gemini** (see top session log): routing honors
+  `LLM_PROVIDER=gemini`, vault keys reach the providers, the Gemini payload uses
+  `thinkingConfig.thinkingLevel`, AND the gateway now waits long enough for the
+  call. `POST /v1/pm/feature-contract` returns a real `source: llm` /
+  `gemini-3.5-flash` contract (`degraded: None`). Gateway rebuilt + recreated.
 - All extended data stores (Milvus, Neo4j, MinIO/object storage) now on by
   default in code, compose, and the dev overlay.
 - Live stack verified healthy 2026-06-16: gateway `/health` ok, `/readyz` 200; operations summary reports db/redis/qdrant/milvus/neo4j/object_storage/jaeger all ready; 41/41 agents healthy.

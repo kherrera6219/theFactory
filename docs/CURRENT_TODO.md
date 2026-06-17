@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.06.17-a
+Document version: 2026.06.17-b
 Last updated: 2026-06-17
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -14,12 +14,18 @@ current work.
 ## Highest Priority — PM/LLM Workflow (2026-06-17)
 
 The PM agent + mission pipeline was producing canned 1 KB stubs. Routing, vault
-keys, the Gemini payload, and the cross-provider cascade are now fixed
-(`4fdab0a`, `44f557f`, `b6d0848`, `664a5cd`) and the orchestrator rebuilt. Remaining:
+keys, the Gemini payload, and the cross-provider cascade were fixed
+(`4fdab0a`, `44f557f`, `b6d0848`, `664a5cd`); the **final gate was a gateway
+internal-proxy `timeout=4.0` that killed the ~9–19 s Gemini PM call** and returned
+`502 "orchestrator unavailable"`. Fixed by making `_proxy_post_internal` accept a
+per-call timeout and passing `90.0` for the PM route. Remaining:
 
-1. **Confirm the happy path.** Run one fresh mission and verify a `200` from
-   `generativelanguage.googleapis.com` with `call_count > 0` and real multi-file
-   output (not the `degraded` fallback). This has NOT yet been observed green.
+1. ~~**Confirm the happy path.**~~ ✅ **DONE (2026-06-17).** `POST
+   /v1/pm/feature-contract` returns `HTTP 200` in 9–19 s with `source: llm`,
+   `model_provider: gemini`, `model: gemini-3.5-flash`, `degraded: None` — a real,
+   prompt-specific feature contract, verified across three prompts against the
+   rebuilt gateway. Still worth running one full **end-to-end mission to COMPLETE**
+   (codegen artifacts), not just the PM intake call, before EDCP-02+.
 2. **Surface degraded/fallback mode in the UI (review finding #1).** Backend now
    emits `degraded=True` / `source:"fallback"` on the contract; add a Mission
    Control banner (chat + feature-contract panel) so the operator can see when the
@@ -40,6 +46,15 @@ keys, the Gemini payload, and the cross-provider cascade are now fixed
 7. **Rotate the exposed Gemini key** (`AQ.Ab8RN6L...`) — pasted in chat + in logs.
 8. **Optional hardening:** scope the circuit breaker per-(provider,agent) so one
    agent's failures don't blanket-disable a provider for all 41.
+9. **Operations `422` (status-bar mislabel).** Mission Control polls
+   `/v1/operations/agents?mission_limit=0&assignment_limit=0&event_limit=0`, but the
+   gateway enforces `ge=50` on those params → `422` → the healthy runtime is shown
+   as "Runtime Shell" / offline. Fix the UI to send ≥50 (or omit the params), or
+   relax the gateway constraint to `ge=0`.
+10. **UI fallback preview `422`.** The chat page's `createBuilderPreview` fallback
+    returns `422` even though a direct `POST /v1/builder/preview` returns `200` —
+    body/validation mismatch in the `/api/gateway` proxy path. Low urgency now that
+    the PM primary path works, but a latent contract bug.
 
 ---
 
