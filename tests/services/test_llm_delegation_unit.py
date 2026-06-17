@@ -330,6 +330,10 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
     assert fallback["source"] == "fallback"
     assert fallback["target_languages"] == ["python"]
     assert fallback["intake_status"] == "ready"
+    # The deterministic fallback must self-identify as degraded so the UI/operator
+    # can tell the planning model never ran (without forcing a clarification pause).
+    assert fallback["degraded"] is True
+    assert fallback["degraded_reason"] == "llm_unavailable"
 
     normalized = llm_delegation._normalize_pm_feature_contract(
         {
@@ -866,6 +870,8 @@ def test_call_provider_routes_to_expected_backend(monkeypatch) -> None:
 
 
 def test_call_with_recommendation_uses_fallback_route(monkeypatch) -> None:
+    # Cross-provider fallback applies only when no provider is explicitly pinned.
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
     async def _call_provider(*, provider: str, model: str, prompt: str, call_context: str):
         _ = prompt, call_context
         if provider == "anthropic":
@@ -890,6 +896,38 @@ def test_call_with_recommendation_uses_fallback_route(monkeypatch) -> None:
     assert provider == "openai"
     assert model == "gpt-5.5"
     assert route == "fallback"
+
+
+def test_call_with_recommendation_skips_cross_provider_fallback_when_pinned(monkeypatch) -> None:
+    # When LLM_PROVIDER pins a provider, a primary failure must NOT cascade to a
+    # different fallback provider — this prevents doomed calls to a misconfigured
+    # secondary (e.g. gemini-mode -> OpenAI gpt-5.5) and the resulting breaker storm.
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    llm_delegation.reset_circuit_breakers()
+    calls: list[str] = []
+
+    async def _call_provider(*, provider: str, model: str, prompt: str, call_context: str):
+        _ = model, prompt, call_context
+        calls.append(provider)
+        return None  # primary (gemini) fails
+
+    monkeypatch.setattr(llm_delegation, "_call_provider", _call_provider)
+    parsed, provider, model, route = asyncio.run(
+        llm_delegation._call_with_recommendation(
+            recommendation={
+                "provider": "gemini",
+                "model": "gemini-3.5-flash",
+                "fallback_provider": "openai",
+                "fallback_model": "gpt-5.5",
+            },
+            prompt="prompt",
+            call_context="ctx",
+        )
+    )
+    assert parsed is None
+    assert route == "primary"
+    assert calls == ["gemini"]  # the OpenAI fallback must NOT be attempted
+    llm_delegation.reset_circuit_breakers()
 
 
 def test_call_with_recommendation_returns_primary_when_fallback_is_same(monkeypatch) -> None:
@@ -1372,6 +1410,8 @@ def test_circuit_breaker_success_resets_failure_counter() -> None:
 
 
 def test_circuit_breaker_skips_open_primary_and_uses_fallback(monkeypatch) -> None:
+    # Cross-provider fallback applies only when no provider is explicitly pinned.
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
     llm_delegation.reset_circuit_breakers()
     # Open the primary provider's circuit up front.
     for _ in range(llm_delegation.CIRCUIT_OPEN_THRESHOLD):
