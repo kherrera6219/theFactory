@@ -702,12 +702,12 @@ def start_lifecycle_task(app: FastAPI, mission_id: str) -> None:
 
 
 async def advance_mission_lifecycle(app: FastAPI, mission_id: str) -> None:
-    from . import storage
-    from .llm_delegation import current_mission_id, current_settings
     # current_vault_secrets is a ContextVar that lives in the config submodule and
     # is intentionally not re-exported from the package (providers.py reads it via
     # getattr and tolerates its absence). Import it from .config directly, matching
     # agent_integrations.py and routes/internal.py.
+    from . import storage
+    from .llm_delegation import current_mission_id, current_settings
     from .llm_delegation.config import current_vault_secrets
 
     settings: Settings = app.state.settings
