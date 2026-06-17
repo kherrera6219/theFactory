@@ -466,7 +466,11 @@ jobs:
           path: reports/release-manifest.json
           if-no-files-found: error
 
+      # Build-provenance attestation is unavailable for user-owned private
+      # repositories (GitHub returns "Feature not available..."). Skip it there
+      # and run it normally on public/org repos where the feature is supported.
       - name: Attest release manifest provenance
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: reports/release-manifest.json
@@ -475,6 +479,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          mkdir -p reports
+          if [ "${{ github.event.repository.private }}" = "true" ]; then
+            echo "Attestation provenance is unavailable for user-owned private repositories; verification skipped." \
+              | tee reports/attestation-verification.txt
+            exit 0
+          fi
           for attempt in 1 2 3 4 5 6; do
             if gh attestation verify reports/release-manifest.json \
               --repo "${{ github.repository }}" \
