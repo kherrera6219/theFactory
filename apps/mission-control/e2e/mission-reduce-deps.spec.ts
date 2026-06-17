@@ -153,6 +153,10 @@ test("mission-reduce-deps SBOM reduction and dependency classifications", async 
   await page.goto(`/missions/detail?id=${missionId}`);
   await expect(page.locator("body")).toBeVisible();
 
+  // Dependency Absorption lives in the Artifacts tab (Phase 2B tabbed layout);
+  // inactive tab panels are `hidden` and excluded from the accessibility tree.
+  await page.getByRole("tab", { name: "Artifacts" }).click();
+
   // Verify Dependency Absorption Header
   await expect(page.getByText("Dependency Absorption")).toBeVisible();
 

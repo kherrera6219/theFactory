@@ -146,5 +146,9 @@ test("mission-build-new-complete E2E flow", async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`/missions/detail\\?id=${missionId}`));
   await expect(page.getByText("Delivered")).toBeVisible();
   await expect(page.getByText("Smelt Stream Module")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Download Generated Code" }).first()).toBeVisible();
+
+  // The generated-code download link lives in the Artifacts tab (Phase 2B
+  // tabbed layout); inactive tab panels are `hidden` and not in the a11y tree.
+  await page.getByRole("tab", { name: "Artifacts" }).click();
+  await expect(page.getByRole("link", { name: "Download generated code" }).first()).toBeVisible();
 });

@@ -106,16 +106,23 @@ test("mission-runtime-qc Docker reports and stdout logs rendering", async ({ pag
   await page.goto(`/missions/detail?id=${missionId}`);
   await expect(page.locator("body")).toBeVisible();
 
+  // Runtime QC lives in the Artifacts tab (Phase 2B tabbed layout); panels in
+  // inactive tabs carry the `hidden` attribute and are excluded from the a11y tree.
+  await page.getByRole("tab", { name: "Artifacts" }).click();
+
   // Verify Runtime QC headers
   await expect(page.getByText("Runtime QC")).toBeVisible();
   
-  // Verify execution report fields
-  await expect(page.getByText("docker_sandbox")).toBeVisible();
-  await expect(page.locator("dd").filter({ hasText: "VERIFIED" }).first()).toBeVisible();
-  await expect(page.getByText("yes").first()).toBeVisible();
+  // Verify execution report fields. Scope to the Runtime QC panel: short tokens
+  // like "VERIFIED"/"yes" and the code-preview also occur in other (now hidden)
+  // tabs, so an unscoped .first() can resolve to a hidden element.
+  const runtimeQcPanel = page.getByLabel("Runtime QC");
+  await expect(runtimeQcPanel.getByText("docker_sandbox")).toBeVisible();
+  await expect(runtimeQcPanel.locator("dd").filter({ hasText: "VERIFIED" }).first()).toBeVisible();
+  await expect(runtimeQcPanel.getByText("yes").first()).toBeVisible();
 
   // Verify stdout log preview
-  await expect(page.locator("pre.code-preview")).toContainText("passed 12 tests in 2.11 seconds");
+  await expect(runtimeQcPanel.locator("pre.code-preview")).toContainText("passed 12 tests in 2.11 seconds");
 
   // Verify findings
   await expect(page.getByText("Zero critical CVEs in base image.")).toBeVisible();
