@@ -6,6 +6,30 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### PM/LLM Delegation Workflow Fixes (2026-06-17)
+
+#### Fixed
+- **PM agent / missions produced canned 1 KB stubs** — root-caused to a chain of
+  LLM-delegation defects, not the data plane:
+  - `LLM_PROVIDER=gemini` was overridden for OpenAI-pinned agent profiles whenever
+    an OpenAI key was present, forcing `gpt-5.5` → 400 → circuit breaker → fallback
+    (`4fdab0a`).
+  - `providers.py` ignored Mission Control vault keys (read a non-existent package
+    export); now reads `current_vault_secrets` from `.config` (`44f557f`).
+  - Gemini payload used `generationConfig.thinking_level`; corrected to
+    `generationConfig.thinkingConfig.thinkingLevel` (camelCase), the cause of the
+    final Gemini 400 (`b6d0848`).
+  - Delegation hardening (`664a5cd`): no cross-provider cascade when `LLM_PROVIDER`
+    is pinned (prevents the gpt-5.5 breaker storm); deterministic PM fallback now
+    flagged `degraded=True`; Gemini key sent via `x-goog-api-key` header (kept out
+    of URL logs) with 4xx bodies logged for diagnosis.
+- `.env` `LLM_PROVIDER` switched `openai` → `gemini`.
+
+#### Notes
+- Happy path (a `200` from Gemini with real output) is not yet observed green —
+  run a fresh mission to confirm. UI surfacing of degraded mode, a provider
+  preflight test, and app-driven provider/model selection remain (see CURRENT_TODO).
+
 ### Mission Control Vault Auth Self-Heal + Full CI Remediation (2026-06-16)
 
 #### Fixed

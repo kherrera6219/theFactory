@@ -1,13 +1,45 @@
 # Current TODO
 
-Document version: 2026.06.16-a
-Last updated: 2026-06-16
+Document version: 2026.06.17-a
+Last updated: 2026-06-17
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 This is the active TODO list for theFactory. Superseded sprint plans and
 historical backlogs live under `docs/archive/` and should not be treated as
 current work.
+
+---
+
+## Highest Priority — PM/LLM Workflow (2026-06-17)
+
+The PM agent + mission pipeline was producing canned 1 KB stubs. Routing, vault
+keys, the Gemini payload, and the cross-provider cascade are now fixed
+(`4fdab0a`, `44f557f`, `b6d0848`, `664a5cd`) and the orchestrator rebuilt. Remaining:
+
+1. **Confirm the happy path.** Run one fresh mission and verify a `200` from
+   `generativelanguage.googleapis.com` with `call_count > 0` and real multi-file
+   output (not the `degraded` fallback). This has NOT yet been observed green.
+2. **Surface degraded/fallback mode in the UI (review finding #1).** Backend now
+   emits `degraded=True` / `source:"fallback"` on the contract; add a Mission
+   Control banner (chat + feature-contract panel) so the operator can see when the
+   LLM didn't run instead of getting a stub that looks real. Highest UX leverage.
+3. **Provider preflight / "Test key" (finding #2).** Make the Settings "Configure"
+   action do a real 1-token call to the selected model and report the actual API
+   status, so a bad model/key/payload is caught at config time, not mission time.
+4. **App-driven provider + model selection (finding #4).** Provider and model
+   currently come from `.env` (`LLM_PROVIDER`) + hardcoded profiles, not the
+   Settings vault. Plumb the Settings selection through `metadata.vault` →
+   `current_vault_secrets` so the packaged Windows app needs no `.env`. (Keys
+   already flow; provider/model do not.)
+5. **Wire per-agent vault keys.** The vault stores 41 `AGENT-NN-…-API-KEY` slots,
+   but the mission proxy only reads a single `GEMINI-API-KEY` slot. Decide whether
+   per-agent keys should drive per-agent calls, or collapse to one provider key.
+6. **Review the other agents' workflows** (CEO, pod managers, specialists, audit,
+   delivery) — same delegation path; verify each produces real output once #1 is green.
+7. **Rotate the exposed Gemini key** (`AQ.Ab8RN6L...`) — pasted in chat + in logs.
+8. **Optional hardening:** scope the circuit breaker per-(provider,agent) so one
+   agent's failures don't blanket-disable a provider for all 41.
 
 ---
 
