@@ -64,7 +64,6 @@ from .config import (
     current_agent_id,
     current_mission_id,
     current_settings,
-    current_vault_secrets,
 )
 from .fallbacks import (
     _fallback_codegen,
@@ -188,7 +187,6 @@ __all__ = [
     "current_agent_id",
     "current_mission_id",
     "current_settings",
-    "current_vault_secrets",
     "generate_ceo_delegation",
     "generate_code_from_contract",
     "generate_integration_tests",
