@@ -6,6 +6,32 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Mission Control Vault Auth Self-Heal + Full CI Remediation (2026-06-16)
+
+#### Fixed
+- **Standalone Mission Control databases page "not authorized"** — the standalone
+  UI (port 3000) sent a stale `OPERATOR-API-KEY` from the host vault, which the
+  gateway rejected (401). Removed the stale vault slot and added a self-heal in the
+  Next.js gateway proxy (`api/gateway/[...path]/route.ts`): on a 401/403 from a
+  vault operator key it now retries with `INTERNAL_SERVICE_API_KEY`.
+- **CI green again** after a multi-layer cascade of pre-existing failures:
+  - Dependabot: `vite 8.0.10 → 8.0.16`, `tmp 0.2.6 → 0.2.7`.
+  - E2E: 4 Playwright specs updated for the Phase 2B tabbed mission-detail layout
+    (click the owning tab before asserting `hidden`-tab panels).
+  - Python: `runtime.py` imports `current_vault_secrets` from
+    `llm_delegation.config` (consistent with `agent_integrations.py` /
+    `routes/internal.py`), fixing 7 ImportErrors.
+  - Lint: ruff I001 import-block ordering in `runtime.py`.
+  - Coverage: new `_llm_recommendation_for_agent` branch test restores
+    `agent_integrations.py` to its 100% module threshold.
+  - Release Trust: build-provenance attestation skipped on private repos (the
+    feature is unavailable there) and run normally on public/org repos.
+
+#### Known
+- One remaining Dependabot medium alert (`js-yaml ≤4.1.1`) is dev-only transitive
+  via `@lhci/cli` and `@redocly/openapi-core`; deferred pending an `@lhci/cli`
+  release on js-yaml 4.x.
+
 ### Extended Data Stores Enabled by Default (2026-06-13)
 
 #### Changed
