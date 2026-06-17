@@ -354,9 +354,11 @@ async def _call_gemini(
     payload: dict[str, Any] = {"contents": [{"parts": gemini_parts}]}
     if system_prompt:
         payload["system_instruction"] = {"parts": [{"text": system_prompt}]}
-    # Gemini 3.5+ uses thinking_level enum (replaces integer thinking_budget).
+    # Gemini 3.x sets thinking via generationConfig.thinkingConfig.thinkingLevel
+    # (camelCase REST fields; valid levels: minimal | low | medium | high). The
+    # earlier flat snake_case "thinking_level" was rejected with HTTP 400.
     payload["generationConfig"] = {
-        "thinking_level": _GEMINI_THINKING_LEVEL,
+        "thinkingConfig": {"thinkingLevel": _GEMINI_THINKING_LEVEL},
     }
     response = await _pkg()._post_with_retry(
         f"{GEMINI_BASE_URL}/models/{model}:generateContent",
