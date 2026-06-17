@@ -17,7 +17,8 @@
     "test:perf": "node scripts/run-npm-exec-clean-env.mjs lhci autorun --config=./lighthouserc.json",
     "electron:dev": "npm run tokens:sync && cross-env ELECTRON_DEV=1 tsc --project electron/tsconfig.json && electron .",
     "electron:build": "node scripts/build-electron.mjs",
-    "electron:package": "npm run electron:build && electron-builder build --win --publish never"
+    "electron:package": "npm run electron:build && electron-builder build --win --publish never",
+    "postinstall": "patch-package"
   },
   "build": {
     "appId": "com.holygrail.mission-control",
@@ -62,6 +63,7 @@
   "overrides": {
     "basic-ftp": "6.0.1",
     "ip-address": "10.2.0",
+    "js-yaml": "4.2.0",
     "lodash": "4.18.1",
     "lodash-es": "4.18.1",
     "postcss": "8.5.14",
@@ -89,6 +91,7 @@
     "electron-builder": "^26.15.2",
     "jsdom": "29.1.1",
     "openapi-typescript": "^7.13.0",
+    "patch-package": "^8.0.1",
     "ts-node": "^10.9.2",
     "typescript": "6.0.2",
     "vitest": "4.1.8"

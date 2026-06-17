@@ -1,6 +1,9 @@
 FROM node:22-alpine3.20@sha256:2289fb1fba0f4633b08ec47b94a89c7e20b829fc5679f9b7b298eaa2f1ed8b7e AS deps
 WORKDIR /app
 COPY package.json package-lock.json* .npmrc ./
+# patches/ must be present before install so the postinstall patch-package step
+# can apply the @lhci/utils js-yaml 4.x (safeLoad -> load) patch inside the image.
+COPY patches ./patches
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 FROM node:22-alpine3.20@sha256:2289fb1fba0f4633b08ec47b94a89c7e20b829fc5679f9b7b298eaa2f1ed8b7e AS builder
