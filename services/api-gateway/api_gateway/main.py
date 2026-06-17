@@ -2011,10 +2011,11 @@ async def _proxy_post_internal(
     *,
     json_body: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
+    timeout: float = 4.0,
 ) -> Any:
     internal_key = _require_internal_service_api_key()
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
                 f"{ORCHESTRATOR_URL}{path}",
                 json=json_body,
@@ -2089,6 +2090,9 @@ async def create_pm_feature_contract(payload: dict[str, Any]) -> dict[str, Any]:
     return await _proxy_post_internal(
         "/internal/pm/feature-contract",
         json_body={**payload, "prompt": prompt},
+        # LLM-backed endpoint: the orchestrator calls Gemini (high thinking),
+        # which routinely exceeds the 4s default. Match/exceed the UI's 60s.
+        timeout=90.0,
     )
 
 
