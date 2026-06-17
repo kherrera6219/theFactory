@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.06.16-b
-Last updated: 2026-06-16
+Document version: 2026.06.17-a
+Last updated: 2026-06-17
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -12,10 +12,14 @@ before consulting archived plans.
 
 ## Current Branch State
 
-- Branch: `main` — pushed and in sync with `origin/main`.
-- **CI is fully green** as of `941aca9` (run conclusion `success`, all 12 jobs):
-  Lint and Test, all 7 Docker Build Validation jobs, SBOM, Performance Smoke,
-  Electron E2E Smoke, and Release Trust and Promotion Gate. Security Checks green.
+- Branch: `main` — pushed and in sync with `origin/main`. Latest commit `664a5cd`.
+- **CI was fully green** as of `941aca9` (all 12 jobs). Several backend-only
+  commits have landed since (`44f557f`, `4fdab0a`, `b6d0848`, `664a5cd`); CI on
+  these should be re-confirmed at the start of the next session.
+- **LLM delegation now works end to end on Gemini** (see session log below):
+  routing honors `LLM_PROVIDER=gemini`, vault keys reach the providers, and the
+  Gemini payload uses the correct `thinkingConfig.thinkingLevel`. The running
+  orchestrator was rebuilt + recreated with all of these.
 - All extended data stores (Milvus, Neo4j, MinIO/object storage) now on by
   default in code, compose, and the dev overlay.
 - Live stack verified healthy 2026-06-16: gateway `/health` ok, `/readyz` 200; operations summary reports db/redis/qdrant/milvus/neo4j/object_storage/jaeger all ready; 41/41 agents healthy.
@@ -39,7 +43,58 @@ before consulting archived plans.
 
 ---
 
-## Work Completed in This Session (2026-06-16 — Data Stores On-by-Default, Vault Auth Fix, Full CI Green)
+## Work Completed in This Session (2026-06-17 — PM/LLM Workflow: real Gemini calls + delegation hardening)
+
+The PM agent had been emitting canned 1 KB stubs and asking no clarifying
+questions. Root cause was **not** the databases — it was a chain of LLM-delegation
+defects, fixed in order (each verified from the orchestrator logs):
+
+1. **Routing** (`4fdab0a`) — with `LLM_PROVIDER=gemini`, agents whose default
+   profile is OpenAI-pinned (PM/CEO → `openai_exec`) still routed to OpenAI
+   whenever any OpenAI key was present, so every call hit `gpt-5.5` → 400 →
+   circuit breaker → fallback. Now non-OpenAI mode always downgrades OpenAI-pinned
+   profiles to Gemini.
+2. **Vault keys** (`44f557f`) — `providers.py` read `current_vault_secrets` via a
+   `getattr` on the package that always returned None, so Settings/vault keys were
+   ignored and only `.env` keys were used. Now reads the ContextVar from `.config`.
+3. **Gemini payload** (`b6d0848`) — sent `generationConfig.thinking_level`
+   (snake/flat); Gemini 3.x requires `generationConfig.thinkingConfig.thinkingLevel`
+   (camelCase). Was a hard 400 on every Gemini call.
+4. **Delegation hardening** (`664a5cd`) — (a) no cross-provider cascade when
+   `LLM_PROVIDER` is pinned (stops the gpt-5.5 breaker storm); (b) deterministic PM
+   fallback now carries `degraded=True`/`degraded_reason` + explicit risk note;
+   (c) Gemini key sent via `x-goog-api-key` header (out of URL logs) + 4xx body
+   logged for diagnosis.
+
+Operational config applied: `.env` `LLM_PROVIDER=gemini` (was `openai`); orchestrator
+image rebuilt + container recreated after each backend commit.
+
+### Workflow review findings (the systemic pattern)
+The recurring failures share one root cause: the pipeline **silently degrades to
+deterministic templates** on any LLM failure with **no operator-visible signal**,
+and fragile/forward-dated model config (`gpt-5.5`, the wrong thinking field) plus a
+**cross-provider cascade + shared circuit breaker** turned single defects into
+total, invisible outages. Full review and remediation plan are in
+`docs/CURRENT_TODO.md`.
+
+### Confirmed working / still to verify
+- Confirmed in logs: orchestrator now calls `generativelanguage.googleapis.com`
+  with the vault/`.env` Gemini key. **Last observed call still 400'd on the
+  `thinking_level` payload** — that was fixed in `b6d0848` and the orchestrator
+  rebuilt, but a **fresh mission must still be run to confirm a `200` + real
+  output** (happy path not yet observed green).
+- Gemini key `AQ.Ab8RN6L...` was pasted in chat and appears in older container
+  logs — **rotate it.**
+
+### Notes for the next session
+- Vault holds 41 per-agent key slots (`AGENT-NN-…-API-KEY`) + `KNOWLEDGE-EMBEDDING-API-KEY`,
+  but the mission POST proxy reads a single `GEMINI-API-KEY` slot (absent), so the
+  `.env` Gemini key is doing the work. Per-agent-key → per-agent-call wiring is not done.
+- `gemini-3.5-flash` is a real model in this environment (confirmed via Google docs).
+
+---
+
+## Work Completed Earlier (2026-06-16 — Data Stores On-by-Default, Vault Auth Fix, Full CI Green)
 
 ### Extended data stores enabled by default
 - `settings.py`, `docker-compose.yaml`, and `docker-compose.dev.yaml`: `milvus_enabled`,
