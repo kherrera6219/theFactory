@@ -1,6 +1,6 @@
 # Current Handoff
 
-Document version: 2026.06.16-a
+Document version: 2026.06.16-b
 Last updated: 2026-06-16
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -12,8 +12,12 @@ before consulting archived plans.
 
 ## Current Branch State
 
-- Branch: `main`
-- Unpushed local commits (newest first): `d743d4e` (redact Redis password from `/health`), `04e4fef` (standalone-UI gateway proxy 503 fix), `f726de4` (PM `assumptions` persistence). Push to origin pending operator approval.
+- Branch: `main` — pushed and in sync with `origin/main`.
+- **CI is fully green** as of `941aca9` (run conclusion `success`, all 12 jobs):
+  Lint and Test, all 7 Docker Build Validation jobs, SBOM, Performance Smoke,
+  Electron E2E Smoke, and Release Trust and Promotion Gate. Security Checks green.
+- All extended data stores (Milvus, Neo4j, MinIO/object storage) now on by
+  default in code, compose, and the dev overlay.
 - Live stack verified healthy 2026-06-16: gateway `/health` ok, `/readyz` 200; operations summary reports db/redis/qdrant/milvus/neo4j/object_storage/jaeger all ready; 41/41 agents healthy.
 - Current change set: EDCP-01 bus durability foundation, EDCP phase planning,
   PM clarification gating, richer PM planning artifacts, unlocked-local UX
@@ -35,7 +39,50 @@ before consulting archived plans.
 
 ---
 
-## Work Completed in This Session (2026-06-16 — Runtime Connectivity, PM Assumptions, Health Redaction)
+## Work Completed in This Session (2026-06-16 — Data Stores On-by-Default, Vault Auth Fix, Full CI Green)
+
+### Extended data stores enabled by default
+- `settings.py`, `docker-compose.yaml`, and `docker-compose.dev.yaml`: `milvus_enabled`,
+  `neo4j_enabled`, `object_storage_enabled` flipped `False → True` everywhere; removed
+  the dev overlay's hard `NEO4J_ENABLED=false`/`OBJECT_STORAGE_ENABLED=false` overrides.
+- Docs reconciled (README, SETTINGS_REFERENCE, DEVELOPER_ONBOARDING, ARCHITECTURE,
+  COMPOSE_ENVIRONMENT_PROFILES, IMPLEMENTATION_STATUS, DOCUMENTATION_INDEX).
+
+### Mission Control databases page "not authorized" — root caused and fixed
+- The databases page is healthy; the failure was the **standalone UI on :3000**
+  sending a **stale `OPERATOR-API-KEY`** from the host vault
+  (`~/.thefactory/vault.json`) which the gateway rejected (401 "invalid api key").
+  The Docker UI on :3100 worked because its vault volume was wiped by `down -v`.
+- Removed the stale vault slot (host-side, backup saved).
+- **Self-heal code fix** (`apps/mission-control/app/api/gateway/[...path]/route.ts`):
+  the proxy now retries with `INTERNAL_SERVICE_API_KEY` on a 401/403 from a stale
+  operator key, so this can't silently break the operations/databases views again.
+
+### Full CI remediation (was red for many commits; now green)
+- **Dependabot**: `vite 8.0.10 → 8.0.16`, `tmp 0.2.6 → 0.2.7` (cleared 3 alerts).
+- **E2E**: 4 specs updated to click the Phase 2B mission-detail tabs
+  (execution/artifacts/contracts/events) before asserting panels in inactive
+  (`hidden`) tabs.
+- **Python import**: `runtime.py` now imports `current_vault_secrets` from
+  `.llm_delegation.config` (matching the rest of the codebase) — fixed 7 ImportErrors.
+- **Lint**: import-block ordering (ruff I001).
+- **Coverage**: added `_llm_recommendation_for_agent` branch test to restore
+  `agent_integrations.py` to 100%.
+- **Release Trust**: build-provenance attestation now skipped on private repos
+  (feature unavailable) and run normally on public/org repos.
+
+### Known remaining items (not failures)
+- 1 Dependabot **medium** alert: `js-yaml ≤4.1.1`, dev-only transitive via
+  `@lhci/cli` (Lighthouse, pins js-yaml 3.x) and `@redocly/openapi-core`. Cannot be
+  force-upgraded without breaking the Performance Smoke step; resolve when `@lhci/cli`
+  adopts js-yaml 4.x. Does not affect the shipped app.
+- CodeQL/code scanning is not enabled (requires GHAS on private repos); several
+  actions still target the deprecated Node 20 runner (auto-forced to Node 24).
+  Both are non-blocking; deferred.
+
+---
+
+## Work Completed Earlier This Session (2026-06-16 — Runtime Connectivity, PM Assumptions, Health Redaction)
 
 ### Standalone UI "Runtime offline / databases not connected" — root caused and fixed
 
