@@ -682,8 +682,15 @@ test("mission lifecycle journey is covered from intake to live detail", async ({
   await expect(page).toHaveURL(/\/missions\/detail\?id=mission-e2e-\d+/);
   await expect(page.getByRole("heading", { name: /Mission mission-e2e-/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Mission Phase Stepper" })).toBeVisible();
+
+  // Phase 2B tabbed layout: Route Provenance + CEO Delegation live in the
+  // Contracts tab, and the Mission Event Log lives in the Events tab. Panels in
+  // inactive tabs are `hidden` and excluded from the accessibility tree.
+  await page.getByRole("tab", { name: "Contracts" }).click();
   await expect(page.getByRole("heading", { name: "Route Provenance" })).toBeVisible();
   await expect(page.getByText("CEO Delegation")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Events" }).click();
   await expect(page.getByRole("heading", { name: "Mission Event Log" })).toBeVisible();
 });
 
