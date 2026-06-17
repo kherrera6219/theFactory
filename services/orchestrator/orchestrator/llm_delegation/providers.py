@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import os
 import re
 import time
 from typing import Any
@@ -360,18 +361,26 @@ async def _call_gemini(
     payload["generationConfig"] = {
         "thinkingConfig": {"thinkingLevel": _GEMINI_THINKING_LEVEL},
     }
+    # Pass the API key via the x-goog-api-key header rather than a ?key= query
+    # param so it never lands in request-URL logs (httpx logs the full URL).
     response = await _pkg()._post_with_retry(
         f"{GEMINI_BASE_URL}/models/{model}:generateContent",
         json_payload=payload,
-        headers={"content-type": "application/json"},
+        headers={"content-type": "application/json", "x-goog-api-key": gemini_api_key},
         timeout=GEMINI_TIMEOUT_SECONDS,
         call_context=f"{call_context} gemini",
-        params={"key": gemini_api_key},
     )
     if response is None:
         return None
     if response.status_code >= 400:
-        LOGGER.warning("%s gemini status=%s", call_context, response.status_code)
+        # Include a truncated response body so misconfigured model/payload
+        # errors are diagnosable from the log without a separate live call.
+        _body = ""
+        try:
+            _body = response.text[:300]
+        except Exception:  # noqa: BLE001
+            _body = "<unreadable body>"
+        LOGGER.warning("%s gemini status=%s body=%s", call_context, response.status_code, _body)
         return None
     try:
         body = response.json()
@@ -541,6 +550,16 @@ async def _call_with_recommendation(
         return None, provider, model, "primary"
 
     if fallback_provider == provider and fallback_model == model:
+        return None, provider, model, "primary"
+
+    # Do not cascade to a different provider than the one the operator explicitly
+    # pinned via LLM_PROVIDER. Otherwise a primary failure routes to a secondary
+    # provider that may be misconfigured (e.g. gemini-mode cascading to OpenAI
+    # gpt-5.5), producing doomed calls that trip the shared circuit breaker and
+    # silently degrade every agent. When a provider is pinned, fail straight to
+    # the deterministic fallback instead.
+    explicit_provider = os.getenv("LLM_PROVIDER", "").strip().lower()
+    if explicit_provider and fallback_provider != explicit_provider:
         return None, provider, model, "primary"
 
     if is_circuit_open(fallback_provider):

@@ -114,11 +114,21 @@ def _fallback_pm_feature_contract(
         "estimated_complexity": "medium",
         "human_approval_required": str(mission_type).strip().upper()
         in {"IMPORT_MODERNIZE", "PORT", "DEBUG_REPAIR", "SECURITY_HARDEN"},
-        "risk_notes": ["Feature contract generated via deterministic fallback."],
+        # Carry the degraded state in risk_notes + an explicit degraded flag so the
+        # UI/operator can tell the planning model never ran — without forcing an
+        # ambiguity-pause (intake_status stays "ready" so mission-flow behavior is
+        # unchanged; surfacing is the UI's job via the `degraded` flag).
+        "risk_notes": [
+            "Planning model (LLM) was unavailable — this is a deterministic fallback "
+            "draft, not a scoped contract. Verify provider config (provider, model, "
+            "API key) and re-run for a full feature contract.",
+        ],
         "clarifying_questions": [],
         "assumptions": [],
         "intake_status": "ready",
         "source": "fallback",
+        "degraded": True,
+        "degraded_reason": "llm_unavailable",
         "model_provider": recommendation.get("provider"),
         "model": recommendation.get("model"),
         "created_at": datetime.now(UTC).isoformat(),
