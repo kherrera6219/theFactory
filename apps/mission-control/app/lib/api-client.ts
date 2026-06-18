@@ -5,6 +5,7 @@ import type {
   DataClassification,
   DepthMode,
   GatewayHealth,
+  MissionBuildArtifactRecord,
   MissionChainTrace,
   LiveStateStreamEvent,
   MissionEvent,
@@ -357,6 +358,18 @@ export async function getMissionEvents(missionId: string, limit: number): Promis
 
 export async function getMissionChainTrace(missionId: string): Promise<MissionChainTrace> {
   return fetchJson<MissionChainTrace>(missionApiUrl(`/v1/missions/${missionId}/chain-trace`), { method: "GET" });
+}
+
+export async function getMissionBuildArtifact(
+  missionId: string,
+  artifactId: string,
+): Promise<MissionBuildArtifactRecord> {
+  return fetchJson<MissionBuildArtifactRecord>(
+    missionApiUrl(
+      `/v1/missions/${encodeURIComponent(missionId)}/build-artifacts/${encodeURIComponent(artifactId)}`,
+    ),
+    { method: "GET" },
+  );
 }
 
 export async function createMission(payload: MissionCreatePayload): Promise<MissionRecord> {

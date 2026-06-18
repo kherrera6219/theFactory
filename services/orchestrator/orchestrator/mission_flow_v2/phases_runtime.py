@@ -238,6 +238,54 @@ async def _prepare_depabs_execution(
             LOGGER.warning("failed to package DEPABS artifact for %s: %s", mission.mission_id, exc)
     return updated or mission
 
+async def _persist_runtime_qc_skip(
+    *,
+    settings: Any,
+    mission: Any,
+    metadata: dict[str, Any],
+    reason: str,
+) -> tuple[Any, bool, dict[str, Any]]:
+    runtime_qc_report = {
+        "schema_version": "runtime_qc.v1",
+        "skipped": True,
+        "reason": reason,
+        "verdict": "SKIPPED",
+        "execution_type": "not_run",
+        "deployment_safe": None,
+        "source": "settings",
+    }
+    metadata["runtime_qc_report"] = runtime_qc_report
+    skip_event_exists = _chain_event_exists(metadata, "MISSION_RUNTIME_QC_SKIPPED")
+    if not skip_event_exists:
+        append_chain_event(
+            metadata,
+            event_type="MISSION_RUNTIME_QC_SKIPPED",
+            agent_id="AGENT-41-RQCA",
+            details={
+                "reason": reason,
+                "execution_type": runtime_qc_report["execution_type"],
+                "source": runtime_qc_report["source"],
+            },
+        )
+    updated = await asyncio.to_thread(
+        _pkg().storage.update_mission_metadata,
+        settings,
+        mission.mission_id,
+        metadata,
+    )
+    if not skip_event_exists:
+        try:
+            await asyncio.to_thread(
+                _pkg().storage.insert_mission_event,
+                settings,
+                mission.mission_id,
+                mission.state,
+                mission.state,
+                "MISSION_RUNTIME_QC_SKIPPED",
+            )
+        except Exception as exc:
+            LOGGER.warning("failed to persist runtime QC skip event for %s: %s", mission.mission_id, exc)
+    return updated or mission, True, runtime_qc_report
 
 async def _prepare_runtime_qc(
     *,
@@ -248,9 +296,19 @@ async def _prepare_runtime_qc(
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
     generated_output = metadata.get("generated_output")
     if not isinstance(generated_output, dict):
-        return mission, True, {"skipped": True, "reason": "no generated output"}
+        return await _persist_runtime_qc_skip(
+            settings=settings,
+            mission=mission,
+            metadata=metadata,
+            reason="no generated output",
+        )
     if not bool(getattr(settings, "testdata_agent_enabled", False)):
-        return mission, True, {"skipped": True, "reason": "TESTDATA disabled"}
+        return await _persist_runtime_qc_skip(
+            settings=settings,
+            mission=mission,
+            metadata=metadata,
+            reason="TESTDATA disabled",
+        )
     target_language = mission.requested_target_language or str(
         generated_output.get("language") or "python"
     )
@@ -295,13 +353,12 @@ async def _prepare_runtime_qc(
             )
 
     if not bool(getattr(settings, "rqca_agent_enabled", False)):
-        updated = await asyncio.to_thread(
-            _pkg().storage.update_mission_metadata,
-            settings,
-            mission.mission_id,
-            metadata,
+        return await _persist_runtime_qc_skip(
+            settings=settings,
+            mission=mission,
+            metadata=metadata,
+            reason="RQCA disabled",
         )
-        return updated or mission, True, {"skipped": True, "reason": "RQCA disabled"}
 
     execution = await run_runtime_qc(
         mission_id=mission.mission_id,

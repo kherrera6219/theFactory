@@ -112,7 +112,7 @@ PM intake
   → release handoff
 ```
 
-For the implemented lifecycle (Mission Flow v2 — 11-phase state machine) see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ARCHITECTURE_DATA_FLOWS.md`](docs/ARCHITECTURE_DATA_FLOWS.md).
+For the implemented lifecycle (Mission Flow v2 with optional clarification pause) see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/ARCHITECTURE_DATA_FLOWS.md`](docs/ARCHITECTURE_DATA_FLOWS.md), and [`docs/MISSION_FLOW_V2.md`](docs/MISSION_FLOW_V2.md).
 
 ---
 
@@ -123,9 +123,7 @@ For the implemented lifecycle (Mission Flow v2 — 11-phase state machine) see [
 Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 
 The list below describes implemented subsystems and intended product direction,
-not a claim that the application is production-ready. The current blocking proof
-is a fresh PM-chat mission that reaches `COMPLETE` with non-empty generated
-artifacts after the latest mission-launch fixes.
+not a claim that the application is production-ready. The latest local rebuild fixed misleading clarification state, Runtime QC skip visibility, and generated-artifact visibility. The current blocking proof is a fresh PM-chat mission that reaches `COMPLETE` with non-empty generated artifacts after restart.
 
 - **Multi-modal context ingestion** — native support for PDF, Word, MD, and PowerPoint indexing via IS-Agent
 - **Mission orchestration foundation** — intake, delegation, specialist processing, verification, and completion paths exist, but the PM chat to completed-delivery flow still needs fresh end-to-end proof
@@ -1008,16 +1006,16 @@ a fresh end-to-end run.
 | Observability | Core telemetry stack and runbooks exist for local/dev validation |
 | Testing & CI | Lint, unit tests, frontend tests, and build gates exist; live mission qualification is still required |
 | Data Systems | Core data-plane integration is present; live behavior still needs validation during full mission runs |
-| Mission Control UI | Operator UI exists, but PM chat launch and mission-detail behavior are still being actively tested and fixed |
+| Mission Control UI | Operator UI exists; latest rebuild improved mission-detail generated artifact and Runtime QC visibility, but fresh PM-chat launch proof is still required |
 | Language Extraction Engine | Regex and AST-backed extraction components exist; feature-flagged AST paths still need live qualification before production claims |
-| Mission Lifecycle | Mission Flow v2 is the default engine; a fresh PM-chat mission must still prove it can reach `COMPLETE` with non-empty generated artifacts |
+| Mission Lifecycle | Mission Flow v2 is the default engine; normal ready path now skips misleading `CLARIFYING`, but a fresh PM-chat mission must still prove it can reach `COMPLETE` with non-empty generated artifacts |
 | CEO to Pod Delegation Chain | Baseline wiring exists; load-bearing EDCP follow-up is deferred until the PM-to-delivery proof passes |
 | LLM API Call Wiring | Gemini PM calls have been proven at the API level, but provider/model Settings preflight and degraded/fallback UI are still open |
 
 **Current highest-priority issues:**
 - Restart the rebuilt app and run a fresh PM chat mission from `/chat`.
 - Confirm PM clarification responses do not expose a launchable contract.
-- Confirm explicit launch sends `user_intent: finalize_plan` and does not pause in `CLARIFYING` unless PM truly needs clarification.
+- Confirm explicit launch sends `user_intent: finalize_plan` and the normal ready path proceeds without `CLARIFYING`; PM clarification should appear only when PM truly needs scope clarification.
 - Add visible UI warnings when PM output is degraded/fallback instead of real LLM output.
 - Add a Settings provider/key/model preflight that performs a real tiny provider call.
 - Move provider/model selection fully into the app Settings/vault path instead of relying on `.env`/profile defaults.

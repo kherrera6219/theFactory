@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Panel } from '../../../../../components/panel';
-import { missionApiUrl } from '../../../../../lib/api-client';
+import { getMissionBuildArtifact, missionApiUrl } from '../../../../../lib/api-client';
 import { requestedLanguageFromPath } from '../../../../../lib/language';
 import type { MissionBuildArtifactRecord } from '../../../../../lib/types';
 import { copyToClipboard } from '../../../../../lib/clipboard';
@@ -20,38 +20,55 @@ function countLines(text: string): number {
   return text.split('\n').length;
 }
 
-/**
- * Artifacts tab summary card — shows a syntax-highlighted preview of the
- * generated code with copy-to-clipboard and a link to the full Output page.
- *
- * For the full-page viewer navigate to /missions/output?id={missionId}.
- */
 export function GeneratedOutputPanel({
   missionId,
   generatedCodeArtifact,
 }: GeneratedOutputPanelProps) {
   const [copied, setCopied] = useState(false);
+  const [artifactDetail, setArtifactDetail] = useState<MissionBuildArtifactRecord | null>(null);
+  const [artifactDetailError, setArtifactDetailError] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    setArtifactDetail(null);
+    setArtifactDetailError(null);
+    if (!generatedCodeArtifact || generatedCodeArtifact.artifact_text) return;
+
+    void getMissionBuildArtifact(missionId, generatedCodeArtifact.artifact_id)
+      .then((record) => {
+        if (!cancelled) setArtifactDetail(record);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setArtifactDetailError(error instanceof Error ? error.message : 'Unable to load artifact content.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [generatedCodeArtifact, missionId]);
+
+  const effectiveArtifact = artifactDetail ?? generatedCodeArtifact;
   const filename = String(
-    (generatedCodeArtifact?.manifest as { filename?: string } | undefined)?.filename ??
-      generatedCodeArtifact?.artifact_id ??
+    (effectiveArtifact?.manifest as { filename?: string } | undefined)?.filename ??
+      effectiveArtifact?.artifact_id ??
       'output',
   );
 
   const language = useMemo(() => {
-    const routingKey = (generatedCodeArtifact?.manifest as { language?: string } | undefined)
-      ?.language;
+    const routingKey = (effectiveArtifact?.manifest as { language?: string } | undefined)?.language;
     if (routingKey) return routingKey;
     return requestedLanguageFromPath(filename) ?? 'text';
-  }, [generatedCodeArtifact, filename]);
+  }, [effectiveArtifact, filename]);
 
-  const lineCount = generatedCodeArtifact?.artifact_text
-    ? countLines(generatedCodeArtifact.artifact_text)
+  const lineCount = effectiveArtifact?.artifact_text
+    ? countLines(effectiveArtifact.artifact_text)
     : null;
 
   async function handleCopy() {
-    if (!generatedCodeArtifact?.artifact_text) return;
-    const success = await copyToClipboard(generatedCodeArtifact.artifact_text);
+    if (!effectiveArtifact?.artifact_text) return;
+    const success = await copyToClipboard(effectiveArtifact.artifact_text);
     if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -60,14 +77,14 @@ export function GeneratedOutputPanel({
 
   const headerActions = (
     <div className="inline-actions">
-      {generatedCodeArtifact?.artifact_text && (
+      {effectiveArtifact?.artifact_text && (
         <button
           type="button"
           className="secondary-button"
           onClick={() => void handleCopy()}
           aria-label="Copy generated code to clipboard"
         >
-          {copied ? '✓ Copied' : 'Copy'}
+          {copied ? 'Copied' : 'Copy'}
         </button>
       )}
       {generatedCodeArtifact && (
@@ -85,7 +102,7 @@ export function GeneratedOutputPanel({
         href={`/missions/output?id=${encodeURIComponent(missionId)}`}
         className="primary-button shell-link-button"
       >
-        View Full Output →
+        View Full Output
       </Link>
     </div>
   );
@@ -93,38 +110,39 @@ export function GeneratedOutputPanel({
   return (
     <Panel title="Generated Output" actions={headerActions}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        {/* File System Path Card */}
-        <Link
-          href={`/missions/output?id=${encodeURIComponent(missionId)}`}
-          style={{
-            padding: '0.4rem 0.8rem',
-            background: 'var(--color-surface-offset)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '0.85em',
-            color: 'var(--color-text-muted)',
-            display: 'block',
-            textDecoration: 'none',
-            cursor: 'pointer',
-            transition: 'background 120ms, border-color 120ms',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--color-surface-offset-2, #2d3748)';
-            e.currentTarget.style.borderColor = '#4a5568';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'var(--color-surface-offset)';
-            e.currentTarget.style.borderColor = 'var(--color-border)';
-          }}
-        >
-          📁 Exported locally to: <code className="mono-id" style={{ color: 'var(--color-primary-light, #38bdf8)', textDecoration: 'underline' }}>output/{missionId}/</code> <span style={{ float: 'right', fontSize: '0.9em', color: 'var(--color-primary-light, #38bdf8)' }}>Review Artifacts →</span>
-        </Link>
-
         {!generatedCodeArtifact ? (
           <p className="muted" style={{ margin: '0.5rem 0 0' }}>No generated-code artifact recorded yet for this mission.</p>
         ) : (
           <>
-            {/* Toolbar */}
+            <div className="info-card">
+              <h3>Generated code artifact</h3>
+              <dl>
+                <div>
+                  <dt>Filename</dt>
+                  <dd>{filename}</dd>
+                </div>
+                <div>
+                  <dt>Storage</dt>
+                  <dd>{generatedCodeArtifact.storage_backend}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd>{generatedCodeArtifact.status}</dd>
+                </div>
+                <div>
+                  <dt>Digest</dt>
+                  <dd className="mono-id">{generatedCodeArtifact.digest_sha256 ?? 'n/a'}</dd>
+                </div>
+                <div>
+                  <dt>Size</dt>
+                  <dd>{generatedCodeArtifact.size_bytes.toLocaleString()} bytes</dd>
+                </div>
+              </dl>
+              <p className="muted" style={{ margin: 0 }}>
+                This is a persisted build artifact from the mission database, not a file written into the repository checkout.
+              </p>
+            </div>
+
             <div
               style={{
                 display: 'flex',
@@ -138,10 +156,7 @@ export function GeneratedOutputPanel({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <span
-                  className="mono-id"
-                  style={{ fontSize: '0.8em', color: 'var(--color-text-muted)' }}
-                >
+                <span className="mono-id" style={{ fontSize: '0.8em', color: 'var(--color-text-muted)' }}>
                   {filename}
                 </span>
                 {lineCount !== null && (
@@ -171,8 +186,7 @@ export function GeneratedOutputPanel({
               </span>
             </div>
 
-            {/* Code viewer */}
-            {generatedCodeArtifact.artifact_text ? (
+            {effectiveArtifact?.artifact_text ? (
               <SyntaxHighlighter
                 language={language}
                 style={vscDarkPlus}
@@ -193,7 +207,7 @@ export function GeneratedOutputPanel({
                   userSelect: 'none',
                 }}
               >
-                {generatedCodeArtifact.artifact_text}
+                {effectiveArtifact.artifact_text}
               </SyntaxHighlighter>
             ) : (
               <p
@@ -206,7 +220,7 @@ export function GeneratedOutputPanel({
                   borderRadius: '0 0 var(--radius-sm) var(--radius-sm)',
                 }}
               >
-                Artifact recorded — text content stored externally.
+                {artifactDetailError ?? 'Artifact recorded. Loading stored text content from the artifact detail endpoint.'}
               </p>
             )}
           </>

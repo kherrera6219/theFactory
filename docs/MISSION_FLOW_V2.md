@@ -1,7 +1,7 @@
 # Mission Flow v2 — Internals Reference
 
-Document version: 2026.06.13
-Last updated: 2026-06-13
+Document version: 2026.06.18
+Last updated: 2026-06-18
 
 **Version:** 2026.06.11  
 **Code package:** `services/orchestrator/orchestrator/mission_flow_v2/`  
@@ -9,6 +9,8 @@ Last updated: 2026-06-13
 **Audience:** Developers, Architects
 
 ---
+
+> **Current implementation note (2026-06-18):** the normal ready path does not emit `MISSION_CLARIFYING`. `MISSION_CLARIFYING` is now reserved for true high-ambiguity PM intake that pauses the mission for operator clarification. A ready mission proceeds `MISSION_PM_INTAKE -> MISSION_FETCH`.
 
 ## Overview
 
@@ -29,14 +31,15 @@ The package is split into seven focused modules:
 
 ---
 
-## The 11-Phase State Machine
+## The MissionFlow V2 State Machine
 
-Every mission transitions through 11 phases in order. A mission may pause at any phase awaiting external input (e.g., clarification from the operator) or be aborted by a guard failure. The state is persisted to PostgreSQL at every transition so restarts are safe.
+Ready missions follow the normal MissionFlow V2 path without a clarification hop. Missions pause in CLARIFYING only when PM intake flags true ambiguity; otherwise the persisted transition path proceeds from PM_INTAKE directly to FETCH.
 
-```
-INTAKE → CLARIFY → PLAN → DELEGATE → BUILD → VERIFY → AUDIT → ABSORB → RUNTIME → DELIVER → COMPLETE
-                                                                                         ↓
-                                                                                    FAILED (terminal)
+```text
+QUEUED -> PM_INTAKE -> FETCH -> CEO_DELEGATED -> POD_ASSIGNED -> SPECIALIST_ASSIGNED -> RUNNING -> GATING -> FUSION -> VERIFIED -> COMPLETE
+
+Optional pause: QUEUED -> CLARIFYING when PM intake flags high ambiguity.
+FAILED remains terminal from guard/error paths.
 ```
 
 ### Phase Summary
@@ -246,10 +249,10 @@ The only branching points are INTAKE (CLARIFY vs PLAN) and any phase to FAILED. 
 
 | Setting | Engine | Notes |
 |---|---|---|
-| `USE_LANGGRAPH_ENGINE=false` (default) | `mission_flow_v2/` | Deterministic, production-hardened, 11-phase state machine |
+| `USE_LANGGRAPH_ENGINE=false` (default) | `mission_flow_v2/` | Deterministic, production-hardened V2 state machine with optional clarification pause |
 | `USE_LANGGRAPH_ENGINE=true` | `langgraph_lifecycle.py` | Graph-based, supports non-linear flows, experimental for v1.2.0 |
 
-The LangGraph engine has feature parity with v2 for all 11 phases but has not yet completed the full QA cycle for production workloads. See `docs/LLM_DELEGATION.md` and `ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md` for the promotion timeline.
+The LangGraph engine targets feature parity with v2 but has not yet completed the full QA cycle for production workloads. See `docs/LLM_DELEGATION.md` and `ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md` for the promotion timeline.
 
 ---
 

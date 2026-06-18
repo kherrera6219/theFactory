@@ -1,6 +1,6 @@
 # Current Handoff
 
-Document version: 2026.06.18-c
+Document version: 2026.06.18-d
 Last updated: 2026-06-18
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -9,6 +9,31 @@ Use this file, `docs/CURRENT_TODO.md`, and `docs/IMPLEMENTATION_STATUS.md`
 before consulting archived plans.
 
 ---
+
+## Work Completed in This Session (2026-06-18 - MissionFlow V2 clarification, artifact, and Runtime QC visibility rebuild)
+
+The app was stopped by the operator, then the MissionFlow V2 and Mission Control fixes were implemented and rebuilt.
+
+**Backend lifecycle fixes:**
+- Normal ready-path MissionFlow V2 no longer emits the misleading `MISSION_CLARIFYING` transition. The standard path now moves `PM_INTAKE -> FETCH`; `CLARIFYING` remains available only when PM intake actually detects high ambiguity and pauses for operator clarification.
+- Runtime QC skipped states are now persisted in mission metadata as `runtime_qc_report` with `skipped: true`, `verdict: SKIPPED`, `execution_type: not_run`, and a concrete reason such as `TESTDATA disabled`, `RQCA disabled`, or `no generated output`.
+- A `MISSION_RUNTIME_QC_SKIPPED` chain/mission event is recorded once per mission when runtime QC is skipped, so a completed mission no longer appears to be missing runtime-QC evidence silently.
+
+**Mission Control fixes:**
+- Mission Detail now loads generated-code artifact details from `/v1/missions/{mission_id}/build-artifacts/{artifact_id}` when chain trace only includes artifact metadata.
+- The Generated Output panel now shows filename, storage backend, status, digest, and byte size, and explicitly states that generated code is persisted as a database-backed build artifact unless separately exported.
+- The Runtime QC panel now renders skipped QC as an explicit status with the skip reason instead of hiding the panel or implying QC is pending.
+
+**Validation completed:**
+- `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_runtime_unit.py -q`
+- `python -m ruff check services\orchestrator\orchestrator\mission_flow_v2\phases_runtime.py services\orchestrator\orchestrator\mission_flow_v2\transitions.py tests\services\test_mission_flow_v2.py tests\services\test_runtime_unit.py`
+- `npm --prefix apps\mission-control run lint`
+- `npm --prefix apps\mission-control run build`
+- `git diff --check`
+
+**Rebuild completed:** full-dedicated Docker image rebuild completed successfully for `orchestrator`, `api-gateway`, `mission-control`, pod workers, and all dedicated agents.
+
+**Current next step:** restart the app and run a fresh mission. Expected behavior: a ready PM contract should launch without the normal lifecycle showing `CLARIFYING`; if PM asks clarifying questions, launch should remain blocked until scope is clarified; completed missions should show generated code as a build artifact and Runtime QC should show either a real report or an explicit skipped reason.
 
 ## Work Completed in This Session (2026-06-18 — Live app audit and PM launch fix batch)
 
