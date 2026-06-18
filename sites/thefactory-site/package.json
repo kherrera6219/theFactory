@@ -33,8 +33,16 @@
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vinext": "0.0.50",
-    "vite": "8.0.13",
+    "vite": "8.0.16",
     "wrangler": "4.92.0"
   },
-  "type": "module"
+  "type": "module",
+  "overrides": {
+    "@babel/core": "7.29.6",
+    "esbuild": "0.28.1",
+    "js-yaml": "4.2.0",
+    "postcss": "8.5.10",
+    "undici": "7.28.0",
+    "ws": "8.21.0"
+  }
 }
