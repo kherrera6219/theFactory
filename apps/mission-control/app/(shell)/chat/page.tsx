@@ -171,6 +171,8 @@ function detectUserIntent(text: string): PmConversationContext["user_intent"] {
     normalized.includes("produce the plan") ||
     normalized.includes("finalize") ||
     normalized.includes("proceed") ||
+    normalized.includes("procced") ||
+    normalized.includes("procede") ||
     normalized.includes("use your best judgment") ||
     normalized.includes("figure out the rest") ||
     normalized.includes("firgure out the rest")
@@ -435,6 +437,12 @@ export default function ChatPage() {
     setMessages((current) => [...current, nextUserMessage]);
 
     try {
+      if (contract && detectUserIntent(normalized) === "finalize_plan") {
+        setInput("");
+        await confirmAndLaunch(contract);
+        return;
+      }
+
       const sourceCode = await readFilesAsText(files);
       const detected = detectLanguages(files);
       const conversationContext = buildPmConversationContext({
@@ -581,8 +589,9 @@ export default function ChatPage() {
     return parts.join("\n\n");
   }
 
-  async function confirmAndLaunch() {
-    if (!contract) {
+  async function confirmAndLaunch(contractOverride?: DisplayFeatureContract) {
+    const launchContract = contractOverride ?? contract;
+    if (!launchContract) {
       return;
     }
     setLaunching(true);
@@ -590,24 +599,24 @@ export default function ChatPage() {
     try {
       const sourceCode = await readFilesAsText(files);
       const requestedTargetLanguage = inferRequestedTargetLanguage({
-        prompt: contract.launchPrompt,
+        prompt: launchContract.launchPrompt,
         filePaths: files.map((file) => file.name),
       });
       const mission = await createMission({
-        prompt: contract.launchPrompt,
+        prompt: launchContract.launchPrompt,
         requested_target_language: requestedTargetLanguage,
         source_code: sourceCode || undefined,
           metadata: {
             source: "mission-control-chat",
             attached_files: files.map((item) => item.name),
             inferred_requested_target_language: requestedTargetLanguage,
-            conversation_context: contract.conversationContext,
-            user_intent: contract.userIntent,
+            conversation_context: launchContract.conversationContext,
+            user_intent: launchContract.userIntent,
             contract: {
-              title: contract.title,
-              languages: contract.languages,
-              scope: contract.scope,
-            estimated_duration: contract.estimatedDuration,
+              title: launchContract.title,
+              languages: launchContract.languages,
+              scope: launchContract.scope,
+            estimated_duration: launchContract.estimatedDuration,
           },
         },
       });
