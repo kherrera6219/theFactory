@@ -1,12 +1,69 @@
 # Current Handoff
 
-Document version: 2026.06.18-b
+Document version: 2026.06.18-c
 Last updated: 2026-06-18
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 Use this file, `docs/CURRENT_TODO.md`, and `docs/IMPLEMENTATION_STATUS.md`
 before consulting archived plans.
+
+---
+
+## Work Completed in This Session (2026-06-18 — Live app audit and PM launch fix batch)
+
+The restarted app was inspected live at `http://localhost:3000/chat` with a
+Playwright probe against the real local stack. Runtime baseline was healthy:
+`/api/gateway/health` and `/api/gateway/readyz` returned healthy, the mission list
+started with only `__knowledge_lake__`, and `/v1/operations/agents` showed 41/41
+agents idle with active backlog 0.
+
+**Live reproduction:** the probe submitted a fresh PM chat mission for an offline
+Python flashcard trainer. `/api/pm/feature-contract` returned a real Gemini
+contract (`source: llm`, `model_provider: gemini`, `model: gemini-3.5-flash`) but
+also returned `intake_status: needs_clarification` and clarifying questions. The
+UI still allowed **Confirm and Start**, creating
+`mission-62f236b6-84d7-497e-8e0a-33a58aff5023`; the mission then moved
+`QUEUED -> CLARIFYING` with `last_ambiguity_score=1.0`.
+
+**Root cause confirmed:** mission launch persisted `user_intent: draft` even
+after explicit confirmation, and the chat UI treated a PM clarification response
+as launchable. This is why a newly-created mission can still get stuck in
+`CLARIFYING` after the earlier truncation fixes.
+
+**Fix batch implemented locally:**
+- Mission Control chat no longer exposes a launchable Feature Contract when PM
+  returns clarifying questions.
+- Explicit launch now sends compact mission context and forces
+  `user_intent: finalize_plan`.
+- Chat history persists/restores the structured Feature Contract instead of only
+  message text.
+- API client now parses FastAPI 422 validation arrays into actionable messages,
+  including metadata-size failures.
+- API-client tests cover mission create idempotency and readable 422 validation
+  errors.
+
+**Validation completed:**
+- `npm --prefix apps\mission-control run lint`
+- `npm --prefix apps\mission-control test -- app/lib/api-client.test.ts`
+- `npm --prefix apps\mission-control run build`
+- `git diff --check`
+
+**Still required:** restart/rebuild the running Mission Control app to pick up
+the local source changes, then rerun the chat flow. A successful retest should
+show: PM clarification responses do not launch; `proceed with assumptions` or
+**Confirm and Start** sends `user_intent: finalize_plan`; fresh mission intake
+does not pause only because the operator explicitly confirmed launch.
+
+**Mission Control report reconciliation:** the attached UI report was checked
+against current code. The canonical sidebar routes are already correct
+(`/missions/history`, `/logicnodes`, `/repo`), but compatibility aliases were
+added for stale report paths (`/history`, `/logic-nodes`, `/repo-import`) so
+bookmarks/wireframe links land in the right shell routes. The global 404 now
+renders inside the Mission Control shell, the header action label is `View
+Missions` instead of the ambiguous `Mission Status`, and chat history rows now
+show a persisted last-message preview plus timestamp/message count with the
+duplicate header-level **New Chat** action removed.
 
 ---
 

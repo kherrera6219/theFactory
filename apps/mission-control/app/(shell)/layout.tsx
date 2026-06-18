@@ -53,7 +53,7 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
               Launch via Chat
             </Link>
             <Link href="/missions" className="secondary-button shell-link-button">
-              Mission Status
+              View Missions
             </Link>
           </div>
         </header>

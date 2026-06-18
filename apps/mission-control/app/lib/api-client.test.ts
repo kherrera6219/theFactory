@@ -3,6 +3,7 @@ import {
   ApiError,
   createBuilderPreview,
   createBuilderWorkspaceReview,
+  createMission,
   createPmFeatureContract,
   fetchJson,
   getGatewayReadyState,
@@ -215,6 +216,45 @@ describe("api-client", () => {
     });
   });
 
+  it("posts mission creation payloads with an idempotency key", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          mission_id: "mission-1",
+          prompt: "Build a reliable CLI.",
+          requested_target_language: "python",
+          metadata: { user_intent: "finalize_plan" },
+          project_id: "project-mission-control-chat",
+          state: "QUEUED",
+          created_at: "2026-06-18T00:00:00Z",
+        }),
+        {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+
+    await createMission({
+      prompt: "Build a reliable CLI.",
+      requested_target_language: "python",
+      metadata: { user_intent: "finalize_plan" },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/gateway/v1/missions",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": expect.stringMatching(/^mission-control-/) }),
+        body: JSON.stringify({
+          prompt: "Build a reliable CLI.",
+          requested_target_language: "python",
+          metadata: { user_intent: "finalize_plan" },
+        }),
+      }),
+    );
+  });
+
   it("maps 429 responses to friendly ApiError messages", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response("{}", {
@@ -288,6 +328,33 @@ describe("api-client", () => {
       ready: false,
       detail: "The orchestrator service is not reachable.",
     });
+  });
+
+  it("parses FastAPI 422 validation arrays into actionable ApiError fields", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          detail: [
+            {
+              type: "value_error",
+              loc: ["body", "metadata"],
+              msg: "Value error, metadata exceeds maximum allowed size of 4096 bytes",
+            },
+          ],
+        }),
+        { status: 422, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await expect(fetchJson("http://example.com/missions", { method: "POST" })).rejects.toEqual(
+      expect.objectContaining({
+        message:
+          "Validation failed: body.metadata: Value error, metadata exceeds maximum allowed size of 4096 bytes",
+        statusCode: 422,
+        errorCode: "REQUEST_VALIDATION_FAILED",
+        recoveryAction: "Review the highlighted request fields and retry.",
+      }),
+    );
   });
 
   it("returns a fallback readiness message on non-ApiError exceptions", async () => {

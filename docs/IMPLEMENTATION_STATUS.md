@@ -1,6 +1,6 @@
 # Implementation Status
 
-Document version: 2026.06.18-b
+Document version: 2026.06.18-c
 Last updated: 2026-06-18
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
@@ -68,13 +68,21 @@ Commits `4fdab0a`, `44f557f`, `b6d0848`, `664a5cd`, `1921ddc`, `525b930`,
 - `edb7846` attempts to map typed proceed-style confirmations, including
   `procced`, onto the existing Feature Contract launch path instead of sending a
   new PM/preview request. This is build-validated but not live-proven.
+- Mission Control UI report follow-up now preserves the shell on global 404,
+  adds compatibility aliases for stale `/history`, `/logic-nodes`, and
+  `/repo-import` links, clarifies the header action as `View Missions`, and adds
+  persisted preview/timestamp metadata to PM chat history rows.
 
 Current limitation: one pre-fix Iron Meridian mission is paused in `CLARIFYING`
 because the old launch path truncated the prompt at `Defeat c`. That mission is
-diagnostic evidence for the old bug, not a valid proof of the current fix. The
-latest live retest still failed before mission creation, so the next investigation
-must capture the exact launch HTTP request/response from Mission Control before
-another code assumption.
+diagnostic evidence for the old bug, not a valid proof of the current fix. A
+2026-06-18 live Playwright probe then proved mission creation itself works, but
+also proved the PM chat still allowed launch after `intake_status:
+needs_clarification` and persisted `user_intent: draft`; the fresh probe mission
+entered `CLARIFYING` with `last_ambiguity_score=1.0`. The active fix gates
+launch on PM clarifying questions, forces `finalize_plan` on explicit launch,
+compacts launch metadata, restores structured contracts from chat history, and
+surfaces FastAPI 422 validation details.
 
 ### Knowledge Lake hardening + multiagent audit fixes (2026-06-13, batch 2)
 
@@ -534,8 +542,9 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 
 | Check | Result |
 |---|---|
-| `npm --prefix apps\mission-control run build` | ✅ Clean after PM launch-context fix |
-| `npm --prefix apps\mission-control run lint` | ✅ TypeScript clean after PM launch-context fix |
+| `npm --prefix apps\mission-control run build` | ✅ Clean after PM launch clarification/intent fix |
+| `npm --prefix apps\mission-control run lint` | ✅ TypeScript clean after PM launch clarification/intent fix |
+| `npm --prefix apps\mission-control test -- app/lib/api-client.test.ts` | ✅ 24/24 passing after 422 parsing and mission-create coverage |
 | Docker image rebuild after app stop | ✅ `orchestrator`, `api-gateway`, and `mission-control` rebuilt; stack left stopped |
 | Focused PM/storage backend tests | ✅ `test_generate_pm_feature_contract_uses_context_and_finalize_intent` and `test_list_project_agent_action_events_casts_nullable_filters` pass |
 | Focused `ruff` over PM mission-flow/LLM delegation files | ✅ Clean |
@@ -601,9 +610,10 @@ and `docs/CURRENT_TODO.md` for active work.
 
 ### Production blockers
 
-1. **Mission Control launch proof**: restart the rebuilt local stack/app, verify
-   **Confirm and Start** and typed proceed-style confirmation create a mission
-   record, and capture the exact request/response if either path returns `422`.
+1. **Mission Control launch proof**: restart/rebuild the local app so the PM
+   launch clarification/intent fix is live, verify PM clarifying responses do not
+   expose a launch action, then verify **Confirm and Start** and typed
+   proceed-style confirmation create a mission with `user_intent=finalize_plan`.
 2. **Fresh Gemini live mission proof**: after launch works, submit a new
    long-brief BUILD_NEW mission and capture evidence that the PM handoff no
    longer truncates context and the mission reaches COMPLETE with non-empty

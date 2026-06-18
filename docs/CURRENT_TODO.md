@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.06.18-b
+Document version: 2026.06.18-c
 Last updated: 2026-06-18
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -57,12 +57,27 @@ Remaining:
    `model_provider: gemini`, `model: gemini-3.5-flash`, `degraded: None` — a real,
    prompt-specific feature contract, verified across three prompts against the
    rebuilt gateway.
-1a. **Fix and verify chat launch from an existing Feature Contract.** Start
-   Mission Control from the rebuilt app, create or load a contract, then verify
-   both **Confirm and Start** and typed proceed-style confirmation create a mission
-   record. If it still fails, capture the exact request/response from the browser
-   network panel or API route logs before making another frontend assumption.
-1b. **Run a fresh full mission after launch works.** Submit a new PM chat mission
+1a. **Fix and verify chat launch from an existing Feature Contract.** A live
+   Playwright probe on 2026-06-18 proved the rebuilt app can create a mission
+   record, but also exposed the real remaining launch bug: the PM preview can
+   return `intake_status: needs_clarification` while the UI still exposes a
+   launchable Feature Contract, and **Confirm and Start** persisted
+   `user_intent: draft`. Mission-flow v2 then correctly paused the fresh mission
+   in `CLARIFYING` with `last_ambiguity_score=1.0`. The active fix now gates
+   launch when PM asks clarifying questions, persists/restores structured chat
+   contracts, compacts mission-launch context, forces `user_intent:
+   finalize_plan` on explicit launch, and surfaces FastAPI 422 validation arrays
+   instead of "Request failed with status 422." Rebuild/restart Mission Control
+   and retest both **Confirm and Start** and typed proceed-style confirmation.
+1b. **UI report reconciliation before retest.** The 2026-06-18 Mission Control
+   report was reviewed against current code. Confirmed fixes now include
+   shell-rendered global 404, compatibility aliases for `/history`,
+   `/logic-nodes`, and `/repo-import`, clearer header action text (`View
+   Missions`), and more useful chat history rows with preview/timestamp. Several
+   report items were stale against current code: canonical nav routes, database
+   status colors, notification badge, project empty/loading states, and audit
+   skeleton loading were already implemented or no longer matched the code.
+1c. **Run a fresh full mission after launch works.** Submit a new PM chat mission
    with a long brief and verify the mission does not pause only because of prompt
    truncation. Required proof before EDCP-02+: one full **end-to-end mission to
    COMPLETE** with non-empty generated code/artifacts, not just the PM intake call.

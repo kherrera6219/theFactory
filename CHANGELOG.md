@@ -6,6 +6,33 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### PM Launch Gate and Mission Control Report Fixes (2026-06-18)
+
+#### Fixed
+- **PM clarification responses could still be launched** — Mission Control now
+  withholds the launchable Feature Contract when the PM route returns clarifying
+  questions, preventing an operator from confirming a mission that PM already
+  marked as not ready.
+- **Confirmed launches still looked like drafts to mission intake** — explicit
+  Feature Contract launch now compacts the PM conversation context and persists
+  `user_intent: finalize_plan`, `launch_confirmed_at`, and
+  `launch_source: feature-contract-confirmation` in mission metadata.
+- **FastAPI validation failures surfaced as opaque 422s** — the Mission Control
+  API client now converts FastAPI validation arrays into actionable messages and
+  tests cover mission creation idempotency plus readable 422 errors.
+- **Mission Control report findings** — the global 404 now renders inside the
+  Mission Control shell; stale `/history`, `/logic-nodes`, and `/repo-import`
+  paths redirect to the canonical shell routes; the header action now says `View
+  Missions`; PM chat history rows now include persisted preview/timestamp
+  metadata.
+
+#### Validation
+- `npm --prefix apps\mission-control run lint`
+- `npm --prefix apps\mission-control test -- app/api/gateway/[...path]/route.test.ts app/lib/api-client.test.ts`
+- `npm --prefix apps\mission-control run build`
+- `git diff --check`
+- Docker image rebuilt: `deploy-mission-control:latest`
+
 ### PM Chat Launch Confirmation Attempt (2026-06-18)
 
 #### Changed
