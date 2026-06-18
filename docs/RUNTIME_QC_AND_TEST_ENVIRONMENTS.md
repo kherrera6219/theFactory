@@ -1,7 +1,7 @@
 # Runtime QC and Ephemeral Test Environments
 
-Document version: 2026.04.25
-Last updated: 2026-04-25
+Document version: 2026.06.18
+Last updated: 2026-06-18
 Status: Canonical (Forward-Looking — Phases 9 and 10)
 Audience: Operators, mission designers, agent developers, security reviewers
 
@@ -20,6 +20,12 @@ This document describes how theFactory provisions disposable runtime environment
 - [Production Replacement Plan](#production-replacement-plan)
 
 ---
+
+## Current Implementation Status (2026-06-18)
+
+Runtime QC is integrated into MissionFlow V2 completion checks, but TESTDATA and RQCA remain disabled by default in local settings (`TESTDATA_AGENT_ENABLED=false`, `RQCA_AGENT_ENABLED=false`). When runtime QC is skipped, the orchestrator now persists a visible `runtime_qc_report` with `skipped: true`, `verdict: SKIPPED`, `execution_type: not_run`, and a reason such as `TESTDATA disabled`, `RQCA disabled`, or `no generated output`. It also records `MISSION_RUNTIME_QC_SKIPPED` once so Mission Detail and event history show that QC was intentionally skipped instead of silently missing.
+
+Enabling full Runtime QC remains a follow-up decision for standard BUILD_NEW missions. Until then, completed missions should show either a real Runtime QC report or an explicit skipped reason.
 
 ## Doctrine
 

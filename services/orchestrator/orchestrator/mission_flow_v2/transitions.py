@@ -4,8 +4,7 @@ from ..models import MissionState
 
 V2_TRANSITIONS: tuple[tuple[MissionState, MissionState, str], ...] = (
     (MissionState.queued, MissionState.pm_intake, "MISSION_PM_INTAKE"),
-    (MissionState.pm_intake, MissionState.clarifying, "MISSION_CLARIFYING"),
-    (MissionState.clarifying, MissionState.fetch, "MISSION_FETCH"),
+    (MissionState.pm_intake, MissionState.fetch, "MISSION_FETCH"),
     (MissionState.fetch, MissionState.ceo_delegated, "MISSION_CEO_DELEGATED"),
     (
         MissionState.ceo_delegated,

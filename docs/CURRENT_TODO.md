@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.06.18-c
+Document version: 2026.06.18-d
 Last updated: 2026-06-18
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -10,6 +10,31 @@ historical backlogs live under `docs/archive/` and should not be treated as
 current work.
 
 ---
+
+## Latest Status - Rebuilt MissionFlow V2 Fix Batch (2026-06-18)
+
+The app has been stopped, patched, validated, and rebuilt. Do not treat the previous rebuild item as pending.
+
+Completed in the latest batch:
+- Normal MissionFlow V2 ready path no longer emits `MISSION_CLARIFYING`; ready missions now proceed `PM_INTAKE -> FETCH`. Clarification remains a real paused state only for high-ambiguity PM intake.
+- Runtime QC skips are persisted as `runtime_qc_report` and `MISSION_RUNTIME_QC_SKIPPED`, with the reason visible in Mission Detail.
+- Mission Detail generated output now fetches artifact detail text and clearly labels generated code as a database-backed build artifact, not a repo checkout file.
+- Full-dedicated Docker images were rebuilt successfully after the final backend change.
+
+Validation passed:
+- `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_runtime_unit.py -q`
+- `python -m ruff check ...`
+- `npm --prefix apps\mission-control run lint`
+- `npm --prefix apps\mission-control run build`
+- `git diff --check`
+
+Next active verification:
+1. Restart the app.
+2. Run a fresh PM chat mission from `/chat`.
+3. Confirm a ready contract does not show the normal lifecycle as `CLARIFYING`.
+4. Confirm generated code is visible/downloadable from Mission Detail artifacts.
+5. Confirm Runtime QC shows either a real report or an explicit skipped reason.
+6. After this proof, decide whether to enable TESTDATA/RQCA by default for standard BUILD_NEW missions or keep them visible-but-skipped until the runtime-QC environment work is complete.
 
 ## Highest Priority — PM/LLM Workflow (2026-06-18)
 

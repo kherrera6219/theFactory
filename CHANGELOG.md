@@ -6,6 +6,22 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### MissionFlow V2 Clarification and Artifact Visibility Rebuild (2026-06-18)
+
+#### Fixed
+- Normal ready-path MissionFlow V2 no longer emits `MISSION_CLARIFYING`; ready missions now proceed directly from `PM_INTAKE` to `MISSION_FETCH`.
+- Runtime QC skipped paths now persist `runtime_qc_report` plus `MISSION_RUNTIME_QC_SKIPPED`, making disabled TESTDATA/RQCA behavior visible in mission detail and event history.
+- Mission Detail generated-output panel now fetches build artifact detail records, displays filename/storage/status/size/digest, and clarifies that generated code is database-backed unless explicitly exported.
+- Runtime QC panel now displays skipped QC with the configured reason.
+
+#### Validation
+- `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_runtime_unit.py -q`
+- `python -m ruff check ...`
+- `npm --prefix apps\mission-control run lint`
+- `npm --prefix apps\mission-control run build`
+- `git diff --check`
+- Full-dedicated Docker images rebuilt for orchestrator, API gateway, Mission Control, pod workers, and dedicated agents.
+
 ### Public README Development Status Correction (2026-06-18)
 
 #### Changed

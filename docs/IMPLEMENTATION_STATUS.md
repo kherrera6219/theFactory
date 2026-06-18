@@ -1,6 +1,6 @@
 # Implementation Status
 
-Document version: 2026.06.18-c
+Document version: 2026.06.18-d
 Last updated: 2026-06-18
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
@@ -12,6 +12,17 @@ checklists remain useful records but some no longer describe the current default
 runtime exactly. When they conflict with this document, this document wins.
 
 ---
+
+### MissionFlow V2 clarification and artifact visibility rebuild (2026-06-18)
+
+Latest local rebuild status: patched, validated, and full-dedicated Docker images rebuilt successfully.
+
+- MissionFlow V2 ready-path transitions were corrected so normal missions no longer pass through `MISSION_CLARIFYING`. The clarification state remains available for true high-ambiguity PM intake.
+- Runtime QC disabled/skipped paths now persist a visible `runtime_qc_report` and `MISSION_RUNTIME_QC_SKIPPED` event instead of returning an invisible skip tuple.
+- Mission Detail now fetches generated-code artifact details and displays database-backed artifact metadata, including filename, storage backend, status, digest, and byte size.
+- Runtime QC UI now shows skipped status and reason instead of hiding missing QC evidence.
+
+Qualification status: focused backend tests, Ruff, Mission Control TypeScript lint, Mission Control production build, and `git diff --check` passed. The next product proof is still a fresh mission after restart.
 
 ## Project Status
 

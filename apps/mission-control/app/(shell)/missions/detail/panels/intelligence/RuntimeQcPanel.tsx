@@ -10,10 +10,13 @@ interface QcAssessment {
 }
 
 interface RuntimeQcReport {
-  verdict: string;
-  execution_type: string;
+  verdict?: string;
+  execution_type?: string;
   stdout_preview?: string | null;
   qc_assessment?: QcAssessment | null;
+  skipped?: boolean;
+  reason?: string | null;
+  deployment_safe?: boolean | null;
 }
 
 interface TestDataManifest {
@@ -33,26 +36,34 @@ interface RuntimeQcPanelProps {
 export function RuntimeQcPanel({ runtimeQcReport, testdataManifest }: RuntimeQcPanelProps) {
   if (!runtimeQcReport && !testdataManifest) return null;
 
+  const skipped = Boolean(runtimeQcReport?.skipped);
+  const deploymentSafe = runtimeQcReport?.qc_assessment?.deployment_safe ?? runtimeQcReport?.deployment_safe;
+
   return (
     <Panel title="Runtime QC">
       {runtimeQcReport && (
         <>
+          {skipped && (
+            <p className="warning-box" style={{ marginTop: 0 }}>
+              Runtime QC was skipped: {runtimeQcReport.reason ?? 'not configured for this mission'}.
+            </p>
+          )}
           <dl>
             <div>
               <dt>Execution</dt>
-              <dd>{runtimeQcReport.verdict}</dd>
+              <dd>{runtimeQcReport.verdict ?? (skipped ? 'SKIPPED' : 'pending')}</dd>
             </div>
             <div>
               <dt>QC verdict</dt>
-              <dd>{runtimeQcReport.qc_assessment?.qc_verdict ?? 'pending'}</dd>
+              <dd>{runtimeQcReport.qc_assessment?.qc_verdict ?? (skipped ? 'not run' : 'pending')}</dd>
             </div>
             <div>
               <dt>Execution type</dt>
-              <dd>{runtimeQcReport.execution_type}</dd>
+              <dd>{runtimeQcReport.execution_type ?? (skipped ? 'not_run' : 'pending')}</dd>
             </div>
             <div>
               <dt>Deployment safe</dt>
-              <dd>{runtimeQcReport.qc_assessment?.deployment_safe ? 'yes' : 'no'}</dd>
+              <dd>{deploymentSafe === null || deploymentSafe === undefined ? 'not assessed' : deploymentSafe ? 'yes' : 'no'}</dd>
             </div>
           </dl>
           {runtimeQcReport.stdout_preview && (

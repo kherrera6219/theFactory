@@ -154,7 +154,7 @@ def test_run_fetch_phase_skips_global_refresh_when_hash_is_current(monkeypatch) 
 
 class TestV2Transitions:
     def test_has_10_transitions(self) -> None:
-        assert len(V2_TRANSITIONS) == 11
+        assert len(V2_TRANSITIONS) == 10
 
     def test_starts_from_queued(self) -> None:
         assert V2_TRANSITIONS[0][0] == MissionState.queued
@@ -935,7 +935,7 @@ class TestAdvanceMissionLifecycleV2:
                     completion_check_fn=completion_fn,
                 )
 
-        assert len(state["transitions"]) == 11
+        assert len(state["transitions"]) == 10
         assert state["transitions"][0] == (
             "QUEUED", "PM_INTAKE", "MISSION_PM_INTAKE"
         )
@@ -946,11 +946,10 @@ class TestAdvanceMissionLifecycleV2:
         prepare_fn.assert_not_awaited()
         # completion_fn called once (for verified->complete)
         completion_fn.assert_awaited_once()
-        assert emit_fn.await_count == 13
+        assert emit_fn.await_count == 12
         emitted_events = [call.kwargs["event_type"] for call in emit_fn.await_args_list]
-        assert emitted_events[:5] == [
+        assert emitted_events[:4] == [
             "MISSION_PM_INTAKE",
-            "MISSION_CLARIFYING",
             "MISSION_FETCH",
             "MISSION_CEO_DELEGATED",
             "MISSION_POD_MANAGER_ASSIGNED",
@@ -1150,8 +1149,8 @@ class TestAdvanceMissionLifecycleV2:
                 )
 
         # Lifecycle halts before the verified→complete transition fires;
-        # all 10 prior transitions (incl. CLARIFYING) are recorded.
-        assert len(state["transitions"]) == 10
+        # all 9 prior normal-path transitions are recorded.
+        assert len(state["transitions"]) == 9
         assert "MISSION_COMPLETION_BLOCKED" in mission.metadata["last_chain_event_type"]
         prepare_fn.assert_not_awaited()
 
@@ -1362,7 +1361,7 @@ async def test_scaling_emits_partition_events_and_waits_for_results() -> None:
                 completion_check_fn=completion_fn,
             )
 
-    assert len(state["transitions"]) == 7
+    assert len(state["transitions"]) == 6
     emitted_events = [call.kwargs["event_type"] for call in emit_fn.await_args_list]
     assert "MISSION_RUNNING" in emitted_events
     assert "MISSION_GATING" not in emitted_events
