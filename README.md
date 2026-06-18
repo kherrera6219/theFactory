@@ -9,14 +9,24 @@
 [![CI](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml)
 [![Coverage Gate](https://img.shields.io/badge/coverage%20gate-80%25%2B-blue)](docs/TESTING_QUALITY_GATES.md)
-[![Audit](https://img.shields.io/badge/production%20audit-22%2F22%20checks%20passing-brightgreen)](scripts/production_review_audit.py)
+[![Audit](https://img.shields.io/badge/repo%20audit-22%2F22%20checks%20passing-blue)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 </div>
 
-> **Version:** 1.2.0 · **Last updated:** 2026-06-13 · **Status:** Canonical
+> **Version:** 1.2.0 · **Last updated:** 2026-06-18 · **Status:** Active development, not production-ready
+
+> **Development status:** theFactory is still under active local development. The
+> repository contains substantial architecture, services, tests, and Mission
+> Control UI work, but the full PM-to-delivery mission path is not yet proven as
+> production-ready. Current work is focused on PM agent clarification behavior,
+> mission launch handoff, provider/key preflight, degraded/fallback visibility,
+> and one fresh end-to-end mission that reaches `COMPLETE` with non-empty
+> generated artifacts. See [Current Status](#current-status),
+> [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md), and
+> [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md).
 
 ---
 
@@ -48,9 +58,9 @@
 
 ## What theFactory Is
 
-theFactory is a **local-first, event-driven AI software factory**. It accepts natural-language missions and delivers working software through a fully governed orchestration pipeline staffed by task-activated specialist agents.
+theFactory is a **local-first, event-driven AI software factory in active development**. It is designed to accept natural-language missions and deliver working software through a governed orchestration pipeline staffed by task-activated specialist agents.
 
-It is **not** a code-completion tool, a chat-to-code assistant, or a single-prompt generator. It is a complete software production system that produces requirements, architecture, code, tests, runtime environments, runtime validation, and audit-ready evidence as part of every mission it runs.
+It is **not** a code-completion tool, a chat-to-code assistant, or a single-prompt generator. The goal is a complete software production system that produces requirements, architecture, code, tests, runtime environments, runtime validation, and audit-ready evidence as part of each mission. That goal is not yet fully live-proven end to end; current development is still validating the PM agent, LLM routing, mission launch handoff, and delivery pipeline.
 
 Read more in [`docs/00_PRODUCT_OVERVIEW.md`](docs/00_PRODUCT_OVERVIEW.md) and [`docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md`](docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md).
 
@@ -61,7 +71,7 @@ Read more in [`docs/00_PRODUCT_OVERVIEW.md`](docs/00_PRODUCT_OVERVIEW.md) and [`
 3. **Dependencies are liabilities until proven necessary.** See [`docs/DEPENDENCY_ABSORPTION_DOCTRINE.md`](docs/DEPENDENCY_ABSORPTION_DOCTRINE.md).
 4. **Smart coding.** Generate only what the application actually needs.
 5. **Workspaces are isolated by default.** The factory never modifies the source directly.
-6. **Nothing ships without evidence.** Every mission produces a verifiable audit trail.
+6. **Nothing ships without evidence.** The production target is that every completed mission produces a verifiable audit trail.
 7. **Sensitive code stays local.** See [`docs/SENSITIVE_CODE_HANDLING_POLICY.md`](docs/SENSITIVE_CODE_HANDLING_POLICY.md).
 
 ---
@@ -75,13 +85,13 @@ Read more in [`docs/00_PRODUCT_OVERVIEW.md`](docs/00_PRODUCT_OVERVIEW.md) and [`
 | Often adds dependencies quickly | Eliminates dependencies unless necessary |
 | Preview-first | Requirements, architecture, tests, runtime QC |
 | Weak traceability | Mission events, artifacts, audit evidence |
-| Demo-focused | Production-readiness focused |
+| Demo-focused | Production-readiness target |
 | Runs on your machine | Operates in isolated, disposable workspaces |
 | No audit trail | Full chain-of-custody evidence bundle |
 | Trust the LLM | Verify with tests and runtime QC |
 | Ship the dependency tree | Shrink the dependency tree |
 
-Both approaches have their place. theFactory is built for the work that vibe coding cannot ship to production.
+Both approaches have their place. theFactory is being built for the heavier software-production work that simple prompt-to-code workflows cannot reliably ship by themselves.
 
 ---
 
@@ -112,14 +122,20 @@ For the implemented lifecycle (Mission Flow v2 — 11-phase state machine) see [
 
 Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 
-- **Multi-modal context ingestion** — native support for PDF, Word, MD, and PowerPoint indexing via IS-Agent\n- **End-to-end mission orchestration** — intake, delegation, specialist processing, verification, and completion
+The list below describes implemented subsystems and intended product direction,
+not a claim that the application is production-ready. The current blocking proof
+is a fresh PM-chat mission that reaches `COMPLETE` with non-empty generated
+artifacts after the latest mission-launch fixes.
+
+- **Multi-modal context ingestion** — native support for PDF, Word, MD, and PowerPoint indexing via IS-Agent
+- **Mission orchestration foundation** — intake, delegation, specialist processing, verification, and completion paths exist, but the PM chat to completed-delivery flow still needs fresh end-to-end proof
 - **Protocol bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
 - **41-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
-- **Language-aware code analysis** — regex-first extraction engine for 20 routed language keys across 4 pod groups; Python, JavaScript/TypeScript, and Java each have full AST-backed structural extractors (feature-flagged, production-ready)
+- **Language-aware code analysis** — regex-first extraction engine for 20 routed language keys across 4 pod groups; Python, JavaScript/TypeScript, and Java each have AST-backed structural extractors behind feature flags
 - **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
 - **Durable review and artifact flow** — builder/repo approvals persist through the orchestrator and source-bundle missions store a verified build/package artifact before completion
-- **Full production observability** — Prometheus, Grafana, Loki, Jaeger OTLP, Alertmanager
-- **Enterprise-grade security** — dual-mode auth (API key + JWT/OIDC), shared-or-strict service key isolation, SAST/SCA/secret scanning in CI
+- **Observability stack** — Prometheus, Grafana, Loki, Jaeger OTLP, Alertmanager wiring is present for local/dev validation
+- **Security baseline** — dual-mode auth (API key + JWT/OIDC), shared-or-strict service key isolation, SAST/SCA/secret scanning in CI; production host controls and key rotation remain active work
 - **Docs-as-code baseline** — canonical architecture, operator, developer, API, archive, and repository-map documentation lives under `docs/`
 
 ---
@@ -291,7 +307,7 @@ Lifecycle engine behavior in the shipped defaults:
 
 ## Language Extraction Engine
 
-Pod workers run a regex-first static-analysis extraction engine that detects computational concepts in source code before LogicNode creation. Three languages also have full AST-backed structural extractors (all production-ready, feature-flagged off by default pending live demo confirmation):
+Pod workers run a regex-first static-analysis extraction engine that detects computational concepts in source code before LogicNode creation. Three languages also have AST-backed structural extractors behind feature flags and still require live qualification before production claims:
 - **Python** (`PYTHON_AST_EXTRACTOR_ENABLED=true`) — uses stdlib `ast` module; zero false positives for structural fields; regex still runs for concept detection.
 - **JavaScript/TypeScript** (`JS_AST_EXTRACTOR_ENABLED=true`) — uses `esprima`; strips TS syntax before parsing; preserves regex fallback.
 - **Java** (`JAVA_AST_EXTRACTOR_ENABLED=true`) — uses `javalang`; extracts packages, imports, classes, constructors, methods, annotations; preserves regex fallback.
@@ -638,7 +654,7 @@ make test
 # Lint
 make lint
 
-# Run production audit (current baseline passes 22/22)
+# Run repo audit checks (current baseline passes 22/22)
 make audit
 
 # Debug sweep
@@ -979,26 +995,34 @@ theFactory/
 
 ## Current Status
 
-**The repo-local application and documentation are materially aligned. Main-branch CI now validates lint, tests, builds, SBOM generation, release-manifest attestation, and signing evidence; strict promotion remains release-tag gated and still requires fresh live qualification evidence from the operator runbook. Remaining release blockers are out-of-band governance, production-environment, and legal/policy actions rather than missing repository implementation.**
+**theFactory is still in development.** The repository has a large implemented
+baseline and many checks are passing, but the public README should not be read as
+a production-readiness claim. The current active work is validating the PM agent,
+LLM routing, Mission Control launch behavior, and the full mission lifecycle with
+a fresh end-to-end run.
 
-| Domain | Status |
-|--------|--------|
-| Infrastructure & DevOps | ✅ Repo-local implementation baseline complete; production-host enforcement remains out-of-band |
-| Security & Auth | ✅ Fail-closed repo-local baseline; key-history scrub and host-policy enforcement remain |
-| Observability | ✅ Core telemetry stack, docs, and runbooks are in place |
-| Testing & CI | ✅ Backend pytest, frontend unit tests, Playwright, AI eval gate, docs validation, SBOM, and release-trust evidence are in place |
-| Data Systems | ✅ Core path complete; current-source docs now match shipped readiness |
-| Mission Control UI | ✅ Real operator UI with grounded builder, repo-review, chat launch, LogicNode, project, alert, performance, and artifact views |
-| Language Extraction Engine | ✅ 20 routed language keys across 4 pods; 19 specialist implementations (all fully concrete, including Go, Haskell, OCaml) |
-| Mission Lifecycle | ✅ v2 lifecycle is the shipped default, mission creation is synchronous/read-after-write, and source-bundle artifact gating is enforced |
-| CEO→Pod Delegation Chain | ✅ Complete baseline |
-| LLM API Call Wiring | ✅ Complete baseline with provider-aware routing and fallback |
+| Domain | Current state |
+|--------|---------------|
+| Infrastructure & DevOps | Local Docker/runtime baseline exists; production-host controls, branch protection, and release governance still need final enforcement |
+| Security & Auth | Repo-local auth and scanning baseline exists; exposed provider keys must be rotated and host-policy enforcement remains |
+| Observability | Core telemetry stack and runbooks exist for local/dev validation |
+| Testing & CI | Lint, unit tests, frontend tests, and build gates exist; live mission qualification is still required |
+| Data Systems | Core data-plane integration is present; live behavior still needs validation during full mission runs |
+| Mission Control UI | Operator UI exists, but PM chat launch and mission-detail behavior are still being actively tested and fixed |
+| Language Extraction Engine | Regex and AST-backed extraction components exist; feature-flagged AST paths still need live qualification before production claims |
+| Mission Lifecycle | Mission Flow v2 is the default engine; a fresh PM-chat mission must still prove it can reach `COMPLETE` with non-empty generated artifacts |
+| CEO to Pod Delegation Chain | Baseline wiring exists; load-bearing EDCP follow-up is deferred until the PM-to-delivery proof passes |
+| LLM API Call Wiring | Gemini PM calls have been proven at the API level, but provider/model Settings preflight and degraded/fallback UI are still open |
 
-**Remaining out-of-band completion work:**
-- Scrub previously committed key material from git history and rotate affected secrets or certificates
-- Enforce branch protection, secret scanning, and attestation verification in the repository host
-- Produce production-environment DR evidence and retention operations in the target deployment
-- Approve legal and policy documents before external publication
+**Current highest-priority issues:**
+- Restart the rebuilt app and run a fresh PM chat mission from `/chat`.
+- Confirm PM clarification responses do not expose a launchable contract.
+- Confirm explicit launch sends `user_intent: finalize_plan` and does not pause in `CLARIFYING` unless PM truly needs clarification.
+- Add visible UI warnings when PM output is degraded/fallback instead of real LLM output.
+- Add a Settings provider/key/model preflight that performs a real tiny provider call.
+- Move provider/model selection fully into the app Settings/vault path instead of relying on `.env`/profile defaults.
+- Run one full mission to `COMPLETE` with non-empty generated code/artifacts before describing the app as production-ready.
+- Rotate exposed provider keys before any public or shared deployment.
 
 ---
 

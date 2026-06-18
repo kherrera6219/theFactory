@@ -6,6 +6,19 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Public README Development Status Correction (2026-06-18)
+
+#### Changed
+- Updated the public README to state that theFactory is still in active
+  development and is not production-ready.
+- Replaced production-readiness language with the current application status:
+  PM/LLM routing is partially proven, but the PM chat to completed mission path
+  still needs a fresh end-to-end run to `COMPLETE` with non-empty generated
+  artifacts.
+- Added the current highest-priority issues directly to the README so public
+  readers see the active blockers before interpreting architecture sections as
+  release claims.
+
 ### PM Launch Gate and Mission Control Report Fixes (2026-06-18)
 
 #### Fixed
