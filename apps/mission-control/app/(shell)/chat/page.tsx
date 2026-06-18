@@ -27,6 +27,8 @@ type DisplayFeatureContract = {
   estimatedDuration: string;
   launchPrompt: string;
   source?: string;
+  conversationContext?: PmConversationContext;
+  userIntent?: PmConversationContext["user_intent"];
 };
 
 type PmConversationContext = {
@@ -246,6 +248,19 @@ function buildPmConversationContext(params: {
   };
 }
 
+function buildFullLaunchPrompt(messages: ChatMessage[], nextUserMessage: ChatMessage): string {
+  const combinedMessages = [...messages, nextUserMessage].filter(
+    (message) => message.id !== "welcome" && message.role === "user",
+  );
+  return (
+    combinedMessages
+      .map((message) => sanitizeUserText(message.text))
+      .filter(Boolean)
+      .join("\n\n")
+      .slice(-20000) || sanitizeUserText(nextUserMessage.text)
+  );
+}
+
 /** Derive a short title from the first user message. */
 function deriveTitle(msgs: ChatMessage[]): string {
   const first = msgs.find((m) => m.role === "user");
@@ -428,12 +443,7 @@ export default function ChatPage() {
         contract,
         files,
       });
-      const launchPrompt =
-        conversationContext.transcript
-          .filter((message) => message.role === "user")
-          .map((message) => message.text)
-          .join("\n\n")
-          .slice(-8000) || normalized;
+      const launchPrompt = buildFullLaunchPrompt(messages, nextUserMessage);
       let acknowledgement = "Request received. I have prepared a feature contract.";
       let generatedContract: DisplayFeatureContract;
       let pmPreviewError: unknown = null;
@@ -482,6 +492,8 @@ export default function ChatPage() {
           estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
           launchPrompt,
           source: pmPreview.source,
+          conversationContext,
+          userIntent: conversationContext.user_intent,
         };
       } catch (contractError) {
         pmPreviewError = contractError;
@@ -513,6 +525,8 @@ export default function ChatPage() {
           estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
           launchPrompt,
           source: "local-fallback",
+          conversationContext,
+          userIntent: conversationContext.user_intent,
         };
       }
 
@@ -583,14 +597,16 @@ export default function ChatPage() {
         prompt: contract.launchPrompt,
         requested_target_language: requestedTargetLanguage,
         source_code: sourceCode || undefined,
-        metadata: {
-          source: "mission-control-chat",
-          attached_files: files.map((item) => item.name),
-          inferred_requested_target_language: requestedTargetLanguage,
-          contract: {
-            title: contract.title,
-            languages: contract.languages,
-            scope: contract.scope,
+          metadata: {
+            source: "mission-control-chat",
+            attached_files: files.map((item) => item.name),
+            inferred_requested_target_language: requestedTargetLanguage,
+            conversation_context: contract.conversationContext,
+            user_intent: contract.userIntent,
+            contract: {
+              title: contract.title,
+              languages: contract.languages,
+              scope: contract.scope,
             estimated_duration: contract.estimatedDuration,
           },
         },
