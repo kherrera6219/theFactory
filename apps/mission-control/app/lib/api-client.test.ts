@@ -188,6 +188,33 @@ describe("api-client", () => {
     expect(body.requestedTargetLanguage).toBeUndefined();
   });
 
+  it("preserves PM conversation context fields", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ feature_contract: { title: "Snake RPG" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await createPmFeatureContract({
+      prompt: "create the plan now",
+      user_intent: "finalize_plan",
+      conversation_context: {
+        transcript: [{ role: "user", text: "Use Python and Pygame CE.", ts: "2026-06-18T00:00:00Z" }],
+        decision_memory: ["Target platform: Windows desktop"],
+      },
+    });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body).toMatchObject({
+      prompt: "create the plan now",
+      user_intent: "finalize_plan",
+      conversation_context: {
+        decision_memory: ["Target platform: Windows desktop"],
+      },
+    });
+  });
+
   it("maps 429 responses to friendly ApiError messages", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response("{}", {

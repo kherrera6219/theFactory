@@ -375,6 +375,8 @@ async def create_pm_feature_contract(
             depth_mode=depth_mode,
             output_mode=output_mode,
             requested_target_language=requested_target_language,
+            conversation_context=payload.get("conversation_context"),
+            user_intent=str(payload.get("user_intent") or "").strip() or None,
         )
     finally:
         current_vault_secrets.reset(token_vault)

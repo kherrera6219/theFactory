@@ -388,6 +388,24 @@ def test_prune_audit_tables_defaults_to_settings_and_clamps(monkeypatch) -> None
     assert used[0].executed[0][1] == (90,)
 
 
+def test_list_project_agent_action_events_casts_nullable_filters(monkeypatch) -> None:
+    cursor = FakeCursor(fetchall_results=[[]])
+    used = _patch_db(monkeypatch, [cursor])
+
+    results = storage.list_project_agent_action_events(
+        _settings(),
+        "project-1",
+        200,
+    )
+
+    assert results == []
+    query, params = used[0].executed[0]
+    assert "%s::text IS NULL OR mission_id = %s" in query
+    assert "%s::text IS NULL OR agent_id = %s" in query
+    assert "%s::text IS NULL OR tool_name = %s" in query
+    assert params == ("project-1", None, None, None, None, None, None, 200)
+
+
 def test_pod_assignment_success_and_conflict(monkeypatch) -> None:
     now = datetime(2026, 3, 1, tzinfo=UTC)
     success_row = ("mission-1", "podA", {"reason": "match"}, now, now)

@@ -592,9 +592,9 @@ def list_project_agent_action_events(
             created_at
         FROM agent_action_events
         WHERE project_id = %s
-          AND (%s IS NULL OR mission_id = %s)
-          AND (%s IS NULL OR agent_id = %s)
-          AND (%s IS NULL OR tool_name = %s)
+          AND (%s::text IS NULL OR mission_id = %s)
+          AND (%s::text IS NULL OR agent_id = %s)
+          AND (%s::text IS NULL OR tool_name = %s)
         ORDER BY created_at DESC, event_id DESC
         LIMIT %s
     """
