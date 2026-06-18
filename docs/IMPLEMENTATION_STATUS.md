@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.06.14-a
-Last updated: 2026-06-14
+Document version: 2026.06.18-a
+Last updated: 2026-06-18
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -15,8 +15,8 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ## Project Status
 
-**Version: v1.2.0** (current baseline with Gemini-first model routing update,
-2026-06-13).
+**Version: v1.2.0** (current baseline with Gemini-first model routing and
+PM/mission launch-context hardening, 2026-06-18).
 
 As of 2026-06-13, Phases 1–27 are complete. The platform has a full Smelt-Cycle
 pipeline (INTAKE → FETCH → SMELT → GATING → FUSION → SQUEEZE → DELIVERY), a 41-agent
@@ -25,8 +25,10 @@ review audit, 97 offline eval and unit tests, and a 23-spec Playwright E2E suite
 history is clean of private keys. Disaster recovery RTO is 37.13s.
 
 **Current active phase:** Gemini-first operator validation, followed by EDCP-02
-PM-to-CEO handoff work. EDCP-01 foundation is complete. The next required step
-is running the local stack with a real Gemini key and confirming a BUILD_NEW
+PM-to-CEO handoff work. EDCP-01 foundation is complete. PM feature-contract calls
+are proven at the API level against Gemini, and the Mission Control chat/launch
+handoff now preserves long operator briefs plus PM conversation context. The next
+required step is restarting the updated app and confirming a fresh BUILD_NEW
 mission reaches COMPLETE with non-empty `generated_code`. Do not start
 load-bearing EDCP control-plane inversion until that proof passes.
 
@@ -37,6 +39,33 @@ fresh live Gemini provider-key demo.
 ---
 
 ## What Is Implemented
+
+### PM/LLM workflow and mission launch hardening (2026-06-17 to 2026-06-18)
+
+Commits `4fdab0a`, `44f557f`, `b6d0848`, `664a5cd`, `1921ddc`, `525b930`,
+`37f0779`:
+
+- Agent routing now honors `LLM_PROVIDER=gemini` even for OpenAI-pinned persona
+  profiles; provider calls no longer silently cascade across providers when a
+  provider is explicitly pinned.
+- Mission Control vault keys are read from the active LLM delegation context, and
+  Gemini requests use `generationConfig.thinkingConfig.thinkingLevel`.
+- Deterministic PM fallback contracts are marked degraded so UI work can surface
+  fallback mode explicitly.
+- API Gateway waits up to 90 seconds for `/internal/pm/feature-contract`, matching
+  the real Gemini latency observed locally instead of returning a false
+  "orchestrator unavailable" after 4 seconds.
+- PM chat sends compact conversation context, decision memory, working contract,
+  attachment labels, and finalize intent into PM contract generation.
+- Mission launch now sends full user-authored brief/history text with a larger cap
+  and carries `conversation_context` plus `user_intent` into mission-flow v2 intake.
+- Mission Control operations polling now satisfies the gateway's minimum limit
+  constraints, removing the `422` status-bar/runtime-label false negative.
+
+Current limitation: one pre-fix Iron Meridian mission is paused in `CLARIFYING`
+because the old launch path truncated the prompt at `Defeat c`. That mission is
+diagnostic evidence for the old bug, not a valid proof of the current fix. A fresh
+post-restart mission is required for end-to-end validation.
 
 ### Knowledge Lake hardening + multiagent audit fixes (2026-06-13, batch 2)
 
@@ -492,10 +521,15 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 
 ---
 
-## Validation Snapshot (as of 2026-06-13, batch 2)
+## Validation Snapshot (as of 2026-06-18)
 
 | Check | Result |
 |---|---|
+| `npm --prefix apps\mission-control run build` | ✅ Clean after PM launch-context fix |
+| `npm --prefix apps\mission-control run lint` | ✅ TypeScript clean after PM launch-context fix |
+| Focused PM/storage backend tests | ✅ `test_generate_pm_feature_contract_uses_context_and_finalize_intent` and `test_list_project_agent_action_events_casts_nullable_filters` pass |
+| Focused `ruff` over PM mission-flow/LLM delegation files | ✅ Clean |
+| `git diff --check` | ✅ Clean |
 | `python -m ruff check services tests scripts` | ✅ Clean |
 | `python -m pytest -q` (full suite, excl. `test_agent_base_unit.py`) | ✅ Green — 58 new tests pass |
 | `python -m pytest tests/eval/ -q` (97 eval tests) | ✅ 97 passing in 1.65s |
@@ -557,9 +591,10 @@ and `docs/CURRENT_TODO.md` for active work.
 
 ### Production blockers
 
-1. **Fresh Gemini live mission proof**: run the local stack with a real
-   `GEMINI_API_KEY`, submit a BUILD_NEW mission, and capture evidence that the
-   mission reaches COMPLETE with non-empty LLM-generated output.
+1. **Fresh Gemini live mission proof**: restart the updated local stack/app,
+   submit a new long-brief BUILD_NEW mission, and capture evidence that the PM
+   handoff no longer truncates context and the mission reaches COMPLETE with
+   non-empty LLM-generated output.
 2. **CI green after production-gate hardening**: confirm the post-`867d3ec`
    GitHub Actions run completes with all production-critical gates running and
    passing.

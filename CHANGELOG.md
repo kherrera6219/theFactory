@@ -6,6 +6,28 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### PM Chat Context and Mission Launch Handoff (2026-06-18)
+
+#### Fixed
+- **PM chat had useful context, but mission launch lost it** — Mission Control
+  now sends compact PM conversation context, decision memory, working contract,
+  attachment labels, and finalize intent into PM feature-contract generation
+  (`525b930`).
+- **Long mission briefs were truncated before mission intake** — mission launch
+  now builds the launch prompt from full user-authored messages with a larger cap
+  and stores `conversation_context` plus `user_intent` in mission metadata.
+  Mission-flow v2 intake forwards those fields to PM contract generation
+  (`37f0779`).
+- **Operations status false negative** — Mission Control operations callers now
+  use gateway-accepted minimum limits instead of `0`, removing the `422` that
+  mislabeled a healthy runtime as offline (`525b930`).
+
+#### Notes
+- The live Iron Meridian mission
+  `mission-c228332b-4f4e-4941-8e52-eb7494627045` paused in `CLARIFYING` because
+  the pre-fix prompt was truncated at `Defeat c`. Use a fresh mission after
+  restart to verify the new launch path.
+
 ### PM/LLM Delegation Workflow Fixes (2026-06-17)
 
 #### Fixed
@@ -26,9 +48,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `.env` `LLM_PROVIDER` switched `openai` → `gemini`.
 
 #### Notes
-- Happy path (a `200` from Gemini with real output) is not yet observed green —
-  run a fresh mission to confirm. UI surfacing of degraded mode, a provider
-  preflight test, and app-driven provider/model selection remain (see CURRENT_TODO).
+- PM feature-contract API happy path is now observed green (`source: llm`,
+  `model_provider: gemini`, `model: gemini-3.5-flash`). A fresh full mission to
+  COMPLETE is still required before EDCP-02+. UI surfacing of degraded mode, a
+  provider preflight test, and app-driven provider/model selection remain (see
+  CURRENT_TODO).
 
 ### Mission Control Vault Auth Self-Heal + Full CI Remediation (2026-06-16)
 
