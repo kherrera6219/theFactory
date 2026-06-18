@@ -1386,6 +1386,17 @@ dd {
   text-overflow: ellipsis;
 }
 
+.chat-history-item-preview {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-muted);
+  font-size: var(--text-xs, 0.6875rem);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .chat-history-item-meta {
   display: block;
   font-size: var(--text-xs, 0.6875rem);

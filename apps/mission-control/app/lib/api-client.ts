@@ -138,6 +138,39 @@ function _extractFactoryUserPayload(detail: unknown): ParsedError | null {
   return null;
 }
 
+function _extractFastApiValidationErrors(detail: unknown): ParsedError | null {
+  if (!Array.isArray(detail)) {
+    return null;
+  }
+
+  const messages = detail
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return "";
+      }
+      const candidate = item as { loc?: unknown; msg?: unknown };
+      const path = Array.isArray(candidate.loc)
+        ? candidate.loc.map((part) => String(part)).join(".")
+        : "";
+      const msg = typeof candidate.msg === "string" ? candidate.msg.trim() : "";
+      if (!msg) {
+        return "";
+      }
+      return path ? `${path}: ${msg}` : msg;
+    })
+    .filter(Boolean);
+
+  if (messages.length === 0) {
+    return null;
+  }
+
+  return {
+    message: `Validation failed: ${messages.slice(0, 4).join("; ")}`,
+    errorCode: "REQUEST_VALIDATION_FAILED",
+    recoveryAction: "Review the highlighted request fields and retry.",
+  };
+}
+
 async function parseError(response: Response): Promise<ParsedError> {
   try {
     const payload = (await response.json()) as ErrorResponseBody;
@@ -146,6 +179,10 @@ async function parseError(response: Response): Promise<ParsedError> {
       _extractFactoryUserPayload(payload.detail) ?? _extractFactoryUserPayload(payload);
     if (structured) {
       return structured;
+    }
+    const validation = _extractFastApiValidationErrors(payload.detail);
+    if (validation) {
+      return validation;
     }
     if (typeof payload.detail === "string" && payload.detail.trim().length > 0) {
       return normalizeApiErrorMessage(payload.detail);

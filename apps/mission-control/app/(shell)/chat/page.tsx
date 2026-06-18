@@ -54,7 +54,9 @@ type ChatSession = {
   title: string;
   savedAt: string;
   messageCount: number;
+  lastPreview?: string;
   messages: ChatMessage[];
+  contract?: DisplayFeatureContract | null;
 };
 function isBinaryFile(file: File): boolean {
   const binaryExtensions = [
@@ -263,6 +265,38 @@ function buildFullLaunchPrompt(messages: ChatMessage[], nextUserMessage: ChatMes
   );
 }
 
+function compactLaunchConversationContext(
+  context: PmConversationContext | undefined,
+  contract: DisplayFeatureContract,
+): PmConversationContext {
+  const transcript = (context?.transcript ?? []).slice(-6).map((message) => ({
+    role: message.role,
+    text: sanitizeUserText(message.text).slice(0, 600),
+    ts: message.ts,
+  }));
+  const decisionMemory = (context?.decision_memory ?? [])
+    .slice(-12)
+    .map((item) => sanitizeUserText(item).slice(0, 180))
+    .filter(Boolean);
+  const attachedFiles = (context?.attached_files ?? [])
+    .slice(0, 20)
+    .map((item) => sanitizeUserText(item).slice(0, 120))
+    .filter(Boolean);
+
+  return {
+    transcript,
+    decision_memory: decisionMemory,
+    working_contract: {
+      title: contract.title.slice(0, 160),
+      languages: contract.languages.slice(0, 160),
+      scope: contract.scope.slice(0, 800),
+      source: contract.source,
+    },
+    attached_files: attachedFiles,
+    user_intent: "finalize_plan",
+  };
+}
+
 /** Derive a short title from the first user message. */
 function deriveTitle(msgs: ChatMessage[]): string {
   const first = msgs.find((m) => m.role === "user");
@@ -271,14 +305,28 @@ function deriveTitle(msgs: ChatMessage[]): string {
   return text.length < first.text.length ? `${text}…` : text;
 }
 
+function derivePreview(msgs: ChatMessage[]): string | undefined {
+  const last = [...msgs].reverse().find((m) => m.id !== "welcome" && m.text.trim());
+  if (!last) return undefined;
+  const prefix = last.role === "pm" ? "PM: " : "You: ";
+  const preview = `${prefix}${last.text.replace(/\s+/g, " ").trim()}`;
+  return preview.length > 84 ? `${preview.slice(0, 81)}...` : preview;
+}
+
 /** Build a persisted session snapshot from the current message list. */
-function buildSession(messages: ChatMessage[], id: string): ChatSession {
+function buildSession(
+  messages: ChatMessage[],
+  id: string,
+  contract: DisplayFeatureContract | null,
+): ChatSession {
   return {
     id,
     title: deriveTitle(messages),
     savedAt: new Date().toISOString(),
     messageCount: messages.length,
+    lastPreview: derivePreview(messages),
     messages,
+    contract,
   };
 }
 
@@ -346,7 +394,7 @@ export default function ChatPage() {
     if (!messages.some((message) => message.role === "user")) return;
 
     const id = activeSessionId ?? makeId("session");
-    const session = buildSession(messages, id);
+    const session = buildSession(messages, id, contract);
 
     setSessions((current) => {
       const updated = [session, ...current.filter((item) => item.id !== id)].slice(0, MAX_HISTORY_SESSIONS);
@@ -360,7 +408,7 @@ export default function ChatPage() {
     if (!activeSessionId) {
       setActiveSessionId(id);
     }
-  }, [messages, activeSessionId]);
+  }, [messages, activeSessionId, contract]);
 
   function saveSessions(updated: ChatSession[]) {
     setSessions(updated);
@@ -373,7 +421,7 @@ export default function ChatPage() {
     const userMessages = messages.filter((m) => m.role === "user");
     if (userMessages.length === 0) return; // Nothing worth saving.
     const id = activeSessionId ?? makeId("session");
-    const session = buildSession(messages, id);
+    const session = buildSession(messages, id, contract);
     const updated = [session, ...sessions.filter((s) => s.id !== id)]
       .slice(0, MAX_HISTORY_SESSIONS);
     saveSessions(updated);
@@ -384,7 +432,7 @@ export default function ChatPage() {
     saveCurrentSession(); // Persist current before switching.
     setMessages(session.messages);
     setActiveSessionId(session.id);
-    setContract(null);
+    setContract(session.contract ?? null);
     setEditingContract(false);
     setInput("");
     setError(null);
@@ -454,6 +502,7 @@ export default function ChatPage() {
       const launchPrompt = buildFullLaunchPrompt(messages, nextUserMessage);
       let acknowledgement = "Request received. I have prepared a feature contract.";
       let generatedContract: DisplayFeatureContract;
+      let blocksLaunchForClarification = false;
       let pmPreviewError: unknown = null;
       try {
         const pmPreview = await createPmFeatureContract({
@@ -472,6 +521,7 @@ export default function ChatPage() {
           featureContract.intake_status === "needs_clarification" ||
           (typeof featureContract.ambiguity_score === "number" &&
             featureContract.ambiguity_score >= 0.7);
+        blocksLaunchForClarification = needsClarification && clarifyingQuestions.length > 0;
         if (needsClarification && clarifyingQuestions.length > 0) {
           acknowledgement = [
             "I drafted the current scope, but these decisions would improve the mission plan:",
@@ -542,7 +592,7 @@ export default function ChatPage() {
         ...current,
         { id: makeId("pm"), role: "pm", text: acknowledgement, ts: new Date().toISOString() },
       ]);
-      setContract(generatedContract);
+      setContract(blocksLaunchForClarification ? null : generatedContract);
       setInput("");
     } catch (requestError) {
       const rawMessage =
@@ -602,6 +652,10 @@ export default function ChatPage() {
         prompt: launchContract.launchPrompt,
         filePaths: files.map((file) => file.name),
       });
+      const conversationContext = compactLaunchConversationContext(
+        launchContract.conversationContext,
+        launchContract,
+      );
       const mission = await createMission({
         prompt: launchContract.launchPrompt,
         requested_target_language: requestedTargetLanguage,
@@ -610,8 +664,10 @@ export default function ChatPage() {
             source: "mission-control-chat",
             attached_files: files.map((item) => item.name),
             inferred_requested_target_language: requestedTargetLanguage,
-            conversation_context: launchContract.conversationContext,
-            user_intent: launchContract.userIntent,
+            conversation_context: conversationContext,
+            user_intent: "finalize_plan",
+            launch_confirmed_at: new Date().toISOString(),
+            launch_source: "feature-contract-confirmation",
             contract: {
               title: launchContract.title,
               languages: launchContract.languages,
@@ -650,13 +706,6 @@ export default function ChatPage() {
         eyebrow="PM Agent Chat"
         title="Mission Intake Conversation"
         description="Describe your request in natural language, attach source files, and confirm the generated feature contract."
-        actions={
-          <div className="inline-actions">
-            <button type="button" className="secondary-button" onClick={resetConversation}>
-              New Chat
-            </button>
-          </div>
-        }
       />
 
       <div className="chat-layout">
@@ -689,7 +738,12 @@ export default function ChatPage() {
                       title={s.title}
                     >
                       <span className="chat-history-item-title">{s.title}</span>
-                      <span className="chat-history-item-meta">{s.messageCount} messages</span>
+                      {s.lastPreview ? (
+                        <span className="chat-history-item-preview">{s.lastPreview}</span>
+                      ) : null}
+                      <span className="chat-history-item-meta">
+                        {formatDateTime(s.savedAt)} · {s.messageCount} messages
+                      </span>
                     </button>
                   </li>
                 ))}
