@@ -69,6 +69,8 @@ async def generate_pm_feature_contract(
     attachments: list[dict[str, Any]] | None = None,
     global_style_directives: list[str] | None = None,
     source_code: str | None = None,
+    conversation_context: dict[str, Any] | None = None,
+    user_intent: str | None = None,
 ) -> dict[str, Any]:
     recommendation = _pkg()._pm_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
@@ -81,7 +83,11 @@ async def generate_pm_feature_contract(
         for item in (attachments or [])
         if isinstance(item, dict)
     )
-    if not _pkg().check_user_input(f"{prompt}\n{attachment_text}", "pm feature contract"):
+    context_text = str(conversation_context or "")
+    if not _pkg().check_user_input(
+        f"{prompt}\n{attachment_text}\n{context_text[:4000]}",
+        "pm feature contract",
+    ):
         return _fallback_pm_feature_contract(
             prompt=prompt,
             mission_type=mission_type,
@@ -99,6 +105,8 @@ async def generate_pm_feature_contract(
         attachments=attachments,
         global_style_directives=global_style_directives,
         source_code=source_code,
+        conversation_context=conversation_context,
+        user_intent=user_intent,
     )
     parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
         recommendation=recommendation,
@@ -113,14 +121,21 @@ async def generate_pm_feature_contract(
             requested_target_language=requested_target_language,
             recommendation=recommendation,
         )
-    return _normalize_pm_feature_contract(
+    ambiguity_prompt = prompt
+    if conversation_context:
+        ambiguity_prompt = f"{prompt}\n{context_text[:3000]}"
+    normalized = _normalize_pm_feature_contract(
         parsed,
         provider=resolved_provider,
         model=resolved_model,
         route=llm_route,
-        prompt=prompt,
+        prompt=ambiguity_prompt,
         requested_target_language=requested_target_language,
     )
+    if str(user_intent or "").strip().lower() == "finalize_plan":
+        normalized["intake_status"] = "ready"
+        normalized["ambiguity_score"] = min(float(normalized.get("ambiguity_score", 0.0)), 0.35)
+    return normalized
 
 
 async def generate_pod_group_standard(

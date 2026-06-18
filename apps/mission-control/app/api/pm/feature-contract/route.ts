@@ -15,6 +15,8 @@ type FeatureContractPayload = {
   depth_mode?: string;
   output_mode?: string;
   requested_target_language?: string | null;
+  conversation_context?: Record<string, unknown>;
+  user_intent?: string;
 };
 
 export async function POST(request: Request) {

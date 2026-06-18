@@ -68,7 +68,7 @@ export function CommandPalette() {
     void listMissions(100)
       .then(setMissions)
       .catch(() => {});
-    void getOperationsAgents({ missionLimit: 0, assignmentLimit: 0, eventLimit: 0 })
+    void getOperationsAgents({ missionLimit: 50, assignmentLimit: 50, eventLimit: 50 })
       .then((snap) =>
         setAgents(
           snap.agents.map((a) => ({

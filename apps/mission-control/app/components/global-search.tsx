@@ -42,7 +42,7 @@ export function GlobalSearch() {
     void listMissions(100)
       .then(setMissions)
       .catch(() => {});
-    void getOperationsAgents({ missionLimit: 0, assignmentLimit: 0, eventLimit: 0 })
+    void getOperationsAgents({ missionLimit: 50, assignmentLimit: 50, eventLimit: 50 })
       .then((snap) => setAgents(snap.agents.map((a) => ({ agent_id: a.agent_id, name: a.name, state: a.state, pod: a.pod }))))
       .catch(() => {});
     void listOperationsLogicNodes({ limit: 100 })

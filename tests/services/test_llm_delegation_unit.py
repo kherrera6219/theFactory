@@ -1069,6 +1069,66 @@ def test_generate_pm_feature_contract_blocks_injected_operator_prompt(monkeypatc
     assert result["source"] == "fallback"
 
 
+def test_generate_pm_feature_contract_uses_context_and_finalize_intent(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_pm_recommendation",
+        lambda: {"provider": "gemini", "model": "gemini-3.5-flash"},
+    )
+    captured: dict[str, str] = {}
+
+    async def _fake_call(**kwargs):
+        captured["prompt"] = kwargs["prompt"]
+        return (
+            {
+                "title": "Vector Trails: Grid War",
+                "summary": "Build a Windows-first Python/Pygame CE neon light-cycle RPG MVP.",
+                "intake_status": "needs_clarification",
+                "functional_requirements": ["Implement 1v1 round-based light-cycle gameplay."],
+                "non_functional_requirements": ["Use local JSON save data."],
+                "acceptance_criteria": ["Player can win, lose, draw, and earn XP."],
+                "assumptions": ["Use provided decisions as authoritative."],
+                "target_languages": ["python"],
+                "estimated_complexity": "high",
+                "human_approval_required": True,
+                "risk_notes": [],
+                "clarifying_questions": ["Optional: confirm packaging preference."],
+            },
+            "gemini",
+            "gemini-3.5-flash",
+            "primary",
+        )
+
+    monkeypatch.setattr(llm_delegation.generators, "_call_with_agent_system", _fake_call)
+
+    result = asyncio.run(
+        llm_delegation.generate_pm_feature_contract(
+            prompt="figure out the rest for yourself, create the plan now",
+            mission_type="BUILD_NEW",
+            depth_mode="standard",
+            output_mode="full_build",
+            requested_target_language="python",
+            conversation_context={
+                "decision_memory": [
+                    "Target platform: Windows desktop",
+                    "Framework: Pygame CE",
+                    "Save file: save_profile.json",
+                ],
+                "transcript": [
+                    {"role": "user", "text": "Use Python 3.12+ and Pygame CE.", "ts": "now"}
+                ],
+            },
+            user_intent="finalize_plan",
+        )
+    )
+
+    assert "Conversation context JSON" in captured["prompt"]
+    assert "Pygame CE" in captured["prompt"]
+    assert "User intent: finalize_plan" in captured["prompt"]
+    assert result["intake_status"] == "ready"
+    assert result["ambiguity_score"] < 0.7
+
+
 def test_provider_calls_handle_missing_keys_and_bad_responses(monkeypatch) -> None:
     monkeypatch.setattr(llm_delegation, "OPENAI_API_KEY", "")
     monkeypatch.setattr(llm_delegation, "ANTHROPIC_API_KEY", "")

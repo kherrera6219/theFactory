@@ -254,8 +254,11 @@ def _build_pm_feature_contract_prompt(
     attachments: list[dict[str, Any]] | None = None,
     global_style_directives: list[str] | None = None,
     source_code: str | None = None,
+    conversation_context: dict[str, Any] | None = None,
+    user_intent: str | None = None,
 ) -> str:
     safe_prompt = _clean_text(prompt, max_length=1200)
+    safe_user_intent = _clean_text(user_intent or "draft", max_length=32).lower()
 
     docs_context = ""
     if attachments:
@@ -287,6 +290,13 @@ def _build_pm_feature_contract_prompt(
     if source_code:
         source_code_context = f"\n\nAttached Workspace Files & Diagrams:\n{source_code}\n\n"
 
+    conversation_context_text = ""
+    if isinstance(conversation_context, dict) and conversation_context:
+        conversation_context_text = (
+            "\nConversation context JSON (authoritative for this chat session):\n"
+            f"{_clean_text(json.dumps(conversation_context, sort_keys=True), max_length=5000)}\n\n"
+        )
+
     return (
         "You are AGENT-01-PM. Convert the operator request and attached context into a product-level "
         "Feature Contract for a software factory mission. Act as a proactive product partner.\n"
@@ -295,10 +305,12 @@ def _build_pm_feature_contract_prompt(
         f"Mission type: {_clean_text(mission_type or 'BUILD_NEW', max_length=48).upper()}\n"
         f"Depth mode: {_clean_text(depth_mode or 'STANDARD', max_length=48).upper()}\n"
         f"Output mode: {_clean_text(output_mode or 'FULL_BUILD', max_length=48).upper()}\n"
+        f"User intent: {safe_user_intent}\n"
         "Requested target language: "
         f"{_clean_text(requested_target_language or 'auto', max_length=32).lower()}\n"
         f"{docs_context}{style_context}"
         f"Operator request: {safe_prompt}\n"
+        f"{conversation_context_text}"
         f"{source_code_context}\n"
         "Required JSON keys:\n"
         "{\n"
@@ -320,12 +332,18 @@ def _build_pm_feature_contract_prompt(
         "the runtime/platform target, the libraries or dependency constraints, the input/data "
         "shape, the expected user interface or output format, the scope boundaries (what is "
         "explicitly out of scope), and the definition of done.\n"
-        "- If ANY execution-critical dimension above is missing or ambiguous, set "
-        '"intake_status":"needs_clarification" and return 3-5 specific, answerable '
-        "clarifying_questions that target exactly those gaps. Do NOT invent the missing detail and "
-        "do NOT pad with generic requirements.\n"
-        '- Only set "intake_status":"ready" when the request is concrete enough to build without '
-        'guessing; in that case list every material assumption you are relying on under '
+        "- Use the conversation context and decision_memory as authoritative. Do not ask for a "
+        "decision that is already answered anywhere in that context.\n"
+        "- If the user_intent is finalize_plan, produce the best complete contract using explicit "
+        "assumptions and recommended defaults. Only set needs_clarification for a hard blocker "
+        "that makes execution impossible.\n"
+        "- If an execution-critical dimension is still missing and user_intent is not finalize_plan, "
+        'set "intake_status":"needs_clarification" and return 1-3 specific, answerable '
+        "clarifying_questions that target exactly those gaps. Include a recommended default in "
+        "each question. Do NOT pad with generic requirements.\n"
+        '- Set "intake_status":"ready" when the request is concrete enough to build, or when '
+        "user_intent is finalize_plan and reasonable defaults can close remaining gaps; "
+        "in that case list every material assumption you are relying on under "
         '"assumptions".\n'
         "- Clarifying questions must be concrete and decision-shaped (e.g. \"No GUI library was "
         "named — should the desktop window use pygame or tkinter?\"), never generic (\"What "

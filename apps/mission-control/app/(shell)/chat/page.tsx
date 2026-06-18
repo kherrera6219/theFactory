@@ -29,9 +29,23 @@ type DisplayFeatureContract = {
   source?: string;
 };
 
+type PmConversationContext = {
+  transcript: Array<Pick<ChatMessage, "role" | "text" | "ts">>;
+  decision_memory: string[];
+  working_contract?: {
+    title: string;
+    languages: string;
+    scope: string;
+    source?: string;
+  };
+  attached_files: string[];
+  user_intent: "clarify" | "draft" | "finalize_plan";
+};
+
 const CHAT_STORAGE_KEY = "mission-control:pm-chat-history";
 const HISTORY_STORAGE_KEY = "mission-control:pm-chat-sessions";
 const MAX_HISTORY_SESSIONS = 30;
+const MAX_CONTEXT_MESSAGES = 12;
 
 type ChatSession = {
   id: string;
@@ -146,6 +160,90 @@ function operatorRecoveryMessage(message: string): string {
     );
   }
   return message;
+}
+
+function detectUserIntent(text: string): PmConversationContext["user_intent"] {
+  const normalized = text.toLowerCase();
+  if (
+    normalized.includes("create the plan") ||
+    normalized.includes("produce the plan") ||
+    normalized.includes("finalize") ||
+    normalized.includes("proceed") ||
+    normalized.includes("use your best judgment") ||
+    normalized.includes("figure out the rest") ||
+    normalized.includes("firgure out the rest")
+  ) {
+    return "finalize_plan";
+  }
+  return "draft";
+}
+
+function extractDecisionMemory(messages: ChatMessage[]): string[] {
+  const decisions: string[] = [];
+  const decisionMarkers = [
+    "use these",
+    "final decision",
+    "final mvp",
+    "target:",
+    "build the mvp",
+    "do not use",
+    "for the mvp",
+    "save file",
+    "victory condition",
+    "loss condition",
+    "draw condition",
+    "handling levels",
+    "tech stack",
+  ];
+
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    const lines = message.text.split(/\r?\n/);
+    for (const line of lines) {
+      const cleaned = sanitizeUserText(line).trim();
+      if (cleaned.length < 8) continue;
+      const lower = cleaned.toLowerCase();
+      if (
+        decisionMarkers.some((marker) => lower.includes(marker)) ||
+        /^[-*]\s+/.test(cleaned) ||
+        /^\d+\.\s+/.test(cleaned)
+      ) {
+        decisions.push(cleaned.replace(/^[-*]\s+/, "").slice(0, 220));
+      }
+      if (decisions.length >= 80) return decisions;
+    }
+  }
+  return decisions;
+}
+
+function buildPmConversationContext(params: {
+  messages: ChatMessage[];
+  nextUserMessage: ChatMessage;
+  contract: DisplayFeatureContract | null;
+  files: File[];
+}): PmConversationContext {
+  const combinedMessages = [...params.messages, params.nextUserMessage].filter(
+    (message) => message.id !== "welcome",
+  );
+  const transcript = combinedMessages.slice(-MAX_CONTEXT_MESSAGES).map((message) => ({
+    role: message.role,
+    text: sanitizeUserText(message.text).slice(0, 1200),
+    ts: message.ts,
+  }));
+  return {
+    transcript,
+    decision_memory: extractDecisionMemory(combinedMessages),
+    working_contract: params.contract
+      ? {
+          title: params.contract.title,
+          languages: params.contract.languages,
+          scope: params.contract.scope,
+          source: params.contract.source,
+        }
+      : undefined,
+    attached_files: params.files.map(fileLabel),
+    user_intent: detectUserIntent(params.nextUserMessage.text),
+  };
 }
 
 /** Derive a short title from the first user message. */
@@ -312,24 +410,41 @@ export default function ChatPage() {
       files.length > 0
         ? `${normalized}\n\nAttached files: ${files.map((item) => item.name).join(", ")}`
         : normalized;
+    const nextUserMessage: ChatMessage = {
+      id: makeId("user"),
+      role: "user",
+      text: userText,
+      ts: timestamp,
+    };
 
-    setMessages((current) => [
-      ...current,
-      { id: makeId("user"), role: "user", text: userText, ts: timestamp },
-    ]);
+    setMessages((current) => [...current, nextUserMessage]);
 
     try {
       const sourceCode = await readFilesAsText(files);
       const detected = detectLanguages(files);
+      const conversationContext = buildPmConversationContext({
+        messages,
+        nextUserMessage,
+        contract,
+        files,
+      });
+      const launchPrompt =
+        conversationContext.transcript
+          .filter((message) => message.role === "user")
+          .map((message) => message.text)
+          .join("\n\n")
+          .slice(-8000) || normalized;
       let acknowledgement = "Request received. I have prepared a feature contract.";
       let generatedContract: DisplayFeatureContract;
       let pmPreviewError: unknown = null;
       try {
         const pmPreview = await createPmFeatureContract({
           prompt: normalized,
+          conversation_context: conversationContext,
+          user_intent: conversationContext.user_intent,
           source_code: sourceCode || undefined,
           requestedTargetLanguage: inferRequestedTargetLanguage({
-            prompt: normalized,
+            prompt: launchPrompt,
             filePaths: files.map((file) => file.name),
           }),
         });
@@ -341,18 +456,13 @@ export default function ChatPage() {
             featureContract.ambiguity_score >= 0.7);
         if (needsClarification && clarifyingQuestions.length > 0) {
           acknowledgement = [
-            "I need a few decisions before I can create a reliable mission plan:",
+            "I drafted the current scope, but these decisions would improve the mission plan:",
             ...clarifyingQuestions.map((question, index) => `${index + 1}. ${question}`),
+            "You can answer these or say “proceed with assumptions” to continue.",
           ].join("\n");
-          setMessages((current) => [
-            ...current,
-            { id: makeId("pm"), role: "pm", text: acknowledgement, ts: new Date().toISOString() },
-          ]);
-          setContract(null);
-          setInput("");
-          return;
         }
-        acknowledgement =
+        if (!needsClarification || clarifyingQuestions.length === 0) {
+          acknowledgement =
           featureContract.acceptance_criteria.length > 0
             ? [
                 `I drafted a feature contract for review. ${featureContract.summary}`,
@@ -361,6 +471,7 @@ export default function ChatPage() {
                 .filter(Boolean)
                 .join(" ")
             : featureContract.summary || acknowledgement;
+        }
         generatedContract = {
           title: featureContract.title || "New Mission",
           languages:
@@ -369,7 +480,7 @@ export default function ChatPage() {
               : detected,
           scope: featureContract.summary || summarizeScope(normalized),
           estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
-          launchPrompt: normalized,
+          launchPrompt,
           source: pmPreview.source,
         };
       } catch (contractError) {
@@ -400,7 +511,7 @@ export default function ChatPage() {
           languages: detected,
           scope: summarizeScope(normalized),
           estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
-          launchPrompt: normalized,
+          launchPrompt,
           source: "local-fallback",
         };
       }
