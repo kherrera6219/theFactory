@@ -1,9 +1,11 @@
 # theFactory — Event-Driven Control Plane (EDCP) Phase Plan
 
-**Document version:** 2026.06.14
+Document version: 2026.06.18-a
+Last updated: 2026-06-18
+Status: In progress — EDCP-01 complete, EDCP-02 pending
+Audience: Maintainers
+
 **Created:** 2026-06-14
-**Status:** In progress — EDCP-01 complete, EDCP-02 pending
-**Audience:** Maintainers
 **Authoritative status doc:** `docs/IMPLEMENTATION_STATUS.md` (the archived
 `docs/archive/2026-06-13/SPRINT_BACKLOG.md` is historical only)
 

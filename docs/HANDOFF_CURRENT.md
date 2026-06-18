@@ -1,12 +1,69 @@
 # Current Handoff
 
-Document version: 2026.06.17-b
-Last updated: 2026-06-17
+Document version: 2026.06.18-a
+Last updated: 2026-06-18
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 Use this file, `docs/CURRENT_TODO.md`, and `docs/IMPLEMENTATION_STATUS.md`
 before consulting archived plans.
+
+---
+
+## Work Completed in This Session (2026-06-18 — PM chat context + mission launch truncation fix)
+
+The PM route is now API-level healthy and the chat/mission launch handoff has
+been hardened for long, multi-turn operator conversations.
+
+**Observed live failure:** the new Iron Meridian mission
+`mission-c228332b-4f4e-4941-8e52-eb7494627045` paused in `CLARIFYING`. Inspection
+showed the mission prompt passed to intake was truncated mid-brief at `Defeat c`,
+so the PM correctly asked for the missing defeat conditions. The failure was not
+Gemini, provider routing, or the data plane. It was the frontend launch prompt
+builder using compact transcript text with a 1200-character per-message cap, then
+mission-flow v2 rerunning intake without the richer chat PM context.
+
+**Fixes pushed to `origin/main`:**
+- `525b930` (`improve-pm-chat-context`): PM chat now sends compact
+  `conversation_context`, decision memory, working contract, attachment labels,
+  and `user_intent`. It detects finalize phrases such as "create the plan",
+  "proceed", and "use your best judgment"; the PM prompt treats that intent as
+  ready unless there is a hard blocker. This commit also fixed the operations
+  polling `422` by sending gateway-accepted minimum limits.
+- `37f0779` (`fix-pm-mission-launch-context`): mission launch now builds the
+  launch prompt from full user-authored messages with a larger cap and stores
+  `conversation_context` plus `user_intent` in mission metadata. Mission-flow v2
+  intake now passes those fields into `generate_pm_feature_contract()` so the
+  backend PM pass sees the same conversational context as the chat PM.
+
+**Validation completed:**
+- `npm --prefix apps\mission-control run build`
+- `npm --prefix apps\mission-control run lint`
+- Focused backend tests:
+  `test_generate_pm_feature_contract_uses_context_and_finalize_intent` and
+  `test_list_project_agent_action_events_casts_nullable_filters`
+- Focused `ruff` over mission-flow/LLM delegation files
+- `git diff --check`
+- Docker rebuild/recreate for orchestrator, API gateway, and Mission Control was
+  completed once before the operator stopped the app for a clean restart.
+
+**Current runtime status:** the app was intentionally stopped by the operator
+after validation. Restart from the updated `main` and run a **new** mission to
+verify the launch-context path. The existing Iron Meridian mission is already in
+`CLARIFYING` from the old truncated prompt and will not automatically prove the
+fix unless it is manually clarified or requeued.
+
+**Carry-forward items:**
+- Fresh long-brief mission must reach at least post-PM intake without truncation;
+  release confidence still requires one full BUILD_NEW mission to `COMPLETE` with
+  non-empty generated code/artifacts.
+- Add visible degraded/fallback banners in Mission Control chat and PM contract
+  panels.
+- Add provider/model preflight from Settings, then wire app-selected provider and
+  model into runtime config instead of relying on `.env`.
+- Decide whether 41 per-agent vault slots should drive per-agent LLM calls or
+  collapse into one provider-level runtime key.
+- Rotate the Gemini key that appeared in chat/logs.
 
 ---
 
@@ -62,11 +119,12 @@ Gemini working; this timeout was the last gate in front of it.
 
 ## Current Branch State
 
-- Branch: `main`. Latest handoff/fix commit adds the gateway internal-proxy
-  timeout fix (see session log below); push when convenient.
+- Branch: `main`. Latest pushed commit is `37f0779`
+  (`fix-pm-mission-launch-context`) on `origin/main`.
 - **CI was fully green** as of `941aca9` (all 12 jobs). Several backend-only
-  commits have landed since (`44f557f`, `4fdab0a`, `b6d0848`, `664a5cd`, plus the
-  gateway timeout fix); CI on these should be re-confirmed.
+  commits and PM/frontend fixes have landed since (`44f557f`, `4fdab0a`,
+  `b6d0848`, `664a5cd`, gateway timeout fix, `525b930`, `37f0779`); CI on these
+  should be re-confirmed.
 - **PM/LLM happy path PROVEN on Gemini** (see top session log): routing honors
   `LLM_PROVIDER=gemini`, vault keys reach the providers, the Gemini payload uses
   `thinkingConfig.thinkingLevel`, AND the gateway now waits long enough for the
@@ -76,7 +134,8 @@ Gemini working; this timeout was the last gate in front of it.
   default in code, compose, and the dev overlay.
 - Live stack verified healthy 2026-06-16: gateway `/health` ok, `/readyz` 200; operations summary reports db/redis/qdrant/milvus/neo4j/object_storage/jaeger all ready; 41/41 agents healthy.
 - Current change set: EDCP-01 bus durability foundation, EDCP phase planning,
-  PM clarification gating, richer PM planning artifacts, unlocked-local UX
+  PM clarification gating, richer PM planning artifacts, PM chat context
+  carry-forward, full mission launch prompt preservation, unlocked-local UX
   cleanup, embedding key UI, live agent validation, and runtime label polish.
 - All tests pass (except `test_agent_base_unit.py` which requires the orchestrator
   package on PYTHONPATH — it always fails in isolation; run from

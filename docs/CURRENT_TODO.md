@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.06.17-b
-Last updated: 2026-06-17
+Document version: 2026.06.18-a
+Last updated: 2026-06-18
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -11,21 +11,49 @@ current work.
 
 ---
 
-## Highest Priority — PM/LLM Workflow (2026-06-17)
+## Highest Priority — PM/LLM Workflow (2026-06-18)
 
 The PM agent + mission pipeline was producing canned 1 KB stubs. Routing, vault
 keys, the Gemini payload, and the cross-provider cascade were fixed
 (`4fdab0a`, `44f557f`, `b6d0848`, `664a5cd`); the **final gate was a gateway
 internal-proxy `timeout=4.0` that killed the ~9–19 s Gemini PM call** and returned
 `502 "orchestrator unavailable"`. Fixed by making `_proxy_post_internal` accept a
-per-call timeout and passing `90.0` for the PM route. Remaining:
+per-call timeout and passing `90.0` for the PM route.
+
+The next failure was in the Mission Control chat/launch handoff, not the LLM:
+the chat preview could build a useful PM contract, but mission launch rebuilt the
+intake prompt from compact transcript text capped at 1200 characters per message.
+A live Iron Meridian test mission (`mission-c228332b-4f4e-4941-8e52-eb7494627045`)
+entered `CLARIFYING` because the prompt reached mission intake truncated at
+`Defeat c`. Recent fixes:
+
+- `525b930` (`improve-pm-chat-context`) sends compact conversation context,
+  decision memory, working contract, attachment labels, and finalize intent into
+  the PM feature-contract route; it also fixes operations callers to satisfy the
+  gateway's `ge=50` limits.
+- `37f0779` (`fix-pm-mission-launch-context`) makes mission launch send full
+  user-authored brief/history text with a larger cap and passes
+  `conversation_context` plus `user_intent` through mission metadata into
+  mission-flow v2 intake.
+
+Current state: code is committed and pushed to `origin/main`; Docker images and
+the Next.js production build were rebuilt successfully during validation. The
+operator intentionally stopped the app afterward and will restart it for a fresh
+mission test. The old Iron Meridian mission remains paused in `CLARIFYING` from
+the pre-fix truncated prompt and is not expected to auto-prove the fix.
+
+Remaining:
 
 1. ~~**Confirm the happy path.**~~ ✅ **DONE (2026-06-17).** `POST
    /v1/pm/feature-contract` returns `HTTP 200` in 9–19 s with `source: llm`,
    `model_provider: gemini`, `model: gemini-3.5-flash`, `degraded: None` — a real,
    prompt-specific feature contract, verified across three prompts against the
-   rebuilt gateway. Still worth running one full **end-to-end mission to COMPLETE**
-   (codegen artifacts), not just the PM intake call, before EDCP-02+.
+   rebuilt gateway.
+1a. **Run a fresh full mission after restart.** Start Mission Control from the
+   updated build, submit a new PM chat mission with a long brief, and verify the
+   mission does not pause only because of prompt truncation. Required proof before
+   EDCP-02+: one full **end-to-end mission to COMPLETE** with non-empty generated
+   code/artifacts, not just the PM intake call.
 2. **Surface degraded/fallback mode in the UI (review finding #1).** Backend now
    emits `degraded=True` / `source:"fallback"` on the contract; add a Mission
    Control banner (chat + feature-contract panel) so the operator can see when the
@@ -46,11 +74,11 @@ per-call timeout and passing `90.0` for the PM route. Remaining:
 7. **Rotate the exposed Gemini key** (`AQ.Ab8RN6L...`) — pasted in chat + in logs.
 8. **Optional hardening:** scope the circuit breaker per-(provider,agent) so one
    agent's failures don't blanket-disable a provider for all 41.
-9. **Operations `422` (status-bar mislabel).** Mission Control polls
+9. ~~**Operations `422` (status-bar mislabel).**~~ ✅ **DONE (2026-06-17).**
+   Mission Control had polled
    `/v1/operations/agents?mission_limit=0&assignment_limit=0&event_limit=0`, but the
-   gateway enforces `ge=50` on those params → `422` → the healthy runtime is shown
-   as "Runtime Shell" / offline. Fix the UI to send ≥50 (or omit the params), or
-   relax the gateway constraint to `ge=0`.
+   gateway enforces `ge=50` on those params → `422` → the healthy runtime was shown
+   as "Runtime Shell" / offline. The UI now sends the minimum accepted limits.
 10. **UI fallback preview `422`.** The chat page's `createBuilderPreview` fallback
     returns `422` even though a direct `POST /v1/builder/preview` returns `200` —
     body/validation mismatch in the `/api/gateway` proxy path. Low urgency now that

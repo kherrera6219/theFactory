@@ -1,6 +1,7 @@
 # Knowledge Lake and Embeddings
 
-Last updated: 2026-06-13
+Document version: 2026.06.18-a
+Last updated: 2026-06-18
 Status: Canonical
 Audience: Developers and operators
 
