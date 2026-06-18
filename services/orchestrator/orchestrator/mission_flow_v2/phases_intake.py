@@ -260,6 +260,10 @@ async def _prepare_pm_intake(
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
     metadata["selected_agent_id"] = PM_AGENT_ID
     metadata["agent_id"] = PM_AGENT_ID
+    conversation_context = metadata.get("conversation_context")
+    if not isinstance(conversation_context, dict):
+        conversation_context = None
+    user_intent = str(metadata.get("user_intent") or "").strip() or None
     mission_type = str(metadata.get("mission_type") or "BUILD_NEW").strip().upper()
     depth_mode = str(metadata.get("depth_mode") or "STANDARD").strip().upper()
     output_mode = str(metadata.get("output_mode") or "FULL_BUILD").strip().upper()
@@ -276,6 +280,8 @@ async def _prepare_pm_intake(
         requested_target_language=mission.requested_target_language,
         attachments=pm_attachments,
         global_style_directives=getattr(mission, "global_style_directives", []),
+        conversation_context=conversation_context,
+        user_intent=user_intent,
     )
 
     ambiguity_score = feature_contract.get("ambiguity_score", 0.0)
