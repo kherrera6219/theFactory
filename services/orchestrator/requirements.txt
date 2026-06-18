@@ -13,6 +13,6 @@ boto3==1.43.24
 langgraph==1.2.4
 langgraph-checkpoint-postgres==3.0.5
 pymilvus==2.6.12
-pypdf==6.13.0
+pypdf==6.13.3
 python-docx==1.2.0
 python-pptx==1.0.2
