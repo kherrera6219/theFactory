@@ -20,6 +20,14 @@ function countLines(text: string): number {
   return text.split('\n').length;
 }
 
+function artifactSizeBytes(artifact: MissionBuildArtifactRecord | null): number | null {
+  if (!artifact) return null;
+  const sizeBytes = artifact.size_bytes;
+  if (typeof sizeBytes === 'number') return sizeBytes;
+  const legacyBytes = (artifact as { bytes?: unknown }).bytes;
+  return typeof legacyBytes === 'number' ? legacyBytes : null;
+}
+
 export function GeneratedOutputPanel({
   missionId,
   generatedCodeArtifact,
@@ -65,6 +73,7 @@ export function GeneratedOutputPanel({
   const lineCount = effectiveArtifact?.artifact_text
     ? countLines(effectiveArtifact.artifact_text)
     : null;
+  const displaySizeBytes = artifactSizeBytes(generatedCodeArtifact);
 
   async function handleCopy() {
     if (!effectiveArtifact?.artifact_text) return;
@@ -135,7 +144,7 @@ export function GeneratedOutputPanel({
                 </div>
                 <div>
                   <dt>Size</dt>
-                  <dd>{generatedCodeArtifact.size_bytes.toLocaleString()} bytes</dd>
+                  <dd>{displaySizeBytes === null ? 'n/a' : displaySizeBytes.toLocaleString() + ' bytes'}</dd>
                 </div>
               </dl>
               <p className="muted" style={{ margin: 0 }}>
