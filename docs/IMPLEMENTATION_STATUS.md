@@ -1,6 +1,6 @@
 # Implementation Status
 
-Document version: 2026.06.18-a
+Document version: 2026.06.18-b
 Last updated: 2026-06-18
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
@@ -27,10 +27,14 @@ history is clean of private keys. Disaster recovery RTO is 37.13s.
 **Current active phase:** Gemini-first operator validation, followed by EDCP-02
 PM-to-CEO handoff work. EDCP-01 foundation is complete. PM feature-contract calls
 are proven at the API level against Gemini, and the Mission Control chat/launch
-handoff now preserves long operator briefs plus PM conversation context. The next
-required step is restarting the updated app and confirming a fresh BUILD_NEW
-mission reaches COMPLETE with non-empty `generated_code`. Do not start
-load-bearing EDCP control-plane inversion until that proof passes.
+handoff now preserves long operator briefs plus PM conversation context. The
+browser-side launch action from an existing Feature Contract is still not proven:
+`edb7846` attempted to route typed proceed-style confirmations into mission
+creation, but the operator reported the live retest still failed. The next
+required step is restarting the rebuilt app, capturing the failing launch
+request/response, and then confirming a fresh BUILD_NEW mission reaches COMPLETE
+with non-empty `generated_code`. Do not start load-bearing EDCP control-plane
+inversion until that proof passes.
 
 **Release blockers:** None for the Phases 1–27 implementation baseline. The only
 remaining blocker for a public launch claim after the model-routing update is a
@@ -43,7 +47,7 @@ fresh live Gemini provider-key demo.
 ### PM/LLM workflow and mission launch hardening (2026-06-17 to 2026-06-18)
 
 Commits `4fdab0a`, `44f557f`, `b6d0848`, `664a5cd`, `1921ddc`, `525b930`,
-`37f0779`:
+`37f0779`, `edb7846`:
 
 - Agent routing now honors `LLM_PROVIDER=gemini` even for OpenAI-pinned persona
   profiles; provider calls no longer silently cascade across providers when a
@@ -61,11 +65,16 @@ Commits `4fdab0a`, `44f557f`, `b6d0848`, `664a5cd`, `1921ddc`, `525b930`,
   and carries `conversation_context` plus `user_intent` into mission-flow v2 intake.
 - Mission Control operations polling now satisfies the gateway's minimum limit
   constraints, removing the `422` status-bar/runtime-label false negative.
+- `edb7846` attempts to map typed proceed-style confirmations, including
+  `procced`, onto the existing Feature Contract launch path instead of sending a
+  new PM/preview request. This is build-validated but not live-proven.
 
 Current limitation: one pre-fix Iron Meridian mission is paused in `CLARIFYING`
 because the old launch path truncated the prompt at `Defeat c`. That mission is
-diagnostic evidence for the old bug, not a valid proof of the current fix. A fresh
-post-restart mission is required for end-to-end validation.
+diagnostic evidence for the old bug, not a valid proof of the current fix. The
+latest live retest still failed before mission creation, so the next investigation
+must capture the exact launch HTTP request/response from Mission Control before
+another code assumption.
 
 ### Knowledge Lake hardening + multiagent audit fixes (2026-06-13, batch 2)
 
@@ -527,6 +536,7 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 |---|---|
 | `npm --prefix apps\mission-control run build` | ✅ Clean after PM launch-context fix |
 | `npm --prefix apps\mission-control run lint` | ✅ TypeScript clean after PM launch-context fix |
+| Docker image rebuild after app stop | ✅ `orchestrator`, `api-gateway`, and `mission-control` rebuilt; stack left stopped |
 | Focused PM/storage backend tests | ✅ `test_generate_pm_feature_contract_uses_context_and_finalize_intent` and `test_list_project_agent_action_events_casts_nullable_filters` pass |
 | Focused `ruff` over PM mission-flow/LLM delegation files | ✅ Clean |
 | `git diff --check` | ✅ Clean |
@@ -591,19 +601,22 @@ and `docs/CURRENT_TODO.md` for active work.
 
 ### Production blockers
 
-1. **Fresh Gemini live mission proof**: restart the updated local stack/app,
-   submit a new long-brief BUILD_NEW mission, and capture evidence that the PM
-   handoff no longer truncates context and the mission reaches COMPLETE with
-   non-empty LLM-generated output.
-2. **CI green after production-gate hardening**: confirm the post-`867d3ec`
+1. **Mission Control launch proof**: restart the rebuilt local stack/app, verify
+   **Confirm and Start** and typed proceed-style confirmation create a mission
+   record, and capture the exact request/response if either path returns `422`.
+2. **Fresh Gemini live mission proof**: after launch works, submit a new
+   long-brief BUILD_NEW mission and capture evidence that the PM handoff no
+   longer truncates context and the mission reaches COMPLETE with non-empty
+   LLM-generated output.
+3. **CI green after production-gate hardening**: confirm the post-`867d3ec`
    GitHub Actions run completes with all production-critical gates running and
    passing.
-3. **Repository-host protections**: enforce branch protection, required status
+4. **Repository-host protections**: enforce branch protection, required status
    checks, secret scanning, and release attestation verification in GitHub
    settings.
-4. **Production-environment evidence**: produce target-environment DR,
+5. **Production-environment evidence**: produce target-environment DR,
    retention, backup/restore, and operational evidence outside the local repo.
-5. **Legal/policy approval**: review and approve privacy, terms, and external
+6. **Legal/policy approval**: review and approve privacy, terms, and external
    publication policy documents before partner-facing release.
 
 ### Non-blocking validation backlog

@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.06.18-a
+Document version: 2026.06.18-b
 Last updated: 2026-06-18
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -35,12 +35,20 @@ entered `CLARIFYING` because the prompt reached mission intake truncated at
   user-authored brief/history text with a larger cap and passes
   `conversation_context` plus `user_intent` through mission metadata into
   mission-flow v2 intake.
+- `edb7846` (`fix-pm-chat-proceed-launch`) attempts to treat typed proceed-style
+  replies, including `procced` and `procede`, as launch confirmation when a
+  Feature Contract already exists instead of sending another PM/preview request.
+  This was validated by TypeScript/build checks, but the operator reported the
+  live retest still did not work, so the browser-side launch action remains the
+  next active investigation item.
 
 Current state: code is committed and pushed to `origin/main`; Docker images and
-the Next.js production build were rebuilt successfully during validation. The
-operator intentionally stopped the app afterward and will restart it for a fresh
-mission test. The old Iron Meridian mission remains paused in `CLARIFYING` from
-the pre-fix truncated prompt and is not expected to auto-prove the fix.
+the Next.js production build were rebuilt successfully during validation. After
+the `edb7846` retest failed, the operator stopped the app and the local Next.js
+production output plus Docker images (`orchestrator`, `api-gateway`,
+`mission-control`) were rebuilt again without starting the stack. The old Iron
+Meridian mission remains paused in `CLARIFYING` from the pre-fix truncated prompt
+and is not expected to auto-prove the fix.
 
 Remaining:
 
@@ -49,11 +57,15 @@ Remaining:
    `model_provider: gemini`, `model: gemini-3.5-flash`, `degraded: None` — a real,
    prompt-specific feature contract, verified across three prompts against the
    rebuilt gateway.
-1a. **Run a fresh full mission after restart.** Start Mission Control from the
-   updated build, submit a new PM chat mission with a long brief, and verify the
-   mission does not pause only because of prompt truncation. Required proof before
-   EDCP-02+: one full **end-to-end mission to COMPLETE** with non-empty generated
-   code/artifacts, not just the PM intake call.
+1a. **Fix and verify chat launch from an existing Feature Contract.** Start
+   Mission Control from the rebuilt app, create or load a contract, then verify
+   both **Confirm and Start** and typed proceed-style confirmation create a mission
+   record. If it still fails, capture the exact request/response from the browser
+   network panel or API route logs before making another frontend assumption.
+1b. **Run a fresh full mission after launch works.** Submit a new PM chat mission
+   with a long brief and verify the mission does not pause only because of prompt
+   truncation. Required proof before EDCP-02+: one full **end-to-end mission to
+   COMPLETE** with non-empty generated code/artifacts, not just the PM intake call.
 2. **Surface degraded/fallback mode in the UI (review finding #1).** Backend now
    emits `degraded=True` / `source:"fallback"` on the contract; add a Mission
    Control banner (chat + feature-contract panel) so the operator can see when the
