@@ -6,6 +6,22 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### PM Chat Launch Confirmation Attempt (2026-06-18)
+
+#### Changed
+- `edb7846` attempts to treat proceed-style replies, including `procced` and
+  `procede`, as mission launch confirmation when a Feature Contract already
+  exists, instead of sending another PM/preview request.
+
+#### Notes
+- The change passed `npm --prefix apps\mission-control run lint`,
+  `npm --prefix apps\mission-control run build`, and `git diff --check`, but the
+  operator reported the live retest still did not work. Treat this as an
+  attempted fix that needs request/response capture on the next run.
+- After the failed retest, the app was stopped and rebuilt: local Mission Control
+  production output plus Docker images for `orchestrator`, `api-gateway`, and
+  `mission-control` were rebuilt. The stack was left stopped.
+
 ### PM Chat Context and Mission Launch Handoff (2026-06-18)
 
 #### Fixed

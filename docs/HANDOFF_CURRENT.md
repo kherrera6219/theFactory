@@ -1,12 +1,55 @@
 # Current Handoff
 
-Document version: 2026.06.18-a
+Document version: 2026.06.18-b
 Last updated: 2026-06-18
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 Use this file, `docs/CURRENT_TODO.md`, and `docs/IMPLEMENTATION_STATUS.md`
 before consulting archived plans.
+
+---
+
+## Work Completed in This Session (2026-06-18 — Proceed launch attempt and rebuild)
+
+After the PM contract panel rendered correctly, the operator tried to continue
+the Iron Meridian chat by typing `procced`. The UI displayed `Request failed
+with status 422`, and a live mission list still showed only the system
+`__knowledge_lake__` mission. That confirmed the failure occurred before mission
+creation and before mission-flow lifecycle processing.
+
+**Code attempt pushed to `origin/main`:**
+- `edb7846` (`fix-pm-chat-proceed-launch`): expands finalize-intent detection to
+  include common proceed typos (`procced`, `procede`) and short-circuits
+  `sendMessage()` so proceed-style input launches the existing Feature Contract
+  instead of sending another PM feature-contract / builder-preview request.
+
+**Validation completed for the code attempt:**
+- `npm --prefix apps\mission-control run lint`
+- `npm --prefix apps\mission-control run build`
+- `git diff --check`
+- Local `:3000` route was restarted once and `/chat` returned `200`.
+
+**Retest result:** the operator reported "that did not work" and stopped the
+app. Treat `edb7846` as an attempted fix, not proven complete. The next debugging
+step should inspect the actual browser network request and server-side API route
+response for **Confirm and Start** and typed `proceed/procced`, rather than
+guessing another frontend state path.
+
+**Rebuild completed after app stop:**
+- Local Mission Control production output rebuilt successfully with
+  `npm --prefix apps\mission-control run build`.
+- Docker images rebuilt without starting the stack:
+  `deploy-orchestrator`, `deploy-api-gateway`, `deploy-mission-control`.
+- Final state after rebuild: app stopped, no listener on port `3000`, compose
+  stack not running, git clean except the existing untracked `sites/` directory.
+
+**Next session priority:** start the app, reproduce the launch attempt, capture
+the failing HTTP request/response, and verify whether the failure is:
+- the button/input handler not calling `createMission()`,
+- stale browser bundle/cache or old session state,
+- `/api/gateway/v1/missions` payload validation,
+- or gateway/orchestrator mission creation rejecting injected metadata.
 
 ---
 
@@ -119,12 +162,13 @@ Gemini working; this timeout was the last gate in front of it.
 
 ## Current Branch State
 
-- Branch: `main`. Latest pushed commit is `37f0779`
-  (`fix-pm-mission-launch-context`) on `origin/main`.
+- Branch: `main`. Latest pushed commit is `edb7846`
+  (`fix-pm-chat-proceed-launch`) on `origin/main`; that commit is an attempted
+  proceed-launch fix and still needs live proof.
 - **CI was fully green** as of `941aca9` (all 12 jobs). Several backend-only
   commits and PM/frontend fixes have landed since (`44f557f`, `4fdab0a`,
-  `b6d0848`, `664a5cd`, gateway timeout fix, `525b930`, `37f0779`); CI on these
-  should be re-confirmed.
+  `b6d0848`, `664a5cd`, gateway timeout fix, `525b930`, `37f0779`, `edb7846`);
+  CI on these should be re-confirmed.
 - **PM/LLM happy path PROVEN on Gemini** (see top session log): routing honors
   `LLM_PROVIDER=gemini`, vault keys reach the providers, the Gemini payload uses
   `thinkingConfig.thinkingLevel`, AND the gateway now waits long enough for the
