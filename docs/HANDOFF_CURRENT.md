@@ -10,6 +10,23 @@ before consulting archived plans.
 
 ---
 
+## Work Completed in This Session (2026-06-21 - Audit Phase 2 naming and layout)
+
+Phase 2 naming/layout audit was started after the Phase 1 static fixes. Phase 1 still has runtime/start-stop and full pytest/Ruff validation pending because the local Python environment is not usable, but Phase 2 checks that do not require the app are complete.
+
+**Phase 2 verification completed:**
+- Service directories are kebab-case and internal Python packages use lowercase/underscore names.
+- Tracked source directories have no mixed-case directory names.
+- No tracked `utils.py` or `helpers.py` catch-all modules were found.
+- No Python star imports were found in tracked source.
+- Non-empty package `__init__.py` files now declare explicit `__all__` lists.
+
+**Files changed:** `services/agent-runtime/agent_runtime/__init__.py`, `services/orchestrator/orchestrator/routes/__init__.py`, `services/protocol-bus-mcp/protocol_bus/__init__.py`, and `shared_runtime/__init__.py`.
+
+**Validation completed:** Phase 2 tracked-file scan, bundled Python `py_compile` for touched initializers, and `git diff --check`.
+
+---
+
 ## Work Completed in This Session (2026-06-21 - Audit Phase 1 fixes and documentation sync)
 
 The application audit is now being handled as audit-plus-fix: inspect a checklist area, repair concrete app/repo defects, validate what can be validated locally, and update the tracker.

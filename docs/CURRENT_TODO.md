@@ -11,6 +11,21 @@ current work.
 
 ---
 
+## Latest Status - Audit Phase 2 Naming/Layout Fix Batch (2026-06-21)
+
+Completed in the latest audit-plus-fix batch:
+- Verified tracked service names and internal package names follow repo conventions.
+- Verified tracked source directories have no mixed-case names.
+- Verified no tracked `utils.py` or `helpers.py` catch-all modules exist.
+- Verified no tracked Python star imports exist.
+- Added explicit empty `__all__` declarations to package initializers that only carry docstrings/comments.
+
+Blocked carry-forward from Phase 1 remains unchanged: full pytest/Ruff and clean start/stop validation still require a usable project Python/runtime environment.
+
+Next active work: continue to Phase 3 configuration/dependency wiring after this Phase 2 slice is validated and committed, or restore the Python test environment first if we want full local validation before moving deeper.
+
+---
+
 ## Latest Status - Audit Phase 1 Fix Batch (2026-06-21)
 
 Completed in the latest audit-plus-fix batch:

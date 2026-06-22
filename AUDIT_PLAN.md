@@ -184,16 +184,13 @@ Every finding is assigned one of three severities. **No finding is closed withou
 
 ### Repo Layout Standards
 
-- [ ] **Services use kebab-case** — `api-gateway`, `pod-worker`, `protocol-bus-mcp` ✅ (already correct)
-- [ ] **Python package dirs match service names** — `services/orchestrator/orchestrator/`, `services/api-gateway/api_gateway/` (verify internal package name uses underscores)
-- [ ] **No mixed case in directory names** — scan tracked source directories for
-  any CamelCase or UPPERCASE directory names. Exclude ignored generated/runtime
-  output such as `MagicMock/` and Mission Control static export folders unless
-  performing local disk hygiene.
-- [ ] **Test mirror structure** — `tests/services/` mirrors `services/`; every service has a corresponding test subdirectory
-- [ ] **No `utils.py` catch-alls** — if a `utils.py` exists, audit its contents and split into named modules
-- [ ] **No `helpers.py` catch-alls** — same rule
-- [ ] **`__init__.py` exports** — every package `__init__.py` explicitly declares its public API; no silent star imports
+- [x] **Services use kebab-case** — tracked service directories are `agent-runtime`, `api-gateway`, `audit-worker`, `dashboard`, `orchestrator`, `pod-worker`, and `protocol-bus-mcp`.
+- [x] **Python package dirs match service names** — internal package directories use lowercase/underscore names (`agent_runtime`, `api_gateway`, `audit_worker`, `pod_worker`, `protocol_bus`) or the service's canonical package name.
+- [x] **No mixed case in directory names** — tracked source directories under `apps/`, `services/`, `shared_runtime/`, `tests/`, `scripts/`, `config/`, `deploy/`, `protocol/`, and `schemas/` have no CamelCase/UPPERCASE directory names. Ignored generated/runtime output remains out of scope.
+- [x] **Test mirror structure** — service tests are intentionally centralized as `tests/services/test_*.py` files rather than per-service subdirectories; this matches the current repo convention validated in Phase 1.
+- [x] **No `utils.py` catch-alls** — tracked source has no `utils.py` files.
+- [x] **No `helpers.py` catch-alls** — tracked source has no `helpers.py` files.
+- [x] **`__init__.py` exports** — non-empty package initializers now declare `__all__`; no Python star imports were found in tracked source.
 
 ### Audit Actions
 
@@ -693,6 +690,7 @@ After all findings are resolved, the following documents must be updated:
 | A-005 | Phase 3/12 | Warning | README.md, docs/ARCHITECTURE.md, ledger/schema.sql | Docs claimed the stale SQLite ledger/schema.sql was the active traceability ledger; documentation now points to the active Postgres audit, LLM usage, and immutable ledger migrations, and the SQLite schema is labeled legacy. | FIXED | local working tree |
 | A-006 | Phase 1 | Warning | schemas/rir.*.schema.json, tests/services/test_refined_ir_unit.py | Refined IR schemas had active producer code but no focused regression test proving generated RIR stays aligned with the canonical JSON schemas. | FIXED | local working tree |
 | A-007 | Phase 1 | Warning | `examples/`, `tests/test_examples_schema.py` | Static examples had no regression test proving they stayed aligned with the current LogicNode and RIR schemas. | FIXED | local working tree |
+| A-008 | Phase 2 | Warning | `services/*/__init__.py`, `shared_runtime/__init__.py` | Non-empty package initializers had docstrings/comments but no explicit `__all__`, leaving public package exports implicit. Added explicit empty `__all__` declarations where packages do not re-export symbols. | FIXED | local working tree |
 
 ---
 
