@@ -13,6 +13,14 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
+### Audit Phase 5 agent/orchestrator wiring started (2026-06-22)
+
+Latest status: Phase 4 is closed for this audit pass at `3cced29`; Phase 5 is active.
+
+Phase 5 focus is registry/orchestrator truth: 41-agent inventory, ghost/orphan implementation checks, AgentPersona coverage, MissionFlowV2 wiring, and event-bus publisher/subscriber coverage.
+
+---
+
 ### Audit Phase 4 backend service audit started (2026-06-21)
 
 Latest status: Phase 4 is active after Phase 3 was pushed as `9e88bad audit-phase-3-config-wiring`.

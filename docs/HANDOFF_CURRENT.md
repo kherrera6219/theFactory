@@ -10,6 +10,14 @@ before consulting archived plans.
 
 ---
 
+## Work Started in This Session (2026-06-22 - Audit Phase 5 agent/orchestrator wiring)
+
+Phase 4 is closed for this audit pass at `3cced29`. Completed fixes are committed and pushed through API gateway startup validation. Do not mark the broad Phase 4 response-model/runtime-hardening items as done without focused code work and validation.
+
+Phase 5 is now the active audit area. Start with registry truth: 41-agent inventory, ghost/orphan implementation checks, AgentPersona consistency, and whether MissionFlowV2/event-bus wiring actually routes work through the intended agents.
+
+---
+
 ## Work Started in This Session (2026-06-21 - Audit Phase 4 backend service audit)
 
 Phase 3 was committed and pushed to `origin/main` as `9e88bad audit-phase-3-config-wiring`.

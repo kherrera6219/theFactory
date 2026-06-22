@@ -11,6 +11,16 @@ current work.
 
 ---
 
+## Latest Status - Audit Phase 5 Agent/Orchestrator Wiring Started (2026-06-22)
+
+Phase 4 is closed for this audit pass at `3cced29`. Completed Phase 4 app fixes: dashboard metrics/response contracts, six-lane protocol producer helpers, and API gateway auth/CORS startup validation.
+
+Phase 4 carry-forward hardening remains open for later targeted work: broad FastAPI response-model coverage, full pytest/Ruff after Python tooling is restored, and deeper live mission lifecycle recovery validation.
+
+Next active work: Phase 5 agent/orchestrator wiring, starting with the 41-agent registry inventory, ghost/orphan agent checks, AgentPersona consistency, and MissionFlowV2 wiring.
+
+---
+
 ## Latest Status - Audit Phase 4 Backend Service Audit Started (2026-06-21)
 
 Phase 3 configuration/dependency wiring was committed and pushed as `9e88bad audit-phase-3-config-wiring`.
