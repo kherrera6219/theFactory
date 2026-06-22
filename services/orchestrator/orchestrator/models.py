@@ -167,8 +167,14 @@ VALID_TRANSITIONS: dict[MissionState, set[MissionState]] = {
         MissionState.clarifying,
         MissionState.failed,
     },
-    # Clarification hold: PM pauses awaiting operator response, then re-enters pm_intake.
-    MissionState.clarifying: {MissionState.pm_intake, MissionState.fetch, MissionState.failed},
+    # Clarification hold: PM pauses awaiting operator response, then re-queues
+    # so PM intake can rebuild the feature contract with the operator answer.
+    MissionState.clarifying: {
+        MissionState.queued,
+        MissionState.pm_intake,
+        MissionState.fetch,
+        MissionState.failed,
+    },
     MissionState.fetch: {MissionState.ceo_delegated, MissionState.failed},
     MissionState.ceo_delegated: {MissionState.pod_assigned, MissionState.failed},
     MissionState.pod_assigned: {MissionState.specialist_assigned, MissionState.failed},
@@ -262,8 +268,8 @@ class MissionClarifyRequest(BaseModel):
     """Operator-supplied clarification that resolves a CLARIFYING-state mission.
 
     ``clarification`` is stored in ``metadata["pm_clarification"]`` and the
-    mission is transitioned back to PM_INTAKE so the PM Agent can re-process
-    the intent with the additional context.
+    mission is re-queued so the PM Agent can re-process the intent with the
+    additional context.
     """
 
     clarification: str = Field(min_length=3, max_length=2000)

@@ -17,7 +17,11 @@ Phase 4 is closed for this audit pass at `3cced29`. Completed Phase 4 app fixes:
 
 Phase 4 carry-forward hardening remains open for later targeted work: broad FastAPI response-model coverage, full pytest/Ruff after Python tooling is restored, and deeper live mission lifecycle recovery validation.
 
-Next active work: Phase 5 agent/orchestrator wiring, starting with the 41-agent registry inventory, ghost/orphan agent checks, AgentPersona consistency, and MissionFlowV2 wiring.
+First Phase 5 fix completed in the working tree: clarified missions now re-queue, emit `MISSION_CLARIFICATION_APPLIED`, restart lifecycle processing, and pass the operator clarification back into PM intake context. Added focused regression coverage in `tests/services/test_mission_clarify_route_unit.py`.
+
+Validation: bundled Python `py_compile` passes for touched backend/test files. Focused pytest is still blocked locally because the bundled Python runtime has no `pytest` module.
+
+Next active work: continue Phase 5 agent/orchestrator wiring with the 41-agent registry inventory, ghost/orphan agent checks, AgentPersona consistency, and broader MissionFlowV2/event-bus wiring.
 
 ---
 

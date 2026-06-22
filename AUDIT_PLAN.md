@@ -362,6 +362,8 @@ Carry-forward items remain tracked for later hardening rather than being marked 
 
 ### MissionFlowV2 Phases (11-phase state machine)
 
+Phase 5 progress: the clarification hold/resume path now re-queues clarified missions, restarts the lifecycle task, and feeds operator clarification back into PM intake context. Regression coverage was added in `tests/services/test_mission_clarify_route_unit.py`; `py_compile` passes, while local pytest remains blocked by missing pytest in the bundled runtime.
+
 - [ ] All 11 phases are implemented (no stub phases)
 - [ ] Phase entry/exit emits `emit_state_event()` — observable from dashboard
 - [ ] `mission_flow_v2/` subdirectory modules (if any) are all imported by `mission_flow_v2.py` — no orphaned phase files
@@ -712,6 +714,7 @@ After all findings are resolved, the following documents must be updated:
 | A-013 | Phase 4 | Warning | `services/dashboard/dashboard/main.py`, `services/dashboard/requirements.txt` | Dashboard lacked the Prometheus `/metrics` endpoint and dependency used by other backend services; added the endpoint, dependency, and explicit response contracts/status codes for dashboard JSON routes. | FIXED | `0771f12` |
 | A-014 | Phase 4 | Warning | `services/orchestrator/orchestrator/protocol_bus_producer.py`, `tests/services/test_protocol_bus_consumer.py` | Generic protocol sends supported all six lanes, but typed producer helpers and helper-schema tests only covered alpha, beta, delta, and omega. Added sigma/rho helpers and schema coverage so all six protocol lanes have standard producer APIs. | FIXED | `ff5419f` |
 | A-015 | Phase 4 | Warning | `services/api-gateway/api_gateway/main.py`, `tests/services/test_api_gateway_auth_mode_unit.py` | API gateway startup validation did not hard-fail invalid `AUTH_MODE`, and production CORS allowed `*` if configured. Added fail-fast startup validation and focused unit coverage. | FIXED | `3cced29` |
+| A-016 | Phase 5 | Warning | `services/orchestrator/orchestrator/routes/missions.py`, `services/orchestrator/orchestrator/mission_flow_v2/phases_intake.py`, `services/orchestrator/orchestrator/models.py`, `tests/services/test_mission_clarify_route_unit.py` | Missions paused in `CLARIFYING` accepted clarification without reliably resuming PM intake/lifecycle work, and the operator answer was not fed back into the PM contract prompt. Clarification now re-queues, emits `MISSION_CLARIFICATION_APPLIED`, restarts lifecycle processing, and passes `operator_clarification` into PM intake context. | FIXED | current Phase 5 fix batch |
 
 ---
 

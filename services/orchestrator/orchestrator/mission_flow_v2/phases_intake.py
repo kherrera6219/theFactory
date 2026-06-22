@@ -262,7 +262,11 @@ async def _prepare_pm_intake(
     metadata["agent_id"] = PM_AGENT_ID
     conversation_context = metadata.get("conversation_context")
     if not isinstance(conversation_context, dict):
-        conversation_context = None
+        conversation_context = {}
+    pm_clarification = str(metadata.get("pm_clarification") or "").strip()
+    if pm_clarification:
+        conversation_context = dict(conversation_context)
+        conversation_context["operator_clarification"] = pm_clarification
     user_intent = str(metadata.get("user_intent") or "").strip() or None
     mission_type = str(metadata.get("mission_type") or "BUILD_NEW").strip().upper()
     depth_mode = str(metadata.get("depth_mode") or "STANDARD").strip().upper()
