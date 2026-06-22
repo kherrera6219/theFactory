@@ -21,6 +21,8 @@ Current audit target: backend service runtime quality across api-gateway, orches
 
 First Phase 4 fix: dashboard now has Prometheus `/metrics`, a pinned `prometheus-client` dependency, and explicit Pydantic response models/status codes for JSON service endpoints.
 
+Second Phase 4 fix: protocol-bus producer helpers now cover all six protocol lanes, including sigma knowledge messages and rho traffic-control messages. Syntax validation passed; focused pytest is blocked until local pytest tooling is restored.
+
 ---
 
 ### Audit Phase 3 configuration/dependency fix batch (2026-06-21)
