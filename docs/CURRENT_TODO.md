@@ -19,6 +19,8 @@ Current active work is Phase 4 backend service audit. Initial scope is the seven
 
 Completed in the first Phase 4 fix batch: dashboard now exposes Prometheus `/metrics`, includes `prometheus-client`, and uses explicit response models/status codes for its JSON health/readiness/snapshot routes.
 
+Completed in the second Phase 4 fix batch: protocol-bus producer helpers now cover sigma and rho in addition to alpha, beta, delta, and omega. Focused pytest remains blocked locally because the checkout has no `.venv` and bundled Python does not have pytest installed; syntax validation passed with bundled Python.
+
 ---
 
 ## Latest Status - Audit Phase 3 Config/Dependency Fix Batch (2026-06-21)

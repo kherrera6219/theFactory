@@ -18,6 +18,8 @@ Phase 4 is now active. The audit is application-only and covers backend service 
 
 First Phase 4 fix completed: dashboard observability is now aligned with the rest of the backend services via `/metrics`, `prometheus-client`, and explicit JSON response contracts/status codes.
 
+Second Phase 4 fix completed: protocol-bus producer helpers now cover all six lanes. The bus service already validates alpha/beta/delta/sigma/omega/rho and the consumer supports all six lane names; this batch added typed sigma/rho helper APIs plus helper-schema test coverage. Focused pytest could not be run locally because no repo venv exists and bundled Python has no pytest module.
+
 ---
 
 ## Work Completed in This Session (2026-06-21 - Audit Phase 3 configuration and dependency wiring)

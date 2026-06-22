@@ -247,3 +247,65 @@ def send_delta_audit(
         priority=priority,
         correlation_id=correlation_id,
     )
+
+
+def send_sigma_knowledge(
+    *,
+    settings: Any,
+    sender: str,
+    recipient: str | list[str],
+    knowledge_type: str,
+    embedding_ref: str,
+    relevance_scope: str,
+    content: dict[str, Any] | None = None,
+    priority: str = "normal",
+    correlation_id: str | None = None,
+) -> bool:
+    """Send a Protocol Sigma knowledge/standards dissemination message."""
+    sigma_payload = {
+        "schema_version": "v1",
+        "knowledge_type": knowledge_type,
+        "embedding_ref": embedding_ref,
+        "relevance_scope": relevance_scope,
+        "content": content or {},
+    }
+    return send_protocol_message(
+        settings=settings,
+        protocol="sigma",
+        sender=sender,
+        recipient=recipient,
+        payload=sigma_payload,
+        priority=priority,
+        correlation_id=correlation_id,
+    )
+
+
+def send_rho_control(
+    *,
+    settings: Any,
+    sender: str,
+    recipient: str | list[str],
+    token_budget: int,
+    rate_limit_action: str,
+    agent_target: str,
+    metadata: dict[str, Any] | None = None,
+    priority: str = "normal",
+    correlation_id: str | None = None,
+) -> bool:
+    """Send a Protocol Rho traffic-control/routing telemetry message."""
+    rho_payload = {
+        "schema_version": "v1",
+        "token_budget": int(token_budget),
+        "rate_limit_action": rate_limit_action,
+        "agent_target": agent_target,
+        "metadata": metadata or {},
+    }
+    return send_protocol_message(
+        settings=settings,
+        protocol="rho",
+        sender=sender,
+        recipient=recipient,
+        payload=rho_payload,
+        priority=priority,
+        correlation_id=correlation_id,
+    )

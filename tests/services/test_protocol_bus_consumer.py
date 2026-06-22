@@ -560,7 +560,7 @@ class TestEdcpProducerHelpers:
         assert ok is True
         return json.loads(captured[0].data)
 
-    def test_omega_beta_delta_helpers_validate_against_bus_models(self):
+    def test_all_protocol_helpers_validate_against_bus_models(self):
         bus_path = str(
             Path(__file__).resolve().parents[2] / "services" / "protocol-bus-mcp"
         )
@@ -571,6 +571,8 @@ class TestEdcpProducerHelpers:
             send_beta_result,
             send_delta_audit,
             send_omega_message,
+            send_rho_control,
+            send_sigma_knowledge,
         )
         from protocol_bus.mcp_server import (  # type: ignore
             SendMessageRequest,
@@ -603,9 +605,27 @@ class TestEdcpProducerHelpers:
                 tolerance_score=0.99,
                 findings={"passed": True},
             ),
+            self._capture_send(
+                send_sigma_knowledge,
+                sender="AGENT-06-IS",
+                recipient="broadcast",
+                knowledge_type="pod_standard",
+                embedding_ref="registry://knowledge/m-1/pod-standard",
+                relevance_scope="mission:m-1",
+                content={"mission_id": "m-1"},
+            ),
+            self._capture_send(
+                send_rho_control,
+                sender="AGENT-03-BROKER",
+                recipient="AGENT-14-PYTHON",
+                token_budget=12000,
+                rate_limit_action="allow",
+                agent_target="AGENT-14-PYTHON",
+                metadata={"mission_id": "m-1"},
+            ),
         ]
 
-        assert [body["protocol"] for body in bodies] == ["omega", "beta", "delta"]
+        assert [body["protocol"] for body in bodies] == ["omega", "beta", "delta", "sigma", "rho"]
         for body in bodies:
             validated = SendMessageRequest.model_validate(body)
             _validate_protocol_payload(validated.protocol, validated.payload)
