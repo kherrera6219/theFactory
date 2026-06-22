@@ -84,3 +84,10 @@ def test_agent_persona_accessor() -> None:
     first = AGENT_REGISTRY[0]
     assert agent_personas.get_agent_persona(first.agent_id) is AGENT_PERSONAS[first.agent_id]
     assert agent_personas.get_agent_persona("AGENT-DOES-NOT-EXIST") is None
+
+
+def test_registry_agents_expose_phase5_audit_fields() -> None:
+    for agent in AGENT_REGISTRY:
+        assert agent.pod_assignment == agent.pod
+        assert agent.language_keys == agent.specialties
+        assert agent.runtime_class in {"shared_worker", "synthesized_heartbeat"}

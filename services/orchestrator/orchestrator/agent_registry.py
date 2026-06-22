@@ -16,6 +16,16 @@ class AgentDefinition:
     category: str
     specialties: tuple[str, ...] = ()
     runtime_class: str = "synthesized_heartbeat"
+
+    @property
+    def pod_assignment(self) -> str:
+        """Audit-facing alias for the registry pod assignment."""
+        return self.pod
+
+    @property
+    def language_keys(self) -> tuple[str, ...]:
+        """Audit-facing alias for specialist language keys."""
+        return self.specialties
     # Derived in __post_init__ — callers should not set this directly.
     # runtime_class values:
     #   "shared_worker"         — runs inside a shared pod-worker container
