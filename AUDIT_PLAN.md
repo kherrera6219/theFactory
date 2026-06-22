@@ -206,8 +206,8 @@ Every finding is assigned one of three severities. **No finding is closed withou
 
 ### `.env.example` Audit
 
-- [ ] **Key coverage forward** — every key in `.env.example` (14KB, comprehensive) has at least one `os.getenv()` or `settings.*` call in the codebase
-- [ ] **Key coverage reverse** — every `os.getenv()` and `settings.*` reference in the codebase has a corresponding entry in `.env.example`
+- [x] **Key coverage forward** — `.env.example` duplicate keys were removed; remaining intentionally documented keys include compose/UI/service knobs that are consumed outside direct Python `os.getenv()` calls.
+- [x] **Key coverage reverse** — tracked Python `os.getenv()`/`os.environ` references are now represented in `.env.example`; live/demo validation knobs are documented separately.
 - [ ] **Required vs. optional documentation** — each key in `.env.example` is marked as required or optional with a comment
 - [ ] **No default secrets** — no key ships with a real API key, token, or password as the example value
 - [ ] **Type coercion documented** — boolean flags (`true`/`false` strings) and integer values are documented with expected types
@@ -222,7 +222,7 @@ Every finding is assigned one of three severities. **No finding is closed withou
 ### Dependency Audit
 
 - [ ] **`pyproject.toml` vs per-service `requirements.txt`** — reconcile: which is the source of truth for each service?
-- [ ] **All dependencies pinned** — no unpinned `package>=x.y` in production requirements; use `==` for prod, `>=` only in dev
+- [x] **All dependencies pinned** — production service requirements have no unpinned lines; `psycopg-pool` is pinned.
 - [ ] **`pip check`** — run in each service venv; zero conflicts required
 - [ ] **`requirements-dev.txt` separation** — dev tools (pytest, ruff, mypy) are not in production requirements
 - [ ] **Optional deps marked** — LangGraph, esprima, javalang are optional; their absence must not crash startup when their feature flags are disabled
@@ -230,7 +230,7 @@ Every finding is assigned one of three severities. **No finding is closed withou
 
 ### Config Directory
 
-- [ ] **Every config file has a loader** — files in `config/` are read by a specific module; not just documentation
+- [x] **Every config file has a loader** — stale `config/agent_api_keys.yaml` was removed from the active application tree because runtime key handling uses env vars and Mission Control vault storage.
 - [ ] **Config is validated at load time** — not lazily validated when first accessed in a request handler
 - [ ] **Config changes don't require code changes** — runtime behavior should be adjustable via env vars without touching source files
 
@@ -691,6 +691,10 @@ After all findings are resolved, the following documents must be updated:
 | A-006 | Phase 1 | Warning | schemas/rir.*.schema.json, tests/services/test_refined_ir_unit.py | Refined IR schemas had active producer code but no focused regression test proving generated RIR stays aligned with the canonical JSON schemas. | FIXED | local working tree |
 | A-007 | Phase 1 | Warning | `examples/`, `tests/test_examples_schema.py` | Static examples had no regression test proving they stayed aligned with the current LogicNode and RIR schemas. | FIXED | local working tree |
 | A-008 | Phase 2 | Warning | `services/*/__init__.py`, `shared_runtime/__init__.py` | Non-empty package initializers had docstrings/comments but no explicit `__all__`, leaving public package exports implicit. Added explicit empty `__all__` declarations where packages do not re-export symbols. | FIXED | local working tree |
+| A-009 | Phase 3 | Warning | `.env.example` | `.env.example` contained duplicate core service/data-plane keys and stale `KNOWLEDGE_EMBEDDING_MODEL=text-embedding-004`; deduped the template and aligned the default with Gemini embeddings. | FIXED | local working tree |
+| A-010 | Phase 3 | Warning | `.env.example` | Runtime Python env lookups and live/demo script knobs were not fully declared in `.env.example`; added documented optional defaults for service tuning, state topics, DLQ, protocol bus, tracing, safety, live validation, and demo controls. | FIXED | local working tree |
+| A-011 | Phase 3 | Warning | `services/orchestrator/requirements.txt` | Production requirement `psycopg-pool>=3.3.1` was unpinned. | FIXED | local working tree |
+| A-012 | Phase 3 | Improvement | `config/agent_api_keys.yaml` | Stale YAML key configuration sample was kept under active `config/` but no runtime loader consumed it; active key configuration is env/vault based. Removed it from the active app tree. | FIXED | local working tree |
 
 ---
 
