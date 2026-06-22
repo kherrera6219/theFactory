@@ -15,7 +15,7 @@
 
 **Validated:** 2026-06-21
 **Validation status:** APPLICABLE WITH ADJUSTMENTS
-**Current repository baseline:** `main` at `5c9c768` (`focus application scope and surface PM fallback state`)
+**Current repository baseline:** `main` at `ff5419f` (`audit-phase-4-complete-protocol-producers`)
 
 This plan remains the correct master audit framework for the application, but the
 first pass must adapt several checklist assumptions to the current repo shape:
@@ -37,6 +37,10 @@ first pass must adapt several checklist assumptions to the current repo shape:
 - Current app status is active development, not production-ready. Audit findings
   should be framed as release-readiness blockers/warnings, not regressions from a
   shipped production product.
+- Audit-phase helper scripts are temporary tooling only. They must stay outside
+  the repository, for example under `C:\\tmp`, and must not be committed as
+  phase-named implementation files. Permanent fixes belong in stable,
+  domain-named app, test, and documentation files.
 
 Initial validation evidence:
 
@@ -696,7 +700,7 @@ After all findings are resolved, the following documents must be updated:
 | A-011 | Phase 3 | Warning | `services/orchestrator/requirements.txt` | Production requirement `psycopg-pool>=3.3.1` was unpinned. | FIXED | local working tree |
 | A-012 | Phase 3 | Improvement | `config/agent_api_keys.yaml` | Stale YAML key configuration sample was kept under active `config/` but no runtime loader consumed it; active key configuration is env/vault based. Removed it from the active app tree. | FIXED | local working tree |
 | A-013 | Phase 4 | Warning | `services/dashboard/dashboard/main.py`, `services/dashboard/requirements.txt` | Dashboard lacked the Prometheus `/metrics` endpoint and dependency used by other backend services; added the endpoint, dependency, and explicit response contracts/status codes for dashboard JSON routes. | FIXED | `0771f12` |
-| A-014 | Phase 4 | Warning | `services/orchestrator/orchestrator/protocol_bus_producer.py`, `tests/services/test_protocol_bus_consumer.py` | Generic protocol sends supported all six lanes, but typed producer helpers and helper-schema tests only covered alpha, beta, delta, and omega. Added sigma/rho helpers and schema coverage so all six protocol lanes have standard producer APIs. | FIXED | local working tree |
+| A-014 | Phase 4 | Warning | `services/orchestrator/orchestrator/protocol_bus_producer.py`, `tests/services/test_protocol_bus_consumer.py` | Generic protocol sends supported all six lanes, but typed producer helpers and helper-schema tests only covered alpha, beta, delta, and omega. Added sigma/rho helpers and schema coverage so all six protocol lanes have standard producer APIs. | FIXED | `ff5419f` |
 
 ---
 

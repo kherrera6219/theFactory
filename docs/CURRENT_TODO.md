@@ -21,6 +21,8 @@ Completed in the first Phase 4 fix batch: dashboard now exposes Prometheus `/met
 
 Completed in the second Phase 4 fix batch: protocol-bus producer helpers now cover sigma and rho in addition to alpha, beta, delta, and omega. Focused pytest remains blocked locally because the checkout has no `.venv` and bundled Python does not have pytest installed; syntax validation passed with bundled Python.
 
+Documentation hygiene rule added: audit-phase helper scripts are temporary tooling only and must stay outside the repo; permanent fixes belong in normal app, test, and documentation files. Current pushed audit baseline is `ff5419f`.
+
 ---
 
 ## Latest Status - Audit Phase 3 Config/Dependency Fix Batch (2026-06-21)
