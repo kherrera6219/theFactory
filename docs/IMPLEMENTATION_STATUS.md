@@ -13,6 +13,20 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
+### Audit Phase 3 configuration/dependency fix batch (2026-06-21)
+
+Latest local status: Phase 3 static config/dependency wiring checks are complete for tracked files.
+
+- `.env.example` has no duplicate keys and covers tracked Python runtime env lookups.
+- Runtime optional knobs, live validation knobs, and demo controls are documented with safe defaults.
+- `KNOWLEDGE_EMBEDDING_MODEL` now defaults to `gemini-embedding-001` in the env template.
+- Production requirements are pinned; the unpinned `psycopg-pool` line was fixed.
+- The stale YAML key sample was removed from active `config/` because the app uses env/vault key configuration.
+
+Qualification status: Phase 3 scan and `git diff --check` pass. Full pytest/Ruff remains blocked by the local Python shim/dependency environment.
+
+---
+
 ### Audit Phase 2 naming/layout fix batch (2026-06-21)
 
 Latest local status: Phase 2 static naming/layout checks are complete for tracked source files.

@@ -11,6 +11,18 @@ current work.
 
 ---
 
+## Latest Status - Audit Phase 3 Config/Dependency Fix Batch (2026-06-21)
+
+Completed in the latest audit-plus-fix batch:
+- `.env.example` deduped and expanded to cover runtime Python env lookups plus live/demo script controls.
+- Gemini embedding default corrected to `gemini-embedding-001`.
+- Orchestrator production requirements now have no unpinned dependency lines.
+- Removed stale YAML agent-key sample from active `config/`; runtime keys remain env/vault based.
+
+Next active work: Phase 4 backend service audit, unless we first restore the local Python environment to run full pytest/Ruff and clean-start validation.
+
+---
+
 ## Latest Status - Audit Phase 2 Naming/Layout Fix Batch (2026-06-21)
 
 Completed in the latest audit-plus-fix batch:

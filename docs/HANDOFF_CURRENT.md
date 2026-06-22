@@ -10,6 +10,18 @@ before consulting archived plans.
 
 ---
 
+## Work Completed in This Session (2026-06-21 - Audit Phase 3 configuration and dependency wiring)
+
+**Phase 3 fixes completed:**
+- Removed duplicate `.env.example` declarations and aligned the Gemini embedding model default to `gemini-embedding-001`.
+- Added missing runtime, live-validation, and demo-script environment knobs to `.env.example` with safe documented defaults.
+- Pinned `psycopg-pool` in the orchestrator production requirements.
+- Removed stale `config/agent_api_keys.yaml`; active key configuration is via environment variables and the Mission Control vault.
+
+**Validation completed:** Phase 3 tracked-file scan shows no duplicate env keys, no missing Python env declarations, no unpinned requirement lines, and no active config files without references. `git diff --check` is clean.
+
+---
+
 ## Work Completed in This Session (2026-06-21 - Audit Phase 2 naming and layout)
 
 Phase 2 naming/layout audit was started after the Phase 1 static fixes. Phase 1 still has runtime/start-stop and full pytest/Ruff validation pending because the local Python environment is not usable, but Phase 2 checks that do not require the app are complete.
