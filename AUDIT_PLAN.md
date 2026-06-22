@@ -330,6 +330,16 @@ Services: `api-gateway` · `orchestrator` · `pod-worker` · `agent-runtime` · 
 - [ ] Audit worker failure does not block mission execution (async, non-blocking write)
 - [ ] Audit trail is queryable by mission ID, agent ID, and timestamp range
 
+### Phase 4 Closeout Status
+
+Phase 4 is closed for this audit pass as of `3cced29`. The app-impacting fixes completed in Phase 4 were dashboard metrics/response contracts, six-lane protocol producer helpers, and API gateway startup validation for auth/CORS safety.
+
+Carry-forward items remain tracked for later hardening rather than being marked done prematurely:
+- broad route `response_model=` coverage across all services;
+- full pytest/Ruff execution after local Python tooling is restored;
+- deeper mission lifecycle recovery behavior under live runtime conditions;
+- full request/response model standardization for every FastAPI route.
+
 ---
 
 ## 7. Phase 5 — Agent & Orchestrator Wiring
@@ -701,7 +711,7 @@ After all findings are resolved, the following documents must be updated:
 | A-012 | Phase 3 | Improvement | `config/agent_api_keys.yaml` | Stale YAML key configuration sample was kept under active `config/` but no runtime loader consumed it; active key configuration is env/vault based. Removed it from the active app tree. | FIXED | local working tree |
 | A-013 | Phase 4 | Warning | `services/dashboard/dashboard/main.py`, `services/dashboard/requirements.txt` | Dashboard lacked the Prometheus `/metrics` endpoint and dependency used by other backend services; added the endpoint, dependency, and explicit response contracts/status codes for dashboard JSON routes. | FIXED | `0771f12` |
 | A-014 | Phase 4 | Warning | `services/orchestrator/orchestrator/protocol_bus_producer.py`, `tests/services/test_protocol_bus_consumer.py` | Generic protocol sends supported all six lanes, but typed producer helpers and helper-schema tests only covered alpha, beta, delta, and omega. Added sigma/rho helpers and schema coverage so all six protocol lanes have standard producer APIs. | FIXED | `ff5419f` |
-| A-015 | Phase 4 | Warning | `services/api-gateway/api_gateway/main.py`, `tests/services/test_api_gateway_auth_mode_unit.py` | API gateway startup validation did not hard-fail invalid `AUTH_MODE`, and production CORS allowed `*` if configured. Added fail-fast startup validation and focused unit coverage. | FIXED | local working tree |
+| A-015 | Phase 4 | Warning | `services/api-gateway/api_gateway/main.py`, `tests/services/test_api_gateway_auth_mode_unit.py` | API gateway startup validation did not hard-fail invalid `AUTH_MODE`, and production CORS allowed `*` if configured. Added fail-fast startup validation and focused unit coverage. | FIXED | `3cced29` |
 
 ---
 
