@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.06.18-d
-Last updated: 2026-06-18
+Document version: 2026.06.21-a
+Last updated: 2026-06-21
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -10,6 +10,35 @@ historical backlogs live under `docs/archive/` and should not be treated as
 current work.
 
 ---
+
+## Latest Status - Application-Only Cleanup and Offline Fix Batch (2026-06-21)
+
+The marketing website package has been removed from the application worktree so
+current review, build, and TODO tracking stay focused on Mission Control and the
+runtime services. The removed site was not part of the application runtime.
+
+Completed in the latest offline batch:
+- Removed the tracked `sites/thefactory-site` tree and verified no active
+  non-archive references remain.
+- Preserved PM feature-contract degraded/fallback metadata in Mission Control
+  chat instead of dropping it at the display layer.
+- Added a visible warning in the Feature Contract panel when PM planning output
+  came from a deterministic/local fallback or otherwise marked itself degraded.
+
+Validation passed:
+- `npm --prefix apps\mission-control run lint`
+- `npm --prefix apps\mission-control run build`
+- `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_runtime_unit.py -q`
+- `git diff --check`
+
+Next active verification when the app can run:
+1. Restart the app.
+2. Run a fresh PM chat mission from `/chat`.
+3. Confirm fallback/degraded PM output shows the warning instead of looking like a
+   normal live LLM contract.
+4. Confirm a ready contract does not show the normal lifecycle as `CLARIFYING`.
+5. Confirm generated code is visible/downloadable from Mission Detail artifacts.
+6. Confirm Runtime QC shows either a real report or an explicit skipped reason.
 
 ## Latest Status - Rebuilt MissionFlow V2 Fix Batch (2026-06-18)
 

@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.06.18-d
-Last updated: 2026-06-18
+Document version: 2026.06.21-a
+Last updated: 2026-06-21
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -12,6 +12,23 @@ checklists remain useful records but some no longer describe the current default
 runtime exactly. When they conflict with this document, this document wins.
 
 ---
+
+### Application-only cleanup and fallback visibility (2026-06-21)
+
+Latest local status: the marketing website package has been removed from the
+application worktree, and Mission Control now preserves degraded/fallback PM
+contract metadata through the chat display layer.
+
+- `sites/thefactory-site` has been removed because it is not part of the
+  application runtime and was distracting from the current Mission Control and
+  agent-pipeline audit.
+- The Feature Contract panel now warns when PM planning output is fallback or
+  degraded instead of presenting it as normal live LLM output.
+- The README and active status docs continue to describe the app as in
+  development, not production-ready.
+
+Qualification status: Mission Control lint/build, focused backend
+mission/runtime tests, and `git diff --check` pass for the combined cleanup.
 
 ### MissionFlow V2 clarification and artifact visibility rebuild (2026-06-18)
 
@@ -559,7 +576,7 @@ per-mission, not always-on. Realistic peak concurrency in a sequential mission f
 | Docker image rebuild after app stop | ✅ `orchestrator`, `api-gateway`, and `mission-control` rebuilt; stack left stopped |
 | Focused PM/storage backend tests | ✅ `test_generate_pm_feature_contract_uses_context_and_finalize_intent` and `test_list_project_agent_action_events_casts_nullable_filters` pass |
 | Focused `ruff` over PM mission-flow/LLM delegation files | ✅ Clean |
-| `git diff --check` | ✅ Clean |
+| `git diff --check` | ✅ Clean after 2026-06-21 UI/docs cleanup |
 | `python -m ruff check services tests scripts` | ✅ Clean |
 | `python -m pytest -q` (full suite, excl. `test_agent_base_unit.py`) | ✅ Green — 58 new tests pass |
 | `python -m pytest tests/eval/ -q` (97 eval tests) | ✅ 97 passing in 1.65s |

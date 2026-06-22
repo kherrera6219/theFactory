@@ -6,6 +6,26 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Application Scope Cleanup and Fallback Visibility (2026-06-21)
+
+#### Changed
+- Removed the tracked `sites/thefactory-site` marketing website package from the
+  application worktree so current development stays focused on Mission Control
+  and runtime services.
+- Mission Control chat now preserves PM feature-contract degraded/fallback
+  metadata and displays a warning in the Feature Contract panel when planning
+  output is fallback/degraded instead of confirmed live LLM output.
+
+#### Notes
+- The removed site was not part of the application runtime.
+- A fresh app run is still required to verify PM launch behavior from `/chat`.
+
+#### Validation
+- `npm --prefix apps\mission-control run lint`
+- `npm --prefix apps\mission-control run build`
+- `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_runtime_unit.py -q`
+- `git diff --check`
+
 ### MissionFlow V2 Clarification and Artifact Visibility Rebuild (2026-06-18)
 
 #### Fixed

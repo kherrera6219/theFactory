@@ -16,7 +16,7 @@
 
 </div>
 
-> **Version:** 1.2.0 · **Last updated:** 2026-06-18 · **Status:** Active development, not production-ready
+> **Version:** 1.2.0 · **Last updated:** 2026-06-21 · **Status:** Active development, not production-ready
 
 > **Development status:** theFactory is still under active local development. The
 > repository contains substantial architecture, services, tests, and Mission
@@ -24,7 +24,9 @@
 > production-ready. Current work is focused on PM agent clarification behavior,
 > mission launch handoff, provider/key preflight, degraded/fallback visibility,
 > and one fresh end-to-end mission that reaches `COMPLETE` with non-empty
-> generated artifacts. See [Current Status](#current-status),
+> generated artifacts. The separate marketing website package has been removed
+> from this application worktree so the repository reflects the runtime app
+> scope. See [Current Status](#current-status),
 > [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md), and
 > [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md).
 
