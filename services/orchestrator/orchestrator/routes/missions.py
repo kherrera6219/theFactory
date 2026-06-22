@@ -252,9 +252,9 @@ async def clarify_mission(
     """Supply operator clarification to a mission blocked in CLARIFYING state.
 
     Stores the clarification text in ``metadata["pm_clarification"]`` and
-    transitions the mission back to PM_INTAKE so the PM Agent re-processes
-    the intent with the additional context.  Only valid when the current
-    state is CLARIFYING; returns HTTP 409 otherwise.
+    re-queues the mission so the PM Agent re-processes the intent with the
+    additional context. Only valid when the current state is CLARIFYING;
+    returns HTTP 409 otherwise.
     """
     import orchestrator.main as _main  # noqa: PLC0415
 
@@ -276,6 +276,7 @@ async def clarify_mission(
 
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
     metadata["pm_clarification"] = payload.clarification
+    metadata["user_intent"] = "finalize_plan"
     append_chain_event(
         metadata,
         event_type="MISSION_CLARIFICATION_RECEIVED",
@@ -294,8 +295,8 @@ async def clarify_mission(
         app.state.settings,
         mission_id,
         MissionState.clarifying,
-        MissionState.pm_intake,
-        "MISSION_PM_INTAKE",
+        MissionState.queued,
+        "MISSION_CLARIFICATION_APPLIED",
     )
     if record is None:
         raise HTTPException(status_code=409, detail="state transition rejected")
@@ -307,11 +308,11 @@ async def clarify_mission(
                 app.state.envelope_validator,
                 redis_client,
                 record,
-                "MISSION_PM_INTAKE",
+                "MISSION_CLARIFICATION_APPLIED",
             )
         except Exception as exc:
             LOGGER.warning(
-                "failed to emit clarify→pm_intake event for %s: %s", mission_id, exc
+                "failed to emit clarification-applied event for %s: %s", mission_id, exc
             )
 
     await record_audit_event(
@@ -325,6 +326,7 @@ async def clarify_mission(
         object_id=mission_id,
         payload_summary={"clarification_length": len(payload.clarification)},
     )
+    _main.start_lifecycle_task(app, mission_id)
     return record
 
 
