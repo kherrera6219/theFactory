@@ -22,6 +22,8 @@ Second Phase 4 fix completed: protocol-bus producer helpers now cover all six la
 
 Documentation hygiene decision: audit-phase helper scripts are not application artifacts. Keep temporary edit/scan scripts outside the repo, and keep committed fixes in stable, domain-named application, test, and documentation files. Current pushed audit baseline is `ff5419f`.
 
+Third Phase 4 fix completed: API gateway startup validation now fails fast for invalid `AUTH_MODE` and rejects `CORS_ALLOW_ORIGINS=*` in production. Added focused unit tests in `tests/services/test_api_gateway_auth_mode_unit.py`; local pytest execution remains blocked because bundled Python has no pytest module.
+
 ---
 
 ## Work Completed in This Session (2026-06-21 - Audit Phase 3 configuration and dependency wiring)

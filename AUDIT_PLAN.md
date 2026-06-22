@@ -300,10 +300,10 @@ Services: `api-gateway` · `orchestrator` · `pod-worker` · `agent-runtime` · 
 
 #### `services/api-gateway` Specific
 
-- [ ] Auth mode `AUTH_MODE` hard-fails on invalid value; verify in code
+- [x] Auth mode `AUTH_MODE` hard-fails on invalid value; covered by API gateway startup validation tests.
 - [ ] Rate limiting is enforced per-key, not globally
 - [ ] All routes require API key validation before reaching handlers
-- [ ] CORS policy is explicit and restrictive; `*` is not permitted in production
+- [x] CORS policy is explicit and restrictive; `*` is not permitted in production by startup validation.
 - [ ] Request/response logging does not log sensitive headers or body fields containing secrets
 
 #### `services/pod-worker` Specific
@@ -701,6 +701,7 @@ After all findings are resolved, the following documents must be updated:
 | A-012 | Phase 3 | Improvement | `config/agent_api_keys.yaml` | Stale YAML key configuration sample was kept under active `config/` but no runtime loader consumed it; active key configuration is env/vault based. Removed it from the active app tree. | FIXED | local working tree |
 | A-013 | Phase 4 | Warning | `services/dashboard/dashboard/main.py`, `services/dashboard/requirements.txt` | Dashboard lacked the Prometheus `/metrics` endpoint and dependency used by other backend services; added the endpoint, dependency, and explicit response contracts/status codes for dashboard JSON routes. | FIXED | `0771f12` |
 | A-014 | Phase 4 | Warning | `services/orchestrator/orchestrator/protocol_bus_producer.py`, `tests/services/test_protocol_bus_consumer.py` | Generic protocol sends supported all six lanes, but typed producer helpers and helper-schema tests only covered alpha, beta, delta, and omega. Added sigma/rho helpers and schema coverage so all six protocol lanes have standard producer APIs. | FIXED | `ff5419f` |
+| A-015 | Phase 4 | Warning | `services/api-gateway/api_gateway/main.py`, `tests/services/test_api_gateway_auth_mode_unit.py` | API gateway startup validation did not hard-fail invalid `AUTH_MODE`, and production CORS allowed `*` if configured. Added fail-fast startup validation and focused unit coverage. | FIXED | local working tree |
 
 ---
 

@@ -23,6 +23,8 @@ Completed in the second Phase 4 fix batch: protocol-bus producer helpers now cov
 
 Documentation hygiene rule added: audit-phase helper scripts are temporary tooling only and must stay outside the repo; permanent fixes belong in normal app, test, and documentation files. Current pushed audit baseline is `ff5419f`.
 
+Completed in the third Phase 4 fix batch: API gateway startup validation now rejects invalid `AUTH_MODE` and rejects wildcard CORS origins in production. Syntax validation passed; focused pytest remains blocked by missing local pytest tooling.
+
 ---
 
 ## Latest Status - Audit Phase 3 Config/Dependency Fix Batch (2026-06-21)
