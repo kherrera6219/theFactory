@@ -13,6 +13,14 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
+### Audit Phase 4 backend service audit started (2026-06-21)
+
+Latest status: Phase 4 is active after Phase 3 was pushed as `9e88bad audit-phase-3-config-wiring`.
+
+Current audit target: backend service runtime quality across api-gateway, orchestrator, pod-worker, agent-runtime, audit-worker, protocol-bus-mcp, and dashboard. Initial validation is static because the app is not required to be running for this pass; full pytest/Ruff remains dependent on restoring the local Python tooling environment.
+
+---
+
 ### Audit Phase 3 configuration/dependency fix batch (2026-06-21)
 
 Latest local status: Phase 3 static config/dependency wiring checks are complete for tracked files.

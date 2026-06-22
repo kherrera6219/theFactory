@@ -10,6 +10,14 @@ before consulting archived plans.
 
 ---
 
+## Work Started in This Session (2026-06-21 - Audit Phase 4 backend service audit)
+
+Phase 3 was committed and pushed to `origin/main` as `9e88bad audit-phase-3-config-wiring`.
+
+Phase 4 is now active. The audit is application-only and covers backend service completeness, API design, error handling, health/readiness/metrics, and service-specific checks for api-gateway, orchestrator, pod-worker, agent-runtime, audit-worker, protocol-bus-mcp, and dashboard. Treat findings as fix-as-we-go items rather than report-only notes.
+
+---
+
 ## Work Completed in This Session (2026-06-21 - Audit Phase 3 configuration and dependency wiring)
 
 **Phase 3 fixes completed:**
