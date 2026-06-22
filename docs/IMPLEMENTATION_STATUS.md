@@ -13,6 +13,20 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
+### Audit Phase 2 naming/layout fix batch (2026-06-21)
+
+Latest local status: Phase 2 static naming/layout checks are complete for tracked source files.
+
+- Service directories and Python package directories match the naming convention.
+- Tracked source directories do not contain mixed-case directory names.
+- No tracked catch-all `utils.py` or `helpers.py` modules were found.
+- No Python star imports were found.
+- Package initializers with docstrings/comments now declare explicit empty `__all__` lists when they do not re-export public symbols.
+
+Qualification status: Phase 2 scan, `py_compile` on touched initializers, and `git diff --check` pass. Full pytest/Ruff remains blocked by the local Python shim/dependency environment.
+
+---
+
 ### Audit Phase 1 fixes and documentation sync (2026-06-21)
 
 Latest local status: Phase 1 of AUDIT_PLAN.md is being executed as audit-plus-fix, not report-only.
