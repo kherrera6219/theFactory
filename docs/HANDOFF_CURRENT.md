@@ -20,6 +20,8 @@ First Phase 4 fix completed: dashboard observability is now aligned with the res
 
 Second Phase 4 fix completed: protocol-bus producer helpers now cover all six lanes. The bus service already validates alpha/beta/delta/sigma/omega/rho and the consumer supports all six lane names; this batch added typed sigma/rho helper APIs plus helper-schema test coverage. Focused pytest could not be run locally because no repo venv exists and bundled Python has no pytest module.
 
+Documentation hygiene decision: audit-phase helper scripts are not application artifacts. Keep temporary edit/scan scripts outside the repo, and keep committed fixes in stable, domain-named application, test, and documentation files. Current pushed audit baseline is `ff5419f`.
+
 ---
 
 ## Work Completed in This Session (2026-06-21 - Audit Phase 3 configuration and dependency wiring)
