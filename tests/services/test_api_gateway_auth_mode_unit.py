@@ -326,6 +326,28 @@ def test_validate_startup_auth_config_hybrid_missing_audience_ok(monkeypatch) ->
     api_gateway_main._validate_startup_auth_config()
 
 
+def test_validate_startup_auth_config_rejects_invalid_auth_mode(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "broken")
+    try:
+        api_gateway_main._validate_startup_auth_config()
+    except RuntimeError as exc:
+        assert "AUTH_MODE" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for invalid AUTH_MODE")
+
+
+def test_validate_startup_auth_config_rejects_wildcard_cors_in_production(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "ENVIRONMENT", "production")
+    monkeypatch.setattr(api_gateway_main, "CORS_ALLOW_ORIGINS", "https://app.example,*")
+    try:
+        api_gateway_main._validate_startup_auth_config()
+    except RuntimeError as exc:
+        assert "CORS_ALLOW_ORIGINS" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for wildcard CORS in production")
+
+
 def test_maintenance_routes_proxy_call_signatures(monkeypatch) -> None:
     # H-3: diagnostics passed params=, backup omitted json_body — both raised TypeError.
     captured: list[tuple[str, dict[str, Any] | None, dict[str, Any] | None]] = []

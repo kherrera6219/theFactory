@@ -64,6 +64,7 @@ ORCHESTRATOR_READONLY_API_KEY = os.getenv("ORCHESTRATOR_READONLY_API_KEY", "").s
 ORCHESTRATOR_API_KEYS = os.getenv("ORCHESTRATOR_API_KEYS", "")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
 AUTH_MODE = os.getenv("AUTH_MODE", "api_key").strip().lower()
+ALLOWED_AUTH_MODES = {"api_key", "hybrid", "oidc"}
 OIDC_ISSUER_URL = os.getenv("OIDC_ISSUER_URL", "").strip()
 OIDC_AUDIENCE = os.getenv("OIDC_AUDIENCE", "").strip()
 OIDC_JWKS_URL = os.getenv("OIDC_JWKS_URL", "").strip()
@@ -1381,8 +1382,19 @@ async def _gemini_builder_preview(
     return preview
 
 
+def _configured_cors_origins() -> list[str]:
+    return [origin.strip() for origin in CORS_ALLOW_ORIGINS.split(",") if origin.strip()]
+
+
 def _validate_startup_auth_config() -> None:
     """Fail fast or warn on insecure auth configuration at startup."""
+    if AUTH_MODE not in ALLOWED_AUTH_MODES:
+        allowed = ", ".join(sorted(ALLOWED_AUTH_MODES))
+        raise RuntimeError(f"AUTH_MODE must be one of: {allowed}")
+
+    if ENVIRONMENT == "production" and "*" in _configured_cors_origins():
+        raise RuntimeError("CORS_ALLOW_ORIGINS cannot include '*' in production")
+
     if GATEWAY_ADMIN_BYPASS and ENVIRONMENT == "production":
         LOGGER.warning(
             "GATEWAY_ADMIN_BYPASS=true in production — ALL operator route "
@@ -1477,7 +1489,7 @@ app = FastAPI(
 configure_tracing(app, service_name="api-gateway")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in CORS_ALLOW_ORIGINS.split(",") if origin.strip()],
+    allow_origins=_configured_cors_origins(),
     allow_credentials=False,
     allow_methods=CORS_ALLOW_METHODS,
     allow_headers=CORS_ALLOW_HEADERS,
