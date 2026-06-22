@@ -27,6 +27,10 @@ type DisplayFeatureContract = {
   estimatedDuration: string;
   launchPrompt: string;
   source?: string;
+  degraded?: boolean;
+  degradedReason?: string;
+  modelProvider?: string | null;
+  model?: string | null;
   conversationContext?: PmConversationContext;
   userIntent?: PmConversationContext["user_intent"];
 };
@@ -313,6 +317,18 @@ function derivePreview(msgs: ChatMessage[]): string | undefined {
   return preview.length > 84 ? `${preview.slice(0, 81)}...` : preview;
 }
 
+function isDegradedContract(contract: DisplayFeatureContract): boolean {
+  const source = contract.source?.toLowerCase() ?? "";
+  return contract.degraded === true || source.includes("fallback");
+}
+
+function contractSourceLabel(contract: DisplayFeatureContract): string {
+  const route = contract.modelProvider && contract.model
+    ? `${contract.modelProvider}/${contract.model}`
+    : contract.source;
+  return route || "unknown";
+}
+
 /** Build a persisted session snapshot from the current message list. */
 function buildSession(
   messages: ChatMessage[],
@@ -550,6 +566,10 @@ export default function ChatPage() {
           estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
           launchPrompt,
           source: pmPreview.source,
+          degraded: featureContract.degraded === true || pmPreview.source === "fallback",
+          degradedReason: featureContract.degraded_reason,
+          modelProvider: pmPreview.model_provider ?? featureContract.model_provider ?? null,
+          model: pmPreview.model ?? featureContract.model ?? null,
           conversationContext,
           userIntent: conversationContext.user_intent,
         };
@@ -583,6 +603,8 @@ export default function ChatPage() {
           estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
           launchPrompt,
           source: "local-fallback",
+          degraded: true,
+          degradedReason: "pm_feature_contract_unavailable",
           conversationContext,
           userIntent: conversationContext.user_intent,
         };
@@ -855,10 +877,24 @@ export default function ChatPage() {
         <Panel title="Feature Contract">
           {!editingContract && (
             <>
+              {isDegradedContract(contract) && (
+                <SystemMessage tone="warning" title="Fallback planning output">
+                  <p>
+                    This contract was generated without a confirmed live PM model response
+                    ({contractSourceLabel(contract)}). Treat it as degraded planning output
+                    until provider/key configuration is verified.
+                  </p>
+                  {contract.degradedReason && <p>Reason: {contract.degradedReason}</p>}
+                </SystemMessage>
+              )}
               <dl>
                 <div>
                   <dt>Mission Title</dt>
                   <dd>{contract.title}</dd>
+                </div>
+                <div>
+                  <dt>Planning Source</dt>
+                  <dd>{contractSourceLabel(contract)}</dd>
                 </div>
                 <div>
                   <dt>Languages</dt>

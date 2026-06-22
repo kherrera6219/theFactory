@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.06.18-d
-Last updated: 2026-06-18
+Document version: 2026.06.21-a
+Last updated: 2026-06-21
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -9,6 +9,39 @@ Use this file, `docs/CURRENT_TODO.md`, and `docs/IMPLEMENTATION_STATUS.md`
 before consulting archived plans.
 
 ---
+
+## Work Completed in This Session (2026-06-21 - Application-only cleanup and fallback visibility)
+
+The operator confirmed that only the application should remain in scope. The
+marketing website package was removed from the tracked application worktree so it
+does not distract from Mission Control/runtime debugging.
+
+**Repository cleanup:**
+- Removed the tracked `sites/thefactory-site` tree from git staging.
+- Removed the leftover untracked `sites/` directory from disk.
+- Verified active docs/code do not reference `thefactory-site`, `sites/thefactory-site`,
+  the marketing site, or the Vinext project scaffold outside archived material.
+
+**Mission Control offline fix:**
+- PM feature-contract degraded/fallback metadata is now part of the Mission
+  Control display model.
+- The chat Feature Contract panel now shows a warning when the PM contract came
+  from fallback/degraded planning output, including the source/model when known.
+- Local builder-preview fallback contracts are explicitly marked degraded with
+  reason `pm_feature_contract_unavailable`.
+
+**Validation completed:**
+- `npm --prefix apps\mission-control run lint`
+- `npm --prefix apps\mission-control run build`
+- `python -m pytest tests\services\test_mission_flow_v2.py tests\services\test_runtime_unit.py -q`
+- `git diff --check`
+
+**Still required before commit/push:** commit the staged site deletion, UI
+change, and documentation updates together.
+
+**Current next step when the app is running:** use `/chat` to confirm degraded PM
+output is visibly flagged, then run a fresh mission to verify the PM launch path
+does not pause in `CLARIFYING` unless PM actually asks clarifying questions.
 
 ## Work Completed in This Session (2026-06-18 - MissionFlow V2 clarification, artifact, and Runtime QC visibility rebuild)
 

@@ -137,6 +137,8 @@ export type FeatureContract = {
   intake_status?: "needs_clarification" | "ready";
   ambiguity_score?: number;
   source: "llm" | "fallback";
+  degraded?: boolean;
+  degraded_reason?: string;
   llm_route?: string;
   model_provider?: string;
   model?: string;
