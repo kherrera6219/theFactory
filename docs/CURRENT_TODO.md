@@ -17,6 +17,8 @@ Phase 3 configuration/dependency wiring was committed and pushed as `9e88bad aud
 
 Current active work is Phase 4 backend service audit. Initial scope is the seven application services: api-gateway, orchestrator, pod-worker, agent-runtime, audit-worker, protocol-bus-mcp, and dashboard. The first checks are route/health/metrics coverage, production stubs/TODOs, response-model gaps, protocol bus stream usage, and mission lifecycle/runtime failure paths.
 
+Completed in the first Phase 4 fix batch: dashboard now exposes Prometheus `/metrics`, includes `prometheus-client`, and uses explicit response models/status codes for its JSON health/readiness/snapshot routes.
+
 ---
 
 ## Latest Status - Audit Phase 3 Config/Dependency Fix Batch (2026-06-21)
