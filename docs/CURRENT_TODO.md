@@ -11,6 +11,21 @@ current work.
 
 ---
 
+## Latest Status - Audit Phase 1 Fix Batch (2026-06-21)
+
+Completed in the latest audit-plus-fix batch:
+- RIR producer output now has schema-alignment regression coverage.
+- Static examples now have schema-alignment coverage.
+- Traceability-ledger docs now identify active Postgres migrations and label ledger/schema.sql legacy.
+- AUDIT_PLAN.md now tracks the application-only audit baseline and fixed findings A-005 through A-007.
+
+Validation passed: git diff --check and bundled Python py_compile for the schema test files.
+
+Blocked: pytest/Ruff cannot run until a usable project Python runtime is available; the current shell only finds the broken WindowsApps shim.
+
+Next active work: restore the Python test environment, run focused schema tests/Ruff, then continue Phase 1 checks for shared_runtime, conftest.py, and start/stop clean-environment behavior.
+---
+
 ## Latest Status - Application-Only Cleanup and Offline Fix Batch (2026-06-21)
 
 The marketing website package has been removed from the application worktree so

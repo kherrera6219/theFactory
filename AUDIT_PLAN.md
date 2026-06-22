@@ -11,8 +11,48 @@
 
 ---
 
+## 0. Plan Validation Against Current Application State
+
+**Validated:** 2026-06-21
+**Validation status:** APPLICABLE WITH ADJUSTMENTS
+**Current repository baseline:** `main` at `5c9c768` (`focus application scope and surface PM fallback state`)
+
+This plan remains the correct master audit framework for the application, but the
+first pass must adapt several checklist assumptions to the current repo shape:
+
+- The audit scope is application-only: Mission Control, backend services,
+  shared runtime, schemas, deploy, tests, scripts, and docs.
+- `sites/` is intentionally absent. The marketing site package was removed from
+  the application worktree and is no longer an audit target.
+- Service entrypoints are package-level ASGI targets, not always literal
+  `main.py` files directly under `services/<service>/`. Validate Docker `CMD`
+  targets such as `protocol_bus.mcp_server:app` in addition to `main.py`.
+- Service tests are centralized under `tests/services/*.py` with a small
+  `services/orchestrator/tests/` package. Do not require a `tests/` subdirectory
+  inside every service unless the repo is intentionally reorganized.
+- Ignored generated output folders such as `apps/mission-control/out/`,
+  `apps/mission-control/output_extracted/`, and root `MagicMock/` are local build
+  or runtime residue. They should be excluded from source audit findings unless
+  the task is explicit disk hygiene.
+- Current app status is active development, not production-ready. Audit findings
+  should be framed as release-readiness blockers/warnings, not regressions from a
+  shipped production product.
+
+Initial validation evidence:
+
+- All seven backend services have tracked Dockerfiles and requirements files.
+- Six services expose package `main.py` ASGI entrypoints; `protocol-bus-mcp`
+  exposes `protocol_bus.mcp_server:app` via Docker `CMD`.
+- Mission Control has the expected Next.js application files and build tooling.
+- `sites/` is missing by design.
+- No production star imports were found; the only `from os.path import *` match is
+  a test fixture string in `tests/services/test_ast_extractor.py`.
+
+---
+
 ## Table of Contents
 
+0. [Plan Validation Against Current Application State](#0-plan-validation-against-current-application-state)
 1. [Audit Goals & Scope](#1-audit-goals--scope)
 2. [Severity Classification](#2-severity-classification)
 3. [Phase 1 — Structural Integrity](#3-phase-1--structural-integrity)
@@ -87,14 +127,22 @@ Every finding is assigned one of three severities. **No finding is closed withou
 ### Checklist
 
 - [ ] **Directory contract** — every directory in `AGENTS.md` Repository Structure section exists on disk
-- [ ] **Service completeness** — each service in `services/` has: `Dockerfile`, `requirements.txt`, a runnable `main.py` or `app.py`, and a `tests/` directory
+- [ ] **Service completeness** — each service in `services/` has:
+  `Dockerfile`, `requirements.txt`, and a runnable ASGI entrypoint. Accept
+  package-level targets such as `protocol_bus.mcp_server:app`. Tests may live in
+  centralized `tests/services/*.py` files instead of per-service `tests/`
+  directories.
 - [ ] **App completeness** — `apps/mission-control` has: `package.json`, `tsconfig.json`, `next.config.*`, `app/` directory, `playwright.config.*`, and test directories
 - [ ] **Schema consumers** — every file in `schemas/` is imported by at least one module; orphaned schemas are removed or documented
 - [ ] **Protocol directory** — `protocol/` contents are referenced in code; not a documentation artifact
 - [ ] **Ledger directory** — `ledger/` has a writer and a reader; verify both exist and are called
 - [ ] **`shared_runtime` imports** — every module in `shared_runtime/` is imported by at least one service; unused modules are either justified or removed
-- [ ] **`examples/` validity** — examples run without error against the current API surface; stale examples are removed
-- [ ] **`sites/` contents** — identify what lives here; confirm not orphaned
+- [x] **`examples/` validity** — static JSON examples are covered by
+  `tests/test_examples_schema.py`, which validates LogicNode and RIR examples
+  against the canonical schemas.
+- [x] **`sites/` contents** — `sites/` is intentionally absent after the
+  2026-06-21 application-only cleanup. Do not reintroduce marketing-site scope
+  into the application audit.
 - [ ] **`conftest.py`** — fixtures map to real runtime conditions; no all-mock fixtures masking real integration needs
 - [ ] **`start_app.bat` / `stop_app.bat`** — tested on clean environment; all referenced services start successfully; no silent failures
 
@@ -138,7 +186,10 @@ Every finding is assigned one of three severities. **No finding is closed withou
 
 - [ ] **Services use kebab-case** — `api-gateway`, `pod-worker`, `protocol-bus-mcp` ✅ (already correct)
 - [ ] **Python package dirs match service names** — `services/orchestrator/orchestrator/`, `services/api-gateway/api_gateway/` (verify internal package name uses underscores)
-- [ ] **No mixed case in directory names** — scan for any CamelCase or UPPERCASE directory names
+- [ ] **No mixed case in directory names** — scan tracked source directories for
+  any CamelCase or UPPERCASE directory names. Exclude ignored generated/runtime
+  output such as `MagicMock/` and Mission Control static export folders unless
+  performing local disk hygiene.
 - [ ] **Test mirror structure** — `tests/services/` mirrors `services/`; every service has a corresponding test subdirectory
 - [ ] **No `utils.py` catch-alls** — if a `utils.py` exists, audit its contents and split into named modules
 - [ ] **No `helpers.py` catch-alls** — same rule
@@ -635,7 +686,13 @@ After all findings are resolved, the following documents must be updated:
 
 | ID | Phase | Severity | File | Description | Status | Fix PR |
 |---|---|---|---|---|---|---|
-| A-001 | — | — | — | Findings to be populated as audit executes | PENDING | — |
+| A-001 | Phase 1 | Improvement | `AUDIT_PLAN.md` | Original plan treated `sites/` as an active audit target; current application scope intentionally removed it. | FIXED | `5c9c768` |
+| A-002 | Phase 1 | Improvement | `services/protocol-bus-mcp/Dockerfile` | Service entrypoint is `protocol_bus.mcp_server:app`, not `main.py`/`app.py`; checklist updated to validate ASGI targets from Docker CMD. | FIXED | local plan validation |
+| A-003 | Phase 1 | Improvement | `tests/services/` | Tests are centralized by file naming instead of mirrored per-service subdirectories; plan adjusted so this layout is not reported as a false structural defect. | FIXED | local plan validation |
+| A-004 | Phase 2 | Improvement | `.gitignore` | Mixed-case/generated-output scans must exclude ignored runtime/build residue (`MagicMock/`, `apps/mission-control/out/`, `apps/mission-control/output_extracted/`) unless doing local disk hygiene. | FIXED | local plan validation |
+| A-005 | Phase 3/12 | Warning | README.md, docs/ARCHITECTURE.md, ledger/schema.sql | Docs claimed the stale SQLite ledger/schema.sql was the active traceability ledger; documentation now points to the active Postgres audit, LLM usage, and immutable ledger migrations, and the SQLite schema is labeled legacy. | FIXED | local working tree |
+| A-006 | Phase 1 | Warning | schemas/rir.*.schema.json, tests/services/test_refined_ir_unit.py | Refined IR schemas had active producer code but no focused regression test proving generated RIR stays aligned with the canonical JSON schemas. | FIXED | local working tree |
+| A-007 | Phase 1 | Warning | `examples/`, `tests/test_examples_schema.py` | Static examples had no regression test proving they stayed aligned with the current LogicNode and RIR schemas. | FIXED | local working tree |
 
 ---
 

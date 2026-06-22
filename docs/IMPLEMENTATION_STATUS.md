@@ -13,6 +13,17 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
+### Audit Phase 1 fixes and documentation sync (2026-06-21)
+
+Latest local status: Phase 1 of AUDIT_PLAN.md is being executed as audit-plus-fix, not report-only.
+
+- Generated RIR modules are now covered by canonical RIR JSON-schema regression tests.
+- LogicNode and RIR example fixtures are now covered by schema regression tests.
+- Traceability-ledger documentation now points at the active Postgres audit/LLM/immutable ledger migrations, and the root SQLite schema is marked legacy.
+
+Qualification status: git diff --check and py_compile passed. Full pytest/Ruff validation is blocked by the local Python shim/dependency environment.
+---
+
 ### Application-only cleanup and fallback visibility (2026-06-21)
 
 Latest local status: the marketing website package has been removed from the

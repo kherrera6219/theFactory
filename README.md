@@ -497,7 +497,7 @@ is optional future/deployment scope, not the default local product path.
 
 **Schema governance:** Versioned SQL migrations with checksum-tracked `schema_migrations` table (`V001_...` naming).
 
-**Traceability Ledger:** `ledger/schema.sql` — artifacts, sources, custody chain, audit runs tables.
+**Traceability Ledger:** Active runtime ledger tables are Postgres migrations under `services/orchestrator/orchestrator/migrations/` including `V005_project_audit_event_schema.sql`, `V007_llm_usage_ledger_schema.sql`, and `V009_immutable_audit.sql`.
 
 ---
 

@@ -116,3 +116,39 @@ def test_write_refined_ir_module_signing_failure_is_non_fatal(
         agent_id="AGENT-14-PYTHON",
     )
     assert record.path.exists()
+
+
+def test_refined_ir_module_matches_canonical_json_schemas() -> None:
+    from jsonschema import Draft202012Validator, RefResolver
+
+    schema_dir = ROOT / 'schemas'
+    fn_schema = json.loads(
+        (schema_dir / 'rir.fn.schema.json').read_text(encoding='utf-8')
+    )
+    module_schema = json.loads(
+        (schema_dir / 'rir.module.schema.json').read_text(encoding='utf-8')
+    )
+    module = build_refined_ir_module(
+        mission_id='mission-1',
+        agent_id='AGENT-14-PYTHON',
+        source_language='python',
+        target_language='python',
+        logicnodes=[_logicnode()],
+        source_ref='mission://mission-1',
+    )
+    payload = module.model_dump(by_alias=True)
+    resolver = RefResolver.from_schema(
+        module_schema, store={'rir.fn.schema.json': fn_schema}
+    )
+    module_errors = sorted(
+        Draft202012Validator(
+            module_schema, resolver=resolver
+        ).iter_errors(payload),
+        key=lambda error: list(error.path),
+    )
+    fn_errors = sorted(
+        Draft202012Validator(fn_schema).iter_errors(payload['fns'][0]),
+        key=lambda error: list(error.path),
+    )
+    assert module_errors == []
+    assert fn_errors == []

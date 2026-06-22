@@ -370,7 +370,7 @@ See [`ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`](ADR_SECURITY_MODEL_API_
 | `schemas/rir.module.schema.json` | Refined-IR module contract |
 | `schemas/rir.fn.schema.json` | Refined-IR function contract |
 | `protocol/topics.yaml` | Protocol bus topic catalog |
-| `ledger/schema.sql` | Traceability ledger table definitions |
+| `services/orchestrator/orchestrator/migrations/V005_project_audit_event_schema.sql`, `V007_llm_usage_ledger_schema.sql`, `V009_immutable_audit.sql` | Active Postgres audit, LLM usage, and immutable ledger table definitions |
 | `docs/openapi/api-gateway.v1.json` | Gateway OpenAPI spec |
 | `docs/openapi/orchestrator.v1.json` | Orchestrator OpenAPI spec |
 
