@@ -5,6 +5,8 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, Response
 from fastapi.responses import HTMLResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from pydantic import BaseModel
 
 from shared_runtime.logging_config import configure_logging
 
@@ -15,17 +17,42 @@ LOGGER = logging.getLogger(__name__)
 
 API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
 
+
+class HealthResponse(BaseModel):
+    status: str
+    ok: bool
+    service: str
+
+
+class DependencyStatus(BaseModel):
+    ok: bool
+    error: str | None = None
+
+
+class ReadinessResponse(BaseModel):
+    ready: bool
+    service: str
+    dependencies: dict[str, DependencyStatus]
+
+
+class SnapshotResponse(BaseModel):
+    ok: bool
+    api_gateway_status: int | None = None
+    api_gateway: dict[str, Any] | None = None
+    error: str | None = None
+
+
 app = FastAPI(title="HolyGrail Dashboard", version="0.1.0")
 configure_tracing(app, service_name="dashboard")
 
 
-@app.get("/health")
-def health() -> dict[str, bool | str]:
-    return {"ok": True, "service": "dashboard"}
+@app.get("/health", response_model=HealthResponse, status_code=200)
+def health() -> HealthResponse:
+    return HealthResponse(status="ok", ok=True, service="dashboard")
 
 
-@app.get("/readyz")
-async def readyz(response: Response) -> dict[str, Any]:
+@app.get("/readyz", response_model=ReadinessResponse, status_code=200)
+async def readyz(response: Response) -> ReadinessResponse:
     api_gateway_ok = False
     api_gateway_error: str | None = None
     try:
@@ -41,31 +68,36 @@ async def readyz(response: Response) -> dict[str, Any]:
     ready = api_gateway_ok
     if not ready:
         response.status_code = 503
-    return {
-        "ready": ready,
-        "service": "dashboard",
-        "dependencies": {
-            "api_gateway": {"ok": api_gateway_ok, "error": api_gateway_error},
+    return ReadinessResponse(
+        ready=ready,
+        service="dashboard",
+        dependencies={
+            "api_gateway": DependencyStatus(ok=api_gateway_ok, error=api_gateway_error),
         },
-    }
+    )
 
 
-@app.get("/snapshot")
-async def snapshot() -> dict[str, Any]:
+@app.get("/snapshot", response_model=SnapshotResponse, status_code=200)
+async def snapshot() -> SnapshotResponse:
     try:
         async with httpx.AsyncClient(timeout=1.5) as client:
             response = await client.get(f"{API_GATEWAY_URL}/health")
-        return {
-            "ok": True,
-            "api_gateway_status": response.status_code,
-            "api_gateway": response.json(),
-        }
+        return SnapshotResponse(
+            ok=True,
+            api_gateway_status=response.status_code,
+            api_gateway=response.json(),
+        )
     except Exception as exc:
         LOGGER.warning("dashboard snapshot failed: %s", type(exc).__name__)
-        return {"ok": False, "error": f"snapshot unavailable: {type(exc).__name__}"}
+        return SnapshotResponse(ok=False, error=f"snapshot unavailable: {type(exc).__name__}")
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/metrics", status_code=200)
+def metrics() -> Response:
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/", response_class=HTMLResponse, status_code=200)
 def index() -> str:
     return """<!doctype html>
 <html>

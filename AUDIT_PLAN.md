@@ -242,7 +242,7 @@ Every finding is assigned one of three severities. **No finding is closed withou
 
 ### Per-Service Audit Checklist (apply to each)
 
-Services: `api-gateway` · `orchestrator` · `pod-worker` · `audit-worker` · `protocol-bus-mcp` · `dashboard`
+Services: `api-gateway` · `orchestrator` · `pod-worker` · `agent-runtime` · `audit-worker` · `protocol-bus-mcp` · `dashboard`
 
 #### Completeness
 
@@ -272,7 +272,7 @@ Services: `api-gateway` · `orchestrator` · `pod-worker` · `audit-worker` · `
 
 - [ ] `/health` endpoint returns `{"status": "ok"}` with 200 only when all critical dependencies are reachable
 - [ ] `/ready` endpoint (separate from `/health`) confirms service is ready to accept traffic
-- [ ] `/metrics` endpoint exposes Prometheus-compatible metrics
+- [x] `/metrics` endpoint exposes Prometheus-compatible metrics — all backend services now expose `/metrics`; dashboard was brought into parity in Phase 4.
 - [ ] Structured logging (JSON) on all services — every log entry includes `service`, `trace_id`, `mission_id` where applicable
 - [ ] `tracing.py` is wired to all services — not just orchestrator
 - [ ] Log levels are configurable via env var; default `INFO` in prod, `DEBUG` in dev
@@ -695,6 +695,7 @@ After all findings are resolved, the following documents must be updated:
 | A-010 | Phase 3 | Warning | `.env.example` | Runtime Python env lookups and live/demo script knobs were not fully declared in `.env.example`; added documented optional defaults for service tuning, state topics, DLQ, protocol bus, tracing, safety, live validation, and demo controls. | FIXED | local working tree |
 | A-011 | Phase 3 | Warning | `services/orchestrator/requirements.txt` | Production requirement `psycopg-pool>=3.3.1` was unpinned. | FIXED | local working tree |
 | A-012 | Phase 3 | Improvement | `config/agent_api_keys.yaml` | Stale YAML key configuration sample was kept under active `config/` but no runtime loader consumed it; active key configuration is env/vault based. Removed it from the active app tree. | FIXED | local working tree |
+| A-013 | Phase 4 | Warning | `services/dashboard/dashboard/main.py`, `services/dashboard/requirements.txt` | Dashboard lacked the Prometheus `/metrics` endpoint and dependency used by other backend services; added the endpoint, dependency, and explicit response contracts/status codes for dashboard JSON routes. | FIXED | local working tree |
 
 ---
 

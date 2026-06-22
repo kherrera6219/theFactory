@@ -16,6 +16,8 @@ Phase 3 was committed and pushed to `origin/main` as `9e88bad audit-phase-3-conf
 
 Phase 4 is now active. The audit is application-only and covers backend service completeness, API design, error handling, health/readiness/metrics, and service-specific checks for api-gateway, orchestrator, pod-worker, agent-runtime, audit-worker, protocol-bus-mcp, and dashboard. Treat findings as fix-as-we-go items rather than report-only notes.
 
+First Phase 4 fix completed: dashboard observability is now aligned with the rest of the backend services via `/metrics`, `prometheus-client`, and explicit JSON response contracts/status codes.
+
 ---
 
 ## Work Completed in This Session (2026-06-21 - Audit Phase 3 configuration and dependency wiring)

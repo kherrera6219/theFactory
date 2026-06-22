@@ -19,6 +19,8 @@ Latest status: Phase 4 is active after Phase 3 was pushed as `9e88bad audit-phas
 
 Current audit target: backend service runtime quality across api-gateway, orchestrator, pod-worker, agent-runtime, audit-worker, protocol-bus-mcp, and dashboard. Initial validation is static because the app is not required to be running for this pass; full pytest/Ruff remains dependent on restoring the local Python tooling environment.
 
+First Phase 4 fix: dashboard now has Prometheus `/metrics`, a pinned `prometheus-client` dependency, and explicit Pydantic response models/status codes for JSON service endpoints.
+
 ---
 
 ### Audit Phase 3 configuration/dependency fix batch (2026-06-21)
