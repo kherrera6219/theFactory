@@ -1,5 +1,5 @@
--- Traceability Ledger (SQLite)
--- Minimal starter schema; extend as needed.
+-- Legacy SQLite traceability starter schema.
+-- Active runtime ledger tables are managed by Postgres migrations in services/orchestrator/orchestrator/migrations.
 
 PRAGMA foreign_keys = ON;
 

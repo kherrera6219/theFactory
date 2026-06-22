@@ -10,6 +10,23 @@ before consulting archived plans.
 
 ---
 
+## Work Completed in This Session (2026-06-21 - Audit Phase 1 fixes and documentation sync)
+
+The application audit is now being handled as audit-plus-fix: inspect a checklist area, repair concrete app/repo defects, validate what can be validated locally, and update the tracker.
+
+**Phase 1 fixes completed:**
+- Added RIR schema regression coverage for generated RefinedIRModule payloads.
+- Added example fixture schema coverage for LogicNode and RIR examples.
+- Corrected traceability-ledger docs to point at active Postgres migrations instead of the legacy SQLite starter schema.
+- Updated AUDIT_PLAN.md with the application-only baseline and fixed findings A-005 through A-007.
+
+**Validation completed:** git diff --check; bundled Python py_compile for edited/new schema tests.
+
+**Validation blocked:** pytest/Ruff cannot run because python resolves to the broken WindowsApps shim; py -3.11 reports no suitable runtime.
+
+**Current next step:** restore a usable project Python environment or run the focused schema tests inside CI, then continue Phase 1 runtime/startup validation.
+---
+
 ## Work Completed in This Session (2026-06-21 - Application-only cleanup and fallback visibility)
 
 The operator confirmed that only the application should remain in scope. The
