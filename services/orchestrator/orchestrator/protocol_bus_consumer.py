@@ -245,6 +245,15 @@ class ProtocolBusConsumer:
         message = self._decode_entry(channel, entry_id, fields)
         if message is None:
             return True
+        envelope_protocol = str(message.get("envelope", {}).get("protocol", ""))
+        if envelope_protocol != protocol:
+            LOGGER.warning(
+                "ProtocolBusConsumer dropping entry %s from lane %s with envelope protocol %r",
+                entry_id,
+                protocol,
+                envelope_protocol,
+            )
+            return True
         try:
             await handler(message)
             return True
