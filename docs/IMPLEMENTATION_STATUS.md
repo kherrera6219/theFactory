@@ -1,7 +1,7 @@
 # Implementation Status
 
 Document version: 2026.06.21-a
-Last updated: 2026-06-21
+Last updated: 2026-06-23
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -21,7 +21,9 @@ Phase 5 focus is registry/orchestrator truth: 41-agent inventory, ghost/orphan i
 
 First Phase 5 fix: clarified missions now resume correctly by re-queuing with `MISSION_CLARIFICATION_APPLIED`, restarting lifecycle processing, and passing operator clarification into PM intake context. Added `tests/services/test_mission_clarify_route_unit.py` and pushed as `bc00a7a`.
 
-Second Phase 5 fix: `AgentDefinition` now exposes audit-facing `pod_assignment` and `language_keys` aliases with coverage in `tests/services/test_agent_personas_registry.py`. Static inventory confirms 41 agents, 14 synthesized-heartbeat agents, 27 shared-worker agents, no missing personas, no orphan personas, no specialist language-persona gaps, and no missing audit alias fields. Bundled Python `py_compile` passes; local focused pytest remains blocked because pytest is not installed in the bundled runtime.
+Second Phase 5 fix: `AgentDefinition` now exposes audit-facing `pod_assignment` and `language_keys` aliases with coverage in `tests/services/test_agent_personas_registry.py`. Static inventory confirms 41 agents, 14 synthesized-heartbeat agents, 27 shared-worker agents, no missing personas, no orphan personas, no specialist language-persona gaps, and no missing audit alias fields. Pushed as `b338976`.
+
+Third Phase 5 fix: `tests/services/test_agent_base_unit.py` now permanently verifies synthesized-heartbeat/shared-worker runtime mapping and concrete `BaseAgent` subclass reachability through `AGENT_REGISTRY`. Bundled Python `py_compile` passes and the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes; local focused pytest remains blocked because pytest is not installed in the bundled runtime.
 
 ---
 

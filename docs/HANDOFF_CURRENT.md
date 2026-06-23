@@ -1,7 +1,7 @@
 # Current Handoff
 
 Document version: 2026.06.21-a
-Last updated: 2026-06-21
+Last updated: 2026-06-23
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -16,9 +16,11 @@ Phase 4 is closed for this audit pass at `3cced29`. Completed fixes are committe
 
 Phase 5 is now the active audit area. First fix in this phase was pushed as `bc00a7a` and addresses the stuck `CLARIFYING` path: `/missions/{mission_id}/clarify` now re-queues the mission with `MISSION_CLARIFICATION_APPLIED`, restarts lifecycle processing, and PM intake includes `metadata["pm_clarification"]` as `operator_clarification` when rebuilding the feature contract. Focused regression coverage lives in `tests/services/test_mission_clarify_route_unit.py`.
 
-Second Phase 5 fix in the working tree adds audit-facing `pod_assignment` and `language_keys` aliases to `AgentDefinition` with registry coverage in `tests/services/test_agent_personas_registry.py`. Static inventory now confirms 41 agents, no missing personas, no orphan personas, no specialist language-persona gaps, and no missing audit alias fields.
+Second Phase 5 fix was pushed as `b338976` and adds audit-facing `pod_assignment` and `language_keys` aliases to `AgentDefinition` with registry coverage in `tests/services/test_agent_personas_registry.py`. Static inventory now confirms 41 agents, no missing personas, no orphan personas, no specialist language-persona gaps, and no missing audit alias fields.
 
-Validation for this batch: bundled Python `py_compile` passes for touched backend/test files. Focused pytest remains blocked because the bundled Python runtime has no `pytest` module. Continue with registry truth: 41-agent inventory, ghost/orphan implementation checks, AgentPersona consistency, and whether MissionFlowV2/event-bus wiring actually routes work through the intended agents.
+Third Phase 5 fix in the working tree adds permanent ghost/orphan implementation coverage in `tests/services/test_agent_base_unit.py`: registry `runtime_class` values must map to the documented synthesized-heartbeat/shared-worker implementation paths, and every concrete `BaseAgent` subclass must be reachable through `AGENT_REGISTRY`.
+
+Validation for this batch: bundled Python `py_compile` passes for touched backend/test files, and the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes. Focused pytest remains blocked because the bundled Python runtime has no `pytest` module. Continue with MissionFlowV2/event-bus truth: phase handlers, guarded/persisted transitions, publisher/subscriber inventory, event schema enforcement, and LangGraph fallback isolation.
 
 ---
 

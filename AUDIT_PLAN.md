@@ -349,8 +349,8 @@ Carry-forward items remain tracked for later hardening rather than being marked 
 ### Agent Registry Audit (`agent_registry.py`)
 
 - [x] **41-agent inventory** — registry scan confirms 41 agents with `runtime_class`, `pod_assignment`, `language_keys`, and real-vs-synthesized runtime class coverage
-- [ ] **No ghost agents** — every agent in the registry either has a concrete implementation class OR is explicitly documented as `synthesized_heartbeat`
-- [ ] **No orphaned implementations** — every `*Agent` class defined in the codebase is registered in `agent_registry.py`
+- [x] **No ghost agents** — every agent in the registry either has a concrete implementation class OR is explicitly documented as `synthesized_heartbeat`
+- [x] **No orphaned implementations** — every `*Agent` class defined in the codebase is registered in `agent_registry.py`
 - [x] **`AgentPersona` consistency** — every registered agent has a corresponding `AgentPersona` dataclass entry with no field gaps
 
 ### Smelt Cycle Wiring (INTAKE → FETCH → SMELT → GATING → FUSION → SQUEEZE → DELIVERY)
@@ -362,7 +362,7 @@ Carry-forward items remain tracked for later hardening rather than being marked 
 
 ### MissionFlowV2 Phases (11-phase state machine)
 
-Phase 5 progress: the clarification hold/resume path now re-queues clarified missions, restarts the lifecycle task, and feeds operator clarification back into PM intake context. Registry inventory now confirms 41 agents, 0 missing personas, 0 orphan personas, 0 missing specialist language personas, and audit-facing aliases for `runtime_class`, `pod_assignment`, and `language_keys`. Regression coverage was added in `tests/services/test_mission_clarify_route_unit.py` and `tests/services/test_agent_personas_registry.py`; `py_compile` passes, while local pytest remains blocked by missing pytest in the bundled runtime.
+Phase 5 progress: the clarification hold/resume path now re-queues clarified missions, restarts the lifecycle task, and feeds operator clarification back into PM intake context. Registry inventory now confirms 41 agents, 0 missing personas, 0 orphan personas, 0 missing specialist language personas, audit-facing aliases for `runtime_class`, `pod_assignment`, and `language_keys`, and permanent test coverage for synthesized-heartbeat/shared-worker routing plus concrete implementation reachability. Regression coverage was added in `tests/services/test_mission_clarify_route_unit.py`, `tests/services/test_agent_personas_registry.py`, and `tests/services/test_agent_base_unit.py`; `py_compile` passes and the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes; local pytest remains blocked by missing pytest in the bundled runtime.
 
 - [ ] All 11 phases are implemented (no stub phases)
 - [ ] Phase entry/exit emits `emit_state_event()` — observable from dashboard
@@ -715,7 +715,8 @@ After all findings are resolved, the following documents must be updated:
 | A-014 | Phase 4 | Warning | `services/orchestrator/orchestrator/protocol_bus_producer.py`, `tests/services/test_protocol_bus_consumer.py` | Generic protocol sends supported all six lanes, but typed producer helpers and helper-schema tests only covered alpha, beta, delta, and omega. Added sigma/rho helpers and schema coverage so all six protocol lanes have standard producer APIs. | FIXED | `ff5419f` |
 | A-015 | Phase 4 | Warning | `services/api-gateway/api_gateway/main.py`, `tests/services/test_api_gateway_auth_mode_unit.py` | API gateway startup validation did not hard-fail invalid `AUTH_MODE`, and production CORS allowed `*` if configured. Added fail-fast startup validation and focused unit coverage. | FIXED | `3cced29` |
 | A-016 | Phase 5 | Warning | `services/orchestrator/orchestrator/routes/missions.py`, `services/orchestrator/orchestrator/mission_flow_v2/phases_intake.py`, `services/orchestrator/orchestrator/models.py`, `tests/services/test_mission_clarify_route_unit.py` | Missions paused in `CLARIFYING` accepted clarification without reliably resuming PM intake/lifecycle work, and the operator answer was not fed back into the PM contract prompt. Clarification now re-queues, emits `MISSION_CLARIFICATION_APPLIED`, restarts lifecycle processing, and passes `operator_clarification` into PM intake context. | FIXED | `bc00a7a` |
-| A-017 | Phase 5 | Improvement | `services/orchestrator/orchestrator/agent_registry.py`, `tests/services/test_agent_personas_registry.py` | The 41-agent registry had the required data but did not expose audit-facing `pod_assignment` and `language_keys` accessors named by the Phase 5 checklist. Added read-only aliases and regression coverage; inventory now reports no missing alias fields. | FIXED | current Phase 5 fix batch |
+| A-017 | Phase 5 | Improvement | `services/orchestrator/orchestrator/agent_registry.py`, `tests/services/test_agent_personas_registry.py` | The 41-agent registry had the required data but did not expose audit-facing `pod_assignment` and `language_keys` accessors named by the Phase 5 checklist. Added read-only aliases and regression coverage; inventory now reports no missing alias fields. | FIXED | `b338976` |
+| A-018 | Phase 5 | Improvement | `tests/services/test_agent_base_unit.py` | The ghost/orphan agent implementation audit was only proven by temporary inventory output and partial factory tests. Added permanent regression coverage that every registry runtime class maps to the documented implementation path and every concrete `BaseAgent` subclass is reachable through `AGENT_REGISTRY`. | FIXED | current Phase 5 fix batch |
 
 ---
 
