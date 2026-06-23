@@ -22,9 +22,11 @@ Third Phase 5 fix was pushed as `983d571` and adds permanent ghost/orphan implem
 
 Fourth Phase 5 fix was pushed as `40d4cee` and updates `advance_mission_lifecycle_v2` to reset LLM mission/settings context variables in `finally`, with source-level regression coverage in `tests/services/test_mission_flow_v2.py`.
 
-Fifth Phase 5 fix in the working tree updates `ProtocolBusConsumer` so decoded envelopes must match the lane protocol before dispatch; misrouted/corrupted messages are dropped before handlers run. Regression coverage lives in `tests/services/test_protocol_bus_consumer.py`.
+Fifth Phase 5 fix was pushed as `adfc81a` and updates `ProtocolBusConsumer` so decoded envelopes must match the lane protocol before dispatch; misrouted/corrupted messages are dropped before handlers run. Regression coverage lives in `tests/services/test_protocol_bus_consumer.py`.
 
-Validation for this batch: bundled Python `py_compile` passes for touched backend/test files, the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes, and the direct protocol lane-guard check drops mismatched envelopes before dispatch. Focused pytest remains blocked because the bundled Python runtime has no `pytest` module; direct MissionFlowV2 runtime import is also blocked in the bundled runtime by missing `httpx`. Continue with MissionFlowV2/event-bus truth: dead-event coverage for non-protocol service streams, remaining schema enforcement parity, and LangGraph fallback isolation before Phase 6 Mission Control frontend audit.
+Phase 6 Mission Control frontend audit has started. First Phase 6 fix in the working tree converts Settings vault list/save/test/delete calls from raw `fetch` to shared `fetchJson`, preserving standard timeout and structured error handling. `npm --prefix apps/mission-control run lint` passes, and `npm --prefix apps/mission-control run test` passes with 16 files / 74 tests.
+
+Validation for this batch: bundled Python `py_compile` passes for touched backend/test files, the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes, and the direct protocol lane-guard check drops mismatched envelopes before dispatch. Focused pytest remains blocked because the bundled Python runtime has no `pytest` module; direct MissionFlowV2 runtime import is also blocked in the bundled runtime by missing `httpx`. Continue with Phase 6 Mission Control frontend audit: remaining client-side fetch/API contract checks, route loading/error coverage, and frontend unit/e2e validation. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
 
 ---
 
