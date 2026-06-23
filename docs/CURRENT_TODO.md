@@ -25,11 +25,13 @@ Third Phase 5 fix completed and pushed as `983d571`: `tests/services/test_agent_
 
 Fourth Phase 5 fix completed and pushed as `40d4cee`: MissionFlowV2 now resets LLM mission/settings context variables in `finally`, preventing early-return/exception context leakage between missions on a reused worker task. Added source-level regression coverage in `tests/services/test_mission_flow_v2.py`.
 
-Fifth Phase 5 fix completed in the working tree: `ProtocolBusConsumer` now drops entries whose envelope protocol does not match the Redis lane being consumed, preventing misrouted/corrupted events from reaching the wrong handler. Added regression coverage in `tests/services/test_protocol_bus_consumer.py`.
+Fifth Phase 5 fix completed and pushed as `adfc81a`: `ProtocolBusConsumer` now drops entries whose envelope protocol does not match the Redis lane being consumed, preventing misrouted/corrupted events from reaching the wrong handler. Added regression coverage in `tests/services/test_protocol_bus_consumer.py`.
+
+Phase 6 Mission Control frontend audit has started. First Phase 6 fix in the working tree converts Settings vault list/save/test/delete calls from raw `fetch` to shared `fetchJson`, preserving standard timeout and structured error handling. `npm --prefix apps/mission-control run lint` passes, and `npm --prefix apps/mission-control run test` passes with 16 files / 74 tests.
 
 Validation: bundled Python `py_compile` passes for touched backend/test files, the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes, and the direct protocol lane-guard check drops mismatched envelopes before dispatch. Focused pytest is still blocked locally because the bundled Python runtime has no `pytest` module; direct MissionFlowV2 runtime import is also blocked in the bundled runtime by missing `httpx`.
 
-Next active work: continue Phase 5 with dead-event coverage for non-protocol service streams, remaining schema enforcement parity, and LangGraph fallback isolation checks before moving to Phase 6 Mission Control frontend audit.
+Next active work: continue Phase 6 Mission Control frontend audit with remaining client-side fetch/API contract checks, route loading/error coverage, and frontend unit/e2e validation. Carry forward Phase 5 non-protocol stream dead-event/schema parity and LangGraph isolation checks as backend follow-ups.
 
 ---
 

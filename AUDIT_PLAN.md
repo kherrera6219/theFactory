@@ -390,7 +390,7 @@ Phase 5 progress: the clarification hold/resume path now re-queues clarified mis
 
 ### TypeScript & Code Quality
 
-- [ ] `tsc --noEmit` passes with zero errors in strict mode
+- [x] `tsc --noEmit` passes with zero errors in strict mode � `npm --prefix apps/mission-control run lint` passes as of Phase 6 start
 - [ ] Zero `any` types in application code — OpenAPI-generated types enforced; verify no regressions
 - [ ] Zero `// @ts-ignore` or `// @ts-expect-error` without a documented reason
 - [ ] ESLint passes with zero errors
@@ -422,7 +422,7 @@ Phase 5 progress: the clarification hold/resume path now re-queues clarified mis
 
 ### Testing
 
-- [ ] All Vitest unit tests pass: `make test-ui`
+- [x] All Vitest unit tests pass: `npm --prefix apps/mission-control run test` passes with 16 files / 74 tests
 - [ ] All Playwright e2e tests pass: `make test-ui-e2e`
 - [ ] Coverage threshold met for UI unit tests
 - [ ] E2e tests cover the primary happy path: submit mission → observe phases → view output
@@ -718,7 +718,8 @@ After all findings are resolved, the following documents must be updated:
 | A-017 | Phase 5 | Improvement | `services/orchestrator/orchestrator/agent_registry.py`, `tests/services/test_agent_personas_registry.py` | The 41-agent registry had the required data but did not expose audit-facing `pod_assignment` and `language_keys` accessors named by the Phase 5 checklist. Added read-only aliases and regression coverage; inventory now reports no missing alias fields. | FIXED | `b338976` |
 | A-018 | Phase 5 | Improvement | `tests/services/test_agent_base_unit.py` | The ghost/orphan agent implementation audit was only proven by temporary inventory output and partial factory tests. Added permanent regression coverage that every registry runtime class maps to the documented implementation path and every concrete `BaseAgent` subclass is reachable through `AGENT_REGISTRY`. | FIXED | `983d571` |
 | A-019 | Phase 5 | Warning | `services/orchestrator/orchestrator/mission_flow_v2/lifecycle.py`, `tests/services/test_mission_flow_v2.py` | MissionFlowV2 set LLM mission/settings context variables without resetting them, so early returns or exceptions could leak one mission context into later LLM calls on the same worker task. Added `try/finally` reset coverage. | FIXED | `40d4cee` |
-| A-020 | Phase 5 | Warning | `services/orchestrator/orchestrator/protocol_bus_consumer.py`, `tests/services/test_protocol_bus_consumer.py` | ProtocolBusConsumer decoded envelopes but did not verify the envelope protocol matched the Redis lane being consumed, so misrouted/corrupted bus entries could reach the wrong handler. Added lane/protocol enforcement and regression coverage. | FIXED | current Phase 5 fix batch |
+| A-020 | Phase 5 | Warning | `services/orchestrator/orchestrator/protocol_bus_consumer.py`, `tests/services/test_protocol_bus_consumer.py` | ProtocolBusConsumer decoded envelopes but did not verify the envelope protocol matched the Redis lane being consumed, so misrouted/corrupted bus entries could reach the wrong handler. Added lane/protocol enforcement and regression coverage. | FIXED | `adfc81a` |
+| A-021 | Phase 6 | Warning | `apps/mission-control/app/(shell)/settings/page.tsx` | Settings vault actions used raw `fetch` instead of the shared `fetchJson` client, bypassing standard timeout and structured API error handling. Converted vault list/save/test/delete calls to `fetchJson` with narrow response types. | FIXED | current Phase 6 fix batch |
 
 ---
 

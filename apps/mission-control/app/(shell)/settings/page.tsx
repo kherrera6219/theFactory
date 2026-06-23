@@ -11,7 +11,7 @@ import { OperatorUnlockForm } from "../../components/operator-unlock-form";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
-import { getOperationsAgentIntegrations, createDiagnosticBundle, triggerBackup } from "../../lib/api-client";
+import { fetchJson, getOperationsAgentIntegrations, createDiagnosticBundle, triggerBackup } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { clampNumber, isAllowedLocalApiBase, safeJsonParse } from "../../lib/security";
 import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
@@ -121,6 +121,20 @@ type VaultSlotRecord = {
   expires_at: string | null;
   ttl_seconds: number | null;
   rotation_due: boolean;
+};
+
+type VaultListResponse = {
+  slots?: VaultSlotRecord[];
+};
+
+type VaultMutationResponse = {
+  detail?: string;
+};
+
+type VaultTestResponse = {
+  valid?: boolean;
+  reason?: string;
+  detail?: string;
 };
 
 type SlotRow = {
@@ -249,7 +263,7 @@ export default function SettingsPage() {
     setOrchestratorOffline(false);
     const [integrationsResult, vaultResult] = await Promise.allSettled([
       getOperationsAgentIntegrations(),
-      fetch("/api/vault", { method: "GET", cache: "no-store" }),
+      fetchJson<VaultListResponse>("/api/vault", { method: "GET" }),
     ]);
 
     if (integrationsResult.status === "fulfilled") {
@@ -266,7 +280,7 @@ export default function SettingsPage() {
     }
 
     if (vaultResult.status === "fulfilled") {
-      const vaultPayload = (await vaultResult.value.json()) as { slots?: VaultSlotRecord[] };
+      const vaultPayload = vaultResult.value;
       setVaultSlots(Array.isArray(vaultPayload.slots) ? vaultPayload.slots : []);
     } else {
       setSlotError(vaultResult.reason instanceof Error ? vaultResult.reason.message : "Unable to load vault metadata.");
@@ -407,9 +421,8 @@ export default function SettingsPage() {
     if (secret.length < 8) { setSlotError("Secret must contain at least 8 characters."); return; }
     setSlotLoading(true); setSlotError(null); setSlotMessage(null);
     try {
-      const response = await fetch("/api/vault", {
+      await fetchJson<VaultMutationResponse>("/api/vault", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slot_id: selectedSlot.slotId,
           provider: selectedSlotCanChooseModel ? selectedModelOption.provider : selectedSlot.provider,
@@ -417,8 +430,6 @@ export default function SettingsPage() {
           secret,
         }),
       });
-      const payload = (await response.json()) as { detail?: string };
-      if (!response.ok) throw new Error(payload.detail || "Unable to save vault slot.");
       setSlotSecretInput("");
       setSlotMessage(`Saved ${selectedSlot.slotId}.`);
       // FIX #10: auto-close edit panel on success
@@ -435,9 +446,8 @@ export default function SettingsPage() {
     if (!selectedSlot) { setSlotError("Select a slot before testing."); return; }
     setSlotLoading(true); setSlotError(null); setSlotMessage(null);
     try {
-      const response = await fetch("/api/vault/test", {
+      const payload = await fetchJson<VaultTestResponse>("/api/vault/test", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slot_id: selectedSlot.slotId,
           provider: selectedSlotCanChooseModel ? selectedModelOption.provider : selectedSlot.provider,
@@ -445,8 +455,6 @@ export default function SettingsPage() {
           secret: slotSecretInput.trim().length > 0 ? slotSecretInput.trim() : undefined,
         }),
       });
-      const payload = (await response.json()) as { valid?: boolean; reason?: string; detail?: string };
-      if (!response.ok) throw new Error(payload.detail || "Key test failed.");
       setSlotMessage(payload.valid ? `Valid: ${payload.reason}` : `Invalid: ${payload.reason}`);
     } catch (requestError) {
       setSlotError(requestError instanceof Error ? requestError.message : "Unable to test slot.");
@@ -459,13 +467,10 @@ export default function SettingsPage() {
     if (!selectedSlot) return;
     setSlotLoading(true); setSlotError(null); setSlotMessage(null);
     try {
-      const response = await fetch("/api/vault", {
+      await fetchJson<VaultMutationResponse>("/api/vault", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slot_id: selectedSlot.slotId }),
       });
-      const payload = (await response.json()) as { detail?: string };
-      if (!response.ok) throw new Error(payload.detail || "Unable to delete slot.");
       setSlotSecretInput("");
       setSlotMessage(`Cleared ${selectedSlot.slotId}.`);
       setTimeout(() => { setSlotMessage(null); setEditPanelOpen(false); }, 2000);
