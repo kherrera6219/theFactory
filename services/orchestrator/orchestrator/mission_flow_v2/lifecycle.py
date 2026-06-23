@@ -418,98 +418,101 @@ async def advance_mission_lifecycle_v2(
 
     _ = prepare_chain_fn
 
-    for expected_state, new_state, event_type in V2_TRANSITIONS:
-        preparer = stage_preparers.get(expected_state)
-        if preparer is not None:
-            prepared = await preparer(
-                app=app,
-                settings=settings,
-                validator=validator,
-                emit_state_event_fn=emit_state_event_fn,
-                mission_id=mission_id,
-            )
-            if not prepared:
-                return
-
-        if expected_state == MissionState.running and new_state == MissionState.gating:
-            if not await _advance_running_to_gating(
-                app=app,
-                settings=settings,
-                validator=validator,
-                mission_id=mission_id,
-            ):
-                return
-
-        # Completion gate before COMPLETE
-        if expected_state == MissionState.verified and new_state == MissionState.complete:
-            if not await _advance_verified_to_complete(
-                app=app,
-                settings=settings,
-                validator=validator,
-                emit_state_event_fn=emit_state_event_fn,
-                mission_id=mission_id,
-                completion_check_fn=completion_check_fn,
-            ):
-                return
-
-        await asyncio.sleep(settings.transition_step_seconds)
-
-        record = await asyncio.to_thread(
-            _pkg().storage.transition_mission_state,
-            settings,
-            mission_id,
-            expected_state,
-            new_state,
-            event_type,
-        )
-        if record is None:
-            return
-
-        if new_state in RUNTIME_PHASES:
-            record = await _advance_runtime_phases(
-                app=app,
-                settings=settings,
-                validator=validator,
-                mission_id=mission_id,
-                record=record,
-                new_state=new_state,
-                event_type=event_type,
-            )
-
-        redis_ready = bool(getattr(app.state, "redis_ready", False))
-        redis_client = getattr(app.state, "redis", None)
-        if redis_ready and redis_client is not None:
-            try:
-                await emit_state_event_fn(
+    try:
+        for expected_state, new_state, event_type in V2_TRANSITIONS:
+            preparer = stage_preparers.get(expected_state)
+            if preparer is not None:
+                prepared = await preparer(
+                    app=app,
                     settings=settings,
                     validator=validator,
-                    redis_client=redis_client,
-                    mission=record,
+                    emit_state_event_fn=emit_state_event_fn,
+                    mission_id=mission_id,
+                )
+                if not prepared:
+                    return
+
+            if expected_state == MissionState.running and new_state == MissionState.gating:
+                if not await _advance_running_to_gating(
+                    app=app,
+                    settings=settings,
+                    validator=validator,
+                    mission_id=mission_id,
+                ):
+                    return
+
+            # Completion gate before COMPLETE
+            if expected_state == MissionState.verified and new_state == MissionState.complete:
+                if not await _advance_verified_to_complete(
+                    app=app,
+                    settings=settings,
+                    validator=validator,
+                    emit_state_event_fn=emit_state_event_fn,
+                    mission_id=mission_id,
+                    completion_check_fn=completion_check_fn,
+                ):
+                    return
+
+            await asyncio.sleep(settings.transition_step_seconds)
+
+            record = await asyncio.to_thread(
+                _pkg().storage.transition_mission_state,
+                settings,
+                mission_id,
+                expected_state,
+                new_state,
+                event_type,
+            )
+            if record is None:
+                return
+
+            if new_state in RUNTIME_PHASES:
+                record = await _advance_runtime_phases(
+                    app=app,
+                    settings=settings,
+                    validator=validator,
+                    mission_id=mission_id,
+                    record=record,
+                    new_state=new_state,
                     event_type=event_type,
                 )
-            except Exception as exc:
-                LOGGER.warning(
-                    "v2: failed to emit %s for mission %s: %s",
-                    event_type,
-                    mission_id,
-                    type(exc).__name__,
+
+            redis_ready = bool(getattr(app.state, "redis_ready", False))
+            redis_client = getattr(app.state, "redis", None)
+            if redis_ready and redis_client is not None:
+                try:
+                    await emit_state_event_fn(
+                        settings=settings,
+                        validator=validator,
+                        redis_client=redis_client,
+                        mission=record,
+                        event_type=event_type,
+                    )
+                except Exception as exc:
+                    LOGGER.warning(
+                        "v2: failed to emit %s for mission %s: %s",
+                        event_type,
+                        mission_id,
+                        type(exc).__name__,
+                    )
+
+            if new_state == MissionState.gating:
+                record = await _produce_pod_group_standard(
+                    app=app,
+                    settings=settings,
+                    validator=validator,
+                    emit_state_event_fn=emit_state_event_fn,
+                    mission=record,
                 )
 
-        if new_state == MissionState.gating:
-            record = await _produce_pod_group_standard(
-                app=app,
-                settings=settings,
-                validator=validator,
-                emit_state_event_fn=emit_state_event_fn,
-                mission=record,
-            )
-
-        if new_state == MissionState.fusion:
-            record = await _prepare_fusion(
-                app=app,
-                settings=settings,
-                validator=validator,
-                emit_state_event_fn=emit_state_event_fn,
-                mission=record,
-            )
-
+            if new_state == MissionState.fusion:
+                record = await _prepare_fusion(
+                    app=app,
+                    settings=settings,
+                    validator=validator,
+                    emit_state_event_fn=emit_state_event_fn,
+                    mission=record,
+                )
+    finally:
+        _llm_current_mission_id.reset(_t1)
+        _llm_current_settings.reset(_t2)

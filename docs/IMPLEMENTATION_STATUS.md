@@ -23,7 +23,9 @@ First Phase 5 fix: clarified missions now resume correctly by re-queuing with `M
 
 Second Phase 5 fix: `AgentDefinition` now exposes audit-facing `pod_assignment` and `language_keys` aliases with coverage in `tests/services/test_agent_personas_registry.py`. Static inventory confirms 41 agents, 14 synthesized-heartbeat agents, 27 shared-worker agents, no missing personas, no orphan personas, no specialist language-persona gaps, and no missing audit alias fields. Pushed as `b338976`.
 
-Third Phase 5 fix: `tests/services/test_agent_base_unit.py` now permanently verifies synthesized-heartbeat/shared-worker runtime mapping and concrete `BaseAgent` subclass reachability through `AGENT_REGISTRY`. Bundled Python `py_compile` passes and the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes; local focused pytest remains blocked because pytest is not installed in the bundled runtime.
+Third Phase 5 fix: `tests/services/test_agent_base_unit.py` now permanently verifies synthesized-heartbeat/shared-worker runtime mapping and concrete `BaseAgent` subclass reachability through `AGENT_REGISTRY`. Pushed as `983d571`.
+
+Fourth Phase 5 fix: MissionFlowV2 now resets LLM mission/settings context variables in `finally`, preventing early-return/exception context leakage between missions on a reused worker task. Added `tests/services/test_mission_flow_v2.py` coverage. Bundled Python `py_compile` passes and the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes; local focused pytest remains blocked because pytest is not installed in the bundled runtime, and direct MissionFlowV2 runtime import is blocked by missing `httpx`.
 
 ---
 
