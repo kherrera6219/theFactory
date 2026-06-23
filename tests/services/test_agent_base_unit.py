@@ -1,6 +1,8 @@
 """Unit tests for services/orchestrator/orchestrator/agent_base.py"""
 from __future__ import annotations
 
+import inspect
+
 import pytest
 from orchestrator.agent_base import (
     AgentReport,
@@ -185,6 +187,46 @@ class TestMakeAgentFactory:
         for definition in AGENT_REGISTRY:
             agent = make_agent(definition.agent_id)
             assert agent.agent_id == definition.agent_id
+
+    def test_runtime_class_matches_factory_implementation(self) -> None:
+        """Registry runtime classes must map to the documented concrete factory path."""
+        synthesized_categories = {"interface", "executive", "support"}
+        shared_worker_categories = {"pod_manager", "pod_audit", "specialist"}
+
+        for definition in AGENT_REGISTRY:
+            agent = make_agent(definition.agent_id)
+            if definition.runtime_class == "synthesized_heartbeat":
+                assert definition.category in synthesized_categories
+                assert isinstance(agent, (InterfaceAgent, ExecutiveAgent, SupportAgent))
+                assert not isinstance(agent, (PodManagerAgent, PodAuditAgent, SpecialistAgent))
+            elif definition.runtime_class == "shared_worker":
+                assert definition.category in shared_worker_categories
+                assert isinstance(agent, (PodManagerAgent, PodAuditAgent, SpecialistAgent))
+                assert not isinstance(agent, (InterfaceAgent, ExecutiveAgent, SupportAgent))
+            else:
+                pytest.fail(
+                    f"{definition.agent_id} has unknown runtime_class "
+                    f"{definition.runtime_class!r}"
+                )
+
+    def test_all_concrete_agent_subclasses_are_registry_reachable(self) -> None:
+        """No concrete agent implementation should exist outside the registry path."""
+
+        def all_subclasses(cls: type[BaseAgent]) -> set[type[BaseAgent]]:
+            found: set[type[BaseAgent]] = set()
+            for child in cls.__subclasses__():
+                found.add(child)
+                found.update(all_subclasses(child))
+            return found
+
+        concrete_classes = {
+            cls
+            for cls in all_subclasses(BaseAgent)
+            if not inspect.isabstract(cls) and cls is not SpecialistAgent
+        }
+        reachable_classes = {type(make_agent(definition.agent_id)) for definition in AGENT_REGISTRY}
+
+        assert concrete_classes <= reachable_classes
 
 
 # ---------------------------------------------------------------------------
