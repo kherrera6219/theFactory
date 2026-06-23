@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import inspect
 import sys
+import textwrap
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -27,6 +29,15 @@ v2_phase_index = orchestrator_mission_flow_v2.v2_phase_index
 MissionState = orchestrator_models.MissionState
 V2_STATES = orchestrator_models.V2_STATES
 
+
+def test_advance_mission_lifecycle_v2_resets_llm_contextvars() -> None:
+    src = textwrap.dedent(inspect.getsource(advance_mission_lifecycle_v2))
+
+    assert "_llm_current_mission_id.set(mission_id)" in src
+    assert "_llm_current_settings.set(settings)" in src
+    assert "finally:" in src
+    assert "_llm_current_mission_id.reset(_t1)" in src
+    assert "_llm_current_settings.reset(_t2)" in src
 
 def test_build_mission_charter_validates_against_schema() -> None:
     charter = orchestrator_mission_flow_v2.build_mission_charter(
