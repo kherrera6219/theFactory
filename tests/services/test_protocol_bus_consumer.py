@@ -258,6 +258,33 @@ class TestProtocolBusConsumer:
         asyncio.run(_run())
         assert calls["n"] == 1
 
+    def test_protocol_mismatch_is_dropped_before_handler(self):
+        from orchestrator.protocol_bus_consumer import ProtocolBusConsumer
+
+        channel = "protocol:sigma:broadcast"
+        bad = _envelope_entry("alpha", {"mission_id": "wrong-lane"})
+        good = _envelope_entry("sigma", {"mission_id": "ok"})
+        redis = FakeStreamRedis({channel: [("1-0", bad[1]), ("2-0", good[1])]})
+
+        received: list[dict[str, Any]] = []
+
+        async def handler(message: dict[str, Any]) -> None:
+            received.append(message)
+            consumer.stop()
+
+        consumer = ProtocolBusConsumer(
+            redis_client=redis,
+            agent_id="AGENT-03-BROKER",
+            handlers={"sigma": handler},
+            block_ms=1,
+        )
+
+        asyncio.run(asyncio.wait_for(consumer.start(), timeout=2.0))
+
+        assert len(received) == 1
+        assert received[0]["envelope"]["protocol"] == "sigma"
+        assert received[0]["payload"]["content"]["mission_id"] == "ok"
+
     def test_invalid_envelope_is_dropped(self):
         from orchestrator.protocol_bus_consumer import ProtocolBusConsumer
 

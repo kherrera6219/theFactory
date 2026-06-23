@@ -20,9 +20,11 @@ Second Phase 5 fix was pushed as `b338976` and adds audit-facing `pod_assignment
 
 Third Phase 5 fix was pushed as `983d571` and adds permanent ghost/orphan implementation coverage in `tests/services/test_agent_base_unit.py`: registry `runtime_class` values must map to the documented synthesized-heartbeat/shared-worker implementation paths, and every concrete `BaseAgent` subclass must be reachable through `AGENT_REGISTRY`.
 
-Fourth Phase 5 fix in the working tree updates `advance_mission_lifecycle_v2` to reset LLM mission/settings context variables in `finally`, with source-level regression coverage in `tests/services/test_mission_flow_v2.py`.
+Fourth Phase 5 fix was pushed as `40d4cee` and updates `advance_mission_lifecycle_v2` to reset LLM mission/settings context variables in `finally`, with source-level regression coverage in `tests/services/test_mission_flow_v2.py`.
 
-Validation for this batch: bundled Python `py_compile` passes for touched backend/test files, and the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes. Focused pytest remains blocked because the bundled Python runtime has no `pytest` module; direct MissionFlowV2 runtime import is also blocked in the bundled runtime by missing `httpx`. Continue with MissionFlowV2/event-bus truth: phase handlers, guarded/persisted transitions, publisher/subscriber inventory, event schema enforcement, and LangGraph fallback isolation.
+Fifth Phase 5 fix in the working tree updates `ProtocolBusConsumer` so decoded envelopes must match the lane protocol before dispatch; misrouted/corrupted messages are dropped before handlers run. Regression coverage lives in `tests/services/test_protocol_bus_consumer.py`.
+
+Validation for this batch: bundled Python `py_compile` passes for touched backend/test files, the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes, and the direct protocol lane-guard check drops mismatched envelopes before dispatch. Focused pytest remains blocked because the bundled Python runtime has no `pytest` module; direct MissionFlowV2 runtime import is also blocked in the bundled runtime by missing `httpx`. Continue with MissionFlowV2/event-bus truth: dead-event coverage for non-protocol service streams, remaining schema enforcement parity, and LangGraph fallback isolation before Phase 6 Mission Control frontend audit.
 
 ---
 

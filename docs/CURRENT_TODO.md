@@ -23,11 +23,13 @@ Second Phase 5 fix completed and pushed as `b338976`: the 41-agent registry now 
 
 Third Phase 5 fix completed and pushed as `983d571`: `tests/services/test_agent_base_unit.py` now permanently verifies synthesized-heartbeat versus shared-worker runtime mapping and confirms every concrete `BaseAgent` subclass is reachable from `AGENT_REGISTRY`, closing the ghost/orphan implementation checklist items.
 
-Fourth Phase 5 fix completed in the working tree: MissionFlowV2 now resets LLM mission/settings context variables in `finally`, preventing early-return/exception context leakage between missions on a reused worker task. Added source-level regression coverage in `tests/services/test_mission_flow_v2.py`.
+Fourth Phase 5 fix completed and pushed as `40d4cee`: MissionFlowV2 now resets LLM mission/settings context variables in `finally`, preventing early-return/exception context leakage between missions on a reused worker task. Added source-level regression coverage in `tests/services/test_mission_flow_v2.py`.
 
-Validation: bundled Python `py_compile` passes for touched backend/test files, and the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes. Focused pytest is still blocked locally because the bundled Python runtime has no `pytest` module; direct MissionFlowV2 runtime import is also blocked in the bundled runtime by missing `httpx`.
+Fifth Phase 5 fix completed in the working tree: `ProtocolBusConsumer` now drops entries whose envelope protocol does not match the Redis lane being consumed, preventing misrouted/corrupted events from reaching the wrong handler. Added regression coverage in `tests/services/test_protocol_bus_consumer.py`.
 
-Next active work: continue Phase 5 agent/orchestrator wiring with broader MissionFlowV2 phase wiring, event-bus publisher/subscriber inventory, and LangGraph fallback isolation checks.
+Validation: bundled Python `py_compile` passes for touched backend/test files, the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes, and the direct protocol lane-guard check drops mismatched envelopes before dispatch. Focused pytest is still blocked locally because the bundled Python runtime has no `pytest` module; direct MissionFlowV2 runtime import is also blocked in the bundled runtime by missing `httpx`.
+
+Next active work: continue Phase 5 with dead-event coverage for non-protocol service streams, remaining schema enforcement parity, and LangGraph fallback isolation checks before moving to Phase 6 Mission Control frontend audit.
 
 ---
 

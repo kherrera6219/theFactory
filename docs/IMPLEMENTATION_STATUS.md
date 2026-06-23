@@ -25,7 +25,9 @@ Second Phase 5 fix: `AgentDefinition` now exposes audit-facing `pod_assignment` 
 
 Third Phase 5 fix: `tests/services/test_agent_base_unit.py` now permanently verifies synthesized-heartbeat/shared-worker runtime mapping and concrete `BaseAgent` subclass reachability through `AGENT_REGISTRY`. Pushed as `983d571`.
 
-Fourth Phase 5 fix: MissionFlowV2 now resets LLM mission/settings context variables in `finally`, preventing early-return/exception context leakage between missions on a reused worker task. Added `tests/services/test_mission_flow_v2.py` coverage. Bundled Python `py_compile` passes and the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes; local focused pytest remains blocked because pytest is not installed in the bundled runtime, and direct MissionFlowV2 runtime import is blocked by missing `httpx`.
+Fourth Phase 5 fix: MissionFlowV2 now resets LLM mission/settings context variables in `finally`, preventing early-return/exception context leakage between missions on a reused worker task. Added `tests/services/test_mission_flow_v2.py` coverage. Pushed as `40d4cee`.
+
+Fifth Phase 5 fix: `ProtocolBusConsumer` now enforces envelope protocol equals the consumed lane protocol before dispatching to a handler, closing a misrouted-event path in the protocol bus. Added `tests/services/test_protocol_bus_consumer.py` coverage. Bundled Python `py_compile` passes, the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes, and the direct protocol lane-guard check drops mismatched envelopes before dispatch; local focused pytest remains blocked because pytest is not installed in the bundled runtime, and direct MissionFlowV2 runtime import is blocked by missing `httpx`.
 
 ---
 
