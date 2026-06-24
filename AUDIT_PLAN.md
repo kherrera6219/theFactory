@@ -441,7 +441,7 @@ Carry-forward work remains open rather than being marked complete: generated Ope
 
 **Goal:** `shared_runtime/` is the foundation trusted by all services. Every module must be bulletproof.
 
-Phase 7 status: ready to close as of 2026-06-24. All ten modules have active consumers. Completed fixes cover concurrent atomic writes, strict P-256 artifact verification, bounded HMAC freshness, log/error/context redaction, mounted production signing keys, and no-restart signing/agent-key rotation. The focused suite passes 128 tests; the complete Python suite passes with 5 intentional skips; full Ruff and merged production Compose validation pass.
+Phase 7 closed at `35dfd50` on 2026-06-24. All ten modules have active consumers. Completed fixes cover concurrent atomic writes, strict P-256 artifact verification, bounded HMAC freshness, log/error/context redaction, mounted production signing keys, and no-restart signing/agent-key rotation. The focused suite passes 128 tests; the complete Python suite passes with 5 intentional skips; full Ruff and merged production Compose validation pass.
 
 ### Module-by-Module Review
 
@@ -466,13 +466,15 @@ Phase 7 status: ready to close as of 2026-06-24. All ten modules have active con
 
 ### Phase 7 Closeout Status
 
-Phase 7 is ready to close in the current checkpoint. Every module has active consumers and focused coverage; production signing is fail-closed around a mounted key; key rotation paths do not require service restart; PII/prompt/error/log boundaries are covered; and runtime envelopes remain schema-driven. Qualification passes the 128-test focused suite, the complete Python suite with 5 intentional skips, full Ruff, merged production Compose validation, and `git diff --check`.
+Phase 7 closed at `35dfd50`. Every module has active consumers and focused coverage; production signing is fail-closed around a mounted key; key rotation paths do not require service restart; PII/prompt/error/log boundaries are covered; and runtime envelopes remain schema-driven. Qualification passes the 128-test focused suite, the complete Python suite with 5 intentional skips, full Ruff, merged production Compose validation, and `git diff --check`.
 
 ---
 
 ## 10. Phase 8 — Test Coverage & Quality Gates
 
 **Goal:** Coverage numbers reflect real behavior coverage, not line-hit theater.
+
+Phase 8 status: active as of 2026-06-24 after Phase 7 closed at `35dfd50`. Initial inventory collects 1,538 tests; the full suite passes with 5 intentional skips and full Ruff passes. Immediate gaps are absent `pytest-randomly`/`pytest-timeout` enforcement, skip reasons without issue references, and a proposed per-service directory layout that conflicts with the repository's established centralized test-file convention.
 
 ### Coverage Policy Enforcement
 
@@ -739,11 +741,11 @@ After all findings are resolved, the following documents must be updated:
 | A-025 | Phase 7 | Warning | `shared_runtime/crypto_signing.py`, `tests/services/test_crypto_signing_unit.py` | Verification advertised `ECDSA-P256-SHA256` but accepted other EC curves and signature records without the required digest; artifact sidecars also used non-atomic writes. Enforced P-256, required constant-time digest comparison, enabled strict base64 validation, and moved sidecars to atomic JSON writes. | FIXED | `68b86d4` |
 | A-026 | Phase 7 | Warning | `shared_runtime/agent_auth.py`, `tests/shared_runtime/test_agent_auth.py` | HMAC freshness used an absolute timestamp delta, allowing signatures nearly a full replay window in the future and extending their usable lifetime; signing also accepted empty identities/secrets. Added a separate future-skew bound, header/hex/window validation, narrow exception handling, and fail-closed signing inputs. | FIXED | `ded42a5` |
 | A-027 | Phase 7 | Warning | `shared_runtime/logging_config.py`, `tests/services/test_logging_config_unit.py` | Shared JSON logging emitted raw messages, exception text, and arbitrary nested extras; plain logging also emitted raw rendered messages. Added PII redaction for both formats, recursive structured-field handling, credential-name masking, and trace-correlation preservation coverage. | FIXED | `ab32fa6` |
-| A-028 | Phase 7 | Warning | `shared_runtime/crypto_keystore.py`, `.env.example`, `deploy/docker-compose.prod.yaml` | Non-Windows production could create `PLAINv1` signing keys and could not load a mounted PEM. Production now requires an existing mounted P-256 PKCS8 PEM, refuses generation/fallback, mounts the same key read-only into orchestrator and audit-worker, and rereads it for rotation. | FIXED | current Phase 7 closeout |
+| A-028 | Phase 7 | Warning | `shared_runtime/crypto_keystore.py`, `.env.example`, `deploy/docker-compose.prod.yaml` | Non-Windows production could create `PLAINv1` signing keys and could not load a mounted PEM. Production now requires an existing mounted P-256 PKCS8 PEM, refuses generation/fallback, mounts the same key read-only into orchestrator and audit-worker, and rereads it for rotation. | FIXED | `35dfd50` |
 | A-029 | Phase 7 | Warning | `shared_runtime/errors.py`, `tests/services/test_errors_unit.py` | The error model promised sanitized developer detail but trusted callers and copied raw `str(exc)` through `wrap_unexpected()`, allowing credentials or PII into serialized error objects. `FactoryError` now sanitizes developer messages at construction with direct and wrapped-error regression coverage. | FIXED | `563a4d0` |
-| A-030 | Phase 7 | Warning | `shared_runtime/pii_guard.py`, `tests/services/test_pii_guard.py` | Safe LLM context redaction only handled top-level strings, allowing nested transcript/metadata PII and forbidden fields through. Redaction is now recursive with nested forbidden-field removal, cycle detection, and a bounded depth. | FIXED | current Phase 7 closeout |
-| A-031 | Phase 7 | Warning | `shared_runtime/agent_keys.py`, `tests/shared_runtime/test_agent_keys.py`, `.env.example` | Agent service keys had no live rotation source. Added a fail-closed JSON key file reread on every resolution with deterministic precedence below direct per-agent environment variables. | FIXED | current Phase 7 closeout |
-| A-032 | Phase 7/8 | Warning | `tests/services/test_dashboard_snapshot.py`, `tests/services/test_mission_flow_v2.py`, `tests/services/test_runtime_unit.py` | Full-suite qualification exposed stale typed-response assertions and lifecycle tests contacting configured LLM providers, producing nondeterministic clarification. Tests now assert Pydantic response attributes and force deterministic offline LLM behavior. | FIXED | current Phase 7 closeout |
+| A-030 | Phase 7 | Warning | `shared_runtime/pii_guard.py`, `tests/services/test_pii_guard.py` | Safe LLM context redaction only handled top-level strings, allowing nested transcript/metadata PII and forbidden fields through. Redaction is now recursive with nested forbidden-field removal, cycle detection, and a bounded depth. | FIXED | `35dfd50` |
+| A-031 | Phase 7 | Warning | `shared_runtime/agent_keys.py`, `tests/shared_runtime/test_agent_keys.py`, `.env.example` | Agent service keys had no live rotation source. Added a fail-closed JSON key file reread on every resolution with deterministic precedence below direct per-agent environment variables. | FIXED | `35dfd50` |
+| A-032 | Phase 7/8 | Warning | `tests/services/test_dashboard_snapshot.py`, `tests/services/test_mission_flow_v2.py`, `tests/services/test_runtime_unit.py` | Full-suite qualification exposed stale typed-response assertions and lifecycle tests contacting configured LLM providers, producing nondeterministic clarification. Tests now assert Pydantic response attributes and force deterministic offline LLM behavior. | FIXED | `35dfd50` |
 
 ---
 

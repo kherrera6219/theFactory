@@ -32,7 +32,7 @@ Third Phase 6 fix was pushed as `b6d781a` and converts Repo Import and logout fr
 
 Validation for this batch: bundled Python `py_compile` passes for touched backend/test files, the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes, and the direct protocol lane-guard check drops mismatched envelopes before dispatch. Focused pytest remains blocked because the bundled Python runtime has no `pytest` module; direct MissionFlowV2 runtime import is also blocked in the bundled runtime by missing `httpx`. Phase 6 is closed for this offline audit pass at `b6d781a`; generated OpenAPI client adoption, route-specific loading/error review, Playwright E2E, and live browser validation remain carry-forward items.
 
-Phase 7 Shared Runtime is active. Inventory confirms all ten modules have active import consumers and the package root exposes no accidental symbols.
+Phase 7 Shared Runtime closed at `35dfd50`. Inventory confirms all ten modules have active import consumers and the package root exposes no accidental symbols.
 
 First Phase 7 fix was pushed as `a696152` and hardens `atomic_io.py` for concurrent writers with unique sibling temp files, per-destination backup/replace locking, bounded Windows sharing-violation retry, guaranteed cleanup, and regression coverage. Bundled Python `py_compile` and a direct 64-write concurrency probe pass; focused pytest remains blocked because the bundled runtime has no `pytest`.
 
@@ -48,7 +48,9 @@ Final Phase 7 work closes A-028 and the remaining checklist: production signing 
 
 Qualification is green: 128 focused shared-runtime/protocol tests pass, the full Python suite passes with 5 intentional skips, full Ruff and `git diff --check` pass, and the merged production Compose configuration exposes the mounted signing key read-only to orchestrator and audit-worker.
 
-Close Phase 7 in the current checkpoint, then start Phase 8. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
+Phase 8 is active. Initial inventory finds 1,538 collected tests, a green full suite with 5 intentional skips, and clean Ruff. Immediate gaps are missing `pytest-randomly`/`pytest-timeout` enforcement, skip reasons without issue references, coverage-floor validation, and a test-directory checklist that does not match the repository's centralized naming convention.
+
+Continue Phase 8 with coverage measurement and quality-gate enforcement. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
 
 ---
 

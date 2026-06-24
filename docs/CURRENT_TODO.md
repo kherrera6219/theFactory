@@ -11,7 +11,7 @@ current work.
 
 ---
 
-## Latest Status - Audit Phase 7 Shared Runtime Audit Started (2026-06-24)
+## Latest Status - Audit Phase 8 Test Coverage Audit Started (2026-06-24)
 
 Phase 4 is closed for this audit pass at `3cced29`. Completed Phase 4 app fixes: dashboard metrics/response contracts, six-lane protocol producer helpers, and API gateway auth/CORS startup validation.
 
@@ -53,7 +53,11 @@ Final Phase 7 fix batch closes A-028 and the remaining shared-runtime checklist:
 
 Phase 7 qualification is green: the focused shared-runtime/protocol suite passes 128 tests, the full repository Python suite passes with 5 intentional skips, full Ruff passes, merged production Compose validation passes, and `git diff --check` passes.
 
-Phase 7 is ready to close in the current checkpoint. Next active work after commit/push: start Phase 8 test coverage and quality-gate audit. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
+Phase 7 closed and was pushed as `35dfd50`. Phase 8 test coverage and quality-gate audit is active.
+
+Initial Phase 8 inventory: 1,538 tests are collected; the full suite passes with 5 intentional skips and full Ruff passes. Coverage thresholds are configured in CI, but `pytest-randomly` and `pytest-timeout` are not installed despite the audit policy. Several skip paths do not cite tracked issues, and the centralized `tests/services/` layout does not match the audit plan's proposed per-service directories.
+
+Next active work: validate actual coverage and per-module floors, add deterministic-order/timeout enforcement, then reconcile skip policy and test-directory expectations. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
 
 ---
 
