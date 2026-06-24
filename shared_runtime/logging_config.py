@@ -19,6 +19,9 @@ import logging
 import os
 import sys
 from datetime import UTC, datetime
+from typing import Any
+
+from shared_runtime.pii_guard import redact_pii
 
 _STANDARD_ATTRS = frozenset(
     {
@@ -47,6 +50,42 @@ _STANDARD_ATTRS = frozenset(
         "asctime",
     }
 )
+
+_SENSITIVE_FIELD_NAMES = frozenset(
+    {
+        "api_key",
+        "authorization",
+        "cookie",
+        "password",
+        "passwd",
+        "secret",
+        "set_cookie",
+        "token",
+    }
+)
+_REDACTED_CREDENTIAL = "[REDACTED-CREDENTIAL]"
+
+
+def _redact_text(value: str) -> str:
+    redacted, _ = redact_pii(value)
+    return redacted
+
+
+def _redact_log_value(value: Any, *, field_name: str | None = None, depth: int = 0) -> Any:
+    if field_name and field_name.lower().replace("-", "_") in _SENSITIVE_FIELD_NAMES:
+        return _REDACTED_CREDENTIAL
+    if isinstance(value, str):
+        return _redact_text(value)
+    if depth >= 8:
+        return _redact_text(repr(value))
+    if isinstance(value, dict):
+        return {
+            str(key): _redact_log_value(item, field_name=str(key), depth=depth + 1)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_redact_log_value(item, depth=depth + 1) for item in value]
+    return value
 
 
 class TraceIdFilter(logging.Filter):
@@ -95,22 +134,30 @@ class JsonFormatter(logging.Formatter):
             "service": self._service_name,
             "trace_id": getattr(record, "trace_id", "0" * 32),
             "span_id": getattr(record, "span_id", "0" * 16),
-            "message": record.getMessage(),
+            "message": _redact_text(record.getMessage()),
         }
         if record.exc_info:
-            payload["exc"] = self.formatException(record.exc_info)
+            payload["exc"] = _redact_text(self.formatException(record.exc_info))
         # Surface any user-provided extra={} fields, but never overwrite core keys.
         for key, value in record.__dict__.items():
             if key in _STANDARD_ATTRS or key in payload:
                 continue
             if key.startswith("_"):
                 continue
+            value = _redact_log_value(value, field_name=key)
             try:
                 json.dumps(value)
             except (TypeError, ValueError):
-                value = repr(value)
+                value = _redact_text(repr(value))
             payload[key] = value
         return json.dumps(payload, ensure_ascii=False)
+
+
+class PiiRedactingFormatter(logging.Formatter):
+    """Redact PII and credentials from fully rendered plain-text records."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return _redact_text(super().format(record))
 
 
 def configure_logging(service_name: str) -> None:
@@ -128,7 +175,7 @@ def configure_logging(service_name: str) -> None:
         handler.setFormatter(JsonFormatter(service_name=service_name))
     else:
         handler.setFormatter(
-            logging.Formatter(
+            PiiRedactingFormatter(
                 fmt="%(asctime)s %(levelname)s %(name)s: %(message)s",
                 datefmt="%Y-%m-%dT%H:%M:%S%z",
             )

@@ -38,9 +38,13 @@ First Phase 7 fix was pushed as `a696152` and hardens `atomic_io.py` for concurr
 
 Second Phase 7 fix was pushed as `68b86d4` and hardens `crypto_signing.py`: verification now enforces P-256, requires the signed digest with constant-time comparison, rejects malformed base64, and writes signature sidecars atomically. Syntax, direct signing-contract, and artifact-sidecar probes pass; focused pytest remains blocked by the missing `pytest` module.
 
-Third Phase 7 fix in the working tree hardens `agent_auth.py`: signing rejects empty identity/secret values, verification validates the hex header and replay window, and future clock skew is limited separately from maximum signature age. Syntax and a direct HMAC freshness probe pass; focused pytest remains blocked by the missing `pytest` module.
+Third Phase 7 fix was pushed as `ded42a5` and hardens `agent_auth.py`: signing rejects empty identity/secret values, verification validates the hex header and replay window, and future clock skew is limited separately from maximum signature age. Syntax and a direct HMAC freshness probe pass; focused pytest remains blocked by the missing `pytest` module.
 
-Continue with key rotation, keystore plaintext-fallback migration planning, errors/logging, PII/prompt guards, and protocol/schema parity. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
+Fourth Phase 7 fix hardens shared logging: JSON messages, exceptions, nested extras, and credential fields are redacted; plain logs redact the final rendered text; trace/span fields are preserved. Focused unit coverage was added, and bundled Python syntax plus direct behavior probes pass. Focused pytest remains blocked by the missing `pytest` module.
+
+Keystore finding A-028 remains open: Linux permits plaintext signing-key fallback, but the loader cannot yet consume a mounted raw PEM. Implement the secret format/migration before disabling fallback.
+
+Continue with the keystore/key-rotation design, error contracts, deeper PII/prompt guard coverage, and protocol/schema parity. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
 
 ---
 

@@ -25,9 +25,13 @@ First Phase 7 fix hardens `atomic_io.py` and was pushed as `a696152` for concurr
 
 Second Phase 7 fix hardens `crypto_signing.py` and was pushed as `68b86d4`: verification enforces P-256, requires the signed digest with constant-time comparison, rejects malformed base64, and writes signature sidecars atomically. Syntax, direct signing-contract, and artifact-sidecar probes pass; focused pytest remains blocked by the missing `pytest` module.
 
-Third Phase 7 fix hardens `agent_auth.py`: signing rejects empty identity/secret values, verification validates the hex header and replay window, and future clock skew is limited separately from maximum signature age. Syntax and a direct HMAC freshness probe pass; focused pytest remains blocked by the missing `pytest` module.
+Third Phase 7 fix hardens `agent_auth.py` and was pushed as `ded42a5`: signing rejects empty identity/secret values, verification validates the hex header and replay window, and future clock skew is limited separately from maximum signature age. Syntax and a direct HMAC freshness probe pass; focused pytest remains blocked by the missing `pytest` module.
 
-Remaining Phase 7 focus: key rotation, keystore plaintext-fallback migration planning, errors/logging, PII/prompt guards, and protocol/schema parity.
+Fourth Phase 7 fix hardens `logging_config.py`: JSON logging redacts messages, exception text, nested extras, and named credential fields; plain logging redacts fully rendered output; trace/span correlation fields are preserved. Added focused unit coverage. Bundled Python syntax and a direct redaction probe pass; focused pytest remains blocked by the missing `pytest` module.
+
+Open Phase 7 finding A-028: Linux defaults permit plaintext signing-key fallback, while the keystore cannot yet consume a mounted raw PEM. The mounted-secret/KMS format and migration must be implemented before plaintext fallback is disabled.
+
+Remaining Phase 7 focus: keystore/key rotation, error contracts, deeper PII/prompt guard coverage, and protocol/schema parity.
 
 ---
 ### Audit Phase 5 agent/orchestrator wiring started (2026-06-22)

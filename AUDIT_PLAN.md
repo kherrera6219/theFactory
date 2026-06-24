@@ -441,7 +441,7 @@ Carry-forward work remains open rather than being marked complete: generated Ope
 
 **Goal:** `shared_runtime/` is the foundation trusted by all services. Every module must be bulletproof.
 
-Phase 7 status: active as of 2026-06-24 after the Phase 6 documentation checkpoint. Package/import inventory confirms all ten modules have active consumers and the package root exposes no accidental internals. First fix hardens `atomic_io.py` for concurrent writers with unique sibling temp files, per-destination locking, guaranteed cleanup, and bounded Windows sharing-violation retry.
+Phase 7 status: active as of 2026-06-24 after the Phase 6 documentation checkpoint. Package/import inventory confirms all ten modules have active consumers and the package root exposes no accidental internals. Completed fixes now cover concurrent atomic writes, strict P-256 artifact verification, bounded HMAC freshness, and PII/credential redaction for JSON and plain-text shared logging. The production keystore migration remains open because Linux currently permits plaintext fallback and the loader does not yet accept a mounted raw PEM replacement.
 
 ### Module-by-Module Review
 
@@ -453,7 +453,7 @@ Phase 7 status: active as of 2026-06-24 after the Phase 6 documentation checkpoi
 | `crypto_keystore.py` | Keys are stored encrypted at rest; memory is cleared after use (`del key`) |
 | `crypto_signing.py` | Signing algorithm is documented; verification now enforces P-256, requires the canonical digest, rejects malformed base64, and writes signature sidecars atomically |
 | `errors.py` | All custom exception classes have meaningful messages; no bare `Exception` subclasses |
-| `logging_config.py` | JSON structured logging; no PII in log output; log levels configurable |
+| `logging_config.py` | JSON and plain logging redact PII, exception text, nested extras, and credential fields while preserving trace correlation; log levels remain configurable |
 | `pii_guard.py` | PII detection covers all field types declared in the system; tested against real payloads |
 | `prompt_guard.py` | Injection detection patterns are up to date; test coverage includes adversarial inputs |
 | `protocol.py` | Envelope schema matches `schemas/`; no divergence between runtime and schema files |
@@ -733,7 +733,9 @@ After all findings are resolved, the following documents must be updated:
 | A-023 | Phase 6 | Warning | `apps/mission-control/app/(shell)/repo/page.tsx`, `apps/mission-control/app/components/logout-button.tsx` | Repo Import and logout client components still used raw `fetch`, bypassing the shared timeout and structured error client. Converted both to `fetchJson`; production client components now contain zero raw `fetch` calls. | FIXED | `b6d781a` |
 | A-024 | Phase 7 | Warning | `shared_runtime/atomic_io.py`, `tests/services/test_atomic_io_unit.py` | Atomic writes reused a fixed `<name>.tmp`, allowing concurrent writers to collide; Windows could also reject simultaneous destination replacement with sharing violations. Added unique sibling temp files, per-destination locking, bounded Windows retry, guaranteed cleanup, and concurrency coverage. | FIXED | `a696152` |
 | A-025 | Phase 7 | Warning | `shared_runtime/crypto_signing.py`, `tests/services/test_crypto_signing_unit.py` | Verification advertised `ECDSA-P256-SHA256` but accepted other EC curves and signature records without the required digest; artifact sidecars also used non-atomic writes. Enforced P-256, required constant-time digest comparison, enabled strict base64 validation, and moved sidecars to atomic JSON writes. | FIXED | `68b86d4` |
-| A-026 | Phase 7 | Warning | `shared_runtime/agent_auth.py`, `tests/shared_runtime/test_agent_auth.py` | HMAC freshness used an absolute timestamp delta, allowing signatures nearly a full replay window in the future and extending their usable lifetime; signing also accepted empty identities/secrets. Added a separate future-skew bound, header/hex/window validation, narrow exception handling, and fail-closed signing inputs. | FIXED | current Phase 7 fix batch |
+| A-026 | Phase 7 | Warning | `shared_runtime/agent_auth.py`, `tests/shared_runtime/test_agent_auth.py` | HMAC freshness used an absolute timestamp delta, allowing signatures nearly a full replay window in the future and extending their usable lifetime; signing also accepted empty identities/secrets. Added a separate future-skew bound, header/hex/window validation, narrow exception handling, and fail-closed signing inputs. | FIXED | `ded42a5` |
+| A-027 | Phase 7 | Warning | `shared_runtime/logging_config.py`, `tests/services/test_logging_config_unit.py` | Shared JSON logging emitted raw messages, exception text, and arbitrary nested extras; plain logging also emitted raw rendered messages. Added PII redaction for both formats, recursive structured-field handling, credential-name masking, and trace-correlation preservation coverage. | FIXED | Phase 7 logging checkpoint |
+| A-028 | Phase 7 | Warning | `shared_runtime/crypto_keystore.py`, `.env.example`, `deploy/docker-compose.prod.yaml` | Non-Windows runtimes currently default to `PLAINv1` key storage, including production Linux containers, but the loader does not accept a mounted raw PEM replacement. A coordinated mounted-secret/KMS format and migration path is required before plaintext fallback can be disabled safely. | OPEN | tracked Phase 7 follow-up |
 
 ---
 
