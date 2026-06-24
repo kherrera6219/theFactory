@@ -617,11 +617,11 @@ function MissionDetailPageContent() {
         <ErrorBoundary><GeneratedOutputPanel missionId={missionId} generatedCodeArtifact={generatedCodeArtifact} /></ErrorBoundary>
         <ErrorBoundary><DeliveryPanel buildArtifacts={buildArtifacts} /></ErrorBoundary>
         <ErrorBoundary><AuditEvidencePanel auditReports={auditReports} /></ErrorBoundary>
-        <ErrorBoundary><AimPanel applicationIntelligenceMap={applicationIntelligenceMap as any} /></ErrorBoundary>
+        <ErrorBoundary><AimPanel applicationIntelligenceMap={applicationIntelligenceMap} /></ErrorBoundary>
         <ErrorBoundary><FusionPanel masterLogicStream={masterLogicStream} /></ErrorBoundary>
         <ErrorBoundary><KnowledgeLakePanel fetchResult={fetchResult} /></ErrorBoundary>
         <ErrorBoundary><EquivalenceReportPanel equivalenceReport={equivalenceReport} /></ErrorBoundary>
-        <ErrorBoundary><SecurityCompliancePanel securityComplianceReport={securityComplianceReport as any} /></ErrorBoundary>
+        <ErrorBoundary><SecurityCompliancePanel securityComplianceReport={securityComplianceReport} /></ErrorBoundary>
         <ErrorBoundary><DependencyAbsorptionPanel dependencyInventory={dependencyInventory} dependencyClassificationReport={dependencyClassificationReport} dependencyAbsorptionReport={dependencyAbsorptionReport} depabsExecution={depabsExecution} sbomDelta={sbomDelta} dependencySurvivalJustifications={dependencySurvivalJustifications} /></ErrorBoundary>
         <ErrorBoundary><RuntimeQcPanel runtimeQcReport={runtimeQcReport} testdataManifest={testdataManifest} /></ErrorBoundary>
       </div>
@@ -635,7 +635,7 @@ function MissionDetailPageContent() {
         className="mission-tab-panels"
       >
         <ErrorBoundary><PmFeatureContractPanel featureContract={featureContract} /></ErrorBoundary>
-        <ErrorBoundary><MissionCharterPanel missionCharter={missionCharter as any} /></ErrorBoundary>
+        <ErrorBoundary><MissionCharterPanel missionCharter={missionCharter} /></ErrorBoundary>
         <ErrorBoundary><MissionContractPanel missionContract={missionContract} /></ErrorBoundary>
         <ErrorBoundary><PodGroupStandardsPanel podGroupStandards={podGroupStandards} /></ErrorBoundary>
         <ErrorBoundary><LogicClustersPanel logicClusters={logicClusters} /></ErrorBoundary>

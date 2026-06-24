@@ -2,25 +2,7 @@
 
 import React from 'react';
 import { Panel } from '../../../../../components/panel';
-
-interface ExtractionSummary {
-  files_analyzed: number;
-  files_seen: number;
-}
-
-interface ApplicationIntelligenceMap {
-  primary_language?: string | null;
-  complexity_assessment: string;
-  total_functions: number;
-  total_classes: number;
-  extraction_summary?: ExtractionSummary | null;
-  human_approval_recommended: boolean;
-  repository_summary: string;
-  detected_languages: string[];
-  detected_dependencies: string[];
-  risks: string[];
-  recommended_approach?: string | null;
-}
+import type { ApplicationIntelligenceMap } from '../../../../../lib/types';
 
 interface AimPanelProps {
   applicationIntelligenceMap: ApplicationIntelligenceMap | null;

@@ -1,7 +1,7 @@
 # Current TODO
 
 Document version: 2026.06.21-a
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -27,11 +27,13 @@ Fourth Phase 5 fix completed and pushed as `40d4cee`: MissionFlowV2 now resets L
 
 Fifth Phase 5 fix completed and pushed as `adfc81a`: `ProtocolBusConsumer` now drops entries whose envelope protocol does not match the Redis lane being consumed, preventing misrouted/corrupted events from reaching the wrong handler. Added regression coverage in `tests/services/test_protocol_bus_consumer.py`.
 
-Phase 6 Mission Control frontend audit has started. First Phase 6 fix in the working tree converts Settings vault list/save/test/delete calls from raw `fetch` to shared `fetchJson`, preserving standard timeout and structured error handling. `npm --prefix apps/mission-control run lint` passes, and `npm --prefix apps/mission-control run test` passes with 16 files / 74 tests.
+Phase 6 Mission Control frontend audit is active. First Phase 6 fix was pushed as `db178d2` and converts Settings vault list/save/test/delete calls from raw `fetch` to shared `fetchJson`, preserving standard timeout and structured error handling.
+
+Second Phase 6 fix in the working tree removes all explicit production `any` usage from `apps/mission-control/app`: maintenance catches now use `unknown`, mission-detail panels consume canonical shared types, stale panel casts are removed, and the event log uses `MissionPhaseModel`. The zero-`any`/ignore scan, TypeScript, and Vitest all pass (16 files / 74 tests).
 
 Validation: bundled Python `py_compile` passes for touched backend/test files, the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes, and the direct protocol lane-guard check drops mismatched envelopes before dispatch. Focused pytest is still blocked locally because the bundled Python runtime has no `pytest` module; direct MissionFlowV2 runtime import is also blocked in the bundled runtime by missing `httpx`.
 
-Next active work: continue Phase 6 Mission Control frontend audit with remaining client-side fetch/API contract checks, route loading/error coverage, and frontend unit/e2e validation. Carry forward Phase 5 non-protocol stream dead-event/schema parity and LangGraph isolation checks as backend follow-ups.
+Next active work: continue Phase 6 with remaining client-side fetch/API contract checks, route loading/error coverage, and Playwright/e2e validation. Carry forward Phase 5 non-protocol stream dead-event/schema parity and LangGraph isolation checks as backend follow-ups.
 
 ---
 

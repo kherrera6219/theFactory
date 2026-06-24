@@ -1,7 +1,7 @@
 # Implementation Status
 
 Document version: 2026.06.21-a
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -29,7 +29,9 @@ Fourth Phase 5 fix: MissionFlowV2 now resets LLM mission/settings context variab
 
 Fifth Phase 5 fix: `ProtocolBusConsumer` now enforces envelope protocol equals the consumed lane protocol before dispatching to a handler, closing a misrouted-event path in the protocol bus. Added `tests/services/test_protocol_bus_consumer.py` coverage. Pushed as `adfc81a`.
 
-Phase 6 Mission Control frontend audit has started. First Phase 6 fix converts Settings vault list/save/test/delete calls from raw `fetch` to shared `fetchJson`, preserving standard timeout and structured error handling. `npm --prefix apps/mission-control run lint` passes, and `npm --prefix apps/mission-control run test` passes with 16 files / 74 tests. Bundled Python `py_compile` passes for touched backend tests; local focused pytest remains blocked because pytest is not installed in the bundled runtime, and direct MissionFlowV2 runtime import is blocked by missing `httpx`.
+Phase 6 Mission Control frontend audit is active. First Phase 6 fix converted Settings vault list/save/test/delete calls from raw `fetch` to shared `fetchJson`, preserving standard timeout and structured error handling; pushed as `db178d2`.
+
+Second Phase 6 fix removes all explicit production `any` usage from `apps/mission-control/app`: maintenance catches use `unknown`, mission-detail panels consume canonical shared types, stale casts are removed, and the event log uses `MissionPhaseModel`. The zero-`any`/ignore scan, TypeScript, and Vitest all pass (16 files / 74 tests). Bundled Python `py_compile` passes for touched backend tests; local focused pytest remains blocked because pytest is not installed in the bundled runtime, and direct MissionFlowV2 runtime import is blocked by missing `httpx`.
 
 ---
 

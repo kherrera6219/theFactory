@@ -3,16 +3,7 @@
 import React from 'react';
 import { Panel } from '../../../../../components/panel';
 import { formatDateTime } from '../../../../../lib/format';
-
-interface MissionCharter {
-  mission_mode: string;
-  mission_mode_label?: string | null;
-  depth_mode: string;
-  output_mode: string;
-  created_at: string;
-  objective: string;
-  success_criteria: string[];
-}
+import type { MissionCharter } from '../../../../../lib/types';
 
 interface MissionCharterPanelProps {
   missionCharter: MissionCharter | null;

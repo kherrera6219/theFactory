@@ -189,8 +189,8 @@ export default function SettingsPage() {
     try {
       const res = await createDiagnosticBundle();
       setMaintenanceMessage(`Diagnostic bundle generated at: ${res.bundle_path}`);
-    } catch (err: any) {
-      setMaintenanceError(err.message || "Failed to generate diagnostics.");
+    } catch (err: unknown) {
+      setMaintenanceError(err instanceof Error ? err.message : "Failed to generate diagnostics.");
     } finally {
       setMaintenanceLoading(false);
     }
@@ -208,8 +208,8 @@ export default function SettingsPage() {
       } else {
         setMaintenanceError("Offline diagnostics are only available in the desktop app.");
       }
-    } catch (err: any) {
-      setMaintenanceError(err.message || "Failed to generate offline diagnostics.");
+    } catch (err: unknown) {
+      setMaintenanceError(err instanceof Error ? err.message : "Failed to generate offline diagnostics.");
     } finally {
       setMaintenanceLoading(false);
     }
@@ -222,8 +222,8 @@ export default function SettingsPage() {
     try {
       const res = await triggerBackup();
       setMaintenanceMessage(`Backup successfully created at: ${res.backup_path}`);
-    } catch (err: any) {
-      setMaintenanceError(err.message || "Failed to trigger backup.");
+    } catch (err: unknown) {
+      setMaintenanceError(err instanceof Error ? err.message : "Failed to trigger backup.");
     } finally {
       setMaintenanceLoading(false);
     }
