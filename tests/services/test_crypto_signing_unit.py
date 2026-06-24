@@ -79,6 +79,30 @@ def test_verify_payload_rejects_malformed_record() -> None:
     assert signing.verify_payload({"a": 1}, "not-a-dict") is False
     assert signing.verify_payload({"a": 1}, {"algorithm": "wrong"}) is False
 
+def test_verify_payload_requires_digest() -> None:
+    key = signing.generate_signing_key()
+    payload = {"a": 1}
+    record = signing.sign_payload(key, payload)
+    record.pop("digest_sha256")
+
+    assert signing.verify_payload(payload, record) is False
+
+
+def test_verify_rejects_non_p256_key() -> None:
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    key = ec.generate_private_key(ec.SECP384R1())
+    data = b"payload"
+    signature = signing.sign(key, data)
+
+    assert signing.verify(signing.public_key_to_pem(key), data, signature) is False
+
+
+def test_verify_rejects_invalid_base64_signature() -> None:
+    key = signing.generate_signing_key()
+
+    assert signing.verify(signing.public_key_to_pem(key), b"payload", "not base64!!!") is False
+
 
 # ---------------------------------------------------------------------------
 # crypto_keystore
