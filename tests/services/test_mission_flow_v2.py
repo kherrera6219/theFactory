@@ -16,6 +16,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 orchestrator_mission_flow_v2 = importlib.import_module("orchestrator.mission_flow_v2")
+orchestrator_mission_flow_v2_base = importlib.import_module("orchestrator.mission_flow_v2.base")
+orchestrator_mission_flow_v2_runtime = importlib.import_module(
+    "orchestrator.mission_flow_v2.phases_runtime"
+)
 orchestrator_models = importlib.import_module("orchestrator.models")
 orchestrator_is_agent = importlib.import_module("orchestrator.is_agent")
 
@@ -101,6 +105,124 @@ def test_mission_charter_schema_validation_rejects_missing_required_field() -> N
         orchestrator_mission_flow_v2.validate_mission_charter_schema(
             {"schema": "mission_charter.v1"}
         )
+
+
+def test_mission_flow_base_helpers_normalize_settings_and_schema_errors() -> None:
+    settings = SimpleNamespace(
+        enabled_yes=" yes ",
+        disabled_no="off",
+        invalid_bool="maybe",
+        count_string="42",
+        count_float=7.9,
+        count_blank="",
+        count_bool=True,
+        count_bad="abc",
+    )
+
+    assert orchestrator_mission_flow_v2_base._setting_bool(settings, "enabled_yes") is True
+    assert orchestrator_mission_flow_v2_base._setting_bool(settings, "disabled_no", True) is False
+    assert orchestrator_mission_flow_v2_base._setting_bool(settings, "invalid_bool", True) is True
+    assert orchestrator_mission_flow_v2_base._setting_bool(settings, "missing", False) is False
+    assert orchestrator_mission_flow_v2_base._setting_int(settings, "count_string", 1) == 42
+    assert orchestrator_mission_flow_v2_base._setting_int(settings, "count_float", 1) == 7
+    assert orchestrator_mission_flow_v2_base._setting_int(settings, "count_blank", 3) == 3
+    assert orchestrator_mission_flow_v2_base._setting_int(settings, "count_bool", 4) == 4
+    assert orchestrator_mission_flow_v2_base._setting_int(settings, "count_bad", 5) == 5
+
+    assert orchestrator_mission_flow_v2_base._extract_support_agent_flags(
+        {"rationale": "Security and dependency review with tests"}, "BUILD_NEW"
+    ) == ["AGENT-05-SECURITY", "AGENT-39-DEPABS", "AGENT-10-TESTER"]
+    assert orchestrator_mission_flow_v2_base._extract_cross_pod_flags(
+        {
+            "clusters": [
+                {"pod_manager_agent_id": "AGENT-12-PODA-MGR"},
+                {"pod_manager_agent_id": "AGENT-18-PODB-MGR"},
+            ]
+        }
+    ) == ["AGENT-12-PODA-MGR", "AGENT-18-PODB-MGR"]
+    assert orchestrator_mission_flow_v2_base._workload_items_from_source_bundle(
+        "## FILE app.py\nprint('a')\n## FILE app.py\nprint('b')\n## FILE lib/util.py\n"
+    ) == ["app.py", "lib/util.py"]
+    assert orchestrator_mission_flow_v2_base._scaling_workload_items(
+        {}, {"deliverables": [" API ", "", "Tests"]}
+    ) == ["API", "Tests"]
+    assert orchestrator_mission_flow_v2_base._extension_for_language("ruby") == "txt"
+
+    for bad_charter, message in [
+        (
+            {
+                **orchestrator_mission_flow_v2.build_mission_charter(
+                    mission_id="mission-1",
+                    prompt="Build a Python CSV reader",
+                    requested_target_language="python",
+                    feature_contract={"summary": "Build a Python CSV reader"},
+                    mission_type="BUILD_NEW",
+                    depth_mode="STANDARD",
+                    output_mode="FULL_BUILD",
+                ),
+                "schema": "wrong",
+            },
+            "must be",
+        ),
+        (
+            {
+                **orchestrator_mission_flow_v2.build_mission_charter(
+                    mission_id="mission-2",
+                    prompt="Build a Python CSV reader",
+                    requested_target_language="python",
+                    feature_contract={"summary": "Build a Python CSV reader"},
+                    mission_type="BUILD_NEW",
+                    depth_mode="STANDARD",
+                    output_mode="FULL_BUILD",
+                ),
+                "mission_type": "UNKNOWN",
+            },
+            "unsupported value",
+        ),
+        (
+            {
+                **orchestrator_mission_flow_v2.build_mission_charter(
+                    mission_id="mission-3",
+                    prompt="Build a Python CSV reader",
+                    requested_target_language="python",
+                    feature_contract={"summary": "Build a Python CSV reader"},
+                    mission_type="BUILD_NEW",
+                    depth_mode="STANDARD",
+                    output_mode="FULL_BUILD",
+                ),
+                "human_approval_required": "yes",
+            },
+            "invalid type",
+        ),
+    ]:
+        with pytest.raises(ValueError, match=message):
+            orchestrator_mission_flow_v2.validate_mission_charter_schema(bad_charter)
+
+
+def test_build_mission_charter_modes_and_defaults() -> None:
+    charter = orchestrator_mission_flow_v2.build_mission_charter(
+        mission_id="mission-10",
+        prompt="short",
+        requested_target_language=None,
+        feature_contract={
+            "summary": "tiny",
+            "functional_requirements": ["Ship a report"],
+            "acceptance_criteria": ["Report exists"],
+            "risk_assessment": {"complexity": "HIGH"},
+            "human_approval_required": False,
+        },
+        mission_type="reduce_dependencies",
+        depth_mode="regulated",
+        output_mode="plan_only",
+    )
+
+    assert charter["target_outcome"] == "Complete the requested mission."
+    assert charter["mission_mode"] == 6
+    assert charter["depth_mode"] == "deep_audit"
+    assert charter["output_mode"] == "report_only"
+    assert charter["human_approval_required"] is True
+    assert "operator_approval" in charter["approval_gates_required"]
+    assert charter["definition_of_done"]["requires_dependency_absorption"] is True
 
 
 def test_run_fetch_phase_mirrors_docs_to_global_and_mission_knowledge(monkeypatch) -> None:
@@ -753,6 +875,133 @@ async def test_prepare_dependency_absorption_reports_blocks_bad_license() -> Non
     assert report["blocking"] is True
     assert any(
         event["event_type"] == "MISSION_DEPENDENCY_ABSORPTION_BLOCKED"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_dependency_absorption_reports_skips_without_evidence() -> None:
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {}
+
+    updated, ready, report = (
+        await orchestrator_mission_flow_v2._prepare_dependency_absorption_reports(
+            app=_make_app_state(),
+            settings=_make_settings(),
+            mission=mission,
+        )
+    )
+
+    assert updated is mission
+    assert ready is True
+    assert report == {"skipped": True, "reason": "no dependency evidence"}
+
+
+@pytest.mark.asyncio
+async def test_prepare_runtime_qc_skips_when_generated_output_missing() -> None:
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {}
+    inserted_events: list[str] = []
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = (
+            lambda _settings, _mission_id, _previous, _new, event_type: inserted_events.append(
+                event_type
+            )
+        )
+        updated, ready, report = await orchestrator_mission_flow_v2_runtime._prepare_runtime_qc(
+            app=_make_app_state(),
+            settings=settings,
+            mission=mission,
+        )
+
+    assert updated is mission
+    assert ready is True
+    assert report["skipped"] is True
+    assert report["reason"] == "no generated output"
+    assert inserted_events == ["MISSION_RUNTIME_QC_SKIPPED"]
+    assert any(
+        event["event_type"] == "MISSION_RUNTIME_QC_SKIPPED"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_runtime_qc_records_complete_report_and_blocks_on_enforced_fail() -> None:
+    settings = _make_settings()
+    settings.testdata_agent_enabled = True
+    settings.rqca_agent_enabled = True
+    settings.rqca_enforcement_enabled = True
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {
+            "generated_code": "print('hello')",
+            "filename": "solution.py",
+            "language": "python",
+        },
+        "mission_contract": {"acceptance_criteria": ["prints hello"]},
+    }
+    persisted_reports: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    manifest = {
+        "base_image": "python:3.12",
+        "timeout_seconds": 30,
+        "synthetic_inputs": [{"stdin": ""}],
+        "source": "test",
+    }
+    execution = {
+        "verdict": "PASS",
+        "execution_type": "subprocess",
+        "source": "test",
+        "deployment_safe": True,
+    }
+    assessment = {"qc_verdict": "FAIL", "deployment_safe": False}
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_testdata_manifest = MagicMock()
+        mock_storage.insert_runtime_qc_report = (
+            lambda _settings, _mission_id, report, qc: persisted_reports.append(
+                (report, qc)
+            )
+        )
+        with patch.object(
+            orchestrator_mission_flow_v2_runtime,
+            "generate_testdata_manifest",
+            new=AsyncMock(return_value=manifest),
+        ), patch.object(
+            orchestrator_mission_flow_v2_runtime,
+            "run_runtime_qc",
+            new=AsyncMock(return_value=execution),
+        ), patch.object(
+            orchestrator_mission_flow_v2_runtime,
+            "generate_rqca_assessment",
+            new=AsyncMock(return_value=assessment),
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            updated, ready, report = await orchestrator_mission_flow_v2_runtime._prepare_runtime_qc(
+                app=_make_app_state(),
+                settings=settings,
+                mission=mission,
+            )
+
+    assert updated is mission
+    assert ready is False
+    assert report["qc_assessment"] == assessment
+    assert mission.metadata["testdata_manifest"] == manifest
+    assert persisted_reports == [(execution, assessment)]
+    assert any(
+        event["event_type"] == "MISSION_TESTDATA_MANIFEST_READY"
+        for event in mission.metadata["chain_trace"]
+    )
+    assert any(
+        event["event_type"] == "MISSION_RUNTIME_QC_COMPLETE"
         for event in mission.metadata["chain_trace"]
     )
 

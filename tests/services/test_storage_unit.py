@@ -1,6 +1,7 @@
 import importlib
 import sys
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,6 +20,7 @@ storage_artifacts = importlib.import_module("orchestrator.storage_artifacts")
 storage_core = importlib.import_module("orchestrator.storage_core")
 storage_logicnodes = importlib.import_module("orchestrator.storage_logicnodes")
 storage_missions = importlib.import_module("orchestrator.storage_missions")
+storage_object_store = importlib.import_module("orchestrator.object_store")
 storage_pods = importlib.import_module("orchestrator.storage_pods")
 
 MissionRecord = orchestrator_models.MissionRecord
@@ -574,9 +576,193 @@ def test_build_artifact_roundtrip(monkeypatch) -> None:
     assert found["digest_sha256"] == "abc123"
 
 
+def test_build_artifact_object_storage_offload_and_fallback(monkeypatch) -> None:
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    settings = replace(
+        _settings(),
+        object_storage_enabled=True,
+        object_storage_size_threshold_bytes=4,
+        object_storage_prefix="factory",
+    )
+    artifact_row = (
+        "mission-1",
+        "artifact-1",
+        "source",
+        "package",
+        "SUCCESS",
+        "s3",
+        "factory/mission-1/artifacts/artifact-1.txt",
+        "abc123",
+        128,
+        {"file_count": 1},
+        {"verified": True},
+        "build complete",
+        None,
+        now,
+        now,
+    )
+    captured: dict[str, Any] = {}
+
+    def _put_object(_settings_obj, *, key, body, content_type, metadata):
+        captured.update(
+            {
+                "key": key,
+                "body": body,
+                "content_type": content_type,
+                "metadata": metadata,
+            }
+        )
+
+    monkeypatch.setattr(storage_object_store, "put_object", _put_object)
+    _patch_db(monkeypatch, [FakeCursor(fetchone_results=[artifact_row])])
+
+    artifact = storage.upsert_build_artifact(
+        settings,
+        "mission-1",
+        "artifact-1",
+        "source",
+        "package",
+        "SUCCESS",
+        "database",
+        None,
+        "abc123",
+        128,
+        {"file_count": 1},
+        {"verified": True},
+        "build complete",
+        "print('large enough')",
+        now.isoformat(),
+    )
+
+    assert artifact["storage_backend"] == "s3"
+    assert artifact["storage_ref"] == "factory/mission-1/artifacts/artifact-1.txt"
+    assert artifact["artifact_text"] is None
+    assert captured["body"] == b"print('large enough')"
+
+    fallback_row = (
+        "mission-1",
+        "artifact-2",
+        "source",
+        "package",
+        "SUCCESS",
+        "database",
+        None,
+        "def456",
+        1,
+        {},
+        {},
+        "",
+        "inline",
+        now,
+        now,
+    )
+
+    def _raise_put_object(*_args, **_kwargs):
+        raise RuntimeError("s3 unavailable")
+
+    monkeypatch.setattr(storage_object_store, "put_object", _raise_put_object)
+    _patch_db(monkeypatch, [FakeCursor(fetchone_results=[fallback_row])])
+    fallback = storage.upsert_build_artifact(
+        settings,
+        "mission-1",
+        "artifact-2",
+        "source",
+        "package",
+        "SUCCESS",
+        "database",
+        None,
+        "def456",
+        -10,
+        {},
+        {},
+        "",
+        "inline",
+        now.isoformat(),
+    )
+    assert fallback["storage_backend"] == "database"
+    assert fallback["artifact_text"] == "inline"
+
+
 def test_get_build_artifact_returns_none_when_missing(monkeypatch) -> None:
     _patch_db(monkeypatch, [FakeCursor(fetchone_results=[None])])
     assert storage.get_build_artifact(_settings(), "mission-1", "missing") is None
+
+
+def test_testdata_manifest_and_runtime_qc_roundtrip(monkeypatch) -> None:
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    manifest_row = (
+        "mission-1",
+        {"language": "python", "base_image": "python:3.12", "test_framework": "pytest"},
+        "python",
+        "python:3.12",
+        "pytest",
+        "generated",
+        now,
+    )
+    qc_row = (
+        "mission-1",
+        "container",
+        "PASS",
+        "APPROVED",
+        0,
+        "python",
+        "main.py",
+        "python:3.12",
+        "ok",
+        "",
+        {"execution_type": "container", "verdict": "PASS"},
+        {"qc_verdict": "APPROVED"},
+        now,
+        now,
+        now,
+    )
+    _patch_db(
+        monkeypatch,
+        [
+            FakeCursor(fetchone_results=[manifest_row]),
+            FakeCursor(fetchone_results=[manifest_row]),
+            FakeCursor(fetchone_results=[None]),
+            FakeCursor(fetchone_results=[qc_row]),
+            FakeCursor(fetchone_results=[qc_row]),
+            FakeCursor(fetchone_results=[None]),
+        ],
+    )
+    settings = _settings()
+
+    inserted_manifest = storage.insert_testdata_manifest(
+        settings,
+        "mission-1",
+        {
+            "language": " python ",
+            "base_image": " python:3.12 ",
+            "test_framework": " pytest ",
+            "source": " generated ",
+        },
+    )
+    assert inserted_manifest["language"] == "python"
+    assert storage.get_testdata_manifest(settings, "mission-1")["base_image"] == "python:3.12"
+    assert storage.get_testdata_manifest(settings, "missing") is None
+
+    inserted_qc = storage.insert_runtime_qc_report(
+        settings,
+        "mission-1",
+        {
+            "execution_type": "container",
+            "verdict": "PASS",
+            "exit_code": 0,
+            "language": "python",
+            "filename": "main.py",
+            "base_image": "python:3.12",
+            "stdout_preview": "ok",
+            "stderr_preview": "",
+            "started_at": now.isoformat(),
+            "completed_at": now.isoformat(),
+        },
+        {"qc_verdict": "APPROVED"},
+    )
+    assert inserted_qc["qc_verdict"] == "APPROVED"
+    assert storage.get_runtime_qc_report(settings, "mission-1")["verdict"] == "PASS"
+    assert storage.get_runtime_qc_report(settings, "missing") is None
 
 
 def test_locked_mission_metadata_update_branches(monkeypatch) -> None:
@@ -846,3 +1032,130 @@ def test_agent_heartbeat_and_event_views(monkeypatch) -> None:
 
     events = storage.list_recent_agent_events(settings, 5)
     assert events[0]["event_type"] == "AGENT_STATE_CHANGED"
+
+
+def test_agent_action_event_digest_insert_create_and_views(monkeypatch) -> None:
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    event_row = (
+        "aevt-1",
+        "project-1",
+        "mission-1",
+        "AGENT-14-PYTHON",
+        "orchestrator",
+        "TOOL_CALL",
+        "SUCCESS",
+        "artifact",
+        "artifact-1",
+        "pytest",
+        "trace-1",
+        "span-1",
+        "corr-1",
+        None,
+        now,
+        now,
+        0,
+        {"files": 1},
+        "content-digest",
+        "s3://bucket/object",
+        "prev-digest",
+        "event-digest",
+        now,
+    )
+    created_row = (
+        "aevt-created",
+        "project-1",
+        "mission-1",
+        "AGENT-14-PYTHON",
+        "orchestrator",
+        "BUILD",
+        "SUCCESS",
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        now,
+        now,
+        0,
+        {},
+        None,
+        None,
+        None,
+        "created-digest",
+        now,
+    )
+    _patch_db(
+        monkeypatch,
+        [
+            FakeCursor(fetchone_results=[("prev-digest",), event_row]),
+            FakeCursor(fetchone_results=[None, created_row]),
+            FakeCursor(fetchall_results=[[event_row]]),
+            FakeCursor(fetchall_results=[[event_row]]),
+        ],
+    )
+    settings = _settings()
+    record = orchestrator_models.AgentActionEventRecord(
+        event_id="aevt-1",
+        project_id="project-1",
+        mission_id="mission-1",
+        agent_id="AGENT-14-PYTHON",
+        service_name="orchestrator",
+        event_type="TOOL_CALL",
+        status="SUCCESS",
+        object_type="artifact",
+        object_id="artifact-1",
+        tool_name="pytest",
+        trace_id="trace-1",
+        span_id="span-1",
+        correlation_id="corr-1",
+        parent_event_id=None,
+        started_at=now,
+        ended_at=now,
+        duration_ms=None,
+        payload_summary={"files": 1},
+        content_sha256="content-digest",
+        blob_ref="s3://bucket/object",
+        prev_event_digest_sha256=None,
+        event_digest_sha256="pending",
+        created_at=now,
+    )
+
+    inserted = storage.insert_agent_action_event(settings, record)
+    assert inserted["event_id"] == "aevt-1"
+    assert inserted["prev_event_digest_sha256"] == "prev-digest"
+    assert inserted["duration_ms"] == 0
+
+    created = storage.create_agent_action_event(
+        settings,
+        project_id="project-1",
+        mission_id="mission-1",
+        agent_id="AGENT-14-PYTHON",
+        service_name="orchestrator",
+        event_type="BUILD",
+        started_at=now,
+        ended_at=now,
+        payload_summary=None,
+    )
+    assert created["event_id"] == "aevt-created"
+    assert created["payload_summary"] == {}
+
+    mission_events = storage.list_mission_agent_action_events(settings, "mission-1", 10)
+    assert mission_events[0]["event_digest_sha256"] == "event-digest"
+
+    project_events = storage.list_project_agent_action_events(
+        settings,
+        "project-1",
+        10,
+        mission_id="mission-1",
+        agent_id="AGENT-14-PYTHON",
+        tool_name="pytest",
+    )
+    assert project_events[0]["tool_name"] == "pytest"
+
+    assert storage_agents._normalize_payload_summary(["not", "a", "dict"]) == {}
+    assert storage_agents._event_duration_ms("bad", now) is None
+    assert storage_agents._content_digest(
+        record.model_copy(update={"content_sha256": None, "payload_summary": {}, "blob_ref": "blob"})
+    )
