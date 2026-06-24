@@ -16,7 +16,7 @@ import httpx
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
 from shared_runtime.agent_keys import normalize_agent_id
@@ -147,31 +147,72 @@ ALLOWED_LLM_MODELS: dict[str, str] = {
     "gemini-3.5-flash": "gemini",
 }
 
-REQUEST_COUNTER = Counter(
+
+def _registered_prometheus_collector(name: str) -> Any | None:
+    collectors = getattr(REGISTRY, "_names_to_collectors", {})
+    candidate_names = [name]
+    if name.endswith("_total"):
+        candidate_names.append(name.removesuffix("_total"))
+    else:
+        candidate_names.append(f"{name}_total")
+    for candidate_name in candidate_names:
+        collector = collectors.get(candidate_name)
+        if collector is not None:
+            return collector
+    return None
+
+
+def _counter(name: str, documentation: str, labelnames: tuple[str, ...] = ()) -> Any:
+    collector = _registered_prometheus_collector(name)
+    if collector is not None:
+        return collector
+    try:
+        return Counter(name, documentation, labelnames)
+    except ValueError:
+        collector = _registered_prometheus_collector(name)
+        if collector is not None:
+            return collector
+        raise
+
+
+def _histogram(name: str, documentation: str, labelnames: tuple[str, ...] = ()) -> Any:
+    collector = _registered_prometheus_collector(name)
+    if collector is not None:
+        return collector
+    try:
+        return Histogram(name, documentation, labelnames)
+    except ValueError:
+        collector = _registered_prometheus_collector(name)
+        if collector is not None:
+            return collector
+        raise
+
+
+REQUEST_COUNTER = _counter(
     "api_gateway_http_requests_total",
     "Total HTTP requests served by api-gateway",
     ("method", "path", "status_code"),
 )
-REQUEST_LATENCY = Histogram(
+REQUEST_LATENCY = _histogram(
     "api_gateway_http_request_duration_seconds",
     "HTTP request latency in seconds for api-gateway",
     ("method", "path"),
 )
-LIVE_STREAM_CONNECTIONS = Counter(
+LIVE_STREAM_CONNECTIONS = _counter(
     "api_gateway_live_stream_connections_total",
     "Total SSE live-stream connections accepted by api-gateway",
 )
-LIVE_STREAM_EVENTS = Counter(
+LIVE_STREAM_EVENTS = _counter(
     "api_gateway_live_stream_events_total",
     "Total events emitted by api-gateway live stream",
     ("event_type",),
 )
-LIVE_STREAM_ERRORS = Counter(
+LIVE_STREAM_ERRORS = _counter(
     "api_gateway_live_stream_errors_total",
     "Total errors observed in api-gateway live stream",
     ("reason",),
 )
-AUTH_FAILURES_TOTAL = Counter(
+AUTH_FAILURES_TOTAL = _counter(
     "factory_auth_failures_total",
     "Authentication failures",
     # reason = invalid_key | expired_token | insufficient_role | missing_auth

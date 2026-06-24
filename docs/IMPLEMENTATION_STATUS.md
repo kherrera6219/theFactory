@@ -39,7 +39,7 @@ Phase 8 inventory: 1,538 tests are collected. CI defines global and per-module c
 
 First Phase 8 fix was pushed as `627fa8b` and adds pinned `pytest-randomly` and `pytest-timeout` dependencies plus a 120-second thread-based timeout. The full 1,538-test suite passes under randomized ordering with 5 intentional skips; Ruff, `git diff --check`, and the no-`time.sleep()` scan pass.
 
-Phase 8 remains open. Do not move to Phase 9 until coverage-floor validation, skip-policy reconciliation, mock/fixture quality review, event-bus integration coverage review, and test-layout expectation reconciliation are complete.
+Phase 8 remains open. Current Phase 8 fix batch removed randomized-order failures in API gateway/protocol-bus tests and validated the current CI coverage gate: full coverage passes with 1,537 tests, 5 intentional skips, 81.50% total coverage, and `scripts/check_coverage_thresholds.py` passes. Do not move to Phase 9 until stricter audit-policy coverage gaps are raised or explicitly deferred (`mission_flow_v2/` 80.92% line / 59.64% branch vs 90% / 85%, `storage_agents.py` 76.47% line, `storage_artifacts.py` 63.79% line), skip-policy reconciliation, mock/fixture quality review, event-bus integration coverage review, and test-layout expectation reconciliation are complete.
 
 ---
 ### Audit Phase 5 agent/orchestrator wiring started (2026-06-22)

@@ -7,8 +7,10 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT / "services" / "api-gateway"))
 sys.path.append(str(ROOT / "services" / "orchestrator"))
 
-from api_gateway.main import app as api_app  # noqa: E402
+import api_gateway.main as api_gateway_main  # noqa: E402
 from orchestrator.main import app as orchestrator_app  # noqa: E402
+
+api_app = api_gateway_main.app
 
 
 def test_gateway_state_mutation_requires_api_key() -> None:
@@ -52,10 +54,8 @@ def test_orchestrator_mission_reads_require_api_key() -> None:
 
 def test_gateway_mission_reads_require_auth(monkeypatch) -> None:
     # H-4: gateway must not elevate anonymous callers with its internal key.
-    import api_gateway.main as gw
-
-    monkeypatch.setattr(gw, "AUTH_MODE", "api_key")
-    monkeypatch.setattr(gw, "GATEWAY_ADMIN_BYPASS", False)
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
     client = TestClient(api_app)
     for path in (
         "/v1/missions",
@@ -68,10 +68,8 @@ def test_gateway_mission_reads_require_auth(monkeypatch) -> None:
 
 def test_gateway_operations_require_auth_in_api_key_mode(monkeypatch) -> None:
     # C-2: operator routes had no gateway-side auth in api_key mode.
-    import api_gateway.main as gw
-
-    monkeypatch.setattr(gw, "AUTH_MODE", "api_key")
-    monkeypatch.setattr(gw, "GATEWAY_ADMIN_BYPASS", False)
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
     client = TestClient(api_app)
     for path in (
         "/v1/operations/summary",
@@ -84,16 +82,16 @@ def test_gateway_operations_require_auth_in_api_key_mode(monkeypatch) -> None:
 
 def test_gateway_operations_allow_valid_read_key(monkeypatch) -> None:
     # C-2: a configured key with the read role is accepted.
-    import api_gateway.main as gw
-
-    monkeypatch.setattr(gw, "AUTH_MODE", "api_key")
-    monkeypatch.setattr(gw, "GATEWAY_ADMIN_BYPASS", False)
-    monkeypatch.setattr(gw, "_gateway_api_key_roles", lambda: {"read-key": {"read"}})
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
+    monkeypatch.setattr(
+        api_gateway_main, "_gateway_api_key_roles", lambda: {"read-key": {"read"}}
+    )
 
     async def _fake_internal(_path, *, params=None):
         return {"ok": True}
 
-    monkeypatch.setattr(gw, "_proxy_get_internal", _fake_internal)
+    monkeypatch.setattr(api_gateway_main, "_proxy_get_internal", _fake_internal)
     client = TestClient(api_app)
     response = client.get(
         "/v1/operations/summary",

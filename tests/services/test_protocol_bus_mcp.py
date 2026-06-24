@@ -495,6 +495,31 @@ def test_lifespan_handles_redis_absent_and_close_paths(monkeypatch) -> None:
     assert redis_client.closed is True
 
 
+def test_lifespan_logs_development_session_key_warning(monkeypatch) -> None:
+    app_state = SimpleNamespace(state=SimpleNamespace())
+    messages: list[str] = []
+
+    def _capture(message: str, *args) -> None:
+        messages.append(message % args if args else message)
+
+    monkeypatch.setattr(mcp_main, "redis", None)
+    monkeypatch.setattr(mcp_main, "_MCP_API_KEY_RAW", "")
+    monkeypatch.setattr(
+        mcp_main,
+        "_DEV_SESSION_NOTICE",
+        "MCP_API_KEY is not set. A random session key has been generated.",
+        raising=False,
+    )
+    monkeypatch.setattr(mcp_main.LOGGER, "error", _capture)
+
+    async def _run() -> None:
+        async with mcp_main.lifespan(app_state):
+            assert app_state.state.redis is None
+
+    asyncio.run(_run())
+    assert any("MCP_API_KEY is not set" in message for message in messages)
+
+
 def test_lifespan_handles_sync_close(monkeypatch) -> None:
     class RedisWithSyncClose:
         def __init__(self) -> None:
@@ -560,6 +585,8 @@ def test_lifespan_handles_aclose(monkeypatch) -> None:
 def test_protocol_bus_module_import_fallback_without_redis(monkeypatch) -> None:
     module_path = ROOT / "services" / "protocol-bus-mcp" / "protocol_bus" / "mcp_server.py"
     real_import = builtins.__import__
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.delenv("MCP_API_KEY", raising=False)
 
     class _DummyMetric:
         def labels(self, **_kwargs):
@@ -599,6 +626,8 @@ def test_protocol_bus_module_import_fallback_without_redis(monkeypatch) -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.redis is None
+    assert module._MCP_API_KEY_RAW == ""
+    assert "MCP_API_KEY is not set" in module._DEV_SESSION_NOTICE
 
 
 def test_protocol_bus_module_import_enforces_explicit_production_api_key(monkeypatch) -> None:
@@ -657,6 +686,7 @@ def test_protocol_bus_module_import_accepts_explicit_api_key_without_warning(mon
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    assert module.MCP_API_KEY == "stable-test-key"
 
     messages: list[str] = []
 
