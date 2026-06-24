@@ -24,6 +24,35 @@ Settings = orchestrator_settings.Settings
 runtime = orchestrator_runtime
 
 
+@pytest.fixture(autouse=True)
+def _deterministic_pm_contract(monkeypatch):
+    mission_flow = importlib.import_module("orchestrator.mission_flow_v2")
+    llm_delegation = importlib.import_module("orchestrator.llm_delegation")
+    monkeypatch.setattr(llm_delegation, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(llm_delegation, "ANTHROPIC_API_KEY", "")
+    monkeypatch.setattr(llm_delegation, "GEMINI_API_KEY", "")
+
+    async def _generate_pm_feature_contract(**_kwargs):
+        return {
+            "schema_version": "feature_contract.v1",
+            "title": "Test mission",
+            "summary": "Execute the deterministic test mission.",
+            "intake_status": "ready",
+            "ambiguity_score": 0.0,
+            "functional_requirements": ["Complete the requested test behavior."],
+            "acceptance_criteria": ["The test behavior completes successfully."],
+            "risk_notes": [],
+            "clarifying_questions": [],
+            "source": "test",
+        }
+
+    monkeypatch.setattr(
+        mission_flow,
+        "generate_pm_feature_contract",
+        _generate_pm_feature_contract,
+    )
+
+
 def _settings() -> Settings:
     root = ROOT
     return Settings(

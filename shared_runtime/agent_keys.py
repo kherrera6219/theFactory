@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import logging
 import math
 import os
 import re
+from pathlib import Path
 from typing import Any, Mapping
 
 AGENT_SERVICE_KEY_ENV_PATTERN = re.compile(r"^AGENT_(\d{2})_([A-Z0-9_]+)_SERVICE_API_KEY$")
@@ -90,6 +92,14 @@ def configured_agent_service_key_map(
 ) -> dict[str, str]:
     env_mapping = env if env is not None else os.environ
     mapping = parse_agent_service_key_map(raw_mapping, allowed_agent_ids=allowed_agent_ids)
+    key_file = env_mapping.get("AGENT_SERVICE_KEY_FILE", "").strip()
+    if key_file:
+        mapping.update(
+            load_agent_service_key_file(
+                key_file,
+                allowed_agent_ids=allowed_agent_ids,
+            )
+        )
     for env_name, raw_value in env_mapping.items():
         match = AGENT_SERVICE_KEY_ENV_PATTERN.match(env_name)
         if not match:
@@ -101,6 +111,40 @@ def configured_agent_service_key_map(
         if allowed_agent_ids is not None and agent_id not in allowed_agent_ids:
             continue
         mapping[agent_id] = normalized_key
+    return mapping
+
+
+def load_agent_service_key_file(
+    path: str | os.PathLike[str],
+    *,
+    allowed_agent_ids: set[str] | None = None,
+) -> dict[str, str]:
+    """Load a JSON ``agent_id -> key`` map for live key rotation.
+
+    The file is read on every key resolution, so an atomic file replacement rotates
+    credentials without restarting workers. Invalid configured files fail closed.
+    """
+    key_path = Path(path)
+    try:
+        payload = json.loads(key_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"failed to load agent service key file: {key_path}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("agent service key file must contain a JSON object")
+
+    mapping: dict[str, str] = {}
+    for raw_agent_id, raw_key in payload.items():
+        normalized_agent_id = normalize_agent_id(raw_agent_id)
+        if not normalized_agent_id or not isinstance(raw_key, str):
+            raise RuntimeError("agent service key file contains an invalid entry")
+        normalized_key = raw_key.strip()
+        if not normalized_key:
+            raise RuntimeError(
+                f"agent service key file contains an empty key for {normalized_agent_id}"
+            )
+        if allowed_agent_ids is not None and normalized_agent_id not in allowed_agent_ids:
+            continue
+        mapping[normalized_agent_id] = normalized_key
     return mapping
 
 

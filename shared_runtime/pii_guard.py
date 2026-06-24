@@ -45,6 +45,7 @@ _PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
 
 # Fields that should NEVER be forwarded to LLM calls regardless of content
 _FORBIDDEN_FORWARD_FIELDS = frozenset({"prompt", "source_code", "chain_trace"})
+_MAX_CONTEXT_REDACTION_DEPTH = 12
 
 
 def detect_pii(text: str) -> list[PiiMatch]:
@@ -142,12 +143,43 @@ def safe_context_json_redact(context: dict[str, Any]) -> dict[str, Any]:
     1. Strip fields that should never reach the LLM (prompt, source_code, chain_trace)
     2. Redact any PII remaining in allowed fields
     """
-    cleaned = {k: v for k, v in context.items() if k not in _FORBIDDEN_FORWARD_FIELDS}
-    redacted: dict[str, Any] = {}
-    for key, value in cleaned.items():
-        if isinstance(value, str):
-            redacted_text, _ = redact_pii(value)
-            redacted[key] = redacted_text
-        else:
-            redacted[key] = value
-    return redacted
+    return _redact_context_value(context, depth=0, seen=set())
+
+
+def _redact_context_value(value: Any, *, depth: int, seen: set[int]) -> Any:
+    if isinstance(value, str):
+        redacted, _ = redact_pii(value)
+        return redacted
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if depth >= _MAX_CONTEXT_REDACTION_DEPTH:
+        return "[REDACTED-DEPTH-LIMIT]"
+
+    if isinstance(value, dict):
+        object_id = id(value)
+        if object_id in seen:
+            return "[REDACTED-CYCLE]"
+        seen.add(object_id)
+        try:
+            return {
+                str(key): _redact_context_value(item, depth=depth + 1, seen=seen)
+                for key, item in value.items()
+                if str(key) not in _FORBIDDEN_FORWARD_FIELDS
+            }
+        finally:
+            seen.remove(object_id)
+
+    if isinstance(value, (list, tuple)):
+        object_id = id(value)
+        if object_id in seen:
+            return "[REDACTED-CYCLE]"
+        seen.add(object_id)
+        try:
+            return [
+                _redact_context_value(item, depth=depth + 1, seen=seen)
+                for item in value
+            ]
+        finally:
+            seen.remove(object_id)
+
+    return _redact_context_value(str(value), depth=depth + 1, seen=seen)

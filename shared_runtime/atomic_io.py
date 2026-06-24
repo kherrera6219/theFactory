@@ -29,7 +29,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-
 _PATH_LOCKS: dict[Path, threading.Lock] = {}
 _PATH_LOCKS_GUARD = threading.Lock()
 

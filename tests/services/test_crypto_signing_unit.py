@@ -133,6 +133,63 @@ def test_load_or_create_signing_key_persists_and_reloads(tmp_path) -> None:
     assert signing.verify(signing.public_key_to_pem(key1), data, sig) is True
 
 
+def test_mounted_signing_key_loads_existing_pem_without_modifying_it(
+    tmp_path, monkeypatch
+) -> None:
+    keypath = tmp_path / "mounted-signing-key.pem"
+    expected_key = signing.generate_signing_key()
+    pem = signing.private_key_to_pem(expected_key)
+    keypath.write_bytes(pem)
+    monkeypatch.setenv("ARTIFACT_SIGNING_KEY_SOURCE", "mounted")
+
+    loaded = keystore.load_or_create_signing_key(keypath)
+
+    assert keypath.read_bytes() == pem
+    data = b"mounted-secret"
+    signature = signing.sign(loaded, data)
+    assert signing.verify(signing.public_key_to_pem(expected_key), data, signature)
+
+
+def test_mounted_signing_key_supports_rotation_without_restart(
+    tmp_path, monkeypatch
+) -> None:
+    keypath = tmp_path / "mounted-signing-key.pem"
+    first_key = signing.generate_signing_key()
+    second_key = signing.generate_signing_key()
+    monkeypatch.setenv("ARTIFACT_SIGNING_KEY_SOURCE", "mounted")
+    keypath.write_bytes(signing.private_key_to_pem(first_key))
+    loaded_first = keystore.load_or_create_signing_key(keypath)
+
+    keypath.write_bytes(signing.private_key_to_pem(second_key))
+    loaded_second = keystore.load_or_create_signing_key(keypath)
+
+    data = b"rotated-secret"
+    signature = signing.sign(loaded_second, data)
+    assert signing.verify(signing.public_key_to_pem(second_key), data, signature)
+    assert not signing.verify(signing.public_key_to_pem(loaded_first), data, signature)
+
+
+def test_production_requires_existing_mounted_pem(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("ARTIFACT_SIGNING_KEY_SOURCE", "auto")
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="requires ARTIFACT_SIGNING_KEY_SOURCE=mounted"):
+        keystore.load_or_create_signing_key(tmp_path / "must-not-be-created.key")
+
+
+def test_raw_pem_is_rejected_without_mounted_source(tmp_path, monkeypatch) -> None:
+    keypath = tmp_path / "raw-signing-key.pem"
+    keypath.write_bytes(signing.private_key_to_pem(signing.generate_signing_key()))
+    monkeypatch.setenv("ARTIFACT_SIGNING_KEY_SOURCE", "protected")
+
+    import pytest
+
+    with pytest.raises(ValueError, match="requires ARTIFACT_SIGNING_KEY_SOURCE=mounted"):
+        keystore.load_or_create_signing_key(keypath)
+
+
 # ---------------------------------------------------------------------------
 # sign_artifact / verify_artifact (file-on-disk signing)
 # ---------------------------------------------------------------------------

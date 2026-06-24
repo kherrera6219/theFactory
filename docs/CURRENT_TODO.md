@@ -47,11 +47,13 @@ Third Phase 7 fix was pushed as `ded42a5` and hardens `agent_auth.py`: signing r
 
 Fourth Phase 7 fix was pushed as `ab32fa6` and hardens `logging_config.py`: JSON messages, exception text, nested extras, and named credential fields are redacted, plain logs redact their fully rendered output, and trace/span correlation values remain intact. Added focused unit coverage; bundled Python `py_compile` and a direct logging-redaction probe pass. Focused pytest remains blocked by the missing `pytest` module.
 
-Open finding A-028: production Linux currently permits `PLAINv1` signing-key fallback, while the keystore cannot yet load a mounted raw PEM. Do not disable fallback until a coordinated mounted-secret/KMS format and migration path is implemented.
-
 Fifth Phase 7 fix was pushed as `563a4d0` and hardens `errors.py`: `FactoryError` now redacts recognized PII and credentials from developer messages during construction, so direct callers and `wrap_unexpected()` cannot serialize raw exception secrets. Added focused regression coverage; bundled Python syntax and direct sanitation probes pass. Focused pytest remains blocked by the missing `pytest` module.
 
-Next active work: continue Phase 7 with the keystore/key-rotation design, deeper PII/prompt guard coverage, and protocol/schema parity. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
+Final Phase 7 fix batch closes A-028 and the remaining shared-runtime checklist: production now requires an existing read-only mounted P-256 PEM and refuses `PLAINv1` generation; the signing key is reread for no-restart rotation; agent service keys can rotate through a fail-closed JSON key file; nested LLM context is recursively redacted with cycle/depth protection; dashboard/lifecycle tests are deterministic and offline. Protocol/schema parity and prompt-guard adversarial behavior are verified.
+
+Phase 7 qualification is green: the focused shared-runtime/protocol suite passes 128 tests, the full repository Python suite passes with 5 intentional skips, full Ruff passes, merged production Compose validation passes, and `git diff --check` passes.
+
+Phase 7 is ready to close in the current checkpoint. Next active work after commit/push: start Phase 8 test coverage and quality-gate audit. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
 
 ---
 

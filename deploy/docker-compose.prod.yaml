@@ -64,6 +64,8 @@ services:
   orchestrator:
     environment:
       ENVIRONMENT: production
+      ARTIFACT_SIGNING_KEY_SOURCE: mounted
+      ARTIFACT_SIGNING_KEY_PATH: /run/factory-secrets/artifact-signing-key.pem
       # Each agent authenticates with its own dedicated service key in prod — no
       # shared-identity fallback. The orchestrator logs a SECURITY warning at boot
       # if this is left as "shared" while ENVIRONMENT=production.
@@ -83,6 +85,8 @@ services:
       LOG_LEVEL: WARNING
       LOG_FORMAT: json
       OTEL_SAMPLING_RATIO: "0.1"
+    volumes:
+      - ${ARTIFACT_SIGNING_KEY_FILE:-./.local/secrets/artifact-signing-key.pem}:/run/factory-secrets/artifact-signing-key.pem:ro
 
   # PROD: set MCP_HOST_BIND=127.0.0.1 in the prod .env so the MCP port is only
   # reachable on the host loopback. Internal service-to-service traffic uses
@@ -156,9 +160,14 @@ services:
 
   audit-worker:
     environment:
+      ENVIRONMENT: production
       AGENT_SERVICE_KEY_MODE: strict
+      ARTIFACT_SIGNING_KEY_SOURCE: mounted
+      ARTIFACT_SIGNING_KEY_PATH: /run/factory-secrets/artifact-signing-key.pem
       LOG_LEVEL: WARNING
       LOG_FORMAT: json
+    volumes:
+      - ${ARTIFACT_SIGNING_KEY_FILE:-./.local/secrets/artifact-signing-key.pem}:/run/factory-secrets/artifact-signing-key.pem:ro
 
   dashboard:
     environment:
