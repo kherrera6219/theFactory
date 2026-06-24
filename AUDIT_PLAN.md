@@ -392,7 +392,7 @@ Phase 5 progress: the clarification hold/resume path now re-queues clarified mis
 
 - [x] `tsc --noEmit` passes with zero errors in strict mode � `npm --prefix apps/mission-control run lint` passes as of Phase 6 start
 - [ ] Zero `any` types in application code — OpenAPI-generated types enforced; verify no regressions
-- [ ] Zero `// @ts-ignore` or `// @ts-expect-error` without a documented reason
+- [x] Zero `// @ts-ignore` or `// @ts-expect-error` in production `app/` code
 - [ ] ESLint passes with zero errors
 - [ ] All API call sites use the generated OpenAPI client — no manual `fetch` with hardcoded endpoints
 - [ ] All async operations have error boundaries — no unhandled promise rejections
@@ -719,7 +719,8 @@ After all findings are resolved, the following documents must be updated:
 | A-018 | Phase 5 | Improvement | `tests/services/test_agent_base_unit.py` | The ghost/orphan agent implementation audit was only proven by temporary inventory output and partial factory tests. Added permanent regression coverage that every registry runtime class maps to the documented implementation path and every concrete `BaseAgent` subclass is reachable through `AGENT_REGISTRY`. | FIXED | `983d571` |
 | A-019 | Phase 5 | Warning | `services/orchestrator/orchestrator/mission_flow_v2/lifecycle.py`, `tests/services/test_mission_flow_v2.py` | MissionFlowV2 set LLM mission/settings context variables without resetting them, so early returns or exceptions could leak one mission context into later LLM calls on the same worker task. Added `try/finally` reset coverage. | FIXED | `40d4cee` |
 | A-020 | Phase 5 | Warning | `services/orchestrator/orchestrator/protocol_bus_consumer.py`, `tests/services/test_protocol_bus_consumer.py` | ProtocolBusConsumer decoded envelopes but did not verify the envelope protocol matched the Redis lane being consumed, so misrouted/corrupted bus entries could reach the wrong handler. Added lane/protocol enforcement and regression coverage. | FIXED | `adfc81a` |
-| A-021 | Phase 6 | Warning | `apps/mission-control/app/(shell)/settings/page.tsx` | Settings vault actions used raw `fetch` instead of the shared `fetchJson` client, bypassing standard timeout and structured API error handling. Converted vault list/save/test/delete calls to `fetchJson` with narrow response types. | FIXED | current Phase 6 fix batch |
+| A-021 | Phase 6 | Warning | `apps/mission-control/app/(shell)/settings/page.tsx` | Settings vault actions used raw `fetch` instead of the shared `fetchJson` client, bypassing standard timeout and structured API error handling. Converted vault list/save/test/delete calls to `fetchJson` with narrow response types. | FIXED | `db178d2` |
+| A-022 | Phase 6 | Warning | `apps/mission-control/app/(shell)/missions/detail/`, `apps/mission-control/app/(shell)/settings/page.tsx` | Production Mission Control code still used explicit `any` in maintenance catches, mission-detail panel props, and phase-model dispatch. Replaced catches with `unknown`, reused canonical shared types, removed stale casts, and typed the event model as `MissionPhaseModel`. | FIXED | current Phase 6 fix batch |
 
 ---
 

@@ -2,31 +2,7 @@
 
 import React from 'react';
 import { Panel } from '../../../../../components/panel';
-
-interface SecurityComplianceCheck {
-  check_id: string;
-  title: string;
-  status: string;
-  required: boolean;
-  message: string;
-}
-
-interface SecurityComplianceReport {
-  status: string;
-  passed: boolean;
-  blocking: boolean;
-  risk_level: string;
-  enforcement_enabled: boolean;
-  regulated_context: boolean;
-  findings: string[];
-  recommendations: string[];
-  security: {
-    checks: SecurityComplianceCheck[];
-  };
-  compliance: {
-    checks: SecurityComplianceCheck[];
-  };
-}
+import type { SecurityComplianceReport } from '../../../../../lib/types';
 
 interface SecurityCompliancePanelProps {
   securityComplianceReport: SecurityComplianceReport | null;
