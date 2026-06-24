@@ -430,9 +430,18 @@ Phase 5 progress: the clarification hold/resume path now re-queues clarified mis
 
 ---
 
+### Phase 6 Closeout Status
+
+Phase 6 is closed for this offline audit pass as of `b6d781a`. Completed fixes include shared `fetchJson` handling for Settings vault actions, removal of explicit production `any` and stale duplicate panel interfaces, and standardization of Repo Import/logout client requests. TypeScript passes, the production client-component scan has zero raw `fetch` calls, and Vitest passes with 16 files / 74 tests.
+
+Carry-forward work remains open rather than being marked complete: generated OpenAPI client adoption beyond the shared request wrapper, route-specific loading/error boundary review, Playwright E2E, and live browser validation against the running stack.
+
+---
 ## 9. Phase 7 — Shared Runtime Audit
 
 **Goal:** `shared_runtime/` is the foundation trusted by all services. Every module must be bulletproof.
+
+Phase 7 status: active as of 2026-06-24 after the Phase 6 documentation checkpoint. Start with package/import inventory, public export boundaries, cryptographic/auth modules, atomic I/O, guards, errors, logging, and protocol/schema parity.
 
 ### Module-by-Module Review
 

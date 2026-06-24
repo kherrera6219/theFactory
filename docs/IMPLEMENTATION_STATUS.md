@@ -13,6 +13,15 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
+### Audit Phase 7 shared runtime started (2026-06-24)
+
+Latest status: Phase 6 is closed for this offline audit pass at `b6d781a`; Phase 7 is active.
+
+Phase 6 qualification: TypeScript passes, production client components have zero raw `fetch` calls, the production `app/` scan has zero explicit `any`/TypeScript-ignore matches, and Vitest passes with 16 files / 74 tests. Generated OpenAPI client adoption, route-specific loading/error review, Playwright E2E, and live browser validation remain carry-forward work.
+
+Phase 7 focus: shared-runtime import use and public exports, authentication/key rotation, atomic I/O, cryptographic storage/signing, errors/logging, PII/prompt guards, and protocol/schema parity.
+
+---
 ### Audit Phase 5 agent/orchestrator wiring started (2026-06-22)
 
 Latest status: Phase 4 is closed for this audit pass at `3cced29`; Phase 5 is active.
@@ -33,7 +42,7 @@ Phase 6 Mission Control frontend audit is active. First Phase 6 fix converted Se
 
 Second Phase 6 fix removes all explicit production `any` usage from `apps/mission-control/app`: maintenance catches use `unknown`, mission-detail panels consume canonical shared types, stale casts are removed, and the event log uses `MissionPhaseModel`. The zero-`any`/ignore scan, TypeScript, and Vitest all pass (16 files / 74 tests); pushed as `7681c4d`.
 
-Third Phase 6 fix converts Repo Import and logout from raw `fetch` to shared `fetchJson`. Production client components now have zero raw `fetch` calls; TypeScript and Vitest pass (16 files / 74 tests). Bundled Python `py_compile` passes for touched backend tests; local focused pytest remains blocked because pytest is not installed in the bundled runtime, and direct MissionFlowV2 runtime import is blocked by missing `httpx`.
+Third Phase 6 fix converts Repo Import and logout from raw `fetch` to shared `fetchJson`; pushed as `b6d781a`. Production client components now have zero raw `fetch` calls; TypeScript and Vitest pass (16 files / 74 tests). Bundled Python `py_compile` passes for touched backend tests; local focused pytest remains blocked because pytest is not installed in the bundled runtime, and direct MissionFlowV2 runtime import is blocked by missing `httpx`.
 
 ---
 
