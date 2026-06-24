@@ -37,6 +37,8 @@ Phase 7 qualification: 128 focused shared-runtime/protocol tests pass; the compl
 
 Phase 8 inventory: 1,538 tests are collected. CI defines global and per-module coverage checks, but deterministic-order and timeout plugins are absent from `requirements-dev.txt`; skip reasons are not consistently linked to issues; and the audit's proposed per-service directory layout does not match the established centralized test-file convention.
 
+First Phase 8 fix adds pinned `pytest-randomly` and `pytest-timeout` dependencies and a 120-second thread-based timeout. The full 1,538-test suite passes under randomized ordering with 5 intentional skips; Ruff, `git diff --check`, and the no-`time.sleep()` scan pass.
+
 ---
 ### Audit Phase 5 agent/orchestrator wiring started (2026-06-22)
 

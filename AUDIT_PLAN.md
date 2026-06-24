@@ -491,8 +491,8 @@ Phase 8 status: active as of 2026-06-24 after Phase 7 closed at `35dfd50`. Initi
 - [ ] **No test passes by asserting on mock return values it set up itself** — tests must assert on observable side effects
 - [ ] **Integration tests for every event bus path** — fire real Redis message, assert real handler state change
 - [ ] **Fixture realism** — `tests/fixtures/` payloads match current schema versions; stale fixtures are blockers
-- [ ] **No `time.sleep()` in tests** — use event-driven assertions with timeouts (`pytest-timeout`)
-- [ ] **Deterministic test ordering** — `pytest-randomly` is enabled but tests do not depend on order
+- [x] **No `time.sleep()` in tests** - scan is clean; `pytest-timeout==2.4.0` enforces a 120-second per-test timeout
+- [x] **Deterministic test ordering** - `pytest-randomly==4.1.0` is enabled and the complete 1,538-test suite passes in randomized order
 - [ ] **No skipped tests without a GitHub issue reference** — `@pytest.mark.skip(reason="issue #XYZ")`
 
 ### Test Directory Structure
@@ -746,6 +746,7 @@ After all findings are resolved, the following documents must be updated:
 | A-030 | Phase 7 | Warning | `shared_runtime/pii_guard.py`, `tests/services/test_pii_guard.py` | Safe LLM context redaction only handled top-level strings, allowing nested transcript/metadata PII and forbidden fields through. Redaction is now recursive with nested forbidden-field removal, cycle detection, and a bounded depth. | FIXED | `35dfd50` |
 | A-031 | Phase 7 | Warning | `shared_runtime/agent_keys.py`, `tests/shared_runtime/test_agent_keys.py`, `.env.example` | Agent service keys had no live rotation source. Added a fail-closed JSON key file reread on every resolution with deterministic precedence below direct per-agent environment variables. | FIXED | `35dfd50` |
 | A-032 | Phase 7/8 | Warning | `tests/services/test_dashboard_snapshot.py`, `tests/services/test_mission_flow_v2.py`, `tests/services/test_runtime_unit.py` | Full-suite qualification exposed stale typed-response assertions and lifecycle tests contacting configured LLM providers, producing nondeterministic clarification. Tests now assert Pydantic response attributes and force deterministic offline LLM behavior. | FIXED | `35dfd50` |
+| A-033 | Phase 8 | Warning | `requirements-dev.txt`, `pyproject.toml` | The audit required randomized ordering and test timeouts, but neither plugin was installed or configured. Added pinned `pytest-randomly`/`pytest-timeout`, a 120-second per-test timeout, and verified the complete 1,538-test suite in randomized order. | FIXED | current Phase 8 checkpoint |
 
 ---
 
