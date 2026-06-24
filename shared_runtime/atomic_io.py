@@ -3,10 +3,10 @@
 A partially-written file must never replace a previously-valid one. These helpers
 implement the standard's atomic-write pattern:
 
-1. Write new content to a sibling ``<name>.tmp`` file.
+1. Write new content to a unique sibling temporary file.
 2. Flush + ``fsync`` so the bytes are durably on disk.
 3. (Optional) verify the temp file's SHA-256 matches the intended content.
-4. ``os.replace`` the temp file into place — atomic on POSIX and Windows/NTFS.
+4. ``os.replace`` the unique temp file into place — atomic on POSIX and Windows/NTFS.
 5. If the replace fails, keep a ``<name>.bak`` copy of the previous valid file so
    nothing is lost.
 
@@ -23,9 +23,33 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
+
+_PATH_LOCKS: dict[Path, threading.Lock] = {}
+_PATH_LOCKS_GUARD = threading.Lock()
+
+
+def _path_lock(path: Path) -> threading.Lock:
+    resolved = path.resolve(strict=False)
+    with _PATH_LOCKS_GUARD:
+        return _PATH_LOCKS.setdefault(resolved, threading.Lock())
+
+
+def _replace_with_retry(src: Path, dest: Path) -> None:
+    for attempt in range(10):
+        try:
+            os.replace(src, dest)
+            return
+        except PermissionError as exc:
+            is_windows_sharing_violation = os.name == "nt" and exc.winerror in {5, 32}
+            if not is_windows_sharing_violation or attempt == 9:
+                raise
+            time.sleep(0.01 * (attempt + 1))
 
 def atomic_write_bytes(path: str | os.PathLike[str], data: bytes, *, verify: bool = True) -> None:
     """Atomically write ``data`` to ``path`` (temp → fsync → verify → replace → .bak).
@@ -42,38 +66,42 @@ def atomic_write_bytes(path: str | os.PathLike[str], data: bytes, *, verify: boo
     """
     dest = Path(path)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(dest.name + ".tmp")
-
-    # 1+2: write to temp and force to disk. Use explicit binary mode ("wb") so
-    # Windows does not apply text-mode newline translation (which would corrupt
-    # the byte stream and trip the SHA-256 verify below).
-    with open(tmp, "wb") as fh:
-        fh.write(data)
-        fh.flush()
-        os.fsync(fh.fileno())
-
-    # 3: verify the temp file content.
-    if verify:
-        written = tmp.read_bytes()
-        if hashlib.sha256(written).hexdigest() != hashlib.sha256(data).hexdigest():
-            tmp.unlink(missing_ok=True)
-            raise OSError(f"atomic_write verification failed for {dest}")
-
-    # 5 (precaution): keep a backup of the existing valid file before replacing.
-    if dest.exists():
-        backup = dest.with_name(dest.name + ".bak")
-        try:
-            backup.write_bytes(dest.read_bytes())
-        except OSError:
-            # Backup is best-effort; proceed with the atomic replace regardless.
-            pass
-
-    # 4: atomic replace.
+    fd, tmp_name = tempfile.mkstemp(
+        dir=dest.parent,
+        prefix=f".{dest.name}.",
+        suffix=".tmp",
+    )
+    tmp = Path(tmp_name)
     try:
-        os.replace(tmp, dest)
-    except OSError:
+        # 1+2: write to a unique sibling temp file and force it to disk.
+        # Explicit binary mode prevents Windows newline translation.
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+
+        # 3: verify the temp file content.
+        if verify:
+            written = tmp.read_bytes()
+            if hashlib.sha256(written).hexdigest() != hashlib.sha256(data).hexdigest():
+                raise OSError(f"atomic_write verification failed for {dest}")
+
+        # Serialize the backup-and-replace window for this destination. Windows
+        # denies replacement while another thread has the destination open.
+        with _path_lock(dest):
+            # 5 (precaution): keep a backup of the existing valid file before replacing.
+            if dest.exists():
+                backup = dest.with_name(dest.name + ".bak")
+                try:
+                    backup.write_bytes(dest.read_bytes())
+                except OSError:
+                    # Backup is best-effort; proceed with the atomic replace regardless.
+                    pass
+
+            # 4: atomic replace.
+            _replace_with_retry(tmp, dest)
+    finally:
         tmp.unlink(missing_ok=True)
-        raise
 
 
 def atomic_write_text(
