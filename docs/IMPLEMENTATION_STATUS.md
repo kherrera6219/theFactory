@@ -27,7 +27,7 @@ Second Phase 7 fix hardens `crypto_signing.py` and was pushed as `68b86d4`: veri
 
 Third Phase 7 fix hardens `agent_auth.py` and was pushed as `ded42a5`: signing rejects empty identity/secret values, verification validates the hex header and replay window, and future clock skew is limited separately from maximum signature age. Syntax and a direct HMAC freshness probe pass; focused pytest remains blocked by the missing `pytest` module.
 
-Fourth Phase 7 fix hardens `logging_config.py`: JSON logging redacts messages, exception text, nested extras, and named credential fields; plain logging redacts fully rendered output; trace/span correlation fields are preserved. Added focused unit coverage. Bundled Python syntax and a direct redaction probe pass; focused pytest remains blocked by the missing `pytest` module.
+Fourth Phase 7 fix hardens `logging_config.py` and was pushed as `ab32fa6`: JSON logging redacts messages, exception text, nested extras, and named credential fields; plain logging redacts fully rendered output; trace/span correlation fields are preserved. Added focused unit coverage. Bundled Python syntax and a direct redaction probe pass; focused pytest remains blocked by the missing `pytest` module.
 
 Open Phase 7 finding A-028: Linux defaults permit plaintext signing-key fallback, while the keystore cannot yet consume a mounted raw PEM. The mounted-secret/KMS format and migration must be implemented before plaintext fallback is disabled.
 
