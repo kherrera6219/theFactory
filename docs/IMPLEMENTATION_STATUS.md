@@ -13,9 +13,9 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
-### Audit Phase 7 shared runtime started (2026-06-24)
+### Audit Phase 8 test coverage audit started (2026-06-24)
 
-Latest status: Phase 6 is closed for this offline audit pass at `b6d781a`; Phase 7 is active.
+Latest status: Phase 7 closed at `35dfd50`; Phase 8 is active.
 
 Phase 6 qualification: TypeScript passes, production client components have zero raw `fetch` calls, the production `app/` scan has zero explicit `any`/TypeScript-ignore matches, and Vitest passes with 16 files / 74 tests. Generated OpenAPI client adoption, route-specific loading/error review, Playwright E2E, and live browser validation remain carry-forward work.
 
@@ -33,7 +33,9 @@ Fifth Phase 7 fix hardens `errors.py` and was pushed as `563a4d0`: `FactoryError
 
 Final Phase 7 work closes the remaining shared-runtime items. Production signing requires `ARTIFACT_SIGNING_KEY_SOURCE=mounted`, an existing read-only PKCS8 P-256 PEM, and shared mounts for orchestrator/audit-worker; production cannot create plaintext fallback keys. Signing and agent-service key files are reread for no-restart rotation. LLM context redaction now recursively handles nested structures, cycles, and depth limits. Prompt-guard adversarial checks and protocol/schema parity are verified.
 
-Phase 7 qualification: 128 focused shared-runtime/protocol tests pass; the complete repository Python suite passes with 5 intentional skips; full Ruff, merged production Compose validation, and `git diff --check` pass. Phase 7 is ready to close in the current checkpoint, with Phase 8 next.
+Phase 7 qualification: 128 focused shared-runtime/protocol tests pass; the complete repository Python suite passes with 5 intentional skips; full Ruff, merged production Compose validation, and `git diff --check` pass.
+
+Phase 8 inventory: 1,538 tests are collected. CI defines global and per-module coverage checks, but deterministic-order and timeout plugins are absent from `requirements-dev.txt`; skip reasons are not consistently linked to issues; and the audit's proposed per-service directory layout does not match the established centralized test-file convention.
 
 ---
 ### Audit Phase 5 agent/orchestrator wiring started (2026-06-22)
