@@ -11,6 +11,7 @@ import {
   approveReviewArtifact,
   createMission,
   createRepoReview,
+  fetchJson,
   verifyReviewApproval,
 } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
@@ -169,9 +170,8 @@ export default function RepoImportPage() {
     resetReviewGate();
 
     try {
-      const response = await fetch("/api/repo/import", {
+      const payload = await fetchJson<RepoImportResponse>("/api/repo/import", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           repo_url: normalizedUrl,
           branch: sanitizeUserText(branch),
@@ -179,10 +179,6 @@ export default function RepoImportPage() {
           max_files: maxFiles,
         }),
       });
-      const payload = (await response.json()) as RepoImportResponse & { detail?: string };
-      if (!response.ok) {
-        throw new Error(payload.detail || "Repository import request failed.");
-      }
       setImportSnapshot(payload);
       setImportLogs(payload.logs);
       setFiles(

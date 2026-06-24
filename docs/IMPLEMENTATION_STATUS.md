@@ -31,7 +31,9 @@ Fifth Phase 5 fix: `ProtocolBusConsumer` now enforces envelope protocol equals t
 
 Phase 6 Mission Control frontend audit is active. First Phase 6 fix converted Settings vault list/save/test/delete calls from raw `fetch` to shared `fetchJson`, preserving standard timeout and structured error handling; pushed as `db178d2`.
 
-Second Phase 6 fix removes all explicit production `any` usage from `apps/mission-control/app`: maintenance catches use `unknown`, mission-detail panels consume canonical shared types, stale casts are removed, and the event log uses `MissionPhaseModel`. The zero-`any`/ignore scan, TypeScript, and Vitest all pass (16 files / 74 tests). Bundled Python `py_compile` passes for touched backend tests; local focused pytest remains blocked because pytest is not installed in the bundled runtime, and direct MissionFlowV2 runtime import is blocked by missing `httpx`.
+Second Phase 6 fix removes all explicit production `any` usage from `apps/mission-control/app`: maintenance catches use `unknown`, mission-detail panels consume canonical shared types, stale casts are removed, and the event log uses `MissionPhaseModel`. The zero-`any`/ignore scan, TypeScript, and Vitest all pass (16 files / 74 tests); pushed as `7681c4d`.
+
+Third Phase 6 fix converts Repo Import and logout from raw `fetch` to shared `fetchJson`. Production client components now have zero raw `fetch` calls; TypeScript and Vitest pass (16 files / 74 tests). Bundled Python `py_compile` passes for touched backend tests; local focused pytest remains blocked because pytest is not installed in the bundled runtime, and direct MissionFlowV2 runtime import is blocked by missing `httpx`.
 
 ---
 

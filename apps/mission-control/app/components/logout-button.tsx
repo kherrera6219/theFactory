@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { fetchJson } from "../lib/api-client";
+
 export function LogoutButton() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -10,9 +12,8 @@ export function LogoutButton() {
   async function logout() {
     setSubmitting(true);
     try {
-      await fetch("/api/session/logout", {
+      await fetchJson<{ logged_out: boolean }>("/api/session/logout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
       });
     } finally {
       router.push("/settings");
