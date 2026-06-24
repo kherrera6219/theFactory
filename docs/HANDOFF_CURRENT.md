@@ -52,6 +52,8 @@ Phase 8 is active. Initial inventory finds 1,538 collected tests, a green full s
 
 First Phase 8 fix was pushed as `627fa8b` and pins/activates `pytest-randomly` plus `pytest-timeout`, with a 120-second per-test timeout. The full 1,538-test suite passes in randomized order with 5 intentional skips; no test-tree sleeps were found; Ruff and whitespace validation pass.
 
+Current checkpoint: do not advance to Phase 9 yet. Phase 8 still needs actual coverage measurement, CI/global/per-module floor confirmation, mock-self-assertion review, fixture/schema realism review, skip-policy reconciliation, and a decision to update the audit plan around the repo's centralized `tests/services/test_*.py` convention instead of forcing per-service test subdirectories.
+
 Continue Phase 8 with coverage measurement, skip-policy reconciliation, and test-layout validation. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
 
 ---

@@ -474,7 +474,7 @@ Phase 7 closed at `35dfd50`. Every module has active consumers and focused cover
 
 **Goal:** Coverage numbers reflect real behavior coverage, not line-hit theater.
 
-Phase 8 status: active as of 2026-06-24 after Phase 7 closed at `35dfd50`. Initial inventory collects 1,538 tests; the full suite passes with 5 intentional skips and full Ruff passes. Immediate gaps are absent `pytest-randomly`/`pytest-timeout` enforcement, skip reasons without issue references, and a proposed per-service directory layout that conflicts with the repository's established centralized test-file convention.
+Phase 8 status: active as of 2026-06-24 after Phase 7 closed at `35dfd50`. Initial inventory collects 1,538 tests; the full suite passes with 5 intentional skips and full Ruff passes. First Phase 8 fix `627fa8b` added pinned `pytest-randomly`/`pytest-timeout` enforcement and the complete 1,538-test suite now passes under randomized ordering with a 120-second per-test timeout. Do not advance to Phase 9 yet: coverage-floor validation, skip-policy reconciliation, mock/fixture quality review, event-bus integration coverage, and test-directory expectation reconciliation remain open.
 
 ### Coverage Policy Enforcement
 
