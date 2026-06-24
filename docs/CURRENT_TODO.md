@@ -43,9 +43,13 @@ First Phase 7 fix was pushed as `a696152` and hardens `atomic_io.py`: concurrent
 
 Second Phase 7 fix was pushed as `68b86d4` and hardens `crypto_signing.py`: verification now enforces P-256, requires the signed digest with constant-time comparison, rejects malformed base64, and writes signature sidecars atomically. Syntax, direct signing-contract, and artifact-sidecar probes pass; focused pytest remains blocked by the missing `pytest` module.
 
-Third Phase 7 fix in the working tree hardens `agent_auth.py`: signing rejects empty identity/secret values, verification validates the hex header and replay window, and future clock skew is limited separately from maximum signature age. Syntax and a direct HMAC freshness probe pass; focused pytest remains blocked by the missing `pytest` module.
+Third Phase 7 fix was pushed as `ded42a5` and hardens `agent_auth.py`: signing rejects empty identity/secret values, verification validates the hex header and replay window, and future clock skew is limited separately from maximum signature age. Syntax and a direct HMAC freshness probe pass; focused pytest remains blocked by the missing `pytest` module.
 
-Next active work: continue Phase 7 with key rotation, keystore plaintext-fallback migration planning, error contracts, structured logging, PII/prompt guards, and protocol/schema parity. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
+Fourth Phase 7 fix hardens `logging_config.py`: JSON messages, exception text, nested extras, and named credential fields are redacted, plain logs redact their fully rendered output, and trace/span correlation values remain intact. Added focused unit coverage; bundled Python `py_compile` and a direct logging-redaction probe pass. Focused pytest remains blocked by the missing `pytest` module.
+
+Open finding A-028: production Linux currently permits `PLAINv1` signing-key fallback, while the keystore cannot yet load a mounted raw PEM. Do not disable fallback until a coordinated mounted-secret/KMS format and migration path is implemented.
+
+Next active work: continue Phase 7 with the keystore/key-rotation design, error contracts, deeper PII/prompt guard coverage, and protocol/schema parity. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
 
 ---
 
