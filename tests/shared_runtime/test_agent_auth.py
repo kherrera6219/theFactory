@@ -62,3 +62,35 @@ def test_verify_honors_custom_max_age() -> None:
 def test_verify_rejects_malformed_header() -> None:
     assert not verify_agent_message(AGENT, SECRET, PAYLOAD, "not-a-valid-header")
     assert not verify_agent_message(AGENT, SECRET, PAYLOAD, "")
+
+def test_sign_rejects_empty_identity_or_secret() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="agent_id"):
+        sign_agent_message("", SECRET, PAYLOAD)
+    with pytest.raises(ValueError, match="agent_secret"):
+        sign_agent_message(AGENT, "", PAYLOAD)
+
+
+def test_verify_rejects_signature_too_far_in_future(monkeypatch) -> None:
+    now = int(time.time())
+    monkeypatch.setattr("shared_runtime.agent_auth.time.time", lambda: now + 30)
+    future_header = sign_agent_message(AGENT, SECRET, PAYLOAD)
+    monkeypatch.setattr("shared_runtime.agent_auth.time.time", lambda: now)
+
+    assert not verify_agent_message(AGENT, SECRET, PAYLOAD, future_header)
+    assert verify_agent_message(
+        AGENT,
+        SECRET,
+        PAYLOAD,
+        future_header,
+        max_future_skew_seconds=30,
+    )
+
+
+def test_verify_rejects_invalid_window_and_non_hex_signature() -> None:
+    header = sign_agent_message(AGENT, SECRET, PAYLOAD)
+    timestamp, _signature = header.split(":", 1)
+
+    assert not verify_agent_message(AGENT, SECRET, PAYLOAD, header, max_age_seconds=0)
+    assert not verify_agent_message(AGENT, SECRET, PAYLOAD, f"{timestamp}:{'z' * 64}")
