@@ -39,9 +39,11 @@ Phase 6 is closed for this offline audit pass at `b6d781a`. Carry forward genera
 
 Phase 7 inventory confirms all ten `shared_runtime` modules have active import consumers and `shared_runtime/__init__.py` exposes no accidental public symbols.
 
-First Phase 7 fix in the working tree hardens `atomic_io.py`: concurrent writers now use unique sibling temp files, serialize backup/replace per destination, retry transient Windows sharing violations, and always clean up temp files. Added a concurrency regression test. Bundled Python `py_compile` and a direct 64-write concurrency probe pass; focused pytest remains blocked because the bundled runtime has no `pytest`.
+First Phase 7 fix was pushed as `a696152` and hardens `atomic_io.py`: concurrent writers now use unique sibling temp files, serialize backup/replace per destination, retry transient Windows sharing violations, and always clean up temp files. Added a concurrency regression test. Bundled Python `py_compile` and a direct 64-write concurrency probe pass; focused pytest remains blocked because the bundled runtime has no `pytest`.
 
-Next active work: continue Phase 7 with auth/key rotation, cryptographic storage/signing, error contracts, structured logging, PII/prompt guards, and protocol/schema parity. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
+Second Phase 7 fix in the working tree hardens `crypto_signing.py`: verification now enforces P-256, requires the signed digest with constant-time comparison, rejects malformed base64, and writes signature sidecars atomically. Syntax, direct signing-contract, and artifact-sidecar probes pass; focused pytest remains blocked by the missing `pytest` module.
+
+Next active work: continue Phase 7 with auth/key rotation, keystore plaintext-fallback migration planning, error contracts, structured logging, PII/prompt guards, and protocol/schema parity. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
 
 ---
 

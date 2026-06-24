@@ -451,7 +451,7 @@ Phase 7 status: active as of 2026-06-24 after the Phase 6 documentation checkpoi
 | `agent_keys.py` | Key rotation is possible without service restart; key derivation is deterministic and documented |
 | `atomic_io.py` | File operations use OS-level atomic write patterns (`tempfile` + `rename`); unique sibling temp files, per-destination locking, and Windows sharing-violation retry now cover concurrent writers |
 | `crypto_keystore.py` | Keys are stored encrypted at rest; memory is cleared after use (`del key`) |
-| `crypto_signing.py` | Signing algorithm is documented; verification is tested with known vectors |
+| `crypto_signing.py` | Signing algorithm is documented; verification now enforces P-256, requires the canonical digest, rejects malformed base64, and writes signature sidecars atomically |
 | `errors.py` | All custom exception classes have meaningful messages; no bare `Exception` subclasses |
 | `logging_config.py` | JSON structured logging; no PII in log output; log levels configurable |
 | `pii_guard.py` | PII detection covers all field types declared in the system; tested against real payloads |
@@ -731,7 +731,8 @@ After all findings are resolved, the following documents must be updated:
 | A-021 | Phase 6 | Warning | `apps/mission-control/app/(shell)/settings/page.tsx` | Settings vault actions used raw `fetch` instead of the shared `fetchJson` client, bypassing standard timeout and structured API error handling. Converted vault list/save/test/delete calls to `fetchJson` with narrow response types. | FIXED | `db178d2` |
 | A-022 | Phase 6 | Warning | `apps/mission-control/app/(shell)/missions/detail/`, `apps/mission-control/app/(shell)/settings/page.tsx` | Production Mission Control code still used explicit `any` in maintenance catches, mission-detail panel props, and phase-model dispatch. Replaced catches with `unknown`, reused canonical shared types, removed stale casts, and typed the event model as `MissionPhaseModel`. | FIXED | `7681c4d` |
 | A-023 | Phase 6 | Warning | `apps/mission-control/app/(shell)/repo/page.tsx`, `apps/mission-control/app/components/logout-button.tsx` | Repo Import and logout client components still used raw `fetch`, bypassing the shared timeout and structured error client. Converted both to `fetchJson`; production client components now contain zero raw `fetch` calls. | FIXED | `b6d781a` |
-| A-024 | Phase 7 | Warning | `shared_runtime/atomic_io.py`, `tests/services/test_atomic_io_unit.py` | Atomic writes reused a fixed `<name>.tmp`, allowing concurrent writers to collide; Windows could also reject simultaneous destination replacement with sharing violations. Added unique sibling temp files, per-destination locking, bounded Windows retry, guaranteed cleanup, and concurrency coverage. | FIXED | current Phase 7 fix batch |
+| A-024 | Phase 7 | Warning | `shared_runtime/atomic_io.py`, `tests/services/test_atomic_io_unit.py` | Atomic writes reused a fixed `<name>.tmp`, allowing concurrent writers to collide; Windows could also reject simultaneous destination replacement with sharing violations. Added unique sibling temp files, per-destination locking, bounded Windows retry, guaranteed cleanup, and concurrency coverage. | FIXED | `a696152` |
+| A-025 | Phase 7 | Warning | `shared_runtime/crypto_signing.py`, `tests/services/test_crypto_signing_unit.py` | Verification advertised `ECDSA-P256-SHA256` but accepted other EC curves and signature records without the required digest; artifact sidecars also used non-atomic writes. Enforced P-256, required constant-time digest comparison, enabled strict base64 validation, and moved sidecars to atomic JSON writes. | FIXED | current Phase 7 fix batch |
 
 ---
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -62,6 +63,8 @@ def private_key_from_pem(pem: bytes) -> ec.EllipticCurvePrivateKey:
     key = serialization.load_pem_private_key(pem, password=None)
     if not isinstance(key, ec.EllipticCurvePrivateKey):
         raise ValueError("not an EC private key")
+    if not isinstance(key.curve, ec.SECP256R1):
+        raise ValueError("EC private key must use P-256")
     return key
 
 
@@ -95,7 +98,9 @@ def verify(public_key_pem: bytes, data: bytes, signature_b64: str) -> bool:
         public_key = serialization.load_pem_public_key(public_key_pem)
         if not isinstance(public_key, ec.EllipticCurvePublicKey):
             return False
-        signature = base64.b64decode(signature_b64)
+        if not isinstance(public_key.curve, ec.SECP256R1):
+            return False
+        signature = base64.b64decode(signature_b64, validate=True)
         digest = hashlib.sha256(data).digest()
         public_key.verify(signature, digest, ec.ECDSA(Prehashed(hashes.SHA256())))
         return True
@@ -132,7 +137,9 @@ def verify_payload(payload: Any, signature_record: dict[str, Any]) -> bool:
         return False
     data = _canonical_bytes(payload)
     expected_digest = signature_record.get("digest_sha256")
-    if expected_digest and hashlib.sha256(data).hexdigest() != expected_digest:
+    if not isinstance(expected_digest, str):
+        return False
+    if not hmac.compare_digest(hashlib.sha256(data).hexdigest(), expected_digest):
         return False
     pem = signature_record.get("public_key_pem")
     signature = signature_record.get("signature")
@@ -163,7 +170,9 @@ def sign_artifact(
     key = load_or_create_signing_key(keystore_path or _keystore_path())
     record = sign_payload(key, path.read_bytes())
     sidecar = Path(str(path) + SIGNATURE_SUFFIX)
-    sidecar.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    from shared_runtime.atomic_io import atomic_write_json
+
+    atomic_write_json(sidecar, record)
     return record
 
 
