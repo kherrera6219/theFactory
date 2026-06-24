@@ -1,6 +1,7 @@
 import importlib
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -14,7 +15,7 @@ def test_atomic_write_text_creates_file(tmp_path) -> None:
     atomic_io.atomic_write_text(dest, "hello world")
     assert dest.read_text(encoding="utf-8") == "hello world"
     # No leftover temp file.
-    assert not (tmp_path / "out.txt.tmp").exists()
+    assert list(tmp_path.glob(".out.txt.*.tmp")) == []
 
 
 def test_atomic_write_json_roundtrip(tmp_path) -> None:
@@ -49,6 +50,16 @@ def test_atomic_write_bytes_verify(tmp_path) -> None:
     assert dest.read_bytes() == payload
 
 
+def test_concurrent_writes_use_unique_temp_files(tmp_path) -> None:
+    dest = tmp_path / "shared.txt"
+    payloads = [f"payload-{index}" for index in range(16)]
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(lambda payload: atomic_io.atomic_write_text(dest, payload), payloads))
+
+    assert dest.read_text(encoding="utf-8") in payloads
+    assert list(tmp_path.glob(".shared.txt.*.tmp")) == []
+
 def test_existing_file_preserved_on_replace_failure(tmp_path, monkeypatch) -> None:
     dest = tmp_path / "out.txt"
     atomic_io.atomic_write_text(dest, "original")
@@ -64,4 +75,4 @@ def test_existing_file_preserved_on_replace_failure(tmp_path, monkeypatch) -> No
     # Original content survives a failed replace.
     assert dest.read_text(encoding="utf-8") == "original"
     # Temp file is cleaned up.
-    assert not (tmp_path / "out.txt.tmp").exists()
+    assert list(tmp_path.glob(".out.txt.*.tmp")) == []

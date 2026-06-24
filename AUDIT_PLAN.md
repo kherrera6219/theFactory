@@ -441,7 +441,7 @@ Carry-forward work remains open rather than being marked complete: generated Ope
 
 **Goal:** `shared_runtime/` is the foundation trusted by all services. Every module must be bulletproof.
 
-Phase 7 status: active as of 2026-06-24 after the Phase 6 documentation checkpoint. Start with package/import inventory, public export boundaries, cryptographic/auth modules, atomic I/O, guards, errors, logging, and protocol/schema parity.
+Phase 7 status: active as of 2026-06-24 after the Phase 6 documentation checkpoint. Package/import inventory confirms all ten modules have active consumers and the package root exposes no accidental internals. First fix hardens `atomic_io.py` for concurrent writers with unique sibling temp files, per-destination locking, guaranteed cleanup, and bounded Windows sharing-violation retry.
 
 ### Module-by-Module Review
 
@@ -449,7 +449,7 @@ Phase 7 status: active as of 2026-06-24 after the Phase 6 documentation checkpoi
 |---|---|
 | `agent_auth.py` | Token generation/validation is cryptographically sound; no hardcoded secrets |
 | `agent_keys.py` | Key rotation is possible without service restart; key derivation is deterministic and documented |
-| `atomic_io.py` | File operations use OS-level atomic write patterns (`tempfile` + `rename`); no partial writes possible |
+| `atomic_io.py` | File operations use OS-level atomic write patterns (`tempfile` + `rename`); unique sibling temp files, per-destination locking, and Windows sharing-violation retry now cover concurrent writers |
 | `crypto_keystore.py` | Keys are stored encrypted at rest; memory is cleared after use (`del key`) |
 | `crypto_signing.py` | Signing algorithm is documented; verification is tested with known vectors |
 | `errors.py` | All custom exception classes have meaningful messages; no bare `Exception` subclasses |
@@ -460,9 +460,9 @@ Phase 7 status: active as of 2026-06-24 after the Phase 6 documentation checkpoi
 
 ### Cross-Service Contract
 
-- [ ] `shared_runtime` is imported as a package, not copied per-service
+- [x] `shared_runtime` is imported as a package, not copied per-service - all ten modules have active service/test import consumers
 - [ ] Any change to `shared_runtime` requires all services to be re-tested before deploy
-- [ ] `shared_runtime/__init__.py` exports only the public API — internal modules are not exposed
+- [x] `shared_runtime/__init__.py` exports only the public API - it intentionally declares an empty `__all__`, while consumers import explicit modules/symbols
 
 ---
 
@@ -730,7 +730,8 @@ After all findings are resolved, the following documents must be updated:
 | A-020 | Phase 5 | Warning | `services/orchestrator/orchestrator/protocol_bus_consumer.py`, `tests/services/test_protocol_bus_consumer.py` | ProtocolBusConsumer decoded envelopes but did not verify the envelope protocol matched the Redis lane being consumed, so misrouted/corrupted bus entries could reach the wrong handler. Added lane/protocol enforcement and regression coverage. | FIXED | `adfc81a` |
 | A-021 | Phase 6 | Warning | `apps/mission-control/app/(shell)/settings/page.tsx` | Settings vault actions used raw `fetch` instead of the shared `fetchJson` client, bypassing standard timeout and structured API error handling. Converted vault list/save/test/delete calls to `fetchJson` with narrow response types. | FIXED | `db178d2` |
 | A-022 | Phase 6 | Warning | `apps/mission-control/app/(shell)/missions/detail/`, `apps/mission-control/app/(shell)/settings/page.tsx` | Production Mission Control code still used explicit `any` in maintenance catches, mission-detail panel props, and phase-model dispatch. Replaced catches with `unknown`, reused canonical shared types, removed stale casts, and typed the event model as `MissionPhaseModel`. | FIXED | `7681c4d` |
-| A-023 | Phase 6 | Warning | `apps/mission-control/app/(shell)/repo/page.tsx`, `apps/mission-control/app/components/logout-button.tsx` | Repo Import and logout client components still used raw `fetch`, bypassing the shared timeout and structured error client. Converted both to `fetchJson`; production client components now contain zero raw `fetch` calls. | FIXED | current Phase 6 fix batch |
+| A-023 | Phase 6 | Warning | `apps/mission-control/app/(shell)/repo/page.tsx`, `apps/mission-control/app/components/logout-button.tsx` | Repo Import and logout client components still used raw `fetch`, bypassing the shared timeout and structured error client. Converted both to `fetchJson`; production client components now contain zero raw `fetch` calls. | FIXED | `b6d781a` |
+| A-024 | Phase 7 | Warning | `shared_runtime/atomic_io.py`, `tests/services/test_atomic_io_unit.py` | Atomic writes reused a fixed `<name>.tmp`, allowing concurrent writers to collide; Windows could also reject simultaneous destination replacement with sharing violations. Added unique sibling temp files, per-destination locking, bounded Windows retry, guaranteed cleanup, and concurrency coverage. | FIXED | current Phase 7 fix batch |
 
 ---
 
