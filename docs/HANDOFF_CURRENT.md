@@ -42,11 +42,13 @@ Third Phase 7 fix was pushed as `ded42a5` and hardens `agent_auth.py`: signing r
 
 Fourth Phase 7 fix was pushed as `ab32fa6` and hardens shared logging: JSON messages, exceptions, nested extras, and credential fields are redacted; plain logs redact the final rendered text; trace/span fields are preserved. Focused unit coverage was added, and bundled Python syntax plus direct behavior probes pass. Focused pytest remains blocked by the missing `pytest` module.
 
-Keystore finding A-028 remains open: Linux permits plaintext signing-key fallback, but the loader cannot yet consume a mounted raw PEM. Implement the secret format/migration before disabling fallback.
-
 Fifth Phase 7 fix was pushed as `563a4d0` and hardens the shared error model: `FactoryError` sanitizes developer messages at construction, including exception text passed through `wrap_unexpected()`. Focused tests cover direct and wrapped errors; bundled Python syntax and direct probes pass. Focused pytest remains blocked by the missing `pytest` module.
 
-Continue with the keystore/key-rotation design, deeper PII/prompt guard coverage, and protocol/schema parity. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
+Final Phase 7 work closes A-028 and the remaining checklist: production signing uses an existing read-only mounted PEM and cannot generate `PLAINv1`; signing and agent-service key files are reread for no-restart rotation; nested context redaction is recursive and cycle-safe; lifecycle unit tests no longer contact configured LLM providers; dashboard tests use the typed response contract.
+
+Qualification is green: 128 focused shared-runtime/protocol tests pass, the full Python suite passes with 5 intentional skips, full Ruff and `git diff --check` pass, and the merged production Compose configuration exposes the mounted signing key read-only to orchestrator and audit-worker.
+
+Close Phase 7 in the current checkpoint, then start Phase 8. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
 
 ---
 

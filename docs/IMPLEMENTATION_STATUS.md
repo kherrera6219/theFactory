@@ -29,11 +29,11 @@ Third Phase 7 fix hardens `agent_auth.py` and was pushed as `ded42a5`: signing r
 
 Fourth Phase 7 fix hardens `logging_config.py` and was pushed as `ab32fa6`: JSON logging redacts messages, exception text, nested extras, and named credential fields; plain logging redacts fully rendered output; trace/span correlation fields are preserved. Added focused unit coverage. Bundled Python syntax and a direct redaction probe pass; focused pytest remains blocked by the missing `pytest` module.
 
-Open Phase 7 finding A-028: Linux defaults permit plaintext signing-key fallback, while the keystore cannot yet consume a mounted raw PEM. The mounted-secret/KMS format and migration must be implemented before plaintext fallback is disabled.
-
 Fifth Phase 7 fix hardens `errors.py` and was pushed as `563a4d0`: `FactoryError` sanitizes developer messages during construction, preventing direct callers and `wrap_unexpected()` from serializing recognized PII or credentials from exception text. Focused regression coverage, bundled Python syntax, and direct sanitation probes pass; focused pytest remains blocked by the missing `pytest` module.
 
-Remaining Phase 7 focus: keystore/key rotation, deeper PII/prompt guard coverage, and protocol/schema parity.
+Final Phase 7 work closes the remaining shared-runtime items. Production signing requires `ARTIFACT_SIGNING_KEY_SOURCE=mounted`, an existing read-only PKCS8 P-256 PEM, and shared mounts for orchestrator/audit-worker; production cannot create plaintext fallback keys. Signing and agent-service key files are reread for no-restart rotation. LLM context redaction now recursively handles nested structures, cycles, and depth limits. Prompt-guard adversarial checks and protocol/schema parity are verified.
+
+Phase 7 qualification: 128 focused shared-runtime/protocol tests pass; the complete repository Python suite passes with 5 intentional skips; full Ruff, merged production Compose validation, and `git diff --check` pass. Phase 7 is ready to close in the current checkpoint, with Phase 8 next.
 
 ---
 ### Audit Phase 5 agent/orchestrator wiring started (2026-06-22)

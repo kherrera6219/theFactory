@@ -441,28 +441,32 @@ Carry-forward work remains open rather than being marked complete: generated Ope
 
 **Goal:** `shared_runtime/` is the foundation trusted by all services. Every module must be bulletproof.
 
-Phase 7 status: active as of 2026-06-24 after the Phase 6 documentation checkpoint. Package/import inventory confirms all ten modules have active consumers and the package root exposes no accidental internals. Completed fixes now cover concurrent atomic writes, strict P-256 artifact verification, bounded HMAC freshness, and PII/credential redaction for JSON and plain-text shared logging. The production keystore migration remains open because Linux currently permits plaintext fallback and the loader does not yet accept a mounted raw PEM replacement.
+Phase 7 status: ready to close as of 2026-06-24. All ten modules have active consumers. Completed fixes cover concurrent atomic writes, strict P-256 artifact verification, bounded HMAC freshness, log/error/context redaction, mounted production signing keys, and no-restart signing/agent-key rotation. The focused suite passes 128 tests; the complete Python suite passes with 5 intentional skips; full Ruff and merged production Compose validation pass.
 
 ### Module-by-Module Review
 
 | Module | Audit Focus |
 |---|---|
 | `agent_auth.py` | HMAC-SHA256 validation uses constant-time comparison, rejects empty identities/secrets, validates header shape, and separates future clock skew from replay age |
-| `agent_keys.py` | Key rotation is possible without service restart; key derivation is deterministic and documented |
+| `agent_keys.py` | Deterministic precedence is direct env, rotating JSON file, static map, fallback; the file is reread per resolution for no-restart rotation and invalid files fail closed |
 | `atomic_io.py` | File operations use OS-level atomic write patterns (`tempfile` + `rename`); unique sibling temp files, per-destination locking, and Windows sharing-violation retry now cover concurrent writers |
-| `crypto_keystore.py` | Keys are stored encrypted at rest; memory is cleared after use (`del key`) |
+| `crypto_keystore.py` | Windows uses DPAPI; production containers require an existing read-only mounted P-256 PEM and cannot generate plaintext fallback keys |
 | `crypto_signing.py` | Signing algorithm is documented; verification now enforces P-256, requires the canonical digest, rejects malformed base64, and writes signature sidecars atomically |
 | `errors.py` | All custom exception classes have meaningful messages; no bare `Exception` subclasses |
 | `logging_config.py` | JSON and plain logging redact PII, exception text, nested extras, and credential fields while preserving trace correlation; log levels remain configurable |
-| `pii_guard.py` | PII detection covers all field types declared in the system; tested against real payloads |
+| `pii_guard.py` | PII detection covers declared patterns; nested LLM context is recursively redacted with forbidden-field removal plus cycle/depth bounds |
 | `prompt_guard.py` | Injection detection patterns are up to date; test coverage includes adversarial inputs |
 | `protocol.py` | Envelope schema matches `schemas/`; no divergence between runtime and schema files |
 
 ### Cross-Service Contract
 
 - [x] `shared_runtime` is imported as a package, not copied per-service - all ten modules have active service/test import consumers
-- [ ] Any change to `shared_runtime` requires all services to be re-tested before deploy
+- [x] Any change to `shared_runtime` requires all services to be re-tested before deploy - complete Python suite passes after the final Phase 7 batch
 - [x] `shared_runtime/__init__.py` exports only the public API - it intentionally declares an empty `__all__`, while consumers import explicit modules/symbols
+
+### Phase 7 Closeout Status
+
+Phase 7 is ready to close in the current checkpoint. Every module has active consumers and focused coverage; production signing is fail-closed around a mounted key; key rotation paths do not require service restart; PII/prompt/error/log boundaries are covered; and runtime envelopes remain schema-driven. Qualification passes the 128-test focused suite, the complete Python suite with 5 intentional skips, full Ruff, merged production Compose validation, and `git diff --check`.
 
 ---
 
@@ -735,8 +739,11 @@ After all findings are resolved, the following documents must be updated:
 | A-025 | Phase 7 | Warning | `shared_runtime/crypto_signing.py`, `tests/services/test_crypto_signing_unit.py` | Verification advertised `ECDSA-P256-SHA256` but accepted other EC curves and signature records without the required digest; artifact sidecars also used non-atomic writes. Enforced P-256, required constant-time digest comparison, enabled strict base64 validation, and moved sidecars to atomic JSON writes. | FIXED | `68b86d4` |
 | A-026 | Phase 7 | Warning | `shared_runtime/agent_auth.py`, `tests/shared_runtime/test_agent_auth.py` | HMAC freshness used an absolute timestamp delta, allowing signatures nearly a full replay window in the future and extending their usable lifetime; signing also accepted empty identities/secrets. Added a separate future-skew bound, header/hex/window validation, narrow exception handling, and fail-closed signing inputs. | FIXED | `ded42a5` |
 | A-027 | Phase 7 | Warning | `shared_runtime/logging_config.py`, `tests/services/test_logging_config_unit.py` | Shared JSON logging emitted raw messages, exception text, and arbitrary nested extras; plain logging also emitted raw rendered messages. Added PII redaction for both formats, recursive structured-field handling, credential-name masking, and trace-correlation preservation coverage. | FIXED | `ab32fa6` |
-| A-028 | Phase 7 | Warning | `shared_runtime/crypto_keystore.py`, `.env.example`, `deploy/docker-compose.prod.yaml` | Non-Windows runtimes currently default to `PLAINv1` key storage, including production Linux containers, but the loader does not accept a mounted raw PEM replacement. A coordinated mounted-secret/KMS format and migration path is required before plaintext fallback can be disabled safely. | OPEN | tracked Phase 7 follow-up |
+| A-028 | Phase 7 | Warning | `shared_runtime/crypto_keystore.py`, `.env.example`, `deploy/docker-compose.prod.yaml` | Non-Windows production could create `PLAINv1` signing keys and could not load a mounted PEM. Production now requires an existing mounted P-256 PKCS8 PEM, refuses generation/fallback, mounts the same key read-only into orchestrator and audit-worker, and rereads it for rotation. | FIXED | current Phase 7 closeout |
 | A-029 | Phase 7 | Warning | `shared_runtime/errors.py`, `tests/services/test_errors_unit.py` | The error model promised sanitized developer detail but trusted callers and copied raw `str(exc)` through `wrap_unexpected()`, allowing credentials or PII into serialized error objects. `FactoryError` now sanitizes developer messages at construction with direct and wrapped-error regression coverage. | FIXED | `563a4d0` |
+| A-030 | Phase 7 | Warning | `shared_runtime/pii_guard.py`, `tests/services/test_pii_guard.py` | Safe LLM context redaction only handled top-level strings, allowing nested transcript/metadata PII and forbidden fields through. Redaction is now recursive with nested forbidden-field removal, cycle detection, and a bounded depth. | FIXED | current Phase 7 closeout |
+| A-031 | Phase 7 | Warning | `shared_runtime/agent_keys.py`, `tests/shared_runtime/test_agent_keys.py`, `.env.example` | Agent service keys had no live rotation source. Added a fail-closed JSON key file reread on every resolution with deterministic precedence below direct per-agent environment variables. | FIXED | current Phase 7 closeout |
+| A-032 | Phase 7/8 | Warning | `tests/services/test_dashboard_snapshot.py`, `tests/services/test_mission_flow_v2.py`, `tests/services/test_runtime_unit.py` | Full-suite qualification exposed stale typed-response assertions and lifecycle tests contacting configured LLM providers, producing nondeterministic clarification. Tests now assert Pydantic response attributes and force deterministic offline LLM behavior. | FIXED | current Phase 7 closeout |
 
 ---
 

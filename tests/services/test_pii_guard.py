@@ -145,3 +145,33 @@ class TestSafeContextJsonRedact:
         result = safe_context_json_redact(ctx)
         assert "admin@corp.com" not in result.get("metadata_note", "")
         assert "[REDACTED-EMAIL]" in result.get("metadata_note", "")
+
+    def test_recursively_redacts_nested_context_and_forbidden_fields(self):
+        ctx = {
+            "conversation": {
+                "messages": [
+                    {
+                        "role": "user",
+                        "text": "Contact nested@example.com",
+                        "prompt": "do not forward this",
+                    }
+                ],
+                "chain_trace": {"raw": "internal"},
+            }
+        }
+
+        result = safe_context_json_redact(ctx)
+        message = result["conversation"]["messages"][0]
+
+        assert message["text"] == "Contact [REDACTED-EMAIL]"
+        assert "prompt" not in message
+        assert "chain_trace" not in result["conversation"]
+
+    def test_handles_recursive_context_without_recursing_forever(self):
+        ctx = {"mission_id": "m-cycle"}
+        ctx["self"] = ctx
+
+        result = safe_context_json_redact(ctx)
+
+        assert result["mission_id"] == "m-cycle"
+        assert result["self"] == "[REDACTED-CYCLE]"

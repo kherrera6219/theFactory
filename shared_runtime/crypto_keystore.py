@@ -79,6 +79,8 @@ def _dpapi_unprotect(blob: bytes) -> bytes:
 # DPAPI-protected blobs are prefixed so we never mistake a plaintext fallback blob for one.
 _DPAPI_MAGIC = b"DPAPIv1:"
 _PLAIN_MAGIC = b"PLAINv1:"
+_PEM_MAGIC = b"-----BEGIN PRIVATE KEY-----"
+_VALID_KEY_SOURCES = frozenset({"auto", "protected", "mounted"})
 
 
 def protect_key(data: bytes, *, allow_plaintext_fallback: bool = False) -> bytes:
@@ -113,23 +115,64 @@ def unprotect_key(blob: bytes) -> bytes:
     raise ValueError("unrecognised protected-key format")
 
 
+def _runtime_environment() -> str:
+    return os.getenv("ENVIRONMENT", "development").strip().lower() or "development"
+
+
+def _configured_key_source() -> str:
+    source = os.getenv("ARTIFACT_SIGNING_KEY_SOURCE", "auto").strip().lower() or "auto"
+    if source not in _VALID_KEY_SOURCES:
+        expected = ", ".join(sorted(_VALID_KEY_SOURCES))
+        raise RuntimeError(
+            f"invalid ARTIFACT_SIGNING_KEY_SOURCE={source!r}; expected one of: {expected}"
+        )
+    if _runtime_environment() == "production" and source != "mounted":
+        raise RuntimeError(
+            "ENVIRONMENT=production requires ARTIFACT_SIGNING_KEY_SOURCE=mounted"
+        )
+    return source
+
+
 def load_or_create_signing_key(
     keystore_path: str | os.PathLike[str], *, allow_plaintext_fallback: bool | None = None
 ):
     """Load the protected ECDSA signing key, generating + persisting it on first use.
 
-    Returns an ``ec.EllipticCurvePrivateKey``. The on-disk file holds the
-    DPAPI-protected (or, on the backend, fallback-marked) PKCS8 PEM.
+    Returns an ``ec.EllipticCurvePrivateKey``.
+
+    ``ARTIFACT_SIGNING_KEY_SOURCE`` controls the storage contract:
+
+    - ``mounted`` loads an existing raw PKCS8 PEM supplied by a read-only secret mount.
+      It never creates or modifies the file.
+    - ``protected`` requires this module's DPAPI/PLAIN marker format.
+    - ``auto`` uses protected storage and is allowed only outside production.
+
+    Production requires ``mounted`` so Linux containers never generate ``PLAINv1``
+    private-key files. The file is re-read on every call, allowing secret rotation
+    without restarting the service.
     """
     from shared_runtime import crypto_signing
 
+    source = _configured_key_source()
     if allow_plaintext_fallback is None:
-        # Default: allow fallback off-Windows (backend); never silently plaintext on Windows.
-        allow_plaintext_fallback = not _IS_WINDOWS
+        allow_plaintext_fallback = source == "auto" and not _IS_WINDOWS
 
     path = Path(keystore_path)
+    if source == "mounted":
+        if not path.is_file():
+            raise RuntimeError(f"mounted signing key not found: {path}")
+        pem = path.read_bytes()
+        if not pem.startswith(_PEM_MAGIC):
+            raise ValueError("mounted signing key must be an unencrypted PKCS8 PEM")
+        return crypto_signing.private_key_from_pem(pem)
+
     if path.exists():
-        return crypto_signing.private_key_from_pem(unprotect_key(path.read_bytes()))
+        blob = path.read_bytes()
+        if blob.startswith(_PEM_MAGIC):
+            raise ValueError(
+                "raw signing-key PEM requires ARTIFACT_SIGNING_KEY_SOURCE=mounted"
+            )
+        return crypto_signing.private_key_from_pem(unprotect_key(blob))
 
     key = crypto_signing.generate_signing_key()
     pem = crypto_signing.private_key_to_pem(key)
