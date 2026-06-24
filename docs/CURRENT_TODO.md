@@ -29,11 +29,13 @@ Fifth Phase 5 fix completed and pushed as `adfc81a`: `ProtocolBusConsumer` now d
 
 Phase 6 Mission Control frontend audit is active. First Phase 6 fix was pushed as `db178d2` and converts Settings vault list/save/test/delete calls from raw `fetch` to shared `fetchJson`, preserving standard timeout and structured error handling.
 
-Second Phase 6 fix in the working tree removes all explicit production `any` usage from `apps/mission-control/app`: maintenance catches now use `unknown`, mission-detail panels consume canonical shared types, stale panel casts are removed, and the event log uses `MissionPhaseModel`. The zero-`any`/ignore scan, TypeScript, and Vitest all pass (16 files / 74 tests).
+Second Phase 6 fix was pushed as `7681c4d` and removes all explicit production `any` usage from `apps/mission-control/app`: maintenance catches now use `unknown`, mission-detail panels consume canonical shared types, stale panel casts are removed, and the event log uses `MissionPhaseModel`. The zero-`any`/ignore scan, TypeScript, and Vitest all pass (16 files / 74 tests).
+
+Third Phase 6 fix in the working tree converts Repo Import and logout from raw `fetch` to shared `fetchJson`. Production client components now have zero raw `fetch` calls; TypeScript and Vitest pass (16 files / 74 tests).
 
 Validation: bundled Python `py_compile` passes for touched backend/test files, the direct agent implementation invariant check reports 41 registry agents / 24 concrete classes / 24 reachable classes, and the direct protocol lane-guard check drops mismatched envelopes before dispatch. Focused pytest is still blocked locally because the bundled Python runtime has no `pytest` module; direct MissionFlowV2 runtime import is also blocked in the bundled runtime by missing `httpx`.
 
-Next active work: continue Phase 6 with remaining client-side fetch/API contract checks, route loading/error coverage, and Playwright/e2e validation. Carry forward Phase 5 non-protocol stream dead-event/schema parity and LangGraph isolation checks as backend follow-ups.
+Next active work: continue Phase 6 with generated OpenAPI client adoption review, route loading/error coverage, and Playwright/e2e validation. Carry forward Phase 5 non-protocol stream dead-event/schema parity and LangGraph isolation checks as backend follow-ups.
 
 ---
 
