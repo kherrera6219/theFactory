@@ -65,6 +65,18 @@ def test_user_payload_is_secret_free() -> None:
     assert "abc123" not in " ".join(payload.values())
 
 
+def test_developer_message_is_sanitized_at_construction() -> None:
+    err = _make(
+        developer_message="password=supersecret contact admin@example.com",
+    )
+
+    assert "supersecret" not in err.developer_message
+    assert "admin@example.com" not in err.developer_message
+    assert "[REDACTED-CREDENTIAL]" in err.developer_message
+    assert "[REDACTED-EMAIL]" in err.developer_message
+    assert str(err) == err.developer_message
+
+
 def test_format_user_message_four_lines() -> None:
     err = _make()
     text = err.format_user_message()
@@ -91,6 +103,16 @@ def test_wrap_unexpected() -> None:
     assert wrapped.severity is ErrorSeverity.CRITICAL
     assert wrapped.correlation_id == "corr-1"
     assert "ValueError: bad value" == wrapped.developer_message
+
+
+def test_wrap_unexpected_sanitizes_exception_text() -> None:
+    original = ValueError("token=short-secret for owner@example.com")
+
+    wrapped = errors.wrap_unexpected(original, component="X", operation="Y")
+
+    assert "short-secret" not in wrapped.developer_message
+    assert "owner@example.com" not in wrapped.developer_message
+    assert "[REDACTED-CREDENTIAL]" in wrapped.developer_message
 
 
 def test_correlation_id_default_none() -> None:

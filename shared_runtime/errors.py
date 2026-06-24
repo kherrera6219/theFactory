@@ -37,6 +37,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 
+from shared_runtime.pii_guard import redact_pii
+
 # Application prefix for this codebase (Error Handling Standard §7).
 APP_PREFIX = "FACTORY"
 
@@ -87,9 +89,8 @@ def make_error_code(category: ErrorCategory, number: int) -> str:
 class FactoryError(Exception):
     """Standard error object (§6) that is also a raisable exception.
 
-    The ``developer_message`` must already be **sanitised** by the caller — this type does
-    not scrub secrets for you; it only guarantees they are not *required* fields and are kept
-    out of the user-facing rendering.
+    The ``developer_message`` is sanitised during construction so serialized errors,
+    tracebacks, and logs cannot expose recognized PII or credentials.
     """
 
     category: ErrorCategory
@@ -105,7 +106,8 @@ class FactoryError(Exception):
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def __post_init__(self) -> None:
-        # Initialise the Exception side with the developer message (sanitised) so tracebacks
+        self.developer_message, _ = redact_pii(self.developer_message)
+        # Initialise the Exception side with the sanitised developer message so tracebacks
         # and ``str(exc)`` carry useful, secret-free context.
         super().__init__(self.developer_message or self.user_message)
 
@@ -161,9 +163,9 @@ def wrap_unexpected(
 ) -> FactoryError:
     """Wrap an arbitrary exception as an ``UnexpectedError`` FactoryError.
 
-    The ``developer_message`` is the exception type name + ``str(exc)``; callers are
-    responsible for ensuring upstream exceptions do not embed secrets in their messages.
-    Use at application boundaries to guarantee every escaping error has a stable code.
+    The ``developer_message`` is the exception type name + ``str(exc)`` and is sanitised by
+    ``FactoryError`` during construction. Use at application boundaries to guarantee every
+    escaping error has a stable code and secret-free developer detail.
     """
     return FactoryError(
         category=ErrorCategory.UNEXPECTED,
