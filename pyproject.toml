@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --timeout=120 --timeout-method=thread"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]

@@ -57,7 +57,9 @@ Phase 7 closed and was pushed as `35dfd50`. Phase 8 test coverage and quality-ga
 
 Initial Phase 8 inventory: 1,538 tests are collected; the full suite passes with 5 intentional skips and full Ruff passes. Coverage thresholds are configured in CI, but `pytest-randomly` and `pytest-timeout` are not installed despite the audit policy. Several skip paths do not cite tracked issues, and the centralized `tests/services/` layout does not match the audit plan's proposed per-service directories.
 
-Next active work: validate actual coverage and per-module floors, add deterministic-order/timeout enforcement, then reconcile skip policy and test-directory expectations. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
+First Phase 8 fix pins `pytest-randomly==4.1.0` and `pytest-timeout==2.4.0` and enforces a 120-second thread-based per-test timeout. The complete 1,538-test suite passes under randomized ordering with 5 intentional skips; no `time.sleep()` calls exist in tests; Ruff and `git diff --check` pass.
+
+Next active work: validate actual coverage and per-module floors, then reconcile skip policy and test-directory expectations. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
 
 ---
 

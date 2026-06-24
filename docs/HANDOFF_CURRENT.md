@@ -50,7 +50,9 @@ Qualification is green: 128 focused shared-runtime/protocol tests pass, the full
 
 Phase 8 is active. Initial inventory finds 1,538 collected tests, a green full suite with 5 intentional skips, and clean Ruff. Immediate gaps are missing `pytest-randomly`/`pytest-timeout` enforcement, skip reasons without issue references, coverage-floor validation, and a test-directory checklist that does not match the repository's centralized naming convention.
 
-Continue Phase 8 with coverage measurement and quality-gate enforcement. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
+First Phase 8 fix pins and activates `pytest-randomly` plus `pytest-timeout`, with a 120-second per-test timeout. The full 1,538-test suite passes in randomized order with 5 intentional skips; no test-tree sleeps were found; Ruff and whitespace validation pass.
+
+Continue Phase 8 with coverage measurement, skip-policy reconciliation, and test-layout validation. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
 
 ---
 
