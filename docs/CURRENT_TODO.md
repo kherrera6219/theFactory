@@ -49,7 +49,7 @@ Fourth Phase 7 fix was pushed as `ab32fa6` and hardens `logging_config.py`: JSON
 
 Open finding A-028: production Linux currently permits `PLAINv1` signing-key fallback, while the keystore cannot yet load a mounted raw PEM. Do not disable fallback until a coordinated mounted-secret/KMS format and migration path is implemented.
 
-Fifth Phase 7 fix hardens `errors.py`: `FactoryError` now redacts recognized PII and credentials from developer messages during construction, so direct callers and `wrap_unexpected()` cannot serialize raw exception secrets. Added focused regression coverage; bundled Python syntax and direct sanitation probes pass. Focused pytest remains blocked by the missing `pytest` module.
+Fifth Phase 7 fix was pushed as `563a4d0` and hardens `errors.py`: `FactoryError` now redacts recognized PII and credentials from developer messages during construction, so direct callers and `wrap_unexpected()` cannot serialize raw exception secrets. Added focused regression coverage; bundled Python syntax and direct sanitation probes pass. Focused pytest remains blocked by the missing `pytest` module.
 
 Next active work: continue Phase 7 with the keystore/key-rotation design, deeper PII/prompt guard coverage, and protocol/schema parity. Phase 5 non-protocol stream/schema parity and LangGraph isolation remain backend follow-ups.
 

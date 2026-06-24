@@ -44,7 +44,7 @@ Fourth Phase 7 fix was pushed as `ab32fa6` and hardens shared logging: JSON mess
 
 Keystore finding A-028 remains open: Linux permits plaintext signing-key fallback, but the loader cannot yet consume a mounted raw PEM. Implement the secret format/migration before disabling fallback.
 
-Fifth Phase 7 fix hardens the shared error model: `FactoryError` sanitizes developer messages at construction, including exception text passed through `wrap_unexpected()`. Focused tests cover direct and wrapped errors; bundled Python syntax and direct probes pass. Focused pytest remains blocked by the missing `pytest` module.
+Fifth Phase 7 fix was pushed as `563a4d0` and hardens the shared error model: `FactoryError` sanitizes developer messages at construction, including exception text passed through `wrap_unexpected()`. Focused tests cover direct and wrapped errors; bundled Python syntax and direct probes pass. Focused pytest remains blocked by the missing `pytest` module.
 
 Continue with the keystore/key-rotation design, deeper PII/prompt guard coverage, and protocol/schema parity. Backend carry-forward remains non-protocol stream dead-event/schema parity and LangGraph fallback isolation.
 
