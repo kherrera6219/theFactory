@@ -24,7 +24,11 @@ Second Phase 9 fix hardens worker service-boundary auth startup. `shared_runtime
 
 Validation completed: `tests/shared_runtime/test_agent_keys.py`, `tests/services/test_pod_worker_unit.py`, and `tests/services/test_audit_worker_unit.py` pass together (68 tests), and focused Ruff passes for the touched auth/worker files.
 
-Continue Phase 9 with no-unauthenticated-localhost checks, prompt/input validation coverage, TLS/container checks, and replay/idempotency verification.
+Third Phase 9 fix closes the first network-boundary hardening slice. `deploy/docker-compose.yaml` now publishes all host-facing ports on `127.0.0.1` by default through explicit `*_HOST_BIND` variables, including data-plane services, observability endpoints, API gateway, orchestrator, protocol-bus MCP, dashboard, and Mission Control. `.env.example` documents the loopback defaults and override path. `deploy/docker-compose.prod.yaml` now states that host-published ports are loopback by default and are not used for internal service-to-service traffic.
+
+Validation completed: `tests/services/test_compose_network_security.py` and `tests/services/test_hardened_api_keys.py` pass together (17 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp` because the current Python environment has pytest but not `pytest-timeout`; focused Ruff passes for the new test; `git diff --check` passes; merged production Compose service rendering passes with `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config --services`.
+
+Continue Phase 9 with no-unauthenticated-localhost route checks, prompt/input validation coverage, deeper TLS/container checks, and replay/idempotency verification.
 
 ---
 ## Work Started in This Session (2026-06-24 - Audit Phase 7 shared runtime)
