@@ -20,6 +20,7 @@ from redis.exceptions import ResponseError
 
 from shared_runtime.agent_keys import (
     configured_agent_service_key_map,
+    enforce_production_service_auth_config,
     normalize_agent_id,
     service_api_key_for_agent,
 )
@@ -42,6 +43,7 @@ STATE_STREAM = os.getenv("STATE_STREAM", "missions.state")
 CONSUMER_GROUP = os.getenv("AUDIT_WORKER_GROUP", "audit-workers")
 CONSUMER_NAME = os.getenv("AUDIT_WORKER_NAME", f"audit-worker-{uuid.uuid4()}")
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8001")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "worker-key")
 WORKER_AGENT_ID = os.getenv("WORKER_AGENT_ID", "AGENT-10-TESTER").strip().upper()
 AGENT_SERVICE_API_KEYS = os.getenv("AGENT_SERVICE_API_KEYS", "")
@@ -356,6 +358,14 @@ async def _consumer_loop(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    enforce_production_service_auth_config(
+        environment=ENVIRONMENT,
+        service_api_key=SERVICE_API_KEY,
+        key_mode=AGENT_SERVICE_KEY_MODE,
+        required_agent_ids=(WORKER_AGENT_ID,),
+        raw_mapping=AGENT_SERVICE_API_KEYS,
+        service_name="audit-worker",
+    )
     if AGENT_SERVICE_KEY_MODE == "shared":
         LOGGER.warning(
             "AGENT_SERVICE_KEY_MODE is 'shared'; all agents without a dedicated key will use "
