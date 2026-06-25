@@ -21,7 +21,11 @@ First Phase 9 fix: API gateway mission creation now runs deterministic `shared_r
 
 Validation: `tests/services/test_api_gateway_helpers_unit.py` passes (19 tests) and focused Ruff passes for `services/api-gateway/api_gateway/main.py` plus the helper tests.
 
-Next active Phase 9 work: continue service-boundary authentication inventory, prompt/input validation coverage, network/TLS/container checks, and protocol-bus replay/idempotency verification.
+Second Phase 9 fix: pod-worker and audit-worker now enforce production service-auth posture at startup through `shared_runtime.agent_keys.enforce_production_service_auth_config()`. Production requires `AGENT_SERVICE_KEY_MODE=strict`, rejects placeholder fallback `SERVICE_API_KEY` values such as `worker-key`, and verifies strong dedicated keys for the configured worker identity before Redis consumers start.
+
+Validation: `tests/shared_runtime/test_agent_keys.py`, `tests/services/test_pod_worker_unit.py`, and `tests/services/test_audit_worker_unit.py` pass together (68 tests), and focused Ruff passes for the touched auth/worker files.
+
+Next active Phase 9 work: continue no-unauthenticated-localhost checks, prompt/input validation coverage, network/TLS/container checks, and protocol-bus replay/idempotency verification.
 
 ---
 ## Latest Status - Audit Phase 8 Test Coverage Audit Started (2026-06-24)

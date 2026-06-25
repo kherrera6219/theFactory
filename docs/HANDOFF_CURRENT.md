@@ -20,7 +20,11 @@ First Phase 9 fix adds storage-boundary sensitive-input scanning to API gateway 
 
 Validation completed: `tests/services/test_api_gateway_helpers_unit.py` passes (19 tests) and focused Ruff passes for the API gateway file and helper tests.
 
-Continue Phase 9 with service-to-service auth inventory, prompt/input validation coverage, TLS/container checks, and replay/idempotency verification.
+Second Phase 9 fix hardens worker service-boundary auth startup. `shared_runtime.agent_keys.enforce_production_service_auth_config()` now fails production workers closed unless `AGENT_SERVICE_KEY_MODE=strict`, the fallback `SERVICE_API_KEY` is non-placeholder and strong, and configured pod/audit worker identities resolve to strong dedicated keys before Redis consumers start.
+
+Validation completed: `tests/shared_runtime/test_agent_keys.py`, `tests/services/test_pod_worker_unit.py`, and `tests/services/test_audit_worker_unit.py` pass together (68 tests), and focused Ruff passes for the touched auth/worker files.
+
+Continue Phase 9 with no-unauthenticated-localhost checks, prompt/input validation coverage, TLS/container checks, and replay/idempotency verification.
 
 ---
 ## Work Started in This Session (2026-06-24 - Audit Phase 7 shared runtime)

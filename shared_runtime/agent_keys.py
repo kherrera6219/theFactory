@@ -15,6 +15,16 @@ LOGGER = logging.getLogger(__name__)
 # 2026 best practice: minimum key entropy and length to guard against weak keys
 _MIN_KEY_LENGTH = 16
 _MIN_KEY_ENTROPY = 3.0
+PRODUCTION_ENVIRONMENTS = {"prod", "production"}
+PLACEHOLDER_SERVICE_API_KEYS = {
+    "",
+    "change-me",
+    "changeme",
+    "dev-key",
+    "test-key",
+    "test-worker-key",
+    "worker-key",
+}
 
 
 def _shannon_entropy(value: str) -> float:
@@ -181,3 +191,55 @@ def service_api_key_for_agent(
     validate_key_strength(fallback_key, "fallback")
     LOGGER.debug("using fallback key for agent %s", normalized_agent_id or "<none>")
     return fallback_key
+
+def enforce_production_service_auth_config(
+    *,
+    environment: str,
+    service_api_key: str,
+    key_mode: str,
+    required_agent_ids: list[str | None] | tuple[str | None, ...] = (),
+    raw_mapping: str = "",
+    env: Mapping[str, str] | None = None,
+    service_name: str = "service",
+) -> None:
+    """Fail closed on production worker auth misconfiguration.
+
+    Local development can use the shared fallback key, but production service
+    callers must use strict per-agent keys and a non-placeholder fallback for
+    any legacy or unassigned internal calls.
+    """
+    normalized_environment = environment.strip().lower()
+    if normalized_environment not in PRODUCTION_ENVIRONMENTS:
+        return
+
+    normalized_mode = key_mode.strip().lower() or "shared"
+    if normalized_mode != "strict":
+        raise RuntimeError(
+            f"{service_name} requires AGENT_SERVICE_KEY_MODE=strict in production"
+        )
+
+    normalized_fallback = service_api_key.strip()
+    if normalized_fallback.lower() in PLACEHOLDER_SERVICE_API_KEYS:
+        raise RuntimeError(
+            f"{service_name} requires a non-placeholder SERVICE_API_KEY in production"
+        )
+    if not validate_key_strength(normalized_fallback, "fallback"):
+        raise RuntimeError(
+            f"{service_name} requires a strong SERVICE_API_KEY in production"
+        )
+
+    for required_agent_id in required_agent_ids:
+        normalized_agent_id = normalize_agent_id(required_agent_id)
+        if not normalized_agent_id:
+            continue
+        resolved_key = service_api_key_for_agent(
+            normalized_agent_id,
+            fallback_key=normalized_fallback,
+            raw_mapping=raw_mapping,
+            key_mode=normalized_mode,
+            env=env,
+        )
+        if not validate_key_strength(resolved_key, normalized_agent_id):
+            raise RuntimeError(
+                f"{service_name} requires a strong dedicated key for {normalized_agent_id}"
+            )

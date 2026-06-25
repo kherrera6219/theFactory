@@ -21,7 +21,9 @@ Initial Phase 9 review confirms repo-level secret scanning controls are present:
 
 First Phase 9 fix adds API gateway storage-boundary sensitive-input scanning for mission creation. Prompt, source code, style directives, attachment descriptors, and submitted metadata are scanned through `shared_runtime.pii_guard` before orchestrator persistence. Metadata stores only field/type/count summaries, never matched values; sensitive missions are tagged and raised to `TIER_2_RESTRICTED` unless already classified higher.
 
-Validation: focused API gateway helper tests pass (19 tests), and focused Ruff passes.
+Second Phase 9 fix hardens worker service-boundary auth startup. Pod-worker and audit-worker now call `shared_runtime.agent_keys.enforce_production_service_auth_config()` during lifespan startup. Production mode fails closed unless agent service-key mode is strict, fallback `SERVICE_API_KEY` is non-placeholder and strong, and configured worker identities resolve to strong dedicated keys.
+
+Validation: focused API gateway helper tests pass (19 tests); focused worker/auth tests pass (68 tests); focused Ruff passes.
 
 ---
 ### Audit Phase 8 test coverage audit started (2026-06-24)
