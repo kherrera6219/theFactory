@@ -47,6 +47,7 @@ def test_orchestrator_mission_reads_require_api_key() -> None:
         "/missions",
         "/missions/mission-1",
         "/missions/mission-1/events",
+        "/missions/mission-1/runtime-qc",
     ):
         response = client.get(path)
         assert response.status_code == 401, path
