@@ -28,7 +28,11 @@ Third Phase 9 fix closes the first network-boundary hardening slice. `deploy/doc
 
 Validation completed: `tests/services/test_compose_network_security.py` and `tests/services/test_hardened_api_keys.py` pass together (17 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp` because the current Python environment has pytest but not `pytest-timeout`; focused Ruff passes for the new test; `git diff --check` passes; merged production Compose service rendering passes with `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config --services`.
 
-Continue Phase 9 with no-unauthenticated-localhost route checks, prompt/input validation coverage, deeper TLS/container checks, and replay/idempotency verification.
+Fourth Phase 9 fix closes a direct orchestrator mission-read gap. `GET /missions/{mission_id}/runtime-qc` now requires `READ_AUTH_DEP`, matching the mission list/detail/events routes and preventing anonymous localhost callers from reading runtime-QC execution previews. The unauthenticated route regression set in `tests/security/test_state_mutation_auth.py` now includes `/missions/mission-1/runtime-qc`.
+
+Validation completed: `tests/security/test_state_mutation_auth.py` and `tests/services/test_api_gateway_auth_mode_unit.py` pass together (28 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the touched route/test files; `git diff --check` passes.
+
+Continue Phase 9 with prompt/input validation coverage, deeper TLS/container checks, and replay/idempotency verification.
 
 ---
 ## Work Started in This Session (2026-06-24 - Audit Phase 7 shared runtime)

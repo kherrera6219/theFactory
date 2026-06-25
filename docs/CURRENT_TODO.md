@@ -29,7 +29,11 @@ Third Phase 9 fix: base Compose host-published ports now default to loopback thr
 
 Validation: `tests/services/test_compose_network_security.py` and `tests/services/test_hardened_api_keys.py` pass together (17 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the new compose security test; `git diff --check` passes; `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config --services` renders successfully.
 
-Next active Phase 9 work: continue no-unauthenticated-localhost route checks, prompt/input validation coverage, deeper TLS/container checks, and protocol-bus replay/idempotency verification.
+Fourth Phase 9 fix: direct orchestrator `GET /missions/{mission_id}/runtime-qc` now requires `READ_AUTH_DEP`, matching the other mission read routes and preventing anonymous localhost callers from reading runtime execution/QC previews from mission metadata. `tests/security/test_state_mutation_auth.py` now covers this route in the unauthenticated mission-read regression set.
+
+Validation: `tests/security/test_state_mutation_auth.py` and `tests/services/test_api_gateway_auth_mode_unit.py` pass together (28 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the touched route/test files; `git diff --check` passes.
+
+Next active Phase 9 work: continue prompt/input validation coverage, deeper TLS/container checks, and protocol-bus replay/idempotency verification.
 
 ---
 ## Latest Status - Audit Phase 8 Test Coverage Audit Started (2026-06-24)

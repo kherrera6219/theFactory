@@ -142,7 +142,7 @@ async def get_mission_events(
     return [event.model_dump() for event in events]
 
 
-@router.get("/missions/{mission_id}/runtime-qc")
+@router.get("/missions/{mission_id}/runtime-qc", dependencies=[READ_AUTH_DEP])
 async def get_public_runtime_qc(request: Request, mission_id: str) -> dict[str, Any]:
     import orchestrator.main as _main
 
