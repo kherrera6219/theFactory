@@ -95,7 +95,7 @@ services:
       - --requirepass
       - ${REDIS_PASSWORD:-CHANGE_ME_local_dev_redis_password_32chars}
     ports:
-      - "${REDIS_HOST_PORT:-6380}:6380"
+      - "${REDIS_HOST_BIND:-127.0.0.1}:${REDIS_HOST_PORT:-6380}:6380"
     volumes:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
       - ./redis/entrypoint.sh:/usr/local/bin/docker-entrypoint-init-tls.sh:ro
@@ -117,7 +117,7 @@ services:
     <<: [*common-service, *data-service-hardening]
     image: qdrant/qdrant:v1.12.1
     ports:
-      - "${QDRANT_HOST_PORT:-6334}:6333"
+      - "${QDRANT_HOST_BIND:-127.0.0.1}:${QDRANT_HOST_PORT:-6334}:6333"
     volumes:
       - qdrant-data:/qdrant/storage
 
@@ -127,8 +127,8 @@ services:
     environment:
       NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-CHANGE_ME_local_dev_neo4j_password}
     ports:
-      - "${NEO4J_HTTP_HOST_PORT:-7474}:7474"
-      - "${NEO4J_BOLT_HOST_PORT:-7687}:7687"
+      - "${NEO4J_HTTP_HOST_BIND:-127.0.0.1}:${NEO4J_HTTP_HOST_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_HOST_BIND:-127.0.0.1}:${NEO4J_BOLT_HOST_PORT:-7687}:7687"
     volumes:
       - neo4j-data:/data
     healthcheck:
@@ -153,7 +153,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-ulr}
     ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
+      - "${POSTGRES_HOST_BIND:-127.0.0.1}:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - ./postgres/entrypoint.sh:/docker-entrypoint-init-tls.sh:ro
       - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
@@ -221,8 +221,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
     ports:
-      - "${MINIO_HOST_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+      - "${MINIO_HOST_BIND:-127.0.0.1}:${MINIO_HOST_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_HOST_BIND:-127.0.0.1}:${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
     volumes:
       - minio-data:/data
     healthcheck:
@@ -241,8 +241,8 @@ services:
       ETCD_DATA_DIR: "/var/lib/milvus/etcd"
       COMMON_STORAGETYPE: "local"
     ports:
-      - "${MILVUS_HOST_PORT:-19530}:19530"
-      - "${MILVUS_METRICS_HOST_PORT:-9091}:9091"
+      - "${MILVUS_HOST_BIND:-127.0.0.1}:${MILVUS_HOST_PORT:-19530}:19530"
+      - "${MILVUS_METRICS_HOST_BIND:-127.0.0.1}:${MILVUS_METRICS_HOST_PORT:-9091}:9091"
     volumes:
       - milvus-data:/var/lib/milvus
 
@@ -255,9 +255,9 @@ services:
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
-      - "${JAEGER_UI_HOST_PORT:-16686}:16686"
-      - "${OTLP_GRPC_HOST_PORT:-4317}:4317"
-      - "${OTLP_HTTP_HOST_PORT:-4318}:4318"
+      - "${JAEGER_UI_HOST_BIND:-127.0.0.1}:${JAEGER_UI_HOST_PORT:-16686}:16686"
+      - "${OTLP_GRPC_HOST_BIND:-127.0.0.1}:${OTLP_GRPC_HOST_PORT:-4317}:4317"
+      - "${OTLP_HTTP_HOST_BIND:-127.0.0.1}:${OTLP_HTTP_HOST_PORT:-4318}:4318"
 
   orchestrator:
     <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
@@ -373,7 +373,7 @@ services:
       - ./.local/postgres-certs:/run/postgres-certs:ro
       - ../output:/app/output
     ports:
-      - "${ORCHESTRATOR_HOST_PORT:-8101}:8001"
+      - "${ORCHESTRATOR_HOST_BIND:-127.0.0.1}:${ORCHESTRATOR_HOST_PORT:-8101}:8001"
     depends_on:
       redis:
         condition: service_healthy
@@ -469,7 +469,7 @@ services:
       OTEL_SAMPLING_RATIO: ${OTEL_SAMPLING_RATIO:-0.1}
     volumes: *redis-client-certs
     ports:
-      - "${API_GATEWAY_HOST_PORT:-8100}:8000"
+      - "${API_GATEWAY_HOST_BIND:-127.0.0.1}:${API_GATEWAY_HOST_PORT:-8100}:8000"
     depends_on:
       redis:
         condition: service_healthy
@@ -511,7 +511,7 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
     volumes: *redis-client-certs
     ports:
-      - "${MCP_HOST_BIND:-0.0.0.0}:${MCP_HOST_PORT:-8102}:8090"
+      - "${MCP_HOST_BIND:-127.0.0.1}:${MCP_HOST_PORT:-8102}:8090"
     depends_on:
       redis:
         condition: service_healthy
@@ -546,7 +546,7 @@ services:
       API_GATEWAY_URL: http://api-gateway:8000
       DASHBOARD_PORT: 8080
     ports:
-      - "${DASHBOARD_HOST_PORT:-8180}:8080"
+      - "${DASHBOARD_HOST_BIND:-127.0.0.1}:${DASHBOARD_HOST_PORT:-8180}:8080"
     depends_on:
       api-gateway:
         condition: service_healthy
@@ -582,7 +582,7 @@ services:
       VAULT_ADMIN_KEY: ${VAULT_ADMIN_KEY:-}
       OPERATOR_SESSION_BYPASS: ${OPERATOR_SESSION_BYPASS:-true}
     ports:
-      - "${MISSION_CONTROL_HOST_PORT:-3100}:3000"
+      - "${MISSION_CONTROL_HOST_BIND:-127.0.0.1}:${MISSION_CONTROL_HOST_PORT:-3100}:3000"
     volumes:
       - mission-control-vault:/home/node/.thefactory
     depends_on:

@@ -88,9 +88,9 @@ services:
     volumes:
       - ${ARTIFACT_SIGNING_KEY_FILE:-./.local/secrets/artifact-signing-key.pem}:/run/factory-secrets/artifact-signing-key.pem:ro
 
-  # PROD: set MCP_HOST_BIND=127.0.0.1 in the prod .env so the MCP port is only
-  # reachable on the host loopback. Internal service-to-service traffic uses
-  # the Docker bridge network and does not rely on the published port.
+  # Published ports default to 127.0.0.1 in the base compose file. Internal
+  # service-to-service traffic uses the Docker bridge network and does not rely
+  # on host-published ports.
   protocol-bus-mcp:
     environment:
       # Phase 3 — lower backpressure limit in prod to protect downstream consumers

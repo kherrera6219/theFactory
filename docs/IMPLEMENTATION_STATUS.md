@@ -23,7 +23,9 @@ First Phase 9 fix adds API gateway storage-boundary sensitive-input scanning for
 
 Second Phase 9 fix hardens worker service-boundary auth startup. Pod-worker and audit-worker now call `shared_runtime.agent_keys.enforce_production_service_auth_config()` during lifespan startup. Production mode fails closed unless agent service-key mode is strict, fallback `SERVICE_API_KEY` is non-placeholder and strong, and configured worker identities resolve to strong dedicated keys.
 
-Validation: focused API gateway helper tests pass (19 tests); focused worker/auth tests pass (68 tests); focused Ruff passes.
+Third Phase 9 fix hardens host-published network boundaries. Base Compose now defaults all host-facing ports to `127.0.0.1` through documented `*_HOST_BIND` controls for data-plane, observability, API gateway, orchestrator, protocol-bus MCP, dashboard, and Mission Control ports. Operators can still intentionally publish a port beyond the workstation by overriding the matching bind variable.
+
+Validation: focused API gateway helper tests pass (19 tests); focused worker/auth tests pass (68 tests); focused compose/auth tests pass (17 tests, with local pytest addopts overridden because this Python environment lacks `pytest-timeout`); focused Ruff passes; `git diff --check` passes; merged production Compose service rendering passes.
 
 ---
 ### Audit Phase 8 test coverage audit started (2026-06-24)

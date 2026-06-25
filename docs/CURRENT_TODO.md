@@ -25,7 +25,11 @@ Second Phase 9 fix: pod-worker and audit-worker now enforce production service-a
 
 Validation: `tests/shared_runtime/test_agent_keys.py`, `tests/services/test_pod_worker_unit.py`, and `tests/services/test_audit_worker_unit.py` pass together (68 tests), and focused Ruff passes for the touched auth/worker files.
 
-Next active Phase 9 work: continue no-unauthenticated-localhost checks, prompt/input validation coverage, network/TLS/container checks, and protocol-bus replay/idempotency verification.
+Third Phase 9 fix: base Compose host-published ports now default to loopback through explicit `*_HOST_BIND=127.0.0.1` controls for data-plane services, observability ports, API gateway, orchestrator, protocol-bus MCP, dashboard, and Mission Control. Operators can still intentionally publish beyond the workstation by overriding the matching bind variable. `.env.example` documents the controls, and production compose comments now reflect that host-published ports are not required for service-to-service traffic.
+
+Validation: `tests/services/test_compose_network_security.py` and `tests/services/test_hardened_api_keys.py` pass together (17 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the new compose security test; `git diff --check` passes; `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config --services` renders successfully.
+
+Next active Phase 9 work: continue no-unauthenticated-localhost route checks, prompt/input validation coverage, deeper TLS/container checks, and protocol-bus replay/idempotency verification.
 
 ---
 ## Latest Status - Audit Phase 8 Test Coverage Audit Started (2026-06-24)
