@@ -171,6 +171,73 @@ def test_resolve_project_id_falls_back_to_mission_id() -> None:
     )
 
 
+
+def test_sensitive_input_scan_records_types_without_values() -> None:
+    payload = api_gateway_main.MissionCreate(
+        prompt="Contact alice@example.com before launch",
+        requested_target_language="python",
+        source_code="API_KEY = 'abcdef1234567890abcdef1234567890'\n",
+        global_style_directives=["Call +1 415 555 1212 if blocked"],
+        attachments=[
+            api_gateway_main.MissionAttachment(
+                file_id="file-1",
+                filename="customer-555-12-1234.txt",
+                content_type="text/plain",
+            )
+        ],
+        metadata={"requester": {"email": "bob@example.com"}},
+    )
+
+    first = api_gateway_main._build_sensitive_input_scan(payload)
+    second = api_gateway_main._build_sensitive_input_scan(payload)
+
+    assert first == second
+    assert first["has_sensitive_input"] is True
+    assert first["total_matches"] >= 4
+    assert {"EMAIL", "PASSWORD_KV", "PHONE_US", "SSN"} <= set(first["pii_types"])
+    serialized = json.dumps(first)
+    assert "alice@example.com" not in serialized
+    assert "abcdef1234567890abcdef1234567890" not in serialized
+    assert "415 555 1212" not in serialized
+
+
+def test_create_mission_persists_sensitive_input_scan_before_storage(monkeypatch) -> None:
+    redis_client = _MemoryRedis()
+    monkeypatch.setattr(api_gateway_main.app.state, "redis", redis_client, raising=False)
+    monkeypatch.setattr(api_gateway_main.app.state, "redis_ready", True, raising=False)
+    captured: dict[str, Any] = {}
+
+    async def _proxy_post_internal(_path: str, *, json_body: dict[str, Any], **_kwargs: Any) -> dict[str, Any]:
+        captured["json_body"] = json_body
+        return {
+            "mission_id": json_body["mission_id"],
+            "prompt": json_body["prompt"],
+            "requested_target_language": json_body["requested_target_language"],
+            "metadata": json_body["metadata"],
+            "project_id": json_body.get("project_id"),
+            "state": "QUEUED",
+            "created_at": json_body["created_at"],
+        }
+
+    monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _proxy_post_internal)
+    payload = api_gateway_main.MissionCreate(
+        prompt="Email operator@example.com and build the report",
+        requested_target_language="python",
+        metadata={},
+    )
+
+    result = asyncio.run(api_gateway_main.create_mission(payload, idempotency_key=None))
+
+    metadata = captured["json_body"]["metadata"]
+    scan = metadata["sensitive_input_scan"]
+    assert result.metadata["sensitive_input_scan"] == scan
+    assert scan["has_sensitive_input"] is True
+    assert scan["pii_types"] == ["EMAIL"]
+    assert metadata["contains_sensitive_input"] is True
+    assert metadata["sensitive_input_pii_types"] == ["EMAIL"]
+    assert metadata["data_classification"] == "TIER_2_RESTRICTED"
+    assert "operator@example.com" not in json.dumps(scan)
+
 def test_create_mission_reconciles_unknown_idempotent_writes(monkeypatch) -> None:
     redis_client = _MemoryRedis()
     monkeypatch.setattr(api_gateway_main.app.state, "redis", redis_client, raising=False)

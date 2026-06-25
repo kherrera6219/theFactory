@@ -11,6 +11,19 @@ current work.
 
 ---
 
+## Latest Status - Audit Phase 9 Security Audit Started (2026-06-24)
+
+Phase 9 is active after fast-forwarding through Dependabot/workflow updates to `266f2a3`. Phase 8 still carries the open `mission_flow_v2/` strict coverage finding, but security audit work has started per operator direction.
+
+Initial Phase 9 review confirms `.gitleaks.toml`, `.pre-commit-config.yaml`, and `.github/workflows/security.yml` already provide the expected gitleaks coverage for full-history CI scans and staged-file pre-commit scans. Existing Phase 4/7 work also already covers production `AUTH_MODE` fail-fast, protocol-bus `MCP_API_KEY` production fail-closed behavior, and rotatable agent/service signing keys.
+
+First Phase 9 fix: API gateway mission creation now runs deterministic `shared_runtime.pii_guard` scanning over prompt, source code, style directives, attachment descriptors, and submitted metadata before orchestrator persistence. The stored scan metadata contains only field names, PII types, and counts; it never duplicates matched values. Sensitive missions are tagged with `contains_sensitive_input`, `sensitive_input_pii_types`, and `data_classification=TIER_2_RESTRICTED` unless already classified higher.
+
+Validation: `tests/services/test_api_gateway_helpers_unit.py` passes (19 tests) and focused Ruff passes for `services/api-gateway/api_gateway/main.py` plus the helper tests.
+
+Next active Phase 9 work: continue service-boundary authentication inventory, prompt/input validation coverage, network/TLS/container checks, and protocol-bus replay/idempotency verification.
+
+---
 ## Latest Status - Audit Phase 8 Test Coverage Audit Started (2026-06-24)
 
 Phase 4 is closed for this audit pass at `3cced29`. Completed Phase 4 app fixes: dashboard metrics/response contracts, six-lane protocol producer helpers, and API gateway auth/CORS startup validation.

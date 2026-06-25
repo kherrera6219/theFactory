@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from shared_runtime.agent_keys import normalize_agent_id
 from shared_runtime.logging_config import configure_logging
+from shared_runtime.pii_guard import detect_pii, scan_dict_for_pii
 from shared_runtime.protocol import (
     ProtocolValidationError,
     load_event_schema,
@@ -469,6 +470,54 @@ def _normalize_mission_metadata(
     normalized["last_chain_event_type"] = "MISSION_PM_INTAKE"
     normalized["last_chain_event_at"] = None
     return normalized
+
+
+
+def _build_sensitive_input_scan(payload: MissionCreate) -> dict[str, Any]:
+    """Return deterministic PII/secret scan metadata for user mission input.
+
+    This intentionally records only field names, PII types, and counts. It never
+    stores the matched values, which keeps the audit trail useful without
+    duplicating sensitive input in metadata.
+    """
+    field_counts: dict[tuple[str, str], int] = {}
+
+    def _record(field: str, text: str | None) -> None:
+        if not text:
+            return
+        for match in detect_pii(text):
+            key = (field, match.pii_type)
+            field_counts[key] = field_counts.get(key, 0) + 1
+
+    _record("prompt", payload.prompt)
+    _record("source_code", payload.source_code)
+    for index, directive in enumerate(payload.global_style_directives):
+        _record(f"global_style_directives[{index}]", directive)
+    for index, attachment in enumerate(payload.attachments):
+        _record(f"attachments[{index}].filename", attachment.filename)
+        _record(f"attachments[{index}].content_type", attachment.content_type)
+
+    metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+    for field_path, pii_type in scan_dict_for_pii(metadata, max_depth=4):
+        if field_path in {"source_code", "prompt", "chain_trace"}:
+            continue
+        key = (f"metadata.{field_path}", pii_type)
+        field_counts[key] = field_counts.get(key, 0) + 1
+
+    fields = [
+        {"field": field, "pii_type": pii_type, "match_count": count}
+        for (field, pii_type), count in sorted(field_counts.items())
+    ]
+    pii_types = sorted({field["pii_type"] for field in fields})
+    total_matches = sum(field["match_count"] for field in fields)
+    return {
+        "schema_version": "sensitive_input_scan.v1",
+        "scanner": "shared_runtime.pii_guard",
+        "has_sensitive_input": total_matches > 0,
+        "total_matches": total_matches,
+        "pii_types": pii_types,
+        "fields": fields,
+    }
 
 
 def _idempotency_redis_key(idempotency_key: str) -> str:
@@ -1986,7 +2035,18 @@ async def create_mission(
     )
     if payload.source_code:
         normalized_metadata["source_code"] = payload.source_code
-    
+
+    sensitive_input_scan = _build_sensitive_input_scan(payload)
+    normalized_metadata["sensitive_input_scan"] = sensitive_input_scan
+    normalized_metadata["contains_sensitive_input"] = sensitive_input_scan["has_sensitive_input"]
+    if sensitive_input_scan["has_sensitive_input"]:
+        normalized_metadata["sensitive_input_pii_types"] = sensitive_input_scan["pii_types"]
+        current_classification = str(normalized_metadata.get("data_classification") or "").upper()
+        if current_classification not in {"TIER_2_RESTRICTED", "TIER_3_RESTRICTED"}:
+            normalized_metadata["data_classification"] = "TIER_2_RESTRICTED"
+    else:
+        normalized_metadata.setdefault("data_classification", "TIER_1_INTERNAL")
+
     payload = payload.model_copy(update={"metadata": normalized_metadata})
 
     mission_id = provisional_id
