@@ -518,18 +518,20 @@ tests/
 
 **Goal:** No secrets in code or history; all service boundaries are authenticated; all inputs are validated.
 
+Phase 9 status: active as of 2026-06-24 after Phase 8 coverage work was checkpointed at `4d15b5f`. The branch was fast-forwarded through Dependabot/workflow updates to `266f2a3` before starting this phase. Initial review confirmed `.gitleaks.toml`, `.pre-commit-config.yaml`, and the GitHub security workflow already provide full-history/staged secret scanning. First Phase 9 code fix adds deterministic `shared_runtime.pii_guard` scanning at the API gateway mission-create storage boundary, storing only PII type/count/field summaries in metadata and raising mission classification to `TIER_2_RESTRICTED` when sensitive input is detected.
+
 ### Secrets Hygiene
 
 - [ ] `gitleaks detect --source . --log-opts="--all"` — zero findings across full commit history
-- [ ] `.gitleaks.toml` is up to date with custom patterns for theFactory-specific secret formats
+- [x] `.gitleaks.toml` is up to date with custom patterns for theFactory-specific secret formats
 - [ ] `git log --all --full-history -- "*.env" "*.pem" "*.key"` — no real credential files ever committed
 - [ ] Pre-commit hook blocks commits containing secret patterns — tested with a dry-run injection
-- [ ] `.env` is in `.gitignore`; local certs (`deploy/.local/`) are in `.gitignore`
+- [x] `.env` is in `.gitignore`; local certs (`deploy/.local/`) are in `.gitignore`
 
 ### Authentication & Authorization
 
-- [ ] `AUTH_MODE` hard-fails on invalid value in production; test coverage verified
-- [ ] `MCP_API_KEY` auto-gen is stable in production; dev warns loudly; verify
+- [x] `AUTH_MODE` hard-fails on invalid value in production; test coverage verified
+- [x] `MCP_API_KEY` production behavior is fail-closed and dev auto-generation warns loudly; test coverage verified
 - [ ] All service-to-service calls are authenticated — pod-worker → orchestrator, orchestrator → protocol-bus, etc.
 - [ ] `agent_auth.py` and `agent_keys.py` tokens are short-lived and rotatable
 - [ ] No service accepts requests from `localhost` without auth in production mode
@@ -537,7 +539,7 @@ tests/
 ### Input Validation
 
 - [ ] All LLM prompt inputs are passed through `prompt_guard.py` before sending to provider
-- [ ] All user-submitted mission text is scanned by `pii_guard.py` before storage
+- [x] All user-submitted mission text is scanned by `pii_guard.py` before storage - API gateway mission create records metadata-only sensitive-input scan summaries before persistence
 - [ ] File uploads (PDF, images via PM Agent) are validated for type, size, and content before processing
 - [ ] All database query inputs use parameterized queries — no string interpolation in SQL
 
@@ -750,6 +752,7 @@ After all findings are resolved, the following documents must be updated:
 | A-034 | Phase 8 | Warning | `services/api-gateway/api_gateway/main.py`, `tests/security/test_state_mutation_auth.py`, `tests/services/test_protocol_bus_mcp.py` | Randomized ordering and coverage exposed duplicate Prometheus collector registration on API gateway re-import, stale module-instance monkeypatching in gateway security tests, and environment-sensitive protocol-bus key-warning coverage. Gateway metrics now reuse registered collectors, tests patch the app-owning module instance, and protocol-bus import/lifespan coverage is deterministic. Full coverage passes with 1,537 tests, 5 skips, 81.50% total coverage, and configured CI thresholds pass. | FIXED | `b77da3c` |
 | A-035 | Phase 8 | Warning | `services/orchestrator/orchestrator/storage_agents.py`, `services/orchestrator/orchestrator/storage_artifacts.py`, `tests/services/test_storage_unit.py` | Storage domain modules missed the stricter audit floor around object-storage artifact offload/fallback, agent action event digests, test-data manifests, and runtime-QC report persistence. Added stable storage unit coverage; full coverage now reports `storage_agents.py` at 98.04% XML line coverage and `storage_artifacts.py` at 99.14% XML line coverage, and the CI threshold script passes. | FIXED | local working tree |
 | A-036 | Phase 8 | Warning | `services/orchestrator/orchestrator/mission_flow_v2/`, `tests/services/test_mission_flow_v2.py` | Mission Flow v2 remains below the stricter critical-path audit target after helper/runtime coverage improvements: current aggregate is 83.51% line / 66.27% branch versus the 90% / 85% target. Remaining work should add scenario-level lifecycle/build/runtime branch coverage instead of superficial line-hit tests. | OPEN | next Phase 8 work |
+| A-037 | Phase 9 | Warning | `services/api-gateway/api_gateway/main.py`, `tests/services/test_api_gateway_helpers_unit.py` | Mission-create persisted user prompt/source/style/metadata without recording the required PII/secret scan at the storage boundary. Added deterministic `shared_runtime.pii_guard` scan metadata before orchestrator persistence; metadata stores only field/type/count summaries and raises sensitive missions to `TIER_2_RESTRICTED`. | FIXED | local working tree |
 
 ---
 

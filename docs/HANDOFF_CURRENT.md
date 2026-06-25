@@ -10,6 +10,19 @@ before consulting archived plans.
 
 ---
 
+## Work Started in This Session (2026-06-24 - Audit Phase 9 security audit)
+
+Phase 9 was started after the operator requested the next phase. The branch was first fast-forwarded to `origin/main` at `266f2a3`, which brought in Dependabot/workflow-only updates. Phase 8 still has the open `mission_flow_v2/` strict coverage finding, so do not treat Phase 8 as fully closed unless that is fixed or explicitly deferred.
+
+Initial Phase 9 review found the repo already has `.gitleaks.toml`, `.pre-commit-config.yaml`, and GitHub Security Checks for gitleaks full-history and staged secret scanning. Existing code/tests also already cover production `AUTH_MODE` fail-fast and protocol-bus `MCP_API_KEY` production fail-closed behavior.
+
+First Phase 9 fix adds storage-boundary sensitive-input scanning to API gateway mission creation. `create_mission()` now runs `shared_runtime.pii_guard` before orchestrator persistence and writes metadata-only scan summaries: schema version, scanner, total match count, PII types, and field/type/count rows. Raw PII/token values are not copied into the scan object. Sensitive inputs set `contains_sensitive_input`, `sensitive_input_pii_types`, and raise `data_classification` to `TIER_2_RESTRICTED` unless already classified as Tier 2/3.
+
+Validation completed: `tests/services/test_api_gateway_helpers_unit.py` passes (19 tests) and focused Ruff passes for the API gateway file and helper tests.
+
+Continue Phase 9 with service-to-service auth inventory, prompt/input validation coverage, TLS/container checks, and replay/idempotency verification.
+
+---
 ## Work Started in This Session (2026-06-24 - Audit Phase 7 shared runtime)
 
 Phase 4 is closed for this audit pass at `3cced29`. Completed fixes are committed and pushed through API gateway startup validation. Do not mark the broad Phase 4 response-model/runtime-hardening items as done without focused code work and validation.

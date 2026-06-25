@@ -13,6 +13,17 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
+### Audit Phase 9 security audit started (2026-06-24)
+
+Latest status: Phase 9 is active after fast-forwarding to `origin/main` at `266f2a3`. Phase 8 still carries the open `mission_flow_v2/` strict coverage finding and should remain a tracked carry-forward unless fixed or explicitly deferred.
+
+Initial Phase 9 review confirms repo-level secret scanning controls are present: `.gitleaks.toml`, `.pre-commit-config.yaml`, and `.github/workflows/security.yml` cover custom theFactory secret patterns, staged-file gitleaks protection, and full-history CI secret scans. Existing controls already verify production `AUTH_MODE` fail-fast and protocol-bus `MCP_API_KEY` production fail-closed behavior.
+
+First Phase 9 fix adds API gateway storage-boundary sensitive-input scanning for mission creation. Prompt, source code, style directives, attachment descriptors, and submitted metadata are scanned through `shared_runtime.pii_guard` before orchestrator persistence. Metadata stores only field/type/count summaries, never matched values; sensitive missions are tagged and raised to `TIER_2_RESTRICTED` unless already classified higher.
+
+Validation: focused API gateway helper tests pass (19 tests), and focused Ruff passes.
+
+---
 ### Audit Phase 8 test coverage audit started (2026-06-24)
 
 Latest status: Phase 7 closed at `35dfd50`; Phase 8 is active.
