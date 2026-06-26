@@ -499,6 +499,9 @@ export default function SettingsPage() {
 
   // FIX #3: Section numbering helper for visual hierarchy
   const SECTION = (n: number, title: string) => `${n}. ${title}`;
+  const vaultColumnWidths = hasAnyKeyData
+    ? ["30%", "10%", "16%", "10%", "14%", "10%", "10%", "10%"]
+    : ["30%", "10%", "16%", "10%", "10%"];
 
   return (
     <div className="page shell-page">
@@ -639,15 +642,9 @@ export default function SettingsPage() {
           <table className="data-table" style={{ tableLayout: "fixed", width: "100%", minWidth: "700px" }}>
             <caption className="sr-only">Vault slots for all agents and operator integrations.</caption>
             <colgroup>
-              {/* FIX #1: Fixed column widths prevent overflow and mid-word breaks */}
-              <col style={{ width: "30%" }} />   {/* Slot ID */}
-              <col style={{ width: "10%" }} />   {/* Provider */}
-              <col style={{ width: "16%" }} />   {/* Model */}
-              <col style={{ width: "10%" }} />   {/* Status */}
-              {hasAnyKeyData && <col style={{ width: "14%" }} />} {/* Masked */}
-              {hasAnyKeyData && <col style={{ width: "10%" }} />} {/* Last Rotated */}
-              {hasAnyKeyData && <col style={{ width: "10%" }} />} {/* Expires */}
-              <col style={{ width: "10%" }} />   {/* Actions */}
+              {vaultColumnWidths.map((width, index) => (
+                <col key={`${width}-${index}`} style={{ width }} />
+              ))}
             </colgroup>
             <thead>
               <tr>

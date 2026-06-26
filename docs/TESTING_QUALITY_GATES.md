@@ -172,7 +172,7 @@ Located in `apps/mission-control/` alongside components. Cover:
 
 The suite grew from 45 to 63 tests; the 5 most recent additions cover gateway status propagation and unreachable-backend `503` handling.
 
-### Playwright E2E (7 journeys)
+### Playwright E2E (23 tests across 7 journey groups)
 
 Located in `apps/mission-control/e2e/`.
 
@@ -341,7 +341,7 @@ signal to operators, reviewers, and future partners.
 | **Mission Control Lint** | `npm run lint` in `apps/mission-control` |
 | **Mission Control Unit Tests** | `npm run test` (Vitest) |
 | **Playwright Install** | `playwright install --with-deps chromium` |
-| **Mission Control E2E** | `npm run test:e2e` (Playwright, 7 journeys) |
+| **Mission Control E2E** | `npm run test:e2e` (Playwright, 23 tests across 7 journey groups) |
 | **Electron E2E Smoke** | Runs on `main` pushes, release tags, and manual dispatch |
 | **SBOM** | `anchore/sbom-action` → `sbom.spdx.json` + `sbom.cdx.json`; runs independently on production pushes/tags |
 | **Release Trust** | Runs on `main` pushes and release tags; fails explicitly if lint/test, Docker build, or SBOM gates fail |

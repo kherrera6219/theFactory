@@ -10,6 +10,20 @@ before consulting archived plans.
 
 ---
 
+## Work Started in This Session (2026-06-26 - Audit Phase 11 Mission Control E2E)
+
+Phase 11 is now active after closing the Phase 10 reliability follow-up. Use live Mission Control code, package scripts, Playwright specs, and CI workflow wiring as the source of truth; archived Phase 11 roadmap text is baseline context only.
+
+Initial Phase 11 review confirmed Mission Control has current `lint`, `test`, `build`, and `test:e2e` scripts; CI installs Chromium and runs `npm run test:e2e`; and `apps/mission-control/e2e/` contains 23 Playwright journeys covering mission lifecycle, operations/persona views, settings/vault, builder/repo intake, error states, data-plane views, cost/runtime-QC panels, and accessibility checks.
+
+First Phase 11 fix removes a Settings page hydration warning. `apps/mission-control/app/(shell)/settings/page.tsx` now renders vault table `<col>` elements from a width array, so `<colgroup>` contains only valid column elements and no whitespace text nodes.
+
+Validation completed: `npm --prefix apps/mission-control run lint` passes, `npm --prefix apps/mission-control run test` passes (16 files / 74 tests), `npm --prefix apps/mission-control run test:e2e` passes (23 tests) against the running backend stack, and `npm --prefix apps/mission-control run build` passes. The only remaining E2E console noise is the expected Next.js development-mode `eval()` warning under CSP; production build is unaffected.
+
+Continue Phase 11 with CI parity, artifact/report hygiene, and updating stale E2E journey-count documentation if needed.
+
+---
+
 ## Work Started in This Session (2026-06-26 - Audit Phase 10 reliability qualification)
 
 Phase 10 is now active after completing the tracked Phase 9 security-audit items. Use the live reliability qualification tooling as the source of truth; archived Phase 10 roadmap text is baseline context only.
@@ -28,7 +42,7 @@ Sixth Phase 10 fix hardens the transient restart window observed in that evidenc
 
 Validation completed: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, PowerShell parser validation passes for `scripts/reliability_qualification.ps1`, the refreshed reliability qualification passed, `scripts/verify_reliability_evidence.py` verified the refreshed JSON, and `tests/services/test_api_gateway_helpers_unit.py` passes (23 tests) for the gateway retry hardening.
 
-Continue by starting Phase 11 Mission Control integration and E2E regression review from live code and current CI/test scripts, not the archived baseline alone.
+Phase 10 active work is complete for this pass. Phase 11 is now active for Mission Control integration and E2E regression review.
 
 ---
 
