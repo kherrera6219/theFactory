@@ -15,9 +15,9 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ### Audit Phase 10 reliability qualification started (2026-06-26)
 
-Latest status: Phase 10 is active after completing tracked Phase 9 security-audit items. The first reliability slice improves evidence quality in `scripts/reliability_qualification.py`: JSON reports now include the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint`. The second reliability slice adds capped `mission_error_samples` and `readiness_failure_samples` to the report and prints the target base URL, readiness endpoints, and endpoint-level readiness failure counts in console output. The third slice updates the PowerShell wrapper and current operator docs so readiness/recovery controls and evidence fields match the live script.
+Latest status: Phase 10 is active after completing tracked Phase 9 security-audit items. The first reliability slice improves evidence quality in `scripts/reliability_qualification.py`: JSON reports now include the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint`. The second reliability slice adds capped `mission_error_samples` and `readiness_failure_samples` to the report and prints the target base URL, readiness endpoints, and endpoint-level readiness failure counts in console output. The third slice updates the PowerShell wrapper and current operator docs so readiness/recovery controls and evidence fields match the live script. The fourth slice adds `scripts/verify_reliability_evidence.py` for offline validation of refreshed reliability evidence shape and pass/fail status.
 
-Validation: focused reliability qualification tests pass (8 tests, with local pytest addopts overridden because this Python environment lacks `pytest-timeout`); focused Ruff passes; PowerShell parser validation passes for `scripts/reliability_qualification.ps1`.
+Validation: focused reliability qualification tests pass (8 tests), reliability evidence verifier tests pass (3 tests), focused Ruff passes, and PowerShell parser validation passes for `scripts/reliability_qualification.ps1`. Live evidence refresh is blocked in this environment because Docker Desktop's Linux engine pipe is unavailable and gateway/orchestrator readiness endpoints time out.
 
 ---
 
