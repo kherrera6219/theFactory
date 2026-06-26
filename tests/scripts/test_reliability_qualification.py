@@ -16,6 +16,8 @@ spec.loader.exec_module(reliability)
 
 def _args(**overrides) -> argparse.Namespace:
     base = {
+        "base_url": "http://localhost:8100",
+        "readiness_endpoints": ["http://localhost:8100/readyz", "http://localhost:8101/readyz"],
         "duration_seconds": 60.0,
         "requests_per_second": 2.0,
         "concurrency": 8,
@@ -72,7 +74,13 @@ def test_build_report_passes_with_healthy_samples() -> None:
         args, mission_samples, readiness_samples, recovery, injection
     )
     assert report["passed"] is True
+    assert report["base_url"] == "http://localhost:8100"
+    assert report["readiness_endpoints"] == [
+        "http://localhost:8100/readyz",
+        "http://localhost:8101/readyz",
+    ]
     assert report["mission_success_rate_percent"] == 100.0
+    assert report["readiness_failure_counts_by_endpoint"] == {}
     assert report["failure_reasons"] == []
 
 
@@ -110,6 +118,7 @@ def test_build_report_fails_on_latency_readiness_and_recovery() -> None:
     assert "max consecutive readiness failures" in reasons
     assert "recovery probe" in reasons
     assert "failure injection command exited" in reasons
+    assert report["readiness_failure_counts_by_endpoint"] == {"r1": 2}
 
 
 def test_run_writes_output_file(monkeypatch, tmp_path) -> None:

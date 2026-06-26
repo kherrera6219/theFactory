@@ -313,6 +313,13 @@ def _build_report(
     max_latency = max(latencies) if latencies else 0.0
     readiness_failures = sum(1 for sample in readiness_samples if not sample.ok)
     max_consecutive = _max_consecutive_readiness_failures(readiness_samples)
+    readiness_failure_counts_by_endpoint: dict[str, int] = {}
+    for sample in readiness_samples:
+        if sample.ok:
+            continue
+        readiness_failure_counts_by_endpoint[sample.endpoint] = (
+            readiness_failure_counts_by_endpoint.get(sample.endpoint, 0) + 1
+        )
 
     failure_reasons: list[str] = []
     if success_rate < args.min_success_rate:
@@ -353,6 +360,8 @@ def _build_report(
 
     return {
         "run_timestamp_utc": datetime.now(UTC).isoformat(),
+        "base_url": args.base_url,
+        "readiness_endpoints": list(args.readiness_endpoints),
         "duration_seconds": args.duration_seconds,
         "requests_per_second": args.requests_per_second,
         "concurrency": args.concurrency,
@@ -365,6 +374,7 @@ def _build_report(
         "latency_max_seconds": round(max_latency, 4),
         "readiness_checks_total": len(readiness_samples),
         "readiness_failures_total": readiness_failures,
+        "readiness_failure_counts_by_endpoint": readiness_failure_counts_by_endpoint,
         "max_consecutive_readiness_failures": max_consecutive,
         "recovery_probe": asdict(recovery_result),
         "failure_injection": asdict(injection_result),

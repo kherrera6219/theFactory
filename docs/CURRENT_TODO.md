@@ -11,9 +11,21 @@ current work.
 
 ---
 
-## Latest Status - Audit Phase 9 Security Audit Started (2026-06-24)
+## Latest Status - Audit Phase 10 Reliability Qualification Started (2026-06-26)
 
-Phase 9 is active after fast-forwarding through Dependabot/workflow updates to `266f2a3`. Phase 8 still carries the open `mission_flow_v2/` strict coverage finding, but security audit work has started per operator direction.
+Phase 10 starts from the live long-duration reliability tooling instead of archived baseline status. Initial scope is reliability evidence quality, readiness/recovery diagnostics, and the qualification script/runbook path.
+
+First Phase 10 fix: `scripts/reliability_qualification.py` now writes the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint` into the JSON report. This makes sustained-load evidence self-contained and lets operators distinguish a gateway readiness issue from an orchestrator readiness issue without reconstructing CLI arguments from logs.
+
+Validation: `tests/scripts/test_reliability_qualification.py` passes (6 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the reliability script/tests; `git diff --check` passes.
+
+Next active Phase 10 work: continue reliability qualification review for recovery/failure-injection diagnostics, runbook currency, and evidence verification.
+
+---
+
+## Latest Status - Audit Phase 9 Security Audit Completed (2026-06-26)
+
+Phase 9 started after fast-forwarding through Dependabot/workflow updates to `266f2a3` and is now complete for the tracked security-audit checklist. Phase 8 still carries the open `mission_flow_v2/` strict coverage finding unless explicitly deferred.
 
 Initial Phase 9 review confirms `.gitleaks.toml`, `.pre-commit-config.yaml`, and `.github/workflows/security.yml` already provide the expected gitleaks coverage for full-history CI scans and staged-file pre-commit scans. Existing Phase 4/7 work also already covers production `AUTH_MODE` fail-fast, protocol-bus `MCP_API_KEY` production fail-closed behavior, and rotatable agent/service signing keys.
 
