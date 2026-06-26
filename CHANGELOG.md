@@ -6,6 +6,27 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Audit Phase 12 Documentation Drift (2026-06-26)
+
+#### Changed
+- `make validate` now runs current-source documentation validation and a
+  non-mutating OpenAPI drift check before schema/catalog/test gates.
+- `scripts/export_openapi.py` now supports `--check`, which fails when committed
+  OpenAPI snapshots differ from the current FastAPI apps and tells maintainers to
+  regenerate the specs.
+- Refreshed `docs/openapi/orchestrator.v1.json` after the new check identified
+  drift from the current orchestrator app.
+- Production audit check `DOC-006` now verifies Phase 12 documentation drift
+  controls: current top-level docs, Codex standards, OpenAPI snapshots, and
+  validation wiring.
+
+#### Validation
+- `python scripts/validate_documentation.py`
+- `python scripts/export_openapi.py --check`
+- `python scripts/production_review_audit.py`
+- `python -m pytest -o addopts= tests\scripts\test_production_review_audit.py --basetemp .pytest-tmp`
+- `python -m ruff check scripts\export_openapi.py scripts\production_review_audit.py tests\scripts\test_production_review_audit.py`
+
 ### Application Scope Cleanup and Fallback Visibility (2026-06-21)
 
 #### Changed

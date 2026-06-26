@@ -282,6 +282,57 @@ def check_operational_docs() -> AuditResult:
     )
 
 
+def check_documentation_drift_controls() -> AuditResult:
+    makefile = _read_text(REPO_ROOT / "Makefile")
+    agents = _read_text(REPO_ROOT / "AGENTS.md")
+    changelog = _read_text(REPO_ROOT / "CHANGELOG.md")
+    docs_index = _read_text(REPO_ROOT / "docs" / "DOCUMENTATION_INDEX.md")
+    definition_of_done = _read_text(REPO_ROOT / "docs" / "codex" / "DEFINITION_OF_DONE.md")
+    review_checklist = _read_text(REPO_ROOT / "docs" / "codex" / "REVIEW_CHECKLIST.md")
+    api_readme = _read_text(REPO_ROOT / "docs" / "api" / "README.md")
+
+    required_paths = [
+        REPO_ROOT / "AGENTS.md",
+        REPO_ROOT / "README.md",
+        REPO_ROOT / "CHANGELOG.md",
+        REPO_ROOT / "docs" / "codex" / "DEFINITION_OF_DONE.md",
+        REPO_ROOT / "docs" / "codex" / "REVIEW_CHECKLIST.md",
+        REPO_ROOT / "scripts" / "validate_documentation.py",
+        REPO_ROOT / "scripts" / "export_openapi.py",
+        REPO_ROOT / "docs" / "openapi" / "api-gateway.v1.json",
+        REPO_ROOT / "docs" / "openapi" / "orchestrator.v1.json",
+    ]
+    missing_items = [f"missing {path.relative_to(REPO_ROOT)}" for path in required_paths if not path.exists()]
+
+    if "python scripts/validate_documentation.py" not in makefile:
+        missing_items.append("make validate does not run documentation validation")
+    if "python scripts/export_openapi.py --check" not in makefile:
+        missing_items.append("make validate does not enforce OpenAPI drift checks")
+    if "Last validated: 2026-06-26" not in agents:
+        missing_items.append("AGENTS.md last validated timestamp is not current")
+    if "Audit Phase 12 Documentation Drift" not in changelog:
+        missing_items.append("CHANGELOG.md missing current Phase 12 audit entry")
+    if "DOCUMENTATION_INDEX.md" not in docs_index and "Documentation Index" not in docs_index:
+        missing_items.append("documentation index is missing or malformed")
+    if "make validate" not in definition_of_done or "make validate" not in review_checklist:
+        missing_items.append("Codex DoD/review checklist do not require make validate")
+    if "scripts/export_openapi.py --check" not in api_readme:
+        missing_items.append("API docs do not document OpenAPI drift checking")
+
+    passed = not missing_items
+    return _result(
+        check_id="DOC-006",
+        priority="HIGH",
+        description="Documentation drift controls are current and enforced",
+        passed=passed,
+        notes=(
+            "; ".join(missing_items)
+            if missing_items
+            else "docs validation, OpenAPI drift check, Codex standards, and current audit notes present"
+        ),
+    )
+
+
 def check_mission_control_typescript_strict() -> AuditResult:
     tsconfig = _read_text(REPO_ROOT / "apps" / "mission-control" / "tsconfig.json")
     page_tsx = REPO_ROOT / "apps" / "mission-control" / "app" / "page.tsx"
@@ -741,6 +792,7 @@ def run_audit() -> list[AuditResult]:
         check_compose_environment_profile_controls(),
         check_protocol_contract_artifacts(),
         check_operational_docs(),
+        check_documentation_drift_controls(),
         check_mission_control_typescript_strict(),
         check_mission_control_e2e_controls(),
         check_design_tokens(),

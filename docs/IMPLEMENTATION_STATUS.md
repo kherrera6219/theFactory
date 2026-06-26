@@ -21,6 +21,18 @@ Validation: Mission Control TypeScript lint passes, Vitest passes (16 files / 74
 
 ---
 
+### Audit Phase 12 documentation drift started (2026-06-26)
+
+Latest status: Phase 12 is active from the current `AUDIT_PLAN.md` documentation-drift checklist. The first slice adds enforceable drift controls instead of relying on manual review only. `make validate` now runs current-source documentation validation and non-mutating OpenAPI snapshot checking. `scripts/export_openapi.py` supports `--check` to fail when committed specs differ from live FastAPI app schemas, while preserving the existing regeneration behavior without `--check`. The first check found stale orchestrator OpenAPI drift, and `docs/openapi/orchestrator.v1.json` was regenerated from the live orchestrator app.
+
+Production audit check `DOC-006` now verifies current Phase 12 documentation controls: top-level docs, current `AGENTS.md` validation timestamp, Phase 12 changelog entry, Codex DoD/review standards, API OpenAPI check notes, committed OpenAPI snapshots, and validation wiring.
+
+Validation: `scripts/validate_documentation.py` passes across 77 metadata-checked docs and 119 link-checked docs; `scripts/export_openapi.py --check` passes; focused production-audit tests pass; focused Ruff passes for the touched audit/export/test files; and `scripts/production_review_audit.py` reports `DOC-006` passing while retaining the unrelated existing `INF-008` compose wiring finding.
+
+Remaining Phase 12 work: architecture diagram reconciliation, MIGRATION coverage, and public docstring review for `shared_runtime/` and `storage_*.py`.
+
+---
+
 ### Audit Phase 10 reliability qualification started (2026-06-26)
 
 Latest status: Phase 10 is active after completing tracked Phase 9 security-audit items. The first reliability slice improves evidence quality in `scripts/reliability_qualification.py`: JSON reports now include the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint`. The second reliability slice adds capped `mission_error_samples` and `readiness_failure_samples` to the report and prints the target base URL, readiness endpoints, and endpoint-level readiness failure counts in console output. The third slice updates the PowerShell wrapper and current operator docs so readiness/recovery controls and evidence fields match the live script. The fourth slice adds `scripts/verify_reliability_evidence.py` for offline validation of refreshed reliability evidence shape and pass/fail status. The fifth slice refreshed baseline reliability evidence at `docs/evidence/reliability_qualification_baseline_2026-06-26.json` against a running local Docker stack with orchestrator restart injection. The sixth slice hardens API gateway mission creation with bounded retries for transient `orchestrator unavailable` upstream persistence failures during orchestrator restart windows.

@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-05-30 against actual codebase (Phase 27 Release Convergence + doc/code drift audit).
+> Last validated: 2026-06-26 against actual codebase (Audit Phase 12 documentation drift pass).
 
 ---
 

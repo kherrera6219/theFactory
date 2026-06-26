@@ -26,6 +26,21 @@ Committed OpenAPI snapshots are stored here:
 - [../openapi/api-gateway.v1.json](../openapi/api-gateway.v1.json)
 - [../openapi/orchestrator.v1.json](../openapi/orchestrator.v1.json)
 
+Regenerate snapshots after route/schema changes:
+
+```powershell
+python scripts/export_openapi.py
+```
+
+Check committed snapshots without rewriting them:
+
+```powershell
+python scripts/export_openapi.py --check
+```
+
+`make validate` runs the non-mutating check so route/spec drift fails before
+merge.
+
 ## Main Gateway Surfaces
 
 - `POST /v1/missions`

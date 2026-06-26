@@ -41,6 +41,8 @@ monitor-down:
 
 validate:
 	ruff check services tests scripts
+	python scripts/validate_documentation.py
+	python scripts/export_openapi.py --check
 	python scripts/validate_schemas.py
 	python scripts/build_refined_ir_catalog.py
 	pytest --tb=short -q
