@@ -31,7 +31,11 @@ Fifth Phase 9 fix adds prompt/input validation at the API gateway storage bounda
 
 Sixth Phase 9 fix hardens production object-storage TLS. Production Compose now sets `OBJECT_STORAGE_REQUIRE_TLS=true` for the orchestrator, and settings documentation requires an HTTPS object-storage endpoint in production. The object-store client rejects non-HTTPS endpoints when TLS is required.
 
-Validation: focused API gateway helper tests pass (37 tests with prompt-guard coverage); focused worker/auth tests pass (68 tests); focused compose/auth tests pass (18 tests, with local pytest addopts overridden because this Python environment lacks `pytest-timeout`); focused route auth tests pass (28 tests, same addopts override); focused Ruff passes; `git diff --check` passes; merged production Compose service rendering passes.
+Seventh Phase 9 fix aligns protocol-bus replay/dedup TTL configuration. Production Compose now uses canonical `MCP_DEDUP_TTL_SECONDS=600`, and the MCP service still accepts legacy `MESSAGE_DEDUP_TTL_SECONDS` as a compatibility alias. Replay/dedup verification covers duplicate rejection, idempotent dedup returns, Redis-backed cross-client detection, fail-closed Redis errors, and the production Compose variable.
+
+Phase 9 tracked security-audit items are complete for this pass. Phase 8 still carries the `mission_flow_v2/` strict coverage carry-forward unless explicitly deferred.
+
+Validation: focused API gateway helper tests pass (37 tests with prompt-guard coverage); focused worker/auth tests pass (68 tests); focused compose/object-store tests pass (18 tests, with local pytest addopts overridden because this Python environment lacks `pytest-timeout`); focused route auth tests pass (28 tests, same addopts override); focused protocol-bus replay/dedup tests pass (59 tests, same addopts override, with post-teardown local Jaeger exporter logging but exit 0); focused Ruff passes; `git diff --check` passes; merged production Compose service rendering passes.
 
 ---
 ### Audit Phase 8 test coverage audit started (2026-06-24)

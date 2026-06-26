@@ -115,8 +115,19 @@ MESSAGES_REPLAYED = Counter(
 )
 # 2026 best practice: backpressure threshold — 503 when queue exceeds limit
 BACKPRESSURE_QUEUE_LIMIT = int(os.getenv("MCP_BACKPRESSURE_LIMIT", "10000"))
-# Message deduplication TTL — correlation_id seen within this window = duplicate
-MESSAGE_DEDUP_TTL_SECONDS = int(os.getenv("MCP_DEDUP_TTL_SECONDS", "300"))
+def _message_dedup_ttl_seconds() -> int:
+    raw = (
+        os.getenv("MCP_DEDUP_TTL_SECONDS")
+        or os.getenv("MESSAGE_DEDUP_TTL_SECONDS")
+        or "300"
+    )
+    return int(raw)
+
+
+# Message deduplication TTL — correlation_id seen within this window = duplicate.
+# MCP_DEDUP_TTL_SECONDS is the canonical name; MESSAGE_DEDUP_TTL_SECONDS remains
+# accepted for older compose overlays.
+MESSAGE_DEDUP_TTL_SECONDS = _message_dedup_ttl_seconds()
 # Message TTL — streams older than this age (seconds) are pruned (via XTRIM approximate)
 MESSAGE_TTL_SECONDS = int(os.getenv("MCP_MESSAGE_TTL_SECONDS", "3600"))
 

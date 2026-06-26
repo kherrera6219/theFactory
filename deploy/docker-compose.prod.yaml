@@ -99,7 +99,7 @@ services:
       # Phase 3 — lower backpressure limit in prod to protect downstream consumers
       MCP_BACKPRESSURE_LIMIT: "5000"
       # Longer dedup TTL in prod (10 minutes) — prevents replay across retries
-      MESSAGE_DEDUP_TTL_SECONDS: "600"
+      MCP_DEDUP_TTL_SECONDS: "600"
       LOG_LEVEL: WARNING
       LOG_FORMAT: json
       ENVIRONMENT: production

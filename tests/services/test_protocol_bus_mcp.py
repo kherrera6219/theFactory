@@ -630,6 +630,15 @@ def test_protocol_bus_module_import_fallback_without_redis(monkeypatch) -> None:
     assert "MCP_API_KEY is not set" in module._DEV_SESSION_NOTICE
 
 
+def test_message_dedup_ttl_env_accepts_legacy_compose_alias(monkeypatch) -> None:
+    monkeypatch.delenv("MCP_DEDUP_TTL_SECONDS", raising=False)
+    monkeypatch.setenv("MESSAGE_DEDUP_TTL_SECONDS", "600")
+    assert mcp_main._message_dedup_ttl_seconds() == 600
+
+    monkeypatch.setenv("MCP_DEDUP_TTL_SECONDS", "900")
+    assert mcp_main._message_dedup_ttl_seconds() == 900
+
+
 def test_protocol_bus_module_import_enforces_explicit_production_api_key(monkeypatch) -> None:
     module_path = ROOT / "services" / "protocol-bus-mcp" / "protocol_bus" / "mcp_server.py"
     module_name = "protocol_bus.mcp_server_production_guard"

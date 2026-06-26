@@ -59,3 +59,10 @@ def test_production_compose_requires_tls_object_storage() -> None:
     assert 'OBJECT_STORAGE_ENABLED: "true"' in prod_text
     assert 'OBJECT_STORAGE_REQUIRE_TLS: "true"' in prod_text
     assert "Override OBJECT_STORAGE_ENDPOINT to a TLS endpoint" in prod_text
+
+
+def test_production_compose_uses_canonical_protocol_bus_dedup_ttl() -> None:
+    prod_text = PROD_COMPOSE.read_text(encoding="utf-8")
+
+    assert 'MCP_DEDUP_TTL_SECONDS: "600"' in prod_text
+    assert "MESSAGE_DEDUP_TTL_SECONDS" not in prod_text
