@@ -80,7 +80,9 @@ def test_build_report_passes_with_healthy_samples() -> None:
         "http://localhost:8101/readyz",
     ]
     assert report["mission_success_rate_percent"] == 100.0
+    assert report["mission_error_samples"] == []
     assert report["readiness_failure_counts_by_endpoint"] == {}
+    assert report["readiness_failure_samples"] == []
     assert report["failure_reasons"] == []
 
 
@@ -118,7 +120,50 @@ def test_build_report_fails_on_latency_readiness_and_recovery() -> None:
     assert "max consecutive readiness failures" in reasons
     assert "recovery probe" in reasons
     assert "failure injection command exited" in reasons
+    assert report["mission_error_samples"] == [
+        {"status_code": 500, "latency_seconds": 2.0, "error": None}
+    ]
     assert report["readiness_failure_counts_by_endpoint"] == {"r1": 2}
+    assert report["readiness_failure_samples"] == [
+        {"endpoint": "r1", "status_code": 503, "latency_seconds": 0.01, "error": None},
+        {"endpoint": "r1", "status_code": 503, "latency_seconds": 0.01, "error": None},
+    ]
+
+
+def test_print_report_includes_target_and_failure_diagnostics(capsys) -> None:
+    args = _args(max_readiness_failures=0)
+    mission_samples = [
+        reliability.MissionSample(status_code=502, latency_seconds=0.42, error="bad gateway")
+    ]
+    readiness_samples = [
+        reliability.ReadinessSample(
+            "http://localhost:8101/readyz",
+            False,
+            None,
+            0.25,
+            "connection refused",
+        )
+    ]
+    recovery = reliability.RecoveryResult(passed=True, polls=1)
+    injection = reliability.InjectionResult(
+        configured=False,
+        executed=False,
+        exit_code=None,
+        stderr_tail=None,
+        error=None,
+    )
+    report = reliability._build_report(
+        args, mission_samples, readiness_samples, recovery, injection
+    )
+
+    reliability._print_report(report)
+
+    output = capsys.readouterr().out
+    assert "Base URL: http://localhost:8100" in output
+    assert "Readiness endpoints:" in output
+    assert "Readiness failures by endpoint:" in output
+    assert "Mission error samples:" in output
+    assert "Readiness failure samples:" in output
 
 
 def test_run_writes_output_file(monkeypatch, tmp_path) -> None:

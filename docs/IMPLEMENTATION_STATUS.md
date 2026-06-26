@@ -15,9 +15,9 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ### Audit Phase 10 reliability qualification started (2026-06-26)
 
-Latest status: Phase 10 is active after completing tracked Phase 9 security-audit items. The first reliability slice improves evidence quality in `scripts/reliability_qualification.py`: JSON reports now include the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint`.
+Latest status: Phase 10 is active after completing tracked Phase 9 security-audit items. The first reliability slice improves evidence quality in `scripts/reliability_qualification.py`: JSON reports now include the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint`. The second reliability slice adds capped `mission_error_samples` and `readiness_failure_samples` to the report and prints the target base URL, readiness endpoints, and endpoint-level readiness failure counts in console output.
 
-Validation: focused reliability qualification tests pass (6 tests, with local pytest addopts overridden because this Python environment lacks `pytest-timeout`); focused Ruff passes; `git diff --check` passes.
+Validation: focused reliability qualification tests pass (7 tests, with local pytest addopts overridden because this Python environment lacks `pytest-timeout`); focused Ruff passes.
 
 ---
 
