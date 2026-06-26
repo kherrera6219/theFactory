@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "scripts" / "reliability_qualification.py"
+WRAPPER_PATH = ROOT / "scripts" / "reliability_qualification.ps1"
 
 spec = importlib.util.spec_from_file_location("reliability_qualification", MODULE_PATH)
 assert spec is not None and spec.loader is not None
@@ -213,3 +214,20 @@ def test_execute_failure_command_uses_argv_without_shell(monkeypatch) -> None:
     assert captured["capture_output"] is True
     assert captured["text"] is True
     assert captured["check"] is False
+
+
+def test_powershell_wrapper_exposes_reliability_controls() -> None:
+    wrapper = WRAPPER_PATH.read_text(encoding="utf-8")
+
+    expected_switches = [
+        "--base-url",
+        "--readiness-endpoints",
+        "--readiness-poll-seconds",
+        "--max-readiness-failures",
+        "--max-consecutive-readiness-failures",
+        "--recovery-timeout-seconds",
+        "--recovery-poll-seconds",
+        "--recovery-consecutive-successes",
+    ]
+    for expected_switch in expected_switches:
+        assert expected_switch in wrapper

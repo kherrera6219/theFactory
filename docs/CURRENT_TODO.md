@@ -19,9 +19,11 @@ First Phase 10 fix: `scripts/reliability_qualification.py` now writes the target
 
 Second Phase 10 fix: reliability reports now include capped `mission_error_samples` and `readiness_failure_samples`, and console output prints the target base URL, readiness endpoints, and readiness failure counts by endpoint. This gives operators immediate recovery/failure-injection diagnostics without needing to rerun the qualification job.
 
-Validation: `tests/scripts/test_reliability_qualification.py` passes (7 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the reliability script/tests.
+Third Phase 10 fix: `scripts/reliability_qualification.ps1` now exposes the Python qualification controls for base URL, readiness endpoints, readiness polling/failure thresholds, and recovery polling/timeout thresholds. `docs/TESTING_QUALITY_GATES.md` and `docs/OPERATIONS_RUNBOOK.md` now document the current evidence fields operators must verify in reliability reports.
 
-Next active Phase 10 work: continue runbook currency and evidence verification.
+Validation: `tests/scripts/test_reliability_qualification.py` passes (8 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the reliability script/tests; PowerShell parser validation passes for `scripts/reliability_qualification.ps1`.
+
+Next active Phase 10 work: continue evidence verification and decide whether to refresh the baseline reliability artifact against the current local stack.
 
 ---
 
