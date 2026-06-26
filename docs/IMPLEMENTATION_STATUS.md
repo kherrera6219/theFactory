@@ -13,11 +13,11 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
-### Audit Phase 11 Mission Control E2E started (2026-06-26)
+### Audit Phase 11 Mission Control E2E completed (2026-06-26)
 
-Latest status: Phase 11 is active after closing the Phase 10 reliability follow-up. Live review confirms Mission Control exposes `lint`, `test`, `build`, and `test:e2e` scripts; CI installs Chromium and runs Mission Control E2E; and `apps/mission-control/e2e/` contains 23 Playwright tests across mission lifecycle, operations/persona views, settings/vault, builder/repo intake, error states, data-plane views, cost/runtime-QC panels, and accessibility checks. The first Phase 11 fix removes a Settings page hydration warning by rendering vault table `<col>` elements from a data array instead of comments/whitespace inside `<colgroup>`.
+Latest status: Phase 11 is complete for this pass after closing the Phase 10 reliability follow-up. Live review confirms Mission Control exposes `lint`, `test`, `build`, and `test:e2e` scripts; CI installs Chromium and runs Mission Control E2E; and `apps/mission-control/e2e/` contains 23 Playwright tests across mission lifecycle, operations/persona views, settings/vault, builder/repo intake, error states, data-plane views, cost/runtime-QC panels, and accessibility checks. The first Phase 11 fix removes a Settings page hydration warning by rendering vault table `<col>` elements from a data array instead of comments/whitespace inside `<colgroup>`. The final Phase 11 fix strengthens production audit check `UI-011` so it validates E2E script/CI parity, Playwright web config, electron-spec exclusion, trace/list reporter settings, committed web spec coverage, and ignored Playwright report/test-result artifacts.
 
-Validation: Mission Control TypeScript lint passes, Vitest passes (16 files / 74 tests), Playwright E2E passes (23 tests) against the running backend stack, and the production Next.js build passes. Remaining console noise is limited to the expected Next.js development-mode `eval()` warning under CSP; production build is unaffected.
+Validation: Mission Control TypeScript lint passes, Vitest passes (16 files / 74 tests), Playwright E2E passes (23 tests) against the running backend stack, and the production Next.js build passes. Focused production-audit tests and focused Ruff pass for the `UI-011` hardening. Remaining console noise is limited to the expected Next.js development-mode `eval()` warning under CSP; production build is unaffected.
 
 ---
 

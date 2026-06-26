@@ -309,6 +309,17 @@ def check_mission_control_typescript_strict() -> AuditResult:
 def check_mission_control_e2e_controls() -> AuditResult:
     package_json = _read_text(REPO_ROOT / "apps" / "mission-control" / "package.json").lower()
     ci_text = _read_text(REPO_ROOT / ".github" / "workflows" / "ci.yml").lower()
+    playwright_config = _read_text(REPO_ROOT / "apps" / "mission-control" / "playwright.config.ts").lower()
+    gitignore = _read_text(REPO_ROOT / ".gitignore").lower()
+    e2e_dir = REPO_ROOT / "apps" / "mission-control" / "e2e"
+    required_specs = [
+        "mission-control.spec.ts",
+        "mission-control-extended.spec.ts",
+        "mission-build-new-complete.spec.ts",
+        "mission-cost-panel.spec.ts",
+        "mission-reduce-deps.spec.ts",
+        "mission-runtime-qc.spec.ts",
+    ]
 
     missing_items: list[str] = []
     if '"test:e2e"' not in package_json or "playwright test" not in package_json:
@@ -317,6 +328,19 @@ def check_mission_control_e2e_controls() -> AuditResult:
         missing_items.append("ci workflow missing mission-control e2e test step")
     if "playwright install" not in ci_text:
         missing_items.append("ci workflow missing playwright browser install step")
+    if 'testdir: "./e2e"' not in playwright_config or "testignore" not in playwright_config:
+        missing_items.append("mission-control Playwright config missing web e2e directory or electron exclusion")
+    if 'trace: "on-first-retry"' not in playwright_config or 'reporter: "list"' not in playwright_config:
+        missing_items.append("mission-control Playwright config missing trace/report hygiene")
+    missing_specs = [spec for spec in required_specs if not (e2e_dir / spec).exists()]
+    if missing_specs:
+        missing_items.append(f"mission-control e2e suite missing specs: {', '.join(missing_specs)}")
+    for artifact_path in (
+        "apps/mission-control/playwright-report/",
+        "apps/mission-control/test-results/",
+    ):
+        if artifact_path not in gitignore:
+            missing_items.append(f".gitignore missing generated artifact path {artifact_path}")
 
     passed = not missing_items
     return _result(
@@ -324,7 +348,11 @@ def check_mission_control_e2e_controls() -> AuditResult:
         priority="HIGH",
         description="Mission Control critical e2e regression tests run in CI",
         passed=passed,
-        notes="; ".join(missing_items) if missing_items else "mission-control e2e controls present",
+        notes=(
+            "; ".join(missing_items)
+            if missing_items
+            else "mission-control e2e CI, Playwright config, spec coverage, and artifact hygiene present"
+        ),
     )
 
 
