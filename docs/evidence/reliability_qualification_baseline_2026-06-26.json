@@ -1,0 +1,74 @@
+{
+  "run_timestamp_utc": "2026-06-26T23:16:42.759343+00:00",
+  "base_url": "http://localhost:8100",
+  "readiness_endpoints": [
+    "http://localhost:8100/readyz",
+    "http://localhost:8101/readyz"
+  ],
+  "duration_seconds": 300.0,
+  "requests_per_second": 2.0,
+  "concurrency": 12,
+  "total_requests": 600,
+  "mission_success_rate_percent": 99.0,
+  "mission_error_count": 6,
+  "mission_status_counts": {
+    "201": 594,
+    "502": 6
+  },
+  "mission_error_samples": [
+    {
+      "status_code": 502,
+      "latency_seconds": 0.0306,
+      "error": null
+    },
+    {
+      "status_code": 502,
+      "latency_seconds": 1.0678,
+      "error": null
+    },
+    {
+      "status_code": 502,
+      "latency_seconds": 0.0348,
+      "error": null
+    },
+    {
+      "status_code": 502,
+      "latency_seconds": 0.0384,
+      "error": null
+    },
+    {
+      "status_code": 502,
+      "latency_seconds": 0.0322,
+      "error": null
+    }
+  ],
+  "latency_p50_seconds": 0.0444,
+  "latency_p95_seconds": 0.1931,
+  "latency_max_seconds": 1.0678,
+  "readiness_checks_total": 114,
+  "readiness_failures_total": 0,
+  "readiness_failure_counts_by_endpoint": {},
+  "readiness_failure_samples": [],
+  "max_consecutive_readiness_failures": 0,
+  "recovery_probe": {
+    "passed": true,
+    "polls": 3
+  },
+  "failure_injection": {
+    "configured": true,
+    "executed": true,
+    "exit_code": 0,
+    "stderr_tail": " Container deploy-orchestrator-1 Restarting \n Container deploy-orchestrator-1 Started \n",
+    "error": null
+  },
+  "thresholds": {
+    "min_success_rate_percent": 99.0,
+    "max_p95_seconds": 2.5,
+    "max_readiness_failures": 8,
+    "max_consecutive_readiness_failures": 4,
+    "recovery_timeout_seconds": 120.0,
+    "recovery_consecutive_successes": 3
+  },
+  "passed": true,
+  "failure_reasons": []
+}

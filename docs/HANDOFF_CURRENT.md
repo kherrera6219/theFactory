@@ -22,9 +22,11 @@ Third Phase 10 fix improves runbook currency. `scripts/reliability_qualification
 
 Fourth Phase 10 fix adds offline evidence verification. `scripts/verify_reliability_evidence.py` rejects missing current Phase 10 evidence fields and rejects failed qualification artifacts unless explicitly run with `--allow-failed`.
 
-Validation completed: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, and PowerShell parser validation passes for `scripts/reliability_qualification.ps1`. Live evidence refresh is blocked in this environment because Docker Desktop's Linux engine pipe is unavailable and gateway/orchestrator readiness endpoints time out.
+Fifth Phase 10 fix refreshes baseline evidence. Docker was running, the base stack was rebuilt and started with `docker compose --env-file .env -f deploy/docker-compose.yaml up -d --build`, and gateway/orchestrator readiness both returned 200. `docs/evidence/reliability_qualification_baseline_2026-06-26.json` passed with 600 mission requests, 99.00% success, p95 0.1931s, zero readiness failures across 114 checks, recovery passed after 3 polls, and orchestrator restart injection exited 0.
 
-Continue Phase 10 by starting the local stack, refreshing the baseline reliability artifact, and running `scripts/verify_reliability_evidence.py` against the refreshed JSON.
+Validation completed: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, PowerShell parser validation passes for `scripts/reliability_qualification.ps1`, the refreshed reliability qualification passed, and `scripts/verify_reliability_evidence.py` verified the refreshed JSON.
+
+Continue Phase 10 by reviewing whether the six transient 502 mission responses during orchestrator restart need a targeted follow-up, even though the qualification passed at the configured threshold.
 
 ---
 
