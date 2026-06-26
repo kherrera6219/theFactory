@@ -111,6 +111,7 @@ def get_connection() -> Iterator[Any]:
 
 
 def ensure_db_schema(settings: Settings) -> None:
+    """Apply schema migrations and ensure required system bootstrap rows exist."""
     migrations.apply_migrations(settings, connect=db_connect)
 
     # 1.1.0 QC: Ensure system mission for global knowledge lake bootstrap
@@ -158,7 +159,9 @@ def _json_to_list(value: Any) -> list[Any]:
 
 class FactoryJsonEncoder(json.JSONEncoder):
     """JSON encoder that supports datetime and other pydantic-adjacent types."""
+
     def default(self, obj: Any) -> Any:
+        """Return a JSON-serializable representation for supported objects."""
         if isinstance(obj, datetime):
             return obj.astimezone(UTC).isoformat()
         if hasattr(obj, "model_dump") and callable(obj.model_dump):

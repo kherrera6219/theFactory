@@ -180,6 +180,7 @@ def _embed_charter_fields(metadata: dict[str, Any], record: MissionRecord) -> di
 
 
 def row_to_mission(row: Any) -> MissionRecord:
+    """Convert a database row into a MissionRecord."""
     metadata = _json_to_dict(row[3])
     has_project_id = len(row) >= 7
     project_id_index = 4 if has_project_id else None
@@ -205,6 +206,7 @@ def row_to_mission(row: Any) -> MissionRecord:
 
 
 def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: str | None) -> None:
+    """Insert or update a mission record and its source stream pointer."""
     metadata = with_project_identity(record.metadata, mission_id=record.mission_id)
     metadata = _embed_charter_fields(metadata, record)
     project_id = str(
@@ -249,6 +251,7 @@ def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: 
 
 
 def fetch_mission(settings: Settings, mission_id: str) -> MissionRecord | None:
+    """Fetch one mission by id."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(FETCH_MISSION_SQL, (mission_id,))
@@ -264,6 +267,7 @@ def update_mission_metadata(
     mission_id: str,
     metadata: dict[str, Any],
 ) -> MissionRecord | None:
+    """Replace persisted mission metadata while preserving project identity."""
     normalized_metadata = with_project_identity(metadata, mission_id=mission_id)
     project_id = resolve_project_id(normalized_metadata, mission_id=mission_id)
     with get_connection() as conn:
@@ -280,6 +284,7 @@ def update_mission_metadata(
 
 
 def list_missions(settings: Settings, limit: int) -> list[MissionRecord]:
+    """List recent missions ordered by creation time."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(LIST_MISSIONS_SQL, (limit,))
@@ -293,6 +298,7 @@ def list_missions_in_states(
     states: list[MissionState] | tuple[MissionState, ...],
     limit: int,
 ) -> list[MissionRecord]:
+    """List recent missions whose state is in the provided state set."""
     normalized_states = [state.value for state in states if isinstance(state, MissionState)]
     if not normalized_states:
         return []
@@ -321,6 +327,7 @@ def insert_mission_event(
     new_state: MissionState,
     event_type: str,
 ) -> None:
+    """Persist a mission lifecycle event and record transition metrics."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -361,6 +368,7 @@ def insert_mission_event(
 
 
 def list_mission_events(settings: Settings, mission_id: str, limit: int) -> list[MissionEvent]:
+    """List recent lifecycle events for one mission."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -391,6 +399,7 @@ def list_mission_events(settings: Settings, mission_id: str, limit: int) -> list
 
 
 def list_recent_mission_events(settings: Settings, limit: int) -> list[MissionEvent]:
+    """List recent lifecycle events across missions."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -426,6 +435,7 @@ def transition_mission_state(
     new_state: MissionState,
     event_type: str,
 ) -> MissionRecord | None:
+    """Transition a mission state and append the matching lifecycle event."""
     with get_connection() as conn:
         with conn.transaction():
             with conn.cursor() as cur:
@@ -457,6 +467,7 @@ def transition_mission_state(
 
 
 def count_missions(settings: Settings) -> int:
+    """Return the total number of persisted missions."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM missions")
@@ -465,6 +476,7 @@ def count_missions(settings: Settings) -> int:
 
 
 def mission_state_counts(settings: Settings) -> dict[str, int]:
+    """Return mission counts grouped by state."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -525,6 +537,7 @@ def record_partition_result(
     mission_id: str,
     result: dict[str, Any],
 ) -> MissionRecord | None:
+    """Record one scaling partition result and merge when all partitions complete."""
     partition_result = ScalingPartitionResult(
         partition_id=str(result.get("partition_id", "")),
         instance_index=int(result.get("instance_index", 0)),

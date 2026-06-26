@@ -22,6 +22,7 @@ class ReplayDetectedError(ProtocolValidationError):
 
 
 def parse_date_time(value: str) -> datetime:
+    """Parse an RFC 3339 timestamp and require timezone information."""
     if value.endswith("Z"):
         value = value.replace("Z", "+00:00")
     parsed = datetime.fromisoformat(value)
@@ -31,12 +32,14 @@ def parse_date_time(value: str) -> datetime:
 
 
 def load_event_schema(path: Path) -> dict[str, Any]:
+    """Load the canonical event-envelope JSON schema from disk."""
     if not path.exists():
         raise ProtocolValidationError(f"event schema not found: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def load_topics(path: Path) -> set[str]:
+    """Load the protocol topic allow-list from a YAML-style file."""
     if not path.exists():
         raise ProtocolValidationError(f"topics file not found: {path}")
     topics: set[str] = set()

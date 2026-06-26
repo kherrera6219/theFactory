@@ -18,6 +18,7 @@ def upsert_logicnode(
     node: dict[str, Any],
     created_at: str,
 ) -> dict[str, Any]:
+    """Insert or update one mission LogicNode and mirror it when configured."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -96,6 +97,7 @@ def upsert_logicnodes_batch(
 
 
 def list_logicnodes(settings: Settings, mission_id: str, limit: int) -> list[dict[str, Any]]:
+    """List recent LogicNodes for one mission."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -122,6 +124,7 @@ def list_logicnodes(settings: Settings, mission_id: str, limit: int) -> list[dic
 
 
 def list_recent_logicnodes(settings: Settings, limit: int) -> list[dict[str, Any]]:
+    """List recent LogicNodes across missions."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -153,6 +156,7 @@ def upsert_knowledge(
     content: dict[str, Any],
     created_at: str,
 ) -> dict[str, Any]:
+    """Insert or update one mission knowledge fragment."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -217,6 +221,7 @@ def upsert_knowledge_batch(
 
 
 def list_knowledge(settings: Settings, mission_id: str, limit: int) -> list[dict[str, Any]]:
+    """List recent knowledge fragments for one mission."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(

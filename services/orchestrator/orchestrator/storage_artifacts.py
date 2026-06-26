@@ -40,6 +40,7 @@ def upsert_audit_report(
     report: dict[str, Any],
     created_at: str,
 ) -> dict[str, Any]:
+    """Insert or update an audit report for a mission."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -72,6 +73,7 @@ def upsert_audit_report(
 
 
 def list_audit_reports(settings: Settings, mission_id: str, limit: int) -> list[dict[str, Any]]:
+    """List recent audit reports for one mission."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -99,6 +101,7 @@ def list_audit_reports(settings: Settings, mission_id: str, limit: int) -> list[
 
 
 def list_recent_audit_reports(settings: Settings, limit: int) -> list[dict[str, Any]]:
+    """List recent audit reports across missions."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -137,6 +140,7 @@ def upsert_review_approval(
     expires_at: str | None,
     hmac_digest: str | None,
 ) -> dict[str, Any]:
+    """Insert or update a durable human-review approval receipt."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -222,6 +226,7 @@ def upsert_review_approval(
 
 
 def get_review_approval(settings: Settings, approval_id: str) -> dict[str, Any] | None:
+    """Fetch one human-review approval receipt by id."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -280,6 +285,7 @@ def upsert_build_artifact(
     artifact_text: str | None,
     created_at: str,
 ) -> dict[str, Any]:
+    """Insert or update a generated build artifact record."""
     # ── S4-05: offload large artifact_text to object storage ──────────────────
     threshold = int(getattr(settings, "object_storage_size_threshold_bytes", 524288))
     if (
@@ -411,6 +417,7 @@ def upsert_build_artifact(
 
 
 def list_build_artifacts(settings: Settings, mission_id: str, limit: int) -> list[dict[str, Any]]:
+    """List build artifacts for a mission without inline artifact text."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -453,6 +460,7 @@ def get_build_artifact(
     mission_id: str,
     artifact_id: str,
 ) -> dict[str, Any] | None:
+    """Fetch one build artifact, including inline text when stored."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -490,6 +498,7 @@ def insert_testdata_manifest(
     mission_id: str,
     manifest: dict[str, Any],
 ) -> dict[str, Any]:
+    """Persist a TESTDATA manifest for a mission."""
     language = str(manifest.get("language") or "").strip() or None
     base_image = str(manifest.get("base_image") or "").strip() or None
     test_framework = str(manifest.get("test_framework") or "").strip() or None
@@ -538,6 +547,7 @@ def insert_testdata_manifest(
 
 
 def get_testdata_manifest(settings: Settings, mission_id: str) -> dict[str, Any] | None:
+    """Fetch the latest TESTDATA manifest for a mission."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -577,6 +587,7 @@ def insert_runtime_qc_report(
     execution_result: dict[str, Any],
     qc_assessment: dict[str, Any],
 ) -> dict[str, Any]:
+    """Persist runtime execution and QC assessment details for a mission."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -640,6 +651,7 @@ def insert_runtime_qc_report(
 
 
 def get_runtime_qc_report(settings: Settings, mission_id: str) -> dict[str, Any] | None:
+    """Fetch the latest runtime QC report for a mission."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(

@@ -37,6 +37,7 @@ class InjectionResult:
 
     @property
     def summary(self) -> str:
+        """Return a compact status string for logging and metadata."""
         if not self.is_suspicious:
             return "clean"
         types = {m.attack_type for m in self.matches}

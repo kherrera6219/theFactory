@@ -376,7 +376,10 @@ validate:
         tmp_path / "docs" / "api" / "README.md",
         "Run `python scripts/export_openapi.py --check`.\n",
     )
-    _write(tmp_path / "scripts" / "validate_documentation.py", "print('ok')\n")
+    _write(
+        tmp_path / "scripts" / "validate_documentation.py",
+        "def public_docstring_targets(): pass\ndef validate_public_docstrings(path): pass\n",
+    )
     _write(tmp_path / "scripts" / "export_openapi.py", "print('ok')\n")
     _write(tmp_path / "docs" / "openapi" / "api-gateway.v1.json", "{}\n")
     _write(tmp_path / "docs" / "openapi" / "orchestrator.v1.json", "{}\n")
@@ -394,6 +397,7 @@ def test_check_documentation_drift_controls_fails_when_not_enforced(tmp_path, mo
     assert result.passed is False
     assert "documentation validation" in result.notes
     assert "OpenAPI drift" in result.notes
+    assert "public docstrings" in result.notes
 
 
 def test_check_tracing_and_pager_controls_passes(tmp_path, monkeypatch) -> None:

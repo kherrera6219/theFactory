@@ -290,6 +290,7 @@ def check_documentation_drift_controls() -> AuditResult:
     definition_of_done = _read_text(REPO_ROOT / "docs" / "codex" / "DEFINITION_OF_DONE.md")
     review_checklist = _read_text(REPO_ROOT / "docs" / "codex" / "REVIEW_CHECKLIST.md")
     api_readme = _read_text(REPO_ROOT / "docs" / "api" / "README.md")
+    docs_validator = _read_text(REPO_ROOT / "scripts" / "validate_documentation.py")
 
     required_paths = [
         REPO_ROOT / "AGENTS.md",
@@ -318,6 +319,11 @@ def check_documentation_drift_controls() -> AuditResult:
         missing_items.append("Codex DoD/review checklist do not require make validate")
     if "scripts/export_openapi.py --check" not in api_readme:
         missing_items.append("API docs do not document OpenAPI drift checking")
+    if (
+        "public_docstring_targets" not in docs_validator
+        or "validate_public_docstrings" not in docs_validator
+    ):
+        missing_items.append("documentation validator does not enforce public docstrings")
 
     passed = not missing_items
     return _result(
@@ -328,7 +334,10 @@ def check_documentation_drift_controls() -> AuditResult:
         notes=(
             "; ".join(missing_items)
             if missing_items
-            else "docs validation, OpenAPI drift check, Codex standards, and current audit notes present"
+            else (
+                "docs validation, public docstrings, OpenAPI drift check, "
+                "Codex standards, and current audit notes present"
+            )
         ),
     )
 

@@ -19,6 +19,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Production audit check `DOC-006` now verifies Phase 12 documentation drift
   controls: current top-level docs, Codex standards, OpenAPI snapshots, and
   validation wiring.
+- Added public-docstring validation for `shared_runtime/*.py` and
+  `services/orchestrator/orchestrator/storage_*.py`, then documented the public
+  storage/shared-runtime functions covered by that gate.
 
 #### Validation
 - `python scripts/validate_documentation.py`
