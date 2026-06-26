@@ -25,9 +25,11 @@ Fourth Phase 10 fix: `scripts/verify_reliability_evidence.py` validates refreshe
 
 Fifth Phase 10 fix: baseline reliability evidence was refreshed against the running local Docker stack at `docs/evidence/reliability_qualification_baseline_2026-06-26.json`. The run used the default 300 second sustained load, 2 requests/second, 12 concurrency, and orchestrator restart injection. Result: pass, 600 mission requests, 99.00% success, p95 0.1931s, max latency 1.0678s, 114 readiness checks, zero readiness failures, recovery probe passed after 3 polls, and failure injection exited 0.
 
-Validation: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, PowerShell parser validation passes for `scripts/reliability_qualification.ps1`, live Docker readiness probes returned 200 for gateway and orchestrator, the refreshed reliability qualification passed, and `scripts/verify_reliability_evidence.py` verified the refreshed JSON.
+Sixth Phase 10 fix: API gateway mission creation now retries transient `502 orchestrator unavailable` upstream persistence failures using the same gateway-generated mission id. Defaults are `MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS=4` and `MISSION_CREATE_UPSTREAM_RETRY_DELAY_SECONDS=0.5`. This targets the six transient 502 mission-create samples observed during the successful orchestrator restart qualification without masking non-retryable orchestrator write failures.
 
-Next active Phase 10 work: review whether the six transient 502 mission responses during orchestrator restart need a targeted follow-up, even though the qualification passed at the configured 99.00% success threshold.
+Validation: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, PowerShell parser validation passes for `scripts/reliability_qualification.ps1`, live Docker readiness probes returned 200 for gateway and orchestrator, the refreshed reliability qualification passed, `scripts/verify_reliability_evidence.py` verified the refreshed JSON, and `tests/services/test_api_gateway_helpers_unit.py` passes (23 tests) for the gateway retry hardening.
+
+Next active work: begin Phase 11 Mission Control integration and E2E regression review from live code and current CI/test scripts, not the archived baseline alone.
 
 ---
 

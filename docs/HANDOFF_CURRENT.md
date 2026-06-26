@@ -24,9 +24,11 @@ Fourth Phase 10 fix adds offline evidence verification. `scripts/verify_reliabil
 
 Fifth Phase 10 fix refreshes baseline evidence. Docker was running, the base stack was rebuilt and started with `docker compose --env-file .env -f deploy/docker-compose.yaml up -d --build`, and gateway/orchestrator readiness both returned 200. `docs/evidence/reliability_qualification_baseline_2026-06-26.json` passed with 600 mission requests, 99.00% success, p95 0.1931s, zero readiness failures across 114 checks, recovery passed after 3 polls, and orchestrator restart injection exited 0.
 
-Validation completed: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, PowerShell parser validation passes for `scripts/reliability_qualification.ps1`, the refreshed reliability qualification passed, and `scripts/verify_reliability_evidence.py` verified the refreshed JSON.
+Sixth Phase 10 fix hardens the transient restart window observed in that evidence. API gateway mission creation now retries `502 orchestrator unavailable` upstream persistence failures with the same mission id. Defaults are `MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS=4` and `MISSION_CREATE_UPSTREAM_RETRY_DELAY_SECONDS=0.5`; other orchestrator write failures still fail immediately.
 
-Continue Phase 10 by reviewing whether the six transient 502 mission responses during orchestrator restart need a targeted follow-up, even though the qualification passed at the configured threshold.
+Validation completed: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, PowerShell parser validation passes for `scripts/reliability_qualification.ps1`, the refreshed reliability qualification passed, `scripts/verify_reliability_evidence.py` verified the refreshed JSON, and `tests/services/test_api_gateway_helpers_unit.py` passes (23 tests) for the gateway retry hardening.
+
+Continue by starting Phase 11 Mission Control integration and E2E regression review from live code and current CI/test scripts, not the archived baseline alone.
 
 ---
 

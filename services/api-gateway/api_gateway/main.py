@@ -102,6 +102,14 @@ OIDC_ALLOWED_ALGORITHMS = [
 OIDC_LEEWAY_SECONDS = max(0.0, float(os.getenv("OIDC_LEEWAY_SECONDS", "60")))
 IDEMPOTENCY_TTL_SECONDS = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "86400"))
 IDEMPOTENCY_KEY_PREFIX = "idempotency:missions"
+MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS = max(
+    1,
+    int(os.getenv("MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS", "4")),
+)
+MISSION_CREATE_UPSTREAM_RETRY_DELAY_SECONDS = max(
+    0.0,
+    float(os.getenv("MISSION_CREATE_UPSTREAM_RETRY_DELAY_SECONDS", "0.5")),
+)
 API_RATE_LIMIT_PER_MINUTE = int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "120"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_KEY_PREFIX = "ratelimit:api-gateway"
@@ -2040,19 +2048,35 @@ async def _persist_mission_upstream(
     created_at: str
 ) -> dict[str, Any]:
     """Proxy the mission creation to the orchestrator persistence layer."""
-    return await _proxy_post_internal(
-        "/missions",
-        json_body={
-            "mission_id": mission_id,
-            "prompt": payload.prompt,
-            "requested_target_language": payload.requested_target_language,
-            "attachments": [a.model_dump() for a in payload.attachments],
-            "global_style_directives": payload.global_style_directives,
-            "metadata": metadata,
-            "project_id": metadata.get("project_id"),
-            "created_at": created_at,
-        },
-    )
+    json_body = {
+        "mission_id": mission_id,
+        "prompt": payload.prompt,
+        "requested_target_language": payload.requested_target_language,
+        "attachments": [a.model_dump() for a in payload.attachments],
+        "global_style_directives": payload.global_style_directives,
+        "metadata": metadata,
+        "project_id": metadata.get("project_id"),
+        "created_at": created_at,
+    }
+    for attempt in range(1, MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS + 1):
+        try:
+            return await _proxy_post_internal("/missions", json_body=json_body)
+        except HTTPException as exc:
+            retryable = (
+                exc.status_code == 502
+                and str(exc.detail) == "orchestrator unavailable"
+                and attempt < MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS
+            )
+            if not retryable:
+                raise
+            LOGGER.warning(
+                "mission %s upstream persist unavailable on attempt %s/%s; retrying",
+                mission_id,
+                attempt,
+                MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS,
+            )
+            await asyncio.sleep(MISSION_CREATE_UPSTREAM_RETRY_DELAY_SECONDS)
+    raise RuntimeError("unreachable mission upstream retry state")
 
 async def _emit_intake_telemetry(
     redis_client: Any,

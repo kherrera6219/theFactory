@@ -351,6 +351,89 @@ def test_create_mission_reconciles_unknown_idempotent_writes(monkeypatch) -> Non
     assert completed_record["mission_id"] == mission_id
 
 
+def test_persist_mission_upstream_retries_transient_orchestrator_unavailable(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+    sleeps: list[float] = []
+
+    async def _proxy_post_internal(
+        path: str,
+        *,
+        json_body: dict[str, Any],
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        calls.append((path, json_body))
+        if len(calls) < 3:
+            raise HTTPException(status_code=502, detail="orchestrator unavailable")
+        return {
+            "mission_id": json_body["mission_id"],
+            "state": "QUEUED",
+            "created_at": json_body["created_at"],
+            "metadata": json_body["metadata"],
+        }
+
+    async def _sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr(api_gateway_main, "MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS", 4)
+    monkeypatch.setattr(api_gateway_main, "MISSION_CREATE_UPSTREAM_RETRY_DELAY_SECONDS", 0.25)
+    monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _proxy_post_internal)
+    monkeypatch.setattr(api_gateway_main.asyncio, "sleep", _sleep)
+    payload = api_gateway_main.MissionCreate(
+        prompt="Build restart-tolerant mission intake",
+        requested_target_language="python",
+        metadata={},
+    )
+
+    result = asyncio.run(
+        api_gateway_main._persist_mission_upstream(
+            "mission-retry",
+            payload,
+            {"project_id": "project-retry"},
+            "2026-06-26T00:00:00+00:00",
+        )
+    )
+
+    assert result["mission_id"] == "mission-retry"
+    assert [call[0] for call in calls] == ["/missions", "/missions", "/missions"]
+    assert {call[1]["mission_id"] for call in calls} == {"mission-retry"}
+    assert sleeps == [0.25, 0.25]
+
+
+def test_persist_mission_upstream_exhausts_transient_retries(monkeypatch) -> None:
+    calls = 0
+
+    async def _proxy_post_internal(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        raise HTTPException(status_code=502, detail="orchestrator unavailable")
+
+    async def _sleep(_delay: float) -> None:
+        return None
+
+    monkeypatch.setattr(api_gateway_main, "MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _proxy_post_internal)
+    monkeypatch.setattr(api_gateway_main.asyncio, "sleep", _sleep)
+    payload = api_gateway_main.MissionCreate(
+        prompt="Build restart-tolerant mission intake",
+        requested_target_language="python",
+        metadata={},
+    )
+
+    with pytest.raises(HTTPException, match="orchestrator unavailable"):
+        asyncio.run(
+            api_gateway_main._persist_mission_upstream(
+                "mission-retry",
+                payload,
+                {},
+                "2026-06-26T00:00:00+00:00",
+            )
+        )
+
+    assert calls == 2
+
+
 def test_dependency_status_covers_http_and_redis_failure_paths(monkeypatch) -> None:
     class _Client:
         async def __aenter__(self):

@@ -306,6 +306,9 @@ powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1 `
 - p95 latency ≤ threshold
 - Readiness failures and consecutive readiness failures stay within thresholds
 - Recovery within 60 seconds
+- Transient mission-create failures during injected orchestrator restart remain within
+  threshold; API gateway retries `orchestrator unavailable` create attempts with
+  `MISSION_CREATE_UPSTREAM_MAX_ATTEMPTS` / `MISSION_CREATE_UPSTREAM_RETRY_DELAY_SECONDS`
 
 **Evidence:** `docs/evidence/reliability_qualification_baseline_*.json`
 
