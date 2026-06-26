@@ -11,6 +11,18 @@ current work.
 
 ---
 
+## Latest Status - Audit Phase 11 Mission Control E2E Review Started (2026-06-26)
+
+Phase 11 starts from live Mission Control code, package scripts, Playwright specs, and CI workflow wiring instead of archived roadmap completion text. Current verification confirms `apps/mission-control/package.json` exposes `lint`, `test`, `build`, and `test:e2e`; `.github/workflows/ci.yml` installs Chromium and runs Mission Control E2E; and `apps/mission-control/e2e/` contains 23 Playwright journeys across mission lifecycle, operations, settings/vault, builder/repo intake, error states, cost/runtime-QC panels, data-plane views, and accessibility checks.
+
+First Phase 11 fix: Settings vault table rendering no longer emits whitespace text nodes inside `<colgroup>`. The column widths are now rendered from a data array, removing the React hydration warning observed during Playwright runs while preserving the same table layout.
+
+Validation: `npm --prefix apps/mission-control run lint` passes, `npm --prefix apps/mission-control run test` passes (16 files / 74 tests), `npm --prefix apps/mission-control run test:e2e` passes (23 tests) against the running backend stack, and `npm --prefix apps/mission-control run build` passes. The only remaining E2E console noise is the expected Next.js development-mode `eval()` warning under CSP; production build is unaffected.
+
+Next active Phase 11 work: continue Mission Control E2E review for CI parity, artifact/report hygiene, and whether the `test-ui-e2e` documentation should be updated from "7 journeys" to the current 23-test suite.
+
+---
+
 ## Latest Status - Audit Phase 10 Reliability Qualification Started (2026-06-26)
 
 Phase 10 starts from the live long-duration reliability tooling instead of archived baseline status. Initial scope is reliability evidence quality, readiness/recovery diagnostics, and the qualification script/runbook path.
@@ -29,7 +41,7 @@ Sixth Phase 10 fix: API gateway mission creation now retries transient `502 orch
 
 Validation: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, PowerShell parser validation passes for `scripts/reliability_qualification.ps1`, live Docker readiness probes returned 200 for gateway and orchestrator, the refreshed reliability qualification passed, `scripts/verify_reliability_evidence.py` verified the refreshed JSON, and `tests/services/test_api_gateway_helpers_unit.py` passes (23 tests) for the gateway retry hardening.
 
-Next active work: begin Phase 11 Mission Control integration and E2E regression review from live code and current CI/test scripts, not the archived baseline alone.
+Phase 10 active work is complete for this pass. Phase 11 is now active for Mission Control integration and E2E regression review.
 
 ---
 

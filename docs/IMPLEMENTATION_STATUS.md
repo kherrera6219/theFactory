@@ -13,6 +13,14 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
+### Audit Phase 11 Mission Control E2E started (2026-06-26)
+
+Latest status: Phase 11 is active after closing the Phase 10 reliability follow-up. Live review confirms Mission Control exposes `lint`, `test`, `build`, and `test:e2e` scripts; CI installs Chromium and runs Mission Control E2E; and `apps/mission-control/e2e/` contains 23 Playwright tests across mission lifecycle, operations/persona views, settings/vault, builder/repo intake, error states, data-plane views, cost/runtime-QC panels, and accessibility checks. The first Phase 11 fix removes a Settings page hydration warning by rendering vault table `<col>` elements from a data array instead of comments/whitespace inside `<colgroup>`.
+
+Validation: Mission Control TypeScript lint passes, Vitest passes (16 files / 74 tests), Playwright E2E passes (23 tests) against the running backend stack, and the production Next.js build passes. Remaining console noise is limited to the expected Next.js development-mode `eval()` warning under CSP; production build is unaffected.
+
+---
+
 ### Audit Phase 10 reliability qualification started (2026-06-26)
 
 Latest status: Phase 10 is active after completing tracked Phase 9 security-audit items. The first reliability slice improves evidence quality in `scripts/reliability_qualification.py`: JSON reports now include the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint`. The second reliability slice adds capped `mission_error_samples` and `readiness_failure_samples` to the report and prints the target base URL, readiness endpoints, and endpoint-level readiness failure counts in console output. The third slice updates the PowerShell wrapper and current operator docs so readiness/recovery controls and evidence fields match the live script. The fourth slice adds `scripts/verify_reliability_evidence.py` for offline validation of refreshed reliability evidence shape and pass/fail status. The fifth slice refreshed baseline reliability evidence at `docs/evidence/reliability_qualification_baseline_2026-06-26.json` against a running local Docker stack with orchestrator restart injection. The sixth slice hardens API gateway mission creation with bounded retries for transient `orchestrator unavailable` upstream persistence failures during orchestrator restart windows.
