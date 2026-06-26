@@ -1,7 +1,7 @@
 # Compliance Evidence Mapping
 
 Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Last updated: 2026-06-26
 Status: Canonical  
 Audience: Maintainers, auditors, and compliance reviewers
 
@@ -19,5 +19,5 @@ This mapping links production controls to machine-checkable and document evidenc
 
 Evidence artifact generation:
 - Production control status: `python scripts/production_review_audit.py --json`
-- Reliability evidence: `docs/evidence/reliability_qualification_baseline_*.json`
+- Reliability evidence: `docs/evidence/reliability_qualification_baseline_2026-06-26.json` and `docs/evidence/reliability_qualification_baseline_*.json`
 - CI attestation artifacts: `reports/promotion-decision*.json`

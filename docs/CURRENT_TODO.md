@@ -23,9 +23,11 @@ Third Phase 10 fix: `scripts/reliability_qualification.ps1` now exposes the Pyth
 
 Fourth Phase 10 fix: `scripts/verify_reliability_evidence.py` validates refreshed reliability JSON before it is accepted as current Phase 10 evidence. It requires the target, readiness endpoint, endpoint failure-count, capped failure-sample, recovery, failure-injection, threshold, pass/fail, and failure-reason fields added by the live qualification script.
 
-Validation: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, and PowerShell parser validation passes for `scripts/reliability_qualification.ps1`. Live evidence refresh is blocked in this environment because Docker Desktop's Linux engine pipe is unavailable and gateway/orchestrator readiness endpoints time out.
+Fifth Phase 10 fix: baseline reliability evidence was refreshed against the running local Docker stack at `docs/evidence/reliability_qualification_baseline_2026-06-26.json`. The run used the default 300 second sustained load, 2 requests/second, 12 concurrency, and orchestrator restart injection. Result: pass, 600 mission requests, 99.00% success, p95 0.1931s, max latency 1.0678s, 114 readiness checks, zero readiness failures, recovery probe passed after 3 polls, and failure injection exited 0.
 
-Next active Phase 10 work: refresh the baseline reliability artifact against a running local stack, then run `scripts/verify_reliability_evidence.py` against the refreshed JSON.
+Validation: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, PowerShell parser validation passes for `scripts/reliability_qualification.ps1`, live Docker readiness probes returned 200 for gateway and orchestrator, the refreshed reliability qualification passed, and `scripts/verify_reliability_evidence.py` verified the refreshed JSON.
+
+Next active Phase 10 work: review whether the six transient 502 mission responses during orchestrator restart need a targeted follow-up, even though the qualification passed at the configured 99.00% success threshold.
 
 ---
 
