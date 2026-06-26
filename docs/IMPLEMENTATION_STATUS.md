@@ -13,9 +13,17 @@ runtime exactly. When they conflict with this document, this document wins.
 
 ---
 
-### Audit Phase 9 security audit started (2026-06-24)
+### Audit Phase 10 reliability qualification started (2026-06-26)
 
-Latest status: Phase 9 is active after fast-forwarding to `origin/main` at `266f2a3`. Phase 8 still carries the open `mission_flow_v2/` strict coverage finding and should remain a tracked carry-forward unless fixed or explicitly deferred.
+Latest status: Phase 10 is active after completing tracked Phase 9 security-audit items. The first reliability slice improves evidence quality in `scripts/reliability_qualification.py`: JSON reports now include the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint`.
+
+Validation: focused reliability qualification tests pass (6 tests, with local pytest addopts overridden because this Python environment lacks `pytest-timeout`); focused Ruff passes; `git diff --check` passes.
+
+---
+
+### Audit Phase 9 security audit completed (2026-06-26)
+
+Latest status: Phase 9 completed for the tracked security-audit checklist after fast-forwarding to `origin/main` at `266f2a3`. Phase 8 still carries the open `mission_flow_v2/` strict coverage finding and should remain a tracked carry-forward unless fixed or explicitly deferred.
 
 Initial Phase 9 review confirms repo-level secret scanning controls are present: `.gitleaks.toml`, `.pre-commit-config.yaml`, and `.github/workflows/security.yml` cover custom theFactory secret patterns, staged-file gitleaks protection, and full-history CI secret scans. Existing controls already verify production `AUTH_MODE` fail-fast and protocol-bus `MCP_API_KEY` production fail-closed behavior.
 

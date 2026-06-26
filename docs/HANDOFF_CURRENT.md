@@ -10,7 +10,19 @@ before consulting archived plans.
 
 ---
 
-## Work Started in This Session (2026-06-24 - Audit Phase 9 security audit)
+## Work Started in This Session (2026-06-26 - Audit Phase 10 reliability qualification)
+
+Phase 10 is now active after completing the tracked Phase 9 security-audit items. Use the live reliability qualification tooling as the source of truth; archived Phase 10 roadmap text is baseline context only.
+
+First Phase 10 fix improves reliability evidence quality. `scripts/reliability_qualification.py` now includes the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint` in every JSON report. This lets operators audit sustained-load evidence and isolate readiness failures by endpoint without reconstructing CLI arguments from logs.
+
+Validation completed: `tests/scripts/test_reliability_qualification.py` passes (6 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the reliability script/tests; `git diff --check` passes.
+
+Continue Phase 10 with recovery/failure-injection diagnostics, runbook currency, and evidence verification.
+
+---
+
+## Work Completed in This Session (2026-06-24 to 2026-06-26 - Audit Phase 9 security audit)
 
 Phase 9 was started after the operator requested the next phase. The branch was first fast-forwarded to `origin/main` at `266f2a3`, which brought in Dependabot/workflow-only updates. Phase 8 still has the open `mission_flow_v2/` strict coverage finding, so do not treat Phase 8 as fully closed unless that is fixed or explicitly deferred.
 
