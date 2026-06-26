@@ -1,7 +1,7 @@
 # Current TODO
 
 Document version: 2026.06.21-a
-Last updated: 2026-06-24
+Last updated: 2026-06-26
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -33,7 +33,15 @@ Fourth Phase 9 fix: direct orchestrator `GET /missions/{mission_id}/runtime-qc` 
 
 Validation: `tests/security/test_state_mutation_auth.py` and `tests/services/test_api_gateway_auth_mode_unit.py` pass together (28 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the touched route/test files; `git diff --check` passes.
 
-Next active Phase 9 work: continue prompt/input validation coverage, deeper TLS/container checks, and protocol-bus replay/idempotency verification.
+Fifth Phase 9 fix: API gateway mission creation now runs deterministic `shared_runtime.prompt_guard` scanning over submitted prompt text, style directives, attachment descriptors, and bounded metadata string fields before orchestrator persistence. The stored `prompt_input_scan` contains only field names, attack types, risk levels, and counts; it never stores matched prompt text. When `PROMPT_GUARD_MODE=block` and the risk meets `PROMPT_GUARD_BLOCK_LEVEL` (default `high`), mission creation rejects the request before idempotency reservation, orchestrator persistence, or intake telemetry.
+
+Validation: `tests/services/test_api_gateway_helpers_unit.py` and `tests/services/test_prompt_guard.py` pass together (37 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the touched gateway/test files; `git diff --check` passes.
+
+Sixth Phase 9 fix: production Compose now sets `OBJECT_STORAGE_REQUIRE_TLS=true` for the orchestrator and documents that production operators must override `OBJECT_STORAGE_ENDPOINT` to an HTTPS S3-compatible endpoint. This uses the existing object-store fail-closed behavior that rejects non-HTTPS endpoints when TLS is required. `docs/SETTINGS_REFERENCE.md` now reflects the production requirement.
+
+Validation: `tests/services/test_compose_network_security.py` and `tests/services/test_object_store_unit.py` pass together (18 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the touched test/gateway files; `git diff --check` passes; `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config --services` renders successfully.
+
+Next active Phase 9 work: continue protocol-bus replay/idempotency verification.
 
 ---
 ## Latest Status - Audit Phase 8 Test Coverage Audit Started (2026-06-24)

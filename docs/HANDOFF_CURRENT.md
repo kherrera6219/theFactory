@@ -1,7 +1,7 @@
 # Current Handoff
 
 Document version: 2026.06.21-a
-Last updated: 2026-06-24
+Last updated: 2026-06-26
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -32,7 +32,15 @@ Fourth Phase 9 fix closes a direct orchestrator mission-read gap. `GET /missions
 
 Validation completed: `tests/security/test_state_mutation_auth.py` and `tests/services/test_api_gateway_auth_mode_unit.py` pass together (28 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the touched route/test files; `git diff --check` passes.
 
-Continue Phase 9 with prompt/input validation coverage, deeper TLS/container checks, and replay/idempotency verification.
+Fifth Phase 9 fix adds API gateway prompt/input validation at mission intake. `create_mission()` now builds a value-redacted `prompt_input_scan` with `shared_runtime.prompt_guard` over the mission prompt, style directives, attachment descriptors, and bounded metadata string fields. In log/default mode this records security metadata; with `PROMPT_GUARD_MODE=block`, high-or-higher risk input is rejected before idempotency reservation, upstream persistence, or intake telemetry.
+
+Validation completed: `tests/services/test_api_gateway_helpers_unit.py` and `tests/services/test_prompt_guard.py` pass together (37 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the touched gateway/test files; `git diff --check` passes.
+
+Sixth Phase 9 fix hardens the production object-storage TLS posture. `deploy/docker-compose.prod.yaml` now sets `OBJECT_STORAGE_REQUIRE_TLS=true` on the orchestrator and documents that production `.env` must provide an HTTPS `OBJECT_STORAGE_ENDPOINT`. `docs/SETTINGS_REFERENCE.md` now marks this as the production requirement. The existing object-store client already fails closed if TLS is required with a non-HTTPS endpoint.
+
+Validation completed: `tests/services/test_compose_network_security.py` and `tests/services/test_object_store_unit.py` pass together (18 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the touched test/gateway files; `git diff --check` passes; merged production Compose service rendering passes with `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config --services`.
+
+Continue Phase 9 with protocol-bus replay/idempotency verification.
 
 ---
 ## Work Started in This Session (2026-06-24 - Audit Phase 7 shared runtime)

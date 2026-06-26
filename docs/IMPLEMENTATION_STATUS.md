@@ -1,7 +1,7 @@
 # Implementation Status
 
 Document version: 2026.06.21-a
-Last updated: 2026-06-24
+Last updated: 2026-06-26
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -27,7 +27,11 @@ Third Phase 9 fix hardens host-published network boundaries. Base Compose now de
 
 Fourth Phase 9 fix closes an unauthenticated direct-read gap on the orchestrator. `GET /missions/{mission_id}/runtime-qc` now requires the read auth dependency, matching other mission read routes and protecting runtime execution/QC previews.
 
-Validation: focused API gateway helper tests pass (19 tests); focused worker/auth tests pass (68 tests); focused compose/auth tests pass (17 tests, with local pytest addopts overridden because this Python environment lacks `pytest-timeout`); focused route auth tests pass (28 tests, same addopts override); focused Ruff passes; `git diff --check` passes; merged production Compose service rendering passes.
+Fifth Phase 9 fix adds prompt/input validation at the API gateway storage boundary. Mission creation records value-redacted `prompt_input_scan` metadata for prompt-injection indicators in submitted prompt text, style directives, attachment descriptors, and bounded metadata string fields. `PROMPT_GUARD_MODE=block` rejects high-or-higher risk input before idempotency reservation or orchestrator persistence.
+
+Sixth Phase 9 fix hardens production object-storage TLS. Production Compose now sets `OBJECT_STORAGE_REQUIRE_TLS=true` for the orchestrator, and settings documentation requires an HTTPS object-storage endpoint in production. The object-store client rejects non-HTTPS endpoints when TLS is required.
+
+Validation: focused API gateway helper tests pass (37 tests with prompt-guard coverage); focused worker/auth tests pass (68 tests); focused compose/auth tests pass (18 tests, with local pytest addopts overridden because this Python environment lacks `pytest-timeout`); focused route auth tests pass (28 tests, same addopts override); focused Ruff passes; `git diff --check` passes; merged production Compose service rendering passes.
 
 ---
 ### Audit Phase 8 test coverage audit started (2026-06-24)

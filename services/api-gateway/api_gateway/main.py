@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from shared_runtime.agent_keys import normalize_agent_id
 from shared_runtime.logging_config import configure_logging
 from shared_runtime.pii_guard import detect_pii, scan_dict_for_pii
+from shared_runtime.prompt_guard import check_prompt
 from shared_runtime.protocol import (
     ProtocolValidationError,
     load_event_schema,
@@ -64,6 +65,8 @@ ORCHESTRATOR_ADMIN_API_KEY = os.getenv("ORCHESTRATOR_ADMIN_API_KEY", "").strip()
 ORCHESTRATOR_READONLY_API_KEY = os.getenv("ORCHESTRATOR_READONLY_API_KEY", "").strip()
 ORCHESTRATOR_API_KEYS = os.getenv("ORCHESTRATOR_API_KEYS", "")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
+PROMPT_GUARD_MODE = os.getenv("PROMPT_GUARD_MODE", "log").strip().lower()
+PROMPT_GUARD_BLOCK_LEVEL = os.getenv("PROMPT_GUARD_BLOCK_LEVEL", "high").strip().lower()
 AUTH_MODE = os.getenv("AUTH_MODE", "api_key").strip().lower()
 ALLOWED_AUTH_MODES = {"api_key", "hybrid", "oidc"}
 OIDC_ISSUER_URL = os.getenv("OIDC_ISSUER_URL", "").strip()
@@ -264,6 +267,7 @@ POD_MANAGER_BY_LANGUAGE: dict[str, str] = {
 
 
 _METADATA_MAX_BYTES = 4096
+_PROMPT_RISK_PRIORITY = {"low": 1, "medium": 2, "high": 3, "critical": 4}
 
 
 class MissionAttachment(BaseModel):
@@ -518,6 +522,111 @@ def _build_sensitive_input_scan(payload: MissionCreate) -> dict[str, Any]:
         "pii_types": pii_types,
         "fields": fields,
     }
+
+
+def _metadata_prompt_fields(
+    value: Any,
+    *,
+    prefix: str = "metadata",
+    depth: int = 0,
+    max_depth: int = 4,
+) -> list[tuple[str, str]]:
+    if depth > max_depth:
+        return []
+    fields: list[tuple[str, str]] = []
+    if isinstance(value, str):
+        fields.append((prefix, value))
+    elif isinstance(value, dict):
+        for key, child in value.items():
+            if not isinstance(key, str):
+                continue
+            if key in {"source_code", "prompt", "chain_trace"}:
+                continue
+            fields.extend(
+                _metadata_prompt_fields(
+                    child,
+                    prefix=f"{prefix}.{key}",
+                    depth=depth + 1,
+                    max_depth=max_depth,
+                )
+            )
+    elif isinstance(value, list):
+        for index, child in enumerate(value[:20]):
+            fields.extend(
+                _metadata_prompt_fields(
+                    child,
+                    prefix=f"{prefix}[{index}]",
+                    depth=depth + 1,
+                    max_depth=max_depth,
+                )
+            )
+    return fields
+
+
+def _build_prompt_input_scan(payload: MissionCreate) -> dict[str, Any]:
+    """Return prompt-injection scan metadata without copying matched text."""
+
+    findings: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def _record(field: str, text: str | None) -> None:
+        if not text:
+            return
+        result = check_prompt(text)
+        if not result.is_suspicious:
+            return
+        for match in result.matches:
+            key = (field, match.attack_type)
+            row = findings.setdefault(
+                key,
+                {
+                    "field": field,
+                    "attack_type": match.attack_type,
+                    "risk_level": result.risk_level,
+                    "count": 0,
+                },
+            )
+            row["count"] += 1
+            if _PROMPT_RISK_PRIORITY.get(result.risk_level, 0) > _PROMPT_RISK_PRIORITY.get(
+                str(row["risk_level"]), 0
+            ):
+                row["risk_level"] = result.risk_level
+
+    _record("prompt", payload.prompt)
+    for index, directive in enumerate(payload.global_style_directives):
+        _record(f"global_style_directives[{index}]", directive)
+    for index, attachment in enumerate(payload.attachments):
+        _record(f"attachments[{index}].filename", attachment.filename)
+        _record(f"attachments[{index}].content_type", attachment.content_type)
+
+    metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+    for field_path, text in _metadata_prompt_fields(metadata):
+        _record(field_path, text)
+
+    finding_rows = sorted(findings.values(), key=lambda row: (row["field"], row["attack_type"]))
+    max_risk = "low"
+    for row in finding_rows:
+        if _PROMPT_RISK_PRIORITY.get(str(row["risk_level"]), 0) > _PROMPT_RISK_PRIORITY.get(
+            max_risk, 0
+        ):
+            max_risk = str(row["risk_level"])
+
+    return {
+        "schema_version": "prompt_input_scan.v1",
+        "scanner": "shared_runtime.prompt_guard",
+        "has_prompt_injection_risk": bool(finding_rows),
+        "max_risk_level": max_risk,
+        "attack_types": sorted({str(row["attack_type"]) for row in finding_rows}),
+        "total_matches": sum(int(row["count"]) for row in finding_rows),
+        "fields": finding_rows,
+    }
+
+
+def _should_block_prompt_input_scan(scan: dict[str, Any]) -> bool:
+    if PROMPT_GUARD_MODE != "block":
+        return False
+    detected = _PROMPT_RISK_PRIORITY.get(str(scan.get("max_risk_level") or "low"), 0)
+    threshold = _PROMPT_RISK_PRIORITY.get(PROMPT_GUARD_BLOCK_LEVEL, 3)
+    return detected >= threshold
 
 
 def _idempotency_redis_key(idempotency_key: str) -> str:
@@ -2035,6 +2144,22 @@ async def create_mission(
     )
     if payload.source_code:
         normalized_metadata["source_code"] = payload.source_code
+
+    prompt_input_scan = _build_prompt_input_scan(payload)
+    normalized_metadata["prompt_input_scan"] = prompt_input_scan
+    normalized_metadata["contains_prompt_injection_risk"] = prompt_input_scan[
+        "has_prompt_injection_risk"
+    ]
+    if prompt_input_scan["has_prompt_injection_risk"]:
+        normalized_metadata["prompt_injection_attack_types"] = prompt_input_scan["attack_types"]
+        if _should_block_prompt_input_scan(prompt_input_scan):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "mission input failed prompt-injection validation "
+                    f"({prompt_input_scan['max_risk_level']} risk)"
+                ),
+            )
 
     sensitive_input_scan = _build_sensitive_input_scan(payload)
     normalized_metadata["sensitive_input_scan"] = sensitive_input_scan

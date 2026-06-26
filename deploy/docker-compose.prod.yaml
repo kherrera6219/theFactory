@@ -77,6 +77,9 @@ services:
       LANGGRAPH_FAIL_OPEN: "false"
       # --- storage ---
       OBJECT_STORAGE_ENABLED: "true"
+      # Production object storage must use an HTTPS S3-compatible endpoint.
+      # Override OBJECT_STORAGE_ENDPOINT to a TLS endpoint in the prod .env.
+      OBJECT_STORAGE_REQUIRE_TLS: "true"
       NEO4J_ENABLED: "true"
       # --- Phase 2 security features ---
       PROMPT_GUARD_MODE: block
