@@ -33,9 +33,11 @@ First Phase 12 fix: `make validate` now runs `scripts/validate_documentation.py`
 
 Second Phase 12 fix: production audit check `DOC-006` now verifies the Phase 12 documentation drift controls: top-level docs exist, `AGENTS.md` has the current validation timestamp, `CHANGELOG.md` records the Phase 12 pass, Codex DoD/review standards require `make validate`, API docs explain OpenAPI regeneration/checking, committed OpenAPI snapshots exist, and validation wiring is present.
 
+Third Phase 12 fix: `scripts/validate_documentation.py` now enforces public docstrings for `shared_runtime/*.py` and all orchestrator `storage_*.py` modules. Missing docstrings were added across the public storage/shared-runtime boundary functions so the validator reports 17 covered Python files.
+
 Validation: `scripts/validate_documentation.py` passes, `scripts/export_openapi.py --check` passes, focused production-audit tests pass for the new guard, focused Ruff passes for the touched audit/export/test files, and `scripts/production_review_audit.py` reports `DOC-006` passing. The production audit still carries the unrelated existing `INF-008` compose wiring finding.
 
-Next active Phase 12 work: continue the remaining checklist items that need deeper reconciliation, especially architecture diagrams, MIGRATION coverage, public docstrings in `shared_runtime/` and `storage_*.py`, and any route/spec drift found by the OpenAPI check.
+Next active Phase 12 work: continue the remaining checklist items that need deeper reconciliation, especially architecture diagrams and MIGRATION coverage.
 
 ---
 

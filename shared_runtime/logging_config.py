@@ -96,6 +96,7 @@ class TraceIdFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Attach trace and span identifiers to one log record."""
         try:
             from opentelemetry import trace
         except Exception:
@@ -127,6 +128,7 @@ class JsonFormatter(logging.Formatter):
         self._service_name = service_name
 
     def format(self, record: logging.LogRecord) -> str:
+        """Serialize one log record as redacted JSON."""
         payload: dict[str, object] = {
             "ts": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
             "level": record.levelname,
@@ -157,6 +159,7 @@ class PiiRedactingFormatter(logging.Formatter):
     """Redact PII and credentials from fully rendered plain-text records."""
 
     def format(self, record: logging.LogRecord) -> str:
+        """Format and redact one plain-text log record."""
         return _redact_text(super().format(record))
 
 

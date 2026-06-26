@@ -61,6 +61,7 @@ def validate_key_strength(key: str, agent_id: str | None = None) -> bool:
 
 
 def normalize_agent_id(value: Any) -> str | None:
+    """Return an uppercase agent id or None for invalid input."""
     if not isinstance(value, str):
         return None
     normalized = value.strip().upper()
@@ -68,6 +69,7 @@ def normalize_agent_id(value: Any) -> str | None:
 
 
 def agent_service_key_env_name(agent_id: str) -> str | None:
+    """Return the per-agent service key environment variable name."""
     normalized = normalize_agent_id(agent_id)
     if normalized is None:
         return None
@@ -79,6 +81,7 @@ def parse_agent_service_key_map(
     *,
     allowed_agent_ids: set[str] | None = None,
 ) -> dict[str, str]:
+    """Parse a semicolon-delimited agent service-key mapping."""
     mapping: dict[str, str] = {}
     for entry in (part.strip() for part in raw.split(";") if part.strip()):
         if "=" not in entry:
@@ -100,6 +103,7 @@ def configured_agent_service_key_map(
     env: Mapping[str, str] | None = None,
     allowed_agent_ids: set[str] | None = None,
 ) -> dict[str, str]:
+    """Resolve configured agent service keys from mapping, key file, and env vars."""
     env_mapping = env if env is not None else os.environ
     mapping = parse_agent_service_key_map(raw_mapping, allowed_agent_ids=allowed_agent_ids)
     key_file = env_mapping.get("AGENT_SERVICE_KEY_FILE", "").strip()
@@ -167,6 +171,7 @@ def service_api_key_for_agent(
     env: Mapping[str, str] | None = None,
     allowed_agent_ids: set[str] | None = None,
 ) -> str:
+    """Resolve the service API key for an agent with strict-mode enforcement."""
     normalized_agent_id = normalize_agent_id(agent_id)
     env_mapping = env if env is not None else os.environ
     if normalized_agent_id:

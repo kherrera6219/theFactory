@@ -15,6 +15,7 @@ def upsert_pod_assignment(
     metadata: dict[str, Any],
     assigned_at: str,
 ) -> dict[str, Any]:
+    """Assign a mission to a pod, rejecting conflicting pod changes."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -55,6 +56,7 @@ def upsert_pod_assignment(
 
 
 def get_pod_assignment(settings: Settings, mission_id: str) -> dict[str, Any] | None:
+    """Fetch the pod assignment for one mission."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -80,6 +82,7 @@ def get_pod_assignment(settings: Settings, mission_id: str) -> dict[str, Any] | 
 
 
 def list_pod_assignments(settings: Settings, limit: int) -> list[dict[str, Any]]:
+    """List recent pod assignments ordered by update time."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -106,6 +109,7 @@ def list_pod_assignments(settings: Settings, limit: int) -> list[dict[str, Any]]
 
 
 def summarize_projects(settings: Settings, limit: int) -> list[dict[str, Any]]:
+    """Summarize project mission counts and derived project status."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(

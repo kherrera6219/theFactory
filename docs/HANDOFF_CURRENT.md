@@ -36,7 +36,9 @@ First Phase 12 fix adds validation wiring. `make validate` now runs `python scri
 
 Second Phase 12 fix adds production-audit coverage through `DOC-006`, which verifies current top-level docs, the `AGENTS.md` validation timestamp, the Phase 12 changelog entry, Codex standards, API OpenAPI regeneration/check notes, committed OpenAPI snapshots, and validation wiring.
 
-Validation completed: `python scripts/validate_documentation.py` passes, `python scripts/export_openapi.py --check` passes, focused production-audit tests pass, focused Ruff passes for the touched audit/export/test files, and `python scripts/production_review_audit.py` reports `DOC-006` passing. The production audit still carries the unrelated existing `INF-008` compose wiring finding. Continue Phase 12 with architecture diagram reconciliation, MIGRATION coverage, and public docstrings in `shared_runtime/` and `storage_*.py`.
+Third Phase 12 fix closes the public-docstring checklist item for this pass. `scripts/validate_documentation.py` now scans public functions/methods in `shared_runtime/*.py` and `services/orchestrator/orchestrator/storage_*.py`; missing boundary docstrings were added across the storage/shared-runtime files so the validator covers 17 Python files.
+
+Validation completed: `python scripts/validate_documentation.py` passes, `python scripts/export_openapi.py --check` passes, focused production-audit tests pass, focused Ruff passes for the touched audit/export/test files, and `python scripts/production_review_audit.py` reports `DOC-006` passing. The production audit still carries the unrelated existing `INF-008` compose wiring finding. Continue Phase 12 with architecture diagram reconciliation and MIGRATION coverage.
 
 ---
 

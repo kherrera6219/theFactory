@@ -27,9 +27,11 @@ Latest status: Phase 12 is active from the current `AUDIT_PLAN.md` documentation
 
 Production audit check `DOC-006` now verifies current Phase 12 documentation controls: top-level docs, current `AGENTS.md` validation timestamp, Phase 12 changelog entry, Codex DoD/review standards, API OpenAPI check notes, committed OpenAPI snapshots, and validation wiring.
 
-Validation: `scripts/validate_documentation.py` passes across 77 metadata-checked docs and 119 link-checked docs; `scripts/export_openapi.py --check` passes; focused production-audit tests pass; focused Ruff passes for the touched audit/export/test files; and `scripts/production_review_audit.py` reports `DOC-006` passing while retaining the unrelated existing `INF-008` compose wiring finding.
+The public-docstring checklist item is now enforced by `scripts/validate_documentation.py` for `shared_runtime/*.py` and orchestrator `storage_*.py`; missing public boundary docstrings were added across those files.
 
-Remaining Phase 12 work: architecture diagram reconciliation, MIGRATION coverage, and public docstring review for `shared_runtime/` and `storage_*.py`.
+Validation: `scripts/validate_documentation.py` passes across 77 metadata-checked docs, 119 link-checked docs, and 17 docstring-checked Python files; `scripts/export_openapi.py --check` passes; focused production-audit tests pass; focused Ruff passes for the touched audit/export/test files; and `scripts/production_review_audit.py` reports `DOC-006` passing while retaining the unrelated existing `INF-008` compose wiring finding.
+
+Remaining Phase 12 work: architecture diagram reconciliation and MIGRATION coverage.
 
 ---
 

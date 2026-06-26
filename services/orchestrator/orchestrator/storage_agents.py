@@ -22,6 +22,7 @@ def upsert_agent_heartbeat(
     metadata: dict[str, Any],
     last_heartbeat: str,
 ) -> dict[str, Any]:
+    """Insert or update one agent heartbeat and log state changes atomically."""
     normalized_mission_ids = [
         str(mission_id).strip()
         for mission_id in active_mission_ids
@@ -145,6 +146,7 @@ def upsert_agent_heartbeat(
 
 
 def get_agent_heartbeat(settings: Settings, agent_id: str) -> dict[str, Any] | None:
+    """Return the latest stored heartbeat for one agent, if present."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -182,6 +184,7 @@ def get_agent_heartbeat(settings: Settings, agent_id: str) -> dict[str, Any] | N
 
 
 def list_agent_heartbeats(settings: Settings, limit: int) -> list[dict[str, Any]]:
+    """Return recent agent heartbeats ordered by heartbeat timestamp."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -221,6 +224,7 @@ def list_agent_heartbeats(settings: Settings, limit: int) -> list[dict[str, Any]
 
 
 def list_recent_agent_events(settings: Settings, limit: int) -> list[dict[str, Any]]:
+    """Return recent agent runtime state-change events."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -340,6 +344,7 @@ def _row_to_agent_action_event(row: Any) -> dict[str, Any]:
 
 
 def insert_agent_action_event(settings: Settings, record: AgentActionEventRecord) -> dict[str, Any]:
+    """Persist an immutable agent action event with digest chaining."""
     normalized = AgentActionEventRecord(
         **{
             **record.model_dump(mode="python"),
@@ -484,6 +489,7 @@ def create_agent_action_event(
     content_sha256: str | None = None,
     blob_ref: str | None = None,
 ) -> dict[str, Any]:
+    """Build and persist an agent action event from primitive fields."""
     record = AgentActionEventRecord(
         event_id=event_id or f"aevt-{uuid.uuid4()}",
         project_id=project_id,
@@ -517,6 +523,7 @@ def list_mission_agent_action_events(
     mission_id: str,
     limit: int,
 ) -> list[dict[str, Any]]:
+    """List recent action events for a single mission."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -565,6 +572,7 @@ def list_project_agent_action_events(
     agent_id: str | None = None,
     tool_name: str | None = None,
 ) -> list[dict[str, Any]]:
+    """List recent action events for a project with optional filters."""
     query = """
         SELECT
             event_id,

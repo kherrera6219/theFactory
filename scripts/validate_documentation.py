@@ -1,3 +1,4 @@
+import ast
 import re
 from pathlib import Path
 
@@ -64,6 +65,34 @@ def validate_links(path: Path) -> list[str]:
     return errors
 
 
+def public_docstring_targets() -> list[Path]:
+    """Return Python files covered by the Phase 12 public-docstring check."""
+    targets = sorted((REPO_ROOT / "shared_runtime").glob("*.py"))
+    targets.extend(
+        sorted((REPO_ROOT / "services" / "orchestrator" / "orchestrator").glob("storage_*.py"))
+    )
+    return targets
+
+
+def validate_public_docstrings(path: Path) -> list[str]:
+    """Return missing public function or method docstrings for one Python file."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    errors: list[str] = []
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if not node.name.startswith("_") and ast.get_docstring(node) is None:
+                errors.append(f"missing docstring for `{node.name}`")
+            continue
+        if isinstance(node, ast.ClassDef):
+            if node.name.startswith("_"):
+                continue
+            for item in node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if not item.name.startswith("_") and ast.get_docstring(item) is None:
+                        errors.append(f"missing docstring for `{node.name}.{item.name}`")
+    return errors
+
+
 def main() -> int:
     failures: list[str] = []
 
@@ -79,6 +108,10 @@ def main() -> int:
         for error in validate_links(path):
             failures.append(f"{path.relative_to(REPO_ROOT)}: {error}")
 
+    for path in public_docstring_targets():
+        for error in validate_public_docstrings(path):
+            failures.append(f"{path.relative_to(REPO_ROOT)}: {error}")
+
     if failures:
         print("documentation validation failed:")
         for failure in failures:
@@ -88,6 +121,7 @@ def main() -> int:
     print("documentation validation passed")
     print(f"validated_metadata_files={len(current_source_docs())}")
     print(f"validated_link_files={len(markdown_files_for_link_check())}")
+    print(f"validated_docstring_files={len(public_docstring_targets())}")
     return 0
 
 
