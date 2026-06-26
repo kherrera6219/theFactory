@@ -41,7 +41,11 @@ Sixth Phase 9 fix: production Compose now sets `OBJECT_STORAGE_REQUIRE_TLS=true`
 
 Validation: `tests/services/test_compose_network_security.py` and `tests/services/test_object_store_unit.py` pass together (18 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the touched test/gateway files; `git diff --check` passes; `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config --services` renders successfully.
 
-Next active Phase 9 work: continue protocol-bus replay/idempotency verification.
+Seventh Phase 9 fix: protocol-bus replay/dedup TTL configuration is now aligned. `protocol_bus.mcp_server` accepts both canonical `MCP_DEDUP_TTL_SECONDS` and legacy `MESSAGE_DEDUP_TTL_SECONDS`, while production Compose now uses the canonical `MCP_DEDUP_TTL_SECONDS=600`. This prevents the production 10-minute replay/dedup window from being silently ignored. The existing replay/dedup suites verify duplicate rejection, idempotent dedup returns, cross-client Redis-backed detection, fail-closed Redis errors, and the production Compose variable.
+
+Validation: `tests/services/test_protocol_bus_mcp.py`, `tests/services/test_protocol_bus_dedup.py`, and `tests/services/test_compose_network_security.py` pass together (59 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the touched protocol-bus/test files; `git diff --check` passes; `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config --services` renders successfully. The focused pytest run emitted post-teardown OpenTelemetry exporter logging because local `jaeger:4318` is not resolvable, but the test process exited 0.
+
+Phase 9 tracked security-audit items are complete for this pass. Next active work: define or start the next audit phase, while keeping the Phase 8 `mission_flow_v2/` strict coverage carry-forward visible unless explicitly deferred.
 
 ---
 ## Latest Status - Audit Phase 8 Test Coverage Audit Started (2026-06-24)

@@ -40,7 +40,11 @@ Sixth Phase 9 fix hardens the production object-storage TLS posture. `deploy/doc
 
 Validation completed: `tests/services/test_compose_network_security.py` and `tests/services/test_object_store_unit.py` pass together (18 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the touched test/gateway files; `git diff --check` passes; merged production Compose service rendering passes with `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.prod.yaml config --services`.
 
-Continue Phase 9 with protocol-bus replay/idempotency verification.
+Seventh Phase 9 fix aligns protocol-bus replay/dedup TTL configuration. The MCP service now accepts canonical `MCP_DEDUP_TTL_SECONDS` and the legacy `MESSAGE_DEDUP_TTL_SECONDS` alias, and production Compose now uses `MCP_DEDUP_TTL_SECONDS=600`. This prevents the production replay/dedup TTL from falling back to the 300-second code default.
+
+Validation completed: `tests/services/test_protocol_bus_mcp.py`, `tests/services/test_protocol_bus_dedup.py`, and `tests/services/test_compose_network_security.py` pass together (59 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the touched protocol-bus/test files; `git diff --check` passes; merged production Compose service rendering passes. The pytest command emitted post-teardown OpenTelemetry exporter logging because local `jaeger:4318` is not resolvable, but exited 0.
+
+Phase 9 tracked security-audit items are complete for this pass. Next active work is to define/start the next audit phase, while keeping the Phase 8 `mission_flow_v2/` strict coverage carry-forward visible unless explicitly deferred.
 
 ---
 ## Work Started in This Session (2026-06-24 - Audit Phase 7 shared runtime)
