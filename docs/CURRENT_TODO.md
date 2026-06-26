@@ -17,9 +17,11 @@ Phase 10 starts from the live long-duration reliability tooling instead of archi
 
 First Phase 10 fix: `scripts/reliability_qualification.py` now writes the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint` into the JSON report. This makes sustained-load evidence self-contained and lets operators distinguish a gateway readiness issue from an orchestrator readiness issue without reconstructing CLI arguments from logs.
 
-Validation: `tests/scripts/test_reliability_qualification.py` passes (6 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the reliability script/tests; `git diff --check` passes.
+Second Phase 10 fix: reliability reports now include capped `mission_error_samples` and `readiness_failure_samples`, and console output prints the target base URL, readiness endpoints, and readiness failure counts by endpoint. This gives operators immediate recovery/failure-injection diagnostics without needing to rerun the qualification job.
 
-Next active Phase 10 work: continue reliability qualification review for recovery/failure-injection diagnostics, runbook currency, and evidence verification.
+Validation: `tests/scripts/test_reliability_qualification.py` passes (7 tests) with local pytest addopts overridden because this Python environment lacks `pytest-timeout`; focused Ruff passes for the reliability script/tests.
+
+Next active Phase 10 work: continue runbook currency and evidence verification.
 
 ---
 

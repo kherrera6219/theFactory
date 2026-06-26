@@ -16,9 +16,11 @@ Phase 10 is now active after completing the tracked Phase 9 security-audit items
 
 First Phase 10 fix improves reliability evidence quality. `scripts/reliability_qualification.py` now includes the target `base_url`, configured `readiness_endpoints`, and `readiness_failure_counts_by_endpoint` in every JSON report. This lets operators audit sustained-load evidence and isolate readiness failures by endpoint without reconstructing CLI arguments from logs.
 
-Validation completed: `tests/scripts/test_reliability_qualification.py` passes (6 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the reliability script/tests; `git diff --check` passes.
+Second Phase 10 fix improves recovery/failure-injection diagnostics. Reliability JSON reports now include capped `mission_error_samples` and `readiness_failure_samples`, and console output prints the target base URL, readiness endpoints, and readiness failure counts by endpoint.
 
-Continue Phase 10 with recovery/failure-injection diagnostics, runbook currency, and evidence verification.
+Validation completed: `tests/scripts/test_reliability_qualification.py` passes (7 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the reliability script/tests.
+
+Continue Phase 10 with runbook currency and evidence verification.
 
 ---
 

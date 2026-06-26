@@ -369,12 +369,14 @@ def _build_report(
         "mission_success_rate_percent": round(success_rate, 3),
         "mission_error_count": mission_errors,
         "mission_status_counts": status_counts,
+        "mission_error_samples": _mission_error_samples(mission_samples),
         "latency_p50_seconds": round(p50, 4),
         "latency_p95_seconds": round(p95, 4),
         "latency_max_seconds": round(max_latency, 4),
         "readiness_checks_total": len(readiness_samples),
         "readiness_failures_total": readiness_failures,
         "readiness_failure_counts_by_endpoint": readiness_failure_counts_by_endpoint,
+        "readiness_failure_samples": _readiness_failure_samples(readiness_samples),
         "max_consecutive_readiness_failures": max_consecutive,
         "recovery_probe": asdict(recovery_result),
         "failure_injection": asdict(injection_result),
@@ -391,9 +393,54 @@ def _build_report(
     }
 
 
+def _mission_error_samples(
+    mission_samples: list[MissionSample],
+    *,
+    limit: int = 5,
+) -> list[dict[str, object]]:
+    samples: list[dict[str, object]] = []
+    for sample in mission_samples:
+        if sample.status_code is not None and sample.status_code < 400:
+            continue
+        samples.append(
+            {
+                "status_code": sample.status_code,
+                "latency_seconds": round(sample.latency_seconds, 4),
+                "error": sample.error,
+            }
+        )
+        if len(samples) >= limit:
+            break
+    return samples
+
+
+def _readiness_failure_samples(
+    readiness_samples: list[ReadinessSample],
+    *,
+    limit: int = 10,
+) -> list[dict[str, object]]:
+    samples: list[dict[str, object]] = []
+    for sample in readiness_samples:
+        if sample.ok:
+            continue
+        samples.append(
+            {
+                "endpoint": sample.endpoint,
+                "status_code": sample.status_code,
+                "latency_seconds": round(sample.latency_seconds, 4),
+                "error": sample.error,
+            }
+        )
+        if len(samples) >= limit:
+            break
+    return samples
+
+
 def _print_report(report: dict) -> None:
     print("== Reliability Qualification Report ==")
     print(f"Timestamp (UTC): {report['run_timestamp_utc']}")
+    print(f"Base URL: {report['base_url']}")
+    print(f"Readiness endpoints: {report['readiness_endpoints']}")
     print(f"Duration: {report['duration_seconds']}s")
     print(f"Requests per second: {report['requests_per_second']}")
     print(f"Concurrency: {report['concurrency']}")
@@ -407,6 +454,11 @@ def _print_report(report: dict) -> None:
         "Readiness checks: "
         f"{report['readiness_checks_total']} total, {report['readiness_failures_total']} failed"
     )
+    if report["readiness_failure_counts_by_endpoint"]:
+        print(
+            "Readiness failures by endpoint: "
+            f"{report['readiness_failure_counts_by_endpoint']}"
+        )
     print(f"Max consecutive readiness failures: {report['max_consecutive_readiness_failures']}")
     print(
         "Recovery probe: "
@@ -421,6 +473,10 @@ def _print_report(report: dict) -> None:
     if report["passed"]:
         print("PASS: reliability qualification thresholds met")
         return
+    if report["mission_error_samples"]:
+        print(f"Mission error samples: {report['mission_error_samples']}")
+    if report["readiness_failure_samples"]:
+        print(f"Readiness failure samples: {report['readiness_failure_samples']}")
     for reason in report["failure_reasons"]:
         print(f"FAIL: {reason}")
 
