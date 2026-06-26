@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE_COMPOSE = ROOT / "deploy" / "docker-compose.yaml"
+PROD_COMPOSE = ROOT / "deploy" / "docker-compose.prod.yaml"
 ENV_EXAMPLE = ROOT / ".env.example"
 
 
@@ -50,3 +51,11 @@ def test_env_example_documents_compose_host_bind_controls() -> None:
 
     for bind_var in bind_defaults:
         assert f"{bind_var}=127.0.0.1" in env_text
+
+
+def test_production_compose_requires_tls_object_storage() -> None:
+    prod_text = PROD_COMPOSE.read_text(encoding="utf-8")
+
+    assert 'OBJECT_STORAGE_ENABLED: "true"' in prod_text
+    assert 'OBJECT_STORAGE_REQUIRE_TLS: "true"' in prod_text
+    assert "Override OBJECT_STORAGE_ENDPOINT to a TLS endpoint" in prod_text

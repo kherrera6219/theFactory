@@ -150,7 +150,7 @@ The design follows three rules:
 | `object_storage_size_threshold_bytes` | `OBJECT_STORAGE_SIZE_THRESHOLD_BYTES` | `524288` | Artifacts above 512 KB are offloaded to S3; smaller ones stay in Postgres |
 | `object_storage_legal_hold_on_fail` | `OBJECT_STORAGE_LEGAL_HOLD_ON_FAIL` | `true` | Apply S3 Object Lock legal hold to failed-mission artifacts |
 | `object_storage_force_path_style` | `OBJECT_STORAGE_FORCE_PATH_STYLE` | `true` | Use path-style URLs (required for MinIO) |
-| `object_storage_require_tls` | `OBJECT_STORAGE_REQUIRE_TLS` | `false` | Reject non-TLS storage endpoints |
+| `object_storage_require_tls` | `OBJECT_STORAGE_REQUIRE_TLS` | `false` | Reject non-TLS storage endpoints. Production Compose sets this to `true`; set `OBJECT_STORAGE_ENDPOINT` to an HTTPS S3-compatible endpoint in production. |
 
 ### Knowledge Embeddings
 
@@ -245,7 +245,7 @@ Before deploying to production, verify the following:
 - [ ] `AGENT_SERVICE_KEY_MODE=strict` — each agent has its own service key
 - [ ] `LANGGRAPH_FAIL_OPEN=false` (if LangGraph is enabled)
 - [ ] `MIGRATION_POSTGRES_URL` points directly to Postgres (not PgBouncer)
-- [ ] `OBJECT_STORAGE_REQUIRE_TLS=true` if using a cloud S3 endpoint
+- [ ] `OBJECT_STORAGE_REQUIRE_TLS=true` for production object storage, with `OBJECT_STORAGE_ENDPOINT=https://...`
 - [ ] `OBJECT_STORAGE_LEGAL_HOLD_ON_FAIL=true` (default) — do not disable without compliance sign-off
 - [ ] `AUDIT_RETENTION_DAYS` set to meet your compliance requirement (default 90)
 
