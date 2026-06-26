@@ -20,9 +20,11 @@ Second Phase 10 fix improves recovery/failure-injection diagnostics. Reliability
 
 Third Phase 10 fix improves runbook currency. `scripts/reliability_qualification.ps1` now exposes base URL, readiness endpoint, readiness threshold, and recovery threshold parameters from the Python qualification CLI. `docs/TESTING_QUALITY_GATES.md` and `docs/OPERATIONS_RUNBOOK.md` document the current reliability evidence fields operators should verify.
 
-Validation completed: `tests/scripts/test_reliability_qualification.py` passes (8 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the reliability script/tests; PowerShell parser validation passes for `scripts/reliability_qualification.ps1`.
+Fourth Phase 10 fix adds offline evidence verification. `scripts/verify_reliability_evidence.py` rejects missing current Phase 10 evidence fields and rejects failed qualification artifacts unless explicitly run with `--allow-failed`.
 
-Continue Phase 10 with evidence verification and decide whether to refresh the baseline reliability artifact against the current local stack.
+Validation completed: `tests/scripts/test_reliability_qualification.py` passes (8 tests), `tests/scripts/test_verify_reliability_evidence.py` passes (3 tests), focused Ruff passes for the reliability scripts/tests, and PowerShell parser validation passes for `scripts/reliability_qualification.ps1`. Live evidence refresh is blocked in this environment because Docker Desktop's Linux engine pipe is unavailable and gateway/orchestrator readiness endpoints time out.
+
+Continue Phase 10 by starting the local stack, refreshing the baseline reliability artifact, and running `scripts/verify_reliability_evidence.py` against the refreshed JSON.
 
 ---
 

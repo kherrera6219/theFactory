@@ -312,6 +312,11 @@ powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1 `
 Evidence reports must identify the target `base_url`, configured
 `readiness_endpoints`, `readiness_failure_counts_by_endpoint`, and capped
 `mission_error_samples` / `readiness_failure_samples` when failures occur.
+Verify the current evidence shape before accepting it:
+
+```bash
+python scripts/verify_reliability_evidence.py --evidence-file docs/evidence/reliability_qualification_baseline_YYYY-MM-DD.json
+```
 
 ---
 
