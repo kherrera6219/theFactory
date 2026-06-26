@@ -255,6 +255,9 @@ append-only and tamper-evident:
    - `powershell -ExecutionPolicy Bypass -File scripts/perf_smoke.ps1`
 6. Long-duration reliability qualification:
    - `powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1 -InjectOrchestratorRestart`
+   - current evidence artifact: `docs/evidence/reliability_qualification_baseline_YYYY-MM-DD.json`
+   - verify the JSON includes `base_url`, `readiness_endpoints`, `readiness_failure_counts_by_endpoint`, `mission_error_samples`, `readiness_failure_samples`, `recovery_probe`, and `failure_injection`
+   - tune thresholds with `-MaxReadinessFailures`, `-MaxConsecutiveReadinessFailures`, `-RecoveryTimeoutSeconds`, and `-RecoveryConsecutiveSuccesses` when qualifying slower staging environments
 7. Debug/code sweep:
    - `powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1`
 8. Mission Control end-to-end regression:

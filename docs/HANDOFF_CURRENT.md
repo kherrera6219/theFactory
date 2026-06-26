@@ -18,9 +18,11 @@ First Phase 10 fix improves reliability evidence quality. `scripts/reliability_q
 
 Second Phase 10 fix improves recovery/failure-injection diagnostics. Reliability JSON reports now include capped `mission_error_samples` and `readiness_failure_samples`, and console output prints the target base URL, readiness endpoints, and readiness failure counts by endpoint.
 
-Validation completed: `tests/scripts/test_reliability_qualification.py` passes (7 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the reliability script/tests.
+Third Phase 10 fix improves runbook currency. `scripts/reliability_qualification.ps1` now exposes base URL, readiness endpoint, readiness threshold, and recovery threshold parameters from the Python qualification CLI. `docs/TESTING_QUALITY_GATES.md` and `docs/OPERATIONS_RUNBOOK.md` document the current reliability evidence fields operators should verify.
 
-Continue Phase 10 with runbook currency and evidence verification.
+Validation completed: `tests/scripts/test_reliability_qualification.py` passes (8 tests) with `python -m pytest -o addopts= ... --basetemp .pytest-tmp`; focused Ruff passes for the reliability script/tests; PowerShell parser validation passes for `scripts/reliability_qualification.ps1`.
+
+Continue Phase 10 with evidence verification and decide whether to refresh the baseline reliability artifact against the current local stack.
 
 ---
 

@@ -286,20 +286,32 @@ make reliability
 ```
 
 Runs sustained-load qualification. Required before major releases.
+For local failure-injection evidence on Windows, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/reliability_qualification.ps1 `
+  -InjectOrchestratorRestart `
+  -OutputFile docs/evidence/reliability_qualification_baseline_YYYY-MM-DD.json
+```
 
 **What it tests:**
 1. Sustained request load over configurable duration
-2. Readiness endpoint monitoring throughout
+2. Gateway and orchestrator readiness endpoint monitoring throughout
 3. Controlled orchestrator restart injection
 4. Recovery time measurement
-5. Final state validation
+5. Final state validation and capped failure diagnostics
 
 **Pass criteria:**
 - Success rate ≥ 95%
 - p95 latency ≤ threshold
+- Readiness failures and consecutive readiness failures stay within thresholds
 - Recovery within 60 seconds
 
 **Evidence:** `docs/evidence/reliability_qualification_baseline_*.json`
+
+Evidence reports must identify the target `base_url`, configured
+`readiness_endpoints`, `readiness_failure_counts_by_endpoint`, and capped
+`mission_error_samples` / `readiness_failure_samples` when failures occur.
 
 ---
 
