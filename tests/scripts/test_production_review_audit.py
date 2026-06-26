@@ -102,6 +102,7 @@ def test_run_audit_returns_expected_checks() -> None:
         "INF-008",
         "COM-003",
         "DOC-005",
+        "DOC-006",
         "API-002",
         "UI-011",
         "STY-001",
@@ -354,6 +355,45 @@ def test_check_mission_control_e2e_controls_fails_when_missing(tmp_path, monkeyp
     assert result.passed is False
     assert "e2e" in result.notes
     assert "playwright-report" in result.notes
+
+
+def test_check_documentation_drift_controls_passes(tmp_path, monkeypatch) -> None:
+    _write(
+        tmp_path / "Makefile",
+        """
+validate:
+\tpython scripts/validate_documentation.py
+\tpython scripts/export_openapi.py --check
+""".strip(),
+    )
+    _write(tmp_path / "AGENTS.md", "> Last validated: 2026-06-26\n")
+    _write(tmp_path / "README.md", "# README\n")
+    _write(tmp_path / "CHANGELOG.md", "## [Unreleased]\n\n### Audit Phase 12 Documentation Drift\n")
+    _write(tmp_path / "docs" / "DOCUMENTATION_INDEX.md", "# theFactory Documentation Index\n")
+    _write(tmp_path / "docs" / "codex" / "DEFINITION_OF_DONE.md", "- [ ] `make validate` passes\n")
+    _write(tmp_path / "docs" / "codex" / "REVIEW_CHECKLIST.md", "- [ ] `make validate` passes\n")
+    _write(
+        tmp_path / "docs" / "api" / "README.md",
+        "Run `python scripts/export_openapi.py --check`.\n",
+    )
+    _write(tmp_path / "scripts" / "validate_documentation.py", "print('ok')\n")
+    _write(tmp_path / "scripts" / "export_openapi.py", "print('ok')\n")
+    _write(tmp_path / "docs" / "openapi" / "api-gateway.v1.json", "{}\n")
+    _write(tmp_path / "docs" / "openapi" / "orchestrator.v1.json", "{}\n")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_documentation_drift_controls()
+    assert result.passed is True
+
+
+def test_check_documentation_drift_controls_fails_when_not_enforced(tmp_path, monkeypatch) -> None:
+    _write(tmp_path / "Makefile", "validate:\n\tpython scripts/validate_schemas.py\n")
+    _write(tmp_path / "AGENTS.md", "> Last validated: 2026-05-30\n")
+    _write(tmp_path / "CHANGELOG.md", "## [Unreleased]\n")
+    monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
+    result = audit.check_documentation_drift_controls()
+    assert result.passed is False
+    assert "documentation validation" in result.notes
+    assert "OpenAPI drift" in result.notes
 
 
 def test_check_tracing_and_pager_controls_passes(tmp_path, monkeypatch) -> None:

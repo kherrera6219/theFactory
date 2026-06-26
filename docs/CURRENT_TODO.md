@@ -25,6 +25,20 @@ Phase 11 active work is complete for this pass. Phase 12 is now the next audit p
 
 ---
 
+## Latest Status - Audit Phase 12 Documentation Drift Started (2026-06-26)
+
+Phase 12 starts from the active `AUDIT_PLAN.md` documentation-drift checklist, not the archived roadmap Phase 12 builder/repository-intake plan. Current-source documentation validation passes across 77 metadata-checked docs and 119 link-checked docs.
+
+First Phase 12 fix: `make validate` now runs `scripts/validate_documentation.py` and `scripts/export_openapi.py --check`, so docs metadata/link drift and OpenAPI route/spec drift are enforced by the normal pre-merge gate. `scripts/export_openapi.py` keeps its existing regeneration behavior and adds a non-mutating `--check` mode for validation. The first run found drift in `docs/openapi/orchestrator.v1.json`; the snapshot was regenerated from the live orchestrator app.
+
+Second Phase 12 fix: production audit check `DOC-006` now verifies the Phase 12 documentation drift controls: top-level docs exist, `AGENTS.md` has the current validation timestamp, `CHANGELOG.md` records the Phase 12 pass, Codex DoD/review standards require `make validate`, API docs explain OpenAPI regeneration/checking, committed OpenAPI snapshots exist, and validation wiring is present.
+
+Validation: `scripts/validate_documentation.py` passes, `scripts/export_openapi.py --check` passes, focused production-audit tests pass for the new guard, focused Ruff passes for the touched audit/export/test files, and `scripts/production_review_audit.py` reports `DOC-006` passing. The production audit still carries the unrelated existing `INF-008` compose wiring finding.
+
+Next active Phase 12 work: continue the remaining checklist items that need deeper reconciliation, especially architecture diagrams, MIGRATION coverage, public docstrings in `shared_runtime/` and `storage_*.py`, and any route/spec drift found by the OpenAPI check.
+
+---
+
 ## Latest Status - Audit Phase 10 Reliability Qualification Started (2026-06-26)
 
 Phase 10 starts from the live long-duration reliability tooling instead of archived baseline status. Initial scope is reliability evidence quality, readiness/recovery diagnostics, and the qualification script/runbook path.

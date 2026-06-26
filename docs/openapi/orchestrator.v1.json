@@ -401,6 +401,17 @@
       "MissionAttachment": {
         "description": "Refers to a file stored in object storage as mission context.",
         "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
           "content_type": {
             "title": "Content Type",
             "type": "string"
@@ -417,6 +428,17 @@
           "filename": {
             "title": "Filename",
             "type": "string"
+          },
+          "object_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Key"
           },
           "purpose": {
             "anyOf": [
@@ -549,7 +571,7 @@
         "type": "object"
       },
       "MissionClarifyRequest": {
-        "description": "Operator-supplied clarification that resolves a CLARIFYING-state mission.\n\n``clarification`` is stored in ``metadata[\"pm_clarification\"]`` and the\nmission is transitioned back to PM_INTAKE so the PM Agent can re-process\nthe intent with the additional context.",
+        "description": "Operator-supplied clarification that resolves a CLARIFYING-state mission.\n\n``clarification`` is stored in ``metadata[\"pm_clarification\"]`` and the\nmission is re-queued so the PM Agent can re-process the intent with the\nadditional context.",
         "properties": {
           "clarification": {
             "maxLength": 2000,
@@ -960,7 +982,8 @@
           "scope": {
             "enum": [
               "builder",
-              "repo"
+              "repo",
+              "delivery"
             ],
             "title": "Scope",
             "type": "string"
@@ -3568,7 +3591,7 @@
     },
     "/missions/{mission_id}/clarify": {
       "post": {
-        "description": "Supply operator clarification to a mission blocked in CLARIFYING state.\n\nStores the clarification text in ``metadata[\"pm_clarification\"]`` and\ntransitions the mission back to PM_INTAKE so the PM Agent re-processes\nthe intent with the additional context.  Only valid when the current\nstate is CLARIFYING; returns HTTP 409 otherwise.",
+        "description": "Supply operator clarification to a mission blocked in CLARIFYING state.\n\nStores the clarification text in ``metadata[\"pm_clarification\"]`` and\nre-queues the mission so the PM Agent re-processes the intent with the\nadditional context. Only valid when the current state is CLARIFYING;\nreturns HTTP 409 otherwise.",
         "operationId": "clarify_mission_missions__mission_id__clarify_post",
         "parameters": [
           {
@@ -3715,6 +3738,22 @@
             "schema": {
               "title": "Mission Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
             }
           }
         ],
@@ -3884,6 +3923,73 @@
           }
         },
         "summary": "Readyz"
+      }
+    },
+    "/v1/maintenance/prune-audit": {
+      "post": {
+        "description": "Delete audit rows older than the retention window.\n\nInvokes the SECURITY DEFINER ``prune_audit_tables()`` SQL function so it keeps\nworking after DELETE is revoked from the application role (immutable audit).\n``retention_days`` overrides the configured AUDIT_RETENTION_DAYS for this run.",
+        "operationId": "prune_audit_v1_maintenance_prune_audit_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "retention_days",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 3650,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Retention Days"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Prune Audit V1 Maintenance Prune Audit Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prune Audit"
       }
     }
   }

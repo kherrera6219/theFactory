@@ -14,6 +14,7 @@ A change is done only when every applicable item below is satisfied for the modi
 - [ ] `make test` passes with no failures and no coverage regressions
 - [ ] `make test-ui` passes (TypeScript lint + Vitest)
 - [ ] `make test-ui-e2e` passes (Playwright), or the waiver is recorded below
+- [ ] `make validate` passes when the change touches docs, schemas, APIs, runtime, or release-sensitive paths
 - [ ] New behavior is covered by tests
 - [ ] No new `pytest.mark.skip` or `pytest.mark.xfail` is added without a linked issue
 - [ ] Test names describe what they verify, not how they verify it
@@ -24,6 +25,7 @@ A change is done only when every applicable item below is satisfied for the modi
 - [ ] `AGENTS.md` is updated if runtime model, topology, lifecycle, or architecture changed
 - [ ] Inline docstrings/comments match the current code path
 - [ ] No new contradiction is introduced between docs and code
+- [ ] OpenAPI snapshots are regenerated or `python scripts/export_openapi.py --check` passes when routes or schemas change
 
 ## 3. Extractor Changes
 

@@ -26,6 +26,20 @@ Phase 11 active work is complete for this pass. Phase 12 is next; Phase 8 still 
 
 ---
 
+## Work Started in This Session (2026-06-26 - Audit Phase 12 Documentation Drift)
+
+Phase 12 started from the active `AUDIT_PLAN.md` documentation-drift checklist. Do not use archived roadmap Phase 12 builder/repository-intake text as the active scope.
+
+Initial validation confirmed `scripts/validate_documentation.py` passes against the current source docs: 77 files checked for metadata and 119 files checked for links.
+
+First Phase 12 fix adds validation wiring. `make validate` now runs `python scripts/validate_documentation.py` and `python scripts/export_openapi.py --check` before schema/catalog/test gates. `scripts/export_openapi.py` still regenerates snapshots by default and now supports non-mutating `--check` mode for CI/pre-merge drift checks. The new check found stale orchestrator OpenAPI drift, and `docs/openapi/orchestrator.v1.json` was regenerated from the live orchestrator app.
+
+Second Phase 12 fix adds production-audit coverage through `DOC-006`, which verifies current top-level docs, the `AGENTS.md` validation timestamp, the Phase 12 changelog entry, Codex standards, API OpenAPI regeneration/check notes, committed OpenAPI snapshots, and validation wiring.
+
+Validation completed: `python scripts/validate_documentation.py` passes, `python scripts/export_openapi.py --check` passes, focused production-audit tests pass, focused Ruff passes for the touched audit/export/test files, and `python scripts/production_review_audit.py` reports `DOC-006` passing. The production audit still carries the unrelated existing `INF-008` compose wiring finding. Continue Phase 12 with architecture diagram reconciliation, MIGRATION coverage, and public docstrings in `shared_runtime/` and `storage_*.py`.
+
+---
+
 ## Work Started in This Session (2026-06-26 - Audit Phase 10 reliability qualification)
 
 Phase 10 is now active after completing the tracked Phase 9 security-audit items. Use the live reliability qualification tooling as the source of truth; archived Phase 10 roadmap text is baseline context only.
