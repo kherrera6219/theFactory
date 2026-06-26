@@ -311,6 +311,35 @@ jobs:
         run: npm run test:e2e
 """.strip(),
     )
+    _write(
+        tmp_path / "apps" / "mission-control" / "playwright.config.ts",
+        """
+export default defineConfig({
+  testDir: "./e2e",
+  testIgnore: ["**/electron.spec.ts"],
+  reporter: "list",
+  use: {
+    trace: "on-first-retry",
+  },
+});
+""".strip(),
+    )
+    for spec in (
+        "mission-control.spec.ts",
+        "mission-control-extended.spec.ts",
+        "mission-build-new-complete.spec.ts",
+        "mission-cost-panel.spec.ts",
+        "mission-reduce-deps.spec.ts",
+        "mission-runtime-qc.spec.ts",
+    ):
+        _write(tmp_path / "apps" / "mission-control" / "e2e" / spec, "test.skip();")
+    _write(
+        tmp_path / ".gitignore",
+        """
+apps/mission-control/playwright-report/
+apps/mission-control/test-results/
+""".strip(),
+    )
     monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
     result = audit.check_mission_control_e2e_controls()
     assert result.passed is True
@@ -319,10 +348,12 @@ jobs:
 def test_check_mission_control_e2e_controls_fails_when_missing(tmp_path, monkeypatch) -> None:
     _write(tmp_path / "apps" / "mission-control" / "package.json", '{"scripts":{"test":"vitest"}}')
     _write(tmp_path / ".github" / "workflows" / "ci.yml", "name: CI")
+    _write(tmp_path / ".gitignore", "")
     monkeypatch.setattr(audit, "REPO_ROOT", tmp_path)
     result = audit.check_mission_control_e2e_controls()
     assert result.passed is False
     assert "e2e" in result.notes
+    assert "playwright-report" in result.notes
 
 
 def test_check_tracing_and_pager_controls_passes(tmp_path, monkeypatch) -> None:
