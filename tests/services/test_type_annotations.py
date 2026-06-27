@@ -89,3 +89,15 @@ class TestMissionEventType:
     def test_mission_completion_blocked_is_valid(self):
         event = _make_event("MISSION_COMPLETION_BLOCKED")
         assert event.event_type == "MISSION_COMPLETION_BLOCKED"
+
+    @pytest.mark.parametrize(
+        "event_type",
+        [
+            "MISSION_RUNTIME_QC_SKIPPED",
+            "MISSION_RUNTIME_QC_BLOCKED",
+            "MISSION_RUNTIME_QC_COMPLETE",
+        ],
+    )
+    def test_runtime_qc_events_are_valid(self, event_type: str):
+        event = _make_event(event_type)
+        assert event.event_type == event_type

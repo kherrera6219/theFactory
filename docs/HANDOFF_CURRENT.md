@@ -1,12 +1,46 @@
 # Current Handoff
 
 Document version: 2026.06.21-a
-Last updated: 2026-06-26
+Last updated: 2026-06-27
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 Use this file, `docs/CURRENT_TODO.md`, and `docs/IMPLEMENTATION_STATUS.md`
 before consulting archived plans.
+
+---
+
+## Work Completed in This Session (2026-06-27 - Audit Phase 13 Backend Smoke)
+
+Phase 13 backend/API smoke is complete for this pass. The local Docker stack was
+running; the orchestrator service was rebuilt/restarted after the schema fix so
+live endpoints used current code.
+
+Added `scripts/phase13_smoke.py` and `make phase13-smoke`. The smoke script
+probes gateway/orchestrator readiness, creates a minimal Python mission, polls
+mission status with the local `INTERNAL_SERVICE_API_KEY`, validates mission event
+and chain-trace evidence, fetches build artifacts, retrieves artifact detail, and
+checks generated Python with `ast.parse()`. It writes the latest JSON evidence to
+`docs/evidence/phase13_smoke_latest.json`.
+
+The first live run created
+`mission-0fc4a604-c866-4679-b4f4-ac690d1809e4`, completed the mission, and
+produced a valid Python artifact, but `/events` and `/chain-trace` failed because
+`MissionEvent` rejected persisted `MISSION_RUNTIME_QC_SKIPPED`. Fixed the
+orchestrator event literal drift by adding `MISSION_RUNTIME_QC_SKIPPED` and
+`MISSION_RUNTIME_QC_BLOCKED` to `services/orchestrator/orchestrator/models.py`
+with regression coverage in `tests/services/test_type_annotations.py`.
+
+Validation completed: focused Phase 13/test-type pytest passes (22 tests),
+focused Ruff passes, the rebuilt orchestrator returns 200 for the previous
+mission's event and chain-trace endpoints, and a fresh smoke run passed for
+`mission-e86c99b9-6cc0-4f31-967b-4e192b964a37` with final state `COMPLETE`, one
+build artifact, required chain events, and valid Python artifact syntax.
+
+Remaining broader audit work: Mission Control UI smoke, failure injection,
+provider fallback, full `make validate`, and the Phase 8 `mission_flow_v2/`
+strict coverage carry-forward remain outside this backend/API smoke slice unless
+closed in the next pass.
 
 ---
 

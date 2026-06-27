@@ -1,13 +1,48 @@
 # Current TODO
 
 Document version: 2026.06.21-a
-Last updated: 2026-06-26
+Last updated: 2026-06-27
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 This is the active TODO list for theFactory. Superseded sprint plans and
 historical backlogs live under `docs/archive/` and should not be treated as
 current work.
+
+---
+
+## Latest Status - Audit Phase 13 Backend Smoke Completed (2026-06-27)
+
+Phase 13 started from the active `AUDIT_PLAN.md` end-to-end smoke checklist and
+the running local Docker stack. This pass covers the backend/API smoke path:
+service readiness probes, mission submission through the API gateway,
+authenticated mission polling, event and chain-trace validation, build-artifact
+retrieval, and Python syntax validation for the generated artifact.
+
+First Phase 13 fix: `scripts/phase13_smoke.py` now automates the backend smoke
+path and writes self-contained evidence to
+`docs/evidence/phase13_smoke_latest.json`. `make phase13-smoke` runs the same
+script for local operators.
+
+Second Phase 13 fix: the first live run exposed event-model drift. The
+orchestrator persisted `MISSION_RUNTIME_QC_SKIPPED`, but `MissionEvent` did not
+accept that event type, causing `/events` and `/chain-trace` to return 500/502.
+`services/orchestrator/orchestrator/models.py` now includes
+`MISSION_RUNTIME_QC_SKIPPED` and `MISSION_RUNTIME_QC_BLOCKED`, with regression
+coverage in `tests/services/test_type_annotations.py`.
+
+Validation: the orchestrator image was rebuilt and restarted, the previous
+failed mission's `/events` and `/chain-trace` endpoints returned 200, and the
+fresh Phase 13 smoke passed for mission
+`mission-e86c99b9-6cc0-4f31-967b-4e192b964a37`. The mission reached `COMPLETE`,
+observed `QUEUED -> FETCH -> SPECIALIST_ASSIGNED -> GATING -> FUSION ->
+VERIFIED -> COMPLETE`, produced one build artifact, and the generated Python
+artifact parsed successfully.
+
+Open follow-up: the broader audit Definition of Done still needs explicit
+Mission Control UI smoke, failure-injection, provider-fallback, full `make
+validate`, and the Phase 8 `mission_flow_v2/` strict coverage carry-forward
+unless those are fixed or intentionally deferred.
 
 ---
 

@@ -1,7 +1,7 @@
 # Implementation Status
 
 Document version: 2026.06.21-a
-Last updated: 2026-06-26
+Last updated: 2026-06-27
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -10,6 +10,33 @@ source of truth for shipped defaults, active runtime behavior, current qualifica
 status, and known follow-up work. Historical phase plans, ADRs, and completion
 checklists remain useful records but some no longer describe the current default
 runtime exactly. When they conflict with this document, this document wins.
+
+---
+
+### Audit Phase 13 backend smoke completed (2026-06-27)
+
+Latest status: the backend/API Phase 13 smoke path now has committed automation
+and current evidence. `scripts/phase13_smoke.py` validates gateway/orchestrator
+readiness, mission creation, authenticated status polling, event/chain-trace
+coverage, build-artifact retrieval, and generated Python syntax. `make
+phase13-smoke` runs the same check.
+
+The first live run exposed a real event-reader bug: persisted
+`MISSION_RUNTIME_QC_SKIPPED` rows were rejected by the `MissionEvent` literal,
+breaking mission `/events` and `/chain-trace` readers. The orchestrator model now
+accepts `MISSION_RUNTIME_QC_SKIPPED` and `MISSION_RUNTIME_QC_BLOCKED`, and
+regression coverage verifies all runtime-QC event variants.
+
+Validation: focused pytest passes for the Phase 13 smoke helpers and event type
+regressions, focused Ruff passes, the orchestrator image was rebuilt/restarted,
+the previously failing mission event/chain-trace endpoints returned 200, and the
+fresh Phase 13 smoke passed for
+`mission-e86c99b9-6cc0-4f31-967b-4e192b964a37`. Evidence is committed at
+`docs/evidence/phase13_smoke_latest.json`.
+
+Remaining broader audit work: Mission Control UI smoke, failure injection,
+provider fallback, full `make validate`, and the Phase 8 `mission_flow_v2/`
+strict coverage carry-forward remain tracked follow-ups.
 
 ---
 

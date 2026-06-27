@@ -6,6 +6,26 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Audit Phase 13 End-to-End Smoke (2026-06-27)
+
+#### Fixed
+- Added `MISSION_RUNTIME_QC_SKIPPED` and `MISSION_RUNTIME_QC_BLOCKED` to the
+  orchestrator `MissionEvent` type so persisted runtime-QC lifecycle events do
+  not crash mission event and chain-trace readers.
+
+#### Added
+- Added `scripts/phase13_smoke.py` and `make phase13-smoke` for the backend
+  Phase 13 smoke path: readiness probes, mission creation, authenticated mission
+  polling, event/chain-trace validation, build-artifact retrieval, and Python
+  syntax validation with `ast.parse()`.
+- Committed the latest Phase 13 smoke evidence at
+  `docs/evidence/phase13_smoke_latest.json`.
+
+#### Validation
+- `python scripts\phase13_smoke.py --timeout-seconds 240 --poll-seconds 5 --output-file docs\evidence\phase13_smoke_latest.json`
+- `python -m pytest -o addopts= tests\scripts\test_phase13_smoke.py tests\services\test_type_annotations.py --basetemp .pytest-tmp`
+- `python -m ruff check scripts\phase13_smoke.py tests\scripts\test_phase13_smoke.py services\orchestrator\orchestrator\models.py tests\services\test_type_annotations.py`
+
 ### Audit Phase 12 Documentation Drift (2026-06-26)
 
 #### Changed
