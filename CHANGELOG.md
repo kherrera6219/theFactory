@@ -15,6 +15,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Kept Phase 13 backend/API smoke as the current proof point and moved the
   remaining UI, failure-injection, provider-fallback, `make validate`,
   `INF-008`, and Phase 8 coverage items into explicit current gaps.
+- Archived superseded phase, legacy, and duplicate enterprise documents under `docs/archive/2026-06-27/` and removed them from the active docs index.
 
 ### Documentation Current-State Cleanup (2026-06-27)
 
