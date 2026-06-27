@@ -1,7 +1,7 @@
 # Runtime Engine and Agent Base Class Reference
 
 Document version: 2026.06.13
-Last updated: 2026-06-13
+Last updated: 2026-06-27
 Audience: Developers and operators
 
 **Version:** 2026.06.11  

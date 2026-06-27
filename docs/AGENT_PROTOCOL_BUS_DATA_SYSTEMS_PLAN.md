@@ -1,7 +1,7 @@
 # Agent Protocol Bus and Data Systems Plan
 
 Document version: 2026.05.30  
-Last updated: 2026-06-13
+Last updated: 2026-06-27
 Status: Reference  
 Audience: Operators, developers, maintainers, and auditors
 

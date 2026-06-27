@@ -6,6 +6,16 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Active Docs Reconciliation (2026-06-27)
+
+#### Changed
+- Rewrote the active current-state docs (`CURRENT_TODO.md`,
+  `HANDOFF_CURRENT.md`, and `IMPLEMENTATION_STATUS.md`) so older phase notes
+  no longer appear as active priorities.
+- Kept Phase 13 backend/API smoke as the current proof point and moved the
+  remaining UI, failure-injection, provider-fallback, `make validate`,
+  `INF-008`, and Phase 8 coverage items into explicit current gaps.
+
 ### Documentation Current-State Cleanup (2026-06-27)
 
 #### Changed

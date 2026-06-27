@@ -1,7 +1,7 @@
 # Storage Layer Reference
 
 Document version: 2026.06.13
-Last updated: 2026-06-13
+Last updated: 2026-06-27
 Status: Canonical
 Audience: Developers and operators
 

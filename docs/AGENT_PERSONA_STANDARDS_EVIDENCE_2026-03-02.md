@@ -1,7 +1,7 @@
 # Agent Persona Standards Evidence
 
 Document version: 2026.03.29  
-Last updated: 2026-06-13
+Last updated: 2026-06-27
 Status: Reference  
 Audience: Operators, developers, maintainers, and auditors
 
