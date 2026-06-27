@@ -22,6 +22,12 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Added public-docstring validation for `shared_runtime/*.py` and
   `services/orchestrator/orchestrator/storage_*.py`, then documented the public
   storage/shared-runtime functions covered by that gate.
+- Reconciled architecture diagrams to the live `MISSION_FLOW_V2_ENABLED=true`
+  default and the current 41-agent registry, including AGENT-36-GO,
+  AGENT-37-HASKELL, AGENT-38-OCAML, and AGENT-39 through AGENT-41 support
+  capabilities.
+- Added current metadata, validation commands, and active breaking-change
+  coverage to `MIGRATION.md`.
 
 #### Validation
 - `python scripts/validate_documentation.py`

@@ -21,17 +21,19 @@ Validation: Mission Control TypeScript lint passes, Vitest passes (16 files / 74
 
 ---
 
-### Audit Phase 12 documentation drift started (2026-06-26)
+### Audit Phase 12 documentation drift completed (2026-06-26)
 
-Latest status: Phase 12 is active from the current `AUDIT_PLAN.md` documentation-drift checklist. The first slice adds enforceable drift controls instead of relying on manual review only. `make validate` now runs current-source documentation validation and non-mutating OpenAPI snapshot checking. `scripts/export_openapi.py` supports `--check` to fail when committed specs differ from live FastAPI app schemas, while preserving the existing regeneration behavior without `--check`. The first check found stale orchestrator OpenAPI drift, and `docs/openapi/orchestrator.v1.json` was regenerated from the live orchestrator app.
+Latest status: Phase 12 is complete for this pass from the current `AUDIT_PLAN.md` documentation-drift checklist. The first slice adds enforceable drift controls instead of relying on manual review only. `make validate` now runs current-source documentation validation and non-mutating OpenAPI snapshot checking. `scripts/export_openapi.py` supports `--check` to fail when committed specs differ from live FastAPI app schemas, while preserving the existing regeneration behavior without `--check`. The first check found stale orchestrator OpenAPI drift, and `docs/openapi/orchestrator.v1.json` was regenerated from the live orchestrator app.
 
 Production audit check `DOC-006` now verifies current Phase 12 documentation controls: top-level docs, current `AGENTS.md` validation timestamp, Phase 12 changelog entry, Codex DoD/review standards, API OpenAPI check notes, committed OpenAPI snapshots, and validation wiring.
 
 The public-docstring checklist item is now enforced by `scripts/validate_documentation.py` for `shared_runtime/*.py` and orchestrator `storage_*.py`; missing public boundary docstrings were added across those files.
 
-Validation: `scripts/validate_documentation.py` passes across 77 metadata-checked docs, 119 link-checked docs, and 17 docstring-checked Python files; `scripts/export_openapi.py --check` passes; focused production-audit tests pass; focused Ruff passes for the touched audit/export/test files; and `scripts/production_review_audit.py` reports `DOC-006` passing while retaining the unrelated existing `INF-008` compose wiring finding.
+Architecture diagram and migration-guide drift are now enforced by `scripts/validate_documentation.py`. The canonical diagrams were reconciled to `MISSION_FLOW_V2_ENABLED=true` as the default runtime baseline and the live 41-agent registry, including AGENT-36-GO, AGENT-37-HASKELL, AGENT-38-OCAML, and AGENT-39 through AGENT-41. `MIGRATION.md` now carries current metadata, validation commands, and an active breaking-change coverage table.
 
-Remaining Phase 12 work: architecture diagram reconciliation and MIGRATION coverage.
+Validation: `scripts/validate_documentation.py` passes across 77 metadata-checked docs, 119 link-checked docs, 17 docstring-checked Python files, one migration guide, and three architecture diagram sets; `scripts/export_openapi.py --check` passes; focused production-audit tests pass; focused Ruff passes for the touched validation/audit files and docs-touched Python paths; and `scripts/production_review_audit.py` reports `DOC-006` passing while retaining the unrelated existing `INF-008` compose wiring finding.
+
+Phase 12 active work is complete for this pass. Phase 13 is next for end-to-end smoke testing.
 
 ---
 

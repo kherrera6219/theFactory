@@ -324,6 +324,10 @@ def check_documentation_drift_controls() -> AuditResult:
         or "validate_public_docstrings" not in docs_validator
     ):
         missing_items.append("documentation validator does not enforce public docstrings")
+    if "validate_migration_guide" not in docs_validator:
+        missing_items.append("documentation validator does not enforce MIGRATION.md coverage")
+    if "validate_architecture_diagram_drift" not in docs_validator:
+        missing_items.append("documentation validator does not enforce architecture diagram drift")
 
     passed = not missing_items
     return _result(
@@ -336,7 +340,8 @@ def check_documentation_drift_controls() -> AuditResult:
             if missing_items
             else (
                 "docs validation, public docstrings, OpenAPI drift check, "
-                "Codex standards, and current audit notes present"
+                "architecture diagrams, migration guide, Codex standards, "
+                "and current audit notes present"
             )
         ),
     )

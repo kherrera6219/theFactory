@@ -378,7 +378,12 @@ validate:
     )
     _write(
         tmp_path / "scripts" / "validate_documentation.py",
-        "def public_docstring_targets(): pass\ndef validate_public_docstrings(path): pass\n",
+        """
+def public_docstring_targets(): pass
+def validate_public_docstrings(path): pass
+def validate_migration_guide(): pass
+def validate_architecture_diagram_drift(): pass
+""".strip(),
     )
     _write(tmp_path / "scripts" / "export_openapi.py", "print('ok')\n")
     _write(tmp_path / "docs" / "openapi" / "api-gateway.v1.json", "{}\n")
@@ -398,6 +403,8 @@ def test_check_documentation_drift_controls_fails_when_not_enforced(tmp_path, mo
     assert "documentation validation" in result.notes
     assert "OpenAPI drift" in result.notes
     assert "public docstrings" in result.notes
+    assert "MIGRATION.md" in result.notes
+    assert "architecture diagram" in result.notes
 
 
 def test_check_tracing_and_pager_controls_passes(tmp_path, monkeypatch) -> None:

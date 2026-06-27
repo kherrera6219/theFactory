@@ -1,79 +1,73 @@
 flowchart TD
-    CEO["AGENT-01-CEO\n(Strategic Orchestration)"]
-    PM["AGENT-02-PM / Grand Manager\n(Requirements, Intake & Delivery)"]
+    PM["AGENT-01-PM\nProgram manager / mission intake"]
+    CEO["AGENT-02-CEO\nCross-pod orchestration"]
 
-    subgraph SupportRing["Interface & Support Ring"]
+    subgraph SupportRing["Support Ring"]
         Broker["AGENT-03-BROKER"]
-        Deploy["AGENT-04-DEPLOY"]
+        Accountant["AGENT-04-ACCOUNTANT"]
         Sec["AGENT-05-SECURITY"]
-        Comp["AGENT-06-COMPLIANCE"]
+        IS["AGENT-06-IS"]
         VC["AGENT-07-VC"]
-        IS["AGENT-08-IS"]
+        Compliance["AGENT-08-COMPLIANCE"]
         HW["AGENT-09-HW"]
         Tester["AGENT-10-TESTER"]
-    end
-
-    subgraph PodA["Pod A — Dynamic (AGENT-11 Mgr)"]
-        A_Aud["AGENT-13-AUDIT"]
-        A_Py["AGENT-12-PYTHON"]
-        A_JS["AGENT-14-JS"]
-        A_TS["AGENT-15-TS"]
-        A_Ruby["AGENT-16-RUBY"]
-        A_PHP["AGENT-32-PHP"]
-        A_Lua["AGENT-33-LUA"]
-    end
-
-    subgraph PodB["Pod B — Systems (AGENT-17 Mgr)"]
-        B_Aud["AGENT-19-AUDIT"]
-        B_C["AGENT-18-C"]
-        B_Cpp["AGENT-20-CPP"]
-        B_Rust["AGENT-21-RUST"]
-        B_Go["AGENT-22-GO"]
-        B_Zig["AGENT-34-ZIG"]
-        B_Swift["AGENT-35-SWIFT"]
-    end
-
-    subgraph PodC["Pod C — Enterprise (AGENT-23 Mgr)"]
-        C_Aud["AGENT-25-AUDIT"]
-        C_Java["AGENT-24-JAVA"]
-        C_Cs["AGENT-26-CSHARP"]
-        C_Scala["AGENT-27-SCALA"]
-        C_Kotlin["AGENT-28-KOTLIN"]
-    end
-
-    subgraph PodD["Pod D — Mathematical (AGENT-29 Mgr)"]
-        D_Aud["AGENT-31-AUDIT"]
-        D_R["AGENT-30-R"]
-        D_Matlab["AGENT-00-MATLAB"]
-        D_Julia["AGENT-00-JULIA"]
-        D_Math["AGENT-00-MATHEMATICA"]
-        D_Hask["AGENT-00-HASKELL"]
-        D_Ocaml["AGENT-00-OCAML"]
-    end
-
-    subgraph Specialized["Specialized Intelligence Slots"]
-        Cost["AGENT-36-COSTACCT"]
-        Sbom["AGENT-37-SBOMGEN"]
-        Val["AGENT-38-CHAINVAL"]
+        Deploy["AGENT-11-DEPLOY"]
         Depabs["AGENT-39-DEPABS"]
         Testdata["AGENT-40-TESTDATA"]
         Rqca["AGENT-41-RQCA"]
     end
 
-    CEO -->|Directs| PM
-    PM -->|Validates| SupportRing
-    CEO -->|Delegates Tasks| PodA & PodB & PodC & PodD
-    
-    PodA --> A_Aud
-    A_Aud --> A_Py & A_JS & A_TS & A_Ruby & A_PHP & A_Lua
-    
-    PodB --> B_Aud
-    B_Aud --> B_C & B_Cpp & B_Rust & B_Go & B_Zig & B_Swift
+    subgraph PodA["Pod A — Dynamic"]
+        A_Mgr["AGENT-12-PODA-MGR"]
+        A_Aud["AGENT-13-PODA-AUDIT"]
+        A_Py["AGENT-14-PYTHON"]
+        A_JS["AGENT-15-JAVASCRIPT"]
+        A_Ruby["AGENT-16-RUBY"]
+        A_PHP["AGENT-17-PHP"]
+    end
 
-    PodC --> C_Aud
-    C_Aud --> C_Java & C_Cs & C_Scala & C_Kotlin
+    subgraph PodB["Pod B — Systems"]
+        B_Mgr["AGENT-18-PODB-MGR"]
+        B_Aud["AGENT-19-PODB-AUDIT"]
+        B_C["AGENT-20-C"]
+        B_Cpp["AGENT-21-CPP"]
+        B_Rust["AGENT-22-RUST"]
+        B_Zig["AGENT-23-ZIG"]
+        B_Go["AGENT-36-GO"]
+    end
 
-    PodD --> D_Aud
-    D_Aud --> D_R & D_Matlab & D_Julia & D_Math & D_Hask & D_Ocaml
+    subgraph PodC["Pod C — Enterprise"]
+        C_Mgr["AGENT-24-PODC-MGR"]
+        C_Aud["AGENT-25-PODC-AUDIT"]
+        C_Java["AGENT-26-JAVA"]
+        C_Cs["AGENT-27-CSHARP"]
+        C_Scala["AGENT-28-SCALA"]
+        C_Kotlin["AGENT-29-KOTLIN"]
+    end
 
-    PM -->|Invokes Audits/QC| Specialized
+    subgraph PodD["Pod D — Mathematical"]
+        D_Mgr["AGENT-30-PODD-MGR"]
+        D_Aud["AGENT-31-PODD-AUDIT"]
+        D_Matlab["AGENT-32-MATLAB"]
+        D_R["AGENT-33-R"]
+        D_Julia["AGENT-34-JULIA"]
+        D_Math["AGENT-35-MATHEMATICA"]
+        D_Hask["AGENT-37-HASKELL"]
+        D_Ocaml["AGENT-38-OCAML"]
+    end
+
+    PM -->|Normalizes missions| CEO
+    SupportRing -. advisory / policy / QC .-> CEO
+    CEO -->|Delegates work| A_Mgr & B_Mgr & C_Mgr & D_Mgr
+
+    A_Mgr --> A_Aud
+    A_Mgr --> A_Py & A_JS & A_Ruby & A_PHP
+
+    B_Mgr --> B_Aud
+    B_Mgr --> B_C & B_Cpp & B_Rust & B_Zig & B_Go
+
+    C_Mgr --> C_Aud
+    C_Mgr --> C_Java & C_Cs & C_Scala & C_Kotlin
+
+    D_Mgr --> D_Aud
+    D_Mgr --> D_Matlab & D_R & D_Julia & D_Math & D_Hask & D_Ocaml

@@ -1,7 +1,7 @@
 # theFactory — Architectural Diagrams Directory
 
-Document version: 2026.06.13
-Last updated: 2026-06-13
+Document version: 2026.06.26
+Last updated: 2026-06-26
 Status: Canonical
 Audience: Developers and operators
 
@@ -29,7 +29,7 @@ This directory contains standalone `.mermaid` source files for each viewpoint, a
 7. **[07_agent_hierarchy_delegation.mermaid](07_agent_hierarchy_delegation.mermaid)**: The cognitive topology of the 41-agent hierarchical tiers.
 8. **[08_data_information_flow.mermaid](08_data_information_flow.mermaid)**: Storage plane synchronization including relational checkpoints, vector knowledge indexes, graph concept mappings, and S3-offloaded storage.
 9. **[09_security_trust_boundaries.mermaid](09_security_trust_boundaries.mermaid)**: Highlighting Mutual TLS links, auth zones, Windows DPAPI keystore, and LLM safety filters.
-10. **[10_deployment_infrastructure.mermaid](10_deployment_infrastructure.mermaid)**: Standard docker-compose layout, service profiles (condensed vs. dedicated), and environment overlays.
+10. **[10_deployment_infrastructure.mermaid](10_deployment_infrastructure.mermaid)**: Standard docker-compose layout, service profiles (condensed vs. full-dedicated), and environment overlays.
 
 ---
 
