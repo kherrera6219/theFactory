@@ -2,7 +2,7 @@
 ## theFactory / Holy Grail Refinery
 
 Document version: 2026.06.13
-Last updated: 2026-06-13
+Last updated: 2026-06-27
 Status: Canonical
 Audience: Operators and developers
 

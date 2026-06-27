@@ -661,7 +661,7 @@ make test
 # Lint
 make lint
 
-# Run repo audit checks (current baseline passes 22/22)
+# Run repo audit checks (current baseline: 22/23; INF-008 open)
 make audit
 
 # Debug sweep
@@ -741,7 +741,7 @@ npm run test:e2e   # Playwright critical-path E2E
 |------|--------|-------------|
 | Global Python coverage | ≥ 80% | CI + `make test` |
 | Critical module coverage | Strict per-file floors (`80%`–`100%`); `runtime.py` floor is `80%` (currently at 100% line / 99% branch) | `scripts/check_coverage_thresholds.py` |
-| Production audit | 22/22 checks | `scripts/production_review_audit.py` |
+| Production audit | 22/23 checks pass; `INF-008` open | `scripts/production_review_audit.py` |
 | Frontend lint | 0 errors | CI |
 | Frontend unit tests | currently passing | `apps/mission-control` Vitest |
 | Frontend E2E | currently passing | Playwright critical-path regression suite |
