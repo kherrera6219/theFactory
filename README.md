@@ -1004,9 +1004,9 @@ theFactory/
 
 **theFactory is still in development.** The repository has a large implemented
 baseline and many checks are passing, but the public README should not be read as
-a production-readiness claim. The current validated backend/API proof is the
-Phase 13 smoke run for mission
-`mission-e86c99b9-6cc0-4f31-967b-4e192b964a37`, which reached `COMPLETE`, exposed
+a production-readiness claim. The current validated runtime proof is the final
+full-dedicated Docker rebuild on 2026-06-27 followed by Phase 13 smoke mission
+`mission-b95ea912-94f8-4be8-8f7e-3cdce61cb7a7`, which reached `COMPLETE`, exposed
 event and chain-trace evidence, and produced a valid Python build artifact.
 
 | Domain | Current state |

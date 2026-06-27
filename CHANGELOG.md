@@ -6,6 +6,23 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Final Audit Rebuild Lock-In (2026-06-27)
+
+#### Changed
+- Rebuilt the full dedicated-agent Docker stack after the Phase 13 smoke fix and
+  refreshed the active docs to make that rebuilt runtime the current status
+  baseline.
+- Updated `docs/evidence/phase13_smoke_latest.json` with the rebuilt-stack
+  smoke mission `mission-b95ea912-94f8-4be8-8f7e-3cdce61cb7a7`, which reached
+  `COMPLETE`, returned events and chain trace, retrieved one build artifact, and
+  passed Python artifact syntax validation.
+
+#### Validation
+- `docker compose --env-file .env -f deploy\docker-compose.yaml -f deploy\docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build ...`
+- API gateway `/readyz`, orchestrator `/readyz`, and Mission Control shell
+  checks passed after rebuild.
+- `python scripts\phase13_smoke.py --gateway-base-url http://127.0.0.1:8100 --orchestrator-base-url http://127.0.0.1:8101 --timeout-seconds 240 --poll-seconds 5 --output-file docs\evidence\phase13_smoke_latest.json`
+
 ### Active Docs Reconciliation (2026-06-27)
 
 #### Changed
