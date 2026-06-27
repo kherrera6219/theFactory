@@ -1,6 +1,6 @@
 # Implementation Status
 
-Document version: 2026.06.27-b
+Document version: 2026.06.27-c
 Last updated: 2026-06-27
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
@@ -34,9 +34,11 @@ The application currently includes:
 
 | Area | Current state |
 |---|---|
+| Runtime rebuild | Full dedicated-agent Docker stack rebuilt on 2026-06-27 |
+| Rebuild readiness | API gateway, orchestrator, and Mission Control readiness passed |
 | Backend/API mission path | Phase 13 smoke passed on 2026-06-27 |
 | Smoke evidence | `docs/evidence/phase13_smoke_latest.json` |
-| Passing smoke mission | `mission-e86c99b9-6cc0-4f31-967b-4e192b964a37` |
+| Passing smoke mission | `mission-b95ea912-94f8-4be8-8f7e-3cdce61cb7a7` |
 | Mission state | `COMPLETE` |
 | Chain trace | Required PM, CEO, pod-manager, and specialist events present |
 | Artifacts | One build artifact retrieved; generated Python parsed successfully |
@@ -88,7 +90,8 @@ The application currently includes:
 ### Phase 13 Backend/API Smoke
 
 Completed. Added smoke automation, fixed runtime-QC event literal drift, rebuilt
-orchestrator, and committed passing evidence.
+the full dedicated-agent Docker stack, and committed passing evidence from the
+rebuilt runtime.
 
 ### Phase 12 Documentation Drift
 

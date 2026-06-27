@@ -1,6 +1,6 @@
 # Current Handoff
 
-Document version: 2026.06.27-b
+Document version: 2026.06.27-c
 Last updated: 2026-06-27
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -16,8 +16,9 @@ not override these current files.
 theFactory is an active local-first AI software factory application. It is not a
 production-ready release.
 
-The current validated backend/API proof is the Phase 13 smoke mission
-`mission-e86c99b9-6cc0-4f31-967b-4e192b964a37`, which reached `COMPLETE`,
+The current validated runtime proof is the final full-dedicated Docker rebuild
+on 2026-06-27 followed by Phase 13 smoke mission
+`mission-b95ea912-94f8-4be8-8f7e-3cdce61cb7a7`, which reached `COMPLETE`,
 returned mission events and chain trace, produced one build artifact, and passed
 Python syntax validation for that artifact.
 
@@ -39,7 +40,8 @@ remaining gaps.
 - Rebuilt/restarted orchestrator during validation.
 - Verified the original failed mission's `/events` and `/chain-trace`
   endpoints returned 200 after the fix.
-- Ran a fresh smoke mission that passed end to end.
+- Rebuilt the full dedicated-agent Docker stack and ran a fresh smoke mission
+  that passed end to end.
 
 ### Documentation Current-State Cleanup
 
@@ -54,10 +56,16 @@ remaining gaps.
 
 Passing checks from the latest work:
 
+- Full dedicated-agent Docker rebuild completed successfully.
+- API gateway `/readyz` returned ready with orchestrator and Redis healthy.
+- Orchestrator `/readyz` returned ready with Redis, Postgres, Qdrant, Milvus,
+  Neo4j, object storage, and protocol-bus dependencies healthy.
+- Mission Control returned the production shell at `http://127.0.0.1:3100`.
+- `python scripts\phase13_smoke.py --gateway-base-url http://127.0.0.1:8100 --orchestrator-base-url http://127.0.0.1:8101 --timeout-seconds 240 --poll-seconds 5 --output-file docs\evidence\phase13_smoke_latest.json`
 - `C:\Users\kevin\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\validate_documentation.py`
 - `git diff --check`
 
-Phase 13 validation already completed in the prior slice:
+Phase 13 validation also completed in the prior slice:
 
 - `python scripts\phase13_smoke.py --timeout-seconds 240 --poll-seconds 5 --output-file docs\evidence\phase13_smoke_latest.json`
 - focused Phase 13 pytest and Ruff checks

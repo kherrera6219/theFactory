@@ -1,6 +1,6 @@
 # theFactory Docs
 
-Document version: 2026.06.27-a
+Document version: 2026.06.27-b
 Last updated: 2026-06-27
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
@@ -31,8 +31,11 @@ MinIO, and an observability stack.
 
 Current validated proof points:
 
-- Phase 13 backend/API smoke passed on 2026-06-27 with mission
-  `mission-e86c99b9-6cc0-4f31-967b-4e192b964a37`.
+- The full dedicated-agent Docker stack was rebuilt on 2026-06-27 after the
+  Phase 13 smoke fix, and gateway, orchestrator, and Mission Control readiness
+  checks passed.
+- Phase 13 backend/API smoke passed after that rebuild with mission
+  `mission-b95ea912-94f8-4be8-8f7e-3cdce61cb7a7`.
 - The smoke verified gateway/orchestrator readiness, mission creation,
   authenticated mission polling, event and chain-trace retrieval, build-artifact
   retrieval, and Python syntax validation for the generated artifact.

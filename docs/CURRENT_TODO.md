@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.06.27-b
+Document version: 2026.06.27-c
 Last updated: 2026-06-27
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -13,9 +13,11 @@ as current work.
 
 ## Current Status
 
-Phase 13 backend/API smoke is complete for this pass. The latest committed smoke
-evidence is `docs/evidence/phase13_smoke_latest.json` for mission
-`mission-e86c99b9-6cc0-4f31-967b-4e192b964a37`.
+Phase 13 backend/API smoke is complete for this pass. After the final
+full-dedicated Docker rebuild on 2026-06-27, gateway, orchestrator, and Mission
+Control readiness checks passed. The latest committed smoke evidence is
+`docs/evidence/phase13_smoke_latest.json` for mission
+`mission-b95ea912-94f8-4be8-8f7e-3cdce61cb7a7`.
 
 Validated in that smoke:
 
@@ -64,6 +66,8 @@ provider-fallback, and full validation coverage.
 - Rebuilt/restarted orchestrator and verified the previously failing
   `/events` and `/chain-trace` endpoints return 200.
 - Committed passing evidence at `docs/evidence/phase13_smoke_latest.json`.
+- Rebuilt the full dedicated-agent Docker stack one final time and reran the
+  smoke against the rebuilt stack.
 
 ### Phase 12 Documentation Drift
 
