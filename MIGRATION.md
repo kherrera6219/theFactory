@@ -1,5 +1,33 @@
 # Migration Guide
 
+Document version: 2026.06.26
+Last updated: 2026-06-26
+Status: Canonical
+Audience: Operators, integrators, developers, and maintainers
+
+This guide tracks breaking or externally visible changes that require an operator,
+integrator, or downstream automation update. Internal implementation-only changes
+remain in `CHANGELOG.md` unless they alter commands, routes, environment variables,
+storage contracts, deployment topology, or public API behavior.
+
+## Current migration coverage
+
+| Change | External action required | Status |
+|---|---:|---|
+| `semantic-bus` to `protocol-bus` rename | Yes | Documented below |
+
+## Validation
+
+Before completing documentation-drift work, run:
+
+```powershell
+python scripts/validate_documentation.py
+python scripts/export_openapi.py --check
+```
+
+`scripts/validate_documentation.py` verifies this migration guide has the current
+metadata and still documents the active breaking-change set.
+
 ## `semantic-bus` → `protocol-bus` rename (#190)
 
 The communications bus service was renamed from **semantic-bus** to **protocol-bus**

@@ -93,6 +93,77 @@ def validate_public_docstrings(path: Path) -> list[str]:
     return errors
 
 
+def validate_migration_guide() -> list[str]:
+    """Return migration-guide drift errors for Phase 12."""
+    path = REPO_ROOT / "MIGRATION.md"
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    required_tokens = [
+        "Document version:",
+        "Last updated: 2026-06-26",
+        "Status: Canonical",
+        "Current migration coverage",
+        "`semantic-bus`",
+        "`protocol-bus`",
+        "python scripts/validate_documentation.py",
+        "python scripts/export_openapi.py --check",
+    ]
+    return [f"MIGRATION.md missing `{token}`" for token in required_tokens if token not in text]
+
+
+def validate_architecture_diagram_drift() -> list[str]:
+    """Return architecture diagram drift errors against current runtime facts."""
+    checks = {
+        REPO_ROOT / "docs" / "ARCHITECTURE_DIAGRAMS.md": [
+            "Last updated: 2026-06-26",
+            "MISSION_FLOW_V2_ENABLED=true",
+            "AGENT-36-GO",
+            "AGENT-37-HASKELL",
+            "AGENT-38-OCAML",
+            "AGENT-41-RQCA",
+        ],
+        REPO_ROOT / "docs" / "diagrams" / "07_agent_hierarchy_delegation.mermaid": [
+            "AGENT-01-PM",
+            "AGENT-02-CEO",
+            "AGENT-36-GO",
+            "AGENT-37-HASKELL",
+            "AGENT-38-OCAML",
+            "AGENT-39-DEPABS",
+            "AGENT-40-TESTDATA",
+            "AGENT-41-RQCA",
+        ],
+        REPO_ROOT / "docs" / "diagrams" / "ENTERPRISE_ARCHITECTURE_DIAGRAMS.md": [
+            "AGENT-01-PM",
+            "AGENT-02-CEO",
+            "AGENT-36-GO",
+            "AGENT-37-HASKELL",
+            "AGENT-38-OCAML",
+            "AGENT-39-DEPABS",
+            "AGENT-40-TESTDATA",
+            "AGENT-41-RQCA",
+        ],
+    }
+    forbidden_tokens = [
+        "MISSION_FLOW_V2_ENABLED=false",
+        "AGENT-00-",
+        "AGENT-35-SWIFT",
+        "AGENT-36-COSTACCT",
+        "AGENT-37-SBOMGEN",
+        "AGENT-38-CHAINVAL",
+    ]
+
+    errors: list[str] = []
+    for path, required_tokens in checks.items():
+        text = path.read_text(encoding="utf-8") if path.exists() else ""
+        rel_path = path.relative_to(REPO_ROOT)
+        for token in required_tokens:
+            if token not in text:
+                errors.append(f"{rel_path}: missing current diagram token `{token}`")
+        for token in forbidden_tokens:
+            if token in text:
+                errors.append(f"{rel_path}: stale diagram token `{token}`")
+    return errors
+
+
 def main() -> int:
     failures: list[str] = []
 
@@ -112,6 +183,9 @@ def main() -> int:
         for error in validate_public_docstrings(path):
             failures.append(f"{path.relative_to(REPO_ROOT)}: {error}")
 
+    failures.extend(validate_migration_guide())
+    failures.extend(validate_architecture_diagram_drift())
+
     if failures:
         print("documentation validation failed:")
         for failure in failures:
@@ -122,6 +196,8 @@ def main() -> int:
     print(f"validated_metadata_files={len(current_source_docs())}")
     print(f"validated_link_files={len(markdown_files_for_link_check())}")
     print(f"validated_docstring_files={len(public_docstring_targets())}")
+    print("validated_migration_guide=1")
+    print("validated_architecture_diagram_sets=3")
     return 0
 
 

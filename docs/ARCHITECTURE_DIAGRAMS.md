@@ -1,7 +1,7 @@
 # Architecture Diagrams
 
-Document version: 2026.05.30  
-Last updated: 2026-05-30  
+Document version: 2026.06.26
+Last updated: 2026-06-26
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -195,10 +195,10 @@ sequenceDiagram
     GW->>Orch: Validate, dedupe, forward
     Orch->>PG: Persist mission and initial state
     Orch->>Redis: Publish intake and state events
-    alt Production baseline (MISSION_FLOW_V2_ENABLED=false)
-        Orch->>Redis: Emit canonical v1.1 lifecycle events
-    else Feature-flagged v2 path
+    alt Default Mission Flow v2 path (MISSION_FLOW_V2_ENABLED=true)
         Orch->>Redis: Emit PM / CEO / pod-manager / specialist-planned events
+    else Legacy compatibility path when v2 is disabled
+        Orch->>Redis: Emit canonical v1.1 lifecycle events
     end
     Orch->>Redis: Queue work on missions.pod.A/B/C/D
     Pod->>Orch: POST /internal/pod-assignment
@@ -240,13 +240,14 @@ flowchart TB
         A17["17 PHP"]
     end
 
-    subgraph PodB["Pod B Systems (6)"]
+    subgraph PodB["Pod B Systems (7)"]
         B18["18 PodB Manager"]
         B19["19 PodB Audit"]
         B20["20 C"]
         B21["21 C++"]
         B22["22 Rust"]
         B23["23 Zig"]
+        B36["AGENT-36-GO\nGo"]
     end
 
     subgraph PodC["Pod C Enterprise (6)"]
@@ -258,13 +259,21 @@ flowchart TB
         C29["29 Kotlin"]
     end
 
-    subgraph PodD["Pod D Mathematical (6)"]
+    subgraph PodD["Pod D Mathematical (8)"]
         D30["30 PodD Manager"]
         D31["31 PodD Audit"]
         D32["32 MATLAB"]
         D33["33 R"]
         D34["34 Julia"]
         D35["35 Mathematica"]
+        D37["AGENT-37-HASKELL\nHaskell"]
+        D38["AGENT-38-OCAML\nOCaml"]
+    end
+
+    subgraph Quality["Support Capability Expansion (3)"]
+        Q39["AGENT-39-DEPABS"]
+        Q40["AGENT-40-TESTDATA"]
+        Q41["AGENT-41-RQCA"]
     end
 
     PM --> CEO
@@ -295,6 +304,7 @@ flowchart TB
     B18 --> B21
     B18 --> B22
     B18 --> B23
+    B18 --> B36
 
     C24 --> C25
     C24 --> C26
@@ -307,6 +317,12 @@ flowchart TB
     D30 --> D33
     D30 --> D34
     D30 --> D35
+    D30 --> D37
+    D30 --> D38
+
+    CEO -. support work .-> Q39
+    CEO -. test data .-> Q40
+    CEO -. runtime QC .-> Q41
 ```
 
 ## Data and Knowledge Plane View
@@ -351,7 +367,7 @@ flowchart TB
     Monitoring["Monitoring stack\nPrometheus\nGrafana\nLoki\nPromtail\nAlertmanager"]
     Prod["Production overlay\ndeploy/docker-compose.prod.yaml\nstrict worker key mode\nTLS verification settings"]
     Dedicated["dedicated-agents profile\ndedicated pod-manager workers"]
-    FullDedicated["full-dedicated-agents overlay\nagent-runtime containers\ndedicated specialist workers\nMISSION_FLOW_V2_ENABLED=true"]
+    FullDedicated["full-dedicated-agents overlay\nagent-runtime containers\ndedicated specialist and capability workers\nMISSION_FLOW_V2_ENABLED=true"]
 
     Base --> Monitoring
     Base --> Prod
@@ -397,8 +413,8 @@ flowchart LR
 
 - Keep these diagrams aligned with `deploy/docker-compose*.yaml`, `services/orchestrator`, and the
   canonical docs in `README.md`, `ARCHITECTURE.md`, `OPERATIONS_RUNBOOK.md`, and `IMPLEMENTATION_STATUS.md`.
-- Treat `MISSION_FLOW_V2_ENABLED=false` as the production baseline unless the runtime defaults
-  change in code.
+- Treat `MISSION_FLOW_V2_ENABLED=true` as the default runtime baseline unless the
+  runtime defaults change in code.
 - Update the multi-agent topology view whenever `services/orchestrator/orchestrator/agent_registry.py`
   changes.
 

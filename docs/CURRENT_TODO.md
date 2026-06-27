@@ -25,9 +25,9 @@ Phase 11 active work is complete for this pass. Phase 12 is now the next audit p
 
 ---
 
-## Latest Status - Audit Phase 12 Documentation Drift Started (2026-06-26)
+## Latest Status - Audit Phase 12 Documentation Drift Completed (2026-06-26)
 
-Phase 12 starts from the active `AUDIT_PLAN.md` documentation-drift checklist, not the archived roadmap Phase 12 builder/repository-intake plan. Current-source documentation validation passes across 77 metadata-checked docs and 119 link-checked docs.
+Phase 12 started from the active `AUDIT_PLAN.md` documentation-drift checklist, not the archived roadmap Phase 12 builder/repository-intake plan. Current-source documentation validation passes across 77 metadata-checked docs and 119 link-checked docs.
 
 First Phase 12 fix: `make validate` now runs `scripts/validate_documentation.py` and `scripts/export_openapi.py --check`, so docs metadata/link drift and OpenAPI route/spec drift are enforced by the normal pre-merge gate. `scripts/export_openapi.py` keeps its existing regeneration behavior and adds a non-mutating `--check` mode for validation. The first run found drift in `docs/openapi/orchestrator.v1.json`; the snapshot was regenerated from the live orchestrator app.
 
@@ -35,9 +35,11 @@ Second Phase 12 fix: production audit check `DOC-006` now verifies the Phase 12 
 
 Third Phase 12 fix: `scripts/validate_documentation.py` now enforces public docstrings for `shared_runtime/*.py` and all orchestrator `storage_*.py` modules. Missing docstrings were added across the public storage/shared-runtime boundary functions so the validator reports 17 covered Python files.
 
-Validation: `scripts/validate_documentation.py` passes, `scripts/export_openapi.py --check` passes, focused production-audit tests pass for the new guard, focused Ruff passes for the touched audit/export/test files, and `scripts/production_review_audit.py` reports `DOC-006` passing. The production audit still carries the unrelated existing `INF-008` compose wiring finding.
+Final Phase 12 fix: architecture diagrams and `MIGRATION.md` are now under the documentation validator. The diagrams were reconciled to `MISSION_FLOW_V2_ENABLED=true` as the default runtime baseline and the live 41-agent registry, including AGENT-36-GO, AGENT-37-HASKELL, AGENT-38-OCAML, and AGENT-39 through AGENT-41 support capabilities. `MIGRATION.md` now carries current metadata, validation commands, and the active breaking-change coverage table.
 
-Next active Phase 12 work: continue the remaining checklist items that need deeper reconciliation, especially architecture diagrams and MIGRATION coverage.
+Validation: `scripts/validate_documentation.py` passes with metadata, links, public docstrings, migration guide, and architecture diagram checks; `scripts/export_openapi.py --check` passes; focused production-audit tests pass for the guard; focused Ruff passes for the touched validation/audit files and docs-touched Python paths; and `scripts/production_review_audit.py` reports `DOC-006` passing. The production audit still carries the unrelated existing `INF-008` compose wiring finding.
+
+Phase 12 active work is complete for this pass. Phase 13 is now next for end-to-end smoke testing; Phase 8 still carries the explicit `mission_flow_v2/` strict coverage carry-forward unless fixed or deferred.
 
 ---
 
