@@ -62,5 +62,13 @@ def test_artifact_text_prefers_inline_artifact_text() -> None:
     assert smoke._artifact_text({"artifact_text": "print('ok')"}) == "print('ok')"
 
 
+def test_build_mission_payload_marks_smoke_spec_as_finalized() -> None:
+    payload = smoke._build_mission_payload("Build a Python utility.")
+    assert payload["requested_target_language"] == "python"
+    assert payload["metadata"]["source"] == "phase13_smoke"
+    assert payload["metadata"]["mission_type"] == "BUILD_NEW"
+    assert payload["metadata"]["user_intent"] == "finalize_plan"
+
+
 def test_imported_ast_module_is_available_for_regression() -> None:
     assert ast.parse("x = 1") is not None

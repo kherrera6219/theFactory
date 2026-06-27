@@ -219,6 +219,23 @@ def _check_readiness(gateway_base_url: str, orchestrator_base_url: str) -> tuple
     return probes, failures
 
 
+def _build_mission_payload(prompt: str) -> dict[str, Any]:
+    return {
+        "prompt": prompt,
+        "requested_target_language": "python",
+        "metadata": {
+            "source": "phase13_smoke",
+            "mission_type": "BUILD_NEW",
+            "depth_mode": "STANDARD",
+            "output_mode": "FULL_BUILD",
+            # Phase 13 smoke submits a finalized build spec. Without this marker
+            # PM intake can correctly pause for optional clarification, which
+            # validates a different branch than this smoke is intended to cover.
+            "user_intent": "finalize_plan",
+        },
+    }
+
+
 def run(args: argparse.Namespace) -> int:
     gateway_base_url = args.gateway_base_url.rstrip("/")
     orchestrator_base_url = args.orchestrator_base_url.rstrip("/")
@@ -241,16 +258,7 @@ def run(args: argparse.Namespace) -> int:
         _print_summary(report)
         return 2
 
-    mission_payload = {
-        "prompt": args.prompt,
-        "requested_target_language": "python",
-        "metadata": {
-            "source": "phase13_smoke",
-            "mission_type": "BUILD_NEW",
-            "depth_mode": "STANDARD",
-            "output_mode": "FULL_BUILD",
-        },
-    }
+    mission_payload = _build_mission_payload(args.prompt)
     create_status, create_payload = _request_json(
         "POST",
         f"{gateway_base_url}/v1/missions",
