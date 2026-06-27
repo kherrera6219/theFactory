@@ -6,7 +6,7 @@ check-env:
 force-stop:
 	@python scripts/force_stop.py
 
-.PHONY: check-env up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai demo audit promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr dr-ps1 perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs prune-audit
+.PHONY: check-env up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai demo audit phase13-smoke promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr dr-ps1 perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs prune-audit
 # validate: full pre-merge gate — lint + schema check + pytest + UI lint/test
 
 up: check-env tls-certs
@@ -91,6 +91,9 @@ demo:
 
 audit:
 	python scripts/production_review_audit.py
+
+phase13-smoke:
+	python scripts/phase13_smoke.py
 
 promotion-gate:
 	python scripts/export_agent_model_inventory.py \
