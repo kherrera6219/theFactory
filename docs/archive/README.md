@@ -17,6 +17,8 @@ This directory contains superseded documentation, imported source materials, and
   - prior legacy documentation bundles and extracted notes
 - `2026-06-13/`
   - superseded roadmap, sprint backlog, phased update, release completion, reliability qualification, and dated runtime-mapping documents moved out of the live docs root
+- `2026-06-27/`
+  - superseded EDCP phase plan, legacy profile mapping reference, and older enterprise duplicate API/DR documents moved out of the active docs map
 
 ## Rules
 
