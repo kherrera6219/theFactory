@@ -6,6 +6,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Documentation Current-State Cleanup (2026-06-27)
+
+#### Changed
+- Added `docs/README.md` as the GitHub docs landing page with current
+  application status, proof points, remaining gaps, and navigation.
+- Updated the root README and documentation index to reflect the Phase 13
+  backend/API smoke proof, the remaining UI/failure/fallback validation gaps,
+  and the current `22/23` production-audit baseline.
+
 ### Audit Phase 13 End-to-End Smoke (2026-06-27)
 
 #### Fixed

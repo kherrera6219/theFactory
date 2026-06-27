@@ -1,15 +1,18 @@
 # theFactory Documentation Index
 
-Document version: 2026.06.13-r2
-Last updated: 2026-06-13
+Document version: 2026.06.27-a
+Last updated: 2026-06-27
 Status: Canonical
 Audience: All contributors
 
-**Version:** 2026.06.13-r2
+**Version:** 2026.06.27-a
 **Maintained by:** Documentation Guild  
-**Last reviewed:** 2026-06-13
+**Last reviewed:** 2026-06-27
 
-This index is the canonical entry point for all theFactory documentation. Every doc file in `docs/` is listed here with a one-line description and its primary audience. Files not listed here are considered undiscovered and should be added in the next documentation sprint.
+This index maps the active theFactory documentation set. Historical source
+material, superseded phase plans, run-specific evidence, and archived review
+artifacts are intentionally kept under `docs/archive/` or `docs/evidence/` and
+are not listed as current implementation truth unless called out explicitly.
 
 ---
 
@@ -26,6 +29,7 @@ This index is the canonical entry point for all theFactory documentation. Every 
 
 | File | Description | Audience |
 |---|---|---|
+| [README.md](README.md) | Docs landing page and current navigation guide for the GitHub `docs/` folder | All |
 | [00_PRODUCT_OVERVIEW.md](00_PRODUCT_OVERVIEW.md) | Top-level product description, value proposition, and v1.2.0 feature set | All |
 | [WHAT_THEFACTORY_IS_AND_IS_NOT.md](WHAT_THEFACTORY_IS_AND_IS_NOT.md) | Canonical positioning statement for current scope, non-goals, and evaluation boundaries | All |
 | [BLUEPRINT_MAP.md](BLUEPRINT_MAP.md) | Full system blueprint — the single authoritative map of all services, agents, and data flows | All |

@@ -9,24 +9,26 @@
 [![CI](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml)
 [![Coverage Gate](https://img.shields.io/badge/coverage%20gate-80%25%2B-blue)](docs/TESTING_QUALITY_GATES.md)
-[![Audit](https://img.shields.io/badge/repo%20audit-22%2F22%20checks%20passing-blue)](scripts/production_review_audit.py)
+[![Audit](https://img.shields.io/badge/repo%20audit-22%2F23%20checks%20passing-yellow)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 </div>
 
-> **Version:** 1.2.0 · **Last updated:** 2026-06-21 · **Status:** Active development, not production-ready
+> **Version:** 1.2.0 · **Last updated:** 2026-06-27 · **Status:** Active development, not production-ready
 
 > **Development status:** theFactory is still under active local development. The
 > repository contains substantial architecture, services, tests, and Mission
 > Control UI work, but the full PM-to-delivery mission path is not yet proven as
-> production-ready. Current work is focused on PM agent clarification behavior,
-> mission launch handoff, provider/key preflight, degraded/fallback visibility,
-> and one fresh end-to-end mission that reaches `COMPLETE` with non-empty
-> generated artifacts. The separate marketing website package has been removed
-> from this application worktree so the repository reflects the runtime app
-> scope. See [Current Status](#current-status),
+> production-ready. Phase 13 backend/API smoke now proves the gateway and
+> orchestrator can create a mission, poll it to `COMPLETE`, read event and
+> chain-trace evidence, and retrieve a valid generated Python artifact. Remaining
+> release work includes Mission Control UI smoke, failure injection, provider
+> fallback, full current-environment validation, and the Phase 8 Mission Flow v2
+> strict coverage carry-forward. The separate marketing website package has been
+> removed from this application worktree so the repository reflects the runtime
+> app scope. See [Current Status](#current-status),
 > [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md), and
 > [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md).
 
@@ -125,10 +127,15 @@ For the implemented lifecycle (Mission Flow v2 with optional clarification pause
 Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 
 The list below describes implemented subsystems and intended product direction,
-not a claim that the application is production-ready. The latest local rebuild fixed misleading clarification state, Runtime QC skip visibility, and generated-artifact visibility. The current blocking proof is a fresh PM-chat mission that reaches `COMPLETE` with non-empty generated artifacts after restart.
+not a claim that the application is production-ready. The current backend/API
+proof point is the Phase 13 smoke mission that reached `COMPLETE`, exposed
+event/chain-trace evidence, and returned a valid Python build artifact. The
+remaining proof points are UI-driven smoke, failure injection, provider fallback,
+full current-environment validation, and the Phase 8 Mission Flow v2 strict
+coverage carry-forward.
 
 - **Multi-modal context ingestion** — native support for PDF, Word, MD, and PowerPoint indexing via IS-Agent
-- **Mission orchestration foundation** — intake, delegation, specialist processing, verification, and completion paths exist, but the PM chat to completed-delivery flow still needs fresh end-to-end proof
+- **Mission orchestration foundation** — intake, delegation, specialist processing, verification, and completion paths have backend/API smoke proof; the UI-driven mission path still needs Phase 13 follow-up proof
 - **Protocol bus architecture** — six-protocol Redis Streams event plane (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`)
 - **41-agent control model** — canonical registry across interface, executive, support, and pod-specialist tiers; default runtime is condensed rather than fully isolated per-agent
 - **Language-aware code analysis** — regex-first extraction engine for 20 routed language keys across 4 pod groups; Python, JavaScript/TypeScript, and Java each have AST-backed structural extractors behind feature flags
@@ -997,31 +1004,32 @@ theFactory/
 
 **theFactory is still in development.** The repository has a large implemented
 baseline and many checks are passing, but the public README should not be read as
-a production-readiness claim. The current active work is validating the PM agent,
-LLM routing, Mission Control launch behavior, and the full mission lifecycle with
-a fresh end-to-end run.
+a production-readiness claim. The current validated backend/API proof is the
+Phase 13 smoke run for mission
+`mission-e86c99b9-6cc0-4f31-967b-4e192b964a37`, which reached `COMPLETE`, exposed
+event and chain-trace evidence, and produced a valid Python build artifact.
 
 | Domain | Current state |
 |--------|---------------|
 | Infrastructure & DevOps | Local Docker/runtime baseline exists; production-host controls, branch protection, and release governance still need final enforcement |
 | Security & Auth | Repo-local auth and scanning baseline exists; exposed provider keys must be rotated and host-policy enforcement remains |
 | Observability | Core telemetry stack and runbooks exist for local/dev validation |
-| Testing & CI | Lint, unit tests, frontend tests, and build gates exist; live mission qualification is still required |
+| Testing & CI | Lint, unit tests, frontend tests, build gates, OpenAPI drift checks, documentation validation, and backend/API Phase 13 smoke evidence exist; full `make validate` is still a release follow-up |
 | Data Systems | Core data-plane integration is present; live behavior still needs validation during full mission runs |
-| Mission Control UI | Operator UI exists; latest rebuild improved mission-detail generated artifact and Runtime QC visibility, but fresh PM-chat launch proof is still required |
+| Mission Control UI | Operator UI exists and Phase 11 E2E passed; Phase 13 UI smoke is still required |
 | Language Extraction Engine | Regex and AST-backed extraction components exist; feature-flagged AST paths still need live qualification before production claims |
-| Mission Lifecycle | Mission Flow v2 is the default engine; normal ready path now skips misleading `CLARIFYING`, but a fresh PM-chat mission must still prove it can reach `COMPLETE` with non-empty generated artifacts |
-| CEO to Pod Delegation Chain | Baseline wiring exists; load-bearing EDCP follow-up is deferred until the PM-to-delivery proof passes |
+| Mission Lifecycle | Mission Flow v2 is the default engine; backend/API Phase 13 smoke reached `COMPLETE` with a non-empty generated artifact |
+| CEO to Pod Delegation Chain | Backend/API smoke observed required PM, CEO, pod-manager, and specialist chain events; UI and failure-mode proof remain |
 | LLM API Call Wiring | Gemini PM calls have been proven at the API level, but provider/model Settings preflight and degraded/fallback UI are still open |
 
 **Current highest-priority issues:**
-- Restart the rebuilt app and run a fresh PM chat mission from `/chat`.
-- Confirm PM clarification responses do not expose a launchable contract.
-- Confirm explicit launch sends `user_intent: finalize_plan` and the normal ready path proceeds without `CLARIFYING`; PM clarification should appear only when PM truly needs scope clarification.
-- Add visible UI warnings when PM output is degraded/fallback instead of real LLM output.
+- Run Phase 13 Mission Control UI smoke for the mission path.
+- Run Phase 13 failure-injection and provider-fallback proof.
+- Run full `make validate` in the current environment.
+- Close or explicitly defer the Phase 8 `mission_flow_v2/` strict coverage carry-forward.
+- Resolve existing production-audit finding `INF-008`.
 - Add a Settings provider/key/model preflight that performs a real tiny provider call.
 - Move provider/model selection fully into the app Settings/vault path instead of relying on `.env`/profile defaults.
-- Run one full mission to `COMPLETE` with non-empty generated code/artifacts before describing the app as production-ready.
 - Rotate exposed provider keys before any public or shared deployment.
 
 ---
