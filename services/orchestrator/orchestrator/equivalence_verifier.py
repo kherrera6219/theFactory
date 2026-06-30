@@ -1,11 +1,45 @@
 """Deterministic equivalence verification for generated mission outputs."""
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Any
 
 EQUIVALENCE_REPORT_SCHEMA_VERSION = "equivalence_report.v1"
 GENERATED_OUTPUT_ARTIFACT_TYPE = "generated_code"
+
+# Contract "<keyword> file" phrases that imply a required deliverable container,
+# mapped to the file extensions that satisfy them. Keyed on the lowercased word
+# that appears immediately before "file" in the contract text.
+_ARTIFACT_FORMAT_EXTENSIONS: dict[str, set[str]] = {
+    "html": {"html", "htm"},
+    "html5": {"html", "htm"},
+    "htm": {"html", "htm"},
+    "markdown": {"md", "markdown"},
+    "json": {"json"},
+    "yaml": {"yaml", "yml"},
+    "css": {"css"},
+    "pdf": {"pdf"},
+    "csv": {"csv"},
+}
+
+# Explicit "<word> file" mentions, e.g. "single HTML file".
+_KEYWORD_FILE_PATTERN = re.compile(r"\b([a-z0-9+#]{2,12})\s+file\b")
+# Explicit ".ext" mentions, restricted to a curated allowlist so incidental
+# tokens (e.g. "console.log", domain names) do not register as format demands.
+_EXPLICIT_EXTENSION_PATTERN = re.compile(r"\.([a-z][a-z0-9]{0,4})\b")
+_KNOWN_ARTIFACT_EXTENSIONS = {
+    "html", "htm", "js", "mjs", "ts", "tsx", "jsx", "py", "rb", "go", "rs",
+    "java", "cs", "cpp", "c", "css", "json", "md", "sh", "sql", "yaml", "yml",
+    "pdf", "csv",
+}
+# Filler words excluded when reducing an acceptance criterion to salient terms.
+_CRITERION_STOPWORDS = {
+    "that", "this", "with", "from", "into", "when", "then", "must", "should",
+    "will", "shall", "without", "successfully", "directly", "allows", "using",
+    "their", "there", "which", "while", "after", "before", "between", "single",
+    "able", "they", "them", "have", "been", "such", "than", "each", "also",
+}
 
 
 def mission_requires_equivalence(metadata: Any) -> bool:
@@ -42,8 +76,11 @@ def build_equivalence_report(
     checks = [
         _check_generated_output_exists(generated_output),
         _check_generated_artifact(build_artifacts),
+        _check_artifact_format(
+            feature_contract, mission_contract, build_artifacts, generated_output
+        ),
         _check_language_alignment(generated_output, target_language),
-        _check_acceptance_criteria(feature_contract, mission_contract),
+        _check_acceptance_criteria(feature_contract, mission_contract, generated_output),
         _check_aim_consistency(aim, generated_output),
     ]
     # PORT missions — add concept coverage checks (advisory, not required)
@@ -150,6 +187,118 @@ def _check_generated_artifact(build_artifacts: list[dict[str, Any]]) -> dict[str
     )
 
 
+def _check_artifact_format(
+    feature_contract: dict[str, Any],
+    mission_contract: dict[str, Any],
+    build_artifacts: list[dict[str, Any]],
+    generated_output: dict[str, Any],
+) -> dict[str, Any]:
+    """Require the delivered artifact form to match an explicit contract format.
+
+    The feature contract sometimes names a required deliverable container
+    (e.g. "single self-contained HTML file"). Language equivalence is not
+    enough: a JavaScript file does not satisfy a contract for an HTML file even
+    though both are "javascript-adjacent". When the contract names a format and
+    the packaged artifact's extension does not match, this is a required failure.
+    When no explicit format is named, the check is advisory.
+    """
+    artifact = next(
+        (
+            item
+            for item in build_artifacts
+            if str(item.get("artifact_type", "")).lower() == GENERATED_OUTPUT_ARTIFACT_TYPE
+        ),
+        None,
+    )
+    manifest = artifact.get("manifest") if isinstance(artifact, dict) else {}
+    manifest = manifest if isinstance(manifest, dict) else {}
+    filename = str(
+        manifest.get("filename") or generated_output.get("filename") or ""
+    ).strip()
+    actual_ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    expected = _expected_artifact_extensions(
+        _contract_format_text(feature_contract, mission_contract)
+    )
+    if not expected:
+        return _check(
+            check_id="artifact_format_matches_contract",
+            title="Artifact format matches contract",
+            status="manual_review",
+            required=False,
+            message="No explicit deliverable format was specified in the contract.",
+            evidence={"artifact_filename": filename, "artifact_extension": actual_ext},
+        )
+    if not actual_ext:
+        return _check(
+            check_id="artifact_format_matches_contract",
+            title="Artifact format matches contract",
+            status="manual_review",
+            required=False,
+            message="Artifact filename has no extension to verify against the contract.",
+            evidence={"expected_extensions": sorted(expected), "artifact_filename": filename},
+        )
+    if actual_ext in expected:
+        return _check(
+            check_id="artifact_format_matches_contract",
+            title="Artifact format matches contract",
+            status="pass",
+            required=True,
+            message="Delivered artifact format matches the contracted deliverable format.",
+            evidence={
+                "expected_extensions": sorted(expected),
+                "artifact_extension": actual_ext,
+                "artifact_filename": filename,
+            },
+        )
+    return _check(
+        check_id="artifact_format_matches_contract",
+        title="Artifact format matches contract",
+        status="fail",
+        required=True,
+        message=(
+            f"Delivered artifact format '.{actual_ext}' does not match the "
+            f"contracted deliverable format(s): {sorted(expected)}."
+        ),
+        evidence={
+            "expected_extensions": sorted(expected),
+            "artifact_extension": actual_ext,
+            "artifact_filename": filename,
+        },
+    )
+
+
+def _contract_format_text(
+    feature_contract: dict[str, Any],
+    mission_contract: dict[str, Any],
+) -> str:
+    parts: list[str] = []
+    for contract in (feature_contract, mission_contract):
+        if not isinstance(contract, dict):
+            continue
+        for key in ("summary", "title"):
+            value = contract.get(key)
+            if isinstance(value, str):
+                parts.append(value)
+        for key in ("functional_requirements", "acceptance_criteria", "deliverables"):
+            parts.extend(_string_list(contract.get(key), limit=20))
+    return " ".join(parts)
+
+
+def _expected_artifact_extensions(contract_text: str) -> set[str]:
+    text = contract_text.lower()
+    expected: set[str] = set()
+    for match in _KEYWORD_FILE_PATTERN.finditer(text):
+        keyword = match.group(1)
+        if keyword in _ARTIFACT_FORMAT_EXTENSIONS:
+            expected |= _ARTIFACT_FORMAT_EXTENSIONS[keyword]
+    for match in _EXPLICIT_EXTENSION_PATTERN.finditer(text):
+        ext = match.group(1)
+        if ext in _KNOWN_ARTIFACT_EXTENSIONS:
+            expected.add(ext)
+    return expected
+
+
 def _check_language_alignment(
     generated_output: dict[str, Any],
     target_language: str | None,
@@ -187,26 +336,82 @@ def _check_language_alignment(
 def _check_acceptance_criteria(
     feature_contract: dict[str, Any],
     mission_contract: dict[str, Any],
+    generated_output: dict[str, Any],
 ) -> dict[str, Any]:
+    """Evaluate each acceptance criterion against the generated output.
+
+    Previously this check always returned ``manual_review`` without inspecting
+    the artifact — acceptance criteria were never actually verified. It now
+    reduces each criterion to salient terms and reports per-criterion coverage
+    against the generated code and description. The check stays advisory
+    (``required=False``) because keyword coverage is a heuristic signal, not a
+    proof, but it surfaces *which* criteria are unaddressed rather than deferring
+    all of them wholesale.
+    """
     criteria = _string_list(feature_contract.get("acceptance_criteria"), limit=10)
     if not criteria:
         criteria = _string_list(mission_contract.get("acceptance_criteria"), limit=10)
-    if criteria:
+    if not criteria:
         return _check(
             check_id="acceptance_criteria_mapped",
             title="Acceptance criteria mapped",
             status="manual_review",
             required=False,
-            message="Acceptance criteria were mapped into equivalence checks for manual review.",
-            evidence={"criteria": criteria, "criteria_count": len(criteria)},
+            message="No explicit acceptance criteria were available for equivalence verification.",
+        )
+
+    search_text = (
+        str(generated_output.get("description") or "")
+        + " "
+        + str(generated_output.get("generated_code") or "")
+    ).lower()
+
+    criteria_status: list[dict[str, Any]] = []
+    for criterion in criteria:
+        keywords = _criterion_keywords(criterion)
+        covered = [keyword for keyword in keywords if keyword in search_text]
+        ratio = round(len(covered) / len(keywords), 3) if keywords else 0.0
+        criteria_status.append(
+            {
+                "criterion": criterion,
+                "covered_ratio": ratio,
+                "status": "covered" if ratio >= 0.5 else "needs_review",
+            }
+        )
+
+    needs_review = [item for item in criteria_status if item["status"] == "needs_review"]
+    if needs_review:
+        return _check(
+            check_id="acceptance_criteria_mapped",
+            title="Acceptance criteria mapped",
+            status="manual_review",
+            required=False,
+            message=(
+                f"{len(needs_review)} of {len(criteria)} acceptance criteria are not "
+                "clearly reflected in the generated output and need manual review."
+            ),
+            evidence={"criteria_status": criteria_status, "criteria_count": len(criteria)},
         )
     return _check(
         check_id="acceptance_criteria_mapped",
         title="Acceptance criteria mapped",
-        status="manual_review",
+        status="pass",
         required=False,
-        message="No explicit acceptance criteria were available for equivalence verification.",
+        message="All acceptance criteria are heuristically reflected in the generated output.",
+        evidence={"criteria_status": criteria_status, "criteria_count": len(criteria)},
     )
+
+
+def _criterion_keywords(criterion: str) -> list[str]:
+    """Reduce an acceptance criterion to salient lowercased terms for matching."""
+    tokens = re.split(r"[^a-z0-9]+", criterion.lower())
+    seen: list[str] = []
+    for token in tokens:
+        if len(token) < 4 or token in _CRITERION_STOPWORDS:
+            continue
+        if token not in seen:
+            seen.append(token)
+    return seen
 
 
 def _check_aim_consistency(
