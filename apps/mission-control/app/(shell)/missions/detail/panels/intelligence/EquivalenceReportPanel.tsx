@@ -18,6 +18,7 @@ interface EquivalenceReport {
   risk_level: string;
   target_language?: string | null;
   enforcement_enabled: boolean;
+  verification_scope?: string;
   findings: string[];
   checks: EquivalenceCheck[];
 }
@@ -30,7 +31,13 @@ export function EquivalenceReportPanel({ equivalenceReport }: EquivalenceReportP
   if (!equivalenceReport) return null;
 
   return (
-    <Panel title="Equivalence Verification">
+    <Panel title="Correctness Verification (Equivalence)">
+      <p className="muted">
+        Correctness checks: does the artifact match the contract (format,
+        language, acceptance criteria)? This is separate from artifact integrity
+        (digest/signature), which only attests the bytes are intact. A passing
+        integrity check does not mean the artifact runs or meets the contract.
+      </p>
       <dl>
         <div>
           <dt>Status</dt>

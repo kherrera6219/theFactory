@@ -75,6 +75,10 @@ def build_generated_output_artifact(
     }
     verification = {
         "verified": True,
+        # Integrity only: this attests the bytes are intact (digest/signature),
+        # not that the artifact is correct or runnable. Correctness is assessed
+        # separately by the equivalence report (verification_scope="correctness").
+        "verification_scope": "integrity",
         "verification_method": "sha256",
         "verified_at": generated_at,
         "artifact_digest_sha256": digest_sha256,
@@ -151,6 +155,8 @@ def build_source_bundle_artifact(
     }
     verification = {
         "verified": True,
+        # Integrity only — see build_generated_output_artifact for the scope note.
+        "verification_scope": "integrity",
         "verification_method": "sha256",
         "verified_at": generated_at,
         "bundle_digest_sha256": digest_sha256,

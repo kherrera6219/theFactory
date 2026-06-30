@@ -56,6 +56,7 @@ def test_build_equivalence_report_passes_with_verified_artifact() -> None:
     )
 
     assert report["schema_version"] == "equivalence_report.v1"
+    assert report["verification_scope"] == "correctness"
     assert report["passed"] is True
     assert report["blocking"] is False
     assert report["status"] == "passed"

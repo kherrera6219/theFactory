@@ -25,7 +25,27 @@ def test_build_source_bundle_artifact_generates_manifest_and_digest() -> None:
     assert artifact["manifest"]["file_count"] == 2
     assert artifact["manifest"]["files"][0]["path"] == "app.py"
     assert artifact["verification"]["verified"] is True
+    assert artifact["verification"]["verification_scope"] == "integrity"
     assert artifact["digest_sha256"]
+
+
+def test_generated_output_artifact_verification_is_integrity_scoped() -> None:
+    artifact = build_artifacts.build_generated_output_artifact(
+        mission_id="mission-1",
+        requested_target_language="javascript",
+        metadata={
+            "generated_output": {
+                "source": "llm",
+                "generated_code": "console.log('neon pong');\n",
+                "filename": "neon-pong.js",
+                "language": "javascript",
+            }
+        },
+    )
+    # The artifact's verification block attests integrity (digest/signature) only,
+    # never correctness.
+    assert artifact["verification"]["verification_scope"] == "integrity"
+    assert artifact["verification"]["verified"] is True
 
 
 def test_record_build_artifact_metadata_appends_chain_trace_once() -> None:

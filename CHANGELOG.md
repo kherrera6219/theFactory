@@ -6,7 +6,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
-### Verification & Reporting Hardening — Phase 1a/1b (2026-06-29)
+### Verification & Reporting Hardening — Phase 1 (2026-06-29)
 
 #### Added
 - `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` — phased plan to make
@@ -23,14 +23,23 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - `equivalence_verifier.py` acceptance-criteria check now evaluates per-criterion
   keyword coverage against the generated code and description and reports which
   criteria are unaddressed, instead of always returning `manual_review`.
+- Separated integrity from correctness (Phase 1c): the artifact `verification`
+  block is tagged `verification_scope="integrity"` (digest/signature only), the
+  equivalence report is tagged `verification_scope="correctness"`, the integrity
+  check copy clarifies it attests bytes-intact rather than runnable, and the
+  Mission Control `EquivalenceReportPanel` explains that a passing integrity
+  check does not mean the artifact runs or meets the contract.
 - Tracked the plan in `CURRENT_TODO.md`, `HANDOFF_CURRENT.md`,
   `IMPLEMENTATION_STATUS.md`, and the documentation index.
 
 #### Validation
-- `tests/services/test_equivalence_verifier_unit.py` — 8 passed, including a
-  Neon Pong regression (HTML contract + `.js` artifact → required failure + block).
-- Equivalence-touching integration suites pass; `ruff check services tests scripts`
-  and `scripts/validate_documentation.py` pass.
+- `tests/services/test_equivalence_verifier_unit.py` and
+  `tests/services/test_build_artifacts_unit.py` pass, including a Neon Pong
+  regression (HTML contract + `.js` artifact → required failure + block) and
+  integrity-scope assertions.
+- Equivalence-touching integration suites, `ruff check services tests scripts`,
+  Mission Control `tsc` lint and 74 vitest tests, and
+  `scripts/validate_documentation.py` all pass.
 
 ### Final Audit Rebuild Lock-In (2026-06-27)
 

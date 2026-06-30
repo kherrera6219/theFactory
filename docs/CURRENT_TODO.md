@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.06.29-b
+Document version: 2026.06.29-c
 Last updated: 2026-06-29
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -42,14 +42,17 @@ Tracked in full by `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`. Surfaced
 by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
 `COMPLETE` but whose artifact did not match its own contract.
 
-0a. **Phase 1 — verification means correctness** (in progress):
-    - DONE: Artifact-format gate in `equivalence_verifier.py` — a `.js` artifact
-      against an HTML-file contract now fails verification and blocks under
-      enforcement. 8 verifier tests pass, including a Neon Pong regression.
-    - DONE: Replaced the always-`manual_review` `_check_acceptance_criteria` with
-      real per-criterion coverage evaluation.
-    - TODO (1c): Separate integrity (`sha256`/ECDSA) from a new
-      `correctness_verification` block so `VERIFIED` no longer implies "runs."
+0a. **Phase 1 — verification means correctness** (DONE):
+    - DONE (1a): Artifact-format gate in `equivalence_verifier.py` — a `.js`
+      artifact against an HTML-file contract now fails verification and blocks
+      under enforcement. Verifier tests pass, including a Neon Pong regression.
+    - DONE (1b): Replaced the always-`manual_review` `_check_acceptance_criteria`
+      with real per-criterion coverage evaluation.
+    - DONE (1c): Tagged the artifact verification block
+      `verification_scope="integrity"` and the equivalence report
+      `verification_scope="correctness"`, clarified the integrity-check copy, and
+      updated the Mission Control `EquivalenceReportPanel` so integrity no longer
+      reads as "runs."
     - TODO: Live re-run of a Pong-style mission to confirm the gate end-to-end
       (pending stack restart).
 0b. **Phase 2** — runnable-artifact smoke verifier via the RQCA path; add an

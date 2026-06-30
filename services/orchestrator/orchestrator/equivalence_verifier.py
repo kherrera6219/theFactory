@@ -105,6 +105,10 @@ def build_equivalence_report(
         "report_id": f"equivalence-{mission_id}",
         "mission_id": mission_id,
         "generated_at": datetime.now(UTC).isoformat(),
+        # Correctness scope: this report assesses whether the artifact matches the
+        # contract (format, language, acceptance criteria), distinct from the
+        # artifact's integrity block (digest/signature, verification_scope="integrity").
+        "verification_scope": "correctness",
         "status": status,
         "passed": passed,
         "blocking": blocking,
@@ -163,14 +167,19 @@ def _check_generated_artifact(build_artifacts: list[dict[str, Any]]) -> dict[str
     if verified and digest:
         return _check(
             check_id="generated_artifact_verified",
-            title="Generated artifact verified",
+            title="Generated artifact integrity verified",
             status="pass",
             required=True,
-            message="Generated-code artifact has digest verification.",
+            message=(
+                "Generated-code artifact passed integrity verification "
+                "(digest/signature). This attests the bytes are intact, not that "
+                "the artifact is correct — correctness is assessed by the other checks."
+            ),
             evidence={
                 "artifact_id": artifact.get("artifact_id"),
                 "digest_sha256": digest,
                 "verification_method": verification.get("verification_method"),
+                "verification_scope": verification.get("verification_scope", "integrity"),
             },
         )
     return _check(

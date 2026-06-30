@@ -1,6 +1,6 @@
 # Update Plan: Verification & Reporting Hardening
 
-Document version: 2026.06.29-b
+Document version: 2026.06.29-c
 Last updated: 2026-06-29
 Status: Active plan
 Audience: Maintainers, operators, and AI coding agents
@@ -52,14 +52,17 @@ is correct." Each Tier-1 gap is a facet of that single missing dimension.
 
 ## Progress
 
-- **2026-06-29 — Phase 1a and 1b complete** (branch
-  `verification-correctness-hardening`). Artifact-format gate and per-criterion
-  acceptance evaluation landed in `equivalence_verifier.py` with 8 passing unit
-  tests, including a Neon Pong regression (HTML contract + `.js` artifact →
-  required failure + block under enforcement). Equivalence-touching integration
-  suites, Ruff, and documentation validation pass. Phase 1c, Phase 2, and Phase
-  3 remain. End-to-end live re-run of a Pong-style mission is still pending a
-  stack restart.
+- **2026-06-29 — Phase 1 complete** (branch
+  `verification-correctness-hardening`). Phase 1a (artifact-format gate) and 1b
+  (per-criterion acceptance evaluation) landed in `equivalence_verifier.py`.
+  Phase 1c separated integrity from correctness: the artifact `verification`
+  block is now tagged `verification_scope="integrity"`, the equivalence report is
+  tagged `verification_scope="correctness"`, the integrity check copy clarifies
+  it attests bytes-intact (not runnable), and the Mission Control
+  `EquivalenceReportPanel` explains the distinction. Backend unit tests, Ruff,
+  Mission Control `tsc` lint, 74 vitest tests, and documentation validation all
+  pass. Phase 2 and Phase 3 remain. End-to-end live re-run of a Pong-style
+  mission is still pending a stack restart.
 
 ## Phase 1: Make verification mean correctness
 
@@ -74,9 +77,12 @@ Backend-only verification logic. Small, high-leverage, no infrastructure.
   `manual_review` body of `_check_acceptance_criteria` with per-criterion keyword
   coverage against the generated code and description, emitting `criteria_status`
   and reporting which criteria are unaddressed. Advisory by default.
-- **1c. Separate integrity from correctness — TODO.** Add a
-  `correctness_verification` block distinct from the sha256/ECDSA `verification`
-  block so `VERIFIED` no longer implies "runs"; update the UI verification copy.
+- **1c. Separate integrity from correctness — DONE.** Tagged the artifact
+  `verification` block `verification_scope="integrity"` and the equivalence
+  report `verification_scope="correctness"`; clarified the integrity check copy
+  to state it attests bytes-intact, not runnable; and updated the Mission Control
+  `EquivalenceReportPanel` to explain that a passing integrity check does not
+  mean the artifact runs or meets the contract.
 
 Exit: new unit tests (done); a Pong-style mission shows the format gate flagging
 `.js`-vs-HTML (pending live re-run after stack restart).
