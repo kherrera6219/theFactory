@@ -132,21 +132,27 @@ in the mission pipeline: Alpha (`phases_build.py`) and Sigma (via
 initiative adds the four missing call sites following the proven Alpha/Sigma
 fire-and-forget pattern. No schema changes, no new infrastructure — wiring only.
 
+- PBLA-00 — Foundation: shared emission-discriminator constants in a new
+  `orchestrator/protocol_bus_emissions.py`. Do first — PBLA-01..04 and EDCP-02/04
+  all import these so producers and consumers cannot drift (consumers tail the
+  broadcast channel, so a discriminator is mandatory, not cosmetic).
 - PBLA-01 — Delta (audit verdicts) in `phases_build.py`. Lowest risk; insertion
-  point and payload fields confirmed. Do first. Before finalizing, confirm the
-  actual verdict strings from `generate_pod_audit_verdict()` so the
-  `_map_verdict_to_audit_result` fallthrough to `"warning"` cannot mask real
-  failures.
+  point, payload fields, and verdict mapping ({PASS,FAIL,WARN}) all confirmed.
+  Emit inside the `MISSION_POD_AUDIT_COMPLETE` idempotency guard.
 - PBLA-02 — Omega (PM ↔ user handoff) in `phases_delivery.py`. Do not extend
-  `OmegaPayload`; handoff metadata rides inside `feature_contract` per the
-  existing EDCP-02 deferral note in `protocol_bus_producer.py`.
-- PBLA-03 — Beta (specialist/LogicNode results) in `phases_runtime.py`.
-  Insertion point not yet confirmed to the line — read first.
-- PBLA-04 — Rho (traffic/rate-limit control) in provider/broker logic. No
-  existing chain-event analog; needs the most investigation. Note: the plan's
-  Rho example uses a single-dot relative import; the producer actually lives at
-  `orchestrator/protocol_bus_producer.py`, so confirm the correct relative
-  import for the chosen call-site module before implementing.
+  `OmegaPayload`; handoff metadata + `message_type` discriminator ride inside
+  `feature_contract` per the EDCP-02 deferral note in `protocol_bus_producer.py`.
+- PBLA-03 — Beta (specialist/LogicNode results) in `phases_runtime.py`
+  `_prepare_fusion` (after `generated_output` is set). Insertion point confirmed;
+  `language` is present but `logicnode_id`/`confidence_score` must be synthesized
+  and clamped to `[0,1]`.
+- PBLA-04 — Rho (traffic/rate-limit control) in `llm_delegation/providers.py`
+  (`_post_with_retry` 429 path / `_call_provider` finally). Candidate sites
+  confirmed; blocker: `settings` is not in scope at the provider layer — pick the
+  emit-one-layer-up vs module-accessor vs higher-level-signal option first.
+- PBLA-05 — Lane observability surfacing (optional, last): expose per-lane
+  activity in the operations snapshot / Mission Control. Read-only, no new
+  producers.
 - Closing evidence: one live mission showing traffic on all six
   `protocol:{lane}:*` streams, captured under `docs/evidence/` parallel to the
   S1-01 evidence, with a new Current Proof Points row in

@@ -122,6 +122,10 @@ traffic. This is mandatory for correctness, not hygiene:
 | Beta (PBLA-03) | `{pod_manager}` (directed) | `payload.emission` | `pbla_specialist_result` |
 | Rho (PBLA-04) | `broadcast` | `metadata.emission` | `pbla_traffic_telemetry` |
 
+These values are defined once in `orchestrator/protocol_bus_emissions.py`
+(**PBLA-00**, below) and imported by both producers (here) and EDCP consumers —
+the literals shown in PBLA-01..04 are illustrative of that shared constant.
+
 The matching obligation lands on EDCP: **EDCP-02's Omega charter handler and
 EDCP-04's Delta reply handler must filter on these discriminators** (ignore
 `pbla_*` emissions) so PBLA's shadow traffic never gets mistaken for a charter or
@@ -134,6 +138,65 @@ because the orchestrator's Omega consumer (identity `AGENT-03-BROKER`) tails the
 broadcast channel too, it *will* see PBLA-02's handoffs — so the
 `message_type` discriminator on the charter handler is load-bearing, not
 optional.
+
+---
+
+## Phase PBLA-00 — Foundation: shared emission-discriminator contract
+
+**Why first (before PBLA-01):** the `pbla_*` discriminators are a contract
+between PBLA's producers (this plan) and EDCP's consumers (Stage 2). If each side
+hard-codes the strings as literals they will drift. Define them once, in a module
+both the orchestrator producers and the future EDCP consumers import.
+
+### Exact change
+
+**New file:** `services/orchestrator/orchestrator/protocol_bus_emissions.py`
+
+```python
+"""Shared emission discriminators for Protocol Bus telemetry (PBLA).
+
+These constants are the contract that lets a load-bearing EDCP consumer filter
+PBLA's shadow telemetry out of a lane it shares (consumers tail the broadcast
+channel as well as their directed channel). Producers (PBLA) stamp them;
+consumers (EDCP) match them. Do not inline these strings anywhere else.
+"""
+from __future__ import annotations
+
+# Dict key under which the discriminator is stamped, per lane payload field.
+EMISSION_KEY = "emission"                 # delta.findings / beta.payload / rho.metadata
+OMEGA_MESSAGE_TYPE_KEY = "message_type"   # omega.feature_contract
+
+# Discriminator values — one per PBLA emission.
+PBLA_POD_AUDIT_TELEMETRY = "pbla_pod_audit_telemetry"   # PBLA-01 Delta
+PBLA_DELIVERY_HANDOFF = "pbla_delivery_handoff"         # PBLA-02 Omega
+PBLA_SPECIALIST_RESULT = "pbla_specialist_result"       # PBLA-03 Beta
+PBLA_TRAFFIC_TELEMETRY = "pbla_traffic_telemetry"       # PBLA-04 Rho
+
+# Convenience set for consumer-side filtering ("is this a PBLA shadow emission?").
+PBLA_EMISSIONS = frozenset({
+    PBLA_POD_AUDIT_TELEMETRY,
+    PBLA_DELIVERY_HANDOFF,
+    PBLA_SPECIALIST_RESULT,
+    PBLA_TRAFFIC_TELEMETRY,
+})
+```
+
+Each PBLA phase imports the relevant constant instead of the literal shown in its
+code block (the literals in PBLA-01..04 below are illustrative). EDCP-02/04
+import `OMEGA_MESSAGE_TYPE_KEY` / `EMISSION_KEY` + `PBLA_EMISSIONS` to filter.
+
+### New tests
+
+`tests/services/test_protocol_bus_emissions.py` — a trivial contract test that
+pins the constant values (so a rename is a deliberate, reviewed change) and
+asserts `PBLA_EMISSIONS` contains all four.
+
+### Definition of done
+
+- [ ] `protocol_bus_emissions.py` added with the four constants + `PBLA_EMISSIONS`
+- [ ] PBLA-01..04 import from it rather than inlining strings
+- [ ] Contract test pins the values
+- [ ] EDCP plan references the same module for its consumer-side filter
 
 ---
 
@@ -326,21 +389,40 @@ Same shape as PBLA-01: unit test, then live mission check against
 
 ## Phase PBLA-03 — Beta (Specialist/LogicNode Results)
 
-**Why third:** insertion point is not yet confirmed to the line — needs a
-short read of `phases_runtime.py` before writing code.
+**Why third:** insertion point confirmed (2026-06-30), but two of the three
+required Beta fields are absent from the specialist output and must be
+synthesized — slightly more than pure wiring.
 
-### Investigation step (do first)
+### Insertion point (confirmed in code)
 
-`view services/orchestrator/orchestrator/mission_flow_v2/phases_runtime.py`
-and identify which of the `MISSION_*` chain events (candidates around lines
-84, 200, 214, 262, 332, 385, 411) corresponds to specialist/LogicNode
-completion as opposed to other build-stage transitions. Confirm the
-specialist's generated-output dict has (or can be made to have) a
-`logicnode_id`, `confidence_score`, and `source_language` — these may need
-light normalization if the specialist generator doesn't already emit them
-in that shape.
+**File:** `services/orchestrator/orchestrator/mission_flow_v2/phases_runtime.py`,
+in `_prepare_fusion`, **immediately after** `metadata["generated_output"] =
+generated_output` (~L568), inside the `if ... ready_for_codegen and not
+mission_has_generated_output(...)` block so it fires only when the specialist
+actually generated code.
 
-### Exact change (pattern, pending confirmed insertion point)
+**Field availability (verified against `_normalize_codegen_result` in
+`llm_delegation/normalizers.py`):** `generated_output` (schema
+`generated_output.v1`) contains `language`, `specialist_agent_id`,
+`model_provider`, `model`, `source`, `code_length_chars` — **but no
+`logicnode_id` and no `confidence_score`.** So:
+
+- `source_language` ← `generated_output["language"]` (present).
+- `sender` ← `generated_output["specialist_agent_id"]` (present, bus-valid).
+- `recipient` (pod manager) ← `metadata["assigned_pod_manager_agent_id"]`
+  (set in PBLA-build phase; fall back to `resolve_pod_manager_agent_id(...)`).
+  `pod_manager_agent_id` is **not** a local in `_prepare_fusion` — read it from
+  metadata.
+- `logicnode_id` ← **synthesize** a stable id, e.g.
+  `f"ln-{mission.mission_id}-fused"` (the fused codegen is not a single
+  LogicNode; use `master_stream["total_unified_nodes"]` in the payload for
+  count context).
+- `confidence_score` ← **synthesize** from `generated_output["source"]`
+  (`"llm"` → e.g. `0.85`, `"fallback"`/`"error"` → e.g. `0.3`). Must be in
+  `[0.0, 1.0]` or `BetaPayload` rejects it (422 → DLQ). Do not pass a raw model
+  score without clamping.
+
+### Exact change (grounded)
 
 ```python
 async def _send_beta_production_result(
@@ -366,13 +448,11 @@ async def _send_beta_production_result(
             confidence_score=confidence_score,
             source_language=source_language,
             payload={
-                # Discriminator (see "Forward-Compatibility Requirement").
+                # PBLA_SPECIALIST_RESULT from protocol_bus_emissions (PBLA-00).
                 # Beta is directed to the pod manager (not broadcast), so
-                # collision risk is low, but stamp for symmetry. Note:
-                # confidence_score must be normalized to [0.0, 1.0] or the bus
-                # rejects the message (BetaPayload bound) — check the
-                # specialist's actual output range during the investigation step.
+                # collision risk is low, but stamp for symmetry.
                 "emission": "pbla_specialist_result",
+                "unified_node_count": payload.get("unified_node_count") if payload else None,
                 **(payload or {}),
             },
             correlation_id=f"beta-{mission_id}-{logicnode_id}",
@@ -384,12 +464,34 @@ async def _send_beta_production_result(
         )
 ```
 
+Call site (inside `_prepare_fusion`, right after `metadata["generated_output"]
+= generated_output`), showing the required synthesis:
+
+```python
+_pod_mgr = _validate_agent_id(
+    metadata.get("assigned_pod_manager_agent_id"),
+    fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+)
+_confidence = 0.85 if generated_output.get("source") == "llm" else 0.3
+await _send_beta_production_result(
+    settings=settings,
+    mission_id=mission.mission_id,
+    specialist_agent_id=generated_output.get("specialist_agent_id", specialist_agent_id),
+    pod_manager_agent_id=_pod_mgr,
+    logicnode_id=f"ln-{mission.mission_id}-fused",
+    confidence_score=_confidence,
+    source_language=str(generated_output.get("language") or "python"),
+    payload={"unified_node_count": master_stream.get("total_unified_nodes")},
+)
+```
+
 ### New tests
 
-Add to the relevant `phases_runtime` test module once the insertion point
-is confirmed: mock `send_beta_result`, assert call with correct
-`logicnode_id`/`confidence_score`/`source_language` mapping from the
-specialist's actual output structure.
+Add to `tests/services/test_mission_flow_v2_phases_runtime.py` (or the existing
+fusion test module): mock `send_beta_result`, assert one call on a successful
+codegen with `source_language` from `generated_output["language"]`,
+`confidence_score` in `[0,1]`, and the synthesized `logicnode_id`; assert it is
+NOT called when codegen is skipped (`ANALYZE_ONLY` / not `ready_for_codegen`).
 
 ### Validation
 
@@ -397,7 +499,8 @@ Same shape as PBLA-01/02, checked against `protocol:beta:{pod_manager_agent_id}`
 
 ### Definition of done
 
-- [ ] Insertion point in `phases_runtime.py` confirmed by direct read
+- [x] Insertion point confirmed (`_prepare_fusion`, after generated_output set)
+- [ ] `confidence_score`/`logicnode_id` synthesis implemented and clamped to `[0,1]`
 - [ ] `_send_beta_production_result` implemented and called at that point
 - [ ] Live mission produces Beta entries on the bus, zero DLQ writes
 - [ ] `IMPLEMENTATION_STATUS.md` updated
@@ -406,18 +509,46 @@ Same shape as PBLA-01/02, checked against `protocol:beta:{pod_manager_agent_id}`
 
 ## Phase PBLA-04 — Rho (Traffic / Rate-Limit Control)
 
-**Why last:** the only lane without an obvious existing insertion point —
-needs the most investigation, lowest urgency of the four.
+**Why last:** candidate sites confirmed (2026-06-30), but there is a real
+structural blocker (`settings` is not in scope at the provider layer) that must
+be decided before coding. Lowest urgency of the four.
 
-### Investigation step (do first)
+### Candidate sites (confirmed in code) and the blocker
 
-`view services/orchestrator/orchestrator/llm_delegation/providers.py` and
-the API Broker logic in `services/api-gateway/` to find where rate-limit
-decisions, provider fallback, or token-budget enforcement currently happen
-without any bus emission. Unlike Delta/Omega/Beta, there is no existing
-chain-event analog to anchor this to — it may need a new call site inside
-the provider-selection or fallback-handling logic rather than inside
-`mission_flow_v2`.
+`services/orchestrator/orchestrator/llm_delegation/providers.py` already has the
+two natural Rho events, both already adjacent to existing telemetry:
+
+1. **Rate-limit / backoff** — `_post_with_retry` (~L96) retries on HTTP 429 and
+   5xx (`if response.status_code == 429 or >= 500`). A Rho emission with
+   `rate_limit_action="retry_backoff"` belongs here.
+2. **Provider fallback / error** — `_call_provider` (~L398) has a `finally` block
+   that already records provider health and `record_llm_request(...)` telemetry,
+   and `agent_target` is available there via `current_agent_id.get()`. A Rho
+   emission with `rate_limit_action="provider_error"` / `"fallback"` belongs in
+   that `finally`, beside the existing metric.
+
+**Blocker — `settings` is not available at the provider layer.** These are
+module-level transport helpers; they have no `settings` object, but
+`send_rho_control` needs it for the bus URL/API key. Resolve one of:
+
+- **(a, recommended) Emit one layer up.** `_call_with_recommendation` /
+  `_call_with_agent_system` sit above `_call_provider` and are closer to call
+  sites that *do* have settings; pass settings down or emit there on a
+  fallback/error result. Lowest blast radius, keeps providers.py settings-free.
+- **(b) Module-level bus accessor.** Add a tiny settings/`bus config`
+  accessor that reads `PROTOCOL_BUS_URL` / `MCP_API_KEY` from env directly
+  (the producer already falls back to env-style attrs), used only by the Rho
+  path. Avoids threading settings but adds a second config source.
+- **(c) Defer Rho to a higher-level signal.** Emit Rho from the orchestrator
+  where provider-fallback outcomes are already surfaced (e.g. when a mission
+  records a degraded/fallback result), not from inside the transport loop.
+
+`token_budget` has no real source in this path today — pass a best-effort
+estimate or `0`, and carry the real signal (`provider`, `model`, `status`) in
+`metadata`. Decide (a)/(b)/(c) before writing the helper; the example below
+assumes the helper receives `settings` from whichever site is chosen.
+
+### Exact change (helper pattern — call site per decision above)
 
 ### Exact change (pattern, pending confirmed insertion point)
 
@@ -462,27 +593,68 @@ async def _send_rho_traffic_control(
 
 ### New tests
 
-Add once the insertion point is confirmed: mock `send_rho_control`, assert
-it's called on rate-limit/fallback events with correct `rate_limit_action`
-and `agent_target`.
+Mock `send_rho_control`; drive a 429 (or a forced provider error) through the
+chosen call site and assert one Rho emission with `rate_limit_action` set and
+`agent_target` from `current_agent_id.get()`. Because the trigger is a provider
+error rather than the normal mission path, this test will likely live in the
+provider/transport test module, not a mission_flow_v2 one.
 
 ### Validation
 
 Same shape as the prior three phases, checked against `protocol:rho:broadcast`.
+A clean mission may emit **zero** Rho messages (no rate-limit hit) — unlike
+Delta/Beta, Rho traffic is conditional, so validate with a synthetic 429 or a
+forced-fallback run, not a happy-path mission.
 
 ### Definition of done
 
-- [ ] Insertion point identified in provider/broker logic
-- [ ] `_send_rho_traffic_control` implemented and wired
-- [ ] Live mission (or synthetic rate-limit trigger) produces Rho entries,
-      zero DLQ writes
+- [x] Candidate sites confirmed (`_post_with_retry` 429 path; `_call_provider`
+      finally) and the `settings`-scope blocker documented
+- [ ] Settings-availability decision (a/b/c above) made and recorded
+- [ ] `_send_rho_traffic_control` implemented and wired at the chosen site
+- [ ] Synthetic rate-limit/fallback run produces Rho entries, zero DLQ writes
 - [ ] `IMPLEMENTATION_STATUS.md` updated
+
+---
+
+## Phase PBLA-05 — Lane observability surfacing (optional, do last)
+
+**Why optional:** PBLA-01..04 already make lane traffic observable via the bus
+`/metrics` endpoint and raw streams (see Closing Validation). PBLA-05 only
+decides whether to surface per-lane activity in the app's own operations view so
+an operator sees "all six lanes live" without scraping Redis. Pure
+read/observability — no new producers.
+
+### Investigation step (do first)
+
+The orchestrator already builds an operations snapshot
+(`main.py: _build_operations_agents_snapshot`, exposed at
+`/v1/operations/agents` and `/v1/operations/agent-integrations`) and the bus
+already exports `protocol_bus_mcp_messages_queued_total{protocol}` at `/metrics`.
+Decide whether lane-activity belongs in the existing operations snapshot or stays
+a metrics-only concern. Do not add a new persistence path for this.
+
+### Candidate change (only if surfacing is wanted)
+
+- Read the six `protocol_bus_mcp_messages_queued_total{protocol}` counters (or
+  `XLEN protocol:{lane}:*`) when assembling the operations snapshot, and add a
+  `lane_activity` block (per-lane queued count + last-seen) to the operations
+  payload.
+- Optionally render it in the Mission Control agents/operations panel that
+  already shows agent integration data.
+
+### Definition of done
+
+- [ ] Decision recorded: surface in operations snapshot, or metrics-only
+- [ ] If surfaced: `lane_activity` added to the operations payload (read-only)
+      with a regression test; Mission Control optionally renders it
+- [ ] No new producer or persistence path introduced
 
 ---
 
 ## Closing Validation — All Six Lanes Live
 
-After PBLA-01 through PBLA-04 are complete, run a single combined check:
+After PBLA-00 through PBLA-04 are complete, run a single combined check:
 
 ```bash
 python scripts/demo_missions.py --live

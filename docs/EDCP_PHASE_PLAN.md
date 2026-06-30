@@ -107,8 +107,17 @@ the handoff rides **Omega** as a distinct `message_type: mission_charter_ready`,
 recipient = `AGENT-03-BROKER` (the orchestrator's consumer identity), reusing
 the existing consumer with one added handler key. This keeps Omega as "the PM
 agent's lane" while the human-facing Omega traffic uses other message types.
-**Open for Kevin to confirm** — alternative is a dedicated internal control
-topic if conflating with Omega is undesirable.
+
+**Recommendation (2026-06-30): keep Omega, do not add a 7th topic.** The PBLA
+gap review settled the concern behind the original "open" flag. Because the
+consumer tails `protocol:omega:broadcast` regardless of recipient, the charter
+handler must `message_type`-filter *anyway* (PBLA-02 also rides Omega as
+`pbla_delivery_handoff`). Once a discriminator filter is mandatory, conflation on
+Omega costs nothing extra, while a dedicated control topic would mean a 7th
+protocol (heavyweight, per `54_Protocol_Extension_Guide.md`) for no isolation
+benefit. So: keep Omega, and treat `message_type` discrimination — sourced from
+the shared `orchestrator/protocol_bus_emissions.py` constants (PBLA-00) — as the
+load-bearing mechanism on this lane.
 
 ---
 
@@ -156,11 +165,12 @@ consuming it instead of by the loop.
   `AGENT-03-BROKER`) carrying the charter. Dual-write; still returns `True`.
 - `main.py` → `protocol_bus_consumer_loop`: add `"omega": _handle_charter_ready`
   to the `handlers` dict. The handler invokes `_prepare_ceo_delegation` for the
-  mission id in the message. **The handler MUST filter on
-  `feature_contract.message_type`** and act only on `mission_charter_ready` —
-  the consumer tails `protocol:omega:broadcast` as well as the directed channel,
-  so it will also receive PBLA-02's `pbla_delivery_handoff` broadcasts (Stage 1).
-  Ignoring non-charter message types is required for correctness, not optional.
+  mission id in the message. **The handler MUST filter on the Omega
+  `message_type`** — import `OMEGA_MESSAGE_TYPE_KEY` + `PBLA_EMISSIONS` from
+  `orchestrator/protocol_bus_emissions.py` (the PBLA-00 shared contract), act
+  only on `mission_charter_ready`, and ignore `pbla_delivery_handoff`. The
+  consumer tails `protocol:omega:broadcast` as well as the directed channel, so
+  it will also receive PBLA-02's handoffs (Stage 1). Required for correctness.
 - `lifecycle.py` → `advance_mission_lifecycle_v2`: when the flag is on, remove
   the `MissionState.fetch: _prepare_ceo_delegation` entry from `stage_preparers`
   so the loop pauses at `fetch` and the consumed event resumes the mission.
