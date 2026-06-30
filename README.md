@@ -1012,3 +1012,7 @@ Next priorities:
 3. Add failure-injection coverage for storage, event-bus, worker, and provider fallback paths.
 4. Finish Phase 8 Mission Flow v2 strict mode coverage and `INF-008` observability/evidence correlation.
 5. Harden provider preflight, key rotation, quota, and fallback operator workflows.
+
+---
+
+> **Local-first design:** theFactory is engineered to run fully offline with no external platform dependencies. All secrets stay in `.env` and local vault endpoints. Do not commit credentials or provider keys.

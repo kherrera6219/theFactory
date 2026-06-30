@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.06.29-c
-Last updated: 2026-06-29
+Document version: 2026.06.30
+Last updated: 2026-06-30
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -34,17 +34,19 @@ The application currently includes:
 
 | Area | Current state |
 |---|---|
-| Runtime rebuild | Full dedicated-agent Docker stack rebuilt on 2026-06-27 |
-| Rebuild readiness | API gateway, orchestrator, and Mission Control readiness passed |
-| Backend/API mission path | Phase 13 smoke passed on 2026-06-27 |
+| Runtime validation | Full-dedicated stack evidence refreshed on 2026-06-30 |
+| Rebuild readiness | API gateway and orchestrator readiness passed in the current smoke evidence |
+| Backend/API mission path | Phase 13 smoke passed on 2026-06-30 |
 | Smoke evidence | `docs/evidence/phase13_smoke_latest.json` |
-| Passing smoke mission | `mission-b95ea912-94f8-4be8-8f7e-3cdce61cb7a7` |
+| Passing smoke mission | `mission-ac933664-bda8-4acf-b265-10171c2ccdf6` |
 | Mission state | `COMPLETE` |
 | Chain trace | Required PM, CEO, pod-manager, and specialist events present |
 | Artifacts | One build artifact retrieved; generated Python parsed successfully |
+| Non-ASCII artifact integrity | Phase 3 smoke `mission-bd5369ec-3777-4099-89fe-81699289a29d` preserved 28 non-ASCII characters through codegen, packaging, and storage readback |
+| Non-ASCII evidence | `docs/evidence/phase3_non_ascii_smoke_latest.json` |
 | Mission Control E2E | Phase 11 Playwright suite passed: 23 tests |
-| Documentation controls | 78 metadata docs, 120 link docs, 17 docstring files, migration guide, and three diagram sets validated |
-| OpenAPI drift | `scripts/export_openapi.py --check` passed in Phase 13 slice |
+| Documentation controls | 75 metadata docs, 117 link docs, 17 docstring files, migration guide, and three diagram sets validated |
+| OpenAPI/API type drift | Generated API types include `MissionRecord.lifecycle_engine`; latest drift/security gate fixes were locally validated |
 | Production audit | 22/23 checks pass; `INF-008` remains open |
 
 ---
@@ -53,9 +55,9 @@ The application currently includes:
 
 | Gap | Required next step |
 |---|---|
-| Artifact correctness verification | Phase 1+2 branch code done (format gate, per-criterion acceptance evaluation, integrity-vs-correctness split, RQCA runnable-smoke evidence, authoritative `lifecycle_engine`); full validation and live Pong-style rerun remain. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` |
-| Non-ASCII artifact integrity | Phase 3 branch code adds non-ASCII regression coverage, packaging-time mojibake guard/repair before digest, codegen/package/storage-readback trace, lifted PM clarifying-question/context truncation, and passing live non-ASCII evidence at `docs/evidence/phase3_non_ascii_smoke_latest.json` |
-| Lifecycle-engine reporting | Branch code emits authoritative `lifecycle_engine` through orchestrator, gateway, chain trace, and Mission Control; live Mission Detail rerun remains |
+| Artifact correctness verification | Phase 1+2 code done (format gate, per-criterion acceptance evaluation, integrity-vs-correctness split, RQCA runnable-smoke evidence, authoritative `lifecycle_engine`); full validation and live Pong-style rerun remain. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` |
+| Non-ASCII artifact integrity | Phase 3 code adds non-ASCII regression coverage, packaging-time mojibake guard/repair before digest, codegen/package/storage-readback trace, lifted PM clarifying-question/context truncation, and passing live non-ASCII evidence at `docs/evidence/phase3_non_ascii_smoke_latest.json` |
+| Lifecycle-engine reporting | Current code emits authoritative `lifecycle_engine` through orchestrator, gateway, chain trace, and Mission Control; live Mission Detail rerun remains |
 | Phase 13 UI smoke | Submit and observe the mission path through Mission Control |
 | Phase 13 failure injection | Interrupt protocol-bus MCP mid-mission and verify retry/resume or clean failure |
 | Phase 13 provider fallback | Force primary provider failure and confirm fallback is used and recorded |
@@ -92,9 +94,10 @@ The application currently includes:
 
 ### Phase 13 Backend/API Smoke
 
-Completed. Added smoke automation, fixed runtime-QC event literal drift, rebuilt
-the full dedicated-agent Docker stack, and committed passing evidence from the
-rebuilt runtime.
+Completed for the current pass. Smoke automation exists, runtime-QC event
+literal drift is fixed, and current evidence is committed at
+`docs/evidence/phase13_smoke_latest.json` for mission
+`mission-ac933664-bda8-4acf-b265-10171c2ccdf6`.
 
 ### Phase 12 Documentation Drift
 

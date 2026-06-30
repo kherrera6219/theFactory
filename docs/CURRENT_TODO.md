@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.06.29-c
-Last updated: 2026-06-29
+Document version: 2026.06.30
+Last updated: 2026-06-30
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -13,13 +13,19 @@ as current work.
 
 ## Current Status
 
-Phase 13 backend/API smoke is complete for this pass. After the final
-full-dedicated Docker rebuild on 2026-06-27, gateway, orchestrator, and Mission
-Control readiness checks passed. The latest committed smoke evidence is
-`docs/evidence/phase13_smoke_latest.json` for mission
-`mission-b95ea912-94f8-4be8-8f7e-3cdce61cb7a7`.
+Phase 13 backend/API smoke is complete for this pass. The latest committed
+smoke evidence is `docs/evidence/phase13_smoke_latest.json` for mission
+`mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, which reached
+`COMPLETE`, produced one build artifact, and passed Python syntax validation
+for that artifact.
 
-Validated in that smoke:
+Phase 3 verification-hardening evidence is also current at
+`docs/evidence/phase3_non_ascii_smoke_latest.json` for mission
+`mission-bd5369ec-3777-4099-89fe-81699289a29d`. That run proves the
+non-ASCII artifact path preserved 28 non-ASCII characters through codegen,
+packaging, and storage readback.
+
+Validated across current evidence:
 
 - gateway and orchestrator readiness
 - mission creation through the API gateway
@@ -27,16 +33,19 @@ Validated in that smoke:
 - mission events and chain trace
 - build-artifact listing and artifact detail retrieval
 - Python syntax validation for the generated artifact
+- non-ASCII codegen, packaging, and storage-readback preservation
 
 The app is still active development, not production-ready. The backend/API happy
-path is now proven, but the broader release gate still needs UI, failure-mode,
-provider-fallback, and full validation coverage.
+path and Phase 3 artifact-encoding regression are proven, but the broader
+release gate still needs Mission Control UI smoke, Pong-style UI artifact rerun,
+failure-mode, provider-fallback, full validation, Phase 8 strict coverage,
+`INF-008`, provider preflight, and key-rotation coverage.
 
 ---
 
 ## Active Work Queue
 
-### Verification & Reporting Hardening (in progress, branch `verification-correctness-hardening`)
+### Verification & Reporting Hardening (Phase 1-3 complete; verification backlog remains)
 
 Tracked in full by `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`. Surfaced
 by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
@@ -59,13 +68,13 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
       names a required format.
     - TODO: Live re-run of a Pong-style mission to confirm the gate end-to-end
       (pending stack restart).
-0b. **Phase 2** — DONE in branch: runnable-artifact smoke evidence now rides the
+0b. **Phase 2** — DONE in main: runnable-artifact smoke evidence now rides the
     existing RQCA path, JavaScript syntax failures short-circuit as real runtime
     QC failures, HTML artifacts get static structure plus inline-script syntax
     smoke with honest browser-load `DRY_RUN` reporting, and an authoritative
     `lifecycle_engine` field is emitted through orchestrator, gateway,
     chain-trace, and Mission Control.
-0c. **Phase 3** — DONE in branch and live stack: non-ASCII artifact
+0c. **Phase 3** — DONE in main and live stack: non-ASCII artifact
     regression coverage, packaging-time mojibake guard/repair, codegen / packaging /
     storage-readback diagnostic trace, lifted PM clarifying-question/context
     truncation, and a passing live non-ASCII mission rerun recorded at
@@ -109,8 +118,8 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
 - `make validate` runs documentation validation and OpenAPI drift checks.
 - `scripts/validate_documentation.py` validates metadata, links, public
   docstrings, migration-guide drift, and architecture diagram drift.
-- Current validation reports 78 metadata-checked docs and 120 link-checked docs
-  after adding `docs/README.md`.
+- Current validation reports 75 metadata-checked docs, 117 link-checked docs,
+  and 17 docstring-checked files.
 
 ### Phase 11 Mission Control E2E
 
@@ -139,9 +148,9 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
 
 | Area | Status |
 |---|---|
-| Artifact correctness | Phase 1+2 branch code now enforces explicit format mismatch/missing extension and records runnable-smoke evidence; live Pong rerun still needed |
-| Artifact encoding | Phase 3 branch code adds non-ASCII regression coverage, conservative mojibake repair before digest, diagnostic trace, and passing live non-ASCII evidence at `docs/evidence/phase3_non_ascii_smoke_latest.json` |
-| Engine reporting | Phase 2 branch code emits authoritative `lifecycle_engine`; live Mission Detail rerun still needed |
+| Artifact correctness | Phase 1+2 code now enforces explicit format mismatch/missing extension and records runnable-smoke evidence; live Pong rerun still needed |
+| Artifact encoding | Phase 3 code adds non-ASCII regression coverage, conservative mojibake repair before digest, diagnostic trace, and passing live non-ASCII evidence at `docs/evidence/phase3_non_ascii_smoke_latest.json` |
+| Engine reporting | Phase 2 code emits authoritative `lifecycle_engine`; live Mission Detail rerun still needed |
 | Production audit | 22/23 checks pass; `INF-008` remains open |
 | Phase 8 coverage | `mission_flow_v2/` strict target remains open |
 | Phase 13 UI | Backend/API smoke passed; Mission Control UI smoke still needed |

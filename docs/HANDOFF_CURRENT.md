@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.06.29-c
-Last updated: 2026-06-29
+Document version: 2026.06.30
+Last updated: 2026-06-30
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -16,21 +16,25 @@ not override these current files.
 theFactory is an active local-first AI software factory application. It is not a
 production-ready release.
 
-The current validated runtime proof is the final full-dedicated Docker rebuild
-on 2026-06-27 followed by Phase 13 smoke mission
-`mission-b95ea912-94f8-4be8-8f7e-3cdce61cb7a7`, which reached `COMPLETE`,
-returned mission events and chain trace, produced one build artifact, and passed
-Python syntax validation for that artifact.
+The current validated backend/API proof is `docs/evidence/phase13_smoke_latest.json`
+for mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, which reached
+`COMPLETE`, returned mission events and chain trace, produced one build
+artifact, and passed Python syntax validation for that artifact.
 
-The most recent docs cleanup added `docs/README.md` as the GitHub docs landing
-page and updated README/index status language to match the Phase 13 proof and
-remaining gaps.
+The current Phase 3 artifact-encoding proof is
+`docs/evidence/phase3_non_ascii_smoke_latest.json` for mission
+`mission-bd5369ec-3777-4099-89fe-81699289a29d`, which preserved 28
+non-ASCII characters through codegen, packaging, and storage readback.
+
+The most recent public README refresh updated GitHub-facing status language to
+match the current Phase 13 and Phase 3 proof points, while preserving the active
+development / not-production-ready boundary.
 
 ---
 
 ## Active Work
 
-### Verification & Reporting Hardening (branch `verification-correctness-hardening`)
+### Verification & Reporting Hardening (Phase 1-3 complete; verification backlog remains)
 
 A live "Modern Neon Pong" mission, created through the Mission Control chat
 intake on 2026-06-29, reached `COMPLETE` and produced a working artifact, but
@@ -45,12 +49,11 @@ complete: 1a (artifact-format gate), 1b (per-criterion acceptance evaluation),
 `verification_scope="integrity"`, equivalence report tagged
 `verification_scope="correctness"`, Mission Control `EquivalenceReportPanel`
 copy updated), and the follow-up false-negative fixes for prohibited extension
-mentions plus extensionless artifacts. Phase 2 branch code is also complete:
+mentions plus extensionless artifacts. Phase 2 code is also complete:
 RQCAs now attach runnable-smoke evidence, JavaScript syntax failures become real
 runtime-QC failures, HTML artifacts get static structure plus inline-script
 syntax smoke with honest browser-load `DRY_RUN` reporting, and authoritative
-`lifecycle_engine` is emitted through the backend/API/UI path. Phase 3 branch
-code is complete and live-validated: non-ASCII artifact regression coverage,
+`lifecycle_engine` is emitted through the backend/API/UI path. Phase 3 code is complete and live-validated: non-ASCII artifact regression coverage,
 packaging-time mojibake guard/repair, codegen / packaging / storage-readback
 diagnostic trace, lifted PM clarifying-question/context truncation, and a
 passing live non-ASCII mission rerun recorded at
@@ -79,6 +82,7 @@ Remaining outside Phase 3: Pong-style UI artifact rerun for the broader verifica
 
 - Added `docs/README.md`.
 - Updated root `README.md` and `docs/DOCUMENTATION_INDEX.md`.
+- Refreshed the public README current-state language in commit `3439124` (`refresh-public-readme-status`).
 - Replaced stale current-state TODO/handoff/status content with concise current
   snapshots.
 
@@ -114,17 +118,16 @@ Production audit status remains 22/23 because `INF-008` is still open.
 
 ## Next Actions
 
-1. Commit/push the Phase 3 changes if desired. The broader next runtime proof
-   is the Pong-style UI artifact rerun for the verification backlog.
+1. Rerun a Pong-style UI artifact mission through the current PlanBuild path.
 2. Run Mission Control UI smoke for Phase 13.
-2. Run protocol-bus failure injection for Phase 13.
-3. Run provider fallback proof for Phase 13.
-4. Run full `make validate` and capture the current result.
-5. Fix or explicitly defer the Phase 8 `mission_flow_v2/` strict coverage gap.
-6. Resolve `INF-008`.
-7. Add provider/key/model preflight in Settings.
-8. Move provider/model selection into the app settings/vault path.
-9. Rotate exposed provider keys before public or shared use.
+3. Run protocol-bus failure injection for Phase 13.
+4. Run provider fallback proof for Phase 13.
+5. Run full `make validate` and capture the current result.
+6. Fix or explicitly defer the Phase 8 `mission_flow_v2/` strict coverage gap.
+7. Resolve `INF-008`.
+8. Add provider/key/model preflight in Settings.
+9. Move provider/model selection into the app settings/vault path.
+10. Rotate exposed provider keys before public or shared use.
 
 ---
 
