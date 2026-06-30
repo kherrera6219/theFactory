@@ -27,10 +27,15 @@ through a `stage_preparers` dict. PM → CEO → pod manager → specialist is a
 stack, not a conversation over the bus.
 
 The Protocol Bus exists (six typed lanes, MCP `/send`, Pydantic envelopes) but
-is **telemetry, not command**: `protocol_bus_producer.py` ships only
-`send_alpha_directive`, every send is fire-and-forget, and the orchestrator
-consumer (`main.py: protocol_bus_consumer_loop`) handles exactly one lane
-(`{"sigma": _handle_sigma_knowledge_ready}`).
+is **telemetry, not command**. As of 2026-06-30, `protocol_bus_producer.py`
+ships `send_*` helpers for all six lanes (EDCP-01 added Omega/Beta/Delta; Sigma
+and Rho also exist), but only two lanes have **live callers** in the mission
+pipeline — `send_alpha_directive` (CEO→Pod Manager) and the Sigma path via
+`knowledge_lake.broadcast_knowledge_ready`. Every send is fire-and-forget, and
+the orchestrator consumer (`main.py: protocol_bus_consumer_loop`) handles
+exactly one lane (`{"sigma": _handle_sigma_knowledge_ready}`). Adding callers
+for the remaining four lanes is Stage 1 (PBLA, `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`);
+this plan is Stage 2 and adds the consumers + control-flow inversion.
 
 This plan inverts that — one handoff seam at a time — so the bus becomes the
 command backbone and `missions.state` becomes a read-only projection, matching
@@ -71,7 +76,13 @@ the target architecture from the 2026-06-14 communication review.
 
 ---
 
-## Current-state evidence (grounded in code, 2026-06-14)
+## Current-state evidence (baseline 2026-06-14; Producer/Consumer rows updated 2026-06-30 post-EDCP-01)
+
+> The mission-driver / intake / build / support-ring rows below were re-verified
+> against the live source on 2026-06-30 and still hold (line numbers approximate).
+> The **Producer** and **Consumer** rows have been updated — EDCP-01 has since
+> landed the six producer helpers and the consumer-group durability mode, so the
+> original 2026-06-14 wording no longer matched the code.
 
 | Concern | File / function | Current behavior |
 |---|---|---|
@@ -80,8 +91,8 @@ the target architecture from the 2026-06-14 communication review.
 | CEO trigger | `phases_intake.py` → `_prepare_ceo_delegation` (mapped from `MissionState.fetch`) | Direct function call reached by the loop, not an event consumer |
 | CEO → pod manager | `phases_build.py` → `_prepare_pod_assignment` (~L50) + `_send_alpha_delegation_directive` (~L175) | Real assignment is a direct call; an Alpha directive is emitted **fire-and-forget** alongside it ("a bus outage must never block mission flow") — shadow telemetry |
 | Support ring gates | `lifecycle.py` → `_advance_verified_to_complete` | `_prepare_security_compliance_report`, `_prepare_dependency_absorption_reports`, `_prepare_runtime_qc`, deploy readiness — all direct calls; stamp agent IDs but are not event-tasked workers |
-| Producer | `protocol_bus_producer.py` | Only `send_protocol_message` + `send_alpha_directive`; no Beta/Delta/Sigma/Omega/Rho helpers |
-| Consumer | `protocol_bus_consumer.py` → `ProtocolBusConsumer._consume_lane` | `XREAD` from `$`, no consumer groups, no ack/redelivery; per-lane via the `handlers` dict keys |
+| Producer | `protocol_bus_producer.py` | **(2026-06-30)** Ships `send_protocol_message` plus `send_*` helpers for all six lanes (alpha/beta/delta/sigma/omega/rho). Only `send_alpha_directive` and the Sigma path (`knowledge_lake.broadcast_knowledge_ready`) have **live callers**; Beta/Delta/Omega/Rho helpers exist but are uncalled until PBLA (Stage 1) wires them |
+| Consumer | `protocol_bus_consumer.py` → `ProtocolBusConsumer` | **(2026-06-30)** Legacy `XREAD`-from-`$` is the default; an opt-in consumer-group mode (`XGROUP CREATE` / `XREADGROUP` / `XACK`, delivered by EDCP-01) is selected via `use_consumer_group`, gated by `event_driven_control_plane_enabled`. Per-lane via the `handlers` dict keys |
 | Orchestrator consumer wiring | `main.py` → `protocol_bus_consumer_loop` (~L491), `ORCHESTRATOR_BUS_AGENT_ID="AGENT-03-BROKER"` (~L450) | `handlers = {"sigma": _handle_sigma_knowledge_ready}`; guarded by `PROTOCOL_BUS_CONSUMER_ENABLED` |
 | State stream as work channel | `phases_intake.py` → `_emit_partition_work_items` | `xadd`s partition work items onto `settings.state_stream` (`missions.state`); pod-worker triggers off `MISSION_POD_MANAGER_ASSIGNED` / `MISSION_RUNNING` / `MISSION_PARTITION_READY` |
 
