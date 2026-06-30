@@ -193,10 +193,12 @@ asserts `PBLA_EMISSIONS` contains all four.
 
 ### Definition of done
 
-- [ ] `protocol_bus_emissions.py` added with the four constants + `PBLA_EMISSIONS`
-- [ ] PBLA-01..04 import from it rather than inlining strings
-- [ ] Contract test pins the values
-- [ ] EDCP plan references the same module for its consumer-side filter
+- [x] `protocol_bus_emissions.py` added with the four constants + `PBLA_EMISSIONS`
+      (plus an `is_pbla_emission()` consumer-side helper)
+- [ ] PBLA-01..04 import from it rather than inlining strings (done as each lane lands)
+- [x] Contract test pins the values
+      (`tests/services/test_protocol_bus_emissions.py` — 3 tests pass)
+- [x] EDCP plan references the same module for its consumer-side filter
 
 ---
 
