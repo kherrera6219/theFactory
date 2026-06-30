@@ -221,6 +221,7 @@ def _build_mission_chain_trace(
     )
     return {
         "mission_id": mission.mission_id,
+        "lifecycle_engine": mission.lifecycle_engine or metadata.get("lifecycle_engine"),
         "routing_enforced": bool(metadata.get("routing_enforced", False)),
         "routing_version": metadata.get("routing_version"),
         "selected_agent_id": metadata.get("selected_agent_id"),

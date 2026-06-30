@@ -176,6 +176,8 @@ def _embed_charter_fields(metadata: dict[str, Any], record: MissionRecord) -> di
         metadata["__output_mode__"] = record.output_mode.value
     if record.data_classification is not None:
         metadata["__data_classification__"] = record.data_classification.value
+    if record.lifecycle_engine:
+        metadata["lifecycle_engine"] = record.lifecycle_engine
     return metadata
 
 
@@ -199,6 +201,11 @@ def row_to_mission(row: Any) -> MissionRecord:
         project_id=str(
             (row[project_id_index] if project_id_index is not None else None)
             or resolve_project_id(metadata, mission_id=row[0])
+        ),
+        lifecycle_engine=(
+            str(metadata.get("lifecycle_engine")).strip()
+            if metadata.get("lifecycle_engine")
+            else None
         ),
         state=MissionState(row[state_index]),
         created_at=_to_iso(row[created_at_index]),

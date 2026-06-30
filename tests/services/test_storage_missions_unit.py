@@ -69,18 +69,20 @@ def test_embed_charter_fields():
         state=MissionState.queued,
         created_at=datetime.now(UTC).isoformat(),
         mission_type=MissionType.build_new,
-        depth_mode=DepthMode.standard
+        depth_mode=DepthMode.standard,
+        lifecycle_engine="mission_flow_v2",
     )
     metadata = {}
     storage_missions._embed_charter_fields(metadata, record)
     assert metadata["__mission_type__"] == "BUILD_NEW"
     assert metadata["__depth_mode__"] == "STANDARD"
+    assert metadata["lifecycle_engine"] == "mission_flow_v2"
 
 def test_row_to_mission():
     # mission_id, prompt, requested_target_language, metadata_json, project_id, state, created_at
     row = (
         "m1", "prompt", "rust", 
-        json.dumps({"__mission_type__": "BUILD_NEW"}),
+        json.dumps({"__mission_type__": "BUILD_NEW", "lifecycle_engine": "mission_flow_v2"}),
         "p1", "QUEUED", datetime(2026, 1, 1, tzinfo=UTC)
     )
     mission = storage_missions.row_to_mission(row)
@@ -88,6 +90,7 @@ def test_row_to_mission():
     assert mission.state == MissionState.queued
     assert mission.mission_type == MissionType.build_new
     assert mission.project_id == "p1"
+    assert mission.lifecycle_engine == "mission_flow_v2"
 
 @patch("orchestrator.storage_missions.get_connection")
 def test_fetch_mission(mock_connect):

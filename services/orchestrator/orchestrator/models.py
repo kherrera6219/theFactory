@@ -229,6 +229,7 @@ class MissionRecord(BaseModel):
     global_style_directives: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     project_id: str | None = None
+    lifecycle_engine: str | None = None
     state: MissionState
     created_at: datetime
 

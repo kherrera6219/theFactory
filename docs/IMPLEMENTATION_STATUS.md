@@ -53,9 +53,9 @@ The application currently includes:
 
 | Gap | Required next step |
 |---|---|
-| Artifact correctness verification | Phase 1 done (format gate, per-criterion acceptance evaluation, and integrity-vs-correctness split in `equivalence_verifier.py` / `build_artifacts.py` / Mission Control); Phase 2 runnable-smoke verifier and a live re-run remain. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` |
+| Artifact correctness verification | Phase 1+2 branch code done (format gate, per-criterion acceptance evaluation, integrity-vs-correctness split, RQCA runnable-smoke evidence, authoritative `lifecycle_engine`); full validation and live Pong-style rerun remain. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` |
 | Non-ASCII artifact integrity | Localize and guard mojibake corruption in generated output |
-| Lifecycle-engine reporting | Emit an authoritative `lifecycle_engine` field so v2 missions stop mislabeling as `LEGACY V1` |
+| Lifecycle-engine reporting | Branch code emits authoritative `lifecycle_engine` through orchestrator, gateway, chain trace, and Mission Control; live Mission Detail rerun remains |
 | Phase 13 UI smoke | Submit and observe the mission path through Mission Control |
 | Phase 13 failure injection | Interrupt protocol-bus MCP mid-mission and verify retry/resume or clean failure |
 | Phase 13 provider fallback | Force primary provider failure and confirm fallback is used and recorded |

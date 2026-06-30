@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from .. import storage
 from ..audit_events import record_audit_event
 from ..auth import AuthContext
+from ..lifecycle_interface import get_lifecycle_engine_name
 from ..models import (
     MissionClarifyRequest,
     MissionCreate,
@@ -37,6 +38,7 @@ async def create_mission(
     redis_ready, _ = await _main._ensure_db_ready(app)
     redis_client = getattr(app.state, "redis", None)
     metadata = with_project_identity(payload.metadata, mission_id=payload.mission_id)
+    metadata["lifecycle_engine"] = get_lifecycle_engine_name(app.state.settings)
     project_id = payload.project_id or resolve_project_id(metadata, mission_id=payload.mission_id)
 
     record = MissionRecord(
@@ -49,6 +51,7 @@ async def create_mission(
         data_classification=payload.data_classification,
         metadata=metadata,
         project_id=project_id,
+        lifecycle_engine=metadata["lifecycle_engine"],
         state=MissionState.queued,
         created_at=payload.created_at or datetime.now(UTC).isoformat(),
     )

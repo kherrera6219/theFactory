@@ -110,6 +110,7 @@ def test_normalize_mission_metadata_covers_none_existing_pm_trace_and_invalid_in
     assert normalized["agent_id"] == api_gateway_main.PM_AGENT_ID
     assert normalized["selected_agent_id"] == api_gateway_main.PM_AGENT_ID
     assert normalized["expected_pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
+    assert normalized["lifecycle_engine"] == "mission_flow_v2"
     assert "project_id" not in normalized
     assert normalized["chain_trace"][0]["event_type"] == "MISSION_PM_INTAKE"
 

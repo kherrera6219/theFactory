@@ -165,6 +165,59 @@ def test_artifact_format_gate_passes_when_html_contract_gets_html_file() -> None
     assert _format_check(report)["status"] == "pass"
 
 
+def test_artifact_format_gate_ignores_prohibited_extension_mentions() -> None:
+    report = equivalence_verifier.build_equivalence_report(
+        mission_id="mission-pong",
+        requested_target_language="javascript",
+        metadata={
+            "generated_output": {
+                "source": "llm",
+                "generated_code": "console.log('pong');",
+                "filename": "neon-pong.js",
+                "language": "javascript",
+            },
+            "feature_contract": {
+                "summary": "Modern Neon Pong as a single HTML5 file.",
+                "acceptance_criteria": [
+                    "Deliver one self-contained HTML file with no external .js/.css files.",
+                ],
+            },
+        },
+        build_artifacts=[_html_artifact("neon-pong.js")],
+        enforcement_enabled=True,
+    )
+
+    check = _format_check(report)
+    assert check["status"] == "fail"
+    assert check["required"] is True
+    assert check["evidence"]["expected_extensions"] == ["htm", "html"]
+
+
+def test_artifact_format_gate_fails_when_required_format_has_no_extension() -> None:
+    report = equivalence_verifier.build_equivalence_report(
+        mission_id="mission-pong",
+        requested_target_language="javascript",
+        metadata={
+            "generated_output": {
+                "source": "llm",
+                "generated_code": "<!DOCTYPE html><html></html>",
+                "filename": "neon-pong",
+                "language": "javascript",
+            },
+            "feature_contract": {
+                "summary": "A single self-contained HTML file implementing Pong.",
+            },
+        },
+        build_artifacts=[_html_artifact("neon-pong")],
+        enforcement_enabled=True,
+    )
+
+    check = _format_check(report)
+    assert check["status"] == "fail"
+    assert check["required"] is True
+    assert report["blocking"] is True
+
+
 def test_artifact_format_gate_is_advisory_without_explicit_format() -> None:
     report = equivalence_verifier.build_equivalence_report(
         mission_id="mission-1",

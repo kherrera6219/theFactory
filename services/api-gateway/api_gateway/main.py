@@ -262,6 +262,9 @@ PM_AGENT_ID = "AGENT-01-PM"
 CEO_AGENT_ID = "AGENT-02-CEO"
 DEFAULT_POD_MANAGER_AGENT_ID = "AGENT-12-PODA-MGR"
 ROUTING_VERSION = "v1.1"
+LIFECYCLE_ENGINE_MISSION_FLOW_V2 = "mission_flow_v2"
+LIFECYCLE_ENGINE_LANGGRAPH = "langgraph"
+LIFECYCLE_ENGINE_LEGACY_V1 = "legacy_v1"
 _POD_A_LANGUAGES = {"python", "javascript", "typescript", "ruby", "php"}
 _POD_B_LANGUAGES = {"go", "rust", "c", "cpp", "zig"}
 _POD_C_LANGUAGES = {"java", "csharp", "kotlin", "scala"}
@@ -272,6 +275,21 @@ POD_MANAGER_BY_LANGUAGE: dict[str, str] = {
     **{language: "AGENT-24-PODC-MGR" for language in _POD_C_LANGUAGES},
     **{language: "AGENT-30-PODD-MGR" for language in _POD_D_LANGUAGES},
 }
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _active_lifecycle_engine_name() -> str:
+    if _env_bool("MISSION_FLOW_V2_ENABLED", True):
+        return LIFECYCLE_ENGINE_MISSION_FLOW_V2
+    if _env_bool("LANGGRAPH_ENABLED", False):
+        return LIFECYCLE_ENGINE_LANGGRAPH
+    return LIFECYCLE_ENGINE_LEGACY_V1
 
 
 _METADATA_MAX_BYTES = 4096
@@ -311,6 +329,7 @@ class MissionRecord(BaseModel):
     requested_target_language: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     project_id: str | None = None
+    lifecycle_engine: str | None = None
     state: str
     created_at: str
 
@@ -451,6 +470,7 @@ def _normalize_mission_metadata(
         )
 
     normalized["routing_version"] = ROUTING_VERSION
+    normalized["lifecycle_engine"] = _active_lifecycle_engine_name()
     normalized["routing_enforced"] = True
     normalized["intake_agent_id"] = PM_AGENT_ID
     normalized["executive_agent_id"] = CEO_AGENT_ID
@@ -2030,6 +2050,7 @@ def _prepare_initial_mission_payload(
         "requested_target_language": payload.requested_target_language,
         "metadata": payload.metadata,
         "project_id": payload.metadata.get("project_id"),
+        "lifecycle_engine": payload.metadata.get("lifecycle_engine"),
         "created_at": created_at,
         "state": "INTAKE",
     }
@@ -2229,7 +2250,16 @@ async def create_mission(
         "state": str(persisted.get("state", "QUEUED")),
         "created_at": str(persisted.get("created_at", created_at)),
         "metadata": persisted.get("metadata") if isinstance(persisted.get("metadata"), dict) else mission_payload["metadata"],
-        "project_id": str(persisted.get("project_id") or mission_payload["metadata"].get("project_id") or mission_payload["project_id"] or _resolve_project_id(mission_payload["metadata"], mission_id=mission_id))
+        "project_id": str(persisted.get("project_id") or mission_payload["metadata"].get("project_id") or mission_payload["project_id"] or _resolve_project_id(mission_payload["metadata"], mission_id=mission_id)),
+        "lifecycle_engine": (
+            persisted.get("lifecycle_engine")
+            or (
+                persisted.get("metadata", {}).get("lifecycle_engine")
+                if isinstance(persisted.get("metadata"), dict)
+                else None
+            )
+            or mission_payload.get("lifecycle_engine")
+        ),
     })
 
     await _emit_intake_telemetry(redis_client, mission_id, mission_payload)

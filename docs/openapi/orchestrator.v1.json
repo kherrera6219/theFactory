@@ -740,6 +740,17 @@
             "title": "Global Style Directives",
             "type": "array"
           },
+          "lifecycle_engine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lifecycle Engine"
+          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",

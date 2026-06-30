@@ -41,14 +41,18 @@ despite executing the Mission Flow v2 pipeline.
 
 The full plan is `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`. Phase 1 is
 complete: 1a (artifact-format gate), 1b (per-criterion acceptance evaluation),
-and 1c (integrity vs correctness split — artifact `verification` tagged
+1c (integrity vs correctness split — artifact `verification` tagged
 `verification_scope="integrity"`, equivalence report tagged
 `verification_scope="correctness"`, Mission Control `EquivalenceReportPanel`
-copy updated). Backend unit tests, Ruff, Mission Control `tsc` lint, 74 vitest
-tests, and documentation validation pass. Remaining: Phase 2 (runnable-smoke
-verifier via RQCA; authoritative `lifecycle_engine` field), Phase 3 (mojibake
-localize/guard; PM clarifying-question truncation), and a live re-run of a
-Pong-style mission after the stack restarts.
+copy updated), and the follow-up false-negative fixes for prohibited extension
+mentions plus extensionless artifacts. Phase 2 branch code is also complete:
+RQCAs now attach runnable-smoke evidence, JavaScript syntax failures become real
+runtime-QC failures, HTML artifacts get static structure plus inline-script
+syntax smoke with honest browser-load `DRY_RUN` reporting, and authoritative
+`lifecycle_engine` is emitted through the backend/API/UI path. Focused backend
+tests pass. Remaining: Phase 3 (mojibake localize/guard; PM clarifying-question
+truncation), full validation, and a live re-run of a Pong-style mission after
+the stack restarts.
 
 ---
 
@@ -80,6 +84,9 @@ Pong-style mission after the stack restarts.
 
 Passing checks from the latest work:
 
+- `python -m pytest -o addopts= --basetemp .pytest-tmp tests/services/test_equivalence_verifier_unit.py tests/services/test_runtime_qc_unit.py tests/services/test_lifecycle_interface_unit.py tests/services/test_storage_missions_unit.py tests/services/test_api_gateway_helpers_unit.py tests/services/test_orchestrator_endpoints_extra.py`
+  passed with 88 tests.
+
 - Full dedicated-agent Docker rebuild completed successfully.
 - API gateway `/readyz` returned ready with orchestrator and Redis healthy.
 - Orchestrator `/readyz` returned ready with Redis, Postgres, Qdrant, Milvus,
@@ -101,9 +108,9 @@ Production audit status remains 22/23 because `INF-008` is still open.
 
 ## Next Actions
 
-1. Complete Verification & Reporting Hardening Phase 1 (artifact-format gate,
-   acceptance-criteria evaluation, integrity-vs-correctness split), then Phases 2
-   and 3. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`.
+1. Complete Verification & Reporting Hardening Phase 3. Phase 1 and Phase 2
+   branch code are complete, but full validation and live Pong-style rerun still
+   need to be refreshed. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`.
 2. Run Mission Control UI smoke for Phase 13.
 2. Run protocol-bus failure injection for Phase 13.
 3. Run provider fallback proof for Phase 13.

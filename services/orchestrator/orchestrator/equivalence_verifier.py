@@ -28,6 +28,10 @@ _KEYWORD_FILE_PATTERN = re.compile(r"\b([a-z0-9+#]{2,12})\s+file\b")
 # Explicit ".ext" mentions, restricted to a curated allowlist so incidental
 # tokens (e.g. "console.log", domain names) do not register as format demands.
 _EXPLICIT_EXTENSION_PATTERN = re.compile(r"\.([a-z][a-z0-9]{0,4})\b")
+_PROHIBITED_EXTENSION_CONTEXT_PATTERN = re.compile(
+    r"\b(no|not|without|avoid|exclude|excluding|forbid|forbidden|prohibit|prohibited)\b"
+    r"[\w\s,;:./-]{0,40}$"
+)
 _KNOWN_ARTIFACT_EXTENSIONS = {
     "html", "htm", "js", "mjs", "ts", "tsx", "jsx", "py", "rb", "go", "rs",
     "java", "cs", "cpp", "c", "css", "json", "md", "sh", "sql", "yaml", "yml",
@@ -242,9 +246,9 @@ def _check_artifact_format(
         return _check(
             check_id="artifact_format_matches_contract",
             title="Artifact format matches contract",
-            status="manual_review",
-            required=False,
-            message="Artifact filename has no extension to verify against the contract.",
+            status="fail",
+            required=True,
+            message="Artifact filename has no extension but the contract names a required format.",
             evidence={"expected_extensions": sorted(expected), "artifact_filename": filename},
         )
     if actual_ext in expected:
@@ -303,9 +307,16 @@ def _expected_artifact_extensions(contract_text: str) -> set[str]:
             expected |= _ARTIFACT_FORMAT_EXTENSIONS[keyword]
     for match in _EXPLICIT_EXTENSION_PATTERN.finditer(text):
         ext = match.group(1)
-        if ext in _KNOWN_ARTIFACT_EXTENSIONS:
+        if ext in _KNOWN_ARTIFACT_EXTENSIONS and not _is_prohibited_extension_mention(
+            text, match.start()
+        ):
             expected.add(ext)
     return expected
+
+
+def _is_prohibited_extension_mention(text: str, extension_start: int) -> bool:
+    context = text[max(0, extension_start - 48):extension_start]
+    return bool(_PROHIBITED_EXTENSION_CONTEXT_PATTERN.search(context))
 
 
 def _check_language_alignment(

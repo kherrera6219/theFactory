@@ -44,6 +44,7 @@ export type MissionRecord = {
   data_classification?: DataClassification | null;
   metadata?: Record<string, unknown>;
   project_id?: string | null;
+  lifecycle_engine?: string | null;
   created_at: string;
 };
 
@@ -475,6 +476,7 @@ export type SbomDelta = {
 
 export type MissionChainTrace = {
   mission_id: string;
+  lifecycle_engine?: string | null;
   routing_enforced: boolean;
   routing_version?: string | null;
   selected_agent_id?: string | null;

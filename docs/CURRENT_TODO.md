@@ -53,11 +53,18 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
       `verification_scope="correctness"`, clarified the integrity-check copy, and
       updated the Mission Control `EquivalenceReportPanel` so integrity no longer
       reads as "runs."
+    - DONE (1d): Closed the follow-up false negatives: prohibited `.js/.css`
+      mentions such as "no external .js/.css" no longer expand acceptable
+      deliverable formats, and extensionless artifacts fail when the contract
+      names a required format.
     - TODO: Live re-run of a Pong-style mission to confirm the gate end-to-end
       (pending stack restart).
-0b. **Phase 2** — runnable-artifact smoke verifier via the RQCA path; add an
-    authoritative `lifecycle_engine` field and fix the chat-intake routing
-    metadata that makes v2 missions mislabel as `LEGACY V1`.
+0b. **Phase 2** — DONE in branch: runnable-artifact smoke evidence now rides the
+    existing RQCA path, JavaScript syntax failures short-circuit as real runtime
+    QC failures, HTML artifacts get static structure plus inline-script syntax
+    smoke with honest browser-load `DRY_RUN` reporting, and an authoritative
+    `lifecycle_engine` field is emitted through orchestrator, gateway,
+    chain-trace, and Mission Control.
 0c. **Phase 3** — localize and guard the non-ASCII (mojibake) corruption; lift
     the PM clarifying-question truncation in chat intake.
 
@@ -129,9 +136,9 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
 
 | Area | Status |
 |---|---|
-| Artifact correctness | Verification is integrity-only; format and acceptance criteria are not enforced (Phase 1) |
+| Artifact correctness | Phase 1+2 branch code now enforces explicit format mismatch/missing extension and records runnable-smoke evidence; live Pong rerun still needed |
 | Artifact encoding | Non-ASCII output can be corrupted (mojibake); digest covers corrupted bytes (Phase 3) |
-| Engine reporting | v2 missions can mislabel as `LEGACY V1` in Mission Detail (Phase 2) |
+| Engine reporting | Phase 2 branch code emits authoritative `lifecycle_engine`; live Mission Detail rerun still needed |
 | Production audit | 22/23 checks pass; `INF-008` remains open |
 | Phase 8 coverage | `mission_flow_v2/` strict target remains open |
 | Phase 13 UI | Backend/API smoke passed; Mission Control UI smoke still needed |

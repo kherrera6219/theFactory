@@ -59,10 +59,11 @@ is correct." Each Tier-1 gap is a facet of that single missing dimension.
   block is now tagged `verification_scope="integrity"`, the equivalence report is
   tagged `verification_scope="correctness"`, the integrity check copy clarifies
   it attests bytes-intact (not runnable), and the Mission Control
-  `EquivalenceReportPanel` explains the distinction. Backend unit tests, Ruff,
-  Mission Control `tsc` lint, 74 vitest tests, and documentation validation all
-  pass. Phase 2 and Phase 3 remain. End-to-end live re-run of a Pong-style
-  mission is still pending a stack restart.
+  `EquivalenceReportPanel` explains the distinction. Phase 2 branch code now
+  adds RQCA artifact-smoke evidence and authoritative lifecycle-engine reporting.
+  Focused backend tests, targeted Ruff, Mission Control `tsc` lint,
+  documentation validation, and OpenAPI drift checks pass. Phase 3 remains.
+  End-to-end live re-run of a Pong-style mission is still pending a stack restart.
 
 ## Phase 1: Make verification mean correctness
 
@@ -89,17 +90,19 @@ Exit: new unit tests (done); a Pong-style mission shows the format gate flagging
 
 ## Phase 2: Runnable smoke and honest engine reporting
 
-- **2a. Runnable-artifact verifier** — reuse the existing `rqca_agent.py` /
-  `RQCA_*` plumbing to sandbox-load web/script artifacts (headless browser for
-  HTML; `node --check` / import for scripts) and assert no fatal errors plus a
-  basic acceptance signal. Advisory by default, required under enforcement. This
-  same harness lets the Phase 13 UI-smoke and provider-fallback proofs be
-  automated.
-- **2b. Authoritative lifecycle-engine field** — add `lifecycle_engine: str` to
-  the mission record / API response from `get_lifecycle_engine(settings)`; have
-  the UI consume it directly and keep client inference only as a fallback. Fix
-  the chat-intake create path so it stamps the same routing metadata as the
-  standard create path (the omission is why the badge mis-derived).
+- **2a. Runnable-artifact verifier** — DONE in branch via the existing
+  `rqca_agent.py` / `RQCA_*` plumbing. Runtime QC now attaches
+  `artifact_smoke` evidence; JavaScript/TypeScript artifacts run a `node
+  --check` syntax smoke and fail before sandbox execution on syntax errors; HTML
+  artifacts get static HTML structure plus inline-script syntax smoke and are
+  reported as browser-load `DRY_RUN` because the orchestrator image does not
+  currently ship a headless browser runtime. Advisory/enforcement behavior still
+  follows the existing RQCA flags.
+- **2b. Authoritative lifecycle-engine field** — DONE in branch. The backend now
+  derives a stable `lifecycle_engine` from lifecycle settings, persists/exposes
+  it via mission metadata and `MissionRecord`, includes it in chain-trace
+  payloads, stamps gateway intake metadata, and Mission Control consumes it
+  before falling back to client inference.
 
 ## Phase 3: Encoding trace, PM truncation, tracked backlog
 

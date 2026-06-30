@@ -3,6 +3,7 @@ import importlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
@@ -79,6 +80,76 @@ def test_rqca_missing_artifact_returns_skipped() -> None:
 
     assert result["verdict"] == "SKIPPED"
     assert result["passed"] is True
+
+
+def test_rqca_script_syntax_failure_blocks_before_sandbox() -> None:
+    with patch.object(
+        rqca_agent,
+        "_node_syntax_check",
+        new=AsyncMock(
+            return_value={
+                "verdict": "FAIL",
+                "passed": False,
+                "execution_type": "node_check",
+                "stderr_preview": "SyntaxError",
+            }
+        ),
+    ):
+        result = asyncio.run(
+            rqca_agent.run_runtime_qc(
+                mission_id="mission-1",
+                generated_output={
+                    "filename": "neon-pong.js",
+                    "generated_code": "function broken(",
+                    "language": "javascript",
+                },
+                testdata_manifest={},
+                integration_tests=None,
+                language="javascript",
+                settings=SimpleNamespace(docker_bin="docker"),
+            )
+        )
+
+    assert result["verdict"] == "FAIL"
+    assert result["execution_type"] == "artifact_smoke"
+    assert result["artifact_smoke"]["artifact_kind"] == "script"
+
+
+def test_rqca_html_artifact_reports_static_smoke_without_node_execution() -> None:
+    with patch.object(
+        rqca_agent,
+        "_node_syntax_check",
+        new=AsyncMock(
+            return_value={
+                "verdict": "PASS",
+                "passed": True,
+                "execution_type": "node_check",
+            }
+        ),
+    ):
+        result = asyncio.run(
+            rqca_agent.run_runtime_qc(
+                mission_id="mission-1",
+                generated_output={
+                    "filename": "neon-pong.html",
+                    "generated_code": (
+                        "<!doctype html><html><body><canvas></canvas>"
+                        "<script>const ok = true;</script></body></html>"
+                    ),
+                    "language": "javascript",
+                },
+                testdata_manifest={},
+                integration_tests=None,
+                language="javascript",
+                settings=SimpleNamespace(docker_bin="docker"),
+            )
+        )
+
+    assert result["verdict"] == "DRY_RUN"
+    assert result["dry_run_reason"] == "HTML browser smoke unavailable in orchestrator runtime."
+    assert result["artifact_smoke"]["artifact_kind"] == "html"
+    assert result["artifact_smoke"]["checks"]["html_structure"]["has_html_tag"] is True
+    assert result["artifact_smoke"]["checks"]["browser_load"]["verdict"] == "DRY_RUN"
 
 
 def test_rqca_assessment_fallback_marks_fail_not_safe() -> None:

@@ -31,6 +31,7 @@ MissionFlowV2Engine = lifecycle_interface.MissionFlowV2Engine
 LangGraphEngine = lifecycle_interface.LangGraphEngine
 LegacyV1Engine = lifecycle_interface.LegacyV1Engine
 get_lifecycle_engine = lifecycle_interface.get_lifecycle_engine
+get_lifecycle_engine_name = lifecycle_interface.get_lifecycle_engine_name
 Settings = orchestrator_settings.Settings
 
 
@@ -109,6 +110,17 @@ class TestGetLifecycleEngine:
         # mission_flow_v2_enabled defaults to True in Settings
         s = _settings()
         assert isinstance(get_lifecycle_engine(s), MissionFlowV2Engine)
+
+    def test_engine_name_matches_selected_engine(self):
+        assert get_lifecycle_engine_name(
+            _settings(mission_flow_v2_enabled=True, langgraph_enabled=True)
+        ) == "mission_flow_v2"
+        assert get_lifecycle_engine_name(
+            _settings(mission_flow_v2_enabled=False, langgraph_enabled=True)
+        ) == "langgraph"
+        assert get_lifecycle_engine_name(
+            _settings(mission_flow_v2_enabled=False, langgraph_enabled=False)
+        ) == "legacy_v1"
 
 
 # ---------------------------------------------------------------------------

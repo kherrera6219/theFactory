@@ -200,6 +200,17 @@
             "title": "Created At",
             "type": "string"
           },
+          "lifecycle_engine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lifecycle Engine"
+          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",

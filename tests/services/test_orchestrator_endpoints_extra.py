@@ -292,6 +292,7 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
         metadata={
             "routing_enforced": True,
             "routing_version": "v2",
+            "lifecycle_engine": "mission_flow_v2",
             "selected_agent_id": "AGENT-14-PYTHON",
             "assigned_pod_manager_agent_id": "AGENT-12-PODA-MGR",
             "assigned_specialist_agent_id": "AGENT-14-PYTHON",
@@ -532,6 +533,7 @@ def test_build_mission_chain_trace_exposes_route_provenance() -> None:
     )
 
     assert payload["route_provenance"]["fallback_used"] is True
+    assert payload["lifecycle_engine"] == "mission_flow_v2"
     assert payload["route_provenance"]["ceo"]["target_agent_id"] == "AGENT-12-PODA-MGR"
     assert payload["route_provenance"]["specialist"]["plan_summary"].startswith("Implement")
     assert (

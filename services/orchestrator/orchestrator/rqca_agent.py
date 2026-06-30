@@ -18,6 +18,9 @@ _COMPILED_LANGUAGES = {"c", "cpp", "c++", "rust", "csharp", "c#"}
 _ALL_LIVE_LANGUAGES = _EXECUTABLE_LANGUAGES | _COMPILED_LANGUAGES
 _MAX_TIMEOUT_SECONDS = 60
 _MAX_MEMORY_MB = 512
+_HTML_EXTENSIONS = {"html", "htm"}
+_SCRIPT_EXTENSIONS = {"js", "mjs", "cjs", "ts", "tsx", "jsx"}
+_NODE_CHECK_LANGUAGES = {"javascript", "typescript"}
 
 # Docker image + compile-and-run command templates for compiled languages.
 # The run_command is a shell snippet executed inside the container with /workspace mounted.
@@ -77,6 +80,178 @@ def _default_run_command(filename: str, language: str) -> str:
     }.get(language.lower(), f"cat /workspace/{filename}")
 
 
+def _artifact_extension(filename: str) -> str:
+    return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+
+def _artifact_kind(filename: str, language: str) -> str:
+    ext = _artifact_extension(filename)
+    if ext in _HTML_EXTENSIONS:
+        return "html"
+    if ext in _SCRIPT_EXTENSIONS or language.lower() in _NODE_CHECK_LANGUAGES:
+        return "script"
+    return "generic"
+
+
+def _extract_inline_scripts(html: str) -> list[str]:
+    return [
+        match.group(1)
+        for match in re.finditer(
+            r"<script\b(?![^>]*\bsrc=)[^>]*>(.*?)</script>",
+            html,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+    ]
+
+
+async def _node_syntax_check(
+    *,
+    code: str,
+    filename: str,
+    settings: Any,
+    timeout_seconds: float = 10.0,
+) -> dict[str, Any]:
+    node_bin = str(getattr(settings, "node_bin", "node") or "node")
+    suffix = Path(filename).suffix or ".js"
+    started_at = datetime.now(UTC).isoformat()
+    with tempfile.TemporaryDirectory(prefix="hgr-rqca-node-check-") as tmpdir:
+        check_file = Path(tmpdir) / f"artifact{suffix}"
+        check_file.write_text(code, encoding="utf-8")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                node_bin,
+                "--check",
+                str(check_file),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except FileNotFoundError:
+            return {
+                "verdict": "DRY_RUN",
+                "passed": False,
+                "execution_type": "node_check_unavailable",
+                "reason": f"{node_bin} not available for syntax check.",
+                "started_at": started_at,
+                "completed_at": datetime.now(UTC).isoformat(),
+            }
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            return {
+                "verdict": "TIMEOUT",
+                "passed": False,
+                "execution_type": "node_check",
+                "stdout_preview": "",
+                "stderr_preview": "node --check timed out",
+                "started_at": started_at,
+                "completed_at": datetime.now(UTC).isoformat(),
+            }
+    passed = proc.returncode == 0
+    return {
+        "verdict": "PASS" if passed else "FAIL",
+        "passed": passed,
+        "execution_type": "node_check",
+        "exit_code": int(proc.returncode or 0),
+        "stdout_preview": stdout_bytes.decode("utf-8", errors="replace")[:1000],
+        "stderr_preview": stderr_bytes.decode("utf-8", errors="replace")[:1000],
+        "started_at": started_at,
+        "completed_at": datetime.now(UTC).isoformat(),
+    }
+
+
+async def _build_artifact_smoke_report(
+    *,
+    code: str,
+    filename: str,
+    language: str,
+    settings: Any,
+) -> dict[str, Any]:
+    kind = _artifact_kind(filename, language)
+    if kind == "script":
+        node_check = await _node_syntax_check(
+            code=code,
+            filename=filename,
+            settings=settings,
+        )
+        return {
+            "schema_version": "artifact_runtime_smoke.v1",
+            "artifact_kind": "script",
+            "filename": filename,
+            "language": language,
+            "verdict": node_check["verdict"],
+            "passed": bool(node_check.get("passed", False)),
+            "checks": {"node_syntax": node_check},
+            "source": "node_check",
+            "generated_at": datetime.now(UTC).isoformat(),
+        }
+    if kind == "html":
+        lower = code.lower()
+        structure = {
+            "has_doctype": "<!doctype html" in lower,
+            "has_html_tag": "<html" in lower and "</html>" in lower,
+            "has_body_tag": "<body" in lower and "</body>" in lower,
+            "external_script_count": len(
+                re.findall(r"<script\b[^>]*\bsrc\s*=", code, flags=re.IGNORECASE)
+            ),
+            "external_stylesheet_count": len(
+                re.findall(
+                    r"<link\b[^>]*\brel\s*=\s*['\"]?stylesheet",
+                    code,
+                    flags=re.IGNORECASE,
+                )
+            ),
+        }
+        inline_scripts = _extract_inline_scripts(code)
+        script_checks = [
+            await _node_syntax_check(
+                code=script,
+                filename=f"{Path(filename).stem or 'inline'}-{index}.js",
+                settings=settings,
+            )
+            for index, script in enumerate(inline_scripts, start=1)
+            if script.strip()
+        ]
+        structure_passed = structure["has_html_tag"] and structure["has_body_tag"]
+        scripts_passed = all(check.get("passed") for check in script_checks)
+        syntax_degraded = any(check.get("verdict") == "DRY_RUN" for check in script_checks)
+        verdict = "PASS" if structure_passed and scripts_passed else "FAIL"
+        if syntax_degraded and structure_passed:
+            verdict = "DRY_RUN"
+        return {
+            "schema_version": "artifact_runtime_smoke.v1",
+            "artifact_kind": "html",
+            "filename": filename,
+            "language": language,
+            "verdict": verdict,
+            "passed": verdict == "PASS",
+            "checks": {
+                "html_structure": structure,
+                "inline_script_syntax": script_checks,
+                "browser_load": {
+                    "verdict": "DRY_RUN",
+                    "passed": False,
+                    "reason": "Headless browser runtime is not installed in orchestrator.",
+                },
+            },
+            "source": "static_html_and_node_check",
+            "generated_at": datetime.now(UTC).isoformat(),
+        }
+    return {
+        "schema_version": "artifact_runtime_smoke.v1",
+        "artifact_kind": "generic",
+        "filename": filename,
+        "language": language,
+        "verdict": "SKIPPED",
+        "passed": True,
+        "skip_reason": "No artifact smoke is defined for this artifact type.",
+        "source": "skipped",
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
+
+
 # Per-language commands that run the generated test file via the language's
 # test framework so pass/fail reflects assertions, not just "artifact exited 0".
 # "{filename}" and "{test_filename}" are substituted with shell-quoted paths.
@@ -133,6 +308,28 @@ async def run_runtime_qc(
             filename=filename,
             reason="No generated code artifact to execute.",
         )
+    artifact_smoke = await _build_artifact_smoke_report(
+        code=code,
+        filename=filename,
+        language=normalized_language,
+        settings=settings,
+    )
+    if artifact_smoke.get("verdict") in {"FAIL", "TIMEOUT"}:
+        return _artifact_smoke_failure_report(
+            mission_id=mission_id,
+            language=normalized_language,
+            filename=filename,
+            artifact_smoke=artifact_smoke,
+        )
+    if _artifact_kind(filename, normalized_language) == "html":
+        return _dry_run_report(
+            mission_id=mission_id,
+            language=normalized_language,
+            filename=filename,
+            testdata_manifest=testdata_manifest,
+            reason="HTML browser smoke unavailable in orchestrator runtime.",
+            artifact_smoke=artifact_smoke,
+        )
     if normalized_language not in _ALL_LIVE_LANGUAGES:
         return _dry_run_report(
             mission_id=mission_id,
@@ -140,6 +337,7 @@ async def run_runtime_qc(
             filename=filename,
             testdata_manifest=testdata_manifest,
             reason=f"Live execution not supported for {normalized_language}.",
+            artifact_smoke=artifact_smoke,
         )
     docker_bin = str(getattr(settings, "docker_bin", "docker") or "docker")
     if not await _check_docker_available(docker_bin):
@@ -149,6 +347,7 @@ async def run_runtime_qc(
             filename=filename,
             testdata_manifest=testdata_manifest,
             reason="Docker not available.",
+            artifact_smoke=artifact_smoke,
         )
     # Inject compiled-language defaults into the testdata manifest when the
     # language has a known compile-then-run config and the manifest doesn't
@@ -167,7 +366,7 @@ async def run_runtime_qc(
             else:
                 run_cmd = compiled_cfg["compile_command"].format(filename=filename)
             testdata_manifest.setdefault("run_command", run_cmd)
-    return await _execute_in_sandbox(
+    result = await _execute_in_sandbox(
         docker_bin=docker_bin,
         mission_id=mission_id,
         filename=filename,
@@ -177,6 +376,8 @@ async def run_runtime_qc(
         language=normalized_language,
         settings=settings,
     )
+    result["artifact_smoke"] = artifact_smoke
+    return result
 
 
 # Service names must be valid compose keys; anything else is rejected/sanitized.
@@ -467,6 +668,7 @@ def _dry_run_report(
     filename: str,
     testdata_manifest: dict[str, Any],
     reason: str,
+    artifact_smoke: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     manifest_valid = bool(
         testdata_manifest.get("base_image") and testdata_manifest.get("run_command")
@@ -481,7 +683,29 @@ def _dry_run_report(
         "manifest_valid": manifest_valid,
         "language": language,
         "filename": filename,
+        "artifact_smoke": artifact_smoke,
         "source": "dry_run",
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _artifact_smoke_failure_report(
+    *,
+    mission_id: str,
+    language: str,
+    filename: str,
+    artifact_smoke: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema_version": RQCA_SCHEMA_VERSION,
+        "mission_id": mission_id,
+        "verdict": "FAIL",
+        "passed": False,
+        "execution_type": "artifact_smoke",
+        "language": language,
+        "filename": filename,
+        "artifact_smoke": artifact_smoke,
+        "source": "artifact_smoke",
         "generated_at": datetime.now(UTC).isoformat(),
     }
 

@@ -67,6 +67,15 @@ import {
 const POLL_INTERVAL_MS = 2500;
 const STREAM_REFRESH_DEBOUNCE_MS = 500;
 
+function lifecycleEngineLabel(value: string | null | undefined): string | null {
+  const normalized = (value ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === "mission_flow_v2" || normalized === "missionflow_v2") return "MissionFlow V2";
+  if (normalized === "langgraph") return "LangGraph";
+  if (normalized === "legacy_v1") return "Legacy V1";
+  return value ?? null;
+}
+
 function isAgentActive(agent: OperationsAgentRecord, missionId: string): boolean {
   const state = normalizeState(agent.state);
   return (
@@ -256,11 +265,25 @@ function MissionDetailPageContent() {
   );
 
   const lifecycleEngine = useMemo(() => {
+    const authoritative = lifecycleEngineLabel(
+      mission?.lifecycle_engine ??
+        chainTrace?.lifecycle_engine ??
+        (typeof mission?.metadata?.lifecycle_engine === "string"
+          ? mission.metadata.lifecycle_engine
+          : null),
+    );
+    if (authoritative) return authoritative;
     if (phaseDescriptor.model === "v2") return "MissionFlow V2";
     const rv = (chainTrace?.routing_version ?? "").toLowerCase();
     if (rv.includes("langgraph")) return "LangGraph";
     return "Legacy V1";
-  }, [phaseDescriptor.model, chainTrace?.routing_version]);
+  }, [
+    mission?.lifecycle_engine,
+    mission?.metadata,
+    chainTrace?.lifecycle_engine,
+    chainTrace?.routing_version,
+    phaseDescriptor.model,
+  ]);
 
   const phaseIndex = phaseDescriptor.phaseIndex;
   const phaseName = phaseDescriptor.phaseName;

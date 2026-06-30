@@ -25,6 +25,10 @@ if TYPE_CHECKING:
 
 LOGGER = logging.getLogger(__name__)
 
+LIFECYCLE_ENGINE_MISSION_FLOW_V2 = "mission_flow_v2"
+LIFECYCLE_ENGINE_LANGGRAPH = "langgraph"
+LIFECYCLE_ENGINE_LEGACY_V1 = "legacy_v1"
+
 
 @runtime_checkable
 class LifecycleEngine(Protocol):
@@ -254,3 +258,12 @@ def get_lifecycle_engine(settings: Settings) -> LifecycleEngine:
     if settings.langgraph_enabled:
         return LangGraphEngine()
     return LegacyV1Engine()
+
+
+def get_lifecycle_engine_name(settings: Settings) -> str:
+    """Return the stable public identifier for the active lifecycle engine."""
+    if settings.mission_flow_v2_enabled:
+        return LIFECYCLE_ENGINE_MISSION_FLOW_V2
+    if settings.langgraph_enabled:
+        return LIFECYCLE_ENGINE_LANGGRAPH
+    return LIFECYCLE_ENGINE_LEGACY_V1
