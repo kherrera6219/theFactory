@@ -109,7 +109,8 @@ agent-coordination backbone is documented as a staged program in
 `PROTOCOL_BUS_PROGRAM_ROADMAP.md`:
 
 - **Stage 1 — PBLA** (`PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`): real producers on
-  all six lanes. Not started. Detailed below.
+  all six lanes. Plan validated against code; **PBLA-00 in progress**. Detailed
+  below.
 - **Stage 2 — EDCP** (`EDCP_PHASE_PLAN.md`): consumers + control-flow inversion.
   Reactivated from archive; EDCP-01 complete, EDCP-02 pending.
 - **Stage 3 — Agent Runtime Split** (`AGENT_RUNTIME_SPLIT_PLAN.md`): agents as
@@ -120,7 +121,7 @@ agent-coordination backbone is documented as a staged program in
 PBLA is the prerequisite for the load-bearing cutovers in EDCP. PBLA only makes
 the lanes observable (telemetry); EDCP is what makes them load-bearing.
 
-### Protocol Bus Lane Activation (PBLA, Stage 1) — not started
+### Protocol Bus Lane Activation (PBLA, Stage 1) — PBLA-00 in progress
 
 Tracked in full by `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`. Standalone and
 independent of the EDCP phase plan — can run before, during, or after it. The

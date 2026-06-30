@@ -67,15 +67,22 @@ passing live non-ASCII mission rerun recorded at
 docs validation, Mission Control tsc, standard live smoke, and live non-ASCII smoke pass.
 Remaining outside Phase 3: Pong-style UI artifact rerun for the broader verification backlog.
 
-### Protocol Bus Program (4 stages) — queued, not started
+### Protocol Bus Program (4 stages) — Stage 1 in progress (PBLA-00 starting)
 
 The full bus program is documented in `PROTOCOL_BUS_PROGRAM_ROADMAP.md` as four
 staged initiatives: Stage 1 PBLA (`PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`,
-producers/telemetry, not started), Stage 2 EDCP (`EDCP_PHASE_PLAN.md`,
+producers/telemetry, **plan validated against code; PBLA-00 implementation
+starting**), Stage 2 EDCP (`EDCP_PHASE_PLAN.md`,
 consumers + control-flow inversion, reactivated from archive; EDCP-01 complete,
 EDCP-02 pending), Stage 3 Agent Runtime Split (`AGENT_RUNTIME_SPLIT_PLAN.md`,
 stub), and Stage 4 Semantic Bus (`SEMANTIC_BUS_PLAN.md`, stub). Stages must land
 in order; PBLA only makes lanes observable, EDCP makes them load-bearing.
+
+The PBLA plan is fully specified as phases PBLA-00 through PBLA-05 and has been
+validated end-to-end against current source (insertion points, payload bounds,
+agent-id validity, helper signatures, and in-scope imports all checked). PBLA-00
+(shared emission-discriminator contract, `orchestrator/protocol_bus_emissions.py`)
+is the first phase and is being implemented now.
 
 #### Stage 1 — Protocol Bus Lane Activation (PBLA)
 
