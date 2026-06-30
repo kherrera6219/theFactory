@@ -20,6 +20,15 @@ orchestrator_mission_flow_v2_base = importlib.import_module("orchestrator.missio
 orchestrator_mission_flow_v2_runtime = importlib.import_module(
     "orchestrator.mission_flow_v2.phases_runtime"
 )
+orchestrator_mission_flow_v2_lifecycle = importlib.import_module(
+    "orchestrator.mission_flow_v2.lifecycle"
+)
+orchestrator_mission_flow_v2_intake = importlib.import_module(
+    "orchestrator.mission_flow_v2.phases_intake"
+)
+orchestrator_mission_flow_v2_build = importlib.import_module(
+    "orchestrator.mission_flow_v2.phases_build"
+)
 orchestrator_models = importlib.import_module("orchestrator.models")
 orchestrator_is_agent = importlib.import_module("orchestrator.is_agent")
 
@@ -880,6 +889,429 @@ async def test_prepare_dependency_absorption_reports_blocks_bad_license() -> Non
 
 
 @pytest.mark.asyncio
+async def test_prepare_specialist_plan_codegen_uses_port_knowledge_and_scaling() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    settings.agent_scaling_enabled = True
+    settings.port_two_phase_enabled = True
+    settings.agent_scaling_max_instances = 3
+    settings.agent_scaling_items_per_instance = 1
+    mission = _make_mission(state=MissionState.specialist_assigned)
+    mission.metadata = {
+        "mission_type": "PORT",
+        "port_phase": "generation",
+        "port_target_language": "python",
+        "port_source_language": "javascript",
+        "port_source_logicnodes": [{"node_id": "node-1"}, {"node_id": "node-2"}],
+        "assigned_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+        "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+        "ceo_delegation": {"specialist_agent_id": "AGENT-14-PYTHON"},
+        "mission_contract": {"contract_summary": "Port code", "acceptance_criteria": []},
+    }
+    captured_codegen_context: dict[str, Any] = {}
+    audit_event = AsyncMock()
+
+    async def _generate_code_from_contract(**kwargs):
+        captured_codegen_context.update(kwargs["mission_context"])
+        return {
+            "source": "llm",
+            "filename": "ported.py",
+            "language": "python",
+            "generated_code": "print('ported')",
+            "code_length_chars": 15,
+            "model_provider": "openai",
+            "model": "gpt-test",
+        }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _settings, _mission_id: mission
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = MagicMock()
+        with patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_specialist_plan",
+            new=AsyncMock(
+                return_value={
+                    "source": "llm",
+                    "deliverables": ["port file a", "port file b", "port file c"],
+                    "risk_notes": [],
+                    "llm_route": "primary",
+                    "model_provider": "openai",
+                    "model": "gpt-test",
+                }
+            ),
+        ), patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_code_from_contract",
+            new=AsyncMock(side_effect=_generate_code_from_contract),
+        ), patch(
+            "orchestrator.mission_flow_v2.phases_build.knowledge_lake.get_language_context",
+            return_value="python docs context",
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", audit_event):
+            prepared = await orchestrator_mission_flow_v2_build._prepare_specialist_plan(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+            )
+
+    assert prepared is True
+    assert captured_codegen_context["knowledge_context"] == "python docs context"
+    assert captured_codegen_context["port_source_logicnodes"] == [{"node_id": "node-1"}, {"node_id": "node-2"}]
+    assert mission.metadata["generated_output"]["filename"] == "ported.py"
+    assert mission.metadata["scaling_active"] is True
+    assert mission.metadata["scaling_partition_events_emitted"] is False
+    event_types = [event["event_type"] for event in mission.metadata["chain_trace"]]
+    assert "GENERATED_OUTPUT_CREATED" in event_types
+    assert "MISSION_PORT_GENERATION_COMPLETE" in event_types
+    assert "MISSION_SCALING_DECIDED" in event_types
+    assert audit_event.await_count >= 2
+
+
+@pytest.mark.asyncio
+async def test_resolve_attachment_content_parses_inline_and_degrades_storage_failures() -> None:
+    settings = _make_settings()
+    parsed_inputs: list[tuple[bytes, str, str]] = []
+
+    def _load_attachment_bytes(att: Any, _settings: Any, _mission_id: str, _file_id: str) -> bytes:
+        if getattr(att, "file_id", "") == "broken":
+            raise RuntimeError("object store down")
+        return b"raw doc"
+
+    def _parse_document(raw: bytes, content_type: str, filename: str) -> str:
+        parsed_inputs.append((raw, content_type, filename))
+        return f"parsed:{filename}"
+
+    attachments = [
+        {
+            "file_id": "inline",
+            "filename": "inline.md",
+            "content_type": "text/markdown",
+            "purpose": "brief",
+            "content": " Inline text ",
+        },
+        SimpleNamespace(
+            file_id="stored",
+            filename="requirements.pdf",
+            content_type="application/pdf",
+            purpose="reference",
+        ),
+        SimpleNamespace(
+            file_id="broken",
+            filename="broken.pdf",
+            content_type="application/pdf",
+            purpose="reference",
+        ),
+    ]
+
+    with patch("orchestrator.is_agent._load_attachment_bytes", side_effect=_load_attachment_bytes), patch(
+        "orchestrator.document_parser.parse_document", side_effect=_parse_document
+    ):
+        resolved = await orchestrator_mission_flow_v2_intake._resolve_attachment_content(
+            mission_id="mission-attachments",
+            attachments=attachments,
+            settings=settings,
+        )
+
+    assert resolved[0]["content"] == "Inline text"
+    assert resolved[1]["content"] == "parsed:requirements.pdf"
+    assert resolved[2]["content"] == ""
+    assert parsed_inputs == [(b"raw doc", "application/pdf", "requirements.pdf")]
+
+
+@pytest.mark.asyncio
+async def test_prepare_pm_intake_clarification_emits_warning_when_event_emit_fails() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission()
+    mission.metadata = {"conversation_context": "bad-context", "pm_clarification": "Use the v2 path"}
+    clarifying_record = _make_mission(state=MissionState.clarifying)
+    emit_fn = AsyncMock(side_effect=RuntimeError("redis down"))
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _settings, _mission_id: mission
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.transition_mission_state = MagicMock(return_value=clarifying_record)
+        with patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_pm_feature_contract",
+            new=AsyncMock(
+                return_value={
+                    "schema_version": "feature_contract.v1",
+                    "title": "Needs clarification",
+                    "summary": "Ambiguous request",
+                    "ambiguity_score": 0.95,
+                    "clarifying_questions": ["Which runtime?"],
+                    "source": "test",
+                }
+            ),
+        ):
+            ready = await orchestrator_mission_flow_v2_intake._prepare_pm_intake(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=emit_fn,
+                mission_id=mission.mission_id,
+            )
+
+    assert ready is False
+    assert mission.metadata["last_ambiguity_score"] == 0.95
+    assert mission.metadata["clarifying_questions"] == ["Which runtime?"]
+    mock_storage.transition_mission_state.assert_called_once()
+    emit_fn.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_prepare_fetch_phase_broadcasts_when_knowledge_ready_and_stocked() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.fetch)
+    mission.metadata = {"mission_type": "BUILD_NEW"}
+    emit_fn = AsyncMock()
+    fetch_result = {
+        "indexed_languages": ["python"],
+        "skipped_languages": [],
+        "errors": [],
+        "knowledge_ids": ["docs.python.bootstrap"],
+        "knowledge_ready": True,
+        "refreshed_languages": ["python"],
+        "unchanged_languages": [],
+        "embedding_provider": "deterministic",
+        "embedding_model": "hash-v1",
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _settings, _mission_id: mission
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = MagicMock()
+        with patch("orchestrator.is_agent.detect_required_languages", return_value=["python"]), patch(
+            "orchestrator.is_agent.run_fetch_phase", new=AsyncMock(return_value=fetch_result)
+        ), patch("orchestrator.knowledge_lake.is_stocked", return_value=True), patch(
+            "orchestrator.knowledge_lake.broadcast_knowledge_ready"
+        ) as broadcast:
+            ready = await orchestrator_mission_flow_v2_intake._prepare_fetch_phase(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=emit_fn,
+                mission_id=mission.mission_id,
+            )
+
+    assert ready is True
+    assert mission.metadata["knowledge_lake_ready"] is True
+    assert mission.metadata["knowledge_lake_stocked"] is True
+    broadcast.assert_called_once()
+    assert any(
+        event["event_type"] == "MISSION_FETCH_COMPLETE"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_ceo_delegation_records_contract_clusters_and_port_setup() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    settings.port_two_phase_enabled = True
+    mission = _make_mission(state=MissionState.ceo_delegated)
+    mission.metadata = {
+        "mission_type": "PORT",
+        "feature_contract": {"summary": "Port this service"},
+        "mission_charter": {"charter_id": "charter-1"},
+    }
+    mission_contract = {
+        "source": "llm",
+        "output_format": "code",
+        "logicnode_requirements": ["node-a"],
+        "acceptance_criteria": ["runs"],
+        "contract_summary": "Port service",
+        "model_provider": "openai",
+        "model": "gpt-test",
+    }
+    logic_clusters = {
+        "source": "llm",
+        "clusters": [
+            {
+                "cluster_id": "cluster-a",
+                "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+            }
+        ],
+        "model_provider": "openai",
+        "model": "gpt-test",
+    }
+    audit_event = AsyncMock()
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _settings, _mission_id: mission
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = MagicMock()
+        with patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_ceo_delegation",
+            new=AsyncMock(
+                return_value={
+                    "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+                    "specialist_agent_id": "AGENT-14-PYTHON",
+                    "rationale": "Security and tests required",
+                    "source": "llm",
+                    "llm_route": "primary",
+                    "model_provider": "openai",
+                    "model": "gpt-test",
+                }
+            ),
+        ), patch.object(
+            orchestrator_mission_flow_v2_intake,
+            "generate_mission_contract",
+            new=AsyncMock(return_value=mission_contract),
+        ), patch.object(
+            orchestrator_mission_flow_v2_intake,
+            "generate_logic_clusters",
+            new=AsyncMock(return_value=logic_clusters),
+        ), patch.object(
+            orchestrator_mission_flow_v2_intake,
+            "_setup_port_two_phase",
+            side_effect=lambda metadata, _mission, _clusters: metadata.update({"port_phase": "extraction"}),
+        ) as setup_port, patch("orchestrator.mission_flow_v2.record_audit_event", audit_event):
+            ready = await orchestrator_mission_flow_v2_intake._prepare_ceo_delegation(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+            )
+
+    assert ready is True
+    assert mission.metadata["selected_agent_id"] == "AGENT-12-PODA-MGR"
+    assert mission.metadata["mission_contract"] == mission_contract
+    assert mission.metadata["logic_clusters"] == logic_clusters
+    assert mission.metadata["port_phase"] == "extraction"
+    setup_port.assert_called_once()
+    event_types = [event["event_type"] for event in mission.metadata["chain_trace"]]
+    assert "MISSION_CEO_DELEGATED" in event_types
+    assert "MISSION_CONTRACT_GENERATED" in event_types
+    assert "LOGIC_CLUSTERS_DECOMPOSED" in event_types
+    assert "CEO_REASONING_SUMMARY" in event_types
+    assert audit_event.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_produce_pod_group_standard_records_thin_coverage_and_pod_audit() -> None:
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.gating)
+    mission.metadata = {
+        "assigned_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+        "mission_contract": {"contract_summary": "Build runtime"},
+        "generated_output": {"filename": "app.py"},
+    }
+    standard = {
+        "canonical_logicnodes": [{"node_id": "node-a"}],
+        "eliminated_duplicates": 1,
+        "coverage_verdict": {
+            "coverage_thin": True,
+            "raw_logicnode_count": 1,
+            "canonical_logicnode_count": 1,
+            "expected_minimum_canonical_logicnodes": 2,
+            "findings": ["needs one more node"],
+        },
+        "source": "llm",
+        "llm_route": "primary",
+        "model_provider": "openai",
+        "model": "gpt-test",
+    }
+    pod_audit = {
+        "agent_id": "AGENT-10-TESTER",
+        "verdict": "pass",
+        "quality_score": 0.91,
+        "source": "test",
+    }
+    emit_fn = AsyncMock()
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.list_logicnodes = MagicMock(return_value=[{"node_id": "node-a"}, "bad-node"])
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = MagicMock()
+        with patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_pod_group_standard",
+            new=AsyncMock(return_value=standard),
+        ), patch.object(
+            orchestrator_mission_flow_v2_build,
+            "generate_pod_audit_verdict",
+            new=AsyncMock(return_value=pod_audit),
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()) as audit_event:
+            updated = await orchestrator_mission_flow_v2_build._produce_pod_group_standard(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=emit_fn,
+                mission=mission,
+            )
+
+    assert updated is mission
+    assert mission.metadata["pod_group_standards"]["podA"] == standard
+    assert mission.metadata["pod_audit_verdicts"]["podA"] == pod_audit
+    event_types = [event["event_type"] for event in mission.metadata["chain_trace"]]
+    assert "MISSION_POD_GROUP_STANDARD_PRODUCED" in event_types
+    assert "MISSION_POD_STANDARD_THIN_COVERAGE" in event_types
+    assert "MISSION_POD_AUDIT_COMPLETE" in event_types
+    assert audit_event.await_count == 1
+    emit_fn.assert_awaited_once()
+
+
+def test_write_artifact_to_disk_sanitizes_generated_and_source_bundle_paths(tmp_path: Path) -> None:
+    settings = SimpleNamespace(delivery_dir=str(tmp_path))
+
+    orchestrator_mission_flow_v2_build._write_artifact_to_disk(
+        settings,
+        "mission-files",
+        {
+            "artifact_type": "generated_code",
+            "artifact_text": "print('safe')\n",
+            "manifest": {"filename": "../unsafe.py"},
+        },
+    )
+    orchestrator_mission_flow_v2_build._write_artifact_to_disk(
+        settings,
+        "mission-files",
+        {
+            "artifact_type": "source_bundle_package",
+            "artifact_text": "## FILE app/main.py\nprint('app')\n## FILE ../secret.py\nprint('secret')\n",
+            "manifest": {},
+        },
+    )
+    orchestrator_mission_flow_v2_build._write_artifact_to_disk(
+        settings,
+        "mission-inline",
+        {
+            "artifact_type": "source_bundle_package",
+            "artifact_text": "plain source",
+            "manifest": {"filename": "inline.py"},
+        },
+    )
+
+    assert (tmp_path / "mission-files" / "unsafe.py").read_text(encoding="utf-8") == "print('safe')\n"
+    assert (tmp_path / "mission-files" / "app" / "main.py").read_text(encoding="utf-8") == "print('app')\n"
+    assert (tmp_path / "mission-files" / "secret.py").read_text(encoding="utf-8") == "print('secret')\n"
+    assert (tmp_path / "mission-inline" / "inline.py").read_text(encoding="utf-8") == "plain source"
+
+
+@pytest.mark.asyncio
 async def test_prepare_dependency_absorption_reports_skips_without_evidence() -> None:
     mission = _make_mission(state=MissionState.verified)
     mission.metadata = {}
@@ -1007,6 +1439,190 @@ async def test_prepare_runtime_qc_records_complete_report_and_blocks_on_enforced
 
 
 @pytest.mark.asyncio
+async def test_prepare_runtime_qc_generates_manifest_then_skips_when_rqca_disabled() -> None:
+    settings = _make_settings()
+    settings.testdata_agent_enabled = True
+    settings.rqca_agent_enabled = False
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {"generated_code": "print('hello')", "language": "python"},
+        "mission_contract": {"acceptance_criteria": ["prints hello"]},
+        "integration_tests": {"tests": []},
+    }
+    inserted_events: list[str] = []
+    manifest = {
+        "base_image": "python:3.12",
+        "timeout_seconds": 30,
+        "synthetic_inputs": [{"stdin": ""}],
+        "source": "testdata-agent",
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+
+        def _insert_manifest_fail(*_args):
+            raise RuntimeError("testdata store down")
+
+        mock_storage.insert_testdata_manifest = _insert_manifest_fail
+        mock_storage.insert_mission_event = (
+            lambda _settings, _mission_id, _previous, _new, event_type: inserted_events.append(
+                event_type
+            )
+        )
+        with patch.object(
+            orchestrator_mission_flow_v2_runtime,
+            "generate_testdata_manifest",
+            new=AsyncMock(return_value=manifest),
+        ) as generate_manifest:
+            updated, ready, report = await orchestrator_mission_flow_v2_runtime._prepare_runtime_qc(
+                app=_make_app_state(),
+                settings=settings,
+                mission=mission,
+            )
+
+    assert updated is mission
+    assert ready is True
+    assert report["skipped"] is True
+    assert report["reason"] == "RQCA disabled"
+    assert mission.metadata["testdata_manifest"] == manifest
+    assert generate_manifest.await_count == 1
+    assert inserted_events == ["MISSION_RUNTIME_QC_SKIPPED"]
+    assert any(
+        event["event_type"] == "MISSION_TESTDATA_MANIFEST_READY"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_depabs_execution_persists_generated_output_and_survives_packaging_failure() -> None:
+    settings = _make_settings()
+    settings.depabs_execution_enabled = True
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "source_code": "import requests\nprint(requests.__version__)\n",
+        "dependency_inventory": {"dependencies": [{"name": "requests"}]},
+        "dependency_survival_justifications": [],
+        "dependency_absorption_report": {
+            "report_id": "depabs-report-1",
+            "status": "planned",
+            "blocking": False,
+            "planned_replacements": [{"dependency": "requests"}],
+        },
+    }
+    execution = {
+        "status": "complete",
+        "absorption_count": 1,
+        "modified_source": "print('absorbed')\n",
+        "splices": [{"library": "requests", "status": "ok"}],
+    }
+    audit_event = AsyncMock()
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch.object(
+            orchestrator_mission_flow_v2_runtime,
+            "execute_absorption",
+            new=AsyncMock(return_value=execution),
+        ), patch.object(
+            orchestrator_mission_flow_v2_runtime,
+            "_ensure_verified_build_artifact",
+            new=AsyncMock(side_effect=RuntimeError("artifact store down")),
+        ) as ensure_artifact, patch("orchestrator.mission_flow_v2.record_audit_event", audit_event):
+            updated = await orchestrator_mission_flow_v2_runtime._prepare_depabs_execution(
+                app=_make_app_state(),
+                settings=settings,
+                mission=mission,
+            )
+
+    assert updated is mission
+    assert mission.metadata["depabs_execution"] == execution
+    assert mission.metadata["generated_output"]["source"] == "depabs_execution"
+    assert mission.metadata["generated_output"]["generated_code"] == "print('absorbed')\n"
+    assert mission.metadata["sbom_delta"]["removed"] == ["requests"]
+    assert mission.metadata["sbom_delta"]["reduction_percent"] == 100.0
+    assert ensure_artifact.await_count == 1
+    assert audit_event.await_count == 1
+    assert any(
+        event["event_type"] == "MISSION_DEPABS_EXECUTED"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_fusion_orders_nodes_by_neo4j_depth_and_continues_on_codegen_error() -> None:
+    settings = _make_settings()
+    settings.neo4j_enabled = True
+    mission = _make_mission(state=MissionState.fusion)
+    mission.metadata = {
+        "mission_contract": {"contract_summary": "Build ordered graph"},
+        "pod_group_standards": {
+            "node-a": {"canonical_logicnodes": [{"node_id": "node-a"}]},
+            "node-b": {"canonical_logicnodes": [{"node_id": "node-b"}]},
+            "node-c": {"canonical_logicnodes": [{"node_id": "node-c"}]},
+        },
+        "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+    }
+    captured_order: list[str] = []
+    master_stream = {
+        "master_logic_stream": [{"node_id": "node-b"}],
+        "total_unified_nodes": 1,
+        "eliminated_across_pods": 0,
+        "ready_for_codegen": True,
+        "source": "llm",
+    }
+
+    async def _generate_master_logic_stream(*, pod_group_standards, mission_contract, mission_context):
+        _ = mission_contract, mission_context
+        captured_order.extend(pod_group_standards.keys())
+        return master_stream
+
+    with (
+        patch(
+            "orchestrator.neo4j_store.list_logicnodes_by_depth",
+            return_value=[{"node_id": "node-b"}, {"node_id": "node-a"}],
+        ),
+        patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_master_logic_stream",
+            new=AsyncMock(side_effect=_generate_master_logic_stream),
+        ),
+        patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_code_from_contract",
+            new=AsyncMock(side_effect=RuntimeError("codegen down")),
+        ),
+        patch.object(
+            orchestrator_mission_flow_v2.storage,
+            "update_mission_metadata",
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission,
+        ),
+    ):
+        updated = await orchestrator_mission_flow_v2._prepare_fusion(
+            app=_make_app_state(),
+            settings=settings,
+            validator=MagicMock(),
+            emit_state_event_fn=AsyncMock(),
+            mission=mission,
+        )
+
+    assert updated is mission
+    assert captured_order == ["node-b", "node-a", "node-c"]
+    assert "generated_output" not in mission.metadata
+    assert mission.metadata["master_logic_stream"] == master_stream
+    assert any(
+        event["event_type"] == "MISSION_LOGIC_FOLDED"
+        for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_prepare_fusion_regenerates_when_existing_output_is_fallback() -> None:
     mission = _make_mission(state=MissionState.fusion)
     mission.metadata = {
@@ -1084,6 +1700,191 @@ async def test_prepare_fusion_regenerates_when_existing_output_is_fallback() -> 
     assert any(
         event["event_type"] == "MISSION_LOGIC_FOLDED"
         for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_advance_verified_to_complete_records_completion_block_and_emit_failure() -> None:
+    mission = _make_mission(state=MissionState.verified)
+    app = _make_app_state()
+    app.state.redis_ready = True
+    app.state.redis = object()
+    inserted_events: list[str] = []
+    emit_fn = AsyncMock(side_effect=RuntimeError("redis down"))
+
+    async def _completion_check(*, settings, mission):
+        _ = settings, mission
+        return False, {"missing": ["delivery_summary"]}
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _settings, _mission_id: mission
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = (
+            lambda _settings, _mission_id, _previous, _new, event_type: inserted_events.append(
+                event_type
+            )
+        )
+        result = await orchestrator_mission_flow_v2_lifecycle._advance_verified_to_complete(
+            app=app,
+            settings=_make_settings(),
+            validator=MagicMock(),
+            emit_state_event_fn=emit_fn,
+            mission_id=mission.mission_id,
+            completion_check_fn=_completion_check,
+        )
+
+    assert result is False
+    assert inserted_events == ["MISSION_COMPLETION_BLOCKED"]
+    assert emit_fn.await_count == 1
+    assert mission.metadata["chain_trace"][-1]["event_type"] == "MISSION_COMPLETION_BLOCKED"
+
+
+@pytest.mark.asyncio
+async def test_advance_verified_to_complete_stops_on_equivalence_security_depabs_and_runtime_blocks() -> None:
+    settings = _make_settings()
+    app = _make_app_state()
+    validator = MagicMock()
+
+    async def _completion_check(*, settings, mission):
+        _ = settings, mission
+        return True, {}
+
+    scenarios = [
+        (
+            "MISSION_EQUIVALENCE_BLOCKED",
+            {"report_id": "eq-1"},
+            (False, True, True, True),
+        ),
+        (
+            "MISSION_SECURITY_COMPLIANCE_BLOCKED",
+            {"report_id": "sec-1"},
+            (True, False, True, True),
+        ),
+        (
+            "MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
+            {"report_id": "dep-1"},
+            (True, True, False, True),
+        ),
+        (
+            "MISSION_RUNTIME_QC_BLOCKED",
+            {"verdict": "FAIL"},
+            (True, True, True, False),
+        ),
+    ]
+
+    for expected_event, report, readiness in scenarios:
+        mission = _make_mission(state=MissionState.verified)
+        inserted_events: list[str] = []
+        eq_ready, sec_ready, dep_ready, runtime_ready = readiness
+        with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+            mock_storage.fetch_mission = lambda _settings, _mission_id, _mission=mission: _mission
+            mock_storage.insert_mission_event = (
+                lambda _settings, _mission_id, _previous, _new, event_type, _events=inserted_events: _events.append(
+                    event_type
+                )
+            )
+            mock_storage.update_mission_metadata = (
+                lambda _settings, _mission_id, metadata, _mission=mission: setattr(_mission, "metadata", metadata)
+                or _mission
+            )
+            with patch.object(
+                orchestrator_mission_flow_v2_lifecycle,
+                "_prepare_equivalence_report",
+                new=AsyncMock(return_value=(mission, eq_ready, report)),
+            ), patch.object(
+                orchestrator_mission_flow_v2_lifecycle,
+                "_prepare_security_compliance_report",
+                new=AsyncMock(return_value=(mission, sec_ready, report)),
+            ), patch.object(
+                orchestrator_mission_flow_v2_lifecycle,
+                "_prepare_dependency_absorption_reports",
+                new=AsyncMock(return_value=(mission, dep_ready, report)),
+            ), patch.object(
+                orchestrator_mission_flow_v2_lifecycle,
+                "_prepare_depabs_execution",
+                new=AsyncMock(return_value=mission),
+            ), patch.object(
+                orchestrator_mission_flow_v2_lifecycle,
+                "_prepare_runtime_qc",
+                new=AsyncMock(return_value=(mission, runtime_ready, report)),
+            ):
+                result = await orchestrator_mission_flow_v2_lifecycle._advance_verified_to_complete(
+                    app=app,
+                    settings=settings,
+                    validator=validator,
+                    emit_state_event_fn=AsyncMock(),
+                    mission_id=mission.mission_id,
+                    completion_check_fn=_completion_check,
+                )
+
+        assert result is False
+        assert expected_event in inserted_events
+
+
+@pytest.mark.asyncio
+async def test_advance_verified_to_complete_records_deploy_readiness_and_delivery_summary() -> None:
+    mission = _make_mission(state=MissionState.verified)
+    settings = _make_settings()
+    deploy_report = {"ready": False, "blockers": ["manual approval"], "source": "test"}
+    updated_metadata: list[dict[str, Any]] = []
+
+    async def _completion_check(*, settings, mission):
+        _ = settings, mission
+        return True, {}
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _settings, _mission_id: mission
+        mock_storage.list_build_artifacts = lambda _settings, _mission_id, _limit: []
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: updated_metadata.append(metadata) or mission
+        )
+        with patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_equivalence_report",
+            new=AsyncMock(return_value=(mission, True, {"report_id": "eq-1"})),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_security_compliance_report",
+            new=AsyncMock(return_value=(mission, True, {"report_id": "sec-1"})),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_dependency_absorption_reports",
+            new=AsyncMock(return_value=(mission, True, {"report_id": "dep-1"})),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_depabs_execution",
+            new=AsyncMock(return_value=mission),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_runtime_qc",
+            new=AsyncMock(return_value=(mission, True, {"verdict": "PASS"})),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "build_deploy_readiness_assessment",
+            return_value=deploy_report,
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_delivery_summary",
+            new=AsyncMock(return_value=mission),
+        ) as delivery_summary:
+            result = await orchestrator_mission_flow_v2_lifecycle._advance_verified_to_complete(
+                app=_make_app_state(),
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+                completion_check_fn=_completion_check,
+            )
+
+    assert result is True
+    assert delivery_summary.await_count == 1
+    assert updated_metadata[-1]["deploy_readiness"] == deploy_report
+    assert any(
+        event["event_type"] == "MISSION_DEPLOY_READINESS_ASSESSED"
+        for event in updated_metadata[-1]["chain_trace"]
     )
 
 

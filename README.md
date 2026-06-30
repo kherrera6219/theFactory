@@ -9,7 +9,7 @@
 [![CI](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml)
 [![Coverage Gate](https://img.shields.io/badge/coverage%20gate-80%25%2B-blue)](docs/TESTING_QUALITY_GATES.md)
-[![Audit](https://img.shields.io/badge/repo%20audit-22%2F23%20checks%20passing-yellow)](scripts/production_review_audit.py)
+[![Audit](https://img.shields.io/badge/repo%20audit-23%2F23%20checks%20passing-brightgreen)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -21,7 +21,7 @@
 > **Development status:** theFactory is still under active local development, but the public proof points are current through the Phase 3 verification-hardening work.
 > Live evidence now includes the Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6` and the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`.
 > Recent hardening fixed PM clarifying-question truncation, preserved non-ASCII artifact content through storage readback, surfaced `lifecycle_engine` through OpenAPI/UI types, and cleaned up CI security gates.
-> Remaining release work includes Mission Control UI smoke, Pong-style UI artifact rerun, failure-injection coverage, provider fallback/preflight, Phase 8 Mission Flow v2 strict coverage, and `INF-008`.
+> Remaining release work includes Mission Control UI smoke, Pong-style UI artifact rerun, live failure-injection and provider-fallback proof, provider preflight, Phase 8 Mission Flow v2 branch-coverage follow-up, and key rotation.
 
 ---
 
@@ -121,9 +121,9 @@ The list below describes implemented subsystems and intended product direction, 
 
 Current proof points include the Phase 13 backend/API smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, which reached `COMPLETE` with a valid Python artifact, and the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, which preserved 28 non-ASCII characters through codegen, packaging, and storage readback.
 
-Recent completed work also covers PM clarifying-question truncation fixes, `MissionRecord.lifecycle_engine` OpenAPI/UI type sync, and CI security gate cleanup for generated API types and Python dependency policy.
+Recent completed work also covers PM clarifying-question truncation fixes, `MissionRecord.lifecycle_engine` OpenAPI/UI type sync, Mission Flow v2 strict-mode line coverage, failure-injection regression coverage, and CI/security audit cleanup.
 
-Remaining release proof points include Mission Control UI smoke, Pong-style UI artifact rerun, failure-injection coverage, provider fallback/preflight, Phase 8 Mission Flow v2 strict coverage, and `INF-008`.
+Remaining release proof points include Mission Control UI smoke, Pong-style UI artifact rerun, live failure-injection and provider-fallback proof, provider preflight, Phase 8 Mission Flow v2 branch-coverage follow-up, and key rotation.
 
 Current work is tracked in `docs/CURRENT_TODO.md` and the handoff documents.
 
@@ -657,7 +657,7 @@ make test
 # Lint
 make lint
 
-# Run repo audit checks (current baseline: 22/23; INF-008 open)
+# Run repo audit checks (current baseline: 23/23)
 make audit
 
 # Debug sweep
@@ -737,7 +737,7 @@ npm run test:e2e   # Playwright critical-path E2E
 |------|--------|-------------|
 | Global Python coverage | ≥ 80% | CI + `make test` |
 | Critical module coverage | Strict per-file floors (`80%`–`100%`); `runtime.py` floor is `80%` (currently at 100% line / 99% branch) | `scripts/check_coverage_thresholds.py` |
-| Production audit | 22/23 checks pass; `INF-008` open | `scripts/production_review_audit.py` |
+| Production audit | 23/23 checks pass; `INF-008` closed | `scripts/production_review_audit.py` |
 | Frontend lint | 0 errors | CI |
 | Frontend unit tests | currently passing | `apps/mission-control` Vitest |
 | Frontend E2E | currently passing | Playwright critical-path regression suite |
@@ -763,7 +763,7 @@ python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
 The live run is the launch-demo proof point. It requires a running stack and
 provider-key configuration when generated LLM output is part of the claim.
 
-**Validation snapshot (2026-06-30):** Focused Phase 3 hardening and CI gate checks have been refreshed locally. Current evidence includes the standard Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6` and the non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`. Documentation validation remains part of the release gate, while full provider-key rotation and Mission Control browser smoke remain open.
+**Validation snapshot (2026-06-30):** Focused Phase 3 hardening, Phase 8 Mission Flow v2 coverage, failure-injection regression coverage, and CI/security gate checks have been refreshed locally. Current evidence includes the standard Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, the non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, Mission Flow v2 coverage at 92.43% line / 74.70% branch across the broader related suite, and a 23/23 production audit. Documentation validation remains part of the release gate, while full provider-key rotation and Mission Control browser smoke remain open.
 
 ---
 
@@ -998,19 +998,19 @@ Recent completed work includes PM clarifying-question truncation fixes, `Mission
 
 | Domain | State |
 | --- | --- |
-| Backend/API | Local full-dedicated readyz and Phase 13 smoke evidence are current. Broader failure-injection and fallback scenarios remain release work. |
+| Backend/API | Local full-dedicated readyz and Phase 13 smoke evidence are current. Unit failure-injection coverage is refreshed; live interruption/fallback scenarios remain release proof work. |
 | Mission Control | UI is wired to API types including `lifecycle_engine`; fresh browser smoke is still required before release. |
 | Mission Lifecycle | PlanBuild artifacts, PM handbacks, storage readback, and non-ASCII artifact integrity have live evidence. |
 | Data Systems | Full-dedicated Redis, Postgres, Neo4j, Milvus, and MinIO wiring is the default local path; deep query-path coverage still needs expansion. |
 | LLM Providers | Provider slots exist for Gemini, OpenAI, and Anthropic; live provider preflight, rotation, and fallback validation remain open. |
-| CI/Security | Generated API type drift and Python dependency/security policy checks are documented and locally validated after the latest fixes. |
+| CI/Security | Generated API type drift, Python dependency/security policy checks, and production audit checks are documented and locally validated after the latest fixes. |
 
 Next priorities:
 
 1. Complete Mission Control UI smoke against the current full-dedicated stack.
 2. Rerun a Pong-style UI artifact mission through the current PlanBuild path.
-3. Add failure-injection coverage for storage, event-bus, worker, and provider fallback paths.
-4. Finish Phase 8 Mission Flow v2 strict mode coverage and `INF-008` observability/evidence correlation.
+3. Run live Phase 13 failure-injection and provider-fallback proof against the current stack.
+4. Raise remaining Phase 8 Mission Flow v2 branch coverage or explicitly defer the old 85% branch target.
 5. Harden provider preflight, key rotation, quota, and fallback operator workflows.
 
 ---

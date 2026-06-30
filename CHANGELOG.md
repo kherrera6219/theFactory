@@ -6,6 +6,32 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Phase 8 Coverage and INF-008 Audit Closure (2026-06-30)
+
+#### Added
+- Mission Flow v2 strict-mode tests for attachment parsing/degradation, PM
+  clarification emit failures, FETCH knowledge-ready broadcast, CEO delegation
+  with PORT setup, pod-standard thin coverage and audit, artifact disk writing,
+  runtime QC, DEPABS execution, fusion ordering, and completion gates.
+- Failure-injection regression coverage for storage fallback/readback behavior,
+  protocol-bus Redis failure/backpressure paths, worker auth/emit/runtime failure
+  handling, and provider fallback/degraded-result paths.
+
+#### Fixed
+- Mission Flow v2 fusion now imports the real `orchestrator.neo4j_store` adapter
+  for Neo4j depth sorting.
+- `INF-008` is closed: compose internal service-key defaults fail closed, and the
+  production audit now verifies operations/observability evidence correlation for
+  full-dedicated strict mission evidence and DORA metrics.
+
+#### Validation
+- `tests/services/test_mission_flow_v2.py` passed with 81 tests and
+  91.56% line / 71.69% branch coverage for `mission_flow_v2/`.
+- The broader related Phase 8 suite passed with 170 tests and 92.43% line /
+  74.70% branch coverage.
+- `python scripts/production_review_audit.py --json` passed 23/23 checks.
+
+
 ### Verification & Reporting Hardening — Phase 1 (2026-06-29)
 
 #### Added
@@ -64,9 +90,9 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Rewrote the active current-state docs (`CURRENT_TODO.md`,
   `HANDOFF_CURRENT.md`, and `IMPLEMENTATION_STATUS.md`) so older phase notes
   no longer appear as active priorities.
-- Kept Phase 13 backend/API smoke as the current proof point and moved the
-  remaining UI, failure-injection, provider-fallback, `make validate`,
-  `INF-008`, and Phase 8 coverage items into explicit current gaps.
+- Kept Phase 13 backend/API smoke as the current proof point at that time and
+  moved the remaining UI, failure-injection, provider-fallback, `make validate`,
+  then-open `INF-008`, and Phase 8 coverage items into explicit gaps.
 - Archived superseded phase, legacy, and duplicate enterprise documents under `docs/archive/2026-06-27/` and removed them from the active docs index.
 
 ### Documentation Current-State Cleanup (2026-06-27)
@@ -76,7 +102,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
   application status, proof points, remaining gaps, and navigation.
 - Updated the root README and documentation index to reflect the Phase 13
   backend/API smoke proof, the remaining UI/failure/fallback validation gaps,
-  and the current `22/23` production-audit baseline.
+  and the then-current `22/23` production-audit baseline.
 
 ### Audit Phase 13 End-to-End Smoke (2026-06-27)
 

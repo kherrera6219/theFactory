@@ -26,9 +26,10 @@ The current Phase 3 artifact-encoding proof is
 `mission-bd5369ec-3777-4099-89fe-81699289a29d`, which preserved 28
 non-ASCII characters through codegen, packaging, and storage readback.
 
-The most recent public README refresh updated GitHub-facing status language to
-match the current Phase 13 and Phase 3 proof points, while preserving the active
-development / not-production-ready boundary.
+The latest public README/status-doc refresh now also records the Phase 8 line
+coverage improvement and production-audit closure: `INF-008` is resolved and
+the audit passes 23/23 checks. The active development / not-production-ready
+boundary remains in place.
 
 ---
 
@@ -64,6 +65,19 @@ Remaining outside Phase 3: Pong-style UI artifact rerun for the broader verifica
 ---
 
 ## Latest Completed Work
+
+### Phase 8 Coverage and INF-008
+
+- Added targeted Mission Flow v2 tests for strict-mode phase helpers, runtime
+  QC/DEPABS/fusion paths, lifecycle completion gates, and build/intake branch
+  handling.
+- Fixed the Mission Flow v2 fusion Neo4j depth-sort import.
+- Current coverage evidence: isolated Mission Flow v2 suite 81 passed with
+  91.56% line / 71.69% branch; broader related suite 170 passed with 92.43%
+  line / 74.70% branch. Branch coverage remains the only Phase 8 strict
+  carry-forward.
+- Closed `INF-008`; production audit now passes 23/23 checks with compose
+  service-key hardening and operations/observability evidence correlation.
 
 ### Phase 13 Backend/API Smoke
 
@@ -112,7 +126,13 @@ Phase 13 validation also completed in the prior slice:
 - focused Phase 13 pytest and Ruff checks
 - `scripts/export_openapi.py --check`
 
-Production audit status remains 22/23 because `INF-008` is still open.
+Production audit status is now 23/23; `INF-008` is closed.
+
+Latest Phase 8 / INF-008 validation:
+
+- `python -m pytest -o addopts= --basetemp .pytest-tmp-phase8 tests/services/test_mission_flow_v2.py --cov=services/orchestrator/orchestrator/mission_flow_v2 --cov-report=term-missing --cov-report=xml:coverage-phase8.xml` passed with 81 tests and 91.56% line / 71.69% branch coverage.
+- `python -m pytest -o addopts= --basetemp .pytest-tmp-phase8-combined tests/services/test_mission_flow_v2.py tests/services/test_lifecycle_interface_unit.py tests/services/test_runtime_unit.py tests/services/test_orchestrator_endpoints_extra.py tests/services/test_storage_missions_unit.py --cov=services/orchestrator/orchestrator/mission_flow_v2 --cov-report=term-missing --cov-report=xml:coverage-phase8-combined.xml` passed with 170 tests and 92.43% line / 74.70% branch coverage.
+- `python scripts/production_review_audit.py --json` passed 23/23 checks.
 
 ---
 
@@ -123,11 +143,10 @@ Production audit status remains 22/23 because `INF-008` is still open.
 3. Run protocol-bus failure injection for Phase 13.
 4. Run provider fallback proof for Phase 13.
 5. Run full `make validate` and capture the current result.
-6. Fix or explicitly defer the Phase 8 `mission_flow_v2/` strict coverage gap.
-7. Resolve `INF-008`.
-8. Add provider/key/model preflight in Settings.
-9. Move provider/model selection into the app settings/vault path.
-10. Rotate exposed provider keys before public or shared use.
+6. Raise remaining Phase 8 `mission_flow_v2/` branch coverage or explicitly defer the old 85% branch target.
+7. Add provider/key/model preflight in Settings.
+8. Move provider/model selection into the app settings/vault path.
+9. Rotate exposed provider keys before public or shared use.
 
 ---
 

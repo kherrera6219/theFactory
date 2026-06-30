@@ -202,6 +202,17 @@ def test_check_compose_environment_profile_controls_passes(tmp_path, monkeypatch
     )
     _write(tmp_path / "docs" / "COMPOSE_ENVIRONMENT_PROFILES.md", "# Profiles\n")
     _write(
+        tmp_path / "docs" / "OPERATIONS_RUNBOOK.md",
+        "# Runbook\n"
+        "includes INTERNAL_SERVICE_API_KEY plus per-agent service keys\n"
+        "mission_artifact_qualification_full_dedicated_strict_<date>.json\n"
+        "dedicated_agent_canary_full_dedicated_strict_<date>.json\n",
+    )
+    _write(
+        tmp_path / "docs" / "OBSERVABILITY_STACK.md",
+        "# Observability\nQualification emits docs/evidence/dora_metrics_latest.json\n",
+    )
+    _write(
         tmp_path / "Makefile",
         (
             "up-full-dedicated:\n"

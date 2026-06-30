@@ -499,7 +499,7 @@ async def _prepare_fusion(
     # a master stream that references unresolved dependencies.
     if settings.neo4j_enabled and pod_group_standards:
         try:
-            from . import neo4j_store as _neo4j
+            from .. import neo4j_store as _neo4j
             graph_nodes = await asyncio.to_thread(
                 _neo4j.list_logicnodes_by_depth,
                 settings,

@@ -38,8 +38,10 @@ Validated across current evidence:
 The app is still active development, not production-ready. The backend/API happy
 path and Phase 3 artifact-encoding regression are proven, but the broader
 release gate still needs Mission Control UI smoke, Pong-style UI artifact rerun,
-failure-mode, provider-fallback, full validation, Phase 8 strict coverage,
-`INF-008`, provider preflight, and key-rotation coverage.
+live failure-injection proof, live provider-fallback proof, full validation,
+Phase 8 branch-coverage follow-up, provider preflight, and key-rotation coverage.
+Production audit now passes 23/23 checks after the INF-008 compose/evidence
+correlation update.
 
 ---
 
@@ -82,25 +84,48 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
 
 1. Run Phase 13 Mission Control UI smoke for the same mission path covered by the
    backend/API smoke.
-2. Run Phase 13 failure-injection proof: interrupt protocol-bus MCP mid-mission
-   and verify retry/resume or clean user-visible failure.
+2. Run Phase 13 failure-injection proof against the live stack: interrupt
+   protocol-bus MCP or another runtime dependency mid-mission and verify
+   retry/resume or clean user-visible failure.
 3. Run Phase 13 provider-fallback proof with an invalid primary provider key and
    confirm fallback is recorded in mission output/evidence.
 4. Run full `make validate` in the current environment and capture the result.
-5. Fix or explicitly defer the Phase 8 `mission_flow_v2/` strict coverage
-   carry-forward. Current tracked gap: 83.51% line / 66.27% branch against the
-   stricter 90% / 85% target.
-6. Resolve production-audit finding `INF-008`: compose/internal-caller
-   `INTERNAL_SERVICE_API_KEY` wiring.
-7. Add Settings provider/key/model preflight that performs a real small provider
+5. Raise or explicitly defer the remaining Phase 8 `mission_flow_v2/` branch
+   coverage carry-forward. Current evidence: isolated suite 81 passed with
+   91.56% line / 71.69% branch, and broader related suite 170 passed with
+   92.43% line / 74.70% branch, against the older 90% / 85% strict target.
+6. Add Settings provider/key/model preflight that performs a real small provider
    call and reports the actual provider status.
-8. Move provider/model selection fully into the Mission Control settings/vault
+7. Move provider/model selection fully into the Mission Control settings/vault
    path instead of relying on `.env` defaults.
-9. Rotate exposed provider keys before any public, partner, or shared deployment.
+8. Rotate exposed provider keys before any public, partner, or shared deployment.
 
 ---
 
 ## Recently Completed
+
+### Phase 8 Mission Flow v2 Coverage and INF-008
+
+- Added targeted Mission Flow v2 coverage for attachment parsing/degradation,
+  PM clarification emit failures, FETCH knowledge-ready broadcast, CEO
+  delegation/PORT setup, pod-standard audit/thin coverage, artifact disk
+  writing, runtime QC, DEPABS execution, fusion ordering, and completion gates.
+- Fixed the fusion Neo4j depth-sort import so the runtime reaches the real
+  `orchestrator.neo4j_store` adapter instead of silently skipping the sort.
+- Phase 8 line coverage now clears the older 90% target: isolated suite
+  91.56% line / 71.69% branch; broader related suite 92.43% line / 74.70%
+  branch. The remaining strict carry-forward is branch coverage or explicit
+  deferral of the old 85% branch target.
+- Production audit now passes 23/23 checks; `INF-008` is closed by fail-closed
+  compose service-key defaults plus operations/observability evidence
+  correlation for full-dedicated strict mission evidence and DORA metrics.
+
+### Failure-Injection Coverage
+
+- Added failure-injection coverage for storage fallback/readback behavior,
+  protocol-bus Redis failure/backpressure paths, worker auth/emit/runtime
+  failure handling, and provider fallback/degraded-result paths. Live Phase 13
+  failure-injection proof remains a separate release task.
 
 ### Phase 13 Backend/API Smoke
 
@@ -151,10 +176,10 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
 | Artifact correctness | Phase 1+2 code now enforces explicit format mismatch/missing extension and records runnable-smoke evidence; live Pong rerun still needed |
 | Artifact encoding | Phase 3 code adds non-ASCII regression coverage, conservative mojibake repair before digest, diagnostic trace, and passing live non-ASCII evidence at `docs/evidence/phase3_non_ascii_smoke_latest.json` |
 | Engine reporting | Phase 2 code emits authoritative `lifecycle_engine`; live Mission Detail rerun still needed |
-| Production audit | 22/23 checks pass; `INF-008` remains open |
-| Phase 8 coverage | `mission_flow_v2/` strict target remains open |
+| Production audit | 23/23 checks pass; `INF-008` closed |
+| Phase 8 coverage | Line target met; branch target follow-up remains at 74.70% against the older 85% branch target |
 | Phase 13 UI | Backend/API smoke passed; Mission Control UI smoke still needed |
-| Failure injection | Not yet refreshed for Phase 13 |
+| Failure injection | Unit failure-injection coverage refreshed; live Phase 13 interruption proof still needed |
 | Provider fallback | Not yet refreshed for Phase 13 |
 | Full validation | Focused validation passed; full `make validate` still needs current run |
 | Provider settings | Provider/model still partly environment-driven |

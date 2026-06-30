@@ -47,7 +47,8 @@ The application currently includes:
 | Mission Control E2E | Phase 11 Playwright suite passed: 23 tests |
 | Documentation controls | 75 metadata docs, 117 link docs, 17 docstring files, migration guide, and three diagram sets validated |
 | OpenAPI/API type drift | Generated API types include `MissionRecord.lifecycle_engine`; latest drift/security gate fixes were locally validated |
-| Production audit | 22/23 checks pass; `INF-008` remains open |
+| Production audit | 23/23 checks pass; `INF-008` closed |
+| Phase 8 Mission Flow v2 coverage | Isolated suite: 81 passed, 91.56% line / 71.69% branch; broader related suite: 170 passed, 92.43% line / 74.70% branch |
 
 ---
 
@@ -62,8 +63,7 @@ The application currently includes:
 | Phase 13 failure injection | Interrupt protocol-bus MCP mid-mission and verify retry/resume or clean failure |
 | Phase 13 provider fallback | Force primary provider failure and confirm fallback is used and recorded |
 | Full validation | Run current `make validate` |
-| Phase 8 coverage | Raise or explicitly defer `mission_flow_v2/` strict coverage target |
-| Production audit | Fix `INF-008` internal service-key compose wiring finding |
+| Phase 8 branch coverage | Raise remaining `mission_flow_v2/` branch coverage or explicitly defer the old 85% branch target; line coverage now clears 90% |
 | Provider configuration | Add real provider/key/model preflight and move provider/model choice into Settings/vault |
 | Key hygiene | Rotate exposed provider keys before broader use |
 
@@ -116,14 +116,16 @@ requests, 99.00% success, and zero readiness failures.
 
 ### Phase 9 Security
 
-Completed for tracked security-audit items. Remaining production-audit failure
-is the unrelated `INF-008` compose/internal service-key wiring finding.
+Completed for tracked security-audit items. The latest production audit passes
+23/23 checks; `INF-008` is closed.
 
 ### Phase 8 Coverage
 
-Still open. The global suite and configured coverage threshold passed in the
-Phase 8 work, but the stricter audit target for `mission_flow_v2/` remains
-below target and needs more scenario-level coverage or an explicit deferral.
+Partially closed. New Mission Flow v2 strict-mode tests raise package line
+coverage above the older 90% target: the isolated suite passed 81 tests at
+91.56% line / 71.69% branch, and the broader related suite passed 170 tests
+at 92.43% line / 74.70% branch. The remaining carry-forward is branch
+coverage or explicit deferral of the old 85% branch target.
 
 ---
 

@@ -164,6 +164,8 @@ def check_compose_environment_profile_controls() -> AuditResult:
     ).lower()
     prod_compose_text = _read_text(REPO_ROOT / "deploy" / "docker-compose.prod.yaml").lower()
     makefile_text = _read_text(REPO_ROOT / "Makefile").lower()
+    operations_runbook_text = _read_text(REPO_ROOT / "docs" / "OPERATIONS_RUNBOOK.md").lower()
+    observability_text = _read_text(REPO_ROOT / "docs" / "OBSERVABILITY_STACK.md").lower()
     required_paths = [
         REPO_ROOT / "deploy" / "docker-compose.dev.yaml",
         REPO_ROOT / "deploy" / "docker-compose.staging.yaml",
@@ -219,19 +221,25 @@ def check_compose_environment_profile_controls() -> AuditResult:
     ):
         if service_name not in makefile_text:
             missing_items.append(f"make up-full-dedicated missing {service_name}")
+    if "mission_artifact_qualification_full_dedicated_strict" not in operations_runbook_text:
+        missing_items.append("runbook missing full-dedicated strict artifact evidence command")
+    if "dedicated_agent_canary_full_dedicated_strict" not in operations_runbook_text:
+        missing_items.append("runbook missing full-dedicated strict canary evidence command")
+    if "dora_metrics_latest.json" not in observability_text:
+        missing_items.append("observability docs missing qualification evidence correlation")
 
     passed = not missing_items
     return _result(
         check_id="INF-008",
         priority="HIGH",
         description=(
-            "Compose overlays, hardening controls, and full dedicated "
-            "topology wiring are configured"
+            "Compose overlays, hardening controls, full dedicated topology, "
+            "and evidence correlation are configured"
         ),
         passed=passed,
         notes="; ".join(missing_items)
         if missing_items
-        else "compose overlays and hardening controls present",
+        else "compose overlays, hardening controls, and evidence correlation present",
     )
 
 
