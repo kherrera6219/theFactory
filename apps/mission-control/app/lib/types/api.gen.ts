@@ -666,6 +666,8 @@ export interface components {
         MissionRecord: {
             /** Created At */
             created_at: string;
+            /** Lifecycle Engine */
+            lifecycle_engine?: string | null;
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;

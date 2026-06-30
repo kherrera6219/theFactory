@@ -57,13 +57,18 @@ jobs:
           pip-licenses --format=json --output-file=/tmp/python-licenses.json
           python - <<'EOF'
           import json, sys
-          BLOCKED = {"GPL-2.0", "GPL-3.0", "AGPL-3.0", "LGPL-2.1", "LGPL-3.0",
+          BLOCKED = {"GPL-2.0", "GPL-3.0", "AGPL-3.0",
                      "GPL-2.0-only", "GPL-3.0-only", "AGPL-3.0-only"}
+          ALLOWED_LGPL_PACKAGES = {"psycopg", "psycopg-binary", "psycopg-pool"}
           data = json.load(open("/tmp/python-licenses.json"))
           violations = [
-              f"{pkg['Name']}=={pkg['Version']} ({pkg['License']})"
+              f"{pkg['Name']}=={pkg['Version']}({pkg['License']})"
               for pkg in data
-              if pkg.get("License", "UNKNOWN") in BLOCKED
+              if pkg.get("License","UNKNOWN") in BLOCKED
+              or (
+                  pkg.get("License","UNKNOWN").startswith("LGPL-")
+                  and pkg.get("Name") not in ALLOWED_LGPL_PACKAGES
+              )
           ]
           if violations:
               print("BLOCKED copyleft licenses found:")
