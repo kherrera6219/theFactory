@@ -191,6 +191,10 @@ def test_codegen_normalizer_strips_fences_and_sanitizes_filename() -> None:
     assert ".." not in result["filename"]
     assert "/" not in result["filename"]
     assert result["dependencies"] == ["pytest"]
+    trace = result["encoding_trace"]["codegen_normalization"]
+    assert trace["stripped_code_fences"] is True
+    assert trace["raw"]["digest_sha256"] != trace["normalized"]["digest_sha256"]
+    assert trace["normalized"]["length_chars"] == len(result["generated_code"])
 
 
 def test_generate_code_from_contract_uses_llm_result(monkeypatch) -> None:

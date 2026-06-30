@@ -1,6 +1,7 @@
 """storage_artifacts.py — Audit reports, review approvals, and build artifact persistence."""
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from typing import Any
@@ -10,6 +11,15 @@ from .settings import Settings
 from .storage_core import _json_to_dict, _to_iso, get_connection
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _artifact_text_trace(value: str) -> dict[str, Any]:
+    return {
+        "digest_sha256": hashlib.sha256(value.encode("utf-8")).hexdigest(),
+        "length_chars": len(value),
+        "size_bytes": len(value.encode("utf-8")),
+        "non_ascii_count": sum(1 for char in value if ord(char) > 127),
+    }
 
 
 def _row_to_build_artifact(row: Any) -> MissionBuildArtifactRecord:
@@ -412,8 +422,19 @@ def upsert_build_artifact(
             )
             row = cur.fetchone()
 
-    record = _row_to_build_artifact(row)
-    return record.model_dump(mode="json")
+    record = _row_to_build_artifact(row).model_dump(mode="json")
+    persisted_text = record.get("artifact_text")
+    if isinstance(persisted_text, str):
+        manifest = record.get("manifest") if isinstance(record.get("manifest"), dict) else {}
+        encoding_trace = (
+            manifest.get("encoding_trace") if isinstance(manifest.get("encoding_trace"), dict) else {}
+        )
+        manifest["encoding_trace"] = {
+            **encoding_trace,
+            "storage_readback": _artifact_text_trace(persisted_text),
+        }
+        record["manifest"] = manifest
+    return record
 
 
 def list_build_artifacts(settings: Settings, mission_id: str, limit: int) -> list[dict[str, Any]]:

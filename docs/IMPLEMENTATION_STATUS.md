@@ -54,7 +54,7 @@ The application currently includes:
 | Gap | Required next step |
 |---|---|
 | Artifact correctness verification | Phase 1+2 branch code done (format gate, per-criterion acceptance evaluation, integrity-vs-correctness split, RQCA runnable-smoke evidence, authoritative `lifecycle_engine`); full validation and live Pong-style rerun remain. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` |
-| Non-ASCII artifact integrity | Localize and guard mojibake corruption in generated output |
+| Non-ASCII artifact integrity | Phase 3 branch code adds non-ASCII regression coverage, packaging-time mojibake guard/repair before digest, and codegen/package/storage-readback trace; live non-ASCII rerun remains |
 | Lifecycle-engine reporting | Branch code emits authoritative `lifecycle_engine` through orchestrator, gateway, chain trace, and Mission Control; live Mission Detail rerun remains |
 | Phase 13 UI smoke | Submit and observe the mission path through Mission Control |
 | Phase 13 failure injection | Interrupt protocol-bus MCP mid-mission and verify retry/resume or clean failure |

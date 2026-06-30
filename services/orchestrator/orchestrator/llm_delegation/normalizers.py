@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime
 from typing import Any
 
@@ -21,6 +22,15 @@ from .text import (
     _string_list,
     _strip_code_fences,
 )
+
+
+def _code_text_trace(value: str) -> dict[str, Any]:
+    return {
+        "digest_sha256": hashlib.sha256(value.encode("utf-8")).hexdigest(),
+        "length_chars": len(value),
+        "size_bytes": len(value.encode("utf-8")),
+        "non_ascii_count": sum(1 for char in value if ord(char) > 127),
+    }
 
 
 def _normalize_pm_feature_contract(
@@ -178,7 +188,8 @@ def _normalize_codegen_result(
     model: str,
     route: str,
 ) -> dict[str, Any] | None:
-    generated_code = _strip_code_fences(str(raw.get("generated_code", "")))
+    raw_generated_code = str(raw.get("generated_code", ""))
+    generated_code = _strip_code_fences(raw_generated_code)
     if len(generated_code.strip()) < 10:
         return None
     language = _clean_text(raw.get("language", target_language), max_length=32).lower()
@@ -198,6 +209,13 @@ def _normalize_codegen_result(
         "model": model,
         "generated_at": datetime.now(UTC).isoformat(),
         "code_length_chars": len(generated_code),
+        "encoding_trace": {
+            "codegen_normalization": {
+                "raw": _code_text_trace(raw_generated_code),
+                "normalized": _code_text_trace(generated_code),
+                "stripped_code_fences": raw_generated_code != generated_code,
+            }
+        },
     }
 
 

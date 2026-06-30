@@ -17,6 +17,84 @@ BUILD_ARTIFACT_PACKAGED_EVENT = "MISSION_BUILD_ARTIFACT_PACKAGED"
 BUILD_ARTIFACT_FAILED_EVENT = "MISSION_BUILD_ARTIFACT_FAILED"
 
 _SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
+_MOJIBAKE_MARKERS = ("â", "Ã", "Â", "ðŸ", "�")
+_COMMON_MOJIBAKE_REPLACEMENTS = {
+    "â†’": "→",
+    "â€œ": "“",
+    "â€�": "”",
+    "â€˜": "‘",
+    "â€™": "’",
+    "â€“": "–",
+    "â€”": "—",
+    "â€¦": "…",
+    "ðŸš€": "🚀",
+}
+
+
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _non_ascii_count(value: str) -> int:
+    return sum(1 for char in value if ord(char) > 127)
+
+
+def _mojibake_score(value: str) -> int:
+    score = value.count("�") * 4
+    for marker in _MOJIBAKE_MARKERS:
+        score += value.count(marker)
+    return score
+
+
+def _repair_common_mojibake(value: str) -> str:
+    """Repair common UTF-8 bytes decoded as Windows-1252/Latin-1 mojibake."""
+    best = value
+    best_score = _mojibake_score(value)
+    mapped = value
+    for mojibake, replacement in _COMMON_MOJIBAKE_REPLACEMENTS.items():
+        mapped = mapped.replace(mojibake, replacement)
+    if _mojibake_score(mapped) < best_score:
+        best = mapped
+        best_score = _mojibake_score(mapped)
+    for source_encoding in ("cp1252", "latin-1"):
+        try:
+            candidate = value.encode(source_encoding).decode("utf-8")
+        except UnicodeError:
+            continue
+        candidate_score = _mojibake_score(candidate)
+        if candidate_score < best_score:
+            best = candidate
+            best_score = candidate_score
+    return best
+
+
+def _apply_encoding_guard(value: str) -> tuple[str, dict[str, Any]]:
+    input_digest = _sha256_text(value)
+    input_score = _mojibake_score(value)
+    repaired = _repair_common_mojibake(value) if input_score > 0 else value
+    output_score = _mojibake_score(repaired)
+    repaired_changed = repaired != value and output_score < input_score
+    output = repaired if repaired_changed else value
+    status = "clean"
+    if repaired_changed:
+        status = "repaired"
+    elif input_score > 0:
+        status = "suspect"
+    guard = {
+        "schema_version": "encoding_guard.v1",
+        "status": status,
+        "repaired": repaired_changed,
+        "input_digest_sha256": input_digest,
+        "output_digest_sha256": _sha256_text(output),
+        "input_length_chars": len(value),
+        "output_length_chars": len(output),
+        "input_size_bytes": len(value.encode("utf-8")),
+        "output_size_bytes": len(output.encode("utf-8")),
+        "non_ascii_count": _non_ascii_count(output),
+        "mojibake_score_before": input_score,
+        "mojibake_score_after": _mojibake_score(output),
+    }
+    return output, guard
 
 
 def mission_requires_build_artifact(metadata: Any) -> bool:
@@ -49,13 +127,27 @@ def build_generated_output_artifact(
     generated_output = metadata.get("generated_output")
     if not isinstance(generated_output, dict):
         raise ValueError("generated_output is required to build a generated code artifact")
-    generated_code = str(generated_output.get("generated_code") or "").strip()
+    raw_generated_code = str(generated_output.get("generated_code") or "").strip()
+    generated_code, encoding_guard = _apply_encoding_guard(raw_generated_code)
     if len(generated_code) < 10:
         raise ValueError("generated_output.generated_code is too small to package")
 
     generated_at = datetime.now(UTC).isoformat()
-    digest_sha256 = hashlib.sha256(generated_code.encode("utf-8")).hexdigest()
-    size_bytes = len(generated_code.encode("utf-8"))
+    digest_sha256 = encoding_guard["output_digest_sha256"]
+    size_bytes = encoding_guard["output_size_bytes"]
+    upstream_encoding_trace = generated_output.get("encoding_trace")
+    encoding_trace = upstream_encoding_trace if isinstance(upstream_encoding_trace, dict) else {}
+    encoding_trace = {
+        **encoding_trace,
+        "packaging": {
+            "status": encoding_guard["status"],
+            "repaired": encoding_guard["repaired"],
+            "input_digest_sha256": encoding_guard["input_digest_sha256"],
+            "output_digest_sha256": encoding_guard["output_digest_sha256"],
+            "mojibake_score_before": encoding_guard["mojibake_score_before"],
+            "mojibake_score_after": encoding_guard["mojibake_score_after"],
+        },
+    }
     manifest = {
         "manifest_version": "build-artifact.v1",
         "mission_id": mission_id,
@@ -72,6 +164,7 @@ def build_generated_output_artifact(
         "specialist_agent_id": generated_output.get("specialist_agent_id"),
         "model_provider": generated_output.get("model_provider"),
         "model": generated_output.get("model"),
+        "encoding_trace": encoding_trace,
     }
     verification = {
         "verified": True,
@@ -82,6 +175,7 @@ def build_generated_output_artifact(
         "verification_method": "sha256",
         "verified_at": generated_at,
         "artifact_digest_sha256": digest_sha256,
+        "encoding_guard": encoding_guard,
     }
     try:
         from shared_runtime.crypto_keystore import load_or_create_signing_key

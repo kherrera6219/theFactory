@@ -652,7 +652,7 @@ def test_build_artifact_object_storage_offload_and_fallback(monkeypatch) -> None
         {},
         {},
         "",
-        "inline",
+        "inline → ok",
         now,
         now,
     )
@@ -676,11 +676,15 @@ def test_build_artifact_object_storage_offload_and_fallback(monkeypatch) -> None
         {},
         {},
         "",
-        "inline",
+        "inline → ok",
         now.isoformat(),
     )
     assert fallback["storage_backend"] == "database"
-    assert fallback["artifact_text"] == "inline"
+    assert fallback["artifact_text"] == "inline → ok"
+    readback = fallback["manifest"]["encoding_trace"]["storage_readback"]
+    assert readback["length_chars"] == len("inline → ok")
+    assert readback["size_bytes"] == len("inline → ok".encode("utf-8"))
+    assert readback["non_ascii_count"] == 1
 
 
 def test_get_build_artifact_returns_none_when_missing(monkeypatch) -> None:

@@ -49,10 +49,12 @@ mentions plus extensionless artifacts. Phase 2 branch code is also complete:
 RQCAs now attach runnable-smoke evidence, JavaScript syntax failures become real
 runtime-QC failures, HTML artifacts get static structure plus inline-script
 syntax smoke with honest browser-load `DRY_RUN` reporting, and authoritative
-`lifecycle_engine` is emitted through the backend/API/UI path. Focused backend
-tests pass. Remaining: Phase 3 (mojibake localize/guard; PM clarifying-question
-truncation), full validation, and a live re-run of a Pong-style mission after
-the stack restarts.
+`lifecycle_engine` is emitted through the backend/API/UI path. Phase 3 encoding
+steps 1-3 are now complete in branch: non-ASCII artifact regression coverage,
+packaging-time mojibake guard/repair before digest, and codegen / packaging /
+storage-readback diagnostic trace. Focused backend tests pass. Remaining: PM
+clarifying-question truncation, full validation, and a live re-run of a
+Pong-style non-ASCII mission after the stack restarts.
 
 ---
 
@@ -86,6 +88,8 @@ Passing checks from the latest work:
 
 - `python -m pytest -o addopts= --basetemp .pytest-tmp tests/services/test_equivalence_verifier_unit.py tests/services/test_runtime_qc_unit.py tests/services/test_lifecycle_interface_unit.py tests/services/test_storage_missions_unit.py tests/services/test_api_gateway_helpers_unit.py tests/services/test_orchestrator_endpoints_extra.py`
   passed with 88 tests.
+- `python -m pytest -o addopts= --basetemp .pytest-tmp tests/services/test_build_artifacts_unit.py tests/services/test_storage_unit.py tests/services/test_llm_delegation_unit.py`
+  passed with 98 tests.
 
 - Full dedicated-agent Docker rebuild completed successfully.
 - API gateway `/readyz` returned ready with orchestrator and Redis healthy.
@@ -108,9 +112,10 @@ Production audit status remains 22/23 because `INF-008` is still open.
 
 ## Next Actions
 
-1. Complete Verification & Reporting Hardening Phase 3. Phase 1 and Phase 2
-   branch code are complete, but full validation and live Pong-style rerun still
-   need to be refreshed. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`.
+1. Complete Verification & Reporting Hardening Phase 3 PM clarifying-question
+   truncation. Phase 1, Phase 2, and Phase 3 encoding steps 1-3 branch code are
+   complete, but full validation and live Pong-style non-ASCII rerun still need
+   to be refreshed. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`.
 2. Run Mission Control UI smoke for Phase 13.
 2. Run protocol-bus failure injection for Phase 13.
 3. Run provider fallback proof for Phase 13.

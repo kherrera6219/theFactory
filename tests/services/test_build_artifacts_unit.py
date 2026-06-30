@@ -1,3 +1,4 @@
+import hashlib
 import importlib
 import sys
 from pathlib import Path
@@ -108,6 +109,62 @@ def test_build_generated_output_artifact_generates_manifest_and_digest() -> None
     assert artifact["manifest"]["filename"] == "count_words.py"
     assert artifact["artifact_text"].startswith("def count_words")
     assert artifact["digest_sha256"]
+
+
+def test_build_generated_output_artifact_preserves_non_ascii_text() -> None:
+    generated_code = (
+        "<!doctype html><html><body>"
+        "<button>Start → “Neon Pong” 🚀</button>"
+        "</body></html>\n"
+    )
+    artifact = build_artifacts.build_generated_output_artifact(
+        mission_id="mission-unicode",
+        requested_target_language="javascript",
+        metadata={
+            "generated_output": {
+                "generated_code": generated_code,
+                "filename": "neon-pong.html",
+                "language": "javascript",
+                "source": "llm",
+            }
+        },
+    )
+
+    assert artifact["artifact_text"] == generated_code.strip()
+    assert artifact["size_bytes"] == len(generated_code.strip().encode("utf-8"))
+    assert artifact["digest_sha256"] == hashlib.sha256(
+        generated_code.strip().encode("utf-8")
+    ).hexdigest()
+    guard = artifact["verification"]["encoding_guard"]
+    assert guard["status"] == "clean"
+    assert guard["repaired"] is False
+    assert guard["non_ascii_count"] >= 4
+
+
+def test_build_generated_output_artifact_repairs_common_mojibake_before_digest() -> None:
+    mojibake_code = "<button>Start â†’ â€œNeon Pongâ€� ðŸš€</button>"
+    repaired_code = "<button>Start → “Neon Pong” 🚀</button>"
+
+    artifact = build_artifacts.build_generated_output_artifact(
+        mission_id="mission-mojibake",
+        requested_target_language="javascript",
+        metadata={
+            "generated_output": {
+                "generated_code": mojibake_code,
+                "filename": "neon-pong.html",
+                "language": "javascript",
+                "source": "llm",
+            }
+        },
+    )
+
+    assert artifact["artifact_text"] == repaired_code
+    assert artifact["digest_sha256"] == hashlib.sha256(repaired_code.encode("utf-8")).hexdigest()
+    guard = artifact["verification"]["encoding_guard"]
+    assert guard["status"] == "repaired"
+    assert guard["repaired"] is True
+    assert guard["input_digest_sha256"] != guard["output_digest_sha256"]
+    assert artifact["manifest"]["encoding_trace"]["packaging"]["status"] == "repaired"
 
 
 def test_mission_has_generated_output_rejects_fallback() -> None:

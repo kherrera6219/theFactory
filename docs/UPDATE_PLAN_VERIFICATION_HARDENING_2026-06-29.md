@@ -62,7 +62,8 @@ is correct." Each Tier-1 gap is a facet of that single missing dimension.
   `EquivalenceReportPanel` explains the distinction. Phase 2 branch code now
   adds RQCA artifact-smoke evidence and authoritative lifecycle-engine reporting.
   Focused backend tests, targeted Ruff, Mission Control `tsc` lint,
-  documentation validation, and OpenAPI drift checks pass. Phase 3 remains.
+  documentation validation, and OpenAPI drift checks pass. Phase 3 encoding
+  steps 1-3 are done in branch; PM clarifying-question truncation remains.
   End-to-end live re-run of a Pong-style mission is still pending a stack restart.
 
 ## Phase 1: Make verification mean correctness
@@ -106,13 +107,15 @@ Exit: new unit tests (done); a Pong-style mission shows the format gate flagging
 
 ## Phase 3: Encoding trace, PM truncation, tracked backlog
 
-- **3a. Mojibake** — add a temporary raw-bytes capture (provider response +
-  post-storage readback) on a non-ASCII mission to localize LLM-output vs
-  storage round-trip, then add a permanent UTF-8 validity guard and repair in
-  `build_generated_output_artifact` (digest computed after normalization) plus a
-  regression test.
+- **3a. Mojibake, steps 1-3** — DONE in branch. Generated artifacts now have
+  non-ASCII regression coverage, `build_generated_output_artifact` applies a
+  conservative UTF-8/mojibake guard with digest computed after normalization,
+  and diagnostic trace points compare codegen normalization, packaging, and
+  post-storage readback. Live non-ASCII mission rerun remains pending.
 - **3b. PM clarifying-question truncation** — locate and lift the length cap that
-  clips the PM clarifying questions in the chat intake.
+  clips the PM clarifying questions in the chat intake. Not part of the active
+  steps 1-3 slice unless the encoding work exposes the same text utility as the
+  direct cause.
 - **3c. Tracked backlog** — `INF-008`, Phase 8 `mission_flow_v2/` strict
   coverage, provider preflight + Settings/vault, key rotation, failure-injection
   and provider-fallback proofs.
