@@ -62,9 +62,11 @@ is correct." Each Tier-1 gap is a facet of that single missing dimension.
   `EquivalenceReportPanel` explains the distinction. Phase 2 branch code now
   adds RQCA artifact-smoke evidence and authoritative lifecycle-engine reporting.
   Focused backend tests, targeted Ruff, Mission Control `tsc` lint,
-  documentation validation, and OpenAPI drift checks pass. Phase 3 encoding
-  steps 1-3 are done in branch; PM clarifying-question truncation remains.
-  End-to-end live re-run of a Pong-style mission is still pending a stack restart.
+  documentation validation, and OpenAPI drift checks pass. Phase 3 branch code
+  is complete for encoding and PM clarifying-question truncation, and the live
+  non-ASCII mission rerun passed with evidence at
+  `docs/evidence/phase3_non_ascii_smoke_latest.json`.
+  The separate Pong-style UI artifact rerun remains in the broader verification backlog.
 
 ## Phase 1: Make verification mean correctness
 
@@ -111,11 +113,13 @@ Exit: new unit tests (done); a Pong-style mission shows the format gate flagging
   non-ASCII regression coverage, `build_generated_output_artifact` applies a
   conservative UTF-8/mojibake guard with digest computed after normalization,
   and diagnostic trace points compare codegen normalization, packaging, and
-  post-storage readback. Live non-ASCII mission rerun remains pending.
-- **3b. PM clarifying-question truncation** — locate and lift the length cap that
-  clips the PM clarifying questions in the chat intake. Not part of the active
-  steps 1-3 slice unless the encoding work exposes the same text utility as the
-  direct cause.
+  post-storage readback. A live non-ASCII Python mission rerun passed against
+  the full-dedicated stack and recorded `non_ascii_count` 28 at
+  `docs/evidence/phase3_non_ascii_smoke_latest.json`.
+- **3b. PM clarifying-question truncation** — DONE in branch. PM
+  feature-contract normalization now preserves clarifying questions up to 800
+  characters each, and Mission Control keeps more launch-context text so
+  clarified scope is not clipped before mission creation.
 - **3c. Tracked backlog** — `INF-008`, Phase 8 `mission_flow_v2/` strict
   coverage, provider preflight + Settings/vault, key rotation, failure-injection
   and provider-fallback proofs.

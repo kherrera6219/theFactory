@@ -88,7 +88,11 @@ def _normalize_pm_feature_contract(
         "risk_assessment": risk_assessment,
         "human_approval_required": human_approval,
         "risk_notes": _string_list(raw.get("risk_notes"), limit=5),
-        "clarifying_questions": _string_list(raw.get("clarifying_questions"), limit=5),
+        "clarifying_questions": _string_list(
+            raw.get("clarifying_questions"),
+            limit=5,
+            max_length=800,
+        ),
         "assumptions": _string_list(raw.get("assumptions"), limit=6),
         "intake_status": intake_status,
         "source": "llm",

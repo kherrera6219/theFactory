@@ -348,7 +348,7 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
             "estimated_complexity": "extreme",
             "human_approval_required": "yes",
             "intake_status": "needs_clarification",
-            "clarifying_questions": ["Which delimiter formats must be supported?"],
+            "clarifying_questions": ["Which-delimiter-formats-must-be-supported-including-comma-tab-pipe-semicolon-fixed-width-multi-character-delimiters-quoted-delimiters-escaped-newline-records-and-locale-specific-decimal-separators?"],
         },
         provider="anthropic",
         model="claude-sonnet-4-6",
@@ -360,6 +360,8 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
     assert normalized["estimated_complexity"] == "medium"
     assert normalized["human_approval_required"] is True
     assert normalized["intake_status"] == "needs_clarification"
+    assert len(normalized["clarifying_questions"][0]) > 120
+    assert normalized["clarifying_questions"][0].endswith("decimal-separators?")
     assert normalized["ambiguity_score"] >= 0.7
 
 

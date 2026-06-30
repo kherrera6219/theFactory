@@ -275,12 +275,12 @@ function compactLaunchConversationContext(
 ): PmConversationContext {
   const transcript = (context?.transcript ?? []).slice(-6).map((message) => ({
     role: message.role,
-    text: sanitizeUserText(message.text).slice(0, 600),
+    text: sanitizeUserText(message.text).slice(0, 2000),
     ts: message.ts,
   }));
   const decisionMemory = (context?.decision_memory ?? [])
     .slice(-12)
-    .map((item) => sanitizeUserText(item).slice(0, 180))
+    .map((item) => sanitizeUserText(item).slice(0, 500))
     .filter(Boolean);
   const attachedFiles = (context?.attached_files ?? [])
     .slice(0, 20)
@@ -293,7 +293,7 @@ function compactLaunchConversationContext(
     working_contract: {
       title: contract.title.slice(0, 160),
       languages: contract.languages.slice(0, 160),
-      scope: contract.scope.slice(0, 800),
+      scope: contract.scope.slice(0, 4000),
       source: contract.source,
     },
     attached_files: attachedFiles,

@@ -65,11 +65,11 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
     smoke with honest browser-load `DRY_RUN` reporting, and an authoritative
     `lifecycle_engine` field is emitted through orchestrator, gateway,
     chain-trace, and Mission Control.
-0c. **Phase 3** — DONE in branch for encoding steps 1-3: non-ASCII artifact
-    regression coverage, packaging-time mojibake guard/repair, and codegen /
-    packaging / storage-readback diagnostic trace. Remaining: lift the PM
-    clarifying-question truncation in chat intake and run a live non-ASCII
-    mission rerun.
+0c. **Phase 3** — DONE in branch and live stack: non-ASCII artifact
+    regression coverage, packaging-time mojibake guard/repair, codegen / packaging /
+    storage-readback diagnostic trace, lifted PM clarifying-question/context
+    truncation, and a passing live non-ASCII mission rerun recorded at
+    `docs/evidence/phase3_non_ascii_smoke_latest.json`.
 
 1. Run Phase 13 Mission Control UI smoke for the same mission path covered by the
    backend/API smoke.
@@ -140,7 +140,7 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
 | Area | Status |
 |---|---|
 | Artifact correctness | Phase 1+2 branch code now enforces explicit format mismatch/missing extension and records runnable-smoke evidence; live Pong rerun still needed |
-| Artifact encoding | Phase 3 branch code adds non-ASCII regression coverage, conservative mojibake repair before digest, and diagnostic trace; live non-ASCII rerun still needed |
+| Artifact encoding | Phase 3 branch code adds non-ASCII regression coverage, conservative mojibake repair before digest, diagnostic trace, and passing live non-ASCII evidence at `docs/evidence/phase3_non_ascii_smoke_latest.json` |
 | Engine reporting | Phase 2 branch code emits authoritative `lifecycle_engine`; live Mission Detail rerun still needed |
 | Production audit | 22/23 checks pass; `INF-008` remains open |
 | Phase 8 coverage | `mission_flow_v2/` strict target remains open |

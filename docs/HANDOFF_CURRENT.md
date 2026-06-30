@@ -49,12 +49,14 @@ mentions plus extensionless artifacts. Phase 2 branch code is also complete:
 RQCAs now attach runnable-smoke evidence, JavaScript syntax failures become real
 runtime-QC failures, HTML artifacts get static structure plus inline-script
 syntax smoke with honest browser-load `DRY_RUN` reporting, and authoritative
-`lifecycle_engine` is emitted through the backend/API/UI path. Phase 3 encoding
-steps 1-3 are now complete in branch: non-ASCII artifact regression coverage,
-packaging-time mojibake guard/repair before digest, and codegen / packaging /
-storage-readback diagnostic trace. Focused backend tests pass. Remaining: PM
-clarifying-question truncation, full validation, and a live re-run of a
-Pong-style non-ASCII mission after the stack restarts.
+`lifecycle_engine` is emitted through the backend/API/UI path. Phase 3 branch
+code is complete and live-validated: non-ASCII artifact regression coverage,
+packaging-time mojibake guard/repair, codegen / packaging / storage-readback
+diagnostic trace, lifted PM clarifying-question/context truncation, and a
+passing live non-ASCII mission rerun recorded at
+`docs/evidence/phase3_non_ascii_smoke_latest.json`. Focused backend tests,
+docs validation, Mission Control tsc, standard live smoke, and live non-ASCII smoke pass.
+Remaining outside Phase 3: Pong-style UI artifact rerun for the broader verification backlog.
 
 ---
 
@@ -112,10 +114,8 @@ Production audit status remains 22/23 because `INF-008` is still open.
 
 ## Next Actions
 
-1. Complete Verification & Reporting Hardening Phase 3 PM clarifying-question
-   truncation. Phase 1, Phase 2, and Phase 3 encoding steps 1-3 branch code are
-   complete, but full validation and live Pong-style non-ASCII rerun still need
-   to be refreshed. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`.
+1. Commit/push the Phase 3 changes if desired. The broader next runtime proof
+   is the Pong-style UI artifact rerun for the verification backlog.
 2. Run Mission Control UI smoke for Phase 13.
 2. Run protocol-bus failure injection for Phase 13.
 3. Run provider fallback proof for Phase 13.
