@@ -121,15 +121,23 @@ agent-coordination backbone is documented as a staged program in
 PBLA is the prerequisite for the load-bearing cutovers in EDCP. PBLA only makes
 the lanes observable (telemetry); EDCP is what makes them load-bearing.
 
-### Protocol Bus Lane Activation (PBLA, Stage 1) — PBLA-00/01/02/03 code complete
+### Protocol Bus Lane Activation (PBLA, Stage 1) — all lanes code complete (PBLA-00..04)
 
-Status: PBLA-00 (shared discriminators), PBLA-01 (Delta), PBLA-02 (Omega), and
-PBLA-03 (Beta) are implemented and unit-tested (mission_flow_v2 suite +
-emission/Delta/Omega/Beta tests pass, ruff clean). Live six-lane mission
-validation is pending a running stack. PBLA-04 (Rho) is next — it carries the
-`settings`-scope decision (emit one layer up vs module accessor vs higher-level
-signal) before coding; Rho traffic is conditional, so it validates with a
-synthetic 429, not a happy-path mission.
+Status: PBLA-00 (shared discriminators), PBLA-01 (Delta), PBLA-02 (Omega),
+PBLA-03 (Beta), and PBLA-04 (Rho) are implemented and unit-tested — all six lanes
+now have live producers in code. Rho emits at the `_post_with_retry` 429 branch
+and resolves bus config via `load_settings()`. Full suite green (150+ in the
+combined run), ruff clean.
+
+Remaining for Stage 1:
+- **Live validation (the one open item):** run the stack and confirm all six
+  `protocol:{lane}:*` streams carry traffic on a real mission (Rho needs a
+  synthetic 429), zero DLQ writes; capture evidence; update
+  `IMPLEMENTATION_STATUS.md`. See PBLA Closing Validation.
+- **PBLA-05** (optional): lane observability surfacing in the operations snapshot.
+
+Then Stage 2 (EDCP) becomes unblocked — consumers can filter PBLA's `pbla_*`
+discriminators off the shared broadcast channels.
 
 Tracked in full by `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`. Standalone and
 independent of the EDCP phase plan — can run before, during, or after it. The

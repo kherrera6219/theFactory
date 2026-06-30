@@ -628,10 +628,21 @@ forced-fallback run, not a happy-path mission.
 
 - [x] Candidate sites confirmed (`_post_with_retry` 429 path; `_call_provider`
       finally) and the `settings`-scope blocker documented
-- [ ] Settings-availability decision (a/b/c above) made and recorded
-- [ ] `_send_rho_traffic_control` implemented and wired at the chosen site
-- [ ] Synthetic rate-limit/fallback run produces Rho entries, zero DLQ writes
-- [ ] `IMPLEMENTATION_STATUS.md` updated
+- [x] Settings-availability decision made: **hybrid of (a)/(b)** — emit at the
+      `_post_with_retry` **429** branch (the canonical rate-limit signal) and
+      resolve bus config via the existing `load_settings()` rather than threading
+      `settings` into the transport layer or relying on the murky
+      `recommendation.__settings__`. Only reached on a real 429 (rare, already
+      behind backoff), so the `load_settings()` cost is negligible. A fresh
+      (producer-minted) correlation_id is used so distinct rate-limit events are
+      each recorded, not deduped.
+- [x] `_send_rho_traffic_control` implemented and wired at the 429 branch;
+      sender `AGENT-03-BROKER`, stamps `EMISSION_KEY=PBLA_TRAFFIC_TELEMETRY`;
+      unit-tested (`tests/services/test_llm_delegation_providers_rho.py`, 3 tests
+      — discriminator/settings-resolution + producer-failure + settings-failure
+      swallow)
+- [ ] Synthetic rate-limit/fallback run produces Rho entries, zero DLQ writes (needs stack)
+- [ ] `IMPLEMENTATION_STATUS.md` updated (after live check)
 
 ---
 

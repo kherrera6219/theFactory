@@ -93,6 +93,51 @@ def _retry_delay_for_response(response: httpx.Response, default_delay: float) ->
     return max(default_delay, parsed_delay)
 
 
+async def _send_rho_traffic_control(
+    *,
+    rate_limit_action: str,
+    agent_target: str,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Emit a Protocol Rho traffic-control telemetry message (PBLA-04).
+
+    Fire-and-forget. The transport layer has no ``settings`` in scope, so bus
+    config is resolved via ``load_settings()`` — only reached on a real
+    rate-limit event, which is rare and already gated behind backoff. Stamps the
+    PBLA discriminator (``protocol_bus_emissions``) so a future EDCP Rho consumer
+    can filter this shadow telemetry, and lets the producer mint a fresh
+    correlation_id so distinct rate-limit events are each recorded, not deduped.
+    """
+    import asyncio  # noqa: PLC0415
+
+    from ..protocol_bus_emissions import (  # noqa: PLC0415
+        EMISSION_KEY,
+        PBLA_TRAFFIC_TELEMETRY,
+    )
+    from ..protocol_bus_producer import send_rho_control  # noqa: PLC0415
+    from ..settings import load_settings  # noqa: PLC0415
+
+    try:
+        await asyncio.to_thread(
+            send_rho_control,
+            settings=load_settings(),
+            sender="AGENT-03-BROKER",
+            recipient="broadcast",
+            token_budget=0,
+            rate_limit_action=rate_limit_action,
+            agent_target=agent_target,
+            metadata={
+                EMISSION_KEY: PBLA_TRAFFIC_TELEMETRY,
+                **(metadata or {}),
+            },
+        )
+    except Exception:
+        LOGGER.warning(
+            "Rho traffic-control dispatch failed (non-blocking): target=%s",
+            agent_target,
+        )
+
+
 async def _post_with_retry(
     url: str,
     *,
@@ -117,6 +162,18 @@ async def _post_with_retry(
                 response = await client.post(url, json=json_payload, headers=headers, params=params)
             # Retry on 429 and 5xx responses only.
             if response.status_code == 429 or response.status_code >= 500:
+                if response.status_code == 429:
+                    # PBLA-04: a 429 is the canonical traffic-control signal —
+                    # emit it on the Rho lane (fire-and-forget telemetry).
+                    await _send_rho_traffic_control(
+                        rate_limit_action="retry_backoff",
+                        agent_target=current_agent_id.get() or "unknown",
+                        metadata={
+                            "call_context": call_context,
+                            "status_code": response.status_code,
+                            "attempt": attempt,
+                        },
+                    )
                 if attempt < max_retries:
                     retry_delay = _retry_delay_for_response(response, delay)
                     LOGGER.warning(

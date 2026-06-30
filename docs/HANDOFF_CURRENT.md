@@ -81,19 +81,24 @@ in order; PBLA only makes lanes observable, EDCP makes them load-bearing.
 The PBLA plan is fully specified as phases PBLA-00 through PBLA-05 and has been
 validated end-to-end against current source (insertion points, payload bounds,
 agent-id validity, helper signatures, and in-scope imports all checked).
-**PBLA-00** (shared emission-discriminator contract,
-`orchestrator/protocol_bus_emissions.py`), **PBLA-01** (Delta audit-verdict
-emission in `phases_build.py`, inside the `MISSION_POD_AUDIT_COMPLETE` guard),
-**PBLA-02** (Omega PM→user delivery handoff in `phases_delivery.py`, after
-`delivery_summary` is set), and **PBLA-03** (Beta specialist result in
-`phases_runtime.py` `_prepare_fusion`, on the codegen success path, with
-`logicnode_id`/`confidence_score` synthesized and confidence clamped) are
-**implemented and unit-tested** — emission contract tests plus Delta/Omega/Beta
-helper tests, and the full mission_flow_v2 suite pass; ruff clean. Remaining for
-these: live six-lane mission validation (needs a running stack). PBLA-04 (Rho) is
-next and carries a `settings`-scope decision (the producer needs `settings`, which
-is not available at the provider layer) — pick emit-one-layer-up vs module
-accessor vs higher-level signal before coding. PBLA-05 (observability) is optional.
+**All five PBLA code phases are implemented and unit-tested** — the four dark
+lanes now have live producers: **PBLA-00** (shared emission-discriminator
+contract, `protocol_bus_emissions.py`), **PBLA-01** (Delta in `phases_build.py`,
+inside the `MISSION_POD_AUDIT_COMPLETE` guard), **PBLA-02** (Omega in
+`phases_delivery.py`, after `delivery_summary`), **PBLA-03** (Beta in
+`phases_runtime.py` `_prepare_fusion`, codegen success path, with
+`logicnode_id`/`confidence_score` synthesized + clamped), and **PBLA-04** (Rho in
+`llm_delegation/providers.py` `_post_with_retry` 429 branch, bus config via
+`load_settings()`, sender `AGENT-03-BROKER`). Emission contract tests +
+Delta/Omega/Beta/Rho helper tests pass; the full mission_flow_v2 and
+llm_delegation suites pass (150+ combined); ruff clean.
+
+**The one open item for Stage 1 is live validation** (needs a running stack): run
+a mission, confirm all six `protocol:{lane}:*` streams carry traffic (Rho needs a
+synthetic 429) with zero DLQ writes, capture evidence, and update
+`IMPLEMENTATION_STATUS.md`. PBLA-05 (operations-snapshot lane surfacing) is
+optional. With PBLA producers live, Stage 2 (EDCP) is unblocked — its consumers
+filter the `pbla_*` discriminators off the shared broadcast channels.
 
 #### Stage 1 — Protocol Bus Lane Activation (PBLA)
 
