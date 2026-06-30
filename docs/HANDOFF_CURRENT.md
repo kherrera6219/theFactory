@@ -83,14 +83,17 @@ validated end-to-end against current source (insertion points, payload bounds,
 agent-id validity, helper signatures, and in-scope imports all checked).
 **PBLA-00** (shared emission-discriminator contract,
 `orchestrator/protocol_bus_emissions.py`), **PBLA-01** (Delta audit-verdict
-emission in `phases_build.py`, inside the `MISSION_POD_AUDIT_COMPLETE` guard), and
+emission in `phases_build.py`, inside the `MISSION_POD_AUDIT_COMPLETE` guard),
 **PBLA-02** (Omega PM→user delivery handoff in `phases_delivery.py`, after
-`delivery_summary` is set) are **implemented and unit-tested** — emission contract
-tests, Delta + Omega helper tests, and the full mission_flow_v2 suite pass; ruff
-clean. Remaining for these: live six-lane mission validation (needs a running
-stack). PBLA-03 (Beta) is next — it requires synthesizing `logicnode_id` /
-`confidence_score` and adding the `resolve_pod_manager_agent_id` import to
-`phases_runtime.py`.
+`delivery_summary` is set), and **PBLA-03** (Beta specialist result in
+`phases_runtime.py` `_prepare_fusion`, on the codegen success path, with
+`logicnode_id`/`confidence_score` synthesized and confidence clamped) are
+**implemented and unit-tested** — emission contract tests plus Delta/Omega/Beta
+helper tests, and the full mission_flow_v2 suite pass; ruff clean. Remaining for
+these: live six-lane mission validation (needs a running stack). PBLA-04 (Rho) is
+next and carries a `settings`-scope decision (the producer needs `settings`, which
+is not available at the provider layer) — pick emit-one-layer-up vs module
+accessor vs higher-level signal before coding. PBLA-05 (observability) is optional.
 
 #### Stage 1 — Protocol Bus Lane Activation (PBLA)
 

@@ -121,13 +121,15 @@ agent-coordination backbone is documented as a staged program in
 PBLA is the prerequisite for the load-bearing cutovers in EDCP. PBLA only makes
 the lanes observable (telemetry); EDCP is what makes them load-bearing.
 
-### Protocol Bus Lane Activation (PBLA, Stage 1) — PBLA-00/01/02 code complete
+### Protocol Bus Lane Activation (PBLA, Stage 1) — PBLA-00/01/02/03 code complete
 
-Status: PBLA-00 (shared discriminators), PBLA-01 (Delta), and PBLA-02 (Omega) are
-implemented and unit-tested (mission_flow_v2 suite + emission/Delta/Omega tests
-pass, ruff clean). Live six-lane mission validation is pending a running stack.
-PBLA-03 (Beta) is next — note it requires field synthesis (logicnode_id /
-confidence_score) plus adding the `resolve_pod_manager_agent_id` import.
+Status: PBLA-00 (shared discriminators), PBLA-01 (Delta), PBLA-02 (Omega), and
+PBLA-03 (Beta) are implemented and unit-tested (mission_flow_v2 suite +
+emission/Delta/Omega/Beta tests pass, ruff clean). Live six-lane mission
+validation is pending a running stack. PBLA-04 (Rho) is next — it carries the
+`settings`-scope decision (emit one layer up vs module accessor vs higher-level
+signal) before coding; Rho traffic is conditional, so it validates with a
+synthetic 429, not a happy-path mission.
 
 Tracked in full by `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`. Standalone and
 independent of the EDCP phase plan — can run before, during, or after it. The

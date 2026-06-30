@@ -514,10 +514,14 @@ Same shape as PBLA-01/02, checked against `protocol:beta:{pod_manager_agent_id}`
 ### Definition of done
 
 - [x] Insertion point confirmed (`_prepare_fusion`, after generated_output set)
-- [ ] `confidence_score`/`logicnode_id` synthesis implemented and clamped to `[0,1]`
-- [ ] `_send_beta_production_result` implemented and called at that point
-- [ ] Live mission produces Beta entries on the bus, zero DLQ writes
-- [ ] `IMPLEMENTATION_STATUS.md` updated
+- [x] `confidence_score`/`logicnode_id` synthesis implemented (llm→0.85 / else→0.3;
+      `ln-{mission_id}-fused`); confidence clamped to `[0,1]` in the helper
+- [x] `resolve_pod_manager_agent_id` import added to `phases_runtime.py`
+- [x] `_send_beta_production_result` implemented and called inside the codegen
+      success path; unit-tested (`tests/services/test_mission_flow_v2_phases_runtime.py`,
+      7 tests — mapping + confidence-clamp table + failure swallow)
+- [ ] Live mission produces Beta entries on the bus, zero DLQ writes (needs stack)
+- [ ] `IMPLEMENTATION_STATUS.md` updated (after live check)
 
 ---
 

@@ -18,9 +18,11 @@ from ..llm_delegation import (
 from ..mission_flow import (
     CEO_AGENT_ID,
     append_chain_event,
+    resolve_pod_manager_agent_id,
     resolve_specialist_agent_id,
     with_chain_defaults,
 )
+from ..protocol_bus_emissions import EMISSION_KEY, PBLA_SPECIALIST_RESULT
 from ..rqca_agent import run_runtime_qc
 from ..testdata_agent import generate_testdata_manifest
 from .base import (
@@ -467,6 +469,49 @@ def _verify_rir_module_signatures(mission_id: str) -> None:
         )
 
 
+async def _send_beta_production_result(
+    *,
+    settings: Any,
+    mission_id: str,
+    specialist_agent_id: str,
+    pod_manager_agent_id: str,
+    logicnode_id: str,
+    confidence_score: float,
+    source_language: str,
+    payload: dict[str, Any] | None = None,
+) -> None:
+    """Send the specialist's fused codegen result on the Protocol Beta lane (PBLA-03).
+
+    Non-blocking: failures are swallowed by the producer and by this wrapper so
+    mission progression is never affected by a bus outage. Beta is directed to the
+    pod manager (not broadcast); ``confidence_score`` is clamped to ``[0.0, 1.0]``
+    so ``BetaPayload`` can never reject it. Stamps the PBLA telemetry discriminator
+    (``protocol_bus_emissions``) for symmetry with the broadcast lanes.
+    """
+    from ..protocol_bus_producer import send_beta_result  # noqa: PLC0415
+
+    try:
+        await asyncio.to_thread(
+            send_beta_result,
+            settings=settings,
+            sender=specialist_agent_id,
+            recipient=pod_manager_agent_id,
+            logicnode_id=logicnode_id,
+            confidence_score=max(0.0, min(1.0, float(confidence_score))),
+            source_language=source_language,
+            payload={
+                EMISSION_KEY: PBLA_SPECIALIST_RESULT,
+                **(payload or {}),
+            },
+            correlation_id=f"beta-{mission_id}-{logicnode_id}",
+        )
+    except Exception:
+        LOGGER.warning(
+            "Beta result dispatch failed for mission %s (non-blocking)",
+            mission_id,
+        )
+
+
 async def _prepare_fusion(
     *,
     app: Any,
@@ -566,6 +611,27 @@ async def _prepare_fusion(
                 target_language=mission.requested_target_language or "python",
             )
             metadata["generated_output"] = generated_output
+            # PBLA-03: emit the specialist result on the Beta lane (fire-and-forget).
+            # Only runs on a successful codegen (inside the try, after the output is
+            # stored). logicnode_id/confidence_score are synthesized — generated_output
+            # carries neither — and confidence is clamped in the helper.
+            _beta_pod_manager = _validate_agent_id(
+                metadata.get("assigned_pod_manager_agent_id"),
+                fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
+            )
+            _beta_confidence = 0.85 if generated_output.get("source") == "llm" else 0.3
+            await _send_beta_production_result(
+                settings=settings,
+                mission_id=mission.mission_id,
+                specialist_agent_id=generated_output.get(
+                    "specialist_agent_id", specialist_agent_id
+                ),
+                pod_manager_agent_id=_beta_pod_manager,
+                logicnode_id=f"ln-{mission.mission_id}-fused",
+                confidence_score=_beta_confidence,
+                source_language=str(generated_output.get("language") or "python"),
+                payload={"unified_node_count": master_stream.get("total_unified_nodes")},
+            )
         except Exception as exc:
             LOGGER.warning("v2: fusion codegen failed for mission %s: %s", mission.mission_id, exc)
 
