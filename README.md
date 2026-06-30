@@ -16,21 +16,12 @@
 
 </div>
 
-> **Version:** 1.2.0 · **Last updated:** 2026-06-27 · **Status:** Active development, not production-ready
+> **Version:** 1.2.0 · **Last updated:** 2026-06-30 · **Status:** Active development, not production-ready
 
-> **Development status:** theFactory is still under active local development. The
-> repository contains substantial architecture, services, tests, and Mission
-> Control UI work, but the full PM-to-delivery mission path is not yet proven as
-> production-ready. Phase 13 backend/API smoke now proves the gateway and
-> orchestrator can create a mission, poll it to `COMPLETE`, read event and
-> chain-trace evidence, and retrieve a valid generated Python artifact. Remaining
-> release work includes Mission Control UI smoke, failure injection, provider
-> fallback, full current-environment validation, and the Phase 8 Mission Flow v2
-> strict coverage carry-forward. The separate marketing website package has been
-> removed from this application worktree so the repository reflects the runtime
-> app scope. See [Current Status](#current-status),
-> [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md), and
-> [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md).
+> **Development status:** theFactory is still under active local development, but the public proof points are current through the Phase 3 verification-hardening work.
+> Live evidence now includes the Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6` and the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`.
+> Recent hardening fixed PM clarifying-question truncation, preserved non-ASCII artifact content through storage readback, surfaced `lifecycle_engine` through OpenAPI/UI types, and cleaned up CI security gates.
+> Remaining release work includes Mission Control UI smoke, Pong-style UI artifact rerun, failure-injection coverage, provider fallback/preflight, Phase 8 Mission Flow v2 strict coverage, and `INF-008`.
 
 ---
 
@@ -126,13 +117,15 @@ For the implemented lifecycle (Mission Flow v2 with optional clarification pause
 
 Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 
-The list below describes implemented subsystems and intended product direction,
-not a claim that the application is production-ready. The current backend/API
-proof point is the Phase 13 smoke mission that reached `COMPLETE`, exposed
-event/chain-trace evidence, and returned a valid Python build artifact. The
-remaining proof points are UI-driven smoke, failure injection, provider fallback,
-full current-environment validation, and the Phase 8 Mission Flow v2 strict
-coverage carry-forward.
+The list below describes implemented subsystems and intended product direction, not a production-readiness claim.
+
+Current proof points include the Phase 13 backend/API smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, which reached `COMPLETE` with a valid Python artifact, and the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, which preserved 28 non-ASCII characters through codegen, packaging, and storage readback.
+
+Recent completed work also covers PM clarifying-question truncation fixes, `MissionRecord.lifecycle_engine` OpenAPI/UI type sync, and CI security gate cleanup for generated API types and Python dependency policy.
+
+Remaining release proof points include Mission Control UI smoke, Pong-style UI artifact rerun, failure-injection coverage, provider fallback/preflight, Phase 8 Mission Flow v2 strict coverage, and `INF-008`.
+
+Current work is tracked in `docs/CURRENT_TODO.md` and the handoff documents.
 
 - **Multi-modal context ingestion** — native support for PDF, Word, MD, and PowerPoint indexing via IS-Agent
 - **Mission orchestration foundation** — intake, delegation, specialist processing, verification, and completion paths have backend/API smoke proof; the UI-driven mission path still needs Phase 13 follow-up proof
@@ -601,13 +594,16 @@ make tls-certs
 
 This generates local-only PostgreSQL and Redis TLS material under `deploy/.local/postgres-certs` and `deploy/.local/redis-certs`. Private keys are intentionally gitignored and must not be committed.
 
-### 3. Start Core Stack
+### 3. Start the Default Full-Dedicated Stack
 
 ```bash
 make up
 
-# Equivalent raw compose command (after TLS cert generation)
-docker compose -f deploy/docker-compose.yaml up -d --build
+# Equivalent raw command:
+docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
+
+# For the lighter condensed-worker stack:
+make up-condensed
 ```
 
 ### 4. Verify Health
@@ -767,12 +763,7 @@ python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
 The live run is the launch-demo proof point. It requires a running stack and
 provider-key configuration when generated LLM output is part of the claim.
 
-**Validation snapshot (2026-06-13):** the current Gemini-first model-routing
-update passed focused Ruff checks, targeted backend tests for agent integration
-and settings, Mission Control lint/test/build, and Docker image builds for the
-API Gateway, Orchestrator, and Mission Control services. Live provider-key
-mission validation remains the operator proof point before claiming real LLM
-output in a launch demo.
+**Validation snapshot (2026-06-30):** Focused Phase 3 hardening and CI gate checks have been refreshed locally. Current evidence includes the standard Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6` and the non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`. Documentation validation remains part of the release gate, while full provider-key rotation and Mission Control browser smoke remain open.
 
 ---
 
@@ -833,9 +824,9 @@ LANGGRAPH_FAIL_OPEN=true           # defaults to true outside prod; set to false
 
 # Feature Flags
 QDRANT_ENABLED=true
-NEO4J_ENABLED=false
-OBJECT_STORAGE_ENABLED=false
-MILVUS_ENABLED=false
+NEO4J_ENABLED=true
+OBJECT_STORAGE_ENABLED=true
+MILVUS_ENABLED=true
 
 # Observability
 OTEL_TRACING_ENABLED=true
@@ -894,7 +885,7 @@ All pod work runs through shared pod-worker instances. Suitable for lightweight 
 ### Dedicated Agents
 
 ```bash
-docker compose -f deploy/docker-compose.yaml --profile dedicated-agents up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build
 ```
 
 Spawns dedicated manager-worker containers per pod with `AGENT_BINDING` enforcement. Each worker only processes missions assigned to its bound agent ID.
@@ -1002,36 +993,22 @@ theFactory/
 
 ## Current Status
 
-**theFactory is still in development.** The repository has a large implemented
-baseline and many checks are passing, but the public README should not be read as
-a production-readiness claim. The current validated runtime proof is the final
-full-dedicated Docker rebuild on 2026-06-27 followed by Phase 13 smoke mission
-`mission-b95ea912-94f8-4be8-8f7e-3cdce61cb7a7`, which reached `COMPLETE`, exposed
-event and chain-trace evidence, and produced a valid Python build artifact.
+Current state (2026-06-30): active development, not production-ready. The latest live backend/API evidence covers the Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, which completed with one build artifact and a valid Python artifact, plus the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, which completed with 28 non-ASCII characters preserved through codegen, packaging, and storage readback.
+Recent completed work includes PM clarifying-question truncation fixes, `MissionRecord.lifecycle_engine` OpenAPI/UI type sync, and CI security gate cleanup for generated API types and Python dependency policy.
 
-| Domain | Current state |
-|--------|---------------|
-| Infrastructure & DevOps | Local Docker/runtime baseline exists; production-host controls, branch protection, and release governance still need final enforcement |
-| Security & Auth | Repo-local auth and scanning baseline exists; exposed provider keys must be rotated and host-policy enforcement remains |
-| Observability | Core telemetry stack and runbooks exist for local/dev validation |
-| Testing & CI | Lint, unit tests, frontend tests, build gates, OpenAPI drift checks, documentation validation, and backend/API Phase 13 smoke evidence exist; full `make validate` is still a release follow-up |
-| Data Systems | Core data-plane integration is present; live behavior still needs validation during full mission runs |
-| Mission Control UI | Operator UI exists and Phase 11 E2E passed; Phase 13 UI smoke is still required |
-| Language Extraction Engine | Regex and AST-backed extraction components exist; feature-flagged AST paths still need live qualification before production claims |
-| Mission Lifecycle | Mission Flow v2 is the default engine; backend/API Phase 13 smoke reached `COMPLETE` with a non-empty generated artifact |
-| CEO to Pod Delegation Chain | Backend/API smoke observed required PM, CEO, pod-manager, and specialist chain events; UI and failure-mode proof remain |
-| LLM API Call Wiring | Gemini PM calls have been proven at the API level, but provider/model Settings preflight and degraded/fallback UI are still open |
+| Domain | State |
+| --- | --- |
+| Backend/API | Local full-dedicated readyz and Phase 13 smoke evidence are current. Broader failure-injection and fallback scenarios remain release work. |
+| Mission Control | UI is wired to API types including `lifecycle_engine`; fresh browser smoke is still required before release. |
+| Mission Lifecycle | PlanBuild artifacts, PM handbacks, storage readback, and non-ASCII artifact integrity have live evidence. |
+| Data Systems | Full-dedicated Redis, Postgres, Neo4j, Milvus, and MinIO wiring is the default local path; deep query-path coverage still needs expansion. |
+| LLM Providers | Provider slots exist for Gemini, OpenAI, and Anthropic; live provider preflight, rotation, and fallback validation remain open. |
+| CI/Security | Generated API type drift and Python dependency/security policy checks are documented and locally validated after the latest fixes. |
 
-**Current highest-priority issues:**
-- Run Phase 13 Mission Control UI smoke for the mission path.
-- Run Phase 13 failure-injection and provider-fallback proof.
-- Run full `make validate` in the current environment.
-- Close or explicitly defer the Phase 8 `mission_flow_v2/` strict coverage carry-forward.
-- Resolve existing production-audit finding `INF-008`.
-- Add a Settings provider/key/model preflight that performs a real tiny provider call.
-- Move provider/model selection fully into the app Settings/vault path instead of relying on `.env`/profile defaults.
-- Rotate exposed provider keys before any public or shared deployment.
+Next priorities:
 
----
-
-> **Local-first design:** theFactory is engineered to run fully offline with no external platform dependencies. All secrets stay in `.env` and local vault endpoints. Do not commit credentials or provider keys.
+1. Complete Mission Control UI smoke against the current full-dedicated stack.
+2. Rerun a Pong-style UI artifact mission through the current PlanBuild path.
+3. Add failure-injection coverage for storage, event-bus, worker, and provider fallback paths.
+4. Finish Phase 8 Mission Flow v2 strict mode coverage and `INF-008` observability/evidence correlation.
+5. Harden provider preflight, key rotation, quota, and fallback operator workflows.
