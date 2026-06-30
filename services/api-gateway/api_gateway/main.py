@@ -726,10 +726,15 @@ async def _dependency_status() -> dict[str, bool]:
     orchestrator_healthy = False
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
-            response = await client.get(f"{ORCHESTRATOR_URL}/health")
+            # Probe orchestrator liveness (/livez), not /health: /health issues
+            # live readiness probes to optional backends and can be slow under
+            # cold-start contention, which would make this gateway's own health
+            # inherit that latency. /livez returns 200 as soon as the process can
+            # serve. Deep readiness remains available via the orchestrator /readyz.
+            response = await client.get(f"{ORCHESTRATOR_URL}/livez")
             orchestrator_healthy = response.status_code == 200
     except httpx.RequestError as exc:
-        LOGGER.warning("orchestrator health check failed: %s", exc)
+        LOGGER.warning("orchestrator liveness check failed: %s", exc)
         orchestrator_healthy = False
 
     redis_healthy = False

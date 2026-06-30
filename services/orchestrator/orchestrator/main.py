@@ -1069,6 +1069,29 @@ async def health() -> dict[str, Any]:
     }
 
 
+@app.get("/livez")
+async def livez() -> dict[str, Any]:
+    """Liveness probe — returns 200 as soon as the process can serve a request.
+
+    This is the signal the Docker healthcheck and the ``depends_on`` chain gate
+    on. Unlike ``/health`` — which additionally issues live readiness probes to
+    the optional backends (Qdrant/Milvus/Neo4j/object storage) plus several DB
+    queries, making it slow under cold-start contention and prone to exceeding
+    the healthcheck timeout — ``/livez`` performs no blocking probes. It only
+    reflects cached core-dependency state. ``/health`` and ``/readyz`` keep their
+    full payloads; ``/readyz`` remains the strict readiness signal that gates on
+    optional-backend reachability.
+    """
+    _initialize_app_state(app)
+    return {
+        "ok": True,
+        "service": "orchestrator",
+        "live": True,
+        "db_ready": bool(getattr(app.state, "db_ready", False)),
+        "redis_ready": bool(getattr(app.state, "redis_ready", False)),
+    }
+
+
 @app.get("/readyz")
 async def readyz() -> dict[str, Any]:
     _initialize_app_state(app)

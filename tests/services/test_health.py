@@ -27,6 +27,22 @@ def test_orchestrator_health() -> None:
     assert response.json()["ok"] is True
 
 
+def test_orchestrator_livez_is_lightweight() -> None:
+    # /livez is the liveness probe the Docker healthcheck + depends_on chain gate
+    # on. It must return 200 quickly and perform NO optional-backend readiness
+    # probes (those belong to /health and /readyz) — coupling liveness to
+    # optional-backend latency wedged the dependent chain on cold starts.
+    client = TestClient(orchestrator_app)
+    response = client.get("/livez")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["live"] is True
+    assert body["service"] == "orchestrator"
+    for optional_key in ("qdrant_ready", "milvus_ready", "neo4j_ready", "object_storage_ready"):
+        assert optional_key not in body
+
+
 def test_dashboard_health() -> None:
     client = TestClient(dashboard_app)
     response = client.get("/health")

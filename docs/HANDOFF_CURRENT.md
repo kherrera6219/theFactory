@@ -119,6 +119,29 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 
 ## Latest Completed Work
 
+### Cold-start healthcheck fix (dependent chain wedged in "Created")
+
+Root cause: the orchestrator `/health` endpoint — used as the Docker liveness
+probe and gated on by the whole `depends_on` chain (api-gateway →
+mission-control → dashboard → agents → workers) — performed serial live
+readiness probes to the optional backends (Qdrant/Milvus/Neo4j/object storage)
+plus DB queries on every call. Under cold-start contention that exceeded the
+healthcheck's `urlopen` timeout, marking the orchestrator unhealthy and leaving
+every dependent stuck in `Created`, so `docker compose up` failed "at the end"
+(when the frontend was about to come up). api-gateway compounded it by probing
+the slow orchestrator `/health` in its own `_dependency_status`.
+
+Fix (no `/health` or `/readyz` payload change — both keep their full bodies):
+- Added orchestrator `/livez` — instant 200, no blocking probes — and pointed
+  the orchestrator Docker healthcheck at it (timeout 6s→10s, start_period
+  60s→90s, urlopen 4s→8s).
+- api-gateway `_dependency_status` now probes orchestrator `/livez` not `/health`.
+- Modest cold-start headroom: api-gateway and mission-control `start_period`
+  30s→45s; mission-control healthcheck timeout 3s→5s.
+- `tests/services/test_health.py` adds a `/livez` lightweight-contract test
+  (asserts no optional-backend keys). 72 tests pass across the touched areas;
+  `docker compose config` validates; ruff clean.
+
 ### Security Alert Remediation
 
 - Replaced regex-based RQCA HTML artifact smoke parsing with `HTMLParser`.
