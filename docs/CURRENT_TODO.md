@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.06.27-c
-Last updated: 2026-06-27
+Document version: 2026.06.29-a
+Last updated: 2026-06-29
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -35,6 +35,26 @@ provider-fallback, and full validation coverage.
 ---
 
 ## Active Work Queue
+
+### Verification & Reporting Hardening (in progress, branch `verification-correctness-hardening`)
+
+Tracked in full by `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`. Surfaced
+by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
+`COMPLETE` but whose artifact did not match its own contract.
+
+0a. **Phase 1 — verification means correctness** (current):
+    - Artifact-format gate in `equivalence_verifier.py` (require the delivered
+      artifact form/entry point to match the feature contract; would have failed
+      the Pong `.js`-vs-HTML mismatch).
+    - Replace the always-`manual_review` `_check_acceptance_criteria` with real
+      per-criterion evaluation.
+    - Separate integrity (`sha256`/ECDSA) from a new `correctness_verification`
+      block so `VERIFIED` no longer implies "runs."
+0b. **Phase 2** — runnable-artifact smoke verifier via the RQCA path; add an
+    authoritative `lifecycle_engine` field and fix the chat-intake routing
+    metadata that makes v2 missions mislabel as `LEGACY V1`.
+0c. **Phase 3** — localize and guard the non-ASCII (mojibake) corruption; lift
+    the PM clarifying-question truncation in chat intake.
 
 1. Run Phase 13 Mission Control UI smoke for the same mission path covered by the
    backend/API smoke.
@@ -104,6 +124,9 @@ provider-fallback, and full validation coverage.
 
 | Area | Status |
 |---|---|
+| Artifact correctness | Verification is integrity-only; format and acceptance criteria are not enforced (Phase 1) |
+| Artifact encoding | Non-ASCII output can be corrupted (mojibake); digest covers corrupted bytes (Phase 3) |
+| Engine reporting | v2 missions can mislabel as `LEGACY V1` in Mission Detail (Phase 2) |
 | Production audit | 22/23 checks pass; `INF-008` remains open |
 | Phase 8 coverage | `mission_flow_v2/` strict target remains open |
 | Phase 13 UI | Backend/API smoke passed; Mission Control UI smoke still needed |

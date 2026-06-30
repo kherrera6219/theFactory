@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.06.27-c
-Last updated: 2026-06-27
+Document version: 2026.06.29-a
+Last updated: 2026-06-29
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -25,6 +25,24 @@ Python syntax validation for that artifact.
 The most recent docs cleanup added `docs/README.md` as the GitHub docs landing
 page and updated README/index status language to match the Phase 13 proof and
 remaining gaps.
+
+---
+
+## Active Work
+
+### Verification & Reporting Hardening (branch `verification-correctness-hardening`)
+
+A live "Modern Neon Pong" mission, created through the Mission Control chat
+intake on 2026-06-29, reached `COMPLETE` and produced a working artifact, but
+exposed three gaps that automated verification did not catch: the deliverable was
+a `.js` file rather than the contracted single self-contained HTML file; non-ASCII
+characters were corrupted (mojibake); and the run was mislabeled `LEGACY V1`
+despite executing the Mission Flow v2 pipeline.
+
+The full plan is `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`. Phase 1
+(verification correctness: artifact-format gate, real acceptance-criteria
+evaluation, integrity-vs-correctness split in `equivalence_verifier.py`) is in
+progress. Phases 2 and 3 follow.
 
 ---
 
@@ -77,7 +95,10 @@ Production audit status remains 22/23 because `INF-008` is still open.
 
 ## Next Actions
 
-1. Run Mission Control UI smoke for Phase 13.
+1. Complete Verification & Reporting Hardening Phase 1 (artifact-format gate,
+   acceptance-criteria evaluation, integrity-vs-correctness split), then Phases 2
+   and 3. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`.
+2. Run Mission Control UI smoke for Phase 13.
 2. Run protocol-bus failure injection for Phase 13.
 3. Run provider fallback proof for Phase 13.
 4. Run full `make validate` and capture the current result.

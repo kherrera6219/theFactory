@@ -36,6 +36,7 @@ are not listed as current implementation truth unless called out explicitly.
 | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem | All |
 | [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list and outstanding production-readiness work | Maintainers, Operators |
 | [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff for maintainers and AI coding agents | Maintainers, AI coding agents |
+| [UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md](UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md) | Active plan to make artifact verification enforce correctness, not just integrity | Maintainers, AI coding agents |
 
 ---
 
