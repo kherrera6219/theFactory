@@ -410,9 +410,13 @@ actually generated code.
 - `source_language` ← `generated_output["language"]` (present).
 - `sender` ← `generated_output["specialist_agent_id"]` (present, bus-valid).
 - `recipient` (pod manager) ← `metadata["assigned_pod_manager_agent_id"]`
-  (set in PBLA-build phase; fall back to `resolve_pod_manager_agent_id(...)`).
+  (set in the build phase; fall back to `resolve_pod_manager_agent_id(...)`).
   `pod_manager_agent_id` is **not** a local in `_prepare_fusion` — read it from
-  metadata.
+  metadata. **Required import (verified missing 2026-06-30):** `phases_runtime.py`
+  imports `resolve_specialist_agent_id` and `_validate_agent_id` but **not**
+  `resolve_pod_manager_agent_id` — add it to the existing
+  `from ..mission_flow import (...)` block (it is defined in `mission_flow.py`,
+  already imported the same way by `phases_build.py`).
 - `logicnode_id` ← **synthesize** a stable id, e.g.
   `f"ln-{mission.mission_id}-fused"` (the fused codegen is not a single
   LogicNode; use `master_stream["total_unified_nodes"]` in the payload for
