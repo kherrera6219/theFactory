@@ -48,6 +48,7 @@ The application currently includes:
 | Documentation controls | 75 metadata docs, 117 link docs, 17 docstring files, migration guide, and three diagram sets validated |
 | OpenAPI/API type drift | Generated API types include `MissionRecord.lifecycle_engine`; latest drift/security gate fixes were locally validated |
 | Production audit | 23/23 checks pass; `INF-008` closed |
+| Security alert remediation | CodeQL #337-#338 fixed in UI/RQCA paths; Trivy #330-#336 addressed by refreshed Python service base-image digests and verified rebuilt orchestrator OpenSSL `3.0.20-1~deb12u2` |
 | Phase 8 Mission Flow v2 coverage | Isolated suite: 81 passed, 91.56% line / 71.69% branch; broader related suite: 170 passed, 92.43% line / 74.70% branch |
 
 ---
@@ -91,6 +92,14 @@ The application currently includes:
 ---
 
 ## Recent Phase Summary
+
+### Security Alert Remediation
+
+Completed for the current pass. RQCA HTML smoke now uses parser-based extraction
+instead of a filtering regexp, Mission Control file previews are raster-only
+with sanitized filenames, and Python service Dockerfiles are pinned to a current
+`python:3.11-slim-bookworm` digest whose rebuilt orchestrator image reports
+OpenSSL `3.0.20-1~deb12u2`.
 
 ### Phase 13 Backend/API Smoke
 

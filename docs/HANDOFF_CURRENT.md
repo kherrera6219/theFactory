@@ -31,6 +31,11 @@ coverage improvement and production-audit closure: `INF-008` is resolved and
 the audit passes 23/23 checks. The active development / not-production-ready
 boundary remains in place.
 
+The current security-alert remediation pass fixed CodeQL alerts #337-#338 in
+Mission Control and RQCA HTML handling, refreshed Python service base-image
+digests for Trivy OpenSSL alerts #330-#336, and verified the rebuilt
+orchestrator image reports OpenSSL `3.0.20-1~deb12u2`.
+
 ---
 
 ## Active Work
@@ -65,6 +70,16 @@ Remaining outside Phase 3: Pong-style UI artifact rerun for the broader verifica
 ---
 
 ## Latest Completed Work
+
+### Security Alert Remediation
+
+- Replaced regex-based RQCA HTML artifact smoke parsing with `HTMLParser`.
+- Restricted Mission Control attachment previews to raster images and sanitized
+  filenames before UI display, source-bundle labels, and metadata use.
+- Updated Python service Dockerfile base-image digests across orchestrator,
+  gateway, workers, dashboard, protocol-bus, and agent-runtime.
+- Rebuilt the orchestrator image and verified the fixed OpenSSL package version
+  from inside the container.
 
 ### Phase 8 Coverage and INF-008
 
@@ -133,6 +148,15 @@ Latest Phase 8 / INF-008 validation:
 - `python -m pytest -o addopts= --basetemp .pytest-tmp-phase8 tests/services/test_mission_flow_v2.py --cov=services/orchestrator/orchestrator/mission_flow_v2 --cov-report=term-missing --cov-report=xml:coverage-phase8.xml` passed with 81 tests and 91.56% line / 71.69% branch coverage.
 - `python -m pytest -o addopts= --basetemp .pytest-tmp-phase8-combined tests/services/test_mission_flow_v2.py tests/services/test_lifecycle_interface_unit.py tests/services/test_runtime_unit.py tests/services/test_orchestrator_endpoints_extra.py tests/services/test_storage_missions_unit.py --cov=services/orchestrator/orchestrator/mission_flow_v2 --cov-report=term-missing --cov-report=xml:coverage-phase8-combined.xml` passed with 170 tests and 92.43% line / 74.70% branch coverage.
 - `python scripts/production_review_audit.py --json` passed 23/23 checks.
+
+Security alert remediation validation:
+
+- `python -m ruff check services\orchestrator\orchestrator\rqca_agent.py tests\services\test_runtime_qc_unit.py`
+- `python -m pytest -o addopts= tests/services/test_runtime_qc_unit.py --basetemp .pytest-tmp` passed with 14 tests.
+- Mission Control `npm run lint` passed.
+- `docker build --pull -f services\orchestrator\Dockerfile -t thefactory-orchestrator:security-refresh .` passed.
+- In-image `dpkg-query` reported OpenSSL `3.0.20-1~deb12u2`.
+- Local Trivy CLI was not installed, so a local Trivy rescan was not run.
 
 ---
 

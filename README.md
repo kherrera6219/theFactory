@@ -20,7 +20,7 @@
 
 > **Development status:** theFactory is still under active local development, but the public proof points are current through the Phase 3 verification-hardening work.
 > Live evidence now includes the Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6` and the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`.
-> Recent hardening fixed PM clarifying-question truncation, preserved non-ASCII artifact content through storage readback, surfaced `lifecycle_engine` through OpenAPI/UI types, and cleaned up CI security gates.
+> Recent hardening fixed PM clarifying-question truncation, preserved non-ASCII artifact content through storage readback, surfaced `lifecycle_engine` through OpenAPI/UI types, remediated CodeQL alerts #337-#338, and refreshed Python service images for Trivy OpenSSL alerts #330-#336.
 > Remaining release work includes Mission Control UI smoke, Pong-style UI artifact rerun, live failure-injection and provider-fallback proof, provider preflight, Phase 8 Mission Flow v2 branch-coverage follow-up, and key rotation.
 
 ---
@@ -121,7 +121,7 @@ The list below describes implemented subsystems and intended product direction, 
 
 Current proof points include the Phase 13 backend/API smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, which reached `COMPLETE` with a valid Python artifact, and the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, which preserved 28 non-ASCII characters through codegen, packaging, and storage readback.
 
-Recent completed work also covers PM clarifying-question truncation fixes, `MissionRecord.lifecycle_engine` OpenAPI/UI type sync, Mission Flow v2 strict-mode line coverage, failure-injection regression coverage, and CI/security audit cleanup.
+Recent completed work also covers PM clarifying-question truncation fixes, `MissionRecord.lifecycle_engine` OpenAPI/UI type sync, Mission Flow v2 strict-mode line coverage, failure-injection regression coverage, CodeQL alert remediation, and Python service base-image refreshes for Trivy OpenSSL findings.
 
 Remaining release proof points include Mission Control UI smoke, Pong-style UI artifact rerun, live failure-injection and provider-fallback proof, provider preflight, Phase 8 Mission Flow v2 branch-coverage follow-up, and key rotation.
 
@@ -135,7 +135,7 @@ Current work is tracked in `docs/CURRENT_TODO.md` and the handoff documents.
 - **Multiple lifecycle engines** — shipped defaults currently enable mission-flow v2, with optional LangGraph and legacy fallback paths
 - **Durable review and artifact flow** — builder/repo approvals persist through the orchestrator and source-bundle missions store a verified build/package artifact before completion
 - **Observability stack** — Prometheus, Grafana, Loki, Jaeger OTLP, Alertmanager wiring is present for local/dev validation
-- **Security baseline** — dual-mode auth (API key + JWT/OIDC), shared-or-strict service key isolation, SAST/SCA/secret scanning in CI; production host controls and key rotation remain active work
+- **Security baseline** — dual-mode auth (API key + JWT/OIDC), shared-or-strict service key isolation, SAST/SCA/secret scanning in CI, recent CodeQL #337-#338 fixes, and refreshed Python service images for Trivy OpenSSL #330-#336; production host controls and key rotation remain active work
 - **Docs-as-code baseline** — canonical architecture, operator, developer, API, archive, and repository-map documentation lives under `docs/`
 
 ---

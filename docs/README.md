@@ -41,6 +41,9 @@ Current validated proof points:
 - Phase 8 Mission Flow v2 line coverage now clears the older 90% target; the
   broader related suite passed 170 tests at 92.43% line / 74.70% branch.
 - Production audit passes 23/23 checks after closing `INF-008`.
+- CodeQL alerts #337-#338 and Trivy OpenSSL alerts #330-#336 have local
+  remediation through parser-based RQCA HTML smoke, raster-only file previews,
+  and refreshed Python service base-image digests.
 - Documentation validation and OpenAPI drift checks are enforced through
   `make validate`.
 

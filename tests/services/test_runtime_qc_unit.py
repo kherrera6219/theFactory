@@ -152,6 +152,22 @@ def test_rqca_html_artifact_reports_static_smoke_without_node_execution() -> Non
     assert result["artifact_smoke"]["checks"]["browser_load"]["verdict"] == "DRY_RUN"
 
 
+def test_rqca_html_artifact_extracts_inline_scripts_with_parser() -> None:
+    html = (
+        "<!doctype html><html><head><link rel='preload stylesheet' href='app.css'>"
+        "<script src='app.js'></script></head><body>"
+        "<script>const ok = true;</script></body></html>"
+    )
+
+    parser = rqca_agent._parse_html_artifact(html)
+
+    assert parser.has_html_tag is True
+    assert parser.has_body_tag is True
+    assert parser.external_script_count == 1
+    assert parser.external_stylesheet_count == 1
+    assert parser.inline_scripts == ["const ok = true;"]
+
+
 def test_rqca_assessment_fallback_marks_fail_not_safe() -> None:
     result = asyncio.run(
         llm_delegation.generate_rqca_assessment(

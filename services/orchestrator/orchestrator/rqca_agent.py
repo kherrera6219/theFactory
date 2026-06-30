@@ -7,6 +7,7 @@ import re
 import shlex
 import tempfile
 from datetime import UTC, datetime
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -93,15 +94,59 @@ def _artifact_kind(filename: str, language: str) -> str:
     return "generic"
 
 
+class _HtmlArtifactParser(HTMLParser):
+    """Collect lightweight HTML smoke metadata without treating regex as a parser."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.has_html_tag = False
+        self.has_body_tag = False
+        self.external_script_count = 0
+        self.external_stylesheet_count = 0
+        self.inline_scripts: list[str] = []
+        self._in_inline_script = False
+        self._script_parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag_name = tag.lower()
+        attr_map = {name.lower(): value for name, value in attrs}
+        if tag_name == "html":
+            self.has_html_tag = True
+        elif tag_name == "body":
+            self.has_body_tag = True
+        elif tag_name == "script":
+            if attr_map.get("src"):
+                self.external_script_count += 1
+                self._in_inline_script = False
+                self._script_parts = []
+            else:
+                self._in_inline_script = True
+                self._script_parts = []
+        elif tag_name == "link":
+            rel = attr_map.get("rel") or ""
+            if "stylesheet" in rel.lower().split():
+                self.external_stylesheet_count += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "script" and self._in_inline_script:
+            self.inline_scripts.append("".join(self._script_parts))
+            self._in_inline_script = False
+            self._script_parts = []
+
+    def handle_data(self, data: str) -> None:
+        if self._in_inline_script:
+            self._script_parts.append(data)
+
+
+def _parse_html_artifact(html: str) -> _HtmlArtifactParser:
+    parser = _HtmlArtifactParser()
+    parser.feed(html)
+    parser.close()
+    return parser
+
+
 def _extract_inline_scripts(html: str) -> list[str]:
-    return [
-        match.group(1)
-        for match in re.finditer(
-            r"<script\b(?![^>]*\bsrc=)[^>]*>(.*?)</script>",
-            html,
-            flags=re.IGNORECASE | re.DOTALL,
-        )
-    ]
+    return _parse_html_artifact(html).inline_scripts
 
 
 async def _node_syntax_check(
@@ -188,23 +233,16 @@ async def _build_artifact_smoke_report(
             "generated_at": datetime.now(UTC).isoformat(),
         }
     if kind == "html":
+        parser = _parse_html_artifact(code)
         lower = code.lower()
         structure = {
             "has_doctype": "<!doctype html" in lower,
-            "has_html_tag": "<html" in lower and "</html>" in lower,
-            "has_body_tag": "<body" in lower and "</body>" in lower,
-            "external_script_count": len(
-                re.findall(r"<script\b[^>]*\bsrc\s*=", code, flags=re.IGNORECASE)
-            ),
-            "external_stylesheet_count": len(
-                re.findall(
-                    r"<link\b[^>]*\brel\s*=\s*['\"]?stylesheet",
-                    code,
-                    flags=re.IGNORECASE,
-                )
-            ),
+            "has_html_tag": parser.has_html_tag and "</html>" in lower,
+            "has_body_tag": parser.has_body_tag and "</body>" in lower,
+            "external_script_count": parser.external_script_count,
+            "external_stylesheet_count": parser.external_stylesheet_count,
         }
-        inline_scripts = _extract_inline_scripts(code)
+        inline_scripts = parser.inline_scripts
         script_checks = [
             await _node_syntax_check(
                 code=script,

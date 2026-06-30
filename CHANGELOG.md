@@ -6,6 +6,25 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Security Alert Remediation (2026-06-30)
+
+#### Fixed
+- Replaced RQCA HTML artifact smoke regex parsing with `HTMLParser`-based
+  extraction and metadata collection for CodeQL alert #338.
+- Restricted Mission Control file previews to raster image types and normalized
+  attachment filenames before UI display and source-bundle metadata use for
+  CodeQL alert #337.
+- Refreshed Python service base-image digests across orchestrator, gateway,
+  worker, dashboard, protocol-bus, and agent-runtime Dockerfiles so rebuilt
+  images consume the fixed Debian OpenSSL package for Trivy alerts #330-#336.
+
+#### Validation
+- `python -m ruff check services\orchestrator\orchestrator\rqca_agent.py tests\services\test_runtime_qc_unit.py`
+- `python -m pytest -o addopts= tests/services/test_runtime_qc_unit.py --basetemp .pytest-tmp`
+- Mission Control `npm run lint`.
+- Orchestrator Docker image rebuild passed, and `dpkg-query` inside the rebuilt
+  image reported `openssl` version `3.0.20-1~deb12u2`.
+
 ### Phase 8 Coverage and INF-008 Audit Closure (2026-06-30)
 
 #### Added

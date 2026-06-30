@@ -52,6 +52,14 @@ const CHAT_STORAGE_KEY = "mission-control:pm-chat-history";
 const HISTORY_STORAGE_KEY = "mission-control:pm-chat-sessions";
 const MAX_HISTORY_SESSIONS = 30;
 const MAX_CONTEXT_MESSAGES = 12;
+const RASTER_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"] as const;
+const RASTER_IMAGE_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/bmp",
+]);
 
 type ChatSession = {
   id: string;
@@ -62,21 +70,30 @@ type ChatSession = {
   messages: ChatMessage[];
   contract?: DisplayFeatureContract | null;
 };
+function safeFileName(file: File): string {
+  return sanitizeUserText(file.name) || "attached-file";
+}
+
 function isBinaryFile(file: File): boolean {
   const binaryExtensions = [
     ".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".bmp",
     ".pdf", ".docx", ".doc", ".xls", ".xlsx", ".ppt", ".pptx"
   ];
-  const lowerName = file.name.toLowerCase();
+  const lowerName = safeFileName(file).toLowerCase();
   return binaryExtensions.some(ext => lowerName.endsWith(ext));
+}
+
+function isRasterImageFile(file: File): boolean {
+  const lowerName = safeFileName(file).toLowerCase();
+  return RASTER_IMAGE_MIME_TYPES.has(file.type.toLowerCase()) ||
+    RASTER_IMAGE_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
 }
 
 function FileChipPreview({ file }: { file: File }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const isImage = file.type.startsWith("image/") || [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"].some(ext => file.name.toLowerCase().endsWith(ext));
-    if (!isImage) return;
+    if (!isRasterImageFile(file)) return;
 
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
@@ -87,14 +104,15 @@ function FileChipPreview({ file }: { file: File }) {
   }, [file]);
 
   const sizeKb = Math.max(1, Math.round(file.size / 1024));
+  const label = safeFileName(file);
 
   return (
     <li className="chip-item" style={{ display: "inline-flex", flexDirection: "column", gap: "6px", padding: "12px", border: "1px solid var(--border-strong)", borderRadius: "8px", background: "var(--bg-elevated)", color: "var(--ink)" }}>
-      <span style={{ fontSize: "12px", fontWeight: "bold" }}>{file.name} ({sizeKb}KB)</span>
+      <span style={{ fontSize: "12px", fontWeight: "bold" }}>{label} ({sizeKb}KB)</span>
       {previewUrl && (
         <img
           src={previewUrl}
-          alt={file.name}
+          alt={label}
           style={{ maxWidth: "200px", maxHeight: "150px", objectFit: "contain", borderRadius: "4px", marginTop: "4px" }}
         />
       )}
@@ -116,13 +134,13 @@ function makeId(prefix: string): string {
 
 function fileLabel(file: File): string {
   const sizeKb = Math.max(1, Math.round(file.size / 1024));
-  return `${file.name} (${sizeKb}KB)`;
+  return `${safeFileName(file)} (${sizeKb}KB)`;
 }
 
 function detectLanguages(files: File[]): string {
   const languages = new Set<string>();
   for (const file of files) {
-    const lower = file.name.toLowerCase();
+    const lower = safeFileName(file).toLowerCase();
     if (lower.endsWith(".py")) languages.add("Python");
     if (lower.endsWith(".js") || lower.endsWith(".ts")) languages.add("JavaScript/TypeScript");
     if (lower.endsWith(".java")) languages.add("Java");
@@ -644,15 +662,16 @@ export default function ChatPage() {
         (file) =>
           new Promise<string>((resolve) => {
             const reader = new FileReader();
+            const name = safeFileName(file);
             if (isBinaryFile(file)) {
               reader.onload = () =>
-                resolve(`// --- ${file.name} (binary) ---\n${reader.result as string}`);
-              reader.onerror = () => resolve(`// --- ${file.name} --- (unreadable)`);
+                resolve(`// --- ${name} (binary) ---\n${reader.result as string}`);
+              reader.onerror = () => resolve(`// --- ${name} --- (unreadable)`);
               reader.readAsDataURL(file);
             } else {
               reader.onload = () =>
-                resolve(`// --- ${file.name} ---\n${reader.result as string}`);
-              reader.onerror = () => resolve(`// --- ${file.name} --- (unreadable)`);
+                resolve(`// --- ${name} ---\n${reader.result as string}`);
+              reader.onerror = () => resolve(`// --- ${name} --- (unreadable)`);
               reader.readAsText(file);
             }
           }),
@@ -684,7 +703,7 @@ export default function ChatPage() {
         source_code: sourceCode || undefined,
           metadata: {
             source: "mission-control-chat",
-            attached_files: files.map((item) => item.name),
+            attached_files: files.map((item) => safeFileName(item)),
             inferred_requested_target_language: requestedTargetLanguage,
             conversation_context: conversationContext,
             user_intent: "finalize_plan",

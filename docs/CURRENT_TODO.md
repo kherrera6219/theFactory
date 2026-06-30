@@ -41,7 +41,9 @@ release gate still needs Mission Control UI smoke, Pong-style UI artifact rerun,
 live failure-injection proof, live provider-fallback proof, full validation,
 Phase 8 branch-coverage follow-up, provider preflight, and key-rotation coverage.
 Production audit now passes 23/23 checks after the INF-008 compose/evidence
-correlation update.
+correlation update. CodeQL alerts #337-#338 and Trivy OpenSSL alerts #330-#336
+have local remediation in main: parser-based RQCA HTML smoke, raster-only
+Mission Control file previews, and refreshed Python service base-image digests.
 
 ---
 
@@ -103,6 +105,19 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
 ---
 
 ## Recently Completed
+
+### Security Alert Remediation
+
+- Replaced RQCA HTML artifact regex parsing with `HTMLParser`-based structure
+  and inline-script extraction for CodeQL alert #338.
+- Restricted Mission Control attachment previews to raster image MIME/extension
+  types and sanitized filenames before display or source-bundle metadata use for
+  CodeQL alert #337.
+- Refreshed Python slim-bookworm base-image digests across Python services to
+  pick up the fixed Debian OpenSSL package for Trivy alerts #330-#336.
+- Validation passed for focused Ruff, runtime-QC unit tests, Mission Control
+  lint, orchestrator Docker rebuild, and in-image OpenSSL version check
+  (`3.0.20-1~deb12u2`). Local Trivy CLI was not installed for a local rescan.
 
 ### Phase 8 Mission Flow v2 Coverage and INF-008
 
