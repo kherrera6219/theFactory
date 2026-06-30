@@ -904,6 +904,72 @@ def test_call_with_recommendation_uses_fallback_route(monkeypatch) -> None:
     assert route == "fallback"
 
 
+def test_call_with_recommendation_records_primary_failure_and_fallback_success(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    llm_delegation.reset_circuit_breakers()
+    calls: list[tuple[str, str]] = []
+    health_events: list[tuple[str, str]] = []
+    usage_events: list[tuple[str, str, str]] = []
+
+    async def _call_provider(*, provider: str, model: str, prompt: str, call_context: str):
+        _ = prompt, call_context
+        calls.append((provider, model))
+        if provider == "anthropic":
+            return None
+        return {
+            "specialist_agent_id": "AGENT-14-PYTHON",
+            "__input_tokens__": 7,
+            "__output_tokens__": 3,
+        }
+
+    def _record_usage_event(
+        _settings,
+        _mission_id,
+        _agent_id,
+        provider,
+        model,
+        _input_tokens,
+        _output_tokens,
+        _success,
+        route,
+    ) -> None:
+        usage_events.append((provider, model, route))
+
+    monkeypatch.setattr(llm_delegation, "_call_provider", _call_provider)
+    monkeypatch.setattr(
+        llm_delegation.providers,
+        "record_failure",
+        lambda provider: health_events.append(("failure", provider)),
+    )
+    monkeypatch.setattr(
+        llm_delegation.providers,
+        "record_success",
+        lambda provider: health_events.append(("success", provider)),
+    )
+    monkeypatch.setattr(llm_delegation.providers, "_record_usage_event", _record_usage_event)
+
+    parsed, provider, model, route = asyncio.run(
+        llm_delegation._call_with_recommendation(
+            recommendation={
+                "provider": "anthropic",
+                "model": "claude",
+                "fallback_provider": "openai",
+                "fallback_model": "gpt-5.5",
+            },
+            prompt="prompt",
+            call_context="ctx",
+        )
+    )
+
+    assert calls == [("anthropic", "claude"), ("openai", "gpt-5.5")]
+    assert parsed == {"specialist_agent_id": "AGENT-14-PYTHON"}
+    assert (provider, model, route) == ("openai", "gpt-5.5", "fallback")
+    assert health_events == [("failure", "anthropic"), ("success", "openai")]
+    assert usage_events == [("openai", "gpt-5.5", "fallback")]
+
+
 def test_call_with_recommendation_skips_cross_provider_fallback_when_pinned(monkeypatch) -> None:
     # When LLM_PROVIDER pins a provider, a primary failure must NOT cascade to a
     # different fallback provider — this prevents doomed calls to a misconfigured

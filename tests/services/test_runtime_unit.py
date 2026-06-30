@@ -1413,6 +1413,43 @@ def test_ensure_verified_build_artifact_falls_back_when_update_returns_none(monk
     assert result is mission
 
 
+def test_ensure_verified_build_artifact_propagates_storage_failure(monkeypatch) -> None:
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build API",
+        requested_target_language="python",
+        metadata={"source_code": "print('a')", "selected_agent_id": "AGENT-14-PYTHON"},
+        state=MissionState.verified,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(
+        runtime.build_artifact_support,
+        "mission_requires_build_artifact",
+        lambda _metadata: True,
+    )
+
+    def _upsert_fail(*_args):
+        raise RuntimeError("artifact storage down")
+
+    metadata_updates: list[dict[str, Any]] = []
+    monkeypatch.setattr(runtime.storage, "upsert_build_artifact", _upsert_fail)
+    monkeypatch.setattr(
+        runtime.storage,
+        "update_mission_metadata",
+        lambda _settings_obj, _mission_id, metadata: metadata_updates.append(metadata),
+    )
+
+    with pytest.raises(RuntimeError, match="artifact storage down"):
+        asyncio.run(runtime._ensure_verified_build_artifact(settings=_settings(), mission=mission))
+
+    assert metadata_updates == []
+
+
 def test_emit_running_phase_checkpoints_swallows_insert_failure(monkeypatch) -> None:
     app = _app_state(redis=FakeRedis(), redis_ready=True)
     mission = _mission_record(MissionState.running)

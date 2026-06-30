@@ -522,6 +522,54 @@ def test_consumer_loop_handles_processed_and_runtime_error(monkeypatch) -> None:
     assert redis_client.acked == ["1-0"]
 
 
+def test_consumer_loop_keeps_failed_processing_entry_unacked(monkeypatch) -> None:
+    class FakeRedis:
+        def __init__(self):
+            self.acked: list[str] = []
+            self.calls = 0
+
+        async def xreadgroup(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return [
+                    (
+                        "missions.state",
+                        [
+                            (
+                                "1-0",
+                                {
+                                    "envelope": "{}",
+                                    "payload": (
+                                        '{"mission_id":"mission-1",'
+                                        '"event_type":"MISSION_RUNNING"}'
+                                    ),
+                                },
+                            )
+                        ],
+                    )
+                ]
+            raise asyncio.CancelledError
+
+        async def xack(self, stream: str, group: str, entry_id: str) -> int:
+            self.acked.append(entry_id)
+            return 1
+
+    async def _process_event(_payload):
+        raise RuntimeError("worker processing down")
+
+    monkeypatch.setattr(agent_runtime_main, "_validate_envelope", lambda envelope: None)
+    monkeypatch.setattr(agent_runtime_main, "_process_event", _process_event)
+    redis_client = FakeRedis()
+    app = SimpleNamespace(state=SimpleNamespace(redis=redis_client, processed=0, errors=0))
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(agent_runtime_main._consumer_loop(app))
+
+    assert app.state.processed == 0
+    assert app.state.errors == 1
+    assert redis_client.acked == []
+
+
 def test_heartbeat_loop_logs_failures_and_rethrows_cancel(monkeypatch, caplog) -> None:
     monkeypatch.setattr(agent_runtime_main, "WORKER_AGENT_ID", "AGENT-03-BROKER")
 
