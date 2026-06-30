@@ -1,11 +1,18 @@
 # theFactory — Event-Driven Control Plane (EDCP) Phase Plan
 
-Document version: 2026.06.18-a
-Last updated: 2026-06-18
-Status: In progress — EDCP-01 complete, EDCP-02 pending
+Document version: 2026.06.30-a
+Last updated: 2026-06-30
+Status: Reactivated — Stage 2 of the bus program; EDCP-01 complete, EDCP-02 pending
 Audience: Maintainers
 
 **Created:** 2026-06-14
+**Reactivated:** 2026-06-30 from `docs/archive/2026-06-27/`. This plan is
+**Stage 2** of the staged Protocol Bus program — see
+`PROTOCOL_BUS_PROGRAM_ROADMAP.md` for the full picture. Stage 1
+(`PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`, PBLA) lights up all six lanes with
+real producer traffic; EDCP then adds the consumers and inverts control flow.
+PBLA is the recommended prerequisite so every seam EDCP cuts over already has
+live lane traffic to validate against.
 **Authoritative status doc:** `docs/IMPLEMENTATION_STATUS.md` (the archived
 `docs/archive/2026-06-13/SPRINT_BACKLOG.md` is historical only)
 

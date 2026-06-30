@@ -67,7 +67,17 @@ passing live non-ASCII mission rerun recorded at
 docs validation, Mission Control tsc, standard live smoke, and live non-ASCII smoke pass.
 Remaining outside Phase 3: Pong-style UI artifact rerun for the broader verification backlog.
 
-### Protocol Bus Lane Activation (PBLA) — queued, not started
+### Protocol Bus Program (4 stages) — queued, not started
+
+The full bus program is documented in `PROTOCOL_BUS_PROGRAM_ROADMAP.md` as four
+staged initiatives: Stage 1 PBLA (`PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`,
+producers/telemetry, not started), Stage 2 EDCP (`EDCP_PHASE_PLAN.md`,
+consumers + control-flow inversion, reactivated from archive; EDCP-01 complete,
+EDCP-02 pending), Stage 3 Agent Runtime Split (`AGENT_RUNTIME_SPLIT_PLAN.md`,
+stub), and Stage 4 Semantic Bus (`SEMANTIC_BUS_PLAN.md`, stub). Stages must land
+in order; PBLA only makes lanes observable, EDCP makes them load-bearing.
+
+#### Stage 1 — Protocol Bus Lane Activation (PBLA)
 
 A standalone initiative, fully specified in
 `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` and tracked in `CURRENT_TODO.md`. The

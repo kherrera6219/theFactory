@@ -37,7 +37,11 @@ are not listed as current implementation truth unless called out explicitly.
 | [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list and outstanding production-readiness work | Maintainers, Operators |
 | [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff for maintainers and AI coding agents | Maintainers, AI coding agents |
 | [UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md](UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md) | Active plan to make artifact verification enforce correctness, not just integrity | Maintainers, AI coding agents |
-| [PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md](PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md) | Standalone plan to activate the four unused Protocol Bus lanes (Delta/Omega/Beta/Rho) | Maintainers, AI coding agents |
+| [PROTOCOL_BUS_PROGRAM_ROADMAP.md](PROTOCOL_BUS_PROGRAM_ROADMAP.md) | Umbrella roadmap for the 4-stage bus program (PBLA → EDCP → Agent Runtime Split → Semantic Bus) | Maintainers, AI coding agents |
+| [PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md](PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md) | Stage 1 (PBLA) — activate the four unused Protocol Bus lanes (Delta/Omega/Beta/Rho) with real producers | Maintainers, AI coding agents |
+| [EDCP_PHASE_PLAN.md](EDCP_PHASE_PLAN.md) | Stage 2 (EDCP) — event-driven control plane: consumers + control-flow inversion seam by seam | Maintainers, AI coding agents |
+| [AGENT_RUNTIME_SPLIT_PLAN.md](AGENT_RUNTIME_SPLIT_PLAN.md) | Stage 3 (stub) — split agents into independent bus-participant processes | Maintainers, AI coding agents |
+| [SEMANTIC_BUS_PLAN.md](SEMANTIC_BUS_PLAN.md) | Stage 4 (stub) — semantic/embedding-based routing on the bus | Maintainers, AI coding agents |
 
 ---
 

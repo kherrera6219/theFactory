@@ -102,7 +102,25 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
    path instead of relying on `.env` defaults.
 8. Rotate exposed provider keys before any public, partner, or shared deployment.
 
-### Protocol Bus Lane Activation (PBLA) — standalone initiative, not started
+### Protocol Bus Program (4 staged initiatives)
+
+The full effort to evolve the Protocol Bus from a telemetry sidecar into an
+agent-coordination backbone is documented as a staged program in
+`PROTOCOL_BUS_PROGRAM_ROADMAP.md`:
+
+- **Stage 1 — PBLA** (`PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`): real producers on
+  all six lanes. Not started. Detailed below.
+- **Stage 2 — EDCP** (`EDCP_PHASE_PLAN.md`): consumers + control-flow inversion.
+  Reactivated from archive; EDCP-01 complete, EDCP-02 pending.
+- **Stage 3 — Agent Runtime Split** (`AGENT_RUNTIME_SPLIT_PLAN.md`): agents as
+  independent bus-participant processes. Stub, not scheduled.
+- **Stage 4 — Semantic Bus** (`SEMANTIC_BUS_PLAN.md`): embedding-based routing.
+  Stub, not scheduled.
+
+PBLA is the prerequisite for the load-bearing cutovers in EDCP. PBLA only makes
+the lanes observable (telemetry); EDCP is what makes them load-bearing.
+
+### Protocol Bus Lane Activation (PBLA, Stage 1) — not started
 
 Tracked in full by `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`. Standalone and
 independent of the EDCP phase plan — can run before, during, or after it. The
@@ -231,7 +249,7 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 | Full validation | Focused validation passed; full `make validate` still needs current run |
 | Provider settings | Provider/model still partly environment-driven |
 | Key hygiene | Exposed provider keys must be rotated before wider use |
-| Protocol Bus lanes | Only Alpha and Sigma have live producers; Delta/Omega/Beta/Rho activation tracked by `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`, not started |
+| Protocol Bus lanes | Only Alpha and Sigma have live producers; only Sigma is consumed. Four-stage activation program tracked by `PROTOCOL_BUS_PROGRAM_ROADMAP.md` (PBLA → EDCP → Agent Runtime Split → Semantic Bus), not started |
 
 ---
 

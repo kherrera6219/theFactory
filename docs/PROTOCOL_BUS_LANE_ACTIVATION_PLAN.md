@@ -54,6 +54,58 @@ fixtures real lane traffic to validate against from day one.
 
 ---
 
+## Where PBLA Sits in the Larger Bus Program (scope boundary)
+
+PBLA on its own does **not** make the agents "talk over the bus." It makes the
+four dark lanes *observable* (real producers, traffic on the streams), not
+*load-bearing* (nothing consumes them, no control flow changes). Today the
+runtime is a single synchronous orchestrator state machine
+(`mission_flow_v2/lifecycle.py` walks `V2_TRANSITIONS` and calls each agent
+stage as a direct in-process function); agent IDs are labels stamped on bus
+envelopes and chain-trace events, not addresses of running processes. Only Sigma
+is a closed produce→consume loop today (`main.py: protocol_bus_consumer_loop`
+registers exactly one handler, `{"sigma": _handle_sigma_knowledge_ready}`).
+
+Getting to a genuinely bus-driven, agent-coordinated system is a **staged
+program**, of which PBLA is deliberately only the first, lowest-risk step:
+
+1. **PBLA (this plan) — producers / telemetry.** Light up all six lanes with
+   real traffic. Fire-and-forget; no behavior change. *Prerequisite for, but
+   intentionally separate from, everything below.*
+2. **EDCP (separate plan, `docs/archive/2026-06-27/EDCP_Phase_Plan.md`) —
+   consumers + control-flow inversion.** This is what actually makes the bus a
+   command backbone. EDCP-01 (already complete) shipped the producer helpers and
+   the consumer-group durability mode behind `EVENT_DRIVEN_CONTROL_PLANE_ENABLED`
+   (default `false`). EDCP-02→05 add consumer handlers and, under the flag,
+   remove the in-loop direct calls seam by seam (PM→CEO, CEO→pod, support-ring
+   gates), finally demoting `missions.state` to a read-only projection. **Without
+   EDCP, PBLA's four new lanes stay write-only.**
+3. **Agents as independent runtime processes — later, separate effort.** EDCP
+   keeps a single orchestrator process that both publishes and consumes; it makes
+   the *seams* event-driven without splitting agents into their own services. A
+   real distributed actor model (the `agent-runtime` service scaffolding, each of
+   the 41 agents consuming/replying under its own identity) is explicitly out of
+   scope for both PBLA and EDCP and would be its own initiative.
+4. **Semantic bus — future capability, not yet designed in theFactory.** Routing
+   today is purely lexical (`protocol:{lane}:{recipient}` channel strings). The
+   `SigmaPayload.embedding_ref` field exists but is reserved — "not computed,
+   stored, or matched today" (`mcp_server.py`). True semantic routing (dispatch
+   by embedding similarity, per the Holygrail
+   `20_Semantic_Bus_Implementation_Guide.md`) depends on the knowledge-lake
+   embedding path (S1-01 / Qdrant) and on EDCP already owning the routing layer.
+   It is the most speculative step and should not be attempted before 1–3 land.
+
+**Scope decision for this plan:** PBLA stays narrow — producers only, no
+consumers, no agent-process split, no semantic routing. Each later stage is
+tracked separately so PBLA stays revertible and low-risk. The one cross-plan
+coupling to watch: **the Omega lane will carry two distinct message shapes** —
+PBLA-02's PM→user delivery handoff, and EDCP-02's PM→CEO `mission_charter_ready`
+charter (recipient `AGENT-03-BROKER`). They differ by mission phase and
+correlation_id, but both ride Omega, so keep their `message_type`/payload shapes
+distinct and do not let one plan's Omega changes constrain the other's.
+
+---
+
 ## Phase PBLA-01 — Delta (Audit Verdicts)
 
 **Why first:** fully grounded — exact insertion point confirmed, payload
@@ -175,7 +227,11 @@ async def _send_omega_handoff(
             settings=settings,
             sender=pm_agent_id,
             recipient="broadcast",
-            user_intent=str(delivery_summary.get("summary", "mission handoff")),
+            user_intent=str(
+                delivery_summary.get("delivery_title")
+                or delivery_summary.get("summary")
+                or "mission handoff"
+            ),
             feature_contract=feature_contract or {},
             correlation_id=f"omega-{mission_id}",
         )
@@ -305,7 +361,12 @@ async def _send_rho_traffic_control(
     agent_target: str,
     metadata: dict[str, Any] | None = None,
 ) -> None:
-    from .protocol_bus_producer import send_rho_control  # noqa: PLC0415
+    # Import path is location-dependent: the producer lives at
+    # orchestrator/protocol_bus_producer.py. Use `..protocol_bus_producer` from a
+    # module inside a subpackage (mission_flow_v2/ or llm_delegation/), and
+    # `.protocol_bus_producer` only from a module directly under orchestrator/.
+    # Confirm the correct depth once the Rho call-site module is chosen.
+    from ..protocol_bus_producer import send_rho_control  # noqa: PLC0415
 
     try:
         await asyncio.to_thread(
@@ -373,13 +434,17 @@ and every `_send_*` wrapper here additionally wraps the `asyncio.to_thread`
 call in its own try/except. This is intentional duplication, matching the
 existing Alpha/Sigma helpers — do not remove either layer of protection.
 
-**Delta verdict vocabulary mismatch.** `DeltaPayload.audit_result` is a
-strict `Literal["pass", "fail", "warning"]`, but pod audit verdicts may use
-different vocabulary internally. `_map_verdict_to_audit_result()` in
-PBLA-01 handles this — confirm the actual verdict strings produced by
-`generate_pod_audit_verdict()` before finalizing the mapping, since an
-unmapped value silently falling through to `"warning"` could mask real
-failures if the mapping is incomplete.
+**Delta verdict vocabulary — confirmed (2026-06-30).** `DeltaPayload.audit_result`
+is a strict `Literal["pass", "fail", "warning"]`. The actual verdict vocabulary
+produced by `generate_pod_audit_verdict()` is `{"PASS", "FAIL", "WARN"}` (see
+`llm_delegation/generators_artifacts.py` — the value is upper-cased and
+constrained to that set). `_map_verdict_to_audit_result()` lower-cases first, so
+PASS→`pass`, FAIL→`fail`, WARN→`warning` all map correctly; the fallthrough is
+not reachable by any real verdict value. Also confirmed: `quality_score` is
+already clamped to `[0.0, 1.0]` at the source, so `tolerance_score`
+(`Field(ge=0.0, le=1.0)`) can never overflow and trigger a 422/DLQ write. The
+mapping no longer carries an open risk — keep the fallthrough only as a defensive
+default if the audit vocabulary is ever extended.
 
 **Omega payload scope discipline.** Resist the temptation to add new
 fields to `OmegaPayload` for handoff metadata. The producer code already
