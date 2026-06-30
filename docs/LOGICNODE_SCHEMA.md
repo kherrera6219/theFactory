@@ -1,194 +1,293 @@
-# LogicNode Schema Reference
+# LogicNode & Refined-IR Reference
 
-Document version: 2026.06.13
+Document version: 2026.06.30
+Last updated: 2026-06-30
 Status: Canonical
 Audience: Developers and operators
 
-**Source file:** `services/orchestrator/orchestrator/logicnode_schema.py`  
-**Version:** v1.2.0  
-**Last updated:** 2026-06-11
-
-The `LogicNode` is the fundamental unit of semantic intelligence produced by the Pod Worker language-extraction engine. Every pattern match that the static analysis pass identifies becomes a `LogicNode` — a tagged, scored, source-referenced concept that flows through the mission pipeline, gets stored in the Storage Layer, and is consumed by downstream agents for synthesis, dependency analysis, and audit.
-
----
-
-## Overview
-
-When a Pod Worker processes mission source material, it runs 232 regex patterns across 20 language keys. Each match that clears the confidence threshold is materialised as a `LogicNode` and emitted onto the `delta` stream of the Protocol Bus. The Orchestrator's internal route (`/internal/logicnodes`) receives these nodes and persists them via `storage_logicnodes.py`.
-
-The full lifecycle of a `LogicNode`:
-
-```
-Pod Worker
-  └─ static_analysis_engine.py (232 patterns × 20 lang keys)
-       └─ pattern match cleared confidence threshold
-            └─ LogicNode(id, mission_id, tag, confidence, ...)
-                 └─ delta stream (Protocol Bus)
-                      └─ /internal/logicnodes (Orchestrator)
-                           └─ storage_logicnodes.py → PostgreSQL
-                                └─ knowledge_lake.py → Qdrant / Milvus
-```
+**This document replaces a prior version of `LOGICNODE_SCHEMA.md` that
+described a system which was never implemented** (a `static_analysis_engine.py`
+file, a `LogicNode` dataclass with `pod_id`/`tag`/`pattern_id`/`confidence`
+fields, `VALID_TAGS`/`PATTERN_REGISTRY`/`TAG_MIGRATION_MAP` constants inside
+`logicnode_schema.py`, and a typed `logicnodes` PostgreSQL table). None of
+that existed in the codebase as of this rewrite. This version is grounded
+directly in the live source files cited throughout — verify against those
+files first if anything here goes stale.
 
 ---
 
-## Dataclass Definition
+## Overview: Two Distinct Artifacts
+
+theFactory produces two related but separate representations per mission,
+not one:
+
+1. **LogicNode** — a lightweight, schema-validated work envelope. This is
+   what actually flows through the mission pipeline today: extraction
+   output gets coerced into this shape, posted to the orchestrator, and
+   persisted.
+2. **Refined-IR (RIR)** — a richer semantic representation (purity, typed
+   inputs/outputs, preconditions/postconditions, an operation stream,
+   equivalence-test vectors, signed provenance) projected *from* LogicNodes.
+   The schema and the projection code both exist and run; the projection
+   itself is currently a templated/synthetic mapping rather than a deep
+   semantic decompilation — see the Refined-IR section below for what that
+   means in practice.
+
+
+## Real Pipeline (Source-Grounded)
+
+```
+pod-worker: language_extractor.py (regex pass via concept_catalog.py
+            patterns; optional Python AST path)
+  └─ ExtractedConcept(concept_id, domain, concept, intent,
+                       source_language, source_line, confidence,
+                       evidence, extraction_method, source_range)
+       └─ pod-worker agent pipeline produces final_logicnodes (list[dict])
+            └─ _coerce_schema_node() in main.py conforms each entry to
+               schemas/logicnode.schema.json
+                 └─ POST /internal/logicnodes (orchestrator)
+                      └─ storage_logicnodes.upsert_logicnode()
+                           └─ PostgreSQL: mission_logicnodes table
+                           └─ Neo4j mirror (when NEO4J_ENABLED)
+
+            (separately, same final_logicnodes list)
+            └─ refined_ir.build_refined_ir_module() projects each
+               LogicNode dict into a RefinedIRFunction
+                 └─ refined_ir.write_refined_ir_module()
+                      └─ disk: {store_root}/missions/{mission_id}/
+                               {agent_id}.rir.module.json
+                      └─ ECDSA-signed via shared_runtime.crypto_signing
+                      └─ embedded into the /internal/knowledge payload
+                         (refined_ir_module, refined_ir_store) and a
+                         TOOL_REFINED_IR_WRITTEN audit event
+```
+
+---
+
+## LogicNode — The Lightweight Envelope
+
+**Schema source of truth:** `schemas/logicnode.schema.json`
+**Validator:** `services/orchestrator/orchestrator/logicnode_schema.py`
+(68 lines — `validate_logicnode()` / `is_valid_logicnode()`, loads and
+caches the JSON Schema via `jsonschema.Draft202012Validator`. There is no
+dataclass and no embedded pattern/tag registry in this file.)
+
+### Required Fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `node_id` | string | Non-empty. Caller-assigned (pod-worker), not auto-generated by the schema. |
+| `cmd` | string | Non-empty. Identifies the operation/command this node represents. |
+| `payload` | object | Free-form JSON object — no fixed sub-schema. In practice carries fields like `concept`, `domain`, `confidence`, `partition_id` (see below). |
+| `priority` | string | One of `LOW`, `NORMAL`, `HIGH`, `CRITICAL`. |
+| `intent` | string | Free-form description of what the node does. |
+| `types` | object | `{ "in": [string...], "out": [string...] }` — plain type-name strings, not structured parameter objects. |
+| `provenance` | object | Required: `source_ref`, `snippet_hash`, `miner_agent`, `timestamp` (ISO date-time). `additionalProperties: true` — extra provenance keys are allowed. |
+
+`additionalProperties: false` at the top level — a node with extra
+top-level keys fails validation. `payload` itself is unconstrained.
+
+### Validation Behaviour
+
+`logicnode_schema.validate_logicnode()` is **non-fatal**: a node that
+fails returns a list of human-readable error strings rather than raising.
+The orchestrator's `/internal/logicnodes` route logs failures and decides
+whether to skip the node — extraction is never aborted wholesale because
+one node failed schema validation. Only a missing/unreadable schema file
+raises.
+
+---
+
+## Where LogicNodes Come From: Extraction
+
+**Source:** `services/pod-worker/pod_worker/language_extractor.py` and
+`concept_catalog.py`.
+
+Extraction is a **regex-first static analysis pass**. `concept_catalog.py`
+defines `ConceptPattern(concept_id, domain, concept, intent, regex)`
+entries grouped by pod (Pod A — Python/JavaScript/Ruby/PHP; Pod B —
+C/C++/Rust/Zig; Pod C — Java/C#/Go/Scala; Pod D and others as catalogued
+in the same file). The file currently defines well over 200 `ConceptPattern`
+entries — get the exact live count with a literal search for
+`ConceptPattern(` in `concept_catalog.py` rather than trusting a number
+hardcoded in this doc, since the catalog is actively extended.
+
+`LanguageExtractor` runs these patterns against source text and produces
+`ExtractedConcept` records:
 
 ```python
-@dataclass
-class LogicNode:
-    id: str                        # UUID4 — stable for the life of the node
-    mission_id: str                # FK → MissionRecord.id
-    pod_id: str                    # Which pod produced this node (A/B/C/D)
-    tag: str                       # Semantic tag — see Tag Taxonomy below
-    language_key: str              # Which of the 20 language keys matched
-    pattern_id: str                # Identifies the specific pattern (e.g. "DYN-006")
-    confidence: float              # 0.0–1.0 — see Confidence Scoring below
-    source_line: int               # 1-indexed line number in source material
-    source_snippet: str            # Up to 120 chars of source context
-    extracted_at: datetime         # UTC timestamp of extraction
-    pod_worker_version: str        # Semver of the pod worker binary
-    metadata: dict                 # Arbitrary k/v; reserved for future use
+@dataclass(frozen=True, slots=True)
+class ExtractedConcept:
+    concept_id: str
+    domain: str
+    concept: str
+    intent: str
+    source_language: str
+    source_line: int
+    confidence: float
+    evidence: str
+    extraction_method: str = "regex"   # "regex" | "ast"
+    source_range: tuple[int, int] | None = None
 ```
 
-### Field Glossary
+A Python AST-backed structural extractor is available as an alternative to
+the default regex path (`extraction_method = "ast"`). JS and Java AST
+extractor files exist (`js_ast_extractor.py`, `java_ast_extractor.py`) —
+**verify their current completeness directly** rather than assuming they
+are at parity with the Python path; as of the most recent live review they
+were stubs that did not perform real structural extraction.
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `id` | `str` (UUID4) | Yes | Generated by the pod worker at extraction time. Immutable after creation. |
-| `mission_id` | `str` | Yes | Must match an active `MissionRecord.id` or the internal route rejects the node with `LNODE_001`. |
-| `pod_id` | `str` | Yes | One of `"A"`, `"B"`, `"C"`, `"D"`. |
-| `tag` | `str` | Yes | Semantic concept tag. See Tag Taxonomy. |
-| `language_key` | `str` | Yes | One of the 20 canonical language keys. See Language Keys. |
-| `pattern_id` | `str` | Yes | Format: `{LANG_PREFIX}-{CATEGORY}-{INDEX}` (e.g. `DYN-006-001`). |
-| `confidence` | `float` | Yes | 0.0–1.0. Nodes below `0.35` are discarded at the pod worker before emission. |
-| `source_line` | `int` | Yes | 1-indexed. |
-| `source_snippet` | `str` | Yes | Truncated to 120 chars. PII-scrubbed before storage. |
-| `extracted_at` | `datetime` | Yes | UTC. Set at pod worker extraction time, not ingestion time. |
-| `pod_worker_version` | `str` | Yes | Used for drift detection in audit evidence bundles. |
-| `metadata` | `dict` | No | Reserved. Must be JSON-serialisable. Max 4 KB. |
+## Envelope Coercion and Transport
 
----
+**Source:** `services/pod-worker/pod_worker/main.py`, the loop over
+`final_logicnodes` (the agent pipeline's output list, derived from
+`ExtractedConcept` records plus generation output).
 
-## Confidence Scoring
-
-Confidence is a float in `[0.0, 1.0]` representing the extraction engine's certainty that the matched text represents the tagged semantic concept.
-
-### Scoring Bands
-
-| Band | Range | Behaviour |
-|---|---|---|
-| **Discarded** | `< 0.35` | Dropped at the pod worker — never emitted to the Protocol Bus. |
-| **Low** | `0.35 – 0.59` | Emitted and stored, but excluded from synthesis passes and AIM generation unless no higher-confidence nodes exist for the same concept. |
-| **Medium** | `0.60 – 0.79` | Included in synthesis; shown in the AIM as a candidate concept. |
-| **High** | `0.80 – 0.94` | Included in synthesis; shown in the AIM as a confirmed concept. |
-| **Authoritative** | `0.95 – 1.00` | Direct match; used as ground truth for dependency absorption and equivalence verification. |
-
-### How Confidence Is Computed
-
-Confidence is the weighted product of three factors:
-
-1. **Pattern specificity** (`w = 0.5`) — a narrow, precise regex scores higher than a broad one.
-2. **Context coherence** (`w = 0.3`) — surrounding lines are scanned for corroborating signals (imports, type annotations, comments).
-3. **Language key match quality** (`w = 0.2`) — exact language key match scores 1.0; heuristic-inferred match scores proportionally lower.
-
----
-
-## Tag Taxonomy
-
-Tags follow the format `{CATEGORY}:{CONCEPT}`. Categories are fixed; concepts are extensible.
-
-### Categories
-
-| Category | Meaning | Example tags |
-|---|---|---|
-| `fn` | Function / method | `fn:async`, `fn:generator`, `fn:closure`, `fn:lambda` |
-| `type` | Type annotation or class | `type:dataclass`, `type:protocol`, `type:generic`, `type:enum` |
-| `dep` | External dependency | `dep:http_client`, `dep:db_driver`, `dep:queue`, `dep:cache` |
-| `io` | I/O operation | `io:file_read`, `io:file_write`, `io:network`, `io:stdin` |
-| `concurrency` | Concurrency primitive | `concurrency:thread`, `concurrency:async_task`, `concurrency:lock` |
-| `error` | Error handling | `error:try_catch`, `error:custom_exception`, `error:retry` |
-| `test` | Test artefact | `test:unit`, `test:integration`, `test:fixture`, `test:mock` |
-| `security` | Security-sensitive code | `security:auth`, `security:crypto`, `security:secret_access` |
-| `schema` | Data schema or model | `schema:pydantic`, `schema:sqlalchemy`, `schema:proto` |
-| `config` | Configuration | `config:env_var`, `config:feature_flag`, `config:settings_class` |
-
-### Full Tag List
-
-The canonical tag list is maintained in `logicnode_schema.py` as `VALID_TAGS: frozenset[str]`. Any tag not in `VALID_TAGS` causes the internal route to reject the node with `LNODE_002`. Tags are validated at ingestion, not at pod worker time, so a pod worker running an older version may emit deprecated tags — these are remapped by the ingestion layer using `TAG_MIGRATION_MAP` (also in `logicnode_schema.py`).
-
----
-
-## Language Keys
-
-20 canonical language keys are defined in `logicnode_schema.py` as `LANGUAGE_KEYS: frozenset[str]`:
+Each entry is conformed to `schemas/logicnode.schema.json` via
+`_coerce_schema_node(logicnode, node_id=..., extraction_language=...,
+target_language=..., agent_id=...)`, then `partition_id` is set on
+`node_payload["payload"]`, and the result is POSTed:
 
 ```
-python, javascript, typescript, rust, go, java, kotlin, swift,
-csharp, cpp, c, ruby, php, scala, elixir, haskell, sql,
-shell, dockerfile, terraform
+POST /internal/logicnodes
+{
+  "mission_id": "...",
+  "node_id": "...",
+  "node": { ...schema-conformant envelope... }
+}
 ```
 
-Language detection is performed by the pod worker before extraction using a combined file-extension + shebang + heuristic pass. Unknown languages are assigned `language_key = "shell"` as a safe fallback — this is intentional and documented in ADR-35.
+`node_id` falls back to `"{POD_NAME}.core.{mission_id}.{partition_id}"`
+when the upstream logicnode dict didn't already carry one.
 
 ---
 
-## Pattern IDs
+## Storage
 
-Pattern IDs are namespaced by language prefix and category:
+**Source:** `services/orchestrator/orchestrator/storage_logicnodes.py`
 
+The live table is `mission_logicnodes`, **not** a typed relational
+`logicnodes` table:
+
+```sql
+mission_logicnodes (
+    mission_id   ...,   -- composite key with node_id
+    node_id      ...,
+    node_json    JSONB,  -- the entire validated envelope, stored whole
+    created_at   TIMESTAMPTZ
+)
 ```
-{LANG_PREFIX}-{CATEGORY_CODE}-{INDEX}
 
-Examples:
-  DYN-006-001  →  Python (DYN = dynamic), category 006 (async function), index 001
-  TS-003-012   →  TypeScript, category 003 (type annotation), index 012
-  GO-009-004   →  Go, category 009 (goroutine), index 004
-```
+There is no per-field confidence/tag/pod_id column — the entire
+`payload`/`provenance`/etc. structure lives inside the single `node_json`
+column. `upsert_logicnode()` does an `ON CONFLICT (mission_id, node_id) DO
+UPDATE` upsert and returns the stored row. `upsert_logicnodes_batch()`
+provides a bulk-insert path via `executemany` on an existing connection
+(caller-owned, no Neo4j mirroring on the batch path).
 
-The full pattern registry (232 entries) is embedded in `logicnode_schema.py` as `PATTERN_REGISTRY: dict[str, PatternSpec]`. Each `PatternSpec` contains the compiled regex, the default confidence weight, the associated tag, and a human-readable description.
+**Neo4j mirroring:** when `settings.neo4j_enabled` is true, `upsert_logicnode()`
+also calls `neo4j_store.upsert_logicnode()` to add the node as a graph
+vertex. This is best-effort — a Neo4j failure is logged as a warning and
+does not fail the write.
 
----
-
-## Pod Routing Rules
-
-LogicNodes are produced by a specific pod, and the `pod_id` field determines which pod manager is responsible for the mission segment:
-
-| Pod | `pod_id` | Primary language keys | Typical tag categories |
-|---|---|---|---|
-| A — Dynamic | `"A"` | `python`, `javascript`, `typescript`, `ruby`, `elixir` | `fn`, `concurrency`, `dep`, `error` |
-| B — Systems | `"B"` | `rust`, `go`, `c`, `cpp`, `shell` | `io`, `concurrency`, `security`, `config` |
-| C — Enterprise | `"C"` | `java`, `kotlin`, `csharp`, `scala`, `php` | `type`, `schema`, `dep`, `error` |
-| D — Mathematical | `"D"` | `haskell`, `sql`, `terraform`, `dockerfile`, `swift` | `schema`, `config`, `type`, `test` |
-
-A mission may produce LogicNodes from multiple pods if it spans multiple language keys. The Orchestrator merges nodes from all pods before synthesis.
+There is no current embedding step from this table directly into
+Qdrant/Milvus keyed on individual LogicNodes — knowledge embedding
+(`knowledge_lake.py`) operates on mission-level knowledge artifacts (see
+`/internal/knowledge`, below), not on a per-LogicNode confidence threshold.
+If a LogicNode-level embedding pipeline is wanted, it does not exist yet
+and would need to be designed and built, not just documented.
 
 ---
 
-## Storage Contract
+## Refined-IR (RIR) — The Richer Semantic Layer
 
-LogicNodes are persisted by `storage_logicnodes.py` into the `logicnodes` PostgreSQL table. The schema mirrors the dataclass fields with the following constraints:
+**Schemas:** `schemas/rir.fn.schema.json` (function-level),
+`schemas/rir.module.schema.json` (module-level, wraps a list of functions).
+**Implementation:** `services/pod-worker/pod_worker/refined_ir.py`
+(Pydantic models mirroring the JSON Schemas exactly).
 
-- `id` is the primary key (UUID, not serial).
-- `mission_id` has a foreign key to `missions.id` with `ON DELETE CASCADE`.
-- `confidence` is stored as `NUMERIC(4,3)` — three decimal places.
-- `source_snippet` is stored as `TEXT` with a 120-character application-level truncation guard.
-- `metadata` is stored as `JSONB`.
-- Nodes with `confidence < 0.35` are **never written** — this is enforced at both the pod worker and the storage layer for defence in depth.
+### RefinedIRFunction Fields
 
-### Embedding Pipeline
+`fn_id`, `name`, `purity` (`PURE`/`IMPURE`), `inputs`/`outputs` (typed
+`{name, type}` parameter lists), `preconditions`/`postconditions` (string
+lists), `ops` (a pseudo-instruction stream — list of `{op_id, opcode, args,
+out}`), `effects` (string list), `tests.equivalence_vectors` (input/output
+pairs, minimum one) plus `tests.properties`, and `provenance` (`sources`
+with `kind`/`ref`/`hash`, plus `chain_of_custody` entries of
+`agent`/`action`/`ts`).
 
-After PostgreSQL persistence, high-confidence nodes (`≥ 0.80`) are forwarded to `knowledge_lake.py` for embedding:
+### The Projection Is Currently Templated, Not a Deep Decompilation
 
-- **Qdrant** — dense vector embedding of `source_snippet` for semantic similarity search.
-- **Milvus** — dense vector embedding of the full node payload for cross-mission pattern retrieval.
-- **Neo4j** — the node is added as a vertex; edges are drawn to related `MissionRecord` and sibling `LogicNode` vertices that share `tag` or `language_key`.
+`build_refined_ir_module(mission_id, agent_id, source_language,
+target_language, logicnodes, source_ref)` converts each LogicNode dict
+into one `RefinedIRFunction`. As implemented today, this is a **synthetic
+mapping**, not genuine semantic analysis:
+
+- `purity` is set to `"IMPURE"` if the LogicNode's payload has a
+  non-empty `intent`, else `"PURE"` — not derived from actual side-effect
+  analysis of the source.
+- `ops` contains exactly one synthetic operation per function:
+  `{opcode: "EXTRACT_CONCEPT", args: [domain, concept]}`.
+- `preconditions`/`postconditions` are template strings (e.g. `"mission
+  payload available"`, `"concept '{concept}' extracted in domain
+  '{domain}'"`), not derived conditions.
+- `tests.equivalence_vectors` contains one templated vector per function
+  with `properties: ["deterministic_logicnode_projection",
+  "schema_validated_refined_ir"]` — these assert that the *projection
+  itself* is deterministic and schema-valid, not that the extracted
+  concept is behaviorally equivalent to anything.
+
+This is honest, working scaffolding for the RIR pipeline's plumbing
+(schema validation, signing, storage, audit trail) — it is not yet the
+"universal semantic representation independent of source syntax" that the
+product concept calls for. Treat RIR generation today as proof that the
+pipe is connected end-to-end, not as evidence that semantic decompilation
+is implemented.
+
+### Storage
+
+`write_refined_ir_module()` writes each module to
+`{store_root}/missions/{mission_id}/{agent_id}.rir.module.json`, then
+ECDSA-signs the file via `shared_runtime.crypto_signing.sign_artifact()`
+(best-effort — a signing failure is logged and does not block the
+pipeline) so FUSION can later verify authenticity. The write returns a
+`RefinedIRStoreWrite(path, relative_path, git_commit, sha256)` record,
+which is embedded into the `/internal/knowledge` payload alongside the
+module itself (`refined_ir_module`, `refined_ir_store` keys) and triggers
+a `TOOL_REFINED_IR_WRITTEN` audit event.
+
+### Catalog Status
+
+`artifacts/refined-ir/index.json` — the repo-level RIR catalog index —
+currently contains `{"artifacts": []}`. The per-mission RIR writes above
+land under `{store_root}/missions/...`, which is separate from this
+catalog. As of this rewrite, nothing has populated the catalog index, so
+treat any documentation or UI surface that references "the Refined-IR
+catalog" as describing an empty collection until verified otherwise.
 
 ---
 
-## Evolution Policy
+## Maintenance Policy
 
-- **Adding a tag** — add to `VALID_TAGS`, add at least one pattern to `PATTERN_REGISTRY`, bump the `SCHEMA_VERSION` constant, and update this document.
-- **Renaming a tag** — add a `TAG_MIGRATION_MAP` entry mapping old → new. Keep the old tag in `VALID_TAGS` for one release cycle, then remove it.
-- **Adding a language key** — add to `LANGUAGE_KEYS`, assign a `LANG_PREFIX`, write at least 5 patterns for the new key, bump `SCHEMA_VERSION`.
-- **Changing confidence weights** — weights are per-`PatternSpec`. Changes require a migration pass over existing stored nodes if retroactive re-scoring is desired; this is a manual ops step.
-- **Breaking schema changes** — require an ADR. The `pod_worker_version` field exists precisely to detect nodes produced by an older schema version.
+- **This document must be re-verified against source, not extended from
+  memory.** The previous version of this file described constants and a
+  dataclass that never existed in code; the failure mode was writing
+  documentation that sounded complete and specific without checking it
+  against the files it cited.
+- **Adding a concept pattern** — add a `ConceptPattern` entry to
+  `concept_catalog.py` under the correct pod section.
+- **Changing the LogicNode envelope shape** — edit
+  `schemas/logicnode.schema.json` directly; `logicnode_schema.py` has no
+  separate field list to keep in sync since it loads the schema file at
+  runtime.
+- **Changing the RIR shape** — `schemas/rir.fn.schema.json` /
+  `rir.module.schema.json` and the Pydantic models in `refined_ir.py` must
+  be changed together; there is no automated contract test enforcing they
+  stay in sync (unlike the `MessageEnvelope`/JSON-Schema contract test
+  that exists for the Protocol Bus envelope) — add one if this drifts.
+- **Closing the "templated projection" gap** — making `build_refined_ir_module()`
+  produce real purity analysis, real `ops` decomposition, and real
+  equivalence vectors (rather than the current synthetic placeholders) is
+  unscoped work, not a documentation fix. If/when that work starts, this
+  section should be updated to describe what's actually derived versus
+  templated at that point — not before.

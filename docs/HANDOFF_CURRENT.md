@@ -67,6 +67,21 @@ passing live non-ASCII mission rerun recorded at
 docs validation, Mission Control tsc, standard live smoke, and live non-ASCII smoke pass.
 Remaining outside Phase 3: Pong-style UI artifact rerun for the broader verification backlog.
 
+### Protocol Bus Lane Activation (PBLA) — queued, not started
+
+A standalone initiative, fully specified in
+`PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` and tracked in `CURRENT_TODO.md`. The
+Protocol Bus is fully built, but a repo-wide producer trace confirms only two of
+six lanes have live callers in the mission pipeline: Alpha (`phases_build.py`)
+and Sigma (`knowledge_lake.broadcast_knowledge_ready` from `phases_intake.py`).
+PBLA adds the four missing producers — Delta, Omega, Beta, Rho — following the
+proven Alpha/Sigma fire-and-forget pattern (private `_send_<lane>_<event>`
+helper, local `send_*` import, `asyncio.to_thread` dispatch, swallow-and-log so
+a bus outage never blocks a mission). No schema changes, no new infrastructure.
+Independent of EDCP; recommended before it so all six lanes carry real traffic
+when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
+— lowest risk, insertion point confirmed.
+
 ---
 
 ## Latest Completed Work
@@ -171,6 +186,8 @@ Security alert remediation validation:
 7. Add provider/key/model preflight in Settings.
 8. Move provider/model selection into the app settings/vault path.
 9. Rotate exposed provider keys before public or shared use.
+10. Begin Protocol Bus Lane Activation (PBLA) starting with PBLA-01 (Delta) per
+    `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`.
 
 ---
 

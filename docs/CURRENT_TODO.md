@@ -102,6 +102,38 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
    path instead of relying on `.env` defaults.
 8. Rotate exposed provider keys before any public, partner, or shared deployment.
 
+### Protocol Bus Lane Activation (PBLA) — standalone initiative, not started
+
+Tracked in full by `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`. Standalone and
+independent of the EDCP phase plan — can run before, during, or after it. The
+Protocol Bus infrastructure (`protocol-bus-mcp`, all six Pydantic-validated
+payload types, HMAC/replay/dedup/backpressure/DLQ) is fully built; the gap is
+adoption. A repo-wide trace confirms only two of six lanes have live producers
+in the mission pipeline: Alpha (`phases_build.py`) and Sigma (via
+`knowledge_lake.broadcast_knowledge_ready` in `phases_intake.py`). This
+initiative adds the four missing call sites following the proven Alpha/Sigma
+fire-and-forget pattern. No schema changes, no new infrastructure — wiring only.
+
+- PBLA-01 — Delta (audit verdicts) in `phases_build.py`. Lowest risk; insertion
+  point and payload fields confirmed. Do first. Before finalizing, confirm the
+  actual verdict strings from `generate_pod_audit_verdict()` so the
+  `_map_verdict_to_audit_result` fallthrough to `"warning"` cannot mask real
+  failures.
+- PBLA-02 — Omega (PM ↔ user handoff) in `phases_delivery.py`. Do not extend
+  `OmegaPayload`; handoff metadata rides inside `feature_contract` per the
+  existing EDCP-02 deferral note in `protocol_bus_producer.py`.
+- PBLA-03 — Beta (specialist/LogicNode results) in `phases_runtime.py`.
+  Insertion point not yet confirmed to the line — read first.
+- PBLA-04 — Rho (traffic/rate-limit control) in provider/broker logic. No
+  existing chain-event analog; needs the most investigation. Note: the plan's
+  Rho example uses a single-dot relative import; the producer actually lives at
+  `orchestrator/protocol_bus_producer.py`, so confirm the correct relative
+  import for the chosen call-site module before implementing.
+- Closing evidence: one live mission showing traffic on all six
+  `protocol:{lane}:*` streams, captured under `docs/evidence/` parallel to the
+  S1-01 evidence, with a new Current Proof Points row in
+  `docs/IMPLEMENTATION_STATUS.md`.
+
 ---
 
 ## Recently Completed
@@ -199,6 +231,7 @@ by a live "Modern Neon Pong" chat-intake mission on 2026-06-29 that reached
 | Full validation | Focused validation passed; full `make validate` still needs current run |
 | Provider settings | Provider/model still partly environment-driven |
 | Key hygiene | Exposed provider keys must be rotated before wider use |
+| Protocol Bus lanes | Only Alpha and Sigma have live producers; Delta/Omega/Beta/Rho activation tracked by `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`, not started |
 
 ---
 
