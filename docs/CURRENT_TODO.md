@@ -121,7 +121,11 @@ agent-coordination backbone is documented as a staged program in
 PBLA is the prerequisite for the load-bearing cutovers in EDCP. PBLA only makes
 the lanes observable (telemetry); EDCP is what makes them load-bearing.
 
-### Protocol Bus Lane Activation (PBLA, Stage 1) — PBLA-00 in progress
+### Protocol Bus Lane Activation (PBLA, Stage 1) — PBLA-00 + PBLA-01 code complete
+
+Status: PBLA-00 (shared discriminators) and PBLA-01 (Delta) are implemented and
+unit-tested (mission_flow_v2 suite + emission/Delta tests pass, ruff clean). Live
+six-lane mission validation is pending a running stack. PBLA-02 (Omega) is next.
 
 Tracked in full by `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`. Standalone and
 independent of the EDCP phase plan — can run before, during, or after it. The

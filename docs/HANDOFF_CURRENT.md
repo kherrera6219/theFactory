@@ -80,9 +80,13 @@ in order; PBLA only makes lanes observable, EDCP makes them load-bearing.
 
 The PBLA plan is fully specified as phases PBLA-00 through PBLA-05 and has been
 validated end-to-end against current source (insertion points, payload bounds,
-agent-id validity, helper signatures, and in-scope imports all checked). PBLA-00
-(shared emission-discriminator contract, `orchestrator/protocol_bus_emissions.py`)
-is the first phase and is being implemented now.
+agent-id validity, helper signatures, and in-scope imports all checked).
+**PBLA-00** (shared emission-discriminator contract,
+`orchestrator/protocol_bus_emissions.py`) and **PBLA-01** (Delta audit-verdict
+emission in `phases_build.py`, inside the `MISSION_POD_AUDIT_COMPLETE` guard) are
+**implemented and unit-tested** — emission contract tests, Delta helper/mapping
+tests, and the full mission_flow_v2 suite pass; ruff clean. Remaining for PBLA-01:
+live six-lane mission validation (needs a running stack). PBLA-02 (Omega) is next.
 
 #### Stage 1 — Protocol Bus Lane Activation (PBLA)
 

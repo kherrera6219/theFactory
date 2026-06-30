@@ -307,10 +307,14 @@ else → `warning`.
 
 ### Definition of done
 
-- [ ] `_send_delta_audit_verdict` implemented and called from `phases_build.py`
-- [ ] Verdict mapping covers pass/fail/warning correctly under test
-- [ ] Live mission produces Delta entries on the bus, zero DLQ writes
-- [ ] `IMPLEMENTATION_STATUS.md` updated to note Delta lane is live
+- [x] `_send_delta_audit_verdict` implemented and called from `phases_build.py`
+      (inside the `MISSION_POD_AUDIT_COMPLETE` guard; imports `EMISSION_KEY` /
+      `PBLA_POD_AUDIT_TELEMETRY` from `protocol_bus_emissions`)
+- [x] Verdict mapping covers pass/fail/warning correctly under test
+      (`tests/services/test_mission_flow_v2_phases_build.py` — 12 tests pass;
+      mission_flow_v2 suite 84 pass, no regression; ruff clean)
+- [ ] Live mission produces Delta entries on the bus, zero DLQ writes (needs stack)
+- [ ] `IMPLEMENTATION_STATUS.md` updated to note Delta lane is live (after live check)
 
 ---
 

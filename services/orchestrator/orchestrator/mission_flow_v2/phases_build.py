@@ -24,6 +24,7 @@ from ..mission_flow import (
 )
 from ..models import MissionState
 from ..port_coordinator import run_port_extraction_phase
+from ..protocol_bus_emissions import EMISSION_KEY, PBLA_POD_AUDIT_TELEMETRY
 from .base import (
     _chain_event_exists,
     _mission_context,
@@ -207,6 +208,66 @@ async def _send_alpha_delegation_directive(
         LOGGER.warning(
             "Alpha directive dispatch failed for mission %s (non-blocking)",
             mission_id,
+        )
+
+
+def _map_verdict_to_audit_result(verdict: Any) -> str:
+    """Map the pod audit verdict vocabulary onto ``DeltaPayload.audit_result``.
+
+    ``audit_result`` is a strict ``Literal["pass", "fail", "warning"]``. The pod
+    audit verdict produced by ``generate_pod_audit_verdict`` is one of
+    ``{"PASS", "FAIL", "WARN"}``; lower-casing first makes PASS->pass, FAIL->fail,
+    WARN->warning. The fallthrough is a defensive default if the audit vocabulary
+    is ever extended.
+    """
+    value = str(verdict or "").strip().lower()
+    if value in ("pass", "passed", "approved", "verified"):
+        return "pass"
+    if value in ("fail", "failed", "rejected"):
+        return "fail"
+    return "warning"
+
+
+async def _send_delta_audit_verdict(
+    *,
+    settings: Any,
+    mission_id: str,
+    pod_name: str,
+    pod_manager_agent_id: str,
+    pod_audit: dict[str, Any],
+) -> None:
+    """Broadcast the pod audit verdict as a Protocol Delta message (PBLA-01).
+
+    Non-blocking: failures are swallowed by the producer and by this wrapper so
+    mission progression is never affected by a bus outage. Stamps the PBLA
+    telemetry discriminator (``protocol_bus_emissions``) so a future EDCP Delta
+    consumer can filter this shadow traffic from load-bearing verified /
+    correction replies on the shared broadcast channel.
+    """
+    from ..protocol_bus_producer import send_delta_audit  # noqa: PLC0415
+
+    try:
+        await asyncio.to_thread(
+            send_delta_audit,
+            settings=settings,
+            sender=pod_audit.get("agent_id", pod_manager_agent_id),
+            recipient="broadcast",
+            audit_result=_map_verdict_to_audit_result(pod_audit.get("verdict")),
+            verification_method=str(pod_audit.get("source", "pod_audit")),
+            tolerance_score=float(pod_audit.get("quality_score") or 0.0),
+            findings={
+                EMISSION_KEY: PBLA_POD_AUDIT_TELEMETRY,
+                "mission_id": mission_id,
+                "pod": pod_name,
+                "verdict": pod_audit.get("verdict"),
+            },
+            correlation_id=f"delta-{mission_id}-{pod_name}",
+        )
+    except Exception:
+        LOGGER.warning(
+            "Delta audit dispatch failed for mission %s pod %s (non-blocking)",
+            mission_id,
+            pod_name,
         )
 
 
@@ -708,6 +769,16 @@ async def _produce_pod_group_standard(
                 "quality_score": pod_audit.get("quality_score"),
                 "source": pod_audit.get("source"),
             },
+        )
+        # PBLA-01: emit the verdict on the Delta lane (fire-and-forget telemetry).
+        # Inside the idempotency guard so it fires once per pod per mission rather
+        # than relying on the bus dedup window for resume/retry.
+        await _send_delta_audit_verdict(
+            settings=settings,
+            mission_id=mission.mission_id,
+            pod_name=pod_name,
+            pod_manager_agent_id=pod_manager_agent_id,
+            pod_audit=pod_audit,
         )
 
     return (
