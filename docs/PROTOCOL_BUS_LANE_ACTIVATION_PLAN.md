@@ -385,11 +385,15 @@ Same shape as PBLA-01: unit test, then live mission check against
 
 ### Definition of done
 
-- [ ] `_send_omega_handoff` implemented and called from `phases_delivery.py`
-- [ ] Confirmed no new OmegaPayload fields introduced (stays within
-      existing `feature_contract` field per EDCP-02 deferral note)
-- [ ] Live mission produces Omega entries on the bus, zero DLQ writes
-- [ ] `IMPLEMENTATION_STATUS.md` updated
+- [x] `_send_omega_handoff` implemented and called from `phases_delivery.py`
+      (after `delivery_summary` is set; imports `OMEGA_MESSAGE_TYPE_KEY` /
+      `PBLA_DELIVERY_HANDOFF` from `protocol_bus_emissions`)
+- [x] Confirmed no new OmegaPayload fields introduced (stays within
+      existing `feature_contract` field; discriminator rides there)
+- [x] Unit-tested: `tests/services/test_mission_flow_v2_phases_delivery.py`
+      (3 tests — discriminator + `user_intent` fallback chain + failure swallow)
+- [ ] Live mission produces Omega entries on the bus, zero DLQ writes (needs stack)
+- [ ] `IMPLEMENTATION_STATUS.md` updated (after live check)
 
 ---
 

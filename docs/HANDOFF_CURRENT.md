@@ -82,11 +82,15 @@ The PBLA plan is fully specified as phases PBLA-00 through PBLA-05 and has been
 validated end-to-end against current source (insertion points, payload bounds,
 agent-id validity, helper signatures, and in-scope imports all checked).
 **PBLA-00** (shared emission-discriminator contract,
-`orchestrator/protocol_bus_emissions.py`) and **PBLA-01** (Delta audit-verdict
-emission in `phases_build.py`, inside the `MISSION_POD_AUDIT_COMPLETE` guard) are
-**implemented and unit-tested** — emission contract tests, Delta helper/mapping
-tests, and the full mission_flow_v2 suite pass; ruff clean. Remaining for PBLA-01:
-live six-lane mission validation (needs a running stack). PBLA-02 (Omega) is next.
+`orchestrator/protocol_bus_emissions.py`), **PBLA-01** (Delta audit-verdict
+emission in `phases_build.py`, inside the `MISSION_POD_AUDIT_COMPLETE` guard), and
+**PBLA-02** (Omega PM→user delivery handoff in `phases_delivery.py`, after
+`delivery_summary` is set) are **implemented and unit-tested** — emission contract
+tests, Delta + Omega helper tests, and the full mission_flow_v2 suite pass; ruff
+clean. Remaining for these: live six-lane mission validation (needs a running
+stack). PBLA-03 (Beta) is next — it requires synthesizing `logicnode_id` /
+`confidence_score` and adding the `resolve_pod_manager_agent_id` import to
+`phases_runtime.py`.
 
 #### Stage 1 — Protocol Bus Lane Activation (PBLA)
 

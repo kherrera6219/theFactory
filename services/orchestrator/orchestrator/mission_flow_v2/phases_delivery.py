@@ -15,6 +15,7 @@ from ..llm_delegation import (
     generate_vc_commit_strategy,
 )
 from ..mission_flow import PM_AGENT_ID, append_chain_event, with_chain_defaults
+from ..protocol_bus_emissions import OMEGA_MESSAGE_TYPE_KEY, PBLA_DELIVERY_HANDOFF
 from ..security_compliance import (
     build_security_compliance_report,
     mission_requires_security_compliance,
@@ -39,6 +40,50 @@ def _pkg() -> Any:
     package (issue #186).
     """
     return importlib.import_module(__package__)
+
+
+async def _send_omega_handoff(
+    *,
+    settings: Any,
+    mission_id: str,
+    pm_agent_id: str,
+    delivery_summary: dict[str, Any],
+    feature_contract: dict[str, Any] | None,
+) -> None:
+    """Broadcast the PM delivery handoff as a Protocol Omega message (PBLA-02).
+
+    Non-blocking: failures are swallowed by the producer and by this wrapper so
+    mission progression is never affected by a bus outage. Omega's bus schema is
+    intentionally user-intent shaped (per the EDCP-02 deferral in
+    ``protocol_bus_producer.py``) — do not extend ``OmegaPayload``; the handoff
+    discriminator rides inside ``feature_contract``. The ``message_type``
+    (``protocol_bus_emissions``) lets EDCP-02's charter handler filter this
+    handoff out of the shared Omega broadcast channel.
+    """
+    from ..protocol_bus_producer import send_omega_message  # noqa: PLC0415
+
+    try:
+        await asyncio.to_thread(
+            send_omega_message,
+            settings=settings,
+            sender=pm_agent_id,
+            recipient="broadcast",
+            user_intent=str(
+                delivery_summary.get("delivery_title")
+                or delivery_summary.get("summary")
+                or "mission handoff"
+            ),
+            feature_contract={
+                OMEGA_MESSAGE_TYPE_KEY: PBLA_DELIVERY_HANDOFF,
+                **(feature_contract or {}),
+            },
+            correlation_id=f"omega-{mission_id}",
+        )
+    except Exception:
+        LOGGER.warning(
+            "Omega handoff dispatch failed for mission %s (non-blocking)",
+            mission_id,
+        )
 
 
 async def _prepare_delivery_summary(
@@ -68,6 +113,15 @@ async def _prepare_delivery_summary(
         mission_contract=mission_contract,
     )
     metadata["delivery_summary"] = delivery_summary
+
+    # PBLA-02: broadcast the PM delivery handoff on the Omega lane (fire-and-forget).
+    await _send_omega_handoff(
+        settings=settings,
+        mission_id=mission.mission_id,
+        pm_agent_id=PM_AGENT_ID,
+        delivery_summary=delivery_summary if isinstance(delivery_summary, dict) else {},
+        feature_contract=metadata.get("feature_contract") or {},
+    )
 
     # S2-02: Security threat analysis — run once at delivery.
     if not isinstance(metadata.get("security_analysis"), dict):
