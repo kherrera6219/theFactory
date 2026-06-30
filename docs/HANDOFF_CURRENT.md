@@ -1,6 +1,6 @@
 # Current Handoff
 
-Document version: 2026.06.29-a
+Document version: 2026.06.29-b
 Last updated: 2026-06-29
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -39,10 +39,14 @@ a `.js` file rather than the contracted single self-contained HTML file; non-ASC
 characters were corrupted (mojibake); and the run was mislabeled `LEGACY V1`
 despite executing the Mission Flow v2 pipeline.
 
-The full plan is `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`. Phase 1
-(verification correctness: artifact-format gate, real acceptance-criteria
-evaluation, integrity-vs-correctness split in `equivalence_verifier.py`) is in
-progress. Phases 2 and 3 follow.
+The full plan is `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`. Phase 1a
+(artifact-format gate) and Phase 1b (per-criterion acceptance evaluation) are
+complete in `equivalence_verifier.py` with 8 passing unit tests, including a Neon
+Pong regression (HTML contract + `.js` artifact → required failure + block).
+Remaining: Phase 1c (split integrity from correctness), Phase 2 (runnable-smoke
+verifier via RQCA; authoritative `lifecycle_engine` field), Phase 3 (mojibake
+localize/guard; PM clarifying-question truncation), and a live re-run of a
+Pong-style mission after the stack restarts.
 
 ---
 

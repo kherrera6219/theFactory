@@ -6,6 +6,32 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Verification & Reporting Hardening — Phase 1a/1b (2026-06-29)
+
+#### Added
+- `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` — phased plan to make
+  artifact verification enforce correctness, not just digest integrity. Surfaced
+  by a live "Modern Neon Pong" chat-intake mission that reached `COMPLETE` while
+  delivering a `.js` file against a "single self-contained HTML file" contract,
+  corrupting non-ASCII characters, and mislabeling the run as `LEGACY V1`.
+- Artifact-format gate in `equivalence_verifier.py`
+  (`_check_artifact_format`): when the feature contract names a deliverable
+  format, the packaged artifact extension must match. Required check — a
+  mismatched format now fails verification and blocks under RQCA enforcement.
+
+#### Changed
+- `equivalence_verifier.py` acceptance-criteria check now evaluates per-criterion
+  keyword coverage against the generated code and description and reports which
+  criteria are unaddressed, instead of always returning `manual_review`.
+- Tracked the plan in `CURRENT_TODO.md`, `HANDOFF_CURRENT.md`,
+  `IMPLEMENTATION_STATUS.md`, and the documentation index.
+
+#### Validation
+- `tests/services/test_equivalence_verifier_unit.py` — 8 passed, including a
+  Neon Pong regression (HTML contract + `.js` artifact → required failure + block).
+- Equivalence-touching integration suites pass; `ruff check services tests scripts`
+  and `scripts/validate_documentation.py` pass.
+
 ### Final Audit Rebuild Lock-In (2026-06-27)
 
 #### Changed

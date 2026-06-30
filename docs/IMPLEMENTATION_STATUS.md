@@ -1,6 +1,6 @@
 # Implementation Status
 
-Document version: 2026.06.29-a
+Document version: 2026.06.29-b
 Last updated: 2026-06-29
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
@@ -53,7 +53,7 @@ The application currently includes:
 
 | Gap | Required next step |
 |---|---|
-| Artifact correctness verification | Enforce artifact format and acceptance criteria, not just digest integrity. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` |
+| Artifact correctness verification | Phase 1a/1b done (format gate + per-criterion acceptance evaluation in `equivalence_verifier.py`); Phase 1c integrity/correctness split and a live re-run remain. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` |
 | Non-ASCII artifact integrity | Localize and guard mojibake corruption in generated output |
 | Lifecycle-engine reporting | Emit an authoritative `lifecycle_engine` field so v2 missions stop mislabeling as `LEGACY V1` |
 | Phase 13 UI smoke | Submit and observe the mission path through Mission Control |

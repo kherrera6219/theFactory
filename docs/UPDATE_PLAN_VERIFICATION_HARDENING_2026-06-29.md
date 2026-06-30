@@ -1,6 +1,6 @@
 # Update Plan: Verification & Reporting Hardening
 
-Document version: 2026.06.29-a
+Document version: 2026.06.29-b
 Last updated: 2026-06-29
 Status: Active plan
 Audience: Maintainers, operators, and AI coding agents
@@ -50,25 +50,36 @@ is correct." Each Tier-1 gap is a facet of that single missing dimension.
 
 ---
 
+## Progress
+
+- **2026-06-29 — Phase 1a and 1b complete** (branch
+  `verification-correctness-hardening`). Artifact-format gate and per-criterion
+  acceptance evaluation landed in `equivalence_verifier.py` with 8 passing unit
+  tests, including a Neon Pong regression (HTML contract + `.js` artifact →
+  required failure + block under enforcement). Equivalence-touching integration
+  suites, Ruff, and documentation validation pass. Phase 1c, Phase 2, and Phase
+  3 remain. End-to-end live re-run of a Pong-style mission is still pending a
+  stack restart.
+
 ## Phase 1: Make verification mean correctness
 
 Backend-only verification logic. Small, high-leverage, no infrastructure.
 
-- **1a. Artifact-format gate** — add `_check_artifact_format` to
-  `equivalence_verifier.py`. When the feature contract declares a target
-  artifact format / entry point, require the artifact `manifest.filename`
-  extension and entry point to match. `required=True` when the contract is
-  explicit. This check would have failed the Pong mission.
-- **1b. Acceptance-criteria evaluation** — replace the always-`manual_review`
-  body of `_check_acceptance_criteria` with a per-criterion structured
-  evaluation (heuristic keyword/AST matching first), emitting `criteria_status`.
-  Advisory by default, promotable to `required` under `RQCA_ENFORCEMENT_ENABLED`.
-- **1c. Separate integrity from correctness** — add a `correctness_verification`
-  block distinct from the sha256/ECDSA `verification` block so `VERIFIED` no
-  longer implies "runs."
+- **1a. Artifact-format gate — DONE.** Added `_check_artifact_format` to
+  `equivalence_verifier.py`. When the feature contract names a deliverable
+  format, the packaged artifact extension must match (`required=True`). A `.js`
+  file against a "single self-contained HTML file" contract now fails
+  verification and blocks under enforcement.
+- **1b. Acceptance-criteria evaluation — DONE.** Replaced the always-
+  `manual_review` body of `_check_acceptance_criteria` with per-criterion keyword
+  coverage against the generated code and description, emitting `criteria_status`
+  and reporting which criteria are unaddressed. Advisory by default.
+- **1c. Separate integrity from correctness — TODO.** Add a
+  `correctness_verification` block distinct from the sha256/ECDSA `verification`
+  block so `VERIFIED` no longer implies "runs"; update the UI verification copy.
 
-Exit: new unit tests; a Pong-style mission shows the format gate flagging
-`.js`-vs-HTML.
+Exit: new unit tests (done); a Pong-style mission shows the format gate flagging
+`.js`-vs-HTML (pending live re-run after stack restart).
 
 ## Phase 2: Runnable smoke and honest engine reporting
 
