@@ -156,7 +156,11 @@ consuming it instead of by the loop.
   `AGENT-03-BROKER`) carrying the charter. Dual-write; still returns `True`.
 - `main.py` → `protocol_bus_consumer_loop`: add `"omega": _handle_charter_ready`
   to the `handlers` dict. The handler invokes `_prepare_ceo_delegation` for the
-  mission id in the message.
+  mission id in the message. **The handler MUST filter on
+  `feature_contract.message_type`** and act only on `mission_charter_ready` —
+  the consumer tails `protocol:omega:broadcast` as well as the directed channel,
+  so it will also receive PBLA-02's `pbla_delivery_handoff` broadcasts (Stage 1).
+  Ignoring non-charter message types is required for correctness, not optional.
 - `lifecycle.py` → `advance_mission_lifecycle_v2`: when the flag is on, remove
   the `MissionState.fetch: _prepare_ceo_delegation` entry from `stage_preparers`
   so the loop pauses at `fetch` and the consumed event resumes the mission.
@@ -223,7 +227,10 @@ lowest urgency → last of the inversion work.
   readiness) with: CEO publishes Alpha to the relevant support agent; the gate
   advances on the matching Delta `verified` reply.
 - Support agent consumers (Security/Compliance/Tester/DepAbs) gain Alpha
-  handlers + Delta replies.
+  handlers + Delta replies. **The Delta reply handler MUST filter on
+  `findings.emission`** and ignore PBLA-01's `pbla_pod_audit_telemetry` shadow
+  broadcasts (Stage 1) — the consumer tails `protocol:delta:broadcast`, so PBLA
+  pod-audit telemetry and EDCP verified/correction replies share the channel.
 
 **Exit criteria**
 

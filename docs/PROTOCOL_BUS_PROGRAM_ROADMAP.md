@@ -65,11 +65,22 @@ PBLA (producers)  ──▶  EDCP (consumers + control inversion)  ──▶  Ag
 
 ## Cross-stage couplings to watch
 
+- **Consumers tail the broadcast channel, so PBLA telemetry reaches EDCP
+  consumers (load-bearing coupling).** `ProtocolBusConsumer._consume_lane` reads
+  both `protocol:{lane}:{agent_id}` *and* `protocol:{lane}:broadcast` and feeds
+  both to the same per-lane handler. So when EDCP adds a load-bearing consumer on
+  a lane PBLA broadcasts to (Delta, Omega, Rho), that consumer **also** receives
+  PBLA's shadow telemetry. Mitigation is split across the two plans: PBLA stamps
+  a stable discriminator on every emission (`pbla_*` in the payload's free-form
+  dict — see PBLA's "Forward-Compatibility Requirement"), and **EDCP-02's Omega
+  charter handler and EDCP-04's Delta reply handler must filter those out.** This
+  makes PBLA's discriminators a hard contract EDCP depends on, not cosmetic.
 - **Omega carries two message shapes.** PBLA-02 puts a PM→user *delivery
-  handoff* on Omega; EDCP-02 puts a PM→CEO `mission_charter_ready` *charter* on
-  Omega (recipient `AGENT-03-BROKER`). They differ by mission phase and
-  correlation_id but share the lane — keep their `message_type`/payload shapes
-  distinct so neither plan's Omega changes constrain the other's.
+  handoff* on Omega (broadcast, `message_type=pbla_delivery_handoff`); EDCP-02
+  puts a PM→CEO `mission_charter_ready` *charter* on Omega (directed to
+  `AGENT-03-BROKER`). Per the bullet above, the directed/broadcast split does
+  **not** isolate them — the charter handler still sees the handoffs and must
+  filter on `message_type`.
 - **Consumer identity.** The orchestrator consumes as `AGENT-03-BROKER` today.
   Stage 3 reopens the question of whether each agent should consume under its own
   identity; EDCP's "Open decisions" section already flags this.

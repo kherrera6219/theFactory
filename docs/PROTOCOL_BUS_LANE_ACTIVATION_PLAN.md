@@ -97,12 +97,43 @@ program**, of which PBLA is deliberately only the first, lowest-risk step:
 
 **Scope decision for this plan:** PBLA stays narrow — producers only, no
 consumers, no agent-process split, no semantic routing. Each later stage is
-tracked separately so PBLA stays revertible and low-risk. The one cross-plan
-coupling to watch: **the Omega lane will carry two distinct message shapes** —
-PBLA-02's PM→user delivery handoff, and EDCP-02's PM→CEO `mission_charter_ready`
-charter (recipient `AGENT-03-BROKER`). They differ by mission phase and
-correlation_id, but both ride Omega, so keep their `message_type`/payload shapes
-distinct and do not let one plan's Omega changes constrain the other's.
+tracked separately so PBLA stays revertible and low-risk.
+
+---
+
+## Forward-Compatibility Requirement (applies to every PBLA phase)
+
+PBLA is *not* zero-coupling telemetry, and this is the most important thing the
+implementation must get right. **The consumer tails both channels of a lane:**
+`ProtocolBusConsumer._consume_lane` reads `protocol:{lane}:{agent_id}` **and**
+`protocol:{lane}:broadcast` and feeds both to the same per-lane handler
+(`protocol_bus_consumer.py`). Consequence: when EDCP later adds a load-bearing
+consumer on a lane PBLA broadcasts to, **that consumer will also receive PBLA's
+shadow telemetry** — it cannot avoid it by listening on a different channel.
+
+Therefore every PBLA emission **must stamp a stable discriminator** in its
+free-form dict field so a future consumer can filter telemetry from command/reply
+traffic. This is mandatory for correctness, not hygiene:
+
+| Lane | PBLA recipient | Discriminator field | Value |
+|---|---|---|---|
+| Delta (PBLA-01) | `broadcast` | `findings.emission` | `pbla_pod_audit_telemetry` |
+| Omega (PBLA-02) | `broadcast` | `feature_contract.message_type` | `pbla_delivery_handoff` |
+| Beta (PBLA-03) | `{pod_manager}` (directed) | `payload.emission` | `pbla_specialist_result` |
+| Rho (PBLA-04) | `broadcast` | `metadata.emission` | `pbla_traffic_telemetry` |
+
+The matching obligation lands on EDCP: **EDCP-02's Omega charter handler and
+EDCP-04's Delta reply handler must filter on these discriminators** (ignore
+`pbla_*` emissions) so PBLA's shadow traffic never gets mistaken for a charter or
+a verified reply. Beta is lowest risk because it is directed to the pod manager,
+not broadcast, but stamp it anyway for symmetry.
+
+**Omega specifically:** PBLA-02 broadcasts (`protocol:omega:broadcast`); EDCP-02's
+charter is directed to `AGENT-03-BROKER` (`protocol:omega:AGENT-03-BROKER`). But
+because the orchestrator's Omega consumer (identity `AGENT-03-BROKER`) tails the
+broadcast channel too, it *will* see PBLA-02's handoffs — so the
+`message_type` discriminator on the charter handler is load-bearing, not
+optional.
 
 ---
 
@@ -144,6 +175,11 @@ async def _send_delta_audit_verdict(
             verification_method=str(pod_audit.get("source", "pod_audit")),
             tolerance_score=float(pod_audit.get("quality_score") or 0.0),
             findings={
+                # Mandatory telemetry discriminator — see "Forward-Compatibility
+                # Requirement". A future EDCP Delta consumer on the broadcast
+                # channel must be able to tell PBLA shadow telemetry apart from
+                # load-bearing verified/correction replies.
+                "emission": "pbla_pod_audit_telemetry",
                 "mission_id": mission_id,
                 "pod": pod_name,
                 "verdict": pod_audit.get("verdict"),
@@ -168,8 +204,26 @@ def _map_verdict_to_audit_result(verdict: Any) -> str:
     return "warning"
 ```
 
-Call it right after `pod_audits[pod_name] = pod_audit` is set, before the
-function returns.
+**Placement (code-verified 2026-06-30):** call it **inside** the existing
+`if not _chain_event_exists(metadata, "MISSION_POD_AUDIT_COMPLETE"):` guard
+(`phases_build.py` ~L700), alongside the `MISSION_POD_AUDIT_COMPLETE` chain-event
+append — not before it. This function (`_finalize_pod_group_standard`) can re-run
+for the same mission+pod on resume/retry; emitting inside the idempotency guard
+makes Delta fire exactly once per pod per mission instead of relying on the bus's
+dedup/replay window (default 300s) to suppress repeats. `pod_manager_agent_id`
+is in scope at that point.
+
+**Sender confirmed valid:** `pod_audit["agent_id"]` resolves to the QC agent id
+(`AGENT-13-PODA-AUDIT` / `AGENT-19-PODB-AUDIT` / `AGENT-25-PODC-AUDIT`, default
+`AGENT-13-PODA-AUDIT` — see `_POD_AUDIT_AGENTS` in `generators_artifacts.py`), all
+of which match the bus `AGENT_ID_PATTERN`. No sender-validation risk.
+
+**Scope boundary — this covers the orchestrator-side verdict only.** There is a
+*second* audit surface: the standalone `audit-worker` service runs its own audit
+and POSTs results to `{ORCHESTRATOR_URL}/internal/audit-reports` over HTTP — it
+emits no bus traffic. PBLA-01 deliberately does **not** touch it. Making the
+audit-worker a load-bearing Delta participant is EDCP-04's job (support ring on
+Alpha/Delta), not PBLA's. Do not expand PBLA-01 to the audit-worker.
 
 ### New tests
 
@@ -232,7 +286,14 @@ async def _send_omega_handoff(
                 or delivery_summary.get("summary")
                 or "mission handoff"
             ),
-            feature_contract=feature_contract or {},
+            feature_contract={
+                # Mandatory discriminator (see "Forward-Compatibility
+                # Requirement"). EDCP-02's charter handler filters on this so a
+                # PBLA delivery handoff is never mistaken for a
+                # mission_charter_ready charter on the shared Omega broadcast.
+                "message_type": "pbla_delivery_handoff",
+                **(feature_contract or {}),
+            },
             correlation_id=f"omega-{mission_id}",
         )
     except Exception:
@@ -304,7 +365,16 @@ async def _send_beta_production_result(
             logicnode_id=logicnode_id,
             confidence_score=confidence_score,
             source_language=source_language,
-            payload=payload or {},
+            payload={
+                # Discriminator (see "Forward-Compatibility Requirement").
+                # Beta is directed to the pod manager (not broadcast), so
+                # collision risk is low, but stamp for symmetry. Note:
+                # confidence_score must be normalized to [0.0, 1.0] or the bus
+                # rejects the message (BetaPayload bound) — check the
+                # specialist's actual output range during the investigation step.
+                "emission": "pbla_specialist_result",
+                **(payload or {}),
+            },
             correlation_id=f"beta-{mission_id}-{logicnode_id}",
         )
     except Exception:
@@ -377,7 +447,11 @@ async def _send_rho_traffic_control(
             token_budget=token_budget,
             rate_limit_action=rate_limit_action,
             agent_target=agent_target,
-            metadata=metadata or {},
+            metadata={
+                # Discriminator (see "Forward-Compatibility Requirement").
+                "emission": "pbla_traffic_telemetry",
+                **(metadata or {}),
+            },
         )
     except Exception:
         LOGGER.warning(
@@ -420,6 +494,14 @@ the evidence artifact for "all six lanes are live," parallel in form to the
 existing S1-01 evidence in `docs/evidence/`. Suggested location:
 `docs/evidence/protocol_bus_six_lane_smoke_latest.json`.
 
+**Two evidence paths — use both.** Raw stream inspection
+(`XLEN protocol:{lane}:broadcast`, `GET /dlq?protocol={lane}`) proves per-lane
+delivery. The bus *also* already exports a Prometheus counter
+`protocol_bus_mcp_messages_queued_total{protocol=...}` (and
+`..._dlq_writes_total`) at `GET /metrics` on protocol-bus-mcp — scraping that
+before/after the run is a lower-friction way to assert all six protocols
+incremented and no DLQ writes occurred. Capture both in the evidence file.
+
 Update `docs/IMPLEMENTATION_STATUS.md`'s Current Proof Points table with a
 new row once this passes.
 
@@ -450,6 +532,23 @@ default if the audit vocabulary is ever extended.
 fields to `OmegaPayload` for handoff metadata. The producer code already
 documents this as an intentional EDCP-02 deferral — adding fields now
 creates a schema that EDCP-02 then has to either keep or break.
+
+**Deterministic correlation_ids interact with bus dedup/replay.** Each helper
+uses a deterministic id (`delta-{mission_id}-{pod_name}`, `omega-{mission_id}`,
+`beta-{mission_id}-{logicnode_id}`). The bus rejects a repeat of the same
+correlation_id within the dedup TTL (default 300s) — replay → 409, dedup → 200
+`deduplicated`. Across distinct pods/missions these ids are already unique, so
+this is fine. The only repeat case is the *same* phase re-running for the *same*
+mission within the TTL (resume/retry); emitting inside the
+`MISSION_POD_AUDIT_COMPLETE` idempotency guard (PBLA-01) already prevents that
+for Delta. For Omega/Beta, a retried emission is simply swallowed as a dedup —
+acceptable for telemetry. Do **not** switch to per-call random correlation_ids
+to "fix" this: that would defeat the bus's idempotency and double-count traffic.
+
+**Forward coupling is real — see "Forward-Compatibility Requirement".** PBLA is
+not zero-coupling: because consumers tail the broadcast channel, the `pbla_*`
+discriminators stamped here become a contract EDCP-02/04 consumers must filter
+on. This is the one place PBLA constrains a later stage.
 
 **Sequencing relative to EDCP.** This plan does not change control flow —
 it only adds telemetry. It is safe to run before, during, or after EDCP-01
