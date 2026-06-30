@@ -5,6 +5,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "scripts" / "phase13_smoke.py"
 
@@ -30,7 +32,12 @@ def test_extract_metadata_chain_event_types_from_mission_payload() -> None:
     assert smoke._extract_metadata_chain_event_types(payload) == ["MISSION_CEO_DELEGATED"]
 
 
-def test_env_file_service_key_headers(tmp_path: Path) -> None:
+def test_env_file_service_key_headers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # _service_key_headers prefers an already-set process env var over the file,
+    # so clear it to keep this test independent of suite ordering / a loaded .env.
+    monkeypatch.delenv("INTERNAL_SERVICE_API_KEY", raising=False)
     env_file = tmp_path / ".env"
     env_file.write_text("OTHER=value\nINTERNAL_SERVICE_API_KEY='secret-key'\n", encoding="utf-8")
     assert smoke._service_key_headers(str(env_file)) == {"x-api-key": "secret-key"}
