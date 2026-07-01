@@ -11,7 +11,8 @@ language-content-signature check, unconditional Compliance) are all committed
 and offline-verified, and the live stack has been rebuilt and is healthy — but
 no fresh live mission has been run yet to prove the fixes work end-to-end
 through the real chat UI. See "Findings Remediation (Phases 0-4)" below and
-Next Action #1.
+Next Action #2 for that live-stack verification; the active repo ZIP migration
+continuation is Next Action #1.
 
 Use this file with `docs/CURRENT_TODO.md` and
 `docs/IMPLEMENTATION_STATUS.md`. Historical phase notes are archived and should
@@ -47,6 +48,30 @@ orchestrator image reports OpenSSL `3.0.20-1~deb12u2`.
 ---
 
 ## Active Work
+
+### Repository ZIP Import Migration (active implementation)
+
+The current repo-intake migration is tracked in
+`docs/REPO_ZIP_IMPORT_MIGRATION_PLAN.md`. The implementation has started in
+Mission Control:
+
+- Phase 1 is complete: `apps/mission-control/app/api/repo/archive.ts` provides
+  safe ZIP indexing/read helpers and `archive.test.ts` covers root stripping,
+  traversal rejection, subdirectory filtering, text reads, and binary detection.
+- Phase 2 is complete locally: `apps/mission-control/app/api/repo/import/route.ts`
+  accepts multipart ZIP uploads, validates source refs/subdirectories, indexes
+  files without GitHub API calls, and returns ZIP metadata plus compatibility
+  repository fields for the current page.
+- Route tests now focus on ZIP intake: accepted archive, missing archive,
+  non-ZIP rejection, invalid source ref, and operator-session enforcement.
+- Validation passed: Mission Control `npm run lint`, plus `npm run test --
+  app/api/repo/archive.test.ts app/api/repo/import/route.test.ts`.
+
+Important boundary: the `/repo` UI and `/api/repo/review` are not migrated yet.
+The current page still posts GitHub-style JSON and the review route still fetches
+file content from GitHub. Continue with Phase 3 by converting review to read
+selected files from staged ZIP imports, then Phase 4 for the UI file-picker
+migration.
 
 ### Verification & Reporting Hardening (Phase 1-3 complete; verification backlog remains)
 
@@ -409,7 +434,8 @@ Security alert remediation validation:
 
 ## Next Actions
 
-1. **Top priority, pick up here first.** Submit one live mission through the
+1. **Active repo ZIP migration next step.** Convert `POST /api/repo/review` from GitHub file fetching to staged ZIP-backed selected-file reads, preserving review artifact shape and fingerprint semantics. After that, migrate the `/repo` UI to upload ZIP files instead of GitHub URLs.
+2. **Existing live-stack top priority.** Submit one live mission through the
    real Mission Control chat UI (`http://127.0.0.1:3100/chat`, not the raw
    API — the stack is already up, rebuilt, and healthy). Pick a Pod B/C/D
    language that is also Python-dissimilar (Go, Rust, or C are all in scope
@@ -425,23 +451,23 @@ Security alert remediation validation:
    pre-wipe ID). Two Chrome browser extensions are currently connected — pick
    one explicitly (via `list_connected_browsers`/`select_browser`) before
    driving the UI.
-2. Decide whether to also flip `mission_equivalence_enforcement_enabled`
+3. Decide whether to also flip `mission_equivalence_enforcement_enabled`
    (still `False`) now that the new language-content-signature check exists —
    this is a broader decision than Phase 2 scoped, since it would also start
    blocking on the pre-existing `artifact_format_matches_contract` and
    `language_alignment` checks, not just the new one.
-3. Rerun a Pong-style UI artifact mission through the current PlanBuild path.
-4. Run Mission Control UI smoke for Phase 13.
-5. Run protocol-bus failure injection for Phase 13.
-6. Run provider fallback proof for Phase 13.
-7. Run full `make validate` and capture the current result.
-8. Raise remaining Phase 8 `mission_flow_v2/` branch coverage or explicitly defer the old 85% branch target.
-9. Add provider/key/model preflight in Settings.
-10. Move provider/model selection into the app settings/vault path.
-11. Rotate exposed provider keys before public or shared use.
-12. ~~Fix pod-audit, Beta, generated-language verification, Compliance
+4. Rerun a Pong-style UI artifact mission through the current PlanBuild path.
+5. Run Mission Control UI smoke for Phase 13.
+6. Run protocol-bus failure injection for Phase 13.
+7. Run provider fallback proof for Phase 13.
+8. Run full `make validate` and capture the current result.
+9. Raise remaining Phase 8 `mission_flow_v2/` branch coverage or explicitly defer the old 85% branch target.
+10. Add provider/key/model preflight in Settings.
+11. Move provider/model selection into the app settings/vault path.
+12. Rotate exposed provider keys before public or shared use.
+13. ~~Fix pod-audit, Beta, generated-language verification, Compliance
     trigger~~ — **done**: commits `4445b6b`, `07883d7`, `a63dfaf`, `b70d711`.
-    Live re-confirmation is Next Action #1 above.
+    Live re-confirmation is Next Action #2 above.
 
 ---
 

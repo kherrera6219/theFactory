@@ -140,6 +140,35 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
+### Repository ZIP Import Migration (active implementation)
+
+Tracked by `docs/REPO_ZIP_IMPORT_MIGRATION_PLAN.md`. This replaces the
+GitHub API based repository intake path with local `.zip` repository snapshots
+so Mission Control can index source without GitHub credentials or network
+access.
+
+- DONE: Phase 1 archive core. Added a safe ZIP archive helper for path
+  normalization, common-root stripping, archive SHA-256 hashing, entry limits,
+  large-file skipping, selected text reads, and binary detection. Focused
+  archive helper tests pass.
+- DONE: Phase 2 import route. `POST /api/repo/import` now accepts
+  multipart/form-data with an `archive` `.zip` upload plus `display_name`,
+  `source_ref`, `subdirectory`, and `max_files`; it indexes the archive locally
+  and returns ZIP metadata while preserving compatibility fields for the current
+  repo page until the UI migration lands.
+- VALIDATED: `npm run test -- app/api/repo/archive.test.ts
+  app/api/repo/import/route.test.ts` passed 12/12 tests; `npm run lint` passed
+  for Mission Control TypeScript.
+- NEXT: Phase 3 review route conversion. `POST /api/repo/review` still reads
+  selected files from GitHub today and must be converted to staged ZIP-backed
+  content before repo ZIP missions can launch end-to-end.
+- NEXT: Phase 4 UI migration. The `/repo` page still renders GitHub URL copy
+  and JSON import behavior; replace it with ZIP file selection, archive metadata,
+  and review-gate reset behavior.
+- NEXT: Phases 5-7. Add mission launch index guard, repo knowledge ingestion,
+  and PM/pod-worker repository context loading so indexed repo content becomes
+  available from the internal database.
+
 ### Verification & Reporting Hardening (Phase 1-3 complete; verification backlog remains)
 
 Tracked in full by `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`. Surfaced
@@ -381,6 +410,7 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 | Full validation | Focused validation passed; full `make validate` still needs current run |
 | Provider settings | Provider/model still partly environment-driven |
 | Key hygiene | Exposed provider keys must be rotated before wider use |
+| Repository ZIP import | Phase 1 archive core and Phase 2 ZIP import route are implemented and locally validated; review route, UI migration, mission index guard, repo knowledge ingestion, and agent context wiring remain open |
 | Protocol Bus lanes | All six lanes have live producers (PBLA-00..04); Beta fix committed (`07883d7`) but not yet re-confirmed live; only Sigma is consumed so far. Four-stage program tracked by `PROTOCOL_BUS_PROGRAM_ROADMAP.md` (PBLA done → EDCP next → Agent Runtime Split → Semantic Bus) |
 | Pod-audit routing | Fixed and committed (`4445b6b`); baked into the rebuilt live stack; not yet re-confirmed via a fresh live mission |
 | Beta lane (PBLA-03) | Fixed and committed (`07883d7`) — emission added to `_prepare_specialist_plan`, the actual generated_output set-site (the findings doc named the wrong function); baked into the rebuilt live stack; not yet re-confirmed live |
