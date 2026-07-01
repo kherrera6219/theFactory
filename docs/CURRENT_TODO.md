@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.06.30
-Last updated: 2026-06-30
+Document version: 2026.07.01
+Last updated: 2026-07-01
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -13,23 +13,85 @@ as current work.
 
 ## Current Status
 
-**Most recent work: the first full, chat-driven system run (2026-06-30).**
-20 missions were submitted one at a time through the real Mission Control chat
-UI (not the raw API), each going through the PM Agent's actual clarification
-dialogue, covering all 19 language specialists across all 4 pods plus one
-modernize/debug-repair mission. All 20 reached `COMPLETE`. Full results, code
-review, agent/support-ring usage tally, and recommendations:
-`FIRST_FULL_SYSTEM_RUN_FINDINGS_2026-06-30.md` (repo root); the full
-chronological session narrative (what happened, in order, and exact
-end-of-session repo/stack state) is `MISSION_TESTS_SESSION_LOG_2026-06-30.md`
-(repo root). Headline: PBLA's
-Alpha/Sigma/Delta/Omega lanes all fired correctly with zero DLQ writes; one
-real routing bug was found and fixed (pod-audit misrouting); one real dead-code
-defect was found and root-caused but not yet fixed (Beta never fires); two
-missions silently generated code in the wrong language. **The battery's
-database state was subsequently wiped** by `stop_app.bat`'s `docker compose
-down -v` — remediation plan at `docs/STACK_REMEDIATION_PLAN_2026-07-01.md`. No
-further live fixes until that plan's offline-fix step completes.
+**Most recent work: findings remediation from the 2026-06-30 battery (Phases
+0-3 committed and offline-verified; Phase 4 live verification incomplete).**
+A phased plan (`FIRST_FULL_SYSTEM_RUN_FINDINGS_2026-06-30.md` recommendations +
+`docs/STACK_REMEDIATION_PLAN_2026-07-01.md`) was validated against the actual
+code, corrected where the source docs were wrong (see below), then executed:
+
+- **Phase 0 (commit `4445b6b`):** pod-audit misrouting fix landed as-is
+  (case-insensitive `_POD_AUDIT_AGENTS_BY_LOWER` lookup).
+- **Phase 1 (commit `07883d7`):** Beta (PBLA-03) now fires on every normal
+  `BUILD_NEW` mission. **Correction to the original findings doc:**
+  `generated_output` is actually set in `_prepare_specialist_plan`
+  (`phases_build.py`), not `_prepare_specialist_assignment` as §4/§6.1 stated —
+  a different, later function in the same file. The Beta emission was added
+  there (not "moved" — the existing `_prepare_fusion` call in
+  `phases_runtime.py` stays as the legitimate fallback-path emission for
+  missions whose first codegen attempt didn't yield usable output; the shared
+  `mission_has_generated_output` guard keeps the two sites mutually exclusive).
+- **Phase 2 (commit `a63dfaf`):** new `_check_language_content_signature` in
+  `equivalence_verifier.py`. **Correction to the original findings doc:** §6.2's
+  claim "no verification gate currently catches
+  generated-language-vs-requested-language mismatches" is factually wrong — a
+  required check (`_check_language_alignment`) already existed and was wired
+  in. The real gap: it compares `generated_output["language"]` (self-reported
+  by the same LLM call that wrote the code) against the requested language —
+  both values trace back to "what was asked for," so a specialist that
+  silently substitutes Python can still label its output correctly and the
+  check can never catch it. The new check inspects `generated_code` text
+  directly for unambiguous Python tells, scoped to target languages least
+  likely to be confused with Python (c, cpp, r, go, rust, shell) — verified
+  against the real C and R battery artifacts on disk (`fail`) and real
+  Go/Rust/C++ artifacts (`pass`, no false positive). `mission_equivalence_enforcement_enabled`
+  still defaults to `False`, so this surfaces as a finding today rather than
+  blocking — enabling enforcement is a separate, broader decision.
+- **Phase 3 (commit `b70d711`):** `AGENT-08-COMPLIANCE` now fires
+  unconditionally at delivery, like Security/VC/Tester (user's explicit choice
+  among 3 options). Adds `generate_compliance_assessment` (new LLM-delegation
+  function, distinct from Security's threat analysis and from
+  `security_compliance.py`'s deterministic PII/license scan), a new
+  `MISSION_COMPLIANCE_ASSESSMENT_COMPLETE` event type, and a deterministic
+  fallback matching Security's honesty convention.
+- All four phases: full `tests/services/` suite passed clean after each
+  (1311 passed, 5 skipped, 0 failed at the end; `test_agent_base_unit.py`'s
+  collection error is pre-existing and untouched by this work), ruff clean on
+  every touched file.
+- **Phase 4 (live stack + verification) — stack is up and healthy, live
+  mission proof NOT yet done.** Rebuilt every buildable image (orchestrator,
+  api-gateway, all 41 dedicated agents, mission-control, dashboard,
+  protocol-bus-mcp, workers) via the correct two-file compose form so Phases
+  0-3's code is actually running. Brought the stack up; the user separately
+  ran `start_app.bat` mid-session, which recreated a subset of containers
+  non-destructively (`deploy_postgres-data`/`deploy_redis-data` volumes
+  confirmed intact throughout — no data loss this time) and additionally
+  brought up `minio`/`neo4j` without hitting the prior port conflicts.
+  **Current confirmed live state:** 59/59 `deploy-*` containers healthy or Up
+  (0 unhealthy, 0 stuck), orchestrator `/readyz` reports `ready: true` across
+  every dependency (Redis, Postgres, Qdrant, Milvus, Neo4j, object storage,
+  protocol bus), api-gateway ready. **Stack Remediation Finding 3 (Postgres
+  credential mismatch): resolved** — `db_ready: true`, no `FATAL: password
+  authentication failed` in logs; matches the plan's prediction that a fresh
+  `initdb` against the wiped volume would self-resolve it. **Finding 4
+  (`INTERNAL_SERVICE_API_KEY` empty at runtime): very likely resolved** —
+  `docker compose config` dry-run confirmed a real, non-empty key resolves at
+  all three call sites, and a build-artifacts fetch for an old (pre-wipe)
+  mission ID returned a clean `404 resource not found` rather than the old
+  `503 gateway internal auth is not configured` — but this was **not
+  confirmed against a fresh live mission**, which is the stronger proof.
+  **Finding 5 (host port collisions):** confirmed not a code issue (host-port
+  overrides already exist in compose); this run happened not to collide, but
+  that isn't guaranteed on every run.
+  **NOT DONE — the actual remaining step:** submit one live mission through the
+  real Mission Control chat UI (not the raw API) and confirm, end-to-end: the
+  pod-audit fix (submit a Pod B/C/D language), Beta firing (check
+  `protocol:beta:*` bus metrics), `MISSION_DEPLOY_READINESS_ASSESSED` firing
+  (findings §6.4 re-confirmation), the new language-content-signature check
+  behaving correctly on a real mission, and a definitive build-artifacts fetch
+  for that fresh mission (closes Finding 4 conclusively). This step was blocked
+  on browser selection (two Chrome extensions connected, needs an explicit
+  pick) and the session ended before it was resolved — **this is the next
+  action for a fresh session, see Next Actions #1 below.**
 
 Before that: the **Protocol Bus Lane Activation (PBLA) Stage 1** producers were
 made code-complete and unit-tested — all six lanes have live producers
@@ -160,27 +222,25 @@ DLQ writes; Rho confirmed via a direct producer smoke test. Full results,
 code-artifact review, and recommendations:
 `FIRST_FULL_SYSTEM_RUN_FINDINGS_2026-06-30.md` (repo root).
 
-**Two real issues surfaced by the live run, not yet fixed:**
-- **Beta never fired across all 20 missions.** Root cause confirmed:
-  `generated_output` is set earlier (`_prepare_specialist_assignment` in
-  `phases_build.py`) than PBLA-03's insertion point in `_prepare_fusion`, so the
-  `mission_has_generated_output` guard is already true and the codegen+Beta
-  block is skipped every time. Fix: move the Beta emission to `phases_build.py`
-  right after `generated_output` is set.
-- **Pod-audit agent misrouting** (found live, already fixed + unit-tested — see
-  below) — fix is in the working tree, not yet committed pending stack
-  remediation.
+**Two real issues surfaced by the live run — both fixed and committed since
+(see Current Status above):**
+- **Beta never fired across all 20 missions.** Fixed in commit `07883d7`: the
+  emission was added to `_prepare_specialist_plan` (the function that actually
+  sets `generated_output`, not `_prepare_specialist_assignment` as originally
+  documented). Live re-confirmation still pending — see Current Status.
+- **Pod-audit agent misrouting.** Fixed in commit `4445b6b`.
 
 **Also surfaced (not PBLA-specific, but same run):** 2 of 20 missions (C, R)
 generated the wrong language entirely (Python simulating the target language)
-and still reached `COMPLETE` — no verification gate catches
-generated-language-vs-requested-language mismatches. See findings §5/§6.2.
+and still reached `COMPLETE`. **Addressed in commit `a63dfaf`** — see Current
+Status for why the originally-suspected "no gate exists" diagnosis was wrong
+and what the new check actually does. Live re-confirmation still pending.
 
 **Environment note:** the battery's database state was subsequently wiped by
-`stop_app.bat` (`docker compose down -v`). Remediation plan (Postgres
-credential mismatch + `api-gateway` internal-auth key, both unresolved):
-`docs/STACK_REMEDIATION_PLAN_2026-07-01.md`. Per explicit direction, no further
-live fixes until that plan's offline-fix step is done.
+`stop_app.bat` (`docker compose down -v`). The stack has since been rebuilt and
+brought back up (see Current Status) — Postgres and `INTERNAL_SERVICE_API_KEY`
+issues from `docs/STACK_REMEDIATION_PLAN_2026-07-01.md` both look resolved,
+pending final live-mission confirmation.
 
 - **PBLA-05** (optional): lane observability surfacing in the operations snapshot.
 
@@ -321,12 +381,14 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 | Full validation | Focused validation passed; full `make validate` still needs current run |
 | Provider settings | Provider/model still partly environment-driven |
 | Key hygiene | Exposed provider keys must be rotated before wider use |
-| Protocol Bus lanes | All six lanes have live producers (PBLA-00..04) and were live-validated 2026-06-30 (20-mission battery); Beta confirmed non-firing (root-caused, fix pending); only Sigma is consumed so far. Four-stage program tracked by `PROTOCOL_BUS_PROGRAM_ROADMAP.md` (PBLA done → EDCP next → Agent Runtime Split → Semantic Bus) |
-| Pod-audit routing | Bug found live 2026-06-30 (case-mismatch caused every non-Pod-A audit to silently misroute); fixed + unit-tested in the working tree, not yet committed |
-| Beta lane (PBLA-03) | Never fired across 20 live missions; root cause confirmed (insertion point unreachable for normal `BUILD_NEW` missions); fix identified, not yet applied — see `FIRST_FULL_SYSTEM_RUN_FINDINGS_2026-06-30.md` §6.1 |
-| Generated-language verification | No gate catches generated-code-language ≠ requested-target-language; 2 of 20 live missions (C, R) silently delivered Python instead — see findings §6.2 |
-| Stack credentials | Postgres password mismatch and `api-gateway` internal-auth key resolve incorrectly after a restart; unresolved, offline fix required — see `docs/STACK_REMEDIATION_PLAN_2026-07-01.md` |
-| Database state | `postgres-data`/`redis-data` volumes were wiped by `stop_app.bat` (`docker compose down -v`); all mission/chain-trace history from the 2026-06-30 battery is gone (generated code artifacts survived in `output/`) |
+| Protocol Bus lanes | All six lanes have live producers (PBLA-00..04); Beta fix committed (`07883d7`) but not yet re-confirmed live; only Sigma is consumed so far. Four-stage program tracked by `PROTOCOL_BUS_PROGRAM_ROADMAP.md` (PBLA done → EDCP next → Agent Runtime Split → Semantic Bus) |
+| Pod-audit routing | Fixed and committed (`4445b6b`); baked into the rebuilt live stack; not yet re-confirmed via a fresh live mission |
+| Beta lane (PBLA-03) | Fixed and committed (`07883d7`) — emission added to `_prepare_specialist_plan`, the actual generated_output set-site (the findings doc named the wrong function); baked into the rebuilt live stack; not yet re-confirmed live |
+| Generated-language verification | Fixed and committed (`a63dfaf`) — new `_check_language_content_signature` catches Python-fallback substitution for c/cpp/r/go/rust/shell targets; verified offline against the real C/R battery artifacts; not yet re-confirmed against a fresh live mission |
+| Compliance trigger | Fixed and committed (`b70d711`) — `AGENT-08-COMPLIANCE` now fires unconditionally at delivery like Security/VC/Tester, per explicit user decision |
+| Stack credentials | Postgres credential mismatch (Finding 3): resolved — confirmed `db_ready: true` on the rebuilt stack (old volume was wiped, fresh initdb picked up current `.env`). `api-gateway` `INTERNAL_SERVICE_API_KEY` (Finding 4): very likely resolved (clean 404 instead of the old 503 auth-not-configured error; compose config confirms correct resolution) but not confirmed against a fresh live mission — see Next Actions #1 |
+| Database state | `postgres-data`/`redis-data` volumes were wiped once by `stop_app.bat` (`docker compose down -v`) after the 2026-06-30 battery; the stack has since been rebuilt from scratch and is healthy again. A second, non-destructive container recreation happened mid-Phase-4 (via `start_app.bat`) — volumes confirmed intact, no data lost |
+| Live verification of Phases 0-3 | Stack is up, healthy, and running the fixed code, but no fresh mission has been run through the chat UI yet to prove the fixes work live end-to-end — this is the single most important next action |
 
 ---
 
