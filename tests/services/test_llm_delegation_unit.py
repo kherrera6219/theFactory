@@ -1670,3 +1670,39 @@ def test_fusion_fallback_does_not_truncate_below_cap(monkeypatch) -> None:
     )
     assert result["total_unified_nodes"] == 30
     assert len(result["master_logic_stream"]) == 30
+
+
+@pytest.mark.parametrize(
+    "pod_name,expected_agent_id",
+    [
+        ("podA", "AGENT-13-PODA-AUDIT"),
+        ("podB", "AGENT-19-PODB-AUDIT"),
+        ("podC", "AGENT-25-PODC-AUDIT"),
+        ("podD", "AGENT-31-PODD-AUDIT"),
+    ],
+)
+def test_generate_pod_audit_verdict_resolves_correct_agent_per_pod(
+    monkeypatch, pod_name: str, expected_agent_id: str
+) -> None:
+    """Regression test: pod_name was lower-cased before matching against the
+    mixed-case _POD_AUDIT_AGENTS keys, so every pod except A silently fell
+    back to AGENT-13-PODA-AUDIT (discovered via a live 20-mission battery
+    covering all four pods)."""
+
+    async def _no_llm(*, recommendation, prompt, call_context, agent_id):
+        _ = recommendation, prompt, call_context, agent_id
+        return None, "gemini", "gemini-3.5-flash", "primary"
+
+    monkeypatch.setattr(
+        llm_delegation.generators_artifacts, "_call_with_agent_system", _no_llm
+    )
+    result = asyncio.run(
+        llm_delegation.generate_pod_audit_verdict(
+            mission_id="m-audit",
+            pod_name=pod_name,
+            mission_context={"contract_summary": "test"},
+            pod_group_standard={"canonical_logicnodes": [], "eliminated_duplicates": 0},
+            generated_output=None,
+        )
+    )
+    assert result["agent_id"] == expected_agent_id

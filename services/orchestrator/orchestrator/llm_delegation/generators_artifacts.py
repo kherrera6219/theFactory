@@ -44,6 +44,13 @@ _POD_AUDIT_AGENTS: dict[str, str] = {
     "podC": "AGENT-25-PODC-AUDIT",
     "podD": "AGENT-31-PODD-AUDIT",
 }
+# Case-insensitive lookup: _POD_AUDIT_AGENTS keys are mixed-case ("podA"), so a
+# naive .lower() on the caller's pod_name before lookup would never match and
+# silently fall back to the default for every pod except A. Match case-
+# insensitively instead, keeping the mixed-case values as the canonical agent ids.
+_POD_AUDIT_AGENTS_BY_LOWER: dict[str, str] = {
+    key.lower(): value for key, value in _POD_AUDIT_AGENTS.items()
+}
 _DEFAULT_AUDIT_AGENT = "AGENT-13-PODA-AUDIT"
 
 def build_deploy_readiness_assessment(
@@ -715,7 +722,7 @@ async def generate_pod_audit_verdict(
     ``pod_audit_verdict.v1`` document.
     """
     normalized_pod = pod_name.strip().lower()
-    audit_agent_id = _POD_AUDIT_AGENTS.get(normalized_pod, _DEFAULT_AUDIT_AGENT)
+    audit_agent_id = _POD_AUDIT_AGENTS_BY_LOWER.get(normalized_pod, _DEFAULT_AUDIT_AGENT)
     recommendation = _pkg()._agent_recommendation(audit_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
     model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
