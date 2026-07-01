@@ -67,12 +67,12 @@ passing live non-ASCII mission rerun recorded at
 docs validation, Mission Control tsc, standard live smoke, and live non-ASCII smoke pass.
 Remaining outside Phase 3: Pong-style UI artifact rerun for the broader verification backlog.
 
-### Protocol Bus Program (4 stages) — Stage 1 in progress (PBLA-00 starting)
+### Protocol Bus Program (4 stages) — Stage 1 producers code-complete; live validation pending
 
 The full bus program is documented in `PROTOCOL_BUS_PROGRAM_ROADMAP.md` as four
 staged initiatives: Stage 1 PBLA (`PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`,
-producers/telemetry, **plan validated against code; PBLA-00 implementation
-starting**), Stage 2 EDCP (`EDCP_PHASE_PLAN.md`,
+producers/telemetry, **PBLA-00..04 implemented and unit-tested; live six-lane
+validation pending**), Stage 2 EDCP (`EDCP_PHASE_PLAN.md`,
 consumers + control-flow inversion, reactivated from archive; EDCP-01 complete,
 EDCP-02 pending), Stage 3 Agent Runtime Split (`AGENT_RUNTIME_SPLIT_PLAN.md`,
 stub), and Stage 4 Semantic Bus (`SEMANTIC_BUS_PLAN.md`, stub). Stages must land
@@ -141,6 +141,14 @@ Fix (no `/health` or `/readyz` payload change — both keep their full bodies):
 - `tests/services/test_health.py` adds a `/livez` lightweight-contract test
   (asserts no optional-backend keys). 72 tests pass across the touched areas;
   `docker compose config` validates; ruff clean.
+
+**Confirmed on a live restart (this session):** after rebuilding orchestrator +
+api-gateway, the full dedicated-agent stack came up clean — orchestrator healthy
+in ~39s (its `/livez` responds in ~20ms), and every dependent including
+mission-control (which previously failed) reached `healthy`; fleet showed 0
+unhealthy, 0 stuck-`Created`, 0 exited. Rebuild note: the fix changed
+orchestrator + api-gateway **code** (rebuild those images); the compose
+healthcheck/timing changes apply on the next `up`.
 
 ### Security Alert Remediation
 

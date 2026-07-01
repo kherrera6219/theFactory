@@ -13,6 +13,22 @@ as current work.
 
 ## Current Status
 
+Most recent work (this session): the **Protocol Bus Lane Activation (PBLA)
+Stage 1** producers are code-complete and unit-tested — all six lanes now have
+live producers (PBLA-00 shared discriminators, PBLA-01 Delta, PBLA-02 Omega,
+PBLA-03 Beta, PBLA-04 Rho); see the Protocol Bus Program section below. A
+**cold-start healthcheck defect** was also found and fixed: the orchestrator
+`/health` (the Docker liveness probe the whole `depends_on` chain gates on) ran
+live optional-backend readiness probes and timed out under cold-start
+contention, wedging every dependent (api-gateway → mission-control → …) in
+`Created`. Fixed by adding a probe-free `/livez` and repointing the healthcheck
+at it. **Confirmed on a live restart**: the full stack — including
+mission-control, which previously failed — came up healthy (orchestrator healthy
+in ~39s; 0 unhealthy / 0 stuck-`Created`). The dedicated-agent stack is currently
+running the PBLA code. The remaining Stage 1 item is the live six-lane bus
+validation (run a mission; confirm Delta/Omega/Beta traffic + a forced-429 Rho,
+zero DLQ; capture evidence).
+
 Phase 13 backend/API smoke is complete for this pass. The latest committed
 smoke evidence is `docs/evidence/phase13_smoke_latest.json` for mission
 `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, which reached
