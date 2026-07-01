@@ -1,9 +1,38 @@
 # Operations Runbook
 
-Document version: 2026.05.30  
-Last updated: 2026-05-30  
+Document version: 2026.07.01  
+Last updated: 2026-07-01  
 Status: Canonical  
 Audience: Operators, maintainers, and on-call responders
+
+## Compose File Pairing — Read This Before Restarting Anything
+
+If this deployment is running the full-dedicated-agent topology (41 per-language
+agent containers, `TOPOLOGY_MODE=full-dedicated`), **always** recreate or restart
+services with both compose files together:
+
+```
+docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml ...
+```
+
+`docker-compose.full-dedicated-agents.yaml` is an **overlay only** — it patches
+the `orchestrator` service's environment and adds the 41 `agent-XX-*` services,
+but does not redefine `api-gateway`, `mission-control`, or the pod workers.
+Running a command against `deploy/docker-compose.yaml` **alone** (e.g. a quick
+`docker compose -f deploy/docker-compose.yaml up -d orchestrator` to pick up an
+image rebuild) will recreate that service under the *base* topology/environment,
+desyncing it from the 41 dedicated agent containers that were never touched and
+still expect the overlay's environment (e.g. `TOPOLOGY_MODE`). This has already
+caused one full restart-cascade incident (401s on agent heartbeats, degraded PM
+fallback output, `INTERNAL_SERVICE_API_KEY`/Postgres credential confusion) — see
+`docs/STACK_REMEDIATION_PLAN_2026-07-01.md` for the full incident writeup.
+
+The single-file examples elsewhere in this document (`Core Health Checks`, etc.)
+are safe for **read-only** commands (`ps`, `logs`, `config`, `curl`). Prefer
+`make up-full-dedicated` / `make down-full-dedicated` (see `Dedicated-Agent
+Topology Checks` below) for any command that creates, recreates, or restarts
+containers — they already pass the correct two-file combination and
+`--env-file .env`.
 
 ## Core Health Checks
 

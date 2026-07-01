@@ -93,12 +93,45 @@ inside the `MISSION_POD_AUDIT_COMPLETE` guard), **PBLA-02** (Omega in
 Delta/Omega/Beta/Rho helper tests pass; the full mission_flow_v2 and
 llm_delegation suites pass (150+ combined); ruff clean.
 
-**The one open item for Stage 1 is live validation** (needs a running stack): run
-a mission, confirm all six `protocol:{lane}:*` streams carry traffic (Rho needs a
-synthetic 429) with zero DLQ writes, capture evidence, and update
-`IMPLEMENTATION_STATUS.md`. PBLA-05 (operations-snapshot lane surfacing) is
-optional. With PBLA producers live, Stage 2 (EDCP) is unblocked — its consumers
-filter the `pbla_*` discriminators off the shared broadcast channels.
+**Live validation ran on 2026-06-30 — 20 missions through the real Mission
+Control chat UI** (one per language specialist + one modernize/debug-repair
+mission), each going through the PM Agent's actual clarification dialogue. Full
+results, code review, and recommendations: `FIRST_FULL_SYSTEM_RUN_FINDINGS_2026-06-30.md`
+(repo root); the full chronological session narrative is
+`MISSION_TESTS_SESSION_LOG_2026-06-30.md` (repo root, read this one first if
+picking up this work cold). Headline results:
+
+- **20/20 missions reached `COMPLETE`.** Alpha, Sigma, Delta, Omega all fired
+  correctly with zero DLQ writes. Rho confirmed via a direct producer smoke
+  test (real rate-limit traffic wasn't hit organically).
+- **Real bug found + fixed + unit-tested:** `generate_pod_audit_verdict`
+  lower-cased `pod_name` before matching mixed-case `_POD_AUDIT_AGENTS` keys,
+  so every non-Pod-A mission's audit (and its PBLA-01 Delta emission) silently
+  misrouted to `AGENT-13-PODA-AUDIT`. Fixed via a case-insensitive lookup;
+  regression test covers all 4 pods. **Fix is in the working tree, not yet
+  committed** (pending the stack remediation below).
+- **Real bug found, not yet fixed: Beta (PBLA-03) never fired across all 20
+  missions.** Root cause confirmed: `generated_output` is set earlier in
+  `_prepare_specialist_assignment` (`phases_build.py`) than PBLA-03's insertion
+  point in `_prepare_fusion`, so the `mission_has_generated_output` guard is
+  already true and the whole codegen+Beta block is skipped. Recommended fix:
+  move the Beta emission to `phases_build.py` right after
+  `metadata["generated_output"]` is set. See the findings report §4/§6.1.
+- **2 of 20 missions (C, R) generated the wrong language entirely** (both
+  produced Python that simulates the target language instead of real
+  C/R source) and still reached `COMPLETE` — no verification gate currently
+  catches generated-language-vs-requested-language mismatches. See §5/§6.2.
+- PBLA-05 (operations-snapshot lane surfacing) remains optional/undone.
+
+**Environment note:** after the battery, `stop_app.bat` →
+`scripts/force_stop.py` → `make down` ran `docker compose down -v`, which
+deleted the `postgres-data`/`redis-data` volumes (mission/chain-trace DB gone;
+generated code artifacts survived — `output/` is a host bind-mount, not a
+volume). A live-restart cascade also surfaced a Postgres credential mismatch
+and an `api-gateway` internal-auth key that resolves empty at runtime — both
+unresolved. Full remediation plan: `docs/STACK_REMEDIATION_PLAN_2026-07-01.md`.
+**Per explicit direction, no more live fixes** — the sequence is plan (done) →
+stop the app (done) → fix offline → rebuild → test.
 
 #### Stage 1 — Protocol Bus Lane Activation (PBLA)
 
@@ -250,8 +283,18 @@ Security alert remediation validation:
 7. Add provider/key/model preflight in Settings.
 8. Move provider/model selection into the app settings/vault path.
 9. Rotate exposed provider keys before public or shared use.
-10. Begin Protocol Bus Lane Activation (PBLA) starting with PBLA-01 (Delta) per
-    `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`.
+10. ~~Begin Protocol Bus Lane Activation (PBLA)~~ — **done**: PBLA-00..04
+    implemented, unit-tested, and live-validated via the 2026-06-30 20-mission
+    battery. See `FIRST_FULL_SYSTEM_RUN_FINDINGS_2026-06-30.md`.
+11. Execute `docs/STACK_REMEDIATION_PLAN_2026-07-01.md` (Postgres credential
+    mismatch + `api-gateway` internal-auth key, both offline fixes) before any
+    further live testing.
+12. Fix Beta's insertion point (move to `phases_build.py` — see findings §6.1)
+    and commit the already-fixed pod-audit-agent bug.
+13. Add a generated-language-vs-requested-language verification check (findings
+    §6.2) — the C and R missions both silently delivered the wrong language.
+14. Re-confirm `AGENT-11-DEPLOY`'s `MISSION_DEPLOY_READINESS_ASSESSED` activates
+    on a fresh mission once the stack is back up (findings §6.4).
 
 ---
 

@@ -1,0 +1,297 @@
+{
+  "schema_version": "protocol_bus_mission_battery_verify.v1",
+  "run_timestamp_utc": "2026-07-01T04:08:30.068914+00:00",
+  "total_missions": 20,
+  "passed_missions": 5,
+  "passed": false,
+  "missions": [
+    {
+      "battery_id": "chat-go",
+      "language": "go",
+      "mission_id": "mission-3c760af1-abc0-45f4-a70c-50cf80181d63",
+      "clarify_style": "vague-answered",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-19-PODB-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-rust",
+      "language": "rust",
+      "mission_id": "mission-e3126366-1967-40cc-b527-9b12572bbdf2",
+      "clarify_style": "detailed-sow",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-19-PODB-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-c",
+      "language": "c",
+      "mission_id": "mission-508b752b-cf37-4da5-9565-7e170c1cbee2",
+      "clarify_style": "vague-assumptions",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-19-PODB-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-cpp",
+      "language": "cpp",
+      "mission_id": "mission-560c06fb-225c-4ba7-9aa8-7bf7d03a2509",
+      "clarify_style": "detailed-sow",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-19-PODB-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-zig",
+      "language": "zig",
+      "mission_id": "mission-9b6d1eb5-4e99-4095-9e0e-ef48a1a8153e",
+      "clarify_style": "vague-answered",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-19-PODB-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-java",
+      "language": "java",
+      "mission_id": "mission-72292418-0d23-4855-951f-3f5dec5a225f",
+      "clarify_style": "detailed-sow-then-assumptions",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-25-PODC-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-csharp",
+      "language": "csharp",
+      "mission_id": "mission-e3a685c4-e85a-46ae-a48f-d3c88ad79594",
+      "clarify_style": "vague-answered",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-25-PODC-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-kotlin",
+      "language": "kotlin",
+      "mission_id": "mission-684131bb-6fc1-43e7-89c7-21ea36efec9e",
+      "clarify_style": "detailed-sow",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-25-PODC-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-scala",
+      "language": "scala",
+      "mission_id": "mission-d08c44a0-729d-4e6c-a1db-eb1f4980d396",
+      "clarify_style": "vague-assumptions",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-25-PODC-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-matlab",
+      "language": "matlab",
+      "mission_id": "mission-914361c1-64db-4159-8bf6-47ce4f567840",
+      "clarify_style": "detailed-sow",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-31-PODD-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-r",
+      "language": "r",
+      "mission_id": "mission-91ac234b-80f7-4c92-aa3f-1b9441169675",
+      "clarify_style": "vague-answered",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-31-PODD-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-julia",
+      "language": "julia",
+      "mission_id": "mission-26e54a90-1719-4861-a5fd-d583429207f7",
+      "clarify_style": "detailed-sow",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-31-PODD-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-mathematica",
+      "language": "mathematica",
+      "mission_id": "mission-52e2c1b9-18a1-4d1b-93a0-f110834205e7",
+      "clarify_style": "vague-assumptions",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-31-PODD-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-haskell",
+      "language": "haskell",
+      "mission_id": "mission-a30388d7-71d7-46d4-87d5-e3d8fcaf856a",
+      "clarify_style": "detailed-sow",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-31-PODD-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-ocaml",
+      "language": "ocaml",
+      "mission_id": "mission-3ecb98f8-4cbd-4215-a34d-ad2811f61fef",
+      "clarify_style": "vague-answered",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-31-PODD-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": false
+      },
+      "passed": false
+    },
+    {
+      "battery_id": "chat-python",
+      "language": "python",
+      "mission_id": "mission-b5f9f2b7-8db2-4581-a630-c3857578c5ac",
+      "clarify_style": "vague-assumptions",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": true
+      },
+      "passed": true
+    },
+    {
+      "battery_id": "chat-javascript",
+      "language": "javascript",
+      "mission_id": "mission-4941126c-778c-47d4-afd2-ce9d31b66a8a",
+      "clarify_style": "detailed-sow",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": true
+      },
+      "passed": true
+    },
+    {
+      "battery_id": "chat-ruby",
+      "language": "ruby",
+      "mission_id": "mission-0c1c9892-7a59-4df1-b28d-7e9ffac333df",
+      "clarify_style": "vague-no-clarify-needed",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": true
+      },
+      "passed": true
+    },
+    {
+      "battery_id": "chat-php",
+      "language": "php",
+      "mission_id": "mission-8e9f2073-81ed-47bc-aa0c-1c88b8272f4e",
+      "clarify_style": "detailed-sow",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {
+        "expected_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "actual_pod_audit_agent": "AGENT-13-PODA-AUDIT",
+        "match": true
+      },
+      "passed": true
+    },
+    {
+      "battery_id": "chat-modernize-python",
+      "language": "python",
+      "mission_id": "mission-2bac5166-b408-4cc9-a344-863cb657d50a",
+      "clarify_style": "vague-assumptions",
+      "routing_exempt": true,
+      "mission_type": "IMPORT_MODERNIZE+DEBUG_REPAIR",
+      "final_state": "COMPLETE",
+      "missing_chain_events": [],
+      "agent_check": {},
+      "passed": true
+    }
+  ],
+  "bug_found_and_fixed": {
+    "summary": "generate_pod_audit_verdict lower-cased pod_name before matching mixed-case _POD_AUDIT_AGENTS keys (podA/podB/podC/podD), so the lookup never matched for ANY pod and silently fell back to AGENT-13-PODA-AUDIT for every mission -- masked for Pod A only because the default happens to equal Pod A own audit agent.",
+    "discovered_by": "This live 20-mission chat-driven battery (agent_check field per mission below)",
+    "impact": "Every non-Pod-A mission (15 of 19 language missions) emitted its PBLA-01 Delta message with the wrong sender/audit-agent-id (AGENT-13-PODA-AUDIT instead of the pod own audit agent).",
+    "fix_commit_pending": true,
+    "fix_file": "services/orchestrator/orchestrator/llm_delegation/generators_artifacts.py",
+    "fix_description": "Added a case-insensitive _POD_AUDIT_AGENTS_BY_LOWER lookup table; audit_agent_id resolution now matches regardless of pod_name casing.",
+    "regression_test": "tests/services/test_llm_delegation_unit.py::test_generate_pod_audit_verdict_resolves_correct_agent_per_pod (4 parametrized cases, all pods, all pass post-fix)",
+    "note": "The 15 mismatched missions in this evidence file were run against the PRE-FIX orchestrator image; their agent_check.match=False results ARE the live proof of the bug, not a residual failure."
+  }
+}

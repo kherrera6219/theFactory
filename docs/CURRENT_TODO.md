@@ -13,21 +13,34 @@ as current work.
 
 ## Current Status
 
-Most recent work (this session): the **Protocol Bus Lane Activation (PBLA)
-Stage 1** producers are code-complete and unit-tested — all six lanes now have
-live producers (PBLA-00 shared discriminators, PBLA-01 Delta, PBLA-02 Omega,
-PBLA-03 Beta, PBLA-04 Rho); see the Protocol Bus Program section below. A
-**cold-start healthcheck defect** was also found and fixed: the orchestrator
-`/health` (the Docker liveness probe the whole `depends_on` chain gates on) ran
-live optional-backend readiness probes and timed out under cold-start
-contention, wedging every dependent (api-gateway → mission-control → …) in
-`Created`. Fixed by adding a probe-free `/livez` and repointing the healthcheck
-at it. **Confirmed on a live restart**: the full stack — including
-mission-control, which previously failed — came up healthy (orchestrator healthy
-in ~39s; 0 unhealthy / 0 stuck-`Created`). The dedicated-agent stack is currently
-running the PBLA code. The remaining Stage 1 item is the live six-lane bus
-validation (run a mission; confirm Delta/Omega/Beta traffic + a forced-429 Rho,
-zero DLQ; capture evidence).
+**Most recent work: the first full, chat-driven system run (2026-06-30).**
+20 missions were submitted one at a time through the real Mission Control chat
+UI (not the raw API), each going through the PM Agent's actual clarification
+dialogue, covering all 19 language specialists across all 4 pods plus one
+modernize/debug-repair mission. All 20 reached `COMPLETE`. Full results, code
+review, agent/support-ring usage tally, and recommendations:
+`FIRST_FULL_SYSTEM_RUN_FINDINGS_2026-06-30.md` (repo root); the full
+chronological session narrative (what happened, in order, and exact
+end-of-session repo/stack state) is `MISSION_TESTS_SESSION_LOG_2026-06-30.md`
+(repo root). Headline: PBLA's
+Alpha/Sigma/Delta/Omega lanes all fired correctly with zero DLQ writes; one
+real routing bug was found and fixed (pod-audit misrouting); one real dead-code
+defect was found and root-caused but not yet fixed (Beta never fires); two
+missions silently generated code in the wrong language. **The battery's
+database state was subsequently wiped** by `stop_app.bat`'s `docker compose
+down -v` — remediation plan at `docs/STACK_REMEDIATION_PLAN_2026-07-01.md`. No
+further live fixes until that plan's offline-fix step completes.
+
+Before that: the **Protocol Bus Lane Activation (PBLA) Stage 1** producers were
+made code-complete and unit-tested — all six lanes have live producers
+(PBLA-00 shared discriminators, PBLA-01 Delta, PBLA-02 Omega, PBLA-03 Beta,
+PBLA-04 Rho); see the Protocol Bus Program section below. A **cold-start
+healthcheck defect** was also found and fixed: the orchestrator `/health` (the
+Docker liveness probe the whole `depends_on` chain gates on) ran live
+optional-backend readiness probes and timed out under cold-start contention,
+wedging every dependent (api-gateway → mission-control → …) in `Created`.
+Fixed by adding a probe-free `/livez` and repointing the healthcheck at it —
+confirmed working on a live restart before the above battery ran.
 
 Phase 13 backend/API smoke is complete for this pass. The latest committed
 smoke evidence is `docs/evidence/phase13_smoke_latest.json` for mission
@@ -137,23 +150,43 @@ agent-coordination backbone is documented as a staged program in
 PBLA is the prerequisite for the load-bearing cutovers in EDCP. PBLA only makes
 the lanes observable (telemetry); EDCP is what makes them load-bearing.
 
-### Protocol Bus Lane Activation (PBLA, Stage 1) — all lanes code complete (PBLA-00..04)
+### Protocol Bus Lane Activation (PBLA, Stage 1) — code complete + live-validated
 
 Status: PBLA-00 (shared discriminators), PBLA-01 (Delta), PBLA-02 (Omega),
-PBLA-03 (Beta), and PBLA-04 (Rho) are implemented and unit-tested — all six lanes
-now have live producers in code. Rho emits at the `_post_with_retry` 429 branch
-and resolves bus config via `load_settings()`. Full suite green (150+ in the
-combined run), ruff clean.
+PBLA-03 (Beta), and PBLA-04 (Rho) are implemented and unit-tested. **Live
+validation ran 2026-06-30**: 20 missions through the real Mission Control chat
+UI, all reaching `COMPLETE`. Alpha/Sigma/Delta/Omega confirmed firing with zero
+DLQ writes; Rho confirmed via a direct producer smoke test. Full results,
+code-artifact review, and recommendations:
+`FIRST_FULL_SYSTEM_RUN_FINDINGS_2026-06-30.md` (repo root).
 
-Remaining for Stage 1:
-- **Live validation (the one open item):** run the stack and confirm all six
-  `protocol:{lane}:*` streams carry traffic on a real mission (Rho needs a
-  synthetic 429), zero DLQ writes; capture evidence; update
-  `IMPLEMENTATION_STATUS.md`. See PBLA Closing Validation.
+**Two real issues surfaced by the live run, not yet fixed:**
+- **Beta never fired across all 20 missions.** Root cause confirmed:
+  `generated_output` is set earlier (`_prepare_specialist_assignment` in
+  `phases_build.py`) than PBLA-03's insertion point in `_prepare_fusion`, so the
+  `mission_has_generated_output` guard is already true and the codegen+Beta
+  block is skipped every time. Fix: move the Beta emission to `phases_build.py`
+  right after `generated_output` is set.
+- **Pod-audit agent misrouting** (found live, already fixed + unit-tested — see
+  below) — fix is in the working tree, not yet committed pending stack
+  remediation.
+
+**Also surfaced (not PBLA-specific, but same run):** 2 of 20 missions (C, R)
+generated the wrong language entirely (Python simulating the target language)
+and still reached `COMPLETE` — no verification gate catches
+generated-language-vs-requested-language mismatches. See findings §5/§6.2.
+
+**Environment note:** the battery's database state was subsequently wiped by
+`stop_app.bat` (`docker compose down -v`). Remediation plan (Postgres
+credential mismatch + `api-gateway` internal-auth key, both unresolved):
+`docs/STACK_REMEDIATION_PLAN_2026-07-01.md`. Per explicit direction, no further
+live fixes until that plan's offline-fix step is done.
+
 - **PBLA-05** (optional): lane observability surfacing in the operations snapshot.
 
-Then Stage 2 (EDCP) becomes unblocked — consumers can filter PBLA's `pbla_*`
-discriminators off the shared broadcast channels.
+Once the Beta fix lands and the stack remediation is done, Stage 2 (EDCP)
+becomes unblocked — its consumers filter PBLA's `pbla_*` discriminators off the
+shared broadcast channels.
 
 Tracked in full by `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`. Standalone and
 independent of the EDCP phase plan — can run before, during, or after it. The
@@ -288,7 +321,12 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 | Full validation | Focused validation passed; full `make validate` still needs current run |
 | Provider settings | Provider/model still partly environment-driven |
 | Key hygiene | Exposed provider keys must be rotated before wider use |
-| Protocol Bus lanes | Only Alpha and Sigma have live producers; only Sigma is consumed. Four-stage activation program tracked by `PROTOCOL_BUS_PROGRAM_ROADMAP.md` (PBLA → EDCP → Agent Runtime Split → Semantic Bus), not started |
+| Protocol Bus lanes | All six lanes have live producers (PBLA-00..04) and were live-validated 2026-06-30 (20-mission battery); Beta confirmed non-firing (root-caused, fix pending); only Sigma is consumed so far. Four-stage program tracked by `PROTOCOL_BUS_PROGRAM_ROADMAP.md` (PBLA done → EDCP next → Agent Runtime Split → Semantic Bus) |
+| Pod-audit routing | Bug found live 2026-06-30 (case-mismatch caused every non-Pod-A audit to silently misroute); fixed + unit-tested in the working tree, not yet committed |
+| Beta lane (PBLA-03) | Never fired across 20 live missions; root cause confirmed (insertion point unreachable for normal `BUILD_NEW` missions); fix identified, not yet applied — see `FIRST_FULL_SYSTEM_RUN_FINDINGS_2026-06-30.md` §6.1 |
+| Generated-language verification | No gate catches generated-code-language ≠ requested-target-language; 2 of 20 live missions (C, R) silently delivered Python instead — see findings §6.2 |
+| Stack credentials | Postgres password mismatch and `api-gateway` internal-auth key resolve incorrectly after a restart; unresolved, offline fix required — see `docs/STACK_REMEDIATION_PLAN_2026-07-01.md` |
+| Database state | `postgres-data`/`redis-data` volumes were wiped by `stop_app.bat` (`docker compose down -v`); all mission/chain-trace history from the 2026-06-30 battery is gone (generated code artifacts survived in `output/`) |
 
 ---
 
