@@ -45,6 +45,26 @@ _CRITERION_STOPWORDS = {
     "able", "they", "them", "have", "been", "such", "than", "each", "also",
 }
 
+# Target languages Python is least likely to be confused with, and where an LLM
+# specialist falling back to a Python simulation is both plausible (weaker
+# LLM codegen support) and cheap to detect confidently (little syntactic
+# overlap with Python). Deliberately not all 19 supported languages — see
+# _check_language_content_signature's docstring.
+_PYTHON_DISSIMILAR_LANGUAGES = {"c", "cpp", "c++", "r", "go", "golang", "rust", "shell", "bash", "sh"}
+
+# Unambiguous Python syntax tells. Each pattern alone can incidentally appear
+# in another language's comments/strings, so the check requires multiple
+# independent matches (see _PYTHON_SIGNAL_MIN_MATCHES) rather than trusting any
+# single one. The "def" pattern tolerates an optional `-> ReturnType` before the
+# colon (real-world Python fallback artifacts are typically type-hinted).
+_PYTHON_SIGNAL_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"\bdef\s+\w+\s*\([^)]*\)\s*(->\s*[^:\n]+)?:"),
+    re.compile(r"^\s*elif\b", re.MULTILINE),
+    re.compile(r"^\s*(from\s+[\w.]+\s+)?import\s+[\w.]+(\s*,\s*[\w.]+)*\s*$", re.MULTILINE),
+    re.compile(r"\bself\b"),
+]
+_PYTHON_SIGNAL_MIN_MATCHES = 2
+
 
 def mission_requires_equivalence(metadata: Any) -> bool:
     if not isinstance(metadata, dict):
@@ -84,6 +104,7 @@ def build_equivalence_report(
             feature_contract, mission_contract, build_artifacts, generated_output
         ),
         _check_language_alignment(generated_output, target_language),
+        _check_language_content_signature(generated_output, target_language),
         _check_acceptance_criteria(feature_contract, mission_contract, generated_output),
         _check_aim_consistency(aim, generated_output),
     ]
@@ -350,6 +371,81 @@ def _check_language_alignment(
         required=True,
         message="Generated output language does not match the target language.",
         evidence={"generated_language": generated_language, "target_language": target},
+    )
+
+
+def _check_language_content_signature(
+    generated_output: dict[str, Any],
+    target_language: str | None,
+) -> dict[str, Any]:
+    """Detect a Python-fallback substitution that self-reported the right language.
+
+    ``_check_language_alignment`` compares ``generated_output["language"]``
+    against the target language, but both values are ultimately supplied by the
+    same LLM call that produced ``generated_code`` — a specialist that
+    internally falls back to writing Python can still label its own output with
+    the requested language, and that comparison can never catch it. Confirmed
+    against the 2026-06-30 20-mission battery: the C and R missions both
+    silently delivered working Python (a ``ctypes``-based C-source generator, a
+    Python function simulating R's vectorization rules) labeled as their
+    requested language.
+
+    This check instead inspects ``generated_code`` text directly, but only for
+    languages Python is least likely to be confused with (see
+    ``_PYTHON_DISSIMILAR_LANGUAGES``) — deliberately not all 19 supported
+    languages. A hand-rolled marker table degrades fast as more languages with
+    syntactic overlap are added (JS/TS/Java/C#/C++ all share braces and
+    semicolons); for any language not in scope, this returns ``manual_review``
+    ("not evaluated"), never ``fail`` ("assumed wrong").
+    """
+    target = str(target_language or "").strip().lower()
+    if target not in _PYTHON_DISSIMILAR_LANGUAGES:
+        return _check(
+            check_id="language_content_signature",
+            title="Language content signature",
+            status="manual_review",
+            required=False,
+            message=(
+                "Content-based language verification is not implemented for "
+                f"'{target or 'unknown'}'; relying on self-reported language metadata."
+            ),
+            evidence={"target_language": target},
+        )
+
+    code = str(generated_output.get("generated_code") or "")
+    if not code.strip():
+        return _check(
+            check_id="language_content_signature",
+            title="Language content signature",
+            status="manual_review",
+            required=False,
+            message="No generated code available to inspect for a language signature.",
+            evidence={"target_language": target},
+        )
+
+    python_matches = sum(1 for pattern in _PYTHON_SIGNAL_PATTERNS if pattern.search(code))
+
+    if python_matches >= _PYTHON_SIGNAL_MIN_MATCHES:
+        return _check(
+            check_id="language_content_signature",
+            title="Language content signature",
+            status="fail",
+            required=True,
+            message=(
+                f"Generated code contains unambiguous Python syntax (matched "
+                f"{python_matches} independent tells) but the target language is "
+                f"'{target}' — this looks like a Python simulation rather than real "
+                f"{target} source."
+            ),
+            evidence={"target_language": target, "python_signals_matched": python_matches},
+        )
+    return _check(
+        check_id="language_content_signature",
+        title="Language content signature",
+        status="pass",
+        required=True,
+        message=f"No contradicting Python syntax signature found for target language '{target}'.",
+        evidence={"target_language": target, "python_signals_matched": python_matches},
     )
 
 

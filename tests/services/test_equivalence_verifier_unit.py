@@ -236,6 +236,124 @@ def test_artifact_format_gate_is_advisory_without_explicit_format() -> None:
     assert report["passed"] is True
 
 
+def _content_signature_check(report: dict[str, object]) -> dict[str, object]:
+    return next(
+        check
+        for check in report["checks"]  # type: ignore[index]
+        if check["check_id"] == "language_content_signature"
+    )
+
+
+def test_language_content_signature_flags_python_fallback_for_c_mission() -> None:
+    # Regression for the 2026-06-30 battery's C mission: the specialist
+    # delivered a Python script (a ctypes-based generator) that self-reported
+    # "language": "c" instead of real .h/.c source. _check_language_alignment
+    # cannot catch this (both values trace back to "c"); this check inspects
+    # the code body directly.
+    report = equivalence_verifier.build_equivalence_report(
+        mission_id="mission-c",
+        requested_target_language="c",
+        metadata={
+            "generated_output": {
+                "source": "llm",
+                "filename": "generator_harness.py",
+                "language": "c",
+                "generated_code": (
+                    "import ctypes\n"
+                    "from pathlib import Path\n\n"
+                    "async def write_c_library_files(target_dir: Path) -> None:\n"
+                    "    target_dir.mkdir(parents=True, exist_ok=True)\n"
+                ),
+            },
+        },
+        build_artifacts=[],
+        enforcement_enabled=True,
+    )
+
+    check = _content_signature_check(report)
+    assert check["status"] == "fail"
+    assert check["required"] is True
+    assert check["evidence"]["python_signals_matched"] >= 2
+
+
+def test_language_content_signature_flags_python_fallback_for_r_mission() -> None:
+    # Regression for the same battery's R mission: a Python function
+    # simulating R's recycling/NA-coercion rules, self-reported as "r".
+    report = equivalence_verifier.build_equivalence_report(
+        mission_id="mission-r",
+        requested_target_language="r",
+        metadata={
+            "generated_output": {
+                "source": "llm",
+                "filename": "vectorized_math.py",
+                "language": "r",
+                "generated_code": (
+                    "import math\n"
+                    "import warnings\n\n"
+                    "def r_vector_add(vector1, vector2):\n"
+                    "    return []\n"
+                ),
+            },
+        },
+        build_artifacts=[],
+        enforcement_enabled=True,
+    )
+
+    check = _content_signature_check(report)
+    assert check["status"] == "fail"
+    assert check["required"] is True
+
+
+def test_language_content_signature_passes_real_go_source() -> None:
+    report = equivalence_verifier.build_equivalence_report(
+        mission_id="mission-go",
+        requested_target_language="go",
+        metadata={
+            "generated_output": {
+                "source": "llm",
+                "filename": "mathutil.go",
+                "language": "go",
+                "generated_code": (
+                    "package mathutil\n\n"
+                    "func Add(a, b int) int {\n"
+                    "    return a + b\n"
+                    "}\n"
+                ),
+            },
+        },
+        build_artifacts=[],
+        enforcement_enabled=True,
+    )
+
+    check = _content_signature_check(report)
+    assert check["status"] == "pass"
+    assert check["required"] is True
+
+
+def test_language_content_signature_skips_unscoped_languages() -> None:
+    # Languages without a marker table must return manual_review ("not
+    # evaluated"), never fail ("assumed wrong") — a false "fail" here would
+    # incorrectly flag every mission in every uncovered language.
+    report = equivalence_verifier.build_equivalence_report(
+        mission_id="mission-kotlin",
+        requested_target_language="kotlin",
+        metadata={
+            "generated_output": {
+                "source": "llm",
+                "filename": "Main.kt",
+                "language": "kotlin",
+                "generated_code": "fun main() { println(\"hi\") }",
+            },
+        },
+        build_artifacts=[],
+        enforcement_enabled=True,
+    )
+
+    check = _content_signature_check(report)
+    assert check["status"] == "manual_review"
+    assert check["required"] is False
+
+
 def test_acceptance_criteria_reports_per_criterion_coverage() -> None:
     report = equivalence_verifier.build_equivalence_report(
         mission_id="mission-1",
