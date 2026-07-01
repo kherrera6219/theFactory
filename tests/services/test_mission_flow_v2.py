@@ -973,6 +973,85 @@ async def test_prepare_specialist_plan_codegen_uses_port_knowledge_and_scaling()
 
 
 @pytest.mark.asyncio
+async def test_prepare_specialist_plan_emits_beta_production_result() -> None:
+    """Regression test for PBLA-03 never firing (findings §4/§6.1, 2026-06-30 battery).
+
+    generated_output is set here, in _prepare_specialist_plan, before fusion ever
+    runs — so this is the call site that must fire Beta for a normal BUILD_NEW
+    mission. The existing _prepare_fusion Beta call remains a fallback for
+    missions whose first codegen attempt didn't succeed; it is untouched.
+    """
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.specialist_assigned)
+    mission.metadata = {
+        "assigned_pod_manager_agent_id": "AGENT-18-PODB-MGR",
+        "assigned_specialist_agent_id": "AGENT-36-GO",
+        "ceo_delegation": {"specialist_agent_id": "AGENT-36-GO"},
+        "mission_contract": {"contract_summary": "Build a Go helper", "acceptance_criteria": []},
+    }
+    beta_call = AsyncMock()
+
+    async def _generate_code_from_contract(**kwargs):
+        return {
+            "source": "llm",
+            "filename": "helper.go",
+            "language": "go",
+            "generated_code": "package main\n",
+            "code_length_chars": 13,
+            "model_provider": "openai",
+            "model": "gpt-test",
+            "specialist_agent_id": "AGENT-36-GO",
+        }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _settings, _mission_id: mission
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = MagicMock()
+        with patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_specialist_plan",
+            new=AsyncMock(
+                return_value={
+                    "source": "llm",
+                    "deliverables": ["helper file"],
+                    "risk_notes": [],
+                    "llm_route": "primary",
+                    "model_provider": "openai",
+                    "model": "gpt-test",
+                }
+            ),
+        ), patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_code_from_contract",
+            new=AsyncMock(side_effect=_generate_code_from_contract),
+        ), patch.object(
+            orchestrator_mission_flow_v2_runtime,
+            "_send_beta_production_result",
+            new=beta_call,
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            prepared = await orchestrator_mission_flow_v2_build._prepare_specialist_plan(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+            )
+
+    assert prepared is True
+    beta_call.assert_awaited_once()
+    kwargs = beta_call.await_args.kwargs
+    assert kwargs["specialist_agent_id"] == "AGENT-36-GO"
+    assert kwargs["pod_manager_agent_id"] == "AGENT-18-PODB-MGR"
+    assert kwargs["source_language"] == "go"
+    assert kwargs["confidence_score"] == 0.85
+    assert kwargs["logicnode_id"] == f"ln-{mission.mission_id}-specialist"
+
+
+@pytest.mark.asyncio
 async def test_resolve_attachment_content_parses_inline_and_degrades_storage_failures() -> None:
     settings = _make_settings()
     parsed_inputs: list[tuple[bytes, str, str]] = []

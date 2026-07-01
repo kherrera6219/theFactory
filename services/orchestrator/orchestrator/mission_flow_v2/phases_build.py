@@ -448,6 +448,28 @@ async def _prepare_specialist_plan(
             target_language=_target_lang,
         )
         metadata["generated_output"] = generated_output
+        # PBLA-03: emit the specialist result on the Beta lane (fire-and-forget).
+        # This is the primary Beta emission site: generated_output is set here,
+        # before fusion ever runs, so by the time _prepare_fusion's own Beta call
+        # (phases_runtime.py) executes, mission_has_generated_output(metadata) is
+        # already True and that call is a no-op for a normal BUILD_NEW mission —
+        # it remains the fallback emission for missions whose codegen only
+        # succeeds on a later fusion-stage retry. The shared
+        # mission_has_generated_output guard keeps the two call sites mutually
+        # exclusive, so no separate idempotency marker is needed here.
+        from .phases_runtime import _send_beta_production_result  # noqa: PLC0415
+
+        await _send_beta_production_result(
+            settings=settings,
+            mission_id=mission_id,
+            specialist_agent_id=generated_output.get(
+                "specialist_agent_id", specialist_agent_id
+            ),
+            pod_manager_agent_id=pod_manager_agent_id,
+            logicnode_id=f"ln-{mission_id}-specialist",
+            confidence_score=0.85 if generated_output.get("source") == "llm" else 0.3,
+            source_language=str(generated_output.get("language") or _target_lang),
+        )
         if not _chain_event_exists(metadata, "GENERATED_OUTPUT_CREATED"):
             append_chain_event(
                 metadata,
