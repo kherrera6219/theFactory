@@ -10,6 +10,7 @@ from ..equivalence_verifier import (
     mission_requires_equivalence,
 )
 from ..llm_delegation import (
+    generate_compliance_assessment,
     generate_integration_tests,
     generate_security_analysis,
     generate_vc_commit_strategy,
@@ -183,6 +184,31 @@ async def _prepare_delivery_summary(
                 "test_case_count": len(integration_tests.get("test_cases") or []),
                 "framework": integration_tests.get("framework"),
                 "source": integration_tests.get("source"),
+            },
+        )
+
+    # Compliance assessment — run once at delivery, unconditionally, mirroring
+    # Security/VC/Tester above. Previously AGENT-08-COMPLIANCE only activated
+    # on a literal "COMPLIANCE" substring in the CEO's delegation rationale
+    # (_extract_support_agent_flags in base.py), which essentially never fired
+    # for ordinary prompts (findings §6.3, 2026-06-30 battery).
+    if not isinstance(metadata.get("compliance_assessment"), dict):
+        compliance_assessment = await generate_compliance_assessment(
+            mission_id=mission.mission_id,
+            mission_context=mission_context,
+            generated_output=generated_output,
+            mission_contract=mission_contract,
+        )
+        metadata["compliance_assessment"] = compliance_assessment
+        append_chain_event(
+            metadata,
+            event_type="MISSION_COMPLIANCE_ASSESSMENT_COMPLETE",
+            agent_id="AGENT-08-COMPLIANCE",
+            details={
+                "compliance_status": compliance_assessment.get("compliance_status"),
+                "passed": compliance_assessment.get("passed"),
+                "note_count": len(compliance_assessment.get("regulatory_notes") or []),
+                "source": compliance_assessment.get("source"),
             },
         )
 

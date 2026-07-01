@@ -1706,3 +1706,67 @@ def test_generate_pod_audit_verdict_resolves_correct_agent_per_pod(
         )
     )
     assert result["agent_id"] == expected_agent_id
+
+
+def test_generate_compliance_assessment_normalizes_llm_response(monkeypatch) -> None:
+    async def _fake_llm(*, recommendation, prompt, call_context, agent_id):
+        _ = recommendation, prompt, call_context
+        assert agent_id == "AGENT-08-COMPLIANCE"
+        return (
+            {
+                "schema_version": "compliance_assessment.v1",
+                "compliance_status": "needs_review",
+                "regulatory_notes": [
+                    {
+                        "area": "licensing",
+                        "concern": "GPL dependency detected",
+                        "recommendation": "Confirm license compatibility.",
+                    }
+                ],
+                "summary": "Dependency licensing needs review.",
+                "recommendations": ["Run a license audit."],
+                "passed": True,
+            },
+            "openai",
+            "gpt-5.5",
+            "primary",
+        )
+
+    monkeypatch.setattr(
+        llm_delegation.generators_artifacts, "_call_with_agent_system", _fake_llm
+    )
+    result = asyncio.run(
+        llm_delegation.generate_compliance_assessment(
+            mission_id="m-compliance",
+            mission_context={"requested_target_language": "python"},
+            generated_output={"language": "python", "dependencies": ["some-gpl-lib"]},
+            mission_contract={"contract_summary": "Build a helper"},
+        )
+    )
+    assert result["agent_id"] == "AGENT-08-COMPLIANCE"
+    assert result["compliance_status"] == "needs_review"
+    assert result["source"] == "llm"
+    assert result["regulatory_notes"][0]["area"] == "licensing"
+    assert result["passed"] is True
+
+
+def test_generate_compliance_assessment_falls_back_when_llm_unavailable(monkeypatch) -> None:
+    async def _no_llm(*, recommendation, prompt, call_context, agent_id):
+        _ = recommendation, prompt, call_context, agent_id
+        return None, "openai", "gpt-5.5", "primary"
+
+    monkeypatch.setattr(
+        llm_delegation.generators_artifacts, "_call_with_agent_system", _no_llm
+    )
+    result = asyncio.run(
+        llm_delegation.generate_compliance_assessment(
+            mission_id="m-compliance-2",
+            mission_context={"requested_target_language": "python"},
+            generated_output=None,
+            mission_contract=None,
+        )
+    )
+    assert result["agent_id"] == "AGENT-08-COMPLIANCE"
+    assert result["source"] == "fallback"
+    assert result["passed"] is False
+    assert result["status"] == "degraded"

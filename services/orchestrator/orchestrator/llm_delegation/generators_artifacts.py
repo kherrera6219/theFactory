@@ -9,6 +9,7 @@ from typing import Any
 
 from ..mission_flow import CEO_AGENT_ID
 from .fallbacks import (
+    _fallback_compliance_assessment,
     _fallback_integration_tests,
     _fallback_pod_audit_verdict,
     _fallback_security_analysis,
@@ -597,6 +598,112 @@ async def generate_vc_commit_strategy(
         "pr_body": _clean_text(parsed.get("pr_body", ""), max_length=2000),
         "rollback_steps": _string_list(parsed.get("rollback_steps"), limit=5),
         "conventional_type": conv_type,
+        "source": "llm",
+        "model_provider": resolved_provider,
+        "model": resolved_model,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
+async def generate_compliance_assessment(
+    *,
+    mission_id: str,
+    mission_context: dict[str, Any],
+    generated_output: dict[str, Any] | None,
+    mission_contract: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Ask AGENT-08-COMPLIANCE to assess regulatory/governance compliance considerations.
+
+    Distinct from AGENT-05-SECURITY's vulnerability/threat analysis and from
+    security_compliance.py's deterministic PII/dependency-license scan: this is
+    a lightweight LLM opinion on data-handling, third-party licensing, and
+    audit-trail/documentation considerations for the generated artifact.
+    Returns a ``compliance_assessment.v1`` document. Falls back deterministically
+    when the LLM is unavailable so this gate never blocks mission delivery.
+    """
+    recommendation = _pkg()._agent_recommendation("AGENT-08-COMPLIANCE")
+    provider = str(recommendation.get("provider", "gemini")).strip().lower()
+    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
+
+    language = _clean_text(
+        str(
+            (generated_output or {}).get("language")
+            or mission_context.get("requested_target_language")
+            or "unknown"
+        ),
+        max_length=32,
+    )
+    dependencies = _string_list((generated_output or {}).get("dependencies"), limit=20)
+    contract_summary = _clean_text(
+        str((mission_contract or {}).get("contract_summary") or ""), max_length=300
+    )
+
+    prompt = (
+        "You are AGENT-08-COMPLIANCE assessing regulatory and governance compliance.\n"
+        f"Recommended model: {provider}/{model}\n"
+        "Review the mission output for data-handling/privacy considerations, "
+        "third-party dependency licensing considerations, and audit-trail/"
+        "documentation completeness. This is not a security vulnerability scan.\n"
+        "Return only JSON. No markdown.\n\n"
+        f"Mission ID: {_clean_text(mission_id, max_length=96)}\n"
+        f"Language: {language}\n"
+        f"Contract summary: {contract_summary}\n"
+        f"Dependencies: {', '.join(dependencies) or 'none declared'}\n\n"
+        "Required JSON keys:\n"
+        "{\n"
+        '  "schema_version": "compliance_assessment.v1",\n'
+        '  "compliance_status": "compliant|needs_review|non_compliant",\n'
+        '  "regulatory_notes": [\n'
+        '    {"area": "data_privacy|licensing|audit_trail", "concern": "...", '
+        '"recommendation": "..."}\n'
+        "  ],\n"
+        '  "summary": "One-paragraph executive summary.",\n'
+        '  "recommendations": ["..."],\n'
+        '  "passed": true\n'
+        "}\n\n"
+        "Limit regulatory_notes to 10 items. compliance_status must be one of: "
+        "compliant, needs_review, non_compliant.\n"
+    )
+
+    parsed, resolved_provider, resolved_model, _route = await _call_with_agent_system(
+        recommendation=recommendation,
+        prompt=prompt,
+        call_context="compliance assessment",
+        agent_id="AGENT-08-COMPLIANCE",
+    )
+
+    if not isinstance(parsed, dict):
+        return _fallback_compliance_assessment(mission_id=mission_id)
+
+    valid_statuses = {"compliant", "needs_review", "non_compliant"}
+    compliance_status = _clean_text(
+        parsed.get("compliance_status", "needs_review"), max_length=16
+    ).lower()
+    if compliance_status not in valid_statuses:
+        compliance_status = "needs_review"
+    notes_raw = parsed.get("regulatory_notes") or []
+    regulatory_notes: list[dict[str, Any]] = []
+    if isinstance(notes_raw, list):
+        for item in notes_raw[:10]:
+            if not isinstance(item, dict):
+                continue
+            regulatory_notes.append({
+                "area": _clean_text(item.get("area", "unknown"), max_length=32),
+                "concern": _clean_text(item.get("concern", ""), max_length=240),
+                "recommendation": _clean_text(item.get("recommendation", ""), max_length=240),
+            })
+    passed = compliance_status != "non_compliant" and bool(parsed.get("passed", True))
+    return {
+        "schema_version": "compliance_assessment.v1",
+        "mission_id": _clean_text(mission_id, max_length=96),
+        "agent_id": "AGENT-08-COMPLIANCE",
+        "compliance_status": compliance_status,
+        "regulatory_notes": regulatory_notes,
+        "summary": _clean_text(
+            parsed.get("summary", "Compliance assessment complete."), max_length=600
+        ),
+        "recommendations": _string_list(parsed.get("recommendations"), limit=8),
+        "passed": passed,
         "source": "llm",
         "model_provider": resolved_provider,
         "model": resolved_model,

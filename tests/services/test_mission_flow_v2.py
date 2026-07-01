@@ -29,6 +29,9 @@ orchestrator_mission_flow_v2_intake = importlib.import_module(
 orchestrator_mission_flow_v2_build = importlib.import_module(
     "orchestrator.mission_flow_v2.phases_build"
 )
+orchestrator_mission_flow_v2_delivery = importlib.import_module(
+    "orchestrator.mission_flow_v2.phases_delivery"
+)
 orchestrator_models = importlib.import_module("orchestrator.models")
 orchestrator_is_agent = importlib.import_module("orchestrator.is_agent")
 
@@ -1049,6 +1052,81 @@ async def test_prepare_specialist_plan_emits_beta_production_result() -> None:
     assert kwargs["source_language"] == "go"
     assert kwargs["confidence_score"] == 0.85
     assert kwargs["logicnode_id"] == f"ln-{mission.mission_id}-specialist"
+
+
+@pytest.mark.asyncio
+async def test_prepare_delivery_summary_runs_compliance_unconditionally() -> None:
+    """Regression test for findings §6.3 (2026-06-30 battery): AGENT-08-COMPLIANCE
+    previously only activated on a literal "COMPLIANCE" substring in the CEO's
+    delegation rationale, which essentially never fired for ordinary prompts.
+    Compliance now runs unconditionally at delivery, mirroring Security/VC/Tester.
+    """
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {"language": "python", "generated_code": "print('hi')"},
+        "mission_contract": {"contract_summary": "Build a helper"},
+    }
+    compliance_call = AsyncMock(
+        return_value={
+            "schema_version": "compliance_assessment.v1",
+            "agent_id": "AGENT-08-COMPLIANCE",
+            "compliance_status": "compliant",
+            "regulatory_notes": [],
+            "summary": "No compliance concerns.",
+            "recommendations": [],
+            "passed": True,
+            "source": "llm",
+        }
+    )
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.list_build_artifacts = MagicMock(return_value=[])
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_pm_delivery_summary",
+            new=AsyncMock(
+                return_value={
+                    "delivery_title": "Delivered helper",
+                    "primary_artifact_type": "generated_code",
+                    "criteria_met": [],
+                    "source": "fallback",
+                }
+            ),
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery,
+            "generate_security_analysis",
+            new=AsyncMock(return_value={"risk_level": "low", "passed": True, "source": "llm"}),
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery,
+            "generate_vc_commit_strategy",
+            new=AsyncMock(return_value={"conventional_type": "feat", "source": "llm"}),
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery,
+            "generate_integration_tests",
+            new=AsyncMock(return_value={"test_filename": "test_x.py", "source": "llm"}),
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery,
+            "generate_compliance_assessment",
+            new=compliance_call,
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            await orchestrator_mission_flow_v2_delivery._prepare_delivery_summary(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+
+    compliance_call.assert_awaited_once()
+    assert mission.metadata["compliance_assessment"]["compliance_status"] == "compliant"
+    assert any(
+        event["event_type"] == "MISSION_COMPLIANCE_ASSESSMENT_COMPLETE"
+        for event in mission.metadata["chain_trace"]
+    )
 
 
 @pytest.mark.asyncio

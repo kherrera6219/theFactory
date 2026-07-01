@@ -441,6 +441,35 @@ def _fallback_security_analysis(*, mission_id: str, language: str) -> dict[str, 
 # ---------------------------------------------------------------------------
 
 
+def _fallback_compliance_assessment(*, mission_id: str) -> dict[str, Any]:
+    """Offline fallback for the compliance gate.
+
+    Matches _fallback_security_analysis's honesty convention: the LLM is
+    unavailable, so report status="degraded" with passed=False rather than a
+    fake green pass. The mission is not blocked (advisory=True); the operator
+    sees a warning instead.
+    """
+    LLM_FALLBACK_TOTAL.labels(agent_id="AGENT-08-COMPLIANCE", reason="offline").inc()
+    return {
+        "schema_version": "compliance_assessment.v1",
+        "mission_id": _clean_text(mission_id, max_length=96),
+        "agent_id": "AGENT-08-COMPLIANCE",
+        "compliance_status": "needs_review",
+        "regulatory_notes": [],
+        "summary": (
+            "Compliance assessment could not run — LLM provider unavailable. "
+            "Gate bypassed (advisory); manual review required before production."
+        ),
+        "recommendations": ["Perform manual compliance review before production deployment."],
+        "passed": False,
+        "status": "degraded",
+        "reason": "LLM unavailable — gate bypassed",
+        "advisory": True,
+        "source": "fallback",
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+
+
 def _fallback_vc_commit_strategy(
     *, mission_id: str, language: str, mission_type: str
 ) -> dict[str, Any]:
