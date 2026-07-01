@@ -5,17 +5,12 @@ import { NextResponse } from "next/server";
 import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
 import {
   branchLooksValid,
-  buildGithubHeaders,
   estimateLines,
-  fetchGithubFileText,
-  fetchGithubJson,
-  GithubApiError,
   languageFromPath,
   normalizeSubdirectory,
-  parseGithubRepoUrl,
   requestedLanguageFromPath,
-  resolveGithubToken,
 } from "../shared";
+import { indexZipArchive, readZipTextFile } from "../archive";
 
 export const runtime = "nodejs";
 
@@ -23,8 +18,10 @@ type RepoFileOverlayAction = "include" | "reference" | "exclude";
 type MissionType = "analyze" | "update" | "add_feature" | "refactor";
 
 type RepoReviewRequest = {
-  repo_url?: string;
+  display_name?: string;
+  source_ref?: string;
   branch?: string;
+  archive_sha256?: string;
   subdirectory?: string;
   mission_type?: MissionType;
   description?: string;
@@ -35,6 +32,13 @@ type RepoReviewRequest = {
     bytes?: number;
     estimated_lines?: number;
   }>;
+};
+
+type UploadedArchive = {
+  name?: string;
+  type?: string;
+  size?: number;
+  arrayBuffer: () => Promise<ArrayBuffer>;
 };
 
 type ReviewFileRecord = {
@@ -58,11 +62,15 @@ type ReviewResponse = {
   source: "repo-review";
   generated_at: string;
   repository: {
+    source: "zip";
     owner: string;
     repo: string;
     branch: string;
-    html_url: string;
+    html_url: string | null;
     selected_subdirectory: string;
+    archive_id: string;
+    archive_sha256: string;
+    root_prefix: string;
   };
   mission_type: MissionType;
   requested_target_language: string | null;
@@ -115,6 +123,54 @@ function badRequest(detail: string): NextResponse {
   return NextResponse.json({ detail }, { status: 400 });
 }
 
+function formString(formData: FormData, key: string): string {
+  const value = formData.get(key);
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isUploadedArchive(value: unknown): value is UploadedArchive {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "arrayBuffer" in value &&
+    typeof (value as UploadedArchive).arrayBuffer === "function"
+  );
+}
+
+function stripZipExtension(fileName: string): string {
+  return fileName.replace(/\.zip$/i, "");
+}
+
+function sanitizeDisplayName(value: string): string {
+  const cleaned = value
+    .trim()
+    .replace(/\.zip$/i, "")
+    .replace(/[^A-Za-z0-9._ -]+/g, "-")
+    .replace(/[-_ .]+$/g, "")
+    .slice(0, 120);
+  return cleaned || "repository-archive";
+}
+
+function archiveLooksLikeZip(buffer: Buffer): boolean {
+  if (buffer.length < 4) {
+    return false;
+  }
+  const signature = buffer.readUInt32LE(0);
+  return signature === 0x04034b50 || signature === 0x06054b50 || signature === 0x08074b50;
+}
+
+function parseSelectedFilesField(value: FormDataEntryValue | null): RepoReviewRequest["selected_files"] | null {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value) as RepoReviewRequest["selected_files"];
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function sanitizeText(value: string | undefined): string {
   return String(value ?? "")
     .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "")
@@ -122,7 +178,7 @@ function sanitizeText(value: string | undefined): string {
 }
 
 function sanitizeSelectedFiles(
-  rawFiles: RepoReviewRequest["selected_files"],
+  rawFiles: RepoReviewRequest["selected_files"] | null,
   normalizedSubdirectory: string,
 ): SanitizedSelectedFile[] | null {
   if (!Array.isArray(rawFiles) || rawFiles.length === 0) {
@@ -577,112 +633,132 @@ export async function POST(request: Request) {
   if (unauthorized) {
     return unauthorized;
   }
-  let payload: RepoReviewRequest;
+
+  let formData: FormData;
   try {
-    payload = (await request.json()) as RepoReviewRequest;
+    formData = await request.formData();
   } catch {
-    return badRequest("Invalid JSON payload.");
+    return badRequest("Repository ZIP review requires multipart/form-data.");
   }
 
-  const repoUrl = sanitizeText(payload.repo_url);
-  if (repoUrl.length < 10 || repoUrl.length > 400) {
-    return badRequest("repo_url must be a valid GitHub repository URL.");
-  }
-  const parsedRepo = parseGithubRepoUrl(repoUrl);
-  if (!parsedRepo) {
-    return badRequest("Only https://github.com/<owner>/<repo> repository URLs are supported.");
+  const archive = formData.get("archive");
+  if (!isUploadedArchive(archive)) {
+    return badRequest("archive must be a repository .zip file upload.");
   }
 
-  const requestedBranch = sanitizeText(payload.branch);
-  if (requestedBranch && !branchLooksValid(requestedBranch)) {
-    return badRequest("branch contains unsupported characters.");
+  const fileName = String(archive.name ?? "repository.zip").trim() || "repository.zip";
+  if (!fileName.toLowerCase().endsWith(".zip")) {
+    return badRequest("archive must have a .zip filename.");
   }
 
-  const normalizedSubdirectory = normalizeSubdirectory(String(payload.subdirectory ?? "/"));
+  const normalizedSubdirectory = normalizeSubdirectory(formString(formData, "subdirectory") || "/");
   if (normalizedSubdirectory.length > 250) {
     return badRequest("subdirectory path is too long.");
   }
 
-  const missionType = payload.mission_type;
+  const sourceRef = formString(formData, "source_ref") || formString(formData, "branch");
+  if (sourceRef && !branchLooksValid(sourceRef)) {
+    return badRequest("source_ref contains unsupported characters.");
+  }
+
+  const missionType = formString(formData, "mission_type") as MissionType;
   if (!missionType || !MISSION_TYPES.has(missionType)) {
     return badRequest("mission_type must be one of analyze, update, add_feature, or refactor.");
   }
 
-  const description = sanitizeText(payload.description).slice(0, DESCRIPTION_LIMIT);
+  const description = sanitizeText(formString(formData, "description")).slice(0, DESCRIPTION_LIMIT);
   if ((missionType === "update" || missionType === "add_feature") && description.length < 3) {
     return badRequest("description must be provided for update and add_feature reviews.");
   }
 
-  const selectedFiles = sanitizeSelectedFiles(payload.selected_files, normalizedSubdirectory);
+  const selectedFiles = sanitizeSelectedFiles(
+    parseSelectedFilesField(formData.get("selected_files")),
+    normalizedSubdirectory,
+  );
   if (!selectedFiles) {
     return badRequest("selected_files must include 1-120 valid include/reference file records.");
   }
 
+  const buffer = Buffer.from(await archive.arrayBuffer());
+  if (!archiveLooksLikeZip(buffer)) {
+    return badRequest("archive must be a valid ZIP file.");
+  }
+
   try {
-    const githubToken = await resolveGithubToken();
-    const headers = buildGithubHeaders(githubToken);
-
-    const repoMetadataResponse = await fetchGithubJson(
-      `https://api.github.com/repos/${parsedRepo.owner}/${parsedRepo.repo}`,
-      headers,
+    const indexed = await indexZipArchive(
+      { kind: "buffer", buffer },
+      { subdirectory: normalizedSubdirectory, maxFiles: Math.max(selectedFiles.length, MAX_SELECTED_FILES) },
     );
-    if (repoMetadataResponse.status === 404) {
+    const expectedArchiveSha256 = formString(formData, "archive_sha256");
+    if (expectedArchiveSha256 && expectedArchiveSha256 !== indexed.stats.archive_sha256) {
       return NextResponse.json(
-        { detail: "Repository not found or access denied. Configure GitHub token if private." },
-        { status: 404 },
-      );
-    }
-    if (repoMetadataResponse.status === 403) {
-      return NextResponse.json(
-        { detail: "GitHub API rate limited or forbidden. Retry later or configure token." },
-        { status: 403 },
-      );
-    }
-    if (!repoMetadataResponse.ok) {
-      return NextResponse.json(
-        { detail: `GitHub metadata request failed with status ${repoMetadataResponse.status}.` },
-        { status: 502 },
+        { detail: "archive_sha256 does not match the uploaded ZIP archive." },
+        { status: 409 },
       );
     }
 
-    type GithubRepoResponse = {
-      default_branch?: string;
-      html_url?: string;
-    };
-    const repoMetadata = (await repoMetadataResponse.json()) as GithubRepoResponse;
-    const resolvedBranch = requestedBranch || String(repoMetadata.default_branch ?? "main");
-
-    const fetchedFiles = await mapWithConcurrency(selectedFiles, 6, async (file) => {
-      const fetched = await fetchGithubFileText({
-        owner: parsedRepo.owner,
-        repo: parsedRepo.repo,
-        branch: resolvedBranch,
-        path: file.path,
-        token: githubToken,
-      });
-      const textAvailable = !isLikelyBinaryText(fetched.text);
-      const effectiveBytes = fetched.bytes > 0 ? fetched.bytes : file.bytes;
-      const effectiveLines =
-        file.estimated_lines > 0 ? file.estimated_lines : estimateLines(effectiveBytes);
-      return {
-        ...file,
-        bytes: effectiveBytes,
-        estimated_lines: effectiveLines,
-        requested_language: requestedLanguageFromPath(file.path),
-        text: fetched.text,
-        text_available: textAvailable,
-        sha: fetched.sha,
-        summary: textAvailable
-          ? summarizeFileContent(file.path, file.language, fetched.text)
-          : `Binary or non-text ${file.language} asset retained as metadata only.`,
-        content_excerpt: textAvailable ? buildContentExcerpt(fetched.text) : "",
-      } satisfies FetchedReviewFile;
+    const metadataByPath = new Map(indexed.files.map((file) => [file.path, file]));
+    const fetchedFiles = await mapWithConcurrency(selectedFiles, 4, async (file) => {
+      const metadata = metadataByPath.get(file.path);
+      if (!metadata) {
+        throw new Error("Selected file is not available in the uploaded archive: " + file.path);
+      }
+      const bytes = metadata.bytes > 0 ? metadata.bytes : file.bytes;
+      const estimatedLines = metadata.estimated_lines > 0 ? metadata.estimated_lines : file.estimated_lines;
+      const language = metadata.language || file.language || languageFromPath(file.path);
+      try {
+        const fetched = await readZipTextFile(
+          { kind: "buffer", buffer },
+          file.path,
+          { rootPrefix: indexed.stats.root_prefix },
+        );
+        const textAvailable = !isLikelyBinaryText(fetched.text);
+        return {
+          ...file,
+          bytes: fetched.bytes > 0 ? fetched.bytes : bytes,
+          estimated_lines: estimatedLines,
+          language,
+          requested_language: requestedLanguageFromPath(file.path),
+          text: fetched.text,
+          text_available: textAvailable,
+          sha: fetched.sha256,
+          summary: textAvailable
+            ? summarizeFileContent(file.path, language, fetched.text)
+            : "Binary or non-text " + language + " asset retained as metadata only.",
+          content_excerpt: textAvailable ? buildContentExcerpt(fetched.text) : "",
+        } satisfies FetchedReviewFile;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "ZIP entry could not be read.";
+        if (
+          message.includes("appears to be binary") ||
+          message.includes("exceeds text read limit") ||
+          message.includes("cannot be decoded")
+        ) {
+          return {
+            ...file,
+            bytes,
+            estimated_lines: estimatedLines,
+            language,
+            requested_language: requestedLanguageFromPath(file.path),
+            text: "",
+            text_available: false,
+            sha: null,
+            summary: "Binary or non-text " + language + " asset retained as metadata only.",
+            content_excerpt: "",
+          } satisfies FetchedReviewFile;
+        }
+        throw error;
+      }
     });
 
+    const displayName = sanitizeDisplayName(formString(formData, "display_name") || stripZipExtension(fileName));
+    const resolvedBranch = sourceRef || "zip-upload";
+    const owner = "local";
+    const repo = displayName;
     const requestedTargetLanguage = inferRequestedTargetLanguage(fetchedFiles);
     const reviewFingerprint = canonicalReviewFingerprint({
-      owner: parsedRepo.owner,
-      repo: parsedRepo.repo,
+      owner,
+      repo,
       branch: resolvedBranch,
       subdirectory: normalizedSubdirectory,
       missionType,
@@ -690,8 +766,8 @@ export async function POST(request: Request) {
       files: fetchedFiles,
     });
     const bundle = buildSourceBundle({
-      owner: parsedRepo.owner,
-      repo: parsedRepo.repo,
+      owner,
+      repo,
       branch: resolvedBranch,
       subdirectory: normalizedSubdirectory,
       missionType,
@@ -718,17 +794,22 @@ export async function POST(request: Request) {
 
     const includeCount = files.filter((file) => file.overlay_action === "include").length;
     const referenceCount = files.length - includeCount;
+    const archiveId = "repozip-" + indexed.stats.archive_sha256.slice(0, 12);
     const response: ReviewResponse = {
-      request_id: `repo-review-${reviewFingerprint.slice(0, 12)}`,
+      request_id: "repo-review-" + reviewFingerprint.slice(0, 12),
       review_fingerprint: reviewFingerprint,
       source: "repo-review",
       generated_at: new Date().toISOString(),
       repository: {
-        owner: parsedRepo.owner,
-        repo: parsedRepo.repo,
+        source: "zip",
+        owner,
+        repo,
         branch: resolvedBranch,
-        html_url: String(repoMetadata.html_url ?? repoUrl),
+        html_url: null,
         selected_subdirectory: normalizedSubdirectory,
+        archive_id: archiveId,
+        archive_sha256: indexed.stats.archive_sha256,
+        root_prefix: indexed.stats.root_prefix,
       },
       mission_type: missionType,
       requested_target_language: requestedTargetLanguage,
@@ -748,10 +829,10 @@ export async function POST(request: Request) {
         description,
       }),
       diff_summary: [
-        `Reviewed ${files.length} selected file${files.length === 1 ? "" : "s"} from ${parsedRepo.owner}/${parsedRepo.repo}@${resolvedBranch}.`,
-        `Direct-edit scope covers ${includeCount} file${includeCount === 1 ? "" : "s"}; ${referenceCount} file${referenceCount === 1 ? "" : "s"} remain reference-only.`,
-        `Primary target language resolved to ${requestedTargetLanguage ?? "default specialist fallback"}.`,
-        `Prepared a repository source bundle with ${bundle.bundledPaths.size} bundled file${bundle.bundledPaths.size === 1 ? "" : "s"} and ${bundle.sourceCode.length} characters.`,
+        "Reviewed " + files.length + " selected file" + (files.length === 1 ? "" : "s") + " from uploaded ZIP " + displayName + "@" + resolvedBranch + ".",
+        "Direct-edit scope covers " + includeCount + " file" + (includeCount === 1 ? "" : "s") + "; " + referenceCount + " file" + (referenceCount === 1 ? "" : "s") + " remain reference-only.",
+        "Primary target language resolved to " + (requestedTargetLanguage ?? "default specialist fallback") + ".",
+        "Prepared a repository source bundle with " + bundle.bundledPaths.size + " bundled file" + (bundle.bundledPaths.size === 1 ? "" : "s") + " and " + bundle.sourceCode.length + " characters.",
       ],
       risk_notes: buildRiskNotes({
         files: fetchedFiles,
@@ -768,13 +849,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    if (error instanceof GithubApiError) {
-      const status = error.status >= 500 ? 502 : error.status;
-      return NextResponse.json({ detail: error.message }, { status });
-    }
     return NextResponse.json(
-      { detail: error instanceof Error ? error.message : "Repository review failed unexpectedly." },
-      { status: 500 },
+      { detail: error instanceof Error ? error.message : "Repository ZIP review failed unexpectedly." },
+      { status: 400 },
     );
   }
 }

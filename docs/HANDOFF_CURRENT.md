@@ -64,14 +64,19 @@ Mission Control:
   repository fields for the current page.
 - Route tests now focus on ZIP intake: accepted archive, missing archive,
   non-ZIP rejection, invalid source ref, and operator-session enforcement.
-- Validation passed: Mission Control `npm run lint`, plus `npm run test --
-  app/api/repo/archive.test.ts app/api/repo/import/route.test.ts`.
+- Phase 3 is complete locally: `apps/mission-control/app/api/repo/review/route.ts`
+  accepts multipart ZIP review requests, validates optional `archive_sha256`,
+  re-indexes the uploaded archive, reads selected file text from normalized ZIP
+  paths, and returns the existing review artifact/source-bundle shape without
+  GitHub API calls.
+- Validation passed: Mission Control `npm run lint`, plus `npm run test -- --root .
+  app/api/repo/archive.test.ts app/api/repo/import/route.test.ts
+  app/api/repo/review/route.test.ts` (17/17 tests).
 
-Important boundary: the `/repo` UI and `/api/repo/review` are not migrated yet.
-The current page still posts GitHub-style JSON and the review route still fetches
-file content from GitHub. Continue with Phase 3 by converting review to read
-selected files from staged ZIP imports, then Phase 4 for the UI file-picker
-migration.
+Important boundary: the `/repo` UI is not migrated yet. The current page still
+posts GitHub-style JSON, while the import/review routes now expect ZIP-backed
+requests. Continue with Phase 4 for the file-picker UI migration and review-gate
+state reset behavior.
 
 ### Verification & Reporting Hardening (Phase 1-3 complete; verification backlog remains)
 
@@ -434,7 +439,7 @@ Security alert remediation validation:
 
 ## Next Actions
 
-1. **Active repo ZIP migration next step.** Convert `POST /api/repo/review` from GitHub file fetching to staged ZIP-backed selected-file reads, preserving review artifact shape and fingerprint semantics. After that, migrate the `/repo` UI to upload ZIP files instead of GitHub URLs.
+1. **Active repo ZIP migration next step.** Migrate the `/repo` UI to upload ZIP files instead of GitHub URLs, preserve the selected archive between import and review, and reset review/approval state whenever the archive or selected file scope changes.
 2. **Existing live-stack top priority.** Submit one live mission through the
    real Mission Control chat UI (`http://127.0.0.1:3100/chat`, not the raw
    API — the stack is already up, rebuilt, and healthy). Pick a Pod B/C/D
