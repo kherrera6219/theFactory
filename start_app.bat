@@ -82,10 +82,14 @@ if "%DEV_MODE%"=="true" (
     start "Mission Control UI" cmd /k "set ^"INTERNAL_SERVICE_API_KEY=%INTERNAL_SERVICE_API_KEY%^" && set ^"MISSION_API_BASE_URL=%MISSION_API_BASE_URL%^" && echo Building Next.js production bundle... && npm run build && echo Starting production server... && npm run start"
 )
 
+set "MISSION_CONTROL_LOCAL_URL=http://localhost:3000"
+echo Waiting for Mission Control UI to become available...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$url = 'http://localhost:3000'; $deadline = (Get-Date).AddSeconds(120); while ((Get-Date) -lt $deadline) { try { $response = Invoke-WebRequest -UseBasicParsing $url -TimeoutSec 3; if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) { Start-Process $url; exit 0 } } catch { } Start-Sleep -Seconds 2 }; Write-Host ('Timed out waiting for Mission Control UI. Open ' + $url + ' manually once it is ready.'); exit 0"
+
 echo.
 echo Application stack is starting up!
 echo The Docker UI is available at http://localhost:3100.
-echo The local UI window will be available at http://localhost:3000 shortly.
+echo The local UI opens automatically at %MISSION_CONTROL_LOCAL_URL%.
 echo.
 echo You can safely close this window. The UI will keep running in the new window.
 echo Run stop_app.bat to spin down the backend services later.
