@@ -315,6 +315,141 @@ def _pm_ambiguity_score(contract: dict[str, Any], prompt: str) -> float:
     return round(min(score, 1.0), 3)
 
 
+def _pm_product_clarifying_questions(
+    *,
+    prompt: str,
+    contract: dict[str, Any],
+    requested_target_language: str | None = None,
+) -> list[str]:
+    """Return product-level clarification questions for underspecified UI/app work."""
+    text = " ".join(
+        [
+            str(prompt or ""),
+            str(contract.get("summary") or ""),
+            " ".join(str(item) for item in contract.get("functional_requirements") or []),
+            " ".join(str(item) for item in contract.get("assumptions") or []),
+        ]
+    ).lower()
+    target_language = str(requested_target_language or "").strip().lower()
+    target_languages = " ".join(str(item).lower() for item in contract.get("target_languages") or [])
+    language_text = f"{target_language} {target_languages}"
+    def has_token(*tokens: str) -> bool:
+        return any(re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", text) for token in tokens)
+
+    is_game = has_token("game", "snake", "pong", "tetris", "rpg", "platformer")
+    is_interactive_app = is_game or has_token(
+        "app",
+        "application",
+        "dashboard",
+        "frontend",
+        "ui",
+        "user interface",
+        "angular",
+        "react",
+        "next.js",
+        "vue",
+    )
+    if not is_interactive_app:
+        return []
+
+    existing_questions = {
+        str(question).strip().lower()
+        for question in contract.get("clarifying_questions") or []
+        if str(question).strip()
+    }
+    questions: list[str] = []
+
+    def add(question: str) -> None:
+        normalized = question.strip().lower()
+        if normalized not in existing_questions and question not in questions:
+            questions.append(question)
+
+    style_tokens = (
+        "theme",
+        "visual",
+        "style",
+        "brand",
+        "neon",
+        "minimal",
+        "retro",
+        "dark mode",
+        "light mode",
+        "pixel",
+    )
+    if not any(token in text for token in style_tokens):
+        add("What visual direction should the UI use? Recommended default: polished dark arcade style with clear contrast and responsive layout.")
+
+    if is_game:
+        gameplay_tokens = (
+            "power",
+            "level",
+            "difficulty",
+            "speed",
+            "leaderboard",
+            "save",
+            "pause",
+            "mobile",
+            "touch",
+            "keyboard",
+        )
+        if not any(token in text for token in gameplay_tokens):
+            add("What gameplay scope should be included beyond the core loop? Recommended default: keyboard controls, score, pause/resume, restart, and increasing speed.")
+
+    packaging_tokens = (
+        "start.bat",
+        "docker",
+        "electron",
+        "installer",
+        "zip",
+        "readme",
+        "dev server",
+        "production build",
+    )
+    if not any(token in text for token in packaging_tokens):
+        framework_default = "Angular CLI" if "angular" in text or "typescript" in language_text else "the framework default"
+        add(f"How should the project be packaged for handoff? Recommended default: complete {framework_default} project with install/start script and run instructions.")
+
+    acceptance_tokens = ("test", "acceptance", "done", "verify", "lint", "build", "playtest")
+    if not any(token in text for token in acceptance_tokens):
+        add("What should count as done for acceptance? Recommended default: app builds, starts locally, and the main user flow can be manually verified.")
+
+    return questions[:3]
+
+
+def _apply_pm_product_clarification_policy(
+    *,
+    contract: dict[str, Any],
+    prompt: str,
+    requested_target_language: str | None = None,
+) -> dict[str, Any]:
+    questions = _pm_product_clarifying_questions(
+        prompt=prompt,
+        contract=contract,
+        requested_target_language=requested_target_language,
+    )
+    if not questions:
+        return contract
+
+    existing = [
+        str(question).strip()
+        for question in contract.get("clarifying_questions") or []
+        if str(question).strip()
+    ]
+    contract["clarifying_questions"] = [*existing, *questions][:5]
+    contract["intake_status"] = "needs_clarification"
+    assumptions = [
+        str(item).strip()
+        for item in contract.get("assumptions") or []
+        if str(item).strip()
+    ]
+    assumptions.append(
+        "If the operator says to proceed with assumptions, use the recommended defaults from the clarifying questions."
+    )
+    contract["assumptions"] = assumptions[:6]
+    contract["ambiguity_score"] = _pm_ambiguity_score(contract, prompt)
+    return contract
+
+
 def _normalize_agent_choice(raw_value: Any, *, allowed_ids: set[str], fallback: str) -> str:
     candidate = _clean_text(raw_value, max_length=32).upper()
     return candidate if candidate in allowed_ids else fallback

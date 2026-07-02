@@ -16,12 +16,12 @@
 
 </div>
 
-> **Version:** 1.2.0 · **Last updated:** 2026-06-30 · **Status:** Active development, not production-ready
+> **Version:** 1.2.0 · **Last updated:** 2026-07-02 · **Status:** Active development, not production-ready
 
-> **Development status:** theFactory is still under active local development, but the public proof points are current through the Phase 3 verification-hardening work.
+> **Development status:** theFactory is still under active local development, but the public proof points are current through the Mission Control UX lock-in rebuild.
 > Live evidence now includes the Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6` and the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`.
-> Recent hardening fixed PM clarifying-question truncation, preserved non-ASCII artifact content through storage readback, surfaced `lifecycle_engine` through OpenAPI/UI types, remediated CodeQL alerts #337-#338, and refreshed Python service images for Trivy OpenSSL alerts #330-#336.
-> Remaining release work includes Mission Control UI smoke, Pong-style UI artifact rerun, live failure-injection and provider-fallback proof, provider preflight, Phase 8 Mission Flow v2 branch-coverage follow-up, and key rotation.
+> Recent hardening added PM clarification cards/defaults, clearer Live Progress states, output-folder status/open actions, Continue with PM context loading, generated-output artifact gating, CodeQL alerts #337-#338 remediation, and Python service image refreshes for Trivy OpenSSL alerts #330-#336.
+> Remaining release work includes the post-restart Angular Snake browser proof for the new UX, Mission Control UI smoke, Pong-style UI artifact rerun, live failure-injection and provider-fallback proof, provider preflight, Phase 8 Mission Flow v2 branch-coverage follow-up, and key rotation.
 
 ---
 
@@ -121,9 +121,18 @@ The list below describes implemented subsystems and intended product direction, 
 
 Current proof points include the Phase 13 backend/API smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, which reached `COMPLETE` with a valid Python artifact, and the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, which preserved 28 non-ASCII characters through codegen, packaging, and storage readback.
 
-Recent completed work also covers PM clarifying-question truncation fixes, `MissionRecord.lifecycle_engine` OpenAPI/UI type sync, Mission Flow v2 strict-mode line coverage, failure-injection regression coverage, CodeQL alert remediation, and Python service base-image refreshes for Trivy OpenSSL findings.
+Recent completed work also covers PM clarification cards/defaults for
+interactive app/game requests, Mission Detail Live Progress indicators,
+output-folder status/open actions, Continue with PM context loading,
+generated-output artifact gating, `MissionRecord.lifecycle_engine` OpenAPI/UI
+type sync, Mission Flow v2 strict-mode line coverage, failure-injection
+regression coverage, CodeQL alert remediation, and Python service base-image
+refreshes for Trivy OpenSSL findings.
 
-Remaining release proof points include Mission Control UI smoke, Pong-style UI artifact rerun, live failure-injection and provider-fallback proof, provider preflight, Phase 8 Mission Flow v2 branch-coverage follow-up, and key rotation.
+Remaining release proof points include the post-restart Angular Snake browser
+proof for the Mission Control UX lock-in, Mission Control UI smoke, Pong-style
+UI artifact rerun, live failure-injection and provider-fallback proof, provider
+preflight, Phase 8 Mission Flow v2 branch-coverage follow-up, and key rotation.
 
 Current work is tracked in `docs/CURRENT_TODO.md` and the handoff documents.
 
@@ -763,7 +772,7 @@ python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
 The live run is the launch-demo proof point. It requires a running stack and
 provider-key configuration when generated LLM output is part of the claim.
 
-**Validation snapshot (2026-06-30):** Focused Phase 3 hardening, Phase 8 Mission Flow v2 coverage, failure-injection regression coverage, and CI/security gate checks have been refreshed locally. Current evidence includes the standard Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, the non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, Mission Flow v2 coverage at 92.43% line / 74.70% branch across the broader related suite, and a 23/23 production audit. Documentation validation remains part of the release gate, while full provider-key rotation and Mission Control browser smoke remain open.
+**Validation snapshot (2026-07-02):** Focused Phase 3 hardening, Phase 8 Mission Flow v2 coverage, failure-injection regression coverage, CI/security gate checks, and the Mission Control UX lock-in have been refreshed locally. Current evidence includes the standard Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, the non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, Mission Flow v2 coverage at 92.43% line / 74.70% branch across the broader related suite, a 23/23 production audit, and `docs/evidence/mission_control_ux_lockin_2026-07-02.md`. Documentation validation remains part of the release gate, while full provider-key rotation and post-restart Mission Control browser smoke remain open.
 
 ---
 
@@ -993,13 +1002,13 @@ theFactory/
 
 ## Current Status
 
-Current state (2026-06-30): active development, not production-ready. The latest live backend/API evidence covers the Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, which completed with one build artifact and a valid Python artifact, plus the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, which completed with 28 non-ASCII characters preserved through codegen, packaging, and storage readback.
-Recent completed work includes PM clarifying-question truncation fixes, `MissionRecord.lifecycle_engine` OpenAPI/UI type sync, and CI security gate cleanup for generated API types and Python dependency policy.
+Current state (2026-07-02): active development, not production-ready. The latest live backend/API evidence covers the Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, which completed with one build artifact and a valid Python artifact, plus the Phase 3 non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, which completed with 28 non-ASCII characters preserved through codegen, packaging, and storage readback.
+Recent completed work includes PM clarification cards/defaults, Mission Detail Live Progress indicators, output-folder status/open actions, Continue with PM context loading, generated-output artifact gating, `MissionRecord.lifecycle_engine` OpenAPI/UI type sync, and CI security gate cleanup for generated API types and Python dependency policy.
 
 | Domain | State |
 | --- | --- |
 | Backend/API | Local full-dedicated readyz and Phase 13 smoke evidence are current. Unit failure-injection coverage is refreshed; live interruption/fallback scenarios remain release proof work. |
-| Mission Control | UI is wired to API types including `lifecycle_engine`; fresh browser smoke is still required before release. |
+| Mission Control | PM clarification/default UX, Live Progress, output-folder actions, and Continue with PM context loading are implemented and rebuilt; post-restart browser proof is still required before release. |
 | Mission Lifecycle | PlanBuild artifacts, PM handbacks, storage readback, and non-ASCII artifact integrity have live evidence. |
 | Data Systems | Full-dedicated Redis, Postgres, Neo4j, Milvus, and MinIO wiring is the default local path; deep query-path coverage still needs expansion. |
 | LLM Providers | Provider slots exist for Gemini, OpenAI, and Anthropic; live provider preflight, rotation, and fallback validation remain open. |
@@ -1007,11 +1016,12 @@ Recent completed work includes PM clarifying-question truncation fixes, `Mission
 
 Next priorities:
 
-1. Complete Mission Control UI smoke against the current full-dedicated stack.
-2. Rerun a Pong-style UI artifact mission through the current PlanBuild path.
-3. Run live Phase 13 failure-injection and provider-fallback proof against the current stack.
-4. Raise remaining Phase 8 Mission Flow v2 branch coverage or explicitly defer the old 85% branch target.
-5. Harden provider preflight, key rotation, quota, and fallback operator workflows.
+1. Restart the app and run the Angular Snake browser mission to prove the new PM clarification, progress, output-folder, and Continue with PM UX.
+2. Complete Mission Control UI smoke against the current full-dedicated stack.
+3. Rerun a Pong-style UI artifact mission through the current PlanBuild path.
+4. Run live Phase 13 failure-injection and provider-fallback proof against the current stack.
+5. Raise remaining Phase 8 Mission Flow v2 branch coverage or explicitly defer the old 85% branch target.
+6. Harden provider preflight, key rotation, quota, and fallback operator workflows.
 
 ---
 

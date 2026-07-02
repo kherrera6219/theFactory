@@ -411,6 +411,86 @@ export async function getMissionBuildArtifact(
   );
 }
 
+export async function listMissionBuildArtifacts(
+  missionId: string,
+  limit = 25,
+): Promise<MissionBuildArtifactRecord[]> {
+  return fetchJson<MissionBuildArtifactRecord[]>(
+    missionApiUrl(
+      `/v1/missions/${encodeURIComponent(missionId)}/build-artifacts?limit=${encodeURIComponent(String(limit))}`,
+    ),
+    { method: "GET" },
+  );
+}
+
+export type MissionOutputFolderStatus = {
+  missionId: string;
+  path: string;
+  exists: boolean;
+  fileCount: number;
+  totalBytes: number;
+  files: Array<{
+    path: string;
+    sizeBytes: number;
+  }>;
+  canOpenFolder: boolean;
+  canOpenVsCode: boolean;
+};
+
+export async function getMissionOutputFolderStatus(
+  missionId: string,
+): Promise<MissionOutputFolderStatus> {
+  const query = new URLSearchParams({ missionId });
+  const response = await fetch(`/api/local/output-folder-status?${query.toString()}`, {
+    method: "GET",
+  });
+  const payload = (await response.json().catch(() => ({}))) as MissionOutputFolderStatus & {
+    error?: string;
+  };
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Unable to read output folder status.");
+  }
+  return payload;
+}
+
+export async function openMissionOutputFolder(
+  missionId: string,
+): Promise<{ opened?: boolean; path?: string; error?: string }> {
+  const response = await fetch("/api/local/open-output-folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ missionId }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    opened?: boolean;
+    path?: string;
+    error?: string;
+  };
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Unable to open output folder.");
+  }
+  return payload;
+}
+
+export async function openMissionOutputInVsCode(
+  missionId: string,
+): Promise<{ opened?: boolean; path?: string; error?: string }> {
+  const response = await fetch("/api/local/open-vscode", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ missionId }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    opened?: boolean;
+    path?: string;
+    error?: string;
+  };
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Unable to open output folder in VS Code.");
+  }
+  return payload;
+}
+
 export async function createMission(payload: MissionCreatePayload): Promise<MissionRecord> {
   return fetchJson<MissionRecord>(missionApiUrl("/v1/missions"), {
     method: "POST",

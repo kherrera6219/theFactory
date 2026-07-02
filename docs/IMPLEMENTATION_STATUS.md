@@ -51,6 +51,7 @@ The application currently includes:
 | Security alert remediation | CodeQL #337-#338 fixed in UI/RQCA paths; Trivy #330-#336 addressed by refreshed Python service base-image digests and verified rebuilt orchestrator OpenSSL `3.0.20-1~deb12u2` |
 | Phase 8 Mission Flow v2 coverage | Isolated suite: 81 passed, 91.56% line / 71.69% branch; broader related suite: 170 passed, 92.43% line / 74.70% branch |
 | Repository ZIP import | ZIP archive core, multipart import/review routes, and `/repo` ZIP UI are locally validated; Mission Control lint, 87/87 Vitest, 22/22 focused repo tests, and targeted repo-intake Playwright e2e passed |
+| Mission Control UX lock-in | PM clarification cards/defaults, Live Progress indicators, local output-folder status/open actions, VS Code launch, and Continue with PM context loading are implemented and rebuilt into `deploy-mission-control:latest` / `deploy-orchestrator:latest`; post-restart Angular Snake browser proof remains pending |
 
 ---
 
@@ -62,6 +63,7 @@ The application currently includes:
 | Non-ASCII artifact integrity | Phase 3 code adds non-ASCII regression coverage, packaging-time mojibake guard/repair before digest, codegen/package/storage-readback trace, lifted PM clarifying-question/context truncation, and passing live non-ASCII evidence at `docs/evidence/phase3_non_ascii_smoke_latest.json` |
 | Lifecycle-engine reporting | Current code emits authoritative `lifecycle_engine` through orchestrator, gateway, chain trace, and Mission Control; live Mission Detail rerun remains |
 | Phase 13 UI smoke | Submit and observe the mission path through Mission Control |
+| Mission Control UX lock-in proof | After restart, run a real browser mission for a modern Angular Snake game with `start.bat` and confirm PM clarification/defaults, live progress, output-folder actions, and Continue with PM |
 | Phase 13 failure injection | Interrupt protocol-bus MCP mid-mission and verify retry/resume or clean failure |
 | Phase 13 provider fallback | Force primary provider failure and confirm fallback is used and recorded |
 | Full validation | Run current `make validate` |
@@ -94,6 +96,20 @@ The application currently includes:
 ---
 
 ## Recent Phase Summary
+
+### Mission Control UX Lock-In
+
+Completed for the current pass. Mission Control now displays PM clarification
+questions as actionable cards with recommended defaults, exposes clearer
+mission-progress states and next actions, shows local output-folder path/status
+with Copy Path / Open Folder / VS Code actions, and preloads prior mission
+output/artifact context when continuing with PM. Orchestrator PM contract
+normalization now asks clarifying questions for underspecified interactive
+apps/games, and expected generated-output missions cannot complete without a
+durable generated output artifact. Focused frontend/backend tests, Mission
+Control build/lint, compose service graph resolution, and Docker rebuilds for
+`mission-control` and `orchestrator` passed. Evidence:
+`docs/evidence/mission_control_ux_lockin_2026-07-02.md`.
 
 ### Repository ZIP Import Hardening
 

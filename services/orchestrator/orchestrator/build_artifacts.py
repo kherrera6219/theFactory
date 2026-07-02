@@ -103,7 +103,37 @@ def mission_requires_build_artifact(metadata: Any) -> bool:
     if mission_has_generated_output(metadata):
         return True
     source_code = metadata.get("source_code")
-    return isinstance(source_code, str) and bool(source_code.strip())
+    if isinstance(source_code, str) and bool(source_code.strip()):
+        return True
+    return mission_expects_generated_output_artifact(metadata)
+
+
+def mission_expects_generated_output_artifact(metadata: Any) -> bool:
+    if not isinstance(metadata, dict):
+        return False
+
+    output_mode = str(
+        metadata.get("output_mode_label")
+        or metadata.get("__output_mode__")
+        or metadata.get("output_mode")
+        or "FULL_BUILD"
+    ).strip().upper()
+    if output_mode in {"ANALYZE_ONLY", "REPORT_ONLY", "PLAN_ONLY", "REPORT", "ANALYZE"}:
+        return False
+
+    expected_artifacts = metadata.get("expected_artifacts")
+    if isinstance(expected_artifacts, list):
+        normalized = {str(item).strip().lower() for item in expected_artifacts}
+        return "generated_output" in normalized
+
+    mission_charter = metadata.get("mission_charter")
+    if isinstance(mission_charter, dict):
+        charter_artifacts = mission_charter.get("expected_artifacts")
+        if isinstance(charter_artifacts, list):
+            normalized = {str(item).strip().lower() for item in charter_artifacts}
+            return "generated_output" in normalized
+
+    return False
 
 
 def mission_has_generated_output(metadata: Any) -> bool:

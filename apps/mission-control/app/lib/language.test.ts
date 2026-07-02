@@ -25,4 +25,22 @@ describe("language helpers", () => {
       }),
     ).toBe("rust");
   });
+
+  it("maps Angular game requests to TypeScript even when a start.bat is requested", () => {
+    expect(
+      inferRequestedTargetLanguage({
+        prompt:
+          "Create a modern Snake game in Angular with a Windows start.bat file.",
+      }),
+    ).toBe("typescript");
+  });
+
+  it("uses feature-contract languages when launching a confirmed mission", () => {
+    expect(
+      inferRequestedTargetLanguage({
+        prompt: "Create a modern Snake game.",
+        contractLanguages: "typescript, html, css, batch",
+      }),
+    ).toBe("typescript");
+  });
 });

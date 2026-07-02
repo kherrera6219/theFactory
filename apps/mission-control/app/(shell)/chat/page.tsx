@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, SystemMessage } from "../../components/status";
-import { createBuilderPreview, createMission, createPmFeatureContract } from "../../lib/api-client";
+import {
+  createBuilderPreview,
+  createMission,
+  createPmFeatureContract,
+  getMission,
+  getMissionChainTrace,
+  getMissionOutputFolderStatus,
+  listMissionBuildArtifacts,
+  type MissionOutputFolderStatus,
+} from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { inferRequestedTargetLanguage } from "../../lib/language";
 import { sanitizeUserText } from "../../lib/security";
@@ -33,6 +42,28 @@ type DisplayFeatureContract = {
   model?: string | null;
   conversationContext?: PmConversationContext;
   userIntent?: PmConversationContext["user_intent"];
+};
+
+type ClarificationPrompt = {
+  questions: string[];
+  defaults: string[];
+  contract: DisplayFeatureContract;
+};
+
+type ContinuationContext = {
+  missionId: string;
+  state: string;
+  title: string;
+  targetLanguage?: string;
+  outputFolder?: Pick<MissionOutputFolderStatus, "path" | "exists" | "fileCount" | "totalBytes">;
+  artifactRefs: Array<{
+    artifactId: string;
+    artifactType: string;
+    status: string;
+    filename?: string;
+  }>;
+  deliveryTitle?: string;
+  deliverySummary?: string;
 };
 
 type PmConversationContext = {
@@ -347,6 +378,96 @@ function contractSourceLabel(contract: DisplayFeatureContract): string {
   return route || "unknown";
 }
 
+function recommendedDefaultFromQuestion(question: string, index: number): string {
+  const cleaned = sanitizeUserText(question);
+  const explicit = cleaned.match(/recommended(?: default)?:\s*([^)]+)\)?\.?$/i);
+  if (explicit?.[1]) {
+    return explicit[1].trim().replace(/[.)]+$/, "");
+  }
+  const lower = cleaned.toLowerCase();
+  if (lower.includes("visual") || lower.includes("style") || lower.includes("ui")) {
+    return "Use a polished modern arcade style with responsive layout and clear game-state screens.";
+  }
+  if (lower.includes("score") || lower.includes("persistent") || lower.includes("save")) {
+    return "Persist the high score locally in the browser and keep all game state client-side.";
+  }
+  if (lower.includes("packaging") || lower.includes("start.bat") || lower.includes("run")) {
+    return "Include a Windows start.bat that installs dependencies if needed and starts the Angular dev server.";
+  }
+  if (lower.includes("acceptance") || lower.includes("done") || lower.includes("criteria")) {
+    return "Done means the app builds, starts from start.bat, and supports a playable core loop.";
+  }
+  return `Use PM recommended default ${index + 1}.`;
+}
+
+function buildClarificationPrompt(
+  questions: string[],
+  contract: DisplayFeatureContract,
+): ClarificationPrompt {
+  return {
+    questions,
+    defaults: questions.map(recommendedDefaultFromQuestion),
+    contract,
+  };
+}
+
+function clarificationAnswersText(prompt: ClarificationPrompt): string {
+  return [
+    "Proceed with recommended defaults for the clarification questions.",
+    ...prompt.questions.map((question, index) => (
+      `${index + 1}. ${question}\nAnswer: ${prompt.defaults[index] ?? "Use PM recommended default."}`
+    )),
+    "Finalize the feature contract and prepare it for mission launch.",
+  ].join("\n\n");
+}
+
+function clarificationEditTemplate(prompt: ClarificationPrompt): string {
+  return [
+    "Here are my answers to the PM clarification questions:",
+    ...prompt.questions.map((question, index) => (
+      `${index + 1}. ${question}\nAnswer: ${prompt.defaults[index] ?? ""}`
+    )),
+    "Finalize the feature contract with these decisions.",
+  ].join("\n\n");
+}
+
+function artifactFilename(artifact: { manifest?: unknown; artifact_id: string }): string | undefined {
+  const manifest = artifact.manifest;
+  if (!manifest || typeof manifest !== "object") {
+    return undefined;
+  }
+  const filename = (manifest as { filename?: unknown }).filename;
+  return typeof filename === "string" && filename.trim() ? filename.trim() : undefined;
+}
+
+function continuationPromptText(context: ContinuationContext): string {
+  const artifactLines = context.artifactRefs.length > 0
+    ? context.artifactRefs
+        .slice(0, 8)
+        .map((artifact) => {
+          const filename = artifact.filename ? ` (${artifact.filename})` : "";
+          return `- ${artifact.artifactType}${filename}: ${artifact.status}, ${artifact.artifactId}`;
+        })
+    : ["- No build artifacts recorded yet."];
+
+  return [
+    `Continue work on existing mission ${context.missionId}.`,
+    "Use the prior mission output as the project baseline.",
+    `Previous mission status: ${context.state}.`,
+    context.targetLanguage ? `Previous target language: ${context.targetLanguage}.` : null,
+    context.deliveryTitle ? `Previous delivery: ${context.deliveryTitle}.` : null,
+    context.deliverySummary ? `Delivery summary: ${context.deliverySummary}` : null,
+    context.outputFolder
+      ? `Output folder: ${context.outputFolder.path} (${context.outputFolder.exists ? `${context.outputFolder.fileCount} files` : "not written yet"}).`
+      : null,
+    "Prior artifacts:",
+    ...artifactLines,
+    "Next change request:",
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+}
+
 /** Build a persisted session snapshot from the current message list. */
 function buildSession(
   messages: ChatMessage[],
@@ -377,10 +498,13 @@ function initialWelcomeMessage(): ChatMessage {
 
 export default function ChatPage() {
   const router = useRouter();
+  const continueMissionRef = useRef<string | null>(null);
+  const [continuationContext, setContinuationContext] = useState<ContinuationContext | null>(null);
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([initialWelcomeMessage()]);
   const [contract, setContract] = useState<DisplayFeatureContract | null>(null);
+  const [clarificationPrompt, setClarificationPrompt] = useState<ClarificationPrompt | null>(null);
   const [editingContract, setEditingContract] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editLanguages, setEditLanguages] = useState("");
@@ -407,6 +531,117 @@ export default function ChatPage() {
     } catch {
       // Ignore malformed session data.
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const continueMissionId = params.get("continueMissionId")?.trim() ?? "";
+    if (!continueMissionId || continueMissionRef.current === continueMissionId) {
+      return;
+    }
+    continueMissionRef.current = continueMissionId;
+    let cancelled = false;
+
+    async function loadContinuingMission() {
+      const timestamp = new Date().toISOString();
+      try {
+        const [mission, chainTraceResult, artifactsResult, outputFolderResult] =
+          await Promise.all([
+            getMission(continueMissionId),
+            getMissionChainTrace(continueMissionId).catch(() => null),
+            listMissionBuildArtifacts(continueMissionId, 25).catch(() => []),
+            getMissionOutputFolderStatus(continueMissionId).catch(() => null),
+          ]);
+        if (cancelled) {
+          return;
+        }
+        const chainTrace = chainTraceResult;
+        const artifacts = artifactsResult;
+        const outputFolder = outputFolderResult;
+        const metadata = mission.metadata ?? {};
+        const missionName =
+          typeof metadata.name === "string" && metadata.name.trim()
+            ? metadata.name.trim()
+            : mission.prompt?.slice(0, 80) || continueMissionId;
+        const context: ContinuationContext = {
+          missionId: continueMissionId,
+          state: mission.state,
+          title: missionName,
+          targetLanguage: mission.requested_target_language ?? undefined,
+          outputFolder: outputFolder
+            ? {
+                path: outputFolder.path,
+                exists: outputFolder.exists,
+                fileCount: outputFolder.fileCount,
+                totalBytes: outputFolder.totalBytes,
+              }
+            : undefined,
+          artifactRefs: artifacts.map((artifact) => ({
+            artifactId: artifact.artifact_id,
+            artifactType: artifact.artifact_type,
+            status: artifact.status,
+            filename: artifactFilename(artifact),
+          })),
+          deliveryTitle: chainTrace?.delivery_summary?.delivery_title,
+          deliverySummary: chainTrace?.delivery_summary?.delivery_summary,
+        };
+        setContinuationContext(context);
+        setMessages([
+          initialWelcomeMessage(),
+          {
+            id: makeId("pm-continue"),
+            role: "pm",
+            text:
+              `Continuing mission ${continueMissionId} (${missionName}). ` +
+              "I loaded the prior output location and artifact list so the follow-up mission can use that project as the baseline.",
+            ts: timestamp,
+          },
+        ]);
+        setInput(`${continuationPromptText(context)}\n`);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setContinuationContext({
+          missionId: continueMissionId,
+          state: "unknown",
+          title: continueMissionId,
+          artifactRefs: [],
+        });
+        setMessages([
+          initialWelcomeMessage(),
+          {
+            id: makeId("pm-continue"),
+            role: "pm",
+            text:
+              `Continuing mission ${continueMissionId}. ` +
+              "I could not load the mission summary, but I can still use this mission ID as the baseline for your next change.",
+            ts: timestamp,
+          },
+        ]);
+        setInput(
+          `Continue work on existing mission ${continueMissionId}.\n` +
+            "Use the prior mission output as the project baseline.\n" +
+            "Next change request:\n",
+        );
+        setError(error instanceof Error ? error.message : "Unable to load mission summary.");
+      } finally {
+        if (!cancelled) {
+          setContract(null);
+          setClarificationPrompt(null);
+          setFiles([]);
+          setActiveSessionId(null);
+        }
+      }
+    }
+
+    void loadContinuingMission();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -467,6 +702,9 @@ export default function ChatPage() {
     setMessages(session.messages);
     setActiveSessionId(session.id);
     setContract(session.contract ?? null);
+    setClarificationPrompt(null);
+    setContinuationContext(null);
+    continueMissionRef.current = null;
     setEditingContract(false);
     setInput("");
     setError(null);
@@ -480,6 +718,9 @@ export default function ChatPage() {
     setMessages([initialWelcomeMessage()]);
     setFiles([]);
     setContract(null);
+    setClarificationPrompt(null);
+    setContinuationContext(null);
+    continueMissionRef.current = null;
     setEditingContract(false);
     setInput("");
     setError(null);
@@ -494,16 +735,18 @@ export default function ChatPage() {
     setFiles((current) => [...current, ...incoming].slice(0, 20));
   }
 
-  async function sendMessage() {
-    const normalized = sanitizeUserText(input);
+  async function sendMessage(messageOverride?: string) {
+    const normalized = sanitizeUserText(messageOverride ?? input);
     if (normalized.length < 3) {
       setError("Enter at least 3 characters to continue.");
       return;
     }
 
     setError(null);
+    setClarificationPrompt(null);
     setThinking(true);
     const timestamp = new Date().toISOString();
+    const contextContract = contract ?? clarificationPrompt?.contract ?? null;
 
     const userText =
       files.length > 0
@@ -530,13 +773,14 @@ export default function ChatPage() {
       const conversationContext = buildPmConversationContext({
         messages,
         nextUserMessage,
-        contract,
+        contract: contextContract,
         files,
       });
       const launchPrompt = buildFullLaunchPrompt(messages, nextUserMessage);
       let acknowledgement = "Request received. I have prepared a feature contract.";
       let generatedContract: DisplayFeatureContract;
       let blocksLaunchForClarification = false;
+      let pendingClarifyingQuestions: string[] = [];
       let pmPreviewError: unknown = null;
       try {
         const pmPreview = await createPmFeatureContract({
@@ -551,6 +795,7 @@ export default function ChatPage() {
         });
         const featureContract = pmPreview.feature_contract;
         const clarifyingQuestions = featureContract.clarifying_questions ?? [];
+        pendingClarifyingQuestions = clarifyingQuestions;
         const needsClarification =
           featureContract.intake_status === "needs_clarification" ||
           (typeof featureContract.ambiguity_score === "number" &&
@@ -558,9 +803,9 @@ export default function ChatPage() {
         blocksLaunchForClarification = needsClarification && clarifyingQuestions.length > 0;
         if (needsClarification && clarifyingQuestions.length > 0) {
           acknowledgement = [
-            "I drafted the current scope, but these decisions would improve the mission plan:",
+            "I drafted the current scope and need a few product decisions before launch:",
             ...clarifyingQuestions.map((question, index) => `${index + 1}. ${question}`),
-            "You can answer these or say “proceed with assumptions” to continue.",
+            "Answer these, edit the defaults, or proceed with the recommended defaults.",
           ].join("\n");
         }
         if (!needsClarification || clarifyingQuestions.length === 0) {
@@ -632,6 +877,11 @@ export default function ChatPage() {
         ...current,
         { id: makeId("pm"), role: "pm", text: acknowledgement, ts: new Date().toISOString() },
       ]);
+      setClarificationPrompt(
+        blocksLaunchForClarification
+          ? buildClarificationPrompt(pendingClarifyingQuestions, generatedContract)
+          : null,
+      );
       setContract(blocksLaunchForClarification ? null : generatedContract);
       setInput("");
     } catch (requestError) {
@@ -651,6 +901,16 @@ export default function ChatPage() {
     } finally {
       setThinking(false);
     }
+  }
+
+  function handleEditClarificationAnswers() {
+    if (!clarificationPrompt) return;
+    setInput(clarificationEditTemplate(clarificationPrompt));
+  }
+
+  async function handleProceedWithClarificationDefaults() {
+    if (!clarificationPrompt) return;
+    await sendMessage(clarificationAnswersText(clarificationPrompt));
   }
 
   async function readFilesAsText(fileList: File[]): Promise<string> {
@@ -692,6 +952,7 @@ export default function ChatPage() {
       const requestedTargetLanguage = inferRequestedTargetLanguage({
         prompt: launchContract.launchPrompt,
         filePaths: files.map((file) => file.name),
+        contractLanguages: launchContract.languages,
       });
       const conversationContext = compactLaunchConversationContext(
         launchContract.conversationContext,
@@ -701,18 +962,29 @@ export default function ChatPage() {
         prompt: launchContract.launchPrompt,
         requested_target_language: requestedTargetLanguage,
         source_code: sourceCode || undefined,
-          metadata: {
-            source: "mission-control-chat",
-            attached_files: files.map((item) => safeFileName(item)),
-            inferred_requested_target_language: requestedTargetLanguage,
-            conversation_context: conversationContext,
-            user_intent: "finalize_plan",
-            launch_confirmed_at: new Date().toISOString(),
-            launch_source: "feature-contract-confirmation",
-            contract: {
-              title: launchContract.title,
-              languages: launchContract.languages,
-              scope: launchContract.scope,
+        metadata: {
+          source: "mission-control-chat",
+          attached_files: files.map((item) => safeFileName(item)),
+          inferred_requested_target_language: requestedTargetLanguage,
+          conversation_context: conversationContext,
+          user_intent: "finalize_plan",
+          launch_confirmed_at: new Date().toISOString(),
+          launch_source: "feature-contract-confirmation",
+          continued_from_mission_id: continueMissionRef.current,
+          continued_from: continuationContext
+            ? {
+                mission_id: continuationContext.missionId,
+                state: continuationContext.state,
+                title: continuationContext.title,
+                output_folder: continuationContext.outputFolder,
+                artifact_refs: continuationContext.artifactRefs,
+                delivery_title: continuationContext.deliveryTitle,
+              }
+            : undefined,
+          contract: {
+            title: launchContract.title,
+            languages: launchContract.languages,
+            scope: launchContract.scope,
             estimated_duration: launchContract.estimatedDuration,
           },
         },
@@ -884,7 +1156,53 @@ export default function ChatPage() {
         )}
       </Panel>
 
-      {!contract && (
+      {clarificationPrompt && (
+        <Panel title="PM Clarification">
+          <div className="clarification-panel">
+            <div className="clarification-header">
+              <div>
+                <span className="connection-chip retrying">Waiting for answers</span>
+                <h2>{clarificationPrompt.contract.title}</h2>
+              </div>
+              <span className="clarification-count">
+                {clarificationPrompt.questions.length} decision{clarificationPrompt.questions.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <ul className="clarification-list">
+              {clarificationPrompt.questions.map((question, index) => (
+                <li key={`${question}-${index}`} className="clarification-card">
+                  <p>{question}</p>
+                  <dl>
+                    <div>
+                      <dt>Default</dt>
+                      <dd>{clarificationPrompt.defaults[index]}</dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+            <div className="inline-actions">
+              <button
+                type="button"
+                onClick={() => void handleProceedWithClarificationDefaults()}
+                disabled={thinking || launching}
+              >
+                Proceed with Defaults
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={handleEditClarificationAnswers}
+                disabled={thinking || launching}
+              >
+                Edit Answers
+              </button>
+            </div>
+          </div>
+        </Panel>
+      )}
+
+      {!contract && !clarificationPrompt && (
         <Panel title="Feature Contract">
           <EmptyState title="Contract appears after the PM Agent can process the request" compact>
             When backend services are live, this panel will show scope, language detection, estimated duration, and launch confirmation before creating a mission.

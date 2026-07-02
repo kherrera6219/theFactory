@@ -4,6 +4,7 @@ const EXTENSION_TO_LANGUAGE: Array<[string, string]> = [
   [".tsx", "typescript"],
   [".js", "javascript"],
   [".jsx", "javascript"],
+  [".bat", "batch"],
   [".java", "java"],
   [".go", "go"],
   [".rs", "rust"],
@@ -28,6 +29,8 @@ const EXTENSION_TO_LANGUAGE: Array<[string, string]> = [
 ];
 
 const PROMPT_HINTS: Array<[RegExp, string]> = [
+  [/\bangular\b/i, "typescript"],
+  [/\btsx\b|\bts\b/i, "typescript"],
   [/\btypescript\b/i, "typescript"],
   [/\bjavascript\b/i, "javascript"],
   [/\bpython\b/i, "python"],
@@ -45,6 +48,7 @@ const PROMPT_HINTS: Array<[RegExp, string]> = [
   [/\bhaskell\b/i, "haskell"],
   [/\bocaml\b/i, "ocaml"],
   [/\bzig\b/i, "zig"],
+  [/\bbatch\b|\bstart\.bat\b|\b\.bat\b/i, "batch"],
   [/\bc\+\+\b/i, "cpp"],
   [/\bansi c\b|\bc language\b/i, "c"],
 ];
@@ -62,21 +66,34 @@ export function requestedLanguageFromPath(filePath: string): string | null {
 export function inferRequestedTargetLanguage(params: {
   prompt?: string;
   filePaths?: string[];
+  contractLanguages?: string | string[];
 }): string | null {
   const scores = new Map<string, number>();
+  const addScore = (language: string, score: number) => {
+    scores.set(language, (scores.get(language) ?? 0) + score);
+  };
 
   for (const filePath of params.filePaths ?? []) {
     const language = requestedLanguageFromPath(filePath);
     if (!language) {
       continue;
     }
-    scores.set(language, (scores.get(language) ?? 0) + 5);
+    addScore(language, 5);
   }
 
   const prompt = String(params.prompt ?? "").trim();
   for (const [pattern, language] of PROMPT_HINTS) {
     if (pattern.test(prompt)) {
-      scores.set(language, (scores.get(language) ?? 0) + 2);
+      addScore(language, 2);
+    }
+  }
+
+  const contractLanguageText = Array.isArray(params.contractLanguages)
+    ? params.contractLanguages.join(", ")
+    : String(params.contractLanguages ?? "");
+  for (const [pattern, language] of PROMPT_HINTS) {
+    if (pattern.test(contractLanguageText)) {
+      addScore(language, 3);
     }
   }
 

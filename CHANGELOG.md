@@ -6,6 +6,34 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Mission Control UX Lock-In (2026-07-02)
+
+#### Added
+- Added actionable PM clarification UI for ambiguous app/game missions with
+  recommended defaults, editable answers, and a proceed-with-defaults path.
+- Added Mission Detail live-progress indicators that separate working, waiting,
+  blocked, retrying, stale, and finished states.
+- Added local output-folder status, Open Folder, Copy Path, and VS Code actions
+  for generated output and build artifact panels.
+- Added follow-up mission context loading so Continue with PM carries prior
+  mission summary, output-folder status, build artifacts, and delivery summary.
+
+#### Fixed
+- PM feature-contract normalization now asks clarifying questions for
+  underspecified interactive apps/games rather than silently making launchable
+  assumptions.
+- Build-artifact completion gating now blocks expected generated-output missions
+  from completing without a durable generated output artifact.
+- Mission phase mapping no longer treats unknown delivery/audit event names as
+  the intake phase.
+
+#### Validation
+- Mission Control focused Vitest passed 36/36 tests.
+- Mission Control `npm run build` and `npm run lint` passed.
+- Focused orchestrator PM/build-artifact pytest passed 19/19 tests.
+- Docker rebuild passed for `deploy-mission-control:latest` and
+  `deploy-orchestrator:latest`.
+
 ### Repository ZIP Import Hardening (2026-07-02)
 
 #### Fixed

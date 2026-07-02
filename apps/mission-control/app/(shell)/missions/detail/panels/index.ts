@@ -1,4 +1,5 @@
 export { MissionSignalsPanel } from './operational/MissionSignalsPanel';
+export { MissionProgressPanel } from './operational/MissionProgressPanel';
 export { LogicNodeProgressPanel } from './operational/LogicNodeProgressPanel';
 export { GeneratedOutputPanel } from './operational/GeneratedOutputPanel';
 export { DeliveryPanel } from './operational/DeliveryPanel';

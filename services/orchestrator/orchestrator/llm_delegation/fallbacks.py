@@ -11,6 +11,7 @@ from ..orchestrator_metrics import LLM_FALLBACK_TOTAL
 from .config import _VALID_POD_MANAGER_IDS, _VALID_SPECIALIST_IDS
 from .text import (
     _clean_text,
+    _apply_pm_product_clarification_policy,
     _cluster_id,
     _logicnode_languages,
     _logicnode_payload,
@@ -134,7 +135,11 @@ def _fallback_pm_feature_contract(
         "created_at": datetime.now(UTC).isoformat(),
     }
     contract["ambiguity_score"] = _pm_ambiguity_score(contract, prompt)
-    return contract
+    return _apply_pm_product_clarification_policy(
+        contract=contract,
+        prompt=prompt,
+        requested_target_language=requested_target_language,
+    )
 
 
 def _fallback_mission_contract(

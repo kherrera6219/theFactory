@@ -5,7 +5,14 @@ import Link from 'next/link';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Panel } from '../../../../../components/panel';
-import { getMissionBuildArtifact, missionApiUrl } from '../../../../../lib/api-client';
+import {
+  getMissionBuildArtifact,
+  getMissionOutputFolderStatus,
+  missionApiUrl,
+  openMissionOutputFolder,
+  openMissionOutputInVsCode,
+  type MissionOutputFolderStatus,
+} from '../../../../../lib/api-client';
 import { requestedLanguageFromPath } from '../../../../../lib/language';
 import type { MissionBuildArtifactRecord } from '../../../../../lib/types';
 import { copyToClipboard } from '../../../../../lib/clipboard';
@@ -28,6 +35,14 @@ function artifactSizeBytes(artifact: MissionBuildArtifactRecord | null): number 
   return typeof legacyBytes === 'number' ? legacyBytes : null;
 }
 
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value.toLocaleString()} bytes`;
+  const kb = value / 1024;
+  if (kb < 1024) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
+}
+
 export function GeneratedOutputPanel({
   missionId,
   generatedCodeArtifact,
@@ -35,6 +50,9 @@ export function GeneratedOutputPanel({
   const [copied, setCopied] = useState(false);
   const [artifactDetail, setArtifactDetail] = useState<MissionBuildArtifactRecord | null>(null);
   const [artifactDetailError, setArtifactDetailError] = useState<string | null>(null);
+  const [openFolderStatus, setOpenFolderStatus] = useState<string | null>(null);
+  const [outputFolder, setOutputFolder] = useState<MissionOutputFolderStatus | null>(null);
+  const [outputFolderError, setOutputFolderError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +74,26 @@ export function GeneratedOutputPanel({
       cancelled = true;
     };
   }, [generatedCodeArtifact, missionId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setOutputFolder(null);
+    setOutputFolderError(null);
+
+    void getMissionOutputFolderStatus(missionId)
+      .then((status) => {
+        if (!cancelled) setOutputFolder(status);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setOutputFolderError(error instanceof Error ? error.message : 'Unable to read output folder status.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [missionId, generatedCodeArtifact?.updated_at]);
 
   const effectiveArtifact = artifactDetail ?? generatedCodeArtifact;
   const filename = String(
@@ -84,6 +122,34 @@ export function GeneratedOutputPanel({
     }
   }
 
+  async function handleCopyPath() {
+    if (!outputFolder?.path) return;
+    const success = await copyToClipboard(outputFolder.path);
+    if (success) {
+      setOpenFolderStatus('Copied output folder path.');
+    }
+  }
+
+  async function handleOpenFolder() {
+    setOpenFolderStatus(null);
+    try {
+      const result = await openMissionOutputFolder(missionId);
+      setOpenFolderStatus(result.path ? `Opened ${result.path}` : 'Opened output folder.');
+    } catch (error) {
+      setOpenFolderStatus(error instanceof Error ? error.message : 'Unable to open output folder.');
+    }
+  }
+
+  async function handleOpenVsCode() {
+    setOpenFolderStatus(null);
+    try {
+      const result = await openMissionOutputInVsCode(missionId);
+      setOpenFolderStatus(result.path ? `Opened ${result.path} in VS Code.` : 'Opened output folder in VS Code.');
+    } catch (error) {
+      setOpenFolderStatus(error instanceof Error ? error.message : 'Unable to open output folder in VS Code.');
+    }
+  }
+
   const headerActions = (
     <div className="inline-actions">
       {effectiveArtifact?.artifact_text && (
@@ -94,6 +160,36 @@ export function GeneratedOutputPanel({
           aria-label="Copy generated code to clipboard"
         >
           {copied ? 'Copied' : 'Copy'}
+        </button>
+      )}
+      {outputFolder?.path && (
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => void handleCopyPath()}
+          aria-label="Copy generated code output folder path"
+        >
+          Copy Path
+        </button>
+      )}
+      {outputFolder?.canOpenFolder && (
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => void handleOpenFolder()}
+          aria-label="Open generated code output folder"
+        >
+          Open Folder
+        </button>
+      )}
+      {outputFolder?.exists && (
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => void handleOpenVsCode()}
+          aria-label="Open generated code output folder in VS Code"
+        >
+          VS Code
         </button>
       )}
       {generatedCodeArtifact && (
@@ -119,8 +215,43 @@ export function GeneratedOutputPanel({
   return (
     <Panel title="Generated Output" actions={headerActions}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div className="info-card output-folder-card">
+          <h3>Mission output folder</h3>
+          <dl>
+            <div>
+              <dt>Path</dt>
+              <dd className="mono-id">{outputFolder?.path ?? 'Loading...'}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>
+                {outputFolderError
+                  ? outputFolderError
+                  : outputFolder?.exists
+                    ? `${outputFolder.fileCount.toLocaleString()} files, ${formatBytes(outputFolder.totalBytes)}`
+                    : 'Folder not written yet'}
+              </dd>
+            </div>
+            {outputFolder?.exists && outputFolder.files.length > 0 && (
+              <div>
+                <dt>Recent files</dt>
+                <dd>
+                  {outputFolder.files.slice(0, 5).map((file) => file.path).join(', ')}
+                  {outputFolder.fileCount > 5 ? `, +${outputFolder.fileCount - 5} more` : ''}
+                </dd>
+              </div>
+            )}
+          </dl>
+          {openFolderStatus && (
+            <p className="muted mono-id" style={{ margin: '0 0 0.5rem' }}>
+              {openFolderStatus}
+            </p>
+          )}
+        </div>
         {!generatedCodeArtifact ? (
-          <p className="muted" style={{ margin: '0.5rem 0 0' }}>No generated-code artifact recorded yet for this mission.</p>
+          <p className="muted" style={{ margin: '0.5rem 0 0' }}>
+            No generated-code artifact recorded yet for this mission. The folder path above is where packaged output will appear when delivery succeeds.
+          </p>
         ) : (
           <>
             <div className="info-card">
@@ -148,7 +279,7 @@ export function GeneratedOutputPanel({
                 </div>
               </dl>
               <p className="muted" style={{ margin: 0 }}>
-                This is a persisted build artifact from the mission database, not a file written into the repository checkout.
+                This artifact is persisted in the mission database and mirrored to the mission output folder when packaging succeeds.
               </p>
             </div>
 

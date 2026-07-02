@@ -41,6 +41,7 @@ import type {
 // Import all 22 panels from the structured subfolders
 import {
   MissionSignalsPanel,
+  MissionProgressPanel,
   LogicNodeProgressPanel,
   GeneratedOutputPanel,
   DeliveryPanel,
@@ -508,6 +509,14 @@ function MissionDetailPageContent() {
             <Link href="/missions" className="secondary-button shell-link-button">
               Back to Missions
             </Link>
+            {mission && (
+              <Link
+                href={`/chat?continueMissionId=${encodeURIComponent(mission.mission_id)}`}
+                className="secondary-button shell-link-button"
+              >
+                Continue with PM
+              </Link>
+            )}
             <button type="button" className="secondary-button" onClick={pauseMonitor}>
               {pausedMonitor ? "Resume Monitor" : "Pause Monitor"}
             </button>
@@ -559,6 +568,22 @@ function MissionDetailPageContent() {
           </div>
         </section>
       )}
+
+      <ErrorBoundary>
+        <MissionProgressPanel
+          mission={mission}
+          chainTrace={chainTrace}
+          events={events}
+          phaseLabel={phaseLabel}
+          phaseName={phaseName}
+          lastUpdatedAt={lastUpdatedAt}
+          transportMode={transportMode}
+          streamEventsSeen={streamEventsSeen}
+          pollFallbackTicks={pollFallbackTicks}
+          activeAgentCount={activeAgents.length}
+          buildArtifactCount={buildArtifacts.length}
+        />
+      </ErrorBoundary>
 
       <Panel title={phaseStepperTitle}>
         <ol className="phase-stepper" aria-label={phaseStepperAriaLabel}>
@@ -638,7 +663,7 @@ function MissionDetailPageContent() {
         className="mission-tab-panels"
       >
         <ErrorBoundary><GeneratedOutputPanel missionId={missionId} generatedCodeArtifact={generatedCodeArtifact} /></ErrorBoundary>
-        <ErrorBoundary><DeliveryPanel buildArtifacts={buildArtifacts} /></ErrorBoundary>
+        <ErrorBoundary><DeliveryPanel missionId={missionId} buildArtifacts={buildArtifacts} /></ErrorBoundary>
         <ErrorBoundary><AuditEvidencePanel auditReports={auditReports} /></ErrorBoundary>
         <ErrorBoundary><AimPanel applicationIntelligenceMap={applicationIntelligenceMap} /></ErrorBoundary>
         <ErrorBoundary><FusionPanel masterLogicStream={masterLogicStream} /></ErrorBoundary>

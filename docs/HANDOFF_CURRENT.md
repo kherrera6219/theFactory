@@ -1,18 +1,24 @@
 # Current Handoff
 
-Document version: 2026.07.01
-Last updated: 2026-07-01
+Document version: 2026.07.02
+Last updated: 2026-07-02
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** the single most important thing to know
-is that Phases 0-3 of the findings-remediation work (pod-audit fix, Beta fix,
-language-content-signature check, unconditional Compliance) are all committed
-and offline-verified, and the live stack has been rebuilt and is healthy — but
-no fresh live mission has been run yet to prove the fixes work end-to-end
-through the real chat UI. See "Findings Remediation (Phases 0-4)" below and
-Next Action #2 for that live-stack verification; the active repo ZIP migration
-continuation is Next Action #1.
+**If you are picking this up cold:** the newest completed work is the Mission
+Control UX lock-in for PM clarification, progress visibility, artifact output
+folder discovery, and Continue with PM. The code is implemented, focused tests
+pass, and the `mission-control` / `orchestrator` Docker images have been
+rebuilt. The next live action is to restart the app and run a real browser
+mission asking for a modern Angular Snake game with `start.bat`, then verify
+that clarification/defaults, progress indicators, output-folder actions, and
+follow-up context all behave correctly. Evidence:
+`docs/evidence/mission_control_ux_lockin_2026-07-02.md`.
+
+Previous high-priority context: Phases 0-3 of the findings-remediation work
+(pod-audit fix, Beta fix, language-content-signature check, unconditional
+Compliance) are all committed and offline-verified, and the live stack was
+rebuilt healthy, but a fresh live mission proof remains pending.
 
 Use this file with `docs/CURRENT_TODO.md` and
 `docs/IMPLEMENTATION_STATUS.md`. Historical phase notes are archived and should
@@ -45,9 +51,49 @@ Mission Control and RQCA HTML handling, refreshed Python service base-image
 digests for Trivy OpenSSL alerts #330-#336, and verified the rebuilt
 orchestrator image reports OpenSSL `3.0.20-1~deb12u2`.
 
+The latest Mission Control UX lock-in adds PM clarification cards/defaults,
+Live Progress status/next-action indicators, guarded local output-folder status
+and open actions, VS Code launch, and follow-up mission context loading. The
+running stack was not restarted during this lock-in pass; the post-restart
+browser mission proof remains the next action.
+
 ---
 
 ## Active Work
+
+### Mission Control UX Lock-In (implemented; restart/browser proof pending)
+
+Implementation complete:
+
+- PM feature-contract normalization now asks clarifying questions for
+  underspecified interactive applications/games instead of immediately creating
+  a launchable plan.
+- Mission Control chat renders those questions as decision cards with
+  recommended defaults, editable answers, and a proceed-with-defaults action.
+- Mission Detail now has a Live Progress panel that distinguishes waiting,
+  blocked, retrying, stale, working, and finished states with user-facing next
+  actions.
+- Generated Output and Build Artifacts panels show the local
+  `output/<mission_id>` path, file status, Copy Path, Open Folder, and VS Code
+  actions.
+- Continue with PM loads prior mission summary, build artifacts, delivery
+  summary, and output-folder status, then carries that context in follow-up
+  mission metadata.
+- generated-output artifact gating now blocks expected generated-output
+  missions from completing without a durable generated output artifact.
+
+Validation passed:
+
+- Mission Control focused Vitest: 36/36.
+- Mission Control `npm run build`.
+- Mission Control `npm run lint`.
+- Focused orchestrator PM/build-artifact pytest: 19/19.
+- Compose full-dedicated service graph resolution.
+- Docker rebuilds for `deploy-mission-control:latest` and
+  `deploy-orchestrator:latest`.
+
+Next action: after restart, run the Angular Snake browser mission and confirm
+the four user-facing behaviors above in the real UI.
 
 ### Repository ZIP Import Migration (active implementation)
 
@@ -441,8 +487,18 @@ Security alert remediation validation:
 
 ## Next Actions
 
-1. **Active repo ZIP migration next step.** Add the mission launch index guard, repo knowledge ingestion, and PM/pod-worker repository context loading so ZIP-imported repositories become internal database context rather than only approved source bundles.
-2. **Existing live-stack top priority.** Submit one live mission through the
+1. **Post-restart Mission Control UX proof.** Restart the app, then submit a
+   real browser mission through Mission Control asking for a modern Angular
+   Snake game with a `start.bat` file. Confirm: (a) PM clarification cards
+   appear or defaults can be accepted; (b) Live Progress shows ongoing work
+   instead of looking hung; (c) Generated Output / Build Artifacts expose the
+   real output-folder path and local open actions; (d) Continue with PM
+   preloads prior mission context for follow-up work.
+2. **Active repo ZIP migration next step.** Add the mission launch index guard,
+   repo knowledge ingestion, and PM/pod-worker repository context loading so
+   ZIP-imported repositories become internal database context rather than only
+   approved source bundles.
+3. **Existing live-stack top priority.** Submit one live mission through the
    real Mission Control chat UI (`http://127.0.0.1:3100/chat`, not the raw
    API — the stack is already up, rebuilt, and healthy). Pick a Pod B/C/D
    language that is also Python-dissimilar (Go, Rust, or C are all in scope
@@ -458,23 +514,23 @@ Security alert remediation validation:
    pre-wipe ID). Two Chrome browser extensions are currently connected — pick
    one explicitly (via `list_connected_browsers`/`select_browser`) before
    driving the UI.
-3. Decide whether to also flip `mission_equivalence_enforcement_enabled`
+4. Decide whether to also flip `mission_equivalence_enforcement_enabled`
    (still `False`) now that the new language-content-signature check exists —
    this is a broader decision than Phase 2 scoped, since it would also start
    blocking on the pre-existing `artifact_format_matches_contract` and
    `language_alignment` checks, not just the new one.
-4. Rerun a Pong-style UI artifact mission through the current PlanBuild path.
-5. Run Mission Control UI smoke for Phase 13.
-6. Run protocol-bus failure injection for Phase 13.
-7. Run provider fallback proof for Phase 13.
-8. Run full `make validate` and capture the current result.
-9. Raise remaining Phase 8 `mission_flow_v2/` branch coverage or explicitly defer the old 85% branch target.
-10. Add provider/key/model preflight in Settings.
-11. Move provider/model selection into the app settings/vault path.
-12. Rotate exposed provider keys before public or shared use.
-13. ~~Fix pod-audit, Beta, generated-language verification, Compliance
+5. Rerun a Pong-style UI artifact mission through the current PlanBuild path.
+6. Run Mission Control UI smoke for Phase 13.
+7. Run protocol-bus failure injection for Phase 13.
+8. Run provider fallback proof for Phase 13.
+9. Run full `make validate` and capture the current result.
+10. Raise remaining Phase 8 `mission_flow_v2/` branch coverage or explicitly defer the old 85% branch target.
+11. Add provider/key/model preflight in Settings.
+12. Move provider/model selection into the app settings/vault path.
+13. Rotate exposed provider keys before public or shared use.
+14. ~~Fix pod-audit, Beta, generated-language verification, Compliance
     trigger~~ — **done**: commits `4445b6b`, `07883d7`, `a63dfaf`, `b70d711`.
-    Live re-confirmation is Next Action #2 above.
+    Live re-confirmation is Next Action #3 above.
 
 ---
 

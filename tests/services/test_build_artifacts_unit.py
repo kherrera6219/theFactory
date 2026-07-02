@@ -85,6 +85,39 @@ def test_mission_requires_build_artifact_detects_source_code() -> None:
     assert build_artifacts.mission_requires_build_artifact({"source": "builder"}) is False
 
 
+def test_mission_requires_build_artifact_when_charter_expects_generated_output() -> None:
+    assert (
+        build_artifacts.mission_requires_build_artifact(
+            {
+                "output_mode_label": "FULL_BUILD",
+                "expected_artifacts": [
+                    "mission_contract",
+                    "logic_clusters",
+                    "generated_output",
+                ],
+                "generated_output": {
+                    "source": "fallback",
+                    "generated_code": "",
+                    "filename": "generated.python",
+                },
+            }
+        )
+        is True
+    )
+
+
+def test_mission_requires_build_artifact_skips_analyze_only_generated_output() -> None:
+    assert (
+        build_artifacts.mission_requires_build_artifact(
+            {
+                "output_mode_label": "ANALYZE_ONLY",
+                "expected_artifacts": ["mission_contract", "generated_output"],
+            }
+        )
+        is False
+    )
+
+
 def test_build_generated_output_artifact_generates_manifest_and_digest() -> None:
     metadata = {
         "generated_output": {

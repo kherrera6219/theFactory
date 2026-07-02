@@ -337,7 +337,12 @@ def _build_pm_feature_contract_prompt(
         "- If the user_intent is finalize_plan, produce the best complete contract using explicit "
         "assumptions and recommended defaults. Only set needs_clarification for a hard blocker "
         "that makes execution impossible.\n"
-        "- If an execution-critical dimension is still missing and user_intent is not finalize_plan, "
+        "- For interactive applications, frontend experiences, games, dashboards, or tools, ask "
+        "clarifying questions for high-impact product choices even when execution is technically "
+        "possible. Important choices include visual direction, interaction model, game/app scope, "
+        "packaging/run workflow, persistence, and acceptance checks.\n"
+        "- If an execution-critical or high-impact product dimension is still missing and "
+        "user_intent is not finalize_plan, "
         'set "intake_status":"needs_clarification" and return 1-3 specific, answerable '
         "clarifying_questions that target exactly those gaps. Include a recommended default in "
         "each question. Do NOT pad with generic requirements.\n"

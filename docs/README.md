@@ -1,7 +1,7 @@
 # theFactory Docs
 
-Document version: 2026.06.30
-Last updated: 2026-06-30
+Document version: 2026.07.02
+Last updated: 2026-07-02
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -44,12 +44,18 @@ Current validated proof points:
 - CodeQL alerts #337-#338 and Trivy OpenSSL alerts #330-#336 have local
   remediation through parser-based RQCA HTML smoke, raster-only file previews,
   and refreshed Python service base-image digests.
+- Mission Control UX lock-in is implemented and rebuilt: PM clarification
+  cards/defaults, Live Progress indicators, output-folder status/open actions,
+  VS Code launch, and Continue with PM context loading. See
+  [mission_control_ux_lockin_2026-07-02.md](evidence/mission_control_ux_lockin_2026-07-02.md).
 - Documentation validation and OpenAPI drift checks are enforced through
   `make validate`.
 
 Tracked remaining gaps:
 
 - Mission Control UI smoke for the Phase 13 mission path.
+- Post-restart browser proof for the new Mission Control UX lock-in using a
+  modern Angular Snake mission with `start.bat`.
 - Live failure-injection and provider-fallback proof.
 - Full `make validate` in the current environment.
 - Remaining Phase 8 `mission_flow_v2/` branch-coverage carry-forward or

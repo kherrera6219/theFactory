@@ -198,7 +198,7 @@ export function deriveMissionPhaseDescriptor(params: {
 
   for (const event of params.events ?? []) {
     const mapped = eventToIndex[normalizeToken(event.event_type)];
-    if (mapped !== null) {
+    if (Number.isInteger(mapped)) {
       phaseIndex = Math.max(phaseIndex, mapped);
     }
   }

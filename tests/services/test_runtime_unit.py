@@ -983,6 +983,52 @@ def test_completion_artifacts_ready_requires_build_artifact_for_source_bundle(mo
     assert details["build_artifact_status"] == "MISSING"
 
 
+def test_completion_artifacts_ready_blocks_empty_expected_generated_output(monkeypatch) -> None:
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime, "completion_policy_exempt", lambda _metadata: False)
+    monkeypatch.setattr(runtime.storage, "get_pod_assignment", lambda *_args: {"pod_name": "podA"})
+    monkeypatch.setattr(
+        runtime.storage,
+        "list_logicnodes",
+        lambda *_args: [{"node_id": "node-1"}],
+    )
+    monkeypatch.setattr(runtime.storage, "list_build_artifacts", lambda *_args: [])
+
+    mission = MissionRecord(
+        mission_id="mission-1",
+        prompt="Build an Angular Snake game",
+        requested_target_language="typescript",
+        metadata={
+            "output_mode_label": "FULL_BUILD",
+            "expected_artifacts": [
+                "mission_contract",
+                "logic_clusters",
+                "generated_output",
+            ],
+            "generated_output": {
+                "source": "fallback",
+                "generated_code": "",
+                "filename": "generated.python",
+                "language": "python",
+            },
+        },
+        state=MissionState.verified,
+        created_at="2026-03-01T00:00:00+00:00",
+    )
+
+    ready, details = asyncio.run(
+        runtime._completion_artifacts_ready(settings=_settings(), mission=mission)
+    )
+
+    assert ready is False
+    assert details["build_artifact_required"] is True
+    assert details["build_artifact_count"] == 0
+    assert details["has_successful_build_artifact"] is False
+
+
 def test_completion_artifacts_ready_short_circuits_for_policy_exemption(monkeypatch) -> None:
     mission = MissionRecord(
         mission_id="mission-1",

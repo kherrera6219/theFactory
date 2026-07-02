@@ -64,6 +64,20 @@ describe("smelt-cycle mapping", () => {
     ).toBe(5);
   });
 
+  it("ignores non-phase audit events when deriving the current phase", () => {
+    const descriptor = deriveMissionPhaseDescriptor({
+      missionState: "COMPLETE",
+      events: [
+        event("MISSION_DELIVERED"),
+        event("MISSION_COMPLIANCE_ASSESSMENT_COMPLETE"),
+      ],
+      routingVersion: "v2",
+    });
+
+    expect(descriptor.phaseIndex).toBe(11);
+    expect(descriptor.phaseName).toBe("COMPLETE");
+  });
+
   it("uses logicnode signals to bridge older missions without checkpoint events", () => {
     expect(
       deriveSmeltPhaseIndex({

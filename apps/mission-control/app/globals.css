@@ -1906,6 +1906,155 @@ dd {
   font-weight: 700;
 }
 
+.mission-progress-panel {
+  margin-bottom: 12px;
+}
+
+.mission-progress-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.mission-progress-header h2 {
+  margin: 8px 0 4px;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.mission-progress-header p {
+  margin: 0;
+}
+
+.mission-progress-percent {
+  flex: 0 0 auto;
+  min-width: 74px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  color: var(--ink);
+  font-size: 1.4rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.mission-progress-meter {
+  height: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+}
+
+.mission-progress-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease;
+}
+
+.mission-progress-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.mission-progress-facts div {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--surface);
+}
+
+.mission-progress-facts dt {
+  margin: 0 0 4px;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.mission-progress-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.clarification-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.clarification-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.clarification-header h2 {
+  margin: 8px 0 0;
+  font-size: 1.2rem;
+  line-height: 1.25;
+}
+
+.clarification-count {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 750;
+}
+
+.clarification-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clarification-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+
+.clarification-card p {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.clarification-card dl,
+.output-folder-card dl {
+  margin-bottom: 0;
+}
+
+.clarification-card dt {
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.clarification-card dd,
+.output-folder-card dd {
+  overflow-wrap: anywhere;
+}
+
 .mission-detail-grid {
   display: grid;
   gap: 12px;

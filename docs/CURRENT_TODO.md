@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.07.01
-Last updated: 2026-07-01
+Document version: 2026.07.02
+Last updated: 2026-07-02
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -13,7 +13,35 @@ as current work.
 
 ## Current Status
 
-**Most recent work: findings remediation from the 2026-06-30 battery (Phases
+**Most recent work: Mission Control UX lock-in for PM clarification,
+mission-progress visibility, artifact folder discovery, and follow-up mission
+continuation.** The implementation is complete and rebuilt into the local Docker
+images, but the post-restart browser mission proof is still pending. Evidence:
+`docs/evidence/mission_control_ux_lockin_2026-07-02.md`.
+
+- DONE: PM feature-contract normalization now asks clarifying questions for
+  underspecified interactive applications/games. Mission Control renders those
+  questions as actionable decision cards with recommended defaults, an edit
+  path, and a proceed-with-defaults action.
+- DONE: Mission Detail now exposes Live Progress with clearer waiting,
+  blocked, retrying, stale, working, and finished indicators so long-running
+  missions do not look hung without context.
+- DONE: Generated Output and Build Artifacts panels now show the real local
+  `output/<mission_id>` path, folder/file status, Copy Path, Open Folder, and
+  VS Code actions when supported by the local Windows UI process.
+- DONE: Continue with PM now loads prior mission summary, build artifacts,
+  delivery summary, and output-folder status, then carries that context in the
+  follow-up mission metadata.
+- DONE: generated-output completion gating now blocks missions that expect a
+  generated output artifact from completing with an empty durable artifact set.
+- VALIDATED: Mission Control focused Vitest (36/36), `npm run build`,
+  `npm run lint`, focused orchestrator pytest (19/19), compose service graph
+  resolution, and Docker rebuilds for `mission-control` and `orchestrator`.
+- NEXT: after app restart, run a new browser mission for a modern Angular Snake
+  game with `start.bat` and verify PM clarification/defaults, live progress,
+  output-folder actions, and Continue with PM in the real UI.
+
+**Previous current work: findings remediation from the 2026-06-30 battery (Phases
 0-3 committed and offline-verified; Phase 4 live verification incomplete).**
 A phased plan (`FIRST_FULL_SYSTEM_RUN_FINDINGS_2026-06-30.md` recommendations +
 `docs/STACK_REMEDIATION_PLAN_2026-07-01.md`) was validated against the actual
@@ -139,6 +167,25 @@ Mission Control file previews, and refreshed Python service base-image digests.
 ---
 
 ## Active Work Queue
+
+### Mission Control UX Lock-In (implemented; live browser proof pending)
+
+Tracked by `docs/evidence/mission_control_ux_lockin_2026-07-02.md`.
+
+- DONE: PM clarification cards and recommended-default flow in Mission Control
+  chat.
+- DONE: local output-folder status route plus guarded local Open Folder and VS
+  Code actions.
+- DONE: artifact panels expose the output path/status even when no generated
+  artifact is recorded yet.
+- DONE: Continue with PM preloads prior mission/output/artifact context for
+  follow-up work.
+- DONE: Live Progress panel exposes state-specific next actions for waiting,
+  blocked, retrying, stale, and finished missions.
+- VALIDATED: focused frontend/backend tests, Mission Control build/lint, and
+  Docker rebuilds for the changed UI/orchestrator images.
+- NEXT: run the post-restart Angular Snake browser mission and confirm the UX
+  behaves correctly under a real mission.
 
 ### Repository ZIP Import Migration (active implementation)
 

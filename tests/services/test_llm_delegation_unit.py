@@ -339,6 +339,17 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
     assert fallback["degraded"] is True
     assert fallback["degraded_reason"] == "llm_unavailable"
 
+    app_fallback = llm_delegation._fallback_pm_feature_contract(
+        prompt="Create a modern Snake game in Angular with a start.bat file.",
+        mission_type="BUILD_NEW",
+        requested_target_language="typescript",
+        recommendation={"provider": "gemini", "model": "gemini-3.5-flash"},
+    )
+    assert app_fallback["source"] == "fallback"
+    assert app_fallback["intake_status"] == "needs_clarification"
+    assert app_fallback["clarifying_questions"]
+    assert app_fallback["ambiguity_score"] >= 0.7
+
     normalized = llm_delegation._normalize_pm_feature_contract(
         {
             "title": "CSV",
@@ -363,6 +374,36 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
     assert len(normalized["clarifying_questions"][0]) > 120
     assert normalized["clarifying_questions"][0].endswith("decimal-separators?")
     assert normalized["ambiguity_score"] >= 0.7
+
+
+def test_pm_feature_contract_clarifies_interactive_angular_game_scope() -> None:
+    normalized = llm_delegation._normalize_pm_feature_contract(
+        {
+            "title": "Modern Angular Snake Game",
+            "summary": "Create a modern Snake game in Angular with a start.bat file.",
+            "functional_requirements": [
+                "Build a complete runnable Angular Snake game.",
+                "Include a Windows start.bat file.",
+            ],
+            "acceptance_criteria": ["The Angular game starts locally."],
+            "target_languages": ["typescript", "html", "css", "batch"],
+            "estimated_complexity": "medium",
+            "human_approval_required": False,
+            "intake_status": "ready",
+            "clarifying_questions": [],
+        },
+        provider="gemini",
+        model="gemini-3.5-flash",
+        route="primary",
+        prompt="Create a modern Snake game in Angular with a start.bat file.",
+        requested_target_language="typescript",
+    )
+
+    assert normalized["intake_status"] == "needs_clarification"
+    assert normalized["ambiguity_score"] >= 0.7
+    questions = " ".join(normalized["clarifying_questions"]).lower()
+    assert "visual" in questions
+    assert "gameplay" in questions or "done" in questions
 
 
 def test_logic_cluster_fallback_groups_contract_domains() -> None:
