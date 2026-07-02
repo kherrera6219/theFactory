@@ -163,6 +163,27 @@ def _find_python_artifact(records: Any) -> dict[str, Any] | None:
     return records[0] if records else None
 
 
+def _routing_mismatches(payload: Any) -> list[str]:
+    if not isinstance(payload, dict):
+        return ["mission detail payload missing"]
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        return ["mission metadata missing"]
+    checks = (
+        ("assigned_pod_manager_agent_id", "expected_pod_manager_agent_id"),
+        ("assigned_specialist_agent_id", "expected_specialist_agent_id"),
+    )
+    mismatches: list[str] = []
+    for assigned_key, expected_key in checks:
+        assigned = str(metadata.get(assigned_key, "")).strip().upper()
+        expected = str(metadata.get(expected_key, "")).strip().upper()
+        if expected and assigned and assigned != expected:
+            mismatches.append(f"{assigned_key}={assigned} expected {expected}")
+        elif expected and not assigned:
+            mismatches.append(f"{assigned_key} missing expected {expected}")
+    return mismatches
+
+
 def _wait_for_terminal_state(
     *,
     gateway_base_url: str,
@@ -358,8 +379,14 @@ def run(args: argparse.Namespace) -> int:
         failure_reasons.append("missing build artifacts")
     if not python_valid:
         failure_reasons.append(f"python artifact syntax check failed: {python_error}")
+    routing_mismatches = _routing_mismatches(final_payload)
+    if routing_mismatches:
+        failure_reasons.extend(
+            f"routing invariant mismatch: {mismatch}" for mismatch in routing_mismatches
+        )
 
     report["missing_chain_events"] = missing_events
+    report["routing_mismatches"] = routing_mismatches
     report["failure_reasons"] = failure_reasons
     report["passed"] = not failure_reasons
     _write_report(Path(args.output_file), report)

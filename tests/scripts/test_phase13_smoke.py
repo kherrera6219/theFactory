@@ -65,6 +65,20 @@ def test_find_python_artifact_prefers_generated_python_record() -> None:
     assert artifact == {"artifact_id": "generated_code", "artifact_type": "python_source"}
 
 
+def test_routing_mismatches_report_assigned_pod_manager_drift() -> None:
+    payload = {
+        "metadata": {
+            "assigned_pod_manager_agent_id": "AGENT-18-PODB-MGR",
+            "expected_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+            "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+            "expected_specialist_agent_id": "AGENT-14-PYTHON",
+        }
+    }
+    assert smoke._routing_mismatches(payload) == [
+        "assigned_pod_manager_agent_id=AGENT-18-PODB-MGR expected AGENT-12-PODA-MGR"
+    ]
+
+
 def test_artifact_text_prefers_inline_artifact_text() -> None:
     assert smoke._artifact_text({"artifact_text": "print('ok')"}) == "print('ok')"
 

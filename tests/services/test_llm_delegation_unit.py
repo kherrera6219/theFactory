@@ -624,6 +624,38 @@ def test_generate_ceo_delegation_uses_llm_result(monkeypatch) -> None:
     assert result["specialist_agent_id"] == "AGENT-34-JULIA"
 
 
+def test_generate_ceo_delegation_enforces_language_pod_manager(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_delegation,
+        "_ceo_recommendation",
+        lambda: {"provider": "anthropic", "model": "claude-sonnet"},
+    )
+
+    async def _anthropic(
+        _model: str,
+        _prompt: str,
+        *,
+        call_context: str,
+    ) -> dict[str, Any] | None:
+        assert call_context
+        return {
+            "pod_manager_agent_id": "AGENT-18-PODB-MGR",
+            "specialist_agent_id": "AGENT-14-PYTHON",
+            "rationale": "Python workload route.",
+        }
+
+    monkeypatch.setattr(llm_delegation, "_call_anthropic", _anthropic)
+    result = asyncio.run(
+        llm_delegation.generate_ceo_delegation(
+            mission_context={"mission_id": "mission-2"},
+            requested_target_language="python",
+        )
+    )
+    assert result["source"] == "llm"
+    assert result["pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
+    assert result["specialist_agent_id"] == "AGENT-14-PYTHON"
+
+
 def test_generate_pod_manager_delegation_uses_llm_result(monkeypatch) -> None:
     monkeypatch.setattr(
         llm_delegation,

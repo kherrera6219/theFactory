@@ -372,6 +372,8 @@ async def generate_ceo_delegation(
         allowed_ids=_VALID_SPECIALIST_IDS,
         fallback=specialist_fallback,
     )
+    if pod_manager_agent_id != pod_manager_fallback:
+        pod_manager_agent_id = pod_manager_fallback
     return {
         "pod_manager_agent_id": pod_manager_agent_id,
         "specialist_agent_id": specialist_agent_id,
