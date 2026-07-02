@@ -154,18 +154,18 @@ access.
 - DONE: Phase 2 import route. `POST /api/repo/import` now accepts
   multipart/form-data with an `archive` `.zip` upload plus `display_name`,
   `source_ref`, `subdirectory`, and `max_files`; it indexes the archive locally
-  and returns ZIP metadata while preserving compatibility fields for the current
-  repo page until the UI migration lands.
+  and returns ZIP metadata while enforcing upload-size and truncation signals.
 - DONE: Phase 3 review route conversion. `POST /api/repo/review` now accepts
-  multipart/form-data ZIP review requests, re-indexes the archive, validates
-  optional `archive_sha256`, reads selected file text from ZIP entries, and
-  returns the existing review bundle shape without GitHub API calls.
-- VALIDATED: `npm run test -- app/api/repo/archive.test.ts
-  app/api/repo/import/route.test.ts app/api/repo/review/route.test.ts` passed
-  17/17 tests; `npm run lint` passed for Mission Control TypeScript.
-- NEXT: Phase 4 UI migration. The `/repo` page still renders GitHub URL copy
-  and JSON import behavior; replace it with ZIP file selection, archive metadata,
-  and review-gate reset behavior.
+  multipart/form-data ZIP review requests, requires `archive_sha256`, includes
+  required selected paths outside the display slice, reads selected file text in
+  one ZIP pass, and returns the existing review bundle shape without GitHub API
+  calls.
+- DONE: Phase 4 UI migration. The `/repo` page now renders a local ZIP file
+  selector, source-ref metadata, archive hash/root-prefix summaries, FormData
+  import/review calls, and review-gate reset behavior when archive scope changes.
+- VALIDATED: Mission Control `npm run lint`, full `npm run test` (87/87), focused
+  `npm run test -- app/api/repo` (22/22), and targeted Playwright repo intake
+  e2e passed.
 - NEXT: Phases 5-7. Add mission launch index guard, repo knowledge ingestion,
   and PM/pod-worker repository context loading so indexed repo content becomes
   available from the internal database.
@@ -411,7 +411,7 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 | Full validation | Focused validation passed; full `make validate` still needs current run |
 | Provider settings | Provider/model still partly environment-driven |
 | Key hygiene | Exposed provider keys must be rotated before wider use |
-| Repository ZIP import | Phase 1 archive core, Phase 2 ZIP import route, and Phase 3 ZIP review route are implemented and locally validated; UI migration, mission index guard, repo knowledge ingestion, and agent context wiring remain open |
+| Repository ZIP import | Phase 1 archive core, Phase 2 ZIP import route, Phase 3 ZIP review route, and Phase 4 ZIP UI migration are implemented and locally validated; mission index guard, repo knowledge ingestion, and agent context wiring remain open |
 | Protocol Bus lanes | All six lanes have live producers (PBLA-00..04); Beta fix committed (`07883d7`) but not yet re-confirmed live; only Sigma is consumed so far. Four-stage program tracked by `PROTOCOL_BUS_PROGRAM_ROADMAP.md` (PBLA done → EDCP next → Agent Runtime Split → Semantic Bus) |
 | Pod-audit routing | Fixed and committed (`4445b6b`); baked into the rebuilt live stack; not yet re-confirmed via a fresh live mission |
 | Beta lane (PBLA-03) | Fixed and committed (`07883d7`) — emission added to `_prepare_specialist_plan`, the actual generated_output set-site (the findings doc named the wrong function); baked into the rebuilt live stack; not yet re-confirmed live |

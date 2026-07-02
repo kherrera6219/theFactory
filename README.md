@@ -443,7 +443,7 @@ The protocol bus is a six-protocol typed message bus. Routing is lexical/channel
 | Alerts | Incident and alert center with acknowledge/resolve workflow |
 | Performance | Runtime readiness, dependency health, and mission-state capacity snapshot |
 | Builder | Grounded local-workspace review with patch contract, durable approval gate, launch-time approval verification, and mission launch bundle |
-| Repo Import | GitHub import, review gate, launch-time approval verification, and mission scoping with bundled source context |
+| Repo Import | Local ZIP import, archive-hash review gate, launch-time approval verification, and mission scoping with bundled source context |
 | Databases | Shared data-system readiness and diagnostics |
 | Settings | Provider key management, vault-backed secrets, and local environment controls |
 

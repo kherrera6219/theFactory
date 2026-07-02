@@ -17,6 +17,11 @@ type MissionRecord = {
   created_at: string;
 };
 
+type ZipFixtureEntry = {
+  name: string;
+  content?: string | Buffer;
+};
+
 function personaProfile(agentId: string) {
   return {
     job_role: {
@@ -130,20 +135,25 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
     if (request.method() !== "POST") {
       return fulfillJson(route, 405, { detail: "Method not allowed." });
     }
-    const payload = (request.postDataJSON() as Record<string, unknown>) ?? {};
-    const repoUrl = typeof payload.repo_url === "string" ? payload.repo_url : "";
-    if (!repoUrl.startsWith("https://github.com/")) {
-      return fulfillJson(route, 400, { detail: "Invalid repository URL." });
+    const contentType = request.headers()["content-type"] ?? "";
+    if (!contentType.includes("multipart/form-data")) {
+      return fulfillJson(route, 400, { detail: "Repository ZIP import requires multipart/form-data." });
     }
 
     return fulfillJson(route, 200, {
       repository: {
+        source: "zip",
+        display_name: "Sample Platform",
+        archive_id: "repozip-a1b2c3d4e5f6",
+        archive_sha256: "a1b2c3d4e5f6".padEnd(64, "0"),
+        source_ref: "main",
+        root_prefix: "sample-platform-main/",
         owner: "octo",
-        repo: "sample-platform",
+        repo: "Sample Platform",
         branch: "main",
         default_branch: "main",
-        private: false,
-        html_url: "https://github.com/octo/sample-platform",
+        private: true,
+        html_url: null,
       },
       files: [
         {
@@ -171,12 +181,17 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
         selected_subdirectory: "/",
         truncated: false,
         skipped_large_files: 0,
+        skipped_unsafe_entries: 0,
+        skipped_directory_entries: 1,
+        skipped_unreadable_entries: 0,
+        entry_limit_reached: false,
+        byte_limit_reached: false,
+        total_entries: 4,
+        total_uncompressed_bytes: 23_200,
       },
       logs: [
-        "Validated repository request payload.",
-        "Resolving metadata for octo/sample-platform.",
-        "Fetched repository tree with 3 entries.",
-        "Selected 3 files from /.",
+        "Validated repository ZIP upload payload.",
+        "Indexed 3 files from /.",
       ],
     });
   });
@@ -186,10 +201,15 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
     if (request.method() !== "POST") {
       return fulfillJson(route, 405, { detail: "Method not allowed." });
     }
-    const payload = (request.postDataJSON() as Record<string, unknown>) ?? {};
-    const selectedFiles = Array.isArray(payload.selected_files)
-      ? (payload.selected_files as Array<Record<string, unknown>>)
-      : [];
+    const contentType = request.headers()["content-type"] ?? "";
+    if (!contentType.includes("multipart/form-data")) {
+      return fulfillJson(route, 400, { detail: "Repository ZIP review requires multipart/form-data." });
+    }
+    const selectedFiles = [
+      { overlay_action: "include" },
+      { overlay_action: "include" },
+      { overlay_action: "include" },
+    ];
     if (selectedFiles.length === 0) {
       return fulfillJson(route, 400, { detail: "Select files before review." });
     }
@@ -200,13 +220,19 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
       source: "repo-review",
       generated_at: new Date().toISOString(),
       repository: {
-        owner: "octo",
-        repo: "sample-platform",
+        source: "zip",
+        owner: "local",
+        repo: "Sample Platform",
         branch: "main",
-        html_url: "https://github.com/octo/sample-platform",
+        html_url: null,
         selected_subdirectory: "/",
+        archive_id: "repozip-a1b2c3d4e5f6",
+        archive_sha256: "a1b2c3d4e5f6".padEnd(64, "0"),
+        display_name: "Sample Platform",
+        source_ref: "main",
+        root_prefix: "sample-platform-main/",
       },
-      mission_type: typeof payload.mission_type === "string" ? payload.mission_type : "analyze",
+      mission_type: "analyze",
       requested_target_language: "typescript",
       source_code:
         "# Repository Source Bundle\nrepository: octo/sample-platform\nbranch: main\n\n## FILE apps/mission-control/app/(shell)/repo/page.tsx\nexport default function RepoPage() {}\n",
@@ -224,7 +250,7 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
         { title: "Edit Direct Files", description: "Direct-edit scope is apps/mission-control/app/(shell)/repo/page.tsx." },
       ],
       diff_summary: [
-        "Reviewed 3 selected files from octo/sample-platform@main.",
+        "Reviewed 3 selected files from uploaded ZIP Sample Platform@main.",
         "Direct-edit scope covers 3 files; 0 files remain reference-only.",
         "Primary target language resolved to typescript.",
       ],
@@ -663,6 +689,84 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
   });
 }
 
+function createStoredZip(entries: ZipFixtureEntry[]): Buffer {
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const fileName = Buffer.from(entry.name, "utf-8");
+    const data = Buffer.isBuffer(entry.content)
+      ? entry.content
+      : Buffer.from(entry.content ?? "", "utf-8");
+    const crc = crc32(data);
+    const localHeader = Buffer.alloc(30);
+    localHeader.writeUInt32LE(0x04034b50, 0);
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt16LE(0, 6);
+    localHeader.writeUInt16LE(0, 8);
+    localHeader.writeUInt16LE(0, 10);
+    localHeader.writeUInt16LE(0, 12);
+    localHeader.writeUInt32LE(crc, 14);
+    localHeader.writeUInt32LE(data.length, 18);
+    localHeader.writeUInt32LE(data.length, 22);
+    localHeader.writeUInt16LE(fileName.length, 26);
+    localHeader.writeUInt16LE(0, 28);
+    localParts.push(localHeader, fileName, data);
+
+    const centralHeader = Buffer.alloc(46);
+    centralHeader.writeUInt32LE(0x02014b50, 0);
+    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE(20, 6);
+    centralHeader.writeUInt16LE(0, 8);
+    centralHeader.writeUInt16LE(0, 10);
+    centralHeader.writeUInt16LE(0, 12);
+    centralHeader.writeUInt16LE(0, 14);
+    centralHeader.writeUInt32LE(crc, 16);
+    centralHeader.writeUInt32LE(data.length, 20);
+    centralHeader.writeUInt32LE(data.length, 24);
+    centralHeader.writeUInt16LE(fileName.length, 28);
+    centralHeader.writeUInt16LE(0, 30);
+    centralHeader.writeUInt16LE(0, 32);
+    centralHeader.writeUInt16LE(0, 34);
+    centralHeader.writeUInt16LE(0, 36);
+    centralHeader.writeUInt32LE(entry.name.endsWith("/") ? 0x10 : 0, 38);
+    centralHeader.writeUInt32LE(offset, 42);
+    centralParts.push(centralHeader, fileName);
+
+    offset += localHeader.length + fileName.length + data.length;
+  }
+
+  const centralDirectory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...localParts, centralDirectory, end]);
+}
+
+function crc32(buffer: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc = (crc >>> 8) ^ CRC_TABLE[(crc ^ byte) & 0xff];
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+const CRC_TABLE = Array.from({ length: 256 }, (_, tableIndex) => {
+  let value = tableIndex;
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  }
+  return value >>> 0;
+});
+
 test.beforeEach(async ({ page }) => {
   await attachOperatorSession(page);
 });
@@ -776,11 +880,18 @@ test("repo intake imports files and launches mission", async ({ page }) => {
     page.getByRole("heading", { name: "Repository Intake and Mission Configuration" }),
   ).toBeVisible();
 
-  await page.getByLabel("GitHub repository URL").fill("https://github.com/octo/sample-platform");
-  await page.getByRole("button", { name: "Import Repository" }).click();
+  await page.getByLabel("Repository ZIP archive").setInputFiles({
+    name: "sample-platform.zip",
+    mimeType: "application/zip",
+    buffer: createStoredZip([
+      { name: "sample-platform-main/README.md", content: "# Sample Platform\n" },
+      { name: "sample-platform-main/apps/mission-control/app/(shell)/repo/page.tsx", content: "\"use client\";\n" },
+    ]),
+  });
+  await page.getByRole("button", { name: "Import ZIP" }).click();
 
-  await expect(page.getByText("octo/sample-platform", { exact: true })).toBeVisible();
-  await expect(page.getByText("Selected 3 files from /.")).toBeVisible();
+  await expect(page.getByText("Sample Platform", { exact: true })).toBeVisible();
+  await expect(page.getByText("Indexed 3 files from /.")).toBeVisible();
 
   await page.getByRole("button", { name: "Select Top 25" }).click();
   await expect(page.getByText(/Selected: 3 files - 510 estimated lines/)).toBeVisible();

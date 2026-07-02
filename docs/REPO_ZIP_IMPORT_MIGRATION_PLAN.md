@@ -1,6 +1,9 @@
 # Repository ZIP Import Migration Plan
 
-Date: 2026-07-01
+Document version: 2026.07.02
+Last updated: 2026-07-02
+Status: Active
+Audience: Operators, developers, maintainers, and auditors
 
 ## Purpose
 
@@ -116,7 +119,10 @@ Response:
 
 ### `POST /api/repo/review`
 
-Keep JSON, but replace GitHub locator fields with ZIP import locator fields.
+Implemented status: this route currently accepts multipart form data so the
+same uploaded ZIP can be hash-bound and re-read during review. A future staged
+archive implementation can move this contract to `archive_id` plus
+`archive_sha256` without a second upload.
 
 Fields:
 
@@ -196,7 +202,8 @@ Update settings:
 
 ## Live UI Impact Review
 
-The running page at `http://localhost:3000/repo` currently renders a GitHub-first workflow:
+Historical pre-migration baseline: before Phase 4, the running page at
+`http://localhost:3000/repo` rendered a GitHub-first workflow:
 
 - Sidebar item: `Repo Import` with description `GitHub import and mission scoping`.
 - Page eyebrow: `GitHub Import`.
@@ -209,6 +216,9 @@ The running page at `http://localhost:3000/repo` currently renders a GitHub-firs
 - Step 2 empty state: `Import a repository to preview files...`.
 
 Required page changes:
+
+Status: complete for the current `/repo` route as of 2026-07-02, except for
+extracted-folder/index-status UI that belongs to repo knowledge ingestion.
 
 - Keep the page title if desired, but change the eyebrow to `Repository ZIP Import`.
 - Change Step 1 heading to `Step 1: Import Repository ZIP`.
@@ -509,11 +519,15 @@ Validation commands:
 
 ### Phase 1: Archive Core
 
+Status: complete.
+
 - Add ZIP helper module and fixture ZIPs.
 - Implement safe archive indexing and selected file reading.
 - Add focused ZIP helper tests.
 
 ### Phase 2: Import Route
+
+Status: complete.
 
 - Convert `POST /api/repo/import` to multipart ZIP import.
 - Keep the response shape close to today, with ZIP metadata replacing GitHub metadata.
@@ -521,11 +535,18 @@ Validation commands:
 
 ### Phase 3: Review Route
 
+Status: complete for re-uploaded multipart review; staged archive review remains
+part of the future repo-indexing work.
+
 - Convert `POST /api/repo/review` to read selected file contents from staged ZIP archives.
 - Preserve review artifact output and fingerprinting semantics.
 - Include archive hash and source ref in fingerprinting.
 
 ### Phase 4: UI Migration
+
+Status: complete for browser-compatible ZIP selection, FormData import/review,
+archive metadata, and review-gate reset behavior. Extracted-folder and
+index-status UI remain tied to phases 5-7.
 
 - Replace URL input with ZIP chooser.
 - Update copy, validation, metadata, and review reset behavior.
@@ -553,7 +574,7 @@ Validation commands:
 
 ### Phase 8: Cleanup and Documentation
 
-- Update navigation, operator docs, and any README references to GitHub import.
+- Update navigation, operator docs, and any README references to GitHub import. Status: complete for the current ZIP UI closeout.
 - Decide whether to delete GitHub helper functions or keep them isolated for future remote-import support.
 - Document ZIP snapshot limitations: no history, no submodule hydration, no LFS hydration.
 
@@ -565,6 +586,9 @@ Validation commands:
 - Browser support: browser upload works, but large archives may hit Next.js/server body limits; Electron local file path handoff may be preferable for desktop.
 - GitHub replacement scope: this plan removes remote GitHub import from the primary path. A future "Remote GitHub ZIP URL" feature can be added later, but it should still normalize into the same archive pipeline.
 
-## Recommended First Implementation Slice
+## Recommended Next Implementation Slice
 
-Implement Phase 1 and Phase 2 together behind the existing `/repo` page, then stop before review route conversion. That produces a testable ZIP file listing and safe extraction flow without touching mission launch. The next implementation slice should convert review reading to ZIP-backed content, then add the mission launch guard plus repo knowledge ingestion before allowing repo ZIP missions to reach PM intake.
+Phases 1-4 are implemented and locally validated. The next slice should add the
+mission launch index guard, repo knowledge ingestion, and PM/pod-worker
+repository context loading before treating ZIP-imported repositories as
+agent-accessible internal database context.

@@ -130,6 +130,88 @@ describe("repo ZIP review route", () => {
     });
   });
 
+  it("requires archive SHA binding for review", async () => {
+    const zipBuffer = createStoredZip([{ name: "README.md", content: "# Sample\n" }]);
+
+    const response = await POST(
+      createFormDataRequest([
+        { name: "archive", fileName: "sample.zip", contentType: "application/zip", content: zipBuffer },
+        { name: "mission_type", value: "analyze" },
+        {
+          name: "selected_files",
+          value: JSON.stringify([{ path: "README.md", overlay_action: "include" }]),
+        },
+      ]),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      detail: "archive_sha256 is required for repository ZIP review.",
+    });
+  });
+
+  it("reviews a selected file outside the top display slice", async () => {
+    const entries: ZipFixtureEntry[] = Array.from({ length: 121 }, (_, index) => ({
+      name: `src/large-${String(index).padStart(3, "0")}.ts`,
+      content: "x".repeat(500 + index),
+    }));
+    entries.push({ name: "README.md", content: "# Small selected file\n" });
+    const zipBuffer = createStoredZip(entries);
+    const archiveSha256 = createHash("sha256").update(zipBuffer).digest("hex");
+
+    const response = await POST(
+      createFormDataRequest([
+        { name: "archive", fileName: "sample.zip", contentType: "application/zip", content: zipBuffer },
+        { name: "archive_sha256", value: archiveSha256 },
+        { name: "mission_type", value: "analyze" },
+        {
+          name: "selected_files",
+          value: JSON.stringify([{ path: "README.md", overlay_action: "include" }]),
+        },
+      ]),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.files).toHaveLength(1);
+    expect(payload.files[0]).toMatchObject({
+      path: "README.md",
+      bytes: Buffer.byteLength("# Small selected file\n"),
+    });
+  });
+
+  it("keeps archive metadata authoritative for zero-byte files", async () => {
+    const zipBuffer = createStoredZip([{ name: "empty.txt", content: "" }]);
+    const archiveSha256 = createHash("sha256").update(zipBuffer).digest("hex");
+
+    const response = await POST(
+      createFormDataRequest([
+        { name: "archive", fileName: "sample.zip", contentType: "application/zip", content: zipBuffer },
+        { name: "archive_sha256", value: archiveSha256 },
+        { name: "mission_type", value: "analyze" },
+        {
+          name: "selected_files",
+          value: JSON.stringify([
+            {
+              path: "empty.txt",
+              overlay_action: "include",
+              bytes: 999_999,
+              estimated_lines: 22_222,
+            },
+          ]),
+        },
+      ]),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.files[0]).toMatchObject({
+      path: "empty.txt",
+      bytes: 0,
+      estimated_lines: 1,
+    });
+  });
+
   it("rejects update reviews without a description", async () => {
     const zipBuffer = createStoredZip([{ name: "README.md", content: "# Sample\n" }]);
 

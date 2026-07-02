@@ -60,23 +60,25 @@ Mission Control:
   traversal rejection, subdirectory filtering, text reads, and binary detection.
 - Phase 2 is complete locally: `apps/mission-control/app/api/repo/import/route.ts`
   accepts multipart ZIP uploads, validates source refs/subdirectories, indexes
-  files without GitHub API calls, and returns ZIP metadata plus compatibility
-  repository fields for the current page.
+  files without GitHub API calls, rejects oversized uploads, and returns ZIP
+  metadata with archive truncation signals.
 - Route tests now focus on ZIP intake: accepted archive, missing archive,
   non-ZIP rejection, invalid source ref, and operator-session enforcement.
 - Phase 3 is complete locally: `apps/mission-control/app/api/repo/review/route.ts`
-  accepts multipart ZIP review requests, validates optional `archive_sha256`,
-  re-indexes the uploaded archive, reads selected file text from normalized ZIP
-  paths, and returns the existing review artifact/source-bundle shape without
-  GitHub API calls.
-- Validation passed: Mission Control `npm run lint`, plus `npm run test -- --root .
-  app/api/repo/archive.test.ts app/api/repo/import/route.test.ts
-  app/api/repo/review/route.test.ts` (17/17 tests).
+  accepts multipart ZIP review requests, requires `archive_sha256`, re-indexes
+  the uploaded archive with required selected-path inclusion, reads selected file
+  text from normalized ZIP paths in one pass, and returns the existing review
+  artifact/source-bundle shape without GitHub API calls.
+- Phase 4 is complete locally: `apps/mission-control/app/(shell)/repo/page.tsx`
+  now renders a ZIP file selector, archive metadata summaries, FormData-backed
+  import/review calls, and review-gate reset behavior for archive scope changes.
+- Validation passed: Mission Control `npm run lint`, full `npm run test`
+  (87/87), focused `npm run test -- app/api/repo` (22/22), and targeted
+  Playwright repo-intake e2e.
 
-Important boundary: the `/repo` UI is not migrated yet. The current page still
-posts GitHub-style JSON, while the import/review routes now expect ZIP-backed
-requests. Continue with Phase 4 for the file-picker UI migration and review-gate
-state reset behavior.
+Important boundary: repo ZIP launch still uses the approved source bundle only.
+Mission index guard, repo knowledge ingestion, and PM/pod-worker repository
+context loading remain the next migration phases.
 
 ### Verification & Reporting Hardening (Phase 1-3 complete; verification backlog remains)
 
@@ -439,7 +441,7 @@ Security alert remediation validation:
 
 ## Next Actions
 
-1. **Active repo ZIP migration next step.** Migrate the `/repo` UI to upload ZIP files instead of GitHub URLs, preserve the selected archive between import and review, and reset review/approval state whenever the archive or selected file scope changes.
+1. **Active repo ZIP migration next step.** Add the mission launch index guard, repo knowledge ingestion, and PM/pod-worker repository context loading so ZIP-imported repositories become internal database context rather than only approved source bundles.
 2. **Existing live-stack top priority.** Submit one live mission through the
    real Mission Control chat UI (`http://127.0.0.1:3100/chat`, not the raw
    API — the stack is already up, rebuilt, and healthy). Pick a Pod B/C/D

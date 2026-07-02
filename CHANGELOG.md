@@ -6,6 +6,24 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Repository ZIP Import Hardening (2026-07-02)
+
+#### Fixed
+- Removed committed `.pytest-tmp/` test artifacts and ignored future pytest temp
+  output.
+- Hardened Mission Control repo ZIP import/review with shared upload validation,
+  required review `archive_sha256`, selected-path inclusion outside the display
+  slice, authoritative zero-byte metadata, stricter root-prefix matching, and
+  typed review errors.
+- Migrated `/repo` from stale GitHub JSON intake to local ZIP FormData import and
+  review, with archive metadata summaries and updated e2e coverage.
+
+#### Validation
+- Mission Control `npm run lint`.
+- Mission Control `npm run test` passed 87/87 tests.
+- Mission Control `npm run test -- app/api/repo` passed 22/22 tests.
+- Targeted Playwright repo-intake e2e passed.
+
 ### Security Alert Remediation (2026-06-30)
 
 #### Fixed

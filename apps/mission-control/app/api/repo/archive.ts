@@ -23,6 +23,7 @@ export type RepoZipIndexOptions = {
   maxEntries?: number;
   maxTotalUncompressedBytes?: number;
   largeFileBytes?: number;
+  requiredPaths?: string[];
 };
 
 export type RepoZipIndexStats = {
@@ -36,6 +37,8 @@ export type RepoZipIndexStats = {
   skipped_unsafe_entries: number;
   skipped_directory_entries: number;
   skipped_unreadable_entries: number;
+  entry_limit_reached: boolean;
+  byte_limit_reached: boolean;
   truncated: boolean;
 };
 
@@ -115,7 +118,7 @@ export function normalizeArchivePath(entryName: string, rootPrefix = ""): string
     return safePath;
   }
   const prefix = `${normalizedRoot}/`;
-  return safePath.startsWith(prefix) ? safePath.slice(prefix.length) : safePath;
+  return safePath.startsWith(prefix) ? safePath.slice(prefix.length) : null;
 }
 
 export async function indexZipArchive(
@@ -137,12 +140,15 @@ export async function indexZipArchive(
   let skippedUnreadableEntries = 0;
   let skippedLargeFiles = 0;
   let totalUncompressedBytes = 0;
+  let entryLimitReached = false;
+  let byteLimitReached = false;
 
   try {
     const safeEntries: SafeEntry[] = [];
     for await (const entry of zipFile.eachEntry()) {
       totalEntries += 1;
       if (totalEntries > maxEntries) {
+        entryLimitReached = true;
         logs.push(`Stopped reading archive after ${maxEntries} entries.`);
         break;
       }
@@ -167,6 +173,7 @@ export async function indexZipArchive(
       const bytes = entry.uncompressedSize;
       totalUncompressedBytes += bytes;
       if (totalUncompressedBytes > maxTotalUncompressedBytes) {
+        byteLimitReached = true;
         logs.push(
           `Stopped indexing after archive exceeded ${maxTotalUncompressedBytes} uncompressed bytes.`,
         );
@@ -208,9 +215,26 @@ export async function indexZipArchive(
       }
       return left.path.localeCompare(right.path);
     });
+    const listedFiles = matches.slice(0, maxFiles);
+    const listedPaths = new Set(listedFiles.map((file) => file.path));
+    const requiredPaths = new Set(
+      (options.requiredPaths ?? [])
+        .map((path) => safeRepoPath(path))
+        .filter((path): path is string => Boolean(path)),
+    );
+    for (const requiredPath of requiredPaths) {
+      if (listedPaths.has(requiredPath)) {
+        continue;
+      }
+      const match = matches.find((file) => file.path === requiredPath);
+      if (match) {
+        listedFiles.push(match);
+        listedPaths.add(requiredPath);
+      }
+    }
 
     return {
-      files: matches.slice(0, maxFiles),
+      files: listedFiles,
       logs,
       stats: {
         archive_sha256: archiveSha256,
@@ -223,7 +247,9 @@ export async function indexZipArchive(
         skipped_unsafe_entries: skippedUnsafeEntries,
         skipped_directory_entries: skippedDirectoryEntries,
         skipped_unreadable_entries: skippedUnreadableEntries,
-        truncated: matches.length > maxFiles,
+        entry_limit_reached: entryLimitReached,
+        byte_limit_reached: byteLimitReached,
+        truncated: matches.length > maxFiles || entryLimitReached || byteLimitReached,
       },
     };
   } finally {
@@ -236,9 +262,40 @@ export async function readZipTextFile(
   repoPath: string,
   options: { rootPrefix?: string; maxBytes?: number } = {},
 ): Promise<{ text: string; bytes: number; sha256: string }> {
-  const targetPath = safeRepoPath(repoPath);
-  if (!targetPath) {
-    throw new Error("Requested ZIP path is unsafe.");
+  const results = await readZipTextFiles(source, [repoPath], options);
+  const result = results.get(repoPath);
+  if (!result) {
+    throw new Error(`ZIP entry not found: ${repoPath}`);
+  }
+  if ("error" in result) {
+    throw result.error;
+  }
+  return {
+    text: result.text,
+    bytes: result.bytes,
+    sha256: result.sha256,
+  };
+}
+
+export async function readZipTextFiles(
+  source: RepoZipSource,
+  repoPaths: string[],
+  options: { rootPrefix?: string; maxBytes?: number } = {},
+): Promise<Map<string, { text: string; bytes: number; sha256: string } | { error: Error }>> {
+  const targetPaths = new Set<string>();
+  for (const repoPath of repoPaths) {
+    const targetPath = safeRepoPath(repoPath);
+    if (!targetPath) {
+      targetPaths.add(repoPath);
+      continue;
+    }
+    targetPaths.add(targetPath);
+  }
+  const results = new Map<string, { text: string; bytes: number; sha256: string } | { error: Error }>();
+  for (const repoPath of repoPaths) {
+    if (!safeRepoPath(repoPath)) {
+      results.set(repoPath, { error: new Error("Requested ZIP path is unsafe.") });
+    }
   }
   const zipFile = await openZipSource(source);
   const maxBytes = options.maxBytes ?? TEXT_DECODE_BYTE_LIMIT;
@@ -249,31 +306,45 @@ export async function readZipTextFile(
         continue;
       }
       const entryPath = normalizeArchivePath(entry.fileName, options.rootPrefix ?? "");
-      if (entryPath !== targetPath) {
+      if (!entryPath || !targetPaths.has(entryPath) || results.has(entryPath)) {
         continue;
       }
       if (!entry.canDecodeFileData() || entry.isEncrypted()) {
-        throw new Error(`ZIP entry cannot be decoded: ${targetPath}`);
+        results.set(entryPath, { error: new Error(`ZIP entry cannot be decoded: ${entryPath}`) });
+        continue;
       }
       if (entry.uncompressedSize > maxBytes) {
-        throw new Error(`ZIP entry exceeds text read limit: ${targetPath}`);
+        results.set(entryPath, { error: new Error(`ZIP entry exceeds text read limit: ${entryPath}`) });
+        continue;
       }
-      const stream = await zipFile.openReadStreamPromise(entry);
-      const buffer = await streamToBuffer(stream, maxBytes);
-      if (looksBinary(buffer)) {
-        throw new Error(`ZIP entry appears to be binary: ${targetPath}`);
+      try {
+        const stream = await zipFile.openReadStreamPromise(entry);
+        const buffer = await streamToBuffer(stream, maxBytes);
+        if (looksBinary(buffer)) {
+          results.set(entryPath, { error: new Error(`ZIP entry appears to be binary: ${entryPath}`) });
+          continue;
+        }
+        results.set(entryPath, {
+          text: buffer.toString("utf-8"),
+          bytes: buffer.length,
+          sha256: createHash("sha256").update(buffer).digest("hex"),
+        });
+      } catch (error) {
+        results.set(entryPath, {
+          error: error instanceof Error ? error : new Error("ZIP entry could not be read."),
+        });
       }
-      return {
-        text: buffer.toString("utf-8"),
-        bytes: buffer.length,
-        sha256: createHash("sha256").update(buffer).digest("hex"),
-      };
     }
   } finally {
     zipFile.close();
   }
 
-  throw new Error(`ZIP entry not found: ${targetPath}`);
+  for (const targetPath of targetPaths) {
+    if (!results.has(targetPath)) {
+      results.set(targetPath, { error: new Error(`ZIP entry not found: ${targetPath}`) });
+    }
+  }
+  return results;
 }
 
 async function openZipSource(source: RepoZipSource): Promise<ZipFile> {

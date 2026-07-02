@@ -10,7 +10,17 @@ import {
   normalizeSubdirectory,
   requestedLanguageFromPath,
 } from "../shared";
-import { indexZipArchive, readZipTextFile } from "../archive";
+import { indexZipArchive, readZipTextFiles } from "../archive";
+import {
+  archiveLooksLikeZip,
+  badRequest,
+  formString,
+  isUploadedArchive,
+  RepoZipRequestError,
+  sanitizeDisplayName,
+  stripZipExtension,
+  uploadedArchiveBuffer,
+} from "../upload";
 
 export const runtime = "nodejs";
 
@@ -32,13 +42,6 @@ type RepoReviewRequest = {
     bytes?: number;
     estimated_lines?: number;
   }>;
-};
-
-type UploadedArchive = {
-  name?: string;
-  type?: string;
-  size?: number;
-  arrayBuffer: () => Promise<ArrayBuffer>;
 };
 
 type ReviewFileRecord = {
@@ -70,6 +73,8 @@ type ReviewResponse = {
     selected_subdirectory: string;
     archive_id: string;
     archive_sha256: string;
+    display_name: string;
+    source_ref: string;
     root_prefix: string;
   };
   mission_type: MissionType;
@@ -118,46 +123,6 @@ const EXCERPT_LINE_LIMIT = 20;
 const EXCERPT_CHAR_LIMIT = 1_500;
 
 const MISSION_TYPES = new Set<MissionType>(["analyze", "update", "add_feature", "refactor"]);
-
-function badRequest(detail: string): NextResponse {
-  return NextResponse.json({ detail }, { status: 400 });
-}
-
-function formString(formData: FormData, key: string): string {
-  const value = formData.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function isUploadedArchive(value: unknown): value is UploadedArchive {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "arrayBuffer" in value &&
-    typeof (value as UploadedArchive).arrayBuffer === "function"
-  );
-}
-
-function stripZipExtension(fileName: string): string {
-  return fileName.replace(/\.zip$/i, "");
-}
-
-function sanitizeDisplayName(value: string): string {
-  const cleaned = value
-    .trim()
-    .replace(/\.zip$/i, "")
-    .replace(/[^A-Za-z0-9._ -]+/g, "-")
-    .replace(/[-_ .]+$/g, "")
-    .slice(0, 120);
-  return cleaned || "repository-archive";
-}
-
-function archiveLooksLikeZip(buffer: Buffer): boolean {
-  if (buffer.length < 4) {
-    return false;
-  }
-  const signature = buffer.readUInt32LE(0);
-  return signature === 0x04034b50 || signature === 0x06054b50 || signature === 0x08074b50;
-}
 
 function parseSelectedFilesField(value: FormDataEntryValue | null): RepoReviewRequest["selected_files"] | null {
   if (typeof value !== "string" || !value.trim()) {
@@ -360,6 +325,7 @@ function canonicalReviewFingerprint(params: {
   repo: string;
   branch: string;
   subdirectory: string;
+  archiveSha256: string;
   missionType: MissionType;
   description: string;
   files: FetchedReviewFile[];
@@ -368,6 +334,7 @@ function canonicalReviewFingerprint(params: {
     repository: `${params.owner}/${params.repo}`,
     branch: params.branch,
     subdirectory: params.subdirectory,
+    archive_sha256: params.archiveSha256,
     mission_type: params.missionType,
     description: params.description,
     files: params.files.map((file) => ({
@@ -606,28 +573,6 @@ function buildTestPlan(params: {
   return testPlan;
 }
 
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  worker: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-
-  async function runWorker(): Promise<void> {
-    while (nextIndex < items.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      results[currentIndex] = await worker(items[currentIndex], currentIndex);
-    }
-  }
-
-  await Promise.all(
-    Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, () => runWorker()),
-  );
-  return results;
-}
-
 export async function POST(request: Request) {
   const unauthorized = requireOperatorRequestSession(request);
   if (unauthorized) {
@@ -679,18 +624,34 @@ export async function POST(request: Request) {
     return badRequest("selected_files must include 1-120 valid include/reference file records.");
   }
 
-  const buffer = Buffer.from(await archive.arrayBuffer());
+  let buffer: Buffer;
+  try {
+    buffer = await uploadedArchiveBuffer(archive);
+  } catch (error) {
+    if (error instanceof RepoZipRequestError) {
+      return NextResponse.json({ detail: error.message }, { status: error.status });
+    }
+    throw error;
+  }
   if (!archiveLooksLikeZip(buffer)) {
     return badRequest("archive must be a valid ZIP file.");
   }
 
   try {
+    const expectedArchiveSha256 = formString(formData, "archive_sha256");
+    if (!expectedArchiveSha256) {
+      return badRequest("archive_sha256 is required for repository ZIP review.");
+    }
+
     const indexed = await indexZipArchive(
       { kind: "buffer", buffer },
-      { subdirectory: normalizedSubdirectory, maxFiles: Math.max(selectedFiles.length, MAX_SELECTED_FILES) },
+      {
+        subdirectory: normalizedSubdirectory,
+        maxFiles: MAX_SELECTED_FILES,
+        requiredPaths: selectedFiles.map((file) => file.path),
+      },
     );
-    const expectedArchiveSha256 = formString(formData, "archive_sha256");
-    if (expectedArchiveSha256 && expectedArchiveSha256 !== indexed.stats.archive_sha256) {
+    if (expectedArchiveSha256 !== indexed.stats.archive_sha256) {
       return NextResponse.json(
         { detail: "archive_sha256 does not match the uploaded ZIP archive." },
         { status: 409 },
@@ -698,24 +659,28 @@ export async function POST(request: Request) {
     }
 
     const metadataByPath = new Map(indexed.files.map((file) => [file.path, file]));
-    const fetchedFiles = await mapWithConcurrency(selectedFiles, 4, async (file) => {
+    const textResults = await readZipTextFiles(
+      { kind: "buffer", buffer },
+      selectedFiles.map((file) => file.path),
+      { rootPrefix: indexed.stats.root_prefix },
+    );
+    const fetchedFiles = selectedFiles.map((file) => {
       const metadata = metadataByPath.get(file.path);
       if (!metadata) {
-        throw new Error("Selected file is not available in the uploaded archive: " + file.path);
+        throw new RepoZipRequestError(
+          400,
+          "Selected file is not available in the uploaded archive: " + file.path,
+        );
       }
-      const bytes = metadata.bytes > 0 ? metadata.bytes : file.bytes;
+      const bytes = metadata.bytes;
       const estimatedLines = metadata.estimated_lines > 0 ? metadata.estimated_lines : file.estimated_lines;
       const language = metadata.language || file.language || languageFromPath(file.path);
-      try {
-        const fetched = await readZipTextFile(
-          { kind: "buffer", buffer },
-          file.path,
-          { rootPrefix: indexed.stats.root_prefix },
-        );
+      const fetched = textResults.get(file.path);
+      if (fetched && !("error" in fetched)) {
         const textAvailable = !isLikelyBinaryText(fetched.text);
         return {
           ...file,
-          bytes: fetched.bytes > 0 ? fetched.bytes : bytes,
+          bytes: fetched.bytes,
           estimated_lines: estimatedLines,
           language,
           requested_language: requestedLanguageFromPath(file.path),
@@ -727,11 +692,14 @@ export async function POST(request: Request) {
             : "Binary or non-text " + language + " asset retained as metadata only.",
           content_excerpt: textAvailable ? buildContentExcerpt(fetched.text) : "",
         } satisfies FetchedReviewFile;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "ZIP entry could not be read.";
+      }
+
+      if (fetched && "error" in fetched) {
+        const message = fetched.error.message;
         if (
           message.includes("appears to be binary") ||
           message.includes("exceeds text read limit") ||
+          message.includes("exceeded text read limit") ||
           message.includes("cannot be decoded")
         ) {
           return {
@@ -747,8 +715,13 @@ export async function POST(request: Request) {
             content_excerpt: "",
           } satisfies FetchedReviewFile;
         }
-        throw error;
+        throw fetched.error;
       }
+
+      throw new RepoZipRequestError(
+        400,
+        "Selected file is not available in the uploaded archive: " + file.path,
+      );
     });
 
     const displayName = sanitizeDisplayName(formString(formData, "display_name") || stripZipExtension(fileName));
@@ -761,6 +734,7 @@ export async function POST(request: Request) {
       repo,
       branch: resolvedBranch,
       subdirectory: normalizedSubdirectory,
+      archiveSha256: indexed.stats.archive_sha256,
       missionType,
       description,
       files: fetchedFiles,
@@ -809,6 +783,8 @@ export async function POST(request: Request) {
         selected_subdirectory: normalizedSubdirectory,
         archive_id: archiveId,
         archive_sha256: indexed.stats.archive_sha256,
+        display_name: displayName,
+        source_ref: sourceRef,
         root_prefix: indexed.stats.root_prefix,
       },
       mission_type: missionType,
@@ -849,9 +825,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
+    if (error instanceof RepoZipRequestError) {
+      return NextResponse.json({ detail: error.message }, { status: error.status });
+    }
+    const message = error instanceof Error ? error.message : "Unknown ZIP parse error.";
+    if (message.toLowerCase().includes("zip") || message.toLowerCase().includes("invalid")) {
+      return badRequest("Invalid ZIP archive: " + message);
+    }
+    console.error("Repository ZIP review failed unexpectedly.", error);
     return NextResponse.json(
-      { detail: error instanceof Error ? error.message : "Repository ZIP review failed unexpectedly." },
-      { status: 400 },
+      { detail: "Repository ZIP review failed unexpectedly." },
+      { status: 500 },
     );
   }
 }

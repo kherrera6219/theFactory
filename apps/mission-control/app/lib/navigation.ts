@@ -40,7 +40,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Configuration",
     items: [
       { href: "/databases", label: "Databases", description: "Database health and diagnostics" },
-      { href: "/repo", label: "Repo Import", description: "GitHub import and mission scoping" },
+      { href: "/repo", label: "Repo Import", description: "Local ZIP import and mission scoping" },
       { href: "/audit", label: "Audit Log", description: "Chronological system activity and event log" },
       { href: "/settings", label: "Settings", description: "Local runtime and integration controls" },
     ],

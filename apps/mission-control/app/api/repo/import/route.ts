@@ -4,22 +4,22 @@ import { requireOperatorRequestSession } from "../../../lib/server/operator-sess
 import {
   branchLooksValid,
   clampMaxFiles,
-  languageFromPath,
   normalizeSubdirectory,
-  parseGithubRepoUrl,
-  selectRepoFiles,
 } from "../shared";
 import type { RepoFileRecord } from "../shared";
 import { indexZipArchive } from "../archive";
+import {
+  archiveLooksLikeZip,
+  badRequest,
+  formString,
+  isUploadedArchive,
+  RepoZipRequestError,
+  sanitizeDisplayName,
+  stripZipExtension,
+  uploadedArchiveBuffer,
+} from "../upload";
 
 export const runtime = "nodejs";
-
-type UploadedArchive = {
-  name?: string;
-  type?: string;
-  size?: number;
-  arrayBuffer: () => Promise<ArrayBuffer>;
-};
 
 type RepoImportResponse = {
   repository: {
@@ -46,20 +46,13 @@ type RepoImportResponse = {
     skipped_unsafe_entries: number;
     skipped_directory_entries: number;
     skipped_unreadable_entries: number;
+    entry_limit_reached: boolean;
+    byte_limit_reached: boolean;
     total_entries: number;
     total_uncompressed_bytes: number;
   };
   logs: string[];
 };
-
-function badRequest(detail: string): NextResponse {
-  return NextResponse.json({ detail }, { status: 400 });
-}
-
-function formString(formData: FormData, key: string): string {
-  const value = formData.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
 
 function formNumber(formData: FormData, key: string): number | undefined {
   const value = formData.get(key);
@@ -68,37 +61,6 @@ function formNumber(formData: FormData, key: string): number | undefined {
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function isUploadedArchive(value: unknown): value is UploadedArchive {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "arrayBuffer" in value &&
-    typeof (value as UploadedArchive).arrayBuffer === "function"
-  );
-}
-
-function stripZipExtension(fileName: string): string {
-  return fileName.replace(/\.zip$/i, "");
-}
-
-function sanitizeDisplayName(value: string): string {
-  const cleaned = value
-    .trim()
-    .replace(/\.zip$/i, "")
-    .replace(/[^A-Za-z0-9._ -]+/g, "-")
-    .replace(/[-_ .]+$/g, "")
-    .slice(0, 120);
-  return cleaned || "repository-archive";
-}
-
-function archiveLooksLikeZip(buffer: Buffer): boolean {
-  if (buffer.length < 4) {
-    return false;
-  }
-  const signature = buffer.readUInt32LE(0);
-  return signature === 0x04034b50 || signature === 0x06054b50 || signature === 0x08074b50;
 }
 
 export async function POST(request: Request) {
@@ -137,7 +99,15 @@ export async function POST(request: Request) {
   const maxFiles = clampMaxFiles(formNumber(formData, "max_files"));
   const displayName = sanitizeDisplayName(formString(formData, "display_name") || stripZipExtension(fileName));
   const logs: string[] = ["Validated repository ZIP upload payload."];
-  const buffer = Buffer.from(await archive.arrayBuffer());
+  let buffer: Buffer;
+  try {
+    buffer = await uploadedArchiveBuffer(archive);
+  } catch (error) {
+    if (error instanceof RepoZipRequestError) {
+      return NextResponse.json({ detail: error.message }, { status: error.status });
+    }
+    throw error;
+  }
   if (!archiveLooksLikeZip(buffer)) {
     return badRequest("archive must be a valid ZIP file.");
   }
@@ -193,6 +163,8 @@ export async function POST(request: Request) {
       skipped_unsafe_entries: indexed.stats.skipped_unsafe_entries,
       skipped_directory_entries: indexed.stats.skipped_directory_entries,
       skipped_unreadable_entries: indexed.stats.skipped_unreadable_entries,
+      entry_limit_reached: indexed.stats.entry_limit_reached,
+      byte_limit_reached: indexed.stats.byte_limit_reached,
       total_entries: indexed.stats.total_entries,
       total_uncompressed_bytes: indexed.stats.total_uncompressed_bytes,
     },
@@ -200,5 +172,3 @@ export async function POST(request: Request) {
   };
   return NextResponse.json(response);
 }
-
-export { languageFromPath, normalizeSubdirectory, parseGithubRepoUrl, selectRepoFiles } from "../shared";

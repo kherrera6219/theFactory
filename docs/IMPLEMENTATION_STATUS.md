@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.06.30
-Last updated: 2026-06-30
+Document version: 2026.07.02
+Last updated: 2026-07-02
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -50,6 +50,7 @@ The application currently includes:
 | Production audit | 23/23 checks pass; `INF-008` closed |
 | Security alert remediation | CodeQL #337-#338 fixed in UI/RQCA paths; Trivy #330-#336 addressed by refreshed Python service base-image digests and verified rebuilt orchestrator OpenSSL `3.0.20-1~deb12u2` |
 | Phase 8 Mission Flow v2 coverage | Isolated suite: 81 passed, 91.56% line / 71.69% branch; broader related suite: 170 passed, 92.43% line / 74.70% branch |
+| Repository ZIP import | ZIP archive core, multipart import/review routes, and `/repo` ZIP UI are locally validated; Mission Control lint, 87/87 Vitest, 22/22 focused repo tests, and targeted repo-intake Playwright e2e passed |
 
 ---
 
@@ -67,6 +68,7 @@ The application currently includes:
 | Phase 8 branch coverage | Raise remaining `mission_flow_v2/` branch coverage or explicitly defer the old 85% branch target; line coverage now clears 90% |
 | Provider configuration | Add real provider/key/model preflight and move provider/model choice into Settings/vault |
 | Key hygiene | Rotate exposed provider keys before broader use |
+| Repository knowledge ingestion | Add mission index guard, repo knowledge ingestion, and PM/pod-worker repository context loading after ZIP launch |
 
 ---
 
@@ -92,6 +94,13 @@ The application currently includes:
 ---
 
 ## Recent Phase Summary
+
+### Repository ZIP Import Hardening
+
+Completed for the current pass. Mission Control removed committed pytest temp
+artifacts, hardened ZIP upload/review validation, requires archive-hash binding
+for reviews, preserves selected files outside the display slice, and migrated
+the `/repo` page plus e2e coverage to local ZIP FormData import/review.
 
 ### Security Alert Remediation
 

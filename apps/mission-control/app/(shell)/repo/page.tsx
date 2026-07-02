@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isElectron, electronShowOpenDialog } from "../../lib/electron-bridge";
 
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
@@ -10,13 +9,13 @@ import { EmptyState, SystemMessage } from "../../components/status";
 import {
   approveReviewArtifact,
   createMission,
-  createRepoReview,
-  fetchJson,
+  createRepoZipReview,
+  importRepoZip,
   verifyReviewApproval,
 } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
 import { sanitizeUserText } from "../../lib/security";
-import type { RepoReviewResponse, ReviewApprovalReceipt } from "../../lib/types";
+import type { RepoImportResponse, RepoReviewResponse, ReviewApprovalReceipt } from "../../lib/types";
 
 type RepoFileOverlayAction = "include" | "reference" | "exclude";
 
@@ -30,40 +29,6 @@ type RepoFile = {
 };
 
 type MissionType = "analyze" | "update" | "add_feature" | "refactor";
-
-type RepoImportResponse = {
-  repository: {
-    owner: string;
-    repo: string;
-    branch: string;
-    default_branch: string;
-    private: boolean;
-    html_url: string;
-  };
-  files: Array<{
-    path: string;
-    language: string;
-    bytes: number;
-    estimated_lines: number;
-  }>;
-  stats: {
-    total_files: number;
-    estimated_total_lines: number;
-    selected_subdirectory: string;
-    truncated: boolean;
-    skipped_large_files: number;
-  };
-  logs: string[];
-};
-
-function isValidGithubUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "https:" && parsed.hostname.toLowerCase() === "github.com";
-  } catch {
-    return false;
-  }
-}
 
 function formatBytes(value: number): string {
   if (value >= 1_000_000) {
@@ -88,8 +53,9 @@ function overlayLabel(action: RepoFileOverlayAction): string {
 export default function RepoImportPage() {
   const router = useRouter();
 
-  const [repoUrl, setRepoUrl] = useState("");
-  const [branch, setBranch] = useState("main");
+  const [archiveFile, setArchiveFile] = useState<File | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [sourceRef, setSourceRef] = useState("main");
   const [subdirectory, setSubdirectory] = useState("/");
   const [maxFiles, setMaxFiles] = useState(300);
   const [fileFilter, setFileFilter] = useState("");
@@ -136,6 +102,16 @@ export default function RepoImportPage() {
     setReviewPreview(null);
   }
 
+  function resetImportResults() {
+    setImportSnapshot(null);
+    setFiles([]);
+    setImportLogs([]);
+    setImportComplete(false);
+    setMissionType(null);
+    setDescription("");
+    resetReviewGate();
+  }
+
   function selectMissionType(nextMissionType: MissionType) {
     if (missionType !== nextMissionType) {
       resetReviewGate();
@@ -153,16 +129,19 @@ export default function RepoImportPage() {
   }
 
   async function importRepository() {
-    const normalizedUrl = sanitizeUserText(repoUrl);
-    if (!isValidGithubUrl(normalizedUrl)) {
-      setError("Enter a valid https://github.com/<owner>/<repo> repository URL.");
+    if (!archiveFile) {
+      setError("Select a repository .zip archive before import.");
+      return;
+    }
+    if (!archiveFile.name.toLowerCase().endsWith(".zip")) {
+      setError("Repository archive must be a .zip file.");
       return;
     }
 
     setError(null);
     setImporting(true);
     setImportComplete(false);
-    setImportLogs(["Validating repository request...", "Fetching repository metadata..."]);
+    setImportLogs(["Validating repository ZIP upload...", "Indexing archive entries..."]);
     setImportSnapshot(null);
     setFiles([]);
     setMissionType(null);
@@ -170,15 +149,13 @@ export default function RepoImportPage() {
     resetReviewGate();
 
     try {
-      const payload = await fetchJson<RepoImportResponse>("/api/repo/import", {
-        method: "POST",
-        body: JSON.stringify({
-          repo_url: normalizedUrl,
-          branch: sanitizeUserText(branch),
-          subdirectory: sanitizeUserText(subdirectory) || "/",
-          max_files: maxFiles,
-        }),
-      });
+      const formData = new FormData();
+      formData.set("archive", archiveFile);
+      formData.set("display_name", sanitizeUserText(displayName));
+      formData.set("source_ref", sanitizeUserText(sourceRef));
+      formData.set("subdirectory", sanitizeUserText(subdirectory) || "/");
+      formData.set("max_files", String(maxFiles));
+      const payload = await importRepoZip(formData);
       setImportSnapshot(payload);
       setImportLogs(payload.logs);
       setFiles(
@@ -258,6 +235,10 @@ export default function RepoImportPage() {
   }
 
   async function generateReview() {
+    if (!archiveFile || !importSnapshot) {
+      setError("Import a repository ZIP before generating repository review.");
+      return;
+    }
     if (selectedFiles.length === 0) {
       setError("Select at least one file before generating repository review.");
       return;
@@ -279,14 +260,18 @@ export default function RepoImportPage() {
     setApprovalReceipt(null);
 
     try {
-      const preview = await createRepoReview({
-        repo_url: sanitizeUserText(repoUrl),
-        branch: importSnapshot?.repository.branch || sanitizeUserText(branch) || "main",
-        subdirectory:
-          importSnapshot?.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/",
-        mission_type: missionType,
-        description: sanitizeUserText(description),
-        selected_files: selectedFiles
+      const formData = new FormData();
+      formData.set("archive", archiveFile);
+      formData.set("display_name", importSnapshot.repository.display_name || sanitizeUserText(displayName));
+      formData.set("source_ref", importSnapshot.repository.source_ref || sanitizeUserText(sourceRef));
+      formData.set("subdirectory", importSnapshot.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/");
+      formData.set("archive_sha256", importSnapshot.repository.archive_sha256);
+      formData.set("mission_type", missionType);
+      formData.set("description", sanitizeUserText(description));
+      formData.set(
+        "selected_files",
+        JSON.stringify(
+          selectedFiles
           .filter((file) => file.overlayAction !== "exclude")
           .map((file) => ({
             path: file.path,
@@ -295,7 +280,9 @@ export default function RepoImportPage() {
             bytes: file.bytes,
             estimated_lines: file.estimatedLines,
           })),
-      });
+        ),
+      );
+      const preview = await createRepoZipReview(formData);
       setReviewPreview(preview);
     } catch (reviewError) {
       setError(
@@ -376,15 +363,17 @@ export default function RepoImportPage() {
       });
       const missionPrompt =
         sanitizeUserText(description) ||
-        `Run ${missionType} mission for ${selectedFiles.length} files from ${repoUrl}`;
+        `Run ${missionType} mission for ${selectedFiles.length} files from ${reviewPreview.repository.display_name}.`;
       const mission = await createMission({
         prompt: missionPrompt,
         requested_target_language: reviewPreview.requested_target_language,
         source_code: reviewPreview.source_code,
         metadata: {
-          source: "repo-import-ui",
-          repo_url: sanitizeUserText(repoUrl),
-          branch: importSnapshot?.repository.branch || sanitizeUserText(branch) || "main",
+          source: "repo-zip-import-ui",
+          archive_id: reviewPreview.repository.archive_id,
+          archive_sha256: reviewPreview.repository.archive_sha256,
+          source_ref: reviewPreview.repository.source_ref,
+          display_name: reviewPreview.repository.display_name,
           subdirectory:
             importSnapshot?.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/",
           mission_type: missionType,
@@ -392,8 +381,7 @@ export default function RepoImportPage() {
           include_file_count: reviewPreview.source_stats.include_files,
           reference_file_count: reviewPreview.source_stats.reference_files,
           estimated_lines: selectedLines,
-          repository_owner: importSnapshot?.repository.owner,
-          repository_name: importSnapshot?.repository.repo,
+          repository_name: reviewPreview.repository.repo,
           review_gate_applied_at: approvalReceipt.approved_at,
           review_approval_id: approvalReceipt.approval_id,
           review_receipt_digest: approvalReceipt.receipt_digest,
@@ -429,55 +417,54 @@ export default function RepoImportPage() {
     <div className="page shell-page">
       <PageHeader
         compact
-        eyebrow="GitHub Import"
+        eyebrow="Repository ZIP Import"
         title="Repository Intake and Mission Configuration"
-        description="Import repository metadata, layer file-level mission overlays, review real repository scope against fetched file content, then launch."
+        description="Import a repository ZIP snapshot, layer file-level mission overlays, review approved source scope, then launch."
       />
 
-      <Panel title="Step 1: Import Repository" className="step-panel">
-        <label htmlFor="repo-url">GitHub repository URL</label>
+      <Panel title="Step 1: Import Repository ZIP" className="step-panel">
+        <label htmlFor="repo-archive">Repository ZIP archive</label>
         <div className="repo-url-row">
           <input
-            id="repo-url"
-            type="url"
-            value={repoUrl}
-            onChange={(event) => setRepoUrl(event.target.value)}
-            placeholder="https://github.com/org/project"
+            id="repo-archive"
+            type="file"
+            accept=".zip,application/zip"
+            onChange={(event) => {
+              setArchiveFile(event.target.files?.[0] ?? null);
+              resetImportResults();
+              setError(null);
+            }}
             style={{ flex: 1 }}
           />
-          {/* 7C — Show native directory picker in Electron; informational note in browser. */}
-          {isElectron() ? (
-            <button
-              type="button"
-              className="secondary-button"
-              title="Browse for a local repository directory"
-              onClick={async () => {
-                const paths = await electronShowOpenDialog({
-                  title: "Select local repository root",
-                  properties: ["openDirectory"],
-                });
-                if (paths && paths[0]) {
-                  // Set as a local path — the backend accepts file:// URIs for local repos.
-                  setRepoUrl(`file://${paths[0]}`);
-                }
-              }}
-            >
-              Browse Local…
-            </button>
-          ) : (
-            <span className="repo-local-hint muted" title="Browse is available in the desktop app">
-              Desktop app: Browse local repos
+          {archiveFile && (
+            <span className="repo-local-hint muted">
+              {archiveFile.name} - {formatBytes(archiveFile.size)}
             </span>
           )}
         </div>
         <div className="filters-grid">
           <label>
-            Branch
+            Display name
             <input
               type="text"
-              value={branch}
-              onChange={(event) => setBranch(event.target.value)}
-              placeholder="main"
+              value={displayName}
+              onChange={(event) => {
+                setDisplayName(event.target.value);
+                resetImportResults();
+              }}
+              placeholder="sample-platform"
+            />
+          </label>
+          <label>
+            Source ref
+            <input
+              type="text"
+              value={sourceRef}
+              onChange={(event) => {
+                setSourceRef(event.target.value);
+                resetImportResults();
+              }}
+              placeholder="main or commit SHA"
             />
           </label>
           <label>
@@ -485,7 +472,10 @@ export default function RepoImportPage() {
             <input
               type="text"
               value={subdirectory}
-              onChange={(event) => setSubdirectory(event.target.value)}
+              onChange={(event) => {
+                setSubdirectory(event.target.value);
+                resetImportResults();
+              }}
               placeholder="/"
             />
           </label>
@@ -496,26 +486,35 @@ export default function RepoImportPage() {
               min={50}
               max={800}
               value={maxFiles}
-              onChange={(event) => setMaxFiles(Math.max(50, Math.min(800, Number(event.target.value) || 300)))}
+              onChange={(event) => {
+                setMaxFiles(Math.max(50, Math.min(800, Number(event.target.value) || 300)));
+                resetImportResults();
+              }}
             />
           </label>
         </div>
         <div className="inline-actions">
-          <button type="button" onClick={() => void importRepository()} disabled={importing}>
-            {importing ? "Importing..." : "Import Repository"}
+          <button type="button" onClick={() => void importRepository()} disabled={importing || !archiveFile}>
+            {importing ? "Importing..." : "Import ZIP"}
           </button>
         </div>
         {importSnapshot && (
           <ul className="summary-list">
             <li>
-              <strong>Repository</strong>
-              <span>
-                {importSnapshot.repository.owner}/{importSnapshot.repository.repo}
-              </span>
+              <strong>Archive</strong>
+              <span>{importSnapshot.repository.display_name}</span>
             </li>
             <li>
-              <strong>Branch</strong>
-              <span>{importSnapshot.repository.branch}</span>
+              <strong>Source ref</strong>
+              <span>{importSnapshot.repository.source_ref || "zip-upload"}</span>
+            </li>
+            <li>
+              <strong>Archive SHA-256</strong>
+              <span>{importSnapshot.repository.archive_sha256.slice(0, 12)}</span>
+            </li>
+            <li>
+              <strong>Root prefix</strong>
+              <span>{importSnapshot.repository.root_prefix || "/"}</span>
             </li>
             <li>
               <strong>Files</strong>
@@ -541,7 +540,7 @@ export default function RepoImportPage() {
       <Panel title="Step 2: Select Files and Overlay Actions" className={`step-panel ${step2Locked ? "locked" : ""}`}>
         {step2Locked && (
           <EmptyState title="File selection unlocks after import" compact>
-            Import a repository to preview files, choose inclusion scope, and assign overlay actions.
+            Import a ZIP archive to preview files, choose inclusion scope, and assign overlay actions.
           </EmptyState>
         )}
         {!step2Locked && (

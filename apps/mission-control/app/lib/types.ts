@@ -958,17 +958,61 @@ export type RepoReviewFileRecord = {
   sha: string | null;
 };
 
+export type RepoImportResponse = {
+  repository: {
+    source: "zip";
+    owner: string;
+    repo: string;
+    branch: string;
+    default_branch: string;
+    private: boolean;
+    html_url: string | null;
+    display_name: string;
+    archive_id: string;
+    archive_sha256: string;
+    source_ref: string;
+    root_prefix: string;
+  };
+  files: Array<{
+    path: string;
+    language: string;
+    bytes: number;
+    estimated_lines: number;
+  }>;
+  stats: {
+    total_files: number;
+    estimated_total_lines: number;
+    selected_subdirectory: string;
+    truncated: boolean;
+    skipped_large_files: number;
+    skipped_unsafe_entries: number;
+    skipped_directory_entries: number;
+    skipped_unreadable_entries: number;
+    entry_limit_reached: boolean;
+    byte_limit_reached: boolean;
+    total_entries: number;
+    total_uncompressed_bytes: number;
+  };
+  logs: string[];
+};
+
 export type RepoReviewResponse = {
   request_id: string;
   review_fingerprint: string;
   source: "repo-review";
   generated_at: string;
   repository: {
+    source: "zip";
     owner: string;
     repo: string;
     branch: string;
-    html_url: string;
+    html_url: string | null;
     selected_subdirectory: string;
+    archive_id: string;
+    archive_sha256: string;
+    display_name: string;
+    source_ref: string;
+    root_prefix: string;
   };
   mission_type: "analyze" | "update" | "add_feature" | "refactor";
   requested_target_language: string | null;

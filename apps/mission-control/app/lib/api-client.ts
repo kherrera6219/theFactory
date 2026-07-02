@@ -21,6 +21,7 @@ import type {
   OperationsSummary,
   OutputMode,
   PodAssignmentRecord,
+  RepoImportResponse,
   RepoReviewResponse,
   ReviewApprovalReceipt,
   ReviewApprovalVerificationResult,
@@ -230,6 +231,44 @@ export async function fetchJson<T>(input: string, init?: RequestInit & { timeout
         "Content-Type": "application/json",
         ...(requestInit.headers ?? {}),
       },
+    });
+
+    if (!response.ok) {
+      const parsed = await parseError(response);
+      throw new ApiError(parsed.message, response.status, {
+        errorCode: parsed.errorCode,
+        recoveryAction: parsed.recoveryAction,
+      });
+    }
+    return (await response.json()) as T;
+  } catch (error) {
+    if (isAbortOrTimeoutError(error)) {
+      throw new ApiError("The local runtime took too long to respond.", 408, {
+        errorCode: "LOCAL_RUNTIME_REQUEST_TIMEOUT",
+        recoveryAction: "Wait for the runtime to finish warming up, then retry the request.",
+      });
+    }
+    throw error;
+  } finally {
+    cleanup();
+  }
+}
+
+export async function fetchFormData<T>(
+  input: string,
+  formData: FormData,
+  init?: Omit<RequestInit, "body" | "headers"> & { timeoutMs?: number; headers?: HeadersInit },
+): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...requestInit } = init ?? {};
+  const { signal, cleanup } = withTimeout(timeoutMs);
+  try {
+    const response = await fetch(input, {
+      ...requestInit,
+      method: requestInit.method ?? "POST",
+      cache: "no-store",
+      signal: requestInit.signal ?? signal,
+      headers: requestInit.headers,
+      body: formData,
     });
 
     if (!response.ok) {
@@ -532,6 +571,18 @@ export async function createRepoReview(payload: RepoReviewRequest): Promise<Repo
     method: "POST",
     timeoutMs: 30_000,
     body: JSON.stringify(payload),
+  });
+}
+
+export async function importRepoZip(formData: FormData): Promise<RepoImportResponse> {
+  return fetchFormData<RepoImportResponse>("/api/repo/import", formData, {
+    timeoutMs: 30_000,
+  });
+}
+
+export async function createRepoZipReview(formData: FormData): Promise<RepoReviewResponse> {
+  return fetchFormData<RepoReviewResponse>("/api/repo/review", formData, {
+    timeoutMs: 30_000,
   });
 }
 

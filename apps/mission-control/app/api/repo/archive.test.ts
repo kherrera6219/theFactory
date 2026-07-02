@@ -39,6 +39,7 @@ describe("repo ZIP archive helpers", () => {
     expect(normalizeArchivePath("sample-main/src/index.ts", "sample-main/")).toBe(
       "src/index.ts",
     );
+    expect(normalizeArchivePath("src/index.ts", "sample-main/")).toBeNull();
     expect(detectCommonRootPrefix(["README.md", "src/index.ts"])).toBe("");
   });
 
@@ -93,6 +94,50 @@ describe("repo ZIP archive helpers", () => {
 
     expect(result.stats.root_prefix).toBe("");
     expect(result.files.map((file) => file.path)).toEqual(["src/app.py", "README.md"]);
+  });
+
+  it("includes required paths even when they fall outside the display slice", async () => {
+    const zipBuffer = createStoredZip([
+      { name: "README.md", content: "# Root\n" },
+      { name: "src/app.py", content: "x".repeat(300) },
+      { name: "src/util.py", content: "x".repeat(200) },
+    ]);
+
+    const result = await indexZipArchive(
+      { kind: "buffer", buffer: zipBuffer },
+      { maxFiles: 1, requiredPaths: ["README.md"] },
+    );
+
+    expect(result.stats.truncated).toBe(true);
+    expect(result.files.map((file) => file.path)).toEqual(["src/app.py", "README.md"]);
+  });
+
+  it("marks entry and byte cap stops as truncated", async () => {
+    const entryLimited = await indexZipArchive(
+      {
+        kind: "buffer",
+        buffer: createStoredZip([
+          { name: "a.txt", content: "a" },
+          { name: "b.txt", content: "b" },
+        ]),
+      },
+      { maxEntries: 1 },
+    );
+    expect(entryLimited.stats.entry_limit_reached).toBe(true);
+    expect(entryLimited.stats.truncated).toBe(true);
+
+    const byteLimited = await indexZipArchive(
+      {
+        kind: "buffer",
+        buffer: createStoredZip([
+          { name: "a.txt", content: "aaaa" },
+          { name: "b.txt", content: "bbbb" },
+        ]),
+      },
+      { maxTotalUncompressedBytes: 4 },
+    );
+    expect(byteLimited.stats.byte_limit_reached).toBe(true);
+    expect(byteLimited.stats.truncated).toBe(true);
   });
 
   it("reads selected text entries by normalized repository path", async () => {
