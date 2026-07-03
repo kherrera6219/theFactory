@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import inspect
+import os
 import sys
 import textwrap
 from pathlib import Path
@@ -814,6 +815,63 @@ async def test_prepare_security_compliance_report_blocks_when_enforced() -> None
 
 
 @pytest.mark.asyncio
+async def test_prepare_security_compliance_report_reuses_cached_report_without_re_signing() -> None:
+    """Regression: this completion-gate preparer re-runs its entire body on
+    every retry (e.g. an orchestrator restart recovering a mission still
+    blocked by a later gate). Without a cache guard, the report was
+    unconditionally rebuilt and re-signed every retry -- overwriting the
+    prior signature_record -- and record_audit_event fired again on every
+    retry since it (unlike the chain-event append) was never deduplicated.
+    """
+    app = _make_app_state()
+    settings = _make_settings()
+    cached_report = {
+        "report_id": "security-compliance-cached",
+        "passed": True,
+        "status": "passed",
+        "blocking": False,
+        "risk_level": "low",
+        "signature_record": {"signature": "original-signature"},
+    }
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {
+            "source": "llm",
+            "generated_code": "def read_csv(path):\n    return []\n",
+            "filename": "solution.py",
+            "language": "python",
+        },
+        "security_compliance_report": cached_report,
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch(
+            "orchestrator.mission_flow_v2.record_audit_event",
+            new=AsyncMock(side_effect=AssertionError("audit event must not re-fire on cache hit")),
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery,
+            "build_security_compliance_report",
+            side_effect=AssertionError("report must not be rebuilt on cache hit"),
+        ):
+            updated, ready, report = (
+                await orchestrator_mission_flow_v2._prepare_security_compliance_report(
+                    app=app,
+                    settings=settings,
+                    mission=mission,
+                )
+            )
+
+    assert updated is mission
+    assert ready is True
+    assert report is cached_report
+    assert report["signature_record"]["signature"] == "original-signature"
+
+
+@pytest.mark.asyncio
 async def test_prepare_dependency_absorption_reports_records_plan() -> None:
     app = _make_app_state()
     settings = _make_settings()
@@ -1054,6 +1112,85 @@ async def test_prepare_specialist_plan_reuses_scaling_decision_on_re_entry() -> 
             ]
 
     assert second_partition_ids == first_partition_ids
+
+
+@pytest.mark.asyncio
+async def test_prepare_specialist_plan_skips_re_entrant_port_extraction() -> None:
+    """Regression: the PORT two-phase extraction branch had no re-entrancy
+    guard, unlike every sibling branch in this function. Mission state stays
+    at specialist_assigned for the whole extraction+generation flow, so
+    nothing in the transition-based dedup protects a second invocation while
+    port_phase is still "extraction" -- it would re-run two LLM calls, mint a
+    fresh non-deterministic port_source_aim/source_logicnodes, and append a
+    duplicate MISSION_PORT_EXTRACTION_COMPLETE event.
+    """
+    app = _make_app_state()
+    settings = _make_settings()
+    settings.port_two_phase_enabled = True
+    mission = _make_mission(state=MissionState.specialist_assigned)
+    mission.metadata = {
+        "mission_type": "PORT",
+        "port_phase": "extraction",
+        "port_source_language": "python",
+        "assigned_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+        "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+    }
+
+    call_count = 0
+
+    async def _fake_run_port_extraction_phase(*, metadata: dict[str, Any], **_kwargs: Any) -> dict[str, Any]:
+        nonlocal call_count
+        call_count += 1
+        # Mirror run_port_extraction_phase's real side effect of appending
+        # the completion chain event to the (by-reference) metadata dict --
+        # this is exactly what the guard under test checks for.
+        orchestrator_mission_flow_v2_build.append_chain_event(
+            metadata,
+            event_type="MISSION_PORT_EXTRACTION_COMPLETE",
+            agent_id="AGENT-14-PYTHON",
+        )
+        return {
+            "port_source_logicnodes": [{"concept": f"call-{call_count}"}],
+            "port_source_aim": {"source": "llm"},
+            "port_source_plan": {"source": "llm"},
+            "port_phase": "generation",
+            "extraction_degraded": False,
+        }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _settings, _mission_id: mission
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = MagicMock()
+        with patch.object(
+            orchestrator_mission_flow_v2_build,
+            "run_port_extraction_phase",
+            new=_fake_run_port_extraction_phase,
+        ):
+            await orchestrator_mission_flow_v2_build._prepare_specialist_plan(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+            )
+            assert call_count == 1
+
+            # Simulate a re-entrant retry while port_phase somehow still
+            # reads "extraction" on the metadata passed in (e.g. a stale
+            # in-memory retry after a persistence hiccup).
+            mission.metadata["port_phase"] = "extraction"
+            await orchestrator_mission_flow_v2_build._prepare_specialist_plan(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+            )
+
+    assert call_count == 1
 
 
 @pytest.mark.asyncio
@@ -2773,6 +2910,41 @@ class TestSettingsV2Flag:
         ):
             settings = load_settings()
             assert settings.mission_flow_v2_enabled is True
+
+
+class TestComplianceGateDefaults:
+    def test_security_compliance_and_rqca_enforcement_default_to_true(self) -> None:
+        # Regression: both flags used to default to False, so a mission with
+        # a required security-compliance check failure (e.g. a hard-coded
+        # secret) or a failing RQCA runtime QC check silently proceeded to
+        # delivery unless an operator explicitly opted in to enforcement.
+        from orchestrator.settings import load_settings
+
+        with patch.dict(
+            "os.environ",
+            {},
+            clear=False,
+        ):
+            os.environ.pop("MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED", None)
+            os.environ.pop("RQCA_ENFORCEMENT_ENABLED", None)
+            settings = load_settings()
+            assert settings.mission_security_compliance_enforcement_enabled is True
+            assert settings.rqca_enforcement_enabled is True
+
+    def test_compliance_gate_enforcement_can_still_be_disabled(self) -> None:
+        from orchestrator.settings import load_settings
+
+        with patch.dict(
+            "os.environ",
+            {
+                "MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED": "false",
+                "RQCA_ENFORCEMENT_ENABLED": "false",
+            },
+            clear=False,
+        ):
+            settings = load_settings()
+            assert settings.mission_security_compliance_enforcement_enabled is False
+            assert settings.rqca_enforcement_enabled is False
 
 
 @pytest.mark.asyncio

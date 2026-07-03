@@ -368,6 +368,17 @@ async def _prepare_security_compliance_report(
     if not mission_requires_security_compliance(metadata):
         return mission, True, {"skipped": True, "reason": "no mission artifact to scan"}
 
+    cached_report = metadata.get("security_compliance_report")
+    if isinstance(cached_report, dict) and not cached_report.get("skipped"):
+        # This completion-gate preparer re-runs its entire body on every
+        # retry (e.g. an orchestrator restart recovering a mission still
+        # blocked by a later gate). Without this guard, the report would be
+        # unconditionally rebuilt and re-signed every retry -- overwriting
+        # the prior signature_record and, since the record_audit_event call
+        # below is not itself deduplicated the way the chain-event append
+        # is, emitting a duplicate audit event each time.
+        return mission, not bool(cached_report.get("blocking")), cached_report
+
     enforcement_enabled = _setting_bool(
         settings,
         "mission_security_compliance_enforcement_enabled",

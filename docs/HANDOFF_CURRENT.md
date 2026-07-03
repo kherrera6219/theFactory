@@ -1,11 +1,41 @@
 # Current Handoff
 
-Document version: 2026.07.03b
+Document version: 2026.07.03c
 Last updated: 2026-07-03
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 **If you are picking this up cold:** the newest completed work is a deep code
+review of the verification/compliance gate layer
+(`equivalence_verifier.py`, `port_coordinator.py`, `security_compliance.py`,
+`rqca_agent.py`). Most significant finding, confirmed by two independent
+review passes: **`MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` and
+`RQCA_ENFORCEMENT_ENABLED` both defaulted to `false`** — the security-
+compliance gate (hardcoded-secret detection) and the RQCA runtime-QC gate
+always ran and always recorded their real verdict, but a *failing* required
+check only produced a `"warned"` status, not a `"blocked"` one, unless an
+operator explicitly opted in to enforcement. A mission with a detected
+hardcoded secret, or one that failed its runtime QC check, proceeded straight
+to delivery by default. **User-confirmed product decision: both now default
+to `true`** (mirrors the `PROMPT_GUARD_MODE` default change from the
+api-gateway review) — operators can still opt out via env var for staged
+rollouts. Also fixed: a PORT two-phase extraction-phase re-entrancy gap
+(`_prepare_specialist_plan`'s extraction branch was the only sibling branch
+in that function with no `_chain_event_exists` guard — a second invocation
+while `port_phase` was still `"extraction"` would re-run two LLM calls and
+mint fresh non-deterministic extraction results) and a security-compliance
+report idempotency gap (the report was unconditionally rebuilt and
+re-signed on every completion-gate retry, overwriting the prior
+`signature_record`, and its audit event fired again on every retry since it
+wasn't deduplicated the way the chain-event append was — now cached and
+reused like the existing RQCA report cache). See "Verification & Compliance
+Gates Review (2026-07-03)" below for the full list, including several
+disclosed-but-unfixed advisory-only heuristic limitations (regex-based
+secret/dangerous-pattern detection is trivially evadable by generated code,
+and a Docker-unavailable RQCA fallback reports `DRY_RUN`/advisory rather
+than blocking) that are architectural tradeoffs, not quick patches.
+
+Before that: a deep code
 review of the pod-worker service (`services/pod-worker/pod_worker/`, ~5.1k
 lines across `main.py`, `language_extractor.py`, `ast_extractor.py`,
 `js_ast_extractor.py`, `java_ast_extractor.py`, `concept_catalog.py`,
@@ -376,6 +406,99 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Verification & Compliance Gates Review (2026-07-03): permissive-by-default gates, plus 2 confirmed idempotency bugs
+
+A correctness/security review of theFactory's PORT-mission verification and
+compliance-gate layer: `equivalence_verifier.py` (693 lines),
+`port_coordinator.py` (252 lines), `security_compliance.py` (333 lines),
+`rqca_agent.py` (792 lines). Two parallel finder passes covered the whole
+slice (equivalence + port coordination, and security-compliance + RQCA),
+with a third targeted re-run after the first compliance/RQCA pass returned
+a premature placeholder with no real findings.
+
+- **Critical, confirmed by two independent review passes: the
+  security-compliance and RQCA enforcement flags defaulted to `false`,
+  making both gates warn-only rather than blocking out of the box.**
+  `security_compliance.py`'s `should_block = bool(failed_required) and
+  (enforcement_enabled or regulated_context)` and `phases_runtime.py`'s
+  `blocked = rqca_enforcement_enabled and qc_verdict == "FAIL"` both only
+  block when the corresponding `Settings` flag is explicitly enabled (or,
+  for security-compliance, when the mission is separately tagged
+  `REGULATED`/`TIER_3_REGULATED`). With default settings, a mission whose
+  generated code contains a hardcoded secret (`_check_secret_patterns`
+  fails, `required=True`) or whose runtime QC verdict is `FAIL` still gets
+  `security_compliance_ready=True`/`runtime_qc_ready=True` and proceeds
+  straight to delivery — `status` reads `"warned"`, not `"blocked"`, with no
+  distinct audit-event signal to distinguish "detected but not enforced"
+  from "no issue found" without reading into the stored report body.
+  **User-confirmed product decision (mirrors the `PROMPT_GUARD_MODE` default
+  change from the api-gateway review): both
+  `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` and
+  `RQCA_ENFORCEMENT_ENABLED` now default to `true`.** Operators can still
+  opt out via env var for staged rollouts.
+- **Fixed a PORT two-phase extraction re-entrancy gap.** `_prepare_specialist_plan`'s
+  extraction branch (`mission_flow_v2/phases_build.py`) was the only
+  sibling branch in that function with no `_chain_event_exists` guard —
+  every other expensive/state-mutating branch checks a completion chain
+  event before re-running (a comment immediately below this exact branch,
+  for the scaling-decision fix, explicitly documents this same bug class
+  having been found and fixed there already). Mission state stays at
+  `specialist_assigned` for the entire extraction+generation two-phase
+  flow, so nothing in the transition-based dedup protects a second
+  invocation while `port_phase` is still `"extraction"` — it would re-run
+  two LLM calls (`generate_aim`, `generate_specialist_plan`), mint fresh
+  non-deterministic `port_source_aim`/`port_source_logicnodes`, and append
+  a duplicate `MISSION_PORT_EXTRACTION_COMPLETE` chain event. Fixed with the
+  same guard pattern used by every sibling branch.
+- **Fixed a security-compliance report idempotency gap.** `_prepare_security_compliance_report`
+  (`mission_flow_v2/phases_delivery.py`) had no cache check, unlike its RQCA
+  sibling (`_prepare_runtime_qc`, which explicitly caches `runtime_qc_report`
+  with a documented rationale for exactly this scenario). Since this
+  completion-gate preparer re-runs its entire body on every retry (e.g. an
+  orchestrator restart recovering a mission still blocked by a later gate),
+  the report was unconditionally rebuilt and re-signed every retry —
+  overwriting the prior `signature_record` — and `record_audit_event` fired
+  again on every retry since it (unlike the chain-event append immediately
+  above it) was never deduplicated. Fixed with the same cache-and-reuse
+  pattern as `_prepare_runtime_qc`.
+- **Investigated and refuted / deferred as architectural, not quick-patch,
+  items:** `equivalence_verifier.py`'s acceptance-criteria/concept-coverage
+  checks are disclosed, advisory-only (`required=False`) keyword heuristics
+  — a real false-negative risk in principle, but cannot itself flip a
+  `passed`/`blocking` verdict since the load-bearing checks
+  (`generated_output_exists`, `artifact_format_matches_contract`,
+  `language_content_signature`, etc.) are separate and required. The
+  Python-fallback language-content-signature detector only covers 8 of ~19
+  supported target languages — a real, disclosed coverage gap (documented
+  in the check's own docstring referencing a real prior incident), left
+  as-is pending a scoped follow-up rather than expanded in this pass.
+  `port_coordinator.py`'s `extraction_degraded` flag is computed but never
+  consumed by any downstream gate — a real "write-only" wiring gap, but
+  fixing it properly requires deciding whether a degraded extraction should
+  become a required (blocking) check in `equivalence_verifier.py`, which is
+  a design decision better scoped on its own. RQCA's Docker-unavailable
+  fallback (`_dry_run_report`) reports `verdict: DRY_RUN` → `qc_verdict:
+  ADVISORY`, which never blocks regardless of `rqca_enforcement_enabled` —
+  this is an inherent limitation of "we couldn't actually execute the code"
+  rather than a bug to patch reflexively; blocking on environmental Docker
+  unavailability would fail closed for a different, non-security reason and
+  wasn't part of the user's enforcement-default decision above. The regex-
+  based secret/dangerous-pattern scanners in `security_compliance.py` are
+  trivially evadable by generated code (string-concatenated secrets,
+  `getattr`-obfuscated `eval`/`exec`, `os.system`/`getattr(subprocess,
+  "run")` forms the `(Popen|run|call)` alternation misses) — accepted as a
+  known heuristic-scanner limitation, same category as the weak-regex
+  finding accepted in the api-gateway review. Report-signing failures are
+  silently swallowed with only a log line, leaving an unsigned report with
+  no distinguishing marker — a minor integrity-observability gap, not
+  patched in this pass.
+- Every fix has a regression test independently proven to fail against the
+  pre-fix code via `git stash`. Full backend suite: 1346 passed, 5 skipped.
+  `ruff check` clean on all touched files. Rebuilt `deploy-orchestrator` and
+  verified the new enforcement defaults directly inside the rebuilt
+  container via `docker run --rm deploy-orchestrator:latest python -c
+  "from orchestrator.settings import load_settings; ..."`.
 
 ### pod-worker Review (2026-07-03): poison-message data loss, plus 4 smaller confirmed bugs
 

@@ -344,6 +344,14 @@ async def _prepare_specialist_plan(
         str(metadata.get("mission_type") or "").strip().upper() == "PORT"
         and _setting_bool(settings, "port_two_phase_enabled")
         and str(metadata.get("port_phase") or "").strip().lower() == "extraction"
+        # Unlike every sibling branch in this function, this one had no
+        # re-entrancy guard: mission state stays at specialist_assigned for
+        # the whole extraction+generation two-phase flow, so nothing in the
+        # transition-based dedup protects a second invocation while
+        # port_phase is still "extraction" -- it would re-run two LLM calls,
+        # mint a fresh non-deterministic port_source_aim/source_logicnodes,
+        # and append a duplicate MISSION_PORT_EXTRACTION_COMPLETE event.
+        and not _chain_event_exists(metadata, "MISSION_PORT_EXTRACTION_COMPLETE")
     ):
         extraction_updates = await run_port_extraction_phase(
             mission_id=mission_id,

@@ -86,10 +86,16 @@ class Settings:
     mission_flow_v2_enabled: bool = True
     mission_equivalence_enforcement_enabled: bool = False
     mission_equivalence_python_execution_enabled: bool = False
-    mission_security_compliance_enforcement_enabled: bool = False
+    # Defaults to True (was False): a mission with a required security-
+    # compliance check failure (e.g. a hard-coded secret) must not silently
+    # proceed to delivery. Operators can still opt out for staged rollouts.
+    mission_security_compliance_enforcement_enabled: bool = True
     testdata_agent_enabled: bool = False
     rqca_agent_enabled: bool = False
-    rqca_enforcement_enabled: bool = False
+    # Defaults to True (was False): a mission that fails its RQCA runtime QC
+    # check must not silently proceed to delivery. Operators can still opt
+    # out for staged rollouts.
+    rqca_enforcement_enabled: bool = True
     # Per-language template for the command RQCA runs to determine pass/fail.
     # "{filename}" is the artifact name and "{test_filename}" is the test file
     # (test_<filename>). Defaults run the language's test framework against the
@@ -360,12 +366,12 @@ def load_settings() -> Settings:
             os.getenv("MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED", "false"), False
         ),
         mission_security_compliance_enforcement_enabled=_as_bool(
-            os.getenv("MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED", "false"), False
+            os.getenv("MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED", "true"), True
         ),
         testdata_agent_enabled=_as_bool(os.getenv("TESTDATA_AGENT_ENABLED", "false"), False),
         rqca_agent_enabled=_as_bool(os.getenv("RQCA_AGENT_ENABLED", "false"), False),
         rqca_enforcement_enabled=_as_bool(
-            os.getenv("RQCA_ENFORCEMENT_ENABLED", "false"), False
+            os.getenv("RQCA_ENFORCEMENT_ENABLED", "true"), True
         ),
         rqca_test_command_template=os.getenv("RQCA_TEST_COMMAND_TEMPLATE", "").strip(),
         docker_bin=os.getenv("DOCKER_BIN", "docker").strip() or "docker",
