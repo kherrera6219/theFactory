@@ -101,6 +101,7 @@ def _stub_gateway_create(monkeypatch) -> None:
 def test_gateway_idempotency_reuses_initial_result(monkeypatch) -> None:
     fake_redis = FakeRedis()
     _stub_gateway_create(monkeypatch)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
     with TestClient(api_app) as client:
         api_app.state.redis = fake_redis
         api_app.state.redis_ready = True
@@ -124,6 +125,7 @@ def test_gateway_idempotency_reuses_initial_result(monkeypatch) -> None:
 def test_gateway_idempotency_rejects_payload_mismatch(monkeypatch) -> None:
     fake_redis = FakeRedis()
     _stub_gateway_create(monkeypatch)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
     with TestClient(api_app) as client:
         api_app.state.redis = fake_redis
         api_app.state.redis_ready = True
@@ -143,6 +145,7 @@ def test_gateway_idempotency_rejects_payload_mismatch(monkeypatch) -> None:
 def test_gateway_mission_intake_rejects_non_pm_agent(monkeypatch) -> None:
     fake_redis = FakeRedis()
     _stub_gateway_create(monkeypatch)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
     with TestClient(api_app) as client:
         api_app.state.redis = fake_redis
         api_app.state.redis_ready = True
@@ -288,6 +291,7 @@ def test_gateway_rate_limit_blocks_excess_requests(monkeypatch) -> None:
     fake_redis = FakeRedis()
     _stub_gateway_create(monkeypatch)
     monkeypatch.setattr(api_gateway_main, "API_RATE_LIMIT_PER_MINUTE", 1)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
     with TestClient(api_app) as client:
         api_app.state.redis = fake_redis
         api_app.state.redis_ready = True
@@ -307,6 +311,7 @@ def test_gateway_rate_limit_blocks_excess_requests(monkeypatch) -> None:
 def test_gateway_builder_preview_offline(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "offline")
     monkeypatch.setattr(api_gateway_main, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     with TestClient(api_app) as client:
         response = client.post(
@@ -366,6 +371,7 @@ def test_gateway_builder_preview_openai(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "openai")
     monkeypatch.setattr(api_gateway_main, "OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     with TestClient(api_app) as client:
         response = client.post(
@@ -420,6 +426,21 @@ def test_gateway_builder_helpers_cover_branching() -> None:
     )
     assert extracted_from_choices == "from choices"
 
+    # Regression: a refusal content block carries its text under "refusal",
+    # not "text" -- a refusal-only response used to silently extract to None.
+    extracted_from_refusal = api_gateway_main._extract_openai_text(
+        {
+            "output": [
+                {
+                    "content": [
+                        {"type": "refusal", "refusal": "I can't help with that."},
+                    ]
+                }
+            ]
+        }
+    )
+    assert extracted_from_refusal == "I can't help with that."
+
     extracted_from_anthropic = api_gateway_main._extract_anthropic_text(
         {
             "content": [
@@ -441,6 +462,13 @@ def test_gateway_builder_helpers_cover_branching() -> None:
     assert api_gateway_main._is_gemini_3_model("gemini-3-flash-preview") is True
     assert api_gateway_main._is_gemini_3_model("gemini-3.1-pro-preview") is True
     assert api_gateway_main._is_gemini_3_model("gemini-2.5-pro") is False
+    # Regression: a hardcoded "3.1-"/"3.5-" prefix allowlist missed plausible
+    # future minor releases like "gemini-3.0-pro" and the bare "gemini-3"
+    # model id, silently routing them to the legacy thinkingBudget config
+    # instead of Gemini 3's thinkingLevel config.
+    assert api_gateway_main._is_gemini_3_model("gemini-3.0-pro") is True
+    assert api_gateway_main._is_gemini_3_model("gemini-3") is True
+    assert api_gateway_main._is_gemini_3_model("gemini-30-ultra") is False
     assert api_gateway_main._to_gemini_thinking_level("minimal") == "low"
     assert api_gateway_main._to_gemini_thinking_level("medium") == "medium"
     assert api_gateway_main._to_gemini_thinking_level("xhigh") == "high"
@@ -449,6 +477,7 @@ def test_gateway_builder_helpers_cover_branching() -> None:
 def test_gateway_builder_preview_openai_missing_key(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "openai")
     monkeypatch.setattr(api_gateway_main, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     with TestClient(api_app) as client:
         response = client.post(
@@ -465,6 +494,7 @@ def test_gateway_builder_preview_openai_missing_key(monkeypatch) -> None:
 def test_gateway_builder_preview_anthropic_missing_key(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "anthropic")
     monkeypatch.setattr(api_gateway_main, "ANTHROPIC_API_KEY", "")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     with TestClient(api_app) as client:
         response = client.post(
@@ -481,6 +511,7 @@ def test_gateway_builder_preview_anthropic_missing_key(monkeypatch) -> None:
 def test_gateway_builder_preview_gemini_missing_key(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "gemini")
     monkeypatch.setattr(api_gateway_main, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     with TestClient(api_app) as client:
         response = client.post(
@@ -501,6 +532,7 @@ def test_gateway_builder_preview_openai_fallback(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "openai")
     monkeypatch.setattr(api_gateway_main, "OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(api_gateway_main, "_openai_builder_preview", _openai_preview)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     with TestClient(api_app) as client:
         response = client.post(
@@ -610,6 +642,7 @@ def test_gateway_builder_preview_anthropic(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "anthropic")
     monkeypatch.setattr(api_gateway_main, "ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     with TestClient(api_app) as client:
         response = client.post(
@@ -668,6 +701,7 @@ def test_gateway_builder_preview_gemini(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "LLM_PROVIDER", "gemini")
     monkeypatch.setattr(api_gateway_main, "GEMINI_API_KEY", "test-key")
     monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     with TestClient(api_app) as client:
         response = client.post(

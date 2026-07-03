@@ -236,6 +236,7 @@ def test_create_mission_persists_sensitive_input_scan_before_storage(monkeypatch
     redis_client = _MemoryRedis()
     monkeypatch.setattr(api_gateway_main.app.state, "redis", redis_client, raising=False)
     monkeypatch.setattr(api_gateway_main.app.state, "redis_ready", True, raising=False)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
     captured: dict[str, Any] = {}
 
     async def _proxy_post_internal(_path: str, *, json_body: dict[str, Any], **_kwargs: Any) -> dict[str, Any]:
@@ -274,6 +275,7 @@ def test_create_mission_blocks_high_risk_prompt_input_when_configured(monkeypatc
     redis_client = _MemoryRedis()
     monkeypatch.setattr(api_gateway_main.app.state, "redis", redis_client, raising=False)
     monkeypatch.setattr(api_gateway_main.app.state, "redis_ready", True, raising=False)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
     monkeypatch.setattr(api_gateway_main, "PROMPT_GUARD_MODE", "block")
     monkeypatch.setattr(api_gateway_main, "PROMPT_GUARD_BLOCK_LEVEL", "high")
 
@@ -298,6 +300,7 @@ def test_create_mission_reconciles_unknown_idempotent_writes(monkeypatch) -> Non
     redis_client = _MemoryRedis()
     monkeypatch.setattr(api_gateway_main.app.state, "redis", redis_client, raising=False)
     monkeypatch.setattr(api_gateway_main.app.state, "redis_ready", True, raising=False)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     async def _failing_proxy_post_internal(*_args: Any, **_kwargs: Any) -> Any:
         raise HTTPException(status_code=502, detail="orchestrator unavailable")
@@ -459,10 +462,11 @@ def test_dependency_status_covers_http_and_redis_failure_paths(monkeypatch) -> N
     assert api_gateway_main.app.state.redis_ready is False
 
 
-def test_client_identifier_prefers_api_key_then_forwarded_for_then_unknown() -> None:
+def test_client_identifier_prefers_api_key_then_forwarded_for_then_unknown(monkeypatch) -> None:
     with_api_key = api_gateway_main._client_identifier(_request({"x-api-key": "secret"}))
     assert with_api_key.startswith("api-key:")
 
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_TRUST_PROXY_HEADERS", True)
     forwarded = api_gateway_main._client_identifier(
         _request({"x-forwarded-for": "198.51.100.12, 203.0.113.8"})
     )
@@ -470,6 +474,20 @@ def test_client_identifier_prefers_api_key_then_forwarded_for_then_unknown() -> 
 
     unknown = api_gateway_main._client_identifier(_request({}, client_host=None))
     assert unknown == "ip:unknown"
+
+
+def test_client_identifier_ignores_forwarded_for_by_default(monkeypatch) -> None:
+    # Regression: X-Forwarded-For is caller-supplied and unauthenticated. When
+    # honored unconditionally, any anonymous caller could set a fresh random
+    # value on every request and trivially bypass IP-based rate limiting.
+    # It must only be trusted when an operator explicitly opts in via
+    # GATEWAY_TRUST_PROXY_HEADERS (i.e. there is a real reverse proxy in front
+    # that overwrites the header before it reaches this service).
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_TRUST_PROXY_HEADERS", False)
+    identifier = api_gateway_main._client_identifier(
+        _request({"x-forwarded-for": "198.51.100.12"}, client_host="10.0.0.5")
+    )
+    assert identifier == "ip:10.0.0.5"
 
 
 def test_check_rate_limit_sets_expiry_and_blocks(monkeypatch) -> None:
@@ -643,6 +661,9 @@ def test_require_operator_access_covers_hybrid_oidc_and_invalid_modes(monkeypatc
             authorization="Bearer token-1",
         )
 
+    monkeypatch.setattr(
+        api_gateway_main, "_gateway_api_key_roles", lambda: {"worker-key": {"read"}}
+    )
     api_gateway_main._require_operator_access(x_api_key="worker-key", authorization=None)
 
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "oidc")
@@ -652,6 +673,46 @@ def test_require_operator_access_covers_hybrid_oidc_and_invalid_modes(monkeypatc
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "broken")
     with pytest.raises(HTTPException, match="configuration error"):
         api_gateway_main._require_operator_access(x_api_key="worker-key", authorization=None)
+
+
+def test_anthropic_builder_preview_max_tokens_exceeds_thinking_budget(monkeypatch) -> None:
+    # Regression: max_tokens was hardcoded to 1200 while thinking_budget is
+    # caller-configurable up to 65536. Anthropic requires max_tokens strictly
+    # greater than thinking.budget_tokens, so any request with a large budget
+    # was rejected by Anthropic on every call.
+    payload = api_gateway_main.BuilderPreviewRequest(
+        request="Design a large refactor plan",
+        view_mode="desktop",
+    )
+    captured: dict[str, Any] = {}
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, *_args: Any, json: dict[str, Any], **_kwargs: Any) -> _FakeResponse:
+            captured["request_payload"] = json
+            return _FakeResponse(200, {"content": [{"type": "text", "text": "Plan drafted."}]})
+
+    monkeypatch.setattr(api_gateway_main, "ANTHROPIC_API_KEY", "anthropic-key")
+    monkeypatch.setattr(api_gateway_main.httpx, "AsyncClient", lambda timeout: _Client())
+
+    result = asyncio.run(
+        api_gateway_main._anthropic_builder_preview(
+            payload,
+            model="claude-sonnet",
+            thinking_mode="enabled",
+            thinking_budget=20_000,
+        )
+    )
+
+    assert result is not None
+    assert captured["request_payload"]["max_tokens"] > (
+        captured["request_payload"]["thinking"]["budget_tokens"]
+    )
 
 
 def test_live_builder_preview_helpers_cover_success_and_failure_paths(monkeypatch) -> None:
@@ -897,6 +958,7 @@ def test_create_mission_endpoint_covers_cached_idempotency_and_validation(monkey
     original_redis = getattr(app.state, "redis", None)
     original_redis_ready = getattr(app.state, "redis_ready", False)
     try:
+        monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
         monkeypatch.setattr(api_gateway_main, "_request_hash", lambda _payload: "cached-hash")
 
         async def _load(_redis: Any, _key: str) -> dict[str, Any]:
@@ -957,6 +1019,7 @@ def test_builder_preview_endpoint_covers_short_request_and_provider_fallbacks(mo
     monkeypatch.setattr(api_gateway_main, "GEMINI_API_KEY", "gemini-key")
     monkeypatch.setattr(api_gateway_main, "_anthropic_builder_preview", _anthropic_preview)
     monkeypatch.setattr(api_gateway_main, "_gemini_builder_preview", _gemini_preview)
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
 
     with TestClient(api_gateway_main.app) as client:
         short = client.post("/v1/builder/preview", json={"request": "   "})

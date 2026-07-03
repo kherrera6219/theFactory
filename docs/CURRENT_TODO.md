@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.07.02
-Last updated: 2026-07-02
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -13,7 +13,30 @@ as current work.
 
 ## Current Status
 
-**Most recent work: correctness review of the agent orchestration core —
+**Most recent work: security/correctness review of the api-gateway —
+found 10 routes with zero caller authentication.** `create_mission`,
+`get_mission_pod_assignment`, `get_mission_chain_trace`,
+`create_pm_feature_contract`, mission logicnodes/knowledge/knowledge-graph/
+audit-reports/audit-artifacts/audit-events/build-artifacts/build-artifact/
+artifact-download, and `create_builder_preview` all forwarded to the
+orchestrator's `/internal/*` routes with no check on the caller's own
+credentials — any anonymous request could read mission prompts, source
+code, and audit trails, or create missions / trigger paid LLM calls, for any
+`mission_id`. All now require `_require_reader_access`. Also fixed: a
+hybrid-mode `_require_operator_access` bypass (any non-empty `X-API-Key`
+granted access with zero validation), an X-Forwarded-For rate-limit bypass
+(new `GATEWAY_TRUST_PROXY_HEADERS` opt-in, default off), `PROMPT_GUARD_MODE`
+default changed from `"log"` to `"block"` (user-confirmed product decision —
+OWASP LLM01 prompt injection is now rejected by default), an Anthropic
+`max_tokens`/`thinking_budget` mismatch that rejected every high-budget
+thinking request, a Gemini-3 model-detection gap (`gemini-3.0-pro`/bare
+`gemini-3` were missed), and an OpenAI refusal-content extraction gap. Fixed
+and test-verified (1337 backend tests, 0 failures), `api-gateway` Docker
+image rebuilt and fixes verified inside the rebuilt container. See
+"api-gateway Review (2026-07-03)" under Recently Completed for the full
+list including investigated-and-refuted candidates.
+
+Before that: correctness review of the agent orchestration core —
 found that AIM source-code extraction was silently non-functional in
 production.** `agent_base.py`, `agent_registry.py`, `agent_personas.py`,
 `agent_integrations.py`, `agent_scaling.py`, `is_agent.py`,
@@ -443,6 +466,60 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 ---
 
 ## Recently Completed
+
+### api-gateway Review (2026-07-03): 10 unauthenticated routes, plus 5 smaller confirmed bugs
+
+Security/correctness review of `services/api-gateway/api_gateway/main.py`
+(~2.8k lines), via four parallel finder agents reading the full file plus a
+fifth targeted triage pass, each candidate verified against actual code and
+orchestrator-side handlers before fixing:
+
+- Fixed 10 routes with zero caller authentication: `create_mission`,
+  `get_mission_pod_assignment`, `get_mission_chain_trace`,
+  `create_pm_feature_contract`, `get_mission_logicnodes`,
+  `get_mission_knowledge`, `get_mission_knowledge_graph`,
+  `get_mission_audit_reports`, `get_mission_audit_artifacts`,
+  `get_mission_audit_events`, `get_mission_build_artifacts`,
+  `get_mission_build_artifact`, `download_mission_artifact`,
+  `create_builder_preview` — all now require `_require_reader_access`.
+  `update_mission_state` was checked and confirmed already correct (uses the
+  deliberate `_resolve_mutation_forward_headers` pass-through pattern, with
+  the orchestrator's own `MUTATION_AUTH_DEP` as the actual enforcement
+  authority).
+- Fixed a hybrid-mode `_require_operator_access` bypass (any non-empty
+  `X-API-Key` granted access with zero validation).
+- Fixed an X-Forwarded-For rate-limit bypass in `_client_identifier` (new
+  `GATEWAY_TRUST_PROXY_HEADERS` env flag, default `false`).
+- Changed `PROMPT_GUARD_MODE` default from `"log"` to `"block"` (explicit
+  user product decision) so OWASP LLM01 prompt-injection attempts are
+  rejected by default instead of merely logged.
+- Fixed an Anthropic `max_tokens`/`thinking_budget` mismatch in
+  `_anthropic_builder_preview` (max_tokens now scales with the
+  caller-configurable thinking budget instead of a hardcoded 1200, which
+  rejected every high-budget thinking-enabled request).
+- Fixed a Gemini-3 model-detection gap in `_is_gemini_3_model` (hardcoded
+  `3.1-`/`3.5-` prefixes missed `gemini-3.0-pro` and bare `gemini-3`;
+  replaced with a generalized regex, verified no new false positives).
+- Fixed an OpenAI refusal-content extraction gap in `_extract_openai_text`
+  (`refusal`-type content blocks carry text under `refusal`, not `text`).
+- Investigated and refuted: silent pod-manager fallback (pure in-process
+  dict lookup, no network reachability failure to mask), chain_trace
+  forgery (plain read-only proxy, no forgery vector), PII-scan field
+  exclusions (attachments carry no inline content through this endpoint),
+  `_dependency_status` exception swallowing (exceptions correctly degrade
+  health flags — this is the right behavior for `/readyz`), unvalidated
+  provider string (falls through safely to the offline fallback),
+  markdown-lstrip/mixed-provenance labeling (no such lstrip exists; source
+  labeling is consistent on every path). Weak base64/secret regex patterns
+  in the PII/prompt-injection scanners were confirmed as a real but accepted
+  limitation (heuristic defense-in-depth logging, not a hard control).
+- Every fix has a regression test independently proven to fail against the
+  pre-fix code via `git stash`. Full backend suite: 1337 passed, 5 skipped.
+  `ruff check` clean. `deploy-api-gateway:latest` rebuilt and every fix
+  verified directly inside the rebuilt container.
+- Deferred/no further action: weak PII/secret regex patterns (documented
+  limitation, not a hard control — would need a real entropy/pattern-based
+  secret scanner to meaningfully improve, out of scope for this pass).
 
 ### Agent Orchestration Core Review (2026-07-02): AIM extraction was silently non-functional in production
 

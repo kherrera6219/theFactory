@@ -223,7 +223,28 @@ def test_require_operator_access_oidc_requires_operator_role(monkeypatch) -> Non
 def test_require_operator_access_hybrid_allows_api_key(monkeypatch) -> None:
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "hybrid")
     monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
+    monkeypatch.setattr(
+        api_gateway_main, "_gateway_api_key_roles", lambda: {"operator-key": {"read"}}
+    )
     api_gateway_main._require_operator_access(x_api_key="operator-key", authorization=None)
+
+
+def test_require_operator_access_hybrid_rejects_unknown_api_key(monkeypatch) -> None:
+    # Regression: hybrid mode's X-API-Key branch used to grant operator access
+    # on ANY non-empty header with zero validation against configured gateway
+    # keys, unlike its api_key-mode sibling branch and _require_reader_access's
+    # own hybrid-mode X-API-Key branch.
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "hybrid")
+    monkeypatch.setattr(api_gateway_main, "OIDC_ENFORCE_OPERATOR_ROUTES", True)
+    monkeypatch.setattr(
+        api_gateway_main, "_gateway_api_key_roles", lambda: {"good-key": {"read"}}
+    )
+    try:
+        api_gateway_main._require_operator_access(x_api_key="not-a-real-key", authorization=None)
+    except HTTPException as exc:
+        assert exc.status_code == 401
+    else:
+        raise AssertionError("expected HTTPException for unknown api key in hybrid mode")
 
 
 def test_update_state_forwards_internal_key_in_oidc_mode(monkeypatch) -> None:
@@ -318,6 +339,13 @@ def test_validate_startup_auth_config_oidc_requires_issuer(monkeypatch) -> None:
         raise AssertionError("expected RuntimeError for missing OIDC_ISSUER_URL in oidc mode")
 
 
+def test_prompt_guard_mode_defaults_to_block() -> None:
+    # Regression: PROMPT_GUARD_MODE used to default to "log", so OWASP LLM01
+    # prompt-injection attempts were only recorded in scan metadata while the
+    # mission proceeded to persistence anyway. It must default to "block".
+    assert api_gateway_main.PROMPT_GUARD_MODE == "block"
+
+
 def test_validate_startup_auth_config_hybrid_missing_audience_ok(monkeypatch) -> None:
     # H-2: hybrid mode without audience only warns (does not fail).
     monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "hybrid")
@@ -346,6 +374,50 @@ def test_validate_startup_auth_config_rejects_wildcard_cors_in_production(monkey
         assert "CORS_ALLOW_ORIGINS" in str(exc)
     else:
         raise AssertionError("expected RuntimeError for wildcard CORS in production")
+
+
+def test_previously_unauthenticated_mission_read_routes_now_require_auth(monkeypatch) -> None:
+    # Regression: these routes forwarded straight to the orchestrator's
+    # /internal/* endpoints with zero caller authentication -- any caller
+    # could read mission prompts, source code, audit trails, and build
+    # artifacts for any mission_id with no credentials at all.
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", False)
+
+    async def _fail_if_reached(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("orchestrator must not be reached without authentication")
+
+    monkeypatch.setattr(api_gateway_main, "_proxy_get_internal", _fail_if_reached)
+    monkeypatch.setattr(api_gateway_main, "_proxy_post_internal", _fail_if_reached)
+
+    post_bodies: dict[str, dict[str, Any]] = {
+        "/v1/missions": {"prompt": "Build a reporting API"},
+        "/v1/pm/feature-contract": {"prompt": "Draft a feature contract"},
+        "/v1/builder/preview": {"request": "Add audit dashboard"},
+    }
+
+    with TestClient(api_app) as client:
+        for method, path in [
+            ("post", "/v1/missions"),
+            ("get", "/v1/missions/mission-1/pod-assignment"),
+            ("get", "/v1/missions/mission-1/chain-trace"),
+            ("post", "/v1/pm/feature-contract"),
+            ("get", "/v1/missions/mission-1/logicnodes"),
+            ("get", "/v1/missions/mission-1/knowledge"),
+            ("get", "/v1/missions/mission-1/knowledge-graph"),
+            ("get", "/v1/missions/mission-1/audit-reports"),
+            ("get", "/v1/missions/mission-1/audit-artifacts"),
+            ("get", "/v1/missions/mission-1/audit-events"),
+            ("get", "/v1/missions/mission-1/build-artifacts"),
+            ("get", "/v1/missions/mission-1/build-artifacts/artifact-1"),
+            ("get", "/v1/missions/mission-1/artifact"),
+            ("post", "/v1/builder/preview"),
+        ]:
+            if method == "post":
+                response = client.post(path, json=post_bodies.get(path, {}))
+            else:
+                response = client.get(path)
+            assert response.status_code == 401, f"{method.upper()} {path} allowed anonymous access"
 
 
 def test_maintenance_routes_proxy_call_signatures(monkeypatch) -> None:

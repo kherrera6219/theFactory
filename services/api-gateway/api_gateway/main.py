@@ -65,7 +65,11 @@ ORCHESTRATOR_ADMIN_API_KEY = os.getenv("ORCHESTRATOR_ADMIN_API_KEY", "").strip()
 ORCHESTRATOR_READONLY_API_KEY = os.getenv("ORCHESTRATOR_READONLY_API_KEY", "").strip()
 ORCHESTRATOR_API_KEYS = os.getenv("ORCHESTRATOR_API_KEYS", "")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
-PROMPT_GUARD_MODE = os.getenv("PROMPT_GUARD_MODE", "log").strip().lower()
+# Defaults to "block" (not "log"): OWASP LLM01 prompt-injection attempts
+# should be rejected out of the box, not merely recorded while the mission
+# proceeds. Operators can opt back into observability-only mode by setting
+# PROMPT_GUARD_MODE=log explicitly.
+PROMPT_GUARD_MODE = os.getenv("PROMPT_GUARD_MODE", "block").strip().lower()
 PROMPT_GUARD_BLOCK_LEVEL = os.getenv("PROMPT_GUARD_BLOCK_LEVEL", "high").strip().lower()
 AUTH_MODE = os.getenv("AUTH_MODE", "api_key").strip().lower()
 ALLOWED_AUTH_MODES = {"api_key", "hybrid", "oidc"}
@@ -114,6 +118,14 @@ API_RATE_LIMIT_PER_MINUTE = int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "120"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_KEY_PREFIX = "ratelimit:api-gateway"
 RATE_LIMIT_HMAC_KEY = os.getenv("RATE_LIMIT_HMAC_KEY", "ratelimit-default").encode()
+# X-Forwarded-For is caller-supplied and unauthenticated. Only honor it for
+# rate-limit bucketing when explicitly enabled by an operator who has a
+# trusted reverse proxy stripping/overwriting the header before it reaches
+# this service -- otherwise any anonymous caller can set a fresh random value
+# per request and trivially bypass IP-based rate limiting.
+GATEWAY_TRUST_PROXY_HEADERS = (
+    os.getenv("GATEWAY_TRUST_PROXY_HEADERS", "false").strip().lower() in {"1", "true", "yes", "on"}
+)
 LIVE_STREAM_BLOCK_MS = int(os.getenv("LIVE_STREAM_BLOCK_MS", "5000"))
 LIVE_STREAM_KEEPALIVE_SECONDS = float(os.getenv("LIVE_STREAM_KEEPALIVE_SECONDS", "15"))
 LIVE_STREAM_COUNT = int(os.getenv("LIVE_STREAM_COUNT", "50"))
@@ -761,7 +773,7 @@ def _client_identifier(request: Request) -> str:
         ).hex()
         return f"api-key:{digest}"
 
-    forwarded_for = request.headers.get("x-forwarded-for", "")
+    forwarded_for = request.headers.get("x-forwarded-for", "") if GATEWAY_TRUST_PROXY_HEADERS else ""
     if forwarded_for:
         client_ip = forwarded_for.split(",")[0].strip()
     else:
@@ -1134,6 +1146,12 @@ def _require_operator_access(
                 )
             return
         if x_api_key:
+            # Unlike the bearer-token branch above, this used to grant
+            # operator access on ANY non-empty X-API-Key with no validation
+            # at all — inconsistent with this same function's api_key-mode
+            # branch (which correctly calls _require_api_key_role) and with
+            # _require_reader_access's own hybrid-mode X-API-Key branch.
+            _require_api_key_role(x_api_key, "read")
             return
         raise HTTPException(
             status_code=401,
@@ -1296,7 +1314,11 @@ def _extract_openai_text(payload: dict[str, Any]) -> str | None:
             for block in content:
                 if not isinstance(block, dict):
                     continue
-                text_value = block.get("text")
+                # Responses API content blocks carry text under "text" for
+                # output_text blocks, but under "refusal" when the model
+                # declines to answer -- without this, a refusal-only
+                # response silently returns None with no diagnostic detail.
+                text_value = block.get("text") or block.get("refusal")
                 if isinstance(text_value, str) and text_value.strip():
                     collected_parts.append(text_value.strip())
         if collected_parts:
@@ -1375,13 +1397,15 @@ def _extract_gemini_text(payload: dict[str, Any]) -> str | None:
     return None
 
 
+_GEMINI_3_MODEL_PATTERN = re.compile(r"^gemini-3(\.\d+)?(-|$)")
+
+
 def _is_gemini_3_model(model: str) -> bool:
+    # Matches "gemini-3", "gemini-3-*", and "gemini-3.<minor>-*" (e.g. "3.0",
+    # "3.1", "3.5") so future minor releases aren't silently missed the way a
+    # hardcoded "3.1-"/"3.5-" prefix list would miss "gemini-3.0-pro".
     normalized = model.strip().lower()
-    return (
-        normalized.startswith("gemini-3-")
-        or normalized.startswith("gemini-3.1-")
-        or normalized.startswith("gemini-3.5-")
-    )
+    return bool(_GEMINI_3_MODEL_PATTERN.match(normalized))
 
 
 def _to_gemini_thinking_level(reasoning_effort: str | None) -> str:
@@ -1491,18 +1515,27 @@ async def _anthropic_builder_preview(
     thinking_budget: int,
 ) -> dict[str, Any] | None:
     user_prompt = _build_builder_prompt(payload)
+    # Anthropic requires max_tokens > thinking.budget_tokens (thinking tokens
+    # count against the same budget as the final answer). thinking_budget is
+    # caller-configurable up to 65536 (BuilderPreviewRequest), so max_tokens
+    # must scale with it, not stay fixed at 1200 -- otherwise every request
+    # with a budget >= 1200 is rejected by Anthropic on every call.
+    output_headroom = 1200
+    max_tokens = output_headroom
     request_payload: dict[str, Any] = {
         "model": model,
-        "max_tokens": 1200,
         "messages": [{"role": "user", "content": user_prompt}],
     }
     if thinking_mode == "enabled":
+        budget_tokens = max(1024, thinking_budget)
+        max_tokens = budget_tokens + output_headroom
         request_payload["thinking"] = {
             "type": "enabled",
-            "budget_tokens": max(1024, thinking_budget),
+            "budget_tokens": budget_tokens,
         }
     elif thinking_mode == "adaptive":
         request_payload["thinking"] = {"type": "adaptive"}
+    request_payload["max_tokens"] = max_tokens
 
     headers = {
         "x-api-key": ANTHROPIC_API_KEY,
@@ -2177,7 +2210,10 @@ async def _handle_mission_idempotency(
 async def create_mission(
     payload: MissionCreate,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> MissionRecord:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     redis_client = getattr(app.state, "redis", None)
     if redis_client is None:
         raise HTTPException(status_code=503, detail="redis dependency is not installed")
@@ -2370,17 +2406,32 @@ async def get_mission_events(
 
 
 @app.get("/v1/missions/{mission_id}/pod-assignment")
-async def get_mission_pod_assignment(mission_id: str) -> dict[str, Any]:
+async def get_mission_pod_assignment(
+    mission_id: str,
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(f"/internal/missions/{mission_id}/pod-assignment")
 
 
 @app.get("/v1/missions/{mission_id}/chain-trace")
-async def get_mission_chain_trace(mission_id: str) -> dict[str, Any]:
+async def get_mission_chain_trace(
+    mission_id: str,
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(f"/internal/missions/{mission_id}/chain-trace")
 
 
 @app.post("/v1/pm/feature-contract")
-async def create_pm_feature_contract(payload: dict[str, Any]) -> dict[str, Any]:
+async def create_pm_feature_contract(
+    payload: dict[str, Any],
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     prompt = str(payload.get("prompt") or payload.get("request") or "").strip()
     if len(prompt) < 3:
         raise HTTPException(status_code=400, detail="prompt must be at least 3 characters")
@@ -2395,8 +2446,12 @@ async def create_pm_feature_contract(payload: dict[str, Any]) -> dict[str, Any]:
 
 @app.get("/v1/missions/{mission_id}/logicnodes")
 async def get_mission_logicnodes(
-    mission_id: str, limit: int = Query(default=50, ge=1, le=500)
+    mission_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
         f"/internal/missions/{mission_id}/logicnodes", params={"limit": limit}
     )
@@ -2404,8 +2459,12 @@ async def get_mission_logicnodes(
 
 @app.get("/v1/missions/{mission_id}/knowledge")
 async def get_mission_knowledge(
-    mission_id: str, limit: int = Query(default=50, ge=1, le=500)
+    mission_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
         f"/internal/missions/{mission_id}/knowledge", params={"limit": limit}
     )
@@ -2413,8 +2472,12 @@ async def get_mission_knowledge(
 
 @app.get("/v1/missions/{mission_id}/knowledge-graph")
 async def get_mission_knowledge_graph(
-    mission_id: str, limit: int = Query(default=50, ge=1, le=500)
+    mission_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
         f"/internal/missions/{mission_id}/knowledge-graph",
         params={"limit": limit},
@@ -2423,8 +2486,12 @@ async def get_mission_knowledge_graph(
 
 @app.get("/v1/missions/{mission_id}/audit-reports")
 async def get_mission_audit_reports(
-    mission_id: str, limit: int = Query(default=50, ge=1, le=500)
+    mission_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
         f"/internal/missions/{mission_id}/audit-reports", params={"limit": limit}
     )
@@ -2432,8 +2499,12 @@ async def get_mission_audit_reports(
 
 @app.get("/v1/missions/{mission_id}/audit-artifacts")
 async def get_mission_audit_artifacts(
-    mission_id: str, limit: int = Query(default=50, ge=1, le=500)
+    mission_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
         f"/internal/missions/{mission_id}/audit-artifacts",
         params={"limit": limit},
@@ -2442,8 +2513,12 @@ async def get_mission_audit_artifacts(
 
 @app.get("/v1/missions/{mission_id}/audit-events")
 async def get_mission_audit_events(
-    mission_id: str, limit: int = Query(default=100, ge=1, le=1000)
+    mission_id: str,
+    limit: int = Query(default=100, ge=1, le=1000),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
         f"/internal/missions/{mission_id}/audit-events",
         params={"limit": limit},
@@ -2452,8 +2527,12 @@ async def get_mission_audit_events(
 
 @app.get("/v1/missions/{mission_id}/build-artifacts")
 async def get_mission_build_artifacts(
-    mission_id: str, limit: int = Query(default=50, ge=1, le=500)
+    mission_id: str,
+    limit: int = Query(default=50, ge=1, le=500),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> list[dict[str, Any]]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
         f"/internal/missions/{mission_id}/build-artifacts",
         params={"limit": limit},
@@ -2464,7 +2543,10 @@ async def get_mission_build_artifacts(
 async def get_mission_build_artifact(
     mission_id: str,
     artifact_id: str,
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> dict[str, Any]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(
         f"/internal/missions/{mission_id}/build-artifacts/{artifact_id}",
     )
@@ -2474,7 +2556,10 @@ async def get_mission_build_artifact(
 async def download_mission_artifact(
     mission_id: str,
     artifact_type: str = Query(default="generated_code"),
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> Response:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     records = await _proxy_get_internal(
         f"/internal/missions/{mission_id}/build-artifacts",
         params={"limit": 50},
@@ -2691,7 +2776,12 @@ async def _dispatch_llm_preview(
 
 
 @app.post("/v1/builder/preview")
-async def create_builder_preview(payload: BuilderPreviewRequest) -> dict[str, Any]:
+async def create_builder_preview(
+    payload: BuilderPreviewRequest,
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     normalized_request = _normalize_builder_text(payload.request)
     if len(normalized_request) < 3:
         raise HTTPException(status_code=400, detail="request must be at least 3 characters")
