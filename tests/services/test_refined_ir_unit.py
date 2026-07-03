@@ -46,6 +46,27 @@ def test_build_refined_ir_module_validates_schema_shape() -> None:
     assert module.fns[0].tests.equivalence_vectors[0].out["concept"] == "map_collection"
 
 
+def test_build_refined_ir_module_falls_back_to_concept_when_node_name_missing() -> None:
+    # Regression: node_name is opportunistic, not a required LogicNode field.
+    # When node_payload is a dict but omits "node_name" entirely,
+    # str(node_payload.get("node_name")) used to evaluate str(None) -- the
+    # literal string "None" -- instead of falling back to `concept`.
+    logicnode = _logicnode()
+    del logicnode["node"]["node_name"]
+
+    module = build_refined_ir_module(
+        mission_id="mission-1",
+        agent_id="AGENT-14-PYTHON",
+        source_language="python",
+        target_language="python",
+        logicnodes=[logicnode],
+        source_ref="mission://mission-1",
+    )
+
+    assert module.fns[0].name == "map_collection"
+    assert module.fns[0].name != "None"
+
+
 def test_write_refined_ir_module_persists_catalog_file(tmp_path: Path) -> None:
     module = build_refined_ir_module(
         mission_id="mission-1",

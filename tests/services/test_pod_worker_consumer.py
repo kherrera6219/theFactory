@@ -14,10 +14,12 @@ pod_worker_main = importlib.import_module("pod_worker.main")
 
 
 class FakeWorkerRedis:
-    def __init__(self, entries):
+    def __init__(self, entries, *, xadd_error: Exception | None = None):
         self.entries = entries
         self.acked: list[str] = []
+        self.dlq_writes: list[dict] = []
         self.read_calls = 0
+        self._xadd_error = xadd_error
 
     async def xreadgroup(self, **kwargs):
         self.read_calls += 1
@@ -28,6 +30,12 @@ class FakeWorkerRedis:
     async def xack(self, stream: str, group: str, entry_id: str) -> int:
         self.acked.append(entry_id)
         return 1
+
+    async def xadd(self, stream: str, fields: dict, **kwargs) -> str:
+        if self._xadd_error is not None:
+            raise self._xadd_error
+        self.dlq_writes.append(fields)
+        return f"{len(self.dlq_writes)}-0"
 
 
 def _build_app(redis_client: FakeWorkerRedis) -> SimpleNamespace:
@@ -51,7 +59,13 @@ def test_consumer_acknowledges_invalid_message() -> None:
     assert redis_client.acked == ["1-0"]
 
 
-def test_consumer_keeps_message_unacked_on_runtime_failure(monkeypatch) -> None:
+def test_consumer_dlqs_and_acks_message_on_unexpected_runtime_failure(monkeypatch) -> None:
+    # Regression: an exception outside the four explicitly-handled types used
+    # to be neither acknowledged nor DLQ'd. Since nothing in this consumer
+    # loop ever XCLAIMs/XAUTOCLAIMs pending entries, that permanently
+    # orphaned the message in the consumer group's PEL -- never processed
+    # again, never visible in the DLQ, no operator signal beyond one log
+    # line. It must now land in the DLQ and be acknowledged.
     async def _raise_runtime_error(redis_obj, payload):
         raise RuntimeError("transient failure")
 
@@ -63,6 +77,38 @@ def test_consumer_keeps_message_unacked_on_runtime_failure(monkeypatch) -> None:
         "payload": json.dumps({"event_type": "MISSION_RUNNING", "mission_id": "mission-1"}),
     }
     redis_client = FakeWorkerRedis(entries=[("1-0", fields)])
+    app = _build_app(redis_client)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(pod_worker_main._consumer_loop(app))
+
+    assert app.state.errors == 1
+    assert redis_client.acked == ["1-0"]
+    assert len(redis_client.dlq_writes) == 1
+    assert redis_client.dlq_writes[0]["entry_id"] == "1-0"
+    assert "transient failure" in redis_client.dlq_writes[0]["error"]
+
+
+def test_consumer_keeps_message_unacked_when_dlq_write_fails(monkeypatch) -> None:
+    # Regression: acknowledging (XACK) the original entry regardless of
+    # whether the DLQ write actually succeeded silently loses the message
+    # forever if Redis is briefly unavailable during the DLQ xadd -- the
+    # entry is removed from the pending-entries list without ever landing
+    # in the DLQ, with only a log line as a trace. It must stay unacknowledged
+    # so it remains visible via XPENDING.
+    async def _raise_runtime_error(redis_obj, payload):
+        raise RuntimeError("transient failure")
+
+    monkeypatch.setattr(pod_worker_main, "_validate_envelope", lambda envelope: None)
+    monkeypatch.setattr(pod_worker_main, "_handle_running_mission", _raise_runtime_error)
+
+    fields = {
+        "envelope": json.dumps({"topic": "cluster.assigned.podA"}),
+        "payload": json.dumps({"event_type": "MISSION_RUNNING", "mission_id": "mission-1"}),
+    }
+    redis_client = FakeWorkerRedis(
+        entries=[("1-0", fields)], xadd_error=ConnectionError("redis blip")
+    )
     app = _build_app(redis_client)
 
     with pytest.raises(asyncio.CancelledError):

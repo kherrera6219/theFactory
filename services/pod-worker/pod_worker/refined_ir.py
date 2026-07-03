@@ -126,12 +126,15 @@ def build_refined_ir_module(
         domain = str(payload.get("domain") or logicnode.get("domain") or "generic")
         node_id = str(logicnode.get("node_id") or f"{mission_id}:{index}")
         confidence = float(payload.get("confidence", 0.0) or 0.0)
+        # node_name is opportunistic, not a required LogicNode field. When
+        # absent, `str(node_payload.get("node_name"))` used to evaluate
+        # `str(None)` -- the literal string "None" -- instead of falling
+        # back to `concept`, silently corrupting the RIR's name field.
+        node_name = node_payload.get("node_name") if isinstance(node_payload, dict) else None
         functions.append(
             RefinedIRFunction(
                 fn_id=node_id,
-                name=str(
-                    node_payload.get("node_name") if isinstance(node_payload, dict) else concept
-                ),
+                name=str(node_name) if node_name else concept,
                 purity="IMPURE" if payload.get("intent") else "PURE",
                 inputs=[RefinedIRParameter(name="source", type=source_language or "unknown")],
                 outputs=[

@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.07.03
+Document version: 2026.07.03b
 Last updated: 2026-07-03
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -13,7 +13,35 @@ as current work.
 
 ## Current Status
 
-**Most recent work: security/correctness review of the api-gateway —
+**Most recent work: correctness review of the pod-worker service — found
+that `_consumer_loop`'s catch-all exception handler could silently and
+permanently orphan/drop stream entries.** `services/pod-worker/pod_worker/`
+(~5.1k lines). Two stacked data-loss bugs: (1) the generic `except Exception`
+branch in `_consumer_loop` never acknowledged or DLQ'd a failed entry — with
+no `XCLAIM`/`XAUTOCLAIM` recovery anywhere in this service, an unexpected
+exception permanently orphaned the message in the consumer group's
+pending-entries list; (2) `_write_dlq` itself could fail (e.g. a transient
+Redis blip) while callers still unconditionally acknowledged the original
+entry, silently dropping it forever even when the intent was to preserve it
+in the DLQ. Both fixed: the catch-all now DLQs + acknowledges like the other
+branches, and `_write_dlq` returns success/failure so callers only
+acknowledge when the DLQ write actually landed. Also fixed: a `refined_ir.py`
+bug that produced the literal string `"None"` as a function name instead of
+falling back to the concept name, a JS/TS regex that silently dropped every
+paren-less arrow function (`x => x + 1`) from extraction, a
+`PythonAstExtractor` inconsistency that bypassed the 512 KB size guard for
+AST parsing, and a Java static-import edge case that could inject an
+empty-string import entry. Fixed and test-verified (1342 backend tests, 0
+failures), `pod-worker` and `orchestrator` Docker images rebuilt (the
+orchestrator image bundles `pod_worker.language_extractor` for AIM
+generation) and fixes verified inside the rebuilt containers. One
+architectural finding — `_run_agent_pipeline` runs agent execution
+synchronously inside the async event loop, blocking the consumer/heartbeat
+loops during CPU-bound work — was deferred as needing a scoped design
+review rather than a reflexive `asyncio.to_thread` patch. See "pod-worker
+Review (2026-07-03)" under Recently Completed for the full list.
+
+Before that: security/correctness review of the api-gateway —
 found 10 routes with zero caller authentication.** `create_mission`,
 `get_mission_pod_assignment`, `get_mission_chain_trace`,
 `create_pm_feature_contract`, mission logicnodes/knowledge/knowledge-graph/
@@ -466,6 +494,60 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 ---
 
 ## Recently Completed
+
+### pod-worker Review (2026-07-03): poison-message data loss, plus 4 smaller confirmed bugs
+
+Correctness review of `services/pod-worker/pod_worker/` (~5.1k lines:
+`main.py`, `language_extractor.py`, `ast_extractor.py`, `js_ast_extractor.py`,
+`java_ast_extractor.py`, `concept_catalog.py`, `refined_ir.py`,
+`tracing.py`), via three parallel finder agents reading full files, each
+candidate verified against actual code before fixing:
+
+- Fixed `_consumer_loop`'s catch-all exception handler permanently
+  orphaning failed stream entries (no DLQ write, no acknowledge, and no
+  `XCLAIM`/`XAUTOCLAIM` anywhere in this service to ever reclaim them) — now
+  routes to the DLQ and acknowledges, matching the existing pattern for the
+  four explicitly-handled exception types.
+- Fixed a companion bug in `_write_dlq`: a failed DLQ write was only logged
+  while the caller still unconditionally acknowledged the original entry,
+  silently losing it forever on a transient Redis blip. `_write_dlq` now
+  returns success/failure; callers only acknowledge on success.
+- Fixed `refined_ir.py`'s `build_refined_ir_module` producing the literal
+  string `"None"` as a function name when a LogicNode payload omitted
+  `node_name`, instead of falling back to the concept name.
+- Fixed `JavaScriptExtractor`'s function-detection regex silently dropping
+  every paren-less single-arg arrow function (`x => x + 1`) from extraction.
+- Fixed `PythonAstExtractor` receiving the untruncated source for AST
+  parsing while the regex pass truncated to 512 KB — bypassed the size
+  guard and produced inconsistent line numbers for large files.
+- Fixed `JavaAstExtractor` injecting an empty-string entry into the imports
+  list when `javalang`'s `path` attribute is empty/None on a malformed
+  parse.
+- Investigated and refuted: broad exception handling in the JS/Java AST
+  extractors is correctly defensive (returns `success=False`, callers
+  fall back to regex — no crash, no silent-wrong-success); `__init__.py`
+  being empty is a non-issue (submodule import, not package import);
+  `refined_ir.py`'s `effects`/`purity` naming is confusing but not
+  functionally wrong; duplicate `concept_id`s across languages are
+  currently harmless (per-language dedup scope) but noted as a latent
+  cross-language trap; JS dynamic `import()`/`export ... from` and
+  arrow-as-callback coverage gaps are real but scoped enhancements behind
+  a disabled-by-default flag (`JS_AST_EXTRACTOR_ENABLED=false`), not
+  correctness bugs.
+- Deferred: `_run_agent_pipeline` runs `agent.execute()`/`.validate()`/
+  `.report()` synchronously inside the async event loop with no
+  `asyncio.to_thread`/executor offload, blocking the consumer and heartbeat
+  loops during CPU-bound or blocking agent work. This needs a scoped review
+  of `agent_base.py`'s execution/thread-safety model before changing — a
+  reflexive `asyncio.to_thread` wrap risks introducing new bugs if agent
+  internals assume single-threaded execution. Left as a flagged
+  architectural item, not patched in this pass.
+- Every fix has a regression test independently proven to fail against the
+  pre-fix code via `git stash`. Full backend suite: 1342 passed, 5 skipped.
+  `ruff check` clean. Rebuilt `deploy-pod-a-worker` and `deploy-orchestrator`
+  images (the orchestrator image bundles `pod_worker.language_extractor` for
+  AIM generation) and verified every fix directly inside the rebuilt
+  containers.
 
 ### api-gateway Review (2026-07-03): 10 unauthenticated routes, plus 5 smaller confirmed bugs
 

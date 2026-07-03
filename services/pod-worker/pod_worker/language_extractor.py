@@ -328,7 +328,14 @@ class PythonAstExtractor(PythonExtractor):
             LOGGER.warning("ast_extractor not available; using regex-only extraction")
             return result
 
-        ast_result = extract_python_ast(source)
+        # super().extract() truncates to _MAX_SOURCE_LENGTH internally before
+        # scanning, but this call used to receive the original, untruncated
+        # `source` -- for files over the cap, AST-derived functions/classes
+        # would report line numbers past the end of what the regex pass ever
+        # saw (inconsistent with `result.concepts`), and the size guard
+        # meant to bound ast.parse() cost was silently bypassed.
+        truncated_source = source[:_MAX_SOURCE_LENGTH]
+        ast_result = extract_python_ast(truncated_source)
         if not ast_result.success:
             LOGGER.debug(
                 "Python AST parse failed (%s) — regex structural info retained",
@@ -395,7 +402,13 @@ class PythonAstExtractor(PythonExtractor):
 class JavaScriptExtractor(LanguageExtractor):
     language = "javascript"
     _function_pattern = re.compile(
-        r"(?:function\s+(\w+)\s*\(|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)\s*=>|function))",
+        # Paren-less single-arg arrow functions (`x => x + 1`) are a common
+        # JS idiom -- without the `\w+\s*=>` alternative, only parenthesized
+        # arg lists (`(x) => ...` / `() => ...`) and `function` expressions
+        # were matched, silently dropping every bare-identifier arrow
+        # function from the extracted function list.
+        r"(?:function\s+(\w+)\s*\(|(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?"
+        r"(?:\([^)]*\)\s*=>|\w+\s*=>|function))",
         re.MULTILINE,
     )
     _class_pattern = re.compile(r"\bclass\s+(\w+)", re.MULTILINE)
@@ -579,7 +592,10 @@ class JavaAstExtractor(JavaExtractor):
             )
             for item in ast_result.classes
         ]
-        result.imports = [item.qualified_name for item in ast_result.imports]
+        # javalang's `path` attribute can be empty/None for a malformed or
+        # partial parse; without this filter an empty qualified_name was
+        # injected into the imports list as a bare "" entry.
+        result.imports = [item.qualified_name for item in ast_result.imports if item.qualified_name]
         return result
 
 

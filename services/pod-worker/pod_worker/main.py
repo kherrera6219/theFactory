@@ -792,7 +792,7 @@ async def _write_dlq(
     entry_id: str,
     fields: dict[str, Any],
     error: str,
-) -> None:
+) -> bool:
     try:
         await redis_client.xadd(
             POD_DLQ_STREAM,
@@ -807,8 +807,16 @@ async def _write_dlq(
             maxlen=MAX_STREAM_LEN,
             approximate=True,
         )
+        return True
     except Exception as dlq_exc:
+        # Callers must not acknowledge (XACK) the original entry when this
+        # returns False -- doing so previously removed the message from the
+        # consumer group's pending-entries list while it was never actually
+        # written to the DLQ, silently losing it forever with only this log
+        # line as a trace. Leaving it unacknowledged keeps it visible via
+        # XPENDING even though nothing currently reclaims it automatically.
         LOGGER.error("pod-worker failed to write entry %s to DLQ: %s", entry_id, dlq_exc)
+        return False
 
 
 async def _emit_audit_event(
@@ -1884,12 +1892,20 @@ async def _consumer_loop(app: FastAPI) -> None:
                     app.state.errors += 1
                     TASKS_FAILED.labels(pod_name=POD_NAME, agent_id="UNKNOWN").inc()
                     LOGGER.warning("discarding invalid state event %s: %s", entry_id, exc)
-                    await _write_dlq(redis_client, entry_id, fields, str(exc))
-                    acknowledge = True
+                    acknowledge = await _write_dlq(redis_client, entry_id, fields, str(exc))
                 except Exception as exc:
                     app.state.errors += 1
                     TASKS_FAILED.labels(pod_name=POD_NAME, agent_id="UNKNOWN").inc()
                     LOGGER.warning("failed to process state event %s: %s", entry_id, exc)
+                    # Unlike the branch above, this catch-all never used to
+                    # acknowledge or DLQ the entry -- since nothing in this
+                    # loop ever XCLAIMs/XAUTOCLAIMs pending entries, an
+                    # unexpected exception (e.g. an httpx error deep in
+                    # _handle_running_mission) permanently orphaned the
+                    # message in the consumer group's PEL: never processed
+                    # again, never visible in the DLQ, no operator signal at
+                    # all beyond a single warning log line.
+                    acknowledge = await _write_dlq(redis_client, entry_id, fields, str(exc))
                 finally:
                     TASK_LATENCY_SECONDS.labels(
                         pod_name=POD_NAME,

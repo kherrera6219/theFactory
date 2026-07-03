@@ -1,11 +1,43 @@
 # Current Handoff
 
-Document version: 2026.07.03
+Document version: 2026.07.03b
 Last updated: 2026-07-03
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 **If you are picking this up cold:** the newest completed work is a deep code
+review of the pod-worker service (`services/pod-worker/pod_worker/`, ~5.1k
+lines across `main.py`, `language_extractor.py`, `ast_extractor.py`,
+`js_ast_extractor.py`, `java_ast_extractor.py`, `concept_catalog.py`,
+`refined_ir.py`, `tracing.py`). Most significant finding: **`_consumer_loop`'s
+catch-all exception handler never acknowledged or DLQ'd a failed stream
+entry** — since nothing in this loop ever `XCLAIM`/`XAUTOCLAIM`s pending
+entries, an unexpected exception (e.g. an httpx error deep in
+`_handle_running_mission`) permanently orphaned the message in the consumer
+group's pending-entries list: never processed again, never visible in the
+DLQ, no operator signal beyond a single log line. Fixed to route to the DLQ
+and acknowledge, matching the pattern already used for the four
+explicitly-handled exception types. Also fixed a companion bug in
+`_write_dlq` itself: a transient Redis failure during the DLQ write was only
+logged, while the caller still unconditionally acknowledged (and thus
+permanently discarded) the original entry — `_write_dlq` now returns
+whether the write actually succeeded, and callers only acknowledge on
+success. Also fixed: a `refined_ir.py` bug where a LogicNode payload missing
+`node_name` produced the literal string `"None"` as the function name
+instead of falling back to the concept name; a JS/TS function-detection
+regex that silently dropped every paren-less single-arg arrow function
+(`x => x + 1`, a common JS idiom) from extraction; a `PythonAstExtractor`
+inconsistency where the regex pass truncated source to 512 KB but the AST
+pass received the untruncated original, bypassing the size guard and
+producing line numbers past what the regex pass ever saw; and a Java
+static-import edge case where a malformed/partial `javalang` parse could
+inject an empty-string entry into the imports list. See "pod-worker Review
+(2026-07-03)" below for the full list, including a deferred architectural
+finding (agent execution runs synchronously inside the async event loop,
+blocking the consumer/heartbeat loops during CPU-bound or blocking work) that
+needs a scoped design decision rather than a quick patch.
+
+Before that: a deep code
 review of `services/api-gateway/api_gateway/main.py` (~2.8k lines) — the
 single most significant finding: **10 mission/builder routes had zero caller
 authentication** (`create_mission`, `get_mission_pod_assignment`,
@@ -344,6 +376,100 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### pod-worker Review (2026-07-03): poison-message data loss, plus 4 smaller confirmed bugs
+
+A correctness review of `services/pod-worker/pod_worker/` (~5.1k lines:
+`main.py`, `language_extractor.py`, `ast_extractor.py`, `js_ast_extractor.py`,
+`java_ast_extractor.py`, `concept_catalog.py`, `refined_ir.py`,
+`tracing.py`) — the service that executes agent work items dispatched by
+the orchestrator and performs source-code extraction for AIM generation.
+Three parallel finder agents covered the whole slice (main/tracing,
+language-extraction layer, AST extractors + refined_ir/`__init__`).
+
+- **Critical: `_consumer_loop`'s catch-all exception handler silently
+  orphaned failed stream entries forever.** `main.py` (`_consumer_loop`, the
+  Redis-Streams consumer group loop): the branch for the four
+  explicitly-handled exception types (`ProtocolValidationError`,
+  `json.JSONDecodeError`, `KeyError`, `TypeError`) correctly writes to the
+  DLQ and acknowledges the entry, but the generic `except Exception` branch
+  only logged a warning — `acknowledge` stayed `False` and no DLQ write
+  happened. Since nothing in this loop ever calls `XCLAIM`/`XAUTOCLAIM` to
+  reclaim pending entries, an unexpected exception (e.g. an httpx timeout
+  deep in `_handle_running_mission`) permanently orphaned that message in
+  the consumer group's pending-entries list: never processed again, never
+  visible in the DLQ, no operator signal beyond one log line. Fixed to match
+  the existing pattern: write to DLQ, then acknowledge.
+- **Fixed a companion silent-data-loss bug in `_write_dlq`.** The function
+  caught its own `xadd` failures and only logged them, while both call
+  sites in `_consumer_loop` still unconditionally set `acknowledge = True`
+  regardless of whether the DLQ write actually succeeded — a transient
+  Redis blip during the DLQ write would silently and permanently drop the
+  original message (removed from the pending-entries list, never landing in
+  the DLQ). `_write_dlq` now returns whether the write succeeded, and both
+  call sites only acknowledge on success; on failure the entry stays
+  unacknowledged and visible via `XPENDING`.
+- **Fixed a `refined_ir.py` name-field bug.** `build_refined_ir_module`
+  computed a `RefinedIRFunction`'s `name` as
+  `str(node_payload.get("node_name") if isinstance(node_payload, dict) else concept)`
+  — since `node_name` is opportunistic (not a required LogicNode field), a
+  payload dict that simply omitted the key returned `None` from `.get()`,
+  and `str(None)` is the literal string `"None"`, not empty, so it slipped
+  past validation and silently corrupted the RIR's `name` field instead of
+  falling back to the concept name. Fixed with an explicit
+  `node_name if node_name else concept` fallback.
+- **Fixed a JS/TS function-detection regex gap.** `JavaScriptExtractor`'s
+  `_function_pattern` only matched parenthesized arrow-function arg lists
+  (`(x) => ...`) and `function` expressions, silently dropping every
+  paren-less single-arg arrow function (`x => x + 1`) — a mainstream JS
+  idiom — from `ExtractionResult.functions` with no error or log. Added a
+  `\w+\s*=>` alternative.
+- **Fixed a `PythonAstExtractor` truncation inconsistency.** The regex pass
+  (`super().extract()`) truncates source to `_MAX_SOURCE_LENGTH` (512 KB)
+  internally before scanning, but `extract_python_ast()` was called with the
+  original, untruncated source — for files over the cap, AST-derived
+  `functions`/`classes` could report line numbers past what the regex pass
+  ever saw (inconsistent with `ExtractionResult.concepts`), and the size
+  guard meant to bound `ast.parse()` cost was silently bypassed for the AST
+  path only. Fixed by passing the same truncated source to both.
+- **Fixed a Java static-import edge case.** `JavaAstExtractor.extract`
+  built `result.imports` directly from `ast_result.imports` without
+  filtering; a malformed/partial `javalang` parse can leave
+  `JavaImportInfo.qualified_name` as an empty string, which was injected
+  into the imports list as a bare `""` entry. Added a truthy filter.
+- **Investigated and refuted / deferred:** `_dependency_status`-style
+  broad exception handling in the JS/Java AST extractors is correctly
+  defensive (both wrap parsing in `try/except`, return `success=False` with
+  an error string, and every caller falls back to the regex-derived result
+  on failure — no crash risk, no silent wrong-but-successful result).
+  `pod_worker/__init__.py` being empty is a non-issue (the orchestrator
+  imports the `pod_worker.language_extractor` submodule directly, not
+  `pod_worker` itself). `refined_ir.py`'s `effects`/`purity` field semantics
+  are confusingly named (an "extraction confidence" threshold gates an
+  `effects` list that reads like a runtime-purity marker) but not
+  functionally wrong — left as-is, flagged for a future naming cleanup.
+  Duplicate `concept_id`s reused across languages in `concept_catalog.py`
+  are currently harmless (dedup is scoped per single-language, per-call) but
+  noted as a latent trap if any future code aggregates `concept_id` as a
+  cross-language key. JS dynamic `import()`/`export ... from` extraction and
+  arrow-function-as-callback-argument coverage gaps are real but scoped
+  enhancements, not correctness bugs, and the AST extractor path they'd
+  affect is disabled by default (`JS_AST_EXTRACTOR_ENABLED=false`).
+  **Deferred (needs a design decision, not a quick patch): `_run_agent_pipeline`
+  invokes `agent.execute()`/`.validate()`/`.report()` synchronously inside
+  the async event loop with no `asyncio.to_thread`/executor offload — a
+  CPU-bound or blocking specialist agent call stalls the entire consumer
+  loop and heartbeat loop for the process.** A scoped fix (wrapping the call
+  in `asyncio.to_thread`) risks introducing thread-safety bugs if agent
+  internals assume single-threaded execution; this needs its own review of
+  `agent_base.py`'s execution model before changing, not a reflexive patch.
+- Every fix has a regression test independently proven to fail against the
+  pre-fix code via `git stash`. Full backend suite: 1342 passed, 5 skipped.
+  `ruff check` clean on all touched files. Rebuilt both `deploy-pod-a-worker`
+  and `deploy-orchestrator` images (the orchestrator image bundles
+  `pod_worker.language_extractor` for AIM generation) and verified every fix
+  directly inside the rebuilt containers via `docker run --rm ... python -c
+  "..."`.
 
 ### api-gateway Review (2026-07-03): 10 unauthenticated routes, plus 5 smaller confirmed bugs
 
