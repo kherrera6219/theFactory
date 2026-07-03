@@ -359,7 +359,19 @@ def insert_agent_action_event(settings: Settings, record: AgentActionEventRecord
     )
     content_sha256 = _content_digest(normalized)
     with get_connection() as conn:
-        with conn.cursor() as cur:
+        # Pool connections use autocommit=True, so the read-latest-digest and
+        # the chained INSERT would otherwise run as two independent
+        # statements with no isolation between them. Two concurrent events
+        # for the same project_id could both read the same prev_digest and
+        # both chain to it, forking the tamper-evident hash chain with no
+        # error. The transaction() plus a per-project advisory lock
+        # serializes concurrent writers so only one can be inside this
+        # read-then-chain critical section for a given project_id at a time.
+        with conn.transaction(), conn.cursor() as cur:
+            cur.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (normalized.project_id,),
+            )
             cur.execute(
                 """
                 SELECT event_digest_sha256

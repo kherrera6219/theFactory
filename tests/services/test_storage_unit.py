@@ -1163,3 +1163,46 @@ def test_agent_action_event_digest_insert_create_and_views(monkeypatch) -> None:
     assert storage_agents._content_digest(
         record.model_copy(update={"content_sha256": None, "payload_summary": {}, "blob_ref": "blob"})
     )
+
+
+def test_insert_agent_action_event_acquires_advisory_lock_before_reading_prev_digest(
+    monkeypatch,
+) -> None:
+    """Regression: without a lock, two concurrent writers for the same
+    project_id could both read the same prev_digest and both chain a new
+    event onto it, forking the tamper-evident hash chain with no error.
+    The read-then-chain critical section must be serialized per project_id.
+    """
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    event_row = (
+        "aevt-1", "project-1", "mission-1", "AGENT-14-PYTHON", "orchestrator",
+        "TOOL_CALL", "SUCCESS", None, None, None, None, None, None, None,
+        now, now, 0, {}, None, None, "prev-digest", "event-digest", now,
+    )
+    cursor = FakeCursor(fetchone_results=[("prev-digest",), event_row])
+    _patch_db(monkeypatch, [cursor])
+    settings = _settings()
+    record = orchestrator_models.AgentActionEventRecord(
+        event_id="aevt-1",
+        project_id="project-1",
+        mission_id="mission-1",
+        agent_id="AGENT-14-PYTHON",
+        service_name="orchestrator",
+        event_type="TOOL_CALL",
+        status="SUCCESS",
+        started_at=now,
+        ended_at=now,
+        payload_summary={},
+        event_digest_sha256="pending",
+        created_at=now,
+    )
+
+    storage.insert_agent_action_event(settings, record)
+
+    queries = [entry[0] for entry in cursor.executed]
+    lock_index = next(i for i, q in enumerate(queries) if "pg_advisory_xact_lock" in q)
+    select_index = next(i for i, q in enumerate(queries) if "SELECT event_digest_sha256" in q)
+    insert_index = next(i for i, q in enumerate(queries) if "INSERT INTO agent_action_events" in q)
+    assert lock_index < select_index < insert_index
+    lock_params = cursor.executed[lock_index][1]
+    assert lock_params == ("project-1",)

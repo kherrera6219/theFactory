@@ -13,8 +13,24 @@ as current work.
 
 ## Current Status
 
-**Most recent work: deep code review of the Mission Flow v2 lifecycle driver
-and the LLM delegation layer, fixing 7 backend bugs.** Two backend slices —
+**Most recent work: correctness review of the orchestrator storage layer.**
+`storage_missions.py`, `storage_artifacts.py`, `storage_agents.py`,
+`storage_pods.py`, `storage_logicnodes.py`, `storage_core.py`, `models.py`
+(~3.1k lines) — the DB layer underneath every mission-flow phase. Found and
+fixed a real concurrency bug: `insert_agent_action_event` read the latest
+hash-chain digest and inserted the next event as two unsynchronized
+statements, so two concurrent events for the same project could both chain
+onto the same predecessor, silently forking the tamper-evident audit chain.
+Fixed with a per-project advisory lock. Several other candidates
+(object-storage artifact readback, `row_to_mission` column inference, two
+`models.py` fields, self-loop event accumulation) were investigated and
+refuted as live bugs by tracing actual callers. Fixed and test-verified (1328
+backend tests, 0 failures), `orchestrator` Docker image rebuilt. See "Storage
+Layer Review (2026-07-02)" under Recently Completed for the full list
+including deferred items.
+
+Before that: deep code review of the Mission Flow v2 lifecycle driver
+and the LLM delegation layer, fixing 7 backend bugs. Two backend slices —
 `services/orchestrator/orchestrator/mission_flow_v2/` and
 `services/orchestrator/orchestrator/llm_delegation/` — were reviewed file by
 file (not diff-scoped) using parallel finder agents, each candidate verified
@@ -405,6 +421,47 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 ---
 
 ## Recently Completed
+
+### Storage Layer Review (2026-07-02): audit-chain fork race fixed
+
+Correctness review of `storage_missions.py`, `storage_artifacts.py`,
+`storage_agents.py`, `storage_pods.py`, `storage_logicnodes.py`,
+`storage_core.py`, `storage.py`, `models.py` (~3.1k lines), via parallel
+finder agents reading full files, each candidate verified against actual
+callers before deciding to fix or refute:
+
+- Fixed a real concurrency bug: `insert_agent_action_event`
+  (`storage_agents.py`) read the latest hash-chain digest for a `project_id`
+  then inserted the next event as two unsynchronized statements (pool
+  connections are `autocommit=True`, no transaction/lock around the pair).
+  Two concurrent events for the same project could both read the same
+  `prev_digest` and both chain onto it, forking the tamper-evident audit
+  chain with no error (no unique constraint catches it). Fixed with a
+  transaction plus `pg_advisory_xact_lock(hashtextextended(project_id, 0))`
+  serializing concurrent writers per project.
+- Investigated and refuted as live bugs (traced actual callers, not just
+  code in isolation): `get_build_artifact` returning `artifact_text=None`
+  for offloaded artifacts (intended — its one real caller,
+  `routes/internal.py`, already redirects to a presigned URL);
+  `row_to_mission`'s `len(row) >= 7` inference (every real query selects
+  exactly 7 columns, the fallback branch is dead); `models.py`'s
+  `risk_assessment`/`MissionAttachment.purpose` (zero readers anywhere);
+  self-loop `MISSION_COMPLETION_BLOCKED` event accumulation (intentional —
+  the code's own comment frames it as a checkpoint event, metrics already
+  dedupe it).
+- VALIDATED: full backend suite — 1328 passed, 5 skipped, 0 failed (1327
+  baseline + 1 new regression test). `ruff check` clean. `orchestrator`
+  Docker image rebuilt and verified to contain the fix.
+
+**Deferred, not fixed this pass:** `storage_pods.py` pod-name
+case-sensitivity (real risk in principle, one current caller, always
+consistently cased); unconditional S3 re-upload on every
+`upsert_build_artifact` retry (its main trigger was already closed by the
+prior session's `_ensure_verified_build_artifact` lifecycle fix); no
+digest verification of caller-supplied `digest_sha256` against actual
+`artifact_text`; `models.py`'s `VALID_TRANSITIONS` table is pure
+documentation, never enforced by `transition_mission_state` — a real design
+gap, but wiring it in is a bigger behavioral change than this pass's scope.
 
 ### Mission Flow v2 + LLM Delegation Review (2026-07-02): 7 backend bugs fixed
 

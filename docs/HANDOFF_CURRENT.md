@@ -6,15 +6,26 @@ Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 **If you are picking this up cold:** the newest completed work is a deep code
-review of the Mission Flow v2 lifecycle driver (`mission_flow_v2/`) and the
-LLM delegation layer (`llm_delegation/`), finding and fixing 7 real backend
-bugs — most seriously, a driver re-invocation bug (triggered by every
-orchestrator restart while a mission is in flight) that silently regenerated
-and overwrote a mission's `feature_contract`/`mission_charter` with a fresh,
-non-deterministic LLM call. All fixes are test-verified (1327 backend tests,
-0 failures) and the `orchestrator` Docker image has been rebuilt from this
-code. See "Mission Flow v2 + LLM Delegation Review (2026-07-02)" below for
-the full list.
+review of the orchestrator storage layer (`storage_missions.py`,
+`storage_artifacts.py`, `storage_agents.py`, `storage_pods.py`,
+`storage_logicnodes.py`, `models.py`) — the DB layer underneath every mission-
+flow phase. Found and fixed a real concurrency bug: `insert_agent_action_event`
+read the latest hash-chain digest and inserted the next event as two
+unsynchronized statements, so two concurrent events for the same `project_id`
+could both chain onto the same predecessor, silently forking the
+tamper-evident audit chain. Fixed with a per-project advisory lock. Several
+other candidates were investigated and refuted as live bugs (see "Storage
+Layer Review (2026-07-02)" below for the full list of what was checked and
+why). All fixes are test-verified (1328 backend tests, 0 failures) and the
+`orchestrator` Docker image has been rebuilt from this code.
+
+Before that: a deep code review of the Mission Flow v2 lifecycle driver
+(`mission_flow_v2/`) and the LLM delegation layer (`llm_delegation/`), finding
+and fixing 7 real backend bugs — most seriously, a driver re-invocation bug
+(triggered by every orchestrator restart while a mission is in flight) that
+silently regenerated and overwrote a mission's `feature_contract`/
+`mission_charter` with a fresh, non-deterministic LLM call. See "Mission Flow
+v2 + LLM Delegation Review (2026-07-02)" below for the full list.
 
 Before that: a code review of the Mission Control UX lock-in commits (PM
 clarification, progress visibility, artifact output folder discovery,
@@ -282,6 +293,58 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Storage Layer Review (2026-07-02): audit-chain fork race fixed, several candidates refuted
+
+A correctness review of the orchestrator's DB storage layer
+(`storage_missions.py`, `storage_artifacts.py`, `storage_agents.py`,
+`storage_pods.py`, `storage_logicnodes.py`, `storage_core.py`, `storage.py`,
+`models.py`, ~3.1k lines) — the layer every mission-flow phase reads and
+writes through, and the layer underneath every fix from the previous review
+pass.
+
+- **Fixed: tamper-evident audit chain could silently fork.**
+  `insert_agent_action_event` (`storage_agents.py`) read the latest
+  `event_digest_sha256` for a `project_id` and inserted the next
+  hash-chained event as two separate, unsynchronized statements (pool
+  connections are `autocommit=True`, and there was no transaction or lock
+  around the pair). Two concurrent events for the same project could both
+  read the same `prev_digest` and both chain onto it — no unique constraint
+  or trigger would catch this, since `agent_action_events` has no such
+  guard. Fixed by wrapping the read-then-chain sequence in a transaction with
+  a `pg_advisory_xact_lock(hashtextextended(project_id, 0))` at the top,
+  serializing concurrent writers per project.
+- **Investigated and refuted as live bugs** (verified against actual callers,
+  not just the code in isolation):
+  - `get_build_artifact` returning `artifact_text=None` for object-storage-
+    offloaded artifacts — this is the intended design; its one real caller
+    (`routes/internal.py`'s `GET /internal/missions/{id}/build-artifacts/{id}`)
+    already checks `storage_backend == "s3"` and redirects to a presigned URL
+    instead of expecting inline text.
+  - `row_to_mission`'s `len(row) >= 7` column-count inference — every actual
+    SQL query in the file selects exactly 7 columns; the "6-column" fallback
+    branch is dead code, never exercised.
+  - `models.py`'s `MissionRecord.risk_assessment` and
+    `MissionAttachment.purpose` inconsistent-Optional/free-form-string
+    concerns — both fields have zero readers anywhere in the codebase today.
+  - Self-loop `MISSION_COMPLETION_BLOCKED` events accumulating rows in
+    `mission_state_events` — intentional design (the code's own comment
+    frames it as a checkpoint event); the metrics layer already avoids
+    double-counting it.
+- **Deferred, not fixed this pass** (lower confidence/impact — see
+  `docs/CURRENT_TODO.md` for the full list): `storage_pods.py` pod-name
+  case-sensitivity (real risk in principle, but only one current caller and
+  it's always consistently cased); unconditional S3 re-upload on every
+  `upsert_build_artifact` retry (efficiency, and its main trigger was already
+  closed by the previous session's lifecycle fix); no digest verification of
+  caller-supplied `digest_sha256` against actual `artifact_text`;
+  `models.py`'s `VALID_TRANSITIONS` table being pure documentation, never
+  actually enforced by `transition_mission_state` (a real design gap, but
+  wiring it in is a bigger behavioral change than this pass's scope).
+
+Validation: full backend suite — 1328 passed, 5 skipped, 0 failed (1327
+baseline + 1 new regression test). `ruff check` clean. `orchestrator` Docker
+image rebuilt and verified to contain the fix.
 
 ### Mission Flow v2 + LLM Delegation Review (2026-07-02): 7 backend bugs fixed
 
