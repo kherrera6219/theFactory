@@ -5,14 +5,22 @@ Last updated: 2026-07-02
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** the newest completed work is the Mission
-Control UX lock-in for PM clarification, progress visibility, artifact output
-folder discovery, and Continue with PM. The code is implemented, focused tests
-pass, and the `mission-control` / `orchestrator` Docker images have been
-rebuilt. The next live action is to restart the app and run a real browser
-mission asking for a modern Angular Snake game with `start.bat`, then verify
-that clarification/defaults, progress indicators, output-folder actions, and
-follow-up context all behave correctly. Evidence:
+**If you are picking this up cold:** the newest completed work is a code
+review of the Mission Control UX lock-in commits (PM clarification, progress
+visibility, artifact output folder discovery, Continue with PM) plus fixes for
+every finding it surfaced, including a critical stuck-mission regression, a
+missing-auth gap on the new local-filesystem routes, and a suppressed PM
+clarifying question. All fixes are committed and test-verified (1319 backend
+tests, 99 Mission Control tests, 0 failures). See "Post-Review Hardening
+(2026-07-02)" below for the full list.
+
+Before that: the Mission Control UX lock-in itself (PM clarification, progress
+visibility, artifact output folder discovery, and Continue with PM). The code
+is implemented, focused tests pass, and the `mission-control` / `orchestrator`
+Docker images have been rebuilt. The next live action is to restart the app
+and run a real browser mission asking for a modern Angular Snake game with
+`start.bat`, then verify that clarification/defaults, progress indicators,
+output-folder actions, and follow-up context all behave correctly. Evidence:
 `docs/evidence/mission_control_ux_lockin_2026-07-02.md`.
 
 Previous high-priority context: Phases 0-3 of the findings-remediation work
@@ -265,6 +273,92 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Post-Review Hardening (2026-07-02): stuck missions, auth gap, false-negative clarifying question
+
+A code review of the five Mission Control UX lock-in commits (repo ZIP
+hardening, language pod manager routing, Mission Control UX lock-in, browser
+auto-open, CI import ordering) surfaced five findings. All five are fixed and
+test-verified:
+
+- **Critical — missions could get stuck at `verified` forever with no visible
+  signal.** `mission_expects_generated_output_artifact()` (added by this same
+  work to gate mission completion on a real generated-output artifact) could
+  return `True` even when a mission had neither `generated_output` nor
+  `source_code`. `_ensure_verified_build_artifact` then called
+  `build_source_bundle_artifact`, which raises `ValueError` on empty
+  `source_code`; that exception was caught in `mission_flow_v2/lifecycle.py`
+  and only logged as a warning, leaving no build-artifact record at all. The
+  completion gate (`_completion_artifacts_ready` in `runtime.py`) then
+  permanently required `has_successful_build_artifact`, which could never
+  become true. Fixed by adding `build_missing_source_artifact_failure()` in
+  `services/orchestrator/orchestrator/build_artifacts.py`, which
+  `_ensure_verified_build_artifact` (`mission_flow_v2/phases_build.py`) now
+  calls instead of raising — this produces a `status="FAILED"` artifact record
+  that flows through the existing `record_build_artifact_metadata` routing and
+  emits a real `MISSION_BUILD_ARTIFACT_FAILED` chain-trace event, so the
+  failure is diagnosable in the mission's chain trace and build-artifacts list
+  instead of a silently swallowed exception. The pre-existing legacy
+  `runtime.py._ensure_verified_build_artifact` has a similar unconditional call
+  pattern but was not touched by the reviewed commits and was left out of
+  scope.
+- **Critical — PM acceptance-criteria clarifying question silently suppressed
+  for the common case.** `acceptance_tokens` in
+  `llm_delegation/text.py`'s `_pm_product_clarifying_questions` included the
+  bare word `"build"`, matched via plain substring. Since almost every prompt
+  on this code-generation platform starts with "Build a...", the "what counts
+  as done for acceptance?" question was suppressed for the majority of real
+  prompts — exactly the case it exists to catch. Fixed by converting all four
+  token blocks (style/gameplay/packaging/acceptance) to the function's
+  existing word-boundary-safe `has_token()` helper (already used for
+  `is_game`/`is_interactive_app` but inconsistently applied elsewhere) and
+  removing `"build"` from `acceptance_tokens` entirely, since it is a noise
+  word on this platform, not a real acceptance-criteria signal.
+- **Critical — three new local-filesystem/process routes had no session
+  auth.** `apps/mission-control/app/api/local/{open-vscode,open-output-folder,
+  output-folder-status}/route.ts` (new in this work, backing the Open
+  Folder/VS Code actions) did not call `requireOperatorRequestSession`, unlike
+  every other sensitive Mission Control route including the sibling
+  `repo/import`/`repo/review` routes. Two of the three spawn host processes
+  (`cmd.exe /c code "..."`, `explorer.exe`) from a client-supplied mission ID.
+  Because Next.js's `request.json()` parses the raw body regardless of
+  `Content-Type`, a cross-origin request using a CORS-safelisted type (e.g.
+  `text/plain`) skips preflight and would still be parsed and acted on — the
+  same vulnerability class behind several real Electron/dev-server CVEs. This
+  could not be fixed by configuration alone: `OPERATOR_SESSION_BYPASS`
+  defaults to `true` in compose, but even a hardened deployment with the
+  bypass disabled had no way to protect these three routes, since the check
+  was absent from the code path entirely. Fixed by adding
+  `requireOperatorRequestSession` to all three routes, with new tests
+  confirming the session gate runs before any process-spawn or filesystem
+  call.
+- **`DeliveryPanel` output-folder status could go stale.** Its refresh
+  `useEffect` depended on `buildArtifacts.length`, which does not change when
+  an existing artifact transitions status (e.g. packaging → complete — the
+  exact moment the output folder is written to disk). Fixed to also depend on
+  the latest `updated_at` across build artifacts, matching the pattern already
+  used correctly in `GeneratedOutputPanel`.
+- **`resetImportResults()` wiped import/review progress on unrelated field
+  edits.** The repo-ZIP-import page's display-name, source-ref, subdirectory,
+  and max-files inputs each called `resetImportResults()` on every keystroke,
+  discarding an already-imported file list, mission type, and description with
+  no confirmation — even though those fields are only import *parameters*
+  that take effect on the next explicit "Import ZIP" click (which already
+  resets state itself). Removed the reset call from those four handlers; the
+  archive-file input still resets on change, since a new archive genuinely
+  invalidates the prior import.
+
+Validation: full backend suite `python -m pytest tests/services/
+--ignore=tests/services/test_agent_base_unit.py` — 1319 passed, 5 skipped, 0
+failed. Full Mission Control suite `npm run test` — 99 passed. `ruff check` and
+`tsc --noEmit` clean on every touched file. New regression tests added for
+each of the five findings.
+
+Also removed in this pass: ~200 lines of dead GitHub-API intake code
+(`GithubApiError`, `parseGithubRepoUrl`, `resolveGithubToken`,
+`fetchGithubFileText`, etc.) from `apps/mission-control/app/api/repo/shared.ts`
+— confirmed zero callers anywhere in the app before deletion, left over from
+the repo ZIP import migration's Phase 4 UI cutover.
 
 ### Findings Remediation (Phases 0-4): pod-audit, Beta, language check, Compliance, stack rebuild
 

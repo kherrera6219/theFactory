@@ -22,6 +22,15 @@ export function DeliveryPanel({ missionId, buildArtifacts }: DeliveryPanelProps)
   const [outputFolder, setOutputFolder] = useState<MissionOutputFolderStatus | null>(null);
   const [outputFolderError, setOutputFolderError] = useState<string | null>(null);
 
+  // Refetch whenever the newest artifact's timestamp changes, not just when the
+  // count changes — an existing artifact transitioning e.g. packaging -> complete
+  // (exactly when the output folder gets written to disk) keeps the same array
+  // length, so length alone misses it.
+  const latestBuildArtifactUpdatedAt = buildArtifacts.reduce<string | undefined>(
+    (latest, artifact) => (!latest || artifact.updated_at > latest ? artifact.updated_at : latest),
+    undefined,
+  );
+
   useEffect(() => {
     let cancelled = false;
     setOutputFolder(null);
@@ -40,7 +49,7 @@ export function DeliveryPanel({ missionId, buildArtifacts }: DeliveryPanelProps)
     return () => {
       cancelled = true;
     };
-  }, [missionId, buildArtifacts.length]);
+  }, [missionId, buildArtifacts.length, latestBuildArtifactUpdatedAt]);
 
   async function handleCopyPath() {
     if (!outputFolder?.path) return;

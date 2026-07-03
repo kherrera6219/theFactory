@@ -406,6 +406,37 @@ def test_pm_feature_contract_clarifies_interactive_angular_game_scope() -> None:
     assert "gameplay" in questions or "done" in questions
 
 
+def test_pm_feature_contract_acceptance_question_not_suppressed_by_build_word() -> None:
+    # "Build a ... app/game" is the near-universal phrasing on this platform;
+    # the word "build" must not itself count as the user having specified
+    # acceptance criteria (regression: it used to be a substring-matched
+    # token in acceptance_tokens, silently suppressing this question for
+    # almost every prompt).
+    normalized = llm_delegation._normalize_pm_feature_contract(
+        {
+            "title": "Analytics Dashboard",
+            "summary": "Build a modern analytics dashboard application.",
+            "functional_requirements": [
+                "Build a complete runnable dashboard application.",
+            ],
+            "acceptance_criteria": [],
+            "target_languages": ["typescript"],
+            "estimated_complexity": "medium",
+            "human_approval_required": False,
+            "intake_status": "ready",
+            "clarifying_questions": [],
+        },
+        provider="gemini",
+        model="gemini-3.5-flash",
+        route="primary",
+        prompt="Build a modern analytics dashboard application.",
+        requested_target_language="typescript",
+    )
+
+    questions = " ".join(normalized["clarifying_questions"]).lower()
+    assert "done" in questions or "acceptance" in questions
+
+
 def test_logic_cluster_fallback_groups_contract_domains() -> None:
     result = llm_delegation._fallback_logic_clusters(
         mission_contract={

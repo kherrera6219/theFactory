@@ -448,10 +448,7 @@ export default function RepoImportPage() {
             <input
               type="text"
               value={displayName}
-              onChange={(event) => {
-                setDisplayName(event.target.value);
-                resetImportResults();
-              }}
+              onChange={(event) => setDisplayName(event.target.value)}
               placeholder="sample-platform"
             />
           </label>
@@ -460,10 +457,7 @@ export default function RepoImportPage() {
             <input
               type="text"
               value={sourceRef}
-              onChange={(event) => {
-                setSourceRef(event.target.value);
-                resetImportResults();
-              }}
+              onChange={(event) => setSourceRef(event.target.value)}
               placeholder="main or commit SHA"
             />
           </label>
@@ -472,10 +466,7 @@ export default function RepoImportPage() {
             <input
               type="text"
               value={subdirectory}
-              onChange={(event) => {
-                setSubdirectory(event.target.value);
-                resetImportResults();
-              }}
+              onChange={(event) => setSubdirectory(event.target.value)}
               placeholder="/"
             />
           </label>
@@ -486,10 +477,9 @@ export default function RepoImportPage() {
               min={50}
               max={800}
               value={maxFiles}
-              onChange={(event) => {
-                setMaxFiles(Math.max(50, Math.min(800, Number(event.target.value) || 300)));
-                resetImportResults();
-              }}
+              onChange={(event) =>
+                setMaxFiles(Math.max(50, Math.min(800, Number(event.target.value) || 300)))
+              }
             />
           </label>
         </div>

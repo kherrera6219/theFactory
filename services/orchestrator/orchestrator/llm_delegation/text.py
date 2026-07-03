@@ -376,7 +376,7 @@ def _pm_product_clarifying_questions(
         "light mode",
         "pixel",
     )
-    if not any(token in text for token in style_tokens):
+    if not has_token(*style_tokens):
         add("What visual direction should the UI use? Recommended default: polished dark arcade style with clear contrast and responsive layout.")
 
     if is_game:
@@ -392,7 +392,7 @@ def _pm_product_clarifying_questions(
             "touch",
             "keyboard",
         )
-        if not any(token in text for token in gameplay_tokens):
+        if not has_token(*gameplay_tokens):
             add("What gameplay scope should be included beyond the core loop? Recommended default: keyboard controls, score, pause/resume, restart, and increasing speed.")
 
     packaging_tokens = (
@@ -405,12 +405,15 @@ def _pm_product_clarifying_questions(
         "dev server",
         "production build",
     )
-    if not any(token in text for token in packaging_tokens):
+    if not has_token(*packaging_tokens):
         framework_default = "Angular CLI" if "angular" in text or "typescript" in language_text else "the framework default"
         add(f"How should the project be packaged for handoff? Recommended default: complete {framework_default} project with install/start script and run instructions.")
 
-    acceptance_tokens = ("test", "acceptance", "done", "verify", "lint", "build", "playtest")
-    if not any(token in text for token in acceptance_tokens):
+    # "build" deliberately excluded: it appears in almost every prompt on this
+    # code-generation platform ("build a game/app") and is not itself a signal
+    # that the user specified acceptance criteria.
+    acceptance_tokens = ("test", "acceptance", "done", "verify", "lint", "playtest")
+    if not has_token(*acceptance_tokens):
         add("What should count as done for acceptance? Recommended default: app builds, starts locally, and the main user flow can be manually verified.")
 
     return questions[:3]

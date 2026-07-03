@@ -13,9 +13,26 @@ as current work.
 
 ## Current Status
 
-**Most recent work: Mission Control UX lock-in for PM clarification,
+**Most recent work: code review of the Mission Control UX lock-in commits,
+plus fixes for all five findings.** The review covered the five commits
+implementing PM clarification, progress visibility, artifact folder discovery,
+and follow-up mission continuation. It found and fixed: a critical
+stuck-mission regression (generated-output completion gating could swallow a
+packaging failure and leave a mission permanently unable to reach
+`COMPLETE`), a critical missing-auth gap on the three new local-filesystem
+routes (`open-vscode`, `open-output-folder`, `output-folder-status` had no
+session check, unlike every other sensitive route), a false-negative PM
+clarifying-question suppression (the word "build" — present in almost every
+prompt on this platform — silently suppressed the acceptance-criteria
+question), a stale `DeliveryPanel` dependency array, and an over-eager
+`resetImportResults()` call on unrelated repo-import field edits. All five are
+fixed, test-verified (1319 backend tests / 99 Mission Control tests, 0
+failures), and committed. See "Post-Review Hardening (2026-07-02)" under
+Recently Completed for the full list.
+
+Before that: the Mission Control UX lock-in itself — PM clarification,
 mission-progress visibility, artifact folder discovery, and follow-up mission
-continuation.** The implementation is complete and rebuilt into the local Docker
+continuation. The implementation is complete and rebuilt into the local Docker
 images, but the post-restart browser mission proof is still pending. Evidence:
 `docs/evidence/mission_control_ux_lockin_2026-07-02.md`.
 
@@ -186,6 +203,10 @@ Tracked by `docs/evidence/mission_control_ux_lockin_2026-07-02.md`.
   Docker rebuilds for the changed UI/orchestrator images.
 - NEXT: run the post-restart Angular Snake browser mission and confirm the UX
   behaves correctly under a real mission.
+- A code review pass since this implementation found and fixed 5 defects in
+  this feature area (stuck-mission gating, missing auth on the local-folder
+  routes, a suppressed PM clarifying question, and 2 frontend bugs) — see
+  "Post-Review Hardening (2026-07-02)" under Recently Completed.
 
 ### Repository ZIP Import Migration (active implementation)
 
@@ -364,6 +385,46 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 ---
 
 ## Recently Completed
+
+### Post-Review Hardening (2026-07-02): stuck missions, auth gap, false-negative clarifying question
+
+Code review of the five Mission Control UX lock-in commits, plus fixes for
+every finding:
+
+- Fixed a critical stuck-mission regression: `mission_expects_generated_
+  output_artifact()` could require a build artifact for missions with neither
+  `generated_output` nor `source_code`; the resulting `ValueError` was
+  silently swallowed as a warning, leaving the mission permanently unable to
+  clear the `has_successful_build_artifact` completion gate with no visible
+  signal. Added `build_missing_source_artifact_failure()`
+  (`build_artifacts.py`) so `_ensure_verified_build_artifact`
+  (`mission_flow_v2/phases_build.py`) now records a real `FAILED` artifact and
+  emits `MISSION_BUILD_ARTIFACT_FAILED` to the chain trace instead of raising.
+- Fixed a critical false negative in the PM clarifying-question policy:
+  `acceptance_tokens` in `llm_delegation/text.py` included the bare word
+  `"build"` via substring match, suppressing the "what counts as done for
+  acceptance?" question for almost every prompt on this platform. Converted
+  all four token blocks to the existing word-boundary-safe `has_token()`
+  helper and dropped `"build"` from `acceptance_tokens`.
+- Fixed a critical missing-auth gap: the three new
+  `apps/mission-control/app/api/local/*` routes (open-vscode,
+  open-output-folder, output-folder-status) had no
+  `requireOperatorRequestSession` check, unlike every other sensitive route.
+  Two of them spawn host processes from a client-supplied mission ID, and
+  Next.js's `request.json()` ignoring `Content-Type` meant a cross-origin
+  request using a CORS-safelisted content type could reach them without
+  preflight. Added the session check to all three.
+- Fixed `DeliveryPanel`'s stale output-folder status (its refresh effect
+  depended on `buildArtifacts.length`, missing in-place status transitions)
+  and `resetImportResults()` firing on unrelated repo-import field edits
+  (display name/source ref/subdirectory/max files), which discarded
+  in-progress import/review state on every keystroke.
+- Also removed ~200 lines of dead GitHub-API intake code from
+  `apps/mission-control/app/api/repo/shared.ts` (zero callers after the ZIP
+  import migration's Phase 4 UI cutover).
+- VALIDATED: full backend suite (1319 passed, 5 skipped, 0 failed), full
+  Mission Control suite (99 passed), `ruff check` clean, `tsc --noEmit` clean.
+  New regression tests added for all five findings.
 
 ### Security Alert Remediation
 

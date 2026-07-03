@@ -323,6 +323,58 @@ def build_source_bundle_artifact(
     }
 
 
+def build_missing_source_artifact_failure(
+    *,
+    mission_id: str,
+    requested_target_language: str | None,
+) -> dict[str, Any]:
+    """FAILED build-artifact record for missions whose charter expects a
+    generated_output artifact but neither generated_output nor source_code
+    exists to package. Recording this (instead of raising) keeps the failure
+    visible in the mission's build-artifacts list and chain trace via
+    record_build_artifact_metadata's status-based event routing, instead of a
+    silently swallowed exception that leaves the mission stuck at "verified"
+    with no signal.
+    """
+    generated_at = datetime.now(UTC).isoformat()
+    reason = "no generated output or source code available to package"
+    build_log = "\n".join(
+        [
+            f"[{generated_at}] package started for mission {mission_id}",
+            f"[{generated_at}] package failed: {reason}",
+        ]
+    )
+    return {
+        "artifact_id": SOURCE_BUNDLE_ARTIFACT_ID,
+        "artifact_type": SOURCE_BUNDLE_ARTIFACT_TYPE,
+        "stage": SOURCE_BUNDLE_ARTIFACT_STAGE,
+        "status": "FAILED",
+        "storage_backend": "database",
+        "storage_ref": None,
+        "digest_sha256": None,
+        "size_bytes": 0,
+        "manifest": {
+            "manifest_version": "build-artifact.v1",
+            "mission_id": mission_id,
+            "artifact_id": SOURCE_BUNDLE_ARTIFACT_ID,
+            "artifact_type": SOURCE_BUNDLE_ARTIFACT_TYPE,
+            "stage": SOURCE_BUNDLE_ARTIFACT_STAGE,
+            "generated_at": generated_at,
+            "requested_target_language": requested_target_language,
+            "failure_reason": reason,
+        },
+        "verification": {
+            "verified": False,
+            "verification_scope": "integrity",
+            "verification_method": "none",
+            "verified_at": generated_at,
+        },
+        "build_log": build_log,
+        "artifact_text": "",
+        "created_at": generated_at,
+    }
+
+
 def record_build_artifact_metadata(
     metadata: dict[str, Any],
     *,

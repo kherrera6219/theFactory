@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
 import {
   canOpenLocalWindowsShell,
   canOpenVsCode,
@@ -11,6 +12,11 @@ import {
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
+  const unauthorized = requireOperatorRequestSession(request);
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const missionId = request.nextUrl.searchParams.get("missionId") ?? "";
   try {
     const folder = resolveMissionOutputFolder(missionId);

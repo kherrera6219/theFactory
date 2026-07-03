@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 
 import { NextRequest, NextResponse } from "next/server";
 
+import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
 import {
   canOpenLocalWindowsShell,
   canOpenVsCode,
@@ -12,6 +13,11 @@ import {
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  const unauthorized = requireOperatorRequestSession(request);
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   let missionId = "";
   try {
     const payload = (await request.json()) as { missionId?: unknown };

@@ -106,6 +106,42 @@ def test_mission_requires_build_artifact_when_charter_expects_generated_output()
     )
 
 
+def test_build_missing_source_artifact_failure_is_failed_status_no_raise() -> None:
+    artifact = build_artifacts.build_missing_source_artifact_failure(
+        mission_id="mission-1",
+        requested_target_language="go",
+    )
+
+    assert artifact["status"] == "FAILED"
+    assert artifact["artifact_id"] == build_artifacts.SOURCE_BUNDLE_ARTIFACT_ID
+    assert artifact["storage_ref"] is None
+    assert artifact["digest_sha256"] is None
+    assert artifact["size_bytes"] == 0
+    assert artifact["artifact_text"] == ""
+    assert artifact["verification"]["verified"] is False
+    assert "no generated output or source code" in artifact["manifest"]["failure_reason"]
+
+
+def test_record_build_artifact_metadata_routes_failed_status_to_failed_event() -> None:
+    metadata = {"chain_trace": []}
+    artifact_record = build_artifacts.build_missing_source_artifact_failure(
+        mission_id="mission-1",
+        requested_target_language="go",
+    )
+
+    build_artifacts.record_build_artifact_metadata(
+        metadata,
+        agent_id="AGENT-02-CEO",
+        artifact_record=artifact_record,
+    )
+
+    assert metadata["mission_artifacts"]["build_packaged"]["event_type"] == (
+        build_artifacts.BUILD_ARTIFACT_FAILED_EVENT
+    )
+    assert len(metadata["chain_trace"]) == 1
+    assert build_artifacts.has_successful_build_artifact([artifact_record]) is False
+
+
 def test_mission_requires_build_artifact_skips_analyze_only_generated_output() -> None:
     assert (
         build_artifacts.mission_requires_build_artifact(

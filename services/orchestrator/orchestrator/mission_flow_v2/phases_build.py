@@ -891,17 +891,29 @@ async def _ensure_verified_build_artifact(
         return mission
 
     artifact_metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
+    source_code = str(artifact_metadata.get("source_code") or "").strip()
     if build_artifact_support.mission_has_generated_output(artifact_metadata):
         artifact_record = build_artifact_support.build_generated_output_artifact(
             mission_id=mission.mission_id,
             requested_target_language=mission.requested_target_language,
             metadata=artifact_metadata,
         )
-    else:
+    elif source_code:
         artifact_record = build_artifact_support.build_source_bundle_artifact(
             mission_id=mission.mission_id,
             requested_target_language=mission.requested_target_language,
             metadata=artifact_metadata,
+        )
+    else:
+        LOGGER.error(
+            "mission %s charter expects a generated_output build artifact but neither "
+            "generated_output nor source_code is available; recording a failed build "
+            "artifact instead of leaving the mission stuck with no signal",
+            mission.mission_id,
+        )
+        artifact_record = build_artifact_support.build_missing_source_artifact_failure(
+            mission_id=mission.mission_id,
+            requested_target_language=mission.requested_target_language,
         )
     await asyncio.to_thread(
         _pkg().storage.upsert_build_artifact,
