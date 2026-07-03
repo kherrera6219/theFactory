@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAuthorizedVaultRequest } from "../auth";
 import { getVaultSecret, testSecret } from "../../../lib/server/vault";
 
 export const runtime = "nodejs";
@@ -11,6 +12,9 @@ type VaultTestPayload = {
 };
 
 export async function POST(request: Request) {
+  if (!isAuthorizedVaultRequest(request)) {
+    return NextResponse.json({ detail: "Vault authentication required." }, { status: 401 });
+  }
   try {
     const payload = (await request.json()) as VaultTestPayload;
     const slotId = payload.slot_id?.trim() ?? "";

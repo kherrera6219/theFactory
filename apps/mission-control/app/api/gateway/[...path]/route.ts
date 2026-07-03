@@ -1,3 +1,4 @@
+import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
 import { getVaultSecret } from "../../../lib/server/vault";
 
 const DEFAULT_GATEWAY_BASE = "http://127.0.0.1:8100";
@@ -27,6 +28,18 @@ function forwardedHeaders(request: Request): Headers {
 }
 
 async function proxy(request: Request, context: RouteContext): Promise<Response> {
+  // This catch-all proxy is the path the browser client uses for nearly all
+  // backend traffic (see lib/api-client.ts), including mission creation and
+  // /internal/* routes -- unlike every sibling privileged route in this app
+  // (local/*, repo/*), it previously had no operator-session gate at all, so
+  // any caller able to reach this Next.js server could create/list/modify
+  // missions with no Mission Control session, since the route injects the
+  // operator/internal API key itself regardless of caller identity.
+  const unauthorized = requireOperatorRequestSession(request);
+  if (unauthorized) {
+    return unauthorized;
+  }
+
   const { path } = await context.params;
   const method = request.method.toUpperCase();
   const body = method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer();

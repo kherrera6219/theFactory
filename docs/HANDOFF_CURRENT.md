@@ -1,11 +1,35 @@
 # Current Handoff
 
-Document version: 2026.07.03d
+Document version: 2026.07.03e
 Last updated: 2026-07-03
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** the newest completed work is a review
+**If you are picking this up cold:** the newest completed work is a security
+review of the Mission Control frontend's Next.js API routes
+(`apps/mission-control/app/api/`, ~6.1k lines including `lib/server/`).
+**Critical finding, confirmed by two independent review passes: the vault
+CRUD routes (`GET`/`POST`/`DELETE /api/vault`, `POST /api/vault/test`) had
+zero authentication.** `isAuthorizedVaultRequest` (in `vault/auth.ts`)
+existed, was tested, and clearly intended to gate these routes, but was
+dead code — never imported or called by the actual route handlers. Any
+unauthenticated local request could list every vault slot, overwrite
+`OPERATOR-API-KEY`/provider keys with attacker-controlled values, delete
+them outright, or probe whether a slot was populated. **Also critical: the
+`/api/gateway/[...path]` catch-all proxy — the path the browser client uses
+for nearly all backend traffic, including mission creation — had no
+operator-session gate at all**, unlike every sibling privileged route
+(`local/*`, `repo/*`); it injects the operator/internal API key itself
+regardless of caller identity, so any request reaching the Next.js server
+could act with that privilege. Both fixed by wiring in the existing
+`isAuthorizedVaultRequest`/`requireOperatorRequestSession` helpers,
+respectively — the same pattern already used correctly by every other
+privileged route in this app. See "Mission Control API Routes Review
+(2026-07-03)" below for the full list, including several findings judged
+consistent with this app's established single-operator-role design (not
+fixed as anomalies).
+
+Before that: a review
 of `shared_runtime/` (the security/crypto library imported by every backend
 service — ~1.7k lines across `agent_auth.py`, `agent_keys.py`,
 `crypto_keystore.py`, `crypto_signing.py`, `prompt_guard.py`, `pii_guard.py`,
@@ -431,6 +455,79 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Mission Control API Routes Review (2026-07-03): vault and gateway proxy had zero authentication
+
+A security review of the Mission Control frontend's Next.js API routes
+(`apps/mission-control/app/api/`, ~6.1k lines including `lib/server/`) — the
+final "everything else" slice of the systematic backend review effort. Two
+parallel finder passes covered the whole slice (local/repo/gateway routes,
+and vault/session/review/operator/pm/builder routes + `lib/server/`); one
+sub-agent needed relaunching after an initial premature/placeholder result.
+
+- **Critical, confirmed by two independent passes: vault CRUD routes had
+  zero authentication.** `GET`/`POST`/`DELETE /api/vault`
+  (`vault/route.ts`) and `POST /api/vault/test` (`vault/test/route.ts`)
+  imported only the vault storage functions — never
+  `isAuthorizedVaultRequest` (defined in `vault/auth.ts`, which correctly
+  supports either a timing-safe `x-vault-admin-key` header compare or an
+  operator session) or `requireOperatorRequestSession`. `isAuthorizedVaultRequest`
+  is unit-tested in `auth.test.ts` but was dead code — never wired into any
+  route handler. Any unauthenticated local caller could: list every vault
+  slot (`GET`), overwrite any secret including `OPERATOR-API-KEY` with an
+  attacker-controlled value (`POST`), delete any secret outright (`DELETE`),
+  or probe whether a slot was populated and get back its format-validity
+  verdict without ever unlocking the app (`test`). Fixed by wiring
+  `isAuthorizedVaultRequest` into all four handlers, returning 401 when
+  unauthorized.
+- **Critical: the gateway catch-all proxy had no operator-session gate at
+  all.** `/api/gateway/[...path]` (`gateway/[...path]/route.ts`) is the path
+  the browser client uses for nearly all backend traffic (mission creation,
+  every `/v1/*` and `/internal/*` call) — unlike every sibling privileged
+  route (`local/open-vscode`, `local/open-output-folder`,
+  `local/output-folder-status`, `repo/import`, `repo/review`, all of which
+  call `requireOperatorRequestSession` as their first line), this route
+  never checked the caller's session at all. It injects the
+  operator/internal API key itself from the vault regardless of caller
+  identity, so any request reaching the Next.js server — not just requests
+  from within the unlocked app UI — could act with that privilege,
+  including auto-injecting live Gemini/OpenAI/Anthropic provider keys into
+  mission-creation payloads. Fixed by adding the same
+  `requireOperatorRequestSession` gate used by every sibling route, as the
+  first statement in the shared `proxy()` handler.
+- **Investigated and judged consistent with established design, not fixed
+  as anomalies:** `operator/mission-state`, `pm/feature-contract`,
+  `review/approve`, and `review/verify` all resolve to a single shared
+  privileged backend credential (vault `OPERATOR-API-KEY` or the
+  server-wide `INTERNAL_SERVICE_API_KEY`) after passing the operator-session
+  gate, rather than forwarding any per-caller credential — but this matches
+  this app's single-operator-role session model consistently across every
+  privileged route, not a deviation isolated to these four; treating it as
+  a bug would require a larger multi-operator authorization redesign, not a
+  targeted patch. The `MISSION_CONTROL_BYPASS_AUTH`/`OPERATOR_SESSION_BYPASS`
+  dev-bypass flags are explicit opt-in env vars with no default-on path,
+  matching the same accepted pattern as `GATEWAY_ADMIN_BYPASS` on the
+  backend side. `builder/review`'s file-content embedding into responses is
+  constrained to a hardcoded root list (no path traversal) and gated by the
+  operator session; a preexisting-secret-in-repo hygiene concern, not a
+  logic bug in the route itself. ZIP archive handling (`repo/archive.ts`)
+  was independently re-verified as correctly hardened against zip-slip and
+  decompression bombs (bounded entry count, bounded total/per-file bytes,
+  in-memory streaming with no filesystem extraction target to traverse
+  into) — the prior "Harden repo ZIP import flow" fix holds up under this
+  pass. `open-vscode/route.ts`'s `cmd.exe` command-string construction is a
+  code smell (manual quote-escaping rather than argv-array passing used
+  everywhere else) but not currently exploitable, since the only path
+  reaching it is validated against a strict `mission-\w+` regex upstream —
+  flagged for future hardening if that validation is ever loosened, not
+  patched in this pass.
+- Confirmed after fixing: grepped every `route.ts` in the API surface for
+  the auth-check call; only `session/unlock` and `session/logout` lack one,
+  which is correct by design (unlock is the auth entry point itself; logout
+  must be callable to clear a session without first requiring one).
+- Every fix has a regression test independently proven to fail against the
+  pre-fix code via `git stash`. Frontend suite: 104 passed (20 test files).
+  `tsc --noEmit` clean.
 
 ### shared_runtime Review (2026-07-03): artifact re-verification gap and diagnostic-bundle secret leak
 

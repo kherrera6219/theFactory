@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.07.03d
+Document version: 2026.07.03e
 Last updated: 2026-07-03
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -13,8 +13,27 @@ as current work.
 
 ## Current Status
 
-**Most recent work: review of `shared_runtime/` — found an artifact
-re-verification gap and a diagnostic-bundle secret leak.**
+**Most recent work: security review of the Mission Control frontend's
+Next.js API routes — found the vault CRUD routes and the gateway catch-all
+proxy had zero authentication.** `apps/mission-control/app/api/`. Vault
+routes (`GET`/`POST`/`DELETE /api/vault`, `POST /api/vault/test`) never
+called `isAuthorizedVaultRequest` (dead code that existed and was tested
+but never wired in) — any unauthenticated caller could list, overwrite, or
+delete every vault secret including `OPERATOR-API-KEY`. The
+`/api/gateway/[...path]` catch-all proxy — the path used for nearly all
+backend traffic including mission creation — had no operator-session gate
+at all, unlike every sibling privileged route. Both fixed by wiring in the
+existing auth helpers (`isAuthorizedVaultRequest`,
+`requireOperatorRequestSession`), the same pattern already used correctly
+elsewhere in this app. Fixed and test-verified (104 frontend tests, 0
+failures; `tsc --noEmit` clean). This was the final "everything else" slice
+of the systematic backend+frontend review effort. See "Mission Control API
+Routes Review (2026-07-03)" under Recently Completed for the full list,
+including several findings judged consistent with this app's established
+single-operator-role design rather than fixed as anomalies.
+
+Before that: review of `shared_runtime/` — found an artifact
+re-verification gap and a diagnostic-bundle secret leak.
 `get_build_artifact` only recomputed an artifact's `verified` flag from a
 real cryptographic check when a `signature_record` was present; for
 artifacts where signing failed at build time (swallowed by a broad
@@ -540,6 +559,45 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 ---
 
 ## Recently Completed
+
+### Mission Control API Routes Review (2026-07-03): vault and gateway proxy had zero authentication
+
+Security review of the Mission Control frontend's Next.js API routes
+(`apps/mission-control/app/api/`, ~6.1k lines including `lib/server/`), via
+two parallel finder passes (one relaunched after an initial premature
+result), each candidate verified against actual code before fixing. Final
+"everything else" slice of the systematic review effort spanning both
+sessions.
+
+- Fixed vault CRUD routes (`vault/route.ts`, `vault/test/route.ts`) having
+  zero authentication — `isAuthorizedVaultRequest` existed, was tested, and
+  was clearly intended to gate these routes, but was dead code never wired
+  into any handler. Any unauthenticated caller could list/overwrite/delete
+  every vault secret including `OPERATOR-API-KEY`. Fixed by wiring it into
+  all four handlers.
+- Fixed the `/api/gateway/[...path]` catch-all proxy — the path used for
+  nearly all backend traffic including mission creation — having no
+  operator-session gate at all, unlike every sibling privileged route.
+  Fixed with the same `requireOperatorRequestSession` gate used elsewhere.
+- Investigated and judged consistent with established design, not fixed as
+  anomalies: `operator/mission-state`/`pm/feature-contract`/`review/approve`/
+  `review/verify` all resolve to a single shared privileged backend
+  credential rather than a per-caller one — matches this app's
+  single-operator-role session model consistently, not an isolated
+  deviation; the dev-bypass env flags are explicit opt-in with no
+  default-on path (same accepted pattern as the backend's
+  `GATEWAY_ADMIN_BYPASS`); `builder/review`'s file-content embedding is
+  root-constrained and session-gated (a preexisting-secret-in-repo hygiene
+  concern, not a route bug); ZIP archive handling was re-verified as still
+  correctly hardened against zip-slip/decompression bombs; `open-vscode`'s
+  `cmd.exe` string construction is a code smell but not currently
+  exploitable given upstream regex validation.
+- Confirmed after fixing: every `route.ts` in the API surface now has an
+  auth check except `session/unlock`/`session/logout`, which is correct by
+  design.
+- Every fix has a regression test independently proven to fail against the
+  pre-fix code via `git stash`. Frontend suite: 104 passed (20 test files).
+  `tsc --noEmit` clean.
 
 ### shared_runtime Review (2026-07-03): artifact re-verification gap and diagnostic-bundle secret leak
 

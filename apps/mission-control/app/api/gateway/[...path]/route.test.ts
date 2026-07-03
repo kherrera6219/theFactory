@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "./route";
 
 const fetchMock = vi.fn<typeof fetch>();
+const ORIGINAL_BYPASS = process.env.MISSION_CONTROL_BYPASS_AUTH;
+const ORIGINAL_SESSION_SECRET = process.env.MISSION_CONTROL_SESSION_SECRET;
+const ORIGINAL_ADMIN_KEY = process.env.MISSION_CONTROL_ADMIN_KEY;
 
 function context(path: string[]) {
   return { params: Promise.resolve({ path }) };
@@ -11,11 +14,44 @@ function context(path: string[]) {
 describe("gateway proxy route", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
+    process.env.MISSION_CONTROL_BYPASS_AUTH = "true";
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    if (ORIGINAL_BYPASS === undefined) {
+      delete process.env.MISSION_CONTROL_BYPASS_AUTH;
+    } else {
+      process.env.MISSION_CONTROL_BYPASS_AUTH = ORIGINAL_BYPASS;
+    }
+    if (ORIGINAL_SESSION_SECRET === undefined) {
+      delete process.env.MISSION_CONTROL_SESSION_SECRET;
+    } else {
+      process.env.MISSION_CONTROL_SESSION_SECRET = ORIGINAL_SESSION_SECRET;
+    }
+    if (ORIGINAL_ADMIN_KEY === undefined) {
+      delete process.env.MISSION_CONTROL_ADMIN_KEY;
+    } else {
+      process.env.MISSION_CONTROL_ADMIN_KEY = ORIGINAL_ADMIN_KEY;
+    }
+  });
+
+  it("rejects requests without an operator session, before contacting the backend", async () => {
+    // Regression: this catch-all proxy handles nearly all backend traffic
+    // (mission creation, /internal/* routes) and previously had no operator
+    // session gate at all, unlike every sibling privileged route.
+    delete process.env.MISSION_CONTROL_BYPASS_AUTH;
+    delete process.env.MISSION_CONTROL_SESSION_SECRET;
+    delete process.env.MISSION_CONTROL_ADMIN_KEY;
+
+    const response = await GET(
+      new Request("http://localhost/api/gateway/v1/missions"),
+      context(["v1", "missions"]),
+    );
+
+    expect(response.status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("forwards a successful upstream response with its status", async () => {

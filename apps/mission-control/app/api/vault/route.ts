@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAuthorizedVaultRequest } from "./auth";
 import { deleteVaultSlot, listVaultSlots, upsertVaultSlot } from "../../lib/server/vault";
 
 export const runtime = "nodejs";
@@ -11,11 +12,21 @@ type VaultWritePayload = {
   secret?: string;
 };
 
-export async function GET() {
+function unauthorizedVaultResponse(): NextResponse {
+  return NextResponse.json({ detail: "Vault authentication required." }, { status: 401 });
+}
+
+export async function GET(request: Request) {
+  if (!isAuthorizedVaultRequest(request)) {
+    return unauthorizedVaultResponse();
+  }
   return NextResponse.json({ slots: await listVaultSlots() });
 }
 
 export async function POST(request: Request) {
+  if (!isAuthorizedVaultRequest(request)) {
+    return unauthorizedVaultResponse();
+  }
   try {
     const payload = (await request.json()) as VaultWritePayload;
     const slotId = payload.slot_id?.trim() ?? "";
@@ -39,6 +50,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!isAuthorizedVaultRequest(request)) {
+    return unauthorizedVaultResponse();
+  }
   try {
     const payload = (await request.json()) as { slot_id?: string };
     const slotId = payload.slot_id?.trim() ?? "";
