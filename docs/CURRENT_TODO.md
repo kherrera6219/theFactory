@@ -13,7 +13,29 @@ as current work.
 
 ## Current Status
 
-**Most recent work: correctness review of the orchestrator storage layer.**
+**Most recent work: correctness review of the agent orchestration core —
+found that AIM source-code extraction was silently non-functional in
+production.** `agent_base.py`, `agent_registry.py`, `agent_personas.py`,
+`agent_integrations.py`, `agent_scaling.py`, `is_agent.py`,
+`dependency_absorption.py`, `aim_generator.py` (~5.3k lines). Two independent
+bugs stacked in `_extract_file`: (1) the `pod_worker` import path arithmetic
+resolved correctly in local dev but to the filesystem root inside the built
+container (never verified against a real container before now), so the
+import always failed; (2) even when reachable, the code filtered for a
+concept `domain == "import"` that the real pattern catalog never produces.
+Both were swallowed by a broad exception handler with only a warning log —
+`function_count`/`class_count`/`concept_count`/`detected_imports` were
+always the empty/zero fallback for every `ANALYZE_ONLY`/`PORT`/
+`DEBUG_REPAIR`/`SECURITY_HARDEN`/`REDUCE_DEPENDENCIES` mission. Fixed both,
+updated the Dockerfile to ship `pod_worker`, and verified the fix works
+*inside a rebuilt container* (not just locally). Also fixed a
+scaling-decision idempotency gap that could orphan partition work on retry,
+and a Java-detection false negative. Fixed and test-verified (1332 backend
+tests, 0 failures), `orchestrator` Docker image rebuilt. See "Agent
+Orchestration Core Review (2026-07-02)" under Recently Completed for the
+full list including deferred items.
+
+Before that: correctness review of the orchestrator storage layer.
 `storage_missions.py`, `storage_artifacts.py`, `storage_agents.py`,
 `storage_pods.py`, `storage_logicnodes.py`, `storage_core.py`, `models.py`
 (~3.1k lines) — the DB layer underneath every mission-flow phase. Found and
@@ -421,6 +443,60 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 ---
 
 ## Recently Completed
+
+### Agent Orchestration Core Review (2026-07-02): AIM extraction was silently non-functional in production
+
+Correctness review of `agent_base.py`, `agent_registry.py`,
+`agent_personas.py`, `agent_integrations.py`, `agent_scaling.py`,
+`is_agent.py`, `dependency_absorption.py`, `aim_generator.py` (~5.3k lines),
+via parallel finder agents reading full files, each candidate verified
+against actual callers before fixing:
+
+- Fixed the most significant finding of the review effort so far: AIM
+  (Application Intelligence Map) source extraction was silently
+  non-functional in the deployed orchestrator container. `_extract_file`'s
+  `pod_worker` import path used `Path(__file__).resolve().parents[2]`,
+  correct in local dev but resolving to the filesystem root inside the
+  built container (the Dockerfile only copies `services/orchestrator`'s
+  contents to `/app`, no `services/` ancestor exists there) — apparently
+  never verified against a real container. Even when reachable, the code
+  filtered `result.concepts` for `domain == "import"`, a value the real
+  pattern catalog never produces; `ExtractionResult` has its own correctly-
+  populated `imports` field that was never used. Both silently fell through
+  a broad exception handler to an empty/zero fallback with only a warning
+  log. Fixed both: multi-candidate path resolution (checks which location
+  actually exists), reads `result.imports` directly, and the Dockerfile now
+  copies `services/pod-worker/pod_worker` to `/app/pod_worker` (no new pip
+  deps needed). Verified working by running Python directly inside a
+  rebuilt container image, not just locally.
+- Also fixed the import-count cap: `detected_imports` was capped at
+  `sorted(...)[:50]`, alphabetically dropping real dependencies (e.g.
+  "requests", "sqlalchemy") for any codebase with 50+ distinct imports.
+  Raised to 1,000 and folded into the existing `truncated` signal.
+- Fixed a scaling-decision idempotency gap: `_prepare_specialist_plan`
+  (`mission_flow_v2/phases_build.py`) recomputed a fresh `ScalingDecision`
+  with new random partition IDs on every re-entry (it's explicitly
+  re-entrant by design — the PORT two-phase flow re-enters it), orphaning
+  already-emitted/completed partition work tracked under the old IDs. Fixed
+  with a guard: skip recomputation if a decision already exists.
+- Fixed a Java-detection false negative in `is_agent.py`: the detection
+  regex was already reasonably Java-specific, but an additional gate
+  required the literal word "java" to also appear in the prompt/source,
+  silently skipping Java bootstrap-doc indexing for legitimate Java code
+  that never mentions "java" by name.
+- VALIDATED: full backend suite — 1332 passed, 5 skipped, 0 failed (1328
+  baseline + 4 new regression tests). `ruff check` clean. `orchestrator`
+  Docker image rebuilt and the AIM fix specifically verified inside the
+  rebuilt container.
+
+**Deferred, not fixed this pass:** `make_specialist_for_language`'s
+case-sensitive language lookup and `make_agent`'s silent fallback to a
+generic `SpecialistAgent` on a registry/factory-map mismatch
+(`agent_base.py`) — real risks in principle, but the former has zero
+callers anywhere in the codebase today; `dependency_absorption.py`'s
+version-conflict-resolution ordering (first source wins, no conflict
+surfaced) and stdlib-import miscategorization; `agent_scaling.py`'s silent
+clamping of a misconfigured `max_instances` to 1 with no warning.
 
 ### Storage Layer Review (2026-07-02): audit-chain fork race fixed
 

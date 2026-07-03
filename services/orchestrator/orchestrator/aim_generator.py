@@ -26,6 +26,7 @@ AIM_REQUIRING_MISSION_TYPES = frozenset(
 MAX_AIM_FILES = 100
 MAX_FILE_CHARS = 200_000
 MAX_SOURCE_CHARS = 2_000_000
+MAX_DETECTED_IMPORTS = 1_000
 
 _SOURCE_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
 _LANGUAGE_BY_SUFFIX = {
@@ -211,11 +212,25 @@ def _extract_all_languages(*, source_code: str, primary_language: str | None) ->
         detected_imports.extend(result["detected_imports"])
         analyzed_files.append({**manifest_entry, "analyzed": True})
 
+    unique_imports = sorted({item for item in detected_imports if item})
+    # Cap generously — this is a cheap list of import-name strings, not full
+    # file content. The prior cap of 50 systematically dropped every
+    # alphabetically-later dependency (e.g. "requests", "sqlalchemy",
+    # "uvicorn") for any codebase with 50+ distinct imports, and those
+    # dropped names silently vanished from detected_dependencies (this AIM's
+    # fallback source of truth for dependency_absorption's inventory) with
+    # no signal that anything was cut.
+    imports_truncated = len(unique_imports) > MAX_DETECTED_IMPORTS
+
     return {
         "schema_version": "aim_extraction.v1",
         "files_seen": len(files),
         "files_analyzed": sum(1 for item in analyzed_files if item.get("analyzed")),
-        "truncated": len(files) > MAX_AIM_FILES or len(source_code) > MAX_SOURCE_CHARS,
+        "truncated": (
+            len(files) > MAX_AIM_FILES
+            or len(source_code) > MAX_SOURCE_CHARS
+            or imports_truncated
+        ),
         "source_digest_sha256": hashlib.sha256(source_code.encode("utf-8")).hexdigest(),
         "file_manifest": [
             {key: value for key, value in item.items() if key != "content"}
@@ -227,14 +242,39 @@ def _extract_all_languages(*, source_code: str, primary_language: str | None) ->
         "total_classes": total_classes,
         "total_concepts": total_concepts,
         "domain_counts": domain_counts,
-        "detected_imports": sorted({item for item in detected_imports if item})[:50],
+        "detected_imports": unique_imports[:MAX_DETECTED_IMPORTS],
     }
+
+
+def _pod_worker_import_root() -> Path | None:
+    """Locate the directory containing the importable ``pod_worker`` package.
+
+    Local dev: ``services/pod-worker`` is a sibling of ``services/orchestrator``,
+    so ``parents[2]`` from this file lands on ``services/``. Inside the built
+    orchestrator container, only ``services/orchestrator``'s *contents* are
+    copied to ``/app`` (see the Dockerfile) — there is no ``services/``
+    ancestor at all, so that same arithmetic silently resolved to the
+    filesystem root and never found anything (every extraction silently used
+    the empty-result fallback in production). The Dockerfile instead copies
+    the ``pod_worker`` package directly alongside ``orchestrator`` at
+    ``/app/pod_worker``, so try both layouts and use whichever exists.
+    """
+    here = Path(__file__).resolve()
+    candidates = (
+        here.parents[2] / "pod-worker",  # local dev: services/pod-worker
+        here.parents[1],  # container: /app (pod_worker copied alongside orchestrator)
+    )
+    for candidate in candidates:
+        if (candidate / "pod_worker" / "language_extractor.py").is_file():
+            return candidate
+    return None
 
 
 def _extract_file(language: str, content: str) -> dict[str, Any]:
     try:
-        services_root = Path(__file__).resolve().parents[2]
-        pod_worker_root = services_root / "pod-worker"
+        pod_worker_root = _pod_worker_import_root()
+        if pod_worker_root is None:
+            raise ModuleNotFoundError("pod_worker package not found in any known location")
         if str(pod_worker_root) not in sys.path:
             sys.path.insert(0, str(pod_worker_root))
         from pod_worker.language_extractor import get_extractor
@@ -242,12 +282,19 @@ def _extract_file(language: str, content: str) -> dict[str, Any]:
         result = get_extractor(language).extract(content)
         concepts = list(getattr(result, "concepts", []) or [])
         domain_counts: dict[str, int] = {}
-        detected_imports: list[str] = []
         for concept in concepts:
             domain = str(getattr(concept, "domain", "generic") or "generic")
             domain_counts[domain] = domain_counts.get(domain, 0) + 1
-            if domain == "import":
-                detected_imports.append(str(getattr(concept, "concept", "") or ""))
+        # ExtractionResult has its own dedicated, well-populated `imports`
+        # field (every language extractor subclass fills it via regex/AST
+        # import detection). This used to instead filter `concepts` for
+        # domain == "import" — a domain value the concept catalog never
+        # actually produces (real import-like concepts are tagged
+        # "module_patterns" alongside unrelated module declarations), so
+        # detected_imports was always empty regardless of real source
+        # content, silently starving dependency_absorption's AIM-based
+        # detected_dependencies fallback of any real data.
+        detected_imports = [str(item) for item in (getattr(result, "imports", []) or []) if item]
         return {
             "function_count": len(getattr(result, "functions", []) or []),
             "class_count": len(getattr(result, "classes", []) or []),

@@ -92,6 +92,17 @@ class TestDetectRequiredLanguages:
         result = self._call(requested_target_language="typescript")
         assert result == sorted(result)
 
+    def test_source_code_java_package_detected_without_word_java(self):
+        # Regression: detection previously also required the literal word
+        # "java" to appear in the prompt/source, so legitimate Java code
+        # with a prompt that never mentions "java" by name was silently
+        # never detected.
+        result = self._call(
+            prompt="Port this billing module to a different structure",
+            source_code="package com.acme.billing;\nimport com.acme.Base;\n",
+        )
+        assert "java" in result
+
 
 # ---------------------------------------------------------------------------
 # run_fetch_phase

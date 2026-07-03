@@ -6,18 +6,43 @@ Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
 **If you are picking this up cold:** the newest completed work is a deep code
-review of the orchestrator storage layer (`storage_missions.py`,
-`storage_artifacts.py`, `storage_agents.py`, `storage_pods.py`,
-`storage_logicnodes.py`, `models.py`) — the DB layer underneath every mission-
-flow phase. Found and fixed a real concurrency bug: `insert_agent_action_event`
-read the latest hash-chain digest and inserted the next event as two
-unsynchronized statements, so two concurrent events for the same `project_id`
-could both chain onto the same predecessor, silently forking the
-tamper-evident audit chain. Fixed with a per-project advisory lock. Several
-other candidates were investigated and refuted as live bugs (see "Storage
-Layer Review (2026-07-02)" below for the full list of what was checked and
-why). All fixes are test-verified (1328 backend tests, 0 failures) and the
-`orchestrator` Docker image has been rebuilt from this code.
+review of the agent orchestration core (`agent_base.py`, `agent_registry.py`,
+`agent_personas.py`, `agent_integrations.py`, `agent_scaling.py`,
+`is_agent.py`, `dependency_absorption.py`, `aim_generator.py`). The single
+most significant finding of the entire review effort so far: **AIM
+(Application Intelligence Map) source-code extraction — `function_count`,
+`class_count`, `concept_count`, and `detected_imports`, used for every
+`ANALYZE_ONLY`/`PORT`/`DEBUG_REPAIR`/`SECURITY_HARDEN`/`REDUCE_DEPENDENCIES`
+mission — has been silently non-functional in the actual deployed
+orchestrator container this whole time.** Two independent bugs stacked: (1)
+`aim_generator.py`'s path arithmetic for importing the `pod_worker` code-
+extraction package resolved correctly in local dev but to the filesystem
+root inside the built container, since only `services/orchestrator`'s
+*contents* are copied to `/app` there (never verified against the actual
+container until now); (2) even when reachable, the extraction code filtered
+for a concept `domain == "import"` that the real pattern catalog never
+produces (real import concepts are tagged `"module_patterns"`), instead of
+using `ExtractionResult`'s own dedicated, correctly-populated `imports`
+field. Both silent failures meant every AIM extraction call returned an
+empty/zero fallback with only a swallowed-exception warning log, no error
+surfaced anywhere. Fixed both, plus the Dockerfile now ships `pod_worker`
+into the image and it was verified working *inside a rebuilt container*, not
+just locally. Also fixed: a scaling-decision idempotency gap
+(`_prepare_specialist_plan` could mint a fresh scaling decision with new
+random partition IDs on re-entry, orphaning already-emitted/completed
+partition work) and a Java-detection false-negative in `is_agent.py`. See
+"Agent Orchestration Core Review (2026-07-02)" below for the full list.
+
+Before that: a deep code review of the orchestrator storage layer
+(`storage_missions.py`, `storage_artifacts.py`, `storage_agents.py`,
+`storage_pods.py`, `storage_logicnodes.py`, `models.py`) — the DB layer
+underneath every mission-flow phase. Found and fixed a real concurrency bug:
+`insert_agent_action_event` read the latest hash-chain digest and inserted
+the next event as two unsynchronized statements, so two concurrent events
+for the same `project_id` could both chain onto the same predecessor,
+silently forking the tamper-evident audit chain. Fixed with a per-project
+advisory lock. See "Storage Layer Review (2026-07-02)" below for the full
+list of what was checked and why.
 
 Before that: a deep code review of the Mission Flow v2 lifecycle driver
 (`mission_flow_v2/`) and the LLM delegation layer (`llm_delegation/`), finding
@@ -293,6 +318,81 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Agent Orchestration Core Review (2026-07-02): AIM extraction was silently non-functional in production
+
+A correctness review of `agent_base.py`, `agent_registry.py`,
+`agent_personas.py`, `agent_integrations.py`, `agent_scaling.py`,
+`is_agent.py`, `dependency_absorption.py`, `aim_generator.py` (~5.3k lines) —
+the layer that runs each of the 40+ specialist/pod agents and builds the
+Application Intelligence Map for source-analysis missions.
+
+- **Critical, most significant finding of the review effort so far: AIM
+  source-code extraction was silently non-functional in the deployed
+  orchestrator container.** Two independent bugs, both masked by a broad
+  `except Exception` in `_extract_file` that only logged a warning and
+  returned an empty/zero fallback:
+  1. `_extract_file`'s import of `pod_worker.language_extractor` computed its
+     search path as `Path(__file__).resolve().parents[2]` — correct in
+     local dev (`services/pod-worker` is a sibling of `services/orchestrator`)
+     but resolving to the filesystem root inside the built container, since
+     the Dockerfile only copies `services/orchestrator`'s *contents* to
+     `/app` (no `services/` ancestor exists there at all). This had
+     apparently never been verified against an actual built container.
+  2. Even when reachable, the code filtered `result.concepts` for
+     `domain == "import"` — a domain value the real pattern catalog never
+     produces (real import-like concepts are tagged `"module_patterns"`
+     alongside unrelated module declarations). `ExtractionResult` has its
+     own dedicated, correctly-populated `imports` field that the code never
+     used at all.
+  - Fixed both: `aim_generator.py` now tries both the local-dev and
+    container candidate paths (checking which actually exists) and reads
+    `result.imports` directly; the Dockerfile now copies
+    `services/pod-worker/pod_worker` to `/app/pod_worker` (no new pip
+    dependencies — the extractor modules only need the standard library,
+    with optional AST libraries for JS/Java that already gracefully degrade
+    to regex-only extraction when absent). **Verified working inside a
+    freshly rebuilt container**, not just locally — `docker run --rm
+    deploy-orchestrator:latest python -c "..."` confirms `detected_imports`
+    and `function_count` are now populated for real source text.
+  - Also fixed the import-count cap: `detected_imports` was capped at
+    `sorted(...)[:50]`, alphabetically favoring early-alphabet names and
+    silently dropping real dependencies (e.g. "requests", "sqlalchemy",
+    "uvicorn") for any codebase with 50+ distinct imports — these fed into
+    `dependency_absorption.py`'s inventory as the AIM's fallback
+    `detected_dependencies` source of truth. Raised the cap to 1,000 and
+    folded it into the existing `truncated` signal instead of a silent cut.
+- **Fixed a scaling-decision idempotency gap.** `_prepare_specialist_plan`
+  (`mission_flow_v2/phases_build.py`) computed a fresh `ScalingDecision`
+  (with new random partition IDs) every time it ran, with no "already
+  decided" guard — unlike every other side effect in the same function. This
+  function is explicitly re-entrant by design (the PORT two-phase flow
+  re-enters it, and any retry while the mission is still at
+  `specialist_assigned` would too), so a second invocation would mint fresh
+  partition IDs that don't match the emitted-partition-ID tracking from the
+  earlier `_emit_partition_work_items` fix, orphaning already-emitted or
+  completed partition work. Fixed with a guard: skip recomputation if
+  `metadata["scaling_decision"]` already exists.
+- **Fixed a Java-detection false negative.** `detect_required_languages`
+  (`is_agent.py`) already had a reasonably Java-specific regex
+  (`^import [A-Z]|^package [a-z]`) but then required the literal word
+  "java" to *also* appear somewhere in the prompt or source text before
+  indexing Java bootstrap docs — legitimate Java code with a prompt like
+  "port this billing module" never mentions "java" by name and was silently
+  skipped. Removed the redundant gate.
+- **Investigated and deferred as lower-confidence/lower-impact:**
+  `make_specialist_for_language`'s case-sensitive language lookup (agent_base.py)
+  and `make_agent`'s silent fallback to a generic `SpecialistAgent` on a
+  registry/factory-map mismatch — both real risks in principle, but zero
+  callers of the former exist anywhere in the codebase today;
+  `dependency_absorption.py`'s version-conflict-resolution ordering (first
+  source wins, no conflict surfaced) and stdlib-import miscategorization;
+  `agent_scaling.py`'s silent clamping of a misconfigured `max_instances`.
+
+Validation: full backend suite — 1332 passed, 5 skipped, 0 failed (1328
+baseline + 4 new regression tests). `ruff check` clean. `orchestrator` Docker
+image rebuilt and the AIM extraction fix specifically verified by running
+Python directly inside the rebuilt container image.
 
 ### Storage Layer Review (2026-07-02): audit-chain fork race fixed, several candidates refuted
 

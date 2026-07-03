@@ -148,8 +148,13 @@ def detect_required_languages(
         if re.search(r"^import .+;|require\(|const .+ = require", source_code, re.MULTILINE):
             languages.add("javascript")
         if re.search(r"^import [A-Z]|^package [a-z]", source_code, re.MULTILINE):
-            if "java" in (prompt + (source_code or "")).lower():
-                languages.add("java")
+            # Note: this pattern is not unique to Java (Kotlin/Scala share the
+            # same import/package conventions), but requiring the literal
+            # word "java" to also appear in the prompt or source text was too
+            # restrictive — legitimate Java source with no such mention
+            # (e.g. a prompt like "port this billing module") never got
+            # detected at all, silently skipping Java bootstrap docs.
+            languages.add("java")
 
     # Always index at least the target language
     if not languages and requested_target_language:

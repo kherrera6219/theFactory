@@ -14,6 +14,14 @@ COPY services/orchestrator /app
 COPY shared_runtime /app/shared_runtime
 COPY schemas /app/schemas
 COPY protocol /app/protocol
+# aim_generator.py imports pod_worker.language_extractor for source-code
+# concept/import extraction (AIM generation for ANALYZE_ONLY/PORT/
+# DEBUG_REPAIR/SECURITY_HARDEN/REDUCE_DEPENDENCIES missions). Only the
+# extractor package is needed here, not pod-worker's own service entrypoint
+# or its requirements — the extractor modules have no external dependencies
+# beyond the standard library, with optional AST libraries (esprima,
+# javalang) that gracefully degrade to regex-only extraction when absent.
+COPY services/pod-worker/pod_worker /app/pod_worker
 RUN useradd --system --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
 USER appuser

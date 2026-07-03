@@ -568,9 +568,19 @@ async def _prepare_specialist_plan(
             content_hash_source=generated_output_for_audit,
         )
 
-    # Compute scaling decision when feature is enabled.
-    if _setting_bool(settings, "agent_scaling_enabled", False) and is_scalable_agent(
-        specialist_agent_id
+    # Compute scaling decision when feature is enabled. Guarded so this
+    # function's re-entrant invocations (the PORT two-phase flow explicitly
+    # re-enters _prepare_specialist_plan, and any retry while the mission
+    # is still at specialist_assigned would too) don't recompute a fresh
+    # decision with new random partition IDs — that would orphan any
+    # partition work already emitted/completed under the original IDs and
+    # silently defeat the per-partition emitted-ID dedup in
+    # _emit_partition_work_items.
+    existing_scaling_decision = metadata.get("scaling_decision")
+    if (
+        _setting_bool(settings, "agent_scaling_enabled", False)
+        and is_scalable_agent(specialist_agent_id)
+        and not isinstance(existing_scaling_decision, dict)
     ):
         workload_items = _scaling_workload_items(metadata, normalized)
         scaling = compute_scaling_decision(

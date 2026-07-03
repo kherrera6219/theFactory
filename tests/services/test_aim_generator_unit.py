@@ -46,6 +46,42 @@ def test_extract_all_languages_parses_multifile_bundle_without_raw_content_in_ma
     assert all("content" not in item for item in summary["file_manifest"])
 
 
+def test_extract_file_populates_detected_imports_from_real_extractor() -> None:
+    """Regression: _extract_file used to filter result.concepts for
+    domain == "import" -- a domain value the concept catalog never actually
+    produces (real import-like concepts are tagged "module_patterns"), so
+    detected_imports was always empty regardless of real source content.
+    ExtractionResult has its own dedicated, correctly-populated `imports`
+    field that should be used instead.
+    """
+    result = aim_generator._extract_file(
+        "python", "import requests\nimport os\nfrom pathlib import Path\n"
+    )
+    assert result["detected_imports"]
+    joined = " ".join(result["detected_imports"])
+    assert "requests" in joined
+    assert "pathlib" in joined
+
+
+def test_extract_all_languages_does_not_alphabetically_truncate_many_imports() -> None:
+    # Regression: detected_imports used to be capped at sorted(...)[:50],
+    # which silently dropped every alphabetically-later import name (e.g.
+    # "requests", "sqlalchemy", "uvicorn") for any codebase with 50+
+    # distinct imports -- these fed into dependency_absorption's inventory
+    # as the AIM's fallback "detected_dependencies" source of truth.
+    import_lines = "\n".join(f"import pkg_{i:03d}\n" for i in range(80))
+    source_code = f"## FILE app.py\n{import_lines}"
+
+    summary = aim_generator._extract_all_languages(
+        source_code=source_code,
+        primary_language="python",
+    )
+
+    assert len(summary["detected_imports"]) == 80
+    assert any("pkg_079" in item for item in summary["detected_imports"])
+    assert summary["truncated"] is False
+
+
 def test_generate_aim_uses_bounded_extraction_summary(monkeypatch) -> None:
     captured: dict[str, str] = {}
 

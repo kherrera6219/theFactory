@@ -976,6 +976,87 @@ async def test_prepare_specialist_plan_codegen_uses_port_knowledge_and_scaling()
 
 
 @pytest.mark.asyncio
+async def test_prepare_specialist_plan_reuses_scaling_decision_on_re_entry() -> None:
+    """Regression: _prepare_specialist_plan is re-entrant by design (the PORT
+    two-phase flow explicitly re-enters it, and any retry while the mission
+    is still at specialist_assigned would too). Recomputing a fresh scaling
+    decision on a second call would mint new random partition IDs, orphaning
+    any partition work already emitted/completed under the original IDs and
+    defeating the emitted-partition-ID dedup in _emit_partition_work_items.
+    """
+    app = _make_app_state()
+    settings = _make_settings()
+    settings.agent_scaling_enabled = True
+    settings.agent_scaling_max_instances = 3
+    settings.agent_scaling_items_per_instance = 1
+    mission = _make_mission(state=MissionState.specialist_assigned)
+    mission.metadata = {
+        "mission_type": "BUILD_NEW",
+        "assigned_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+        "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+        "ceo_delegation": {"specialist_agent_id": "AGENT-14-PYTHON"},
+        "mission_contract": {"contract_summary": "Build", "acceptance_criteria": []},
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _settings, _mission_id: mission
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = MagicMock()
+        with patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_specialist_plan",
+            new=AsyncMock(
+                return_value={
+                    "source": "llm",
+                    "deliverables": ["a", "b", "c"],
+                    "risk_notes": [],
+                }
+            ),
+        ), patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_code_from_contract",
+            new=AsyncMock(
+                return_value={
+                    "source": "llm",
+                    "filename": "app.py",
+                    "language": "python",
+                    "generated_code": "print('a')",
+                    "code_length_chars": 11,
+                }
+            ),
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            await orchestrator_mission_flow_v2_build._prepare_specialist_plan(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+            )
+            first_partition_ids = [
+                p["partition_id"] for p in mission.metadata["scaling_decision"]["partitions"]
+            ]
+            assert first_partition_ids
+
+            # Simulate a re-entrant retry (e.g. PORT two-phase re-entry, or a
+            # retry while the mission is still at specialist_assigned).
+            await orchestrator_mission_flow_v2_build._prepare_specialist_plan(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+            )
+            second_partition_ids = [
+                p["partition_id"] for p in mission.metadata["scaling_decision"]["partitions"]
+            ]
+
+    assert second_partition_ids == first_partition_ids
+
+
+@pytest.mark.asyncio
 async def test_prepare_specialist_plan_emits_beta_production_result() -> None:
     """Regression test for PBLA-03 never firing (findings §4/§6.1, 2026-06-30 battery).
 
