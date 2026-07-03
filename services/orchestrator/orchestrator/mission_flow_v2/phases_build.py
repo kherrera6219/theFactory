@@ -879,6 +879,16 @@ def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dic
                 resolved_mission_dir = mission_dir.resolve()
                 for index, match in enumerate(matches):
                     rel_path = str(match.group(1)).strip()
+                    # Strip Windows drive-letter prefix ("C:path" → "path")
+                    # before any further sanitisation.  On Linux the colon is
+                    # a valid filename character, so a path like "C:evil.txt"
+                    # would otherwise resolve *inside* the mission directory
+                    # and pass the containment check below unchanged — meaning
+                    # the file would land as "C:evil.txt" instead of
+                    # "evil.txt".  Stripping the prefix here ensures
+                    # drive-relative paths are normalised the same way on
+                    # every platform.
+                    rel_path = re.sub(r"^[A-Za-z]:", "", rel_path)
                     # Prevent directory traversal. Checking the raw fragment
                     # for ".."/os.path.isabs() is not platform-safe on its
                     # own — e.g. a Windows drive-relative path like
