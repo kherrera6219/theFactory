@@ -2,9 +2,9 @@
 
 2026 standard: OWASP LLM Top 10 requires PII detection at all API boundaries.
 This module provides:
-  - detect_pii()    → list of PII matches with type and position
-  - redact_pii()    → replace PII with safe placeholders
-  - scan_envelope() → validate an event envelope for PII leakage
+  - detect_pii()          → list of PII matches with type and position
+  - redact_pii()          → replace PII with safe placeholders
+  - scan_dict_for_pii()   → recursively scan a dict/payload for PII
 
 Patterns are regex-based; no external API calls are made.
 """

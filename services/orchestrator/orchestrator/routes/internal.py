@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -1108,11 +1110,28 @@ async def get_build_artifact(
         record
         and record.get("artifact_text") is not None
         and isinstance(record.get("verification"), dict)
-        and "signature_record" in record["verification"]
     ):
-        from shared_runtime.crypto_signing import verify_payload
-        is_valid = verify_payload(record["artifact_text"], record["verification"]["signature_record"])
-        record["verification"]["verified"] = is_valid
+        verification = record["verification"]
+        if "signature_record" in verification:
+            from shared_runtime.crypto_signing import verify_payload
+            verification["verified"] = verify_payload(
+                record["artifact_text"], verification["signature_record"]
+            )
+        elif verification.get("artifact_digest_sha256") or verification.get(
+            "bundle_digest_sha256"
+        ):
+            # No signature was produced at build time (e.g. the signing key
+            # was unavailable) -- without this fallback, "verified" was a
+            # write-time-only assertion never re-checked against the
+            # currently stored bytes, so a corrupted/tampered artifact_text
+            # would still report verified=true forever. Independently
+            # re-hash and compare against whichever digest field this
+            # artifact type recorded.
+            expected_digest = verification.get("artifact_digest_sha256") or verification.get(
+                "bundle_digest_sha256"
+            )
+            actual_digest = hashlib.sha256(record["artifact_text"].encode("utf-8")).hexdigest()
+            verification["verified"] = hmac.compare_digest(actual_digest, str(expected_digest))
 
     return MissionBuildArtifactRecord(**record)
 

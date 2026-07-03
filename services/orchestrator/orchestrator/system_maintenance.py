@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import shutil
 import tarfile
 from datetime import UTC, datetime
@@ -9,6 +10,29 @@ from typing import Any
 from shared_runtime.atomic_io import atomic_write_json
 
 LOGGER = logging.getLogger(__name__)
+
+# Name-based denylist substrings for env vars excluded outright from
+# diagnostic bundles. This used to only check _KEY/_SECRET/_PASSWORD, which
+# missed real vars like VAULT_TOKEN/VAULT_ROLE_ID (no matching substring) --
+# every credential-shaped suffix actually used in this repo's .env.example
+# is covered here.
+_SENSITIVE_ENV_NAME_MARKERS = (
+    "_KEY",
+    "_SECRET",
+    "_PASSWORD",
+    "_TOKEN",
+    "_CREDENTIAL",
+    "_ROLE_ID",
+)
+# Connection strings (POSTGRES_URL, REDIS_URL, etc.) embed a plaintext
+# password in the URL's userinfo segment even though the var name itself
+# carries no _KEY/_SECRET/_PASSWORD/_TOKEN marker. Redact that segment
+# regardless of which env var it came from.
+_URL_USERINFO_PATTERN = re.compile(r"(://[^:/@\s]*:)[^@/\s]+(@)")
+
+
+def _sanitize_env_value(value: str) -> str:
+    return _URL_USERINFO_PATTERN.sub(r"\1***\2", value)
 
 class MaintenanceManager:
     def __init__(self, settings: Any):
@@ -40,7 +64,11 @@ class MaintenanceManager:
             atomic_write_json(tmp_work_dir / "system_status.json", status)
 
             # 2. Collect Sanitized Environment (No Secrets)
-            env_data = {k: v for k, v in os.environ.items() if "_KEY" not in k and "_SECRET" not in k and "_PASSWORD" not in k}
+            env_data = {
+                k: _sanitize_env_value(v)
+                for k, v in os.environ.items()
+                if not any(marker in k for marker in _SENSITIVE_ENV_NAME_MARKERS)
+            }
             atomic_write_json(tmp_work_dir / "environment_sanitized.json", env_data)
 
             # 3. Create the tarball

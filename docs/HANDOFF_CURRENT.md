@@ -1,11 +1,36 @@
 # Current Handoff
 
-Document version: 2026.07.03c
+Document version: 2026.07.03d
 Last updated: 2026-07-03
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** the newest completed work is a deep code
+**If you are picking this up cold:** the newest completed work is a review
+of `shared_runtime/` (the security/crypto library imported by every backend
+service — ~1.7k lines across `agent_auth.py`, `agent_keys.py`,
+`crypto_keystore.py`, `crypto_signing.py`, `prompt_guard.py`, `pii_guard.py`,
+`atomic_io.py`, `protocol.py`, `errors.py`, `logging_config.py`). Two
+findings fixed: (1) `get_build_artifact` (orchestrator) only re-verified an
+artifact's `verified` flag when a cryptographic `signature_record` was
+present; for artifacts where signing failed at build time (a real, broad
+`except Exception` swallows that failure), `verified: true` was a
+write-time-only assertion never re-checked against the currently stored
+bytes — a corrupted/tampered `artifact_text` would report verified forever.
+Now independently re-hashes and compares against the recorded digest when
+no signature exists, exactly mirroring the signature-verification branch.
+(2) The orchestrator's diagnostic-bundle env-var sanitizer
+(`system_maintenance.py`) only excluded names containing `_KEY`/`_SECRET`/
+`_PASSWORD` — real vars like `VAULT_TOKEN`/`VAULT_ROLE_ID` carried no
+matching substring, and connection-string vars like `POSTGRES_URL`/
+`REDIS_URL` embed a plaintext password in the URL's userinfo segment
+regardless of the var name. Expanded the name denylist and added
+value-level userinfo redaction for any URL-shaped value. See "shared_runtime
+Review (2026-07-03)" below for the full list, including several
+lower-severity findings (a documented "best-effort" RIR-module signature
+gate, a low-blast-radius TOCTOU race in first-time signing-key creation, a
+stale docstring) left as accepted/deferred.
+
+Before that: a deep code
 review of the verification/compliance gate layer
 (`equivalence_verifier.py`, `port_coordinator.py`, `security_compliance.py`,
 `rqca_agent.py`). Most significant finding, confirmed by two independent
@@ -406,6 +431,75 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### shared_runtime Review (2026-07-03): artifact re-verification gap and diagnostic-bundle secret leak
+
+A security/correctness review of `shared_runtime/` (~1.7k lines: `agent_auth.py`,
+`agent_keys.py`, `crypto_keystore.py`, `crypto_signing.py`, `prompt_guard.py`,
+`pii_guard.py`, `atomic_io.py`, `protocol.py`, `errors.py`,
+`logging_config.py`, `__init__.py`) — the shared security library imported
+by every backend service (orchestrator, api-gateway, pod-worker). Two
+parallel finder passes covered the whole slice.
+
+- **Fixed an artifact re-verification gap.** `get_build_artifact`
+  (`orchestrator/routes/internal.py`) only recomputed an artifact's
+  `verified` flag from a real cryptographic check when a `signature_record`
+  was present in the stored record. `build_artifacts.py` sets
+  `verification["verified"] = True` unconditionally at build time and only
+  *adds* a `signature_record` if signing succeeds — a broad `except
+  Exception` swallows signing failures (keystore unavailable, disk full,
+  etc.) with just a log line. For any artifact that was never signed, the
+  `verified: true` flag was therefore a write-time-only assertion, never
+  independently re-checked against the artifact's currently stored bytes —
+  a corrupted or tampered `artifact_text` would report `verified: true`
+  forever. Fixed by adding a fallback branch: when no signature exists but
+  a `artifact_digest_sha256`/`bundle_digest_sha256` was recorded, re-hash
+  the currently stored `artifact_text` and compare via
+  `hmac.compare_digest`, exactly mirroring the signature-verification
+  branch's re-check-at-read-time behavior.
+- **Fixed a diagnostic-bundle secret leak.** `MaintenanceManager.create_diagnostic_bundle`
+  (`system_maintenance.py`) sanitized environment variables for
+  `POST /internal/maintenance/diagnostics` bundles by excluding only names
+  containing `_KEY`/`_SECRET`/`_PASSWORD` — real vars shipped in this
+  repo's own `.env.example` (`VAULT_TOKEN`, `VAULT_ROLE_ID`) carried no
+  matching substring and were included verbatim, and connection-string vars
+  (`POSTGRES_URL`, `REDIS_URL`, `LANGGRAPH_CHECKPOINTER_POSTGRES_URL`) embed
+  a plaintext password in the URL's userinfo segment regardless of the var
+  name (`postgresql://postgres:CHANGE_ME_...@postgres:5432/...`). Fixed by
+  expanding the name-based denylist (`_TOKEN`, `_CREDENTIAL`, `_ROLE_ID`
+  added) and adding value-level regex redaction of any `scheme://user:pass@`
+  userinfo segment, applied to every retained env var regardless of name.
+- **Investigated and refuted / deferred as accepted design tradeoffs:**
+  RIR-module signature verification failures are explicitly documented as
+  "best effort" and non-fatal (`phases_runtime.py`'s
+  `_verify_rir_module_signatures`, `pod_worker/refined_ir.py`'s
+  `write_refined_ir_module`) — logged but never block the mission; this
+  looks intentional given the docstring's own framing, not an oversight,
+  but is worth revisiting now that signing is load-bearing for compliance
+  reports too. `crypto_keystore.load_or_create_signing_key` has a low-blast-
+  radius TOCTOU race if two processes race to create a signing key against
+  an empty shared keystore path simultaneously — each artifact's public key
+  travels with its own signature record so per-artifact verification still
+  succeeds either way; no consumer was found that trusts a keystore-derived
+  public key independent of the embedded one, so practical impact looks
+  limited. The plaintext signing-key fallback (`ARTIFACT_SIGNING_KEY_SOURCE=auto`)
+  is permitted by default off any `ENVIRONMENT` string other than exactly
+  `"production"` — matches documented dev/staging convenience intent, a
+  soft string-match gate rather than a hard one, not changed. A stale
+  docstring in `pii_guard.py` referenced a `scan_envelope()` function that
+  doesn't exist — fixed to list the real exported functions. `atomic_io.py`
+  writes rely on `tempfile.mkstemp`'s default 0600 mode (which `os.replace`
+  preserves) rather than setting permissions explicitly — reviewed and
+  confirmed this is not actually loosened by umask on POSIX (umask can only
+  remove bits from a requested mode, never add them), so the originally
+  suspected world-readable-diagnostic-bundle risk doesn't materialize in
+  practice; left unchanged.
+- Every fix has a regression test independently proven to fail against the
+  pre-fix code via `git stash`. Full backend suite: 1348 passed, 5 skipped.
+  `ruff check` clean on all touched files. Rebuilt `deploy-orchestrator`,
+  `deploy-api-gateway`, and `deploy-pod-a-worker` (all three import
+  `shared_runtime`) and verified the fixes directly inside the rebuilt
+  containers.
 
 ### Verification & Compliance Gates Review (2026-07-03): permissive-by-default gates, plus 2 confirmed idempotency bugs
 

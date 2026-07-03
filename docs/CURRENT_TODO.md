@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.07.03c
+Document version: 2026.07.03d
 Last updated: 2026-07-03
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -13,7 +13,27 @@ as current work.
 
 ## Current Status
 
-**Most recent work: review of the verification/compliance gate layer —
+**Most recent work: review of `shared_runtime/` — found an artifact
+re-verification gap and a diagnostic-bundle secret leak.**
+`get_build_artifact` only recomputed an artifact's `verified` flag from a
+real cryptographic check when a `signature_record` was present; for
+artifacts where signing failed at build time (swallowed by a broad
+`except`), `verified: true` was a write-time-only assertion never
+re-checked against the currently stored bytes. Now falls back to
+independently re-hashing and comparing against the recorded digest when
+unsigned. Also fixed the maintenance diagnostic-bundle env-var sanitizer,
+which only excluded names containing `_KEY`/`_SECRET`/`_PASSWORD` — real
+vars (`VAULT_TOKEN`, `VAULT_ROLE_ID`) and connection-string vars
+(`POSTGRES_URL`, `REDIS_URL`) with embedded plaintext passwords slipped
+through. Fixed and test-verified (1348 backend tests, 0 failures),
+`orchestrator`/`api-gateway`/`pod-a-worker` Docker images rebuilt (all
+three import `shared_runtime`) and fixes verified inside the rebuilt
+containers. See "shared_runtime Review (2026-07-03)" under Recently
+Completed for the full list, including several accepted design tradeoffs
+(RIR-module signature verification is explicitly "best effort"/non-fatal, a
+low-blast-radius TOCTOU race in first-time signing-key creation).
+
+Before that: review of the verification/compliance gate layer —
 found both `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` and
 `RQCA_ENFORCEMENT_ENABLED` defaulted to `false`, making the security-
 compliance and RQCA runtime-QC gates warn-only rather than blocking out of
@@ -520,6 +540,48 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 ---
 
 ## Recently Completed
+
+### shared_runtime Review (2026-07-03): artifact re-verification gap and diagnostic-bundle secret leak
+
+Security/correctness review of `shared_runtime/` (~1.7k lines across 11
+files: `agent_auth.py`, `agent_keys.py`, `crypto_keystore.py`,
+`crypto_signing.py`, `prompt_guard.py`, `pii_guard.py`, `atomic_io.py`,
+`protocol.py`, `errors.py`, `logging_config.py`, `__init__.py`), via two
+parallel finder passes, each candidate verified against actual code and
+callers before fixing:
+
+- Fixed `get_build_artifact` (`orchestrator/routes/internal.py`) only
+  re-verifying `verified` when a `signature_record` was present — unsigned
+  artifacts (signing can fail via a swallowed broad `except`) reported a
+  write-time-only `verified: true` never re-checked against currently
+  stored bytes. Now falls back to re-hashing and comparing against the
+  recorded digest via `hmac.compare_digest` when unsigned.
+- Fixed the maintenance diagnostic-bundle env-var sanitizer
+  (`system_maintenance.py`) only excluding names containing
+  `_KEY`/`_SECRET`/`_PASSWORD` — missed `VAULT_TOKEN`/`VAULT_ROLE_ID`
+  (no matching substring) and connection-string vars (`POSTGRES_URL`,
+  `REDIS_URL`) that embed a plaintext password in the URL regardless of var
+  name. Expanded the name denylist and added value-level userinfo
+  redaction for any URL-shaped value.
+- Investigated and refuted / deferred as accepted tradeoffs: RIR-module
+  signature verification failures are explicitly documented as "best
+  effort" and non-fatal (logged, never block the mission) — looks
+  intentional, flagged for revisiting now that signing is load-bearing for
+  compliance reports too, not changed in this pass. A TOCTOU race in
+  `load_or_create_signing_key` on first-time key creation is real but
+  low-blast-radius (each artifact's public key travels with its own
+  signature record, so per-artifact verification is unaffected). The
+  plaintext signing-key fallback default matches documented dev/staging
+  convenience intent. A stale `pii_guard.py` docstring referencing a
+  nonexistent `scan_envelope()` function was fixed. `atomic_io.py`'s
+  reliance on `tempfile.mkstemp`'s default 0600 mode was reviewed and
+  confirmed not loosened by umask on POSIX (umask only removes bits, never
+  adds them) — no fix needed.
+- Every fix has a regression test independently proven to fail against the
+  pre-fix code via `git stash`. Full backend suite: 1348 passed, 5 skipped.
+  `ruff check` clean. Rebuilt `deploy-orchestrator`, `deploy-api-gateway`,
+  and `deploy-pod-a-worker` (all three import `shared_runtime`) and
+  verified the fixes directly inside the rebuilt containers.
 
 ### Verification & Compliance Gates Review (2026-07-03): permissive-by-default gates, plus 2 confirmed idempotency bugs
 

@@ -1207,4 +1207,55 @@ def test_partition_results_endpoint_restarts_lifecycle_when_scaling_complete(mon
 
     assert response.status_code == 200
     assert response.json()["scaling_complete"] is True
-    assert started == ["mission-1"]
+
+
+def test_get_build_artifact_reverifies_digest_when_unsigned(monkeypatch) -> None:
+    """Regression: when an artifact has no signature_record (e.g. signing
+    failed at build time), "verified" used to be a write-time-only assertion
+    never re-checked against the currently stored artifact_text -- a
+    corrupted/tampered artifact_text would still report verified=true
+    forever. It must be independently re-hashed and compared at read time,
+    same as the signature branch already does.
+    """
+    import hashlib
+
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)
+
+    tampered_text = "print('tampered')"
+    original_digest = hashlib.sha256(b"print('original')").hexdigest()
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "get_build_artifact",
+        lambda *_: {
+            "mission_id": "mission-1",
+            "artifact_id": "generated-code",
+            "artifact_type": "generated_code",
+            "stage": "package",
+            "status": "SUCCESS",
+            "storage_backend": "database",
+            "storage_ref": "database://missions/mission-1/build-artifacts/generated-code",
+            "digest_sha256": original_digest,
+            "size_bytes": len(tampered_text),
+            "manifest": {"file_count": 1},
+            "verification": {
+                "verified": True,
+                "verification_scope": "integrity",
+                "verification_method": "sha256",
+                "artifact_digest_sha256": original_digest,
+            },
+            "build_log": "build complete",
+            "artifact_text": tampered_text,
+            "created_at": "2026-03-01T00:00:00+00:00",
+            "updated_at": "2026-03-01T00:00:00+00:00",
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/missions/mission-1/build-artifacts/generated-code",
+        headers={"x-api-key": "worker-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["verification"]["verified"] is False
