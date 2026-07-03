@@ -39,6 +39,46 @@ def test_extract_decision_payload_parses_json_block() -> None:
     assert parsed["pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
 
 
+def test_build_prompt_tolerates_non_numeric_risk_score() -> None:
+    # Defensive hardening: a non-numeric risk_score (malformed upstream data)
+    # must not crash prompt construction for an entire mission's CEO
+    # delegation.
+    prompt = llm_delegation._build_prompt(
+        mission_context={
+            "mission_type": "BUILD_NEW",
+            "requested_target_language": "python",
+            "risk_assessment": {"risk_score": "high"},
+        },
+        recommended_provider="openai",
+        recommended_model="gpt-5.5",
+    )
+    assert "ATTENTION: High risk mission" not in prompt
+
+
+def test_extract_decision_payload_ignores_a_second_unrelated_json_block() -> None:
+    # Regression: a naive greedy regex spans from the FIRST '{' to the LAST
+    # '}' in the whole response, merging this into one unparseable blob and
+    # discarding an otherwise valid decision object.
+    parsed = llm_delegation._extract_decision_payload(
+        (
+            'Note: the expected format looks like {"example": "value"}. '
+            'Decision: {"pod_manager_agent_id":"AGENT-12-PODA-MGR",'
+            '"specialist_agent_id":"AGENT-14-PYTHON"}'
+        )
+    )
+    assert parsed is not None
+    assert parsed["pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
+
+
+def test_extract_decision_payload_handles_braces_inside_string_values() -> None:
+    parsed = llm_delegation._extract_decision_payload(
+        '{"rationale": "use style {like this}", "pod_manager_agent_id": "AGENT-12-PODA-MGR"}'
+    )
+    assert parsed is not None
+    assert parsed["pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
+    assert parsed["rationale"] == "use style {like this}"
+
+
 def test_agent_model_inventory_defaults_to_gemini_flash() -> None:
     snapshot = agent_integrations.build_agent_integrations_snapshot()
     models = {
@@ -374,6 +414,28 @@ def test_pm_feature_contract_fallback_and_normalization() -> None:
     assert len(normalized["clarifying_questions"][0]) > 120
     assert normalized["clarifying_questions"][0].endswith("decimal-separators?")
     assert normalized["ambiguity_score"] >= 0.7
+
+
+def test_normalize_pm_feature_contract_defaults_unknown_intake_status_to_needs_clarification() -> None:
+    # Fail-closed regression: an unrecognized/hallucinated intake_status
+    # (neither "ready" nor "needs_clarification") must not be silently
+    # treated as "ready" -- that would let a genuinely underspecified
+    # mission skip clarification entirely.
+    normalized = llm_delegation._normalize_pm_feature_contract(
+        {
+            "title": "CSV",
+            "summary": "Build CSV reader",
+            "functional_requirements": ["Read CSV rows"],
+            "acceptance_criteria": ["Returns rows"],
+            "intake_status": "unclear",
+        },
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        route="primary",
+        prompt="Build CSV reader",
+        requested_target_language="python",
+    )
+    assert normalized["intake_status"] == "needs_clarification"
 
 
 def test_pm_feature_contract_clarifies_interactive_angular_game_scope() -> None:

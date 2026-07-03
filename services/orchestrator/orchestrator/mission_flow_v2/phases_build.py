@@ -858,13 +858,24 @@ def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dic
                 file_path.write_text(artifact_text, encoding="utf-8")
                 LOGGER.info("Wrote inline source to %s", file_path)
             else:
+                resolved_mission_dir = mission_dir.resolve()
                 for index, match in enumerate(matches):
                     rel_path = str(match.group(1)).strip()
-                    # Prevent directory traversal
-                    rel_path = os.path.normpath(rel_path)
-                    if rel_path.startswith("..") or os.path.isabs(rel_path):
-                        rel_path = os.path.normpath(os.path.basename(rel_path))
-                    
+                    # Prevent directory traversal. Checking the raw fragment
+                    # for ".."/os.path.isabs() is not platform-safe on its
+                    # own — e.g. a Windows drive-relative path like
+                    # "C:evil.txt" is neither absolute nor "..'"-prefixed, so
+                    # it can pass that check. Instead resolve the actual
+                    # joined path and confirm it is still inside the mission
+                    # directory before writing.
+                    candidate_path = (mission_dir / rel_path).resolve()
+                    if (
+                        candidate_path != resolved_mission_dir
+                        and resolved_mission_dir not in candidate_path.parents
+                    ):
+                        rel_path = os.path.basename(os.path.normpath(rel_path))
+                        candidate_path = (mission_dir / rel_path).resolve()
+
                     content_start = match.end()
                     content_end = (
                         matches[index + 1].start()
@@ -872,8 +883,8 @@ def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dic
                         else len(artifact_text)
                     )
                     content = artifact_text[content_start:content_end].lstrip("\r\n")
-                    
-                    file_path = mission_dir / rel_path
+
+                    file_path = candidate_path
                     file_path.parent.mkdir(parents=True, exist_ok=True)
                     file_path.write_text(content, encoding="utf-8")
                     LOGGER.info("Wrote source bundle file to %s", file_path)

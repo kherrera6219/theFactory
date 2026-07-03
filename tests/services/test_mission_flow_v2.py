@@ -1468,6 +1468,37 @@ def test_write_artifact_to_disk_sanitizes_generated_and_source_bundle_paths(tmp_
     assert (tmp_path / "mission-inline" / "inline.py").read_text(encoding="utf-8") == "plain source"
 
 
+def test_write_artifact_to_disk_rejects_drive_relative_traversal(tmp_path: Path) -> None:
+    """Hardening: a Windows drive-relative path like "C:evil.txt" is
+    neither absolute (os.path.isabs) nor ".."-prefixed, so a fragment-based
+    check alone can't be trusted to catch it (pathlib's join behavior for
+    such paths depends on whether the drive letter happens to match the
+    mission directory's own drive). Checking the actual resolved, joined
+    path against the mission directory removes that platform/drive-letter
+    dependent edge case entirely.
+    """
+    settings = SimpleNamespace(delivery_dir=str(tmp_path))
+
+    orchestrator_mission_flow_v2_build._write_artifact_to_disk(
+        settings,
+        "mission-drive-relative",
+        {
+            "artifact_type": "source_bundle_package",
+            "artifact_text": "## FILE app.py\nprint('app')\n## FILE C:evil.txt\nprint('evil')\n",
+            "manifest": {},
+        },
+    )
+
+    mission_dir = tmp_path / "mission-drive-relative"
+    assert (mission_dir / "app.py").read_text(encoding="utf-8") == "print('app')\n"
+    # The drive-relative entry must land inside the mission directory
+    # (sanitized down to its basename), never escape it.
+    written_paths = list(mission_dir.rglob("*"))
+    for path in written_paths:
+        assert mission_dir.resolve() in path.resolve().parents or path.resolve() == mission_dir.resolve()
+    assert (mission_dir / "evil.txt").read_text(encoding="utf-8") == "print('evil')\n"
+
+
 @pytest.mark.asyncio
 async def test_prepare_dependency_absorption_reports_skips_without_evidence() -> None:
     mission = _make_mission(state=MissionState.verified)
@@ -1593,6 +1624,62 @@ async def test_prepare_runtime_qc_records_complete_report_and_blocks_on_enforced
         event["event_type"] == "MISSION_RUNTIME_QC_COMPLETE"
         for event in mission.metadata["chain_trace"]
     )
+
+
+@pytest.mark.asyncio
+async def test_prepare_runtime_qc_reuses_cached_report_without_re_executing() -> None:
+    """Regression: the completion gate re-invokes this function on every
+    retry (e.g. an orchestrator restart recovering a mission still blocked
+    by a later gate). A cached, real (non-skipped) runtime_qc_report must
+    short-circuit re-execution instead of re-running the sandboxed QC and
+    duplicating chain/audit events on every retry.
+    """
+    settings = _make_settings()
+    settings.testdata_agent_enabled = True
+    settings.rqca_agent_enabled = True
+    settings.rqca_enforcement_enabled = True
+    cached_execution = {
+        "verdict": "PASS",
+        "execution_type": "subprocess",
+        "source": "test",
+        "deployment_safe": True,
+    }
+    cached_assessment = {"qc_verdict": "FAIL", "deployment_safe": False}
+    cached_report = {**cached_execution, "qc_assessment": cached_assessment}
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {
+            "generated_code": "print('hello')",
+            "filename": "solution.py",
+            "language": "python",
+        },
+        "mission_contract": {"acceptance_criteria": ["prints hello"]},
+        "runtime_qc_report": cached_report,
+    }
+
+    with patch.object(
+        orchestrator_mission_flow_v2_runtime,
+        "generate_testdata_manifest",
+        new=AsyncMock(side_effect=AssertionError("testdata manifest must not regenerate")),
+    ), patch.object(
+        orchestrator_mission_flow_v2_runtime,
+        "run_runtime_qc",
+        new=AsyncMock(side_effect=AssertionError("runtime QC must not re-execute")),
+    ), patch.object(
+        orchestrator_mission_flow_v2_runtime,
+        "generate_rqca_assessment",
+        new=AsyncMock(side_effect=AssertionError("QC assessment must not re-run")),
+    ):
+        updated, ready, report = await orchestrator_mission_flow_v2_runtime._prepare_runtime_qc(
+            app=_make_app_state(),
+            settings=settings,
+            mission=mission,
+        )
+
+    assert updated is mission
+    assert report is cached_report
+    # rqca_enforcement_enabled=True and cached qc_verdict="FAIL" -> blocked.
+    assert ready is False
 
 
 @pytest.mark.asyncio
@@ -2474,6 +2561,74 @@ class TestAdvanceMissionLifecycleV2:
         assert emit_fn.await_count == 2  # only 2 successful emits
         prepare_fn.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_recovery_reinvocation_skips_already_passed_stages(self) -> None:
+        """Regression: a driver re-invocation for a mission already past
+        queued (e.g. the lifecycle-recovery loop restarting an in-flight
+        task after an orchestrator restart) must not re-run earlier stage
+        preparers such as PM intake — doing so would silently regenerate
+        and overwrite the mission's LLM-derived feature_contract/
+        mission_charter with a fresh, non-deterministic result.
+        """
+        app = _make_app_state()
+        settings = _make_settings()
+        validator = MagicMock()
+
+        mission = _make_mission(state=MissionState.running)
+        mission.metadata = {
+            "feature_contract": {"title": "Original contract", "source": "llm"},
+            "ceo_delegation": {"pod_manager_agent_id": "AGENT-12-PODA-MGR"},
+            "specialist_plan": {"specialist_agent_id": "AGENT-14-PYTHON"},
+        }
+        emit_fn = AsyncMock()
+        prepare_fn = AsyncMock(return_value=True)
+        completion_fn = AsyncMock(return_value=(True, {}))
+        state, fetch_mission, update_metadata, transition_mission_state, insert_mission_event = (
+            _make_stateful_storage(mission)
+        )
+
+        with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+            mock_storage.transition_mission_state = transition_mission_state
+            mock_storage.fetch_mission = fetch_mission
+            mock_storage.update_mission_metadata = update_metadata
+            mock_storage.insert_mission_event = insert_mission_event
+            mock_storage.list_build_artifacts = lambda *_args: []
+
+            with patch(
+                "orchestrator.mission_flow_v2.generate_pm_feature_contract",
+                AsyncMock(side_effect=AssertionError("PM intake must not re-run")),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_ceo_delegation",
+                AsyncMock(side_effect=AssertionError("CEO delegation must not re-run")),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_pod_manager_delegation",
+                AsyncMock(side_effect=AssertionError("pod assignment must not re-run")),
+            ), patch(
+                "orchestrator.mission_flow_v2.generate_specialist_plan",
+                AsyncMock(side_effect=AssertionError("specialist plan must not re-run")),
+            ):
+                await advance_mission_lifecycle_v2(
+                    app=app,
+                    mission_id="test-m1",
+                    settings=settings,
+                    validator=validator,
+                    emit_state_event_fn=emit_fn,
+                    prepare_chain_fn=prepare_fn,
+                    completion_check_fn=completion_fn,
+                )
+
+        # Only transitions from RUNNING onward should have been attempted.
+        assert state["transitions"][0][0] == "RUNNING"
+        assert all(entry[0] != "QUEUED" for entry in state["transitions"])
+        # The pre-existing PM/CEO metadata must survive untouched.
+        assert mission.metadata["feature_contract"] == {
+            "title": "Original contract",
+            "source": "llm",
+        }
+        assert mission.metadata["ceo_delegation"] == {
+            "pod_manager_agent_id": "AGENT-12-PODA-MGR",
+        }
+
 
 # ------------------------------------------------------------------
 # MissionState enum v2 values exist
@@ -2671,3 +2826,95 @@ class TestValidTransitionsContract:
                         f"{from_state.value!r}] contains unknown state {to_state!r}"
                     )
         assert not bad, "\n".join(bad)
+
+
+class TestEmitPartitionWorkItems:
+    """Regression coverage for _emit_partition_work_items retry-on-partial-failure."""
+
+    @staticmethod
+    def _mission_with_partitions(partition_count: int) -> MagicMock:
+        agent_scaling = importlib.import_module("orchestrator.agent_scaling")
+        partitions = [
+            agent_scaling.WorkPartition(
+                partition_id=f"p{i}",
+                instance_index=i,
+                total_instances=partition_count,
+                assigned_items=(f"item-{i}",),
+            ).to_dict()
+            for i in range(partition_count)
+        ]
+        mission = _make_mission(state=MissionState.running)
+        mission.metadata = {
+            "scaling_active": True,
+            "scaling_decision": {
+                "agent_id": "AGENT-14-PYTHON",
+                "instance_count": partition_count,
+                "partitions": partitions,
+                "reason": "large workload",
+            },
+            "assigned_specialist_agent_id": "AGENT-14-PYTHON",
+            "assigned_pod_manager_agent_id": "AGENT-12-PODA-MGR",
+        }
+        return mission
+
+    @pytest.mark.asyncio
+    async def test_retry_after_validation_failure_does_not_re_emit_succeeded_partitions(
+        self,
+    ) -> None:
+        mission = self._mission_with_partitions(3)
+        app = _make_app_state()
+        settings = _make_settings()
+        settings.producer_name = "orchestrator"
+        settings.default_priority = "normal"
+        settings.state_stream = "missions.state"
+        settings.max_stream_len = 10_000
+
+        xadd_calls: list[dict[str, Any]] = []
+
+        async def _xadd(_stream, fields, **_kwargs):
+            xadd_calls.append(fields)
+
+        app.state.redis.xadd = AsyncMock(side_effect=_xadd)
+
+        validator = MagicMock()
+        # Fail validation on the second partition only.
+        call_count = {"n": 0}
+
+        def _validate(_envelope):
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                raise ValueError("schema drift")
+
+        validator.validate = _validate
+
+        _state, fetch_mission, update_metadata, _transition, _insert = (
+            _make_stateful_storage(mission)
+        )
+        with patch(
+            "orchestrator.mission_flow_v2.storage"
+        ) as mock_storage:
+            mock_storage.update_mission_metadata = update_metadata
+            result = await orchestrator_mission_flow_v2_intake._emit_partition_work_items(
+                app=app,
+                settings=settings,
+                validator=validator,
+                mission=mission,
+            )
+
+            # Only the first partition succeeded before the second failed validation.
+            assert len(xadd_calls) == 1
+            assert result.metadata.get("scaling_partition_events_emitted") is not True
+            assert result.metadata["scaling_partition_emitted_ids"] == ["p0"]
+
+            # Retry: partition 0 must not be re-emitted; only 1 and 2 go out.
+            validator.validate = lambda _envelope: None
+            result2 = await orchestrator_mission_flow_v2_intake._emit_partition_work_items(
+                app=app,
+                settings=settings,
+                validator=validator,
+                mission=result,
+            )
+
+        assert len(xadd_calls) == 3  # p0 (first attempt) + p1 + p2 (retry) = 3 total, not 4
+        assert result2.metadata["scaling_partition_events_emitted"] is True
+        assert sorted(result2.metadata["scaling_partition_emitted_ids"]) == ["p0", "p1", "p2"]

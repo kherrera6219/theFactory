@@ -685,7 +685,11 @@ def test_advance_mission_lifecycle_emits(monkeypatch) -> None:
     monkeypatch.setattr(
         runtime.storage,
         "fetch_mission",
-        lambda *_args: _mission_record(MissionState.verified),
+        # This test simulates a full queued->complete run via the
+        # always-succeeds transition_mission_state mock below; the driver
+        # now reads the mission's actual starting state once up front, so
+        # this must reflect the real starting point (queued), not verified.
+        lambda *_args: _mission_record(MissionState.queued),
     )
     monkeypatch.setattr(
         runtime.storage,
@@ -785,7 +789,11 @@ def test_advance_mission_lifecycle_stops_on_missing_transition(monkeypatch) -> N
     monkeypatch.setattr(
         runtime.storage,
         "fetch_mission",
-        lambda *_args: _mission_record(MissionState.verified),
+        # Intent: the very first transition attempt (queued->pm_intake)
+        # fails via the always-None transition_mission_state mock below,
+        # so the driver must start at the real initial state (queued) to
+        # reach that first attempt at all.
+        lambda *_args: _mission_record(MissionState.queued),
     )
     monkeypatch.setattr(
         runtime.storage,
@@ -1125,7 +1133,12 @@ def test_advance_mission_lifecycle_packages_build_artifact_for_source_bundle(mon
     monkeypatch.setattr(
         runtime.storage,
         "fetch_mission",
-        lambda *_args: _record(MissionState.verified),
+        # This test simulates a full queued->complete run (the
+        # transition_mission_state mock below always succeeds regardless of
+        # expected_state) to exercise source-bundle packaging at the
+        # verified transition; the driver now reads the mission's actual
+        # starting state once up front, so this must be queued, not verified.
+        lambda *_args: _record(MissionState.queued),
     )
     monkeypatch.setattr(
         runtime.storage,

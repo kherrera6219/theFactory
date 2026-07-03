@@ -80,8 +80,18 @@ async def _emit_partition_work_items(
         fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
     )
 
-    emitted_count = 0
+    # Track which partitions have already been emitted so a retry after a
+    # mid-batch failure (validation error or a transient Redis error) only
+    # emits the remaining ones, instead of re-emitting every partition —
+    # each envelope's event_id is freshly randomized, so a naive retry would
+    # produce genuine duplicate MISSION_PARTITION_READY events for
+    # partitions that already succeeded.
+    already_emitted_ids = set(metadata.get("scaling_partition_emitted_ids") or [])
+    emitted_count = len(already_emitted_ids)
     for partition in decision.partitions:
+        if partition.partition_id in already_emitted_ids:
+            continue
+
         envelope = {
             "event_id": f"evt-{uuid.uuid4()}",
             "topic": "mission.partition.ready",
@@ -103,6 +113,14 @@ async def _emit_partition_work_items(
                 partition.partition_id,
                 exc,
             )
+            metadata["scaling_partition_emitted_ids"] = sorted(already_emitted_ids)
+            metadata["scaling_partition_event_count"] = emitted_count
+            await asyncio.to_thread(
+                _pkg().storage.update_mission_metadata,
+                settings,
+                mission.mission_id,
+                metadata,
+            )
             return mission
 
         payload = {
@@ -116,28 +134,48 @@ async def _emit_partition_work_items(
             "assigned_pod_manager_agent_id": pod_manager_agent_id,
             "partition": partition.to_dict(),
         }
-        await redis_client.xadd(
-            settings.state_stream,
-            {
-                "envelope": json.dumps(envelope),
-                "payload": json.dumps(payload),
-                "event_type": "MISSION_PARTITION_READY",
-                "mission_id": mission.mission_id,
-                "state": mission.state.value,
-                "created_at": (
-                    mission.created_at.isoformat()
-                    if isinstance(mission.created_at, datetime)
-                    else str(mission.created_at)
-                ),
-            },
-            maxlen=settings.max_stream_len,
-            approximate=True,
-        )
+        try:
+            await redis_client.xadd(
+                settings.state_stream,
+                {
+                    "envelope": json.dumps(envelope),
+                    "payload": json.dumps(payload),
+                    "event_type": "MISSION_PARTITION_READY",
+                    "mission_id": mission.mission_id,
+                    "state": mission.state.value,
+                    "created_at": (
+                        mission.created_at.isoformat()
+                        if isinstance(mission.created_at, datetime)
+                        else str(mission.created_at)
+                    ),
+                },
+                maxlen=settings.max_stream_len,
+                approximate=True,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "v2: failed to emit partition event for mission %s/%s: %s",
+                mission.mission_id,
+                partition.partition_id,
+                exc,
+            )
+            metadata["scaling_partition_emitted_ids"] = sorted(already_emitted_ids)
+            metadata["scaling_partition_event_count"] = emitted_count
+            await asyncio.to_thread(
+                _pkg().storage.update_mission_metadata,
+                settings,
+                mission.mission_id,
+                metadata,
+            )
+            return mission
+
+        already_emitted_ids.add(partition.partition_id)
         emitted_count += 1
 
     metadata["scaling_partition_events_emitted"] = True
     metadata["scaling_partition_events_emitted_at"] = datetime.now(UTC).isoformat()
     metadata["scaling_partition_event_count"] = emitted_count
+    metadata["scaling_partition_emitted_ids"] = sorted(already_emitted_ids)
     updated = await asyncio.to_thread(
         _pkg().storage.update_mission_metadata,
         settings,

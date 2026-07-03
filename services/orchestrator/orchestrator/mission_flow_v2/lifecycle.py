@@ -419,7 +419,30 @@ async def advance_mission_lifecycle_v2(
     _ = prepare_chain_fn
 
     try:
-        for expected_state, new_state, event_type in V2_TRANSITIONS:
+        mission = await asyncio.to_thread(_pkg().storage.fetch_mission, settings, mission_id)
+        if mission is None:
+            return
+        current_state = mission.state
+        # Skip transitions the mission has already passed. Without this, a
+        # re-invocation of this driver for a mission already at e.g. running
+        # or verified (the lifecycle-recovery loop restarts one of these
+        # tasks for every in-flight mission on every orchestrator restart)
+        # would unconditionally re-run the queued->pm_intake preparer before
+        # the atomic transition_mission_state compare-and-swap catches the
+        # state mismatch and exits — silently regenerating and overwriting
+        # the mission's LLM-derived feature_contract/mission_charter with a
+        # fresh, non-deterministic result on every restart.
+        try:
+            start_index = next(
+                index
+                for index, (expected_state, _new_state, _event_type) in enumerate(V2_TRANSITIONS)
+                if expected_state == current_state
+            )
+        except StopIteration:
+            return
+        pending_transitions = V2_TRANSITIONS[start_index:]
+
+        for expected_state, new_state, event_type in pending_transitions:
             preparer = stage_preparers.get(expected_state)
             if preparer is not None:
                 prepared = await preparer(

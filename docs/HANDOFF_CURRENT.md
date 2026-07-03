@@ -5,22 +5,31 @@ Last updated: 2026-07-02
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** the newest completed work is a code
-review of the Mission Control UX lock-in commits (PM clarification, progress
-visibility, artifact output folder discovery, Continue with PM) plus fixes for
-every finding it surfaced, including a critical stuck-mission regression, a
-missing-auth gap on the new local-filesystem routes, and a suppressed PM
-clarifying question. All fixes are committed and test-verified (1319 backend
-tests, 99 Mission Control tests, 0 failures). See "Post-Review Hardening
-(2026-07-02)" below for the full list.
+**If you are picking this up cold:** the newest completed work is a deep code
+review of the Mission Flow v2 lifecycle driver (`mission_flow_v2/`) and the
+LLM delegation layer (`llm_delegation/`), finding and fixing 7 real backend
+bugs — most seriously, a driver re-invocation bug (triggered by every
+orchestrator restart while a mission is in flight) that silently regenerated
+and overwrote a mission's `feature_contract`/`mission_charter` with a fresh,
+non-deterministic LLM call. All fixes are test-verified (1327 backend tests,
+0 failures) and the `orchestrator` Docker image has been rebuilt from this
+code. See "Mission Flow v2 + LLM Delegation Review (2026-07-02)" below for
+the full list.
+
+Before that: a code review of the Mission Control UX lock-in commits (PM
+clarification, progress visibility, artifact output folder discovery,
+Continue with PM) plus fixes for every finding it surfaced, including a
+critical stuck-mission regression, a missing-auth gap on the new
+local-filesystem routes, and a suppressed PM clarifying question, plus a
+follow-up closing pass that fixed a `language.ts` tie-break bug. See
+"Post-Review Hardening (2026-07-02)" below.
 
 Before that: the Mission Control UX lock-in itself (PM clarification, progress
-visibility, artifact output folder discovery, and Continue with PM). The code
-is implemented, focused tests pass, and the `mission-control` / `orchestrator`
-Docker images have been rebuilt. The next live action is to restart the app
-and run a real browser mission asking for a modern Angular Snake game with
-`start.bat`, then verify that clarification/defaults, progress indicators,
-output-folder actions, and follow-up context all behave correctly. Evidence:
+visibility, artifact output folder discovery, and Continue with PM). The
+next live action for that thread is still to restart the app and run a real
+browser mission asking for a modern Angular Snake game with `start.bat`, then
+verify that clarification/defaults, progress indicators, output-folder
+actions, and follow-up context all behave correctly. Evidence:
 `docs/evidence/mission_control_ux_lockin_2026-07-02.md`.
 
 Previous high-priority context: Phases 0-3 of the findings-remediation work
@@ -273,6 +282,91 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Mission Flow v2 + LLM Delegation Review (2026-07-02): 7 backend bugs fixed
+
+A deep correctness review of two backend slices — the Mission Flow v2
+lifecycle driver (`services/orchestrator/orchestrator/mission_flow_v2/`) and
+the LLM delegation layer (`services/orchestrator/orchestrator/llm_delegation/`)
+— using parallel finder agents reading full files (not diffs), each candidate
+independently verified against the actual code before fixing. Seven real bugs
+found and fixed, all with new regression tests:
+
+- **Critical — recovery re-invocation silently regenerated PM feature
+  contracts on every orchestrator restart.** `advance_mission_lifecycle_v2`
+  (`mission_flow_v2/lifecycle.py`) iterated its full transition table from
+  `queued` on every call, regardless of the mission's actual current state.
+  The lifecycle-recovery loop (`lifecycle_recovery.py`) restarts one of these
+  driver tasks for every mission sitting in `queued`/`running`/`verified` on
+  every orchestrator startup — so any in-flight mission had its
+  `queued->pm_intake` preparer (`_prepare_pm_intake`) unconditionally
+  re-invoked, burning a fresh LLM call and overwriting
+  `metadata["feature_contract"]`/`metadata["mission_charter"]` with a new,
+  non-deterministic result before the atomic `transition_mission_state`
+  compare-and-swap finally caught the state mismatch and exited. Fixed by
+  reading the mission's actual current state once at the top and skipping to
+  the matching transition-table entry before running any preparer.
+- **Partition-emission retry could duplicate already-succeeded work.**
+  `_emit_partition_work_items` (`mission_flow_v2/phases_intake.py`) only
+  marked emission complete after every partition in a scaling batch
+  succeeded; a mid-batch validation or Redis failure meant a retry re-emitted
+  every partition from scratch — including ones that already succeeded, with
+  a fresh random `event_id` each time that defeats event-level dedup. Fixed
+  by tracking per-partition emitted IDs and persisting progress on failure so
+  a retry only emits the remaining partitions.
+- **Runtime QC re-executed on every completion-gate retry.**
+  `_prepare_runtime_qc` (`mission_flow_v2/phases_runtime.py`) had no cache
+  check, unlike the testdata-manifest step right above it in the same
+  function — every retry of the verified→complete completion gate (which
+  recurs on every orchestrator restart while blocked by an earlier gate)
+  re-ran the real sandboxed QC execution and a second LLM assessment call
+  from scratch. Fixed with a cached-report short-circuit.
+- **Greedy JSON-extraction regex discarded valid LLM decisions.**
+  `_extract_decision_payload` (`llm_delegation/text.py`) used
+  `re.compile(r"\{.*\}", re.DOTALL)`, which spans from the first `{` to the
+  last `}` in the *entire* response — any reasoning-with-example-braces or a
+  second JSON block anywhere in the text merges into one unparseable blob,
+  silently discarding a perfectly valid agent decision and falling back to a
+  degraded default. Replaced with a proper balanced-brace scanner
+  (string/escape aware) that tries top-level JSON objects from last to
+  first, matching the common "reasoning, then the actual answer" LLM output
+  shape.
+- **Unrecognized `intake_status` values failed open instead of closed.**
+  `_normalize_pm_feature_contract` (`llm_delegation/normalizers.py`) defaulted
+  any LLM `intake_status` value outside `{"ready", "needs_clarification"}`
+  (e.g. a hallucinated "unclear"/"pending") to `"ready"` — silently letting a
+  genuinely underspecified mission skip clarification. Fixed to default to
+  `"needs_clarification"`, the safe/conservative option.
+- **Windows drive-relative path could bypass the source-bundle traversal
+  guard.** `_write_artifact_to_disk` (`mission_flow_v2/phases_build.py`)
+  checked the raw path fragment for `".."`-prefix/`os.path.isabs()` before
+  writing a generated file — a Windows drive-relative path like
+  `C:evil.txt` is neither, and pathlib's join behavior for such fragments is
+  drive-letter-dependent (verified live: it can silently discard the mission
+  directory and resolve elsewhere entirely). Fixed by validating the actual
+  resolved, joined path is still inside the mission directory rather than
+  pattern-matching the fragment.
+- **Defensive hardening:** `_build_prompt` (`llm_delegation/prompts.py`) now
+  tolerates a non-numeric `risk_score` instead of an uncaught `float()`
+  crash mid-CEO-delegation-prompt-build (not a demonstrated live bug — the
+  field is currently always LLM-normalizer-controlled — but cheap, safe
+  insurance in a mission-critical path).
+
+Validation: full backend suite (`python -m pytest tests/services/
+--ignore=tests/services/test_agent_base_unit.py`) — 1327 passed, 5 skipped, 0
+failed (1319 baseline + 8 new regression tests). `ruff check` clean on every
+touched file. Each fix's regression test was confirmed to fail against the
+pre-fix code (via `git stash`) before being accepted.
+
+**Deferred, not fixed this pass** (lower confidence or lower impact — see
+`docs/CURRENT_TODO.md` for the full list): unguarded `int()` cast on LLM
+totals and a missing `isinstance` guard in `generators_artifacts.py`; an
+unrecognized provider string silently routing to OpenAI and a fallback path
+that doesn't re-check safety-block state in `providers.py`; several
+telemetry-only accuracy issues in `normalizers.py`/`fallbacks.py`
+(uncapped duplicate counts, no size cap on `generated_code`, missing
+sanitization in `_fallback_vc_commit_strategy`); a p95-latency
+floor-vs-ceiling inaccuracy in `health.py`.
 
 ### Post-Review Hardening (2026-07-02): stuck missions, auth gap, false-negative clarifying question
 

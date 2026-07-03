@@ -296,6 +296,25 @@ async def _prepare_runtime_qc(
     mission: Any,
 ) -> tuple[Any, bool, dict[str, Any]]:
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
+
+    cached_report = metadata.get("runtime_qc_report")
+    if isinstance(cached_report, dict) and not cached_report.get("skipped"):
+        # Runtime QC already executed (real sandboxed execution + LLM QC
+        # assessment) for this mission. The completion gate that calls this
+        # function re-runs its entire body on every retry (e.g. an
+        # orchestrator restart recovering a mission still blocked by a
+        # later gate), so without this guard the expensive execution would
+        # re-run from scratch and duplicate MISSION_RUNTIME_QC_COMPLETE
+        # chain/audit events on every such retry.
+        cached_qc_assessment = cached_report.get("qc_assessment")
+        if not isinstance(cached_qc_assessment, dict):
+            cached_qc_assessment = {}
+        blocked = (
+            bool(getattr(settings, "rqca_enforcement_enabled", False))
+            and cached_qc_assessment.get("qc_verdict") == "FAIL"
+        )
+        return mission, not blocked, cached_report
+
     generated_output = metadata.get("generated_output")
     if not isinstance(generated_output, dict):
         return await _persist_runtime_qc_skip(

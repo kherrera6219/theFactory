@@ -73,7 +73,10 @@ def _build_prompt(
     )
 
     risk_assessment = mission_context.get("risk_assessment") or {}
-    risk_score = float(risk_assessment.get("risk_score", 0.0))
+    try:
+        risk_score = float(risk_assessment.get("risk_score", 0.0))
+    except (TypeError, ValueError):
+        risk_score = 0.0
     risk_note = ""
     if risk_score > 0.6:
         risk_note = f"\nATTENTION: High risk mission (score {risk_score}). Prioritize pods with strong security/audit specialists and plan for rigorous verification cycles."

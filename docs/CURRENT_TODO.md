@@ -13,8 +13,27 @@ as current work.
 
 ## Current Status
 
-**Most recent work: code review of the Mission Control UX lock-in commits,
-plus fixes for all five findings.** The review covered the five commits
+**Most recent work: deep code review of the Mission Flow v2 lifecycle driver
+and the LLM delegation layer, fixing 7 backend bugs.** Two backend slices —
+`services/orchestrator/orchestrator/mission_flow_v2/` and
+`services/orchestrator/orchestrator/llm_delegation/` — were reviewed file by
+file (not diff-scoped) using parallel finder agents, each candidate verified
+against the actual code before fixing. Most serious: a driver re-invocation
+bug where every orchestrator restart re-ran the `queued->pm_intake` preparer
+for any in-flight mission, silently regenerating and overwriting
+`feature_contract`/`mission_charter` with a fresh, non-deterministic LLM call.
+Also fixed: duplicate partition-emission on retry, runtime QC re-executing on
+every completion-gate retry, a greedy JSON-extraction regex that discarded
+valid LLM decisions, an `intake_status` normalizer that failed open instead
+of closed, a Windows drive-relative path-traversal edge case, and a defensive
+hardening fix for a non-numeric `risk_score`. All fixed and test-verified
+(1327 backend tests, 0 failures), `orchestrator` Docker image rebuilt from
+this code. See "Mission Flow v2 + LLM Delegation Review (2026-07-02)" under
+Recently Completed for the full list, including deferred lower-priority
+findings.
+
+Before that: code review of the Mission Control UX lock-in commits,
+plus fixes for all five findings. The review covered the five commits
 implementing PM clarification, progress visibility, artifact folder discovery,
 and follow-up mission continuation. It found and fixed: a critical
 stuck-mission regression (generated-output completion gating could swallow a
@@ -27,8 +46,9 @@ prompt on this platform — silently suppressed the acceptance-criteria
 question), a stale `DeliveryPanel` dependency array, and an over-eager
 `resetImportResults()` call on unrelated repo-import field edits. All five are
 fixed, test-verified (1319 backend tests / 99 Mission Control tests, 0
-failures), and committed. See "Post-Review Hardening (2026-07-02)" under
-Recently Completed for the full list.
+failures), and committed. A follow-up closing pass then fixed a
+`language.ts` "batch" tie-break bug. See "Post-Review Hardening
+(2026-07-02)" under Recently Completed for the full list.
 
 Before that: the Mission Control UX lock-in itself — PM clarification,
 mission-progress visibility, artifact folder discovery, and follow-up mission
@@ -385,6 +405,69 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 ---
 
 ## Recently Completed
+
+### Mission Flow v2 + LLM Delegation Review (2026-07-02): 7 backend bugs fixed
+
+Deep correctness review of `mission_flow_v2/` and `llm_delegation/`, reading
+full files (not diffs) via parallel finder agents, each candidate verified
+against the actual code before fixing:
+
+- Fixed a critical recovery re-invocation bug: `advance_mission_lifecycle_v2`
+  (`lifecycle.py`) iterated its full transition table from `queued` on every
+  call regardless of the mission's actual state. Since the lifecycle-recovery
+  loop restarts a driver task for every in-flight mission on every
+  orchestrator restart, this silently re-ran `_prepare_pm_intake` and
+  overwrote `feature_contract`/`mission_charter` with a fresh, non-
+  deterministic LLM call each time. Fixed by reading the mission's actual
+  current state once and skipping to the matching transition before running
+  any preparer.
+- Fixed duplicate partition-emission on retry: `_emit_partition_work_items`
+  (`phases_intake.py`) only marked emission complete after every partition
+  succeeded, so a mid-batch failure meant a retry re-emitted already-
+  succeeded partitions with fresh random event IDs. Now tracks per-partition
+  emitted IDs and persists progress on failure.
+- Fixed runtime QC re-executing on every completion-gate retry:
+  `_prepare_runtime_qc` (`phases_runtime.py`) had no cache-check guard, unlike
+  the testdata-manifest step in the same function, so real sandboxed QC
+  execution and a second LLM assessment re-ran from scratch on every retry.
+  Now short-circuits on a cached, non-skipped report.
+- Fixed a greedy JSON-extraction regex (`llm_delegation/text.py`,
+  `_extract_decision_payload`) that spanned from the first `{` to the last
+  `}` in the whole LLM response, discarding valid agent decisions whenever
+  the response had reasoning-with-example-braces or two JSON blocks. Replaced
+  with a balanced-brace scanner.
+- Fixed `_normalize_pm_feature_contract`'s `intake_status` coercion
+  (`normalizers.py`), which defaulted any unrecognized LLM value to `"ready"`
+  (fail-open) instead of `"needs_clarification"` (fail-closed).
+- Fixed a Windows drive-relative path-traversal edge case in
+  `_write_artifact_to_disk` (`phases_build.py`) — a path like `C:evil.txt` is
+  neither absolute nor `".."`-prefixed, so the fragment-based guard could
+  miss it depending on drive-letter coincidence. Now validates the resolved,
+  joined path against the mission directory.
+- Defensive hardening: `_build_prompt` (`prompts.py`) now tolerates a
+  non-numeric `risk_score` instead of an uncaught crash.
+- VALIDATED: full backend suite — 1327 passed, 5 skipped, 0 failed (1319
+  baseline + 8 new regression tests). `ruff check` clean. Every fix's test
+  confirmed to fail against the pre-fix code via `git stash` before being
+  accepted. `orchestrator` Docker image rebuilt from this code.
+
+**Deferred, not fixed this pass** (lower confidence/impact):
+- `generators_artifacts.py`: unguarded `int()` cast on LLM-supplied totals
+  (`generate_master_logic_stream`); `primary_artifact` selection missing an
+  `isinstance` guard on build-artifact list entries.
+- `providers.py`: an unrecognized/malformed provider string silently routes
+  to the OpenAI backend instead of failing explicitly; the fallback-provider
+  path doesn't re-check safety-block state before resending a
+  already-known-unsafe prompt.
+- `normalizers.py`/`fallbacks.py`: several telemetry-only accuracy issues —
+  `eliminated_duplicates` has no upper bound relative to node count, non-dict
+  entries in `logicnodes` inflate duplicate counts, no size cap on
+  `generated_code`, `_fallback_vc_commit_strategy` skips the `_clean_text`
+  sanitization every other fallback builder applies.
+- `text.py`/`health.py`: `_normalize_agent_choice` doesn't validate its own
+  fallback is in `allowed_ids`; p95 latency computed via floor instead of
+  ceiling, understating it for small sample sizes; `coverage_thin` verdict
+  message can't distinguish an extraction failure from a dedup-only issue.
 
 ### Post-Review Hardening (2026-07-02): stuck missions, auth gap, false-negative clarifying question
 

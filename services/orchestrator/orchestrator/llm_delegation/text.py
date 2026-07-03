@@ -178,18 +178,63 @@ def _extract_gemini_text(payload: dict[str, Any]) -> str | None:
     return "\n".join(lines)
 
 
+def _find_balanced_json_objects(text: str) -> list[str]:
+    """Return every top-level balanced ``{...}`` span in ``text``, in order,
+    honoring string literals and escapes so braces inside quoted values don't
+    prematurely close a span.
+
+    A naive greedy regex (``\\{.*\\}``) spans from the very first ``{`` to the
+    very last ``}`` in the whole text, so any second JSON-like block or brace
+    inside prose (an example, an aside, a code snippet) merges into one
+    unparseable candidate and discards an otherwise valid object.
+    """
+    spans: list[str] = []
+    depth = 0
+    in_string = False
+    escaped = False
+    start = -1
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "}":
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start != -1:
+                    spans.append(text[start : index + 1])
+                    start = -1
+    return spans
+
+
 def _extract_decision_payload(raw_text: str | None) -> dict[str, Any] | None:
     if not isinstance(raw_text, str) or not raw_text.strip():
         return None
     candidate = raw_text.strip()
-    match = JSON_OBJECT_PATTERN.search(candidate)
-    if match:
-        candidate = match.group(0)
-    try:
-        parsed = json.loads(candidate)
-    except json.JSONDecodeError:
-        return None
-    return parsed if isinstance(parsed, dict) else None
+    spans = _find_balanced_json_objects(candidate)
+    # LLMs typically emit reasoning/preamble (which may itself contain example
+    # JSON or braces) before the actual decision object, so the answer is most
+    # often the LAST top-level object, not the first. Try from the end,
+    # falling back through earlier spans, then the raw text itself.
+    candidates = list(reversed(spans)) or [candidate]
+    for text_candidate in candidates:
+        try:
+            parsed = json.loads(text_candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
 
 
 def _normalize_text_list(value: Any, *, limit: int = 5) -> list[str]:

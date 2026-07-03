@@ -45,7 +45,10 @@ def _normalize_pm_feature_contract(
 ) -> dict[str, Any]:
     intake_status = _clean_text(raw.get("intake_status", "ready"), max_length=32).lower()
     if intake_status not in {"needs_clarification", "ready"}:
-        intake_status = "ready"
+        # Fail closed: an unrecognized/hallucinated status (e.g. "unclear",
+        # "pending") must not be silently treated as "ready" — that would let
+        # a genuinely underspecified mission skip clarification entirely.
+        intake_status = "needs_clarification"
     complexity = _clean_text(raw.get("estimated_complexity", "medium"), max_length=24).lower()
     if complexity not in {"low", "medium", "high", "very_high"}:
         complexity = "medium"
