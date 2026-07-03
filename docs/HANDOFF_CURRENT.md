@@ -354,6 +354,44 @@ failed. Full Mission Control suite `npm run test` — 99 passed. `ruff check` an
 `tsc --noEmit` clean on every touched file. New regression tests added for
 each of the five findings.
 
+**Follow-up pass (same day):** the initial review left several small files in
+the 5 reviewed commits unexamined. A closing pass covered all of them
+(`globals.css`, `language.ts`/`language.test.ts`, `navigation.ts`,
+`smelt-cycle.ts`/`smelt-cycle.test.ts`, `types.ts`, the full
+`e2e/mission-control.spec.ts` diff, `scripts/phase13_smoke.py` +
+`test_phase13_smoke.py`, `start_app.bat`, `test_runtime_unit.py`) plus an
+independent re-verification of the fix commit itself:
+
+- **Fixed:** `apps/mission-control/app/lib/language.ts`'s
+  `inferRequestedTargetLanguage` could tie `"batch"` (a Windows launcher
+  script mention, e.g. `start.bat`) against the mission's real implementation
+  language — for the Angular-Snake-game-with-`start.bat` scenario both scored
+  5-5 at the actual mission-launch call site, resolved to `"typescript"` only
+  by the accidental ordering of `PROMPT_HINTS` in the source array, not by
+  design. `"batch"` has zero backend specialist support (confirmed: no pod
+  recognizes it), so a reordering or slightly different prompt phrasing could
+  have silently produced `requested_target_language: "batch"` and routed a
+  mission to a nonexistent specialist. Fixed by excluding `"batch"` from ever
+  winning the overall pick — it is packaging metadata, never a real target
+  language. 2 new regression tests.
+- **Verified clean, no changes needed:** `smelt-cycle.ts`'s
+  `Number.isInteger(mapped)` check (already a correct fix for a `NaN`-
+  poisoning bug from `Record<string, number>` returning `undefined` for
+  missing keys, which `!== null` used to miss); `types.ts`'s new/updated
+  response types (verified field-by-field against the actual backend route
+  shapes); the rest of the e2e spec diff (already covered by the earlier
+  finder agent — the repo-review mock's hardcoded `selected_files`); the
+  `phase13_smoke.py` routing-mismatch check (`expected_pod_manager_agent_id`/
+  `expected_specialist_agent_id` are real, populated metadata fields, not dead
+  code); `start_app.bat`'s bounded browser-auto-open wait loop; `globals.css`
+  (purely additive, no selector collisions); `test_runtime_unit.py`'s new
+  completion-gate test (exercises the gate's own intentional strictness, no
+  conflict with the build-artifact fix).
+- An independent verifier agent, given the fix commit cold with no prior
+  review context, re-checked all five original findings' fixes plus the
+  `shared.ts` deletion end-to-end and confirmed every one correct and
+  complete with no new defects introduced.
+
 Also removed in this pass: ~200 lines of dead GitHub-API intake code
 (`GithubApiError`, `parseGithubRepoUrl`, `resolveGithubToken`,
 `fetchGithubFileText`, etc.) from `apps/mission-control/app/api/repo/shared.ts`

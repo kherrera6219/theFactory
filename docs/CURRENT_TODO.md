@@ -425,6 +425,18 @@ every finding:
 - VALIDATED: full backend suite (1319 passed, 5 skipped, 0 failed), full
   Mission Control suite (99 passed), `ruff check` clean, `tsc --noEmit` clean.
   New regression tests added for all five findings.
+- **Follow-up closing pass (same day):** covered every file in the 5 reviewed
+  commits left unexamined by the first pass. Found and fixed one more real
+  bug: `language.ts`'s `inferRequestedTargetLanguage` could tie `"batch"` (a
+  Windows launcher-script mention) against the mission's real implementation
+  language and let it win by accidental array-ordering luck, even though
+  `"batch"` has zero backend specialist support. Fixed by excluding `"batch"`
+  from the overall winner pick; 2 new regression tests. Everything else
+  checked (`smelt-cycle.ts`, `types.ts`, the rest of the e2e spec,
+  `phase13_smoke.py`, `start_app.bat`, `globals.css`, `test_runtime_unit.py`)
+  was clean, no changes needed. A cold-read independent verifier agent
+  re-checked the original fix commit end-to-end and confirmed all five fixes
+  correct and complete with no new defects.
 
 ### Security Alert Remediation
 

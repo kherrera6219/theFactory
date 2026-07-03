@@ -43,4 +43,27 @@ describe("language helpers", () => {
       }),
     ).toBe("typescript");
   });
+
+  it("never returns batch as the overall target language, even when it is the only match", () => {
+    // "batch" is packaging metadata (a Windows launcher script) with no
+    // backend specialist behind it; it must never win outright, regardless
+    // of scoring, since nothing can route a mission to a "batch" pod.
+    expect(
+      inferRequestedTargetLanguage({
+        prompt: "Write a start.bat launcher for the deliverable.",
+      }),
+    ).toBeNull();
+  });
+
+  it("does not let a start.bat mention tie with and displace the real project language", () => {
+    // Regression: "typescript" and "batch" previously scored identically for
+    // an Angular game that also mentions a launcher script, and only won by
+    // accidental array-ordering in PROMPT_HINTS, not by design.
+    expect(
+      inferRequestedTargetLanguage({
+        prompt: "Create a modern Snake game in Angular with a Windows start.bat file.",
+        contractLanguages: ["typescript", "html", "css", "batch"],
+      }),
+    ).toBe("typescript");
+  });
 });

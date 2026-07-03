@@ -97,6 +97,14 @@ export function inferRequestedTargetLanguage(params: {
     }
   }
 
+  // "batch" is packaging metadata (a Windows launcher script), never a real
+  // specialist implementation language — no backend pod handles it. It must
+  // never win the overall pick, even if a start.bat mention ties or outscores
+  // the project's actual language (e.g. an Angular app that also asks for a
+  // start.bat: both "typescript" and "batch" can score equally, and letting
+  // "batch" win would route the mission to a nonexistent specialist).
+  scores.delete("batch");
+
   let winningLanguage: string | null = null;
   let winningScore = -1;
   for (const [language, score] of scores.entries()) {
