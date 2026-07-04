@@ -1,7 +1,7 @@
 # Schema Registry and Versioning
 
-Document version: 2026.04.25
-Last updated: 2026-04-25
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical (Governance)
 Audience: Service developers, agent developers, schema authors, integrators
 
@@ -42,32 +42,13 @@ All schemas live in `/schemas/` at the repository root.
 schemas/
   event.envelope.schema.json
   logicnode.schema.json
+  mission_charter.v1.json
+  mission_charter.v1.schema.json
   rir.fn.schema.json
   rir.module.schema.json
-  application_intelligence_map.v1.json   (Phase 2)
-  dependency_inventory.v1.json           (Phase 3)
-  dependency_intent_node.v1.json         (Phase 4)
-  dependency_absorption_plan.v1.json     (Phase 5)
-  dependency_absorption_report.v1.json   (Phase 5)
-  dependency_survival_justification.v1.json (Phase 5)
-  code_bloat_reduction_report.v1.json    (Phase 5)
-  business_rule_node.v1.json             (Phase 4)
-  data_flow_node.v1.json                 (Phase 4)
-  control_flow_node.v1.json              (Phase 4)
-  side_effect_node.v1.json               (Phase 4)
-  runtime_requirement_node.v1.json       (Phase 4)
-  test_case_candidate_node.v1.json       (Phase 4)
-  target_mapping_node.v1.json            (Phase 4)
-  api_contract_node.v1.json              (Phase 4)
-  mission_charter.v1.json                (Phase 1)
-  workspace_manifest.v1.json             (Phase 7)
-  patch_plan.v1.json                     (Phase 8)
-  test_environment_manifest.v1.json      (Phase 9)
-  production_replacement_plan.v1.json    (Phase 9)
-  runtime_qc_report.v1.json              (Phase 10)
-  approval_record.v1.json                (Phase 6)
-  mission_evidence_bundle.v1.json        (Phase 12)
 ```
+
+This is the current, actual contents of `/schemas/` as of 2026-07-03 — a prior version of this list included ~20 additional schema files (AIM, dependency-absorption, RIR concept nodes, workspace/patch/test-environment manifests, approval records, evidence bundles) that were never implemented. Several of those artifacts exist as plain dicts with a `schema_version` string key instead of a registered JSON Schema file (e.g. the Application Intelligence Map — see `APPLICATION_INTELLIGENCE_MAP.md`'s "Schema Reference" section). If one of those artifact types needs a real JSON Schema in the future, add it here and follow the naming convention below; don't assume the file already exists based on an older version of this document.
 
 Schemas in `docs/archive/` are historical reference only. They are not consumed at runtime.
 

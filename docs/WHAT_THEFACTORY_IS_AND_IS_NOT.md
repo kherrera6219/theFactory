@@ -1,7 +1,7 @@
 # What theFactory Is and Is Not
 
-Document version: 2026.04.25
-Last updated: 2026-04-25
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical
 Audience: Operators, evaluators, contributors, partners, and internal stakeholders
 
@@ -30,7 +30,7 @@ If a proposed feature, talking point, or roadmap item conflicts with this docume
 theFactory is:
 
 - **A complete software production system.** Missions take a request from natural-language intake through requirements, architecture, code, tests, runtime validation, and audit evidence.
-- **A multi-agent runtime.** A registry of 38+ specialist roles activates on demand, communicates over an event bus, and produces verifiable artifacts.
+- **A multi-agent runtime.** A registry of 41 specialist roles activates on demand, communicates over an event bus, and produces verifiable artifacts.
 - **A dependency-reduction engine.** It absorbs unnecessary dependencies by extracting their intent and regenerating first-party code with equivalence tests.
 - **A workspace-isolated execution environment.** Every mission operates in an isolated, recoverable workspace; the original source is never modified.
 - **A runtime QC platform.** It launches built or patched applications in a sandboxed environment and validates them through automated browser sessions.

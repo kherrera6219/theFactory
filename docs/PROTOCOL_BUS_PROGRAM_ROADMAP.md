@@ -1,7 +1,7 @@
 # Protocol Bus Program Roadmap
 
-Document version: 2026.06.30
-Last updated: 2026-06-30
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Active roadmap
 Audience: Maintainers, operators, and AI coding agents
 
@@ -29,7 +29,7 @@ four stages, each independently shippable, each leaving the system working:
 
 | Stage | Initiative | What it delivers | Makes the bus… | Status |
 |---|---|---|---|---|
-| 1 | **PBLA** — `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` | Real producers on all six lanes (Delta/Omega/Beta/Rho added to existing Alpha/Sigma) | …**observable** (telemetry on every lane) | Not started |
+| 1 | **PBLA** — archived at `docs/archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` | Real producers on all six lanes (Delta/Omega/Beta/Rho added to existing Alpha/Sigma) | …**observable** (telemetry on every lane) | Code-complete and live-validated |
 | 2 | **EDCP** — `EDCP_PHASE_PLAN.md` | Consumers + control-flow inversion, one seam at a time, behind one flag | …**load-bearing** (command backbone) | EDCP-01 complete; EDCP-02 pending |
 | 3 | **Agent Runtime Split** — `AGENT_RUNTIME_SPLIT_PLAN.md` | Agents become independent runtime processes consuming/replying under their own identity | …**distributed** (real actor model) | Stub / not scheduled |
 | 4 | **Semantic Bus** — `SEMANTIC_BUS_PLAN.md` | Dispatch by embedding similarity instead of lexical channel strings | …**semantic** (intent-routed) | Stub / not scheduled |

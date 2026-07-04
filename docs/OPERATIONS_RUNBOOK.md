@@ -25,7 +25,7 @@ desyncing it from the 41 dedicated agent containers that were never touched and
 still expect the overlay's environment (e.g. `TOPOLOGY_MODE`). This has already
 caused one full restart-cascade incident (401s on agent heartbeats, degraded PM
 fallback output, `INTERNAL_SERVICE_API_KEY`/Postgres credential confusion) — see
-`docs/STACK_REMEDIATION_PLAN_2026-07-01.md` for the full incident writeup.
+`docs/archive/2026-07-03/STACK_REMEDIATION_PLAN_2026-07-01.md` for the full incident writeup.
 
 The single-file examples elsewhere in this document (`Core Health Checks`, etc.)
 are safe for **read-only** commands (`ps`, `logs`, `config`, `curl`). Prefer

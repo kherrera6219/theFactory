@@ -1,7 +1,7 @@
 # Testing & Quality Gates
 
-Document version: 2026.06.13
-Last updated: 2026-06-27
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -101,7 +101,7 @@ Enforced by:
 - `make test` — `pytest --cov-fail-under=80`
 - `ci.yml` — `Test with Coverage` step
 
-**Latest local sweep (2026-04-10):** 89.25% (`933 passed, 5 skipped`)
+**Latest local sweep (2026-07-03):** `1348 passed, 5 skipped` (`pytest tests/services/ --ignore=tests/services/test_agent_base_unit.py`)
 
 ### Core Module Gates
 

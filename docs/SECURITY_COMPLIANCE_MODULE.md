@@ -1,127 +1,59 @@
 # Security Compliance Module
 
-Document version: 2026.06.13
-Last updated: 2026-06-27
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical
 Audience: Developers and operators
 
-**Source file:** `services/orchestrator/orchestrator/security_compliance.py`  
-**Size:** ~11 KB  
-**Role:** Runtime enforcement of the security and compliance policy defined in `DATA_CLASSIFICATION_POLICY.md` and `SENSITIVE_CODE_HANDLING_POLICY.md`. Called at mission intake and before LLM delegation for Tier 2/3 missions.
+**Source file:** `services/orchestrator/orchestrator/security_compliance.py`
+**Role:** Deterministic, static (no code execution) gate that scans a mission's *generated output* for hardcoded secrets, dangerous API usage, and AIM-flagged risk before the mission is allowed to complete. Called once per mission from the delivery phase (`mission_flow_v2/phases_delivery.py`'s `_prepare_security_compliance_report`), not at intake.
+
+This document was rewritten on 2026-07-03 — the previous version described an `assess_mission_risk()`/`RiskAssessment`/`SecurityFinding`/`enforce_local_only()` API that never existed in this file.
 
 ---
 
 ## Overview
 
-`security_compliance.py` is the runtime gatekeeper between mission content and the LLM delegation layer. It enforces three things:
+`mission_requires_security_compliance(metadata)` gates whether the check runs at all — it returns `True` only if the mission has `generated_output`, an `application_intelligence_map`, or non-empty `source_code`. If none of those are present, the delivery phase treats the gate as skipped (`{"skipped": True, ...}`) and the mission proceeds.
 
-1. **Data classification tier checks** — validates that the requested `OutputMode`, `DepthMode`, and target language are permitted for the mission's `DataClassification` tier
-2. **Sensitive code detection** — scans mission prompt and attachment content for patterns that indicate regulated or sensitive material (credentials, PII markers, regulated-domain keywords)
-3. **`local_only` agent enforcement** — for Tier 3 missions, verifies that only agents with `local_only: true` in their persona are selected for LLM calls; blocks any persona that would route to an external cloud provider
+When required, `build_security_compliance_report(mission_id, metadata, enforcement_enabled)` runs six independent checks and combines them into one report:
 
-It does not own any storage — all results are written back into `mission.metadata` by the caller and persisted via `storage_missions.update_mission_metadata()`.
-
----
-
-## When It Is Called
-
-| Trigger | Caller | What it checks |
-|---|---|---|
-| Mission `PM_INTAKE` | `mission_flow_v2/` PM Agent step | Full intake scan — tier, sensitive patterns, initial risk assessment |
-| Pre-LLM delegation | `llm_delegation/router.py` | `local_only` enforcement for Tier 3 missions |
-| `SECURITY_HARDEN` mission type | Specialist agent | Re-runs sensitive pattern scan on source code being hardened |
-
----
-
-## Public API
-
-### `assess_mission_risk(mission: MissionRecord) -> RiskAssessment`
-
-The primary entry point. Runs all checks and returns a `RiskAssessment` dataclass.
-
-```python
-@dataclass
-class RiskAssessment:
-    tier: DataClassification
-    risk_level: Literal["LOW", "MEDIUM", "HIGH", "BLOCKED"]
-    findings: list[SecurityFinding]
-    local_only_required: bool
-    permitted_output_modes: list[OutputMode]
-    permitted_depth_modes: list[DepthMode]
-    assessed_at: str  # UTC ISO-8601
-```
-
-If `risk_level == "BLOCKED"`, the caller must not proceed with the mission. `mission_flow_v2/` transitions the mission to `FAILED` with a `MISSION_SECURITY_COMPLIANCE_WARNED` event and the `RiskAssessment` serialized into `metadata["risk_assessment"]`.
-
-### `SecurityFinding`
-
-```python
-@dataclass
-class SecurityFinding:
-    rule_id: str          # e.g., "SEC-CRED-001", "SEC-PII-003"
-    severity: Literal["INFO", "WARN", "ERROR", "CRITICAL"]
-    location: str         # "prompt", "attachment:{file_id}", "metadata"
-    description: str
-    remediation: str
-```
-
-`CRITICAL` findings always produce `risk_level == "BLOCKED"`. `ERROR` findings produce `HIGH`. Multiple `WARN` findings may escalate to `HIGH`.
-
-### `enforce_local_only(agent_key: str, persona: AgentPersona) -> None`
-
-Called by `llm_delegation/router.py` before routing any LLM call for a Tier 3 mission. Raises `LocalOnlyViolation` if `persona.local_only` is `False` and the mission's classification is `TIER_3_REGULATED`.
-
-```python
-class LocalOnlyViolation(Exception):
-    """Raised when a cloud-provider LLM call is attempted for a Tier 3 mission."""
-```
-
-### `check_output_mode_permitted(mission: MissionRecord) -> bool`
-
-Returns `True` if the mission's `OutputMode` is in the permitted set for its `DataClassification` tier. Called at intake before PM Agent begins chartering.
-
----
-
-## Detection Rules
-
-Sensitive pattern detection is implemented as a priority-ordered rule list. Each rule has an ID, a compiled regex, a severity, and a remediation hint. Rules are evaluated against the mission prompt text and any extracted attachment content (`MissionAttachment.content`).
-
-### Rule Categories
-
-| Category | Prefix | Examples |
-|---|---|---|
-| Credential patterns | `SEC-CRED-*` | API keys, private key headers, password assignments in code |
-| PII markers | `SEC-PII-*` | SSN patterns, IBAN formats, passport number regexes |
-| Regulated domain keywords | `SEC-REG-*` | HIPAA-adjacent terms (PHI, ePHI), PCI-DSS terms (cardholder, PAN) |
-| Secrets in code | `SEC-SECRET-*` | Base64-encoded tokens, JWT headers, bearer token patterns |
-| Export-controlled terms | `SEC-EXPORT-*` | ITAR/EAR keyword list |
-
-### Tier-to-Permitted-Mode Matrix
-
-| DataClassification | Permitted OutputModes | Permitted DepthModes | `local_only` required |
+| Check | Category | `required` | What it does |
 |---|---|---|---|
-| `TIER_0_PUBLIC` | All | All | No |
-| `TIER_1_INTERNAL` | All | All | No |
-| `TIER_2_SENSITIVE` | All except `APPLY_PATCH` direct on production | All | No |
-| `TIER_3_REGULATED` | `ANALYZE_ONLY`, `PLAN_ONLY`, `PATCH_PROPOSAL` | `SPRINT`, `STANDARD` | **Yes** |
+| `secret_pattern_scan` | security | **True** | Regex scan of `generated_output.generated_code` for `key/secret/token/password = "..."`-style assignments and `sk-...`-shaped API key strings |
+| `dangerous_api_scan` | security | False (warn-only) | Regex scan for `eval(`/`exec(`/`subprocess.(Popen\|run\|call)(`/`child_process`/`dangerouslySetInnerHTML`/`innerHTML =` |
+| `aim_risk_flags` | security | False (warn-only) | Flags AIM `risk_flags` entries of `security`/`data`/`approval` |
+| `equivalence_evidence_present` | compliance | **True*** | Requires `equivalence_report.passed == True` when `generated_output` exists (*not required if there's no generated output to check*) |
+| `data_classification` (`_check_data_classification`) | compliance | varies | Cross-checks the mission's declared data classification against its content |
+| `provenance` (`_check_provenance`) | compliance | varies | Cross-checks generated-output provenance metadata |
 
----
+Both the regex-based scans are heuristic, not a hard security control — they are trivially evadable by generated code that builds a secret string via concatenation, `getattr`-based obfuscation, or an equivalent-but-unmatched API call shape (e.g. `os.system(...)`, which the `dangerous_api_scan` regex does not currently match). This is an accepted limitation of a static-regex scanner, not a bug to be patched reflexively.
 
-## Integration with Audit Evidence
+## Blocking Logic
 
-The `RiskAssessment` returned by `assess_mission_risk()` is:
+```python
+should_block = bool(failed_required) and (enforcement_enabled or regulated_context)
+```
 
-1. Written to `mission.metadata["risk_assessment"]` by the PM Agent step
-2. Included verbatim in the audit report bundle by the audit worker (`storage_artifacts.upsert_audit_report()`)
-3. Referenced in the compliance evidence mapping (`COMPLIANCE_EVIDENCE_MAPPING.md`)
+- `failed_required` — any check with `required=True` that returned `status="fail"`.
+- `enforcement_enabled` — the `mission_security_compliance_enforcement_enabled` setting (see `SETTINGS_REFERENCE.md`; **defaults to `true` as of 2026-07-03**, was `false`).
+- `regulated_context` (`_requires_blocking_context`) — `True` if `metadata["depth_mode"]`, `mission_charter["depth_mode_label"]`, or the mission's data classification is `REGULATED`/`TIER_3_REGULATED`, **regardless of the enforcement flag** — a regulated mission always blocks on a failed required check.
 
-All `SecurityFinding` records with severity `WARN` or above are also emitted as `MISSION_SECURITY_COMPLIANCE_WARNED` events on the `sigma` Protocol Bus stream.
+`report["status"]` is `"blocked"` (should_block), `"warned"` (a required/optional check failed or warned but didn't block), or `"passed"`. `report["blocking"]` (the boolean) is what the delivery-phase caller actually reads to decide whether to halt the mission.
+
+## Idempotency
+
+`_prepare_security_compliance_report` caches the built report in `metadata["security_compliance_report"]` and returns it unchanged on any subsequent call for the same mission (the delivery-phase preparer re-runs its whole body on every completion-gate retry, e.g. after an orchestrator restart) — without this cache, the report would be rebuilt and re-signed every retry, and its audit event would fire again each time.
+
+## Signing
+
+The report is signed via `shared_runtime.crypto_signing.sign_payload` (ECDSA P-256/SHA-256) before being stored, producing a `signature_record` field. Signing failures are caught and logged — the report is still stored and still gates delivery, just without a `signature_record`. `get_build_artifact`'s equivalent artifact-verification re-check pattern (see `STORAGE_LAYER.md`) is the model for how a consumer should independently re-verify a report's integrity rather than trusting a stored `verified`/`passed` flag at face value.
 
 ---
 
 ## Related Docs
 
-- `DATA_CLASSIFICATION_POLICY.md` — defines the tier system this module enforces
-- `SENSITIVE_CODE_HANDLING_POLICY.md` — defines the sensitive code handling rules
-- `LLM_DELEGATION.md` — documents where `enforce_local_only()` is called
-- `COMPLIANCE_EVIDENCE_MAPPING.md` — maps this module's outputs to compliance controls
+- `DATA_CLASSIFICATION_POLICY.md` — the tier system this module's `data_classification` check cross-references
+- `SENSITIVE_CODE_HANDLING_POLICY.md` — policy intent behind the secret/dangerous-pattern scans
+- `RUNTIME_QC_AND_TEST_ENVIRONMENTS.md` — the sibling RQCA runtime-QC gate, which has the same enforcement-flag-default pattern
+- `COMPLIANCE_EVIDENCE_MAPPING.md` — maps this module's report to compliance controls

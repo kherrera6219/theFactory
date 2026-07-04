@@ -59,7 +59,7 @@ The application currently includes:
 
 | Gap | Required next step |
 |---|---|
-| Artifact correctness verification | Phase 1+2 code done (format gate, per-criterion acceptance evaluation, integrity-vs-correctness split, RQCA runnable-smoke evidence, authoritative `lifecycle_engine`); full validation and live Pong-style rerun remain. See `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` |
+| Artifact correctness verification | Phase 1+2 code done (format gate, per-criterion acceptance evaluation, integrity-vs-correctness split, RQCA runnable-smoke evidence, authoritative `lifecycle_engine`); full validation and live Pong-style rerun remain. See `docs/archive/2026-07-03/UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md` |
 | Non-ASCII artifact integrity | Phase 3 code adds non-ASCII regression coverage, packaging-time mojibake guard/repair before digest, codegen/package/storage-readback trace, lifted PM clarifying-question/context truncation, and passing live non-ASCII evidence at `docs/evidence/phase3_non_ascii_smoke_latest.json` |
 | Lifecycle-engine reporting | Current code emits authoritative `lifecycle_engine` through orchestrator, gateway, chain trace, and Mission Control; live Mission Detail rerun remains |
 | Phase 13 UI smoke | Submit and observe the mission path through Mission Control |

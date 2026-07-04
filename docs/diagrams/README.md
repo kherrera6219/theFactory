@@ -1,18 +1,13 @@
 # theFactory — Architectural Diagrams Directory
 
-Document version: 2026.06.26
-Last updated: 2026-06-26
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical
 Audience: Developers and operators
 
-This directory contains the canonical enterprise architecture diagrams for **theFactory**, aligned with Microsoft Enterprise documentation standards, C4 Modeling, and the arc42 architecture template.
+This directory contains the canonical architecture diagrams for **theFactory**, informed by C4 Modeling conventions.
 
----
-
-## Document Index
-
-For the full detailed documentation covering stakeholder viewpoints, components, data flows, and security guidelines, see the main master document:
-👉 **[ENTERPRISE_ARCHITECTURE_DIAGRAMS.md](ENTERPRISE_ARCHITECTURE_DIAGRAMS.md)**
+For the full narrative architecture reference (stakeholder viewpoints, components, data flows, and security guidelines), see [`ARCHITECTURE.md`](../ARCHITECTURE.md), [`ARCHITECTURE_DIAGRAMS.md`](../ARCHITECTURE_DIAGRAMS.md), and [`ARCHITECTURE_DATA_FLOWS.md`](../ARCHITECTURE_DATA_FLOWS.md). A prior `ENTERPRISE_ARCHITECTURE_DIAGRAMS.md` in this directory was removed on 2026-07-03 — it duplicated those docs' content with several unverified/aspirational claims not corroborated by the actual codebase.
 
 ---
 

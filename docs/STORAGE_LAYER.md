@@ -1,7 +1,7 @@
 # Storage Layer Reference
 
-Document version: 2026.06.13
-Last updated: 2026-06-27
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical
 Audience: Developers and operators
 
@@ -117,22 +117,6 @@ Raised by `storage_pod_assignments.upsert_pod_assignment()` when a mission is al
 ## Domain Storage Modules
 
 Each module follows the same pattern: stateless functions that accept `settings: Settings` as their first argument and use `get_connection()` internally. None of them import from each other — only from `storage_core`.
-
-### `storage_missions.py`
-
-Manages the `missions` PostgreSQL table.
-
-| Function | Description |
-|----------|-------------|
-| `upsert_mission(settings, record, source_stream_id)` | INSERT OR UPDATE a `MissionRecord`; writes a `MISSION_INTAKE` event on first insert |
-| `fetch_mission(settings, mission_id)` | Returns a `MissionRecord` or `None` if not found |
-| `list_missions(settings, state, limit, offset)` | Returns a list of `MissionRecord` filtered by state |
-| `update_mission_state(settings, mission_id, new_state, expected_state, event_type)` | Enforces `VALID_TRANSITIONS`; uses `expected_state` for optimistic locking; emits a `MissionEvent` on success |
-| `update_mission_metadata(settings, mission_id, metadata)` | Merges new keys into `metadata` JSON column; does not overwrite existing keys |
-
-The `CLARIFYING` state has a special case: `update_mission_state` with `new_state=CLARIFYING` also writes the clarification prompt text into `metadata["pm_clarification_prompt"]` so the PM Agent can read it when the mission transitions back to `PM_INTAKE`.
-
----
 
 ### `storage_missions.py` — Mission CRUD and Event Log
 

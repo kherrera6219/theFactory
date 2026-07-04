@@ -36,9 +36,7 @@ are not listed as current implementation truth unless called out explicitly.
 | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem | All |
 | [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list and outstanding production-readiness work | Maintainers, Operators |
 | [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff for maintainers and AI coding agents | Maintainers, AI coding agents |
-| [UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md](UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md) | Active plan to make artifact verification enforce correctness, not just integrity | Maintainers, AI coding agents |
-| [PROTOCOL_BUS_PROGRAM_ROADMAP.md](PROTOCOL_BUS_PROGRAM_ROADMAP.md) | Umbrella roadmap for the 4-stage bus program (PBLA → EDCP → Agent Runtime Split → Semantic Bus) | Maintainers, AI coding agents |
-| [PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md](PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md) | Stage 1 (PBLA) — activate the four unused Protocol Bus lanes (Delta/Omega/Beta/Rho) with real producers | Maintainers, AI coding agents |
+| [PROTOCOL_BUS_PROGRAM_ROADMAP.md](PROTOCOL_BUS_PROGRAM_ROADMAP.md) | Umbrella roadmap for the 4-stage bus program (PBLA → EDCP → Agent Runtime Split → Semantic Bus). Stage 1 (PBLA) is code-complete and live-validated; its implementation plan is archived at `archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` | Maintainers, AI coding agents |
 | [EDCP_PHASE_PLAN.md](EDCP_PHASE_PLAN.md) | Stage 2 (EDCP) — event-driven control plane: consumers + control-flow inversion seam by seam | Maintainers, AI coding agents |
 | [AGENT_RUNTIME_SPLIT_PLAN.md](AGENT_RUNTIME_SPLIT_PLAN.md) | Stage 3 (stub) — split agents into independent bus-participant processes | Maintainers, AI coding agents |
 | [SEMANTIC_BUS_PLAN.md](SEMANTIC_BUS_PLAN.md) | Stage 4 (stub) — semantic/embedding-based routing on the bus | Maintainers, AI coding agents |
@@ -86,8 +84,6 @@ are not listed as current implementation truth unless called out explicitly.
 | [ERROR_CODES.md](ERROR_CODES.md) | Complete error code catalogue with causes and remediation steps | Developers, Operators |
 | [ORCHESTRATOR_MAIN.md](ORCHESTRATOR_MAIN.md) | `main.py` reference — app.state keys, lifespan startup/shutdown sequence, all 6 background tasks, auth deps, direct endpoints, middleware, error handling, agent heuristics, and route module inventory | Developers |
 | [RUNTIME_AND_AGENT_BASE.md](RUNTIME_AND_AGENT_BASE.md) | `runtime.py` execution engine (intake loop, lifecycle tasks, state events, self-heal) and `agent_base.py` class hierarchy (BaseAgent, 6 categories, 19 specialist classes, make_agent() factory) | Developers |
-| [EQUIVALENCE_VERIFIER.md](EQUIVALENCE_VERIFIER.md) | Equivalence verification system — how the system proves behavioral equivalence between mission input and output | Developers |
-| [IS_AGENT.md](IS_AGENT.md) | Integration Standards (IS) Agent — integration catalog and compliance checks | Developers |
 | [DEMO_MISSION_SETUP.md](DEMO_MISSION_SETUP.md) | Step-by-step guide to setting up and running a demo mission | Developers, Operators |
 
 ---
@@ -109,7 +105,6 @@ are not listed as current implementation truth unless called out explicitly.
 |---|---|---|
 | [MODELS_AND_DOMAIN_SCHEMA.md](MODELS_AND_DOMAIN_SCHEMA.md) | `models.py` — all enums (MissionType, DepthMode, OutputMode, DataClassification), MissionState machine, VALID_TRANSITIONS map, EventType literals, and all Pydantic models (MissionRecord, MissionEvent, MissionCreate, MissionClarifyRequest, etc.) | Developers, Architects |
 | [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md) | `logicnode_schema.py` — LogicNode dataclass, field glossary, confidence scoring bands, tag taxonomy (10 categories), language keys (20), pattern ID format, pod routing rules, storage contract, and evolution policy | Developers, Architects |
-| [PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md](PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md) | Port coordinator and LogicNode schema compatibility reference | Developers, Architects |
 
 ---
 
@@ -148,7 +143,6 @@ are not listed as current implementation truth unless called out explicitly.
 
 | File | Description | Audience |
 |---|---|---|
-| [AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md](AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md) | Protocol Bus — 6-stream Redis Streams architecture (alpha/beta/delta/sigma/omega/rho) and data system plan | Architects, Developers |
 | [AGENT_SCALING_AND_HEARTBEAT.md](AGENT_SCALING_AND_HEARTBEAT.md) | Agent scaling strategy and heartbeat service — how agents are scaled and health-monitored | Operators, Developers |
 | [AGENT_SERVICE_KEY_ISOLATION.md](AGENT_SERVICE_KEY_ISOLATION.md) | Service key isolation — per-agent credential isolation model and enforcement | Security, Developers |
 | [KNOWLEDGE_LAKE_AND_EMBEDDINGS.md](KNOWLEDGE_LAKE_AND_EMBEDDINGS.md) | Knowledge Lake — PostgreSQL-first documentation store with optional Qdrant semantic mirror; three embedding providers (Gemini/OpenAI/deterministic), semantic search gate, and `task_type` contract | Developers, Architects |
@@ -173,7 +167,7 @@ are not listed as current implementation truth unless called out explicitly.
 
 | File | Description | Audience |
 |---|---|---|
-| [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) | Reference for all smaller orchestrator modules: `migrations.py`, `auth.py`, `review_policy.py`, `protocol.py`, `project_identity.py`, `hw_agent.py`, `testdata_agent.py`, `system_maintenance.py`, `agent_integrations.py`, `port_coordinator.py` | Developers |
+| [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) | Reference for all smaller orchestrator modules: `migrations.py`, `auth.py`, `review_policy.py`, `protocol.py`, `project_identity.py`, `hw_agent.py`, `testdata_agent.py`, `system_maintenance.py`, `agent_integrations.py`, `port_coordinator.py`, `equivalence_verifier.py`, `is_agent.py` | Developers |
 
 ---
 
@@ -252,6 +246,8 @@ All high, medium, and low priority undocumented modules have been resolved. The 
 | `settings.py` | 🔴 High | ✅ Documented | [SETTINGS_REFERENCE.md](SETTINGS_REFERENCE.md) |
 | `tracing.py` | 🟠 Medium | ✅ Documented | [TRACING.md](TRACING.md) |
 | `port_coordinator.py` | 🟠 Medium | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `equivalence_verifier.py` | 🟠 Medium | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
+| `is_agent.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `agent_integrations.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `migrations.py` + `migrations/` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |
 | `auth.py` | 🟡 Low | ✅ Documented | [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) |

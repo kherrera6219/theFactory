@@ -1,11 +1,11 @@
 # Supporting Modules Reference
 
-Document version: 2026.06.13
-Last updated: 2026-06-27
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical
 Audience: Developers and operators
 
-This document covers the smaller orchestrator modules that did not yet have dedicated documentation. Each section maps to one or more source files.
+This document covers the smaller orchestrator modules that did not yet have dedicated documentation. Each section maps to one or more source files. Every section below was re-verified against the current source on 2026-07-03 as part of a full documentation audit — several prior sections (`auth.py`, `system_maintenance.py`, `agent_integrations.py`) described functions/classes that never existed and have been rewritten from the real code.
 
 ---
 
@@ -40,19 +40,21 @@ Called by `ensure_db_schema()` in `storage_core.py` during lifespan startup. The
 
 ---
 
-## `auth.py` — Runtime Auth Enforcement
+## `auth.py` — Role-Based API Key Auth
 
-**Source:** `services/orchestrator/orchestrator/auth.py`  
-**Size:** ~1.5 KB
+**Source:** `services/orchestrator/orchestrator/auth.py`
 
-Provides two FastAPI dependency functions used across all route modules:
+Provides a single FastAPI dependency factory, `require_roles(settings, allowed_roles)`, built on a role-tagged API key map (`Settings.api_key_roles: dict[str, set[str]]`). Each configured key carries a set of roles (e.g. `{"read"}`, `{"mutate", "admin", "worker"}`); the dependency:
 
-| Dependency | Header | Credential | Used by |
-|---|---|---|---|
-| `require_api_key` | `X-API-Key` | `Settings.api_key` | `missions.py`, `operations.py` |
-| `require_internal_key` | `X-Internal-Key` | `Settings.internal_service_key` | `internal.py` |
+1. Reads the `X-API-Key` header — 401 if missing.
+2. Matches it against every configured key using `hmac.compare_digest` (constant-time; every key is checked regardless of match to avoid leaking which key matched via early-exit timing).
+3. 401 if no configured key matches.
+4. 403 if the matched key's roles don't intersect `allowed_roles`.
+5. Returns an `AuthContext(api_key, roles)` frozen dataclass for the route to use.
 
-Both dependencies raise `HTTP 403 Forbidden` on mismatch. Neither implements rate limiting (that is handled at the API Gateway service, port 8100).
+`services/orchestrator/orchestrator/main.py` builds three pre-configured dependencies from this factory — `READ_AUTH` (role `read`), `MUTATION_AUTH` (roles `mutate`/`admin`/`worker`), `INTERNAL_AUTH` (role `internal`) — re-exported by `routes/_deps.py` as `READ_AUTH_DEP`/`MUTATION_AUTH_DEP`/`INTERNAL_AUTH_DEP` for use across `missions.py`, `operations.py`, and `internal.py`.
+
+Rate limiting is handled at the API Gateway service (port 8100), not here.
 
 For the auth model rationale (API key vs. OIDC), see `ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md`.
 
@@ -113,7 +115,7 @@ class BusMessage(BaseModel):
 | `omega` | System health and metrics | All services | Observability stack |
 | `rho` | LLM cost and billing events | llm_delegation/cost_guard | LLM cost ledger |
 
-For the full bus architecture, see `AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md`.
+For the full bus architecture, see `PROTOCOL_BUS_PROGRAM_ROADMAP.md`.
 
 ---
 
@@ -175,40 +177,90 @@ The manifest is persisted via `storage_artifacts.insert_testdata_manifest()` and
 
 ---
 
-## `system_maintenance.py` — Maintenance Mode
+## `system_maintenance.py` — Backup and Diagnostic Bundles
 
-**Source:** `services/orchestrator/orchestrator/system_maintenance.py`  
-**Size:** ~3 KB
+**Source:** `services/orchestrator/orchestrator/system_maintenance.py`
 
-Provides a soft maintenance mode that pauses new mission intake without interrupting running missions.
+Implements the `MaintenanceManager` class (constructed once per app via `get_maintenance_manager(app)`), which backs the `/internal/maintenance/*` routes:
 
 ```python
-def enter_maintenance_mode(reason: str) -> None: ...
-def exit_maintenance_mode() -> None: ...
-def is_in_maintenance_mode() -> bool: ...
+class MaintenanceManager:
+    def __init__(self, settings: Any): ...
+    async def create_diagnostic_bundle(self, mission_id: str | None = None) -> str: ...
 ```
 
-When `is_in_maintenance_mode()` returns `True`:
-- `POST /missions` returns `HTTP 503 Service Unavailable` with the maintenance reason in the response body
-- The runtime intake loop skips queue pickup
-- Running missions continue to completion
-- `GET /ops/health` includes `"maintenance": true` and the reason string
+`create_diagnostic_bundle()` writes a `.tar.gz` under `FACTORY_DATA_ROOT/diagnostics/` containing:
+- `system_status.json` — timestamp, version, OS, and the optional `mission_id` context
+- `environment_sanitized.json` — every process env var, **except**:
+  - names containing `_KEY`, `_SECRET`, `_PASSWORD`, `_TOKEN`, `_CREDENTIAL`, or `_ROLE_ID`
+  - any remaining value gets its URL userinfo segment redacted too (e.g. `postgresql://user:***@host/db`), since connection-string env vars embed a plaintext password regardless of the variable's own name
 
-Maintenance state is held in a module-level boolean — it is **not** persisted to the database. A restart clears maintenance mode. For DR scenarios requiring persistent maintenance, see `DEPLOYMENT_DR_PLAYBOOK.md`.
+`run_full_backup()` is the manager's other responsibility: it tars up `FACTORY_DATA_ROOT/stores/` (the mapped Postgres/Qdrant/etc. volume mount point) into `FACTORY_DATA_ROOT/backups/factory-full-backup-<timestamp>.tar.gz`. There is no maintenance-mode toggle that pauses mission intake in this module — for planned downtime, stop the intake loop or the service itself; see `DEPLOYMENT_DR_PLAYBOOK.md`.
 
 ---
 
-## `agent_integrations.py` — Integration Catalog Agent
+## `agent_integrations.py` — Agent Integration Snapshot Builder
 
-**Source:** `services/orchestrator/orchestrator/agent_integrations.py`  
-**Size:** ~15 KB
+**Source:** `services/orchestrator/orchestrator/agent_integrations.py`
 
-Implements the Integration Standards (IS) Agent (AGENT-07-IS), which maintains a catalog of all external service integrations that missions may produce or consume. Operates alongside the IS Agent documented in `IS_AGENT.md`.
+Builds a static, derived-from-`AGENT_REGISTRY` snapshot describing how every one of the 41 agents integrates with the rest of the system — not a runtime integration-catalog agent. Key functions:
 
-Responsibilities:
-- Maintains a registry of known integration patterns (REST, gRPC, message queue, file-based, database)
-- Validates generated integration code against the catalog before `VERIFIED` state
-- Produces integration compliance findings included in the audit report
-- Flags integrations that require additional review (PCI-DSS adjacent, HIPAA-adjacent, government APIs)
+```python
+def build_agent_integration_record(agent: AgentDefinition) -> dict[str, Any]: ...
+def build_agent_integrations_snapshot() -> dict[str, Any]: ...
+```
 
-The integration catalog is seeded from `knowledge_lake.py` on the `fetch` state and updated with new patterns discovered during each mission.
+For each `AgentDefinition`, `build_agent_integration_record()` derives:
+- `protocols` — communication protocols the agent participates in
+- `protocol_bus` — its Protocol Bus `publish_topics`/`consume_topics` bindings
+- `data_systems` — which stores (Postgres, Qdrant, Neo4j, object storage) it reads/writes
+- `llm_recommendation` — its default LLM provider/model routing
+- `persona_profile` — assembled via `agent_personas.build_agent_persona_profile()`
+
+`build_agent_integrations_snapshot()` runs this over every agent in `AGENT_REGISTRY` and aggregates the distinct protocol/store sets used across the whole system. This snapshot is what backs the `GET /v1/operations/agent-integrations` endpoint — it's a read-only reflection of the static agent registry, not a code-validation or compliance-catalog agent.
+
+---
+
+## `port_coordinator.py` — PORT Two-Phase Mission Setup
+
+**Source:** `services/orchestrator/orchestrator/port_coordinator.py`
+
+Coordinates the two-phase flow for `PORT`-type missions (porting source code from one language to another) when `port_two_phase_enabled` is set. This is not a network port allocator — the name refers to code *porting*.
+
+```python
+def _setup_port_two_phase(metadata: dict, mission: Any, clusters: list[dict] | None) -> None: ...
+async def run_port_extraction_phase(*, mission_id: str, mission: Any, metadata: dict, settings: Any) -> dict[str, Any]: ...
+```
+
+- `_setup_port_two_phase()` runs after CEO delegation. It detects the source language from the uploaded bundle/prompt, resolves the target language from the mission's `requested_target_language`, sets `metadata["port_phase"] = "extraction"`, and picks a source-language pod manager/specialist (preferring an explicit `source_extraction` cluster from CEO decomposition, falling back to the language's default pod/specialist).
+- `run_port_extraction_phase()` runs the first time `_prepare_specialist_plan` (`mission_flow_v2/phases_build.py`) sees `port_phase == "extraction"`. It generates an AIM and a specialist plan for the *source* language, extracts LogicNode-shaped concepts from the AIM's file entries, appends a `MISSION_PORT_EXTRACTION_COMPLETE` chain event, and returns `port_source_logicnodes`/`port_source_aim`/`port_source_plan` plus `port_phase: "generation"` (so the next re-entry into `_prepare_specialist_plan` takes the generation path instead). The caller in `phases_build.py` guards against re-running this a second time while `port_phase` is still `"extraction"` via `_chain_event_exists(metadata, "MISSION_PORT_EXTRACTION_COMPLETE")` — without that guard, a retry would re-run two LLM calls and mint fresh non-deterministic extraction results.
+- AIM generation and specialist-plan generation failures are individually caught and degrade to a `{"source": "error"/"fallback"}` marker rather than raising; `extraction_degraded` in the returned dict reflects whether either step degraded.
+
+---
+
+## `equivalence_verifier.py` — PORT/Build Output Contract Checks
+
+**Source:** `services/orchestrator/orchestrator/equivalence_verifier.py`
+
+A deterministic, static (no code execution) contract checker that produces the `equivalence_report` consumed by the `GATING`/delivery phases. Entry point:
+
+```python
+def build_equivalence_report(*, mission_id: str, requested_target_language: str | None, metadata: dict, build_artifacts: list[dict], enforcement_enabled: bool) -> dict[str, Any]: ...
+```
+
+Runs a fixed set of named checks against the mission's generated output and metadata — each check returns a status (`pass`/`warn`/`fail`) and a `required` flag. Required checks include `generated_output_exists`, `generated_artifact_verified`, `artifact_format_matches_contract`, `language_alignment`, and `language_content_signature` (a regex-based detector added after a real incident where an LLM silently fell back to generating Python for a non-Python target — it flags syntactic tells of the wrong language in the generated text, independent of the LLM's own self-reported `language` field, though it currently only covers ~8 of the ~19 supported target languages). Advisory-only (`required=False`) checks include keyword-based acceptance-criteria and PORT source-concept coverage heuristics — these can produce false "covered" verdicts on superficial keyword overlap, but since they're non-required they cannot flip the report's `passed`/`blocking` verdict. `report["blocking"]` is `True` only when a required check fails **and** `enforcement_enabled` is set (`mission_equivalence_enforcement_enabled`, default `false`).
+
+---
+
+## `is_agent.py` — Knowledge Lake Language Bootstrap
+
+**Source:** `services/orchestrator/orchestrator/is_agent.py`
+
+Despite the filename, this is not a standalone "Integration Specialist" agent class — it seeds static per-language reference documents into the Knowledge Lake and detects which languages a mission's source/prompt actually touches.
+
+```python
+def detect_required_languages(prompt: str, source_code: str | None) -> set[str]: ...
+def _bootstrap_content_for_language(language_key: str) -> dict[str, Any]: ...
+```
+
+`detect_required_languages()` combines prompt-text keyword matching with source-code heuristics (e.g. a `^import [A-Z]|^package [a-z]` regex for Java/Kotlin/Scala-style import/package statements) to decide which language reference docs a mission needs. `_bootstrap_content_for_language()` (backed by the static `_BOOTSTRAP_DOCS` table) produces the actual reference-doc content, which is upserted into the Knowledge Lake via `_upsert_knowledge_safe()` only if the doc doesn't already exist or is stale (`_check_knowledge_exists`/`_knowledge_is_current`) — this is idempotent seeding, not a per-mission integration check.

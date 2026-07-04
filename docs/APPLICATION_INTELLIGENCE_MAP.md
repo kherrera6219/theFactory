@@ -146,9 +146,7 @@ The AIM concludes with recommended next missions based on detected risk and oppo
 
 ## Schema Reference
 
-The AIM is serialized as `application_intelligence_map.v1.json`. Field definitions, types, and required-vs-optional flags are maintained in `/schemas/application_intelligence_map.v1.json` and registered through the schema registry described in [`SCHEMA_REGISTRY_AND_VERSIONING.md`](SCHEMA_REGISTRY_AND_VERSIONING.md).
-
-The schema follows JSON Schema Draft 2020-12. All fields are typed. Unknown fields are tolerated by consumers (forward-compatibility).
+The AIM is a plain dict produced by `generate_aim()`/`_extract_all_languages()` in `aim_generator.py` (`"schema_version": "aim.v1"`) — there is currently no standalone JSON Schema file for it under `schemas/` (unlike LogicNodes, RIR modules, and mission charters, which do have dedicated schema files; see [`SCHEMA_REGISTRY_AND_VERSIONING.md`](SCHEMA_REGISTRY_AND_VERSIONING.md) for what's actually registered). The field shape is defined by the dict keys `aim_generator.py` itself constructs and consumes; unknown fields are tolerated by consumers (forward-compatibility).
 
 ## Mission Control Display
 

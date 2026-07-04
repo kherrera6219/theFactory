@@ -1,7 +1,7 @@
 # Runtime QC and Ephemeral Test Environments
 
-Document version: 2026.06.18
-Last updated: 2026-06-18
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical (Forward-Looking — Phases 9 and 10)
 Audience: Operators, mission designers, agent developers, security reviewers
 
@@ -26,6 +26,8 @@ This document describes how theFactory provisions disposable runtime environment
 Runtime QC is integrated into MissionFlow V2 completion checks, but TESTDATA and RQCA remain disabled by default in local settings (`TESTDATA_AGENT_ENABLED=false`, `RQCA_AGENT_ENABLED=false`). When runtime QC is skipped, the orchestrator now persists a visible `runtime_qc_report` with `skipped: true`, `verdict: SKIPPED`, `execution_type: not_run`, and a reason such as `TESTDATA disabled`, `RQCA disabled`, or `no generated output`. It also records `MISSION_RUNTIME_QC_SKIPPED` once so Mission Detail and event history show that QC was intentionally skipped instead of silently missing.
 
 Enabling full Runtime QC remains a follow-up decision for standard BUILD_NEW missions. Until then, completed missions should show either a real Runtime QC report or an explicit skipped reason.
+
+**Enforcement default (2026-07-03):** `rqca_enforcement_enabled` (see `SETTINGS_REFERENCE.md`) now defaults to `true` (was `false`) — when RQCA does run and produces `qc_verdict: FAIL`, the mission is blocked from completing rather than only warned. This is independent of the `RQCA_AGENT_ENABLED` flag above: if RQCA is disabled entirely, or the Docker sandbox is unavailable so the check falls back to a `DRY_RUN`/`ADVISORY` verdict, nothing blocks regardless of this setting — `ADVISORY` reflects "could not execute," not "failed," and enforcement only ever acts on an actual `FAIL` verdict.
 
 ## Doctrine
 

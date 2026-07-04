@@ -1,7 +1,7 @@
 # theFactory Architecture Blueprint & File Map
 
-Document version: 2026.06.13
-Last updated: 2026-06-27
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical
 Audience: Developers and operators
 
@@ -97,7 +97,7 @@ theFactory/
 ├── requirements-dev.txt       # Dev-specific python packages (ruff, pytest)
 ├── AGENTS.md                  # Canonical multi-agent definitions and lifecycle engine overview
 ├── MIGRATION.md               # Renaming specifications (e.g. semantic-bus -> protocol-bus)
-├── TODO.md                    # Audited and completed technical debt items list
+├── docs/CURRENT_TODO.md        # Active TODO list and outstanding production-readiness work
 └── .env.example               # Pgbouncer, PostgreSQL TLS, Redis TLS environment templates
 ```
 
@@ -121,7 +121,7 @@ services/orchestrator/
 │   │   ├── fallbacks.py       # Offline/timeout mock response generators
 │   │   ├── health.py          # LLM API healthchecks and token budgets
 │   │   └── ...                # prompts, text, metrics, normalizers
-│   ├── mission_flow_v2/       # Granular 7-phase Smelt-Cycle execution
+│   ├── mission_flow_v2/       # Granular 11-phase v2 lifecycle engine
 │   │   ├── __init__.py        # Main v2 runner and gate logic
 │   │   ├── phases_intake.py   # INTAKE and FETCH transitions
 │   │   ├── phases_build.py    # SMELT, GATING, and FUSION transitions

@@ -19,7 +19,7 @@ Turn the 41 agents from in-process function calls into **independent runtime
 processes** that consume work and reply under their own bus identity. After
 EDCP makes the *seams* event-driven inside one orchestrator process, this stage
 distributes the *participants* so the per-agent rows in
-`docs/AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md` (Bus Role / Data Systems per
+`docs/archive/2026-07-03/AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md` (Bus Role / Data Systems per
 agent) describe real processes, not labels.
 
 ## Current state (grounded, 2026-06-30)

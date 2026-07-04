@@ -131,16 +131,6 @@ def validate_architecture_diagram_drift() -> list[str]:
             "AGENT-40-TESTDATA",
             "AGENT-41-RQCA",
         ],
-        REPO_ROOT / "docs" / "diagrams" / "ENTERPRISE_ARCHITECTURE_DIAGRAMS.md": [
-            "AGENT-01-PM",
-            "AGENT-02-CEO",
-            "AGENT-36-GO",
-            "AGENT-37-HASKELL",
-            "AGENT-38-OCAML",
-            "AGENT-39-DEPABS",
-            "AGENT-40-TESTDATA",
-            "AGENT-41-RQCA",
-        ],
     }
     forbidden_tokens = [
         "MISSION_FLOW_V2_ENABLED=false",

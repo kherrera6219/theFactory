@@ -1,7 +1,7 @@
 # Documentation Archive
 
-Document version: 2026.06.13
-Last updated: 2026-06-13
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical  
 Audience: Maintainers and auditors
 
@@ -19,6 +19,8 @@ This directory contains superseded documentation, imported source materials, and
   - superseded roadmap, sprint backlog, phased update, release completion, reliability qualification, and dated runtime-mapping documents moved out of the live docs root
 - `2026-06-27/`
   - superseded EDCP phase plan, legacy profile mapping reference, and older enterprise duplicate API/DR documents moved out of the active docs map
+- `2026-07-03/`
+  - completed audit/incident/hardening plans, completed mission-battery test artifacts, and the completed PBLA Stage 1 activation plan, moved out during a full documentation inventory/reduction pass (see its own README for the deleted-not-archived list too)
 
 ## Rules
 

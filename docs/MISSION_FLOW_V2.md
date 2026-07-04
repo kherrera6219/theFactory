@@ -269,8 +269,8 @@ The LangGraph engine targets feature parity with v2 but has not yet completed th
 | [ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md](ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md) | ADR promoting v2 to default |
 | [ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md](ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md) | v2 design and adoption rationale |
 | [RUNTIME_AND_AGENT_BASE.md](RUNTIME_AND_AGENT_BASE.md) | `runtime.py` — how `run_mission_flow()` is called from the execution engine |
-| [EQUIVALENCE_VERIFIER.md](EQUIVALENCE_VERIFIER.md) | Phase 6 VERIFY — deep dive on equivalence verification |
+| [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md) | Phase 6 VERIFY — `equivalence_verifier.py` deep dive |
 | [DEPENDENCY_ABSORPTION_DOCTRINE.md](DEPENDENCY_ABSORPTION_DOCTRINE.md) | Phase 8 ABSORB — DEPABS doctrine and implementation |
 | [LLM_DELEGATION.md](LLM_DELEGATION.md) | LLM routing used by all phase agents |
-| [AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md](AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md) | Protocol Bus streams (alpha/beta/delta/sigma/omega/rho) used throughout the pipeline |
+| [PROTOCOL_BUS_PROGRAM_ROADMAP.md](PROTOCOL_BUS_PROGRAM_ROADMAP.md) | Protocol Bus streams (alpha/beta/delta/sigma/omega/rho) used throughout the pipeline |
 | [MODELS_AND_DOMAIN_SCHEMA.md](MODELS_AND_DOMAIN_SCHEMA.md) | `MissionState`, `VALID_TRANSITIONS`, `MissionRecord`, all Pydantic models |

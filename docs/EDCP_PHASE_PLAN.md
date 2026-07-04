@@ -9,7 +9,7 @@ Audience: Maintainers
 **Reactivated:** 2026-06-30 from `docs/archive/2026-06-27/`. This plan is
 **Stage 2** of the staged Protocol Bus program — see
 `PROTOCOL_BUS_PROGRAM_ROADMAP.md` for the full picture. Stage 1
-(`PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`, PBLA) lights up all six lanes with
+(PBLA, archived at `docs/archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`) lights up all six lanes with
 real producer traffic; EDCP then adds the consumers and inverts control flow.
 PBLA is the recommended prerequisite so every seam EDCP cuts over already has
 live lane traffic to validate against.
@@ -34,7 +34,7 @@ pipeline — `send_alpha_directive` (CEO→Pod Manager) and the Sigma path via
 `knowledge_lake.broadcast_knowledge_ready`. Every send is fire-and-forget, and
 the orchestrator consumer (`main.py: protocol_bus_consumer_loop`) handles
 exactly one lane (`{"sigma": _handle_sigma_knowledge_ready}`). Adding callers
-for the remaining four lanes is Stage 1 (PBLA, `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`);
+for the remaining four lanes is Stage 1 (PBLA, archived at `docs/archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`);
 this plan is Stage 2 and adds the consumers + control-flow inversion.
 
 This plan inverts that — one handoff seam at a time — so the bus becomes the

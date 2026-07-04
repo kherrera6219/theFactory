@@ -8,6 +8,7 @@ EXCLUDED_DIR_NAMES = {
     ".claude",
     ".git",
     ".pytest_cache",
+    ".pytest-tmp",
     ".ruff_cache",
     ".next",
     ".venv",
@@ -15,6 +16,9 @@ EXCLUDED_DIR_NAMES = {
     "playwright-report",
     "test-results",
     "__pycache__",
+    "dist",
+    "out",
+    "output_extracted",
 }
 
 
@@ -81,9 +85,9 @@ def generate_build_map(repo_root: Path, output_path: Path) -> None:
                 "directories that are not part of the maintained application source tree."
             ),
             (
-                "- Excludes `.claude`, `.git`, `.pytest_cache`, `.ruff_cache`, `.next`, `.venv`, "
-                "`node_modules`, `playwright-report`, `test-results`, and `__pycache__` "
-                "directories."
+                "- Excludes `.claude`, `.git`, `.pytest_cache`, `.pytest-tmp`, `.ruff_cache`, "
+                "`.next`, `.venv`, `node_modules`, `playwright-report`, `test-results`, "
+                "`__pycache__`, `dist`, `out`, and `output_extracted` directories."
             ),
             "- Paths are shown exactly as present at generation time.",
             "",
