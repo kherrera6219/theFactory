@@ -1,7 +1,7 @@
 # Sensitive Code Handling Policy
 
-Document version: 2026.04.25
-Last updated: 2026-04-25
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical (Policy)
 Audience: Operators, security reviewers, agent developers, integrators, compliance officers
 
@@ -134,27 +134,27 @@ Classification can only be downgraded by an explicit operator action recorded in
 
 ## Provider Routing by Tier
 
-| Data Tier | Allowed Providers |
+**Correction (2026-07-03): this section describes an aspirational policy, not implemented enforcement.** There is no `local_only` field on `AgentPersona`/`agent_personas.py`, no tier-conditional routing refusal, and no override/expiration/approval-record mechanism anywhere in `llm_delegation/` (verified by grepping the package for `local_only`/`override`/`LocalOnlyViolation` — none exist). Every mission currently routes to whichever provider/model is configured for its agent (see `AGENT_LLM_PROVIDER_MODEL_MATRIX_2026-03-02.md`) regardless of `data_classification`. If tier-based provider restriction is required for your deployment, it must be enforced procedurally (e.g. by only configuring on-prem/local model endpoints for that deployment) rather than relying on the runtime to do it automatically.
+
+The table below is retained as a statement of intended policy, not current behavior:
+
+| Data Tier | Allowed Providers (intended policy, not enforced) |
 |---|---|
 | Tier 0 — Public | Any (Anthropic, OpenAI, Google, local) |
 | Tier 1 — Internal | Operator-configured (may include cloud) |
 | Tier 2 — Sensitive | Local only (no cloud providers without explicit override) |
 | Tier 3 — Regulated | Local only, isolated network, air-gapped option |
 
-The LLM delegation layer enforces routing at request time. A request from a Tier 2 mission to a cloud provider is refused unless an active operator override is recorded. The override carries an expiration time and is included in the audit bundle.
-
-Each agent retains its preferred cloud model in its profile but falls back to a local model when the data classification or operator configuration requires it. The model routing dashboard shows the actual routing decisions per agent, including which tier triggered any local fallback.
-
 ## Storage and Retention
 
-| Tier | Default Retention | Encryption at Rest | Key Management |
+**Not implemented.** No tier-conditional retention job, encryption-at-rest toggle, or key-management tier exists in code today — missions and their artifacts persist in PostgreSQL/object storage indefinitely until manually pruned, regardless of `data_classification`. The table below is retained as a statement of intended policy for a future retention system, not current behavior:
+
+| Tier | Default Retention (intended policy, not enforced) | Encryption at Rest | Key Management |
 |---|---|---|---|
 | Tier 0 | 90 days | Optional | Standard |
 | Tier 1 | 90 days | Required | Standard |
 | Tier 2 | 30 days | Required | Operator-managed |
 | Tier 3 | 7 days (default) | Required | Compliance-managed |
-
-Audit evidence bundles are retained according to the mission's tier unless the operator configures longer retention. Tier 3 evidence retention is governed by the applicable regulatory framework.
 
 ## Logging Restrictions
 
@@ -165,20 +165,11 @@ Audit evidence bundles are retained according to the mission's tier unless the o
 | Tier 2 | Forbidden | Hash-only | Permitted |
 | Tier 3 | Forbidden | Forbidden | Permitted |
 
-The `pii_guard.py` module is extended for Tier 2 and Tier 3 to detect code-level secrets (API key patterns, connection strings, private key headers, JWT tokens, OAuth tokens) and redact them in any log output, not only in user input.
+**Correction (2026-07-03):** `shared_runtime/pii_guard.py` is a flat, non-tiered regex scanner (`detect_pii`/`redact_pii`) — it has no `DataClassification`-conditional branching and applies the same secret/PII patterns (API key patterns, JWT tokens, generic password/token key-value pairs, etc.) regardless of a mission's tier. The tier-differentiated logging table above describes an intended policy, not code that currently enforces it per-tier.
 
 ## Operator Overrides
 
-An operator may temporarily route a Tier 2 mission to a cloud provider when:
-
-- A specific phase requires capability available only in a cloud model
-- The risk has been reviewed and accepted
-- The override is recorded in an approval record
-- The override has an explicit expiration time
-
-Tier 3 missions cannot be overridden to cloud routing. Tier 3 routing is enforced at the deployment level (local-only LLM endpoints configured) rather than at runtime.
-
-Every override is included in the mission evidence bundle and counts toward compliance reporting metrics.
+**Not implemented.** This section previously described a temporary cloud-routing override mechanism (approval record, expiration time, evidence-bundle inclusion) that does not exist in the codebase — see the correction above. There is no override to request or grant today.
 
 ## Audit Requirements
 
@@ -193,7 +184,7 @@ Compliance officers may export classification and routing reports per project, p
 
 ## Relationship to DATA_CLASSIFICATION_POLICY
 
-[`DATA_CLASSIFICATION_POLICY.md`](DATA_CLASSIFICATION_POLICY.md) governs theFactory's own runtime data: mission state, internal events, agent telemetry, audit logs, and operator credentials. It uses three levels (PUBLIC, INTERNAL, RESTRICTED — see that document for the definitive list).
+[`DATA_CLASSIFICATION_POLICY.md`](DATA_CLASSIFICATION_POLICY.md) documents the real `DataClassification` enum used for mission-level classification (`TIER_0_PUBLIC`/`TIER_1_INTERNAL`/`TIER_2_SENSITIVE`/`TIER_3_REGULATED`) and how thin its actual runtime enforcement currently is — see that document for the definitive, code-verified description.
 
 This document, `SENSITIVE_CODE_HANDLING_POLICY.md`, governs target application source code submitted as part of a mission. Its tier system (0–3) is distinct because the threat model is different: target code is operator-supplied, may be subject to external regulatory frameworks, and is subject to provider-routing decisions that the factory's own runtime data is not.
 

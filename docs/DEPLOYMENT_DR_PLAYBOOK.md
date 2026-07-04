@@ -1,7 +1,7 @@
 # Deployment, Backup & Disaster Recovery Playbook
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.07.03  
+Last updated: 2026-07-03  
 Status: Canonical  
 Audience: Operators, maintainers, incident responders, and release owners
 
@@ -39,7 +39,7 @@ This validates:
 Also run:
 
 ```bash
-make audit          # All 17/17 production audit checks must pass
+make audit          # All 23/23 production audit checks must pass
 make promotion-gate # Promotion policy must yield APPROVED
 ```
 
@@ -393,5 +393,5 @@ make test-ui-e2e
 | `scripts/reliability_qualification.ps1` | `make reliability` | Sustained-load reliability test |
 | `scripts/langgraph_postgres_recovery_qualification.ps1` | `make langgraph-recovery` | LangGraph checkpoint recovery test |
 | `scripts/debug_sweep.ps1` | `make sweep` | Debug and code sweep |
-| `scripts/production_review_audit.py` | `make audit` | 13-check production audit |
+| `scripts/production_review_audit.py` | `make audit` | 23-check production audit |
 | `scripts/promotion_gate.py` | `make promotion-gate` | Release promotion policy evaluation |

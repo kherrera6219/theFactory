@@ -1,7 +1,7 @@
 # Disaster Recovery Validation Runbook
 
-Document version: 2026.04.07  
-Last updated: 2026-04-07  
+Document version: 2026.07.03  
+Last updated: 2026-07-03  
 Status: Canonical  
 Audience: Platform Engineering, maintainers, and on-call responders
 
@@ -14,7 +14,7 @@ Audience: Platform Engineering, maintainers, and on-call responders
 
 This runbook documents the procedures and success criteria for validating theFactory's disaster recovery capabilities. All drills must be executed and evidenced before a production release promotion.
 
-**RTO Target:** Full stack cold-start in ≤ 15 minutes
+**RTO Target:** Full stack cold-start in ≤ 30 minutes (matches `docs/DEPLOYMENT_DR_PLAYBOOK.md`'s canonical RTO/RPO table; this runbook's own MTTR sub-target for the automated drill script is 15 minutes — the two numbers are not interchangeable)
 **RPO Target:** Zero mission data loss (PostgreSQL WAL-based)
 
 ---
@@ -75,8 +75,11 @@ Save to: `docs/evidence/dr/drill-1-postgres-restore-YYYYMMDD.md`
 # Step 1: Record start time
 date | tee /tmp/dr-drill2-start.txt
 
-# Step 2: Stop everything (if running)
-docker compose down -v 2>/dev/null || true
+# Step 2: Stop everything (if running). Always pair both compose files even
+# for a teardown -- a base-file-only `down -v` leaves dedicated-agent overlay
+# containers orphaned instead of stopping them, which has caused a real
+# restart-cascade incident in this project (see docs/OPERATIONS_RUNBOOK.md).
+docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml down -v 2>/dev/null || true
 
 # Step 3: Cold start
 make up
@@ -134,7 +137,7 @@ echo "Mission: $MISSION_ID"
 curl -s http://localhost:8100/v1/missions/$MISSION_ID | python3 -m json.tool
 
 # Step 3: Kill the orchestrator container
-docker compose stop orchestrator
+docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml stop orchestrator
 echo "Orchestrator stopped at $(date)"
 
 # Step 4: Wait 10 seconds
@@ -179,7 +182,7 @@ curl -s -X POST http://localhost:8100/v1/missions \
   -d '{"prompt": "Redis recovery DR test"}' | python3 -m json.tool
 
 # Step 3: Stop Redis
-docker compose stop redis
+docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml stop redis
 echo "Redis stopped at $(date)"
 
 # Step 4: Attempt mission creation — should get a graceful error (not crash)
@@ -249,12 +252,18 @@ PASS / PARTIAL / FAIL
 
 ## Schedule
 
+**Stale as of 2026-07-03:** the "Next Due" dates below are all in the past with no
+recorded "Last Run" — this table has not been kept current with actual drill execution.
+Confirm current status with whoever owns DR drills before treating any row as accurate,
+and update this table (or replace the static dates with a rolling "N days since last run"
+convention) once real drill history is available.
+
 | Drill | Frequency | Last Run | Next Due | Status |
 |-------|-----------|----------|----------|--------|
-| 1 — PG Backup/Restore | Monthly | — | 2026-04-30 | NOT RUN |
-| 2 — Cold Start | Before each release | — | Before next tag | NOT RUN |
-| 3 — Checkpoint Recovery | Quarterly | — | 2026-06-30 | NOT RUN |
-| 4 — Redis Recovery | Quarterly | — | 2026-06-30 | NOT RUN |
+| 1 — PG Backup/Restore | Monthly | — | 2026-04-30 | NOT RUN (stale) |
+| 2 — Cold Start | Before each release | — | Before next tag | NOT RUN (stale) |
+| 3 — Checkpoint Recovery | Quarterly | — | 2026-06-30 | NOT RUN (stale) |
+| 4 — Redis Recovery | Quarterly | — | 2026-06-30 | NOT RUN (stale) |
 
 ---
 

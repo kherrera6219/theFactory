@@ -1,89 +1,54 @@
 # Agent Scaling and Heartbeat
 
-Last updated: 2026-06-27
+Document version: 2026.07.03
+Last updated: 2026-07-03
+Status: Canonical
+Audience: Operators, developers
 
-Document version: 2026.06.11  
-Status: Canonical  
-Audience: Operators and developers
+This document was rewritten on 2026-07-03 — the previous version described `AgentScaler`/`HeartbeatService` classes, a Redis-TTL-keyed dead-agent state machine, and config keys (`SCALING_POLL_INTERVAL_SEC`, `HEARTBEAT_TTL_SEC`, etc.) that never existed. Both real modules are function-based, not class-based, and simpler than previously documented.
 
-## Overview
+## Agent Scaling — `services/orchestrator/orchestrator/agent_scaling.py`
 
-Two modules govern the runtime health and capacity of the 41-agent pool:
+Feature-flagged via `agent_scaling_enabled` (`AGENT_SCALING_ENABLED`, default `false`). When enabled, the pod-manager stage of Mission Flow v2 (`_prepare_specialist_plan` in `phases_build.py`) evaluates the workload and records a `ScalingDecision` in mission metadata; pod-worker replicas then claim individual partitions and execute in parallel, merged before the QC/audit gate.
 
-- **`agent_scaling.py`** (11 KB) — dynamic concurrency management; scales agent worker slots up and down based on mission queue depth and resource utilisation.
-- **`heartbeat_service.py`** (10 KB) — periodic liveness tracking; each agent instance emits a heartbeat tick that the service aggregates to determine agent health and trigger recovery on missed beats.
+Key functions and types:
 
-## Code Locations
+```python
+SCALABLE_AGENT_IDS: frozenset[str]        # the 19 coding specialist agents (Pods A-D)
+ABSOLUTE_MAX_INSTANCES: Final[int] = 8    # hard ceiling regardless of config
 
-```
-services/orchestrator/orchestrator/agent_scaling.py     # 11 KB
-services/orchestrator/orchestrator/heartbeat_service.py # 10 KB
-```
-
-## Agent Scaling
-
-### How It Works
-
-`AgentScaler` runs as a background asyncio task that samples the Redis mission queue depth and the current active worker count every `SCALING_POLL_INTERVAL_SEC` seconds. It applies a simple PID-style controller:
-
-```
-active_workers  = count of agents with heartbeat age < HEARTBEAT_STALE_SEC
-queue_depth     = len(pending missions in Redis queue)
-target_workers  = clamp(queue_depth × SCALE_FACTOR, MIN_WORKERS, MAX_WORKERS)
-delta           = target_workers − active_workers
-
-if delta > 0: spawn delta new agent worker coroutines
-if delta < 0: gracefully drain and stop abs(delta) idle workers
+def is_scalable_agent(agent_id: str) -> bool: ...
+def compute_scaling_decision(*, agent_id, workload_items, max_instances=4, items_per_instance=3) -> ScalingDecision: ...
+def partition_workload(items, instance_count) -> tuple[WorkPartition, ...]: ...
+def merge_partition_results(...) -> MergedResult: ...
+def all_partitions_complete(...) -> bool: ...
+def record_partition_result(...) -> None: ...
 ```
 
-### Configuration (`settings.py` keys)
+- `compute_scaling_decision()` is a pure function: given a workload item list and the configured `agent_scaling_max_instances`/`agent_scaling_items_per_instance` settings, it decides an `instance_count` (capped at `ABSOLUTE_MAX_INSTANCES = 8`) and splits the items into `WorkPartition`s via `partition_workload()`. If the agent isn't in `SCALABLE_AGENT_IDS` or the workload is small enough to fit in one instance, it returns a single-instance decision.
+- The `ScalingDecision` is embedded into mission metadata via `embed_scaling_decision()`. `_prepare_specialist_plan` guards against re-computing it on re-entry (checking whether `metadata["scaling_decision"]` already exists) — recomputing would mint fresh random `partition_id`s and orphan already-emitted partition work.
+- Pod-worker replicas report back via `record_partition_result()`; `all_partitions_complete()` and `merge_partition_results()` combine them once every partition has reported.
 
-| Key | Default | Description |
-|---|---|---|
-| `SCALING_POLL_INTERVAL_SEC` | `15` | How often the scaler re-evaluates |
-| `SCALE_FACTOR` | `1.5` | Workers spawned per queued mission |
-| `MIN_WORKERS` | `2` | Floor — always at least this many agents active |
-| `MAX_WORKERS` | `16` | Ceiling — hard cap on concurrent agents |
-| `SCALE_DOWN_GRACE_SEC` | `30` | How long an idle worker waits before stopping |
+There is no separate `AgentScaler` class, no scaling-poll-interval setting, and no `SCALING_*` env vars — the whole mechanism is driven by the pod-manager phase handler calling these functions directly.
 
-### Observability
+## Agent Heartbeat — `services/orchestrator/orchestrator/heartbeat_service.py`
 
-- Grafana panel: **Agent Pool Size** — tracks `active_workers` and `target_workers` over time.
-- Metric: `orchestrator_agent_pool_size{state="active|idle|draining"}` (Prometheus gauge).
+Two distinct heartbeat sources feed the same storage table (`agent_heartbeats`):
 
-## Heartbeat Service
+1. **Real per-agent heartbeats** — pod-worker and agent-runtime processes call `POST /internal/agents/heartbeat` directly with their own state.
+2. **Autofill for non-pod agents** — `agent_heartbeat_loop(app)`, a background task started at orchestrator startup, runs every `AGENT_HEARTBEAT_INTERVAL_SECONDS` (default `5`, floor `2`) and synthesizes heartbeats for every agent in `AGENT_REGISTRY` whose `category` is `interface`/`executive`/`support` (i.e. agents that don't run as their own pod-worker process and so have no other way to report state). This can be disabled via `AGENT_AUTOFILL_NON_POD_HEARTBEATS` (default `true`).
 
-### How It Works
+For the autofill path:
+- `_build_non_pod_heartbeat_payloads()` derives each agent's `queue_depth` from mission counts relevant to its role (active missions for interface/executive agents, verified missions for the Tester, complete missions for Deploy, systems-language missions for the Hardware-awareness agent).
+- `_state_for_agent()` derives a deterministic `state` (`ERROR`/`PAUSED`/`IDLE`/`VERIFYING`/`RUNNING`/`ACTIVE`) from `queue_depth` plus runtime readiness flags (`db_ready`, `protocol_ready`, `redis_ready`, `consumer_running`) — e.g. any agent reports `ERROR` if the database isn't ready, `PAUSED` if the orchestrator's own consumer loop isn't running.
+- `_workload_for_agent()` derives a `workload_pct` (0-100) from `state` and `queue_depth` via per-category multipliers — this is a display heuristic, not a measured load metric.
+- Every upsert triggers `_emit_agent_telemetry_event()`, which validates and publishes an `agent.heartbeat`/`agent.state.changed` envelope onto the `alpha` Protocol Bus stream (topic derived from event type) — but only when the app's envelope validator, Redis client, and both `protocol_ready`/`redis_ready` flags are available; otherwise it silently skips emission (heartbeat storage still happens either way).
 
-Each agent instance calls `HeartbeatService.tick(agent_id)` at the end of every work loop iteration. The service writes the current timestamp to Redis under `heartbeat:<agent_id>` with a TTL of `HEARTBEAT_TTL_SEC`.
+`AGENT_HEARTBEAT_STALE_SECONDS` (default `45`, floor `10`) is the threshold used elsewhere to decide whether a stored heartbeat is stale. The module itself validates at import time that this is at least 3× `AGENT_HEARTBEAT_INTERVAL_SECONDS` (and at least 20s), logging a warning if not, since agent-runtime's own heartbeat interval defaults to 15s (vs. the orchestrator's 5s) — a stale threshold shorter than 3× the longest real interval would make legitimately-alive pod/specialist agents appear spuriously stale.
 
-A background checker runs every `HEARTBEAT_CHECK_INTERVAL_SEC` and scans all known agent IDs:
+There is no separate `HeartbeatService` class, no per-agent `.tick()` method, no Redis TTL keys, and no DEGRADED/DEAD state machine beyond the `state` values listed above.
 
-- **Fresh** (`age < HEARTBEAT_STALE_SEC`): agent is healthy, no action.
-- **Stale** (`HEARTBEAT_STALE_SEC ≤ age < HEARTBEAT_DEAD_SEC`): agent is flagged as `DEGRADED`. A warning log and Prometheus alert fire.
-- **Dead** (`age ≥ HEARTBEAT_DEAD_SEC` or key expired): agent is marked `DEAD`. The lifecycle recovery module is notified to reassign any in-flight mission steps the agent held.
+## Related Docs
 
-### Configuration (`settings.py` keys)
-
-| Key | Default | Description |
-|---|---|---|
-| `HEARTBEAT_TICK_INTERVAL_SEC` | `5` | How often each agent calls tick() |
-| `HEARTBEAT_TTL_SEC` | `30` | Redis key TTL for heartbeat entry |
-| `HEARTBEAT_STALE_SEC` | `15` | Age at which agent is flagged DEGRADED |
-| `HEARTBEAT_DEAD_SEC` | `30` | Age at which agent is marked DEAD |
-| `HEARTBEAT_CHECK_INTERVAL_SEC` | `10` | How often the background checker runs |
-
-### Recovery on Dead Agent
-
-When an agent is marked `DEAD`:
-
-1. `HeartbeatService` notifies `lifecycle_recovery.py` with the dead agent's ID and last known mission step.
-2. `lifecycle_recovery.py` queries PostgreSQL for any mission steps assigned to that agent.
-3. Affected steps are reset to `PENDING` and re-queued for a healthy agent to pick up.
-4. A `AGENT_DEAD_RECOVERED` audit event is emitted.
-
-### Operational Notes
-
-- Heartbeat Redis keys are prefixed `heartbeat:` and visible via `redis-cli keys 'heartbeat:*'`.
-- If `HEARTBEAT_ENABLED=false` (dev/test only), the heartbeat service is a no-op and no recovery logic runs.
-- Dead-agent recovery time is included in the DR RTO measurement (target: < 45 seconds end-to-end).
+- `RUNTIME_AND_AGENT_BASE.md` — the runtime execution engine that hosts `agent_heartbeat_loop` as one of its background tasks
+- `MISSION_FLOW_V2.md` — where `compute_scaling_decision`/`_prepare_specialist_plan` fit into the mission lifecycle

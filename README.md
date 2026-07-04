@@ -12,7 +12,7 @@
 [![Audit](https://img.shields.io/badge/repo%20audit-23%2F23%20checks%20passing-brightgreen)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0%20%2F%20Commercial-blue)](LICENSE)
 
 </div>
 
@@ -969,7 +969,7 @@ theFactory/
 | [`docs/RUNTIME_QC_AND_TEST_ENVIRONMENTS.md`](docs/RUNTIME_QC_AND_TEST_ENVIRONMENTS.md) | Ephemeral test environments and AI runtime QC |
 | [`docs/SENSITIVE_CODE_HANDLING_POLICY.md`](docs/SENSITIVE_CODE_HANDLING_POLICY.md) | Source code classification, provider routing, redaction |
 | [`docs/SCHEMA_REGISTRY_AND_VERSIONING.md`](docs/SCHEMA_REGISTRY_AND_VERSIONING.md) | Schema registry, versioning rules, compatibility |
-| [`docs/LICENSE_STRATEGY.md`](docs/LICENSE_STRATEGY.md) | Open-core strategy and MIT license confirmation |
+| [`docs/LICENSE_STRATEGY.md`](docs/LICENSE_STRATEGY.md) | Dual AGPL-3.0/Commercial license strategy and CLA requirement |
 | [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Current shipped defaults, known gaps, and validation snapshot |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture and topology |
 | [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md) | System, runtime, deployment, and multi-agent diagrams |

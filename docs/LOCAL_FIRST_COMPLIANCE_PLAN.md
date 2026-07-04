@@ -1,7 +1,7 @@
 # theFactory — Local-First Compliance Plan (Outstanding Items Only)
 
-Document version: 2026.06.13
-Last updated: 2026-06-27
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical
 Audience: Developers and operators
 
@@ -83,34 +83,31 @@ different hash and no rejection. No plugin-integrity concept exists.
 - If/when a plugin system is introduced, require signature verification before load (ties to A1).
 _Files: `services/orchestrator/orchestrator/prompt_registry.py`, new `prompt_assets/manifest.json`._
 
-### A4. Atomic file writes (temp → flush → verify → rename → keep backup)
+### A4. Atomic file writes (temp → flush → verify → rename → keep backup) — ✅ DONE
 **Standard:** Error §11 ("Atomic Write Pattern"), §15 (export writes temp-first then verify).
-**Current:** No atomic-write helper found (no `os.replace`/temp-then-rename pattern). Direct
-writes risk corrupting a valid file on partial failure.
-**Outstanding:**
-- Add `atomic_write(path, data)` — write to `path.tmp`, `flush()`+`fsync()`, verify SHA-256,
-  `os.replace()` into place, preserve previous file as `.bak` on failure.
-- Route artifact/report/evidence/export writes through it.
-_Files: new `shared_runtime/atomic_io.py`; callers in `build_artifacts.py`, export paths._
+**Outcome (confirmed 2026-07-03):** `shared_runtime/atomic_io.py` implements
+`atomic_write_bytes`/`atomic_write_text`/`atomic_write_json`: unique sibling temp file →
+`fsync()` → SHA-256 verify → `os.replace()` → best-effort `.bak` of the prior valid file,
+with a per-destination lock serializing the backup-and-replace window on Windows.
+**Outstanding:** None.
+_Files: `shared_runtime/atomic_io.py`._
 
 ---
 
 ## Bucket A — Error-Handling Framework (achievable now)
 
-### A5. Standard error object + categories + severity + stable error codes
+### A5. Standard error object + categories + severity + stable error codes — ✅ DONE
 **Standard:** Error §2 (13 categories), §3 (5 severities), §6 (standard error object), §7
 (`FACTORY-<CATEGORY>-<NUMBER>` codes).
-**Current:** **None present** — no `ErrorCategory`/`ErrorSeverity` enums, no standard error
-object, no `FACTORY-*` codes. Errors are raised/logged ad hoc.
-**Outstanding:**
-- Add `shared_runtime/errors.py` with `ErrorCategory` and `ErrorSeverity` enums and a
-  `FactoryError` dataclass matching the standard's JSON shape (`error_id`, `error_code`,
-  `severity`, `category`, `component`, `operation`, `user_message`, `developer_message`,
-  `recovery_action`, `timestamp`, `correlation_id`).
-- Define a `FACTORY-<CATEGORY>-NNN` code registry.
-- Adopt incrementally at the highest-value boundaries first (mission lifecycle, RQCA,
-  import/export, storage), not a big-bang rewrite.
-_Files: new `shared_runtime/errors.py`, `docs/ERROR_CODES.md` registry._
+**Outcome (confirmed 2026-07-03):** `shared_runtime/errors.py` implements `ErrorCategory`/
+`ErrorSeverity` enums, `make_error_code()`, and a `FactoryError` dataclass whose
+`__post_init__` redacts `developer_message` via `redact_pii` before attaching it, with
+`to_dict()` (full, server-side logging) and `to_user_payload()` (redacted, client-facing —
+excludes `developer_message`/`component`/`operation`) kept correctly separated. The code
+registry lives in `docs/ERROR_CODES.md`, adopted incrementally per the plan below.
+**Outstanding:** None for the framework itself; individual call sites are adopted
+incrementally as noted in `docs/ERROR_CODES.md`.
+_Files: `shared_runtime/errors.py`, `docs/ERROR_CODES.md`._
 
 ### A6. User-facing error format (Mission Control)
 **Standard:** Error §4 ("Something went wrong / What happened / What you can do / Error code").
@@ -151,15 +148,12 @@ _Files: `services/orchestrator/orchestrator/storage_agents.py`._
 > in Settings → System Maintenance. Reports record secret-bearing env **names only**, never
 > values or document contents.
 
-### A8. Electron crash handling + safe restart
+### A8. Electron crash handling + safe restart — ✅ DONE (see banner above)
 **Standard:** Error §17 ("Catch unhandled exceptions at the application boundary", "Save
 sanitized crash report locally", "Offer user a safe restart", "Do not upload").
-**Current:** `electron/main.ts` has `contextIsolation`/`nodeIntegration` hardening but **no**
-`process.on('uncaughtException')` / `unhandledRejection` handler and no `crashReporter`.
-**Outstanding:**
-- Add boundary handlers that write a **sanitized** local crash report and offer restart.
-- Ensure no secrets / document contents are included; do **not** upload.
-_Files: `apps/mission-control/electron/main.ts`._
+**Outstanding:** None — see the 2026-05-29 status banner above this bucket for the
+implementation (`installCrashHandlers()` in `electron/diagnostics.ts`, wired in `main.ts`).
+_Files: `apps/mission-control/electron/main.ts`, `apps/mission-control/electron/diagnostics.ts`._
 
 ### A9. Offline diagnostics bundle
 **Standard:** Error §18 (`diagnostics.json`, `application.log`, `security.log`, `audit.log`,
@@ -215,7 +209,7 @@ external datastores. Re-platform would replace these with embedded/local encrypt
 | Structured logging | `shared_runtime/logging_config.py` (json + LOG_LEVEL) | ✅ done |
 | ECDSA artifact signing | `shared_runtime/crypto_signing.py` + pipeline wiring | ✅ done |
 | DPAPI / AES-GCM at rest | DPAPI keystore implemented (A2); AES-GCM at rest for databases outstanding | ✅ done (A2) / ❌ outstanding (B2) |
-| Error codes / object | grep `FACTORY-`/`ErrorCategory` → none | ❌ outstanding (A5) |
-| Atomic writes | grep `os.replace`/atomic → none | ❌ outstanding (A4) |
-| DB transactions | `conn.transaction()` only in `transition_mission_state` | 🟡 partial (A7) |
-| Electron crash handling | grep `uncaughtException`/`crashReporter` in `main.ts` → none | ❌ outstanding (A8) |
+| Error codes / object | `shared_runtime/errors.py` (`ErrorCategory`/`ErrorSeverity`/`FactoryError`) | ✅ done (A5) |
+| Atomic writes | `shared_runtime/atomic_io.py` (`atomic_write_bytes`/`_text`/`_json`) | ✅ done (A4) |
+| DB transactions | `conn.transaction()` in `transition_mission_state`, `_locked_mission_metadata_update`, `upsert_agent_heartbeat` | ✅ done (A7) |
+| Electron crash handling | `installCrashHandlers()` in `electron/diagnostics.ts`, wired in `main.ts` | ✅ done (A8) |

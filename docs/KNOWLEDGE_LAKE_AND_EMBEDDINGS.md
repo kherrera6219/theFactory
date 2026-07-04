@@ -1,7 +1,7 @@
 # Knowledge Lake and Embeddings
 
-Document version: 2026.06.18-a
-Last updated: 2026-06-18
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical
 Audience: Developers and operators
 
@@ -33,12 +33,17 @@ it during the BUILD phase to get library/API context injected into their prompts
 ## Architecture
 
 ```
-  IS Agent (AGENT-06-IS) — FETCH phase
+  is_agent.py bootstrap seeding (_upsert_knowledge_safe)
           │
-          │  index_documentation(language, library, content)
+          │  storage.upsert_knowledge(...) directly — NOT via
+          │  knowledge_lake.index_documentation(), which is defined but
+          │  never called anywhere in the codebase as of 2026-07-03
           ▼
-  knowledge_lake.py
-     ├── upsert_knowledge()        → PostgreSQL mission_knowledge (always)
+  storage_logicnodes.py
+     └── upsert_knowledge()        → PostgreSQL mission_knowledge (always)
+
+  knowledge_lake.py's own index_documentation() (unused today, kept as the
+  intended entry point for future callers) would additionally do:
      └── _mirror_to_qdrant()       → Qdrant (only when real embedding + Qdrant enabled)
 
   Language Specialists — BUILD phase

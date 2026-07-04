@@ -1,7 +1,7 @@
 # Compliance Evidence Mapping
 
-Document version: 2026.03.29  
-Last updated: 2026-06-26
+Document version: 2026.07.03  
+Last updated: 2026-07-03
 Status: Canonical  
 Audience: Maintainers, auditors, and compliance reviewers
 
@@ -14,7 +14,7 @@ This mapping links production controls to machine-checkable and document evidenc
 | Vulnerability Mgmt | SOC2 CC7 / CMMC RA | Run automated dependency, SAST, image, secret scans | `.github/workflows/security.yml`, `reports/`, `docs/TESTING_QUALITY_GATES.md`, `docs/RELEASE_TRUST_PROMOTION_GATE.md`, `docs/evidence/phase45_mission_control_convergence_and_final_release_qualification.md` |
 | Monitoring & Logging | SOC2 CC7 / CMMC AU | Preserve operational observability and alerting | `deploy/monitoring/**`, `docs/OBSERVABILITY_STACK.md`, `docs/OPERATIONS_RUNBOOK.md` |
 | Data Integrity | SOC2 CC3 / CMMC SI | Block mission completion without execution evidence | `services/orchestrator/orchestrator/runtime.py`, `services/orchestrator/orchestrator/langgraph_lifecycle.py`, mission `MISSION_COMPLETION_BLOCKED` events |
-| Secure Configuration | SOC2 CC5 / CMMC SC | Harden runtime containers and service channels | `deploy/docker-compose.yaml`, `deploy/redis/redis.conf`, `deploy/redis/certs/*` |
+| Secure Configuration | SOC2 CC5 / CMMC SC | Harden runtime containers and service channels | `deploy/docker-compose.yaml`, `deploy/redis/redis.conf`, `deploy/redis/redis.prod.conf` |
 | Development Quality | SOC2 CC1 / CMMC RM | Maintain test/coverage quality gates | `Makefile`, `pyproject.toml`, `tests/**`, `scripts/check_coverage_thresholds.py` |
 
 Evidence artifact generation:

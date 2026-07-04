@@ -1,127 +1,54 @@
 # LLM Safety Filter and Document Parser
 
-Last updated: 2026-06-27
+Document version: 2026.07.03
+Last updated: 2026-07-03
+Status: Canonical
+Audience: Developers, Security
 
-Document version: 2026.06.11  
-Status: Canonical  
-Audience: Developers and security reviewers
+This document was rewritten on 2026-07-03 — the previous version described an `LLMSafetyFilter` class, a `LocalOnlyViolation` exception, and a `local_only` routing concept that don't exist, while omitting the real `shared_runtime/prompt_guard.py` and `shared_runtime/pii_guard.py` modules it was supposed to document. The document-parser section also described `ParsedDocument`/`DocumentBlock` dataclasses and YAML/TOML support that aren't implemented.
 
----
+## LLM Safety — Two Layers
 
-## LLM Safety Filter
+There are actually **two** separate safety-check layers in this codebase, not one:
 
-### Overview
+### 1. `services/orchestrator/orchestrator/llm_safety.py` — pattern-based outbound/inbound scan
 
-`llm_safety.py` (3 KB, `services/orchestrator/orchestrator/llm_safety.py`) implements a lightweight pre-dispatch safety filter that inspects every prompt before it is sent to an external LLM provider. It is the last checkpoint in the prompt pipeline and sits between `prompt_registry.py` and the `llm_delegation/` router.
-
-The filter has two responsibilities:
-1. **Redaction** — scrub any content classified as `SENSITIVE` or `SECRET` by `DATA_CLASSIFICATION_POLICY.md` before the prompt leaves the system boundary.
-2. **Block** — hard-block prompt dispatch for any mission marked `local_only` in its agent persona when the target provider is external.
-
-### Code Location
-
-```
-services/orchestrator/orchestrator/llm_safety.py   # 3 KB
-```
-
-**Related files:**
-
-| File | Relationship |
-|---|---|
-| `prompt_registry.py` | Calls `LLMSafetyFilter.check()` before returning a prompt to the caller |
-| `llm_delegation/` | Receives the post-filter prompt from the delegation router |
-| `DATA_CLASSIFICATION_POLICY.md` | Defines classification tags the filter enforces |
-| `SENSITIVE_CODE_HANDLING_POLICY.md` | Defines `local_only` persona tag and routing rules |
-
-### Filter Pipeline
-
-```
-prompt_registry.get(key, context)
-        │
-        ▼
-LLMSafetyFilter.check(prompt, mission_context)
-        │
-        ├── classify(mission_context)      ← DATA_CLASSIFICATION_POLICY tags
-        │       if SENSITIVE or SECRET:
-        │           redact(prompt)         ← replaces classified tokens with [REDACTED]
-        │
-        ├── check_local_only(persona)      ← SENSITIVE_CODE_HANDLING_POLICY
-        │       if local_only AND provider != "ollama":
-        │           raise LocalOnlyViolation
-        │
-        └── return sanitised_prompt
-```
-
-### `LocalOnlyViolation`
-
-When a `local_only` mission attempts to dispatch to an external provider, `LLMSafetyFilter` raises `LocalOnlyViolation`. This exception is caught by `llm_delegation/router.py`, which logs a `SAFETY_BLOCK` audit event and returns an error to the caller. The mission is routed to `HUMAN_REVIEW` state.
-
-### Redaction Rules
-
-Redaction patterns are loaded from `DATA_CLASSIFICATION_POLICY.md` at startup. The filter uses regex-based token matching. Common redaction targets:
-
-- API keys and tokens (pattern: `[A-Za-z0-9_\-]{32,}` in certain contexts)
-- File paths containing classified directory prefixes
-- Database connection strings
-- Content explicitly tagged `SECRET` in the mission metadata
-
-Redacted prompts are stored in the audit log with a `PROMPT_REDACTED` event — the original prompt is never logged externally.
-
-### Operational Notes
-
-- Redaction is logged but not alerted by default. Set `SAFETY_ALERT_ON_REDACT=true` to fire a Prometheus alert when redaction occurs.
-- `LocalOnlyViolation` fires a `CRITICAL` alert immediately.
-- The filter can be bypassed in test mode via `LLM_SAFETY_BYPASS=true` (never set in production).
-
----
-
-## Document Parser
-
-### Overview
-
-`document_parser.py` (3 KB, `services/orchestrator/orchestrator/document_parser.py`) is a lightweight utility that parses structured documents (Markdown, YAML, JSON, TOML, plain text) supplied as mission inputs into a normalised `ParsedDocument` representation for ingestion into the Knowledge Lake.
-
-### Code Location
-
-```
-services/orchestrator/orchestrator/document_parser.py   # 3 KB
-```
-
-### Supported Formats
-
-| Format | Parser used | Notes |
-|---|---|---|
-| Markdown (`.md`) | Custom sectioning parser | Splits by heading levels into labelled blocks |
-| YAML (`.yaml`, `.yml`) | `PyYAML` | Loaded as dict, each top-level key becomes a block |
-| JSON (`.json`) | stdlib `json` | Each top-level key becomes a block |
-| TOML (`.toml`) | `tomllib` (Python 3.11 stdlib) | Each section becomes a block |
-| Plain text (`.txt`, other) | Line-window chunker | 50-line windows with 10-line overlap |
-
-### `ParsedDocument` Dataclass
+Pure, synchronous functions with no I/O:
 
 ```python
-@dataclass
-class ParsedDocument:
-    source_path: str
-    format: str                     # "markdown" | "yaml" | "json" | "toml" | "text"
-    blocks: list[DocumentBlock]     # ordered list of content blocks
-    metadata: dict                  # frontmatter or top-level keys
-    char_count: int
-    mission_id: str
-
-@dataclass
-class DocumentBlock:
-    block_id: str
-    label: str                      # heading text or key name
-    content: str
-    level: int | None               # heading level for Markdown; None for others
+def check_outbound_prompt(prompt: str, call_context: str) -> list[str]: ...  # empty list = safe
+def check_inbound_response(text: str, call_context: str) -> list[str]: ...
+def sanitize_outbound_prompt(prompt: str) -> str: ...  # redacts matches to "[REDACTED]"
 ```
 
-### Usage
+- `check_outbound_prompt()` scans for secret/PII-shaped patterns before a prompt reaches any provider (API key prefixes like `sk-`/`ghp_`/`github_pat_`, SSN format, Visa/Mastercard card-number format).
+- `check_inbound_response()` scans model *output* for injection/jailbreak indicators (`IGNORE ALL PREVIOUS INSTRUCTIONS`, `You are now DAN`, `<|im_start|> system`, etc.).
+- `sanitize_outbound_prompt()` is the log-only-mode counterpart: instead of blocking, it redacts matches to `[REDACTED]` before sending. Which behavior is used is controlled by `LLM_SAFETY_BLOCK_ENABLED` (see `SETTINGS_REFERENCE.md`, default `false`).
+- No `LLMSafetyFilter` class, no `local_only` concept, no `LocalOnlyViolation` exception exist anywhere in this module or elsewhere in the codebase.
 
-The Document Parser is called by the Knowledge Lake's `write` path when a `DOCUMENT`-type `KnowledgeNode` is received. The parser runs first, then `KnowledgeEmbeddings` chunks and embeds each `DocumentBlock` separately, preserving label metadata as vector payload.
+### 2. `shared_runtime/prompt_guard.py` and `shared_runtime/pii_guard.py` — the shared-library layer
 
-### Operational Notes
+These are imported by every backend service (orchestrator, api-gateway, pod-worker), not just the LLM delegation path:
+- `prompt_guard.py` provides prompt-injection risk detection (`check_prompt`/`check_user_input`-style functions) with a risk-level scale and a configurable block threshold (`PROMPT_GUARD_BLOCK_ENABLED`/`PROMPT_GUARD_BLOCK_LEVEL` in `llm_delegation/config.py`, default enabled at `high`).
+- `pii_guard.py` provides `detect_pii`/`redact_pii`/`scan_dict_for_pii` — a flat, non-tiered regex scanner for SSNs, credit cards, emails, phone numbers, JWTs, generic API-key-shaped strings, and password/token key-value pairs. It is not conditioned on a mission's `DataClassification` tier (see `DATA_CLASSIFICATION_POLICY.md` for that correction).
 
-- Files larger than `DOCUMENT_PARSER_MAX_BYTES` (default: 5 MB) are rejected with a `DocumentTooLarge` error. Adjust via `settings.py`.
-- Binary files and non-UTF-8 content are rejected at ingestion time with a `DocumentParseError`.
+Both are regex/heuristic-based, not ML-based classifiers — they are a real but bypassable defense-in-depth layer (a sufficiently obfuscated secret or crafted injection string can evade pattern matching), which is an accepted, documented limitation, not a bug.
+
+## Document Parser — `services/orchestrator/orchestrator/document_parser.py`
+
+One function, not a dataclass-based API:
+
+```python
+def parse_document(content: bytes, content_type: str, filename: str) -> str | None: ...
+```
+
+- Routes by `content_type` first, falling back to filename extension (since many clients send `application/octet-stream` regardless of actual file type).
+- Supports PDF (`pypdf`), Word `.docx` (`python-docx`), PowerPoint `.pptx` (`python-pptx`), and plain Markdown/text (`.md`/`.txt`, decoded as UTF-8 with `errors="replace"`). **No YAML or TOML support exists.**
+- Every extraction path truncates to `MAX_EXTRACTED_CHARS = 50_000` characters — silently, not via an exception — so a single large attachment can't blow the LLM context window or the knowledge-lake payload.
+- All parsing is wrapped in a broad `try/except Exception`, returning `None` and logging a warning on any failure (corrupt file, missing optional dependency, encrypted document) — mission intake must proceed regardless of a single attachment's parse failure. There is no `ParsedDocument`/`DocumentBlock` dataclass; callers get either a plain string or `None`.
+
+## Related Docs
+
+- `SETTINGS_REFERENCE.md` — `LLM_SAFETY_BLOCK_ENABLED`, `PROMPT_GUARD_BLOCK_ENABLED`/`_LEVEL`
+- `LLM_DELEGATION.md` — where `check_user_input()` (backed by `prompt_guard.py`) is called before every outbound provider call
+- `DATA_CLASSIFICATION_POLICY.md` — the real (thin) tier enforcement, which `pii_guard.py` does not participate in

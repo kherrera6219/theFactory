@@ -1,7 +1,7 @@
 # Dedicated-Agent Canary Runbook
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.07.03  
+Last updated: 2026-07-03  
 Status: Canonical  
 Audience: Operators, developers, maintainers, and auditors
 
@@ -12,8 +12,10 @@ Run a repeatable canary mission that validates dedicated-agent routing contract 
 ## Preconditions
 
 1. Stack is healthy (`/readyz` on gateway + orchestrator).
-2. Dedicated-agent profile is active when validating dedicated workers:
-   - `docker compose -f deploy/docker-compose.yaml --profile dedicated-agents up -d`
+2. Dedicated-agent profile is active when validating dedicated workers. **Always pair both
+   compose files** — running the base file alone without the overlay has caused real
+   restart-cascade incidents in this project (see `docs/OPERATIONS_RUNBOOK.md`):
+   - `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d`
 3. Mission Control/gateway auth mode is configured for the environment under test.
 
 ## Execute Canary

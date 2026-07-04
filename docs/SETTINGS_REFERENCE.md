@@ -88,6 +88,7 @@ The design follows three rules:
 | `depabs_execution_enabled` | `DEPABS_EXECUTION_ENABLED` | `false` | Enable DEPABS live dependency resolution (experimental) |
 | `port_two_phase_enabled` | `PORT_TWO_PHASE_ENABLED` | `false` | Enable two-phase PORT mission processing |
 | `llm_safety_block_enabled` | `LLM_SAFETY_BLOCK_ENABLED` | `false` | Hard-block missions that trigger LLM safety filters |
+| `event_driven_control_plane_enabled` | `EVENT_DRIVEN_CONTROL_PLANE_ENABLED` | `false` | EDCP Stage 2 flag — enables event-driven control-flow inversion seams (see `EDCP_PHASE_PLAN.md`) |
 
 ### LangGraph
 
@@ -158,6 +159,7 @@ The design follows three rules:
 |---|---|---|---|
 | `knowledge_embedding_provider` | `KNOWLEDGE_EMBEDDING_PROVIDER` | `gemini` | Embedding model provider: `gemini` or `openai` |
 | `knowledge_embedding_model` | `KNOWLEDGE_EMBEDDING_MODEL` | `""` | Override embedding model name. When empty, the provider default is used (`gemini-embedding-001` for Gemini, `text-embedding-3-small` for OpenAI). |
+| `knowledge_embedding_api_key` | `KNOWLEDGE_EMBEDDING_API_KEY` | `""` | Dedicated API key for the embedding provider. When empty, the corresponding provider's main LLM API key is reused. |
 | `knowledge_embedding_timeout_seconds` | `KNOWLEDGE_EMBEDDING_TIMEOUT_SECONDS` | `10.0` | Per-request embedding timeout |
 | `knowledge_refresh_enabled` | `KNOWLEDGE_REFRESH_ENABLED` | `true` | Enable periodic Knowledge Lake refresh |
 | `knowledge_refresh_interval_seconds` | `KNOWLEDGE_REFRESH_INTERVAL_SECONDS` | `3600` | Interval between refresh cycles |
@@ -209,6 +211,7 @@ The computed property `api_key_roles` merges all key sources into a `dict[str, s
 | `event_schema_path` | `EVENT_SCHEMA_PATH` | `schemas/event.envelope.schema.json` | Path to the event envelope JSON schema |
 | `logicnode_schema_path` | `LOGICNODE_SCHEMA_PATH` | `schemas/logicnode.schema.json` | Path to the LogicNode JSON schema |
 | `topics_path` | `TOPICS_PATH` | `protocol/topics.yaml` | Path to the Protocol Bus topics definition |
+| `delivery_dir` | `DELIVERY_DIR` | `<repo_root>/output` | Local filesystem directory where generated mission output is delivered/written for operator pickup |
 
 ---
 

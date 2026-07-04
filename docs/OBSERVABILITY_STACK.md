@@ -1,7 +1,7 @@
 # Observability Stack
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.07.03  
+Last updated: 2026-07-03  
 Status: Canonical  
 Audience: Operators, maintainers, and SRE/DevOps reviewers
 
@@ -25,7 +25,7 @@ Audience: Operators, maintainers, and SRE/DevOps reviewers
 | Component | Port | Purpose |
 |-----------|------|---------|
 | **Prometheus** | 9090 | Metrics collection, alerting, TSDB |
-| **Grafana** | 3001 | Dashboards and visualization (admin/admin) |
+| **Grafana** | 3001 | Dashboards and visualization (credentials via `GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD` env vars — `docker-compose.monitoring.yaml` explicitly never defaults to admin/admin) |
 | **Alertmanager** | 9093 | Alert routing and pager dispatch |
 | **Loki** | 3101 | Centralized log aggregation |
 | **Promtail** | — | Log shipping agent (runs alongside services) |
@@ -67,27 +67,31 @@ curl http://localhost:16686/
 
 ## Metrics Catalog
 
+**Corrected 2026-07-03** — the metric names below were fictional in a prior version of this document (`http_requests_total`, `missions_created_total`, `sse_connections_active`, `mission_state_transitions_total`, `pod_assignments_total`, `langgraph_executions_total`, `agent_heartbeats_total` do not exist). See `METRICS_SOURCE_MODULES.md` for the full, source-verified list; the tables below are a summary.
+
 ### API Gateway Metrics (`:8100/metrics`)
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `http_requests_total` | Counter | Total HTTP requests by method, path, status |
-| `http_request_duration_seconds` | Histogram | Request latency distribution |
-| `rate_limit_hits_total` | Counter | Rate limit rejections by key |
-| `missions_created_total` | Counter | Mission creation events |
-| `missions_idempotent_hits_total` | Counter | Idempotency cache hits |
-| `sse_connections_active` | Gauge | Active SSE connections |
-| `sse_events_sent_total` | Counter | SSE events dispatched |
+| `api_gateway_http_requests_total` | Counter | Total HTTP requests by method, path, status_code |
+| `api_gateway_http_request_duration_seconds` | Histogram | Request latency distribution |
+| `api_gateway_live_stream_connections_total` | Counter | Total SSE live-stream connections accepted |
+| `api_gateway_live_stream_events_total` | Counter | SSE events emitted, by event_type |
+| `api_gateway_live_stream_errors_total` | Counter | Live-stream errors observed, by reason |
+| `factory_auth_failures_total` | Counter | Auth failures by reason and route_prefix |
 
 ### Orchestrator Metrics (`:8101/metrics`)
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `mission_state_transitions_total` | Counter | State machine transitions by state |
-| `pod_assignments_total` | Counter | Pod assignment events by pod |
-| `langgraph_executions_total` | Counter | LangGraph execution count by status |
-| `langgraph_checkpoint_ops_total` | Counter | Checkpoint read/write operations |
-| `agent_heartbeats_total` | Counter | Heartbeat events by agent |
+| `orchestrator_http_requests_total` | Counter | Total HTTP requests by method, path, status_code |
+| `orchestrator_http_request_duration_seconds` | Histogram | Request latency distribution |
+| `llm_fallback_total` | Counter | Silent LLM fallbacks by agent_id and reason |
+| `factory_mission_transitions_total` | Counter | Mission state transitions by from_state/to_state/engine |
+| `factory_mission_outcomes_total` | Counter | Terminal mission outcomes (complete/failed/timeout) |
+| `factory_missions_active` | Gauge | Active missions by state (queued/running/verified) |
+| `factory_mission_duration_seconds` | Histogram | Mission duration from intake to terminal state |
+| `factory_mission_last_transition_timestamp` | Gauge | Unix timestamp of the most recent transition (feeds `MissionStuckInRunning`) |
 
 ### Optional Data-Plane Metrics (when `MILVUS_ENABLED`, `NEO4J_ENABLED`, or `OBJECT_STORAGE_ENABLED`)
 
@@ -127,14 +131,19 @@ Configured in `deploy/monitoring/prometheus/rules/thefactory-alerts.yml`.
 
 ### Core Service Alerts
 
+**Corrected 2026-07-03** — `GatewayDown`, `RedisDown`, `PostgresDown`, `HighErrorRate`, and `HighP95Latency` did not exist in `thefactory-alerts.yml`; the real alert names are below.
+
 | Alert | Severity | Condition | Runbook |
 |-------|----------|-----------|---------|
-| `GatewayDown` | critical | api-gateway health endpoint unreachable for > 1m | `OPERATIONS_RUNBOOK.md` |
-| `OrchestratorDown` | critical | orchestrator health endpoint unreachable for > 1m | `OPERATIONS_RUNBOOK.md` |
-| `RedisDown` | critical | Redis connection failures for > 1m | `OPERATIONS_RUNBOOK.md` |
-| `PostgresDown` | critical | DB connection failures for > 1m | `OPERATIONS_RUNBOOK.md` |
-| `HighErrorRate` | high | 5xx error rate > 5% for > 2m | `OPERATIONS_RUNBOOK.md` |
-| `HighP95Latency` | high | p95 request latency > 2s for > 5m | `OPERATIONS_RUNBOOK.md` |
+| `ApiGatewayDown` | critical | api-gateway health endpoint unreachable | `OPERATIONS_RUNBOOK.md` |
+| `OrchestratorDown` | critical | orchestrator health endpoint unreachable | `OPERATIONS_RUNBOOK.md` |
+| `ProtocolBusMcpDown` | critical | protocol-bus-mcp health endpoint unreachable | `runbooks/protocol_bus_incident_runbook.md` |
+| `PodWorkerDown` | critical | pod-worker health endpoint unreachable | `OPERATIONS_RUNBOOK.md` |
+| `AuditWorkerDown` | critical | audit-worker health endpoint unreachable | `OPERATIONS_RUNBOOK.md` |
+| `ApiGateway5xxRateHigh` | high | api-gateway 5xx error rate elevated | `OPERATIONS_RUNBOOK.md` |
+| `Orchestrator5xxRateHigh` | high | orchestrator 5xx error rate elevated | `OPERATIONS_RUNBOOK.md` |
+| `MissionStuckInRunning` | high | `factory_mission_last_transition_timestamp` stale while a mission remains in `RUNNING` | `OPERATIONS_RUNBOOK.md` |
+| `MissionFailureRateHigh` | high | `factory_mission_outcomes_total{outcome="failed"}` rate elevated | `OPERATIONS_RUNBOOK.md` |
 
 ### Optional Data-Plane Alerts
 
@@ -228,9 +237,9 @@ The provisioned Grafana dashboard includes:
 
 | Panel | Metric |
 |-------|--------|
-| Request rate (req/s) | `rate(http_requests_total[5m])` |
-| p95 latency | `histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))` |
-| Error rate | `rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])` |
+| Request rate (req/s) | `rate(api_gateway_http_requests_total[5m])` |
+| p95 latency | `histogram_quantile(0.95, rate(api_gateway_http_request_duration_seconds_bucket[5m]))` |
+| Error rate | `rate(api_gateway_http_requests_total{status_code=~"5.."}[5m]) / rate(api_gateway_http_requests_total[5m])` |
 | Error Budget Burn (x) | Fast/slow burn-rate queries for gateway + orchestrator |
 | Active missions | Mission state gauge |
 | Agent heartbeat age | Latest heartbeat timestamps |

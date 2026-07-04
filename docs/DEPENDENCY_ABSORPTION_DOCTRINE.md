@@ -1,11 +1,20 @@
 # Dependency Absorption Doctrine
 
-Document version: 2026.04.25
-Last updated: 2026-04-25
+Document version: 2026.07.03
+Last updated: 2026-07-03
 Status: Canonical (Doctrine)
 Audience: Operators, security reviewers, agent developers, mission designers
 
 This document defines the doctrine that governs how theFactory treats third-party dependencies in target applications. It is the single source of truth for absorption, replacement, retention, and governance decisions.
+
+## Current Implementation Status (added 2026-07-03)
+
+This document is a **policy target**, not a description of the shipped implementation — most of it is aspirational governance layered over a much simpler real classifier. Verified against `services/orchestrator/orchestrator/dependency_absorption.py`:
+
+- **Implemented:** the block-list families (Security-critical, Platform/runtime drivers, Validation/serialization, HTTP clients, Framework core, Complex parsers, Safety-critical math, Observability — see `_classify_dependency()`'s family checks) and 3 of 6 named artifact schemas (`dependency_inventory.v1`, `dependency_absorption_report.v1` via `build_dependency_absorption_reports()`, and a real SBOM delta via `build_sbom_delta()`).
+- **Not implemented:** the 7-step "Decision Hierarchy" (Absorb→Reimplement→Replace→Vendor→Wrap→Pin→Keep) does not exist — the real classifier is one function (`_classify_dependency()`) that checks a dependency's name against each block-list family in a fixed if/elif order and returns immediately on the first match, with exactly **6** outcomes (`keep`/`block`/`wrap`/`pin`/`replace`/`absorb` → categories `Keep`/`Block`/`Wrap`/`Pin`/`Replace`/`Absorbable`) — there is no separate "Possibly Absorbable" category. Most of the "Required Review Gates" below are not implemented: there is no distinct Intent gate, no `dependency_intent_node.v1` artifact, and no SecurityAgent-integration call site in this module. "Shadow Equivalence Mode" (running original and replacement in parallel before removal) does not exist anywhere in the codebase. The SBOM format is a custom `sbom_delta.v1` schema (`original_dependency_count`/`removed`/`remaining`/`kept_with_justification`/`reduction_percent`), **not CycloneDX 1.5** as stated below.
+
+Treat everything below this point as the intended future-state doctrine, not a guarantee of current behavior. If you need to know what the code actually does today, read `dependency_absorption.py` directly — it is much simpler than this document describes.
 
 ## Table of Contents
 
