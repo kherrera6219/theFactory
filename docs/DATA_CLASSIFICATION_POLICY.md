@@ -21,8 +21,8 @@ class DataClassification(str, Enum):
 
 ## Where It's Set and Read
 
-- A mission's `data_classification` is set on `mission.metadata["data_classification"]`, typically by the api-gateway when it detects sensitive content in the intake prompt (`_build_sensitive_input_scan` in `services/api-gateway/api_gateway/main.py`) — it sets `"TIER_2_RESTRICTED"` on detection and defaults to `"TIER_1_INTERNAL"` otherwise.
-- **Known naming inconsistency, not yet reconciled:** the api-gateway writes the string `"TIER_2_RESTRICTED"`, not the orchestrator's actual enum value `"TIER_2_SENSITIVE"`. This doesn't crash anything (the orchestrator's `storage_missions.py` parses a *different* metadata key, `__data_classification__`, defensively inside a `try/except ValueError`), but it does mean `security_compliance.py`'s classification-based checks (below) never recognize an api-gateway-tagged "restricted" mission as anything other than an unrecognized/blank classification, since those checks only match on the literal strings `"TIER_3_REGULATED"` or `"REGULATED"`.
+- A mission's `data_classification` is set on `mission.metadata["data_classification"]`, typically by the api-gateway when it detects sensitive content in the intake prompt (`_build_sensitive_input_scan` in `services/api-gateway/api_gateway/main.py`) — it sets `"TIER_2_SENSITIVE"` on detection and defaults to `"TIER_1_INTERNAL"` otherwise.
+- **Fixed 2026-07-03:** the api-gateway previously wrote the invented string `"TIER_2_RESTRICTED"`, which didn't match the orchestrator's actual enum value `"TIER_2_SENSITIVE"` — `security_compliance.py`'s classification-based checks (below) never recognized an api-gateway-tagged "restricted" mission as anything other than an unrecognized/blank classification, since those checks only match the literal enum strings. The api-gateway now writes `"TIER_2_SENSITIVE"` directly.
 - `security_compliance.py`'s `_check_data_classification()` and `_requires_blocking_context()` read `metadata["data_classification"]` (or `mission_charter["data_classification"]`) and only special-case `TIER_3_REGULATED`/`REGULATED`:
   - `_check_data_classification()` marks the check `manual_review` (non-blocking on its own) when the classification is regulated, `pass` otherwise.
   - `_requires_blocking_context()` returns `True` for a regulated classification (or `depth_mode == "REGULATED"`), which forces the security-compliance report to block delivery on any failed required check **regardless of** the `mission_security_compliance_enforcement_enabled` setting (see `SECURITY_COMPLIANCE_MODULE.md`).
@@ -35,4 +35,4 @@ The classification system as actually implemented is a single binary gate — "i
 ## Related Docs
 
 - `SECURITY_COMPLIANCE_MODULE.md` — the gate that actually reads this classification
-- `SENSITIVE_CODE_HANDLING_POLICY.md` — the detection heuristics that set `TIER_2_RESTRICTED` on the api-gateway side
+- `SENSITIVE_CODE_HANDLING_POLICY.md` — the detection heuristics that set `TIER_2_SENSITIVE` on the api-gateway side

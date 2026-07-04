@@ -2253,8 +2253,13 @@ async def create_mission(
     if sensitive_input_scan["has_sensitive_input"]:
         normalized_metadata["sensitive_input_pii_types"] = sensitive_input_scan["pii_types"]
         current_classification = str(normalized_metadata.get("data_classification") or "").upper()
-        if current_classification not in {"TIER_2_RESTRICTED", "TIER_3_RESTRICTED"}:
-            normalized_metadata["data_classification"] = "TIER_2_RESTRICTED"
+        # Must match orchestrator/models.py's DataClassification enum values
+        # (TIER_2_SENSITIVE/TIER_3_REGULATED), not an invented "RESTRICTED"
+        # suffix -- security_compliance.py's classification checks only ever
+        # match the real enum strings, so a mismatched value here was
+        # silently invisible to every downstream classification-based check.
+        if current_classification not in {"TIER_2_SENSITIVE", "TIER_3_REGULATED"}:
+            normalized_metadata["data_classification"] = "TIER_2_SENSITIVE"
     else:
         normalized_metadata.setdefault("data_classification", "TIER_1_INTERNAL")
 

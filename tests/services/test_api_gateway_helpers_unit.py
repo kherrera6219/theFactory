@@ -13,8 +13,10 @@ from starlette.requests import Request
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "api-gateway"))
+sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
 api_gateway_main = importlib.import_module("api_gateway.main")
+orchestrator_models = importlib.import_module("orchestrator.models")
 
 
 class _MemoryRedis:
@@ -267,7 +269,15 @@ def test_create_mission_persists_sensitive_input_scan_before_storage(monkeypatch
     assert scan["pii_types"] == ["EMAIL"]
     assert metadata["contains_sensitive_input"] is True
     assert metadata["sensitive_input_pii_types"] == ["EMAIL"]
-    assert metadata["data_classification"] == "TIER_2_RESTRICTED"
+    # Regression: this used to be the invented string "TIER_2_RESTRICTED",
+    # which didn't match orchestrator/models.py's real DataClassification
+    # enum ("TIER_2_SENSITIVE") -- security_compliance.py's classification
+    # checks never recognized it as anything but unclassified.
+    assert metadata["data_classification"] == "TIER_2_SENSITIVE"
+    # Cross-service consistency: the value must be a real orchestrator enum
+    # member -- "TIER_2_RESTRICTED" would raise ValueError here, silently
+    # failing to round-trip through storage_missions.py's parsing.
+    orchestrator_models.DataClassification(metadata["data_classification"])
     assert "operator@example.com" not in json.dumps(scan)
 
 
