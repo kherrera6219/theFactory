@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.07.03f
+Document version: 2026.07.03g
 Last updated: 2026-07-03
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -13,9 +13,34 @@ as current work.
 
 ## Current Status
 
-**Most recent work: security review of the Mission Control frontend's
+**Most recent work: full documentation audit and reduction, plus one real
+code bug found incidentally.** Inventoried all ~105 active docs, deleted 3
+that described entirely fictional systems (`EQUIVALENCE_VERIFIER.md`,
+`IS_AGENT.md`, `PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md` — the real
+modules are now documented in `SUPPORTING_MODULES.md`), archived 8
+completed point-in-time plans/incidents to `docs/archive/2026-07-03/`, and
+split `HANDOFF_CURRENT.md`/this file's ever-growing history sections into
+their own archive files. Found two critical inaccuracies:
+`LICENSE_STRATEGY.md` claimed MIT (repo is actually Dual AGPL-3.0/
+Commercial with a mandatory CLA — README badge also fixed); `DATA_
+CLASSIFICATION_POLICY.md` described a fictional 4-tier taxonomy not matching
+the real `DataClassification` enum. 7 more docs were rewritten after a
+verification pass found they described nonexistent class-based APIs
+(`AGENT_SCALING_AND_HEARTBEAT.md`, `LLM_DELEGATION.md`, `PROMPT_REGISTRY_
+AND_ASSETS.md`, `LLM_SAFETY_AND_DOCUMENT_PARSER.md`, `METRICS_SOURCE_
+MODULES.md`, `OBSERVABILITY_STACK.md`, `DEPENDENCY_ABSORPTION_DOCTRINE.md`).
+**Incidentally found and fixed a real bug**: the api-gateway tagged
+sensitive-input missions with the invented string `"TIER_2_RESTRICTED"`,
+which never matched the orchestrator's real enum value
+(`"TIER_2_SENSITIVE"`) — `security_compliance.py`'s classification checks
+silently never recognized these missions. Fixed and test-verified (1348
+backend tests, 0 failures), `api-gateway` Docker image rebuilt. See
+"Documentation Audit and Reduction (2026-07-03)" under Recently Completed
+for the full list.
+
+Before that: security review of the Mission Control frontend's
 Next.js API routes — found the vault CRUD routes and the gateway catch-all
-proxy had zero authentication.** `apps/mission-control/app/api/`. Vault
+proxy had zero authentication. `apps/mission-control/app/api/`. Vault
 routes (`GET`/`POST`/`DELETE /api/vault`, `POST /api/vault/test`) never
 called `isAuthorizedVaultRequest` (dead code that existed and was tested
 but never wired in) — any unauthenticated caller could list, overwrite, or
@@ -559,6 +584,63 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 ---
 
 ## Recently Completed
+
+### Documentation Audit and Reduction (2026-07-03): fictional docs deleted, license/classification errors fixed, one real code bug found
+
+Full inventory-and-accuracy audit of theFactory's documentation, done in
+two passes (initial inventory/classification/reduction, then a targeted
+verification pass over docs not deeply checked in the first pass).
+
+- Inventoried 105 active docs (89 under `docs/`, 16 root/app/GitHub-template
+  files) plus 212 already-segregated historical files under
+  `docs/archive/`/`docs/evidence/`.
+- Deleted 3 docs describing entirely fictional systems: `EQUIVALENCE_
+  VERIFIER.md`, `IS_AGENT.md`, `PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md`
+  (plus `diagrams/ENTERPRISE_ARCHITECTURE_DIAGRAMS.md`, redundant with
+  `ARCHITECTURE_DIAGRAMS.md`). The real `equivalence_verifier.py`/
+  `is_agent.py`/`port_coordinator.py` modules are now documented accurately
+  in `SUPPORTING_MODULES.md`.
+- Archived 8 completed point-in-time plans/incidents to
+  `docs/archive/2026-07-03/`: `AUDIT_PLAN.md`, the 2026-06-30 findings/
+  session-log pair, `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`,
+  `PROTOCOL_BUS_MISSION_BATTERY_PLAN.md`, `UPDATE_PLAN_VERIFICATION_
+  HARDENING_2026-06-29.md`, `STACK_REMEDIATION_PLAN_2026-07-01.md`,
+  `AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md`.
+- Pruned `HANDOFF_CURRENT.md` (1504 lines) and this file (1120 lines) down
+  to current status plus the most recent review sweep; older entries moved
+  to `docs/archive/2026-07-03/{HANDOFF_CURRENT,CURRENT_TODO}_OLDER_HISTORY.md`.
+- Fixed two critical inaccuracies: `LICENSE_STRATEGY.md` claimed MIT with
+  quoted MIT text (repo is Dual AGPL-3.0/Commercial with a mandatory CLA;
+  fixed the README license badge too); `DATA_CLASSIFICATION_POLICY.md`
+  described a fictional 4-tier taxonomy not matching the real
+  `DataClassification` enum.
+- Rewrote 7 docs that described entire class-based APIs/config keys that
+  don't exist, while omitting the real (differently-designed) modules:
+  `AGENT_SCALING_AND_HEARTBEAT.md`, `LLM_DELEGATION.md`, `PROMPT_REGISTRY_
+  AND_ASSETS.md`, `LLM_SAFETY_AND_DOCUMENT_PARSER.md`, `METRICS_SOURCE_
+  MODULES.md`, `OBSERVABILITY_STACK.md` (fictional metric/alert names that
+  would return zero results against real Prometheus/Grafana),
+  `DEPENDENCY_ABSORPTION_DOCTRINE.md` (added a status section separating
+  real code from aspirational governance policy).
+- Fixed several minor inaccuracies: `SENSITIVE_CODE_HANDLING_POLICY.md`,
+  `COMPLIANCE_EVIDENCE_MAPPING.md`, `LOCAL_FIRST_COMPLIANCE_PLAN.md` (3
+  already-shipped items still marked "Outstanding"), `SETTINGS_
+  REFERENCE.md` (3 undocumented fields), `KNOWLEDGE_LAKE_AND_EMBEDDINGS.md`,
+  `DEPLOYMENT_DR_PLAYBOOK.md` (check-count inconsistency, real count is
+  23), `dr_validation_runbook.md` (RTO/MTTR conflation, missing
+  compose-file pairing flags matching the documented `docker compose
+  down -v` gotcha, stale drill schedule), `dedicated_agent_canary_
+  runbook.md` (outdated compose profile invocation).
+- **Found and fixed a real code bug incidentally**: the api-gateway tagged
+  sensitive-input missions with the invented string `"TIER_2_RESTRICTED"`,
+  never matching the orchestrator's real `DataClassification` enum value
+  (`"TIER_2_SENSITIVE"`) — `security_compliance.py`'s classification checks
+  silently never recognized these missions as anything but unclassified.
+  Fixed with a regression test proven to fail pre-fix via `git stash`.
+- `scripts/validate_documentation.py` passing throughout. Full backend
+  suite after the code-bug fix: 1348 passed, 5 skipped. `ruff check`
+  clean. `api-gateway` Docker image rebuilt and the fix verified inside
+  the container.
 
 ### Mission Control API Routes Review (2026-07-03): vault and gateway proxy had zero authentication
 

@@ -1,11 +1,38 @@
 # Current Handoff
 
-Document version: 2026.07.03f
+Document version: 2026.07.03g
 Last updated: 2026-07-03
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** the newest completed work is a security
+**If you are picking this up cold:** the newest completed work is a full
+documentation audit and reduction of the entire `docs/` set (plus root/app
+docs), done in two passes. **Deleted 3 docs that described entirely
+fictional systems** (`EQUIVALENCE_VERIFIER.md`, `IS_AGENT.md`,
+`PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md` — classes/functions that were
+documented but never implemented; the real modules are now documented
+accurately in `SUPPORTING_MODULES.md`). **Archived 8 completed point-in-time
+plans/incident reports** to `docs/archive/2026-07-03/`, and split
+`HANDOFF_CURRENT.md`/`CURRENT_TODO.md`'s ever-growing "Latest/Recently
+Completed" sections into their own history files there too. **Found two
+critical inaccuracies**: `LICENSE_STRATEGY.md` claimed MIT with quoted MIT
+text — the repo is actually Dual AGPL-3.0/Commercial with a mandatory CLA
+(the README license badge was also wrong, now fixed); `DATA_CLASSIFICATION_
+POLICY.md` described a fictional 4-tier taxonomy that didn't match the real
+`DataClassification` enum. **7 more docs were substantially rewritten**
+after a verification pass found they described entire class-based APIs
+that don't exist (`AGENT_SCALING_AND_HEARTBEAT.md`, `LLM_DELEGATION.md`,
+`PROMPT_REGISTRY_AND_ASSETS.md`, `LLM_SAFETY_AND_DOCUMENT_PARSER.md`,
+`METRICS_SOURCE_MODULES.md`, `OBSERVABILITY_STACK.md`,
+`DEPENDENCY_ABSORPTION_DOCTRINE.md`). **One real code bug was found
+incidentally and fixed**: the api-gateway tagged sensitive-input missions
+with the invented string `"TIER_2_RESTRICTED"`, which never matched the
+orchestrator's real enum value `"TIER_2_SENSITIVE"` — `security_compliance.
+py`'s classification checks silently never recognized these missions as
+anything but unclassified. See "Documentation Audit and Reduction
+(2026-07-03)" below for the full list.
+
+Before that: a security
 review of the Mission Control frontend's Next.js API routes
 (`apps/mission-control/app/api/`, ~6.1k lines including `lib/server/`).
 **Critical finding, confirmed by two independent review passes: the vault
@@ -455,6 +482,112 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Documentation Audit and Reduction (2026-07-03): fictional docs deleted, license/classification errors fixed, one real code bug found
+
+A full inventory-and-accuracy audit of theFactory's documentation, requested
+to reduce the doc set to what a production application should ship and
+ensure the survivors reflect current code. Two passes: an initial
+inventory/classification/reduction pass, then a targeted verification pass
+over the ~40 docs not deeply checked in the first pass.
+
+- **Inventory:** 105 "active" docs (89 under `docs/`, 16 root/app/GitHub-
+  template files) plus 212 already-segregated historical files under
+  `docs/archive/`/`docs/evidence/`.
+- **Deleted 3 docs with no salvageable content** — they described systems
+  that were never implemented: `EQUIVALENCE_VERIFIER.md` (a fictional
+  `EquivalenceReport`/3-plane AIM-comparison system; the real
+  `equivalence_verifier.py` is a deterministic per-check contract
+  validator), `IS_AGENT.md` (a fictional "Integration Specialist" agent
+  class; the real `is_agent.py` seeds Knowledge Lake bootstrap docs),
+  `PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md` (a fictional Redis ephemeral
+  port allocator; the real `port_coordinator.py` orchestrates PORT-mission
+  two-phase extraction — and its LogicNode-schema half duplicated content
+  already correctly superseded by `LOGICNODE_SCHEMA.md`). Also dropped
+  `diagrams/ENTERPRISE_ARCHITECTURE_DIAGRAMS.md` (redundant with
+  `ARCHITECTURE_DIAGRAMS.md`, with unverified claims). The real
+  `equivalence_verifier.py`/`is_agent.py`/`port_coordinator.py` modules are
+  now documented accurately as new sections in `SUPPORTING_MODULES.md`.
+- **Archived 8 completed, point-in-time plans/incident reports** to
+  `docs/archive/2026-07-03/`: `AUDIT_PLAN.md`, the 2026-06-30 findings/
+  session-log pair, `PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` (PBLA Stage 1,
+  now code-complete), `PROTOCOL_BUS_MISSION_BATTERY_PLAN.md`,
+  `UPDATE_PLAN_VERIFICATION_HARDENING_2026-06-29.md`,
+  `STACK_REMEDIATION_PLAN_2026-07-01.md`,
+  `AGENT_PROTOCOL_BUS_DATA_SYSTEMS_PLAN.md`.
+- **Pruned this file and `CURRENT_TODO.md`** — both had accumulated months
+  of dated "Latest/Recently Completed" entries (1504 and 1120 lines).
+  Trimmed to current status plus the most recent review sweep; older
+  entries moved to `docs/archive/2026-07-03/{HANDOFF_CURRENT,CURRENT_TODO}_
+  OLDER_HISTORY.md`.
+- **Critical: `LICENSE_STRATEGY.md` claimed the repo was MIT-licensed**,
+  quoting MIT text and describing a forward-looking "open-core" plan built
+  on that premise. The real root `LICENSE` is a **Dual AGPL-3.0/Commercial**
+  license with a patent notice covering the core architecture, and a CLA
+  that is **already mandatory today** (not "may be added later" as the doc
+  claimed). Rewrote the doc from the real `LICENSE` file, and fixed the
+  README license badge, which was also wrong (said MIT, linked to the real
+  dual-license file).
+- **Critical: `DATA_CLASSIFICATION_POLICY.md` described a fictional 4-tier
+  `PUBLIC`/`INTERNAL`/`CONFIDENTIAL`/`RESTRICTED` taxonomy** with an
+  elaborate retention/access-control matrix, none of which exists in code.
+  Rewrote grounded in the real `DataClassification` enum
+  (`TIER_0_PUBLIC`/`TIER_1_INTERNAL`/`TIER_2_SENSITIVE`/`TIER_3_REGULATED`)
+  and its actual (much thinner) enforcement — a single binary
+  regulated-vs-not gate in `security_compliance.py`, not a four-tier
+  handling framework.
+- **7 more docs substantially rewritten** after a verification pass found
+  they described entire class-based APIs, config keys, and exception types
+  that don't exist, while omitting the real (differently-designed) modules:
+  `AGENT_SCALING_AND_HEARTBEAT.md` (no `AgentScaler`/`HeartbeatService`
+  classes — both real modules are function-based), `LLM_DELEGATION.md` (no
+  `LLMDelegator`/`PROVIDER_REGISTRY`/Ollama offline mode — the real package
+  is 12 flat function-based modules with a real circuit breaker in
+  `health.py`), `PROMPT_REGISTRY_AND_ASSETS.md` (no `PromptRegistry`
+  class — real assets are flat `{prompt_id}.v{N}.json` files with a real
+  SHA-256 integrity-manifest feature the old doc omitted entirely),
+  `LLM_SAFETY_AND_DOCUMENT_PARSER.md` (no `LLMSafetyFilter`/
+  `LocalOnlyViolation` — omitted the real `shared_runtime/prompt_guard.py`/
+  `pii_guard.py` it was supposed to document), `METRICS_SOURCE_MODULES.md`
+  and `OBSERVABILITY_STACK.md` (documented ~30 metric and 6 alert names
+  that would return zero results against real Prometheus/Grafana — e.g.
+  `GatewayDown`/`HighErrorRate` instead of the real `ApiGatewayDown`/
+  `ApiGateway5xxRateHigh`), `DEPENDENCY_ABSORPTION_DOCTRINE.md` (added a
+  "Current Implementation Status" section distinguishing the real 6-outcome
+  classifier from the doc's aspirational 7-step decision hierarchy and
+  Shadow Equivalence Mode, since most of this doc is intentionally
+  forward-looking policy, not a description of shipped behavior).
+- **Several minor fixes**: `SENSITIVE_CODE_HANDLING_POLICY.md`'s fictional
+  `pii_guard.py` tier-branching and LLM-routing-override claims;
+  `COMPLIANCE_EVIDENCE_MAPPING.md`'s nonexistent `deploy/redis/certs/*`
+  path; `LOCAL_FIRST_COMPLIANCE_PLAN.md`'s three already-shipped items
+  still marked "Outstanding" (`shared_runtime/atomic_io.py`,
+  `shared_runtime/errors.py`, Electron crash handling); `SETTINGS_
+  REFERENCE.md`'s 3 undocumented settings fields;
+  `KNOWLEDGE_LAKE_AND_EMBEDDINGS.md`'s `index_documentation()` dead-code
+  claim; `DEPLOYMENT_DR_PLAYBOOK.md`'s internal check-count inconsistency
+  (said 17 in one place, 13 in another; the real count is 23, matching the
+  README badge); `dr_validation_runbook.md`'s RTO/MTTR conflation (15 min
+  vs. the canonical 30 min), missing compose-file pairing flags (the exact
+  `docker compose down -v` gotcha documented in project history), and a
+  stale all-"NOT RUN" drill schedule; `dedicated_agent_canary_runbook.md`'s
+  outdated compose profile invocation.
+- **One real code bug found incidentally during the audit, not a doc fix:**
+  the api-gateway's `_build_sensitive_input_scan` handler tagged
+  sensitive-input missions with the invented string `"TIER_2_RESTRICTED"`,
+  which never matched the orchestrator's real `DataClassification` enum
+  value (`"TIER_2_SENSITIVE"`). This didn't crash anything (a different,
+  defensively-guarded metadata key is what `storage_missions.py` actually
+  parses into the enum), but `security_compliance.py`'s classification-
+  based checks silently never recognized an api-gateway-tagged mission as
+  anything but unclassified. Fixed to write `"TIER_2_SENSITIVE"` directly,
+  with a regression test proving the mismatch via `git stash` and a
+  cross-service consistency assertion (`DataClassification(value)` must
+  not raise).
+- Ran `scripts/validate_documentation.py` after every batch of changes —
+  passing throughout. Full backend suite re-run after the code-bug fix:
+  1348 passed, 5 skipped. `ruff check` clean. `api-gateway` Docker image
+  rebuilt and the fix verified inside the container.
 
 ### Mission Control API Routes Review (2026-07-03): vault and gateway proxy had zero authentication
 
