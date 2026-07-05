@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.07.03g
-Last updated: 2026-07-03
+Document version: 2026.07.05a
+Last updated: 2026-07-05
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -13,8 +13,28 @@ as current work.
 
 ## Current Status
 
-**Most recent work: full documentation audit and reduction, plus one real
-code bug found incidentally.** Inventoried all ~105 active docs, deleted 3
+**Most recent work: a full whole-application, read-only code review — findings
+documented, nothing fixed yet.** Every part of the app was reviewed, not just
+the Windows/Electron packaging layer that was the initial scope ask: Mission
+Control frontend UI, Electron/Windows packaging, the dedicated `agent-runtime`
+service, deploy/infrastructure/CI, and `scripts/`. Full report:
+`docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`. Explicit instruction for
+this pass was review-only ("dont fix anything as you go") so a single ordered
+remediation/upgrade plan can be written next, as a separate step — **that plan
+does not exist yet and is the next action.** Headline findings: the
+compose-level `RQCA_ENFORCEMENT_ENABLED` default silently reverts this
+session's own hardened code default back to `false` in every profile including
+production; production MinIO credentials fall back to
+`minioadmin`/`minioadmin123`; the packaged Electron app's 14 `app/api/*` routes
+cannot function at all because the Electron build's static-export mode
+physically hides `app/api` to work around a Next.js incompatibility; Mission
+Control's Alerts "Acknowledge"/"Mark Resolved" actions don't persist. See
+"Full Whole-App Code Review (2026-07-05)" under Recently Completed for the
+full ~30-finding list, and the Active Work Queue below for the tracked
+next-step item (write the remediation plan).
+
+Before that: full documentation audit and reduction, plus one real
+code bug found incidentally. Inventoried all ~105 active docs, deleted 3
 that described entirely fictional systems (`EQUIVALENCE_VERIFIER.md`,
 `IS_AGENT.md`, `PORT_COORDINATOR_AND_LOGICNODE_SCHEMA.md` — the real
 modules are now documented in `SUPPORTING_MODULES.md`), archived 8
@@ -384,6 +404,31 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
+### Full Whole-App Code Review Remediation (planning — next session)
+
+Tracked by `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md` (the complete,
+read-only findings report — nothing in it has been fixed).
+
+1. **NEXT:** read the findings doc in full, then write a single ordered
+   remediation/upgrade plan covering both (a) the ~30 bugs/gaps found across
+   the five reviewed slices (frontend UI, Electron/Windows, agent-runtime,
+   deploy/infra/CI, scripts) and (b) the dedicated §8 gap list for turning
+   the app into a genuine Windows Electron installer with working
+   install/uninstall (build-mode reconciliation, real backend-lifecycle
+   ownership in the Electron main process, a meaningful Docker-availability
+   check, a Docker Desktop/WSL2 prerequisite story, real code signing,
+   uninstall disclosure/cleanup, an auto-start decision).
+2. Do not fix individual findings ad hoc before that plan exists — the
+   review-then-plan split was deliberate, to sequence and prioritize this
+   work rather than patch it opportunistically.
+3. Two findings are flagged as highest-priority candidates for early
+   attention in that plan given they're live security-relevant gaps right
+   now, independent of any Electron work: `RQCA_ENFORCEMENT_ENABLED`'s
+   compose-level default silently reverting the hardened code default back
+   to `false` in production (`deploy/docker-compose.yaml:326`), and
+   production MinIO credentials falling back to
+   `minioadmin`/`minioadmin123` with no override anywhere.
+
 ### Mission Control UX Lock-In (implemented; live browser proof pending)
 
 Tracked by `docs/evidence/mission_control_ux_lockin_2026-07-02.md`.
@@ -584,6 +629,56 @@ fire-and-forget pattern. No schema changes, no new infrastructure — wiring onl
 ---
 
 ## Recently Completed
+
+### Full Whole-App Code Review (2026-07-05): read-only, five slices, ~30 findings, remediation plan pending
+
+A full, read-only code review of the entire application (not just the
+Windows/Electron packaging layer originally scoped), via four parallel
+background review agents (frontend UI, Electron/Windows, deploy/infra/CI,
+scripts — each explicitly read-only) plus a direct 3-file self-review of
+`services/agent-runtime/`. Full report:
+`docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`. Explicit instruction:
+findings-only, nothing fixed in this pass.
+
+- Established that the app currently runs as a web app (`start_app.bat` →
+  Docker Compose + a plain Next.js server opened in the default browser),
+  not as a packaged Electron app — the Electron build is a separate,
+  parallel path.
+- Slice A (frontend UI): 13 findings — Alerts "Acknowledge"/"Mark Resolved"
+  don't persist (local state only); stale-response races in mission/detail/
+  artifact data fetching; a literal `✕` renders as raw escaped text; two
+  non-semantic clickable `<div>`s with no keyboard access; guided-tour
+  dialog never calls `.focus()`. No XSS vector found.
+- Slice B (Electron/Windows packaging): the packaged app's 14 `app/api/*`
+  routes cannot function at all — static export (required for Electron)
+  physically hides `app/api` at build time because Next.js static export is
+  incompatible with dynamic App Router routes; confirmed via
+  `scripts/build-electron.mjs` explicitly renaming the directory away and
+  back. Also: cosmetic-only Docker check, zero Docker-lifecycle code in the
+  Electron main process, unsigned release artifacts, no NSIS
+  install/uninstall hooks, `deleteAppDataOnUninstall` doesn't touch the real
+  vault file. Full 7-point gap list for a real installer in §8 of the
+  findings doc.
+- Slice C (`services/agent-runtime/`): clean; one weak-default-secret
+  finding (`SERVICE_API_KEY` defaults to `"worker-key"`).
+- Slice D (deploy/infra/CI): `RQCA_ENFORCEMENT_ENABLED` compose default
+  silently reverts the hardened code default back to `false` in every
+  profile including production; production MinIO credentials fall back to
+  `minioadmin`/`minioadmin123`; `GATEWAY_ADMIN_BYPASS=true` only warns in
+  prod instead of failing fast; `METRICS_SOURCE_MODULES.md` omits 4 real
+  in-use metrics. Dockerfile hygiene and CI security scanning both clean.
+- Slice E (`scripts/`, 58 scripts, + `Makefile`): duplicate `demo:` target
+  silently shadows the intended one; real DR drill and two qualification
+  scripts default to destructive live mutation with no confirmation; the
+  git-history-scrub script unconditionally rewrites history with no
+  dry-run/backup; the operations runbook's own recovery steps violate its
+  own compose-pairing warning. No SQL injection or shell command injection
+  found anywhere in the ~25 scripts with no material findings.
+- `scripts/validate_documentation.py` passes with the new findings doc
+  included.
+- **Not done in this pass (deliberately deferred):** no fixes, no
+  remediation plan. See "Full Whole-App Code Review Remediation" above for
+  the tracked next step.
 
 ### Documentation Audit and Reduction (2026-07-03): fictional docs deleted, license/classification errors fixed, one real code bug found
 

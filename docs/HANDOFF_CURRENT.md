@@ -1,11 +1,44 @@
 # Current Handoff
 
-Document version: 2026.07.03g
-Last updated: 2026-07-03
+Document version: 2026.07.05a
+Last updated: 2026-07-05
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** the newest completed work is a full
+**If you are picking this up cold:** the newest work is a full
+whole-application, read-only code review — every part of theFactory, not
+just the Windows/Electron packaging layer that was the initial scope ask.
+**This was a findings-only pass: nothing was fixed.** The complete report
+is `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md` — read that file, not
+just this summary, before starting any remediation. It covers five slices
+(Mission Control frontend UI, Electron/Windows packaging, the dedicated
+`agent-runtime` service, deploy/infrastructure/CI, and `scripts/`) plus a
+dedicated §8 enumerating what's needed to turn this into a real Windows
+Electron installer with working install/uninstall, grounded in the fact
+that **the app currently runs as a web app**: `start_app.bat` starts the
+Docker Compose backend plus a plain Next.js standalone server opened in the
+default browser via `Start-Process` — not the packaged Electron build,
+which is a separate, parallel path with its own currently-broken build
+pipeline. Headline findings: the compose-level `RQCA_ENFORCEMENT_ENABLED`
+default (`false`, in `deploy/docker-compose.yaml:326`) silently reverts
+this session's own hardened code-level default (`true`) back off in every
+profile including production, and no override exists in
+`docker-compose.prod.yaml`; the production overlay never sets MinIO
+credentials either, so it falls back to `minioadmin`/`minioadmin123`; the
+packaged Electron app's 14 `app/api/*` routes (vault, session,
+review/approve, gateway proxy, etc.) cannot function at all today because
+the Electron build's static-export mode physically hides `app/api` at
+build time to work around a Next.js incompatibility
+(`scripts/build-electron.mjs`); and the Mission Control Alerts page's
+"Acknowledge"/"Mark Resolved" actions only mutate local React state with no
+backing API call, so they silently revert on refresh. **The next step for a
+fresh session is to read the findings doc in full and write one ordered
+remediation/upgrade plan covering both the bug backlog and the
+Electron/Windows installer buildout** — deliberately not started yet, since
+the user wants to review findings before that plan is written. See
+`docs/CURRENT_TODO.md`'s Active Work Queue for the tracked next-step entry.
+
+Before that: a full
 documentation audit and reduction of the entire `docs/` set (plus root/app
 docs), done in two passes. **Deleted 3 docs that described entirely
 fictional systems** (`EQUIVALENCE_VERIFIER.md`, `IS_AGENT.md`,
@@ -278,6 +311,21 @@ browser mission proof remains the next action.
 
 ## Active Work
 
+### Full Whole-App Code Review Remediation (planning — next session)
+
+The full, read-only findings report is
+`docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`. Nothing in it has been
+fixed — this was an explicit review-only pass so the user could read the
+findings before an upgrade plan gets written. **Next action: read that
+document in full, then write a single ordered remediation/upgrade plan**
+(not yet started) covering both (a) the ~30 bugs/gaps found across the five
+reviewed slices and (b) the dedicated §8 gap list for turning the app into
+a genuine Windows Electron installer with working install/uninstall. Do
+not start fixing individual findings ad hoc before that plan exists — the
+whole point of the review-then-plan split was to sequence this work
+deliberately rather than opportunistically. See `docs/CURRENT_TODO.md`'s
+Active Work Queue entry for the same tracked item.
+
 ### Mission Control UX Lock-In (implemented; restart/browser proof pending)
 
 Implementation complete:
@@ -482,6 +530,72 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Full Whole-App Code Review (2026-07-05): read-only, five slices, ~30 findings, remediation plan pending
+
+A full, read-only code review of the entire application, requested after an
+initial Electron/Windows-only review plan was expanded to cover "every part
+of the app." Explicit user instruction: **findings-only, don't fix anything
+as you go**, so a single ordered upgrade plan can be written afterward as a
+separate step. Full report: `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`.
+
+- **Established ground truth first:** the app currently runs as a web app —
+  `start_app.bat` starts the Docker Compose backend, then opens a plain
+  Next.js standalone server in the default browser — not as a packaged
+  Electron app. The Electron build is a separate, parallel path.
+- **Slice A — Mission Control frontend UI:** 13 findings. Most notable:
+  Alerts page "Acknowledge"/"Mark Resolved" only mutate local React state
+  with no API call (reverts on refresh, misleads operators); mission/detail/
+  artifact data fetches have no stale-response guard (wrong mission's data
+  can render under a new mission's header after fast navigation); a literal
+  `✕` renders as 6 raw characters instead of "✕" in mission detail
+  (unquoted JSX text); non-semantic clickable `<div>`s with no keyboard
+  access in two places; the guided-tour dialog never calls `.focus()`. No
+  XSS vector found anywhere (no `dangerouslySetInnerHTML` in scope).
+- **Slice B — Electron/Windows packaging:** the single most architecturally
+  significant finding of the whole review — **the packaged Electron app's
+  14 `app/api/*` routes (vault, session, review/approve, gateway proxy,
+  etc.) cannot function at all**, because Next.js static export (required
+  for the Electron build) is incompatible with dynamic App Router routes;
+  `scripts/build-electron.mjs` physically renames `app/api` out of the way
+  before building, proving the authors already know this. Also: zero
+  Docker-lifecycle code anywhere in the Electron main process (the Docker
+  check is cosmetic — a non-blocking dialog, window loads regardless);
+  release artifacts are unsigned (no `CSC_LINK`/cert anywhere); NSIS has no
+  dependency checks and no custom install/uninstall scripts;
+  `deleteAppDataOnUninstall` doesn't touch the real vault at
+  `~/.thefactory/vault.json`. See §8 of the findings doc for the 7-point gap
+  list on what a real one-click installer needs.
+- **Slice C — `services/agent-runtime/`:** clean overall (real circuit
+  breaker, bounded retry/backoff, correct consumer-group ack semantics).
+  One finding: `SERVICE_API_KEY` defaults to the well-known literal
+  `"worker-key"` if unset.
+- **Slice D — Deploy/infra/CI:** most notable — `deploy/docker-compose.
+  yaml:326` sets `RQCA_ENFORCEMENT_ENABLED: ${RQCA_ENFORCEMENT_ENABLED:
+  -false}`, silently reverting this session's own hardened code-level
+  default (`true`) back to `false` in every profile including production,
+  confirmed via `docker compose config` merge; the production overlay never
+  overrides MinIO credentials either, falling back to `minioadmin`/
+  `minioadmin123`. Also: `GATEWAY_ADMIN_BYPASS=true` in prod only warns
+  instead of failing fast like the adjacent CORS-wildcard check;
+  `docs/METRICS_SOURCE_MODULES.md` (rewritten in the prior documentation
+  audit) omits 4 real in-use metrics. Dockerfile hygiene and CI security
+  scanning (pip-audit/bandit/Trivy/gitleaks) both confirmed clean.
+- **Slice E — `scripts/` (58 scripts) and `Makefile`:** most notable — a
+  duplicate `demo:` Makefile target silently shadows the intended one; the
+  real (non-dry-run) DR drill and two qualification scripts default to
+  destructive live-container/auth mutation with no confirmation gate; the
+  git-history-scrub script unconditionally rewrites history with no
+  dry-run/backup; `OPERATIONS_RUNBOOK.md`'s own recovery steps violate its
+  own compose-file-pairing warning. ~25 scripts reviewed with no material
+  findings; no SQL injection or `shell=True` command-injection found
+  anywhere.
+- Four background review agents (one per slice A/B/D/E) ran in parallel,
+  each explicitly instructed read-only; Slice C was a direct 3-file
+  self-review. All four agents returned substantive, non-placeholder
+  findings on this run.
+- `scripts/validate_documentation.py` passes with the new findings doc
+  included.
 
 ### Documentation Audit and Reduction (2026-07-03): fictional docs deleted, license/classification errors fixed, one real code bug found
 
