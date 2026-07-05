@@ -404,30 +404,40 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
-### Full Whole-App Code Review Remediation (planning — next session)
+### Full Whole-App Code Review Remediation (planned; execution not started)
 
-Tracked by `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md` (the complete,
-read-only findings report — nothing in it has been fixed).
+Findings: `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`. Ordered
+execution plan: `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` (validated
+against external standards/industry practice — OWASP secure-defaults
+guidance, the Terraform/Ansible/kubectl dry-run-by-default pattern, the
+community-standard embedded-standalone-server approach for Next.js-in-
+Electron, and the 2024 Microsoft SmartScreen policy change that favors
+Azure Artifact Signing over an EV certificate). **Nothing has been fixed
+yet.**
 
-1. **NEXT:** read the findings doc in full, then write a single ordered
-   remediation/upgrade plan covering both (a) the ~30 bugs/gaps found across
-   the five reviewed slices (frontend UI, Electron/Windows, agent-runtime,
-   deploy/infra/CI, scripts) and (b) the dedicated §8 gap list for turning
-   the app into a genuine Windows Electron installer with working
-   install/uninstall (build-mode reconciliation, real backend-lifecycle
-   ownership in the Electron main process, a meaningful Docker-availability
-   check, a Docker Desktop/WSL2 prerequisite story, real code signing,
-   uninstall disclosure/cleanup, an auto-start decision).
-2. Do not fix individual findings ad hoc before that plan exists — the
-   review-then-plan split was deliberate, to sequence and prioritize this
-   work rather than patch it opportunistically.
-3. Two findings are flagged as highest-priority candidates for early
-   attention in that plan given they're live security-relevant gaps right
-   now, independent of any Electron work: `RQCA_ENFORCEMENT_ENABLED`'s
-   compose-level default silently reverting the hardened code default back
-   to `false` in production (`deploy/docker-compose.yaml:326`), and
-   production MinIO credentials falling back to
-   `minioadmin`/`minioadmin123` with no override anywhere.
+1. **NEXT: execute Phase 0** (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md`
+   §3) — harden production runtime defaults: `RQCA_ENFORCEMENT_ENABLED`
+   compose default (`deploy/docker-compose.yaml:326`), production MinIO
+   credentials falling back to `minioadmin`/`minioadmin123`,
+   `GATEWAY_ADMIN_BYPASS` warn-only-in-prod inconsistency
+   (`api_gateway/main.py:1663-1667`), hardcoded `CORS_ALLOW_ORIGINS`, and
+   `agent-runtime`'s `SERVICE_API_KEY` weak default (`"worker-key"`).
+   Highest real-world exposure, no architecture decisions required.
+2. Then Phase 1 (script/tooling safety guardrails — dry-run-by-default for
+   destructive scripts), Phase 2 (frontend UI correctness/accessibility),
+   Phase 3 (documentation accuracy), in that order — all independent of
+   each other and of Phase 4.
+3. Phase 4 (Electron/Windows installer buildout) last — the only phase
+   with real architecture decisions (build-mode reconciliation via an
+   embedded standalone Next.js server, code signing, NSIS install/uninstall
+   hooks). Three sub-decisions are explicitly flagged in the plan as
+   needing user sign-off before implementation: Docker-lifecycle-on-quit
+   behavior (§7.2), the Docker Desktop/WSL2 prerequisite story (§7.4), and
+   the auto-start decision (§7.7).
+4. Do not fix individual findings out of this order — the plan's
+   sequencing rationale (§2 of the plan doc) is deliberate: cheapest/
+   highest-exposure fixes first, architecture-decision work last so its
+   rebuild inherits every earlier phase's fixes.
 
 ### Mission Control UX Lock-In (implemented; live browser proof pending)
 
@@ -676,9 +686,59 @@ findings-only, nothing fixed in this pass.
   found anywhere in the ~25 scripts with no material findings.
 - `scripts/validate_documentation.py` passes with the new findings doc
   included.
-- **Not done in this pass (deliberately deferred):** no fixes, no
-  remediation plan. See "Full Whole-App Code Review Remediation" above for
-  the tracked next step.
+- **Not done in this pass (deliberately deferred):** no fixes. The
+  remediation plan derived from these findings was written separately —
+  see "Full Whole-App Remediation Plan" below.
+
+### Full Whole-App Remediation Plan (2026-07-05): 4-phase ordered plan, validated against external standards, execution not started
+
+Ordered execution plan derived from the findings above:
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md`. Each phase cites the
+specific findings it closes and, where a genuine design decision was
+needed rather than an obvious bug fix, the external standard/industry
+practice consulted.
+
+- **Phase 0 — harden production runtime defaults** (closes findings
+  #1/#2/#18/#23/#26): `RQCA_ENFORCEMENT_ENABLED` compose default, MinIO
+  default credentials, `GATEWAY_ADMIN_BYPASS` warn-vs-fail-fast
+  inconsistency, hardcoded `CORS_ALLOW_ORIGINS`, agent-runtime weak
+  default secret. Grounded in OWASP Top 10:2025 A02 (Security
+  Misconfiguration) and this codebase's own existing fail-fast precedent
+  (the adjacent CORS-wildcard check in `api_gateway/main.py`).
+- **Phase 1 — script/tooling safety guardrails** (closes findings
+  #6/#7/#8/#9/#10/#19/#20/#24/#25/#27/#29): inverts every destructive
+  script's default to dry-run-first, following the same shape as
+  Terraform plan/apply, Ansible `--check`, and `kubectl --dry-run`; the
+  git-history-scrub fix specifically aligns with `git-filter-repo`'s own
+  fresh-clone safety model.
+- **Phase 2 — frontend UI correctness/accessibility** (closes findings
+  #3/#11/#12/#13/#14/#21/#22, plus the CSP `unsafe-inline` and
+  `global-search.tsx` dead-code items): straightforward fixes, no
+  architecture decisions; flags the CSP nonce trade-off as best deferred
+  until Phase 4 lands (dynamic rendering will be required anyway).
+- **Phase 3 — documentation accuracy** (closes findings #15/#28): the
+  `METRICS_SOURCE_MODULES.md` omissions and the stale mission-state-casing
+  mismatch.
+- **Phase 4 — Electron/Windows installer buildout** (closes findings
+  #4/#5/#16/#17 plus the §8 gap list): the only phase with real
+  architecture decisions. Core decision — replace static export with the
+  same `output: 'standalone'` Next.js server the Docker/web-app path
+  already runs, launched as a child process from the Electron main
+  process, following the community-standard pattern for exactly this
+  Next.js/Electron problem; this resolves the build-mode split and the
+  broken-API-routes finding in one change. Code signing recommendation:
+  Azure Artifact Signing over an EV certificate, since a 2024 Microsoft
+  SmartScreen policy change means EV no longer bypasses the warning any
+  better than OV. Three sub-decisions flagged for explicit user sign-off
+  rather than an assumed default: Docker-lifecycle-on-quit behavior,
+  Docker Desktop/WSL2 prerequisite handling, and an auto-start decision.
+- Sequencing rationale (plan §2): cheapest/highest-exposure fixes first
+  (Phase 0), architecture-decision work last (Phase 4) so its rebuild
+  inherits every earlier phase's fixes instead of needing a second pass.
+- **Not done in this pass:** no implementation — this is a sequencing and
+  justification document only. See "Full Whole-App Code Review
+  Remediation" under Active Work Queue for the tracked next step (execute
+  Phase 0).
 
 ### Documentation Audit and Reduction (2026-07-03): fictional docs deleted, license/classification errors fixed, one real code bug found
 

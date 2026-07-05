@@ -311,19 +311,32 @@ browser mission proof remains the next action.
 
 ## Active Work
 
-### Full Whole-App Code Review Remediation (planning — next session)
+### Full Whole-App Code Review Remediation (planned; execution not started)
 
-The full, read-only findings report is
-`docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`. Nothing in it has been
-fixed — this was an explicit review-only pass so the user could read the
-findings before an upgrade plan gets written. **Next action: read that
-document in full, then write a single ordered remediation/upgrade plan**
-(not yet started) covering both (a) the ~30 bugs/gaps found across the five
-reviewed slices and (b) the dedicated §8 gap list for turning the app into
-a genuine Windows Electron installer with working install/uninstall. Do
-not start fixing individual findings ad hoc before that plan exists — the
-whole point of the review-then-plan split was to sequence this work
-deliberately rather than opportunistically. See `docs/CURRENT_TODO.md`'s
+The read-only findings report is
+`docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`; the ordered execution
+plan derived from it is `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md`
+(4 phases, each grounded in an external standard or industry practice
+where a genuine design decision was needed — OWASP secure-defaults
+guidance for the compose/gateway hardening phase, the dry-run-by-default
+pattern from Terraform/Ansible/kubectl for the destructive-script phase,
+and the community-standard embedded-standalone-server pattern for
+reconciling Next.js's two build modes inside Electron, including a
+2024 Microsoft SmartScreen policy change that steers code signing toward
+Azure Artifact Signing over an EV certificate). **Nothing has been fixed
+yet — the plan has not been executed.** Phase order: Phase 0 (harden
+production runtime defaults — highest real-world exposure, no
+architecture decisions), Phase 1 (script/tooling safety guardrails),
+Phase 2 (frontend UI correctness/accessibility), Phase 3 (documentation
+accuracy), Phase 4 (Electron/Windows installer buildout — the only phase
+with real architecture decisions, done last so its rebuild inherits every
+other phase's fixes). **Next action for a fresh session: start Phase 0**
+(`RQCA_ENFORCEMENT_ENABLED`/MinIO/`GATEWAY_ADMIN_BYPASS`/CORS/agent-runtime
+weak-secret fixes) — see the plan doc for exact file:line targets. Three
+product-scope decisions in Phase 4 (§7.2 Docker-lifecycle-on-quit
+behavior, §7.4 Docker Desktop/WSL2 prerequisite story, §7.7 auto-start
+decision) are explicitly flagged in the plan as needing user sign-off
+before implementation, not inferred defaults. See `docs/CURRENT_TODO.md`'s
 Active Work Queue entry for the same tracked item.
 
 ### Mission Control UX Lock-In (implemented; restart/browser proof pending)
@@ -530,6 +543,52 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Full Whole-App Remediation Plan (2026-07-05): 4-phase ordered plan, validated against external standards, execution not started
+
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` turns the findings below into
+an ordered execution sequence. Each phase cites the findings it closes and,
+for genuine design decisions, the external standard consulted — this is a
+sequencing/justification document only, no implementation.
+
+- **Phase 0 — harden production runtime defaults** (findings #1/#2/#18/#23/
+  #26): `RQCA_ENFORCEMENT_ENABLED` compose default, MinIO default
+  credentials, `GATEWAY_ADMIN_BYPASS` warn-vs-fail-fast inconsistency,
+  hardcoded `CORS_ALLOW_ORIGINS`, agent-runtime weak default secret.
+  Grounded in [OWASP Top 10:2025 A02 Security Misconfiguration](https://owasp.org/Top10/2025/A02_2025-Security_Misconfiguration/)
+  and this codebase's own existing fail-fast precedent (the adjacent
+  CORS-wildcard check already in `api_gateway/main.py`).
+- **Phase 1 — script/tooling safety guardrails** (findings #6/#7/#8/#9/#10/
+  #19/#20/#24/#25/#27/#29): inverts every destructive script to
+  dry-run-by-default, following the Terraform/Ansible/`kubectl --dry-run`
+  pattern; the git-history-scrub fix aligns with `git-filter-repo`'s own
+  fresh-clone safety model.
+- **Phase 2 — frontend UI correctness/accessibility** (findings #3/#11/#12/
+  #13/#14/#21/#22 plus CSP `unsafe-inline` and `global-search.tsx`
+  dead-code): straightforward, no architecture decisions; the CSP
+  nonce-vs-`unsafe-inline` trade-off is flagged as best resolved together
+  with Phase 4, once dynamic rendering is required anyway.
+- **Phase 3 — documentation accuracy** (findings #15/#28).
+- **Phase 4 — Electron/Windows installer buildout** (findings #4/#5/#16/
+  #17 plus the §8 gap list), last, since it's the only phase with real
+  architecture decisions and its rebuild should inherit every earlier
+  phase's fixes. Core decision: replace static export with the same
+  `output: 'standalone'` Next.js server the Docker/web-app path already
+  runs, launched as an Electron-main-process child process — the
+  community-standard pattern for this exact Next.js/Electron problem
+  ([DoltHub](https://www.dolthub.com/blog/2024-09-11-building-an-electron-app-with-nextjs/)),
+  resolving the build-mode split and the broken-API-routes finding in one
+  change. Code signing: Azure Artifact Signing over an EV certificate,
+  since a 2024 Microsoft SmartScreen policy change means EV no longer
+  bypasses the warning any better than OV
+  ([Microsoft Learn](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)).
+  Three sub-decisions explicitly flagged for user sign-off rather than an
+  assumed default: Docker-lifecycle-on-quit behavior, the Docker
+  Desktop/WSL2 prerequisite story, and an auto-start decision.
+- Full reference list (11 external sources) in the plan doc's §10.
+- **Not done in this pass:** no implementation. Next action: execute
+  Phase 0 — see "Full Whole-App Code Review Remediation" under Active Work
+  above.
 
 ### Full Whole-App Code Review (2026-07-05): read-only, five slices, ~30 findings, remediation plan pending
 
