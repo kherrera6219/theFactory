@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import os
+import secrets
 import subprocess
 import time
 from dataclasses import asdict, dataclass
@@ -23,8 +24,17 @@ SCENARIOS = ("no_auth", "api_key", "bearer_mutate", "bearer_observe")
 OPERATOR_ENDPOINTS = ("/v1/operations/summary", "/v1/stream/state")
 
 
-def _load_env_file() -> None:
+def _read_env_file() -> dict[str, str]:
+    # Returns a local dict instead of mutating os.environ. This module's
+    # helpers are also imported directly by tests (spec.loader.exec_module),
+    # and the previous version unconditionally wrote every .env key into
+    # os.environ at import time — silently clobbering the surrounding
+    # process's real environment (RQCA_ENFORCEMENT_ENABLED, PROMPT_GUARD_MODE,
+    # etc.) for the rest of any pytest session that happened to import this
+    # module. Confirmed as the actual cause of an order-dependent test flake,
+    # not just a theoretical risk.
     env_file = Path(__file__).resolve().parent.parent / ".env"
+    values: dict[str, str] = {}
     if env_file.exists():
         for line in env_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()
@@ -32,9 +42,10 @@ def _load_env_file() -> None:
                 continue
             if "=" in line:
                 key, val = line.split("=", 1)
-                os.environ[key.strip()] = val.strip()
+                values[key.strip()] = val.strip()
+    return values
 
-_load_env_file()
+_DOTENV_VALUES = _read_env_file()
 
 
 
@@ -313,11 +324,37 @@ def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
 
 
 async def run(args: argparse.Namespace) -> int:
+    if not args.operator_api_key:
+        # There is no safe way to auto-generate this one: it must match the
+        # credential the target gateway was actually deployed with
+        # (INTERNAL_SERVICE_API_KEY). Leaving it empty is not a security risk
+        # by itself (the api_key/hybrid scenarios will just correctly report
+        # a 401 mismatch instead of silently probing with a well-known guess)
+        # so this only warns rather than blocking.
+        print(
+            "WARNING: --operator-api-key/INTERNAL_SERVICE_API_KEY is empty — "
+            "api_key/hybrid scenarios will report a mismatch rather than "
+            "exercising real operator credentials."
+        )
+    if not args.oidc_shared_secret:
+        # Safe to auto-generate: this script both signs test tokens with this
+        # value and injects it into the target gateway's OIDC_SHARED_SECRET
+        # env when reconfiguring (_gateway_env_for_mode), so a random value
+        # is self-consistent and removes the well-known-default guess risk
+        # entirely without requiring any external configuration.
+        args.oidc_shared_secret = secrets.token_urlsafe(32)
+        print("INFO: generated a random --oidc-shared-secret for this run")
+
     base_url = args.base_url.rstrip("/")
     orchestrator_url = args.orchestrator_url.rstrip("/")
     ready_urls = [f"{base_url}/readyz", f"{orchestrator_url}/readyz"]
     matrix_rows: list[dict[str, Any]] = []
     compose_steps: list[dict[str, Any]] = []
+    # Only the intent to mutate (--compose-reconfigure, the default) combined
+    # with the absence of an explicit --execute confirmation makes this a
+    # dry-run. --compose-reconfigure=false is a deliberate read-only probe of
+    # whatever is currently running and is never treated as a dry-run.
+    dry_run = args.compose_reconfigure and not args.execute
 
     timeout = httpx.Timeout(args.http_timeout_seconds, connect=args.http_timeout_seconds)
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -336,30 +373,60 @@ async def run(args: argparse.Namespace) -> int:
             if args.build_gateway:
                 bootstrap_command.append("--build")
             bootstrap_command.append("api-gateway")
-            bootstrap = _run_command(bootstrap_command)
-            compose_steps.append({"step": "bootstrap", **asdict(bootstrap)})
-            if bootstrap.exit_code != 0:
-                report = {
-                    "run_timestamp_utc": datetime.now(UTC).isoformat(),
-                    "pass": False,
-                    "failure_reasons": [
-                        f"bootstrap command failed with exit code {bootstrap.exit_code}"
-                    ],
-                    "compose_steps": compose_steps,
-                    "matrix_rows": [],
-                }
-                _write_report(Path(args.output_file), report)
-                return 1
+            if dry_run:
+                print(f"DRY-RUN: would run bootstrap command: {' '.join(bootstrap_command)}")
+                compose_steps.append(
+                    {"step": "bootstrap", "dry_run": True, "command": bootstrap_command}
+                )
+            else:
+                bootstrap = _run_command(bootstrap_command)
+                compose_steps.append({"step": "bootstrap", **asdict(bootstrap)})
+                if bootstrap.exit_code != 0:
+                    report = {
+                        "run_timestamp_utc": datetime.now(UTC).isoformat(),
+                        "pass": False,
+                        "failure_reasons": [
+                            f"bootstrap command failed with exit code {bootstrap.exit_code}"
+                        ],
+                        "compose_steps": compose_steps,
+                        "matrix_rows": [],
+                    }
+                    _write_report(Path(args.output_file), report)
+                    return 1
 
         failure_reasons: list[str] = []
         for auth_mode in args.auth_modes:
             row_checks: list[dict[str, Any]] = []
             if args.compose_reconfigure:
+                configure_command = _gateway_up_command(
+                    compose_file=args.compose_file,
+                    build_gateway=args.build_gateway,
+                )
+                if dry_run:
+                    print(
+                        f"DRY-RUN: would reconfigure api-gateway to AUTH_MODE={auth_mode}: "
+                        f"{' '.join(configure_command)}"
+                    )
+                    compose_steps.append(
+                        {
+                            "step": f"configure-{auth_mode}",
+                            "dry_run": True,
+                            "command": configure_command,
+                        }
+                    )
+                    matrix_rows.append(
+                        {
+                            "auth_mode": auth_mode,
+                            "dry_run": True,
+                            "ready": None,
+                            "health_auth_mode": None,
+                            "checks": [],
+                        }
+                    )
+                    continue
+
                 configure = _run_command(
-                    _gateway_up_command(
-                        compose_file=args.compose_file,
-                        build_gateway=args.build_gateway,
-                    ),
+                    configure_command,
                     env_overrides=_gateway_env_for_mode(args, auth_mode),
                 )
                 compose_steps.append(
@@ -459,14 +526,28 @@ async def run(args: argparse.Namespace) -> int:
             and args.restore_initial_mode
             and initial_mode in MATRIX_AUTH_MODES
         ):
-            restore = _run_command(
-                _gateway_up_command(
-                    compose_file=args.compose_file,
-                    build_gateway=args.build_gateway,
-                ),
-                env_overrides=_gateway_env_for_mode(args, initial_mode),
+            restore_command = _gateway_up_command(
+                compose_file=args.compose_file,
+                build_gateway=args.build_gateway,
             )
-            compose_steps.append({"step": f"restore-{initial_mode}", **asdict(restore)})
+            if dry_run:
+                print(
+                    f"DRY-RUN: would restore api-gateway to AUTH_MODE={initial_mode}: "
+                    f"{' '.join(restore_command)}"
+                )
+                compose_steps.append(
+                    {
+                        "step": f"restore-{initial_mode}",
+                        "dry_run": True,
+                        "command": restore_command,
+                    }
+                )
+            else:
+                restore = _run_command(
+                    restore_command,
+                    env_overrides=_gateway_env_for_mode(args, initial_mode),
+                )
+                compose_steps.append({"step": f"restore-{initial_mode}", **asdict(restore)})
 
     report = {
         "run_timestamp_utc": datetime.now(UTC).isoformat(),
@@ -474,13 +555,20 @@ async def run(args: argparse.Namespace) -> int:
         "auth_modes": list(args.auth_modes),
         "initial_health_auth_mode": initial_mode,
         "compose_reconfigure": args.compose_reconfigure,
-        "pass": not failure_reasons,
+        "dry_run": dry_run,
+        # A dry-run never verified anything, so it must not report a real
+        # pass/fail verdict — qualification_gate_summary.py's _resolve_pass_flag
+        # treats a non-bool "pass" as "ignore this run", which is exactly right
+        # here (a preview run must never count as qualification evidence).
+        "pass": None if dry_run else not failure_reasons,
         "failure_reasons": failure_reasons,
         "matrix_rows": matrix_rows,
         "compose_steps": compose_steps,
     }
     _write_report(Path(args.output_file), report)
-    if args.history_file:
+    # A dry-run preview is not qualification evidence — don't pollute the
+    # history file that qualification_gate_summary.py trends over time.
+    if args.history_file and not dry_run:
         _append_jsonl(
             Path(args.history_file),
             {
@@ -493,15 +581,19 @@ async def run(args: argparse.Namespace) -> int:
         )
 
     print("== Operator Route Auth Matrix Qualification ==")
+    if dry_run:
+        print("mode=DRY-RUN (no containers were mutated; pass --execute to run for real)")
     print(f"pass={report['pass']}")
     print(f"modes={','.join(args.auth_modes)}")
     print(f"output={args.output_file}")
     if failure_reasons:
         for reason in failure_reasons:
             print(f"FAIL: {reason}")
+    elif dry_run:
+        print("DRY-RUN: no live containers/auth config were mutated")
     else:
         print("PASS: operator-route auth matrix checks satisfied")
-    return 0 if report["pass"] else 1
+    return 0 if dry_run else (0 if report["pass"] else 1)
 
 
 def parse_args() -> argparse.Namespace:
@@ -531,13 +623,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--operator-api-key",
-        default=os.getenv("INTERNAL_SERVICE_API_KEY") or "operator-key",
-        help="Operator API key used for api_key and hybrid scenarios",
+        default=os.getenv("INTERNAL_SERVICE_API_KEY")
+        or _DOTENV_VALUES.get("INTERNAL_SERVICE_API_KEY", ""),
+        help="Operator API key used for api_key and hybrid scenarios. No well-known "
+        "default credential is used — set this flag, export INTERNAL_SERVICE_API_KEY, "
+        "or set it in .env. Must match the target gateway's real configured key.",
     )
     parser.add_argument(
         "--oidc-shared-secret",
-        default="dev-oidc-shared-secret",
-        help="Shared secret used to sign HS256 matrix test tokens",
+        default=os.getenv("QUALIFICATION_OIDC_SHARED_SECRET", ""),
+        help="Shared secret used to sign HS256 matrix test tokens, and injected "
+        "into the target gateway's own OIDC_SHARED_SECRET when reconfiguring "
+        "(self-consistent, not a real external secret). No well-known default "
+        "is used — a random value is generated per run if left unset.",
     )
     parser.add_argument(
         "--oidc-required-role",
@@ -570,6 +668,14 @@ def parse_args() -> argparse.Namespace:
         type=_bool_arg,
         default=True,
         help="Reconfigure api-gateway per mode via docker compose",
+    )
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Actually force-recreate/rebuild the live api-gateway container and "
+        "flip its auth mode. Without this flag (the default), --compose-reconfigure "
+        "runs in dry-run mode: it prints the exact commands and auth-mode changes "
+        "that would happen and mutates nothing.",
     )
     parser.add_argument(
         "--skip-bootstrap",

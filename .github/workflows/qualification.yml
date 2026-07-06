@@ -52,7 +52,11 @@ jobs:
             pod-c-dedicated-mgr-worker pod-d-dedicated-mgr-worker
 
       - name: Operator route auth matrix
-        run: python scripts/operator_route_auth_matrix_qualification.py
+        # This CI job's stack is disposable (built fresh above, torn down in
+        # "Shutdown qualification stack" below), so --execute is safe and
+        # required here — without it the qualification silently no-ops
+        # (dry-run) and reports no pass/fail verdict.
+        run: python scripts/operator_route_auth_matrix_qualification.py --execute
 
       - name: Dedicated-agent canary trend
         run: python scripts/dedicated_agent_canary_trend.py

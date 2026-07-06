@@ -1,3 +1,24 @@
+# docker-compose.yaml — base compose file (condensed topology)
+#
+# This file alone defines the full "condensed" topology: shared pod workers,
+# synthesized non-pod heartbeats. It is intentionally self-contained and safe
+# to run by itself (`make up-condensed` / `make down-condensed`, or
+# `docker compose -f deploy/docker-compose.yaml ...`).
+#
+# deploy/docker-compose.full-dedicated-agents.yaml is a SEPARATE, ADDITIVE
+# overlay for the "full-dedicated" topology (41 per-language agent
+# containers) — it patches this file's `orchestrator` service and adds new
+# services, it does not replace this file. If that overlay is active,
+# restart/recreate/create commands MUST use both files together
+# (`make up-full-dedicated` / `make down-full-dedicated`, or
+# `-f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml
+# --profile full-dedicated-agents`). Running a mutating command against this
+# base file alone while the full-dedicated overlay is active desyncs the
+# overlay's 41 agent containers from a same-topology restart — see
+# docs/OPERATIONS_RUNBOOK.md's "Compose File Pairing" section and
+# docs/archive/2026-07-03/STACK_REMEDIATION_PLAN_2026-07-01.md for the
+# incident this caused. Read-only commands (`ps`, `logs`, `config`, `curl`)
+# against this file alone are always safe regardless of topology.
 x-common-service: &common-service
   restart: unless-stopped
   security_opt:

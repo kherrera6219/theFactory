@@ -163,7 +163,7 @@ endif
 		--output-file reports/backup-verification.local.json
 
 dr:
-	python scripts/run_automated_dr_drill.py $(if $(DRY_RUN),--dry-run,)
+	python scripts/run_automated_dr_drill.py $(if $(EXECUTE),--execute,)
 
 dr-ps1:
 	powershell -ExecutionPolicy Bypass -File scripts/dr_drill.ps1
@@ -192,7 +192,7 @@ langgraph-v2-prototype:
 sweep:
 	powershell -ExecutionPolicy Bypass -File scripts/debug_sweep.ps1
 
-demo:
+demo-live:
 	python scripts/run_demo_mission.py
 
 demo-js:

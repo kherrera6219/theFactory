@@ -237,6 +237,33 @@ async def run(args: argparse.Namespace) -> int:
         "--no-deps",
         "orchestrator",
     )
+    restart_command = _compose_command(compose_file, "restart", "orchestrator")
+
+    if not args.execute:
+        print("== LangGraph Postgres Recovery Qualification ==")
+        print("mode=DRY-RUN (no containers were mutated; pass --execute to run for real)")
+        print(f"DRY-RUN: would force-recreate orchestrator with env: {langgraph_env}")
+        print(f"DRY-RUN: would run: {' '.join(preconfigure_command)}")
+        print(
+            "DRY-RUN: would submit a qualification mission, wait "
+            f"{args.restart_after_seconds}s, then run: {' '.join(restart_command)}"
+        )
+        print("DRY-RUN: would then verify readiness recovery and mission completion")
+        report = {
+            "run_timestamp_utc": datetime.now(UTC).isoformat(),
+            "dry_run": True,
+            "preconfigure_command": preconfigure_command,
+            "restart_command": restart_command,
+            "langgraph_env": langgraph_env,
+            # A dry-run never verified anything, so it must not report a real
+            # pass/fail verdict — downstream consumers should ignore this run.
+            "pass": None,
+            "failure_reasons": [],
+        }
+        if args.output_file:
+            _write_report(Path(args.output_file), report)
+        return 0
+
     preconfigure_result = _run_command(preconfigure_command, env_overrides=langgraph_env)
 
     runtime_payload: dict[str, Any] = {}
@@ -250,7 +277,7 @@ async def run(args: argparse.Namespace) -> int:
         error="mission qualification did not start",
     )
     restart_result = CommandResult(
-        command=_compose_command(compose_file, "restart", "orchestrator"),
+        command=restart_command,
         exit_code=None,
         executed=False,
         stderr_tail=None,
@@ -313,9 +340,7 @@ async def run(args: argparse.Namespace) -> int:
                 if mission_id:
                     await asyncio.sleep(args.restart_after_seconds)
                     restart_started_monotonic = time.monotonic()
-                    restart_result = _run_command(
-                        _compose_command(compose_file, "restart", "orchestrator")
-                    )
+                    restart_result = _run_command(restart_command)
                     post_restart_ready = await _wait_for_ready(
                         client,
                         endpoint=args.orchestrator_ready_url,
@@ -432,6 +457,13 @@ def parse_args() -> argparse.Namespace:
         )
     )
     parser.add_argument("--base-url", default="http://localhost:8100", help="API gateway base URL")
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Actually force-recreate and restart the live orchestrator container. "
+        "Without this flag (the default), the qualification runs in dry-run mode: "
+        "it prints the exact commands that would run and mutates nothing.",
+    )
     parser.add_argument(
         "--orchestrator-ready-url",
         default="http://localhost:8101/readyz",

@@ -1,7 +1,13 @@
+import argparse
 import re
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
+from shared_runtime.atomic_io import atomic_write_text  # noqa: E402
+
 DOCS_ROOT = REPO_ROOT / "docs"
 DOCUMENT_VERSION = "2026.03.29"
 LAST_UPDATED = "2026-03-29"
@@ -108,7 +114,8 @@ def status_for(path: Path) -> str:
     return STATUS_OVERRIDES.get(path.name, DEFAULT_STATUS)
 
 
-def normalize(path: Path) -> bool:
+def compute_normalized(path: Path) -> tuple[str, str] | None:
+    """Return (original, normalized) if the file's header needs a rewrite, else None."""
     original = path.read_text(encoding="utf-8")
     lines = original.splitlines()
     if not lines or not lines[0].startswith("# "):
@@ -132,19 +139,45 @@ def normalize(path: Path) -> bool:
     else:
         normalized += "\n"
 
-    if normalized != original:
-        path.write_text(normalized, encoding="utf-8")
-        return True
-    return False
+    if normalized == original:
+        return None
+    return original, normalized
+
+
+def normalize(path: Path, *, execute: bool) -> bool:
+    """Return True if path needs (dry-run) or received (execute) a header rewrite."""
+    result = compute_normalized(path)
+    if result is None:
+        return False
+    if execute:
+        _, normalized = result
+        atomic_write_text(path, normalized)
+    return True
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Normalize the version/date/status/audience header block on docs/*.md."
+    )
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Actually rewrite files. Without this flag (the default), only reports "
+        "which files' headers would change and writes nothing.",
+    )
+    args = parser.parse_args()
+
     changed = 0
     for path in iter_target_docs():
-        if normalize(path):
+        if normalize(path, execute=args.execute):
             changed += 1
-            print(f"normalized {path.relative_to(REPO_ROOT)}")
-    print(f"normalized_files={changed}")
+            verb = "normalized" if args.execute else "would normalize"
+            print(f"{verb} {path.relative_to(REPO_ROOT)}")
+
+    if not args.execute:
+        print(f"DRY-RUN: {changed} file(s) would be normalized. Pass --execute to write them.")
+    else:
+        print(f"normalized_files={changed}")
 
 
 if __name__ == "__main__":

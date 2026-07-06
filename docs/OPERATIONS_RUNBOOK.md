@@ -1,7 +1,7 @@
 # Operations Runbook
 
-Document version: 2026.07.01  
-Last updated: 2026-07-01  
+Document version: 2026.07.06  
+Last updated: 2026-07-06  
 Status: Canonical  
 Audience: Operators, maintainers, and on-call responders
 
@@ -175,7 +175,9 @@ containers — they already pass the correct two-file combination and
 2. Verify Postgres cert mounts exist:
    - `docker compose -f deploy/docker-compose.yaml config | rg "/run/postgres-certs|docker-entrypoint-init-tls.sh"`
 3. Regenerate local cert material when required:
-   - `python scripts/generate_postgres_tls_certs.py`
+   - `python scripts/generate_postgres_tls_certs.py --force` (refuses without
+     `--force` if cert material already exists, to avoid silently invalidating
+     certs another process still expects)
 
 ## PgBouncer Connection Pooling
 
@@ -220,14 +222,18 @@ append-only and tamper-evident:
 
 ## Recovery Steps
 
+**Restart/recreate commands must match your topology** — see "Compose File
+Pairing" above. Do not run the base compose file alone to restart or
+recreate containers on a full-dedicated-agent deployment.
+
 1. Restart stack:
-   - `docker compose -f deploy/docker-compose.yaml down`
-   - `docker compose -f deploy/docker-compose.yaml up -d --build`
+   - Condensed topology: `make down-condensed && make up-condensed`
+   - Full-dedicated-agent topology: `make down-full-dedicated && make up-full-dedicated`
+     (equivalent to the paired `-f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents` form)
 2. Recreate containers after TLS material or cert-mount changes:
    - `make tls-certs`
-   - `docker compose -f deploy/docker-compose.yaml down -v`
-   - `docker compose -f deploy/docker-compose.yaml up -d --build`
-   - for the dedicated overlay: `docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents up -d --build --force-recreate`
+   - Condensed topology: `make down-condensed && make up-condensed`
+   - Full-dedicated-agent topology: `make down-full-dedicated && make up-full-dedicated`
 3. Investigate Postgres or migration failures:
    - `docker compose -f deploy/docker-compose.yaml logs orchestrator --tail 200`
    - `docker compose -f deploy/docker-compose.yaml logs postgres --tail 200`

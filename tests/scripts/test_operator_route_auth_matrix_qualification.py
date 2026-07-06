@@ -27,7 +27,11 @@ def test_parse_args_defaults(monkeypatch) -> None:
     assert args.build_gateway is True
     assert args.output_file == "docs/evidence/operator_route_oidc_matrix_latest.json"
     assert args.history_file == "docs/evidence/operator_route_oidc_matrix_history.jsonl"
-    assert args.operator_api_key in {"operator-key", "bf99cac84f380d705e4fbde69ba980667255280aeff3750f0cf7b633ed30621e"}
+    # No default credential is allowed (Phase 0/1 hardening): empty unless
+    # INTERNAL_SERVICE_API_KEY happens to be set in the environment this runs in.
+    assert args.operator_api_key in {"", "bf99cac84f380d705e4fbde69ba980667255280aeff3750f0cf7b633ed30621e"}
+    assert args.oidc_shared_secret == ""
+    assert args.execute is False
     assert args.oidc_issuer_url == "http://operator-matrix-test"
 
 

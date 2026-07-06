@@ -30,7 +30,6 @@ from urllib.request import Request, urlopen
 # ---------------------------------------------------------------------------
 
 API_BASE = "http://localhost:8100"
-ADMIN_KEY = "CHANGE_ME_generate_with_openssl_rand_hex_32"  # override via --api-key or env
 
 DEMO_PROMPTS = {
     "python": (
@@ -404,8 +403,14 @@ def main() -> int:
         args.api_key
         or os.getenv("ORCHESTRATOR_ADMIN_API_KEY")
         or os.getenv("DEMO_API_KEY")
-        or ADMIN_KEY
     )
+    if not api_key:
+        print(
+            "ERROR: no API key found — pass --api-key, or set "
+            "ORCHESTRATOR_ADMIN_API_KEY or DEMO_API_KEY. No placeholder "
+            "credential is used."
+        )
+        return 1
     prompt = args.prompt or DEMO_PROMPTS.get(args.language, DEMO_PROMPTS["python"])
 
     print("=" * 60)

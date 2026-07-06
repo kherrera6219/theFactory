@@ -7,8 +7,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
+sys.path.insert(0, str(ROOT))
 
 from orchestrator.agent_registry import AGENT_REGISTRY  # noqa: E402
+
+from shared_runtime.atomic_io import atomic_write_text  # noqa: E402
 
 
 def _env_name(agent_id: str) -> str:
@@ -68,7 +71,7 @@ def main() -> int:
             f"{_env_name(agent.agent_id)}=hgr-{agent.agent_id.lower()}-{secrets.token_urlsafe(args.key_length_bytes)}"
         )
 
-    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    atomic_write_text(output_path, "\n".join(lines) + "\n")
     label = output_path.relative_to(ROOT) if output_path.is_relative_to(ROOT) else output_path
     print(f"wrote {len(AGENT_REGISTRY)} agent service keys to {label}")
     return 0

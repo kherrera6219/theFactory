@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.07.05b
-Last updated: 2026-07-05
+Document version: 2026.07.06a
+Last updated: 2026-07-06
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -13,8 +13,41 @@ as current work.
 
 ## Current Status
 
-**Most recent work: Phase 0 of the Full Whole-App Remediation Plan is done
-and verified.** `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §3 — hardened
+**Most recent work: Phase 1 of the Full Whole-App Remediation Plan is done
+and verified.** `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §4 — script/
+tooling safety guardrails (findings #6/#7/#8/#9/#10/#19/#20/#24/#25/#27/#29).
+Every destructive script now defaults to a safe preview requiring an
+explicit `--execute`/`-Execute`/`-Yes` flag to mutate anything:
+`run_automated_dr_drill.py`, `operator_route_auth_matrix_qualification.py`,
+`langgraph_postgres_recovery_qualification.py` (CI's `qualification.yml`
+explicitly passes `--execute` since that job's stack is disposable),
+`execute_git_history_scrub.py`/`.ps1` (removed the `--force` override to
+git-filter-repo), `restore_postgres.ps1` (added confirmation prompt,
+pre-restore snapshot, manifest/checksum verification). Also fixed:
+`normalize_document_headers.py` had zero safety gate at all — discovered
+mid-fix when a stray invocation clobbered 64 docs' headers (reverted with
+user sign-off, then fixed properly with `--execute` + atomic writes);
+`force_stop.py`'s condensed-vs-full-dedicated teardown mismatch (now
+detects topology via `docker ps`); the duplicate `Makefile` `demo:` target;
+`OPERATIONS_RUNBOOK.md`'s compose-pairing self-contradiction; weak
+well-known default secrets in the auth-matrix qualification script; atomic
+writes for `generate_agent_service_keys.py`/`generate_postgres_tls_certs.py`
+(plus a `--force` guard) and `rotate_secrets.sh`; `dr_drill.ps1`'s
+unchecked native-command exit codes; `run_demo_mission.py`'s hardcoded
+placeholder API-key fallback. **Also fixed in passing:** found and fixed
+the actual root cause of Phase 0's one "pre-existing, unrelated" test
+flake (`operator_route_auth_matrix_qualification.py`'s `_load_env_file()`
+was unconditionally overwriting `os.environ` from `.env` at import time)
+— the full backend suite is now 100% clean. Verified: full suite,
+`ruff check .`, `scripts/validate_documentation.py`, all three compose
+profile forms resolve, every changed script's dry-run/refuse path
+exercised directly. **Next action: Phase 2 (frontend UI
+correctness/accessibility)** — see
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5 and the Active Work
+Queue below.
+
+Before that: Phase 0 of the Full Whole-App Remediation Plan was done
+and verified. `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §3 — hardened
 five production runtime defaults (findings #1/#2/#18/#23/#26):
 `RQCA_ENFORCEMENT_ENABLED` (compose default `false`→`true`, plus a
 `load_settings()` fail-fast guard in production), MinIO/object-storage
@@ -431,7 +464,7 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
-### Full Whole-App Code Review Remediation (Phase 0 done; Phases 1-4 remaining)
+### Full Whole-App Code Review Remediation (Phases 0-1 done; Phases 2-4 remaining)
 
 Findings: `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`. Ordered
 execution plan: `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` (validated
@@ -454,18 +487,21 @@ Azure Artifact Signing over an EV certificate).
    default (`"worker-key"` fallback removed, fails fast at import). Full
    verification evidence in `docs/HANDOFF_CURRENT.md`'s "Latest Completed
    Work" section.
-2. **NEXT: Phase 1** (script/tooling safety guardrails — dry-run-by-default
-   for destructive scripts), then Phase 2 (frontend UI
-   correctness/accessibility), Phase 3 (documentation accuracy), in that
-   order — all independent of each other and of Phase 4.
-3. Phase 4 (Electron/Windows installer buildout) last — the only phase
+2. **DONE — Phase 1** (script/tooling safety guardrails — dry-run-by-default
+   for destructive scripts). Full per-item list and verification evidence
+   in `docs/HANDOFF_CURRENT.md`'s "Latest Completed Work" section. Also
+   fixed in passing: the actual root cause of Phase 0's one noted
+   "pre-existing, unrelated" test flake.
+3. **NEXT: Phase 2** (frontend UI correctness/accessibility), then Phase 3
+   (documentation accuracy) — independent of each other and of Phase 4.
+4. Phase 4 (Electron/Windows installer buildout) last — the only phase
    with real architecture decisions (build-mode reconciliation via an
    embedded standalone Next.js server, code signing, NSIS install/uninstall
    hooks). Three sub-decisions are explicitly flagged in the plan as
    needing user sign-off before implementation: Docker-lifecycle-on-quit
    behavior (§7.2), the Docker Desktop/WSL2 prerequisite story (§7.4), and
    the auto-start decision (§7.7).
-4. Do not fix individual findings out of this order — the plan's
+5. Do not fix individual findings out of this order — the plan's
    sequencing rationale (§2 of the plan doc) is deliberate: cheapest/
    highest-exposure fixes first, architecture-decision work last so its
    rebuild inherits every earlier phase's fixes.

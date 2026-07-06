@@ -71,24 +71,34 @@ rotate_env_file() {
         "AUDIT_SERVICE_API_KEY"
     )
 
+    if $DRY_RUN; then
+        for key in "${rotatable_keys[@]}"; do
+            log_info "[DRY-RUN] Would rotate: $key"
+        done
+        return
+    fi
+
+    # Apply every rotation to a scratch copy first, then atomically move it
+    # into place in one step. Rotating the live $env_file in place, key by
+    # key, meant a crash or kill partway through the loop left the file
+    # services actually read with a mix of old and new secrets.
+    local scratch
+    scratch="$(mktemp "${env_file}.rotate.XXXXXX")"
+    cp "$env_file" "$scratch"
+
     for key in "${rotatable_keys[@]}"; do
         new_val=$(generate_key)
-        if $DRY_RUN; then
-            log_info "[DRY-RUN] Would rotate: $key"
+        if grep -q "^${key}=" "$scratch"; then
+            sed -i "s|^${key}=.*|${key}=${new_val}|" "$scratch"
+            log_info "Rotated: $key"
         else
-            if grep -q "^${key}=" "$env_file"; then
-                sed -i "s|^${key}=.*|${key}=${new_val}|" "$env_file"
-                log_info "Rotated: $key"
-            else
-                log_warn "Key not found in $env_file: $key"
-            fi
+            log_warn "Key not found in $env_file: $key"
         fi
     done
 
-    if ! $DRY_RUN; then
-        log_info "Secret rotation complete. Restart all services after updating: docker compose restart"
-        log_warn "Delete backup after confirming services are healthy: rm $backup"
-    fi
+    mv "$scratch" "$env_file"
+    log_info "Secret rotation complete. Restart all services after updating: docker compose restart"
+    log_warn "Delete backup after confirming services are healthy: rm $backup"
 }
 
 check_git_history_clean() {

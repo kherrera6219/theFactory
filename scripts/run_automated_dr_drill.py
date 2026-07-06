@@ -11,9 +11,9 @@ import urllib.request
 from datetime import datetime, timezone
 
 
-def run_cmd(args, check=True, shell=False):
+def run_cmd(args, check=True):
     print(f"Running: {' '.join(args) if isinstance(args, list) else args}")
-    result = subprocess.run(args, capture_output=True, text=True, shell=shell)  # nosec B602
+    result = subprocess.run(args, capture_output=True, text=True)
     if check and result.returncode != 0:
         print(f"Command failed with code {result.returncode}")
         print(f"stdout: {result.stdout}")
@@ -31,8 +31,21 @@ def check_readyz(url):
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Automated Timed DR Drill Orchestrator")
-    parser.add_argument("--dry-run", action="store_true", help="Run in dry-run simulated mode")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run in dry-run simulated mode (default — kept for backward compatibility "
+        "with existing call sites; has no effect since dry-run is now the default).",
+    )
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Run the REAL, destructive drill: docker compose down -v (wipes volumes) "
+        "and a real Postgres restore. Without this flag the drill always runs in "
+        "dry-run/simulated mode, regardless of --dry-run.",
+    )
     args = parser.parse_args()
+    is_dry_run = not args.execute
 
     started_dt = datetime.now(timezone.utc)
     started_str = started_dt.isoformat()
@@ -40,13 +53,13 @@ def main():
     print("  theFactory -- Automated Disaster Recovery Timed Drill  ")
     print("=========================================================")
     print(f"Started at (UTC): {started_str}")
-    print(f"Mode: {'DRY-RUN' if args.dry_run else 'REAL RECOVERY DRILL'}")
+    print(f"Mode: {'DRY-RUN' if is_dry_run else 'REAL RECOVERY DRILL'}")
 
     rto_start = time.time()
     
     # 1. Validate service readiness before drill
     print("\n[1/5] Checking initial system readiness...")
-    if args.dry_run:
+    if is_dry_run:
         print("Dry-run: skipping initial readyz check (simulating health)")
     else:
         # Check if running
@@ -61,7 +74,7 @@ def main():
     backup_manifest = ""
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if args.dry_run:
+    if is_dry_run:
         print("Dry-run: invoking simulated backup script...")
         cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts/backup_postgres.ps1", "-DryRun", "-Timestamp", timestamp]  # noqa: E501
         run_cmd(cmd)
@@ -87,7 +100,7 @@ def main():
 
     # 3. Simulate disaster: bring postgres down and wipe its volume
     print("\n[3/5] Simulating disaster (docker compose down)...")
-    if args.dry_run:
+    if is_dry_run:
         print("Dry-run: simulating container teardown (sleeping 2s)")
         time.sleep(2)
     else:
@@ -100,7 +113,7 @@ def main():
     print("\n[4/5] Restoring services and importing database...")
     restore_start = time.time()
     
-    if args.dry_run:
+    if is_dry_run:
         print("Dry-run: simulating compose up and postgres restore (sleeping 3s)")
         time.sleep(3)
     else:
@@ -112,9 +125,12 @@ def main():
         print("Waiting for Postgres port to open...")
         time.sleep(5)
         
-        # Run restore postgres
+        # Run restore postgres. -Yes: this call is already gated behind the
+        # DR drill's own --execute flag, so the operator's confirmation
+        # already happened one level up — an interactive prompt here would
+        # just hang this automated drill.
         print(f"Executing restore script with backup: {backup_file}")
-        run_cmd(["powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts/restore_postgres.ps1", "-BackupFile", backup_file])  # noqa: E501
+        run_cmd(["powershell", "-ExecutionPolicy", "Bypass", "-File", "scripts/restore_postgres.ps1", "-BackupFile", backup_file, "-Yes"])  # noqa: E501
 
     # 5. Measure stack recovery and verify readiness
     print("\n[5/5] Measuring time to service readiness (RTO calculation)...")
@@ -123,7 +139,7 @@ def main():
     elapsed = 0
     
     while elapsed < time_limit:
-        if args.dry_run:
+        if is_dry_run:
             passed = True
             break
         else:
@@ -169,7 +185,7 @@ def main():
         "started_at_utc": started_str,
         "completed_at_utc": ended_str,
         "duration_seconds": rto_seconds,
-        "dry_run": args.dry_run,
+        "dry_run": is_dry_run,
         "passed": passed,
         "rto_target_minutes": 30,
         "rpo_target_hours": 24,

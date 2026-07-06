@@ -1,11 +1,62 @@
 # Current Handoff
 
-Document version: 2026.07.05b
-Last updated: 2026-07-05
+Document version: 2026.07.06a
+Last updated: 2026-07-06
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** Phase 0 of the Full Whole-App
+**If you are picking this up cold:** Phase 1 of the Full Whole-App
+Remediation Plan (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §4) is
+**done and verified** — script/tooling safety guardrails, closing findings
+#6/#7/#8/#9/#10/#19/#20/#24/#25/#27/#29. Every destructive script now
+defaults to a safe preview and requires an explicit `--execute` (or
+`-Execute`/`-Yes`) flag to actually mutate anything: `run_automated_dr_drill.py`
+(real drill was previously the default), `operator_route_auth_matrix_qualification.py`
+and `langgraph_postgres_recovery_qualification.py` (both previously
+force-recreated/restarted live containers unconditionally — CI's
+`qualification.yml` was updated to pass `--execute` explicitly, since that
+job's stack is genuinely disposable), `execute_git_history_scrub.py`/`.ps1`
+(removed the `--force` override to git-filter-repo, restoring its own
+fresh-clone safety check), `restore_postgres.ps1` (added a confirmation
+prompt, pre-restore snapshot, and manifest/checksum verification —
+`run_automated_dr_drill.py`'s automated path passes `-Yes` since its own
+`--execute` already represents the confirmation), and
+`normalize_document_headers.py` (which had **zero** safety gate at all —
+discovered the hard way mid-fix when a `--help` typo triggered its real,
+unguarded write path against the live `docs/` tree, clobbering 64 files'
+headers; reverted with user sign-off, then fixed properly). Also fixed:
+the duplicate `Makefile` `demo:` target (renamed the shadowing one to
+`demo-live:`), `force_stop.py`'s condensed-vs-full-dedicated teardown
+mismatch (now detects topology via `docker ps` before choosing the
+teardown form), a documented compose-pairing self-contradiction in
+`OPERATIONS_RUNBOOK.md`'s own "Recovery Steps" section, weak well-known
+default secrets in the auth-matrix qualification script (`operator-key`
+removed with no fallback; `dev-oidc-shared-secret` now auto-generated
+per run since the script self-injects it into the target gateway anyway),
+atomic writes added to `generate_agent_service_keys.py`/
+`generate_postgres_tls_certs.py` (plus a `--force` guard on the latter)
+and `rotate_secrets.sh` (rotates a scratch copy, then atomically `mv`s it
+into place — a crash mid-loop no longer leaves `.env` with a mix of old
+and new secrets), `dr_drill.ps1`'s native-command exit codes now checked
+(PowerShell's `-Stop` preference doesn't catch `curl.exe`/`psql`
+failures automatically, which is why `passed=$true` was previously
+unconditional), and `run_demo_mission.py`'s hardcoded placeholder API-key
+fallback removed (fails fast with a clear message instead). **Also fixed
+in passing:** `operator_route_auth_matrix_qualification.py`'s
+`_load_env_file()` used to unconditionally overwrite `os.environ` from the
+repo's `.env` at import time — confirmed as the actual root cause of the
+one "pre-existing, unrelated" test flake noted at the end of Phase 0
+(`test_prompt_guard_mode_defaults_to_block`); now returns a local dict
+instead of mutating global state, and the full backend suite is 100% clean.
+Verified: full suite passes, `ruff check .` clean, `scripts/validate_documentation.py`
+passes, all three compose profile forms (`dev`, `prod`, `full-dedicated-agents`)
+resolve, and every changed script's dry-run/refuse-to-overwrite path was
+exercised directly (in an isolated scratch directory for the ones that
+touch real files, never against the live stack). **Next action: Phase 2**
+(frontend UI correctness/accessibility) — see
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5.
+
+Before that: Phase 0 of the Full Whole-App
 Remediation Plan (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §3) is
 **done and verified** — the five production-runtime-default hardening items
 (findings #1/#2/#18/#23/#26). All five now fail fast at process start when
@@ -352,7 +403,7 @@ browser mission proof remains the next action.
 
 ## Active Work
 
-### Full Whole-App Code Review Remediation (Phase 0 done; Phases 1-4 remaining)
+### Full Whole-App Code Review Remediation (Phases 0-1 done; Phases 2-4 remaining)
 
 The read-only findings report is
 `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`; the ordered execution
@@ -364,17 +415,16 @@ pattern from Terraform/Ansible/kubectl for the destructive-script phase,
 and the community-standard embedded-standalone-server pattern for
 reconciling Next.js's two build modes inside Electron, including a
 2024 Microsoft SmartScreen policy change that steers code signing toward
-Azure Artifact Signing over an EV certificate). **Phase 0 (harden
-production runtime defaults) is done and verified** — see the top of this
-file for the full list of fixes and verification evidence. Phase order:
-Phase 0 (done), Phase 1 (script/tooling safety guardrails), Phase 2
+Azure Artifact Signing over an EV certificate). **Phases 0 and 1 are done
+and verified** — see the top of this file for the full list of fixes and
+verification evidence. Phase order: Phase 0 (done), Phase 1 (done), Phase 2
 (frontend UI correctness/accessibility), Phase 3 (documentation accuracy),
 Phase 4 (Electron/Windows installer buildout — the only phase with real
 architecture decisions, done last so its rebuild inherits every other
-phase's fixes). **Next action for a fresh session: start Phase 1**
-(dry-run-by-default guardrails for destructive scripts — DR drill,
-git-history-scrub, Postgres restore, the duplicate `Makefile` `demo:`
-target, etc.) — see `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §4 for
+phase's fixes). **Next action for a fresh session: start Phase 2**
+(frontend UI correctness/accessibility — Alerts page persistence,
+stale-response races, keyboard-inaccessible clickable divs, the raw `✕`
+character, etc.) — see `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5 for
 exact file:line targets. Three product-scope decisions in Phase 4 (§7.2
 Docker-lifecycle-on-quit behavior, §7.4 Docker Desktop/WSL2 prerequisite
 story, §7.7 auto-start decision) are explicitly flagged in the plan as
@@ -586,6 +636,30 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 
 ## Latest Completed Work
 
+### Full Whole-App Remediation Plan Phase 1 (2026-07-06): script/tooling safety guardrails
+
+Executed `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §4, closing findings
+#6/#7/#8/#9/#10/#19/#20/#24/#25/#27/#29. See the top of this file ("If you
+are picking this up cold") for the full per-item list. Highlights: every
+destructive script now defaults to a safe preview requiring an explicit
+`--execute`/`-Execute`/`-Yes` flag to mutate anything (DR drill, both
+qualification scripts, git-history-scrub, Postgres restore); CI's
+`qualification.yml` explicitly passes `--execute` since that job's stack is
+disposable; `normalize_document_headers.py` had **zero** safety gate at
+all — discovered mid-fix when a stray invocation clobbered 64 docs' headers
+(reverted with explicit user sign-off, then fixed with a `--execute` gate
+plus atomic writes); `force_stop.py` now detects condensed-vs-full-dedicated
+topology via `docker ps` before choosing the teardown form; found and fixed
+`operator_route_auth_matrix_qualification.py`'s `_load_env_file()`
+unconditionally overwriting `os.environ` from `.env` at import time — the
+actual root cause of the "pre-existing, unrelated" test flake
+(`test_prompt_guard_mode_defaults_to_block`) noted as left-untouched at the
+end of Phase 0; the full backend suite is now 100% clean (0 failures).
+Verified: full suite, `ruff check .`, `scripts/validate_documentation.py`,
+all three compose profile forms resolve, and every changed script's
+dry-run/refuse path exercised directly. Next: Phase 2 (frontend UI
+correctness/accessibility).
+
 ### Full Whole-App Remediation Plan Phase 0 (2026-07-05): production runtime defaults hardened
 
 Executed `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §3, closing findings
@@ -596,8 +670,8 @@ both dev and prod overlays, and in-container guard verification against the
 rebuilt `deploy-orchestrator`/`deploy-api-gateway` images). One pre-existing,
 unrelated test flake (`test_prompt_guard_mode_defaults_to_block`, an
 order-dependent full-suite-only failure) was confirmed identical on the
-pre-Phase-0 baseline and left untouched — not introduced by this work and
-out of scope for it. Next: Phase 1 (script/tooling safety guardrails).
+pre-Phase-0 baseline at the time — **later root-caused and fixed during
+Phase 1** (see above), not left permanently unaddressed.
 
 ### Full Whole-App Remediation Plan (2026-07-05): 4-phase ordered plan, validated against external standards, execution not started
 
