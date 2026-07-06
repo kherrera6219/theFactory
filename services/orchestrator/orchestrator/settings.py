@@ -225,6 +225,25 @@ def load_settings() -> Settings:
                 "INTERNAL_SERVICE_API_KEY, or ORCHESTRATOR_API_KEYS to be set"
             )
 
+    rqca_enforcement_enabled = _as_bool(os.getenv("RQCA_ENFORCEMENT_ENABLED", "true"), True)
+    if is_production and not rqca_enforcement_enabled:
+        raise RuntimeError(
+            "ENVIRONMENT=production requires RQCA_ENFORCEMENT_ENABLED=true — a "
+            "mission that fails its RQCA runtime QC check must not silently "
+            "proceed to delivery in production."
+        )
+
+    object_storage_access_key = os.getenv("OBJECT_STORAGE_ACCESS_KEY", "")
+    object_storage_secret_key = os.getenv("OBJECT_STORAGE_SECRET_KEY", "")
+    if is_production and (
+        object_storage_access_key == "minioadmin" or object_storage_secret_key == "minioadmin123"
+    ):
+        raise RuntimeError(
+            "ENVIRONMENT=production must not use the default MinIO credentials "
+            "(minioadmin/minioadmin123) — set OBJECT_STORAGE_ACCESS_KEY and "
+            "OBJECT_STORAGE_SECRET_KEY to real production credentials."
+        )
+
     # langgraph_fail_open lets the LangGraph engine fall back to the legacy path
     # on error. Convenient in development, but in production a silent fallback can
     # mask a broken graph, so default to fail-closed there. An explicit env var
@@ -258,8 +277,8 @@ def load_settings() -> Settings:
         milvus_token=os.getenv("MILVUS_TOKEN", ""),
         neo4j_url=os.getenv("NEO4J_URL", "http://neo4j:7474"),
         object_storage_endpoint=os.getenv("OBJECT_STORAGE_ENDPOINT", "http://minio:9000"),
-        object_storage_access_key=os.getenv("OBJECT_STORAGE_ACCESS_KEY", ""),
-        object_storage_secret_key=os.getenv("OBJECT_STORAGE_SECRET_KEY", ""),
+        object_storage_access_key=object_storage_access_key,
+        object_storage_secret_key=object_storage_secret_key,
         intake_stream=os.getenv("INTAKE_STREAM", "missions.intake"),
         state_stream=os.getenv("STATE_STREAM", "missions.state"),
         max_stream_len=int(os.getenv("MAX_STREAM_LEN", "20000")),
@@ -370,9 +389,7 @@ def load_settings() -> Settings:
         ),
         testdata_agent_enabled=_as_bool(os.getenv("TESTDATA_AGENT_ENABLED", "false"), False),
         rqca_agent_enabled=_as_bool(os.getenv("RQCA_AGENT_ENABLED", "false"), False),
-        rqca_enforcement_enabled=_as_bool(
-            os.getenv("RQCA_ENFORCEMENT_ENABLED", "true"), True
-        ),
+        rqca_enforcement_enabled=rqca_enforcement_enabled,
         rqca_test_command_template=os.getenv("RQCA_TEST_COMMAND_TEMPLATE", "").strip(),
         docker_bin=os.getenv("DOCKER_BIN", "docker").strip() or "docker",
         depabs_execution_enabled=_as_bool(

@@ -1661,9 +1661,9 @@ def _validate_startup_auth_config() -> None:
         raise RuntimeError("CORS_ALLOW_ORIGINS cannot include '*' in production")
 
     if GATEWAY_ADMIN_BYPASS and ENVIRONMENT == "production":
-        LOGGER.warning(
+        raise RuntimeError(
             "GATEWAY_ADMIN_BYPASS=true in production — ALL operator route "
-            "authorization is DISABLED. Set GATEWAY_ADMIN_BYPASS=false."
+            "authorization would be DISABLED. Set GATEWAY_ADMIN_BYPASS=false."
         )
 
     if "HS256" in OIDC_ALLOWED_ALGORITHMS:

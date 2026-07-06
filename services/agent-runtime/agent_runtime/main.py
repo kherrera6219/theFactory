@@ -50,7 +50,12 @@ STATE_STREAM = os.getenv("STATE_STREAM", "missions.state")
 CONSUMER_GROUP = os.getenv("AGENT_RUNTIME_GROUP", "agent-runtime")
 CONSUMER_NAME = os.getenv("AGENT_RUNTIME_NAME", f"agent-runtime-{uuid.uuid4()}")
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8001")
-SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "worker-key")
+SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "")
+if not SERVICE_API_KEY:
+    raise RuntimeError(
+        "SERVICE_API_KEY must be set — no default credential is allowed for "
+        "agent-runtime's calls to the orchestrator's internal API."
+    )
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("ORCHESTRATOR_TIMEOUT_SECONDS", "5.0"))
 REQUEST_MAX_RETRIES = int(os.getenv("ORCHESTRATOR_MAX_RETRIES", "3"))
 MAX_STREAM_LEN = int(os.getenv("MAX_STREAM_LEN", "20000"))

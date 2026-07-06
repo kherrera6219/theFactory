@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 import time
 from pathlib import Path
@@ -10,8 +11,20 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "agent-runtime"))
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
-# Import the class directly (not the module-level singleton)
-_CircuitBreaker = importlib.import_module("agent_runtime.main")._CircuitBreaker
+# agent_runtime.main requires SERVICE_API_KEY to be set (no default credential
+# is allowed) — provide a test-only value for the duration of the import only,
+# so this doesn't leak into other test files' processes (module import is
+# process-wide, not per-test-scoped, so monkeypatch can't cover this).
+_PRIOR_SERVICE_API_KEY = os.environ.get("SERVICE_API_KEY")
+os.environ["SERVICE_API_KEY"] = "test-service-key"
+try:
+    # Import the class directly (not the module-level singleton)
+    _CircuitBreaker = importlib.import_module("agent_runtime.main")._CircuitBreaker
+finally:
+    if _PRIOR_SERVICE_API_KEY is None:
+        os.environ.pop("SERVICE_API_KEY", None)
+    else:
+        os.environ["SERVICE_API_KEY"] = _PRIOR_SERVICE_API_KEY
 
 # ---------------------------------------------------------------------------
 # State transitions

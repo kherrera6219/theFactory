@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.07.05a
+Document version: 2026.07.05b
 Last updated: 2026-07-05
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -13,8 +13,35 @@ as current work.
 
 ## Current Status
 
-**Most recent work: a full whole-application, read-only code review — findings
-documented, nothing fixed yet.** Every part of the app was reviewed, not just
+**Most recent work: Phase 0 of the Full Whole-App Remediation Plan is done
+and verified.** `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §3 — hardened
+five production runtime defaults (findings #1/#2/#18/#23/#26):
+`RQCA_ENFORCEMENT_ENABLED` (compose default `false`→`true`, plus a
+`load_settings()` fail-fast guard in production), MinIO/object-storage
+default credentials (prod compose overlay now requires real values via
+`:?`, plus a matching app-level guard against the literal
+`minioadmin`/`minioadmin123`), `GATEWAY_ADMIN_BYPASS` (warn-only →
+`RuntimeError` in production, matching the adjacent CORS-wildcard check),
+`CORS_ALLOW_ORIGINS` (env-overridable, required explicit value in prod), and
+agent-runtime's `SERVICE_API_KEY` (removed the `"worker-key"` fallback,
+fails fast at import if unset). Verified: full backend suite (only one
+pre-existing, unrelated order-dependent flake remains — confirmed identical
+on the pre-Phase-0 baseline), `ruff check .` clean, `docker compose config`
+merge re-verified for dev and prod overlays, and all three code-level guards
+confirmed raising `RuntimeError` inside rebuilt `deploy-orchestrator`/
+`deploy-api-gateway` containers under production settings (agent-runtime's
+image lives in a separate, not-built-by-default overlay, so that fix was
+instead verified via a subprocess-level regression test). Two new regression
+test files added; 3 existing test files fixed to stay self-contained against
+ambient environment state or to stop leaking `SERVICE_API_KEY` globally at
+import time (a bug introduced and fixed within this same pass). Every
+new/changed test proven to fail against the pre-fix code via `git stash`.
+**Next action: Phase 1 (script/tooling safety guardrails)** — see
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §4 and the Active Work Queue
+below.
+
+Before that: a full whole-application, read-only code review — findings
+documented, nothing fixed yet. Every part of the app was reviewed, not just
 the Windows/Electron packaging layer that was the initial scope ask: Mission
 Control frontend UI, Electron/Windows packaging, the dedicated `agent-runtime`
 service, deploy/infrastructure/CI, and `scripts/`. Full report:
@@ -404,7 +431,7 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
-### Full Whole-App Code Review Remediation (planned; execution not started)
+### Full Whole-App Code Review Remediation (Phase 0 done; Phases 1-4 remaining)
 
 Findings: `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`. Ordered
 execution plan: `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` (validated
@@ -412,21 +439,25 @@ against external standards/industry practice — OWASP secure-defaults
 guidance, the Terraform/Ansible/kubectl dry-run-by-default pattern, the
 community-standard embedded-standalone-server approach for Next.js-in-
 Electron, and the 2024 Microsoft SmartScreen policy change that favors
-Azure Artifact Signing over an EV certificate). **Nothing has been fixed
-yet.**
+Azure Artifact Signing over an EV certificate).
 
-1. **NEXT: execute Phase 0** (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md`
+1. **DONE — Phase 0** (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md`
    §3) — harden production runtime defaults: `RQCA_ENFORCEMENT_ENABLED`
-   compose default (`deploy/docker-compose.yaml:326`), production MinIO
-   credentials falling back to `minioadmin`/`minioadmin123`,
-   `GATEWAY_ADMIN_BYPASS` warn-only-in-prod inconsistency
-   (`api_gateway/main.py:1663-1667`), hardcoded `CORS_ALLOW_ORIGINS`, and
-   `agent-runtime`'s `SERVICE_API_KEY` weak default (`"worker-key"`).
-   Highest real-world exposure, no architecture decisions required.
-2. Then Phase 1 (script/tooling safety guardrails — dry-run-by-default for
-   destructive scripts), Phase 2 (frontend UI correctness/accessibility),
-   Phase 3 (documentation accuracy), in that order — all independent of
-   each other and of Phase 4.
+   compose default (`deploy/docker-compose.yaml:326`, now `:-true`, plus a
+   `load_settings()` production fail-fast guard), production MinIO
+   credentials (prod overlay now requires real values via compose `:?`
+   syntax, plus an app-level guard against the literal
+   `minioadmin`/`minioadmin123`), `GATEWAY_ADMIN_BYPASS` warn-only-in-prod
+   inconsistency (`api_gateway/main.py:1663-1667`, now raises
+   `RuntimeError`), `CORS_ALLOW_ORIGINS` (env-overridable, required
+   explicit value in prod), and `agent-runtime`'s `SERVICE_API_KEY` weak
+   default (`"worker-key"` fallback removed, fails fast at import). Full
+   verification evidence in `docs/HANDOFF_CURRENT.md`'s "Latest Completed
+   Work" section.
+2. **NEXT: Phase 1** (script/tooling safety guardrails — dry-run-by-default
+   for destructive scripts), then Phase 2 (frontend UI
+   correctness/accessibility), Phase 3 (documentation accuracy), in that
+   order — all independent of each other and of Phase 4.
 3. Phase 4 (Electron/Windows installer buildout) last — the only phase
    with real architecture decisions (build-mode reconciliation via an
    embedded standalone Next.js server, code signing, NSIS install/uninstall

@@ -9,8 +9,16 @@ from orchestrator.settings import load_settings  # noqa: E402
 
 
 def _base_env(monkeypatch) -> None:
-    # Production requires at least one orchestrator key to be set.
+    # Production requires at least one orchestrator key to be set. Also pin
+    # the Phase 0 production runtime-default guards (RQCA_ENFORCEMENT_ENABLED,
+    # OBJECT_STORAGE_*_KEY) to their passing values — this file's tests are
+    # about AGENT_SERVICE_KEY_MODE, not those guards, so they shouldn't be
+    # sensitive to whatever those variables happen to be in the ambient
+    # environment.
     monkeypatch.setenv("ORCHESTRATOR_ADMIN_API_KEY", "admin-key-with-entropy-1234")
+    monkeypatch.setenv("RQCA_ENFORCEMENT_ENABLED", "true")
+    monkeypatch.setenv("OBJECT_STORAGE_ACCESS_KEY", "a-real-production-access-key")
+    monkeypatch.setenv("OBJECT_STORAGE_SECRET_KEY", "a-real-production-secret")
 
 
 def test_defaults_to_shared_in_development(monkeypatch) -> None:

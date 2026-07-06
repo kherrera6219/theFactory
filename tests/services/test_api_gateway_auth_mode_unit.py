@@ -376,6 +376,29 @@ def test_validate_startup_auth_config_rejects_wildcard_cors_in_production(monkey
         raise AssertionError("expected RuntimeError for wildcard CORS in production")
 
 
+def test_validate_startup_auth_config_rejects_admin_bypass_in_production(monkeypatch) -> None:
+    # Regression: GATEWAY_ADMIN_BYPASS=true in production used to only log a
+    # warning while leaving all operator route authorization disabled — it
+    # must fail fast at startup like the adjacent CORS-wildcard check.
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "ENVIRONMENT", "production")
+    monkeypatch.setattr(api_gateway_main, "CORS_ALLOW_ORIGINS", "https://app.example")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
+    try:
+        api_gateway_main._validate_startup_auth_config()
+    except RuntimeError as exc:
+        assert "GATEWAY_ADMIN_BYPASS" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for GATEWAY_ADMIN_BYPASS=true in production")
+
+
+def test_validate_startup_auth_config_allows_admin_bypass_outside_production(monkeypatch) -> None:
+    monkeypatch.setattr(api_gateway_main, "AUTH_MODE", "api_key")
+    monkeypatch.setattr(api_gateway_main, "ENVIRONMENT", "development")
+    monkeypatch.setattr(api_gateway_main, "GATEWAY_ADMIN_BYPASS", True)
+    api_gateway_main._validate_startup_auth_config()
+
+
 def test_previously_unauthenticated_mission_read_routes_now_require_auth(monkeypatch) -> None:
     # Regression: these routes forwarded straight to the orchestrator's
     # /internal/* endpoints with zero caller authentication -- any caller

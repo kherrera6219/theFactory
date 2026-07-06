@@ -42,8 +42,20 @@ services:
       - ./.local/postgres-certs:/run/postgres-certs:ro
       - postgres-data:/var/lib/postgresql/data
 
+  minio:
+    environment:
+      # No default fallback in production — the base compose file's
+      # minioadmin/minioadmin123 defaults must never reach a production
+      # deployment. docker compose fails at startup if these are unset.
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set explicitly in production; the base compose default (minioadmin) is not allowed}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set explicitly in production; the base compose default (minioadmin123) is not allowed}
+
   api-gateway:
     environment:
+      # No default fallback in production — the base compose file's
+      # localhost:3100 dev default must never be used as a production CORS
+      # origin. Set to the real Mission Control origin(s), comma-separated.
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:?CORS_ALLOW_ORIGINS must be set explicitly to the production Mission Control origin(s)}
       # --- auth ---
       AUTH_MODE: oidc
       API_RATE_LIMIT_PER_MINUTE: 60
@@ -80,6 +92,10 @@ services:
       # Production object storage must use an HTTPS S3-compatible endpoint.
       # Override OBJECT_STORAGE_ENDPOINT to a TLS endpoint in the prod .env.
       OBJECT_STORAGE_REQUIRE_TLS: "true"
+      # No default fallback in production — must match the real MinIO/S3
+      # credentials above, never the base compose file's minioadmin defaults.
+      OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:?OBJECT_STORAGE_ACCESS_KEY must be set explicitly in production}
+      OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:?OBJECT_STORAGE_SECRET_KEY must be set explicitly in production}
       NEO4J_ENABLED: "true"
       # --- Phase 2 security features ---
       PROMPT_GUARD_MODE: block

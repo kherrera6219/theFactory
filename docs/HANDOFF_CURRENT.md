@@ -1,11 +1,52 @@
 # Current Handoff
 
-Document version: 2026.07.05a
+Document version: 2026.07.05b
 Last updated: 2026-07-05
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** the newest work is a full
+**If you are picking this up cold:** Phase 0 of the Full Whole-App
+Remediation Plan (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §3) is
+**done and verified** — the five production-runtime-default hardening items
+(findings #1/#2/#18/#23/#26). All five now fail fast at process start when
+`ENVIRONMENT=production` resolves an insecure default, mirroring the
+existing CORS-wildcard precedent in `api_gateway/main.py`:
+`RQCA_ENFORCEMENT_ENABLED` (compose default flipped `false`→`true`, plus a
+new `load_settings()` guard), MinIO/object-storage default credentials
+(`docker-compose.prod.yaml` now requires `MINIO_ROOT_USER`/
+`MINIO_ROOT_PASSWORD`/`OBJECT_STORAGE_ACCESS_KEY`/`OBJECT_STORAGE_SECRET_KEY`
+via compose's `:?` required-var syntax, plus a matching `load_settings()`
+guard against the literal `minioadmin`/`minioadmin123` strings),
+`GATEWAY_ADMIN_BYPASS` (warn-only → `RuntimeError` in production),
+`CORS_ALLOW_ORIGINS` (now overridable via env var in the base compose file,
+with a required explicit value in the prod overlay), and agent-runtime's
+`SERVICE_API_KEY` (removed the `"worker-key"` literal fallback; fails fast
+at import if unset). Verified: full backend suite passes (only the one
+pre-existing, order-dependent `test_prompt_guard_mode_defaults_to_block`
+flake remains, confirmed identical on the pre-Phase-0 baseline and unrelated
+to this work); `ruff check .` clean; `docker compose config` merge
+re-verified for both the dev and prod overlays (dev resolves
+`RQCA_ENFORCEMENT_ENABLED: "true"`; the prod overlay fails the merge outright
+if `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` are unset, and resolves cleanly
+with real values supplied); rebuilt `deploy-orchestrator`/`deploy-api-gateway`
+images and confirmed all three code-level guards raise `RuntimeError` inside
+the rebuilt containers under production settings, and stay silent under dev
+defaults. agent-runtime's own image lives in the separate
+`docker-compose.full-dedicated-agents.yaml` overlay (41-container profile,
+not built by default) — that fix was instead verified via a subprocess-level
+regression test (`tests/services/test_agent_runtime_service_api_key_guard_unit.py`)
+that imports the module in a fresh process with `SERVICE_API_KEY` unset and
+confirms the fail-fast. Two regression-test files added (production runtime
+guards, agent-runtime key guard) plus fixes to 3 existing test files that
+either leaked `SERVICE_API_KEY` globally at import time (a bug introduced and
+then fixed within this same pass) or needed to explicitly pin the new
+guards' env vars to stay self-contained against ambient environment state.
+Every new/changed test proven to fail against the pre-fix code via `git
+stash`. **Next action: Phase 1 (script/tooling safety guardrails)** — see
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §4 and `docs/CURRENT_TODO.md`'s
+Active Work Queue.
+
+Before that: a full
 whole-application, read-only code review — every part of theFactory, not
 just the Windows/Electron packaging layer that was the initial scope ask.
 **This was a findings-only pass: nothing was fixed.** The complete report
@@ -311,7 +352,7 @@ browser mission proof remains the next action.
 
 ## Active Work
 
-### Full Whole-App Code Review Remediation (planned; execution not started)
+### Full Whole-App Code Review Remediation (Phase 0 done; Phases 1-4 remaining)
 
 The read-only findings report is
 `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`; the ordered execution
@@ -323,21 +364,22 @@ pattern from Terraform/Ansible/kubectl for the destructive-script phase,
 and the community-standard embedded-standalone-server pattern for
 reconciling Next.js's two build modes inside Electron, including a
 2024 Microsoft SmartScreen policy change that steers code signing toward
-Azure Artifact Signing over an EV certificate). **Nothing has been fixed
-yet — the plan has not been executed.** Phase order: Phase 0 (harden
-production runtime defaults — highest real-world exposure, no
-architecture decisions), Phase 1 (script/tooling safety guardrails),
-Phase 2 (frontend UI correctness/accessibility), Phase 3 (documentation
-accuracy), Phase 4 (Electron/Windows installer buildout — the only phase
-with real architecture decisions, done last so its rebuild inherits every
-other phase's fixes). **Next action for a fresh session: start Phase 0**
-(`RQCA_ENFORCEMENT_ENABLED`/MinIO/`GATEWAY_ADMIN_BYPASS`/CORS/agent-runtime
-weak-secret fixes) — see the plan doc for exact file:line targets. Three
-product-scope decisions in Phase 4 (§7.2 Docker-lifecycle-on-quit
-behavior, §7.4 Docker Desktop/WSL2 prerequisite story, §7.7 auto-start
-decision) are explicitly flagged in the plan as needing user sign-off
-before implementation, not inferred defaults. See `docs/CURRENT_TODO.md`'s
-Active Work Queue entry for the same tracked item.
+Azure Artifact Signing over an EV certificate). **Phase 0 (harden
+production runtime defaults) is done and verified** — see the top of this
+file for the full list of fixes and verification evidence. Phase order:
+Phase 0 (done), Phase 1 (script/tooling safety guardrails), Phase 2
+(frontend UI correctness/accessibility), Phase 3 (documentation accuracy),
+Phase 4 (Electron/Windows installer buildout — the only phase with real
+architecture decisions, done last so its rebuild inherits every other
+phase's fixes). **Next action for a fresh session: start Phase 1**
+(dry-run-by-default guardrails for destructive scripts — DR drill,
+git-history-scrub, Postgres restore, the duplicate `Makefile` `demo:`
+target, etc.) — see `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §4 for
+exact file:line targets. Three product-scope decisions in Phase 4 (§7.2
+Docker-lifecycle-on-quit behavior, §7.4 Docker Desktop/WSL2 prerequisite
+story, §7.7 auto-start decision) are explicitly flagged in the plan as
+needing user sign-off before implementation, not inferred defaults. See
+`docs/CURRENT_TODO.md`'s Active Work Queue entry for the same tracked item.
 
 ### Mission Control UX Lock-In (implemented; restart/browser proof pending)
 
@@ -543,6 +585,19 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Full Whole-App Remediation Plan Phase 0 (2026-07-05): production runtime defaults hardened
+
+Executed `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §3, closing findings
+#1/#2/#18/#23/#26. See the top of this file ("If you are picking this up
+cold") for the full per-item list and verification evidence (full backend
+suite, `ruff check .`, `docker compose config` merge re-verification for
+both dev and prod overlays, and in-container guard verification against the
+rebuilt `deploy-orchestrator`/`deploy-api-gateway` images). One pre-existing,
+unrelated test flake (`test_prompt_guard_mode_defaults_to_block`, an
+order-dependent full-suite-only failure) was confirmed identical on the
+pre-Phase-0 baseline and left untouched — not introduced by this work and
+out of scope for it. Next: Phase 1 (script/tooling safety guardrails).
 
 ### Full Whole-App Remediation Plan (2026-07-05): 4-phase ordered plan, validated against external standards, execution not started
 
