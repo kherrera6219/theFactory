@@ -9,7 +9,7 @@ opentelemetry-api==1.42.1
 opentelemetry-sdk==1.42.1
 opentelemetry-exporter-otlp==1.42.1
 opentelemetry-instrumentation-fastapi==0.63b1
-boto3==1.43.24
+boto3==1.43.40
 langgraph==1.2.6
 langgraph-checkpoint-postgres==3.0.5
 pymilvus==2.6.12
