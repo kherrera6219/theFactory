@@ -596,6 +596,190 @@ async def test_prepare_pm_intake_generates_aim_for_source_analysis_mission() -> 
 
 
 @pytest.mark.asyncio
+async def test_prepare_pm_intake_blocks_on_pending_repo_index() -> None:
+    """Repo ZIP Import Phase 5 guard: a repo-sourced mission whose Phase 6
+    indexing hasn't completed yet must not proceed to PM contract generation
+    -- it should record REPO_INDEX_PENDING and stay queued."""
+    app = _make_app_state()
+    settings = _make_settings()
+    validator = MagicMock()
+    mission = _make_mission()
+    mission.metadata = {
+        "repo_import": {
+            "source": "repo_zip_import",
+            "import_id": "repozip-abc123",
+            "index_required": True,
+            "index_status": "pending",
+        },
+    }
+    _state, fetch_mission, update_metadata, _transition, _insert_event = _make_stateful_storage(
+        mission
+    )
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = fetch_mission
+        mock_storage.update_mission_metadata = update_metadata
+        with patch(
+            "orchestrator.mission_flow_v2.generate_pm_feature_contract",
+            AsyncMock(),
+        ) as contract_mock:
+            result = await orchestrator_mission_flow_v2_intake._prepare_pm_intake(
+                app=app,
+                settings=settings,
+                validator=validator,
+                emit_state_event_fn=AsyncMock(),
+                mission_id="test-m1",
+            )
+
+    assert result is False
+    contract_mock.assert_not_awaited()
+    assert any(
+        event["event_type"] == "REPO_INDEX_PENDING" for event in mission.metadata["chain_trace"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_prepare_pm_intake_does_not_duplicate_repo_index_pending_event() -> None:
+    """A second lifecycle-advance pass while still pending must not append a
+    duplicate REPO_INDEX_PENDING chain event."""
+    app = _make_app_state()
+    settings = _make_settings()
+    validator = MagicMock()
+    mission = _make_mission()
+    mission.metadata = {
+        "repo_import": {"index_required": True, "index_status": "pending"},
+        "chain_trace": [{"event_type": "REPO_INDEX_PENDING", "agent_id": "AGENT-01-PM"}],
+    }
+    update_calls: list[dict[str, Any]] = []
+
+    def fetch_mission(_settings: Any, _mission_id: str) -> Any:
+        return mission
+
+    def update_mission_metadata(_settings: Any, _mission_id: str, metadata: dict[str, Any]) -> Any:
+        update_calls.append(metadata)
+        mission.metadata = dict(metadata)
+        return mission
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = fetch_mission
+        mock_storage.update_mission_metadata = update_mission_metadata
+        result = await orchestrator_mission_flow_v2_intake._prepare_pm_intake(
+            app=app,
+            settings=settings,
+            validator=validator,
+            emit_state_event_fn=AsyncMock(),
+            mission_id="test-m1",
+        )
+
+    assert result is False
+    assert update_calls == []
+    pending_events = [
+        event for event in mission.metadata["chain_trace"] if event["event_type"] == "REPO_INDEX_PENDING"
+    ]
+    assert len(pending_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_prepare_pm_intake_injects_repository_context_once_indexed() -> None:
+    """Once Phase 6 indexing completes, PM intake proceeds and injects a
+    bounded repository_context built from the mission's repo knowledge rows."""
+    app = _make_app_state()
+    settings = _make_settings()
+    validator = MagicMock()
+    mission = _make_mission()
+    mission.metadata = {
+        "repo_import": {
+            "source": "repo_zip_import",
+            "import_id": "repozip-abc123",
+            "index_required": True,
+            "index_status": "complete",
+        },
+    }
+    _state, fetch_mission, update_metadata, _transition, _insert_event = _make_stateful_storage(
+        mission
+    )
+    knowledge_records = [
+        {
+            "knowledge_id": "repo.repozip-abc123.manifest",
+            "content": {"kind": "repo_manifest", "combined_text": "Repository sample imported."},
+        },
+        {
+            "knowledge_id": "repo.repozip-abc123.summary",
+            "content": {"kind": "repo_summary", "combined_text": "Top languages: TypeScript."},
+        },
+        {
+            "knowledge_id": "repo.repozip-abc123.file.abc.chunk.0",
+            "content": {
+                "kind": "repo_source_chunk",
+                "path": "src/index.ts",
+                "combined_text": "export const x = 1;",
+            },
+        },
+    ]
+    captured: dict[str, Any] = {}
+
+    async def _generate_pm_feature_contract(**kwargs):
+        captured.update(kwargs)
+        return {
+            "schema_version": "feature_contract.v1",
+            "title": "Test",
+            "summary": "Test",
+            "functional_requirements": [],
+            "acceptance_criteria": [],
+            "risk_notes": [],
+            "source": "fallback",
+        }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = fetch_mission
+        mock_storage.update_mission_metadata = update_metadata
+        mock_storage.list_knowledge = MagicMock(return_value=knowledge_records)
+        with patch(
+            "orchestrator.mission_flow_v2.generate_pm_feature_contract",
+            _generate_pm_feature_contract,
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            result = await orchestrator_mission_flow_v2_intake._prepare_pm_intake(
+                app=app,
+                settings=settings,
+                validator=validator,
+                emit_state_event_fn=AsyncMock(),
+                mission_id="test-m1",
+            )
+
+    assert result is True
+    repository_context = captured["conversation_context"]["repository_context"]
+    assert "Repository sample imported." in repository_context
+    assert "Top languages: TypeScript." in repository_context
+    assert "export const x = 1;" in repository_context
+
+
+@pytest.mark.asyncio
+async def test_load_repo_context_returns_none_when_nothing_indexed() -> None:
+    settings = _make_settings()
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.list_knowledge = MagicMock(return_value=[])
+        result = await orchestrator_mission_flow_v2_intake.load_repo_context(
+            settings=settings,
+            mission_id="test-m1",
+            repo_import={"import_id": "repozip-abc123"},
+        )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_load_repo_context_returns_none_on_storage_failure() -> None:
+    settings = _make_settings()
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.list_knowledge = MagicMock(side_effect=RuntimeError("db unavailable"))
+        result = await orchestrator_mission_flow_v2_intake.load_repo_context(
+            settings=settings,
+            mission_id="test-m1",
+            repo_import={"import_id": "repozip-abc123"},
+        )
+    assert result is None
+
+
+@pytest.mark.asyncio
 async def test_prepare_pm_intake_high_ambiguity_enters_clarifying() -> None:
     """High ambiguity (>=0.7) must transition QUEUED -> CLARIFYING and emit
     MISSION_CLARIFYING, then return False to pause the lifecycle."""
@@ -1345,6 +1529,237 @@ async def test_prepare_delivery_summary_runs_compliance_unconditionally() -> Non
         event["event_type"] == "MISSION_COMPLIANCE_ASSESSMENT_COMPLETE"
         for event in mission.metadata["chain_trace"]
     )
+
+
+@pytest.mark.asyncio
+async def test_prepare_delivery_summary_skips_cached_side_reports_and_duplicate_delivered_event() -> None:
+    """Branch coverage: on a retry (e.g. orchestrator restart), the four
+    side-report generators (Security/VC/Tester/Compliance) must not re-run
+    once their dict is already cached in metadata, and MISSION_DELIVERED must
+    not be appended twice.
+    """
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {"language": "python", "generated_code": "print('hi')"},
+        "mission_contract": {"contract_summary": "Build a helper"},
+        "security_analysis": {"risk_level": "low", "passed": True, "source": "cached"},
+        "vc_commit_strategy": {"conventional_type": "feat", "source": "cached"},
+        "integration_tests": {"test_filename": "test_x.py", "source": "cached"},
+        "compliance_assessment": {"compliance_status": "compliant", "source": "cached"},
+        "chain_trace": [{"event_type": "MISSION_DELIVERED", "agent_id": "AGENT-01-PM"}],
+    }
+
+    security_call = AsyncMock()
+    vc_call = AsyncMock()
+    tests_call = AsyncMock()
+    compliance_call = AsyncMock()
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.list_build_artifacts = MagicMock(return_value=[])
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_pm_delivery_summary",
+            new=AsyncMock(
+                return_value={
+                    "delivery_title": "Delivered helper",
+                    "primary_artifact_type": "generated_code",
+                    "criteria_met": [],
+                    "source": "fallback",
+                }
+            ),
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery, "generate_security_analysis", new=security_call
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery, "generate_vc_commit_strategy", new=vc_call
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery, "generate_integration_tests", new=tests_call
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery, "generate_compliance_assessment", new=compliance_call
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            await orchestrator_mission_flow_v2_delivery._prepare_delivery_summary(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+
+    security_call.assert_not_awaited()
+    vc_call.assert_not_awaited()
+    tests_call.assert_not_awaited()
+    compliance_call.assert_not_awaited()
+    assert mission.metadata["security_analysis"]["source"] == "cached"
+    delivered_events = [
+        event for event in mission.metadata["chain_trace"] if event["event_type"] == "MISSION_DELIVERED"
+    ]
+    assert len(delivered_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_prepare_delivery_summary_appends_clarification_event_and_swallows_token_usage_failure() -> None:
+    """Branch coverage: a present pm_clarification not yet in the chain trace
+    gets its own MISSION_CLARIFICATION_APPLIED event, and a failure fetching
+    the LLM token-usage summary must not crash delivery preparation."""
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {"language": "python", "generated_code": "print('hi')"},
+        "mission_contract": {"contract_summary": "Build a helper"},
+        "pm_clarification": "Operator confirmed defaults for the interactive app.",
+    }
+
+    llm_cost_ledger = importlib.import_module("orchestrator.llm_cost_ledger")
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.list_build_artifacts = MagicMock(return_value=[])
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch.object(
+            orchestrator_mission_flow_v2,
+            "generate_pm_delivery_summary",
+            new=AsyncMock(
+                return_value={
+                    "delivery_title": "Delivered helper",
+                    "primary_artifact_type": "generated_code",
+                    "criteria_met": [],
+                    "source": "fallback",
+                }
+            ),
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery,
+            "generate_security_analysis",
+            new=AsyncMock(return_value={"risk_level": "low", "passed": True, "source": "llm"}),
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery,
+            "generate_vc_commit_strategy",
+            new=AsyncMock(return_value={"conventional_type": "feat", "source": "llm"}),
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery,
+            "generate_integration_tests",
+            new=AsyncMock(return_value={"test_filename": "test_x.py", "source": "llm"}),
+        ), patch.object(
+            orchestrator_mission_flow_v2_delivery,
+            "generate_compliance_assessment",
+            new=AsyncMock(return_value={"compliance_status": "compliant", "source": "llm"}),
+        ), patch.object(
+            llm_cost_ledger,
+            "get_mission_token_usage",
+            new=AsyncMock(side_effect=RuntimeError("cost ledger unavailable")),
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            await orchestrator_mission_flow_v2_delivery._prepare_delivery_summary(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+
+    assert any(
+        event["event_type"] == "MISSION_CLARIFICATION_APPLIED"
+        for event in mission.metadata["chain_trace"]
+    )
+    assert "llm_usage_summary" not in mission.metadata
+
+
+@pytest.mark.asyncio
+async def test_prepare_equivalence_report_skips_duplicate_chain_event_on_retry() -> None:
+    """Branch coverage: a retry that finds MISSION_EQUIVALENCE_VERIFIED already
+    in the chain trace must not append it a second time."""
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {
+            "source": "llm",
+            "generated_code": "def read_csv(path):\n    return []\n",
+            "filename": "solution.py",
+            "language": "python",
+        },
+        "feature_contract": {"acceptance_criteria": ["Returns rows"]},
+        "chain_trace": [{"event_type": "MISSION_EQUIVALENCE_VERIFIED", "agent_id": "AGENT-10-TESTER"}],
+    }
+    build_artifacts = [
+        {
+            "artifact_id": "generated-code-output",
+            "artifact_type": "generated_code",
+            "status": "SUCCESS",
+            "digest_sha256": "abc123",
+            "verification": {"verified": True, "verification_method": "sha256"},
+        }
+    ]
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.list_build_artifacts = lambda *_args: build_artifacts
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()):
+            await orchestrator_mission_flow_v2._prepare_equivalence_report(
+                app=app,
+                settings=settings,
+                mission=mission,
+            )
+
+    equivalence_events = [
+        event
+        for event in mission.metadata["chain_trace"]
+        if event["event_type"] == "MISSION_EQUIVALENCE_VERIFIED"
+    ]
+    assert len(equivalence_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_prepare_security_compliance_report_skips_duplicate_event_and_handles_signing_failure() -> None:
+    """Branch coverage: a retry that finds MISSION_SECURITY_COMPLIANCE_PASSED
+    already in the chain trace must not append it twice, and a signing
+    failure must be logged rather than raised."""
+    app = _make_app_state()
+    settings = _make_settings()
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {
+            "source": "llm",
+            "generated_code": "def read_csv(path):\n    return []\n",
+            "filename": "solution.py",
+            "language": "python",
+        },
+        "equivalence_report": {"report_id": "equivalence-test-m1", "passed": True},
+        "chain_trace": [
+            {"event_type": "MISSION_SECURITY_COMPLIANCE_PASSED", "agent_id": "AGENT-05-SECURITY"}
+        ],
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        with patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()), patch(
+            "shared_runtime.crypto_keystore.load_or_create_signing_key",
+            side_effect=RuntimeError("keystore unavailable"),
+        ):
+            updated, ready, report = (
+                await orchestrator_mission_flow_v2._prepare_security_compliance_report(
+                    app=app,
+                    settings=settings,
+                    mission=mission,
+                )
+            )
+
+    assert ready is True
+    assert "signature_record" not in report
+    compliance_events = [
+        event
+        for event in mission.metadata["chain_trace"]
+        if event["event_type"] == "MISSION_SECURITY_COMPLIANCE_PASSED"
+    ]
+    assert len(compliance_events) == 1
 
 
 @pytest.mark.asyncio
