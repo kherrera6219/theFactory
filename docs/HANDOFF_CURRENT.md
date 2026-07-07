@@ -5,8 +5,45 @@ Last updated: 2026-07-06
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** Phase 2 of the Full Whole-App
-Remediation Plan (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5) is
+**If you are picking this up cold:** Phase 3 of the Full Whole-App
+Remediation Plan (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §6) is
+**done and verified** — documentation accuracy, closing findings #15/#28.
+`docs/METRICS_SOURCE_MODULES.md` (rewritten 2026-07-03 as part of the prior
+documentation audit) turned out to omit four entire source modules, not just
+four metric names as the finding's headline suggested:
+`llm_delegation/metrics.py`, `services/pod-worker/pod_worker/main.py`,
+`services/audit-worker/audit_worker/main.py`, and
+`services/agent-runtime/agent_runtime/main.py` had zero coverage, even though
+the four specifically-named metrics (`pod_worker_task_latency_seconds`,
+`agent_runtime_task_latency_seconds`, `audit_worker_task_latency_seconds`,
+`factory_llm_tokens_total`) were already live in real alert rules
+(`deploy/monitoring/prometheus/rules/thefactory-alerts.yml`) and Grafana
+dashboards. Rather than patch in just those four names and leave the other
+real metrics in the same modules undocumented, added complete
+source-verified metric tables for all four modules — matching this doc's own
+stated "verified against source" standard — bringing 23 additional metrics
+under documentation that weren't listed before (e.g.
+`pod_worker_tasks_processed_total`, `agent_runtime_circuit_open_total`,
+`factory_llm_estimated_cost_usd_total`). Also fixed the stale casing
+mismatch (finding #28): both `docs/METRICS_SOURCE_MODULES.md:19`'s
+`factory_missions_active` label values and `orchestrator_metrics.py:57`'s
+inline comment said lowercase `queued`/`running`/`verified`, but the real
+`_ACTIVE_GAUGE_STATES` set (`orchestrator_metrics.py:79`) and the
+`MissionStuckInRunning` alert query both use uppercase — both now read
+`QUEUED`/`RUNNING`/`VERIFIED`, comment-only change with no behavior
+difference. Verified: `scripts/validate_documentation.py` passes (76
+metadata files, 119 link files, 17 docstring files validated), `ruff check`
+clean on the one touched `.py` file. This was a documentation-only phase
+with no code-behavior changes, so no test suite or Docker rebuild was
+needed — matching the plan's own §6 exit criteria (docs validation only).
+**Next action: Phase 4** (Electron/Windows installer buildout) — see
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §7. Three sub-decisions there
+need explicit user sign-off before implementation, not an assumed default:
+Docker-lifecycle-on-quit behavior (§7.2), the Docker Desktop/WSL2
+prerequisite story (§7.4), and an auto-start decision (§7.7).
+
+Before that: Phase 2 of the Full Whole-App
+Remediation Plan (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5) was
 **done and verified** — frontend UI correctness/accessibility/data-integrity
 fixes, closing findings #3/#11/#12/#13/#14/#21/#22 plus the `global-search.tsx`
 dead-code cleanup (CSP `unsafe-inline` is explicitly deferred to Phase 4 per
@@ -448,7 +485,7 @@ browser mission proof remains the next action.
 
 ## Active Work
 
-### Full Whole-App Code Review Remediation (Phases 0-2 done; Phases 3-4 remaining)
+### Full Whole-App Code Review Remediation (Phases 0-3 done; Phase 4 remaining)
 
 The read-only findings report is
 `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`; the ordered execution
@@ -460,16 +497,15 @@ pattern from Terraform/Ansible/kubectl for the destructive-script phase,
 and the community-standard embedded-standalone-server pattern for
 reconciling Next.js's two build modes inside Electron, including a
 2024 Microsoft SmartScreen policy change that steers code signing toward
-Azure Artifact Signing over an EV certificate). **Phases 0, 1, and 2 are
+Azure Artifact Signing over an EV certificate). **Phases 0, 1, 2, and 3 are
 done and verified** — see the top of this file for the full list of fixes
 and verification evidence. Phase order: Phase 0 (done), Phase 1 (done),
-Phase 2 (done), Phase 3 (documentation accuracy), Phase 4 (Electron/Windows
+Phase 2 (done), Phase 3 (done), Phase 4 (Electron/Windows
 installer buildout — the only phase with real architecture decisions, done
 last so its rebuild inherits every other phase's fixes). **Next action for
-a fresh session: start Phase 3** (documentation accuracy — `METRICS_SOURCE_
-MODULES.md` omissions, stale mission-state casing) — see
-`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §6 for exact file:line
-targets. Three product-scope decisions in Phase 4 (§7.2 Docker-lifecycle-on-
+a fresh session: start Phase 4** (Electron/Windows installer buildout) — see
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §7 for exact scope.
+Three product-scope decisions in Phase 4 (§7.2 Docker-lifecycle-on-
 quit behavior, §7.4 Docker Desktop/WSL2 prerequisite story, §7.7 auto-start
 decision) are explicitly flagged in the plan as needing user sign-off before
 implementation, not inferred defaults. See `docs/CURRENT_TODO.md`'s Active
@@ -679,6 +715,37 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Full Whole-App Remediation Plan Phase 3 (2026-07-06): documentation accuracy
+
+Executed `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §6, closing findings
+#15/#28. `docs/METRICS_SOURCE_MODULES.md` (rewritten 2026-07-03) omitted
+four entire source modules, not just the four metric names the finding
+headline named: `services/orchestrator/orchestrator/llm_delegation/metrics.py`,
+`services/pod-worker/pod_worker/main.py`,
+`services/audit-worker/audit_worker/main.py`, and
+`services/agent-runtime/agent_runtime/main.py` had no coverage at all, even
+though `pod_worker_task_latency_seconds`, `agent_runtime_task_latency_seconds`,
+`audit_worker_task_latency_seconds`, and `factory_llm_tokens_total` were
+already live in real alert rules
+(`deploy/monitoring/prometheus/rules/thefactory-alerts.yml`) and Grafana
+dashboards. Added complete, source-verified metric tables for all four
+modules rather than patching in just the four named metrics — matching this
+doc's own stated "verified against source" standard — bringing 23 additional
+real metrics under documentation (e.g. `pod_worker_tasks_processed_total`,
+`agent_runtime_circuit_open_total`, `factory_llm_estimated_cost_usd_total`,
+`factory_llm_requests_total`). Also fixed the stale casing mismatch (finding
+#28): `docs/METRICS_SOURCE_MODULES.md:19`'s `factory_missions_active` label
+values and `orchestrator_metrics.py:57`'s comment both said lowercase
+`queued`/`running`/`verified`; the real `_ACTIVE_GAUGE_STATES` set
+(`orchestrator_metrics.py:79`) and the `MissionStuckInRunning` alert query
+both use uppercase — fixed both to `QUEUED`/`RUNNING`/`VERIFIED`
+(comment-only change in the `.py` file, no behavior difference). Verified:
+`scripts/validate_documentation.py` passes (76 metadata files, 119 link
+files, 17 docstring files, 1 migration guide, 3 architecture diagram sets),
+`ruff check` clean on the one touched Python file. Documentation-only phase
+— no test suite run or Docker rebuild needed, matching the plan's own §6
+exit criteria. Next: Phase 4 (Electron/Windows installer buildout).
 
 ### Full Whole-App Remediation Plan Phase 2 (2026-07-06): frontend UI correctness/accessibility
 

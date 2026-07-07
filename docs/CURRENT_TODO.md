@@ -13,8 +13,32 @@ as current work.
 
 ## Current Status
 
-**Most recent work: Phase 2 of the Full Whole-App Remediation Plan is done
-and verified.** `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5 — frontend
+**Most recent work: Phase 3 of the Full Whole-App Remediation Plan is done
+and verified.** `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §6 —
+documentation accuracy (findings #15/#28). `docs/METRICS_SOURCE_MODULES.md`
+(rewritten 2026-07-03) turned out to omit four entire source modules, not
+just four metric names: `llm_delegation/metrics.py`, `pod-worker/main.py`,
+`audit-worker/main.py`, and `agent-runtime/main.py` were undocumented in
+full, even though the four specific metrics the finding named
+(`pod_worker_task_latency_seconds`, `agent_runtime_task_latency_seconds`,
+`audit_worker_task_latency_seconds`, `factory_llm_tokens_total`) were already
+referenced by real alert rules and Grafana dashboards. Rather than patch in
+just those four names, added complete, source-verified metric tables for
+all four modules (matching this doc's own stated "verified against source"
+standard) — 23 additional metrics now documented that weren't before. Also
+fixed the stale casing mismatch (finding #28): `factory_missions_active`'s
+label values and `orchestrator_metrics.py:57`'s comment both said lowercase
+`queued`/`running`/`verified`; the real `_ACTIVE_GAUGE_STATES` set and the
+`MissionStuckInRunning` alert use uppercase — both now read
+`QUEUED`/`RUNNING`/`VERIFIED`. Verified: `scripts/validate_documentation.py`
+passes, `ruff check` clean on the one touched `.py` file (comment-only
+change, no behavior difference). **Next action: Phase 4** (Electron/Windows
+installer buildout) — see `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §7
+and the Active Work Queue below; three sub-decisions there need explicit
+user sign-off before implementation (§7.2, §7.4, §7.7).
+
+Before that: Phase 2 of the Full Whole-App Remediation Plan was done
+and verified. `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5 — frontend
 UI correctness/accessibility (findings #3/#11/#12/#13/#14/#21/#22 plus
 `global-search.tsx` dead-code cleanup; CSP `unsafe-inline` deferred to Phase
 4 per the plan). Alerts "Acknowledge"/"Mark Resolved" (finding #3) needed
@@ -472,7 +496,7 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
-### Full Whole-App Code Review Remediation (Phases 0-2 done; Phases 3-4 remaining)
+### Full Whole-App Code Review Remediation (Phases 0-3 done; Phase 4 remaining)
 
 Findings: `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`. Ordered
 execution plan: `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` (validated
@@ -505,7 +529,13 @@ Azure Artifact Signing over an EV certificate).
    `docs/HANDOFF_CURRENT.md`'s "Latest Completed Work" section. Two findings
    (Alerts persistence, chat session retention) needed genuine decisions
    rather than mechanical fixes — both resolved with explicit user sign-off.
-4. **NEXT: Phase 3** (documentation accuracy) — independent of Phase 4.
+4. **DONE — Phase 3** (documentation accuracy — findings #15/#28).
+   `docs/METRICS_SOURCE_MODULES.md` now documents all four previously-missing
+   source modules (`llm_delegation/metrics.py`, `pod-worker/main.py`,
+   `audit-worker/main.py`, `agent-runtime/main.py`) in full, and the stale
+   lowercase mission-state casing in `orchestrator_metrics.py:57` and the doc
+   is now uppercase. Full detail in `docs/HANDOFF_CURRENT.md`'s "Latest
+   Completed Work" section. **NEXT: Phase 4.**
 5. Phase 4 (Electron/Windows installer buildout) last — the only phase
    with real architecture decisions (build-mode reconciliation via an
    embedded standalone Next.js server, code signing, NSIS install/uninstall

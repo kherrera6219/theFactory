@@ -54,7 +54,7 @@ MISSION_OUTCOMES_TOTAL = _get_metric("factory_mission_outcomes_total") or Counte
 MISSIONS_ACTIVE = _get_metric("factory_missions_active") or Gauge(
     "factory_missions_active",
     "Currently active missions by state",
-    ("state",),  # queued | running | verified
+    ("state",),  # QUEUED | RUNNING | VERIFIED
 )
 
 MISSION_DURATION_SECONDS = _get_metric("factory_mission_duration_seconds") or Histogram(
