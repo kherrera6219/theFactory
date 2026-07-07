@@ -104,6 +104,7 @@ export function GuidedTour() {
   const [cardPos, setCardPos] = useState<{ top: number; left: number } | null>(null);
 
   const rafRef = useRef<number | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   const measureTarget = useCallback((index: number) => {
     const step = STEPS[index];
@@ -168,6 +169,30 @@ export function GuidedTour() {
     if (visible) measureTarget(stepIndex);
   }, [stepIndex, visible, measureTarget]);
 
+  // Card has tabIndex={-1} plus an onKeyDown handler for Escape/Arrow/Enter,
+  // but tabIndex={-1} elements are never auto-focused by the browser — without
+  // calling .focus() here, that handler never received a single keyboard
+  // event, leaving keyboard-only users with no way to navigate or dismiss
+  // the tour. Re-focus on every step change too, since the card's content
+  // (and its accessible name) changes per step.
+  useEffect(() => {
+    if (visible) {
+      cardRef.current?.focus();
+    }
+  }, [visible, stepIndex]);
+
+  // Restore focus to whatever was focused before the tour opened, once it closes.
+  useEffect(() => {
+    if (!visible) {
+      return undefined;
+    }
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      previouslyFocused?.focus();
+    };
+  }, [visible]);
+
   function dismiss() {
     localStorage.setItem(TOUR_KEY, "1");
     setVisible(false);
@@ -211,6 +236,7 @@ export function GuidedTour() {
 
       {/* Tour card */}
       <div
+        ref={cardRef}
         className="tour-card"
         role="dialog"
         aria-modal="false"

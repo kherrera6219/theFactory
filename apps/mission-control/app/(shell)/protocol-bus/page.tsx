@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { OperatorAuthErrorAction } from "../../components/operator-auth-error-action";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
@@ -12,6 +13,7 @@ import {
 } from "../../lib/api-client";
 import { downloadJson } from "../../lib/export";
 import { formatDateTime } from "../../lib/format";
+import { operatorRecoveryMessage } from "../../lib/operator-auth-error";
 import type { BusEventRecord, LiveStateStreamEvent, MissionEvent } from "../../lib/types";
 
 const SPARKLINE_BUCKETS = 60; // 60 one-second buckets = 60s rolling window
@@ -187,9 +189,9 @@ export default function ProtocolBusPage() {
       setEvents(mapped);
       setError(null);
     } catch (loadError) {
-      setError(
-        loadError instanceof Error ? loadError.message : "Unable to load protocol bus events.",
-      );
+      const rawMessage =
+        loadError instanceof Error ? loadError.message : "Unable to load protocol bus events.";
+      setError(operatorRecoveryMessage(rawMessage));
       setEvents([]);
     } finally {
       setLoading(false);
@@ -425,6 +427,7 @@ export default function ProtocolBusPage() {
         {error && (
           <SystemMessage tone="critical" title="Protocol bus events are unavailable">
             {error} Live events will appear once the runtime stream or polling endpoint is available.
+            <OperatorAuthErrorAction error={error} />
           </SystemMessage>
         )}
         <p className="muted">
@@ -460,7 +463,19 @@ export default function ProtocolBusPage() {
                 </tr>
               )}
               {virtualizedEvents.rows.map((event) => (
-                <tr key={event.id} className="clickable-row virtualized-row" onClick={() => setSelectedEvent(event)}>
+                <tr
+                  key={event.id}
+                  className="clickable-row virtualized-row"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedEvent(event)}
+                  onKeyDown={(keyEvent) => {
+                    if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+                      keyEvent.preventDefault();
+                      setSelectedEvent(event);
+                    }
+                  }}
+                >
                   <td>{formatDateTime(event.ts)}</td>
                   <td>{event.protocol}</td>
                   <td>{event.producer}</td>

@@ -1,6 +1,6 @@
 # Current TODO
 
-Document version: 2026.07.06a
+Document version: 2026.07.06b
 Last updated: 2026-07-06
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
@@ -13,38 +13,46 @@ as current work.
 
 ## Current Status
 
-**Most recent work: Phase 1 of the Full Whole-App Remediation Plan is done
-and verified.** `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §4 — script/
+**Most recent work: Phase 2 of the Full Whole-App Remediation Plan is done
+and verified.** `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5 — frontend
+UI correctness/accessibility (findings #3/#11/#12/#13/#14/#21/#22 plus
+`global-search.tsx` dead-code cleanup; CSP `unsafe-inline` deferred to Phase
+4 per the plan). Alerts "Acknowledge"/"Mark Resolved" (finding #3) needed
+real new backend surface — alerts are recomputed fresh from live health
+signals with no incident-record table, so per user decision a Redis-backed
+ack overlay (`alert:ack:{alert_id}`, 24h TTL) plus a new
+`POST /internal/operations/alerts/{alert_id}/state` endpoint were added.
+Stale-response races (finding #11) fixed with a monotonic request-id ref in
+`useArtifactData.ts`, `missions/detail/page.tsx`, and `missions/page.tsx`.
+Non-semantic clickable divs (finding #12) fixed: a real `<button>` for the
+output-page path card, `role`/`tabIndex`/`onKeyDown` for the protocol-bus
+event `<tr>` (can't be a button — contains `<td>`s). Guided-tour keyboard
+trap (finding #13) fixed and verified live in a browser — the card never
+called `.focus()`, so its keyboard handler never received an event. Five
+raw `\uXXXX` escape sequences (finding #14 named one, four more found
+alongside it) fixed in `missions/detail/page.tsx`. Chat session retention
+(finding #21) — per user decision, added a 30-day time-based expiry
+alongside the existing count cap. Inconsistent 401/403 handling (finding
+#22) — extracted a shared `isOperatorAuthError`/`operatorRecoveryMessage`
+heuristic and `<OperatorAuthErrorAction>` component, applied consistently
+across 5 pages; `app/unlock/page.tsx` was already a legitimate redirect, not
+a dead stub. Verified: full Mission Control Vitest suite (113 tests),
+`tsc --noEmit`, `npm run build`, full backend suite, `ruff check .` all
+clean; guided-tour behavior verified live in a browser (frontend dev server
+only — backend stack wasn't running, so the Alerts round-trip and
+fast-navigation race couldn't be exercised end-to-end). **Next action:
+Phase 3 (documentation accuracy)** — see
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §6 and the Active Work
+Queue below.
+
+Before that: Phase 1 of the Full Whole-App Remediation Plan was done
+and verified. `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §4 — script/
 tooling safety guardrails (findings #6/#7/#8/#9/#10/#19/#20/#24/#25/#27/#29).
 Every destructive script now defaults to a safe preview requiring an
-explicit `--execute`/`-Execute`/`-Yes` flag to mutate anything:
-`run_automated_dr_drill.py`, `operator_route_auth_matrix_qualification.py`,
-`langgraph_postgres_recovery_qualification.py` (CI's `qualification.yml`
-explicitly passes `--execute` since that job's stack is disposable),
-`execute_git_history_scrub.py`/`.ps1` (removed the `--force` override to
-git-filter-repo), `restore_postgres.ps1` (added confirmation prompt,
-pre-restore snapshot, manifest/checksum verification). Also fixed:
-`normalize_document_headers.py` had zero safety gate at all — discovered
-mid-fix when a stray invocation clobbered 64 docs' headers (reverted with
-user sign-off, then fixed properly with `--execute` + atomic writes);
-`force_stop.py`'s condensed-vs-full-dedicated teardown mismatch (now
-detects topology via `docker ps`); the duplicate `Makefile` `demo:` target;
-`OPERATIONS_RUNBOOK.md`'s compose-pairing self-contradiction; weak
-well-known default secrets in the auth-matrix qualification script; atomic
-writes for `generate_agent_service_keys.py`/`generate_postgres_tls_certs.py`
-(plus a `--force` guard) and `rotate_secrets.sh`; `dr_drill.ps1`'s
-unchecked native-command exit codes; `run_demo_mission.py`'s hardcoded
-placeholder API-key fallback. **Also fixed in passing:** found and fixed
-the actual root cause of Phase 0's one "pre-existing, unrelated" test
-flake (`operator_route_auth_matrix_qualification.py`'s `_load_env_file()`
-was unconditionally overwriting `os.environ` from `.env` at import time)
-— the full backend suite is now 100% clean. Verified: full suite,
-`ruff check .`, `scripts/validate_documentation.py`, all three compose
-profile forms resolve, every changed script's dry-run/refuse path
-exercised directly. **Next action: Phase 2 (frontend UI
-correctness/accessibility)** — see
-`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5 and the Active Work
-Queue below.
+explicit `--execute`/`-Execute`/`-Yes` flag to mutate anything, and the
+actual root cause of Phase 0's one noted "pre-existing, unrelated" test
+flake was found and fixed. Full details in `docs/HANDOFF_CURRENT.md`'s
+"Latest Completed Work" section.
 
 Before that: Phase 0 of the Full Whole-App Remediation Plan was done
 and verified. `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §3 — hardened
@@ -464,7 +472,7 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
-### Full Whole-App Code Review Remediation (Phases 0-1 done; Phases 2-4 remaining)
+### Full Whole-App Code Review Remediation (Phases 0-2 done; Phases 3-4 remaining)
 
 Findings: `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`. Ordered
 execution plan: `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` (validated
@@ -492,16 +500,20 @@ Azure Artifact Signing over an EV certificate).
    in `docs/HANDOFF_CURRENT.md`'s "Latest Completed Work" section. Also
    fixed in passing: the actual root cause of Phase 0's one noted
    "pre-existing, unrelated" test flake.
-3. **NEXT: Phase 2** (frontend UI correctness/accessibility), then Phase 3
-   (documentation accuracy) — independent of each other and of Phase 4.
-4. Phase 4 (Electron/Windows installer buildout) last — the only phase
+3. **DONE — Phase 2** (frontend UI correctness/accessibility/data-integrity).
+   Full per-item list and verification evidence in
+   `docs/HANDOFF_CURRENT.md`'s "Latest Completed Work" section. Two findings
+   (Alerts persistence, chat session retention) needed genuine decisions
+   rather than mechanical fixes — both resolved with explicit user sign-off.
+4. **NEXT: Phase 3** (documentation accuracy) — independent of Phase 4.
+5. Phase 4 (Electron/Windows installer buildout) last — the only phase
    with real architecture decisions (build-mode reconciliation via an
    embedded standalone Next.js server, code signing, NSIS install/uninstall
    hooks). Three sub-decisions are explicitly flagged in the plan as
    needing user sign-off before implementation: Docker-lifecycle-on-quit
    behavior (§7.2), the Docker Desktop/WSL2 prerequisite story (§7.4), and
    the auto-start decision (§7.7).
-5. Do not fix individual findings out of this order — the plan's
+6. Do not fix individual findings out of this order — the plan's
    sequencing rationale (§2 of the plan doc) is deliberate: cheapest/
    highest-exposure fixes first, architecture-decision work last so its
    rebuild inherits every earlier phase's fixes.

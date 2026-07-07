@@ -1170,6 +1170,102 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert alerts.json()[0]["alert_id"] == "missions-failed-present"
 
 
+class _MemoryAlertAckRedis:
+    """Minimal async get/set redis stand-in for the alert-ack persistence test."""
+
+    def __init__(self) -> None:
+        self.store: dict[str, str] = {}
+
+    async def get(self, key: str) -> str | None:
+        return self.store.get(key)
+
+    async def set(self, key: str, value: str, ex: int | None = None, nx: bool = False) -> bool:
+        self.store[key] = value
+        return True
+
+
+def test_alert_acknowledge_and_resolve_survive_refresh(monkeypatch) -> None:
+    # Regression: Acknowledge/Mark Resolved used to only mutate Mission
+    # Control's local React state — a refresh always showed "open" again
+    # since the backend never persisted anything. This proves the new
+    # Redis-backed ack overlay actually survives a fresh GET.
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+
+    async def _runtime_ready(_: object) -> tuple[bool, bool]:
+        return True, True
+
+    monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "mission_state_counts",
+        lambda *_: {"FAILED": 1},
+    )
+    monkeypatch.setattr(orchestrator_main.storage, "list_recent_mission_events", lambda *_: [])
+
+    fake_redis = _MemoryAlertAckRedis()
+    app.state.redis = fake_redis
+    app.state.protocol_ready = True
+    app.state.consumer_task = _RunningTask()
+
+    def _alert(payload: list[dict], alert_id: str) -> dict:
+        return next(item for item in payload if item["alert_id"] == alert_id)
+
+    client = TestClient(app)
+    headers = {"x-api-key": "worker-key"}
+    alert_id = "missions-failed-present"
+
+    first = client.get("/internal/operations/alerts?limit=5", headers=headers)
+    assert first.status_code == 200
+    assert _alert(first.json(), alert_id)["state"] == "open"
+
+    ack = client.post(
+        f"/internal/operations/alerts/{alert_id}/state",
+        json={"state": "acknowledged"},
+        headers=headers,
+    )
+    assert ack.status_code == 200
+    assert ack.json() == {"alert_id": alert_id, "state": "acknowledged"}
+
+    second = client.get("/internal/operations/alerts?limit=5", headers=headers)
+    assert second.status_code == 200
+    assert _alert(second.json(), alert_id)["state"] == "acknowledged"
+
+    resolve = client.post(
+        f"/internal/operations/alerts/{alert_id}/state",
+        json={"state": "resolved"},
+        headers=headers,
+    )
+    assert resolve.status_code == 200
+
+    third = client.get("/internal/operations/alerts?limit=5", headers=headers)
+    assert third.status_code == 200
+    assert _alert(third.json(), alert_id)["state"] == "resolved"
+
+    app.state.redis = None
+    app.state.protocol_ready = False
+    app.state.consumer_task = None
+
+
+def test_alert_state_update_rejects_invalid_state(monkeypatch) -> None:
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+
+    async def _runtime_ready(_: object) -> tuple[bool, bool]:
+        return True, True
+
+    monkeypatch.setattr(orchestrator_main, "ensure_runtime_ready", _runtime_ready)
+    app.state.redis = _MemoryAlertAckRedis()
+
+    client = TestClient(app)
+    response = client.post(
+        "/internal/operations/alerts/missions-failed-present/state",
+        json={"state": "open"},
+        headers={"x-api-key": "worker-key"},
+    )
+    assert response.status_code == 422
+
+    app.state.redis = None
+
+
 def test_partition_results_endpoint_restarts_lifecycle_when_scaling_complete(monkeypatch) -> None:
     monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
     monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _fetch)

@@ -12,6 +12,7 @@ import {
   missionApiUrl,
   parseLiveStateStreamMessage,
   toDisplayError,
+  updateAlertState,
   verifyReviewApproval,
 } from "./api-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -253,6 +254,26 @@ describe("api-client", () => {
         }),
       }),
     );
+  });
+
+  it("posts alert state updates so Acknowledge/Mark Resolved persist past a refresh", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ alert_id: "missions-failed-present", state: "acknowledged" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const result = await updateAlertState("missions-failed-present", "acknowledged");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/gateway/v1/operations/alerts/missions-failed-present/state",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ state: "acknowledged" }),
+      }),
+    );
+    expect(result).toEqual({ alert_id: "missions-failed-present", state: "acknowledged" });
   });
 
   it("maps 429 responses to friendly ApiError messages", async () => {

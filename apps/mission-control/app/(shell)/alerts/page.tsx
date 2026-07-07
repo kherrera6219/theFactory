@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+import { OperatorAuthErrorAction } from "../../components/operator-auth-error-action";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
-import { listOperationsAlerts } from "../../lib/api-client";
+import { listOperationsAlerts, updateAlertState } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
+import { operatorRecoveryMessage } from "../../lib/operator-auth-error";
 import type { AlertRecord, OperationsAlertRecord } from "../../lib/types";
 
 function mapAlertRecord(record: OperationsAlertRecord): AlertRecord {
@@ -37,6 +39,8 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState<"all" | AlertRecord["severity"]>("all");
+  const [pendingAlertId, setPendingAlertId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,17 +82,30 @@ export default function AlertsPage() {
     [alerts, severityFilter],
   );
 
-  function advanceAlert(alertId: string) {
-    setAlerts((current) =>
-      current.map((item) =>
-        item.id === alertId
-          ? {
-              ...item,
-              state: nextAlertState(item.state),
-            }
-          : item,
-      ),
-    );
+  async function advanceAlert(alertId: string) {
+    const current = alerts.find((item) => item.id === alertId);
+    if (!current || current.state === "resolved") {
+      return;
+    }
+    const targetState = nextAlertState(current.state);
+    setActionError(null);
+    setPendingAlertId(alertId);
+    try {
+      await updateAlertState(alertId, targetState as "acknowledged" | "resolved");
+      setAlerts((prev) =>
+        prev.map((item) => (item.id === alertId ? { ...item, state: targetState } : item)),
+      );
+    } catch (advanceError) {
+      setActionError(
+        operatorRecoveryMessage(
+          advanceError instanceof Error
+            ? advanceError.message
+            : "Unable to update this alert. Try again.",
+        ),
+      );
+    } finally {
+      setPendingAlertId(null);
+    }
   }
 
   return (
@@ -131,6 +148,12 @@ export default function AlertsPage() {
             </button>
           ))}
         </div>
+        {actionError && (
+          <SystemMessage tone="critical" title="Unable to update alert">
+            {actionError}
+            <OperatorAuthErrorAction error={actionError} />
+          </SystemMessage>
+        )}
         {!loading && !error && alerts.length === 0 && (
           <EmptyState title="No active alerts" compact>
             Alert history and remediation recommendations will appear here when the operations service reports incidents.
@@ -166,8 +189,17 @@ export default function AlertsPage() {
                 </div>
               </dl>
               {alert.state !== "resolved" && (
-                <button type="button" className="secondary-button" onClick={() => advanceAlert(alert.id)}>
-                  {alert.state === "open" ? "Acknowledge" : "Mark Resolved"}
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={pendingAlertId === alert.id}
+                  onClick={() => void advanceAlert(alert.id)}
+                >
+                  {pendingAlertId === alert.id
+                    ? "Saving..."
+                    : alert.state === "open"
+                      ? "Acknowledge"
+                      : "Mark Resolved"}
                 </button>
               )}
             </li>

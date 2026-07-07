@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { OperatorAuthErrorAction } from "../../components/operator-auth-error-action";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, SystemMessage } from "../../components/status";
@@ -16,8 +17,10 @@ import {
   listMissionBuildArtifacts,
   type MissionOutputFolderStatus,
 } from "../../lib/api-client";
+import { pruneExpiredSessions } from "../../lib/chat-session-retention";
 import { formatDateTime } from "../../lib/format";
 import { inferRequestedTargetLanguage } from "../../lib/language";
+import { operatorRecoveryMessage } from "../../lib/operator-auth-error";
 import { sanitizeUserText } from "../../lib/security";
 
 type ChatRole = "user" | "pm";
@@ -198,25 +201,6 @@ function summarizeScope(text: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown error";
-}
-
-function isOperatorAuthError(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("operator authentication required") ||
-    normalized.includes("operator session") ||
-    normalized.includes("operator api key not found")
-  );
-}
-
-function operatorRecoveryMessage(message: string): string {
-  if (isOperatorAuthError(message)) {
-    return (
-      "Mission Control is unlocked for local operation, but the local runtime rejected the request. " +
-      "Restart the app stack and confirm the gateway and orchestrator services are healthy."
-    );
-  }
-  return message;
 }
 
 function detectUserIntent(text: string): PmConversationContext["user_intent"] {
@@ -649,12 +633,18 @@ export default function ChatPage() {
     window.sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
   }, [messages]);
 
-  // Load persistent session list from localStorage.
+  // Load persistent session list from localStorage, dropping any session
+  // older than MAX_SESSION_AGE_DAYS so old full-text transcripts don't
+  // accumulate indefinitely just because the 30-session cap was never hit.
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
-      if (raw) setSessions(JSON.parse(raw) as ChatSession[]);
+      if (raw) {
+        const fresh = pruneExpiredSessions(JSON.parse(raw) as ChatSession[]);
+        setSessions(fresh);
+        window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(fresh));
+      }
     } catch { /* ignore malformed data */ }
   }, []);
 
@@ -666,7 +656,9 @@ export default function ChatPage() {
     const session = buildSession(messages, id, contract);
 
     setSessions((current) => {
-      const updated = [session, ...current.filter((item) => item.id !== id)].slice(0, MAX_HISTORY_SESSIONS);
+      const updated = pruneExpiredSessions(
+        [session, ...current.filter((item) => item.id !== id)],
+      ).slice(0, MAX_HISTORY_SESSIONS);
       try {
         window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
       } catch {
@@ -680,9 +672,10 @@ export default function ChatPage() {
   }, [messages, activeSessionId, contract]);
 
   function saveSessions(updated: ChatSession[]) {
-    setSessions(updated);
+    const fresh = pruneExpiredSessions(updated);
+    setSessions(fresh);
     try {
-      window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+      window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(fresh));
     } catch { /* storage quota exceeded — silently ignore */ }
   }
 
@@ -1145,13 +1138,7 @@ export default function ChatPage() {
         {error && (
           <SystemMessage tone="warning" title="Message needs attention">
             <p>{error}</p>
-            {isOperatorAuthError(error) && (
-              <div className="inline-actions" style={{ marginTop: "12px" }}>
-                <button type="button" className="secondary-button" onClick={() => router.push("/settings")}>
-                  Open Settings
-                </button>
-              </div>
-            )}
+            <OperatorAuthErrorAction error={error} />
           </SystemMessage>
         )}
       </Panel>

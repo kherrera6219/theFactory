@@ -268,6 +268,10 @@ class MissionStateUpdate(BaseModel):
     expected_state: MissionState | None = None
 
 
+class AlertStateUpdate(BaseModel):
+    state: Literal["acknowledged", "resolved"]
+
+
 class MissionClarifyRequest(BaseModel):
     """Operator-supplied clarification that resolves a CLARIFYING-state mission.
 

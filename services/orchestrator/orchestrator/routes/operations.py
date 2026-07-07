@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from .. import milvus_store, neo4j_store, object_store, qdrant_store, storage
 from ..agent_integrations import build_agent_integration_record, build_agent_integrations_snapshot
@@ -18,12 +18,61 @@ from ..heartbeat_service import (
     _state_for_agent,
     _workload_for_agent,
 )
-from ..models import MissionRecord
+from ..models import AlertStateUpdate, MissionRecord
 from ._deps import INTERNAL_AUTH_DEP, MUTATION_AUTH_DEP
 
 LOGGER = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Alerts are recomputed fresh from live health signals on every request (see
+# _build_operational_alerts) — there is no incident-record table to persist
+# acknowledge/resolve state against. Overlaying a Redis-backed ack, keyed by
+# the alert's stable alert_id and expiring after ALERT_ACK_TTL_SECONDS, lets
+# an operator's "Acknowledge"/"Mark Resolved" survive a refresh without
+# permanently silencing a still-broken condition forever.
+ALERT_ACK_REDIS_PREFIX = "alert:ack"
+ALERT_ACK_TTL_SECONDS = int(os.getenv("ALERT_ACK_TTL_SECONDS", "86400"))
+
+# Every alert_id _build_operational_alerts can ever emit — fetched up front so
+# an ack made while a condition is transiently absent (e.g. acknowledging a
+# consumer-restart blip right as it recovers) still applies if it recurs
+# before the TTL expires.
+KNOWN_ALERT_IDS = (
+    "runtime-redis-unavailable",
+    "runtime-db-unavailable",
+    "runtime-protocol-not-ready",
+    "runtime-consumer-not-running",
+    "missions-failed-present",
+    "missions-completion-blocked",
+)
+
+
+def _alert_ack_redis_key(alert_id: str) -> str:
+    return f"{ALERT_ACK_REDIS_PREFIX}:{alert_id}"
+
+
+async def _load_alert_ack_states(redis_client: Any, alert_ids: list[str]) -> dict[str, str]:
+    if redis_client is None or not alert_ids:
+        return {}
+    states: dict[str, str] = {}
+    for alert_id in alert_ids:
+        try:
+            raw = await redis_client.get(_alert_ack_redis_key(alert_id))
+        except Exception as exc:  # pragma: no cover - defensive, matches idempotency pattern
+            LOGGER.warning("failed to read alert ack state for %s: %s", alert_id, exc)
+            continue
+        if raw:
+            states[alert_id] = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+    return states
+
+
+async def _save_alert_ack_state(redis_client: Any, alert_id: str, state: str) -> None:
+    await redis_client.set(
+        _alert_ack_redis_key(alert_id),
+        state,
+        ex=ALERT_ACK_TTL_SECONDS,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +108,7 @@ def _build_operational_alerts(
     state_counts: dict[str, int],
     blocked_completion_count: int,
     limit: int,
+    ack_states: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     alerts: list[dict[str, Any]] = []
     now = datetime.now(UTC).isoformat()
@@ -148,6 +198,12 @@ def _build_operational_alerts(
                 ),
             }
         )
+
+    if ack_states:
+        for alert in alerts:
+            acked_state = ack_states.get(alert["alert_id"])
+            if acked_state:
+                alert["state"] = acked_state
 
     return alerts[:limit]
 
@@ -625,6 +681,8 @@ async def get_operations_alerts(
     protocol_ready = bool(getattr(app.state, "protocol_ready", False))
     consumer_task = getattr(app.state, "consumer_task", None)
     consumer_running = consumer_task is not None and not consumer_task.done()
+    redis_client = getattr(app.state, "redis", None) if redis_ready else None
+    ack_states = await _load_alert_ack_states(redis_client, list(KNOWN_ALERT_IDS))
     return _build_operational_alerts(
         redis_ready=redis_ready,
         db_ready=db_ready,
@@ -633,7 +691,34 @@ async def get_operations_alerts(
         state_counts=state_counts,
         blocked_completion_count=blocked_completion_count,
         limit=limit,
+        ack_states=ack_states,
     )
+
+
+@router.post("/internal/operations/alerts/{alert_id}/state")
+async def update_operations_alert_state(
+    request: Request,
+    alert_id: str,
+    payload: AlertStateUpdate,
+    _: AuthContext = MUTATION_AUTH_DEP,
+) -> dict[str, Any]:
+    """Persist an operator's acknowledge/resolve action on a synthetic alert.
+
+    These alerts have no incident-record table (see _build_operational_alerts) —
+    this only silences re-alerting for this alert_id in the operations feed
+    until it clears or ALERT_ACK_TTL_SECONDS elapses, whichever comes first.
+    """
+    import orchestrator.main as _main
+
+    app = request.app
+    _main._initialize_app_state(app)
+    redis_ready, _ = await _main.ensure_runtime_ready(app)
+    redis_client = getattr(app.state, "redis", None)
+    if not redis_ready or redis_client is None:
+        raise HTTPException(status_code=503, detail="redis is not available to persist alert state")
+
+    await _save_alert_ack_state(redis_client, alert_id, payload.state)
+    return {"alert_id": alert_id, "state": payload.state}
 
 
 @router.post("/v1/maintenance/prune-audit")

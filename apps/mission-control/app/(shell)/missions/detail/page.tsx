@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 
 import { PageHeader } from "../../../components/page-header";
+import { OperatorAuthErrorAction } from "../../../components/operator-auth-error-action";
 import { Panel } from "../../../components/panel";
 import { useConfirm } from "../../../components/dialog-provider";
 import { ErrorBoundary } from "../../../components/error-boundary";
@@ -25,6 +26,7 @@ import {
 import { Tooltip } from "../../../components/tooltip";
 import { GLOSSARY } from "../../../lib/glossary";
 import { humanizeState, normalizeState } from "../../../lib/format";
+import { operatorRecoveryMessage } from "../../../lib/operator-auth-error";
 import {
   deriveMissionPhaseDescriptor,
 } from "../../../lib/smelt-cycle";
@@ -123,11 +125,17 @@ function MissionDetailPageContent() {
   const [nameSaving, setNameSaving] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const lastStreamRefreshRef = useRef(0);
+  // Monotonic request id — loadDetails also runs on a polling interval, so
+  // multiple requests can be in flight at once. A response for a superseded
+  // missionId (or a stale poll tick after navigating away) must never
+  // overwrite state for the mission actually being viewed.
+  const detailsRequestIdRef = useRef(0);
 
   const loadDetails = useCallback(async () => {
     if (!missionId) {
       return;
     }
+    const requestId = ++detailsRequestIdRef.current;
     try {
       const [missionData, missionEvents, missionChain, nodes, agentSnapshot, reports, tokenUsageData] = await Promise.all([
         getMission(missionId),
@@ -138,6 +146,9 @@ function MissionDetailPageContent() {
         listMissionAuditReports(missionId, 50).catch(() => [] as OperationsAuditReportRecord[]),
         getMissionTokenUsage(missionId).catch(() => null),
       ]);
+      if (detailsRequestIdRef.current !== requestId) {
+        return;
+      }
       setMission(missionData);
       setEvents(missionEvents);
       setChainTrace(missionChain);
@@ -148,9 +159,18 @@ function MissionDetailPageContent() {
       setError(null);
       setLastUpdatedAt(new Date().toISOString());
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Unable to load mission details.");
+      if (detailsRequestIdRef.current !== requestId) {
+        return;
+      }
+      setError(
+        operatorRecoveryMessage(
+          loadError instanceof Error ? loadError.message : "Unable to load mission details.",
+        ),
+      );
     } finally {
-      setLoading(false);
+      if (detailsRequestIdRef.current === requestId) {
+        setLoading(false);
+      }
     }
   }, [missionId]);
 
@@ -363,9 +383,9 @@ function MissionDetailPageContent() {
       await loadDetails();
     } catch (requestError) {
       setActionError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Mission state update failed.",
+        operatorRecoveryMessage(
+          requestError instanceof Error ? requestError.message : "Mission state update failed.",
+        ),
       );
     }
   }
@@ -452,7 +472,7 @@ function MissionDetailPageContent() {
                       aria-label="Cancel editing"
                       onClick={() => setEditingName(false)}
                     >
-                      \u2715
+                      {"\u2715"}
                     </button>
                   </>
                 ) : (
@@ -462,23 +482,23 @@ function MissionDetailPageContent() {
                       <>
                         <span>{missionName}</span>
                         <span className="mono-id" style={{ fontSize: "0.6em", opacity: 0.55 }}>
-                          {mission.mission_id.slice(0, 8)}\u2026
+                          {mission.mission_id.slice(0, 8)}{"\u2026"}
                         </span>
 
                         {(mission?.metadata as Record<string, unknown> | undefined)?.source === "fallback" && (
                           <span className="status-badge error" role="alert" aria-live="polite" style={{ marginLeft: "1rem", verticalAlign: "middle" }} title="Mission generated via LLM fallback route due to provider outage.">
-                            \u26A0\uFE0F FALLBACK ROUTE
+                            {"\u26A0\uFE0F"} FALLBACK ROUTE
                           </span>
                         )}
                       </>
                     ) : (
                       <>
                         Mission{" "}
-                        <span className="mono-id">{mission.mission_id.slice(0, 12)}\u2026</span>
+                        <span className="mono-id">{mission.mission_id.slice(0, 12)}{"\u2026"}</span>
 
                         {(mission?.metadata as Record<string, unknown> | undefined)?.source === "fallback" && (
                           <span className="status-badge error" role="alert" aria-live="polite" style={{ marginLeft: "1rem", verticalAlign: "middle" }} title="Mission generated via LLM fallback route due to provider outage.">
-                            \u26A0\uFE0F FALLBACK ROUTE
+                            {"\u26A0\uFE0F"} FALLBACK ROUTE
                           </span>
                         )}
                       </>
@@ -527,8 +547,18 @@ function MissionDetailPageContent() {
         }
       />
 
-      {error && <p className="error-box">{error}</p>}
-      {actionError && <p className="error-box">{actionError}</p>}
+      {error && (
+        <div className="error-box">
+          {error}
+          <OperatorAuthErrorAction error={error} />
+        </div>
+      )}
+      {actionError && (
+        <div className="error-box">
+          {actionError}
+          <OperatorAuthErrorAction error={actionError} />
+        </div>
+      )}
       {pausedMonitor && (
         <p className="warning-box">Live refresh paused locally. Click "Resume Monitor" to continue.</p>
       )}

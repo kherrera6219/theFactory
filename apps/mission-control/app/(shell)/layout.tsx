@@ -36,7 +36,6 @@ export default function ShellLayout({ children }: ShellLayoutProps) {
       <div className="shell-main-column">
         <header className="shell-header">
           <ShellHeaderMeta />
-          {/* 6C — Command palette trigger (replaces raw GlobalSearch input) */}
           <div className="shell-header-search">
             <CommandPaletteTrigger />
           </div>

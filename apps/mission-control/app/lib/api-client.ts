@@ -580,6 +580,19 @@ export async function listOperationsAlerts(limit: number): Promise<OperationsAle
   return fetchJson<OperationsAlertRecord[]>(missionApiUrl(`/v1/operations/alerts?limit=${limit}`));
 }
 
+export async function updateAlertState(
+  alertId: string,
+  state: "acknowledged" | "resolved",
+): Promise<{ alert_id: string; state: string }> {
+  return fetchJson<{ alert_id: string; state: string }>(
+    missionApiUrl(`/v1/operations/alerts/${encodeURIComponent(alertId)}/state`),
+    {
+      method: "POST",
+      body: JSON.stringify({ state }),
+    },
+  );
+}
+
 export async function listMissionAuditReports(missionId: string, limit = 50): Promise<OperationsAuditReportRecord[]> {
   return fetchJson<OperationsAuditReportRecord[]>(missionApiUrl(`/v1/missions/${missionId}/audit-reports?limit=${limit}`));
 }

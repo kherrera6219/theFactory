@@ -122,9 +122,11 @@ function OutputPageContent() {
       />
 
       {/* File System Path Card */}
-      <div
+      <button
+        type="button"
         onClick={() => void handleCopyPath()}
         style={{
+          width: '100%',
           padding: '0.5rem 1rem',
           background: 'var(--color-surface-offset)',
           border: '1px solid var(--color-border)',
@@ -137,6 +139,8 @@ function OutputPageContent() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          textAlign: 'left',
+          fontFamily: 'inherit',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = 'var(--color-surface-offset-2, #2d3748)';
@@ -153,7 +157,7 @@ function OutputPageContent() {
         <span style={{ fontSize: '0.85em', color: 'var(--color-primary-light, #38bdf8)' }}>
           {copiedPath ? '✓ Copied path' : 'Copy local path'}
         </span>
-      </div>
+      </button>
 
       <div
         style={{

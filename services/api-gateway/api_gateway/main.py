@@ -351,6 +351,10 @@ class MissionStateUpdate(BaseModel):
     expected_state: str | None = None
 
 
+class AlertStateUpdate(BaseModel):
+    state: str = Field(pattern="^(acknowledged|resolved)$")
+
+
 class BuilderPreviewRequest(BaseModel):
     request: str = Field(min_length=3, max_length=4000)
     constraints: list[str] = Field(default_factory=list)
@@ -2741,6 +2745,20 @@ async def get_operations_alerts(
 ) -> list[dict[str, Any]]:
     _require_operator_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal("/internal/operations/alerts", params={"limit": limit})
+
+
+@app.post("/v1/operations/alerts/{alert_id}/state")
+async def update_operations_alert_state(
+    alert_id: str,
+    payload: AlertStateUpdate,
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_operator_access(x_api_key=x_api_key, authorization=authorization)
+    return await _proxy_post_internal(
+        f"/internal/operations/alerts/{alert_id}/state",
+        json_body=payload.model_dump(),
+    )
 
 
 

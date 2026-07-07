@@ -1,11 +1,56 @@
 # Current Handoff
 
-Document version: 2026.07.06a
+Document version: 2026.07.06b
 Last updated: 2026-07-06
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** Phase 1 of the Full Whole-App
+**If you are picking this up cold:** Phase 2 of the Full Whole-App
+Remediation Plan (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5) is
+**done and verified** — frontend UI correctness/accessibility/data-integrity
+fixes, closing findings #3/#11/#12/#13/#14/#21/#22 plus the `global-search.tsx`
+dead-code cleanup (CSP `unsafe-inline` is explicitly deferred to Phase 4 per
+the plan). Alerts "Acknowledge"/"Mark Resolved" (finding #3) turned out to
+need real new backend surface, not just wiring: `_build_operational_alerts()`
+(`orchestrator/routes/operations.py`) recomputes every alert fresh from live
+health signals on every request with no incident-record table at all — per
+user decision, added a Redis-backed ack overlay (`alert:ack:{alert_id}`,
+24h TTL) plus a new `POST /internal/operations/alerts/{alert_id}/state`
+endpoint (proxied via api-gateway) so acknowledge/resolve now survives a
+refresh instead of reverting. Stale-response races (finding #11) fixed with
+a monotonic request-id ref in `useArtifactData.ts`, `missions/detail/page.tsx`,
+and `missions/page.tsx` — a response for a mission the user has since
+navigated away from can no longer overwrite the mission actually being
+viewed. Non-semantic clickable `<div>`s (finding #12) fixed: the
+`missions/output/page.tsx` path card converted to a real `<button>`; the
+`protocol-bus/page.tsx` event `<tr>` (can't be a `<button>` — it contains
+`<td>`s) got `role="button"`/`tabIndex={0}`/`onKeyDown`, already covered by
+an existing global `[role="button"]:focus-visible` CSS rule. Guided-tour
+keyboard trap (finding #13) fixed and verified live in a browser: the card
+had `tabIndex={-1}` but nothing ever called `.focus()`, so its
+Escape/Arrow/Enter handler never received a single keyboard event — added
+focus-on-open/step-change plus previous-focus restore on close. Five literal
+`\uXXXX` escape sequences rendering as raw text (finding #14 named one,
+four more of the identical bug were found and fixed alongside it) in
+`missions/detail/page.tsx`. Chat session retention (finding #21) — per user
+decision, added a time-based expiry (30 days) alongside the existing
+30-session count cap, extracted to a testable `lib/chat-session-retention.ts`.
+Inconsistent 401/403 handling (finding #22) — extracted `chat/page.tsx`'s
+`isOperatorAuthError`/`operatorRecoveryMessage` heuristic into
+`lib/operator-auth-error.ts` plus a shared `<OperatorAuthErrorAction>`
+component, applied consistently across chat/missions/missions-detail/alerts/
+protocol-bus; `app/unlock/page.tsx` was already a legitimate intentional
+redirect to Settings, not a dead stub — left unchanged. Verified: full
+Mission Control Vitest suite (113 tests), `tsc --noEmit`, `npm run build`,
+full backend suite, `ruff check .` all clean; guided-tour keyboard behavior
+and page rendering verified live in a browser (frontend dev server only —
+the backend stack wasn't running, so live-data flows like the actual
+Alerts acknowledge round-trip and the fast-navigation stale-response race
+could not be exercised end-to-end; say so explicitly rather than claim full
+live coverage). **Next action: Phase 3** (documentation accuracy) — see
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §6.
+
+Before that: Phase 1 of the Full Whole-App
 Remediation Plan (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §4) is
 **done and verified** — script/tooling safety guardrails, closing findings
 #6/#7/#8/#9/#10/#19/#20/#24/#25/#27/#29. Every destructive script now
@@ -403,7 +448,7 @@ browser mission proof remains the next action.
 
 ## Active Work
 
-### Full Whole-App Code Review Remediation (Phases 0-1 done; Phases 2-4 remaining)
+### Full Whole-App Code Review Remediation (Phases 0-2 done; Phases 3-4 remaining)
 
 The read-only findings report is
 `docs/FULL_APP_CODE_REVIEW_FINDINGS_2026-07-05.md`; the ordered execution
@@ -415,21 +460,20 @@ pattern from Terraform/Ansible/kubectl for the destructive-script phase,
 and the community-standard embedded-standalone-server pattern for
 reconciling Next.js's two build modes inside Electron, including a
 2024 Microsoft SmartScreen policy change that steers code signing toward
-Azure Artifact Signing over an EV certificate). **Phases 0 and 1 are done
-and verified** — see the top of this file for the full list of fixes and
-verification evidence. Phase order: Phase 0 (done), Phase 1 (done), Phase 2
-(frontend UI correctness/accessibility), Phase 3 (documentation accuracy),
-Phase 4 (Electron/Windows installer buildout — the only phase with real
-architecture decisions, done last so its rebuild inherits every other
-phase's fixes). **Next action for a fresh session: start Phase 2**
-(frontend UI correctness/accessibility — Alerts page persistence,
-stale-response races, keyboard-inaccessible clickable divs, the raw `✕`
-character, etc.) — see `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5 for
-exact file:line targets. Three product-scope decisions in Phase 4 (§7.2
-Docker-lifecycle-on-quit behavior, §7.4 Docker Desktop/WSL2 prerequisite
-story, §7.7 auto-start decision) are explicitly flagged in the plan as
-needing user sign-off before implementation, not inferred defaults. See
-`docs/CURRENT_TODO.md`'s Active Work Queue entry for the same tracked item.
+Azure Artifact Signing over an EV certificate). **Phases 0, 1, and 2 are
+done and verified** — see the top of this file for the full list of fixes
+and verification evidence. Phase order: Phase 0 (done), Phase 1 (done),
+Phase 2 (done), Phase 3 (documentation accuracy), Phase 4 (Electron/Windows
+installer buildout — the only phase with real architecture decisions, done
+last so its rebuild inherits every other phase's fixes). **Next action for
+a fresh session: start Phase 3** (documentation accuracy — `METRICS_SOURCE_
+MODULES.md` omissions, stale mission-state casing) — see
+`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §6 for exact file:line
+targets. Three product-scope decisions in Phase 4 (§7.2 Docker-lifecycle-on-
+quit behavior, §7.4 Docker Desktop/WSL2 prerequisite story, §7.7 auto-start
+decision) are explicitly flagged in the plan as needing user sign-off before
+implementation, not inferred defaults. See `docs/CURRENT_TODO.md`'s Active
+Work Queue entry for the same tracked item.
 
 ### Mission Control UX Lock-In (implemented; restart/browser proof pending)
 
@@ -635,6 +679,31 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Full Whole-App Remediation Plan Phase 2 (2026-07-06): frontend UI correctness/accessibility
+
+Executed `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §5, closing findings
+#3/#11/#12/#13/#14/#21/#22 plus the `global-search.tsx` dead-code cleanup
+(CSP `unsafe-inline` explicitly deferred to Phase 4 per the plan). See the
+top of this file ("If you are picking this up cold") for the full per-item
+list. Two findings needed a genuine decision rather than a mechanical fix,
+both resolved with explicit user sign-off: Alerts persistence required new
+backend surface (a Redis-backed ack overlay plus a new
+`POST /internal/operations/alerts/{alert_id}/state` endpoint, since the
+alerts have no incident-record table — they're recomputed fresh from live
+health signals on every request) and chat session retention (a time-based
+30-day expiry alongside the existing 30-session count cap, rather than
+building new server-side encrypted storage). The guided-tour keyboard-trap
+fix was verified live in a browser (`document.activeElement` confirmed
+receiving focus, Escape correctly dismissed and restored prior focus) —
+previously the card had `tabIndex={-1}` with no `.focus()` call, so its
+keyboard handler never received a single event. Verified: full Mission
+Control Vitest suite (113 tests), `tsc --noEmit`, `npm run build`, full
+backend suite, `ruff check .` — all clean. Live-data flows (the actual
+Alerts acknowledge round-trip, the fast-navigation stale-response race)
+were not exercised end-to-end since the backend stack wasn't running during
+this pass — noted explicitly rather than claimed as verified. Next: Phase 3
+(documentation accuracy).
 
 ### Full Whole-App Remediation Plan Phase 1 (2026-07-06): script/tooling safety guardrails
 

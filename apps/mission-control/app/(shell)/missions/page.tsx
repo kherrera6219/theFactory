@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { CopyId } from "../../components/copy-id";
+import { OperatorAuthErrorAction } from "../../components/operator-auth-error-action";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
@@ -26,6 +27,7 @@ import type {
   MissionType,
   OutputMode,
 } from "../../lib/types";
+import { operatorRecoveryMessage } from "../../lib/operator-auth-error";
 import { sanitizeUserText } from "../../lib/security";
 
 const TARGET_LANGUAGES = ["python", "typescript", "go", "rust", "java", "csharp"] as const;
@@ -106,6 +108,10 @@ export default function MissionsPage() {
   const [pollFailures, setPollFailures] = useState(0);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [lastFetchAt, setLastFetchAt] = useState<string | null>(null);
+  // Monotonic request id shared by every loadMissionDetails caller (select,
+  // submit, polling interval) — a response for a mission the user has since
+  // navigated away from must never overwrite the currently-selected mission.
+  const missionDetailsRequestIdRef = useRef(0);
 
   const lastRefreshedLabel = useLastRefreshed(lastFetchAt);
   const promptTooShort = prompt.trim().length > 0 && prompt.trim().length < 3;
@@ -149,18 +155,23 @@ export default function MissionsPage() {
       setRecentMissions(data);
       setLastFetchAt(new Date().toISOString());
     } catch (error) {
-      setMissionListError(error instanceof Error ? error.message : "Unable to load recent missions.");
+      const rawMessage = error instanceof Error ? error.message : "Unable to load recent missions.";
+      setMissionListError(operatorRecoveryMessage(rawMessage));
     } finally {
       setMissionListLoading(false);
     }
   }
 
   async function loadMissionDetails(missionId: string) {
+    const requestId = ++missionDetailsRequestIdRef.current;
     try {
       const [missionData, eventData] = await Promise.all([
         getMission(missionId),
         getMissionEvents(missionId, 20),
       ]);
+      if (missionDetailsRequestIdRef.current !== requestId) {
+        return;
+      }
       setMission(missionData);
       setEvents(eventData);
       setConnectionState("live");
@@ -169,8 +180,12 @@ export default function MissionsPage() {
       setLastUpdatedAt(new Date().toISOString());
       upsertRecentMission(missionData);
     } catch (error) {
-      const message =
+      if (missionDetailsRequestIdRef.current !== requestId) {
+        return;
+      }
+      const rawMessage =
         error instanceof Error ? error.message : "Unable to load mission details right now.";
+      const message = operatorRecoveryMessage(rawMessage);
       setPollError(`${message} Use Retry to refresh status.`);
       setConnectionState((current) => (current === "stale" ? current : "retrying"));
       setPollFailures((count) => {
@@ -219,7 +234,7 @@ export default function MissionsPage() {
     } catch (error) {
       setSubmitError(
         error instanceof Error
-          ? `${error.message} Review mission prompt and retry.`
+          ? `${operatorRecoveryMessage(error.message)} Review mission prompt and retry.`
           : "Unable to submit mission. Check service health and retry.",
       );
     } finally {
@@ -550,6 +565,7 @@ export default function MissionsPage() {
         {submitError && (
           <SystemMessage tone="critical" title="Mission could not be submitted">
             {submitError}
+            <OperatorAuthErrorAction error={submitError} />
           </SystemMessage>
         )}
         {pollError && (
@@ -569,6 +585,7 @@ export default function MissionsPage() {
             }
           >
             {pollError}
+            <OperatorAuthErrorAction error={pollError} />
           </SystemMessage>
         )}
         {!mission && (
