@@ -16,6 +16,7 @@ import json
 import logging
 import uuid
 from typing import Any
+from urllib.error import URLError
 from urllib.request import Request, urlopen  # noqa: S310 — only http/https; patched in tests
 
 LOGGER = logging.getLogger(__name__)
@@ -110,6 +111,42 @@ def send_protocol_message(
             exc,
         )
         return False
+
+
+def fetch_lane_activity(*, settings: Any, timeout: float = 3.0) -> dict[str, Any] | None:
+    """GET the Protocol Bus MCP's read-only ``/lane-stats`` snapshot.
+
+    PBLA-05 observability only — never raises, returns ``None`` on any
+    missing URL, network error, or non-2xx response so callers (the
+    operations-summary route) can treat a bus outage as "unknown" rather
+    than fail the whole snapshot.
+    """
+    bus_url = _protocol_bus_url(settings)
+    if not bus_url:
+        return None
+    try:
+        req = Request(
+            f"{bus_url.rstrip('/')}/lane-stats",
+            method="GET",
+            headers={
+                "X-API-Key": _protocol_bus_api_key(settings),
+                "X-Agent-Id": "AGENT-00-ORCHESTRATOR",
+            },
+        )
+        with urlopen(req, timeout=timeout) as resp:  # nosec B310
+            if resp.status >= 300:
+                LOGGER.warning(
+                    "protocol_bus_producer: lane-stats fetch returned HTTP %s",
+                    resp.status,
+                )
+                return None
+            return json.loads(resp.read().decode("utf-8"))
+    except (URLError, TimeoutError, ValueError) as exc:
+        LOGGER.warning("protocol_bus_producer: lane-stats fetch failed: %s", exc)
+        return None
+    except Exception as exc:
+        LOGGER.warning("protocol_bus_producer: lane-stats fetch failed unexpectedly: %s", exc)
+        return None
 
 
 def send_alpha_directive(

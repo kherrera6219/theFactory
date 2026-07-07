@@ -7,6 +7,7 @@ import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, StatusBadge, SystemMessage } from "../../components/status";
 import {
+  getOperationsSummary,
   listOperationsEvents,
   missionStateStreamUrl,
   parseLiveStateStreamMessage,
@@ -14,7 +15,16 @@ import {
 import { downloadJson } from "../../lib/export";
 import { formatDateTime } from "../../lib/format";
 import { operatorRecoveryMessage } from "../../lib/operator-auth-error";
-import type { BusEventRecord, LiveStateStreamEvent, MissionEvent } from "../../lib/types";
+import type {
+  BusEventRecord,
+  LiveStateStreamEvent,
+  MissionEvent,
+  ProtocolBusLaneActivitySnapshot,
+  ProtocolBusLaneName,
+} from "../../lib/types";
+
+const LANE_ORDER: ProtocolBusLaneName[] = ["alpha", "beta", "delta", "sigma", "omega", "rho"];
+const LANE_ACTIVITY_REFRESH_MS = 15_000;
 
 const SPARKLINE_BUCKETS = 60; // 60 one-second buckets = 60s rolling window
 const SPARKLINE_W = 200;
@@ -177,7 +187,28 @@ export default function ProtocolBusPage() {
   const [query, setQuery] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<BusEventRecord | null>(null);
   const [eventTableScrollTop, setEventTableScrollTop] = useState(0);
+  const [laneActivity, setLaneActivity] = useState<ProtocolBusLaneActivitySnapshot | null>(null);
+  const [laneActivityError, setLaneActivityError] = useState<string | null>(null);
   const lastPollRefreshRef = useRef(0);
+
+  const loadLaneActivity = useCallback(async () => {
+    try {
+      const summary = await getOperationsSummary();
+      setLaneActivity(summary.lane_activity);
+      setLaneActivityError(null);
+    } catch (loadError) {
+      setLaneActivity(null);
+      setLaneActivityError(
+        loadError instanceof Error ? loadError.message : "Unable to load lane activity.",
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLaneActivity();
+    const intervalId = window.setInterval(() => void loadLaneActivity(), LANE_ACTIVITY_REFRESH_MS);
+    return () => window.clearInterval(intervalId);
+  }, [loadLaneActivity]);
 
   const loadEvents = useCallback(async () => {
     try {
@@ -402,6 +433,51 @@ export default function ProtocolBusPage() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
+        </div>
+      </Panel>
+
+      <Panel title="Lane Activity" actions={<StatusBadge tone={laneActivity ? "healthy" : "warning"}>
+        {laneActivity ? "LIVE" : "UNAVAILABLE"}
+      </StatusBadge>}>
+        {laneActivityError && !laneActivity && (
+          <SystemMessage tone="warning" title="Lane activity is unavailable">
+            {operatorRecoveryMessage(laneActivityError)} Per-lane counters resume once the protocol
+            bus is reachable again.
+          </SystemMessage>
+        )}
+        <p className="help-text">
+          Real per-lane Protocol Bus counters (PBLA-05) — queued/DLQ/dedup/replay totals reported
+          directly by protocol-bus-mcp, distinct from the mission-event-derived stream below.
+        </p>
+        <div className="table-wrap">
+          <table className="data-table">
+            <caption className="sr-only">Per-lane protocol bus activity counters.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Lane</th>
+                <th scope="col">Queued</th>
+                <th scope="col">DLQ writes</th>
+                <th scope="col">Deduplicated</th>
+                <th scope="col">Replayed</th>
+                <th scope="col">DLQ depth</th>
+              </tr>
+            </thead>
+            <tbody>
+              {LANE_ORDER.map((lane) => {
+                const stats = laneActivity?.lanes[lane];
+                return (
+                  <tr key={lane}>
+                    <th scope="row">{lane.toUpperCase()}</th>
+                    <td>{stats ? stats.messages_queued_total : "—"}</td>
+                    <td>{stats ? stats.dlq_writes_total : "—"}</td>
+                    <td>{stats ? stats.messages_deduplicated_total : "—"}</td>
+                    <td>{stats ? stats.messages_replayed_total : "—"}</td>
+                    <td>{stats?.dlq_depth ?? "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </Panel>
 

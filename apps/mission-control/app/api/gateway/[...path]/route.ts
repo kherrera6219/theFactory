@@ -1,5 +1,5 @@
 import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
-import { getVaultSecret } from "../../../lib/server/vault";
+import { getActiveLlmRoute, getVaultSecret } from "../../../lib/server/vault";
 
 const DEFAULT_GATEWAY_BASE = "http://127.0.0.1:8100";
 const gatewayBase = (process.env.MISSION_API_BASE_URL ?? DEFAULT_GATEWAY_BASE).trim();
@@ -81,12 +81,18 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
       const geminiKey = await getVaultSecret("GEMINI-API-KEY");
       const openaiKey = await getVaultSecret("OPENAI-API-KEY");
       const anthropicKey = await getVaultSecret("ANTHROPIC-API-KEY");
+      const activeRoute = await getActiveLlmRoute();
 
       payload.metadata = payload.metadata || {};
       payload.metadata.vault = {
         gemini_api_key: geminiKey || "",
         openai_api_key: openaiKey || "",
         anthropic_api_key: anthropicKey || "",
+        // Operator's Settings-selected primary provider/model (falls back to
+        // the orchestrator's own .env defaults when unset).
+        ...(activeRoute
+          ? { llm_provider: activeRoute.provider, llm_model: activeRoute.model }
+          : {}),
       };
 
       const encoder = new TextEncoder();

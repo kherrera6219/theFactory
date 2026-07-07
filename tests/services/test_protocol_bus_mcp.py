@@ -406,6 +406,42 @@ def test_metrics_endpoint() -> None:
     assert response.headers["content-type"]
 
 
+def test_lane_stats_endpoint_reports_all_lanes_and_dlq_depth() -> None:
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        asyncio.run(
+            app.state.redis.xadd(
+                "dlq:beta",
+                {"error": "boom", "payload": "{}", "ts": "2026-03-01T00:00:00+00:00"},
+            )
+        )
+        response = client.get("/lane-stats")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["redis_ready"] is True
+    assert set(payload["lanes"].keys()) == set(mcp_main.ALLOWED_PROTOCOLS)
+    assert payload["lanes"]["beta"]["dlq_depth"] == 1
+    assert payload["lanes"]["alpha"]["dlq_depth"] == 0
+    for lane_payload in payload["lanes"].values():
+        assert lane_payload["messages_queued_total"] >= 0
+        assert lane_payload["dlq_writes_total"] >= 0
+        assert lane_payload["messages_deduplicated_total"] >= 0
+        assert lane_payload["messages_replayed_total"] >= 0
+
+
+def test_lane_stats_endpoint_without_redis_reports_none_dlq_depth() -> None:
+    with TestClient(app) as client:
+        app.state.redis = None
+        app.state.redis_ready = False
+        response = client.get("/lane-stats")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["redis_ready"] is False
+    for lane_payload in payload["lanes"].values():
+        assert lane_payload["dlq_depth"] is None
+
+
 def test_send_message_rejects_invalid_sender_id() -> None:
     payload = _alpha_payload()
     payload["sender"] = "bad-sender"

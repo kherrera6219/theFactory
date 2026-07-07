@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getVaultSecret = vi.fn();
 const testSecret = vi.fn();
+const preflightProviderCall = vi.fn();
 
 vi.mock("../../../lib/server/vault", () => ({
   getVaultSecret,
   testSecret,
+  preflightProviderCall,
 }));
 
 const ORIGINAL_BYPASS = process.env.MISSION_CONTROL_BYPASS_AUTH;
@@ -28,6 +30,7 @@ describe("vault test route", () => {
   afterEach(() => {
     getVaultSecret.mockReset();
     testSecret.mockReset();
+    preflightProviderCall.mockReset();
     vi.resetModules();
     if (ORIGINAL_BYPASS === undefined) {
       delete process.env.MISSION_CONTROL_BYPASS_AUTH;
@@ -46,8 +49,13 @@ describe("vault test route", () => {
     }
   });
 
-  it("validates a provider key format for an authorized caller", async () => {
+  it("performs a live provider preflight call once the format check passes", async () => {
     testSecret.mockReturnValue({ valid: true, reason: "format looks correct" });
+    preflightProviderCall.mockResolvedValue({
+      valid: true,
+      reason: "Anthropic accepted the key (minimal message call succeeded).",
+      live_checked: true,
+    });
     const { POST } = await import("./route");
 
     const response = await POST(
@@ -59,8 +67,35 @@ describe("vault test route", () => {
     );
 
     expect(response.status).toBe(200);
-    const payload = (await response.json()) as { valid?: boolean };
+    const payload = (await response.json()) as { valid?: boolean; live_checked?: boolean };
     expect(payload.valid).toBe(true);
+    expect(payload.live_checked).toBe(true);
+    expect(preflightProviderCall).toHaveBeenCalledWith(
+      "anthropic",
+      "sk-ant-test-123456",
+      undefined,
+    );
+  });
+
+  it("skips the live call and reports the format failure when the key format is wrong", async () => {
+    // Regression: a preflight call should never be made to a provider with
+    // an obviously malformed key -- that's a wasted network round trip.
+    testSecret.mockReturnValue({ valid: false, reason: "Anthropic keys usually start with sk-ant-." });
+    const { POST } = await import("./route");
+
+    const response = await POST(
+      request({
+        slot_id: "AGENT-01-PM-API-KEY",
+        provider: "anthropic",
+        secret: "not-a-real-key",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as { valid?: boolean; live_checked?: boolean };
+    expect(payload.valid).toBe(false);
+    expect(payload.live_checked).toBe(false);
+    expect(preflightProviderCall).not.toHaveBeenCalled();
   });
 
   it("returns 400 when provider is missing", async () => {

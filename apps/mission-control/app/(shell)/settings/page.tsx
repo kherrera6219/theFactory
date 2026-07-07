@@ -135,6 +135,7 @@ type VaultTestResponse = {
   valid?: boolean;
   reason?: string;
   detail?: string;
+  live_checked?: boolean;
 };
 
 type SlotRow = {
@@ -246,6 +247,9 @@ export default function SettingsPage() {
   // FIX #4: Slide-in edit panel visibility — opens when a row is clicked
   const [editPanelOpen, setEditPanelOpen] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [routeSaving, setRouteSaving] = useState(false);
+  const [routeMessage, setRouteMessage] = useState<string | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   useEffect(() => {
     const raw = window.localStorage.getItem("mission-control:preferences");
@@ -455,7 +459,10 @@ export default function SettingsPage() {
           secret: slotSecretInput.trim().length > 0 ? slotSecretInput.trim() : undefined,
         }),
       });
-      setSlotMessage(payload.valid ? `Valid: ${payload.reason}` : `Invalid: ${payload.reason}`);
+      const suffix = payload.live_checked ? " (live provider check)" : " (format check only)";
+      setSlotMessage(
+        (payload.valid ? `Valid: ${payload.reason}` : `Invalid: ${payload.reason}`) + suffix,
+      );
     } catch (requestError) {
       setSlotError(requestError instanceof Error ? requestError.message : "Unable to test slot.");
     } finally {
@@ -479,6 +486,41 @@ export default function SettingsPage() {
       setSlotError(requestError instanceof Error ? requestError.message : "Unable to clear slot.");
     } finally {
       setSlotLoading(false);
+    }
+  }
+
+  const activeLlmRouteSlot = useMemo(
+    () => vaultSlots.find((slot) => slot.slot_id === "ACTIVE-LLM-ROUTE") ?? null,
+    [vaultSlots],
+  );
+
+  async function saveActiveLlmRoute(option: ModelOption) {
+    setRouteSaving(true);
+    setRouteError(null);
+    setRouteMessage(null);
+    try {
+      await fetchJson<VaultMutationResponse>("/api/vault", {
+        method: "POST",
+        body: JSON.stringify({
+          slot_id: "ACTIVE-LLM-ROUTE",
+          provider: option.provider,
+          model: option.model,
+          // Not a credential — this slot carries routing metadata only, per
+          // the vault-slot abstraction's existing generic (provider, model)
+          // shape. A fixed placeholder satisfies the vault schema's required
+          // secret field.
+          secret: "active-route",
+        }),
+      });
+      setRouteMessage(`Primary provider set to ${option.label}.`);
+      setTimeout(() => setRouteMessage(null), 3000);
+      await loadVaultAndAgents();
+    } catch (requestError) {
+      setRouteError(
+        requestError instanceof Error ? requestError.message : "Unable to set primary provider.",
+      );
+    } finally {
+      setRouteSaving(false);
     }
   }
 
@@ -808,8 +850,53 @@ export default function SettingsPage() {
         </Panel>
       )}
 
-      {/* SECTION 3 — Knowledge Embeddings */}
-      <Panel title={SECTION(3, "Knowledge Embeddings")}>
+      {/* SECTION 3 — Primary LLM Provider (vault-path override of LLM_PROVIDER/*_MODEL env defaults) */}
+      <Panel title={SECTION(3, "Primary LLM Provider")}>
+        <p className="help-text">
+          Choose which provider/model every agent routes to by default. This selection is stored
+          in the vault and takes priority over the runtime&apos;s .env defaults
+          (<code>LLM_PROVIDER</code>, <code>OPENAI_MODEL</code>, <code>GEMINI_MODEL</code>,{" "}
+          <code>ANTHROPIC_MODEL</code>) for every new mission. Leave unset to keep using the
+          runtime&apos;s .env configuration.
+        </p>
+        <div className="inline-actions" role="group" aria-label="Primary LLM provider selection">
+          {MODEL_OPTIONS.map((option) => {
+            const isActive =
+              activeLlmRouteSlot?.provider === option.provider && activeLlmRouteSlot?.model === option.model;
+            return (
+              <button
+                key={option.model}
+                type="button"
+                className={isActive ? "primary-button" : "secondary-button"}
+                disabled={routeSaving}
+                aria-pressed={isActive}
+                onClick={() => void saveActiveLlmRoute(option)}
+              >
+                {option.label}
+                {isActive ? " (active)" : ""}
+              </button>
+            );
+          })}
+        </div>
+        <p className="help-text">
+          {activeLlmRouteSlot
+            ? `Current selection: ${activeLlmRouteSlot.provider} / ${activeLlmRouteSlot.model}.`
+            : "No vault override set — using the runtime's .env default."}
+        </p>
+        {routeMessage && (
+          <SystemMessage tone="success" title="Primary provider updated">
+            {routeMessage}
+          </SystemMessage>
+        )}
+        {routeError && (
+          <SystemMessage tone="critical" title="Unable to update primary provider">
+            {routeError}
+          </SystemMessage>
+        )}
+      </Panel>
+
+      {/* SECTION 4 — Knowledge Embeddings */}
+      <Panel title={SECTION(4, "Knowledge Embeddings")}>
         <p className="help-text">
           The orchestrator embeds knowledge-lake documents so agents can perform semantic similarity
           search over library documentation. Store the embedding key in the vault slot below for
@@ -885,7 +972,7 @@ export default function SettingsPage() {
       </Panel>
 
       {/* SECTION 4 — Software Version */}
-      <Panel title={SECTION(4, "Software Version")}>
+      <Panel title={SECTION(5, "Software Version")}>
         <div className="filters-grid">
           <div>
             <p className="eyebrow">Current version</p>
@@ -903,7 +990,7 @@ export default function SettingsPage() {
       </Panel>
 
       {/* SECTION 5 — Maintenance */}
-      <Panel title={SECTION(5, "System Maintenance")}>
+      <Panel title={SECTION(6, "System Maintenance")}>
         <p className="help-text">
           Enterprise tools for data resilience and diagnostics. Export system state for support or
           trigger a full backup of all factory database volumes.

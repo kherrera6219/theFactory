@@ -289,3 +289,47 @@ def test_llm_recommendation_provider_and_override_branches(monkeypatch) -> None:
     monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {})
     rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
     assert rec["provider"] == "gemini"
+
+
+def test_llm_recommendation_vault_override_takes_priority_over_env(monkeypatch) -> None:
+    # Regression: the Settings > "Primary LLM Provider" vault-path override
+    # (mission.metadata["vault"]["llm_provider"/"llm_model"], forwarded via
+    # current_vault_secrets) must win over LLM_PROVIDER/OPENAI_MODEL env
+    # defaults -- this is the actual mechanism the operations-display API and
+    # the real generation call path (llm_delegation.agents._agent_recommendation)
+    # both consume.
+    cfg = importlib.import_module("orchestrator.llm_delegation.config")
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4.1")
+    monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "openai_exec"})
+
+    token = cfg.current_vault_secrets.set(
+        {"llm_provider": "anthropic", "llm_model": "claude-opus-4-8"}
+    )
+    try:
+        rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    finally:
+        cfg.current_vault_secrets.reset(token)
+
+    assert rec["provider"] == "anthropic"
+    assert rec["model"] == "claude-opus-4-8"
+    assert rec["profile"] == "vault_override"
+    assert "fallback_provider" not in rec
+
+
+def test_llm_recommendation_ignores_incomplete_vault_override(monkeypatch) -> None:
+    # A vault override missing either field (or naming an unsupported
+    # provider) must not silently take effect -- fall through to the normal
+    # env-based resolution instead.
+    cfg = importlib.import_module("orchestrator.llm_delegation.config")
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "gemini_flash_high"})
+
+    token = cfg.current_vault_secrets.set({"llm_provider": "anthropic", "llm_model": ""})
+    try:
+        rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    finally:
+        cfg.current_vault_secrets.reset(token)
+
+    assert rec["provider"] == "gemini"
+    assert rec.get("profile") != "vault_override"

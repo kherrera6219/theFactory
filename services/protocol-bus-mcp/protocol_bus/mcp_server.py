@@ -435,6 +435,61 @@ async def metrics() -> Response:
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+def _counter_value_by_protocol(counter: Counter) -> dict[str, float]:
+    """Read a labeled Counter's current per-protocol values via the public
+    ``collect()`` API (no private ``_value`` attribute access)."""
+    values: dict[str, float] = {}
+    for metric_family in counter.collect():
+        for sample in metric_family.samples:
+            if not sample.name.endswith("_total"):
+                continue
+            protocol = sample.labels.get("protocol")
+            if protocol:
+                values[protocol] = sample.value
+    return values
+
+
+@app.get("/lane-stats")
+async def lane_stats() -> dict[str, Any]:
+    """Read-only per-lane activity snapshot for PBLA-05 observability.
+
+    No new producers — reads the same Prometheus counters and DLQ streams
+    every ``/send``/``/dlq`` call already maintains.
+    """
+    redis_client = getattr(app.state, "redis", None)
+    redis_ready = bool(getattr(app.state, "redis_ready", False))
+    queued = _counter_value_by_protocol(MESSAGES_QUEUED)
+    dlq_writes = _counter_value_by_protocol(DLQ_WRITES)
+    deduplicated = _counter_value_by_protocol(MESSAGES_DEDUPLICATED)
+    replayed = _counter_value_by_protocol(MESSAGES_REPLAYED)
+
+    lanes: dict[str, Any] = {}
+    for protocol in ALLOWED_PROTOCOLS:
+        dlq_depth: int | None = None
+        if redis_client is not None and redis_ready:
+            try:
+                dlq_depth = await redis_client.xlen(f"dlq:{protocol}")
+            except Exception as exc:
+                LOGGER.warning(
+                    "protocol-bus-mcp lane-stats: dlq xlen failed for %s: %s",
+                    protocol,
+                    exc,
+                )
+        lanes[protocol] = {
+            "messages_queued_total": queued.get(protocol, 0.0),
+            "dlq_writes_total": dlq_writes.get(protocol, 0.0),
+            "messages_deduplicated_total": deduplicated.get(protocol, 0.0),
+            "messages_replayed_total": replayed.get(protocol, 0.0),
+            "dlq_depth": dlq_depth,
+        }
+
+    return {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "redis_ready": redis_ready,
+        "lanes": lanes,
+    }
+
+
 @app.get("/dlq")
 async def list_dlq(protocol: str, limit: int = 50, offset: int = 0) -> dict[str, Any]:
     if protocol not in ALLOWED_PROTOCOLS:

@@ -678,3 +678,149 @@ export function testSecret(provider: string, secret: string): { valid: boolean; 
 
   return { valid: true, reason: "Operator key stored." };
 }
+
+// Base URLs/headers mirror services/orchestrator/orchestrator/llm_delegation/config.py
+// exactly, so a preflight pass/fail reflects what the real mission pipeline will see.
+const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1").replace(/\/+$/, "");
+const ANTHROPIC_BASE_URL = (process.env.ANTHROPIC_BASE_URL?.trim() || "https://api.anthropic.com/v1").replace(/\/+$/, "");
+const ANTHROPIC_VERSION = process.env.ANTHROPIC_VERSION?.trim() || "2023-06-01";
+const GEMINI_BASE_URL = (process.env.GEMINI_BASE_URL?.trim() || "https://generativelanguage.googleapis.com/v1beta").replace(/\/+$/, "");
+const PREFLIGHT_TIMEOUT_MS = 8_000;
+
+export type ProviderPreflightResult = {
+  valid: boolean;
+  reason: string;
+  live_checked: boolean;
+};
+
+async function fetchWithTimeout(input: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PREFLIGHT_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Real, minimal outbound call per provider — used by the Settings "Test
+ * Connection" action so operators see the actual live provider status
+ * rather than just a key-format guess. */
+export async function preflightProviderCall(
+  provider: string,
+  secret: string,
+  model?: string,
+): Promise<ProviderPreflightResult> {
+  const normalizedProvider = normalizeProvider(provider);
+  const resolvedModel = normalizeModel(model, normalizedProvider);
+  const candidate = secret.trim();
+
+  try {
+    if (normalizedProvider === "openai") {
+      const response = await fetchWithTimeout(`${OPENAI_BASE_URL}/models`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${candidate}` },
+      });
+      if (response.ok) {
+        return { valid: true, reason: "OpenAI accepted the key (models list call succeeded).", live_checked: true };
+      }
+      return {
+        valid: false,
+        reason: `OpenAI rejected the key (HTTP ${response.status}).`,
+        live_checked: true,
+      };
+    }
+
+    if (normalizedProvider === "anthropic") {
+      const response = await fetchWithTimeout(`${ANTHROPIC_BASE_URL}/messages`, {
+        method: "POST",
+        headers: {
+          "x-api-key": candidate,
+          "anthropic-version": ANTHROPIC_VERSION,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: resolvedModel || "claude-opus-4-8",
+          max_tokens: 1,
+          messages: [{ role: "user", content: "ping" }],
+        }),
+      });
+      if (response.ok) {
+        return { valid: true, reason: "Anthropic accepted the key (minimal message call succeeded).", live_checked: true };
+      }
+      return {
+        valid: false,
+        reason: `Anthropic rejected the key or model (HTTP ${response.status}).`,
+        live_checked: true,
+      };
+    }
+
+    if (normalizedProvider === "gemini") {
+      const geminiModel = resolvedModel || "gemini-3.5-flash";
+      const response = await fetchWithTimeout(
+        `${GEMINI_BASE_URL}/models/${geminiModel}:generateContent?key=${encodeURIComponent(candidate)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "ping" }] }],
+            generationConfig: { maxOutputTokens: 1 },
+          }),
+        },
+      );
+      if (response.ok) {
+        return { valid: true, reason: "Gemini accepted the key (minimal generateContent call succeeded).", live_checked: true };
+      }
+      return {
+        valid: false,
+        reason: `Gemini rejected the key or model (HTTP ${response.status}).`,
+        live_checked: true,
+      };
+    }
+
+    // No live call defined for this provider (github PAT, operator key) —
+    // format validity is the best available signal.
+    const formatResult = testSecret(provider, secret);
+    return { ...formatResult, live_checked: false };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "network error";
+    return {
+      valid: false,
+      reason: `Unable to reach ${normalizedProvider} to verify the key: ${message}.`,
+      live_checked: false,
+    };
+  }
+}
+
+// Well-known slot storing the operator's primary-provider selection from
+// Settings. Reuses the generic vault-slot abstraction (provider + model,
+// same as any other slot) rather than a new storage subsystem; the "secret"
+// field is a fixed non-sensitive placeholder since this slot carries routing
+// metadata, not a credential.
+export const ACTIVE_LLM_ROUTE_SLOT_ID = "ACTIVE-LLM-ROUTE";
+
+export type ActiveLlmRoute = {
+  provider: "openai" | "anthropic" | "gemini";
+  model: string;
+};
+
+/** The operator's selected primary LLM provider/model, or null when unset
+ * (callers should fall back to their existing .env-driven default). */
+export async function getActiveLlmRoute(): Promise<ActiveLlmRoute | null> {
+  const slots = await listVaultSlots();
+  const routeSlot = slots.find((slot) => slot.slot_id === ACTIVE_LLM_ROUTE_SLOT_ID);
+  if (!routeSlot || routeSlot.status === "missing") {
+    return null;
+  }
+  if (
+    routeSlot.provider !== "openai" &&
+    routeSlot.provider !== "anthropic" &&
+    routeSlot.provider !== "gemini"
+  ) {
+    return null;
+  }
+  if (!routeSlot.model) {
+    return null;
+  }
+  return { provider: routeSlot.provider, model: routeSlot.model };
+}

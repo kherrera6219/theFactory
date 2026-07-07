@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireOperatorRequestSession } from "../../../lib/server/operator-session";
-import { getVaultSecret } from "../../../lib/server/vault";
+import { getActiveLlmRoute, getVaultSecret } from "../../../lib/server/vault";
 
 export const runtime = "nodejs";
 
@@ -51,6 +51,7 @@ export async function POST(request: Request) {
     const geminiKey = await getVaultSecret("GEMINI-API-KEY");
     const openaiKey = await getVaultSecret("OPENAI-API-KEY");
     const anthropicKey = await getVaultSecret("ANTHROPIC-API-KEY");
+    const activeRoute = await getActiveLlmRoute();
 
     const modifiedPayload = {
       ...payload,
@@ -59,6 +60,9 @@ export async function POST(request: Request) {
         gemini_api_key: geminiKey || "",
         openai_api_key: openaiKey || "",
         anthropic_api_key: anthropicKey || "",
+        ...(activeRoute
+          ? { llm_provider: activeRoute.provider, llm_model: activeRoute.model }
+          : {}),
       },
     };
 

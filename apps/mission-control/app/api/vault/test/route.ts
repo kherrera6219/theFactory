@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { isAuthorizedVaultRequest } from "../auth";
-import { getVaultSecret, testSecret } from "../../../lib/server/vault";
+import { getVaultSecret, preflightProviderCall, testSecret } from "../../../lib/server/vault";
 
 export const runtime = "nodejs";
 
@@ -9,6 +9,7 @@ type VaultTestPayload = {
   slot_id?: string;
   provider?: string;
   secret?: string;
+  model?: string;
 };
 
 export async function POST(request: Request) {
@@ -28,7 +29,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ detail: "No secret provided or stored for slot." }, { status: 400 });
     }
 
-    const result = testSecret(provider, secret);
+    // Fail fast on an obviously malformed secret before spending a real
+    // outbound call on it.
+    const formatResult = testSecret(provider, secret);
+    if (!formatResult.valid) {
+      return NextResponse.json({ ...formatResult, live_checked: false });
+    }
+
+    const result = await preflightProviderCall(provider, secret, payload.model);
     return NextResponse.json(result);
   } catch {
     return NextResponse.json({ detail: "Unable to test key." }, { status: 400 });

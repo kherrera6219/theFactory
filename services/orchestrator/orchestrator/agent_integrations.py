@@ -325,6 +325,27 @@ def _llm_recommendation_for_agent(agent: AgentDefinition) -> dict[str, Any]:
     except Exception:
         vault = {}
 
+    # Vault-path override: the operator's Settings > "Primary LLM Provider"
+    # selection (persisted to the ACTIVE-LLM-ROUTE vault slot and forwarded
+    # per-mission via mission.metadata["vault"]) takes priority over the
+    # .env-only LLM_PROVIDER/OPENAI_MODEL/GEMINI_MODEL/ANTHROPIC_MODEL
+    # defaults below. No fallback_provider/fallback_model is set here,
+    # matching the existing explicit-LLM_PROVIDER-pin behavior in
+    # llm_delegation/providers.py — an operator who explicitly pinned a
+    # provider should not silently cascade to a different one on failure.
+    vault_provider = str(vault.get("llm_provider") or "").strip().lower()
+    vault_model = str(vault.get("llm_model") or "").strip()
+    if vault_provider in {"openai", "anthropic", "gemini"} and vault_model:
+        return {
+            "provider": vault_provider,
+            "model": vault_model,
+            "mode": "thinking",
+            "thinking_level": "high",
+            "profile": "vault_override",
+            "rank": "primary",
+            "reason": "Operator-selected primary provider/model (Mission Control Settings).",
+        }
+
     openai_key = vault.get("openai_api_key") or os.getenv("OPENAI_API_KEY", "").strip()
     gemini_key = vault.get("gemini_api_key") or os.getenv("GEMINI_API_KEY", "").strip()
 

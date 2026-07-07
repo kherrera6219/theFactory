@@ -675,6 +675,22 @@ export type PodAssignmentRecord = {
   updated_at: string;
 };
 
+export type ProtocolBusLaneName = "alpha" | "beta" | "delta" | "sigma" | "omega" | "rho";
+
+export type ProtocolBusLaneActivity = {
+  messages_queued_total: number;
+  dlq_writes_total: number;
+  messages_deduplicated_total: number;
+  messages_replayed_total: number;
+  dlq_depth: number | null;
+};
+
+export type ProtocolBusLaneActivitySnapshot = {
+  generated_at: string;
+  redis_ready: boolean;
+  lanes: Partial<Record<ProtocolBusLaneName, ProtocolBusLaneActivity>>;
+};
+
 export type OperationsSummary = {
   generated_at: string;
   topology_mode: TopologyMode;
@@ -692,6 +708,9 @@ export type OperationsSummary = {
   mission_state_counts: Record<string, number>;
   pod_assignment_counts: Record<string, number>;
   active_lifecycle_tasks: number;
+  // PBLA-05: null when protocol-bus-mcp is unreachable — never blocks the
+  // rest of the summary.
+  lane_activity: ProtocolBusLaneActivitySnapshot | null;
 };
 
 export type OperationsLogicNodeRecord = {

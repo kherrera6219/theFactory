@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { deleteVaultSlot, upsertVaultSlot } from "../../../lib/server/vault";
 import { GET, POST } from "./route";
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -115,5 +116,55 @@ describe("gateway proxy route", () => {
     expect(response.status).toBe(503);
     const body = (await response.json()) as { detail?: string };
     expect(body.detail).toContain("Local runtime gateway is unavailable");
+  });
+
+  describe("mission-creation vault injection", () => {
+    afterEach(async () => {
+      await deleteVaultSlot("ACTIVE-LLM-ROUTE");
+    });
+
+    it("injects the operator's active LLM route alongside provider keys on mission creation", async () => {
+      await upsertVaultSlot("ACTIVE-LLM-ROUTE", "anthropic", "active-route", "claude-opus-4-8");
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ mission_id: "mission-1" }), { status: 201 }),
+      );
+
+      await POST(
+        new Request("http://localhost/api/gateway/v1/missions", {
+          method: "POST",
+          body: JSON.stringify({ prompt: "build a thing" }),
+        }),
+        context(["v1", "missions"]),
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, init] = fetchMock.mock.calls[0];
+      const sentPayload = JSON.parse(new TextDecoder().decode(init?.body as ArrayBuffer)) as {
+        metadata?: { vault?: Record<string, unknown> };
+      };
+      expect(sentPayload.metadata?.vault?.llm_provider).toBe("anthropic");
+      expect(sentPayload.metadata?.vault?.llm_model).toBe("claude-opus-4-8");
+    });
+
+    it("omits llm_provider/llm_model when no active route is configured", async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ mission_id: "mission-1" }), { status: 201 }),
+      );
+
+      await POST(
+        new Request("http://localhost/api/gateway/v1/missions", {
+          method: "POST",
+          body: JSON.stringify({ prompt: "build a thing" }),
+        }),
+        context(["v1", "missions"]),
+      );
+
+      const [, init] = fetchMock.mock.calls[0];
+      const sentPayload = JSON.parse(new TextDecoder().decode(init?.body as ArrayBuffer)) as {
+        metadata?: { vault?: Record<string, unknown> };
+      };
+      expect(sentPayload.metadata?.vault).not.toHaveProperty("llm_provider");
+      expect(sentPayload.metadata?.vault).not.toHaveProperty("llm_model");
+    });
   });
 });

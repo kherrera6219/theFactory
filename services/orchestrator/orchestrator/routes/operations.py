@@ -19,6 +19,7 @@ from ..heartbeat_service import (
     _workload_for_agent,
 )
 from ..models import AlertStateUpdate, MissionRecord
+from ..protocol_bus_producer import fetch_lane_activity
 from ._deps import INTERNAL_AUTH_DEP, MUTATION_AUTH_DEP
 
 LOGGER = logging.getLogger(__name__)
@@ -448,6 +449,10 @@ async def get_operations_summary(
         except Exception:
             jaeger_ready = False
 
+    # PBLA-05: read-only per-lane protocol-bus activity snapshot. None when
+    # the bus is unreachable — never blocks or fails the wider summary.
+    lane_activity = await asyncio.to_thread(fetch_lane_activity, settings=app.state.settings)
+
     return {
         "generated_at": datetime.now(UTC).isoformat(),
         "topology_mode": app.state.settings.topology_mode,
@@ -466,6 +471,7 @@ async def get_operations_summary(
         "mission_state_counts": state_counts,
         "pod_assignment_counts": pod_counts,
         "active_lifecycle_tasks": len(getattr(app.state, "lifecycle_tasks", {})),
+        "lane_activity": lane_activity,
     }
 
 

@@ -74,6 +74,23 @@ describe("vault backend", () => {
     });
   });
 
+  it("returns null when no ACTIVE-LLM-ROUTE slot is configured", async () => {
+    const vault = await importVaultModule();
+
+    expect(await vault.getActiveLlmRoute()).toBeNull();
+  });
+
+  it("returns the operator's configured primary provider/model", async () => {
+    const vault = await importVaultModule();
+
+    await vault.upsertVaultSlot("active-llm-route", "anthropic", "active-route", "claude-opus-4-8");
+
+    expect(await vault.getActiveLlmRoute()).toEqual({
+      provider: "anthropic",
+      model: "claude-opus-4-8",
+    });
+  });
+
   it("enforces TTL expiry for in-memory secrets", async () => {
     process.env.VAULT_SLOT_TTL_SECONDS = "3600";
     process.env.VAULT_SLOT_ROTATION_WARNING_SECONDS = "600";
