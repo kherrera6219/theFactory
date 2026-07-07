@@ -37,6 +37,8 @@ import type {
   OperationsLogicNodesQuery,
   PmFeatureContractRequest,
   ProjectAuditEventsQuery,
+  RepoIndexRequest,
+  RepoIndexResponse,
   RepoReviewRequest,
   ReviewApprovalRequest,
 } from "./types/api";
@@ -676,6 +678,14 @@ export async function importRepoZip(formData: FormData): Promise<RepoImportRespo
 export async function createRepoZipReview(formData: FormData): Promise<RepoReviewResponse> {
   return fetchFormData<RepoReviewResponse>("/api/repo/review", formData, {
     timeoutMs: 30_000,
+  });
+}
+
+export async function indexRepoImport(payload: RepoIndexRequest): Promise<RepoIndexResponse> {
+  return fetchJson<RepoIndexResponse>("/api/repo/index", {
+    method: "POST",
+    timeoutMs: 30_000,
+    body: JSON.stringify(payload),
   });
 }
 

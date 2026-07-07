@@ -304,6 +304,18 @@ class KnowledgeUpsert(BaseModel):
     created_at: datetime | None = None
 
 
+class RepoImportIndexUpsert(BaseModel):
+    """Repo ZIP Import Phase 6 payload — bounded manifest/summary/chunk
+    records built by Mission Control from the operator's already-reviewed
+    file selection (see docs/REPO_ZIP_IMPORT_MIGRATION_PLAN.md)."""
+
+    import_manifest: dict[str, Any] = Field(default_factory=dict)
+    summary_record: dict[str, Any] = Field(default_factory=dict)
+    chunk_records: list[dict[str, Any]] = Field(default_factory=list)
+    index_status: str = Field(default="complete")
+    index_errors: list[str] = Field(default_factory=list)
+
+
 class AuditReportUpsert(BaseModel):
     mission_id: str = Field(min_length=1)
     audit_id: str = Field(min_length=1)

@@ -106,6 +106,31 @@ export type RepoReviewRequest = {
   [key: string]: unknown;
 };
 
+/** Request payload for POST /api/repo/index (Repo ZIP Import Phase 6). */
+export type RepoIndexRequest = {
+  mission_id: string;
+  import_id: string;
+  archive_sha256?: string;
+  display_name?: string;
+  source_ref?: string;
+  files: Array<{
+    path: string;
+    language?: string;
+    content_excerpt?: string;
+    bytes?: number;
+    estimated_lines?: number;
+    sha?: string | null;
+    overlay_action?: "include" | "reference";
+  }>;
+};
+
+export type RepoIndexResponse = {
+  mission_id?: string;
+  index_status?: string;
+  indexed_knowledge_count?: number;
+  detail?: string;
+};
+
 /** Request payload for POST /api/review/approve. */
 export type ReviewApprovalRequest = {
   scope: "builder" | "repo" | "delivery" | string;

@@ -1114,3 +1114,64 @@ def test_handle_partition_ready_submits_partition_results(monkeypatch) -> None:
     assert logicnode_posts
     assert logicnode_posts[0][2]["json_body"]["node_id"].endswith(".p0-test")
     assert published == ["pod.standard.ready"]
+
+
+def test_fetch_doc_context_includes_repo_summary_and_bounded_chunks(monkeypatch) -> None:
+    """Repo ZIP Import Phase 7: specialist context must include repo_summary
+    (unfiltered by language) and up to _MAX_REPO_CHUNK_CONTEXT_RECORDS
+    repo_source_chunk records, alongside the existing bootstrap_documentation
+    behavior."""
+    records = [
+        {"content": {"kind": "bootstrap_documentation", "language": "python", "combined_text": "python docs"}},
+        {"content": {"kind": "bootstrap_documentation", "language": "java", "combined_text": "java docs"}},
+        {"content": {"kind": "repo_summary", "combined_text": "Repository: sample. Top languages: Python."}},
+        {"content": {"kind": "repo_source_chunk", "path": "app.py", "combined_text": "print('hi')"}},
+        {"content": {"kind": "unrelated_kind", "combined_text": "should be ignored"}},
+    ]
+
+    async def _request_ok(*_args, **_kwargs):
+        return DummyResponse(200, records)
+
+    monkeypatch.setattr(pod_worker_main, "_request", _request_ok)
+
+    context = asyncio.run(pod_worker_main._fetch_doc_context("mission-1", "python"))
+
+    assert context is not None
+    assert "python docs" in context
+    assert "java docs" not in context  # language-filtered, matches existing behavior
+    assert "Repository: sample. Top languages: Python." in context
+    assert "print('hi')" in context
+    assert "should be ignored" not in context
+
+
+def test_fetch_doc_context_bounds_repo_chunk_count(monkeypatch) -> None:
+    chunk_records = [
+        {
+            "content": {
+                "kind": "repo_source_chunk",
+                "path": f"file{i}.py",
+                "combined_text": f"chunk-{i}",
+            }
+        }
+        for i in range(pod_worker_main._MAX_REPO_CHUNK_CONTEXT_RECORDS + 5)
+    ]
+
+    async def _request_ok(*_args, **_kwargs):
+        return DummyResponse(200, chunk_records)
+
+    monkeypatch.setattr(pod_worker_main, "_request", _request_ok)
+
+    context = asyncio.run(pod_worker_main._fetch_doc_context("mission-1", "python"))
+
+    assert context is not None
+    included = [f"chunk-{i}" in context for i in range(pod_worker_main._MAX_REPO_CHUNK_CONTEXT_RECORDS + 5)]
+    assert sum(included) == pod_worker_main._MAX_REPO_CHUNK_CONTEXT_RECORDS
+
+
+def test_fetch_doc_context_returns_none_on_error_response(monkeypatch) -> None:
+    async def _request_error(*_args, **_kwargs):
+        return DummyResponse(500)
+
+    monkeypatch.setattr(pod_worker_main, "_request", _request_error)
+
+    assert asyncio.run(pod_worker_main._fetch_doc_context("mission-1", "python")) is None

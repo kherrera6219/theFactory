@@ -283,6 +283,65 @@ async def _resolve_attachment_content(
     return resolved
 
 
+_REPO_CONTEXT_MAX_CHARS = 6_000
+_MAX_REPO_CHUNK_RECORDS = 20
+
+
+async def load_repo_context(
+    *,
+    settings: Any,
+    mission_id: str,
+    repo_import: dict[str, Any],
+) -> str | None:
+    """Build a bounded repository-context text block for PM intake.
+
+    Reads the ``mission_knowledge`` rows the Repo ZIP Import Phase 6 endpoint
+    (``/internal/missions/{mission_id}/repo-import-index``) wrote for this
+    mission — the ``repo_manifest`` and ``repo_summary`` records plus up to
+    ``_MAX_REPO_CHUNK_RECORDS`` ``repo_source_chunk`` records — and merges
+    them into one bounded block, truncating at ``_REPO_CONTEXT_MAX_CHARS`` so
+    it stays compact enough for prompt inclusion (see
+    docs/REPO_ZIP_IMPORT_MIGRATION_PLAN.md). Returns None when nothing is
+    indexed yet or storage is unavailable — the caller degrades gracefully.
+    """
+    _ = repo_import  # reserved for future per-import filtering; unused today
+    try:
+        records = await asyncio.to_thread(_pkg().storage.list_knowledge, settings, mission_id, 200)
+    except Exception as exc:
+        LOGGER.warning("load_repo_context: failed to list knowledge for %s: %s", mission_id, exc)
+        return None
+
+    manifest_text: str | None = None
+    summary_text: str | None = None
+    chunk_texts: list[str] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        content = record.get("content")
+        if not isinstance(content, dict):
+            continue
+        kind = str(content.get("kind") or "")
+        text = str(content.get("combined_text") or "").strip()
+        if not text:
+            continue
+        if kind == "repo_manifest" and manifest_text is None:
+            manifest_text = text
+        elif kind == "repo_summary" and summary_text is None:
+            summary_text = text
+        elif kind == "repo_source_chunk" and len(chunk_texts) < _MAX_REPO_CHUNK_RECORDS:
+            path = content.get("path")
+            chunk_texts.append(f"# {path}\n{text}" if path else text)
+
+    parts = [text for text in (manifest_text, summary_text) if text]
+    parts.extend(chunk_texts)
+    if not parts:
+        return None
+    merged = "\n\n".join(parts)
+    if len(merged) > _REPO_CONTEXT_MAX_CHARS:
+        merged = merged[:_REPO_CONTEXT_MAX_CHARS] + "\n...[truncated]"
+    return merged
+
+
 async def _prepare_pm_intake(
     *,
     app: Any,
@@ -298,6 +357,27 @@ async def _prepare_pm_intake(
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
     metadata["selected_agent_id"] = PM_AGENT_ID
     metadata["agent_id"] = PM_AGENT_ID
+
+    # Repo ZIP Import Phase 5 guard: a repo-sourced mission must wait for
+    # Phase 6 indexing (POST /internal/missions/{mission_id}/repo-import-index)
+    # to finish before PM contract generation runs, otherwise the PM Agent
+    # would generate a contract with no repository context available.
+    repo_import = metadata.get("repo_import")
+    has_repo_import = isinstance(repo_import, dict) and bool(repo_import.get("index_required"))
+    if has_repo_import and str(repo_import.get("index_status") or "pending").strip().lower() != "complete":
+        if not _chain_event_exists(metadata, "REPO_INDEX_PENDING"):
+            append_chain_event(
+                metadata,
+                event_type="REPO_INDEX_PENDING",
+                agent_id=PM_AGENT_ID,
+                details={
+                    "import_id": repo_import.get("import_id"),
+                    "index_status": repo_import.get("index_status"),
+                },
+            )
+            await asyncio.to_thread(_pkg().storage.update_mission_metadata, settings, mission_id, metadata)
+        return False
+
     conversation_context = metadata.get("conversation_context")
     if not isinstance(conversation_context, dict):
         conversation_context = {}
@@ -305,6 +385,13 @@ async def _prepare_pm_intake(
     if pm_clarification:
         conversation_context = dict(conversation_context)
         conversation_context["operator_clarification"] = pm_clarification
+    if has_repo_import:
+        repository_context = await load_repo_context(
+            settings=settings, mission_id=mission_id, repo_import=repo_import
+        )
+        if repository_context:
+            conversation_context = dict(conversation_context)
+            conversation_context["repository_context"] = repository_context
     user_intent = str(metadata.get("user_intent") or "").strip() or None
     mission_type = str(metadata.get("mission_type") or "BUILD_NEW").strip().upper()
     depth_mode = str(metadata.get("depth_mode") or "STANDARD").strip().upper()

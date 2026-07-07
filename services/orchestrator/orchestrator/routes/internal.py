@@ -26,6 +26,7 @@ from ..models import (
     MissionRecord,
     MissionState,
     PodAssignmentUpsert,
+    RepoImportIndexUpsert,
     ReviewApprovalRecord,
     ReviewApprovalUpsert,
 )
@@ -790,6 +791,133 @@ async def get_knowledge(
         except Exception as exc:
             LOGGER.warning("failed to query milvus knowledge for mission %s: %s", mission_id, exc)
     return await asyncio.to_thread(storage.list_knowledge, app.state.settings, mission_id, limit)
+
+
+def _repo_chunk_batch_items(
+    chunk_records: list[dict[str, Any]],
+    created_at: str,
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "knowledge_id": str(chunk["knowledge_id"]),
+            "content": {k: v for k, v in chunk.items() if k != "knowledge_id"},
+            "created_at": created_at,
+        }
+        for chunk in chunk_records
+        if chunk.get("knowledge_id")
+    ]
+
+
+def _persist_repo_chunk_batch(
+    settings: Any,
+    mission_id: str,
+    items: list[dict[str, Any]],
+) -> int:
+    """Sync helper — bulk-writes repo chunk knowledge rows on one connection.
+
+    Runs off the event loop via ``asyncio.to_thread``. Chunk records skip the
+    Qdrant/Milvus/Neo4j mirrors that the manifest/summary records get below —
+    per-file chunks are numerous and, per the migration plan, deliberately
+    bounded/compact for PostgreSQL keyword retrieval rather than semantic
+    search; mirroring every chunk would mean one embedding call per file.
+    """
+    with storage.get_connection() as conn:
+        return storage.upsert_knowledge_batch(conn, mission_id, items)
+
+
+@router.post("/internal/missions/{mission_id}/repo-import-index")
+async def upsert_repo_import_index(
+    request: Request,
+    mission_id: str,
+    payload: RepoImportIndexUpsert,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    """Repo ZIP Import Phase 6 — ingest Mission-Control-built repo manifest/
+    summary/chunk records into ``mission_knowledge`` and resume the queued
+    mission (Phase 5's ``_prepare_pm_intake`` guard was blocking on
+    ``index_status``). See docs/REPO_ZIP_IMPORT_MIGRATION_PLAN.md."""
+    import orchestrator.main as _main
+
+    from ..runtime import start_lifecycle_task
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+
+    created_at = datetime.now(UTC).isoformat()
+    knowledge_ids: list[str] = []
+
+    for record in (payload.import_manifest, payload.summary_record):
+        knowledge_id = str(record.get("knowledge_id") or "").strip()
+        if not knowledge_id:
+            continue
+        content = {k: v for k, v in record.items() if k != "knowledge_id"}
+        await asyncio.to_thread(
+            storage.upsert_knowledge,
+            app.state.settings,
+            mission_id,
+            knowledge_id,
+            content,
+            created_at,
+        )
+        knowledge_ids.append(knowledge_id)
+        if app.state.settings.qdrant_enabled:
+            try:
+                await asyncio.to_thread(
+                    qdrant_store.upsert_knowledge,
+                    app.state.settings,
+                    mission_id,
+                    knowledge_id,
+                    content,
+                    created_at,
+                )
+            except Exception as exc:
+                LOGGER.warning(
+                    "failed to mirror repo-import knowledge %s to qdrant: %s", knowledge_id, exc
+                )
+
+    chunk_items = _repo_chunk_batch_items(payload.chunk_records, created_at)
+    if chunk_items:
+        await asyncio.to_thread(
+            _persist_repo_chunk_batch, app.state.settings, mission_id, chunk_items
+        )
+        knowledge_ids.extend(item["knowledge_id"] for item in chunk_items)
+
+    metadata = dict(mission.metadata or {})
+    repo_import = dict(metadata.get("repo_import") or {})
+    repo_import["index_status"] = payload.index_status
+    repo_import["index_errors"] = payload.index_errors
+    repo_import["indexed_knowledge_count"] = len(knowledge_ids)
+    repo_import["repo_knowledge_ids"] = knowledge_ids
+    metadata["repo_import"] = repo_import
+    updated = await asyncio.to_thread(
+        storage.update_mission_metadata, app.state.settings, mission_id, metadata
+    )
+
+    await record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=updated or mission,
+        agent_id="AGENT-06-IS",
+        service_name="orchestrator",
+        event_type="MISSION_REPO_INDEX_COMPLETE",
+        object_type="repo_import",
+        object_id=mission_id,
+        payload_summary={
+            "index_status": repo_import["index_status"],
+            "indexed_knowledge_count": repo_import["indexed_knowledge_count"],
+        },
+        content_hash_source=repo_import,
+    )
+
+    if payload.index_status == "complete":
+        start_lifecycle_task(app, mission_id)
+
+    return {
+        "mission_id": mission_id,
+        "index_status": repo_import["index_status"],
+        "indexed_knowledge_count": repo_import["indexed_knowledge_count"],
+    }
 
 
 @router.get("/internal/missions/{mission_id}/knowledge-graph")

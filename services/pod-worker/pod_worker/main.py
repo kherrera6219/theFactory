@@ -521,6 +521,11 @@ def _focus_domains_for_pod(mission_metadata: Any) -> list[str]:
     return focus_domains
 
 
+# Repo ZIP Import Phase 7: cap raw repo_source_chunk records pulled into a
+# specialist's prompt context so a large repo can't blow up the context window.
+_MAX_REPO_CHUNK_CONTEXT_RECORDS = 10
+
+
 async def _fetch_doc_context(mission_id: str, language: str) -> str | None:
     try:
         response = await _request(
@@ -542,20 +547,30 @@ async def _fetch_doc_context(mission_id: str, language: str) -> str | None:
 
     language_key = str(language or "").strip().lower()
     context_parts: list[str] = []
+    repo_chunk_count = 0
     for record in records:
         if not isinstance(record, dict):
             continue
         content = record.get("content")
         if not isinstance(content, dict):
             continue
-        record_language = str(content.get("language") or "").strip().lower()
-        if content.get("kind") != "bootstrap_documentation":
-            continue
-        if language_key and record_language and record_language != language_key:
-            continue
+        kind = content.get("kind")
         combined_text = str(content.get("combined_text") or "").strip()
-        if combined_text:
+        if not combined_text:
+            continue
+        if kind == "bootstrap_documentation":
+            record_language = str(content.get("language") or "").strip().lower()
+            if language_key and record_language and record_language != language_key:
+                continue
             context_parts.append(combined_text)
+        elif kind == "repo_summary":
+            # Not language-filtered: this describes the whole imported repo,
+            # not one language-specific doc, so every specialist working the
+            # mission should see it regardless of its own target language.
+            context_parts.append(combined_text)
+        elif kind == "repo_source_chunk" and repo_chunk_count < _MAX_REPO_CHUNK_CONTEXT_RECORDS:
+            context_parts.append(combined_text)
+            repo_chunk_count += 1
     return "\n\n".join(context_parts) or None
 
 

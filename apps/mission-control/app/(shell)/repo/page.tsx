@@ -11,6 +11,7 @@ import {
   createMission,
   createRepoZipReview,
   importRepoZip,
+  indexRepoImport,
   verifyReviewApproval,
 } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/format";
@@ -392,8 +393,49 @@ export default function RepoImportPage() {
           selected_files_preview: reviewPreview.files
             .slice(0, 12)
             .map((file) => `${file.overlay_action}:${file.path}`),
+          // Repo ZIP Import Phase 5: PM intake waits (REPO_INDEX_PENDING) until
+          // Phase 6 indexing below flips index_status to "complete".
+          repo_import: {
+            source: "repo_zip_import",
+            import_id: reviewPreview.repository.archive_id,
+            archive_sha256: reviewPreview.repository.archive_sha256,
+            index_required: true,
+            index_status: "pending",
+          },
         },
       });
+
+      try {
+        await indexRepoImport({
+          mission_id: mission.mission_id,
+          import_id: reviewPreview.repository.archive_id,
+          archive_sha256: reviewPreview.repository.archive_sha256,
+          display_name: reviewPreview.repository.display_name,
+          source_ref: reviewPreview.repository.source_ref,
+          files: reviewPreview.files
+            .filter((file) => file.text_available)
+            .map((file) => ({
+              path: file.path,
+              language: file.language,
+              content_excerpt: file.content_excerpt,
+              bytes: file.bytes,
+              estimated_lines: file.estimated_lines,
+              sha: file.sha,
+              overlay_action: file.overlay_action,
+            })),
+        });
+      } catch (indexError) {
+        // Non-fatal: the mission was created successfully. PM intake will
+        // stay paused on REPO_INDEX_PENDING until indexing is retried --
+        // surface this so the operator isn't left guessing why the mission
+        // looks stuck in Mission Detail.
+        setError(
+          `Mission launched, but repository indexing failed: ${
+            indexError instanceof Error ? indexError.message : "unknown error"
+          }. PM intake will remain paused until indexing succeeds.`,
+        );
+      }
+
       router.push(`/missions/detail?id=${mission.mission_id}`);
     } catch (launchError) {
       if (launchError instanceof Error && /approval/i.test(launchError.message)) {

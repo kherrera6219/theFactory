@@ -246,6 +246,23 @@
         "title": "AgentHeartbeatUpsert",
         "type": "object"
       },
+      "AlertStateUpdate": {
+        "properties": {
+          "state": {
+            "enum": [
+              "acknowledged",
+              "resolved"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "AlertStateUpdate",
+        "type": "object"
+      },
       "AuditReportUpsert": {
         "properties": {
           "audit_id": {
@@ -938,6 +955,43 @@
           "pod_name"
         ],
         "title": "PodAssignmentUpsert",
+        "type": "object"
+      },
+      "RepoImportIndexUpsert": {
+        "description": "Repo ZIP Import Phase 6 payload \u2014 bounded manifest/summary/chunk\nrecords built by Mission Control from the operator's already-reviewed\nfile selection (see docs/REPO_ZIP_IMPORT_MIGRATION_PLAN.md).",
+        "properties": {
+          "chunk_records": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Chunk Records",
+            "type": "array"
+          },
+          "import_manifest": {
+            "additionalProperties": true,
+            "title": "Import Manifest",
+            "type": "object"
+          },
+          "index_errors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Index Errors",
+            "type": "array"
+          },
+          "index_status": {
+            "default": "complete",
+            "title": "Index Status",
+            "type": "string"
+          },
+          "summary_record": {
+            "additionalProperties": true,
+            "title": "Summary Record",
+            "type": "object"
+          }
+        },
+        "title": "RepoImportIndexUpsert",
         "type": "object"
       },
       "ReviewApprovalUpsert": {
@@ -2321,6 +2375,74 @@
         "summary": "Get Pod Assignment"
       }
     },
+    "/internal/missions/{mission_id}/repo-import-index": {
+      "post": {
+        "description": "Repo ZIP Import Phase 6 \u2014 ingest Mission-Control-built repo manifest/\nsummary/chunk records into ``mission_knowledge`` and resume the queued\nmission (Phase 5's ``_prepare_pm_intake`` guard was blocking on\n``index_status``). See docs/REPO_ZIP_IMPORT_MIGRATION_PLAN.md.",
+        "operationId": "upsert_repo_import_index_internal_missions__mission_id__repo_import_index_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepoImportIndexUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Upsert Repo Import Index Internal Missions  Mission Id  Repo Import Index Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Repo Import Index"
+      }
+    },
     "/internal/missions/{mission_id}/runtime-qc": {
       "get": {
         "operationId": "get_mission_runtime_qc_internal_missions__mission_id__runtime_qc_get",
@@ -2691,6 +2813,74 @@
           }
         },
         "summary": "Get Operations Alerts"
+      }
+    },
+    "/internal/operations/alerts/{alert_id}/state": {
+      "post": {
+        "description": "Persist an operator's acknowledge/resolve action on a synthetic alert.\n\nThese alerts have no incident-record table (see _build_operational_alerts) \u2014\nthis only silences re-alerting for this alert_id in the operations feed\nuntil it clears or ALERT_ACK_TTL_SECONDS elapses, whichever comes first.",
+        "operationId": "update_operations_alert_state_internal_operations_alerts__alert_id__state_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "title": "Alert Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertStateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Operations Alert State Internal Operations Alerts  Alert Id  State Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Operations Alert State"
       }
     },
     "/internal/operations/events": {
@@ -3411,6 +3601,27 @@
           }
         },
         "summary": "Get Review Approval"
+      }
+    },
+    "/livez": {
+      "get": {
+        "description": "Liveness probe \u2014 returns 200 as soon as the process can serve a request.\n\nThis is the signal the Docker healthcheck and the ``depends_on`` chain gate\non. Unlike ``/health`` \u2014 which additionally issues live readiness probes to\nthe optional backends (Qdrant/Milvus/Neo4j/object storage) plus several DB\nqueries, making it slow under cold-start contention and prone to exceeding\nthe healthcheck timeout \u2014 ``/livez`` performs no blocking probes. It only\nreflects cached core-dependency state. ``/health`` and ``/readyz`` keep their\nfull payloads; ``/readyz`` remains the strict readiness signal that gates on\noptional-backend reachability.",
+        "operationId": "livez_livez_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Livez Livez Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Livez"
       }
     },
     "/metrics": {

@@ -3,6 +3,7 @@ import importlib
 import sys
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,6 +15,8 @@ orchestrator_main = importlib.import_module("orchestrator.main")
 orchestrator_auth = importlib.import_module("orchestrator.auth")
 orchestrator_models = importlib.import_module("orchestrator.models")
 orchestrator_internal = importlib.import_module("orchestrator.routes.internal")
+orchestrator_operations = importlib.import_module("orchestrator.routes.operations")
+orchestrator_runtime = importlib.import_module("orchestrator.runtime")
 
 MissionEvent = orchestrator_models.MissionEvent
 MissionRecord = orchestrator_models.MissionRecord
@@ -48,6 +51,13 @@ async def _db_ready(_: object) -> tuple[bool, bool]:
 
 async def _fetch(_: object, mission_id: str) -> MissionRecord:
     return _mission()
+
+
+def _async_fetch_this(mission: MissionRecord):
+    async def _fetch_this(_app: object, _mission_id: str) -> MissionRecord:
+        return mission
+
+    return _fetch_this
 
 
 @pytest.fixture(autouse=True)
@@ -1054,6 +1064,15 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
 
     monkeypatch.setattr(app.state, "protocol_ready", True, raising=False)
     monkeypatch.setattr(app.state, "consumer_task", _RunningTask(), raising=False)
+    monkeypatch.setattr(
+        orchestrator_operations,
+        "fetch_lane_activity",
+        lambda **_: {
+            "generated_at": "2026-03-01T00:00:00+00:00",
+            "redis_ready": True,
+            "lanes": {"alpha": {"messages_queued_total": 1.0, "dlq_depth": 0}},
+        },
+    )
 
     client = TestClient(app)
     headers = {"x-api-key": "worker-key"}
@@ -1066,6 +1085,7 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     assert "lifecycle_recovery_bootstrapped" in summary.json()["runtime"]
     assert "lifecycle_recovery_recovered_count" in summary.json()["runtime"]
     assert summary.json()["pod_assignment_counts"]["podA"] == 1
+    assert summary.json()["lane_activity"]["lanes"]["alpha"]["messages_queued_total"] == 1.0
 
     agents = client.get(
         "/internal/operations/agents?mission_limit=100&assignment_limit=100&event_limit=100",
@@ -1168,6 +1188,30 @@ def test_internal_operations_endpoints(monkeypatch) -> None:
     alerts = client.get("/internal/operations/alerts?limit=5", headers=headers)
     assert alerts.status_code == 200
     assert alerts.json()[0]["alert_id"] == "missions-failed-present"
+
+
+def test_internal_operations_summary_survives_lane_activity_fetch_failure(monkeypatch) -> None:
+    # PBLA-05 regression: a protocol-bus-mcp outage must not fail the whole
+    # operations summary — lane_activity should degrade to None.
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "mission_state_counts",
+        lambda *_: {"queued": 0, "running": 0, "verified": 0, "complete": 0, "failed": 0},
+    )
+    monkeypatch.setattr(orchestrator_main.storage, "list_pod_assignments", lambda *_: [])
+    monkeypatch.setattr(app.state, "protocol_ready", True, raising=False)
+    monkeypatch.setattr(app.state, "consumer_task", _RunningTask(), raising=False)
+    monkeypatch.setattr(
+        orchestrator_operations, "fetch_lane_activity", lambda **_: None
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/internal/operations/summary", headers={"x-api-key": "worker-key"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["lane_activity"] is None
 
 
 class _MemoryAlertAckRedis:
@@ -1355,3 +1399,148 @@ def test_get_build_artifact_reverifies_digest_when_unsigned(monkeypatch) -> None
 
     assert response.status_code == 200
     assert response.json()["verification"]["verified"] is False
+
+
+class _FakeRepoIndexConnection:
+    """Minimal DB-connection double for storage.get_connection() in the
+    repo-import-index route -- only the context-manager protocol is used."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+def test_repo_import_index_writes_knowledge_and_resumes_lifecycle(monkeypatch) -> None:
+    """Repo ZIP Import Phase 6: POST /internal/missions/{id}/repo-import-index
+    writes manifest/summary/chunk records, marks index_status complete, and
+    resumes the queued mission's lifecycle task."""
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+
+    mission = _mission(MissionState.queued)
+    mission.metadata = {
+        "source": "test",
+        "repo_import": {
+            "source": "repo_zip_import",
+            "import_id": "repozip-abc123",
+            "archive_sha256": "sha-abc",
+            "index_required": True,
+            "index_status": "pending",
+        },
+    }
+    monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _async_fetch_this(mission))
+
+    single_upserts: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        orchestrator_internal.storage,
+        "upsert_knowledge",
+        lambda _settings, _mid, knowledge_id, content, _created_at: single_upserts.append(
+            (knowledge_id, content)
+        ),
+    )
+    batch_calls: list[tuple[str, list]] = []
+    monkeypatch.setattr(
+        orchestrator_internal.storage,
+        "get_connection",
+        lambda: _FakeRepoIndexConnection(),
+    )
+    monkeypatch.setattr(
+        orchestrator_internal.storage,
+        "upsert_knowledge_batch",
+        lambda _conn, mission_id, items: batch_calls.append((mission_id, items)) or len(items),
+    )
+    updated_metadata: dict = {}
+
+    def _update_metadata(_settings, _mission_id, metadata):
+        updated_metadata.update(metadata)
+        return mission
+
+    monkeypatch.setattr(orchestrator_internal.storage, "update_mission_metadata", _update_metadata)
+    monkeypatch.setattr(orchestrator_internal, "record_audit_event", AsyncMock())
+    lifecycle_started: list[str] = []
+    monkeypatch.setattr(
+        orchestrator_runtime,
+        "start_lifecycle_task",
+        lambda _app, mission_id: lifecycle_started.append(mission_id),
+    )
+    monkeypatch.setattr(app.state, "settings", replace(app.state.settings, qdrant_enabled=False), raising=False)
+
+    client = TestClient(app)
+    response = client.post(
+        "/internal/missions/mission-1/repo-import-index",
+        headers={"x-api-key": "worker-key"},
+        json={
+            "import_manifest": {
+                "knowledge_id": "repo.repozip-abc123.manifest",
+                "kind": "repo_manifest",
+                "combined_text": "Repository sample imported from ZIP. 1 files indexed.",
+            },
+            "summary_record": {
+                "knowledge_id": "repo.repozip-abc123.summary",
+                "kind": "repo_summary",
+                "combined_text": "Repository: sample. Files indexed: 1.",
+            },
+            "chunk_records": [
+                {
+                    "knowledge_id": "repo.repozip-abc123.file.abc.chunk.0",
+                    "kind": "repo_source_chunk",
+                    "path": "src/index.ts",
+                    "combined_text": "export const x = 1;",
+                }
+            ],
+            "index_status": "complete",
+            "index_errors": [],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["index_status"] == "complete"
+    assert payload["indexed_knowledge_count"] == 3
+    assert {k for k, _ in single_upserts} == {
+        "repo.repozip-abc123.manifest",
+        "repo.repozip-abc123.summary",
+    }
+    assert len(batch_calls) == 1
+    assert batch_calls[0][0] == "mission-1"
+    assert batch_calls[0][1][0]["knowledge_id"] == "repo.repozip-abc123.file.abc.chunk.0"
+    assert updated_metadata["repo_import"]["index_status"] == "complete"
+    assert updated_metadata["repo_import"]["indexed_knowledge_count"] == 3
+    assert lifecycle_started == ["mission-1"]
+
+
+def test_repo_import_index_skips_lifecycle_resume_when_not_complete(monkeypatch) -> None:
+    """A partial/failed indexing pass (index_status != complete) must not
+    resume the queued mission's lifecycle task."""
+    monkeypatch.setattr(orchestrator_main, "_ensure_db_ready", _db_ready)
+    mission = _mission(MissionState.queued)
+    mission.metadata = {"repo_import": {"index_required": True, "index_status": "pending"}}
+    monkeypatch.setattr(orchestrator_main, "_fetch_existing_mission", _async_fetch_this(mission))
+    monkeypatch.setattr(orchestrator_internal.storage, "upsert_knowledge", lambda *_: None)
+    monkeypatch.setattr(orchestrator_internal.storage, "update_mission_metadata", lambda *_: mission)
+    monkeypatch.setattr(orchestrator_internal, "record_audit_event", AsyncMock())
+    lifecycle_started: list[str] = []
+    monkeypatch.setattr(
+        orchestrator_runtime,
+        "start_lifecycle_task",
+        lambda _app, mission_id: lifecycle_started.append(mission_id),
+    )
+    monkeypatch.setattr(app.state, "settings", replace(app.state.settings, qdrant_enabled=False), raising=False)
+
+    client = TestClient(app)
+    response = client.post(
+        "/internal/missions/mission-1/repo-import-index",
+        headers={"x-api-key": "worker-key"},
+        json={
+            "import_manifest": {},
+            "summary_record": {},
+            "chunk_records": [],
+            "index_status": "failed",
+            "index_errors": ["archive too large"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["index_status"] == "failed"
+    assert lifecycle_started == []
