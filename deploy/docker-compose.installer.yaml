@@ -1,0 +1,49 @@
+# docker-compose.installer.yaml — Electron-packaged installer overrides
+#
+# Applied on top of docker-compose.yaml:
+#   docker compose --env-file <path> -f docker-compose.yaml -f docker-compose.installer.yaml up -d
+#
+# The packaged Electron app doesn't ship the monorepo, so it cannot build
+# images from source the way `start_app.bat` does. This overlay replaces
+# every build: context in the base file with the matching pre-built image
+# published to GHCR by .github/workflows/release.yml (publish-images job),
+# so a plain `docker compose up -d` (no --build flag) pulls and runs them
+# directly instead of trying to build.
+#
+# Uses the condensed topology (layers on docker-compose.yaml alone, not
+# docker-compose.full-dedicated-agents.yaml) to keep the default installer
+# footprint modest on an end-user's machine -- the base file's dedicated
+# per-agent worker services are profile-gated and inactive here regardless.
+#
+# Image tags track the app release tag pushed to GHCR (see release.yml);
+# ":latest" here always resolves to the most recently published build.
+
+services:
+  orchestrator:
+    image: ghcr.io/kherrera6219/thefactory-orchestrator:latest
+  api-gateway:
+    image: ghcr.io/kherrera6219/thefactory-api-gateway:latest
+  protocol-bus-mcp:
+    image: ghcr.io/kherrera6219/thefactory-protocol-bus-mcp:latest
+  dashboard:
+    image: ghcr.io/kherrera6219/thefactory-dashboard:latest
+  mission-control:
+    image: ghcr.io/kherrera6219/thefactory-mission-control:latest
+  audit-worker:
+    image: ghcr.io/kherrera6219/thefactory-audit-worker:latest
+  pod-a-worker:
+    image: ghcr.io/kherrera6219/thefactory-pod-worker:latest
+  pod-b-worker:
+    image: ghcr.io/kherrera6219/thefactory-pod-worker:latest
+  pod-c-worker:
+    image: ghcr.io/kherrera6219/thefactory-pod-worker:latest
+  pod-d-worker:
+    image: ghcr.io/kherrera6219/thefactory-pod-worker:latest
+  pod-a-dedicated-mgr-worker:
+    image: ghcr.io/kherrera6219/thefactory-pod-worker:latest
+  pod-b-dedicated-mgr-worker:
+    image: ghcr.io/kherrera6219/thefactory-pod-worker:latest
+  pod-c-dedicated-mgr-worker:
+    image: ghcr.io/kherrera6219/thefactory-pod-worker:latest
+  pod-d-dedicated-mgr-worker:
+    image: ghcr.io/kherrera6219/thefactory-pod-worker:latest

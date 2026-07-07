@@ -7,6 +7,9 @@ import { setupTray } from "./tray";
 import { setupUpdater } from "./updater";  // version IPC only — auto-update disabled
 import { installCrashHandlers, generateDiagnostics } from "./diagnostics";
 import { IPC_CHANNELS } from "../app/lib/electron-bridge";
+import { ensureTlsCertificates } from "./tls-certs";
+import { generateEnvFile, type LlmProviderKeys } from "./env-generator";
+import { SETUP_WIZARD_CHANNELS, STARTING_WINDOW_CHANNEL } from "./wizard-ipc-channels";
 
 // A8 — install application-boundary crash handlers before anything else can throw.
 installCrashHandlers();
@@ -16,6 +19,10 @@ const isE2E = process.env.ELECTRON_E2E === "1";
 const NEXT_DEV_PORT = 3100; // Match next dev --port in package.json
 const GATEWAY_READYZ_URL =
   process.env.MISSION_CONTROL_GATEWAY_READYZ_URL?.trim() || "http://localhost:8100/readyz";
+// Auto-starting the bundled backend involves pulling ~9 images plus base
+// infra images on first run -- give it several minutes before falling back
+// to the manual retry/quit dialog.
+const BACKEND_STARTUP_TIMEOUT_MS = 20 * 60 * 1000;
 
 let mainWindow: BrowserWindow | null = null;
 let embeddedServerProcess: ChildProcess | null = null;
@@ -123,14 +130,20 @@ function stopEmbeddedServer(): void {
   }
 }
 
-// ── Backend (Docker) readiness ───────────────────────────────────────────────
+// ── Backend (Docker) readiness + self-contained auto-start ─────────────────
 // Previously this only checked that the `docker` CLI binary was on PATH --
 // true even when the application containers aren't running or aren't
 // healthy -- and never actually blocked window creation on failure (finding
-// #16). This polls the real api-gateway /readyz endpoint the Docker Compose
-// backend exposes and genuinely blocks until it responds, matching the
-// operator's existing "ensure Docker is running, then launch the app"
-// two-step model -- Electron does not start Docker itself.
+// #16). It has since grown from "poll and block" into a real auto-start:
+// the installer bundles deploy/docker-compose.yaml + docker-compose.
+// installer.yaml (the latter swaps every build: context for the matching
+// image published to GHCR by .github/workflows/release.yml) plus .env.example,
+// so on a machine with just Docker Desktop -- no cloned repo required -- this
+// generates a working .env (TLS certs via tls-certs.ts, secrets via
+// env-generator.ts, an LLM key via the first-run wizard) and runs
+// `docker compose up -d` itself. The manual retry/quit dialog only appears
+// if that auto-start attempt itself fails (e.g. Docker Desktop isn't
+// installed at all).
 async function isBackendReady(): Promise<boolean> {
   try {
     const response = await fetch(GATEWAY_READYZ_URL);
@@ -140,7 +153,200 @@ async function isBackendReady(): Promise<boolean> {
   }
 }
 
+async function waitForBackendReady(timeoutMs: number): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await isBackendReady()) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  return false;
+}
+
+async function isDockerCliAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const check = spawn("docker", ["version", "--format", "{{.Server.Version}}"], {
+      stdio: "ignore",
+    });
+    check.on("error", () => resolve(false));
+    check.on("exit", (code) => resolve(code === 0));
+  });
+}
+
+/** Resolves the bundled deploy/ directory: process.resourcesPath/deploy in
+ * the packaged app (see package.json build.extraResources), or the repo's
+ * own deploy/ directory when running unpackaged (npm run electron:dev). */
+function resourcesDeployDir(): string {
+  const packaged = path.join(process.resourcesPath, "deploy");
+  if (fs.existsSync(packaged)) {
+    return packaged;
+  }
+  return path.join(app.getAppPath(), "..", "..", "deploy");
+}
+
+function userDataEnvPath(): string {
+  return path.join(app.getPath("userData"), "backend.env");
+}
+
+let startingWindow: BrowserWindow | null = null;
+
+function showStartingWindow(): void {
+  startingWindow = new BrowserWindow({
+    width: 460,
+    height: 280,
+    resizable: false,
+    frame: false,
+    backgroundColor: "#0d1117",
+    webPreferences: {
+      preload: path.join(__dirname, "starting-preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  void startingWindow.loadFile(path.join(__dirname, "starting.html"));
+}
+
+function updateStartingStatus(detail: string): void {
+  startingWindow?.webContents.send(STARTING_WINDOW_CHANNEL, detail);
+}
+
+function closeStartingWindow(): void {
+  if (startingWindow && !startingWindow.isDestroyed()) {
+    startingWindow.close();
+  }
+  startingWindow = null;
+}
+
+async function runFirstRunWizard(): Promise<LlmProviderKeys> {
+  return new Promise((resolve) => {
+    const wizardWindow = new BrowserWindow({
+      width: 640,
+      height: 680,
+      resizable: false,
+      frame: false,
+      backgroundColor: "#0d1117",
+      webPreferences: {
+        preload: path.join(__dirname, "setup-preload.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    void wizardWindow.loadFile(path.join(__dirname, "setup-wizard.html"));
+
+    const cleanup = () => {
+      ipcMain.removeListener(SETUP_WIZARD_CHANNELS.SUBMIT, handleSubmit);
+      ipcMain.removeListener(SETUP_WIZARD_CHANNELS.QUIT, handleQuit);
+    };
+    const handleSubmit = (
+      _event: unknown,
+      keys: { gemini: string; openai: string; anthropic: string },
+    ) => {
+      cleanup();
+      wizardWindow.close();
+      resolve({
+        gemini: keys.gemini || undefined,
+        openai: keys.openai || undefined,
+        anthropic: keys.anthropic || undefined,
+      });
+    };
+    const handleQuit = () => {
+      cleanup();
+      app.quit();
+    };
+    ipcMain.on(SETUP_WIZARD_CHANNELS.SUBMIT, handleSubmit);
+    ipcMain.on(SETUP_WIZARD_CHANNELS.QUIT, handleQuit);
+  });
+}
+
+/** Returns the path to a ready-to-use .env for the bundled stack, running
+ * the first-run wizard (TLS certs + secrets + an LLM key) only if one
+ * doesn't already exist from a previous launch. */
+async function ensureBackendConfigured(): Promise<string | null> {
+  const envPath = userDataEnvPath();
+  if (fs.existsSync(envPath)) {
+    return envPath;
+  }
+
+  const deployDir = resourcesDeployDir();
+  const templatePath = path.join(deployDir, "..", ".env.example");
+  if (!fs.existsSync(templatePath)) {
+    console.error(`Bundled .env.example template not found at ${templatePath}`);
+    return null;
+  }
+
+  const llmKeys = await runFirstRunWizard();
+  ensureTlsCertificates(path.join(deployDir, ".local"));
+  generateEnvFile({ templatePath, outputEnvPath: envPath, llmKeys });
+  return envPath;
+}
+
+/** Runs `docker compose up -d` (no --build) against the bundled compose
+ * files, which reference published GHCR images -- never builds from
+ * source. Returns true only if the command itself exited 0; readiness is
+ * polled separately since containers can take a while to become healthy. */
+async function startBackendStack(envPath: string): Promise<boolean> {
+  const deployDir = resourcesDeployDir();
+  const baseCompose = path.join(deployDir, "docker-compose.yaml");
+  const installerCompose = path.join(deployDir, "docker-compose.installer.yaml");
+  if (!fs.existsSync(baseCompose) || !fs.existsSync(installerCompose)) {
+    console.error(`Bundled compose files not found under ${deployDir}`);
+    return false;
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn(
+      "docker",
+      [
+        "compose",
+        "--env-file", envPath,
+        "--project-directory", deployDir,
+        "-f", baseCompose,
+        "-f", installerCompose,
+        "up",
+        "-d",
+      ],
+      { cwd: deployDir, stdio: ["ignore", "pipe", "pipe"] },
+    );
+    child.stdout?.on("data", (chunk: Buffer) => console.log(`[docker-compose] ${chunk.toString().trim()}`));
+    child.stderr?.on("data", (chunk: Buffer) => console.error(`[docker-compose] ${chunk.toString().trim()}`));
+    child.on("error", (error) => {
+      console.error("Failed to spawn docker compose:", error);
+      resolve(false);
+    });
+    child.on("exit", (code) => resolve(code === 0));
+  });
+}
+
 async function ensureBackendReady(): Promise<boolean> {
+  if (await isBackendReady()) {
+    return true;
+  }
+
+  if (await isDockerCliAvailable()) {
+    showStartingWindow();
+    try {
+      const envPath = await ensureBackendConfigured();
+      if (envPath) {
+        updateStartingStatus("Pulling images and starting containers (first run can take a few minutes)...");
+        const started = await startBackendStack(envPath);
+        if (started) {
+          updateStartingStatus("Waiting for services to report healthy...");
+          const ready = await waitForBackendReady(BACKEND_STARTUP_TIMEOUT_MS);
+          if (ready) {
+            return true;
+          }
+        }
+      }
+    } finally {
+      closeStartingWindow();
+    }
+  }
+
+  // Auto-start failed, or Docker Desktop itself isn't installed -- fall
+  // back to the manual retry/quit dialog.
   for (;;) {
     if (await isBackendReady()) {
       return true;
@@ -150,8 +356,8 @@ async function ensureBackendReady(): Promise<boolean> {
       title: "Backend Not Ready",
       message: "theFactory's Docker backend is not reachable yet.",
       detail:
-        `Could not reach ${GATEWAY_READYZ_URL}. Start Docker Desktop and the theFactory ` +
-        'stack ("start_app.bat" or "make up"), then click Retry.',
+        `Could not reach ${GATEWAY_READYZ_URL}, and automatic startup did not succeed. ` +
+        "Make sure Docker Desktop is installed and running, then click Retry.",
       buttons: ["Retry", "Quit"],
       defaultId: 0,
       cancelId: 1,

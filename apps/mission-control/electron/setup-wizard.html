@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'" />
+<title>theFactory Mission Control — First-Run Setup</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+  .wrap {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 48px 32px;
+  }
+  h1 {
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+  p.lead {
+    color: #9da7b3;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 28px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    margin-top: 18px;
+  }
+  input[type="password"], input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #e6edf3;
+    font-size: 14px;
+  }
+  .hint {
+    color: #6e7681;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  .actions {
+    margin-top: 32px;
+    display: flex;
+    gap: 12px;
+  }
+  button {
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: 1px solid #30363d;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button.primary {
+    background: #238636;
+    border-color: #2ea043;
+    color: white;
+  }
+  button.primary:disabled {
+    background: #30363d;
+    border-color: #30363d;
+    color: #6e7681;
+    cursor: not-allowed;
+  }
+  button.secondary {
+    background: transparent;
+    color: #e6edf3;
+  }
+  #error {
+    color: #f85149;
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Welcome to theFactory Mission Control</h1>
+    <p class="lead">
+      This is a first-time setup. theFactory will generate its own local
+      database passwords and TLS certificates automatically -- the one thing
+      it needs from you is at least one LLM provider API key so agents can
+      actually run missions. You can add or change the rest later from
+      Settings.
+    </p>
+
+    <label for="gemini">Gemini API key</label>
+    <input type="password" id="gemini" autocomplete="off" placeholder="AIza..." />
+    <p class="hint">Default provider if provided. Get one at aistudio.google.com.</p>
+
+    <label for="openai">OpenAI API key (optional)</label>
+    <input type="password" id="openai" autocomplete="off" placeholder="sk-..." />
+
+    <label for="anthropic">Anthropic API key (optional)</label>
+    <input type="password" id="anthropic" autocomplete="off" placeholder="sk-ant-..." />
+
+    <div id="error"></div>
+
+    <div class="actions">
+      <button class="primary" id="continueBtn" disabled>Continue</button>
+      <button class="secondary" id="quitBtn">Quit</button>
+    </div>
+  </div>
+
+  <script>
+    const geminiInput = document.getElementById("gemini");
+    const openaiInput = document.getElementById("openai");
+    const anthropicInput = document.getElementById("anthropic");
+    const continueBtn = document.getElementById("continueBtn");
+    const errorEl = document.getElementById("error");
+
+    function updateContinueState() {
+      const hasAnyKey =
+        geminiInput.value.trim() || openaiInput.value.trim() || anthropicInput.value.trim();
+      continueBtn.disabled = !hasAnyKey;
+    }
+
+    [geminiInput, openaiInput, anthropicInput].forEach((el) =>
+      el.addEventListener("input", updateContinueState),
+    );
+
+    continueBtn.addEventListener("click", () => {
+      const gemini = geminiInput.value.trim();
+      const openai = openaiInput.value.trim();
+      const anthropic = anthropicInput.value.trim();
+      if (!gemini && !openai && !anthropic) {
+        errorEl.textContent = "Provide at least one provider API key to continue.";
+        errorEl.style.display = "block";
+        return;
+      }
+      window.setupWizardAPI.submit({ gemini, openai, anthropic });
+    });
+
+    document.getElementById("quitBtn").addEventListener("click", () => {
+      window.setupWizardAPI.quit();
+    });
+  </script>
+</body>
+</html>

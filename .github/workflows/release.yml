@@ -29,6 +29,72 @@ jobs:
             *) echo "::error::Release tag must start with 'v'"; exit 1 ;;
           esac
 
+  publish-images:
+    name: Publish Backend Images to GHCR
+    needs: staging-validation
+    runs-on: ubuntu-latest
+    # Same production-environment approval gate as the installer release job
+    # below -- pushing images to a registry under this account is a real,
+    # visible action, not just a build artifact upload.
+    environment:
+      name: production
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: orchestrator
+            context: .
+            dockerfile: services/orchestrator/Dockerfile
+          - service: api-gateway
+            context: .
+            dockerfile: services/api-gateway/Dockerfile
+          - service: protocol-bus-mcp
+            context: .
+            dockerfile: services/protocol-bus-mcp/Dockerfile
+          - service: dashboard
+            context: .
+            dockerfile: services/dashboard/Dockerfile
+          - service: pod-worker
+            context: .
+            dockerfile: services/pod-worker/Dockerfile
+          - service: audit-worker
+            context: .
+            dockerfile: services/audit-worker/Dockerfile
+          - service: agent-runtime
+            context: .
+            dockerfile: services/agent-runtime/Dockerfile
+          - service: mission-control
+            context: apps/mission-control
+            dockerfile: apps/mission-control/Dockerfile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/thefactory-${{ matrix.service }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/thefactory-${{ matrix.service }}:latest
+
   release:
     name: Production Release
     needs: staging-validation

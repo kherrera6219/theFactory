@@ -62,6 +62,16 @@ try {
     // 5. Compile Electron TS
     run('npx', ['tsc', '--project', 'electron/tsconfig.json']);
 
+    // 6. tsc only compiles .ts -- copy the first-run wizard's static HTML
+    // pages alongside the compiled preload scripts that reference them.
+    const electronOutDir = path.join(process.cwd(), 'dist', 'electron', 'electron');
+    for (const htmlFile of ['setup-wizard.html', 'starting.html']) {
+        fs.copyFileSync(
+            path.join(process.cwd(), 'electron', htmlFile),
+            path.join(electronOutDir, htmlFile),
+        );
+    }
+
     console.log('\nElectron build complete.');
 } catch (err) {
     console.error('Build failed:', err);
