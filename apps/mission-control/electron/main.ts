@@ -1,7 +1,7 @@
-import { execSync } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
 import fs from "fs";
+import { createServer } from "net";
 import path from "path";
-import { pathToFileURL } from "url";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { setupTray } from "./tray";
 import { setupUpdater } from "./updater";  // version IPC only — auto-update disabled
@@ -14,34 +14,158 @@ installCrashHandlers();
 const isDev = process.env.ELECTRON_DEV === "1";
 const isE2E = process.env.ELECTRON_E2E === "1";
 const NEXT_DEV_PORT = 3100; // Match next dev --port in package.json
+const GATEWAY_READYZ_URL =
+  process.env.MISSION_CONTROL_GATEWAY_READYZ_URL?.trim() || "http://localhost:8100/readyz";
 
 let mainWindow: BrowserWindow | null = null;
-function checkDockerAvailability(): { available: boolean; error?: string } {
-  try {
-    execSync("docker version", { stdio: "ignore" });
-    return { available: true };
-  } catch (err: any) {
-    return { 
-      available: false, 
-      error: "Docker Desktop or Docker Engine was not found on this system. theFactory backend requires Docker to operate." 
-    };
+let embeddedServerProcess: ChildProcess | null = null;
+
+// ── Embedded standalone Next.js server (packaged/production only) ──────────
+// Electron previously loaded a static export (`out/index.html`), which
+// physically cannot serve any of this app's app/api/* routes (vault, session,
+// gateway proxy, repo import, etc.) -- see
+// docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md §7.1. This spawns the same
+// `output: "standalone"` Next.js server the build produces (see
+// scripts/build-electron.mjs) as a child process on a free local port and
+// loads that instead, matching the community-standard Next.js-in-Electron
+// pattern -- all API routes work for real now.
+
+function findFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.unref();
+    probe.on("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      if (address && typeof address === "object") {
+        const { port } = address;
+        probe.close(() => resolve(port));
+      } else {
+        probe.close(() => reject(new Error("Unable to determine a free port")));
+      }
+    });
+  });
+}
+
+function standaloneServerPath(): string {
+  const candidates = [
+    path.join(app.getAppPath(), ".next", "standalone", "server.js"),
+    path.join(process.cwd(), ".next", "standalone", "server.js"),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
+}
+
+async function waitForServerReady(url: string, timeoutMs = 20_000): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const response = await fetch(url);
+      if (response.status < 500) {
+        return true;
+      }
+    } catch {
+      // Not accepting connections yet -- retry until the timeout.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  return false;
+}
+
+async function startEmbeddedServer(): Promise<string> {
+  const serverPath = standaloneServerPath();
+  if (!fs.existsSync(serverPath)) {
+    throw new Error(
+      `Embedded Next.js server not found at ${serverPath}. Run "npm run electron:build" first.`,
+    );
+  }
+
+  const port = await findFreePort();
+  embeddedServerProcess = spawn(process.execPath, [serverPath], {
+    cwd: path.dirname(serverPath),
+    env: {
+      ...process.env,
+      PORT: String(port),
+      // "localhost", not "127.0.0.1" -- matches the setWindowOpenHandler /
+      // will-navigate origin checks below, which only trust http://localhost.
+      HOSTNAME: "localhost",
+      NODE_ENV: "production",
+      // Runs the packaged Electron binary as a plain Node.js process instead
+      // of relaunching Electron itself -- the standard approach for spawning
+      // a Node child process from a packaged Electron app with no separate
+      // Node.js installation required on the user's machine.
+      ELECTRON_RUN_AS_NODE: "1",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  embeddedServerProcess.stdout?.on("data", (chunk: Buffer) => {
+    console.log(`[embedded-server] ${chunk.toString().trim()}`);
+  });
+  embeddedServerProcess.stderr?.on("data", (chunk: Buffer) => {
+    console.error(`[embedded-server] ${chunk.toString().trim()}`);
+  });
+  embeddedServerProcess.on("exit", (code) => {
+    console.log(`Embedded Next.js server exited with code ${code}`);
+    embeddedServerProcess = null;
+  });
+
+  const url = `http://localhost:${port}`;
+  const ready = await waitForServerReady(url);
+  if (!ready) {
+    throw new Error("Embedded Next.js server did not become ready in time.");
+  }
+  return url;
+}
+
+function stopEmbeddedServer(): void {
+  if (embeddedServerProcess && !embeddedServerProcess.killed) {
+    embeddedServerProcess.kill();
+    embeddedServerProcess = null;
   }
 }
 
-function exportedAppUrl(): string {
-  const candidates = [
-    path.join(app.getAppPath(), "out", "index.html"),
-    path.join(process.cwd(), "out", "index.html"),
-    path.join(__dirname, "..", "..", "..", "out", "index.html"),
-  ];
-  const indexPath = candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
-  return pathToFileURL(indexPath).toString();
+// ── Backend (Docker) readiness ───────────────────────────────────────────────
+// Previously this only checked that the `docker` CLI binary was on PATH --
+// true even when the application containers aren't running or aren't
+// healthy -- and never actually blocked window creation on failure (finding
+// #16). This polls the real api-gateway /readyz endpoint the Docker Compose
+// backend exposes and genuinely blocks until it responds, matching the
+// operator's existing "ensure Docker is running, then launch the app"
+// two-step model -- Electron does not start Docker itself.
+async function isBackendReady(): Promise<boolean> {
+  try {
+    const response = await fetch(GATEWAY_READYZ_URL);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureBackendReady(): Promise<boolean> {
+  for (;;) {
+    if (await isBackendReady()) {
+      return true;
+    }
+    const { response } = await dialog.showMessageBox({
+      type: "error",
+      title: "Backend Not Ready",
+      message: "theFactory's Docker backend is not reachable yet.",
+      detail:
+        `Could not reach ${GATEWAY_READYZ_URL}. Start Docker Desktop and the theFactory ` +
+        'stack ("start_app.bat" or "make up"), then click Retry.',
+      buttons: ["Retry", "Quit"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 1) {
+      return false;
+    }
+  }
 }
 
 
 // ── Window creation ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-function createWindow(): void {
+async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -63,8 +187,20 @@ function createWindow(): void {
     },
   });
 
-  // Load the Next.js app — dev server in development, static export in production.
-  const appUrl = isDev ? `http://localhost:${NEXT_DEV_PORT}` : exportedAppUrl();
+  // Load the Next.js app — dev server in development, embedded standalone
+  // server (spawned as a child process) in the packaged app.
+  let appUrl: string;
+  try {
+    appUrl = isDev ? `http://localhost:${NEXT_DEV_PORT}` : await startEmbeddedServer();
+  } catch (error) {
+    console.error("Failed to start embedded Next.js server:", error);
+    dialog.showErrorBox(
+      "Failed to Start Mission Control",
+      error instanceof Error ? error.message : "Unknown error starting the embedded server.",
+    );
+    app.quit();
+    return;
+  }
 
   void mainWindow.loadURL(appUrl).catch((error) => {
     console.error(`Failed to load Mission Control UI from ${appUrl}:`, error);
@@ -112,14 +248,15 @@ function createWindow(): void {
 
 // ── App lifecycle ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   if (!isE2E) {
-    const docker = checkDockerAvailability();
-    if (!docker.available) {
-      dialog.showErrorBox("Infrastructure Missing", docker.error!);
+    const backendReady = await ensureBackendReady();
+    if (!backendReady) {
+      app.quit();
+      return;
     }
   }
-  createWindow();
+  await createWindow();
 
   // 7B — System tray. Skip in E2E so Playwright can close the app cleanly.
   if (!isE2E) {
@@ -194,7 +331,7 @@ app.whenReady().then(() => {
 // macOS: re-open window when dock icon is clicked and no windows are open.
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    void createWindow();
   }
 });
 
@@ -203,4 +340,12 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+// Stop our own embedded Next.js server child process on quit. Per product
+// decision, this does NOT touch the separate Docker Compose backend --
+// quitting Electron leaves it running so in-flight missions aren't
+// interrupted; the operator stops it explicitly (stop_app.bat / make down).
+app.on("before-quit", () => {
+  stopEmbeddedServer();
 });

@@ -29,7 +29,7 @@
     },
     "files": [
       "dist/electron/**/*",
-      "out/**/*",
+      ".next/standalone/**/*",
       "package.json"
     ],
     "win": {
