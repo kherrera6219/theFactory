@@ -103,7 +103,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/yauzl": "^3.4.0",
     "cross-env": "^7.0.3",
-    "electron": "^42.4.1",
+    "electron": "^43.0.0",
     "electron-builder": "^26.15.3",
     "jsdom": "29.1.1",
     "openapi-typescript": "^7.13.0",
