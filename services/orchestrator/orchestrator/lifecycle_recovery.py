@@ -1,8 +1,9 @@
 """lifecycle_recovery.py — Bootstrap recovery of in-flight lifecycle tasks on startup.
 
-On each orchestrator start, ``lifecycle_recovery_loop`` re-queues any missions
-that were in QUEUED/RUNNING/VERIFIED state when the process last exited.  It
-retries until both the database and protocol validator are ready.
+On each orchestrator start, ``lifecycle_recovery_loop`` re-queues missions in
+every active transition state. The intentional CLARIFYING operator hold and
+terminal states remain paused. Recovery retries until the database and protocol
+validator are ready.
 """
 from __future__ import annotations
 
@@ -18,6 +19,22 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _recoverable_lifecycle_states() -> tuple[MissionState, ...]:
+    from .mission_flow_v2.transitions import V2_TRANSITIONS
+
+    non_resumable_states = {
+        MissionState.intake,
+        MissionState.clarifying,
+        MissionState.complete,
+        MissionState.failed,
+    }
+    return tuple(
+        expected_state
+        for expected_state, _new_state, _event_type in V2_TRANSITIONS
+        if expected_state not in non_resumable_states
+    )
 
 
 async def _recover_inflight_lifecycle_tasks(app: "FastAPI") -> bool:
@@ -44,15 +61,10 @@ async def _recover_inflight_lifecycle_tasks(app: "FastAPI") -> bool:
         return False
 
     _ = redis_ready  # keep visible for diagnostics
-    recoverable_states = [
-        MissionState.queued,
-        MissionState.running,
-        MissionState.verified,
-    ]
     missions = await asyncio.to_thread(
         storage.list_missions_in_states,
         settings,
-        recoverable_states,
+        _recoverable_lifecycle_states(),
         LIFECYCLE_RECOVERY_MAX_MISSIONS,
     )
 
