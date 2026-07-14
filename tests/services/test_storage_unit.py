@@ -62,6 +62,7 @@ class FakeCursor:
         self.fetchone_results = list(fetchone_results or [])
         self.fetchall_results = list(fetchall_results or [])
         self.executed: list[tuple[str, Any]] = []
+        self.transaction_calls = 0
 
     def execute(self, query: str, params: Any = None) -> None:
         self.executed.append((query, params))
@@ -99,6 +100,7 @@ class FakeConn:
         return self._cursor
 
     def transaction(self) -> "_FakeTxn":
+        self._cursor.transaction_calls += 1
         return _FakeTxn()
 
     def __enter__(self) -> "FakeConn":
@@ -352,6 +354,38 @@ def test_transition_mission_state_success_and_noop(monkeypatch) -> None:
         "MISSION_FAILED",
     )
     assert none_record is None
+
+
+def test_persist_intake_mission_writes_mission_and_event_atomically(monkeypatch) -> None:
+    cursor = FakeCursor(fetchone_results=[("mission-1",)])
+    _patch_db(monkeypatch, [cursor])
+
+    created = storage.persist_intake_mission(_settings(), _mission_record(), "1-0")
+
+    assert created is True
+    assert cursor.transaction_calls == 1
+    assert len(cursor.executed) == 2
+    assert "INSERT INTO missions" in cursor.executed[0][0]
+    assert cursor.executed[0][1][-1] == "1-0"
+    assert "INSERT INTO mission_state_events" in cursor.executed[1][0]
+    assert cursor.executed[1][1] == (
+        "mission-1",
+        MissionState.intake.value,
+        MissionState.queued.value,
+        "MISSION_QUEUED",
+    )
+
+
+def test_persist_intake_mission_does_not_mutate_duplicate(monkeypatch) -> None:
+    cursor = FakeCursor(fetchone_results=[None])
+    _patch_db(monkeypatch, [cursor])
+
+    created = storage.persist_intake_mission(_settings(), _mission_record(), "1-0")
+
+    assert created is False
+    assert cursor.transaction_calls == 1
+    assert len(cursor.executed) == 1
+    assert "ON CONFLICT (mission_id) DO NOTHING" in cursor.executed[0][0]
 
 
 def test_prune_audit_tables_maps_results_and_passes_retention(monkeypatch) -> None:

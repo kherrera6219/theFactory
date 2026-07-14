@@ -70,6 +70,7 @@ from .storage_missions import (
     list_missions_in_states,
     list_recent_mission_events,
     mission_state_counts,
+    persist_intake_mission,
     record_partition_result,
     row_to_mission,
     transition_mission_state,
@@ -97,6 +98,7 @@ __all__ = [
     # missions
     "row_to_mission",
     "upsert_mission",
+    "persist_intake_mission",
     "fetch_mission",
     "update_mission_metadata",
     "list_missions",

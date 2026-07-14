@@ -212,49 +212,124 @@ def row_to_mission(row: Any) -> MissionRecord:
     )
 
 
-def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: str | None) -> None:
-    """Insert or update a mission record and its source stream pointer."""
+def _execute_mission_upsert(
+    cursor: Any,
+    record: MissionRecord,
+    source_stream_id: str | None,
+) -> None:
+    cursor.execute(
+        """
+        INSERT INTO missions (
+            mission_id,
+            prompt,
+            requested_target_language,
+            metadata_json,
+            project_id,
+            state,
+            created_at,
+            updated_at,
+            source_stream_id
+        )
+        VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s::timestamptz, NOW(), %s)
+        ON CONFLICT (mission_id) DO UPDATE SET
+            prompt = EXCLUDED.prompt,
+            requested_target_language = EXCLUDED.requested_target_language,
+            metadata_json = EXCLUDED.metadata_json,
+            project_id = EXCLUDED.project_id,
+            state = EXCLUDED.state,
+            updated_at = NOW(),
+            source_stream_id = EXCLUDED.source_stream_id;
+        """,
+        _mission_upsert_params(record, source_stream_id),
+    )
+
+
+def _mission_upsert_params(
+    record: MissionRecord,
+    source_stream_id: str | None,
+) -> tuple[Any, ...]:
     metadata = with_project_identity(record.metadata, mission_id=record.mission_id)
     metadata = _embed_charter_fields(metadata, record)
     project_id = str(
         record.project_id or resolve_project_id(metadata, mission_id=record.mission_id)
     )
+    return (
+        record.mission_id,
+        record.prompt,
+        record.requested_target_language,
+        json.dumps(metadata),
+        project_id,
+        record.state.value,
+        record.created_at,
+        source_stream_id,
+    )
+
+
+def upsert_mission(settings: Settings, record: MissionRecord, source_stream_id: str | None) -> None:
+    """Insert or update a mission record and its source stream pointer."""
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO missions (
-                    mission_id,
-                    prompt,
-                    requested_target_language,
-                    metadata_json,
-                    project_id,
-                    state,
-                    created_at,
-                    updated_at,
-                    source_stream_id
+            _execute_mission_upsert(cur, record, source_stream_id)
+
+
+def persist_intake_mission(
+    settings: Settings,
+    record: MissionRecord,
+    source_stream_id: str,
+) -> bool:
+    """Atomically persist a new intake mission and event, returning whether it was created."""
+    created = False
+    with get_connection() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO missions (
+                        mission_id,
+                        prompt,
+                        requested_target_language,
+                        metadata_json,
+                        project_id,
+                        state,
+                        created_at,
+                        updated_at,
+                        source_stream_id
+                    )
+                    VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s::timestamptz, NOW(), %s)
+                    ON CONFLICT (mission_id) DO NOTHING
+                    RETURNING mission_id;
+                    """,
+                    _mission_upsert_params(record, source_stream_id),
                 )
-                VALUES (%s, %s, %s, %s::jsonb, %s, %s, %s::timestamptz, NOW(), %s)
-                ON CONFLICT (mission_id) DO UPDATE SET
-                    prompt = EXCLUDED.prompt,
-                    requested_target_language = EXCLUDED.requested_target_language,
-                    metadata_json = EXCLUDED.metadata_json,
-                    project_id = EXCLUDED.project_id,
-                    state = EXCLUDED.state,
-                    updated_at = NOW(),
-                    source_stream_id = EXCLUDED.source_stream_id;
-                """,
-                (
-                    record.mission_id,
-                    record.prompt,
-                    record.requested_target_language,
-                    json.dumps(metadata),
-                    project_id,
-                    record.state.value,
-                    record.created_at,
-                    source_stream_id,
-                ),
-            )
+                created = cur.fetchone() is not None
+                if created:
+                    cur.execute(
+                        """
+                        INSERT INTO mission_state_events (
+                            mission_id,
+                            previous_state,
+                            new_state,
+                            event_type
+                        )
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (
+                            record.mission_id,
+                            MissionState.intake.value,
+                            MissionState.queued.value,
+                            "MISSION_QUEUED",
+                        ),
+                    )
+
+    if created:
+        from .orchestrator_metrics import record_mission_transition
+
+        record_mission_transition(
+            from_state=MissionState.intake.value,
+            to_state=MissionState.queued.value,
+            engine=_resolve_engine_label(settings),
+        )
+    return created
 
 
 def fetch_mission(settings: Settings, mission_id: str) -> MissionRecord | None:

@@ -547,26 +547,18 @@ async def _write_intake_dlq(
     fields: dict[str, Any],
     error: str,
 ) -> None:
-    try:
-        await redis_client.xadd(
-            settings.intake_dlq_stream,
-            {
-                "error": error,
-                "entry_id": entry_id,
-                "envelope": fields.get("envelope", ""),
-                "payload": fields.get("payload", ""),
-                "ts": datetime.now(UTC).isoformat(),
-            },
-            maxlen=settings.intake_dlq_max_len,
-            approximate=True,
-        )
-    except Exception as dlq_exc:
-        LOGGER.error(
-            "failed to write intake entry %s to DLQ %s: %s",
-            entry_id,
-            settings.intake_dlq_stream,
-            dlq_exc,
-        )
+    await redis_client.xadd(
+        settings.intake_dlq_stream,
+        {
+            "error": error,
+            "entry_id": entry_id,
+            "envelope": fields.get("envelope", ""),
+            "payload": fields.get("payload", ""),
+            "ts": datetime.now(UTC).isoformat(),
+        },
+        maxlen=settings.intake_dlq_max_len,
+        approximate=True,
+    )
 
 
 async def consume_intake_stream(app: FastAPI) -> None:
@@ -576,18 +568,29 @@ async def consume_intake_stream(app: FastAPI) -> None:
 
     while True:
         try:
+            # Drain entries already assigned to this consumer before accepting
+            # new work. This retries transient failures and processes entries
+            # reassigned by XAUTOCLAIM after a consumer restart.
             streams = await redis_client.xreadgroup(
                 groupname=settings.consumer_group,
                 consumername=settings.consumer_name,
-                streams={settings.intake_stream: ">"},
+                streams={settings.intake_stream: "0"},
                 count=20,
-                block=5000,
             )
-            if not streams:
-                continue
+            if not any(entries for _, entries in streams or []):
+                streams = await redis_client.xreadgroup(
+                    groupname=settings.consumer_group,
+                    consumername=settings.consumer_name,
+                    streams={settings.intake_stream: ">"},
+                    count=20,
+                    block=5000,
+                )
+                if not any(entries for _, entries in streams or []):
+                    continue
 
             for _, entries in streams:
                 for entry_id, fields in entries:
+                    acknowledge = False
                     try:
                         payload_raw = fields.get("payload", "{}")
                         payload_json = json.loads(payload_raw)
@@ -599,45 +602,48 @@ async def consume_intake_stream(app: FastAPI) -> None:
                             payload_json["mission_id"],
                         )
                         if existing is not None:
-                            continue
-
-                        mission = MissionRecord(
-                            mission_id=payload_json["mission_id"],
-                            prompt=payload_json["prompt"],
-                            requested_target_language=payload_json.get("requested_target_language"),
-                            metadata=_normalize_metadata(payload_json.get("metadata")),
-                            state=MissionState.queued,
-                            created_at=payload_json.get("created_at")
-                            or datetime.now(UTC).isoformat(),
-                        )
-
-                        await asyncio.to_thread(storage.upsert_mission, settings, mission, entry_id)
-                        await asyncio.to_thread(
-                            storage.insert_mission_event,
-                            settings,
-                            mission.mission_id,
-                            MissionState.intake,
-                            MissionState.queued,
-                            "MISSION_QUEUED",
-                        )
-
-                        try:
-                            await emit_state_event(
-                                settings=settings,
-                                validator=validator,
-                                redis_client=redis_client,
-                                mission=mission,
-                                event_type="MISSION_QUEUED",
-                            )
-                        except Exception as exc:
-                            # Never block intake on outbound stream emission errors.
-                            LOGGER.warning(
-                                "failed to emit queued event for mission %s: %s",
-                                mission.mission_id,
-                                exc,
+                            if existing.state == MissionState.queued:
+                                start_lifecycle_task(app, existing.mission_id)
+                            acknowledge = True
+                        else:
+                            mission = MissionRecord(
+                                mission_id=payload_json["mission_id"],
+                                prompt=payload_json["prompt"],
+                                requested_target_language=payload_json.get(
+                                    "requested_target_language"
+                                ),
+                                metadata=_normalize_metadata(payload_json.get("metadata")),
+                                state=MissionState.queued,
+                                created_at=payload_json.get("created_at")
+                                or datetime.now(UTC).isoformat(),
                             )
 
-                        start_lifecycle_task(app, mission.mission_id)
+                            created = await asyncio.to_thread(
+                                storage.persist_intake_mission,
+                                settings,
+                                mission,
+                                entry_id,
+                            )
+
+                            if created:
+                                try:
+                                    await emit_state_event(
+                                        settings=settings,
+                                        validator=validator,
+                                        redis_client=redis_client,
+                                        mission=mission,
+                                        event_type="MISSION_QUEUED",
+                                    )
+                                except Exception as exc:
+                                    # Never block intake on outbound stream emission errors.
+                                    LOGGER.warning(
+                                        "failed to emit queued event for mission %s: %s",
+                                        mission.mission_id,
+                                        exc,
+                                    )
+
+                            start_lifecycle_task(app, mission.mission_id)
+                            acknowledge = True
                     except (
                         json.JSONDecodeError,
                         ValidationError,
@@ -653,7 +659,8 @@ async def consume_intake_stream(app: FastAPI) -> None:
                             fields,
                             str(exc),
                         )
-                    finally:
+                        acknowledge = True
+                    if acknowledge:
                         await redis_client.xack(
                             settings.intake_stream,
                             settings.consumer_group,
