@@ -93,6 +93,7 @@ class FakeRedis:
         self.xadd_calls: list[tuple[str, dict[str, Any]]] = []
         self.xgroup_calls: list[tuple[Any, ...]] = []
         self.xack_calls: list[tuple[str, str, str]] = []
+        self.xreadgroup_calls: list[dict[str, Any]] = []
         self.xreadgroup_responses: list[Any] = []
         self.ping_value: bool = True
 
@@ -104,6 +105,7 @@ class FakeRedis:
         self.xgroup_calls.append((args, kwargs))
 
     async def xreadgroup(self, **kwargs) -> Any:
+        self.xreadgroup_calls.append(kwargs)
         if self.xreadgroup_responses:
             response = self.xreadgroup_responses.pop(0)
             if isinstance(response, Exception):
@@ -454,6 +456,7 @@ def test_consume_intake_stream_happy_path(monkeypatch) -> None:
         "created_at": "2026-03-01T00:00:00+00:00",
     }
     redis_client.xreadgroup_responses = [
+        [("missions.intake", [])],
         [("missions.intake", [("1-0", {"payload": json.dumps(payload), "envelope": "{}"})])],
         asyncio.CancelledError(),
     ]
@@ -462,21 +465,15 @@ def test_consume_intake_stream_happy_path(monkeypatch) -> None:
     async def _to_thread(fn, *args, **kwargs):
         return fn(*args, **kwargs)
 
-    upsert_calls: list[str] = []
-    event_calls: list[str] = []
+    persist_calls: list[str] = []
     lifecycle_calls: list[str] = []
 
     monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
     monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: None)
     monkeypatch.setattr(
         runtime.storage,
-        "upsert_mission",
-        lambda *_args: upsert_calls.append("upsert"),
-    )
-    monkeypatch.setattr(
-        runtime.storage,
-        "insert_mission_event",
-        lambda *_args: event_calls.append("event"),
+        "persist_intake_mission",
+        lambda *_args: persist_calls.append("persist") or True,
     )
     monkeypatch.setattr(
         runtime,
@@ -492,10 +489,11 @@ def test_consume_intake_stream_happy_path(monkeypatch) -> None:
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(runtime.consume_intake_stream(app))
 
-    assert upsert_calls == ["upsert"]
-    assert event_calls == ["event"]
+    assert persist_calls == ["persist"]
     assert lifecycle_calls == ["mission-1"]
     assert redis_client.xack_calls == [("missions.intake", "orchestrator", "1-0")]
+    assert redis_client.xreadgroup_calls[0]["streams"] == {"missions.intake": "0"}
+    assert redis_client.xreadgroup_calls[1]["streams"] == {"missions.intake": ">"}
 
 
 def test_consume_intake_stream_invalid_payload_is_acked(monkeypatch) -> None:
@@ -567,8 +565,7 @@ def test_consume_intake_stream_emit_failure_does_not_block_intake(monkeypatch) -
 
     monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
     monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: None)
-    monkeypatch.setattr(runtime.storage, "upsert_mission", lambda *_args: None)
-    monkeypatch.setattr(runtime.storage, "insert_mission_event", lambda *_args: None)
+    monkeypatch.setattr(runtime.storage, "persist_intake_mission", lambda *_args: True)
 
     async def _emit_fail(**_kwargs):
         raise RuntimeError("emit down")
@@ -1542,21 +1539,21 @@ def test_emit_running_phase_checkpoints_swallows_insert_failure(monkeypatch) -> 
     assert emitted == []
 
 
-def test_write_intake_dlq_swallows_redis_failure(monkeypatch) -> None:
+def test_write_intake_dlq_propagates_redis_failure() -> None:
     class BrokenRedis(FakeRedis):
         async def xadd(self, *args, **kwargs):
             raise RuntimeError("dlq stream unavailable")
 
-    # Must not raise even though the DLQ write itself fails.
-    asyncio.run(
-        runtime._write_intake_dlq(
-            _settings(),
-            BrokenRedis(),
-            "1-0",
-            {"envelope": "{}", "payload": "{}"},
-            "boom",
+    with pytest.raises(RuntimeError, match="dlq stream unavailable"):
+        asyncio.run(
+            runtime._write_intake_dlq(
+                _settings(),
+                BrokenRedis(),
+                "1-0",
+                {"envelope": "{}", "payload": "{}"},
+                "boom",
+            )
         )
-    )
 
 
 def test_write_intake_dlq_writes_entry() -> None:
@@ -1598,18 +1595,21 @@ def test_consume_intake_stream_skips_existing_mission(monkeypatch) -> None:
     async def _to_thread(fn, *args, **kwargs):
         return fn(*args, **kwargs)
 
-    upsert_calls: list[str] = []
+    persist_calls: list[str] = []
     lifecycle_calls: list[str] = []
 
     monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
-    # Mission already exists -> idempotent skip, no upsert / lifecycle start.
+    # A queued mission may be a redelivery after persistence but before task
+    # scheduling, so it must re-drive the idempotent lifecycle scheduler.
     monkeypatch.setattr(
         runtime.storage,
         "fetch_mission",
         lambda *_args: _mission_record(MissionState.queued),
     )
     monkeypatch.setattr(
-        runtime.storage, "upsert_mission", lambda *_args: upsert_calls.append("upsert")
+        runtime.storage,
+        "persist_intake_mission",
+        lambda *_args: persist_calls.append("persist"),
     )
     monkeypatch.setattr(
         runtime, "start_lifecycle_task", lambda _app, mid: lifecycle_calls.append(mid)
@@ -1618,10 +1618,9 @@ def test_consume_intake_stream_skips_existing_mission(monkeypatch) -> None:
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(runtime.consume_intake_stream(app))
 
-    assert upsert_calls == []
-    assert lifecycle_calls == []
-    # Existing missions are skipped (idempotent) but the entry is still acked
-    # via the finally block so it is not redelivered.
+    assert persist_calls == []
+    assert lifecycle_calls == ["mission-1"]
+    # Existing missions are skipped (idempotent) but still acknowledged.
     assert redis_client.xack_calls == [("missions.intake", "orchestrator", "1-0")]
 
 
@@ -1646,6 +1645,101 @@ def test_consume_intake_stream_poison_message_goes_to_dlq_and_acks(monkeypatch) 
 
     assert dlq_calls == ["1-0"]
     assert redis_client.xack_calls == [("missions.intake", "orchestrator", "1-0")]
+
+
+def test_consume_intake_stream_storage_failure_is_not_acked(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    payload = {
+        "mission_id": "mission-1",
+        "prompt": "Build API",
+        "requested_target_language": "python",
+        "metadata": {"source": "test"},
+        "created_at": "2026-03-01T00:00:00+00:00",
+    }
+    redis_client.xreadgroup_responses = [
+        [("missions.intake", [("1-0", {"payload": json.dumps(payload), "envelope": "{}"})])],
+        asyncio.CancelledError(),
+    ]
+    app = _app_state(redis=redis_client, lifecycle_tasks={})
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    async def _sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
+    monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: None)
+    monkeypatch.setattr(
+        runtime.storage,
+        "persist_intake_mission",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("database unavailable")),
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+    assert redis_client.xack_calls == []
+    assert redis_client.xreadgroup_calls[0]["streams"] == {"missions.intake": "0"}
+
+
+def test_consume_intake_stream_concurrent_duplicate_re_drives_lifecycle(monkeypatch) -> None:
+    redis_client = FakeRedis()
+    payload = {
+        "mission_id": "mission-1",
+        "prompt": "Build API",
+        "requested_target_language": "python",
+        "metadata": {"source": "test"},
+        "created_at": "2026-03-01T00:00:00+00:00",
+    }
+    redis_client.xreadgroup_responses = [
+        [("missions.intake", [("1-0", {"payload": json.dumps(payload), "envelope": "{}"})])],
+        asyncio.CancelledError(),
+    ]
+    app = _app_state(redis=redis_client, lifecycle_tasks={})
+
+    async def _to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    lifecycle_calls: list[str] = []
+    monkeypatch.setattr(runtime.asyncio, "to_thread", _to_thread)
+    monkeypatch.setattr(runtime.storage, "fetch_mission", lambda *_args: None)
+    monkeypatch.setattr(runtime.storage, "persist_intake_mission", lambda *_args: False)
+    monkeypatch.setattr(
+        runtime,
+        "start_lifecycle_task",
+        lambda _app, mission_id: lifecycle_calls.append(mission_id),
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+    assert lifecycle_calls == ["mission-1"]
+    assert redis_client.xack_calls == [("missions.intake", "orchestrator", "1-0")]
+
+
+def test_consume_intake_stream_dlq_failure_is_not_acked(monkeypatch) -> None:
+    class BrokenDlqRedis(FakeRedis):
+        async def xadd(self, *args, **kwargs):
+            raise RuntimeError("dlq stream unavailable")
+
+    redis_client = BrokenDlqRedis()
+    redis_client.xreadgroup_responses = [
+        [("missions.intake", [("1-0", {"payload": "not-json", "envelope": "{}"})])],
+        asyncio.CancelledError(),
+    ]
+    app = _app_state(redis=redis_client, lifecycle_tasks={})
+
+    async def _sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", _sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(runtime.consume_intake_stream(app))
+
+    assert redis_client.xack_calls == []
 
 
 def test_consume_intake_stream_reraises_non_nogroup_response_error() -> None:
