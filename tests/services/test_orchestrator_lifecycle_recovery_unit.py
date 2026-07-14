@@ -116,6 +116,47 @@ def test_recover_inflight_starts_lifecycle_for_pending_missions(monkeypatch) -> 
     assert app.state.lifecycle_recovery_last_error is None
 
 
+def test_recover_inflight_queries_every_resumable_v2_state(monkeypatch) -> None:
+    app.state.settings = replace(app.state.settings, auto_transition_enabled=True)
+    app.state.protocol_ready = True
+    app.state.lifecycle_tasks = {}
+
+    async def _runtime_ready(_app):
+        return True, True
+
+    captured_states: list[MissionState] = []
+
+    def _list_missions(_settings, states, _limit):
+        captured_states.extend(states)
+        return []
+
+    monkeypatch.setattr(orchestrator_lifecycle, "ensure_runtime_ready", _runtime_ready)
+    monkeypatch.setattr(
+        orchestrator_main.storage,
+        "list_missions_in_states",
+        _list_missions,
+    )
+
+    recovered = asyncio.run(orchestrator_lifecycle._recover_inflight_lifecycle_tasks(app))
+
+    assert recovered is True
+    assert captured_states == [
+        MissionState.queued,
+        MissionState.pm_intake,
+        MissionState.fetch,
+        MissionState.ceo_delegated,
+        MissionState.pod_assigned,
+        MissionState.specialist_assigned,
+        MissionState.running,
+        MissionState.gating,
+        MissionState.fusion,
+        MissionState.verified,
+    ]
+    assert MissionState.clarifying not in captured_states
+    assert MissionState.complete not in captured_states
+    assert MissionState.failed not in captured_states
+
+
 def test_lifecycle_recovery_loop_retries_until_success(monkeypatch) -> None:
     attempts = {"count": 0}
 
