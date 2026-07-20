@@ -85,7 +85,7 @@
     "undici": "7.28.0"
   },
   "dependencies": {
-    "next": "16.2.9",
+    "next": "16.2.10",
     "node-forge": "^1.4.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
