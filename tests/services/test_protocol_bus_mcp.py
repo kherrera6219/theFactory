@@ -442,6 +442,46 @@ def test_lane_stats_endpoint_without_redis_reports_none_dlq_depth() -> None:
         assert lane_payload["dlq_depth"] is None
 
 
+def test_lane_stats_dlq_xlen_failure_returns_none_dlq_depth() -> None:
+    """When redis_client.xlen raises for a DLQ stream, lane-stats must still
+    return 200 with dlq_depth=None for the affected lanes (not propagate the
+    exception). Covers the except-branch in the lane_stats handler."""
+    redis_client = FakeRedis()
+
+    original_xlen = redis_client.xlen
+
+    async def _failing_xlen(stream: str) -> int:
+        if stream.startswith("dlq:"):
+            raise RuntimeError("xlen failed")
+        return await original_xlen(stream)
+
+    redis_client.xlen = _failing_xlen
+    with TestClient(app) as client:
+        app.state.redis = redis_client
+        app.state.redis_ready = True
+        response = client.get("/lane-stats")
+    assert response.status_code == 200
+    for lane_payload in response.json()["lanes"].values():
+        assert lane_payload["dlq_depth"] is None
+
+
+def test_counter_value_by_protocol_skips_samples_without_protocol_label() -> None:
+    """_counter_value_by_protocol must silently skip counter samples that carry
+    no 'protocol' label (e.g. REQUEST_COUNTER labelled by method/path/status).
+    Covers the ``if protocol:`` false-branch at line 447."""
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        # Drive REQUEST_COUNTER so it has at least one sample labelled by
+        # method/path/status_code (no 'protocol' label).
+        client.get("/health")
+    result = mcp_main._counter_value_by_protocol(mcp_main.REQUEST_COUNTER)
+    # Samples from REQUEST_COUNTER have no 'protocol' label, so they are
+    # skipped and the returned mapping must be empty.
+    assert isinstance(result, dict)
+    assert len(result) == 0
+
+
 def test_send_message_rejects_invalid_sender_id() -> None:
     payload = _alpha_payload()
     payload["sender"] = "bad-sender"
