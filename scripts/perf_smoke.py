@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import statistics
 import time
 import uuid
@@ -17,7 +18,11 @@ class Sample:
 
 
 async def _send_mission(
-    client: httpx.AsyncClient, base_url: str, index: int, semaphore: asyncio.Semaphore
+    client: httpx.AsyncClient,
+    base_url: str,
+    index: int,
+    semaphore: asyncio.Semaphore,
+    api_key: str | None = None,
 ) -> Sample:
     payload = {
         "prompt": f"performance-smoke-{index}",
@@ -25,12 +30,15 @@ async def _send_mission(
         "metadata": {"source": "perf_smoke"},
     }
     headers = {"Idempotency-Key": f"perf-{uuid.uuid4()}"}
+    if api_key:
+        headers["X-API-Key"] = api_key
 
     async with semaphore:
         started = time.perf_counter()
         response = await client.post(f"{base_url}/v1/missions", json=payload, headers=headers)
         latency = time.perf_counter() - started
         return Sample(status_code=response.status_code, latency_seconds=latency)
+
 
 
 def _percentile(values: list[float], pct: float) -> float:
@@ -46,10 +54,11 @@ async def run(args: argparse.Namespace) -> int:
     semaphore = asyncio.Semaphore(args.concurrency)
     async with httpx.AsyncClient(timeout=args.timeout_seconds) as client:
         tasks = [
-            _send_mission(client, args.base_url.rstrip("/"), i, semaphore)
+            _send_mission(client, args.base_url.rstrip("/"), i, semaphore, api_key=args.api_key)
             for i in range(args.requests)
         ]
         samples = await asyncio.gather(*tasks, return_exceptions=True)
+
 
     latencies: list[float] = []
     status_counts: dict[int, int] = {}
@@ -97,10 +106,22 @@ async def run(args: argparse.Namespace) -> int:
 
 
 def parse_args() -> argparse.Namespace:
+    default_api_key = (
+        os.getenv("ORCHESTRATOR_ADMIN_API_KEY")
+        or os.getenv("INTERNAL_SERVICE_API_KEY")
+        or os.getenv("API_KEY")
+        or ""
+    ).strip()
+
     parser = argparse.ArgumentParser(
         description="Run a performance smoke test against API gateway."
     )
     parser.add_argument("--base-url", default="http://localhost:8100", help="API gateway base URL")
+    parser.add_argument(
+        "--api-key",
+        default=default_api_key,
+        help="X-API-Key header for gateway authentication (defaults to ORCHESTRATOR_ADMIN_API_KEY env var)",
+    )
     parser.add_argument("--requests", type=int, default=40, help="Total number of requests")
     parser.add_argument("--concurrency", type=int, default=10, help="Concurrent workers")
     parser.add_argument("--timeout-seconds", type=float, default=10.0, help="HTTP timeout")
@@ -117,6 +138,7 @@ def parse_args() -> argparse.Namespace:
         help="Maximum p95 response time in seconds",
     )
     return parser.parse_args()
+
 
 
 if __name__ == "__main__":

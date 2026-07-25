@@ -225,7 +225,8 @@ jobs:
           exit 1
 
       - name: Run performance smoke test (p95 <= 2s)
-        run: python scripts/perf_smoke.py --base-url http://localhost:8100
+        run: python scripts/perf_smoke.py --base-url http://localhost:8100 --api-key ci-admin-key
+
 
       - name: Dump stack logs on failure
         if: failure()
