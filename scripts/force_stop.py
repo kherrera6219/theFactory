@@ -55,12 +55,22 @@ def main():
         make_target = "make down-condensed"
         fallback_cmd = "docker compose --env-file .env -f deploy/docker-compose.yaml down -v"
 
-    # We try the matching 'make' target first, which is the graceful path.
-    # If 'make' isn't in path, we use the direct docker-compose command.
-    res = subprocess.run(shlex.split(make_target), check=False)  # nosec B602 B603
-    if res.returncode != 0:
-        print("Fallback: Using direct docker compose down...")
+    import shutil
+
+    # Try matching 'make' target first if make is installed, otherwise fallback to direct docker compose.
+    if shutil.which("make"):
+        try:
+            res = subprocess.run(shlex.split(make_target), check=False)  # nosec B602 B603
+            if res.returncode != 0:
+                print("Fallback: Using direct docker compose down...")
+                subprocess.run(shlex.split(fallback_cmd), check=False)  # nosec B602 B603
+        except FileNotFoundError:
+            print("Fallback: Using direct docker compose down...")
+            subprocess.run(shlex.split(fallback_cmd), check=False)  # nosec B602 B603
+    else:
+        print("GNU Make not found on PATH — using direct docker compose down...")
         subprocess.run(shlex.split(fallback_cmd), check=False)  # nosec B602 B603
+
 
     
     # 2. Aggressive Port Cleanup
