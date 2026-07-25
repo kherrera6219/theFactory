@@ -37,11 +37,13 @@ _PRICING: dict[str, dict[str, tuple[float, float]]] = {
         "claude-haiku-4-5": (0.00025, 0.00125),
     },
     "gemini": {
+        "gemini-3.6-flash": (0.00150, 0.009),          # GA July 2026 — $1.50/$9.00 per 1M
         "gemini-3.5-flash": (0.00150, 0.009),          # GA May 2026 — $1.50/$9.00 per 1M
         "gemini-3.1-pro-preview": (0.00200, 0.012),    # $2.00/$12.00 per 1M (≤200K ctx)
         "gemini-3.1-flash-lite": (0.000075, 0.0003),   # kept for legacy recorded events
         "gemini-embedding-001": (0.000025, 0.0),
     },
+
 }
 
 

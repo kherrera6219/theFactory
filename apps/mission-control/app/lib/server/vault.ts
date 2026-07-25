@@ -9,10 +9,12 @@ type VaultProvider = "openai" | "anthropic" | "gemini" | "github" | "operator";
 type VaultModel =
   | "gpt-5.5"
   | "claude-opus-4-8"
+  | "gemini-3.6-flash"
   | "gemini-3.5-flash"
   | "gemini-embedding-001"
   | "text-embedding-3-large"
   | "text-embedding-3-small";
+
 type VaultBackend = "memory" | "local-encrypted" | "hashicorp-vault";
 
 type VaultEntry = {
@@ -111,13 +113,14 @@ function normalizeModel(value: string | undefined, provider: VaultProvider): Vau
   const candidate = (value ?? "").trim();
   if (candidate === "gpt-5.5") return "gpt-5.5";
   if (candidate === "claude-opus-4-8") return "claude-opus-4-8";
+  if (candidate === "gemini-3.6-flash") return "gemini-3.6-flash";
   if (candidate === "gemini-3.5-flash") return "gemini-3.5-flash";
   if (candidate === "gemini-embedding-001") return "gemini-embedding-001";
   if (candidate === "text-embedding-3-large") return "text-embedding-3-large";
   if (candidate === "text-embedding-3-small") return "text-embedding-3-small";
   if (provider === "openai") return "gpt-5.5";
   if (provider === "anthropic") return "claude-opus-4-8";
-  if (provider === "gemini") return "gemini-3.5-flash";
+  if (provider === "gemini") return "gemini-3.6-flash";
   return undefined;
 }
 
@@ -756,7 +759,8 @@ export async function preflightProviderCall(
     }
 
     if (normalizedProvider === "gemini") {
-      const geminiModel = resolvedModel || "gemini-3.5-flash";
+      const geminiModel = resolvedModel || "gemini-3.6-flash";
+
       const response = await fetchWithTimeout(
         `${GEMINI_BASE_URL}/models/${geminiModel}:generateContent?key=${encodeURIComponent(candidate)}`,
         {

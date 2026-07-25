@@ -19,17 +19,17 @@ import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
 type ModelOption = {
   label: string;
   provider: "openai" | "anthropic" | "gemini";
-  model: "gpt-5.5" | "claude-opus-4-8" | "gemini-3.5-flash";
+  model: "gpt-5.5" | "claude-opus-4-8" | "gemini-3.6-flash" | "gemini-3.5-flash";
   endpoint: string;
   effort: "high";
 };
 
 const MODEL_OPTIONS: ModelOption[] = [
   {
-    label: "Gemini Flash 3.5",
+    label: "Gemini 3.6 Flash",
     provider: "gemini",
-    model: "gemini-3.5-flash",
-    endpoint: "POST /v1beta/models/gemini-3.5-flash:generateContent",
+    model: "gemini-3.6-flash",
+    endpoint: "POST /v1beta/models/gemini-3.6-flash:generateContent",
     effort: "high",
   },
   {
@@ -47,6 +47,7 @@ const MODEL_OPTIONS: ModelOption[] = [
     effort: "high",
   },
 ];
+
 
 const DEFAULT_MODEL_OPTION = MODEL_OPTIONS[0];
 

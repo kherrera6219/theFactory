@@ -23,11 +23,11 @@ _POD_TOPICS: Final[dict[str, str]] = {
 _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
     "gemini_flash_high": {
         "provider": "gemini",
-        "model": "gemini-3.5-flash",
+        "model": "gemini-3.6-flash",
         "mode": "thinking",
         "thinking_level": "high",
         "reason": (
-            "Test default: route all agents to Gemini Flash 3.5 with high thinking "
+            "Test default: route all agents to Gemini 3.6 Flash with high thinking "
             "for efficient, single-provider validation."
         ),
     },
@@ -71,38 +71,39 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
     },
     "gemini_ops_fast": {
         "provider": "gemini",
-        "model": "gemini-3.5-flash",
+        "model": "gemini-3.6-flash",
         "mode": "thinking",
         "thinking_level": "low",
         "fallback_provider": "openai",
         "fallback_model": "gpt-5.5",
-        "reason": "Latest GA Flash model (Google I/O May 2026) — best throughput for high-volume operational and routing traffic.",
+        "reason": "Gemini 3.6 Flash — best throughput for high-volume operational and routing traffic.",
     },
     "gemini_ops_balanced": {
         "provider": "gemini",
-        "model": "gemini-3.5-flash",
+        "model": "gemini-3.6-flash",
         "mode": "thinking",
         "thinking_level": "medium",
         "fallback_provider": "openai",
         "fallback_model": "gpt-5.5",
-        "reason": "Latest GA Flash model (Google I/O May 2026) — balanced quality/speed for delivery and release coordination.",
+        "reason": "Gemini 3.6 Flash — balanced quality/speed for delivery and release coordination.",
     },
     "gemini_stem": {
         "provider": "gemini",
-        "model": "gemini-3.5-flash",
+        "model": "gemini-3.6-flash",
         "mode": "thinking",
         "thinking_level": "high",
         "fallback_provider": "openai",
         "fallback_model": "gpt-5.5",
-        "reason": "GA Flash model (Google I/O May 2026) — strong technical and mathematical reasoning at lower latency than pro-preview.",
+        "reason": "Gemini 3.6 Flash — strong technical and mathematical reasoning.",
     },
     "gemini_knowledge": {
         "provider": "gemini",
-        "model": "gemini-3.5-flash",
+        "model": "gemini-3.6-flash",
         "mode": "thinking",
         "thinking_level": "high",
         "fallback_provider": "openai",
         "fallback_model": "gpt-5.5",
+
         "reason": "GA Flash model (Google I/O May 2026) — large-context knowledge indexing, retrieval, and synthesis.",
     },
 }
