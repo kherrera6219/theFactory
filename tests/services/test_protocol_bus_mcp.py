@@ -899,3 +899,43 @@ def test_send_ignores_signature_when_disabled(monkeypatch) -> None:
             json=_alpha_payload(),
         )
     assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Backpressure gate (Phase 4)
+# ---------------------------------------------------------------------------
+def test_send_message_returns_503_when_backpressure_limit_exceeded(monkeypatch) -> None:
+    """When any channel's queue depth exceeds BACKPRESSURE_QUEUE_LIMIT the
+    /send endpoint must reject the request with 503 and a Retry-After header."""
+    monkeypatch.setattr(mcp_main, "BACKPRESSURE_QUEUE_LIMIT", -1)
+    with TestClient(app) as client:
+        app.state.redis = FakeRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
+            json=_alpha_payload(),
+        )
+    assert response.status_code == 503
+    assert "backpressure limit exceeded" in response.json()["detail"]
+    assert response.headers.get("retry-after") == "5"
+
+
+def test_send_message_returns_503_when_backpressure_xlen_raises() -> None:
+    """When xlen raises during the backpressure check the endpoint must fail
+    closed with 503 rather than silently letting the message through."""
+
+    class XlenFailingRedis(FakeRedis):
+        async def xlen(self, stream: str) -> int:
+            raise RuntimeError("simulated xlen failure")
+
+    with TestClient(app) as client:
+        app.state.redis = XlenFailingRedis()
+        app.state.redis_ready = True
+        response = client.post(
+            "/send",
+            headers={"x-agent-id": "AGENT-02-CEO", "x-api-key": mcp_main.MCP_API_KEY},
+            json=_alpha_payload(),
+        )
+    assert response.status_code == 503
+    assert "Backpressure service unavailable" in response.json()["detail"]
