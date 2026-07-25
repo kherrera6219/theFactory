@@ -414,6 +414,18 @@ async function setupMissionControlApiMocks(page: Page, options: MockOptions = {}
     });
   });
 
+  await page.route("**/api/vault/test", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") {
+      return fulfillJson(route, 405, { detail: "Method not allowed." });
+    }
+    return fulfillJson(route, 200, {
+      valid: true,
+      reason: "Key format looks valid.",
+      live_checked: false,
+    });
+  });
+
   await page.route(/(?:http:\/\/(?:localhost|127\.0\.0\.1):8100\/.*|.*\/api\/gateway\/.*)/, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
