@@ -176,11 +176,18 @@ jobs:
               # license-checker may report a string or a list of strings.
               values = license_field if isinstance(license_field, list) else [license_field]
               for value in values:
-                  text = str(value or "")
+                  text = str(value or "").strip("()")
+                  # Handle dual licensing (e.g. "BSD-3-Clause OR GPL-2.0"):
+                  # If at least one OR option is permissive, the package is acceptable.
+                  if " OR " in text:
+                      options = [opt.strip("()") for opt in text.split(" OR ")]
+                      if any(not any(p in opt for p in BLOCKED_PREFIXES) for opt in options):
+                          continue
                   for prefix in BLOCKED_PREFIXES:
                       if prefix in text:
                           return True
               return False
+
           violations = [
               f"{name} ({meta.get('licenses', 'UNKNOWN')})"
               for name, meta in data.items()
