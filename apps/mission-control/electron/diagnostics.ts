@@ -144,3 +144,60 @@ export function generateDiagnostics(): string {
 
   return dir;
 }
+
+export type DockerPreflightResult = {
+  dockerAvailable: boolean;
+  dockerRunning: boolean;
+  wsl2Available: boolean;
+  message: string;
+};
+
+export function checkDockerPrerequisites(): DockerPreflightResult {
+  const { execSync } = require("child_process");
+  try {
+    const versionOutput = execSync("docker --version", { encoding: "utf-8", stdio: ["pipe", "pipe", "ignore"] });
+    const dockerAvailable = String(versionOutput).includes("Docker version");
+
+    let dockerRunning = false;
+    try {
+      execSync("docker info", { encoding: "utf-8", stdio: ["pipe", "pipe", "ignore"] });
+      dockerRunning = true;
+    } catch {
+      dockerRunning = false;
+    }
+
+    let wsl2Available = false;
+    if (process.platform === "win32") {
+      try {
+        const wslOutput = execSync("wsl --list --quiet", { encoding: "utf-8", stdio: ["pipe", "pipe", "ignore"] });
+        wsl2Available = Boolean(String(wslOutput).trim());
+      } catch {
+        wsl2Available = false;
+      }
+    } else {
+      wsl2Available = true;
+    }
+
+    let message = "Docker and prerequisites verified.";
+    if (!dockerAvailable) {
+      message = "Docker CLI not found. Please install Docker Desktop.";
+    } else if (!dockerRunning) {
+      message = "Docker daemon is not running. Please start Docker Desktop.";
+    }
+
+    return {
+      dockerAvailable,
+      dockerRunning,
+      wsl2Available,
+      message,
+    };
+  } catch {
+    return {
+      dockerAvailable: false,
+      dockerRunning: false,
+      wsl2Available: false,
+      message: "Docker CLI check failed.",
+    };
+  }
+}
+

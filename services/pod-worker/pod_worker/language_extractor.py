@@ -682,6 +682,74 @@ class OCamlExtractor(LanguageExtractor):
     _import_pattern = re.compile(r"^\s*open\s+[\w.]+", re.MULTILINE)
 
 
+class GoAstExtractor(GoExtractor):
+    """Go extractor with AST-backed structural enrichment."""
+
+    def extract(
+        self,
+        source: str,
+        focus_domains: list[str] | None = None,
+        doc_context: str | None = None,
+    ) -> ExtractionResult:
+        result = super().extract(source, focus_domains=focus_domains, doc_context=doc_context)
+        try:
+            from .go_ast_extractor import extract_go_ast
+        except ImportError:
+            LOGGER.warning("go_ast_extractor not available; using regex-only extraction")
+            return result
+
+        ast_result = extract_go_ast(source)
+        if not ast_result:
+            return result
+
+        result.functions = [
+            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            for item in ast_result.functions
+        ]
+        result.classes = [
+            ClassInfo(
+                name=item.name,
+                line=item.line,
+                parents=(),
+            )
+            for item in ast_result.structs
+        ]
+        result.imports = ast_result.imports
+        return result
+
+
+class HaskellAstExtractor(HaskellExtractor):
+    """Haskell extractor with AST-backed structural enrichment."""
+
+    def extract(
+        self,
+        source: str,
+        focus_domains: list[str] | None = None,
+        doc_context: str | None = None,
+    ) -> ExtractionResult:
+        result = super().extract(source, focus_domains=focus_domains, doc_context=doc_context)
+        try:
+            from .haskell_ast_extractor import extract_haskell_ast
+        except ImportError:
+            LOGGER.warning("haskell_ast_extractor not available; using regex-only extraction")
+            return result
+
+        ast_result = extract_haskell_ast(source)
+        if not ast_result:
+            return result
+
+        result.functions = [
+            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            for item in ast_result.functions
+        ]
+        result.classes = [
+            ClassInfo(name=item.name, line=item.line, parents=())
+            for item in ast_result.types
+        ]
+        result.imports = ast_result.imports
+        return result
+
+
 # ---------------------------------------------------------------------------
 # Extractor registry — language name → extractor class
 # ---------------------------------------------------------------------------
@@ -695,7 +763,7 @@ _EXTRACTORS: Final[dict[str, type[LanguageExtractor]]] = {
     "c": CExtractor,
     "cpp": CppExtractor,
     "rust": RustExtractor,
-    "go": GoExtractor,
+    "go": GoAstExtractor,
     "zig": ZigExtractor,
     "java": JavaExtractor,
     "csharp": CSharpExtractor,
@@ -705,7 +773,7 @@ _EXTRACTORS: Final[dict[str, type[LanguageExtractor]]] = {
     "r": RExtractor,
     "julia": JuliaExtractor,
     "mathematica": MathematicaExtractor,
-    "haskell": HaskellExtractor,
+    "haskell": HaskellAstExtractor,
     "ocaml": OCamlExtractor,
 }
 
@@ -720,3 +788,4 @@ def get_extractor(language: str) -> LanguageExtractor:
 def supported_languages() -> list[str]:
     """Return sorted list of languages with dedicated extractors."""
     return sorted(_EXTRACTORS.keys())
+

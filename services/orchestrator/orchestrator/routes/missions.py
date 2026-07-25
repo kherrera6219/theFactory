@@ -339,3 +339,43 @@ async def get_mission_token_usage(mission_id: str, request: Request) -> Any:
     from ..llm_cost_ledger import get_mission_token_usage as _get_usage
     settings = request.app.state.settings
     return await _get_usage(settings=settings, mission_id=mission_id)
+
+
+@router.get("/missions/{mission_id}/export/helm", dependencies=[INTERNAL_AUTH_DEP])
+async def export_mission_helm_chart(mission_id: str, request: Request) -> Response:
+    """Generate and return a Helm Chart archive (.tgz) for downstream deployment."""
+    from ..deploy_exporter import generate_helm_chart_archive
+    settings = request.app.state.settings
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        raise HTTPException(status_code=404, detail=f"mission {mission_id} not found")
+
+    chart_bytes = generate_helm_chart_archive(mission_id, mission.to_dict())
+    sanitized_id = "".join(c for c in mission_id if c.isalnum() or c == "-")
+    return Response(
+        content=chart_bytes,
+        media_type="application/gzip",
+        headers={
+            "Content-Disposition": f'attachment; filename="helm-chart-{sanitized_id}.tgz"'
+        },
+    )
+
+
+@router.get("/missions/{mission_id}/export/github-actions", dependencies=[INTERNAL_AUTH_DEP])
+async def export_mission_github_actions(mission_id: str, request: Request) -> Response:
+    """Generate and return a GitHub Actions workflow YAML for downstream deployment."""
+    from ..deploy_exporter import generate_github_actions_workflow
+    settings = request.app.state.settings
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        raise HTTPException(status_code=404, detail=f"mission {mission_id} not found")
+
+    workflow_yaml = generate_github_actions_workflow(mission_id, mission.to_dict())
+    return Response(
+        content=workflow_yaml,
+        media_type="text/yaml",
+        headers={
+            "Content-Disposition": f'attachment; filename="deploy-workflow-{mission_id}.yml"'
+        },
+    )
+

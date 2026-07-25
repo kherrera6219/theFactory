@@ -5,7 +5,7 @@ import path from "path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { setupTray } from "./tray";
 import { setupUpdater } from "./updater";  // version IPC only — auto-update disabled
-import { installCrashHandlers, generateDiagnostics } from "./diagnostics";
+import { installCrashHandlers, generateDiagnostics, checkDockerPrerequisites } from "./diagnostics";
 import { IPC_CHANNELS } from "../app/lib/electron-bridge";
 import { ensureTlsCertificates } from "./tls-certs";
 import { generateEnvFile, type LlmProviderKeys } from "./env-generator";
@@ -13,6 +13,7 @@ import { SETUP_WIZARD_CHANNELS, STARTING_WINDOW_CHANNEL } from "./wizard-ipc-cha
 
 // A8 — install application-boundary crash handlers before anything else can throw.
 installCrashHandlers();
+
 
 const isDev = process.env.ELECTRON_DEV === "1";
 const isE2E = process.env.ELECTRON_E2E === "1";
