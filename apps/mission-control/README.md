@@ -62,8 +62,9 @@ served from `out/` rather than started with `next start`.
 - `VAULT_ADMIN_KEY` (optional break-glass header auth for scripted `/api/vault` access)
 - Vault model metadata:
   - Supported UI model routes: `gpt-5.5`, `claude-opus-4-8`,
-    `gemini-3.5-flash`
-  - Runtime default: all 41 agents use `gemini-3.5-flash` with high thinking
+    `gemini-3.6-flash`
+  - Runtime default: all 41 agents use `gemini-3.6-flash` with high thinking
+
 - Required vault slots for local mission testing:
   - Agent API key slots (`AGENT-01-PM-API-KEY` through `AGENT-41-RQCA-API-KEY`)
     for the approved 3-model catalog.
