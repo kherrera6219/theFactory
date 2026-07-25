@@ -29,7 +29,7 @@ def test_parse_args_defaults(monkeypatch) -> None:
 
 
 def test_run_returns_zero_when_thresholds_met(monkeypatch, capsys) -> None:
-    async def _send_success(_client, _base_url, _index, _semaphore):
+    async def _send_success(_client, _base_url, _index, _semaphore, **_kwargs):
         return perf_smoke.Sample(status_code=200, latency_seconds=0.05)
 
     monkeypatch.setattr(perf_smoke, "_send_mission", _send_success)
@@ -40,6 +40,7 @@ def test_run_returns_zero_when_thresholds_met(monkeypatch, capsys) -> None:
         timeout_seconds=5.0,
         min_success_rate=99.0,
         max_p95_seconds=1.0,
+        api_key=None,
     )
 
     exit_code = asyncio.run(perf_smoke.run(args))
@@ -49,7 +50,7 @@ def test_run_returns_zero_when_thresholds_met(monkeypatch, capsys) -> None:
 
 
 def test_run_returns_one_when_success_rate_or_latency_fail(monkeypatch, capsys) -> None:
-    async def _send_mixed(_client, _base_url, index, _semaphore):
+    async def _send_mixed(_client, _base_url, index, _semaphore, **_kwargs):
         if index == 0:
             return perf_smoke.Sample(status_code=500, latency_seconds=0.2)
         return perf_smoke.Sample(status_code=200, latency_seconds=2.5)
@@ -62,6 +63,7 @@ def test_run_returns_one_when_success_rate_or_latency_fail(monkeypatch, capsys) 
         timeout_seconds=5.0,
         min_success_rate=99.0,
         max_p95_seconds=1.0,
+        api_key=None,
     )
 
     exit_code = asyncio.run(perf_smoke.run(args))
