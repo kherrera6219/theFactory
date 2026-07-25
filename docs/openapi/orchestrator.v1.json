@@ -3949,6 +3949,114 @@
         "summary": "Get Mission Events"
       }
     },
+    "/missions/{mission_id}/export/github-actions": {
+      "get": {
+        "description": "Generate and return a GitHub Actions workflow YAML for downstream deployment.",
+        "operationId": "export_mission_github_actions_missions__mission_id__export_github_actions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Mission Github Actions"
+      }
+    },
+    "/missions/{mission_id}/export/helm": {
+      "get": {
+        "description": "Generate and return a Helm Chart archive (.tgz) for downstream deployment.",
+        "operationId": "export_mission_helm_chart_missions__mission_id__export_helm_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Mission Helm Chart"
+      }
+    },
     "/missions/{mission_id}/runtime-qc": {
       "get": {
         "operationId": "get_public_runtime_qc_missions__mission_id__runtime_qc_get",

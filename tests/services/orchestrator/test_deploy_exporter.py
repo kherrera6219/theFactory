@@ -2,7 +2,11 @@
 
 import io
 import tarfile
-from orchestrator.deploy_exporter import generate_github_actions_workflow, generate_helm_chart_archive
+
+from orchestrator.deploy_exporter import (
+    generate_github_actions_workflow,
+    generate_helm_chart_archive,
+)
 
 
 def test_generate_helm_chart_archive():

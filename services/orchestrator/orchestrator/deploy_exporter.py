@@ -9,7 +9,6 @@ Allows seamless downstream continuous deployment from theFactory into Kubernetes
 from __future__ import annotations
 
 import io
-import json
 import tarfile
 from typing import Any
 

@@ -464,6 +464,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/operations/alerts/{alert_id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Update Operations Alert State */
+        post: operations["update_operations_alert_state_v1_operations_alerts__alert_id__state_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/operations/events": {
         parameters: {
             query?: never;
@@ -604,6 +621,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AlertStateUpdate */
+        AlertStateUpdate: {
+            /** State */
+            state: string;
+        };
         /** BuilderPreviewRequest */
         BuilderPreviewRequest: {
             /** Constraints */
@@ -801,7 +823,10 @@ export interface operations {
     create_builder_preview_v1_builder_preview_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -1000,6 +1025,8 @@ export interface operations {
             query?: never;
             header?: {
                 "Idempotency-Key"?: string | null;
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1099,7 +1126,10 @@ export interface operations {
             query?: {
                 artifact_type?: string;
             };
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
             };
@@ -1146,7 +1176,10 @@ export interface operations {
             query?: {
                 limit?: number;
             };
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
             };
@@ -1195,7 +1228,10 @@ export interface operations {
             query?: {
                 limit?: number;
             };
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
             };
@@ -1244,7 +1280,10 @@ export interface operations {
             query?: {
                 limit?: number;
             };
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
             };
@@ -1293,7 +1332,10 @@ export interface operations {
             query?: {
                 limit?: number;
             };
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
             };
@@ -1340,7 +1382,10 @@ export interface operations {
     get_mission_build_artifact_v1_missions__mission_id__build_artifacts__artifact_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
                 artifact_id: string;
@@ -1388,7 +1433,10 @@ export interface operations {
     get_mission_chain_trace_v1_missions__mission_id__chain_trace_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
             };
@@ -1489,7 +1537,10 @@ export interface operations {
             query?: {
                 limit?: number;
             };
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
             };
@@ -1538,7 +1589,10 @@ export interface operations {
             query?: {
                 limit?: number;
             };
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
             };
@@ -1587,7 +1641,10 @@ export interface operations {
             query?: {
                 limit?: number;
             };
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
             };
@@ -1634,7 +1691,10 @@ export interface operations {
     get_mission_pod_assignment_v1_missions__mission_id__pod_assignment_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path: {
                 mission_id: string;
             };
@@ -1980,6 +2040,60 @@ export interface operations {
             };
         };
     };
+    update_operations_alert_state_v1_operations_alerts__alert_id__state_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertStateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Missing or invalid X-API-Key header. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description API key lacks the required role for this operation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_operations_events_v1_operations_events_get: {
         parameters: {
             query?: {
@@ -2287,7 +2401,10 @@ export interface operations {
     create_pm_feature_contract_v1_pm_feature_contract_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "x-api-key"?: string | null;
+                Authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
