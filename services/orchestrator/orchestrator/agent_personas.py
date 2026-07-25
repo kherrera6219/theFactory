@@ -815,7 +815,8 @@ def _cache_hints_for_agent(agent: AgentDefinition) -> list[str]:
 def _model_routing(llm_recommendation: dict[str, Any]) -> dict[str, Any]:
     route: dict[str, Any] = {
         "provider": str(llm_recommendation.get("provider", "gemini")),
-        "model": str(llm_recommendation.get("model", "gemini-3.5-flash")),
+        "model": str(llm_recommendation.get("model", "gemini-3.6-flash")),
+
     }
     mode = llm_recommendation.get("mode")
     if isinstance(mode, str) and mode:
@@ -941,7 +942,8 @@ def _master_instruction(
     llm_recommendation: dict[str, Any],
 ) -> str:
     provider = str(llm_recommendation.get("provider", "gemini"))
-    model = str(llm_recommendation.get("model", "gemini-3.5-flash"))
+    model = str(llm_recommendation.get("model", "gemini-3.6-flash"))
+
     protocol = _protocol_profile(agent, protocols)["primary_code"]
 
     if agent.category == "specialist":

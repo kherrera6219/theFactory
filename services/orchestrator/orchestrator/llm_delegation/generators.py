@@ -74,7 +74,8 @@ async def generate_pm_feature_contract(
 ) -> dict[str, Any]:
     recommendation = _pkg()._pm_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+
     # OWASP LLM01 — scan the operator-supplied mission description (and any
     # attached file content) before it is embedded in the prompt. On a blocked
     # injection, fall back to the deterministic contract instead of delegating.
@@ -150,7 +151,8 @@ async def generate_pod_group_standard(
     normalized_pod_manager_agent_id = pod_manager_agent_id.strip().upper()
     recommendation = _pkg()._agent_recommendation(normalized_pod_manager_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+
     prompt = _build_pod_group_standard_prompt(
         pod_name=pod_name,
         pod_manager_agent_id=normalized_pod_manager_agent_id,
@@ -201,7 +203,8 @@ async def generate_code_from_contract(
 ) -> dict[str, Any]:
     recommendation = _pkg()._agent_recommendation(specialist_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+
     prompt = _build_codegen_prompt(
         mission_context=mission_context,
         mission_contract=mission_contract,
@@ -252,7 +255,8 @@ async def generate_logic_clusters(
 ) -> dict[str, Any]:
     recommendation = _pkg()._ceo_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+
     prompt = _build_logic_clusters_prompt(
         mission_context=mission_context,
         mission_contract=mission_contract,
@@ -296,7 +300,8 @@ async def generate_mission_contract(
 ) -> dict[str, Any]:
     recommendation = _pkg()._ceo_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+
     contract_prompt = _build_mission_contract_prompt(
         mission_context=mission_context,
         prompt=prompt,
@@ -339,7 +344,8 @@ async def generate_ceo_delegation(
 ) -> dict[str, Any]:
     recommendation = _pkg()._ceo_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+
     prompt = _build_prompt(
         mission_context=mission_context,
         recommended_provider=provider,
@@ -405,7 +411,8 @@ async def generate_pod_manager_delegation(
 
     recommendation = _pkg()._agent_recommendation(normalized_pod_manager_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+
     prompt = _build_pod_manager_prompt(
         mission_context=mission_context,
         pod_manager_agent_id=normalized_pod_manager_agent_id,
@@ -469,7 +476,8 @@ async def generate_specialist_plan(
 
     recommendation = _pkg()._agent_recommendation(normalized_specialist_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.5-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+
     prompt = _build_specialist_prompt(
         mission_context=mission_context,
         specialist_agent_id=normalized_specialist_agent_id,
