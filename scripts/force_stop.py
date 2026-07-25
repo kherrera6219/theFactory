@@ -1,3 +1,4 @@
+import shlex
 import subprocess
 import sys
 import time
@@ -56,10 +57,11 @@ def main():
 
     # We try the matching 'make' target first, which is the graceful path.
     # If 'make' isn't in path, we use the direct docker-compose command.
-    res = subprocess.run(make_target, shell=True)
+    res = subprocess.run(shlex.split(make_target), check=False)  # nosec B602 B603
     if res.returncode != 0:
         print("Fallback: Using direct docker compose down...")
-        subprocess.run(fallback_cmd, shell=True)
+        subprocess.run(shlex.split(fallback_cmd), check=False)  # nosec B602 B603
+
     
     # 2. Aggressive Port Cleanup
     print("\n[2/3] Cleaning up lingering local processes and port bindings...")
