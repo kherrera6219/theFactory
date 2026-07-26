@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -440,6 +441,51 @@ def test_lane_stats_endpoint_without_redis_reports_none_dlq_depth() -> None:
     assert payload["redis_ready"] is False
     for lane_payload in payload["lanes"].values():
         assert lane_payload["dlq_depth"] is None
+
+
+def test_lane_stats_endpoint_xlen_exception_yields_none_dlq_depth() -> None:
+    """When xlen raises during /lane-stats the lane dlq_depth must be None
+    (exception caught and logged) rather than propagating a 500."""
+
+    class XlenFailingRedis(FakeRedis):
+        async def xlen(self, stream: str) -> int:
+            raise RuntimeError("simulated xlen failure in lane-stats")
+
+    with TestClient(app) as client:
+        app.state.redis = XlenFailingRedis()
+        app.state.redis_ready = True
+        response = client.get("/lane-stats")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["redis_ready"] is True
+    for lane_payload in payload["lanes"].values():
+        assert lane_payload["dlq_depth"] is None
+
+
+def test_counter_value_by_protocol_skips_samples_without_protocol_label() -> None:
+    """_counter_value_by_protocol must silently skip samples that carry no
+    'protocol' label, covering the ``if protocol:`` false branch."""
+    # Build a fake Counter whose collect() yields one sample without a protocol
+    # label and one with a valid protocol label.
+    fake_sample_no_protocol = MagicMock()
+    fake_sample_no_protocol.name = "messages_queued_total"
+    fake_sample_no_protocol.labels = {}  # no "protocol" key → get() returns None
+    fake_sample_no_protocol.value = 99.0
+
+    fake_sample_with_protocol = MagicMock()
+    fake_sample_with_protocol.name = "messages_queued_total"
+    fake_sample_with_protocol.labels = {"protocol": "alpha"}
+    fake_sample_with_protocol.value = 7.0
+
+    fake_metric_family = MagicMock()
+    fake_metric_family.samples = [fake_sample_no_protocol, fake_sample_with_protocol]
+
+    fake_counter = MagicMock()
+    fake_counter.collect.return_value = [fake_metric_family]
+
+    result = mcp_main._counter_value_by_protocol(fake_counter)
+    # The sample without a protocol label must be ignored.
+    assert result == {"alpha": 7.0}
 
 
 def test_send_message_rejects_invalid_sender_id() -> None:
