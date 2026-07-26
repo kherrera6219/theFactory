@@ -2,12 +2,14 @@
 FROM python:3.11-slim-bookworm@sha256:721dc13fd1be0a771e54b72097634291d628d0007dee9da777e2ce676a9c998f AS builder
 RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
+RUN pip install --no-cache-dir --upgrade "pip>=26.1.2"
 COPY services/dashboard/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: lean runtime image — no pip, no build artefacts
 FROM python:3.11-slim-bookworm@sha256:721dc13fd1be0a771e54b72097634291d628d0007dee9da777e2ce676a9c998f
 WORKDIR /app
+RUN pip install --no-cache-dir --upgrade "pip>=26.1.2"
 ENV PATH=/opt/venv/bin:$PATH
 COPY --from=builder /opt/venv /opt/venv
 COPY services/dashboard /app
