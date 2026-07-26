@@ -9,3 +9,8 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+_POD_WORKER_PATH = _REPO_ROOT / "services" / "pod-worker"
+if str(_POD_WORKER_PATH) not in sys.path:
+    sys.path.insert(0, str(_POD_WORKER_PATH))
+

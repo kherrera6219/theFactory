@@ -750,6 +750,70 @@ class HaskellAstExtractor(HaskellExtractor):
         return result
 
 
+class OCamlAstExtractor(OCamlExtractor):
+    """OCaml extractor with AST-backed structural enrichment."""
+
+    def extract(
+        self,
+        source: str,
+        focus_domains: list[str] | None = None,
+        doc_context: str | None = None,
+    ) -> ExtractionResult:
+        result = super().extract(source, focus_domains=focus_domains, doc_context=doc_context)
+        try:
+            from .ocaml_ast_extractor import extract_ocaml_ast
+        except ImportError:
+            LOGGER.warning("ocaml_ast_extractor not available; using regex-only extraction")
+            return result
+
+        ast_result = extract_ocaml_ast(source)
+        if not ast_result:
+            return result
+
+        result.functions = [
+            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            for item in ast_result.functions
+        ]
+        result.classes = [
+            ClassInfo(name=item.name, line=item.line, parents=())
+            for item in ast_result.types
+        ]
+        result.imports = ast_result.imports
+        return result
+
+
+class JuliaAstExtractor(JuliaExtractor):
+    """Julia extractor with AST-backed structural enrichment."""
+
+    def extract(
+        self,
+        source: str,
+        focus_domains: list[str] | None = None,
+        doc_context: str | None = None,
+    ) -> ExtractionResult:
+        result = super().extract(source, focus_domains=focus_domains, doc_context=doc_context)
+        try:
+            from .julia_ast_extractor import extract_julia_ast
+        except ImportError:
+            LOGGER.warning("julia_ast_extractor not available; using regex-only extraction")
+            return result
+
+        ast_result = extract_julia_ast(source)
+        if not ast_result:
+            return result
+
+        result.functions = [
+            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            for item in ast_result.functions
+        ]
+        result.classes = [
+            ClassInfo(name=item.name, line=item.line, parents=())
+            for item in ast_result.structs
+        ]
+        result.imports = ast_result.imports
+        return result
+
+
 # ---------------------------------------------------------------------------
 # Extractor registry — language name → extractor class
 # ---------------------------------------------------------------------------
@@ -771,11 +835,12 @@ _EXTRACTORS: Final[dict[str, type[LanguageExtractor]]] = {
     "kotlin": KotlinExtractor,
     "matlab": MatlabExtractor,
     "r": RExtractor,
-    "julia": JuliaExtractor,
+    "julia": JuliaAstExtractor,
     "mathematica": MathematicaExtractor,
     "haskell": HaskellAstExtractor,
-    "ocaml": OCamlExtractor,
+    "ocaml": OCamlAstExtractor,
 }
+
 
 
 def get_extractor(language: str) -> LanguageExtractor:
