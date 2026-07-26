@@ -1,11 +1,10 @@
 """test_ast_extractors_extended.py — Unit tests for Haskell, OCaml, Julia, Go, and Java AST extractors."""
-import pytest
 
 from pod_worker.go_ast_extractor import extract_go_ast
 from pod_worker.haskell_ast_extractor import extract_haskell_ast
-from pod_worker.ocaml_ast_extractor import extract_ocaml_ast
 from pod_worker.julia_ast_extractor import extract_julia_ast
 from pod_worker.language_extractor import get_extractor
+from pod_worker.ocaml_ast_extractor import extract_ocaml_ast
 from pod_worker.toolchains import run_toolchain_check
 
 
