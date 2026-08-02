@@ -108,7 +108,7 @@ Language routing:
 - **Pod A — Dynamic**: Python, JavaScript, TypeScript, Ruby, PHP
 - **Pod B — Systems**: C, C++, Rust, Go, Zig
 - **Pod C — Enterprise**: Java, C#, Scala, Kotlin
-- **Pod D — Mathematical**: R, MATLAB, Julia, Haskell, OCaml
+- **Pod D — Mathematical & Functional**: R, MATLAB, Julia, Mathematica, Haskell, OCaml
 
 
 ### 5. Professional Grounding (Certified Experts)

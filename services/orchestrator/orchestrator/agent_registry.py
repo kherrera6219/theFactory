@@ -357,7 +357,10 @@ AGENT_REGISTRY: Final[tuple[AgentDefinition, ...]] = (
         name="Pod D Sub-Manager",
         tier="Refinement Pod",
         pod="Pod D",
-        role="Coordinate mathematical-language extraction and fusion in Pod D",
+        # "mathematical-language" until 2026-08-01. Pod D also holds Haskell and
+        # OCaml, which are functional rather than mathematical (UPG-23). The
+        # pod key "Pod D" is a routing identifier and deliberately unchanged.
+        role="Coordinate mathematical and functional language extraction and fusion in Pod D",
         category="pod_manager",
     ),
     AgentDefinition(

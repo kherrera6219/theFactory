@@ -772,7 +772,7 @@ class OcamlAgent(SpecialistAgent):
     extraction_guidance = "Strong static inference and module-system-driven reliability."
 
 
-# Pod D — Mathematical languages
+# Pod D — Mathematical & Functional languages
 
 
 class MatlabAgent(SpecialistAgent):

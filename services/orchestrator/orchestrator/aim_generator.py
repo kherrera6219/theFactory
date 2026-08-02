@@ -57,7 +57,7 @@ _LANGUAGE_BY_SUFFIX = {
     ".scala": "scala",
     ".kt": "kotlin",
     ".kts": "kotlin",
-    # Pod D — Mathematical
+    # Pod D — Mathematical & Functional
     ".r": "r",
     ".R": "r",
     ".jl": "julia",

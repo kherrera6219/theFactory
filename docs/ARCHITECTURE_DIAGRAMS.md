@@ -259,7 +259,7 @@ flowchart TB
         C29["29 Kotlin"]
     end
 
-    subgraph PodD["Pod D Mathematical (8)"]
+    subgraph PodD["Pod D Mathematical & Functional (8)"]
         D30["30 PodD Manager"]
         D31["31 PodD Audit"]
         D32["32 MATLAB"]

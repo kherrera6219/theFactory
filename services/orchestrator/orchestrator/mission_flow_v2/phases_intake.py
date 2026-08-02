@@ -26,6 +26,7 @@ from ..mission_flow import (
 )
 from ..models import MissionState
 from ..port_coordinator import _setup_port_two_phase
+from ..protocol import to_event_priority
 from .base import (
     _chain_event_exists,
     _extract_cross_pod_flags,
@@ -102,7 +103,9 @@ async def _emit_partition_work_items(
                 f"registry://missions/{mission.mission_id}/partitions/{partition.partition_id}"
             ),
             "schema": "missions.partition.v1",
-            "priority": settings.default_priority,
+            # Normalised so a lowercase DEFAULT_EVENT_PRIORITY cannot silently
+            # fail validation below and drop the partition envelope (UPG-22).
+            "priority": to_event_priority(settings.default_priority),
         }
         try:
             validator.validate(envelope)

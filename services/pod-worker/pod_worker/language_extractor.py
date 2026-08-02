@@ -624,7 +624,7 @@ class KotlinExtractor(LanguageExtractor):
 
 
 # ---------------------------------------------------------------------------
-# Pod D — Mathematical Language Extractors
+# Pod D — Mathematical & Functional Language Extractors
 # ---------------------------------------------------------------------------
 
 

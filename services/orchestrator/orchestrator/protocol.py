@@ -9,6 +9,7 @@ from typing import Any
 
 from shared_runtime.protocol import ProtocolValidationError as _SharedProtocolValidationError
 from shared_runtime.protocol import parse_date_time as _shared_parse_date_time
+from shared_runtime.protocol import to_event_priority as _to_event_priority
 from shared_runtime.protocol import validate_envelope as _shared_validate_envelope
 
 from .models import MissionRecord
@@ -20,6 +21,9 @@ PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 # Re-exported so existing callers/tests can catch the orchestrator-local name while
 # the shared jsonschema validator raises the canonical shared error type.
 ProtocolValidationError = _SharedProtocolValidationError
+
+# Re-exported so orchestrator modules normalise priority through one import path.
+to_event_priority = _to_event_priority
 
 
 def _parse_date_time(value: str) -> datetime:
@@ -62,7 +66,15 @@ class EnvelopeValidator:
 
     def build_state_envelope(self, mission: MissionRecord, event_type: str) -> dict[str, Any]:
         topic = self.settings.topic_for_state(mission.state.value)
-        priority = "HIGH" if mission.state.value == "FAILED" else self.settings.default_priority
+        # DEFAULT_EVENT_PRIORITY is operator-settable and was previously written
+        # through unvalidated: setting it to a lowercase bus value ("normal")
+        # made every state envelope fail schema validation. Normalising here
+        # accepts either vocabulary and is a no-op for NORMAL/HIGH (UPG-22).
+        priority = (
+            "HIGH"
+            if mission.state.value == "FAILED"
+            else _to_event_priority(self.settings.default_priority)
+        )
 
         envelope = {
             "event_id": f"evt-{uuid.uuid4()}",
@@ -98,7 +110,12 @@ class EnvelopeValidator:
                     "payload_ref", f"registry://missions/{mission_id}/intake"
                 ),
                 "schema": raw_fields.get("schema", "missions.intake.v1"),
-                "priority": raw_fields.get("priority", self.settings.default_priority),
+                # Normalised for the same reason as build_state_envelope: the
+                # raw field arrives from another service and may carry either
+                # vocabulary (UPG-22).
+                "priority": _to_event_priority(
+                    raw_fields.get("priority") or self.settings.default_priority
+                ),
             }
 
         self.validate(envelope)

@@ -41,9 +41,14 @@
     },
     "priority": {
       "type": "string",
+      "description": "Event-envelope priority. NORMAL and HIGH are the canonical values written by this transport. The four lowercase values are the Protocol Bus /send vocabulary and are accepted additively (UPG-22) so an envelope carrying a bus-vocabulary priority is not rejected; see docs/PROTOCOL_ENVELOPES.md for the mapping. Nothing routes on priority today.",
       "enum": [
         "NORMAL",
-        "HIGH"
+        "HIGH",
+        "low",
+        "normal",
+        "high",
+        "critical"
       ]
     }
   },
