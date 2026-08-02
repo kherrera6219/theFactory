@@ -268,6 +268,40 @@ which is a repo file map and does not serve this purpose.
 
 ## 5. Phase 2 — Foundation truth and cheap corrections
 
+> **◐ PARTIAL — 2026-08-01. UPG-21, UPG-22, UPG-23 are DONE. UPG-20 is NOT
+> STARTED** and requires a running stack (see below).
+>
+> Exit criteria 2, 3, 4, 5 met. **Criterion 1 (S1-01 evidence) is outstanding
+> and remains the hard blocker for Phase 6.**
+>
+> **UPG-22 turned out to be a live bug, not cosmetic drift.**
+> `DEFAULT_EVENT_PRIORITY` is operator-settable and was written into the event
+> envelope unvalidated while the schema accepted only `NORMAL|HIGH` — so setting
+> it to a lowercase bus value made *every* mission state envelope fail
+> validation. Three write sites were affected; one of them
+> (`phases_intake.py`) degraded silently to a warning, dropping the partition
+> envelope. Fixed additively, with six regression tests proven to fail against
+> pre-fix source.
+>
+> **One plan premise was wrong and is corrected in `docs/PROTOCOL_ENVELOPES.md`:**
+> UPG-22 states the correlation contract is *"`correlation_id` carries
+> `mission_id` on both paths"*. It does not, and **cannot** — the bus reuses
+> `correlation_id` as both the replay-rejection key (`mcp_server.py:624`) and
+> the dedup key (`:650`), so producers must send a composite
+> (`delta-{mission_id}-{pod_name}`). A bare `mission_id` would make the second
+> emission for a mission look like a replay and be dropped. **The transports
+> join by prefix parse, never by equality** — a Phase 6 Delta consumer that
+> queries by equality finds nothing and fails silently.
+>
+> **UPG-21's two exit criteria contradicted each other** (criterion 2 wants a
+> test that fails while the flag has no consumer; criterion 5 wants a green
+> suite). Resolved with `xfail(strict=True)` — green today, turns red on purpose
+> the moment Phase 5 wires the flag.
+>
+> **UPG-23 scope note:** `pod="Pod D"` is a **routing key**
+> (`mission_flow_v2/base.py:151` maps it to `podD`), not a label. Only
+> descriptive strings were changed; the key is deliberately untouched.
+
 **Closes A6 (partial), and the S1-01 gate that blocks Phase 6.**
 
 ### UPG-20 — Close S1-01 with durable evidence
@@ -346,13 +380,13 @@ OCaml.
 
 ### Phase 2 exit criteria
 
-| # | Criterion |
-|---|---|
-| 1 | S1-01 evidence committed under `docs/evidence/` for a multi-criterion mission |
-| 2 | A test fails if `mission_equivalence_python_execution_enabled` has no consumer |
-| 3 | Priority vocabularies reconciled additively; no previously-valid envelope now rejected |
-| 4 | `docs/PROTOCOL_ENVELOPES.md` exists and states the correlation contract |
-| 5 | Full backend suite green; `ruff check .` clean |
+| # | Criterion | Result (2026-08-01) |
+|---|---|---|
+| 1 | S1-01 evidence committed under `docs/evidence/` for a multi-criterion mission | ❌ **OUTSTANDING** — requires a running stack. Still the hard blocker for Phase 6 |
+| 2 | A test fails if `mission_equivalence_python_execution_enabled` has no consumer | ✅ met via `xfail(strict=True)` in `tests/services/test_equivalence_execution_flag_wiring_unit.py` — the only formulation compatible with criterion 5. Verified the detector fires when a consumer appears |
+| 3 | Priority vocabularies reconciled additively; no previously-valid envelope now rejected | ✅ met — schema accepts all six values; a dedicated test asserts both legacy values still validate; writers normalise so output is byte-identical for existing configs |
+| 4 | `docs/PROTOCOL_ENVELOPES.md` exists and states the correlation contract | ✅ met — and **corrects** this plan's premise about it (see the Phase 2 status block above) |
+| 5 | Full backend suite green; `ruff check .` clean | ✅ met — **1768 passed, 5 skipped, 1 xfailed (by design), 0 failed**; ruff clean across `services/`, `shared_runtime/`, `tests/`; docs validation passes |
 
 ---
 

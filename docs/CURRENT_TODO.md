@@ -67,15 +67,49 @@ claims in order to retire them.
 Phase 0, never reflected in the doc). A stale shipped *default* misleads operators
 about whether a gate blocks. Corrected, plus two missing enforcement-flag rows.
 
-**Next action: UPGRADE plan Phase 2**
-(`docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md` §5) — foundation truth:
-UPG-20 close the S1-01 gate with durable evidence from a *non-trivial* live
-mission (**hard blocker for Phase 6**), UPG-21 add a regression test so the dead
-`mission_equivalence_python_execution_enabled` flag cannot silently rot again
-(confirmed still dead: declared `settings.py:88`, loaded `:384`, read nowhere),
-UPG-22 reconcile the two envelope priority vocabularies additively and write
-`docs/PROTOCOL_ENVELOPES.md`, UPG-23 rename Pod D to "Mathematical & Functional".
-Unlike Phase 1, Phase 2 touches code and needs the full backend suite green.
+**PARTIAL — UPGRADE plan Phase 2 (2026-08-01): UPG-21, UPG-22, UPG-23 DONE;
+UPG-20 NOT STARTED.** Full backend suite 1768 passed / 5 skipped / 1 xfailed
+(by design) / 0 failed; ruff clean; docs validation passes.
+
+**UPG-22 was a live bug, not cosmetic drift.** `DEFAULT_EVENT_PRIORITY` is
+operator-settable (`settings.py:290`) and was written into the event envelope
+unvalidated while `schemas/event.envelope.schema.json` accepted only
+`NORMAL|HIGH` — so setting it to a lowercase Protocol Bus value (the natural
+thing to type, since the bus `/send` API uses `low|normal|high|critical`) made
+**every mission state envelope fail validation**. Three write sites affected;
+`phases_intake.py` degraded silently to a warning and dropped the partition
+envelope. Fixed additively: the schema now accepts all six values, writers
+normalise via new `shared_runtime.protocol.to_event_priority`, output stays
+byte-identical for existing configs, and an unknown value raises at the write
+site. Six regression tests proven to fail against pre-fix source.
+New `docs/PROTOCOL_ENVELOPES.md` documents both transports.
+
+**A plan premise was wrong and is corrected there:** UPG-22 says
+`correlation_id` carries `mission_id` on both paths. It does not and **cannot** —
+the bus reuses `correlation_id` as both the replay-rejection key
+(`mcp_server.py:624`) and the dedup key (`:650`), so producers send a composite
+(`delta-{mission_id}-{pod_name}`). A bare `mission_id` would make the second
+emission for a mission look like a replay and be dropped. **The transports join
+by prefix parse, never equality** — a Phase 6 Delta consumer that queries by
+equality finds nothing and fails silently.
+
+**UPG-21:** the flag's two exit criteria contradicted each other (one wants a
+failing test while the flag has no consumer, the other wants a green suite).
+Resolved with `xfail(strict=True)` — green today, turns red on purpose the
+moment Phase 5 wires the flag.
+
+**UPG-23 scope note:** `pod="Pod D"` is a **routing key**
+(`mission_flow_v2/base.py:151` → `podD`), not a label. Only descriptive strings
+changed; all four pod keys and agent counts verified intact after the edit.
+
+**Next action: UPG-20** — the one remaining Phase 2 item and the **hard blocker
+for Phase 6 (EDCP)**. Requires the live stack (Docker Desktop was not running on
+2026-08-01). Run a *non-trivial* `BUILD_NEW` mission — multiple acceptance
+criteria and a required artifact format, not another string reverser — through
+to `COMPLETE`, and commit the result as
+`docs/evidence/s1_01_live_generation_2026-08-XX.json`. **Stack ops reminder:
+always pair the two compose files, and note that `stop_app.bat` runs
+`docker compose down -v`, which deletes the Postgres/Redis volumes.**
 
 **Note on the Electron/Windows work:** Phase 4 of the Full Whole-App Remediation
 Plan (below) is *orthogonal* to the upgrade plan and is not blocked by it. Either
@@ -566,7 +600,7 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
-### Design Reconciliation & Semantic Engine Upgrade (Phase 1 done; Phases 2-7 remaining)
+### Design Reconciliation & Semantic Engine Upgrade (Phase 1 done; Phase 2 partial; Phases 3-7 remaining)
 
 Audit: `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md`. Ordered execution plan:
 `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md`. Decisions D1/D2/D3 are
@@ -1449,12 +1483,12 @@ focused on the active queue plus recent history.
 | Design/implementation reconciliation | **CLOSED 2026-08-01 (Phase 1).** `docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md` assigns an Implemented/Superseded/Deferred verdict to every design area and formally outranks the Feb–Mar 2026 corpus, which now carries a supersession README. `docs/DESIGN_TRACEABILITY.md` maps all 64 design documents to implementing modules |
 | LogicNode semantic depth | **Open — Phase 3.** `schemas/logicnode.schema.json` has 7 required fields against the designed ~30; everything descriptive lives in the free-form `payload`; `types.in`/`types.out` are always empty despite AST signature data being available |
 | Refined-IR projection | **Open — Phase 4.** `build_refined_ir_module()` emits one `EXTRACT_CONCEPT` op per function, derives `purity` from whether a string is truthy, and writes equivalence vectors that restate the node's own identifiers. Schema-valid, semantically empty. `docs/LOGICNODE_SCHEMA.md` documents this honestly; the artifact itself does not (UPG-40) |
-| Behavioural equivalence | **Open — Phase 5.** `equivalence_verifier.py` checks contract conformance (`"verification_scope": "correctness"`), not behaviour. `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` is declared in `settings.py` and read nowhere |
-| Envelope vocabulary mismatch | **Open — UPG-22 (Phase 2).** `schemas/event.envelope.schema.json` allows `NORMAL\|HIGH`; the bus `/send` body allows `low\|normal\|high\|critical`. Nothing routes on priority today, so this is latent rather than live |
+| Behavioural equivalence | **Open — Phase 5.** `equivalence_verifier.py` checks contract conformance (`"verification_scope": "correctness"`), not behaviour. `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` is still declared in `settings.py` and read nowhere — now guarded by a strict-xfail test (UPG-21) that turns the suite red the moment Phase 5 wires it |
+| Envelope vocabulary mismatch | **CLOSED 2026-08-01 (UPG-22).** Turned out to be **live, not latent**: an operator setting `DEFAULT_EVENT_PRIORITY` to a lowercase bus value made every state envelope fail validation. Reconciled additively (schema accepts all six values; writers normalise via `to_event_priority`); `docs/PROTOCOL_ENVELOPES.md` documents both transports and corrects the plan's wrong premise about the correlation contract |
 | Binary synthesis / LLVM | **CLOSED 2026-08-01 (Phase 1 / UPG-11).** Decision D2 recorded in the ADR; `AGENT-11-DEPLOY` and `AGENT-09-HW` role strings rewritten. `toolchains.py` syntax validation deliberately retained. The `agent_personas.py` Julia LLVM reference was **kept on purpose** — it describes Julia's own compiler, not a theFactory capability |
 | LogicNode Registry (design Doc 30) | **Deferred by decision (UPG-73).** Largest unimplemented specification in the corpus; only valuable once RIR carries real cross-mission semantics |
 | RIR catalog | `artifacts/refined-ir/index.json` is `{"artifacts": []}` while signed RIR modules are written per mission. `scripts/build_refined_ir_catalog.py` exists but is not wired into the mission path (UPG-43) |
-| Pod taxonomy | Pod D is labelled "Mathematical Languages" but contains Haskell and OCaml; pods are uneven (A:4, B:5, C:4, D:6). Cheap to fix now (UPG-23), a correctness problem if cross-language verification is ever added |
+| Pod taxonomy | **CLOSED 2026-08-01 (UPG-23).** Pod D relabelled "Mathematical & Functional" across registry role text, source comments, README, AGENTS.md, ARCHITECTURE docs, and diagrams. `pod="Pod D"` is a routing key and was deliberately left unchanged. Pods remain uneven (A:4, B:5, C:4, D:6 specialists) — renamed rather than restructured, per the plan |
 | LangGraph | `LANGGRAPH_ENABLED=false`, `LANGGRAPH_CHECKPOINTER=none`. Design Doc 14's per-agent state machines were never written. Enable-and-prove or mark superseded (UPG-71) |
 | Mission taxonomy specification | 10 `MissionType`, 5 `DepthMode`, 8 `OutputMode`, 4 `DataClassification` values exist in `models.py` with **no specification document**. Largest unwritten spec in the system (UPG-72) |
 | Artifact correctness | Phase 1+2 code now enforces explicit format mismatch/missing extension and records runnable-smoke evidence; live Pong rerun still needed |

@@ -137,27 +137,82 @@ two previously-missing enforcement-flag rows
 (`MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED`,
 `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED`).
 
+### Phase 2 — PARTIAL (2026-08-01): UPG-21/22/23 done, UPG-20 outstanding
+
+Full backend suite **1768 passed, 5 skipped, 1 xfailed (by design), 0 failed**;
+`ruff check` clean across `services/`, `shared_runtime/`, `tests/`; docs
+validation passes.
+
+**UPG-22 — the envelope mismatch was a live bug, not cosmetic drift.**
+`DEFAULT_EVENT_PRIORITY` is operator-settable (`settings.py:290`) and was written
+into the event envelope unvalidated, while
+`schemas/event.envelope.schema.json` accepted only `NORMAL|HIGH`. Setting it to a
+lowercase Protocol Bus value — the natural thing to type, since the bus `/send`
+API uses `low|normal|high|critical` — made **every mission state envelope raise
+`ProtocolValidationError`**. Three write sites were affected;
+`phases_intake.py` degraded silently to a warning and dropped the partition
+envelope rather than raising.
+
+Fixed additively: the schema accepts all six values (nothing previously valid
+became invalid), writers normalise through new
+`shared_runtime.protocol.to_event_priority` / `to_bus_priority` so output is
+byte-identical for every existing configuration, and an unrecognised value raises
+at the write site instead of silently downgrading priority. Six regression tests
+proven to fail against pre-fix source via `git stash`, with the exact error
+`'critical' is not one of ['NORMAL', 'HIGH']`.
+
+**⚠ The plan's correlation-contract premise is wrong — read
+`docs/PROTOCOL_ENVELOPES.md` §4 before writing any bus consumer.** UPG-22 states
+`correlation_id` carries `mission_id` on both paths. It does not, and **cannot**:
+`mcp_server.py` reuses `correlation_id` as both the replay-rejection key (`:624`)
+and the dedup key (`:650`), so every bus producer sends a composite —
+`alpha-{mission_id}-{agent}`, `delta-{mission_id}-{pod}`,
+`beta-{mission_id}-{logicnode}`. A bare `mission_id` would make the second
+emission for a mission look like a replay and be silently dropped. **The two
+transports join by prefix parse, never by equality.** A Phase 6 Delta consumer
+that queries `correlation_id == mission_id` finds nothing, raises nothing, and
+appears to work.
+
+**UPG-21 — the flag is still dead, now guarded.**
+`mission_equivalence_python_execution_enabled` remains declared at
+`settings.py:88`, loaded at `:384`, read nowhere. Phase 2's exit criteria 2 and 5
+contradict each other here, so the wiring assertion ships as
+`xfail(strict=True)`: green today, and the moment Phase 5 (UPG-51) wires the flag
+the unexpected pass turns the suite red on purpose, forcing the marker's removal.
+Verified the consumer detector fires correctly when a consumer exists.
+
+**UPG-23 — Pod D relabelled "Mathematical & Functional".** Descriptive strings
+only. `pod="Pod D"` is a **routing key** consumed by
+`mission_flow_v2/base.py:151` (`"Pod D"` → `"podD"`) and constrained by
+`MODELS_AND_DOMAIN_SCHEMA.md`; it is deliberately unchanged. All four pod keys
+and their agent counts verified intact after the edit. Pods remain uneven
+(A:4, B:5, C:4, D:6 specialists) — renamed, not restructured, per the plan.
+`AGENT-36-GO` is **Pod B**, not Pod D.
+
 ### Next action
 
-**Phase 2 of `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md` (§5)** — foundation
-truth. Unlike Phase 1 this touches code, so the exit gate is the full backend
-suite plus `ruff check .`.
+**UPG-20 — the last Phase 2 item, and the hard blocker for Phase 6 (EDCP).**
 
-- **UPG-20** — close the S1-01 gate with durable evidence from a *non-trivial*
-  live mission (multiple acceptance criteria, a required artifact format), committed
-  under `docs/evidence/`. **Hard blocker for Phase 6 (EDCP).** The existing proof is
-  a 22-line string reverser.
-- **UPG-21** — add a regression test asserting
-  `mission_equivalence_python_execution_enabled` has at least one consumer.
-  Re-verified 2026-08-01: still declared at `settings.py:88`, loaded at `:384`,
-  and read nowhere else in the repository.
-- **UPG-22** — reconcile the two envelope priority vocabularies **additively**
-  (`schemas/event.envelope.schema.json` allows `NORMAL|HIGH`, confirmed by direct
-  read; the bus `/send` body allows `low|normal|high|critical`) and write
-  `docs/PROTOCOL_ENVELOPES.md` with the correlation contract.
-- **UPG-23** — rename Pod D to "Mathematical & Functional". Verified per-pod
-  specialist counts on 2026-08-01: **A:4, B:5, C:4, D:6**; Pod D holds MATLAB, R,
-  Julia, Mathematica, Haskell, OCaml. Note `AGENT-36-GO` is **Pod B**, not Pod D.
+Not started: it needs the live stack, and Docker Desktop was not running on
+2026-08-01. Run a **non-trivial** `BUILD_NEW` mission — multiple acceptance
+criteria and a required artifact format, *not* another 22-line string reverser —
+through to `COMPLETE`, then commit the result as
+`docs/evidence/s1_01_live_generation_2026-08-XX.json` and close the gate in
+`CURRENT_TODO.md` and `EDCP_PHASE_PLAN.md`'s hard-prerequisites section.
+
+EDCP's own plan is explicit about why this blocks: *"Do not invert control flow on
+a pipeline that has not yet been proven to produce real output end to end."*
+
+**Stack operations reminders before doing this:**
+
+- The two compose files must **always be paired**; never bring up the base file alone.
+- `stop_app.bat` → `scripts/force_stop.py` → `make down` runs
+  `docker compose down -v`, which **deletes the `postgres-data`/`redis-data`
+  volumes**. It has wiped the mission database before.
+- A live mission makes real, paid LLM provider calls.
+
+Everything else in Phase 2 is closed, so **Phase 3 (LogicNode schema v2) can
+start in parallel** — it has no dependency on UPG-20. Only Phase 6 is blocked.
 
 **Hard dependency to remember:** Phase 6 (EDCP) is blocked by UPG-20 (S1-01
 evidence from a non-trivial live mission). The existing S1-01 proof —
