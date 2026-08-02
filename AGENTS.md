@@ -18,16 +18,22 @@ Two documents are canonical for all forward work:
 | `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md` | The read-only audit behind it: 143 design documents vs live source, with file/line evidence. |
 | `docs/DESIGN_TRACEABILITY.md` | Design document 01–64 → status → implementing module → evidence. Answers "where is Doc N implemented?" without re-reading the corpus. |
 
-**Phase 1 is DONE (2026-08-01)** — truth reconciliation, `UPG-10` … `UPG-15`.
-All five exit criteria met. **Read the ADR's "Corrections to the audit and plan"
-section before assuming any UPG-1x item was skipped**: three of the plan's own
-premises failed validation against live code and were deliberately not executed
-as written.
+**Progress as of 2026-08-01:** Phase 1 **done**, Phase 2 **done except UPG-20**,
+Phase 3 **done**. Full backend suite 1796 passed / 0 failed.
 
-**Next action: Phase 2** of the upgrade plan (§5) — foundation truth,
-`UPG-20` … `UPG-23`. Unlike Phase 1 this touches code, so the exit gate is the
-full backend suite plus `ruff check .`. UPG-20 (S1-01 live evidence) is a **hard
-blocker for Phase 6**.
+**This plan's own premises do not always survive contact with the code — six
+have failed validation so far.** Before assuming any `UPG-*` item was skipped or
+done as written, read the corrections recorded in the ADR's "Corrections to the
+audit and plan" section, `docs/PROTOCOL_ENVELOPES.md` §4, and the per-phase
+status blocks in the plan itself. Verify against live source before trusting a
+plan statement — rule 1 below is not a formality here.
+
+**Next action — two options, neither blocking the other:**
+
+- **UPG-20** (last Phase 2 item) — live-mission S1-01 evidence. Needs a running
+  stack and makes real paid LLM calls. **Hard blocker for Phase 6 only.**
+- **Phase 4** (plan §7) — real Refined-IR projection. Unblocked by Phase 3, no
+  live-stack dependency, and consumes exactly what Phase 3 produced.
 
 Work item IDs are `UPG-<phase><item>` — `UPG-2x` is Phase 2, `UPG-3x` is
 Phase 3, and so on. Phase 6 uses the `EDCP-*` IDs from

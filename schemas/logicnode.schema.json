@@ -58,6 +58,61 @@
       },
       "additionalProperties": false
     },
+    "domain": {
+      "type": "string",
+      "description": "Concept domain, e.g. \"module_patterns\". Promoted from payload.domain (UPG-30); payload still carries it."
+    },
+    "concept": {
+      "type": "string",
+      "description": "Concept name. Promoted from payload.concept (UPG-30); payload still carries it."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Extractor confidence for this node. Promoted from payload.confidence (UPG-30)."
+    },
+    "source_language": {
+      "type": "string",
+      "description": "Language the node was extracted from. Promoted from payload.source_language (UPG-30)."
+    },
+    "extraction_method": {
+      "type": "string",
+      "enum": [
+        "regex",
+        "ast"
+      ],
+      "description": "How the concept was detected. Promoted from payload.extraction_method (UPG-30). Distinguishes deterministic AST extraction from regex pattern matching."
+    },
+    "paradigm": {
+      "type": "string",
+      "description": "Programming paradigm of the source language. Reserved by UPG-30; not populated yet."
+    },
+    "purity": {
+      "type": "string",
+      "enum": [
+        "PURE",
+        "IMPURE",
+        "UNKNOWN"
+      ],
+      "description": "Whether the node's logic is side-effect free. Reserved by UPG-30; real side-effect analysis lands in Phase 4 (UPG-41). Absent means not analysed — do not infer PURE from absence."
+    },
+    "complexity": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Cyclomatic or structural complexity. Reserved by UPG-30; not populated yet."
+    },
+    "source_license": {
+      "type": "string",
+      "description": "SPDX identifier of the source file's license, where known. Reserved by UPG-30; not populated yet."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Free-form classification tags. Reserved by UPG-30; not populated yet."
+    },
     "provenance": {
       "type": "object",
       "required": [

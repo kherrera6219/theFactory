@@ -8,6 +8,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "pod-worker"))
 
@@ -681,3 +683,43 @@ class TestExtractorRegistry:
             ext = get_extractor(lang)
             result = ext.extract("   \n\n  ")
             assert result.error == "empty source"
+
+
+# ---------------------------------------------------------------------------
+# UPG-31 — Haskell type-signature parsing.
+#
+# Haskell declares types explicitly, so the arrow-separated signature is real
+# type data rather than an inference. Parsing must be depth-aware (arrows
+# nested inside parentheses belong to a higher-order argument) and must refuse
+# anything ambiguous — an empty result is honest, a wrong one silently corrupts
+# the node's declared types.
+# ---------------------------------------------------------------------------
+
+from pod_worker.language_extractor import (  # noqa: E402
+    _split_haskell_type_signature as _split_hs,
+)
+
+
+@pytest.mark.parametrize(
+    ("signature", "expected"),
+    [
+        ("Int -> String -> Bool", (("Int", "String"), "Bool")),
+        ("Int", ((), "Int")),
+        ("Map String [Int] -> Maybe Int", (("Map String [Int]",), "Maybe Int")),
+        # A "name ::" prefix is stripped.
+        ("quicksort :: [Int] -> [Int]", (("[Int]",), "[Int]")),
+        # Depth-aware: the inner arrow is part of one higher-order argument.
+        ("(Int -> Bool) -> [Int] -> Int", (("(Int -> Bool)", "[Int]"), "Int")),
+        ("(a -> b) -> (b -> c) -> a -> c", (("(a -> b)", "(b -> c)", "a"), "c")),
+        # A typeclass context constrains types; it is not itself an argument.
+        ("Ord a => a -> a -> Bool", (("a", "a"), "Bool")),
+    ],
+)
+def test_haskell_signature_parses_to_types(signature, expected) -> None:
+    assert _split_hs(signature) == expected
+
+
+@pytest.mark.parametrize("signature", [None, "", "   ", "Int -> (Bool", "a -> b)"])
+def test_haskell_signature_refuses_ambiguous_input(signature) -> None:
+    """Unbalanced or absent input must yield nothing rather than a guess."""
+    assert _split_hs(signature) == ((), None)

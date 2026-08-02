@@ -189,9 +189,65 @@ and their agent counts verified intact after the edit. Pods remain uneven
 (A:4, B:5, C:4, D:6 specialists) — renamed, not restructured, per the plan.
 `AGENT-36-GO` is **Pod B**, not Pod D.
 
-### Next action
+### Phase 3 — DONE (2026-08-01): LogicNode schema v2
 
-**UPG-20 — the last Phase 2 item, and the hard blocker for Phase 6 (EDCP).**
+All five exit criteria met. Full backend suite **1796 passed, 0 failed, 0
+errors** (up from 1768 — 28 new tests). `scripts/validate_schemas.py` passes,
+ruff clean.
+
+**UPG-30** promoted `domain`, `concept`, `confidence`, `source_language`,
+`extraction_method` to first-class **optional** properties and reserved
+`paradigm`, `purity`, `complexity`, `source_license`, `tags` without populating
+them. `payload` still carries every value it carried before — the promoted
+fields are **duplicates, not moves**, so nothing reading `payload.domain`
+breaks. An absent reserved field means *"not determined"*; do not read a missing
+`purity` as `PURE`.
+
+**UPG-31** populated `types.in`/`types.out`, previously always empty.
+
+**⚠ Read this before trusting the plan's Phase 4/5 scoping.** UPG-31 claimed the
+data "already exists… this is **wiring, not new analysis**". It wasn't. Every
+AST extractor's structured output was **flattened to
+`FunctionInfo(name, line, signature)`** on entry to `ExtractionResult`:
+`language_extractor.py:348` discarded Python's `arg_types`/`return_annotation`
+outright, and the Java converter did the same. Of the seven languages the plan
+named, the reality is:
+
+| Language | Type data | Status |
+|---|---|---|
+| Python | `arg_types` / `return_annotation` | ✅ structured |
+| Java | `parameters` / `return_type` (javalang) | ✅ structured |
+| Haskell | declared `f :: Int -> Bool` signature | ✅ parsed depth-aware |
+| Go | only `receiver` + raw signature | ❌ empty by design |
+| OCaml | only `is_recursive` + raw signature | ❌ empty by design |
+| Julia, JS/TS | raw signature string only | ❌ empty by design |
+
+Two changes the plan did not anticipate were required: `FunctionInfo` was
+**widened additively** (`arg_types`, `return_type`, both defaulted, so every
+existing construction site still works), and a **concept→function correlation
+step** was added — nodes are built per *concept* while signatures are per
+*function*, and the two arrive as sibling lists with no link.
+`_enclosing_function_for_line` correlates by position and deliberately refuses
+to guess: a concept above the first function gets no types, and a match is only
+used when the function actually carries type data, so a mis-correlation cannot
+invent types that were never declared. `payload.types_source` records
+`ast_signature:<name>` as machine-readable provenance.
+
+`docs/LOGICNODE_SCHEMA.md` documents all of this.
+
+### Next action — two options, neither blocking the other
+
+**Option A: UPG-20** — the last Phase 2 item, and the hard blocker for Phase 6
+(EDCP). Needs the live stack.
+
+**Option B: Phase 4** (real Refined-IR projection, plan §7) — now unblocked by
+Phase 3 and with **no live-stack dependency**. UPG-40 (`projection_method`,
+`"templated_v1"` vs `"ast_v1"`) ships even if the rest slips, and UPG-41's
+`purity` side-effect analysis fills the schema slot Phase 3 deliberately
+reserved. Phase 4 also consumes exactly what Phase 3 just produced: real
+`types.in`/`types.out` are the input its `inputs`/`outputs` derivation needs.
+
+#### Option A detail — UPG-20
 
 Not started: it needs the live stack, and Docker Desktop was not running on
 2026-08-01. Run a **non-trivial** `BUILD_NEW` mission — multiple acceptance

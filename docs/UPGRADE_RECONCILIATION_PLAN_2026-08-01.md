@@ -392,6 +392,37 @@ OCaml.
 
 ## 6. Phase 3 — LogicNode schema v2 (additive enrichment)
 
+> **✅ COMPLETE — 2026-08-01.** All five exit criteria met. Full backend suite
+> **1796 passed, 0 failed, 0 errors** (up from 1768 — 28 new tests).
+>
+> **UPG-31 was not the pure wiring the plan describes.** The plan says the data
+> "already exists… This is **wiring, not new analysis**", scoped to Python,
+> JS/TS, Java, Go, Haskell, OCaml, and Julia. In fact every AST extractor's
+> structured output was **flattened to `FunctionInfo(name, line, signature)`**
+> on entry to `ExtractionResult` — `language_extractor.py:348` discarded
+> Python's `arg_types`/`return_annotation` outright, and the Java converter did
+> the same to `parameters`/`return_type`. Of the seven languages named, only
+> **Python** and **Java** carry structured types at all; **Haskell** has a
+> parseable declared signature. Go carries `receiver`, OCaml carries
+> `is_recursive`, and Julia and JS/TS carry nothing but a raw signature string —
+> extracting types from those means regex-parsing signatures, which *is* new
+> analysis. The three real cases were implemented; the rest stay honestly empty.
+>
+> Doing it required two changes the plan did not anticipate:
+> 1. **`FunctionInfo` was widened additively** (`arg_types`, `return_type`, both
+>    defaulted) and the converters stopped discarding AST type data.
+> 2. **A concept→function correlation step**, because nodes are built per
+>    *concept* while signatures are per *function*, and the two arrive as
+>    sibling lists with no link. `_enclosing_function_for_line` correlates by
+>    position and refuses to guess — a concept above the first function gets no
+>    types, and a match is only used when the function actually carries type
+>    data, so a mis-correlation cannot invent types that were never declared.
+>
+> **Reserved-but-unpopulated fields are deliberate.** `paradigm`, `purity`,
+> `complexity`, `source_license`, and `tags` exist in the schema and are left
+> absent — an absent field means "not determined", and emitting a default would
+> be a false claim. `purity` in particular is Phase 4's job (UPG-41).
+
 **Closes A8. Prerequisite for Phases 4, 5, and 7.**
 
 ### The insertion point is a single function
@@ -443,13 +474,13 @@ meaningful rather than universal.
 
 ### Phase 3 exit criteria
 
-| # | Criterion |
-|---|---|
-| 1 | A node with none of the new fields still validates (backward compatible) |
-| 2 | Nodes from AST-backed languages carry non-empty `types.in`/`types.out` |
-| 3 | `payload` still carries every value it carries today (no reader breaks) |
-| 4 | Golden fixtures updated; extraction tests green |
-| 5 | `scripts/validate_schemas.py` passes |
+| # | Criterion | Result (2026-08-01) |
+|---|---|---|
+| 1 | A node with none of the new fields still validates (backward compatible) | ✅ met — `test_node_omitting_every_new_optional_field_still_validates` asserts the pre-UPG-30 shape explicitly. Nothing persisted in `mission_logicnodes` becomes invalid |
+| 2 | Nodes from AST-backed languages carry non-empty `types.in`/`types.out` | ✅ met for **Python, Java, Haskell** — verified end to end (`add(int,int)->int`, `label(double,boolean)->String`, `applyTwice((a -> a), a) -> a`). **Not** met for Go/OCaml/Julia/JS-TS, which the plan named but whose extractors carry no type data; they stay empty by design |
+| 3 | `payload` still carries every value it carries today (no reader breaks) | ✅ met — `test_build_schema_node_promotes_fields_without_emptying_payload` asserts both positions for all five promoted fields |
+| 4 | Golden fixtures updated; extraction tests green | ✅ met — golden fixtures needed no change (the widening is additive and defaulted); 145 extractor/LogicNode/pod-worker tests green |
+| 5 | `scripts/validate_schemas.py` passes | ✅ met — all five schemas valid |
 
 ---
 

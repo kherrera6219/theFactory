@@ -102,6 +102,32 @@ moment Phase 5 wires the flag.
 (`mission_flow_v2/base.py:151` → `podD`), not a label. Only descriptive strings
 changed; all four pod keys and agent counts verified intact after the edit.
 
+**DONE — UPGRADE plan Phase 3 (2026-08-01): LogicNode schema v2.** All five exit
+criteria met. Full backend suite **1796 passed, 0 failed, 0 errors** (up from
+1768 — 28 new tests). `scripts/validate_schemas.py` passes; ruff clean.
+
+UPG-30 promoted `domain`, `concept`, `confidence`, `source_language`, and
+`extraction_method` to first-class **optional** top-level properties, and
+reserved `paradigm`, `purity`, `complexity`, `source_license`, `tags` in the
+schema without populating them (an absent field means "not determined" — a
+default would be a false claim; `purity` is Phase 4's job). `payload` still
+carries every value it carried before, so no existing reader breaks.
+
+UPG-31 populated `types.in`/`types.out`, which were previously **always empty**.
+
+**⚠ UPG-31 was not the "wiring, not new analysis" the plan described.** Every
+AST extractor's structured output was being **flattened to
+`FunctionInfo(name, line, signature)`** on entry to `ExtractionResult` —
+`language_extractor.py:348` discarded Python's `arg_types`/`return_annotation`
+outright. And of the seven languages the plan named, only **Python** and
+**Java** carry structured types at all; **Haskell** has a parseable declared
+signature. Go carries `receiver`, OCaml `is_recursive`, Julia and JS/TS only a
+raw signature string — extracting types from those *is* new analysis, so they
+stay honestly empty. Two unanticipated changes were needed: `FunctionInfo` was
+widened additively, and a concept→function correlation step was added (nodes are
+built per concept, signatures are per function, and the two arrive as unlinked
+sibling lists). The correlation refuses to guess and cannot invent types.
+
 **Next action: UPG-20** — the one remaining Phase 2 item and the **hard blocker
 for Phase 6 (EDCP)**. Requires the live stack (Docker Desktop was not running on
 2026-08-01). Run a *non-trivial* `BUILD_NEW` mission — multiple acceptance
@@ -110,6 +136,11 @@ to `COMPLETE`, and commit the result as
 `docs/evidence/s1_01_live_generation_2026-08-XX.json`. **Stack ops reminder:
 always pair the two compose files, and note that `stop_app.bat` runs
 `docker compose down -v`, which deletes the Postgres/Redis volumes.**
+
+**Or Phase 4** (real Refined-IR projection) — now unblocked by Phase 3 and with
+no live-stack dependency. UPG-40 (`projection_method` field) ships even if the
+rest slips, and UPG-41's `purity` derivation fills the schema slot Phase 3
+reserved.
 
 **Note on the Electron/Windows work:** Phase 4 of the Full Whole-App Remediation
 Plan (below) is *orthogonal* to the upgrade plan and is not blocked by it. Either
@@ -600,7 +631,7 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
-### Design Reconciliation & Semantic Engine Upgrade (Phase 1 done; Phase 2 partial; Phases 3-7 remaining)
+### Design Reconciliation & Semantic Engine Upgrade (Phases 1 & 3 done; Phase 2 partial; Phases 4-7 remaining)
 
 Audit: `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md`. Ordered execution plan:
 `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md`. Decisions D1/D2/D3 are
@@ -1481,7 +1512,7 @@ focused on the active queue plus recent history.
 | Area | Status |
 |---|---|
 | Design/implementation reconciliation | **CLOSED 2026-08-01 (Phase 1).** `docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md` assigns an Implemented/Superseded/Deferred verdict to every design area and formally outranks the Feb–Mar 2026 corpus, which now carries a supersession README. `docs/DESIGN_TRACEABILITY.md` maps all 64 design documents to implementing modules |
-| LogicNode semantic depth | **Open — Phase 3.** `schemas/logicnode.schema.json` has 7 required fields against the designed ~30; everything descriptive lives in the free-form `payload`; `types.in`/`types.out` are always empty despite AST signature data being available |
+| LogicNode semantic depth | **CLOSED 2026-08-01 (Phase 3).** Schema v2 promotes 5 descriptive fields to optional top-level properties and reserves 5 more; `payload` unchanged so no reader breaks. `types.in`/`types.out` now carry real signatures for **Python, Java, Haskell** — the only extractors that genuinely recover them. Go/OCaml/Julia/JS-TS stay empty by design, and that emptiness is now informative. The designed ~30-field semantic node remains **Superseded** per ADR row 6 |
 | Refined-IR projection | **Open — Phase 4.** `build_refined_ir_module()` emits one `EXTRACT_CONCEPT` op per function, derives `purity` from whether a string is truthy, and writes equivalence vectors that restate the node's own identifiers. Schema-valid, semantically empty. `docs/LOGICNODE_SCHEMA.md` documents this honestly; the artifact itself does not (UPG-40) |
 | Behavioural equivalence | **Open — Phase 5.** `equivalence_verifier.py` checks contract conformance (`"verification_scope": "correctness"`), not behaviour. `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` is still declared in `settings.py` and read nowhere — now guarded by a strict-xfail test (UPG-21) that turns the suite red the moment Phase 5 wires it |
 | Envelope vocabulary mismatch | **CLOSED 2026-08-01 (UPG-22).** Turned out to be **live, not latent**: an operator setting `DEFAULT_EVENT_PRIORITY` to a lowercase bus value made every state envelope fail validation. Reconciled additively (schema accepts all six values; writers normalise via `to_event_priority`); `docs/PROTOCOL_ENVELOPES.md` documents both transports and corrects the plan's wrong premise about the correlation contract |
