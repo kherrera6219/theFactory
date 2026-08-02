@@ -16,6 +16,25 @@ live lane traffic to validate against.
 **Authoritative status doc:** `docs/IMPLEMENTATION_STATUS.md` (the archived
 `docs/archive/2026-06-13/SPRINT_BACKLOG.md` is historical only)
 
+> **2026-08-01 update — this plan is now Phase 6 of a larger sequence.**
+> `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md` §9 schedules this plan as its
+> Phase 6 and adds **one inserted sub-phase before EDCP-02**:
+>
+> **EDCP-02a — Delta consumer as the pod-audit gate.** Delta already has two
+> live producer call sites (`phases_build.py:250`, `:816`, both inside the
+> `MISSION_POD_AUDIT_COMPLETE` idempotency guard), carries a natural pass/fail
+> semantic (`audit_result`, `tolerance_score`), and has a ready-made gate
+> alongside the security-compliance / dependency-absorption / runtime-QC gates in
+> `lifecycle.py:_advance_verified_to_complete`. Adding `"delta"` to `main.py`'s
+> `handlers` dict and letting a consumed `fail` verdict block completion is the
+> smallest change that makes a lane genuinely load-bearing — and it proves this
+> plan's own exit criterion 3 ("with the consumer down, the mission does not
+> silently complete") on a seam where failure is recoverable, before betting the
+> PM→CEO handoff on it.
+>
+> The hard prerequisite below is tracked as **UPG-20** in that plan.
+> Everything else in this document stands as written.
+
 ---
 
 ## Purpose
@@ -27,15 +46,21 @@ through a `stage_preparers` dict. PM → CEO → pod manager → specialist is a
 stack, not a conversation over the bus.
 
 The Protocol Bus exists (six typed lanes, MCP `/send`, Pydantic envelopes) but
-is **telemetry, not command**. As of 2026-06-30, `protocol_bus_producer.py`
-ships `send_*` helpers for all six lanes (EDCP-01 added Omega/Beta/Delta; Sigma
-and Rho also exist), but only two lanes have **live callers** in the mission
-pipeline — `send_alpha_directive` (CEO→Pod Manager) and the Sigma path via
-`knowledge_lake.broadcast_knowledge_ready`. Every send is fire-and-forget, and
-the orchestrator consumer (`main.py: protocol_bus_consumer_loop`) handles
-exactly one lane (`{"sigma": _handle_sigma_knowledge_ready}`). Adding callers
-for the remaining four lanes is Stage 1 (PBLA, archived at `docs/archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`);
-this plan is Stage 2 and adds the consumers + control-flow inversion.
+is **telemetry, not command**. `protocol_bus_producer.py` ships `send_*` helpers
+for all six lanes, and as re-verified on **2026-08-01 all six now have live
+callers** in the mission pipeline — Alpha and Delta in `phases_build.py`, Beta in
+`phases_build.py` (primary) and `phases_runtime.py` (fallback), Sigma via
+`knowledge_lake.broadcast_knowledge_ready`, Omega in `phases_delivery.py`, Rho in
+`llm_delegation/providers.py`. Stage 1 (PBLA, archived at
+`docs/archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md`) is therefore
+complete.
+
+What has **not** changed is the direction of control: every send is
+fire-and-forget by explicit design (see `protocol_bus_producer.py`'s module
+docstring), and the orchestrator consumer (`main.py: protocol_bus_consumer_loop`)
+still handles exactly one lane — `{"sigma": _handle_sigma_knowledge_ready}` at
+`main.py:505`, the only `ProtocolBusConsumer` instantiation in the application.
+This plan is Stage 2 and adds the consumers + control-flow inversion.
 
 This plan inverts that — one handoff seam at a time — so the bus becomes the
 command backbone and `missions.state` becomes a read-only projection, matching

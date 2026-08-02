@@ -1,11 +1,186 @@
 # Current Handoff
 
-Document version: 2026.07.06b
-Last updated: 2026-07-06
+Document version: 2026.08.01
+Last updated: 2026-08-01
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
-**If you are picking this up cold:** Phase 3 of the Full Whole-App
+---
+
+## If you are picking this up cold — start here
+
+**Read these three, in this order, before touching anything:**
+
+1. `docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md` — **the governing document.**
+   One Implemented / Superseded / Deferred verdict per design area. It outranks
+   the numbered design corpus. Its "Corrections to the audit and plan" section
+   records where the plan's own premises failed validation against live code.
+2. `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md` — **§0 "Cold start"**, then §1
+   (Decisions taken), §11 (Explicit non-goals), §5 (**Phase 2** — the current
+   task; Phase 1 in §4 is complete).
+3. `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md` — §1–§2 for the gap, §4 for the
+   divergences with file/line evidence.
+
+`docs/DESIGN_TRACEABILITY.md` answers "design document N — where is it
+implemented?" without re-reading the corpus.
+
+Then `docs/CURRENT_TODO.md` → "Active Work Queue" → the *Design Reconciliation
+& Semantic Engine Upgrade* section for what is actually next.
+
+The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1x`
+is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
+`docs/EDCP_PHASE_PLAN.md` instead.
+
+### What happened on 2026-08-01
+
+A full read-only design-vs-build audit was completed: 143 project-knowledge
+design documents compared against live source. **No application code was
+changed** during the audit itself. Two new documents were produced and are
+canonical for forward work: `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md` and
+`docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md`.
+
+The same session then made **documentation-only** changes to wire them in:
+this file, `docs/CURRENT_TODO.md`, and `AGENTS.md`. It also deleted a stale
+duplicate of `FULL_APP_REMEDIATION_PLAN_2026-07-05.md` that sat at the repo
+root (29,224 bytes) alongside the canonical `docs/` copy (29,701 bytes) — 27
+references pointed at `docs/`, 1 at the root orphan. **No `services/`,
+`apps/`, `schemas/`, or `deploy/` file was touched.**
+
+**The finding in one sentence:** theFactory is a stronger production system than
+the design ever specified and a weaker semantic engine than the design promised
+— infrastructure, security, the Protocol Bus, the data plane, the UI, and the
+test surface all meet or exceed specification, while the 14→4→1 comprehension
+model, semantic Refined-IR, formal equivalence verification, the Doc 30
+LogicNode Registry, and binary synthesis were never built.
+
+**Specifically, verified against source:**
+
+- A mission routes to **one pod and one specialist** resolved from
+  `requested_target_language` (`mission_flow_v2/phases_build.py:328+`). There is
+  no parallel pod fan-out and no cross-language fusion. The four-pod structure
+  is routing metadata.
+- `schemas/logicnode.schema.json` has **7 required fields** against the designed
+  ~30. Everything descriptive lives in a free-form `payload` object.
+  `types.in`/`types.out` are always empty.
+- `refined_ir.build_refined_ir_module()` emits exactly one `EXTRACT_CONCEPT` op
+  per function, sets `purity = "IMPURE" if payload.get("intent") else "PURE"`,
+  and writes equivalence vectors that restate the node's own identifiers.
+  Schema-valid, semantically empty.
+- `equivalence_verifier.py` (693 lines) is a **contract-conformance** checker
+  (`"verification_scope": "correctness"`), not behavioural verification. The
+  0.0001% tolerance figure from the design corpus is computed nowhere.
+- **All six bus lanes now have live producers** (Alpha/Delta in `phases_build.py`,
+  Beta in `phases_build.py` + `phases_runtime.py`, Sigma in `knowledge_lake.py`,
+  Omega in `phases_delivery.py`, Rho in `llm_delegation/providers.py`) — PBLA is
+  genuinely complete. But there is exactly **one consumer** in the whole
+  application (`main.py:505`, `{"sigma": _handle_sigma_knowledge_ready}`) and
+  every send is fire-and-forget. The bus is an observability spine.
+- No LLVM, no compilation, no binary output anywhere — 3 incidental string
+  matches across all of `services/`.
+- `mission_equivalence_python_execution_enabled` is declared at `settings.py:88`,
+  loaded at `:384`, and **read nowhere**. A dead flag.
+- `docs/IMPLEMENTATION_STATUS.md` claims "100% feature-complete" and "Refined-IR
+  … 100% operational" while `docs/LOGICNODE_SCHEMA.md` in the same repository
+  states the RIR projection is templated/synthetic. This is the one genuine
+  credibility exposure and Phase 1 closes it (UPG-12).
+
+### Decisions already taken — do not reopen
+
+| # | Decision | Chosen |
+|---|---|---|
+| D1 | Semantic engine | **Pragmatic middle.** Enrich LogicNodes additively, make RIR extraction real where AST support already exists, build execution-based equivalence for a language subset. **Keep single-specialist routing — no 4-pod fan-out.** |
+| D2 | Binary synthesis / LLVM | **Formally killed.** ADR + docs + `AGENT-11-DEPLOY`/`AGENT-09-HW` role strings. Note: retiring binary *synthesis* does **not** remove `toolchains.py` syntax *validation*, which stays. |
+| D3 | Protocol Bus | **Commit to EDCP.** Make it load-bearing, starting with a Delta consumer that can gate a mission (new EDCP-02a). |
+
+### Phase 1 — DONE (2026-08-01)
+
+**UPG-10 through UPG-15 are complete.** All five exit criteria met;
+per-criterion evidence is in the plan's §4 exit table.
+
+New governing documents:
+
+- **`docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`** — 19 rows, each an
+  Implemented / Superseded / Deferred verdict with source-verified evidence.
+  **This document outranks the numbered design corpus.** A Superseded verdict is
+  a closed decision; reopening one requires an ADR amendment, not a plan edit.
+- **`docs/DESIGN_TRACEABILITY.md`** — all 64 design documents → status →
+  implementing module → evidence, plus a table of nine capabilities built with no
+  design document at all.
+
+Code changed: **one file, two strings.** `agent_registry.py` — `AGENT-11-DEPLOY`
+role is now *"Artifact packaging, delivery, and environment setup"*,
+`AGENT-09-HW` is now *"Reserved: target-profile hints for generation (no
+compilation role)"*. Ruff clean, 39 registry/persona tests pass, registry loads
+with 41 agents intact. No runtime behaviour changed.
+
+**Read the ADR's "Corrections to the audit and plan" section before assuming any
+UPG-1x item was skipped.** Three plan premises failed validation against live
+code:
+
+1. `agent_personas.py`'s LLVM reference was **kept**. The line describes Julia's
+   own LLVM-based compiler and is accurate persona guidance — removing it would
+   make the persona less correct, not more honest.
+2. UPG-11's "strip binary/LLVM claims from `docs/`" was **already satisfied** by
+   the 2026-07-03 documentation audit.
+3. UPG-13's "remove the 0.0001% figure from `docs/`" was **already satisfied**.
+   Surviving occurrences are meta-references that name the claim in order to
+   retire it, plus `docs/evidence/word_doc_extraction_2026-03-08.json` — an
+   immutable evidence record, deliberately not rewritten.
+
+**One out-of-scope defect found and fixed:** `IMPLEMENTATION_STATUS.md`
+documented `RQCA_ENFORCEMENT_ENABLED` as `false` / "Advisory by default", but
+`settings.py:98` and `:228` both default it to **`true`** — flipped by
+remediation Phase 0 and never reflected in the doc. A stale shipped *default* is
+worse than an overstated status claim: an operator would believe a failing
+runtime-QC gate lets missions through when it now blocks them. Corrected, plus
+two previously-missing enforcement-flag rows
+(`MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED`,
+`MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED`).
+
+### Next action
+
+**Phase 2 of `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md` (§5)** — foundation
+truth. Unlike Phase 1 this touches code, so the exit gate is the full backend
+suite plus `ruff check .`.
+
+- **UPG-20** — close the S1-01 gate with durable evidence from a *non-trivial*
+  live mission (multiple acceptance criteria, a required artifact format), committed
+  under `docs/evidence/`. **Hard blocker for Phase 6 (EDCP).** The existing proof is
+  a 22-line string reverser.
+- **UPG-21** — add a regression test asserting
+  `mission_equivalence_python_execution_enabled` has at least one consumer.
+  Re-verified 2026-08-01: still declared at `settings.py:88`, loaded at `:384`,
+  and read nowhere else in the repository.
+- **UPG-22** — reconcile the two envelope priority vocabularies **additively**
+  (`schemas/event.envelope.schema.json` allows `NORMAL|HIGH`, confirmed by direct
+  read; the bus `/send` body allows `low|normal|high|critical`) and write
+  `docs/PROTOCOL_ENVELOPES.md` with the correlation contract.
+- **UPG-23** — rename Pod D to "Mathematical & Functional". Verified per-pod
+  specialist counts on 2026-08-01: **A:4, B:5, C:4, D:6**; Pod D holds MATLAB, R,
+  Julia, Mathematica, Haskell, OCaml. Note `AGENT-36-GO` is **Pod B**, not Pod D.
+
+**Hard dependency to remember:** Phase 6 (EDCP) is blocked by UPG-20 (S1-01
+evidence from a non-trivial live mission). The existing S1-01 proof —
+`output/mission-ac933664-.../reverser.py`, produced by the 2026-06-30 Phase 13
+smoke — is real LLM output with passing tests, but it is a 22-line string
+reverser and does not meaningfully exercise the pipeline. EDCP's own plan says:
+*"Do not invert control flow on a pipeline that has not yet been proven to
+produce real output end to end."*
+
+### Also still open, unchanged by the audit
+
+Phase 4 of the Full Whole-App Remediation Plan
+(`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §7 — Electron/Windows installer)
+remains outstanding and is **orthogonal** to the upgrade plan. Either can go
+first; three sub-decisions there (§7.2 Docker-lifecycle-on-quit, §7.4 Docker
+Desktop/WSL2 prerequisite story, §7.7 auto-start) still need explicit user
+sign-off. Detail preserved below.
+
+---
+
+## Previous handoff (2026-07-06) — Full Whole-App Remediation, Phases 0–3
+
+Phase 3 of the Full Whole-App
 Remediation Plan (`docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §6) is
 **done and verified** — documentation accuracy, closing findings #15/#28.
 `docs/METRICS_SOURCE_MODULES.md` (rewritten 2026-07-03 as part of the prior

@@ -6,6 +6,29 @@
 
 ## Executive Summary
 
+> ### ⚠️ Staleness verification — 2026-08-01
+>
+> This report **reads as credible and is partly wrong**, which is exactly what makes
+> it dangerous for planning. A full design-vs-build audit on 2026-08-01 verified the
+> following claims **closed** against live source:
+>
+> | Claim in this report | Verified state on 2026-08-01 |
+> |---|---|
+> | "Java AST extractor is a **stub** (`success=False`)" | Real — `javalang`-backed, ~207 lines |
+> | "JS/TS AST extractor is a **stub**" | Real — `esprima` + TypeScript stripping, ~278 lines |
+> | "Mission charter: the producer doesn't exist" | Exists — `phases_intake.py`, `base.py`, `internal.py` |
+> | "AIM: not implemented" | Exists — `aim_generator.py`, `port_coordinator.py` |
+> | "38-agent registry" | **41 agents** (`agent_registry.py`) |
+> | "FUSION → SQUEEZE → DELIVERY not implemented in any form" | All three phases exist and run |
+>
+> **Its §4.1–4.6 assessments remain accurate** — LogicNode thinness, synthetic
+> Refined-IR, and the absence of real equivalence verification are all still true and
+> are addressed by Phases 3–5 of
+> `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md`.
+>
+> Current status of every design area:
+> `docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`. Do not plan from this file.
+
 **Validation update - May 17, 2026 (revised 2026-05-17):** this gap report is a
 historical baseline, not the current state of the repo. Phases 1-7 have since
 shipped material intelligence-layer work: provider-verified model defaults, PM

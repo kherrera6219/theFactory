@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.07.25
-Last updated: 2026-07-25
+Document version: 2026.08.01
+Last updated: 2026-08-01
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -9,17 +9,37 @@ This document is the current-state snapshot for theFactory. When older phase
 plans, ADRs, evidence files, or archived documents conflict with this file, this
 file wins.
 
+> ### Scope of the completeness claims (corrected 2026-08-01, UPG-12)
+>
+> Completeness in this document means **complete against the v1.3 mission-pipeline
+> scope** — the mission lifecycle, agent registry, protocol bus, data plane,
+> security controls, operator UI, and packaging path. It does **not** mean the
+> Feb–Mar 2026 design corpus was implemented in full.
+>
+> Specifically out of scope, by recorded decision rather than omission:
+> semantic Refined-IR depth (the projection is templated — see
+> [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md)), behavioural equivalence
+> verification (shipped verification is contract conformance), the four-pod
+> parallel comprehension model, the LogicNode Registry, and binary/LLVM output.
+>
+> Each of those carries an Implemented / Superseded / Deferred verdict in
+> [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md).
+> Evidence: [DESIGN_VS_BUILD_AUDIT_2026-08-01.md](DESIGN_VS_BUILD_AUDIT_2026-08-01.md) §4.2–§4.4.
+
 ---
 
 ## Product Status
 
-theFactory is a **100% feature-complete local-first AI software factory** (Version 1.3.0).
+theFactory is a local-first AI software factory (Version 1.3.0), **feature-complete
+against the v1.3 mission-pipeline scope** defined in
+[ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md).
+It is active development, not a production-ready release.
 
 The application currently includes:
 
 - Mission Control Next.js operator UI with Electron desktop packaging
 - API gateway with dual-mode auth (API Key + OIDC) and rate limiting
-- Orchestrator state engine with MissionFlow v2 & LangGraph support
+- Orchestrator state engine on MissionFlow v2 (LangGraph ships disabled; see ADR row 13)
 - Protocol bus MCP (6-protocol typed Redis message bus with DLQ, 409 replay protection, and 503 backpressure)
 - Pod workers with concrete AST extractors for 7 language families & pre-flight toolchain checkers
 - Audit worker for verification stream processing
@@ -55,7 +75,8 @@ The application currently includes:
 
 | Area | Status | Notes |
 |---|---|---|
-| Core Software Engine | **100% Complete** | 11-phase Smelt cycle, 41-agent registry, 6 Redis protocols, AST parsers for all 4 pods, Refined-IR, and Deployment Exporters are 100% operational |
+| Core Software Engine | **Complete for v1.3 scope** | 11-phase Smelt cycle, 41-agent registry, 6 Redis protocols, AST parsers for all 4 pods, and Deployment Exporters are operational. **Refined-IR ships a schema-valid but templated projection**, not a semantic decompilation ([LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md)); real AST-derived projection for AST-backed languages is planned as Phase 4 of the upgrade plan |
+| Semantic depth | **Scoped out (recorded decision)** | LogicNodes are 7-field envelopes; equivalence verification is contract conformance, not behavioural; the four-pod comprehension model, LogicNode Registry, and binary/LLVM output are Superseded or Deferred. Verdicts in [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) |
 | Audit & Quality Standards | **100% Passed** | 23/23 production audit checks passed, 88.33% backend coverage (floor 80%), 131 UI unit tests green, docs validation clean |
 | Desktop Packaging Path | **100% Complete** | Electron build pipeline, embedded standalone server bundle, NSIS installer target, and Docker preflight validation verified |
 
@@ -71,7 +92,9 @@ The application currently includes:
 | `LANGGRAPH_CHECKPOINTER` | `none` | Postgres checkpointer requires explicit direct Postgres URL |
 | `TESTDATA_AGENT_ENABLED` | `false` | Runtime QC support is opt-in |
 | `RQCA_AGENT_ENABLED` | `false` | Runtime QC support is opt-in |
-| `RQCA_ENFORCEMENT_ENABLED` | `false` | Advisory by default |
+| `RQCA_ENFORCEMENT_ENABLED` | `true` | Blocking by default — a failed runtime QC check blocks delivery (`settings.py:98`, `:228`). Fails fast in production if disabled |
+| `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `true` | Blocking by default — a detected hardcoded secret blocks delivery (`settings.py:92`) |
+| `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | `false` | Contract-conformance findings are advisory until pass rates are measured |
 | `DEPABS_EXECUTION_ENABLED` | `false` | Dependency absorption execution remains opt-in |
 | `LLM_PROVIDER` | `gemini` | Default provider route |
 | `GEMINI_MODEL` | `gemini-3.5-flash` | Default model for all agent routes |
@@ -153,7 +176,9 @@ coverage or explicit deferral of the old 85% branch target.
 
 ## Source Of Truth
 
-- Current app status: this file
+- Current app status: this file (subject to the contested-claims note at the top)
+- **Active initiative: `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md` (Phases 1–7)**
+- **Design-vs-build gap analysis: `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md`**
 - Active work: `docs/CURRENT_TODO.md`
 - Handoff: `docs/HANDOFF_CURRENT.md`
 - Docs landing page: `docs/README.md`

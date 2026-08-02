@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.07.06b
-Last updated: 2026-07-06
+Document version: 2026.08.01
+Last updated: 2026-08-01
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -13,7 +13,77 @@ as current work.
 
 ## Current Status
 
-**Most recent work: Phase 3 of the Full Whole-App Remediation Plan is done
+**NEW — 2026-08-01: a full design-vs-build audit was completed and an
+upgrade plan now supersedes ad-hoc prioritisation.** Two new documents in
+`docs/` are canonical for all forward work:
+
+- `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md` — read-only comparison of the built
+  application against the Holy Grail Refinery design corpus (143 design
+  documents). Verdict: the infrastructure, security, bus, data plane, UI, and
+  test surface meet or exceed the design; the **semantic engine does not**.
+  LogicNodes are 7-field envelopes rather than the designed 30-field semantic
+  nodes; the Refined-IR projection is templated, not extracted; "equivalence
+  verification" checks contract conformance rather than behaviour; the
+  14→4→1 comprehension model, the Doc 30 LogicNode Registry, and binary
+  synthesis have no implementation. Three of the six bus lanes' worth of
+  work is done — all six now have live producers, but only Sigma is consumed.
+- `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md` — the ordered execution plan
+  that closes it, **Phases 1–7**. **Start at its §0 (Cold start) if you are
+  picking this up with no context.** Work item IDs are `UPG-<phase><item>`
+  (`UPG-1x` = Phase 1, `UPG-2x` = Phase 2, …); Phase 6 uses the `EDCP-*` IDs
+  from `docs/EDCP_PHASE_PLAN.md`.
+
+**Three decisions are settled and are not open questions:**
+
+| # | Decision | Chosen |
+|---|---|---|
+| D1 | Semantic engine | **Pragmatic middle** — enrich LogicNodes additively, make RIR extraction real where AST support already exists, build execution-based equivalence for a language subset. **No 4-pod fan-out.** |
+| D2 | Binary synthesis / LLVM | **Formally killed** — ADR + docs + agent role text |
+| D3 | Protocol Bus | **Commit to EDCP** — the bus becomes load-bearing, starting with a Delta consumer that can gate a mission |
+
+**DONE — UPGRADE plan Phase 1 (2026-08-01).** All five exit criteria met.
+`docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md` is now the **governing verdict
+document** — one Implemented/Superseded/Deferred verdict per design area, and it
+outranks the numbered design corpus. `docs/DESIGN_TRACEABILITY.md` maps all 64
+design documents to implementing modules. `docs/IMPLEMENTATION_STATUS.md` is
+rescoped ("feature-complete against the v1.3 mission-pipeline scope", plus an
+explicit "Semantic depth — scoped out" row) and no longer contradicts
+`docs/LOGICNODE_SCHEMA.md`. Binary synthesis is formally retired: `AGENT-11-DEPLOY`
+→ *"Artifact packaging, delivery, and environment setup"*, `AGENT-09-HW` →
+*"Reserved: target-profile hints for generation (no compilation role)"*.
+
+**Three plan premises failed validation against live code and were deliberately
+not executed as written** — full detail in the ADR's "Corrections to the audit and
+plan" section: (1) `agent_personas.py`'s LLVM reference was **kept**, because it
+accurately describes Julia's own compiler rather than claiming theFactory emits
+LLVM IR; (2) UPG-11's "strip binary claims from `docs/`" and (3) UPG-13's "remove
+the 0.0001% figure" were both **already satisfied** by the 2026-07-03
+documentation audit — the surviving occurrences are meta-references that name the
+claims in order to retire them.
+
+**One out-of-scope defect found and fixed:** `IMPLEMENTATION_STATUS.md` documented
+`RQCA_ENFORCEMENT_ENABLED` as `false` / "Advisory by default" while
+`settings.py:98` and `:228` default it to **`true`** (flipped by remediation
+Phase 0, never reflected in the doc). A stale shipped *default* misleads operators
+about whether a gate blocks. Corrected, plus two missing enforcement-flag rows.
+
+**Next action: UPGRADE plan Phase 2**
+(`docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md` §5) — foundation truth:
+UPG-20 close the S1-01 gate with durable evidence from a *non-trivial* live
+mission (**hard blocker for Phase 6**), UPG-21 add a regression test so the dead
+`mission_equivalence_python_execution_enabled` flag cannot silently rot again
+(confirmed still dead: declared `settings.py:88`, loaded `:384`, read nowhere),
+UPG-22 reconcile the two envelope priority vocabularies additively and write
+`docs/PROTOCOL_ENVELOPES.md`, UPG-23 rename Pod D to "Mathematical & Functional".
+Unlike Phase 1, Phase 2 touches code and needs the full backend suite green.
+
+**Note on the Electron/Windows work:** Phase 4 of the Full Whole-App Remediation
+Plan (below) is *orthogonal* to the upgrade plan and is not blocked by it. Either
+can proceed first. The upgrade plan's Phase 1 is cheaper and removes more risk.
+
+---
+
+**Previous work: Phase 3 of the Full Whole-App Remediation Plan is done
 and verified.** `docs/FULL_APP_REMEDIATION_PLAN_2026-07-05.md` §6 —
 documentation accuracy (findings #15/#28). `docs/METRICS_SOURCE_MODULES.md`
 (rewritten 2026-07-03) turned out to omit four entire source modules, not
@@ -495,6 +565,70 @@ Mission Control file previews, and refreshed Python service base-image digests.
 ---
 
 ## Active Work Queue
+
+### Design Reconciliation & Semantic Engine Upgrade (Phase 1 done; Phases 2-7 remaining)
+
+Audit: `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md`. Ordered execution plan:
+`docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md`. Decisions D1/D2/D3 are
+settled — see Current Status above and the plan's §1. Non-goals are listed in
+the plan's §11 and must be refused if they resurface; §14 lists what must not
+be weakened.
+
+1. **DONE (2026-08-01) — Phase 1** (plan §4) — truth reconciliation,
+   documentation only. UPG-10 `docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`
+   (19 verdict rows; **governing document — outranks the numbered design
+   corpus**) · UPG-11 binary synthesis formally retired, `AGENT-11-DEPLOY` and
+   `AGENT-09-HW` role strings rewritten in `agent_registry.py` · UPG-12
+   `docs/IMPLEMENTATION_STATUS.md` rescoped to the v1.3 mission-pipeline surface
+   with an explicit "Semantic depth — scoped out" row · UPG-13 tolerance claim
+   retired, replacement metrics recorded in ADR row 9 · UPG-14
+   `docs/DESIGN_TRACEABILITY.md` (all 64 design docs → status → module →
+   evidence) · UPG-15 corpus README at
+   `docs/archive/2026-03-29/legacy-workspace/root-legacy-documentation/README.md`
+   plus a 2026-08-01 staleness block on
+   `docs/archive/2026-06-12/HGR_Gap_Report_1.md`.
+   All five exit criteria met — per-criterion evidence is in the plan's §4 exit
+   table. **Read the ADR's "Corrections to the audit and plan" section** before
+   assuming any UPG-1x item was skipped: three plan premises failed validation
+   against live code and were deliberately not executed as written.
+   **The likely confusion was honoured:** retiring binary *synthesis* did not
+   remove `toolchains.py` *syntax validation*, which stays.
+2. **Phase 2** (plan §5) — foundation truth. UPG-20 close the S1-01 gate with
+   durable evidence from a *non-trivial* mission (the existing proof,
+   `output/mission-ac933664-.../reverser.py`, is a 22-line string reverser —
+   real LLM output, but not a meaningful exercise of the pipeline). **S1-01 is
+   a hard blocker for Phase 6.** · UPG-21 resolve the dead
+   `mission_equivalence_python_execution_enabled` flag (declared at
+   `settings.py:88`, loaded at `:384`, read nowhere) · UPG-22 reconcile the two
+   envelope priority vocabularies (`NORMAL|HIGH` vs
+   `low|normal|high|critical`) additively and add `docs/PROTOCOL_ENVELOPES.md` ·
+   UPG-23 rename Pod D to "Mathematical & Functional" (it contains Haskell and
+   OCaml).
+3. **Phase 3** (plan §6) — LogicNode schema v2, additive. Single insertion
+   point: `services/pod-worker/pod_worker/main.py:_build_schema_node` (~L265),
+   through which both `_coerce_schema_node` (~L317) and
+   `_logicnodes_from_extraction` (~L394) route. Promote descriptive fields out
+   of the free-form `payload` as *optional* top-level properties, and populate
+   `types.in`/`types.out` from AST signatures that already exist
+   (`JsFunctionInfo.signature`, `JavaMethodInfo.parameters/return_type`, Python
+   `ast` annotations). Gets more expensive with every mission that accumulates
+   rows in `mission_logicnodes`.
+4. **Phase 4** (plan §7) — real Refined-IR projection. UPG-40 (`projection_method`
+   field, `"templated_v1"` vs `"ast_v1"`) ships even if the rest slips.
+5. **Phase 5** (plan §8) — behavioural equivalence, executed inside RQCA's
+   existing hardened Docker sandbox (`rqca_agent.py:649-661` —
+   `--network=none --read-only --cap-drop=ALL`, 60s, 512MB). **Do not build a
+   second execution path.**
+6. **Phase 6** (plan §9) — EDCP. Execute `docs/EDCP_PHASE_PLAN.md` as written,
+   with one inserted sub-phase first: **EDCP-02a**, a Delta consumer as the
+   pod-audit gate. Delta already has two live producer call sites
+   (`phases_build.py:250`, `:816`) and a natural gate in
+   `lifecycle.py:_advance_verified_to_complete`, making it the cheapest way to
+   make a lane genuinely load-bearing. Blocked by UPG-20.
+7. **Phase 7** (plan §10) — consolidation: LogicNode dependency graph in
+   Mission Control (needs Phase 3's data; must respect the CSP work deferred
+   from remediation Phase 4), LangGraph decision, `docs/MISSION_TAXONOMY.md`,
+   formal deferral of the Doc 30 registry.
 
 ### Full Whole-App Code Review Remediation (Phases 0-3 done; Phase 4 remaining)
 
@@ -1312,6 +1446,17 @@ focused on the active queue plus recent history.
 
 | Area | Status |
 |---|---|
+| Design/implementation reconciliation | **CLOSED 2026-08-01 (Phase 1).** `docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md` assigns an Implemented/Superseded/Deferred verdict to every design area and formally outranks the Feb–Mar 2026 corpus, which now carries a supersession README. `docs/DESIGN_TRACEABILITY.md` maps all 64 design documents to implementing modules |
+| LogicNode semantic depth | **Open — Phase 3.** `schemas/logicnode.schema.json` has 7 required fields against the designed ~30; everything descriptive lives in the free-form `payload`; `types.in`/`types.out` are always empty despite AST signature data being available |
+| Refined-IR projection | **Open — Phase 4.** `build_refined_ir_module()` emits one `EXTRACT_CONCEPT` op per function, derives `purity` from whether a string is truthy, and writes equivalence vectors that restate the node's own identifiers. Schema-valid, semantically empty. `docs/LOGICNODE_SCHEMA.md` documents this honestly; the artifact itself does not (UPG-40) |
+| Behavioural equivalence | **Open — Phase 5.** `equivalence_verifier.py` checks contract conformance (`"verification_scope": "correctness"`), not behaviour. `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` is declared in `settings.py` and read nowhere |
+| Envelope vocabulary mismatch | **Open — UPG-22 (Phase 2).** `schemas/event.envelope.schema.json` allows `NORMAL\|HIGH`; the bus `/send` body allows `low\|normal\|high\|critical`. Nothing routes on priority today, so this is latent rather than live |
+| Binary synthesis / LLVM | **CLOSED 2026-08-01 (Phase 1 / UPG-11).** Decision D2 recorded in the ADR; `AGENT-11-DEPLOY` and `AGENT-09-HW` role strings rewritten. `toolchains.py` syntax validation deliberately retained. The `agent_personas.py` Julia LLVM reference was **kept on purpose** — it describes Julia's own compiler, not a theFactory capability |
+| LogicNode Registry (design Doc 30) | **Deferred by decision (UPG-73).** Largest unimplemented specification in the corpus; only valuable once RIR carries real cross-mission semantics |
+| RIR catalog | `artifacts/refined-ir/index.json` is `{"artifacts": []}` while signed RIR modules are written per mission. `scripts/build_refined_ir_catalog.py` exists but is not wired into the mission path (UPG-43) |
+| Pod taxonomy | Pod D is labelled "Mathematical Languages" but contains Haskell and OCaml; pods are uneven (A:4, B:5, C:4, D:6). Cheap to fix now (UPG-23), a correctness problem if cross-language verification is ever added |
+| LangGraph | `LANGGRAPH_ENABLED=false`, `LANGGRAPH_CHECKPOINTER=none`. Design Doc 14's per-agent state machines were never written. Enable-and-prove or mark superseded (UPG-71) |
+| Mission taxonomy specification | 10 `MissionType`, 5 `DepthMode`, 8 `OutputMode`, 4 `DataClassification` values exist in `models.py` with **no specification document**. Largest unwritten spec in the system (UPG-72) |
 | Artifact correctness | Phase 1+2 code now enforces explicit format mismatch/missing extension and records runnable-smoke evidence; live Pong rerun still needed |
 | Artifact encoding | Phase 3 code adds non-ASCII regression coverage, conservative mojibake repair before digest, diagnostic trace, and passing live non-ASCII evidence at `docs/evidence/phase3_non_ascii_smoke_latest.json` |
 | Engine reporting | Phase 2 code emits authoritative `lifecycle_engine`; live Mission Detail rerun still needed |
