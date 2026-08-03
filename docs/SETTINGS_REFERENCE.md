@@ -78,7 +78,7 @@ The design follows three rules:
 | Field | Env Var | Default | Description |
 |---|---|---|---|
 | `mission_equivalence_enforcement_enabled` | `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | `false` | Enforce equivalence verification before completing missions |
-| `mission_equivalence_python_execution_enabled` | `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` | `false` | Allow Python sandbox execution during equivalence checks |
+| `mission_equivalence_python_execution_enabled` | `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` | `false` | Run **behavioural** equivalence: execute the artifact against Phase 4's equivalence vectors in the shared hardened Docker sandbox and attach a `behavioural` section to the equivalence report. Python only. Requires a reachable Docker daemon — without one the section records `skipped`, never `passed`. Advisory regardless of `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED`: behavioural results do not block delivery until pass rates have been measured across real missions (UPG-53) |
 | `mission_security_compliance_enforcement_enabled` | `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `true` | Block mission delivery on a required security-compliance check failure (e.g. a detected hardcoded secret), instead of only warning. Defaults to `true` as of 2026-07-03 (was `false`) — set to `false` to opt back into warn-only for staged rollouts. |
 | `testdata_agent_enabled` | `TESTDATA_AGENT_ENABLED` | `false` | Enable the TestData agent (AGENT-40) |
 | `rqca_agent_enabled` | `RQCA_AGENT_ENABLED` | `false` | Enable the RQCA agent (AGENT-41) |

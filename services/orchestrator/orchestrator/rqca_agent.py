@@ -11,14 +11,26 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+from .sandbox_exec import (
+    MAX_MEMORY_MB as _SHARED_MAX_MEMORY_MB,
+)
+from .sandbox_exec import (
+    MAX_TIMEOUT_SECONDS as _SHARED_MAX_TIMEOUT_SECONDS,
+)
+from .sandbox_exec import (
+    run_in_sandbox,
+)
+
 RQCA_SCHEMA_VERSION = "runtime_qc_report.v1"
 # Languages that get live Docker execution when RQCA_AGENT_ENABLED=true.
 # Dynamic languages run their output directly; compiled languages compile-then-run.
 _EXECUTABLE_LANGUAGES = {"python", "javascript", "typescript"}
 _COMPILED_LANGUAGES = {"c", "cpp", "c++", "rust", "csharp", "c#"}
 _ALL_LIVE_LANGUAGES = _EXECUTABLE_LANGUAGES | _COMPILED_LANGUAGES
-_MAX_TIMEOUT_SECONDS = 60
-_MAX_MEMORY_MB = 512
+# Aliased to the shared sandbox ceilings (UPG-50) so RQCA and behavioural
+# equivalence cannot drift apart on resource limits.
+_MAX_TIMEOUT_SECONDS = _SHARED_MAX_TIMEOUT_SECONDS
+_MAX_MEMORY_MB = _SHARED_MAX_MEMORY_MB
 _HTML_EXTENSIONS = {"html", "htm"}
 _SCRIPT_EXTENSIONS = {"js", "mjs", "cjs", "ts", "tsx", "jsx"}
 _NODE_CHECK_LANGUAGES = {"javascript", "typescript"}
@@ -570,6 +582,8 @@ async def _execute_in_sandbox(
     memory_mb = max(64, min(memory_mb, _MAX_MEMORY_MB))
     started_at = datetime.now(UTC).isoformat()
     multi_container = bool(testdata_manifest.get("multi_container"))
+    # Set only by the single-container path, which no longer holds a `proc`.
+    single_container_exit_code: int | None = None
     with tempfile.TemporaryDirectory(prefix=f"hgr-rqca-{mission_id[:8]}-") as tmpdir:
         workspace = Path(tmpdir)
         (workspace / filename).write_text(code, encoding="utf-8")
@@ -646,36 +660,30 @@ async def _execute_in_sandbox(
             full_command = (
                 f"sh /workspace/install.sh && {run_command}" if install_commands else run_command
             )
-            docker_args = [
-                docker_bin, "run", "--rm",
-                "--network=none",
-                f"--memory={memory_mb}m",
-                "--memory-swap=0",
-                "--cpus=1",
-                "--read-only",
-                "--tmpfs=/tmp:size=64m,mode=1777",
-                "--security-opt=no-new-privileges:true",
-                "--cap-drop=ALL",
-                "--workdir=/workspace",
-                f"--volume={tmpdir}:/workspace:ro",
-                base_image, "sh", "-c", full_command,
-            ]
-            proc = await asyncio.create_subprocess_exec(
-                *docker_args,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            # UPG-50: the hardened docker-run invocation now lives in
+            # sandbox_exec so RQCA and behavioural equivalence share exactly one
+            # set of security flags. Do not re-inline a docker command here.
+            sandbox_result = await run_in_sandbox(
+                docker_bin=docker_bin,
+                workspace_dir=tmpdir,
+                base_image=base_image,
+                command=full_command,
+                timeout_seconds=timeout,
+                memory_mb=memory_mb,
             )
-            try:
-                stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                    proc.communicate(), timeout=float(timeout) + 5.0
-                )
-            except asyncio.TimeoutError:
-                proc.kill()
+            if sandbox_result.timed_out:
                 return _timeout_report(
                     mission_id=mission_id, language=language, filename=filename,
                     timeout_seconds=timeout, started_at=started_at,
                 )
-    exit_code = int(proc.returncode or 0)
+            stdout_bytes = sandbox_result.stdout.encode("utf-8", errors="replace")
+            stderr_bytes = sandbox_result.stderr.encode("utf-8", errors="replace")
+            single_container_exit_code = sandbox_result.exit_code
+    exit_code = (
+        single_container_exit_code
+        if single_container_exit_code is not None
+        else int(proc.returncode or 0)
+    )
     expected_exit_code = int(testdata_manifest.get("expected_exit_code") or 0)
     passed = exit_code == expected_exit_code
     return {

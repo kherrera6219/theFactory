@@ -147,6 +147,39 @@ def build_equivalence_report(
     }
 
 
+def attach_behavioural_report(
+    report: dict[str, Any], behavioural: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Attach a behavioural-equivalence section to a correctness *report*.
+
+    The two scopes are kept as **separate sections rather than merged checks**
+    (UPG-52). They answer different questions — "does the artifact match its
+    contract" versus "does it behave correctly on real inputs" — and collapsing
+    them would let a strong result in one silently compensate for a weak result
+    in the other.
+
+    Behavioural findings are surfaced in the top-level ``findings`` list so an
+    operator sees them without knowing the section exists, but the correctness
+    ``status``/``passed``/``blocking`` fields are **left untouched**: per UPG-53
+    behavioural results are measured across real missions before they are
+    allowed to gate anything.
+    """
+    if not isinstance(behavioural, dict) or not behavioural:
+        return report
+
+    enriched = dict(report)
+    enriched["behavioural"] = behavioural
+
+    behavioural_findings = [
+        f"[behavioural] {finding}"
+        for finding in behavioural.get("findings", [])
+        if isinstance(finding, str)
+    ]
+    if behavioural_findings:
+        enriched["findings"] = [*report.get("findings", []), *behavioural_findings]
+    return enriched
+
+
 def _check_generated_output_exists(generated_output: dict[str, Any]) -> dict[str, Any]:
     code = str(generated_output.get("generated_code") or "").strip()
     if len(code) >= 10:

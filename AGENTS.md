@@ -18,8 +18,13 @@ Two documents are canonical for all forward work:
 | `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md` | The read-only audit behind it: 143 design documents vs live source, with file/line evidence. |
 | `docs/DESIGN_TRACEABILITY.md` | Design document 01–64 → status → implementing module → evidence. Answers "where is Doc N implemented?" without re-reading the corpus. |
 
-**Progress as of 2026-08-01:** Phase 1 **done**, Phase 2 **done except UPG-20**,
-Phase 3 **done**, Phase 4 **done**. Full backend suite 1816 passed / 0 failed.
+**Progress as of 2026-08-02:** Phases 1, 3, 4, 5 **done**; Phase 2 **done except
+UPG-20**. Full backend suite 1843 passed / 0 failed.
+
+> **Executing generated code goes through `orchestrator/sandbox_exec.py` and
+> nowhere else.** RQCA and behavioural equivalence share one hardened
+> invocation. Do not add a second `docker run` command line, and do not relax
+> any flag in `SANDBOX_SECURITY_FLAGS` — a test fails if you do.
 
 **This plan's own premises do not always survive contact with the code — six
 have failed validation so far.** Before assuming any `UPG-*` item was skipped or
@@ -30,13 +35,11 @@ plan statement — rule 1 below is not a formality here.
 
 **Next action — two options, neither blocking the other:**
 
-- **Phase 5** (plan §8) — behavioural equivalence, the payoff phase. Consumes
-  Phase 4's executable equivalence vectors. **Do not build a second execution
-  path** — reuse RQCA's hardened Docker sandbox (`rqca_agent.py:649-661`) and do
-  not relax any of its flags. UPG-51 wires the flag UPG-21 guarded; when it
-  does, that strict-xfail test flips red on purpose and its marker must go.
+- **Phase 7** (plan §10) — consolidation. Unblocked: UPG-70's LogicNode
+  dependency graph now has Phase 3/4 data to render (respect the deferred CSP
+  work — no `unsafe-inline`/`unsafe-eval`); UPG-71/72/73 are decision work.
 - **UPG-20** (last Phase 2 item) — live-mission S1-01 evidence. Needs a running
-  stack and makes real paid LLM calls. **Hard blocker for Phase 6 only.**
+  stack and makes real paid LLM calls. **Hard blocker for Phase 6 (EDCP).**
 
 Work item IDs are `UPG-<phase><item>` — `UPG-2x` is Phase 2, `UPG-3x` is
 Phase 3, and so on. Phase 6 uses the `EDCP-*` IDs from
