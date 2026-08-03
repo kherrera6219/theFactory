@@ -21,6 +21,80 @@ class ReplayDetectedError(ProtocolValidationError):
     """Raised when an event_id has already been processed (replay attack detected)."""
 
 
+# ---------------------------------------------------------------------------
+# Priority vocabularies.
+#
+# Two envelope transports are in production and they use different priority
+# vocabularies (see docs/PROTOCOL_ENVELOPES.md):
+#
+#   * Event envelope  (schemas/event.envelope.schema.json, Redis state events)
+#     historically accepted only NORMAL | HIGH.
+#   * Bus /send body  (protocol_bus_producer.py -> mcp_server.py)
+#     accepts low | normal | high | critical.
+#
+# UPG-22 reconciles them **additively**: the event-envelope schema now accepts
+# both vocabularies so no previously-valid envelope is rejected, and writers
+# normalise to the event vocabulary via ``to_event_priority`` so what is written
+# stays stable. Nothing routes on priority today; this closes the latent failure
+# where an operator setting DEFAULT_EVENT_PRIORITY to a lowercase bus value made
+# every state envelope fail validation.
+# ---------------------------------------------------------------------------
+
+EVENT_PRIORITIES: tuple[str, ...] = ("NORMAL", "HIGH")
+BUS_PRIORITIES: tuple[str, ...] = ("low", "normal", "high", "critical")
+
+_BUS_TO_EVENT: dict[str, str] = {
+    "low": "NORMAL",
+    "normal": "NORMAL",
+    "high": "HIGH",
+    "critical": "HIGH",
+}
+_EVENT_TO_BUS: dict[str, str] = {
+    "NORMAL": "normal",
+    "HIGH": "high",
+}
+
+
+def to_event_priority(value: str) -> str:
+    """Normalise *value* to the event-envelope vocabulary (``NORMAL``/``HIGH``).
+
+    Accepts either vocabulary. An already-valid event priority is returned
+    unchanged, so callers whose input is already ``NORMAL``/``HIGH`` produce
+    byte-identical output. Raises ``ProtocolValidationError`` for a value in
+    neither vocabulary, so a typo fails loudly at the write site rather than
+    silently downgrading priority.
+    """
+    candidate = str(value).strip()
+    if candidate in EVENT_PRIORITIES:
+        return candidate
+    mapped = _BUS_TO_EVENT.get(candidate.lower())
+    if mapped is None:
+        raise ProtocolValidationError(
+            f"unknown priority {value!r}; expected one of "
+            f"{', '.join((*EVENT_PRIORITIES, *BUS_PRIORITIES))}"
+        )
+    return mapped
+
+
+def to_bus_priority(value: str) -> str:
+    """Normalise *value* to the bus vocabulary (``low``/``normal``/``high``/``critical``).
+
+    The inverse of :func:`to_event_priority`. ``NORMAL`` maps to ``normal`` and
+    ``HIGH`` to ``high``; ``low`` and ``critical`` have no event-envelope
+    equivalent and survive only on the bus transport.
+    """
+    candidate = str(value).strip()
+    if candidate in BUS_PRIORITIES:
+        return candidate
+    mapped = _EVENT_TO_BUS.get(candidate.upper())
+    if mapped is None:
+        raise ProtocolValidationError(
+            f"unknown priority {value!r}; expected one of "
+            f"{', '.join((*EVENT_PRIORITIES, *BUS_PRIORITIES))}"
+        )
+    return mapped
+
+
 def parse_date_time(value: str) -> datetime:
     """Parse an RFC 3339 timestamp and require timezone information."""
     if value.endswith("Z"):

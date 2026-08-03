@@ -13,7 +13,8 @@ under `docs/archive/` and should not be used as current implementation truth.
 
 | Need | Read |
 |---|---|
-| Current state and open work | [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [CURRENT_TODO.md](CURRENT_TODO.md), [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) |
+| **Active initiative (start here if new)** | [UPGRADE_RECONCILIATION_PLAN_2026-08-01.md](UPGRADE_RECONCILIATION_PLAN_2026-08-01.md) — Phases 1–7, begin at its §0 "Cold start"; backed by [DESIGN_VS_BUILD_AUDIT_2026-08-01.md](DESIGN_VS_BUILD_AUDIT_2026-08-01.md) |
+| Current state and open work | [CURRENT_TODO.md](CURRENT_TODO.md), [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md), [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) (two claims contested — see its header note) |
 | Product scope | [00_PRODUCT_OVERVIEW.md](00_PRODUCT_OVERVIEW.md), [WHAT_THEFACTORY_IS_AND_IS_NOT.md](WHAT_THEFACTORY_IS_AND_IS_NOT.md) |
 | Architecture | [ARCHITECTURE.md](ARCHITECTURE.md), [ARCHITECTURE_DATA_FLOWS.md](ARCHITECTURE_DATA_FLOWS.md), [ARCHITECTURE_DIAGRAMS.md](ARCHITECTURE_DIAGRAMS.md) |
 | API integration | [api/README.md](api/README.md), [API_INTEGRATION_GUIDE.md](API_INTEGRATION_GUIDE.md) |

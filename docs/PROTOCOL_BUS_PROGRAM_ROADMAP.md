@@ -10,6 +10,14 @@ theFactory's Protocol Bus from a telemetry sidecar into a genuine
 agent-coordination backbone. Use it with `CURRENT_TODO.md` and
 `HANDOFF_CURRENT.md`. Each stage below has (or will have) its own detailed plan.
 
+> **2026-08-01:** Stage 2 (EDCP) is scheduled as **Phase 6** of
+> `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md`, which adds one inserted
+> sub-phase (**EDCP-02a**, a Delta consumer as the pod-audit gate) ahead of
+> EDCP-02, and gates the whole stage behind **UPG-20** (S1-01 live-generation
+> evidence). Stages 3 and 4 are explicitly out of scope for that plan and remain
+> unscheduled. Decision **D3** in the plan's §1 commits to making the bus
+> load-bearing rather than leaving it as an observability spine.
+
 ---
 
 ## Why a staged program

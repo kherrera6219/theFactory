@@ -81,11 +81,62 @@ dataclass and no embedded pattern/tag registry in this file.)
 | `payload` | object | Free-form JSON object — no fixed sub-schema. In practice carries fields like `concept`, `domain`, `confidence`, `partition_id` (see below). |
 | `priority` | string | One of `LOW`, `NORMAL`, `HIGH`, `CRITICAL`. |
 | `intent` | string | Free-form description of what the node does. |
-| `types` | object | `{ "in": [string...], "out": [string...] }` — plain type-name strings, not structured parameter objects. |
+| `types` | object | `{ "in": [string...], "out": [string...] }` — plain type-name strings, not structured parameter objects. **Populated since UPG-31** where an AST extractor recovered a real signature; see below. |
 | `provenance` | object | Required: `source_ref`, `snippet_hash`, `miner_agent`, `timestamp` (ISO date-time). `additionalProperties: true` — extra provenance keys are allowed. |
 
 `additionalProperties: false` at the top level — a node with extra
 top-level keys fails validation. `payload` itself is unconstrained.
+
+### Optional Fields (added by UPG-30, schema v2)
+
+Every field below is **optional**, so a node predating UPG-30 still validates
+unchanged. Descriptive values were promoted out of the free-form `payload` into
+first-class positions — but `payload` **still carries every one of them**, so
+anything reading `payload.domain` today keeps working. The promoted fields are
+duplicates, not moves.
+
+| Field | Type | Populated? |
+|---|---|---|
+| `domain` | string | ✅ from the extracted concept |
+| `concept` | string | ✅ from the extracted concept |
+| `confidence` | number, 0–1 | ✅ from the extractor, clamped into range |
+| `source_language` | string | ✅ |
+| `extraction_method` | `regex` \| `ast` | ✅ — distinguishes deterministic AST extraction from regex matching |
+| `paradigm` | string | ❌ reserved |
+| `purity` | `PURE` \| `IMPURE` \| `UNKNOWN` | ❌ reserved — real side-effect analysis is Phase 4 (UPG-41) |
+| `complexity` | integer ≥ 0 | ❌ reserved |
+| `source_license` | string (SPDX) | ❌ reserved |
+| `tags` | array of string | ❌ reserved |
+
+**An absent field means "not determined" — never a default.** In particular, do
+not read a missing `purity` as `PURE`; nothing has analysed it yet.
+
+### How `types.in` / `types.out` Are Populated (UPG-31)
+
+Before UPG-31 these were **always empty**. Now they carry real signature data
+for the languages whose extractors genuinely recover it:
+
+| Language | Source of types | Status |
+|---|---|---|
+| Python | `AstFunctionInfo.arg_types` / `.return_annotation` | ✅ structured |
+| Java | `JavaMethodInfo.parameters` / `.return_type` (javalang) | ✅ structured |
+| Haskell | the declared `f :: Int -> Bool` type signature, split depth-aware | ✅ parsed |
+| Go, OCaml, Julia, JS/TS | — | ❌ empty; their extractors carry only a raw signature string, so recovering types would be new analysis, not wiring |
+
+Concepts are extracted per-match and signatures per-function; the two arrive as
+sibling lists with no explicit link, so they are correlated by position — the
+innermost enclosing function is the one whose definition line most closely
+precedes the concept's line (`_enclosing_function_for_line`). The correlation is
+deliberately narrow: a concept above the first function gets **no** types rather
+than a guess, and a match is only used when the function actually carries type
+data, so a mis-correlation cannot invent types that were never declared.
+
+When types come from a signature, `payload.types_source` records
+`ast_signature:<function name>` — machine-readable provenance, so a consumer can
+tell a real AST-derived signature from an absent one without reading this page.
+
+**Empty `types` is now informative.** It means "this language's extractor does
+not recover types", not "no extractor ever does".
 
 ### Validation Behaviour
 
@@ -216,33 +267,83 @@ pairs, minimum one) plus `tests.properties`, and `provenance` (`sources`
 with `kind`/`ref`/`hash`, plus `chain_of_custody` entries of
 `agent`/`action`/`ts`).
 
-### The Projection Is Currently Templated, Not a Deep Decompilation
+### Two Projection Paths — Check `projection_method` (updated by Phase 4)
 
 `build_refined_ir_module(mission_id, agent_id, source_language,
-target_language, logicnodes, source_ref)` converts each LogicNode dict
-into one `RefinedIRFunction`. As implemented today, this is a **synthetic
-mapping**, not genuine semantic analysis:
+target_language, logicnodes, source_ref)` converts each LogicNode dict into one
+`RefinedIRFunction`. Since Phase 4 (UPG-40/41/42) there are **two** paths, and
+the artifact says which one it took:
 
-- `purity` is set to `"IMPURE"` if the LogicNode's payload has a
-  non-empty `intent`, else `"PURE"` — not derived from actual side-effect
-  analysis of the source.
-- `ops` contains exactly one synthetic operation per function:
-  `{opcode: "EXTRACT_CONCEPT", args: [domain, concept]}`.
-- `preconditions`/`postconditions` are template strings (e.g. `"mission
-  payload available"`, `"concept '{concept}' extracted in domain
-  '{domain}'"`), not derived conditions.
-- `tests.equivalence_vectors` contains one templated vector per function
-  with `properties: ["deterministic_logicnode_projection",
-  "schema_validated_refined_ir"]` — these assert that the *projection
-  itself* is deterministic and schema-valid, not that the extracted
-  concept is behaviorally equivalent to anything.
+| `projection_method` | Meaning |
+|---|---|
+| `ast_v1` | Derived from a real recovered signature and a real statement sequence |
+| `templated_v1` | Synthetic placeholders carrying no recovered semantics |
+| `mixed_v1` | *(module level only)* the module contains both |
 
-This is honest, working scaffolding for the RIR pipeline's plumbing
-(schema validation, signing, storage, audit trail) — it is not yet the
-"universal semantic representation independent of source syntax" that the
-product concept calls for. Treat RIR generation today as proof that the
-pipe is connected end-to-end, not as evidence that semantic decompilation
-is implemented.
+**Do not assume either path — read the field.** It exists precisely so a
+consumer can tell them apart without reading this page.
+
+#### `ast_v1` — what is real
+
+Available for the languages whose extractors recover signatures (**Python,
+Java, Haskell** — see the types table above):
+
+- `inputs`/`outputs` carry the **real declared types**. Parameter *names* are
+  positional (`arg0`, `arg1`) because the extractors recover types but not
+  names — the types are claimed, the names are not.
+- `ops` is the **real statement sequence** (`ASSIGN`, `BRANCH`, `LOOP`,
+  `CALL`, `CONTEXT`, `TRY`, `RAISE`, `RETURN`, …), capped at 64 ops with a
+  trailing `TRUNCATED` op when the cap is hit.
+- `purity` comes from **genuine side-effect analysis**: `global`/`nonlocal`
+  usage, mutation of a parameter's attributes or subscripts, and calls into
+  known-effectful modules (filesystem, network, subprocess, concurrency,
+  nondeterminism, logging, database). `effects` names the specific categories
+  found.
+- `preconditions`/`postconditions` state the recovered type contracts.
+
+#### `templated_v1` — unchanged, and still honest
+
+For every other language the original synthetic mapping is retained exactly:
+one `EXTRACT_CONCEPT` op, `inputs: [{name: "source", …}]`,
+`outputs: [{name: "intent", …}]`, and template pre/postconditions. This is
+working scaffolding for the pipeline's plumbing (schema validation, signing,
+storage, audit trail), not semantic decompilation. It is the correct output
+when nothing was recovered — the alternative would be inventing content.
+
+#### `purity` is three-valued — never read `UNKNOWN` as `PURE`
+
+`PURE` and `IMPURE` are only asserted when analysis actually ran **and
+reached a verdict**. A function that calls something the analysis cannot
+resolve is reported `UNKNOWN`, because absence of detected effects is not
+evidence of purity. This is the rule that makes the other two values worth
+trusting.
+
+#### Equivalence vectors carry arguments, not expectations
+
+The old vector restated the node's own identifiers
+(`in: {node_id, source_language}` / `out: {concept, domain}`), so it compared a
+node to itself and **could never fail**. An `ast_v1` function now gets up to
+three vectors — `nominal`, `boundary_low`, `boundary_high` — of concrete
+argument values typed to the recovered signature.
+
+`out.expected` is deliberately **`null`**: the expected output is not knowable
+until something executes the artifact, and fabricating one would recreate the
+"cannot fail" problem in a new form. Phase 5 fills it by execution. Every
+vector carries `out.executable` so Phase 5 can skip what it cannot run. A
+parameter whose type has no known sample value drops its vector rather than
+receiving a guessed value.
+
+### The RIR Catalog
+
+`artifacts/refined-ir/index.json` is upserted **atomically on every module
+write**, keyed by artifact path so re-running a mission replaces its record
+rather than appending a duplicate. Each record carries `projection_method` and
+`ast_projected_fn_count`, so "how much of our RIR is real?" is answerable
+without opening every module.
+
+The record shape is shared with `scripts/build_refined_ir_catalog.py`
+(`catalog_record_for`), so a full rebuild and an incremental update cannot
+drift. A corrupt index is rewritten rather than failing the mission.
 
 ### Storage
 

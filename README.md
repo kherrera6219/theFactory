@@ -163,7 +163,7 @@ The list below describes fully implemented, production-verified subsystems acros
 │  Pod B  (C/C++/Rust/Zig/Go)   — Systems Languages              │
 │  Pod C  (Java/C#/Scala/Kotlin)— Enterprise Languages           │
 │  Pod D  (MATLAB/R/Julia/Mathematica/Haskell/OCaml)             │
-│                          — Mathematical Languages              │
+│                    — Mathematical & Functional Languages       │
 │  Each: language extraction → LogicNode creation → KB write     │
 └──────────────────────────┬─────────────────────────────────────┘
                            │

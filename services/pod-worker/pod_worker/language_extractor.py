@@ -26,11 +26,29 @@ _MAX_SOURCE_LENGTH: Final[int] = 512_000  # ~500 KB
 
 @dataclass(frozen=True, slots=True)
 class FunctionInfo:
-    """Detected function/method definition."""
+    """Detected function/method definition.
+
+    ``arg_types``/``return_type`` are populated only by AST-backed extractors
+    that genuinely recover them (UPG-31). Before UPG-31 every AST extractor's
+    structured type data was flattened away here, keeping only the raw
+    ``signature`` string. Regex extractors leave both empty, and that emptiness
+    is now meaningful rather than universal.
+
+    Both default to empty/``None`` so every existing construction site keeps
+    working unchanged — this widening is additive.
+    """
 
     name: str
     line: int
     signature: str
+    arg_types: tuple[str, ...] = ()
+    return_type: str | None = None
+    # Side-effect analysis (UPG-41). ``purity`` is three-valued: "UNKNOWN" means
+    # not analysed, and must never be read as "PURE".
+    side_effects: tuple[str, ...] = ()
+    purity: str = "UNKNOWN"
+    # Ordered ("OPCODE", "detail") stream over the function body (UPG-41).
+    ops: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +75,71 @@ class ExtractedConcept:
     # Provenance fields — populated by the extractor, forwarded to LogicNode payload.
     extraction_method: str = "regex"  # "regex" | "ast"
     source_range: tuple[int, int] | None = None  # (start_line, end_line); None = single-line
+
+
+def _split_haskell_type_signature(
+    type_signature: str | None,
+) -> tuple[tuple[str, ...], str | None]:
+    """Split a Haskell type signature into argument types and a return type.
+
+    ``Int -> String -> Bool`` yields ``(("Int", "String"), "Bool")``.
+
+    Splitting is **depth-aware**: arrows nested inside parentheses or brackets
+    belong to a higher-order argument, not to the top-level application, so
+    ``(Int -> Bool) -> [Int] -> Int`` correctly yields
+    ``(("(Int -> Bool)", "[Int]"), "Int")`` rather than four fragments.
+
+    A leading context (``Ord a => a -> a``) is dropped — it constrains types
+    rather than being one. Anything unparseable yields ``((), None)``: this is
+    deliberately conservative, because an empty result is honest while a wrong
+    one silently corrupts the node's declared types (UPG-31).
+    """
+    if not type_signature:
+        return (), None
+    text = str(type_signature).strip()
+    if not text:
+        return (), None
+
+    # Drop a "name ::" prefix if the extractor kept one.
+    if "::" in text:
+        text = text.split("::", 1)[1].strip()
+
+    parts: list[str] = []
+    depth = 0
+    current: list[str] = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char in "([":
+            depth += 1
+        elif char in ")]":
+            depth -= 1
+            # Unbalanced brackets mean we cannot trust the parse.
+            if depth < 0:
+                return (), None
+        # A top-level "=>" ends the typeclass context; everything before it is
+        # a constraint, not an argument type.
+        if depth == 0 and text.startswith("=>", index):
+            current = []
+            parts = []
+            index += 2
+            continue
+        if depth == 0 and text.startswith("->", index):
+            parts.append("".join(current).strip())
+            current = []
+            index += 2
+            continue
+        current.append(char)
+        index += 1
+
+    if depth != 0:
+        return (), None
+    parts.append("".join(current).strip())
+    parts = [part for part in parts if part]
+    if len(parts) < 2:
+        # A nullary value (``x :: Int``) has a return type and no arguments.
+        return ((), parts[0]) if parts else ((), None)
+    return tuple(parts[:-1]), parts[-1]
 
 
 @dataclass
@@ -344,8 +427,19 @@ class PythonAstExtractor(PythonExtractor):
             return result
 
         # Replace structural fields with AST-derived versions (more accurate).
+        # arg_types/return_annotation were previously discarded here; they are
+        # the real signature data LogicNode types.in/types.out need (UPG-31).
         result.functions = [
-            FunctionInfo(name=f.name, line=f.line, signature=f.signature)
+            FunctionInfo(
+                name=f.name,
+                line=f.line,
+                signature=f.signature,
+                arg_types=tuple(f.arg_types or ()),
+                return_type=f.return_annotation,
+                side_effects=tuple(f.side_effects or ()),
+                purity=f.purity,
+                ops=tuple(f.ops or ()),
+            )
             for f in ast_result.functions
         ]
         result.classes = [
@@ -580,8 +674,16 @@ class JavaAstExtractor(JavaExtractor):
             )
             return result
 
+        # javalang recovers declared parameter and return types; keep them
+        # rather than flattening to the raw signature string (UPG-31).
         result.functions = [
-            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
+            FunctionInfo(
+                name=item.name,
+                line=item.line,
+                signature=item.signature,
+                arg_types=tuple(item.parameters or ()),
+                return_type=item.return_type or None,
+            )
             for item in ast_result.methods
         ]
         result.classes = [
@@ -624,7 +726,7 @@ class KotlinExtractor(LanguageExtractor):
 
 
 # ---------------------------------------------------------------------------
-# Pod D — Mathematical Language Extractors
+# Pod D — Mathematical & Functional Language Extractors
 # ---------------------------------------------------------------------------
 
 
@@ -738,10 +840,22 @@ class HaskellAstExtractor(HaskellExtractor):
         if not ast_result:
             return result
 
-        result.functions = [
-            FunctionInfo(name=item.name, line=item.line, signature=item.signature)
-            for item in ast_result.functions
-        ]
+        # Haskell declares types explicitly (``f :: Int -> Bool``), so the
+        # arrow-separated signature is real type data rather than an inference
+        # (UPG-31). Parsing is conservative: anything ambiguous yields nothing.
+        haskell_functions: list[FunctionInfo] = []
+        for item in ast_result.functions:
+            arg_types, return_type = _split_haskell_type_signature(item.type_signature)
+            haskell_functions.append(
+                FunctionInfo(
+                    name=item.name,
+                    line=item.line,
+                    signature=item.signature,
+                    arg_types=arg_types,
+                    return_type=return_type,
+                )
+            )
+        result.functions = haskell_functions
         result.classes = [
             ClassInfo(name=item.name, line=item.line, parents=())
             for item in ast_result.types

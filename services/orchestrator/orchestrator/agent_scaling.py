@@ -40,7 +40,7 @@ SCALABLE_AGENT_IDS: Final[frozenset[str]] = frozenset(
         "AGENT-27-CSHARP",
         "AGENT-28-SCALA",
         "AGENT-29-KOTLIN",
-        # Pod D — mathematical languages
+        # Pod D — mathematical & functional languages
         "AGENT-32-MATLAB",
         "AGENT-33-R",
         "AGENT-34-JULIA",

@@ -33,7 +33,11 @@ are not listed as current implementation truth unless called out explicitly.
 | [00_PRODUCT_OVERVIEW.md](00_PRODUCT_OVERVIEW.md) | Top-level product description, value proposition, and v1.2.0 feature set | All |
 | [WHAT_THEFACTORY_IS_AND_IS_NOT.md](WHAT_THEFACTORY_IS_AND_IS_NOT.md) | Canonical positioning statement for current scope, non-goals, and evaluation boundaries | All |
 | [BLUEPRINT_MAP.md](BLUEPRINT_MAP.md) | Full system blueprint — the single authoritative map of all services, agents, and data flows | All |
-| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem | All |
+| [UPGRADE_RECONCILIATION_PLAN_2026-08-01.md](UPGRADE_RECONCILIATION_PLAN_2026-08-01.md) | **Active initiative.** Ordered execution plan, Phases 1–7: design reconciliation, LogicNode v2, real Refined-IR, behavioural equivalence, EDCP, consolidation. Start at its §0 "Cold start" | Maintainers, AI coding agents |
+| [DESIGN_VS_BUILD_AUDIT_2026-08-01.md](DESIGN_VS_BUILD_AUDIT_2026-08-01.md) | Read-only audit behind that plan — 143 design documents vs live source, with file/line evidence for every divergence | Maintainers, Architects, AI coding agents |
+| [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) | **Governing verdict document.** Implemented / Superseded / Deferred for every design area. Outranks the numbered design corpus | All |
+| [DESIGN_TRACEABILITY.md](DESIGN_TRACEABILITY.md) | Per-design-document (01–64) status → implementing module → evidence | Maintainers, Architects, Auditors |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem. Completeness claims scoped to v1.3 mission-pipeline scope as of 2026-08-01 | All |
 | [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list and outstanding production-readiness work | Maintainers, Operators |
 | [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff for maintainers and AI coding agents | Maintainers, AI coding agents |
 | [PROTOCOL_BUS_PROGRAM_ROADMAP.md](PROTOCOL_BUS_PROGRAM_ROADMAP.md) | Umbrella roadmap for the 4-stage bus program (PBLA → EDCP → Agent Runtime Split → Semantic Bus). Stage 1 (PBLA) is code-complete and live-validated; its implementation plan is archived at `archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` | Maintainers, AI coding agents |
@@ -61,6 +65,7 @@ are not listed as current implementation truth unless called out explicitly.
 
 | File | Decision | Date |
 |---|---|---|
+| [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) | Design corpus reconciled against the build; binary synthesis retired (D2), pragmatic-middle semantic engine (D1), EDCP committed (D3) | 2026-08-01 |
 | [ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md](ADR_35_AGENT_RUNTIME_TOPOLOGY_2026-03-04.md) | Agent runtime topology — 41-agent, 4-pod, 4-tier structure | 2026-03-04 |
 | [ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md](ADR_MISSION_FLOW_V2_STATUS_2026-03-08.md) | Mission Flow v2 promoted to default; v1 retained as fallback | 2026-03-08 |
 | [ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md](ADR_V2_MISSION_FLOW_ADOPTION_DESIGN_2026-03-08.md) | Mission Flow v2 design and adoption plan | 2026-03-08 |

@@ -229,7 +229,10 @@ class EventEnvelope(BaseModel):
     correlation_id: str
     payload_ref: str = Field(pattern=r"^registry://")
     schema_: str = Field(alias="schema")
-    priority: Literal["NORMAL", "HIGH"]
+    # Kept in sync with schemas/event.envelope.schema.json. NORMAL/HIGH are the
+    # canonical values this transport writes; the lowercase bus vocabulary is
+    # accepted additively so a bus-priority envelope is not rejected (UPG-22).
+    priority: Literal["NORMAL", "HIGH", "low", "normal", "high", "critical"]
 
     @model_validator(mode="after")
     def _validate_timestamp(self) -> "EventEnvelope":

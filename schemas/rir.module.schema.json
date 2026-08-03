@@ -15,6 +15,15 @@
     "module": {
       "type": "object"
     },
+    "projection_method": {
+      "type": "string",
+      "enum": [
+        "templated_v1",
+        "ast_v1",
+        "mixed_v1"
+      ],
+      "description": "How this module's functions were projected from LogicNodes (UPG-40). \"templated_v1\" = every function is a synthetic template carrying no recovered semantics. \"ast_v1\" = every function was derived from real AST signature data. \"mixed_v1\" = both, which is normal when one source file mixes AST-backed and regex-only extraction. Optional so modules written before UPG-40 stay valid; absent means templated_v1."
+    },
     "fns": {
       "type": "array",
       "items": {

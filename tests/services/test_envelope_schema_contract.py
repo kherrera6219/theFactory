@@ -29,7 +29,14 @@ sys.path.insert(0, str(ROOT / "services" / "protocol-bus-mcp"))
 
 from protocol_bus.mcp_server import EventEnvelope, _validate_protocol_payload  # noqa: E402
 
-from shared_runtime.protocol import ProtocolValidationError, validate_envelope  # noqa: E402
+from shared_runtime.protocol import (  # noqa: E402
+    BUS_PRIORITIES,
+    EVENT_PRIORITIES,
+    ProtocolValidationError,
+    to_bus_priority,
+    to_event_priority,
+    validate_envelope,
+)
 
 SCHEMA_PATH = ROOT / "schemas" / "event.envelope.schema.json"
 PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
@@ -167,3 +174,93 @@ def test_json_schema_rejects_bad_payload_ref(schema) -> None:
     envelope["payload_ref"] = "http://not-a-registry-ref"
     with pytest.raises(JSONSchemaValidationError):
         Draft202012Validator(schema).validate(envelope)
+
+
+# ---------------------------------------------------------------------------
+# UPG-22 — priority vocabulary reconciliation.
+#
+# Two envelope transports disagreed on the priority vocabulary: the event
+# envelope accepted NORMAL|HIGH, the bus /send body accepts
+# low|normal|high|critical. The reconciliation is additive — the event schema
+# now accepts both — so these tests assert both directions and, critically,
+# that nothing previously valid became invalid.
+# ---------------------------------------------------------------------------
+
+
+def test_event_schema_still_accepts_legacy_priorities(schema) -> None:
+    """Backward compatibility: the pre-UPG-22 vocabulary must stay valid."""
+    validator = Draft202012Validator(
+        schema, format_checker=Draft202012Validator.FORMAT_CHECKER
+    )
+    for legacy in EVENT_PRIORITIES:
+        envelope = _envelope_for("alpha").model_dump(mode="json", by_alias=True)
+        envelope["priority"] = legacy
+        validator.validate(envelope)
+
+
+@pytest.mark.parametrize("bus_priority", BUS_PRIORITIES)
+def test_bus_priority_is_representable_on_event_transport(bus_priority, schema) -> None:
+    """A priority valid on the bus must be representable on the event envelope.
+
+    Both directly (the schema accepts it) and after normalisation (it maps onto
+    a canonical event priority). This is the contract the audit flagged as
+    missing — the mismatch is a latent bug the moment anything routes on
+    priority across both paths.
+    """
+    validator = Draft202012Validator(
+        schema, format_checker=Draft202012Validator.FORMAT_CHECKER
+    )
+    envelope = _envelope_for("alpha").model_dump(mode="json", by_alias=True)
+    envelope["priority"] = bus_priority
+    validator.validate(envelope)
+
+    normalised = to_event_priority(bus_priority)
+    assert normalised in EVENT_PRIORITIES
+    envelope["priority"] = normalised
+    validator.validate(envelope)
+
+
+@pytest.mark.parametrize("event_priority", EVENT_PRIORITIES)
+def test_event_priority_is_representable_on_bus_transport(event_priority) -> None:
+    assert to_bus_priority(event_priority) in BUS_PRIORITIES
+
+
+def test_priority_normalisation_is_idempotent_and_lossless_for_canonical_values() -> None:
+    """Normalising an already-canonical value must be a no-op.
+
+    This is what keeps the write path byte-identical for every existing
+    configuration: DEFAULT_EVENT_PRIORITY=NORMAL still writes exactly "NORMAL".
+    """
+    for value in EVENT_PRIORITIES:
+        assert to_event_priority(value) == value
+        assert to_event_priority(to_event_priority(value)) == value
+    for value in BUS_PRIORITIES:
+        assert to_bus_priority(value) == value
+
+
+def test_pydantic_envelope_model_accepts_every_schema_priority(schema) -> None:
+    """The Pydantic Literal and the JSON Schema enum must not drift apart."""
+    schema_enum = set(schema["properties"]["priority"]["enum"])
+    for value in schema_enum:
+        envelope = EventEnvelope.model_validate(
+            {
+                "event_id": "evt-priority",
+                "topic": "protocol.alpha.event",
+                "timestamp": "2026-03-01T00:00:00+00:00",
+                "producer": "protocol-bus-mcp",
+                "correlation_id": "corr-priority",
+                "payload_ref": "registry://protocol/alpha/payload",
+                "schema": "protocol.alpha.v1",
+                "priority": value,
+            }
+        )
+        assert envelope.priority == value
+    assert schema_enum == set(EVENT_PRIORITIES) | set(BUS_PRIORITIES)
+
+
+def test_unknown_priority_fails_loudly() -> None:
+    """A typo must raise at the write site, not silently downgrade priority."""
+    with pytest.raises(ProtocolValidationError):
+        to_event_priority("URGENT")
+    with pytest.raises(ProtocolValidationError):
+        to_bus_priority("urgent")

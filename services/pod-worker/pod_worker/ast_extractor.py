@@ -31,6 +31,15 @@ class AstFunctionInfo:
     arg_types: tuple[str, ...]
     docstring: str | None
     signature: str
+    # Side-effect analysis (UPG-41). ``purity`` is deliberately three-valued:
+    # absence of detected effects is NOT proof of purity, because a call to a
+    # function this analysis cannot see could do anything.
+    side_effects: tuple[str, ...] = ()
+    purity: str = "UNKNOWN"  # "PURE" | "IMPURE" | "UNKNOWN"
+    # Ordered opcode stream over the function body (UPG-41), as
+    # ``("OPCODE", "detail")`` pairs. Replaces the RIR's single synthetic
+    # EXTRACT_CONCEPT op with a real statement sequence.
+    ops: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,6 +199,8 @@ class _AstVisitor(ast.NodeVisitor):
             for arg in node.args.args
             if arg.annotation is not None
         )
+        side_effects, purity = _analyse_side_effects(node)
+        ops = _body_op_stream(node)
         self.functions.append(AstFunctionInfo(
             name=node.name,
             line=node.lineno,
@@ -200,6 +211,9 @@ class _AstVisitor(ast.NodeVisitor):
             arg_types=arg_types,
             docstring=_first_docstring(node.body),
             signature=_build_signature(node),
+            side_effects=side_effects,
+            purity=purity,
+            ops=ops,
         ))
         self.generic_visit(node)
 
@@ -208,6 +222,283 @@ class _AstVisitor(ast.NodeVisitor):
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self._visit_function(node)
+
+
+# ---------------------------------------------------------------------------
+# Side-effect analysis (UPG-41)
+#
+# Replaces the previous RIR purity derivation, which was
+# ``"IMPURE" if payload.get("intent") else "PURE"`` -- purity decided by whether
+# an unrelated string happened to be truthy.
+#
+# The governing rule here is that **absence of evidence is not evidence of
+# purity**. A function whose body contains a call this analysis cannot resolve
+# could do anything, so it is reported UNKNOWN rather than PURE. Only a function
+# that demonstrably touches nothing outside itself earns PURE.
+# ---------------------------------------------------------------------------
+
+# Builtins that cannot themselves cause an observable effect. Calling one does
+# not prevent a PURE verdict. Deliberately conservative -- anything not on this
+# list makes the result UNKNOWN at best.
+_PURE_BUILTINS = frozenset({
+    "abs", "all", "any", "ascii", "bin", "bool", "bytes", "callable", "chr",
+    "complex", "dict", "divmod", "enumerate", "filter", "float", "format",
+    "frozenset", "getattr", "hasattr", "hash", "hex", "id", "int", "isinstance",
+    "issubclass", "iter", "len", "list", "map", "max", "min", "next", "oct",
+    "ord", "pow", "range", "repr", "reversed", "round", "set", "slice", "sorted",
+    "str", "sum", "tuple", "type", "zip",
+})
+
+# Calls that are unambiguously effectful, mapped to the effect they cause.
+_EFFECTFUL_CALLS: dict[str, str] = {
+    "print": "io.stdout",
+    "open": "io.filesystem",
+    "input": "io.stdin",
+    "exec": "dynamic_execution",
+    "eval": "dynamic_execution",
+    "compile": "dynamic_execution",
+    "exit": "process_control",
+    "quit": "process_control",
+    "breakpoint": "process_control",
+}
+
+# Module prefixes whose use implies an effect category.
+_EFFECTFUL_MODULES: dict[str, str] = {
+    "os": "io.filesystem",
+    "io": "io.filesystem",
+    "shutil": "io.filesystem",
+    "pathlib": "io.filesystem",
+    "tempfile": "io.filesystem",
+    "socket": "io.network",
+    "requests": "io.network",
+    "httpx": "io.network",
+    "urllib": "io.network",
+    "http": "io.network",
+    "subprocess": "process_control",
+    "sys": "process_control",
+    "threading": "concurrency",
+    "multiprocessing": "concurrency",
+    "asyncio": "concurrency",
+    "random": "nondeterminism",
+    "time": "nondeterminism",
+    "datetime": "nondeterminism",
+    "uuid": "nondeterminism",
+    "secrets": "nondeterminism",
+    "logging": "io.logging",
+    "sqlite3": "io.database",
+    "psycopg": "io.database",
+    "redis": "io.database",
+}
+
+
+def _root_name(node: ast.AST) -> str | None:
+    """Return the leftmost identifier of a dotted or subscripted expression.
+
+    Both ``cfg.seen`` and ``cfg["seen"]`` must resolve to ``cfg`` — walking only
+    ``Attribute`` silently misses every subscript mutation, which is the more
+    common way Python code mutates a caller's dict or list.
+    """
+    current = node
+    while isinstance(current, ast.Attribute | ast.Subscript):
+        current = current.value
+    if isinstance(current, ast.Name):
+        return current.id
+    return None
+
+
+_MAX_OPS = 64
+
+
+def _body_op_stream(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> tuple[tuple[str, str], ...]:
+    """Return an ordered opcode stream over the function body.
+
+    The RIR previously emitted exactly one synthetic ``EXTRACT_CONCEPT`` op per
+    function regardless of what the function did. This walks the real statement
+    sequence instead, one op per statement, descending into control-flow bodies
+    so a branch's contents are represented rather than collapsed.
+
+    Capped at ``_MAX_OPS`` so a pathological function cannot inflate the RIR
+    artifact without bound; truncation is recorded as a final ``TRUNCATED`` op
+    so a consumer can see the stream is partial rather than complete.
+    """
+    ops: list[tuple[str, str]] = []
+
+    def emit(opcode: str, detail: str = "") -> bool:
+        if len(ops) >= _MAX_OPS:
+            return False
+        ops.append((opcode, detail))
+        return True
+
+    def walk(statements: list[ast.stmt], depth: int) -> bool:
+        for statement in statements:
+            if isinstance(statement, ast.Return):
+                if not emit("RETURN", _short_expr(statement.value)):
+                    return False
+            elif isinstance(statement, ast.Assign | ast.AnnAssign | ast.AugAssign):
+                targets = (
+                    statement.targets
+                    if isinstance(statement, ast.Assign)
+                    else [statement.target]
+                )
+                names = ",".join(filter(None, (_node_name(t) for t in targets)))
+                if not emit("ASSIGN", names):
+                    return False
+            elif isinstance(statement, ast.If):
+                if not emit("BRANCH", _short_expr(statement.test)):
+                    return False
+                if not walk(statement.body, depth + 1):
+                    return False
+                if statement.orelse and not walk(statement.orelse, depth + 1):
+                    return False
+            elif isinstance(statement, ast.For | ast.AsyncFor | ast.While):
+                if not emit("LOOP", type(statement).__name__.upper()):
+                    return False
+                if not walk(statement.body, depth + 1):
+                    return False
+            elif isinstance(statement, ast.With | ast.AsyncWith):
+                if not emit("CONTEXT", ""):
+                    return False
+                if not walk(statement.body, depth + 1):
+                    return False
+            elif isinstance(statement, ast.Try):
+                if not emit("TRY", ""):
+                    return False
+                if not walk(statement.body, depth + 1):
+                    return False
+                for handler in statement.handlers:
+                    if not emit("HANDLE", _short_expr(handler.type)):
+                        return False
+            elif isinstance(statement, ast.Raise):
+                if not emit("RAISE", _short_expr(statement.exc)):
+                    return False
+            elif isinstance(statement, ast.Expr):
+                value = statement.value
+                if isinstance(value, ast.Call):
+                    if not emit("CALL", _node_name(value.func) or ""):
+                        return False
+                elif isinstance(value, ast.Constant) and isinstance(value.value, str):
+                    continue  # docstring / bare string, not an operation
+                elif not emit("EVAL", _short_expr(value)):
+                    return False
+            elif isinstance(statement, ast.Pass):
+                continue
+            elif isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+                if not emit("DEFINE", statement.name):
+                    return False
+            elif not emit(type(statement).__name__.upper(), ""):
+                return False
+        return True
+
+    completed = walk(node.body, 0)
+    if not completed:
+        ops.append(("TRUNCATED", str(_MAX_OPS)))
+    return tuple(ops)
+
+
+def _short_expr(node: ast.AST | None, limit: int = 48) -> str:
+    """Return a short, safe textual form of an expression for op detail."""
+    if node is None:
+        return ""
+    try:
+        text = ast.unparse(node)
+    except Exception:
+        return ""
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _analyse_side_effects(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> tuple[tuple[str, ...], str]:
+    """Return ``(side_effects, purity)`` for one function definition.
+
+    Detected effects:
+
+    * ``global_state`` / ``nonlocal_state`` -- ``global``/``nonlocal`` statements
+      and assignments to names declared in them
+    * ``argument_mutation`` -- assignment to an attribute or subscript of a
+      parameter, which mutates the caller's object
+    * ``io.*`` / ``process_control`` / ``concurrency`` / ``nondeterminism`` --
+      resolved via ``_EFFECTFUL_CALLS`` and ``_EFFECTFUL_MODULES``
+    * ``async_suspension`` -- ``await``, which yields control to a scheduler
+
+    Purity verdict:
+
+    * ``IMPURE`` -- at least one effect was positively identified
+    * ``PURE``   -- no effects, and every call resolved to a known-pure builtin
+    * ``UNKNOWN`` -- no effects found, but the body calls something this
+      analysis cannot resolve, so purity cannot be asserted either way
+
+    That third state is the point of the exercise: the previous implementation
+    had no way to say "not determined" and so asserted a purity value for every
+    function regardless of whether anything had been examined.
+    """
+    effects: set[str] = set()
+    unresolved_call = False
+
+    # Parameter names -- assignment into one of these mutates the caller's data.
+    args = node.args
+    param_names = {
+        a.arg for a in (*args.posonlyargs, *args.args, *args.kwonlyargs)
+    }
+    if args.vararg:
+        param_names.add(args.vararg.arg)
+    if args.kwarg:
+        param_names.add(args.kwarg.arg)
+
+    declared_global: set[str] = set()
+
+    for child in ast.walk(node):
+        # Do not descend into nested function definitions: their effects belong
+        # to them, not to this function, unless this function calls them.
+        if child is not node and isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+
+        if isinstance(child, ast.Global):
+            effects.add("global_state")
+            declared_global.update(child.names)
+        elif isinstance(child, ast.Nonlocal):
+            effects.add("nonlocal_state")
+            declared_global.update(child.names)
+        elif isinstance(child, ast.Await):
+            effects.add("async_suspension")
+        elif isinstance(child, ast.Assign | ast.AugAssign | ast.AnnAssign):
+            targets = child.targets if isinstance(child, ast.Assign) else [child.target]
+            for target in targets:
+                if isinstance(target, ast.Attribute | ast.Subscript):
+                    root = _root_name(target)
+                    if root and root in param_names:
+                        effects.add("argument_mutation")
+                    elif root and root not in param_names:
+                        # Mutating something that is neither a parameter nor a
+                        # local binding reaches outside this function.
+                        if root in declared_global:
+                            effects.add("global_state")
+        elif isinstance(child, ast.Call):
+            func = child.func
+            if isinstance(func, ast.Name):
+                name = func.id
+                if name in _EFFECTFUL_CALLS:
+                    effects.add(_EFFECTFUL_CALLS[name])
+                elif name not in _PURE_BUILTINS:
+                    unresolved_call = True
+            elif isinstance(func, ast.Attribute):
+                root = _root_name(func)
+                if root and root in _EFFECTFUL_MODULES:
+                    effects.add(_EFFECTFUL_MODULES[root])
+                else:
+                    # A method call on an object of unknown provenance.
+                    unresolved_call = True
+            else:
+                unresolved_call = True
+
+    if effects:
+        return tuple(sorted(effects)), "IMPURE"
+    if unresolved_call:
+        return (), "UNKNOWN"
+    return (), "PURE"
 
 
 # ---------------------------------------------------------------------------

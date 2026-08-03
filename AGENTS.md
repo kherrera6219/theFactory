@@ -1,7 +1,67 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-06-26 against actual codebase (Audit Phase 12 documentation drift pass).
+> Last validated: 2026-08-01 against actual codebase (design-vs-build audit).
+
+---
+
+## 0. CURRENT WORK — read this before anything else
+
+Active initiative as of **2026-08-01**. Read `docs/CURRENT_TODO.md` and
+`docs/HANDOFF_CURRENT.md` first — they carry session state and point here.
+Two documents are canonical for all forward work:
+
+| Document | What it is |
+|---|---|
+| `docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md` | **The governing verdict document.** One Implemented / Superseded / Deferred verdict per design area. **It outranks the numbered design corpus.** A Superseded verdict is a closed decision — reopening one requires an ADR amendment, not a plan edit. |
+| `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md` | The ordered execution plan, **Phases 1–7**. Start at its §0 "Cold start" — it tells you exactly what to read, in what order. |
+| `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md` | The read-only audit behind it: 143 design documents vs live source, with file/line evidence. |
+| `docs/DESIGN_TRACEABILITY.md` | Design document 01–64 → status → implementing module → evidence. Answers "where is Doc N implemented?" without re-reading the corpus. |
+
+**Progress as of 2026-08-01:** Phase 1 **done**, Phase 2 **done except UPG-20**,
+Phase 3 **done**, Phase 4 **done**. Full backend suite 1816 passed / 0 failed.
+
+**This plan's own premises do not always survive contact with the code — six
+have failed validation so far.** Before assuming any `UPG-*` item was skipped or
+done as written, read the corrections recorded in the ADR's "Corrections to the
+audit and plan" section, `docs/PROTOCOL_ENVELOPES.md` §4, and the per-phase
+status blocks in the plan itself. Verify against live source before trusting a
+plan statement — rule 1 below is not a formality here.
+
+**Next action — two options, neither blocking the other:**
+
+- **Phase 5** (plan §8) — behavioural equivalence, the payoff phase. Consumes
+  Phase 4's executable equivalence vectors. **Do not build a second execution
+  path** — reuse RQCA's hardened Docker sandbox (`rqca_agent.py:649-661`) and do
+  not relax any of its flags. UPG-51 wires the flag UPG-21 guarded; when it
+  does, that strict-xfail test flips red on purpose and its marker must go.
+- **UPG-20** (last Phase 2 item) — live-mission S1-01 evidence. Needs a running
+  stack and makes real paid LLM calls. **Hard blocker for Phase 6 only.**
+
+Work item IDs are `UPG-<phase><item>` — `UPG-2x` is Phase 2, `UPG-3x` is
+Phase 3, and so on. Phase 6 uses the `EDCP-*` IDs from
+`docs/EDCP_PHASE_PLAN.md` instead.
+
+**Three decisions are settled. Do not reopen them, and refuse work that
+contradicts them:**
+
+| # | Decision | Chosen |
+|---|---|---|
+| D1 | Semantic engine | **Pragmatic middle** — enrich LogicNodes additively, make Refined-IR extraction real where AST support already exists, build execution-based equivalence for a language subset. **Keep single-specialist routing. No 4-pod fan-out.** |
+| D2 | Binary synthesis / LLVM | **Formally killed.** Never implemented. Note: this retires binary *synthesis*, NOT `toolchains.py` syntax *validation*, which stays. |
+| D3 | Protocol Bus | **Commit to EDCP** — make it load-bearing, starting with a Delta consumer that can gate a mission (new EDCP-02a in `docs/EDCP_PHASE_PLAN.md`). |
+
+**Explicit non-goals** are listed in the upgrade plan §11 (four-pod fan-out, LLVM,
+the 0.0001% tolerance claim, the design Doc 30 LogicNode Registry, per-agent LLM
+provider keys, Agent Runtime Split, Semantic Bus). **§14 of the same plan lists
+what must not be weakened.**
+
+> **Do not treat the numbered design documents (01–64) as current specification.**
+> They are the Feb–Mar 2026 design phase, archived at
+> `docs/archive/2026-03-29/legacy-workspace/root-legacy-documentation/` (see the
+> README there) and **superseded in part as of 2026-08-01** — per-document status
+> is in `docs/DESIGN_TRACEABILITY.md`. `HGR_Gap_Report.md`-style material is stale
+> in its "what's missing" sections; six of its claims were verified closed.
 
 ---
 
@@ -11,7 +71,8 @@
 It accepts a natural-language mission and delivers working software through a fully automated pipeline.
 
 - **Stack**: Python (76%), TypeScript (20%), Docker monorepo
-- **Core model**: 19 language specialists → 4 paradigm pods → 1 unified output (LogicNodes / Refined-IR)
+- **Core model (as designed)**: 19 language specialists → 4 paradigm pods → 1 unified output (LogicNodes / Refined-IR)
+- **Core model (as built — code is truth)**: a mission resolves **one** pod manager and **one** specialist from `requested_target_language` (`mission_flow_v2/phases_build.py:328+`) and produces **source artifacts**, not a binary. Pods are routing metadata; there is no parallel four-pod fan-out and no cross-language fusion. See `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md` §4.1. Decision D1 keeps it this way.
 - **Smelt Cycle (MVP)**: INTAKE → FETCH → SMELT → GATING → FUSION → SQUEEZE → DELIVERY
 - **Six Redis Protocols**: Alpha (α) Directive · Beta (β) Production · Delta (δ) Audit · Sigma (σ) Knowledge · Omega (ω) User · Rho (ρ) Traffic
 
@@ -56,7 +117,7 @@ Language routing:
 - **Pod A — Dynamic**: Python, JavaScript, TypeScript, Ruby, PHP
 - **Pod B — Systems**: C, C++, Rust, Go, Zig
 - **Pod C — Enterprise**: Java, C#, Scala, Kotlin
-- **Pod D — Mathematical**: R, MATLAB, Julia, Haskell, OCaml
+- **Pod D — Mathematical & Functional**: R, MATLAB, Julia, Mathematica, Haskell, OCaml
 
 
 ### 5. Professional Grounding (Certified Experts)
@@ -77,7 +138,7 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 | Cert path mismatch (.env.example vs docker-compose) | ✅ Fixed — `.env.example` now explains both paths with inline comments |
 | GO/HASKELL/OCAML fall back to BaseAgent | ✅ Fixed — concrete SpecialistAgent subclasses implemented (#187) |
 | MCP replay detection not wired; except/pass on Redis errors | ✅ Fixed — 409 on replay, 503 on Redis failure, all channels checked (#188) |
-| Divergent envelope schemas | ✅ Fixed — unified schema + `jsonschema.validate()` in orchestrator (#189) |
+| Divergent envelope schemas | ⚠️ **Partially fixed.** The Redis *state-event* envelope is unified and `jsonschema.validate()`d in the orchestrator (#189). But two envelope formats remain in production and disagree: `schemas/event.envelope.schema.json` allows `priority` ∈ `NORMAL\|HIGH`, while the bus `/send` body allows `low\|normal\|high\|critical`. Latent (nothing routes on priority yet). Tracked as UPG-22 (upgrade plan Phase 2). |
 | Semantic bus routing misleadingly named | ✅ Fixed — renamed to protocol-bus-mcp throughout (#190) |
 | Generated artifacts committed to VCS | ✅ Fixed — removed + `.gitignore`d (#191) |
 | runtime.py coverage floor 60% | ✅ Fixed — raised to 80%, actual coverage 100% line (#192) |
@@ -87,7 +148,7 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 
 > runtime.py coverage floor raised to 80% (actual: 100% line / 99% branch) via 12 new branch-coverage tests (#192).
 
-## 6. Definition of Done (per task)
+## 7. Definition of Done (per task)
 
 - [ ] No existing tests broken (`make test` + `make test-ui`)
 - [ ] Docs updated to match code changes (no new drift)
@@ -97,12 +158,12 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 - [ ] Security controls (replay detection, deduplication, circuit breakers) not regressed
 - [ ] `AGENTS.md` updated if architecture changes
 
-## 7. File Sensitivity
+## 8. File Sensitivity
 
 | Path | Sensitivity | Notes |
 |---|---|---|
 | `services/orchestrator/orchestrator/storage_*.py` | **Critical** | Storage split complete (2026-05-17): `storage.py` is now a 135-line re-export façade; domain logic is in `storage_core.py`, `storage_missions.py`, `storage_pods.py`, `storage_logicnodes.py`, `storage_artifacts.py`, `storage_agents.py`. Changes to any storage module affect all services. |
-| `services/orchestrator/orchestrator/mission_flow_v2.py` | **Critical** | 3004 lines — primary runtime path. All Sprint 2–3 intelligence items flow through here. |
+| `services/orchestrator/orchestrator/mission_flow_v2/` | **Critical** | Primary runtime path. **It is a package, not a single file** — `base.py`, `lifecycle.py`, `transitions.py`, `phases_intake.py`, `phases_build.py`, `phases_runtime.py`, `phases_delivery.py`. (`mission_flow.py` alongside it is a separate module holding the pod/specialist language maps.) |
 | `services/orchestrator/orchestrator/main.py` | **High** | Routes + lifespan tasks + approvals. Heartbeat synthesis extracted to `heartbeat_service.py`; knowledge refresh loop added at startup. |
 | `services/pod-worker/pod_worker/extractors/` | **High** | Core semantic engine. Fixture tests required for changes. |
 | `shared/schemas/` | **High** | Schema changes break all services. Coordinate. |

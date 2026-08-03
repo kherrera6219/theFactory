@@ -618,6 +618,10 @@ def test_handle_running_mission_with_source_extraction(monkeypatch) -> None:
             return SimpleNamespace(
                 summary={"language": "python", "concepts_found": 1},
                 concepts=[FakeConcept()],
+                # Real ExtractionResult always carries a functions list; the
+                # stub mirrors that so the UPG-31 signature path is exercised
+                # rather than silently skipped.
+                functions=[],
             )
 
     monkeypatch.setattr(pod_worker_main, "_has_assignment", _has_assignment_false)
@@ -1094,6 +1098,10 @@ def test_handle_partition_ready_submits_partition_results(monkeypatch) -> None:
             return SimpleNamespace(
                 summary={"language": "python", "concepts_found": 1},
                 concepts=[FakeConcept()],
+                # Real ExtractionResult always carries a functions list; the
+                # stub mirrors that so the UPG-31 signature path is exercised
+                # rather than silently skipped.
+                functions=[],
             )
 
     monkeypatch.setattr(pod_worker_main, "_mission_matches_agent_binding", _matches)

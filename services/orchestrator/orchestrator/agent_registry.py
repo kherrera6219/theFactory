@@ -128,7 +128,11 @@ AGENT_REGISTRY: Final[tuple[AgentDefinition, ...]] = (
         name="Hardware-Mapping Injector",
         tier="Support Ring",
         pod="Support Ring",
-        role="CPU/GPU optimization and hardware-specific mapping",
+        # Reserved role. Binary synthesis was formally retired on 2026-08-01
+        # (ADR_DESIGN_RECONCILIATION_2026-08-01.md, D2), so this agent carries no
+        # compilation or hardware-mapping responsibility; it exists to supply
+        # target-profile hints to generation if that path is ever activated.
+        role="Reserved: target-profile hints for generation (no compilation role)",
         category="support",
     ),
     AgentDefinition(
@@ -148,7 +152,10 @@ AGENT_REGISTRY: Final[tuple[AgentDefinition, ...]] = (
         name="Deployment Agent",
         tier="Support Ring",
         pod="Support Ring",
-        role="Binary packaging, delivery, and environment setup",
+        # "Binary packaging" until 2026-08-01. theFactory delivers source
+        # artifacts and gzipped bundles, never compiled binaries — see
+        # ADR_DESIGN_RECONCILIATION_2026-08-01.md, D2.
+        role="Artifact packaging, delivery, and environment setup",
         category="support",
     ),
     AgentDefinition(
@@ -350,7 +357,10 @@ AGENT_REGISTRY: Final[tuple[AgentDefinition, ...]] = (
         name="Pod D Sub-Manager",
         tier="Refinement Pod",
         pod="Pod D",
-        role="Coordinate mathematical-language extraction and fusion in Pod D",
+        # "mathematical-language" until 2026-08-01. Pod D also holds Haskell and
+        # OCaml, which are functional rather than mathematical (UPG-23). The
+        # pod key "Pod D" is a routing identifier and deliberately unchanged.
+        role="Coordinate mathematical and functional language extraction and fusion in Pod D",
         category="pod_manager",
     ),
     AgentDefinition(

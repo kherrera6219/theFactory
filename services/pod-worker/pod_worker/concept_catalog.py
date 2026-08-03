@@ -943,7 +943,7 @@ _POD_C_KOTLIN: Final[tuple[ConceptPattern, ...]] = (
 )
 
 # ---------------------------------------------------------------------------
-# Pod D — Mathematical Languages (MATLAB, R, Julia, Mathematica)
+# Pod D — Mathematical & Functional Languages (MATLAB, R, Julia, Mathematica; Haskell/OCaml below)
 # ---------------------------------------------------------------------------
 
 _POD_D_MATLAB: Final[tuple[ConceptPattern, ...]] = (

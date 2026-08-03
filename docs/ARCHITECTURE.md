@@ -202,7 +202,7 @@ QUEUED ──► RUNNING ──► VERIFIED ──► COMPLETE
 | Pod A (Dynamic) | Manager, Audit, Python, JS, Ruby, PHP Specialists | 6 |
 | Pod B (Systems) | Manager, Audit, C, C++, Rust, Zig, Go Specialists | 7 |
 | Pod C (Enterprise) | Manager, Audit, Java, C#, Scala, Kotlin Specialists | 6 |
-| Pod D (Mathematical) | Manager, Audit, MATLAB, R, Julia, Mathematica, Haskell, OCaml Specialists | 8 |
+| Pod D (Mathematical & Functional) | Manager, Audit, MATLAB, R, Julia, Mathematica, Haskell, OCaml Specialists | 8 |
 | **Total** | | **41** |
 
 ### Agent Runtime State Model
