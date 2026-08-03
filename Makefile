@@ -1,12 +1,16 @@
 
-.PHONY: check-env force-stop
+.PHONY: check-env force-stop topology
 check-env:
 	@python scripts/check_env.py
 
 force-stop:
 	@python scripts/force_stop.py
 
-.PHONY: check-env up down up-full-dedicated down-full-dedicated validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai demo audit phase13-smoke promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr dr-ps1 perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down agent-keys tls-certs prune-audit
+# Report the running topology and the correct paired commands for it.
+topology:
+	@python scripts/compose_topology.py
+
+.PHONY: check-env up down down-wipe up-full-dedicated down-full-dedicated down-full-dedicated-wipe up-condensed down-condensed down-condensed-wipe validate lint test test-ui test-ui-e2e test-fast test-live-extended eval-ai demo audit phase13-smoke promotion-gate release-evidence-verify qualification-summary dora-metrics compose-validate sweep openapi predeploy backup backup-verify dr dr-ps1 perf reliability langgraph-recovery dedicated-canary dedicated-canary-trend oidc-matrix langgraph-v2-prototype monitor-up monitor-down monitor-down-wipe agent-keys tls-certs prune-audit
 # validate: full pre-merge gate — lint + schema check + pytest + UI lint/test
 
 up: check-env tls-certs
@@ -21,22 +25,49 @@ up: check-env tls-certs
 		agent-32-matlab agent-33-r agent-34-julia agent-35-mathematica agent-37-haskell agent-38-ocaml \
 		agent-39-depabs agent-40-testdata agent-41-rqca
 
+# ---------------------------------------------------------------------------
+# Teardown targets.
+#
+# `down*` targets STOP the stack and PRESERVE volumes. They used to pass `-v`,
+# which removes every named volume — postgres-data, redis-data, qdrant-data,
+# neo4j-data, minio-data, milvus-data, and mission-control-vault. That destroyed
+# the mission database, the knowledge stores, AND the operator's stored provider
+# credentials on every ordinary stop, and it wiped the database at least once in
+# practice (2026-06-30).
+#
+# Destroying data is now an explicit choice: use the `*-wipe` targets. This
+# follows the same dry-run-by-default convention applied to every other
+# destructive script in this repo.
+# ---------------------------------------------------------------------------
+
 down:
+	docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents down
+
+down-wipe:
+	@echo "WARNING: removing ALL named volumes — mission database, knowledge stores, and the operator vault."
 	docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents down -v
 
 up-full-dedicated: up
 down-full-dedicated: down
+down-full-dedicated-wipe: down-wipe
 
 up-condensed: check-env tls-certs
 	docker compose --env-file .env -f deploy/docker-compose.yaml up -d --build
 
 down-condensed:
+	docker compose --env-file .env -f deploy/docker-compose.yaml down
+
+down-condensed-wipe:
+	@echo "WARNING: removing ALL named volumes — mission database, knowledge stores, and the operator vault."
 	docker compose --env-file .env -f deploy/docker-compose.yaml down -v
 
 monitor-up:
 	docker compose -f deploy/docker-compose.monitoring.yaml up -d
 
 monitor-down:
+	docker compose -f deploy/docker-compose.monitoring.yaml down
+
+monitor-down-wipe:
 	docker compose -f deploy/docker-compose.monitoring.yaml down -v
 
 validate:

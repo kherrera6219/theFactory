@@ -133,9 +133,11 @@ for Phase 6 (EDCP)**. Requires the live stack (Docker Desktop was not running on
 2026-08-01). Run a *non-trivial* `BUILD_NEW` mission — multiple acceptance
 criteria and a required artifact format, not another string reverser — through
 to `COMPLETE`, and commit the result as
-`docs/evidence/s1_01_live_generation_2026-08-XX.json`. **Stack ops reminder:
-always pair the two compose files, and note that `stop_app.bat` runs
-`docker compose down -v`, which deletes the Postgres/Redis volumes.**
+`docs/evidence/s1_01_live_generation_2026-08-XX.json`. **Stack ops: both former footguns are fixed
+(2026-08-03).** Teardown now preserves volumes by default (`make down-wipe` or
+`force_stop.py --wipe-volumes` to delete), and `start_app.bat` refuses to start
+a topology that conflicts with what is already running. `make topology` reports
+the running topology and its correct paired commands.
 
 **DONE — UPGRADE plan Phase 4 (2026-08-01): real Refined-IR projection.** All
 six exit criteria met. Full backend suite **1816 passed, 0 failed, 0 errors**
