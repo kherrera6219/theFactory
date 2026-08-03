@@ -279,26 +279,63 @@ normalised to an empty string before the bracket check ran, silently dropping
 every vector for the language — and Haskell is one of only three whose
 signatures are recovered at all.
 
-### Next action — two options, neither blocking the other
+### Phase 5 — DONE (2026-08-02): behavioural equivalence
 
-**Option A: Phase 5** (behavioural equivalence, plan §8) — the payoff phase, and
-it consumes exactly what Phase 4 produced. No live-stack dependency for the
-build; execution runs in Docker.
+All six exit criteria met. Full backend suite **1843 passed, 0 failed, 0
+errors**. Mission Control `tsc --noEmit` and lint clean.
 
-> **Two hard constraints.** (1) **Do not build a second execution path.** RQCA
-> already has a hardened sandbox at `rqca_agent.py:649-661` —
-> `--network=none --read-only --cap-drop=ALL --memory-swap=0 --cpus=1
-> --security-opt=no-new-privileges:true`, 64 MB tmpfs, read-only `/workspace`,
-> 60 s, 512 MB. Extract that invocation core into a shared helper; a second,
-> less-hardened path is the most likely way this plan introduces a real
-> vulnerability. (2) UPG-51 wires
-> `mission_equivalence_python_execution_enabled` — the flag UPG-21 guarded. The
-> moment it has a consumer, `test_flag_has_at_least_one_consumer` passes
-> unexpectedly and **strict xfail turns the suite red on purpose**. That is the
-> designed signal: delete the marker, keep the assertion.
+`equivalence_verifier.py` answered *does the artifact match its contract*. It is
+now joined by a second scope answering *does it actually behave*: Phase 4's
+equivalence vectors are executed against the artifact in a sandbox, and a real
+pass ratio is recorded. Both scopes render as separate sections in
+`EquivalenceReportPanel.tsx`.
 
-**Option B: UPG-20** — the last Phase 2 item, and the hard blocker for Phase 6
-(EDCP). Needs the live stack.
+**The sandbox is genuinely shared.** The hardened `docker run` invocation was
+extracted to `orchestrator/sandbox_exec.py` and **RQCA was refactored to call
+it** — this is real sharing, not a parallel copy. `SANDBOX_SECURITY_FLAGS` is
+the single source of truth for `--network=none`, `--read-only`, `--cap-drop=ALL`,
+`--memory-swap=0`, `--cpus=1`, `no-new-privileges`, and the 64 MB tmpfs; the
+workspace is mounted `:ro`. A test asserts both callers reference the same
+function object *and* that neither module contains its own `--network=none`
+string, so a future copy-paste executor fails the suite rather than passing
+review. **Do not add a second `docker run` anywhere.**
+
+**UPG-21's strict-xfail fired exactly as designed**, two phases after it was
+written. Wiring `mission_equivalence_python_execution_enabled` in
+`phases_delivery.py` made `test_flag_has_at_least_one_consumer` pass
+unexpectedly, turning the suite red on purpose. The marker was removed and the
+assertion is now live.
+
+> **The honesty rule that shapes this whole report — preserve it.** Phase 4
+> deliberately leaves `expected: null` on vectors, so a vector that merely *ran*
+> is counted as `executed_without_error`, **never** `passed`. Making those count
+> as passes would improve every number on the report and would be a genuine
+> regression: it recreates the "check that can never fail" that this phase
+> exists to remove. Likewise a sandbox **timeout is recorded as `skipped`, not
+> failed** — it means no verdict was produced, so blaming the code under test
+> would be wrong. Docker being unavailable records `skipped`, never `passed`.
+
+**Advisory by design (UPG-53).** Behavioural failures do not block delivery.
+`attach_behavioural_report` deliberately leaves the correctness
+`status`/`passed`/`blocking` fields untouched. Enforcing an unmeasured gate is
+how you teach operators to disable gates — measure across ≥20 real missions
+first.
+
+**Deliberately not done:** extending beyond Python. Only `_build_driver` is
+language-specific so this is additive, but shipping Python-only with an honest
+`skipped` beats three half-tested drivers.
+
+### Next action — two options
+
+**Option A: Phase 7** (consolidation, plan §10) — **unblocked**. UPG-70's
+LogicNode dependency graph now has Phase 3/4 data to render (pick a library
+compatible with the CSP work deferred from the remediation plan — nothing
+requiring `unsafe-inline` or `unsafe-eval`). UPG-71 (LangGraph disposition),
+UPG-72 (`MISSION_TAXONOMY.md`), and UPG-73 (formally defer Doc 30) are decision
+and documentation work.
+
+**Option B: UPG-20** — the last Phase 2 item, and the **hard blocker for Phase 6
+(EDCP)**. Needs the live stack.
 
 #### Option B detail — UPG-20
 

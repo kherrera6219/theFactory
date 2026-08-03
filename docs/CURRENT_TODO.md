@@ -161,13 +161,35 @@ concrete arguments but `expected: null` — the expected output isn't knowable
 until something executes the artifact, and fabricating one would recreate the
 "vector that can never fail" problem. Phase 5 fills it by execution.
 
-**Next: Phase 5** (behavioural equivalence, plan §8) — the payoff phase, and it
-consumes exactly what Phase 4 produced. **Do not build a second execution
-path**: reuse RQCA's hardened Docker sandbox (`rqca_agent.py:649-661`,
-`--network=none --read-only --cap-drop=ALL`, 60s, 512MB). UPG-51 wires the
-`mission_equivalence_python_execution_enabled` flag that UPG-21 guarded — when
-it does, that strict-xfail test flips red on purpose and its marker must be
-removed.
+**DONE — UPGRADE plan Phase 5 (2026-08-02): behavioural equivalence.** All six
+exit criteria met. Full backend suite **1843 passed, 0 failed, 0 errors**.
+
+`equivalence_verifier.py` answered *does the artifact match its contract*. It is
+now joined by a second scope that answers *does it actually behave*: the
+mission's Phase 4 equivalence vectors are executed against the artifact in a
+sandbox and a real pass ratio is recorded. Both scopes render separately in
+Mission Control.
+
+**The sandbox is genuinely shared, not copied.** The hardened `docker run`
+invocation moved to `orchestrator/sandbox_exec.py` and **RQCA was refactored to
+call it**, so security flags are defined in exactly one place. A test asserts
+both callers reference the same function object *and* that neither module
+contains its own `--network=none` — a future copy-paste executor fails the suite
+rather than passing review.
+
+**UPG-21's strict-xfail fired exactly as designed**, two phases after it was
+written: wiring the flag made the test pass unexpectedly, turning the suite red
+on purpose. Marker removed, assertion now live.
+
+**The honesty rule to preserve through any future change:** a vector that merely
+*ran* is reported as `executed_without_error`, never `passed`. Phase 4 leaves
+`expected: null` deliberately, and counting execution as verification would
+recreate the "check that can never fail" this phase exists to remove — a
+regression that would make every number look better.
+
+**Next: Phase 6 (EDCP)** — but it is **blocked by UPG-20**, which needs the live
+stack. **Phase 7** (consolidation) is unblocked: UPG-70's LogicNode dependency
+graph now has Phase 3/4 data to render, and UPG-71/72/73 are decision work.
 
 **Note on the Electron/Windows work:** Phase 4 of the Full Whole-App Remediation
 Plan (below) is *orthogonal* to the upgrade plan and is not blocked by it. Either
@@ -658,7 +680,7 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
-### Design Reconciliation & Semantic Engine Upgrade (Phases 1, 3, 4 done; Phase 2 partial; Phases 5-7 remaining)
+### Design Reconciliation & Semantic Engine Upgrade (Phases 1, 3, 4, 5 done; Phase 2 partial; Phases 6-7 remaining)
 
 Audit: `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md`. Ordered execution plan:
 `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md`. Decisions D1/D2/D3 are
@@ -1541,7 +1563,7 @@ focused on the active queue plus recent history.
 | Design/implementation reconciliation | **CLOSED 2026-08-01 (Phase 1).** `docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md` assigns an Implemented/Superseded/Deferred verdict to every design area and formally outranks the Feb–Mar 2026 corpus, which now carries a supersession README. `docs/DESIGN_TRACEABILITY.md` maps all 64 design documents to implementing modules |
 | LogicNode semantic depth | **CLOSED 2026-08-01 (Phase 3).** Schema v2 promotes 5 descriptive fields to optional top-level properties and reserves 5 more; `payload` unchanged so no reader breaks. `types.in`/`types.out` now carry real signatures for **Python, Java, Haskell** — the only extractors that genuinely recover them. Go/OCaml/Julia/JS-TS stay empty by design, and that emptiness is now informative. The designed ~30-field semantic node remains **Superseded** per ADR row 6 |
 | Refined-IR projection | **CLOSED 2026-08-01 (Phase 4).** For AST-backed languages the projection now carries real typed signatures, a real statement-level op stream (7 ops where there was 1), purity from genuine side-effect analysis, and executable equivalence vectors. Regex-only languages keep the templated path, now **labelled** `projection_method: "templated_v1"` so the artifact itself is honest rather than only the docs. RIR catalog populates on every write |
-| Behavioural equivalence | **Open — Phase 5.** `equivalence_verifier.py` checks contract conformance (`"verification_scope": "correctness"`), not behaviour. `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` is still declared in `settings.py` and read nowhere — now guarded by a strict-xfail test (UPG-21) that turns the suite red the moment Phase 5 wires it |
+| Behavioural equivalence | **CLOSED 2026-08-02 (Phase 5).** A real `"verification_scope": "behavioural"` section now executes Phase 4's vectors in the shared hardened sandbox and reports a genuine pass ratio. Python only; other languages record an honest `skipped`. `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` is **wired** (UPG-21's strict-xfail fired as designed and was removed). Advisory until pass rates are measured across ≥20 real missions (UPG-53) |
 | Envelope vocabulary mismatch | **CLOSED 2026-08-01 (UPG-22).** Turned out to be **live, not latent**: an operator setting `DEFAULT_EVENT_PRIORITY` to a lowercase bus value made every state envelope fail validation. Reconciled additively (schema accepts all six values; writers normalise via `to_event_priority`); `docs/PROTOCOL_ENVELOPES.md` documents both transports and corrects the plan's wrong premise about the correlation contract |
 | Binary synthesis / LLVM | **CLOSED 2026-08-01 (Phase 1 / UPG-11).** Decision D2 recorded in the ADR; `AGENT-11-DEPLOY` and `AGENT-09-HW` role strings rewritten. `toolchains.py` syntax validation deliberately retained. The `agent_personas.py` Julia LLVM reference was **kept on purpose** — it describes Julia's own compiler, not a theFactory capability |
 | LogicNode Registry (design Doc 30) | **Deferred by decision (UPG-73).** Largest unimplemented specification in the corpus; only valuable once RIR carries real cross-mission semantics |

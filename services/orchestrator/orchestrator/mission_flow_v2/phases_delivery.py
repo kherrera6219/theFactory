@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from ..equivalence_verifier import (
+    attach_behavioural_report,
     build_equivalence_report,
     mission_requires_equivalence,
 )
@@ -270,6 +271,62 @@ async def _prepare_delivery_summary(
     return updated or mission
 
 
+async def _run_behavioural_equivalence(
+    mission: Any, metadata: dict[str, Any], settings: Any
+) -> dict[str, Any] | None:
+    """Execute the mission's equivalence vectors, or return ``None``.
+
+    Returns ``None`` rather than raising when anything required is missing, so a
+    mission is never failed by the *verification* step itself. Every reason for
+    not running is recorded in the returned report's ``reason`` field where a
+    report can be produced at all.
+    """
+    try:
+        from ..equivalence_execution import run_behavioural_equivalence
+
+        generated_output = metadata.get("generated_output")
+        if not isinstance(generated_output, dict):
+            return None
+        code = str(generated_output.get("generated_code") or "")
+        if not code.strip():
+            return None
+        language = str(
+            generated_output.get("language") or mission.requested_target_language or ""
+        )
+        filename = str(generated_output.get("filename") or "artifact.py")
+
+        rir_module = metadata.get("refined_ir_module")
+        if not isinstance(rir_module, dict):
+            # The RIR module is written to disk per mission; when the mission
+            # metadata does not carry it there are no vectors to execute.
+            return {
+                "schema_version": "1.0.0",
+                "verification_scope": "behavioural",
+                "mission_id": mission.mission_id,
+                "status": "skipped",
+                "reason": "no Refined-IR module in mission metadata",
+                "equivalence_vectors_passed": 0,
+                "equivalence_vectors_total": 0,
+                "findings": [],
+            }
+
+        return await run_behavioural_equivalence(
+            mission_id=mission.mission_id,
+            language=language,
+            artifact_filename=filename,
+            artifact_code=code,
+            rir_module=rir_module,
+            docker_bin=str(getattr(settings, "docker_bin", "docker") or "docker"),
+        )
+    except Exception as exc:  # noqa: BLE001 - verification must not fail a mission
+        LOGGER.warning(
+            "behavioural equivalence unavailable for %s: %s",
+            getattr(mission, "mission_id", "?"),
+            type(exc).__name__,
+        )
+        return None
+
+
 async def _prepare_equivalence_report(
     *,
     app: Any,
@@ -279,6 +336,7 @@ async def _prepare_equivalence_report(
     metadata = with_chain_defaults(mission.metadata, mission.requested_target_language)
     if not mission_requires_equivalence(metadata):
         return mission, True, {"skipped": True, "reason": "generated output not present"}
+
 
     build_artifacts = await asyncio.to_thread(
         _pkg().storage.list_build_artifacts,
@@ -298,6 +356,16 @@ async def _prepare_equivalence_report(
         build_artifacts=build_artifacts,
         enforcement_enabled=enforcement_enabled,
     )
+
+    # UPG-51: behavioural equivalence, gated on the flag UPG-21 identified as
+    # dead. Default false ⇒ the report below is byte-identical to before this
+    # code existed. Failures here never raise: a verification step that can
+    # crash a mission is worse than one that reports it could not run.
+    if _setting_bool(settings, "mission_equivalence_python_execution_enabled", False):
+        behavioural = await _run_behavioural_equivalence(mission, metadata, settings)
+        if behavioural:
+            report = attach_behavioural_report(report, behavioural)
+
     metadata["equivalence_report"] = report
     event_type = (
         "MISSION_EQUIVALENCE_BLOCKED"

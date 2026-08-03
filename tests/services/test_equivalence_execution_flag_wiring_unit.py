@@ -1,33 +1,28 @@
 """UPG-21 — keep ``mission_equivalence_python_execution_enabled`` from rotting.
 
-The flag is declared at ``settings.py:88`` and loaded from
+**Status: the flag is wired.** Phase 5 (UPG-51) connected it in
+``mission_flow_v2/phases_delivery.py``, where it gates behavioural equivalence
+execution. These tests now guard against it being orphaned *again*.
+
+## History, kept because the mechanism is worth reusing
+
+The flag was declared at ``settings.py:88`` and loaded from
 ``MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED`` at ``settings.py:384`` — and read
-nowhere else in the repository. It is a declared capability with no
-implementation behind it, which is worse than no flag at all: an operator can set
-it, see no error, and reasonably conclude execution-based equivalence is running.
+nowhere else. That is worse than no flag at all: an operator could set it, see no
+error, and reasonably conclude execution-based equivalence was running.
 
-The decision (upgrade plan UPG-21) is to **keep it and wire it in Phase 5**
-(UPG-51), where it is exactly the right gate for execution-based equivalence
-verification. If Phase 5 slips, delete the flag rather than leave it dangling.
+Phase 2's exit criteria were in direct tension about it — criterion 2 wanted a
+test that *fails* while the setting has no consumer, criterion 5 wanted a green
+suite — and both could not hold while the flag was genuinely dead.
 
-## Why the wiring test is xfail(strict=True)
+``xfail(strict=True)`` resolved it in the only direction that kept the signal
+alive at both ends: the gap was recorded in executable form while the suite
+stayed green, and the moment Phase 5 wired the flag the unexpected pass turned
+the suite **red on purpose**, forcing the marker's removal. That is exactly what
+happened on 2026-08-02, two phases after the marker was written.
 
-Phase 2's own exit criteria are in tension: criterion 2 says *"a test fails if the
-setting has no consumer"*, criterion 5 says *"full backend suite green"*. Both
-cannot hold while the flag genuinely has no consumer.
-
-``xfail(strict=True)`` resolves it in the direction that keeps the signal alive at
-both ends:
-
-* **Today** the flag has no consumer, the test fails as expected, and the suite
-  stays green — the known gap is recorded in executable form rather than prose.
-* **When Phase 5 lands** and wires the flag, the test starts passing. Under
-  ``strict=True`` an unexpected pass is itself a failure, so the suite goes red
-  and forces someone to delete this marker and promote the test to a normal
-  assertion.
-
-Either way the flag cannot silently rot: it is impossible for it to gain or lose
-a consumer without a test changing state.
+The marker is gone and the assertion is live. A regression that orphans the flag
+now fails normally.
 """
 
 from __future__ import annotations
@@ -35,8 +30,6 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
@@ -115,16 +108,16 @@ def test_flag_default_is_off() -> None:
     assert Settings.__dataclass_fields__[FLAG_ATTRIBUTE].default is False
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "UPG-21: the flag has no consumer until Phase 5 (UPG-51) wires the "
-        "execution-based equivalence harness. When this starts passing, strict "
-        "xfail turns the suite red on purpose — delete this marker and keep the "
-        "assertion."
-    ),
-)
 def test_flag_has_at_least_one_consumer() -> None:
+    """Promoted from xfail(strict=True) to a live assertion on 2026-08-02.
+
+    This test shipped in Phase 2 as a strict xfail because the flag genuinely
+    had no consumer and Phase 2's exit criteria could not otherwise both hold.
+    Phase 5 (UPG-51) wired it in `mission_flow_v2/phases_delivery.py`, the
+    unexpected pass turned the suite red exactly as the marker was designed to,
+    and the marker has been removed. From here a regression that orphans the
+    flag again fails normally.
+    """
     sites = _consumer_sites()
     assert sites, (
         f"{FLAG_ATTRIBUTE} is declared and loaded in settings.py but read "

@@ -250,6 +250,49 @@ def build_equivalence_report(*, mission_id: str, requested_target_language: str 
 
 Runs a fixed set of named checks against the mission's generated output and metadata — each check returns a status (`pass`/`warn`/`fail`) and a `required` flag. Required checks include `generated_output_exists`, `generated_artifact_verified`, `artifact_format_matches_contract`, `language_alignment`, and `language_content_signature` (a regex-based detector added after a real incident where an LLM silently fell back to generating Python for a non-Python target — it flags syntactic tells of the wrong language in the generated text, independent of the LLM's own self-reported `language` field, though it currently only covers ~8 of the ~19 supported target languages). Advisory-only (`required=False`) checks include keyword-based acceptance-criteria and PORT source-concept coverage heuristics — these can produce false "covered" verdicts on superficial keyword overlap, but since they're non-required they cannot flip the report's `passed`/`blocking` verdict. `report["blocking"]` is `True` only when a required check fails **and** `enforcement_enabled` is set (`mission_equivalence_enforcement_enabled`, default `false`).
 
+Since Phase 5 this report can carry a second, separate section — see `equivalence_execution.py` below. The two scopes are kept distinct rather than merged into one check list, so a strong result in one cannot silently compensate for a weak result in the other.
+
+---
+
+## `sandbox_exec.py` — Shared Hardened Execution Sandbox
+
+**Source:** `services/orchestrator/orchestrator/sandbox_exec.py`
+
+**Every execution of untrusted generated code in this system goes through this module.** RQCA runtime QC and behavioural equivalence both call `run_in_sandbox`; neither builds its own `docker run` command line, and a test enforces that.
+
+```python
+async def run_in_sandbox(*, docker_bin: str, workspace_dir: str | Path, base_image: str, command: str, timeout_seconds: int = 30, memory_mb: int = 256) -> SandboxResult: ...
+```
+
+`SANDBOX_SECURITY_FLAGS` is the single source of truth for the container hardening: `--network=none` (no exfiltration or further payload fetch), `--read-only` plus a `:ro` workspace mount (a sample cannot rewrite the artifact it is being judged against), `--tmpfs=/tmp:size=64m,mode=1777` (the one writable location, capped and discarded), `--cap-drop=ALL` and `--security-opt=no-new-privileges:true` (no capabilities, no regaining them via setuid), and `--memory` / `--memory-swap=0` / `--cpus=1` (bounded blast radius; disabling swap prevents trading memory pressure for unbounded disk).
+
+**Do not relax any of these, and do not add a second execution path.** Callers may request *less* than `MAX_TIMEOUT_SECONDS` (60) and `MAX_MEMORY_MB` (512), never more — requests are clamped, and unparseable values fall back to the default rather than to "unlimited". A timeout returns `timed_out=True` rather than raising, so a hostile or slow sample degrades to a recorded non-result.
+
+`build_sandbox_args` is exposed separately so tests can assert the flags without a Docker daemon.
+
+---
+
+## `equivalence_execution.py` — Behavioural Equivalence by Execution
+
+**Source:** `services/orchestrator/orchestrator/equivalence_execution.py`
+
+Adds `verification_scope: "behavioural"` alongside `equivalence_verifier.py`'s `"correctness"`. It invokes the generated artifact with the argument vectors Phase 4 attached to the mission's Refined-IR, inside `sandbox_exec`, and records what happened.
+
+Gated on `mission_equivalence_python_execution_enabled` (default `false`; flag off ⇒ the equivalence report is byte-identical). Python only — other languages record an honest `skipped`. Docker unavailable records `skipped`, **never** `passed`.
+
+**Counting is deliberately conservative, and this matters more than the numbers:**
+
+| Outcome | Meaning |
+|---|---|
+| `passed` | The vector had a recorded expected output **and** the artifact matched it |
+| `executed_without_error` | The function ran on those inputs. Evidence it executes — **not** evidence it is correct |
+| `failed` | Mismatched a recorded expectation, raised, or the artifact would not import |
+| `skipped` | Timed out, function absent, or nothing to execute — a non-result, not a verdict |
+
+Phase 4 leaves `out.expected` as `null` on purpose, because the expected output is unknowable without execution. Promoting `executed_without_error` to `passed` would improve every figure on the report while recreating exactly the "check that can never fail" this work removed. Per UPG-53 behavioural results are advisory — they do not touch the correctness report's `status`/`passed`/`blocking` — until pass rates have been measured across real missions.
+
+The driver injects argument values via `json.loads` of an embedded literal rather than interpolating them into source, and reads only a sentinel-prefixed line from stdout, so neither a hostile vector value nor arbitrary artifact output can influence the verdict.
+
 ---
 
 ## `is_agent.py` — Knowledge Lake Language Bootstrap
