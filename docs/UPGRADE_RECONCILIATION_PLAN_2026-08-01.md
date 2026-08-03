@@ -711,6 +711,43 @@ Per `EDCP_PHASE_PLAN.md`'s own per-phase tables, plus:
 
 ## 10. Phase 7 — Consolidation
 
+> **✅ COMPLETE — 2026-08-03.** All four items done. Mission Control **146 tests
+> passed**, `tsc --noEmit` clean.
+>
+> - **UPG-70** — `docs/`-free: a dependency graph now renders on the LogicNodes
+>   page. **No graph library was added.** The page runs under a CSP forbidding
+>   `unsafe-eval`, which several layout libraries need, and the layout this data
+>   requires (layered left-to-right by type flow) is small enough that a
+>   dependency would cost more than it saves. Derivation lives in
+>   `lib/logicnode-graph.ts` — pure, no React, 15 unit tests.
+> - **UPG-71** — Doc 14 formally **Superseded**. Code removal scoped and
+>   deliberately deferred; reasoning and trigger in the ADR.
+> - **UPG-72** — `docs/MISSION_TAXONOMY.md` written **from the code**, not from
+>   intent.
+> - **UPG-73** — Doc 30 deferral formalised with a now-measurable trigger.
+>
+> **The graph draws only relationships that exist.** Edges are *type flow* — a
+> type in one node's `types.out` appearing in another's `types.in` — which only
+> became derivable because of Phase 3. Where nodes carry no recovered types (any
+> language outside Python/Java/Haskell) there are **no edges**, and the UI states
+> why rather than rendering a disconnected cloud that reads as a bug. The audit's
+> observation that "there is currently no dependency data to draw — the two gaps
+> are the same gap" was exactly right, and closing the first gap is what made
+> this possible.
+>
+> **Writing UPG-72 surfaced a real defect.** `llm_delegation/prompts.py`'s
+> `type_strategy` covers only 7 of 10 mission types, so `RUN_QC`,
+> `ARCHITECTURE_DOCS`, and `SELF_ANALYZE` silently receive **`BUILD_NEW`'s**
+> routing instruction — "strongest code generation capability" — for missions
+> that generate no code. It is recorded in the taxonomy doc rather than patched,
+> because writing three new strategies is a product decision about what those
+> mission types should do, not a mechanical fix.
+>
+> **Verification limit, stated plainly:** the graph panel was confirmed rendering
+> in a live browser with no console errors, but with the backend down it shows
+> the data-unavailable state. **The graph has not been seen with real LogicNodes**
+> — that needs the live stack and is folded into the UPG-20 run.
+
 ### UPG-70 — LogicNode dependency graph (Doc 15 §3.1)
 
 No graph library exists in Mission Control today. Now that Phase 3 gives nodes

@@ -14,6 +14,24 @@ echo   Starting Mission Control Application Stack
 echo ==============================================
 echo.
 
+:: Guard against starting a topology that conflicts with what is already
+:: running. Bringing up the condensed (base-file-only) form against a live
+:: full-dedicated stack desyncs its 41 dedicated agent containers.
+if "%CONDENSED_MODE%"=="true" (
+    set "REQUESTED_TOPOLOGY=condensed"
+) else (
+    set "REQUESTED_TOPOLOGY=full-dedicated"
+)
+python scripts\compose_topology.py --requested %REQUESTED_TOPOLOGY%
+if errorlevel 1 (
+    echo.
+    echo Aborting: refusing to start a mismatched compose topology.
+    echo Stop the running stack first, or start the topology that is already up.
+    pause
+    exit /b 1
+)
+echo.
+
 echo [1/2] Starting backend services via Docker...
 where make >nul 2>nul
 if not errorlevel 1 (

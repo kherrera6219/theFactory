@@ -686,11 +686,13 @@ npm run test:e2e   # Playwright critical-path E2E
 | Command | Description |
 |---------|-------------|
 | `make up` | Build and start the full-dedicated runtime topology |
-| `make down` | Stop stack and remove volumes |
+| `make down` | Stop stack — **volumes preserved** |
+| `make down-wipe` | Stop stack **and delete all volumes** (mission DB, knowledge stores, operator vault). Irreversible |
 | `make up-full-dedicated` | Alias for the default full-dedicated runtime topology |
-| `make down-full-dedicated` | Alias for the default full-dedicated runtime shutdown |
+| `make down-full-dedicated` | Alias for the default full-dedicated runtime shutdown (volumes preserved) |
 | `make up-condensed` | Build and start the lightweight condensed worker topology |
-| `make down-condensed` | Stop the lightweight condensed worker topology and remove volumes |
+| `make down-condensed` | Stop the condensed worker topology — **volumes preserved** |
+| `make down-condensed-wipe` | Stop the condensed topology **and delete all volumes**. Irreversible |
 | `make validate` | Validate schema contracts |
 | `make lint` | Ruff on backend, tests, and scripts |
 | `make test` | Pytest with coverage gates (≥80% global, strict per-module floors on critical runtime files) |

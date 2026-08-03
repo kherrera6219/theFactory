@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { LogicNodeGraph } from "../../components/logicnode-graph";
 import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, SystemMessage } from "../../components/status";
@@ -117,6 +118,18 @@ function LogicNodesPageContent() {
             />
           </label>
         </div>
+      </Panel>
+
+      <Panel title="Dependency Graph">
+        {loading && <p className="muted">Loading logicnodes...</p>}
+        {!loading && !error && filteredNodes.length === 0 && (
+          <EmptyState title="Nothing to graph" compact>
+            Adjust the search or mission filter to select LogicNodes.
+          </EmptyState>
+        )}
+        {!loading && !error && filteredNodes.length > 0 && (
+          <LogicNodeGraph records={filteredNodes} />
+        )}
       </Panel>
 
       <Panel title="Node List">

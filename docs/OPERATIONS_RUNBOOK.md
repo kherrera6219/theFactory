@@ -226,6 +226,17 @@ append-only and tamper-evident:
 Pairing" above. Do not run the base compose file alone to restart or
 recreate containers on a full-dedicated-agent deployment.
 
+> **Teardown preserves data.** `make down*` stops containers and **keeps** every
+> named volume — the mission database, Redis, Qdrant, Neo4j, MinIO, Milvus, and
+> the operator vault (stored provider API keys). Deleting them is a separate,
+> explicit action: `make down-wipe` / `make down-condensed-wipe`, or
+> `python scripts/force_stop.py --wipe-volumes`.
+>
+> These targets used to pass `-v` unconditionally, so an ordinary restart
+> destroyed all of the above. That wiped the mission database once, on
+> 2026-06-30. If you are following an older copy of this runbook, check which
+> behaviour your `Makefile` has before running a restart.
+
 1. Restart stack:
    - Condensed topology: `make down-condensed && make up-condensed`
    - Full-dedicated-agent topology: `make down-full-dedicated && make up-full-dedicated`

@@ -1,3 +1,21 @@
+"""Stop theFactory stack and clear lingering local port bindings.
+
+**Volumes are preserved by default.** This script previously ran
+``docker compose down -v`` unconditionally, which removes every named volume —
+``postgres-data``, ``redis-data``, ``qdrant-data``, ``neo4j-data``,
+``minio-data``, ``milvus-data``, and ``mission-control-vault``. That meant an
+ordinary "stop the app" destroyed the mission database, every knowledge store,
+and the operator's stored provider credentials. It wiped the database at least
+once in practice (2026-06-30), which is how the behaviour was discovered.
+
+Pass ``--wipe-volumes`` to opt in to the destructive teardown. This mirrors the
+dry-run-by-default convention already applied to every other destructive script
+in this repository.
+"""
+
+from __future__ import annotations
+
+import argparse
 import shlex
 import subprocess
 import sys
@@ -35,25 +53,77 @@ def kill_port(port):
         print(f"Force-terminating PID {pid} (holding port {port})...")
         subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)  # nosec B602
 
-def main():
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Stop theFactory stack and clear local port bindings. "
+            "Volumes are PRESERVED unless --wipe-volumes is passed."
+        )
+    )
+    parser.add_argument(
+        "--wipe-volumes",
+        action="store_true",
+        help=(
+            "Also delete every named volume: the mission database, Redis, Qdrant, "
+            "Neo4j, MinIO, Milvus, and the operator vault (stored provider API "
+            "keys). Irreversible."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def build_teardown_commands(*, full_dedicated: bool, wipe_volumes: bool) -> tuple[str, str]:
+    """Return ``(make_target, fallback_cmd)`` for the detected topology.
+
+    Topology detection matters independently of the volume question: tearing
+    down a condensed (base-file-only) deployment with the full-dedicated
+    paired-file form, or vice versa, silently mismatches the running containers'
+    actual compose config.
+    """
+    volume_flag = " -v" if wipe_volumes else ""
+    wipe_suffix = "-wipe" if wipe_volumes else ""
+    if full_dedicated:
+        make_target = f"make down-full-dedicated{wipe_suffix}"
+        fallback_cmd = (
+            "docker compose --env-file .env -f deploy/docker-compose.yaml "
+            "-f deploy/docker-compose.full-dedicated-agents.yaml "
+            f"--profile full-dedicated-agents down{volume_flag}"
+        )
+    else:
+        make_target = f"make down-condensed{wipe_suffix}"
+        fallback_cmd = (
+            "docker compose --env-file .env -f deploy/docker-compose.yaml "
+            f"down{volume_flag}"
+        )
+    return make_target, fallback_cmd
+
+
+def main(argv: list[str] | None = None):
+    args = parse_args(argv)
+
     print("==============================================")
     print("   theFactory Thorough Cleanup System")
     print("==============================================\n")
-    
+
     # 1. Orchestrated Docker Shutdown
     print("[1/3] Tearing down Docker backend...")
-    # Detect topology first: tearing down a condensed (base-file-only)
-    # deployment with the full-dedicated paired-file form (or vice versa)
-    # silently mismatches the running containers' actual compose config.
     full_dedicated = _is_full_dedicated_running()
     if full_dedicated:
         print("Detected full-dedicated-agent topology running.")
-        make_target = "make down-full-dedicated"
-        fallback_cmd = "docker compose --env-file .env -f deploy/docker-compose.yaml -f deploy/docker-compose.full-dedicated-agents.yaml --profile full-dedicated-agents down -v"  # noqa: E501
     else:
         print("Detected condensed topology (or nothing running) — using condensed teardown.")
-        make_target = "make down-condensed"
-        fallback_cmd = "docker compose --env-file .env -f deploy/docker-compose.yaml down -v"
+
+    if args.wipe_volumes:
+        print(
+            "\n  *** --wipe-volumes: DELETING the mission database, knowledge\n"
+            "  *** stores, and the operator vault (provider API keys). Irreversible.\n"
+        )
+    else:
+        print("Volumes will be PRESERVED (pass --wipe-volumes to delete them).")
+
+    make_target, fallback_cmd = build_teardown_commands(
+        full_dedicated=full_dedicated, wipe_volumes=args.wipe_volumes
+    )
 
     import shutil
 
@@ -103,8 +173,13 @@ def main():
         print("You may need to close the related command windows manually.")
         sys.exit(1)
     else:
-        print("\nSUCCESS: theFactory stack has been completely purged.")
+        print("\nSUCCESS: theFactory stack is stopped and local ports are clear.")
+        if args.wipe_volumes:
+            print("All named volumes were DELETED — the next start begins from empty stores.")
+        else:
+            print("Volumes preserved: missions, knowledge stores, and the vault are intact.")
         print("You can now safely run start_app.bat.")
+
 
 if __name__ == "__main__":
     main()

@@ -349,13 +349,20 @@ through to `COMPLETE`, then commit the result as
 EDCP's own plan is explicit about why this blocks: *"Do not invert control flow on
 a pipeline that has not yet been proven to produce real output end to end."*
 
-**Stack operations reminders before doing this:**
+**Stack operations — both former footguns are now fixed (2026-08-03):**
 
-- The two compose files must **always be paired**; never bring up the base file alone.
-- `stop_app.bat` → `scripts/force_stop.py` → `make down` runs
-  `docker compose down -v`, which **deletes the `postgres-data`/`redis-data`
-  volumes**. It has wiped the mission database before.
-- A live mission makes real, paid LLM provider calls.
+- **Teardown preserves data.** `make down*` and `scripts/force_stop.py` no
+  longer pass `-v`. Deleting volumes is an explicit opt-in: `make down-wipe` /
+  `make down-condensed-wipe`, or `force_stop.py --wipe-volumes`. Previously an
+  ordinary stop destroyed the mission database, every knowledge store, and the
+  operator vault (provider API keys) — it wiped the database once, on
+  2026-06-30.
+- **Topology mismatch is blocked.** `start_app.bat` now runs
+  `scripts/compose_topology.py` before starting and refuses to bring up the
+  condensed (base-file-only) form against a live full-dedicated stack. Run
+  `make topology` any time to see what is running and the correct paired
+  commands for it.
+- A live mission still makes real, paid LLM provider calls.
 
 Everything else in Phase 2 is closed, so **Phase 3 (LogicNode schema v2) can
 start in parallel** — it has no dependency on UPG-20. Only Phase 6 is blocked.

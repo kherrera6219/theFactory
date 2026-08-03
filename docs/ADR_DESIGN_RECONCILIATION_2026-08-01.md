@@ -57,10 +57,10 @@ Verdict definitions:
 | 7 | Refined-IR (semantic) | Doc 09 | **Superseded, partially reinstated — reinstatement DELIVERED 2026-08-01 (Phase 4)** | The RIR *schema* was always faithful; the *producer* was templated (one `EXTRACT_CONCEPT` op, purity from whether a string was truthy, vectors restating the node's own identifiers). Phase 4 replaced that for AST-backed languages: real typed signatures, a real statement-level op stream, purity from genuine side-effect analysis, and executable equivalence vectors. Regex-only languages stay templated and are **labelled** `templated_v1` rather than silently indistinguishable. Full semantic decompilation across all languages remains Superseded | `pod-worker/refined_ir.py` `build_refined_ir_module()`; `projection_method` in `schemas/rir.module.schema.json`; [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md) |
 | 8 | Equivalence verification | Doc 09 §8, Doc 30 §4 | **Superseded, partially reinstated — reinstatement DELIVERED 2026-08-02 (Phase 5)** | Contract conformance (`"verification_scope": "correctness"`) is now joined by a real **behavioural** scope that executes the artifact against Phase 4's vectors in the shared hardened sandbox and reports a genuine pass ratio. Scoped to Python; other languages record an honest `skipped`. The designed 1,000-simulation engine at 0.0001% tolerance remains **Superseded** — see row 9. Behavioural results are advisory until measured across ≥20 real missions (UPG-53) | `equivalence_execution.py`; `sandbox_exec.py` (shared with RQCA); `settings.py:88` — `mission_equivalence_python_execution_enabled`, now wired, still defaults `False` |
 | 9 | Equivalence tolerance 0.0001% / 99.9999% | Docs 01–09 | **Superseded** | The figure appears in every one of the first ten design documents and is **computed nowhere**. Semantic equivalence is undecidable for arbitrary programs; the number was never achievable. Replaced by metrics the system actually produces — contract-conformance pass rate, runtime-QC verdict, and (post-Phase 5) behavioural equivalence-vector pass ratio | Repository-wide search: no occurrence of the figure in any `services/` source file |
-| 10 | LogicNode Registry | Doc 30 (1,635 lines) | **Deferred** | The largest unimplemented specification in the corpus. Built instead: a per-mission `mission_logicnodes` JSONB table with a Neo4j mirror — no cross-mission registry, versioning, clustering, or semantic search. Only valuable once RIR carries real cross-mission semantics. **Revisit trigger: Phase 4 `ast_v1` projections cover a majority of missions** | `mission_logicnodes (mission_id, node_id, node_json JSONB)`; `neo4j_store.py` |
+| 10 | LogicNode Registry | Doc 30 (1,635 lines) | **Deferred — formalised 2026-08-03 (UPG-73)** | The largest unimplemented specification in the corpus. Built instead: a per-mission `mission_logicnodes` JSONB table with a Neo4j mirror — no cross-mission registry, versioning, clustering, or semantic search. Only valuable once RIR carries real cross-mission semantics. **The revisit trigger is now measurable** — see [§ UPG-73](#upg-73--logicnode-registry-deferral) | `mission_logicnodes (mission_id, node_id, node_json JSONB)`; `neo4j_store.py`; `projection_method` in the RIR catalog |
 | 11 | Binary / LLVM synthesis | Doc 01 §1.3, Doc 05, Doc 09 §1.3 | **Superseded** (decision D2) | The design's headline promise, with zero implementation and no partial scaffolding. The product delivers source artifacts plus an evidence chain. Formally killed — see [§ D2](#d2--binary-synthesis-is-retired) | No compilation, linking, or LLVM stage anywhere in `services/`. Outputs are source files and gzipped bundles (`build_artifacts.py`, `deploy_exporter.py`) |
 | 12 | Data architecture | Doc 08 | **Implemented** (exceeds) | All five designed stores map onto real engines. `V009_immutable_audit.sql` revokes `DELETE` on audit tables from the application role with retention via a `SECURITY DEFINER` prune function — a real tamper-evidence control beyond the design | Qdrant + Milvus, PostgreSQL + Neo4j, migrations V001–V009, MinIO, `llm_cost_ledger.py` |
-| 13 | Orchestration engine (LangGraph) | Doc 14 (678 lines) | **Superseded** | Doc 14 is entirely per-agent LangGraph state machines; those were never written. The live engine is a hand-rolled mission-level transition table that is clean, tested, has v1↔v2 compatibility mapping, and recovers in-flight missions on restart. Formal disposition of the disabled second engine is UPG-71 | `settings.py:79,81` — `langgraph_enabled = False`, `langgraph_checkpointer = "none"`; `mission_flow_v2/transitions.py` — `V2_TRANSITIONS` |
+| 13 | Orchestration engine (LangGraph) | Doc 14 (678 lines) | **Superseded — confirmed 2026-08-03 (UPG-71)** | Doc 14 is entirely per-agent LangGraph state machines; those were never written. The live engine is a hand-rolled mission-level transition table that is clean, tested, has v1↔v2 compatibility mapping, and recovers in-flight missions on restart. **Doc 14 is formally superseded by `mission_flow_v2/transitions.py`.** Code removal is scoped but deliberately deferred — see [§ UPG-71](#upg-71--langgraph-disposition) | `settings.py:79,81` — `langgraph_enabled = False`, `langgraph_checkpointer = "none"`; `mission_flow_v2/transitions.py` — `V2_TRANSITIONS` |
 | 14 | 14 → 4 → 1 comprehension model | Doc 05 §1.1, `HGR_Mission_Flow_v2` | **Superseded** (decision D1) | No parallel four-pod extraction, no cross-language fusion, no Tier-3 cross-language verification. A mission routes to **one pod and one specialist** from `requested_target_language`. Four-pod fan-out multiplies LLM cost per mission and only pays for itself once RIR carries deep semantics across every language — which it will not after the current plan. The four-pod structure survives as routing metadata | `mission_flow_v2/phases_build.py:328+` — single `resolve_pod_manager_agent_id` / `resolve_specialist_agent_id` |
 | 15 | Security & hardening | Doc 26 | **Implemented** (exceeds) | Doc 26 asked for JWT + RBAC + TLS + container hardening. Built: dual-mode auth, prompt/PII guards, ECDSA artifact signing, agent-scoped control-plane keys, service-wide compose hardening, and production guards that raise rather than warn | `shared_runtime/{prompt_guard,pii_guard,crypto_signing}.py`; [ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md](ADR_SECURITY_MODEL_API_KEY_VS_OIDC_2026-03-04.md) |
 | 16 | Per-agent context isolation | Doc 05 (first principle) | **Superseded** | Doc 05's first architectural principle was per-agent API keys and 1M-token windows. Reality is one key per *provider*, resolved globally. The `AGENT_NN_*_SERVICE_API_KEY` family is real but authenticates worker→orchestrator control-plane mutations, not LLM calls. Per-agent *provider* credentials are not worth the operational cost at single-operator scale; cost attribution is already recovered per `agent_id` | `llm_delegation/config.py`; `llm_cost_ledger.py`; [AGENT_SERVICE_KEY_ISOLATION.md](AGENT_SERVICE_KEY_ISOLATION.md) |
@@ -100,6 +100,82 @@ provenance, and brownfield modernisation — none of which needs a compiler.
 |---|---|---|
 | `AGENT-11-DEPLOY` | "Binary packaging, delivery, and environment setup" | "Artifact packaging, delivery, and environment setup" |
 | `AGENT-09-HW` | "CPU/GPU optimization and hardware-specific mapping" | "Reserved: target-profile hints for generation (no compilation role)" |
+
+## UPG-71 — LangGraph disposition
+
+**Decision (2026-08-03): Doc 14 is Superseded by `mission_flow_v2/transitions.py`.
+The disabled LangGraph engine is retained for now, and its removal is scoped
+below with an explicit trigger.**
+
+The plan offered "enable and prove it, or mark Doc 14 superseded **and remove the
+disabled second engine**." The first half is taken; the removal is deliberately
+not executed yet, for reasons worth recording rather than leaving as apparent
+indecision.
+
+**Measured surface, so the removal is a known quantity when it happens:**
+
+| Item | Size |
+|---|---|
+| `orchestrator/langgraph_lifecycle.py` | 730 lines — the engine itself |
+| `orchestrator/lifecycle_interface.py` | 269 lines — the dual-engine abstraction |
+| `langgraph==1.2.9`, `langgraph-checkpoint-postgres==3.1.0` | 2 pip dependencies |
+| Test files referencing it | 9 |
+| Other touch points | `api-gateway/main.py`, `orchestrator/main.py`, `models.py`, `orchestrator_metrics.py`, `routes/operations.py`, `settings.py`, `storage_missions.py` |
+
+**Why removal is not being done in this pass:**
+
+1. **Sequencing.** Deleting a 730-line alternative lifecycle engine immediately
+   before the first non-trivial live mission run (UPG-20) would put a large,
+   behaviour-adjacent change between the current green suite and the run that is
+   supposed to validate it. If the live run then misbehaved, the removal would be
+   a prime suspect and would have to be excluded first.
+2. **`lifecycle_interface.py` is worth keeping on its own merits.** It is a clean
+   abstraction over lifecycle engines, independent of which engine is behind it.
+   Removing LangGraph does not require removing it, and conflating the two would
+   turn a deletion into a refactor.
+3. **The carrying cost is already low.** LangGraph imports are guarded with
+   fallback constants (`langgraph_lifecycle.py:32–45`), so the dependency is
+   genuinely optional at runtime rather than load-bearing. `LANGGRAPH_ENABLED`
+   defaults `false` and the engine cannot activate accidentally.
+
+**Removal trigger:** once UPG-20's live evidence is committed and Phase 6 (EDCP)
+has landed or been abandoned, delete `langgraph_lifecycle.py`, the two pip
+dependencies, and the dedicated tests, keeping `lifecycle_interface.py`. Doing it
+then means a lifecycle change is not competing with a lifecycle validation.
+
+**What is decided now and is not open:** Doc 14 is historical. Per-agent LangGraph
+state machines are not being built, and no new work should target them.
+
+## UPG-73 — LogicNode Registry deferral
+
+**Decision (2026-08-03): Doc 30 remains Deferred, with a trigger that is now
+actually measurable.**
+
+Doc 30 is the largest unimplemented specification in the corpus (1,635 lines:
+registry tables, versioning, a Milvus collection, semantic clustering, an
+equivalence-test execution engine, a query API). It is only valuable once
+Refined-IR carries real cross-mission semantics — a cross-mission registry over
+templated projections would index empty envelopes.
+
+When the trigger was written (Phase 1) it was directional: *"reconsider once
+Phase 4 `ast_v1` projections cover a majority of missions."* Phase 4 has since
+shipped, and the trigger is now **checkable against data rather than judgement**:
+the RIR catalog (`artifacts/refined-ir/index.json`) records `projection_method`
+and `ast_projected_fn_count` per module, so the proportion of `ast_v1` coverage
+is a query, not an estimate.
+
+**Revisit when both hold:**
+
+1. A majority of catalogued RIR modules report `projection_method` of `ast_v1`
+   (not `templated_v1` or `mixed_v1`), **and**
+2. behavioural equivalence (Phase 5) has been measured across ≥20 real missions,
+   so there is evidence the semantics being indexed are trustworthy.
+
+Until both hold, Doc 30 is **not** roadmap scope and should not appear in
+planning as apparent backlog. Note that condition 1 is currently gated by
+language coverage: only Python, Java, and Haskell produce `ast_v1` projections
+at all, so meaningfully raising that proportion likely means extending AST type
+recovery to more languages first.
 
 ## Corrections to the audit and plan
 
