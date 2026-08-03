@@ -137,10 +137,37 @@ to `COMPLETE`, and commit the result as
 always pair the two compose files, and note that `stop_app.bat` runs
 `docker compose down -v`, which deletes the Postgres/Redis volumes.**
 
-**Or Phase 4** (real Refined-IR projection) — now unblocked by Phase 3 and with
-no live-stack dependency. UPG-40 (`projection_method` field) ships even if the
-rest slips, and UPG-41's `purity` derivation fills the schema slot Phase 3
-reserved.
+**DONE — UPGRADE plan Phase 4 (2026-08-01): real Refined-IR projection.** All
+six exit criteria met. Full backend suite **1816 passed, 0 failed, 0 errors**
+(up from 1796 — 20 new tests).
+
+Refined-IR is no longer "schema-valid but semantically empty". For AST-backed
+input: real typed signatures, a real statement-level op stream (a 2-branch
+function yields 7 ops where there was 1), `purity` from genuine side-effect
+analysis (`PURE` vs `IMPURE` with `effects: ["io.filesystem"]`), and executable
+equivalence vectors of concrete typed arguments. `projection_method`
+(`templated_v1`/`ast_v1`/`mixed_v1`) makes the artifact self-describing, so the
+honesty no longer lives only in prose. The templated path **remains** for
+languages with no recoverable signature.
+
+**Two additions beyond the plan, both for honesty:** `purity` gained
+**`UNKNOWN`** — analysis cannot always decide, and reporting `PURE` for a
+function that calls something unresolvable would be a false claim; and
+`projection_method` gained **`mixed_v1`** at module level, because one file
+legitimately mixes AST-backed and regex-only extraction.
+
+**UPG-42 deliberately stops short of inventing expected outputs.** Vectors carry
+concrete arguments but `expected: null` — the expected output isn't knowable
+until something executes the artifact, and fabricating one would recreate the
+"vector that can never fail" problem. Phase 5 fills it by execution.
+
+**Next: Phase 5** (behavioural equivalence, plan §8) — the payoff phase, and it
+consumes exactly what Phase 4 produced. **Do not build a second execution
+path**: reuse RQCA's hardened Docker sandbox (`rqca_agent.py:649-661`,
+`--network=none --read-only --cap-drop=ALL`, 60s, 512MB). UPG-51 wires the
+`mission_equivalence_python_execution_enabled` flag that UPG-21 guarded — when
+it does, that strict-xfail test flips red on purpose and its marker must be
+removed.
 
 **Note on the Electron/Windows work:** Phase 4 of the Full Whole-App Remediation
 Plan (below) is *orthogonal* to the upgrade plan and is not blocked by it. Either
@@ -631,7 +658,7 @@ Mission Control file previews, and refreshed Python service base-image digests.
 
 ## Active Work Queue
 
-### Design Reconciliation & Semantic Engine Upgrade (Phases 1 & 3 done; Phase 2 partial; Phases 4-7 remaining)
+### Design Reconciliation & Semantic Engine Upgrade (Phases 1, 3, 4 done; Phase 2 partial; Phases 5-7 remaining)
 
 Audit: `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md`. Ordered execution plan:
 `docs/UPGRADE_RECONCILIATION_PLAN_2026-08-01.md`. Decisions D1/D2/D3 are
@@ -1513,12 +1540,12 @@ focused on the active queue plus recent history.
 |---|---|
 | Design/implementation reconciliation | **CLOSED 2026-08-01 (Phase 1).** `docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md` assigns an Implemented/Superseded/Deferred verdict to every design area and formally outranks the Feb–Mar 2026 corpus, which now carries a supersession README. `docs/DESIGN_TRACEABILITY.md` maps all 64 design documents to implementing modules |
 | LogicNode semantic depth | **CLOSED 2026-08-01 (Phase 3).** Schema v2 promotes 5 descriptive fields to optional top-level properties and reserves 5 more; `payload` unchanged so no reader breaks. `types.in`/`types.out` now carry real signatures for **Python, Java, Haskell** — the only extractors that genuinely recover them. Go/OCaml/Julia/JS-TS stay empty by design, and that emptiness is now informative. The designed ~30-field semantic node remains **Superseded** per ADR row 6 |
-| Refined-IR projection | **Open — Phase 4.** `build_refined_ir_module()` emits one `EXTRACT_CONCEPT` op per function, derives `purity` from whether a string is truthy, and writes equivalence vectors that restate the node's own identifiers. Schema-valid, semantically empty. `docs/LOGICNODE_SCHEMA.md` documents this honestly; the artifact itself does not (UPG-40) |
+| Refined-IR projection | **CLOSED 2026-08-01 (Phase 4).** For AST-backed languages the projection now carries real typed signatures, a real statement-level op stream (7 ops where there was 1), purity from genuine side-effect analysis, and executable equivalence vectors. Regex-only languages keep the templated path, now **labelled** `projection_method: "templated_v1"` so the artifact itself is honest rather than only the docs. RIR catalog populates on every write |
 | Behavioural equivalence | **Open — Phase 5.** `equivalence_verifier.py` checks contract conformance (`"verification_scope": "correctness"`), not behaviour. `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` is still declared in `settings.py` and read nowhere — now guarded by a strict-xfail test (UPG-21) that turns the suite red the moment Phase 5 wires it |
 | Envelope vocabulary mismatch | **CLOSED 2026-08-01 (UPG-22).** Turned out to be **live, not latent**: an operator setting `DEFAULT_EVENT_PRIORITY` to a lowercase bus value made every state envelope fail validation. Reconciled additively (schema accepts all six values; writers normalise via `to_event_priority`); `docs/PROTOCOL_ENVELOPES.md` documents both transports and corrects the plan's wrong premise about the correlation contract |
 | Binary synthesis / LLVM | **CLOSED 2026-08-01 (Phase 1 / UPG-11).** Decision D2 recorded in the ADR; `AGENT-11-DEPLOY` and `AGENT-09-HW` role strings rewritten. `toolchains.py` syntax validation deliberately retained. The `agent_personas.py` Julia LLVM reference was **kept on purpose** — it describes Julia's own compiler, not a theFactory capability |
 | LogicNode Registry (design Doc 30) | **Deferred by decision (UPG-73).** Largest unimplemented specification in the corpus; only valuable once RIR carries real cross-mission semantics |
-| RIR catalog | `artifacts/refined-ir/index.json` is `{"artifacts": []}` while signed RIR modules are written per mission. `scripts/build_refined_ir_catalog.py` exists but is not wired into the mission path (UPG-43) |
+| RIR catalog | **CLOSED 2026-08-01 (UPG-43).** Upserted atomically on every module write, keyed by path so a re-run replaces rather than duplicates. Records carry `projection_method`/`ast_projected_fn_count`. Shape shared with `scripts/build_refined_ir_catalog.py` so rebuild and incremental update cannot drift |
 | Pod taxonomy | **CLOSED 2026-08-01 (UPG-23).** Pod D relabelled "Mathematical & Functional" across registry role text, source comments, README, AGENTS.md, ARCHITECTURE docs, and diagrams. `pod="Pod D"` is a routing key and was deliberately left unchanged. Pods remain uneven (A:4, B:5, C:4, D:6 specialists) — renamed rather than restructured, per the plan |
 | LangGraph | `LANGGRAPH_ENABLED=false`, `LANGGRAPH_CHECKPOINTER=none`. Design Doc 14's per-agent state machines were never written. Enable-and-prove or mark superseded (UPG-71) |
 | Mission taxonomy specification | 10 `MissionType`, 5 `DepthMode`, 8 `OutputMode`, 4 `DataClassification` values exist in `models.py` with **no specification document**. Largest unwritten spec in the system (UPG-72) |

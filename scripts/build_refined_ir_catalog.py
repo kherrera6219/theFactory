@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "services" / "pod-worker"))
 
-from pod_worker.refined_ir import RefinedIRModule  # noqa: E402
+from pod_worker.refined_ir import RefinedIRModule, catalog_record_for  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,15 +44,14 @@ def main() -> int:
     for artifact_path in sorted(store_root.rglob("*.rir.module.json")):
         payload = json.loads(artifact_path.read_text(encoding="utf-8"))
         module = RefinedIRModule.model_validate(payload)
+        # Record shape is shared with the pod-worker write path
+        # (refined_ir.update_refined_ir_catalog) so a full rebuild and an
+        # incremental update produce identical entries (UPG-43).
         records.append(
-            {
-                "path": artifact_path.relative_to(store_root).as_posix(),
-                "mission_id": module.module.get("mission_id"),
-                "agent_id": module.module.get("agent_id"),
-                "source_language": module.module.get("source_language"),
-                "target_language": module.module.get("target_language"),
-                "function_count": len(module.fns),
-            }
+            catalog_record_for(
+                module,
+                relative_path=artifact_path.relative_to(store_root).as_posix(),
+            )
         )
 
     output_file.parent.mkdir(parents=True, exist_ok=True)

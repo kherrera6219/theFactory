@@ -29,8 +29,10 @@
       "type": "string",
       "enum": [
         "PURE",
-        "IMPURE"
-      ]
+        "IMPURE",
+        "UNKNOWN"
+      ],
+      "description": "PURE/IMPURE are only asserted when side-effect analysis actually ran. UNKNOWN (added by UPG-41) means not analysed -- do not read it as PURE."
     },
     "inputs": {
       "type": "array",
@@ -214,6 +216,14 @@
         }
       },
       "additionalProperties": false
+    },
+    "projection_method": {
+      "type": "string",
+      "enum": [
+        "templated_v1",
+        "ast_v1"
+      ],
+      "description": "How this function was projected from its LogicNode (UPG-40). \"ast_v1\" means inputs/outputs came from a real recovered signature; \"templated_v1\" means the values are synthetic placeholders carrying no semantics. Optional; absent means templated_v1."
     }
   },
   "additionalProperties": false

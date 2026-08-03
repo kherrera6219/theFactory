@@ -486,6 +486,37 @@ meaningful rather than universal.
 
 ## 7. Phase 4 — Real Refined-IR projection
 
+> **✅ COMPLETE — 2026-08-01.** All six exit criteria met. Full backend suite
+> **1816 passed, 0 failed, 0 errors** (up from 1796 — 20 new tests).
+>
+> Refined-IR is no longer "a schema-valid artifact carrying no semantic
+> content". For AST-backed input it now carries real typed signatures, a real
+> statement-level op stream, a purity verdict from genuine side-effect analysis,
+> and executable equivalence vectors. The templated path **remains** for
+> languages with no recoverable signature, tagged `templated_v1`.
+>
+> **Two things the plan did not account for:**
+>
+> 1. **`purity` needed a third value.** The plan's table implies deriving
+>    `PURE`/`IMPURE` from side-effect analysis, but analysis cannot always
+>    decide: a function calling something unresolvable could do anything.
+>    Reporting it `PURE` would be a false claim and `IMPURE` a slander, so
+>    `UNKNOWN` was added to both `rir.fn.schema.json` and the LogicNode schema.
+>    **Absence of detected effects is not evidence of purity** — that rule is
+>    what makes the other two values trustworthy.
+> 2. **`mixed_v1` was added to `projection_method`.** The plan specifies two
+>    values, but one source file legitimately mixes AST-backed and regex-only
+>    extraction, and collapsing that to either extreme misreports the module.
+>    Per-function `projection_method` is `templated_v1`/`ast_v1` as specified;
+>    only the module-level summary can be `mixed_v1`.
+>
+> **UPG-42 deliberately stops short of inventing expected outputs.** Vectors
+> carry concrete typed argument values but `expected: null`, because the
+> expected output is not knowable until something executes the artifact.
+> Fabricating one would recreate the "vector that can never fail" problem in a
+> new form. Phase 5 (UPG-50) fills it by execution. Vectors are tagged
+> `executable: true|false` so Phase 5 can skip what it cannot run.
+
 **Closes A9 fully and the audit's §4.3.**
 
 ### UPG-40 — Ship the honesty field first
@@ -535,14 +566,14 @@ scheduled task so the catalog reflects reality.
 
 ### Phase 4 exit criteria
 
-| # | Criterion |
-|---|---|
-| 1 | Every `.rir.module.json` carries `projection_method` |
-| 2 | For a Python input, `fns[].ops` has more than one op and `inputs` matches the real signature |
-| 3 | `purity` differs across a pure and an impure function in the same module |
-| 4 | Equivalence vectors contain real argument values, not identifier restatements |
-| 5 | Golden fixture locks an `ast_v1` module; `test_refined_ir_unit.py` and `test_fusion_rir_verify.py` green |
-| 6 | `artifacts/refined-ir/index.json` non-empty after a mission |
+| # | Criterion | Result (2026-08-01) |
+|---|---|---|
+| 1 | Every `.rir.module.json` carries `projection_method` | ✅ met — at module level (`templated_v1`/`ast_v1`/`mixed_v1`) and per function. Optional in the schema, so modules written before UPG-40 stay valid |
+| 2 | For a Python input, `fns[].ops` has more than one op and `inputs` matches the real signature | ✅ met — a 2-branch function yields `ASSIGN, BRANCH, ASSIGN, ASSIGN, LOOP, ASSIGN, RETURN` (7 ops) against the previous single synthetic `EXTRACT_CONCEPT`; `inputs` are the real `(float, float) -> str` |
+| 3 | `purity` differs across a pure and an impure function in the same module | ✅ met — `classify` → `PURE` with `effects: []`, `persist` → `IMPURE` with `effects: ["io.filesystem"]`. Previously purity was `"IMPURE" if payload.get("intent") else "PURE"` |
+| 4 | Equivalence vectors contain real argument values, not identifier restatements | ✅ met — three cases (nominal/boundary_low/boundary_high) of concrete typed args. `expected` is `null` by design; see the status block above |
+| 5 | Golden fixture locks an `ast_v1` module; `test_refined_ir_unit.py` and `test_fusion_rir_verify.py` green | ✅ met — `test_golden_ast_v1_projection_shape_is_locked` locks the projection's shape and derivation; both named suites pass **unchanged** |
+| 6 | `artifacts/refined-ir/index.json` non-empty after a mission | ✅ met — the catalog is now upserted atomically on every module write, keyed by path so a re-run replaces rather than duplicates. The record shape is shared with `scripts/build_refined_ir_catalog.py` so a rebuild and an incremental update cannot drift |
 
 ---
 

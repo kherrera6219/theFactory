@@ -278,6 +278,7 @@ def _build_schema_node(
     extra_payload: dict[str, Any] | None = None,
     types_in: Sequence[str] | None = None,
     types_out: Sequence[str] | None = None,
+    purity: str | None = None,
 ) -> dict[str, Any]:
     """Build a node dict conforming to schemas/logicnode.schema.json.
 
@@ -344,6 +345,12 @@ def _build_schema_node(
     extraction_method = payload.get("extraction_method")
     if extraction_method in ("regex", "ast"):
         node["extraction_method"] = extraction_method
+    # UPG-41 fills the `purity` slot UPG-30 reserved. Only emitted when
+    # side-effect analysis actually ran and produced a verdict — "UNKNOWN" is a
+    # real answer meaning "not determined", distinct from the field being absent
+    # because nothing analysed it.
+    if purity in ("PURE", "IMPURE", "UNKNOWN"):
+        node["purity"] = purity
 
     return node
 
@@ -495,6 +502,9 @@ def _logicnodes_from_extraction(
         types_in: tuple[str, ...] = ()
         types_out: list[str] = []
         types_source: str | None = None
+        node_purity: str | None = None
+        side_effects: tuple[str, ...] = ()
+        op_stream: list[list[str]] = []
         enclosing = _enclosing_function_for_line(functions or (), source_line)
         if enclosing is not None:
             arg_types = tuple(getattr(enclosing, "arg_types", ()) or ())
@@ -503,6 +513,15 @@ def _logicnodes_from_extraction(
                 types_in = arg_types
                 types_out = [return_type] if return_type else []
                 types_source = f"ast_signature:{getattr(enclosing, 'name', '') or '?'}"
+            # UPG-41: side-effect analysis result for the enclosing function.
+            candidate_purity = getattr(enclosing, "purity", None)
+            if candidate_purity in ("PURE", "IMPURE", "UNKNOWN"):
+                node_purity = candidate_purity
+            side_effects = tuple(getattr(enclosing, "side_effects", ()) or ())
+            op_stream = [
+                [str(opcode), str(detail)]
+                for opcode, detail in (getattr(enclosing, "ops", ()) or ())
+            ]
 
         schema_node = _build_schema_node(
             node_id=node_id,
@@ -525,9 +544,17 @@ def _logicnodes_from_extraction(
                 # can tell a real AST-derived signature from an absent one
                 # without reading documentation (plan principle 5).
                 **({"types_source": types_source} if types_source else {}),
+                # The specific effects behind an IMPURE verdict, so a consumer
+                # can see *why* rather than only *that* (UPG-41).
+                **({"side_effects": list(side_effects)} if side_effects else {}),
+                # Real statement sequence for the enclosing function, which the
+                # RIR projects into its op stream instead of one synthetic
+                # EXTRACT_CONCEPT (UPG-41).
+                **({"op_stream": op_stream} if op_stream else {}),
             },
             types_in=types_in,
             types_out=types_out,
+            purity=node_purity,
         )
         logicnodes.append(
             {

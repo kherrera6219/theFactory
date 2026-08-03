@@ -235,19 +235,72 @@ invent types that were never declared. `payload.types_source` records
 
 `docs/LOGICNODE_SCHEMA.md` documents all of this.
 
+### Phase 4 — DONE (2026-08-01): real Refined-IR projection
+
+All six exit criteria met. Full backend suite **1816 passed, 0 failed, 0
+errors** (up from 1796 — 20 new tests).
+
+Refined-IR was "a schema-valid artifact carrying no semantic content". It no
+longer is. For AST-backed input it carries real typed signatures, a real
+statement-level op stream (a 2-branch function yields
+`ASSIGN, BRANCH, ASSIGN, ASSIGN, LOOP, ASSIGN, RETURN` where there was one
+synthetic `EXTRACT_CONCEPT`), `purity` from genuine side-effect analysis
+(`classify` → `PURE`, `persist` → `IMPURE` with `effects: ["io.filesystem"]`),
+and equivalence vectors of concrete typed arguments.
+
+`projection_method` (`templated_v1` / `ast_v1` / `mixed_v1`) makes the artifact
+**self-describing** — the honesty no longer lives only in prose in
+`LOGICNODE_SCHEMA.md`. **Read that field rather than assuming either path.**
+
+The templated path **remains unchanged** for languages with no recoverable
+signature. That is the correct output when nothing was recovered; the
+alternative would be inventing content.
+
+**Two additions beyond the plan, both for honesty:**
+
+1. **`purity` gained `UNKNOWN`.** Analysis cannot always decide — a function
+   calling something unresolvable could do anything. Reporting it `PURE` would
+   be a false claim and `IMPURE` a slander. **Absence of detected effects is
+   not evidence of purity**, and that rule is what makes the other two values
+   worth trusting. Added to both `rir.fn.schema.json` and the LogicNode schema.
+2. **`projection_method` gained `mixed_v1`** at module level, because one source
+   file legitimately mixes AST-backed and regex-only extraction and collapsing
+   that to either extreme misreports the module. Per-function values remain the
+   two the plan specified.
+
+**UPG-42 deliberately does not invent expected outputs.** Vectors carry
+concrete typed arguments but `expected: null`, because the expected output is
+not knowable until something executes the artifact — fabricating one would
+recreate the "vector that can never fail" problem in a new form. Every vector
+carries `executable: true|false` so Phase 5 can skip what it cannot run.
+
+**One bug caught by its own test:** Haskell list types (`[Int]`) were being
+normalised to an empty string before the bracket check ran, silently dropping
+every vector for the language — and Haskell is one of only three whose
+signatures are recovered at all.
+
 ### Next action — two options, neither blocking the other
 
-**Option A: UPG-20** — the last Phase 2 item, and the hard blocker for Phase 6
+**Option A: Phase 5** (behavioural equivalence, plan §8) — the payoff phase, and
+it consumes exactly what Phase 4 produced. No live-stack dependency for the
+build; execution runs in Docker.
+
+> **Two hard constraints.** (1) **Do not build a second execution path.** RQCA
+> already has a hardened sandbox at `rqca_agent.py:649-661` —
+> `--network=none --read-only --cap-drop=ALL --memory-swap=0 --cpus=1
+> --security-opt=no-new-privileges:true`, 64 MB tmpfs, read-only `/workspace`,
+> 60 s, 512 MB. Extract that invocation core into a shared helper; a second,
+> less-hardened path is the most likely way this plan introduces a real
+> vulnerability. (2) UPG-51 wires
+> `mission_equivalence_python_execution_enabled` — the flag UPG-21 guarded. The
+> moment it has a consumer, `test_flag_has_at_least_one_consumer` passes
+> unexpectedly and **strict xfail turns the suite red on purpose**. That is the
+> designed signal: delete the marker, keep the assertion.
+
+**Option B: UPG-20** — the last Phase 2 item, and the hard blocker for Phase 6
 (EDCP). Needs the live stack.
 
-**Option B: Phase 4** (real Refined-IR projection, plan §7) — now unblocked by
-Phase 3 and with **no live-stack dependency**. UPG-40 (`projection_method`,
-`"templated_v1"` vs `"ast_v1"`) ships even if the rest slips, and UPG-41's
-`purity` side-effect analysis fills the schema slot Phase 3 deliberately
-reserved. Phase 4 also consumes exactly what Phase 3 just produced: real
-`types.in`/`types.out` are the input its `inputs`/`outputs` derivation needs.
-
-#### Option A detail — UPG-20
+#### Option B detail — UPG-20
 
 Not started: it needs the live stack, and Docker Desktop was not running on
 2026-08-01. Run a **non-trivial** `BUILD_NEW` mission — multiple acceptance

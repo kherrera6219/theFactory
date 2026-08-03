@@ -43,6 +43,12 @@ class FunctionInfo:
     signature: str
     arg_types: tuple[str, ...] = ()
     return_type: str | None = None
+    # Side-effect analysis (UPG-41). ``purity`` is three-valued: "UNKNOWN" means
+    # not analysed, and must never be read as "PURE".
+    side_effects: tuple[str, ...] = ()
+    purity: str = "UNKNOWN"
+    # Ordered ("OPCODE", "detail") stream over the function body (UPG-41).
+    ops: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -430,6 +436,9 @@ class PythonAstExtractor(PythonExtractor):
                 signature=f.signature,
                 arg_types=tuple(f.arg_types or ()),
                 return_type=f.return_annotation,
+                side_effects=tuple(f.side_effects or ()),
+                purity=f.purity,
+                ops=tuple(f.ops or ()),
             )
             for f in ast_result.functions
         ]
