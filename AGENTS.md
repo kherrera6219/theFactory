@@ -18,8 +18,10 @@ Two documents are canonical for all forward work:
 | `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md` | The read-only audit behind it: 143 design documents vs live source, with file/line evidence. |
 | `docs/DESIGN_TRACEABILITY.md` | Design document 01–64 → status → implementing module → evidence. Answers "where is Doc N implemented?" without re-reading the corpus. |
 
-**Progress as of 2026-08-02:** Phases 1, 3, 4, 5 **done**; Phase 2 **done except
-UPG-20**. Full backend suite 1843 passed / 0 failed.
+**Progress as of 2026-08-03:** Phases 1, 3, 4, 5, 7 **done**; Phase 2 **done
+except UPG-20**; Phase 6 blocked by UPG-20. Backend 1843 passed / Mission
+Control 146 passed / 0 failed. **All offline work is complete** — what remains
+needs the live stack.
 
 > **Executing generated code goes through `orchestrator/sandbox_exec.py` and
 > nowhere else.** RQCA and behavioural equivalence share one hardened
@@ -35,11 +37,13 @@ plan statement — rule 1 below is not a formality here.
 
 **Next action — two options, neither blocking the other:**
 
-- **Phase 7** (plan §10) — consolidation. Unblocked: UPG-70's LogicNode
-  dependency graph now has Phase 3/4 data to render (respect the deferred CSP
-  work — no `unsafe-inline`/`unsafe-eval`); UPG-71/72/73 are decision work.
-- **UPG-20** (last Phase 2 item) — live-mission S1-01 evidence. Needs a running
-  stack and makes real paid LLM calls. **Hard blocker for Phase 6 (EDCP).**
+- **UPG-20** — live-mission S1-01 evidence. Needs a running stack and makes real
+  paid LLM calls. **Hard blocker for Phase 6 (EDCP)**, and the last item in the
+  upgrade plan that is not done.
+- Then **Phase 6 (EDCP)**, starting with the inserted EDCP-02a Delta consumer.
+  Before writing it, read `docs/PROTOCOL_ENVELOPES.md` §4: the two transports
+  join by **prefix parse, never equality**, and a consumer that queries
+  `correlation_id == mission_id` finds nothing and fails silently.
 
 Work item IDs are `UPG-<phase><item>` — `UPG-2x` is Phase 2, `UPG-3x` is
 Phase 3, and so on. Phase 6 uses the `EDCP-*` IDs from
