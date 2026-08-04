@@ -42,6 +42,9 @@ The application currently includes:
 - Orchestrator state engine on MissionFlow v2 (LangGraph ships disabled; see ADR row 13)
 - Protocol bus MCP (6-protocol typed Redis message bus with DLQ, 409 replay protection, and 503 backpressure)
 - Pod workers with concrete AST extractors for 7 language families & pre-flight toolchain checkers
+- LogicNode schema v2 — descriptive fields promoted to first-class optional properties; `types.in`/`types.out` populated from real AST signatures for Python, Java, and Haskell (see [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md))
+- Refined-IR with a self-describing `projection_method` (`ast_v1` / `templated_v1` / `mixed_v1`), real statement-level op streams, and purity from genuine side-effect analysis
+- Behavioural equivalence verification — executes the artifact against generated vectors in a shared hardened Docker sandbox (opt-in, advisory; see [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md))
 - Audit worker for verification stream processing
 - Dedicated single-agent runtime containers (supporting condensed, dedicated, and full-dedicated topologies)
 - Integrated data plane: PostgreSQL, Redis, Qdrant, Milvus, Neo4j, and MinIO
@@ -63,8 +66,11 @@ The application currently includes:
 | Desktop Electron Build | Electron desktop packaging build passed (`npm run electron:build`), standalone Next.js server bundle assembled, and Docker Desktop/WSL2 daemon preflight active |
 | Production Review Audit | **23 / 23 Checks Passed** (`scripts/production_review_audit.py`) |
 | Documentation Validation | **100% Passed** (`scripts/validate_documentation.py`) |
-| Mission Control Unit Suite | 131/131 Vitest unit tests passed across 25 test files |
-| Pytest Backend Suite | 1,737 pytest tests passed (100% green) |
+| Mission Control Unit Suite | 146/146 Vitest unit tests passed across 26 test files |
+| Pytest Backend Suite | **1,868** pytest tests passed, 0 failed, 0 errors |
+| Semantic engine (Phases 3–5) | LogicNode v2, real Refined-IR projection, and behavioural equivalence all landed 2026-08-01→02. Verdicts per design area in [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) |
+| Sandbox isolation | RQCA runtime QC and behavioural equivalence share **one** hardened Docker invocation (`sandbox_exec.py`); a test fails if either builds its own command line or drops a security flag |
+| Stack operations safety | Teardown preserves volumes by default; `start_app.bat` refuses a compose topology that conflicts with what is running |
 
 | Documentation controls | 76 metadata docs, 119 link docs, 17 docstring files, migration guide, and three diagram sets validated cleanly |
 | Production audit | 23/23 audit checks passed; all security and governance requirements closed |
@@ -75,9 +81,11 @@ The application currently includes:
 
 | Area | Status | Notes |
 |---|---|---|
-| Core Software Engine | **Complete for v1.3 scope** | 11-phase Smelt cycle, 41-agent registry, 6 Redis protocols, AST parsers for all 4 pods, and Deployment Exporters are operational. **Refined-IR ships a schema-valid but templated projection**, not a semantic decompilation ([LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md)); real AST-derived projection for AST-backed languages is planned as Phase 4 of the upgrade plan |
-| Semantic depth | **Scoped out (recorded decision)** | LogicNodes are 7-field envelopes; equivalence verification is contract conformance, not behavioural; the four-pod comprehension model, LogicNode Registry, and binary/LLVM output are Superseded or Deferred. Verdicts in [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) |
-| Audit & Quality Standards | **100% Passed** | 23/23 production audit checks passed, 88.33% backend coverage (floor 80%), 131 UI unit tests green, docs validation clean |
+| Core Software Engine | **Complete for v1.3 scope** | 11-phase Smelt cycle, 41-agent registry, 6 Redis protocols, AST parsers for all 4 pods, and Deployment Exporters are operational. Refined-IR now carries **real** typed signatures, statement-level op streams, and side-effect-derived purity for AST-backed languages, and labels itself `ast_v1` vs `templated_v1` ([LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md)) |
+| Semantic depth | **Partially reinstated; remainder scoped out** | Type recovery and behavioural verification are **real for Python, Java, and Haskell** — other languages produce honestly-empty types and a `templated_v1` projection. Still Superseded or Deferred by recorded decision: the four-pod comprehension model, the LogicNode Registry (Doc 30), binary/LLVM output, and the 0.0001% tolerance. Verdicts in [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) |
+| Behavioural equivalence | **Shipped, opt-in, advisory** | Executes generated artifacts against Phase 4 vectors in the shared hardened sandbox. Gated on `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` (default `false`). Advisory until pass rates are measured across 20+ real missions — a vector that merely *ran* is reported as `executed_without_error`, never `passed` |
+| Live mission evidence | **Outstanding (S1-01 / UPG-20)** | The current proof is a 22-line string reverser. A non-trivial multi-criterion mission has not yet been run end to end, and it is the hard blocker for the Protocol Bus EDCP phase |
+| Audit & Quality Standards | **100% Passed** | 23/23 production audit checks passed, 88.33% backend coverage (floor 80%), 146 UI unit tests green, docs validation clean |
 | Desktop Packaging Path | **100% Complete** | Electron build pipeline, embedded standalone server bundle, NSIS installer target, and Docker preflight validation verified |
 
 
