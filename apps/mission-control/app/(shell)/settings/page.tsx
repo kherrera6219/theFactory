@@ -316,8 +316,16 @@ export default function SettingsPage() {
       const existing = slotMap.get(slotId.toUpperCase());
       return {
         slotId,
-        provider: existing?.provider ?? agent.provider,
-        model: existing?.model ?? agent.model,
+        // Provider/model come from the LIVE snapshot when one is available, not
+        // from the vault slot. A slot's stored provider/model is metadata about
+        // the key recorded when the slot was written, and nothing refreshes it
+        // when routing defaults change — so preferring it showed a stale model
+        // indefinitely. It reported the fleet on gemini-3.5-flash long after
+        // routing had moved to 3.6, with only the one agent lacking a slot
+        // showing the truth. The slot still supplies key status, rotation, and
+        // masked preview below, which is what it is actually authoritative for.
+        provider: snapshot ? agent.provider : (existing?.provider ?? agent.provider),
+        model: snapshot ? agent.model : (existing?.model ?? agent.model),
         title: `${agent.agentId} (${agent.name})`,
         status: existing?.status ?? ("missing" as const),
         lastRotatedAt: existing?.last_rotated_at ?? null,
