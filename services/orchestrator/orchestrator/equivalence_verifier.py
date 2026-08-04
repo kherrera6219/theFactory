@@ -32,6 +32,17 @@ _PROHIBITED_EXTENSION_CONTEXT_PATTERN = re.compile(
     r"\b(no|not|without|avoid|exclude|excluding|forbid|forbidden|prohibit|prohibited)\b"
     r"[\w\s,;:./-]{0,40}$"
 )
+# Verbs and prepositions that mark a named format as data the tool CONSUMES or
+# EMITS at runtime, rather than as the deliverable artifact's own container.
+# "convert a CSV file to JSON" names operands; "deliver a single HTML file"
+# names the deliverable.
+_OPERAND_FORMAT_CONTEXT_PATTERN = re.compile(
+    r"\b(convert|converts|converting|convert(?:ed|er|ers)|pars(?:e|es|ing)|read|reads|reading"
+    r"|load|loads|loading|import|imports|importing|accept|accepts|accepting|ingest|ingests"
+    r"|transform|transforms|transforming|process|processes|processing|input|inputs"
+    r"|given|valid|source|from|on)\b[\w\s,;:./'\"-]{0,40}$"
+)
+
 _KNOWN_ARTIFACT_EXTENSIONS = {
     "html", "htm", "js", "mjs", "ts", "tsx", "jsx", "py", "rb", "go", "rs",
     "java", "cs", "cpp", "c", "css", "json", "md", "sh", "sql", "yaml", "yml",
@@ -101,7 +112,11 @@ def build_equivalence_report(
         _check_generated_output_exists(generated_output),
         _check_generated_artifact(build_artifacts),
         _check_artifact_format(
-            feature_contract, mission_contract, build_artifacts, generated_output
+            feature_contract,
+            mission_contract,
+            build_artifacts,
+            generated_output,
+            target_language,
         ),
         _check_language_alignment(generated_output, target_language),
         _check_language_content_signature(generated_output, target_language),
@@ -259,6 +274,7 @@ def _check_artifact_format(
     mission_contract: dict[str, Any],
     build_artifacts: list[dict[str, Any]],
     generated_output: dict[str, Any],
+    target_language: str | None = None,
 ) -> dict[str, Any]:
     """Require the delivered artifact form to match an explicit contract format.
 
@@ -318,6 +334,15 @@ def _check_artifact_format(
                 "artifact_filename": filename,
             },
         )
+    # NOTE: an earlier attempt at this fix also downgraded any mismatch where
+    # the artifact carried its target language's canonical extension (.py for
+    # python, .js for javascript). That was too broad: it re-opened the very
+    # incident this check exists for — a contract demanding "a single
+    # self-contained HTML file" answered with `neon-pong.js` would have been
+    # downgraded to advisory. Operand detection in
+    # `_expected_artifact_extensions` is the correct and sufficient fix, because
+    # it distinguishes formats the program *operates on* from the deliverable's
+    # own container. A mismatch that survives that is real.
     return _check(
         check_id="artifact_format_matches_contract",
         title="Artifact format matches contract",
@@ -357,7 +382,9 @@ def _expected_artifact_extensions(contract_text: str) -> set[str]:
     expected: set[str] = set()
     for match in _KEYWORD_FILE_PATTERN.finditer(text):
         keyword = match.group(1)
-        if keyword in _ARTIFACT_FORMAT_EXTENSIONS:
+        if keyword in _ARTIFACT_FORMAT_EXTENSIONS and not _is_operand_format_mention(
+            text, match.start()
+        ):
             expected |= _ARTIFACT_FORMAT_EXTENSIONS[keyword]
     for match in _EXPLICIT_EXTENSION_PATTERN.finditer(text):
         ext = match.group(1)
@@ -371,6 +398,24 @@ def _expected_artifact_extensions(contract_text: str) -> set[str]:
 def _is_prohibited_extension_mention(text: str, extension_start: int) -> bool:
     context = text[max(0, extension_start - 48):extension_start]
     return bool(_PROHIBITED_EXTENSION_CONTEXT_PATTERN.search(context))
+
+
+def _is_operand_format_mention(text: str, keyword_start: int) -> bool:
+    """Return whether a "<format> file" mention is data the tool *processes*.
+
+    The check was built for contracts that name the deliverable's own container
+    ("deliver a single self-contained HTML file"). But a data-processing tool
+    names formats it *operates on*: "convert a CSV file to JSON". Those are
+    operands, not deliverables — the correct artifact for such a mission is a
+    program, not a CSV.
+
+    Treating them as required deliverable formats produced a live false
+    positive: a Python CSV-to-JSON CLI delivered `csv2json.py` and was failed
+    for "not matching the contracted deliverable format(s): ['csv', 'json']",
+    which then cascaded into a hard security-compliance block (2026-08-04).
+    """
+    context = text[max(0, keyword_start - 60):keyword_start]
+    return bool(_OPERAND_FORMAT_CONTEXT_PATTERN.search(context))
 
 
 def _check_language_alignment(

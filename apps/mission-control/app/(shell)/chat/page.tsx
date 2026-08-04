@@ -20,6 +20,7 @@ import {
 import { pruneExpiredSessions } from "../../lib/chat-session-retention";
 import { formatDateTime } from "../../lib/format";
 import { inferRequestedTargetLanguage } from "../../lib/language";
+import { fitConversationContext } from "../../lib/mission-metadata-budget";
 import { operatorRecoveryMessage } from "../../lib/operator-auth-error";
 import { sanitizeUserText } from "../../lib/security";
 
@@ -947,15 +948,17 @@ export default function ChatPage() {
         filePaths: files.map((file) => file.name),
         contractLanguages: launchContract.languages,
       });
-      const conversationContext = compactLaunchConversationContext(
+      const compactedContext = compactLaunchConversationContext(
         launchContract.conversationContext,
         launchContract,
       );
-      const mission = await createMission({
-        prompt: launchContract.launchPrompt,
-        requested_target_language: requestedTargetLanguage,
-        source_code: sourceCode || undefined,
-        metadata: {
+      // The gateway rejects the whole request with 422 when serialized metadata
+      // exceeds 4096 bytes. Per-field caps above allow far more than that, so
+      // budget the assembled object and shed context until it actually fits —
+      // otherwise a thorough PM clarification makes the mission unlaunchable.
+      const { metadata: launchMetadata } = fitConversationContext(
+        compactedContext,
+        (conversationContext) => ({
           source: "mission-control-chat",
           attached_files: files.map((item) => safeFileName(item)),
           inferred_requested_target_language: requestedTargetLanguage,
@@ -980,7 +983,13 @@ export default function ChatPage() {
             scope: launchContract.scope,
             estimated_duration: launchContract.estimatedDuration,
           },
-        },
+        }),
+      );
+      const mission = await createMission({
+        prompt: launchContract.launchPrompt,
+        requested_target_language: requestedTargetLanguage,
+        source_code: sourceCode || undefined,
+        metadata: launchMetadata,
       });
       router.push(`/missions/detail?id=${mission.mission_id}`);
     } catch (launchError) {

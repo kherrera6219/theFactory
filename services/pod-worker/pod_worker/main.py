@@ -432,6 +432,37 @@ def _routing_stub_logicnode(
     }
 
 
+async def _handoff_refined_ir(mission_id: str, module: Any) -> None:
+    """Send the Refined-IR projection to the orchestrator.
+
+    Without this the module exists only in this process — and, when
+    ``REFINED_IR_STORE_PATH`` is configured, on this container's filesystem,
+    which the orchestrator cannot read. Behavioural equivalence therefore always
+    reported ``skipped: no Refined-IR module in mission metadata``: Phase 4
+    produced the equivalence vectors and Phase 5 had no way to reach them
+    (observed live 2026-08-04).
+
+    Non-fatal by design. Extraction has already succeeded by this point, so an
+    unreachable downstream gate must not fail the mission — the gate degrades to
+    a recorded ``skipped`` instead, which is the honest outcome.
+    """
+    try:
+        payload = module.model_dump(by_alias=True)
+        await _request(
+            "POST",
+            f"/internal/missions/{mission_id}/refined-ir",
+            json_body={
+                "projection_method": payload.get("projection_method"),
+                "module": payload.get("module"),
+                "fns": payload.get("fns", []),
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 - handoff must never fail extraction
+        LOGGER.warning(
+            "refined_ir handoff failed for mission %s: %s", mission_id, type(exc).__name__
+        )
+
+
 def _enclosing_function_for_line(
     functions: Sequence[Any], source_line: Any
 ) -> Any | None:
@@ -1534,6 +1565,8 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             LOGGER.exception("refined_ir write failed for mission %s", mission_id)
             refined_ir_store_record = {"error": str(exc)}
             refined_ir_status = "ERROR"
+    await _handoff_refined_ir(mission_id, refined_ir_module)
+
     if refined_ir_store_record is not None:
         await _emit_audit_event(
             mission_id=mission_id,
@@ -1838,6 +1871,8 @@ async def _handle_partition_ready(redis_client: redis.Redis, payload: dict[str, 
             )
             refined_ir_store_record = {"error": str(exc)}
             refined_ir_status = "ERROR"
+    await _handoff_refined_ir(mission_id, refined_ir_module)
+
     if refined_ir_store_record is not None:
         await _emit_audit_event(
             mission_id=mission_id,

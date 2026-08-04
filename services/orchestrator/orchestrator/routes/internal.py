@@ -1264,6 +1264,102 @@ async def get_build_artifact(
     return MissionBuildArtifactRecord(**record)
 
 
+# Bounds on what is copied into mission metadata from the Refined-IR module.
+# Behavioural equivalence caps execution at 25 vectors, so storing more than
+# it can run only inflates the record.
+_REFINED_IR_MAX_FUNCTIONS = 25
+_REFINED_IR_MAX_VECTORS_PER_FN = 3
+
+
+@router.post("/internal/missions/{mission_id}/refined-ir")
+async def record_refined_ir_module(
+    request: Request,
+    mission_id: str,
+    payload: dict[str, Any],
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    """Record the mission's Refined-IR so delivery-phase gates can read it.
+
+    pod-worker builds the RIR module in memory and, when `REFINED_IR_STORE_PATH`
+    is configured, writes it to its own container's filesystem. The orchestrator
+    never saw it, so behavioural equivalence (Phase 5) always reported
+    `skipped: no Refined-IR module in mission metadata` — Phase 4 produced the
+    vectors and Phase 5 could not reach them. Observed live 2026-08-04.
+
+    Only what the gate actually executes is stored: `ast_v1` functions and their
+    equivalence vectors. Persisting the full module would put unbounded
+    extractor output into mission metadata, which is the same mistake that made
+    chat launches fail against the gateway's metadata size limit.
+    """
+    import orchestrator.main as _main
+
+    app = request.app
+    await _main._ensure_db_ready(app)
+    mission = await _main._fetch_existing_mission(app, mission_id)
+    if mission is None:
+        raise HTTPException(status_code=404, detail="mission not found")
+
+    functions = payload.get("fns")
+    if not isinstance(functions, list):
+        raise HTTPException(status_code=422, detail="fns must be a list")
+
+    executable: list[dict[str, Any]] = []
+    for function in functions[:_REFINED_IR_MAX_FUNCTIONS]:
+        if not isinstance(function, dict) or function.get("projection_method") != "ast_v1":
+            continue
+        tests = function.get("tests")
+        vectors = tests.get("equivalence_vectors") if isinstance(tests, dict) else None
+        if not isinstance(vectors, list):
+            continue
+        kept = [
+            vector
+            for vector in vectors[:_REFINED_IR_MAX_VECTORS_PER_FN]
+            if isinstance(vector, dict)
+            and isinstance(vector.get("out"), dict)
+            and vector["out"].get("executable")
+        ]
+        if not kept:
+            continue
+        executable.append(
+            {
+                "fn_id": str(function.get("fn_id") or ""),
+                "name": str(function.get("name") or ""),
+                "projection_method": "ast_v1",
+                "purity": function.get("purity"),
+                "tests": {"equivalence_vectors": kept},
+            }
+        )
+        if len(executable) >= _REFINED_IR_MAX_FUNCTIONS:
+            break
+
+    metadata = dict(mission.metadata if isinstance(mission.metadata, dict) else {})
+    module_payload = payload.get("module")
+    metadata["refined_ir_module"] = {
+        "module": module_payload if isinstance(module_payload, dict) else {},
+        "projection_method": payload.get("projection_method"),
+        "fns": executable,
+        "recorded_at": datetime.now(UTC).isoformat(),
+    }
+
+    record = await asyncio.to_thread(
+        storage.update_mission_metadata,
+        app.state.settings,
+        mission_id,
+        metadata,
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="mission not found")
+
+    return {
+        "mission_id": mission_id,
+        "projection_method": payload.get("projection_method"),
+        "executable_function_count": len(executable),
+        "executable_vector_count": sum(
+            len(fn["tests"]["equivalence_vectors"]) for fn in executable
+        ),
+    }
+
+
 @router.post("/internal/missions/{mission_id}/partition-results")
 async def upsert_partition_result(
     request: Request,

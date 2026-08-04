@@ -88,12 +88,27 @@ declare global {
 
 // ── Runtime helpers ─────────────────────────────────────────────────────────
 
-/** Returns true when rendered inside an Electron BrowserWindow. */
+/**
+ * Returns true when rendered inside **this app's** Electron shell.
+ *
+ * Detected by the capability the caller actually needs — `window.electronAPI`,
+ * injected by `electron/preload.ts` — rather than by sniffing the user agent
+ * for "electron".
+ *
+ * The UA test was wrong in both directions. Any Electron-based browser (the
+ * Claude desktop app, VS Code's Simple Browser, Slack, Discord) carries
+ * "Electron/x.y.z" in its UA, so opening Mission Control in one made this
+ * return true. `api-client` then took the desktop branch and called the API
+ * gateway **directly**, bypassing the same-origin `/api/gateway` proxy that
+ * attaches operator credentials — every request came back 401 (observed
+ * 2026-08-04). A packaged build that ever shipped without the UA suffix would
+ * fail the opposite way.
+ *
+ * `window.electronAPI` is present only where the preload script ran, which is
+ * precisely where the Electron code paths are valid.
+ */
 export function isElectron(): boolean {
-  return (
-    typeof navigator !== "undefined" &&
-    /electron/i.test(navigator.userAgent)
-  );
+  return typeof window !== "undefined" && Boolean(window.electronAPI);
 }
 
 // ── 7A: Window controls ─────────────────────────────────────────────────────
