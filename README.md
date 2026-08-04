@@ -16,10 +16,13 @@
 
 </div>
 
-> **Version:** 1.3.0 · **Last updated:** 2026-07-25 · **Status:** Production-Ready Baseline (100% Reconciled Milestone)
+> **Version:** 1.3.0 · **Last updated:** 2026-08-03 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
 
-> **Development status:** theFactory is 100% complete and feature-reconciled across all core software engine phases, quality gates, and desktop packaging paths.
-> Live evidence covers 11-phase Smelt cycle execution, 41-agent canonical registry, 6 Redis protocols, AST structural extractors across 7 major languages, downstream Helm/GitHub Actions deployment exporters, Gemini 3.6 Flash primary model integration, 23/23 production audit checks passed, and Docker Desktop/WSL2 Electron preflight diagnostics.
+> **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. The **semantic engine is partially realised**: LogicNodes carry real AST-recovered types, Refined-IR carries real op streams and side-effect-derived purity, and behavioural equivalence executes generated code in a hardened sandbox — but **only for Python, Java, and Haskell**. Other languages produce honestly-labelled templated output.
+>
+> Deliberately **not** built, by recorded decision: the four-pod parallel comprehension model, the Doc 30 LogicNode Registry, binary/LLVM output, and the 0.0001% equivalence tolerance. Per-area verdicts are in [`docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md).
+>
+> **Not production-ready.** The outstanding gate is live end-to-end evidence from a non-trivial mission — see [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md).
 
 
 ---
@@ -116,13 +119,15 @@ For the implemented lifecycle (Mission Flow v2 with optional clarification pause
 
 Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 
-The list below describes fully implemented, production-verified subsystems across theFactory:
+The list below describes implemented, CI-verified subsystems across theFactory:
 
-- **100% Core Software Engine Maturity** — 11-phase Smelt cycle, 41-agent canonical registry, 6 Redis protocols (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`), and AST structural extractors across Python, JS/TS, Java, Go, Haskell, OCaml, and Julia.
+- **Core Software Engine** — 11-phase Smelt cycle, 41-agent canonical registry, 6 Redis protocols (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`), and AST structural extractors across Python, JS/TS, Java, Go, Haskell, OCaml, and Julia.
+- **Semantic LogicNodes & Refined-IR** — LogicNodes carry AST-recovered `types.in`/`types.out`; Refined-IR carries real statement-level op streams, side-effect-derived purity, and executable equivalence vectors. Each module labels itself `ast_v1` or `templated_v1`, so a consumer can always tell a real projection from a synthetic one. Type recovery covers **Python, Java, and Haskell**; other languages emit honestly-empty types.
+- **Behavioural Equivalence Verification** — executes generated artifacts against their equivalence vectors inside a hardened Docker sandbox (`--network=none`, `--read-only`, `--cap-drop=ALL`, no-new-privileges) shared with runtime QC. Opt-in and advisory; a vector that merely ran is reported as `executed_without_error`, never `passed`.
 - **Downstream Deployment Handshake Exporters** — REST endpoints (`/v1/missions/{id}/export/helm` and `/v1/missions/{id}/export/github-actions`) generating gzipped Kubernetes Helm Charts and GitHub Actions CI/CD workflows.
 - **Gemini 3.6 Flash Primary Model Integration** — Upgraded primary default model routing, cost ledgers, API Gateway registries, compose overlays, environment templates, and Mission Control Vault settings to Gemini 3.6 Flash.
 - **Desktop Electron Packaging** — Built standalone Next.js server bundle with Docker Desktop & WSL2 daemon preflight diagnostics in Electron bridge (`diagnostics.ts`).
-- **100% Audit & Quality Gates** — 23 of 23 production audit checks passed, 100% line / 99% branch coverage on `runtime.py`, >=80% backend test coverage, 131 green UI unit tests, and 0 SAST/SCA/secret/license findings.
+- **Audit & Quality Gates** — 23 of 23 production audit checks passed, 100% line / 99% branch coverage on `runtime.py`, >=80% backend test coverage, **1,883 green backend tests and 146 green UI unit tests**, and 0 SAST/SCA/secret/license findings.
 - **Multi-modal Context Ingestion** — Native support for PDF, Word, Markdown, and image diagrams converted via IS-Agent & provider layer.
 - **Protocol Bus Architecture** — Six-protocol Redis Streams event plane with DLQ, 409 replay detection, and fail-closed Redis error handling.
 - **41-Agent Control Model** — Canonical registry across interface, executive, support, and pod-specialist tiers; supports condensed, dedicated, and full-dedicated runtime topologies.
@@ -953,6 +958,11 @@ theFactory/
 |----------|-------------|
 | [`docs/00_PRODUCT_OVERVIEW.md`](docs/00_PRODUCT_OVERVIEW.md) | Five-minute product orientation |
 | [`docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md`](docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md) | Canonical positioning and scope boundaries |
+| [`docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md) | **Governing verdict document** — Implemented / Superseded / Deferred per design area. Outranks the archived design corpus |
+| [`docs/MISSION_TAXONOMY.md`](docs/MISSION_TAXONOMY.md) | Mission types, depth modes, output modes, and data classifications — what each value actually does, and which are inert |
+| [`docs/DESIGN_TRACEABILITY.md`](docs/DESIGN_TRACEABILITY.md) | Design document 01–64 → status → implementing module → evidence |
+| [`docs/LOGICNODE_SCHEMA.md`](docs/LOGICNODE_SCHEMA.md) | LogicNode schema v2 and the two Refined-IR projection paths (`ast_v1` vs `templated_v1`) |
+| [`docs/PROTOCOL_ENVELOPES.md`](docs/PROTOCOL_ENVELOPES.md) | The two envelope transports, their priority vocabularies, and the correlation contract — **read before writing a bus consumer** |
 | [`docs/DEPENDENCY_ABSORPTION_DOCTRINE.md`](docs/DEPENDENCY_ABSORPTION_DOCTRINE.md) | Dependency absorption doctrine, decision hierarchy, safety blocks |
 | [`docs/APPLICATION_INTELLIGENCE_MAP.md`](docs/APPLICATION_INTELLIGENCE_MAP.md) | Application Intelligence Map artifact and consumers |
 | [`docs/RUNTIME_QC_AND_TEST_ENVIRONMENTS.md`](docs/RUNTIME_QC_AND_TEST_ENVIRONMENTS.md) | Ephemeral test environments and AI runtime QC |
@@ -991,14 +1001,21 @@ theFactory/
 
 ## Current Status
 
-Current state (2026-07-25): **100% Production-Ready Milestone**. All core software engine phases, quality gates, AST extractors, deployment handshakes, and desktop packaging paths are reconciled, verified, and passing in CI.
+Current state (2026-08-03): **active development, feature-complete against the
+v1.3 mission-pipeline scope.** Infrastructure, security, the protocol bus, the
+data plane, the operator UI, and the test surface are mature and CI-verified.
+The semantic engine is partially realised and honestly labelled. The system is
+**not production-ready**: the outstanding gate is live end-to-end evidence from a
+non-trivial mission.
 
 | Maturity Area | Status | Status Details |
 | --- | --- | --- |
-| **Core Software Engine** | **100% Complete** | 11-phase Smelt cycle, 41-agent registry, 6 Redis protocols, AST parsers for Python/TS/Java/Go/Haskell/OCaml/Julia, downstream Helm & GitHub Actions exporters, and Gemini 3.6 Flash primary model integration are 100% operational. |
-| **Audit & Quality Standards** | **100% Passed** | 23/23 production audit checks passed, 100% line / 99% branch coverage on `runtime.py`, >=80% backend coverage, 131 UI unit tests green, and 0 SAST/SCA/secret/license findings. |
-| **Desktop Packaging Path** | **100% Complete** | Standalone Next.js production build, Docker Desktop & WSL2 daemon preflight diagnostics (`diagnostics.ts`), custom Electron titlebar, system tray integration, and native file dialogs are reconciled and built. |
-| **CI & Release Pipeline** | **100% Green** | GitHub Actions CI workflows green across Python 3.11 lint/test, Bandit SAST, Node License Scanner, Performance Smoke (with X-API-Key auth), and Release Trust & Promotion Gate. |
+| **Core Software Engine** | **Complete for v1.3 scope** | 11-phase Smelt cycle, 41-agent registry, 6 Redis protocols, AST parsers for Python/TS/Java/Go/Haskell/OCaml/Julia, downstream Helm & GitHub Actions exporters, and Gemini primary model routing are operational. |
+| **Semantic depth** | **Partially realised; remainder scoped out** | Real AST-recovered types, op streams, purity, and behavioural equivalence — for **Python, Java, and Haskell**. Other languages emit honestly-labelled `templated_v1` output. Superseded or Deferred by recorded decision: four-pod comprehension, Doc 30 registry, binary/LLVM output, the 0.0001% tolerance. See the [reconciliation ADR](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md). |
+| **Live mission evidence** | **Outstanding** | The current proof is a 22-line string reverser. A non-trivial multi-criterion mission has not yet run end to end; this blocks the event-driven control-plane work. |
+| **Audit & Quality Standards** | **Passing** | 23/23 production audit checks, 100% line / 99% branch coverage on `runtime.py`, >=80% backend coverage, 1,883 backend + 146 UI tests green, 0 SAST/SCA/secret/license findings. |
+| **Desktop Packaging Path** | **Built** | Standalone Next.js production build, Docker Desktop & WSL2 preflight diagnostics (`diagnostics.ts`), custom Electron titlebar, system tray, and native file dialogs. Installer buildout is still outstanding. |
+| **CI & Release Pipeline** | **Green** | GitHub Actions green across Python 3.11 lint/test, CodeQL, Bandit SAST, Trivy, Node License Scanner, 7 Docker build validations, and the Release Trust & Promotion Gate. |
 
 ---
 
