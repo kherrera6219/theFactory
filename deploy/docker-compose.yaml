@@ -345,6 +345,17 @@ services:
       TESTDATA_AGENT_ENABLED: ${TESTDATA_AGENT_ENABLED:-false}
       RQCA_AGENT_ENABLED: ${RQCA_AGENT_ENABLED:-false}
       RQCA_ENFORCEMENT_ENABLED: ${RQCA_ENFORCEMENT_ENABLED:-true}
+      # Equivalence verification. Correctness (contract-conformance) checks always
+      # run; these two control what they can do and whether behavioural
+      # verification executes at all.
+      #   *_ENFORCEMENT_ENABLED  -> a failed required correctness check blocks
+      #                             delivery. Off until pass rates are measured.
+      #   *_PYTHON_EXECUTION_*   -> run the artifact against its equivalence
+      #                             vectors in the shared hardened sandbox and
+      #                             attach a behavioural report. Advisory even
+      #                             when on; requires a reachable Docker daemon.
+      MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED: ${MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED:-false}
+      MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED: ${MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED:-false}
       DOCKER_BIN: ${DOCKER_BIN:-docker}
       DEPABS_EXECUTION_ENABLED: ${DEPABS_EXECUTION_ENABLED:-false}
       LANGGRAPH_ENABLED: ${LANGGRAPH_ENABLED:-false}

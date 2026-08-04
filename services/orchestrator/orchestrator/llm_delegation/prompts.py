@@ -64,7 +64,28 @@ def _build_prompt(
             "Select the pod whose specialist can produce the richest LogicNode "
             "coverage. No code generation is required."
         ),
+        # These three were missing until 2026-08-03, so they silently inherited
+        # BUILD_NEW's "strongest code generation capability" instruction — the
+        # wrong steer for missions that generate no code. Nothing errored, which
+        # is why it went unnoticed; the cost was quietly suboptimal routing.
+        "RUN_QC": (
+            "This mission executes quality checks against existing code and "
+            "generates none. Select the pod whose specialist best understands "
+            "the source language's test and runtime behaviour."
+        ),
+        "ARCHITECTURE_DOCS": (
+            "This mission produces architecture documentation, not code. Select "
+            "the pod whose specialist can read the source language's structure "
+            "and describe it accurately."
+        ),
+        "SELF_ANALYZE": (
+            "This mission analyses theFactory's own codebase (Python). Select "
+            "Pod A and its Python specialist. No code generation is required."
+        ),
     }
+    # Every MissionType in models.py must have an entry above. The fallback
+    # exists for forward compatibility with an unrecognised value, not as a
+    # substitute for adding one — see docs/MISSION_TAXONOMY.md section 7.
     strategy = type_strategy.get(mission_type, type_strategy["BUILD_NEW"])
     complexity_note = (
         " High-complexity mission: consider multiple clusters and parallel pod ownership."
