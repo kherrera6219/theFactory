@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from .. import build_artifacts as build_artifact_support
@@ -17,7 +18,9 @@ from ..llm_delegation import (
 )
 from ..mission_flow import (
     CEO_AGENT_ID,
+    POD_MANAGER_BY_LANGUAGE,
     append_chain_event,
+    normalize_language,
     resolve_pod_manager_agent_id,
     resolve_specialist_agent_id,
     with_chain_defaults,
@@ -25,6 +28,7 @@ from ..mission_flow import (
 from ..models import MissionState
 from ..port_coordinator import run_port_extraction_phase
 from ..protocol_bus_emissions import EMISSION_KEY, PBLA_POD_AUDIT_TELEMETRY
+from ..storage_core import PodAssignmentConflictError
 from .base import (
     _chain_event_exists,
     _mission_context,
@@ -52,6 +56,92 @@ def _pkg() -> Any:
     return importlib.import_module(__package__)
 
 
+def _language_pod_manager_agent_id(requested_target_language: Any) -> str | None:
+    """Return the registry pod manager for a *known* language, else ``None``.
+
+    ``resolve_pod_manager_agent_id`` falls back to Pod A for anything it does not
+    recognise, which makes it useless as a routing *check*: an unset or unknown
+    language would look like a legitimate Pod A mission and would "correct"
+    every CEO choice back to Pod A.  Returning ``None`` instead lets callers
+    leave the CEO's judgement alone when the registry has no opinion.
+    """
+    return POD_MANAGER_BY_LANGUAGE.get(normalize_language(requested_target_language))
+
+
+async def _persist_pod_assignment_record(
+    *,
+    app: Any,
+    settings: Any,
+    mission: Any,
+    mission_id: str,
+    pod_manager_agent_id: str,
+    specialist_agent_id: str,
+) -> dict[str, Any] | None:
+    """Record the pod this mission was routed to, alongside the chain event.
+
+    ``MISSION_POD_MANAGER_ASSIGNED`` asserts that a pod manager was assigned, so
+    the assignment must be queryable.  Historically the only writer of
+    ``mission_pod_assignments`` was the pod worker, which writes when it *claims*
+    execution -- a different fact, and one that never happens for missions no
+    worker picks up (a BUILD_NEW mission with no source to extract, or one whose
+    language and routed agent send it past every worker's filters).  Those
+    missions reached VERIFIED with the event emitted and a 404 on the record.
+
+    The row is written as *provisional*: a worker claim supersedes it, and it can
+    never overwrite a claim.  Failure is logged, never fatal -- this is a
+    reporting record and mission progression must not hinge on it.
+    """
+    pod_name = _pod_key_for_manager(pod_manager_agent_id)
+    details = {
+        "assigned_by": "orchestrator",
+        "pod_name": pod_name,
+        "agent_id": pod_manager_agent_id,
+        "specialist_agent_id": specialist_agent_id,
+        "requested_target_language": mission.requested_target_language or "",
+        "reason": "delegation-routing",
+    }
+    try:
+        record = await asyncio.to_thread(
+            _pkg().storage.upsert_pod_assignment,
+            settings,
+            mission_id,
+            pod_name,
+            details,
+            datetime.now(UTC).isoformat(),
+            provisional=True,
+        )
+    except PodAssignmentConflictError as exc:
+        # A pod worker already claimed this mission -- its record is the
+        # authoritative one and must not be downgraded to provisional.
+        LOGGER.info(
+            "v2: mission %s already claimed by pod %s; keeping the worker assignment",
+            mission_id,
+            (exc.existing_assignment or {}).get("pod_name"),
+        )
+        return None
+    except Exception as exc:
+        LOGGER.warning(
+            "v2: failed to record pod assignment for mission %s: %s",
+            mission_id,
+            type(exc).__name__,
+        )
+        return None
+
+    await _pkg().record_audit_event(
+        app,
+        mission_id=mission_id,
+        mission=mission,
+        agent_id=pod_manager_agent_id,
+        service_name="orchestrator",
+        event_type="MISSION_POD_ASSIGNMENT_WRITTEN",
+        object_type="pod_assignment",
+        object_id=pod_name,
+        payload_summary=dict(details),
+        content_hash_source=details,
+    )
+    return record
+
+
 async def _prepare_pod_assignment(
     *,
     app: Any,
@@ -72,6 +162,41 @@ async def _prepare_pod_assignment(
         ceo_delegation.get("pod_manager_agent_id"),
         fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
     )
+
+    # The CEO's delegation prompt is constrained to "one of the four pod
+    # managers" but not to the one that owns the mission's language, so it can
+    # route a Python mission to the Pod C manager.  Nothing downstream reconciles
+    # that: pod workers filter on language *and* (in the dedicated topology) on
+    # bound agent id, so a cross-pod choice makes the mission invisible to every
+    # worker -- Pod A rejects the agent, Pod C rejects the language, and neither
+    # logs an error.  Prefer the registry when it has an opinion, and record the
+    # correction rather than silently discarding the CEO's answer.
+    language_pod_manager_agent_id = _language_pod_manager_agent_id(
+        mission.requested_target_language
+    )
+    routing_correction: dict[str, Any] | None = None
+    if (
+        language_pod_manager_agent_id is not None
+        and pod_manager_agent_id != language_pod_manager_agent_id
+    ):
+        routing_correction = {
+            "delegated_pod_manager_agent_id": pod_manager_agent_id,
+            "corrected_pod_manager_agent_id": language_pod_manager_agent_id,
+            "requested_target_language": mission.requested_target_language or "",
+            "reason": "delegated-pod-manager-does-not-own-target-language",
+            "corrected_at": datetime.now(UTC).isoformat(),
+        }
+        LOGGER.warning(
+            "v2: mission %s delegated to %s but %s owns language %r; using %s",
+            mission_id,
+            pod_manager_agent_id,
+            language_pod_manager_agent_id,
+            mission.requested_target_language,
+            language_pod_manager_agent_id,
+        )
+        pod_manager_agent_id = language_pod_manager_agent_id
+        metadata["pod_manager_routing_correction"] = routing_correction
+
     default_specialist_agent_id = _validate_agent_id(
         ceo_delegation.get("specialist_agent_id"),
         fallback=resolve_specialist_agent_id(mission.requested_target_language),
@@ -101,31 +226,39 @@ async def _prepare_pod_assignment(
     metadata["selected_agent_id"] = pod_manager_agent_id
     metadata["agent_id"] = pod_manager_agent_id
 
+    assignment_record = await _persist_pod_assignment_record(
+        app=app,
+        settings=settings,
+        mission=mission,
+        mission_id=mission_id,
+        pod_manager_agent_id=pod_manager_agent_id,
+        specialist_agent_id=specialist_agent_id,
+    )
+
+    assignment_details = {
+        "specialist_agent_id": specialist_agent_id,
+        "source": normalized.get("source"),
+        "llm_route": normalized.get("llm_route"),
+        "model_provider": normalized.get("model_provider"),
+        "model": normalized.get("model"),
+        "pod_name": _pod_key_for_manager(pod_manager_agent_id),
+        "pod_assignment_recorded": assignment_record is not None,
+        **({"routing_correction": routing_correction} if routing_correction else {}),
+    }
+
     if not _chain_event_exists(metadata, "MISSION_POD_MANAGER_ASSIGNED"):
         append_chain_event(
             metadata,
             event_type="MISSION_POD_MANAGER_ASSIGNED",
             agent_id=pod_manager_agent_id,
-            details={
-                "specialist_agent_id": specialist_agent_id,
-                "source": normalized.get("source"),
-                "llm_route": normalized.get("llm_route"),
-                "model_provider": normalized.get("model_provider"),
-                "model": normalized.get("model"),
-            },
+            details=dict(assignment_details),
         )
     _record_artifact(
         metadata,
         stage="pod_assigned",
         event_type="MISSION_POD_MANAGER_ASSIGNED",
         agent_id=pod_manager_agent_id,
-        details={
-            "specialist_agent_id": specialist_agent_id,
-            "source": normalized.get("source"),
-            "llm_route": normalized.get("llm_route"),
-            "model_provider": normalized.get("model_provider"),
-            "model": normalized.get("model"),
-        },
+        details=dict(assignment_details),
     )
     await _pkg().record_audit_event(
         app,

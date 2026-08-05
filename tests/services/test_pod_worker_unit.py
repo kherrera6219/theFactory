@@ -261,7 +261,13 @@ def test_has_assignment(monkeypatch) -> None:
         return DummyResponse(500)
 
     async def _ok(*_args, **_kwargs):
-        return DummyResponse(200, {"pod_name": "podA"})
+        return DummyResponse(200, {"pod_name": "podA", "metadata": {"assigned_by": "pod-worker"}})
+
+    async def _provisional(*_args, **_kwargs):
+        return DummyResponse(
+            200,
+            {"pod_name": "podA", "metadata": {"assigned_by": "orchestrator"}},
+        )
 
     monkeypatch.setattr(pod_worker_main, "_request", _not_found)
     assert asyncio.run(pod_worker_main._has_assignment("mission-1")) is False
@@ -269,6 +275,25 @@ def test_has_assignment(monkeypatch) -> None:
     assert asyncio.run(pod_worker_main._has_assignment("mission-1")) is False
     monkeypatch.setattr(pod_worker_main, "_request", _ok)
     assert asyncio.run(pod_worker_main._has_assignment("mission-1")) is True
+
+    # An orchestrator-written (provisional) row records where the mission was
+    # routed, not that a pod is executing it. Treating it as a real assignment
+    # would make every mission look claimed and stop workers from ever running.
+    monkeypatch.setattr(pod_worker_main, "_request", _provisional)
+    assert asyncio.run(pod_worker_main._has_assignment("mission-1")) is False
+
+
+def test_is_provisional_assignment_shapes() -> None:
+    assert pod_worker_main._is_provisional_assignment(
+        {"pod_name": "podA", "metadata": {"assigned_by": "orchestrator"}}
+    )
+    # Bare metadata mapping, as well as the full record.
+    assert pod_worker_main._is_provisional_assignment({"assigned_by": "ORCHESTRATOR"})
+    assert not pod_worker_main._is_provisional_assignment(
+        {"pod_name": "podA", "metadata": {"assigned_by": "pod-worker"}}
+    )
+    assert not pod_worker_main._is_provisional_assignment({"pod_name": "podA"})
+    assert not pod_worker_main._is_provisional_assignment(None)
 
 
 def test_fetch_mission_agent_id_and_binding_match(monkeypatch) -> None:

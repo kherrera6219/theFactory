@@ -7,6 +7,23 @@ from typing import Any
 from .settings import Settings
 from .storage_core import PodAssignmentConflictError, _json_to_dict, _to_iso, get_connection
 
+#: ``metadata.assigned_by`` value marking a row the orchestrator wrote when it
+#: delegated the mission, before (or instead of) any pod worker claiming it.
+PROVISIONAL_ASSIGNED_BY = "orchestrator"
+
+#: A claim may replace a provisional row; a provisional write may only replace
+#: another provisional row.  Expressed as ``ON CONFLICT ... DO UPDATE ... WHERE``
+#: predicates -- when the predicate is false Postgres updates nothing and
+#: ``RETURNING`` yields no row, which is how the caller detects a conflict
+#: without a second round trip.
+_CLAIM_CONFLICT_PREDICATE = (
+    "WHERE mission_pod_assignments.pod_name = EXCLUDED.pod_name"
+    " OR mission_pod_assignments.metadata_json->>'assigned_by' = %(provisional)s"
+)
+_PROVISIONAL_CONFLICT_PREDICATE = (
+    "WHERE mission_pod_assignments.metadata_json->>'assigned_by' = %(provisional)s"
+)
+
 
 def upsert_pod_assignment(
     settings: Settings,
@@ -14,12 +31,30 @@ def upsert_pod_assignment(
     pod_name: str,
     metadata: dict[str, Any],
     assigned_at: str,
+    *,
+    provisional: bool = False,
 ) -> dict[str, Any]:
-    """Assign a mission to a pod, rejecting conflicting pod changes."""
+    """Assign a mission to a pod, rejecting conflicting pod changes.
+
+    Two kinds of write share this table, distinguished by ``provisional``:
+
+    ``provisional=False`` (default) -- a *claim*, written by the pod worker that
+    has accepted execution.  It may keep its own row up to date and may take
+    over a provisional row, but never another worker's claim on a different pod.
+
+    ``provisional=True`` -- the orchestrator recording which pod manager the
+    delegation chain routed the mission to, at the moment it emits
+    ``MISSION_POD_MANAGER_ASSIGNED``.  It inserts when no row exists and updates
+    only its own provisional rows, so it can never overwrite or downgrade a real
+    claim (a re-run of the delegation phase is therefore idempotent).
+
+    Raises ``PodAssignmentConflictError`` when the write is refused.
+    """
+    predicate = _PROVISIONAL_CONFLICT_PREDICATE if provisional else _CLAIM_CONFLICT_PREDICATE
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 INSERT INTO mission_pod_assignments (
                     mission_id,
                     pod_name,
@@ -27,16 +62,28 @@ def upsert_pod_assignment(
                     assigned_at,
                     updated_at
                 )
-                VALUES (%s, %s, %s::jsonb, %s::timestamptz, NOW())
+                VALUES (
+                    %(mission_id)s,
+                    %(pod_name)s,
+                    %(metadata)s::jsonb,
+                    %(assigned_at)s::timestamptz,
+                    NOW()
+                )
                 ON CONFLICT (mission_id) DO UPDATE SET
                     pod_name = EXCLUDED.pod_name,
                     metadata_json = EXCLUDED.metadata_json,
                     assigned_at = EXCLUDED.assigned_at,
                     updated_at = NOW()
-                WHERE mission_pod_assignments.pod_name = EXCLUDED.pod_name
+                {predicate}
                 RETURNING mission_id, pod_name, metadata_json, assigned_at, updated_at
                 """,
-                (mission_id, pod_name, json.dumps(metadata), assigned_at),
+                {
+                    "mission_id": mission_id,
+                    "pod_name": pod_name,
+                    "metadata": json.dumps(metadata),
+                    "assigned_at": assigned_at,
+                    "provisional": PROVISIONAL_ASSIGNED_BY,
+                },
             )
             row = cur.fetchone()
 
@@ -53,6 +100,21 @@ def upsert_pod_assignment(
         "assigned_at": _to_iso(row[3]),
         "updated_at": _to_iso(row[4]),
     }
+
+
+def is_provisional_assignment(record: Any) -> bool:
+    """True when ``record`` is an orchestrator-written row no worker has claimed.
+
+    Accepts either a full assignment record or its ``metadata`` mapping so both
+    the orchestrator (which holds records) and the pod worker (which holds the
+    decoded JSON body of the internal endpoint) can use one predicate.
+    """
+    if not isinstance(record, dict):
+        return False
+    metadata = record.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = record
+    return str(metadata.get("assigned_by") or "").strip().lower() == PROVISIONAL_ASSIGNED_BY
 
 
 def get_pod_assignment(settings: Settings, mission_id: str) -> dict[str, Any] | None:

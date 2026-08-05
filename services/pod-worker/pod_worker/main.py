@@ -1147,6 +1147,23 @@ async def _post_agent_heartbeat(
     return response.status_code < 400
 
 
+def _is_provisional_assignment(assignment: Any) -> bool:
+    """True when the row was written by the orchestrator, not claimed by a pod.
+
+    The orchestrator writes a provisional row when it emits
+    ``MISSION_POD_MANAGER_ASSIGNED`` so that the event has a matching record.
+    Such a row means "this mission was routed here", not "a pod is executing it",
+    so a worker must still claim it -- otherwise every mission would look
+    already-assigned and no worker would ever run its pipeline.
+    """
+    if not isinstance(assignment, dict):
+        return False
+    metadata = assignment.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = assignment
+    return str(metadata.get("assigned_by") or "").strip().lower() == "orchestrator"
+
+
 async def _has_assignment(mission_id: str) -> bool:
     response = await _request("GET", f"/internal/missions/{mission_id}/pod-assignment")
     if response.status_code == 404:
@@ -1154,6 +1171,8 @@ async def _has_assignment(mission_id: str) -> bool:
     if response.status_code >= 400:
         return False
     assignment = response.json()
+    if _is_provisional_assignment(assignment):
+        return False
     return bool(assignment.get("pod_name"))
 
 
@@ -1212,6 +1231,11 @@ async def _handle_pod_manager_assignment(
     target = payload.get("requested_target_language")
     target_language = str(target).lower() if isinstance(target, str) else ""
     if not _mission_targets_supported_language(target_language):
+        # Counted, not silent: the language gate and the agent-binding gate below
+        # key off different fields, so a mission routed to a pod manager that does
+        # not own its language is rejected by *every* pod -- one on language, the
+        # rest on binding. Without this counter that leaves no trace anywhere.
+        BINDING_SKIPS.labels(pod_name=POD_NAME, reason="language-mismatch").inc()
         return
     if not await _mission_matches_agent_binding(mission_id, payload):
         return
@@ -1258,8 +1282,21 @@ async def _handle_pod_manager_assignment(
         agent_id=resolved_agent_id,
     )
     if assignment_response.status_code == 409:
+        # Another pod holds the claim. Provisional (orchestrator) rows do not
+        # reach here -- the storage layer lets a claim supersede those.
+        LOGGER.info(
+            "pod %s yielding mission %s: already claimed by another pod",
+            POD_NAME,
+            mission_id,
+        )
         return
     if assignment_response.status_code >= 400:
+        LOGGER.warning(
+            "pod %s could not claim mission %s: pod-assignment returned %s",
+            POD_NAME,
+            mission_id,
+            assignment_response.status_code,
+        )
         return
 
     execution_started_at = datetime.now(UTC).isoformat()
@@ -1380,6 +1417,7 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
     target = payload.get("requested_target_language")
     target_language = str(target).lower() if isinstance(target, str) else ""
     if not _mission_targets_supported_language(target_language):
+        BINDING_SKIPS.labels(pod_name=POD_NAME, reason="language-mismatch").inc()
         return
     if not await _mission_matches_agent_binding(mission_id, payload):
         return
@@ -1431,6 +1469,12 @@ async def _handle_running_mission(redis_client: redis.Redis, payload: dict[str, 
             agent_id=resolved_agent_id,
         )
         if assignment_response.status_code >= 400 and assignment_response.status_code != 409:
+            LOGGER.warning(
+                "pod %s could not claim running mission %s: pod-assignment returned %s",
+                POD_NAME,
+                mission_id,
+                assignment_response.status_code,
+            )
             return
 
     # --- Language extraction --------------------------------------------------

@@ -3586,3 +3586,168 @@ class TestEmitPartitionWorkItems:
         assert len(xadd_calls) == 3  # p0 (first attempt) + p1 + p2 (retry) = 3 total, not 4
         assert result2.metadata["scaling_partition_events_emitted"] is True
         assert sorted(result2.metadata["scaling_partition_emitted_ids"]) == ["p0", "p1", "p2"]
+
+
+class TestPreparePodAssignment:
+    """The pod-assignment record must match the MISSION_POD_MANAGER_ASSIGNED event.
+
+    Before this, the record was written only by the pod worker when it claimed
+    execution, so any mission no worker picked up reached VERIFIED with the event
+    emitted and a 404 on ``/missions/{id}/pod-assignment``.
+    """
+
+    @staticmethod
+    def _delegation(**overrides: Any) -> dict[str, Any]:
+        payload = {
+            "specialist_agent_id": "AGENT-14-PYTHON",
+            "source": "llm",
+            "llm_route": "primary",
+            "model_provider": "openai",
+            "model": "gpt-5.5",
+        }
+        payload.update(overrides)
+        return payload
+
+    async def _run(
+        self,
+        mission: MagicMock,
+        *,
+        upsert: Any,
+        delegation: dict[str, Any] | None = None,
+    ) -> tuple[bool, MagicMock]:
+        app = _make_app_state()
+        settings = _make_settings()
+        _state, fetch_mission, update_metadata, _transition, insert_event = (
+            _make_stateful_storage(mission)
+        )
+        with patch("orchestrator.mission_flow_v2.storage") as mock_storage, patch(
+            "orchestrator.mission_flow_v2.record_audit_event", AsyncMock()
+        ), patch(
+            "orchestrator.mission_flow_v2.generate_pod_manager_delegation",
+            AsyncMock(return_value=delegation or self._delegation()),
+        ), patch.object(
+            orchestrator_mission_flow_v2_build,
+            "_send_alpha_delegation_directive",
+            AsyncMock(),
+        ):
+            mock_storage.fetch_mission = fetch_mission
+            mock_storage.update_mission_metadata = update_metadata
+            mock_storage.insert_mission_event = insert_event
+            mock_storage.upsert_pod_assignment = upsert
+            prepared = await orchestrator_mission_flow_v2_build._prepare_pod_assignment(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+            )
+        return prepared, mission
+
+    @pytest.mark.asyncio
+    async def test_writes_a_provisional_record_alongside_the_event(self) -> None:
+        calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+        def _upsert(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            calls.append((args, kwargs))
+            return {"mission_id": args[1], "pod_name": args[2], "metadata": args[3]}
+
+        mission = _make_mission()
+        mission.metadata = {"ceo_delegation": {"pod_manager_agent_id": "AGENT-12-PODA-MGR"}}
+
+        prepared, mission = await self._run(mission, upsert=_upsert)
+
+        assert prepared is True
+        assert len(calls) == 1
+        args, kwargs = calls[0]
+        assert args[2] == "podA"
+        assert args[3]["assigned_by"] == "orchestrator"
+        assert args[3]["agent_id"] == "AGENT-12-PODA-MGR"
+        assert args[3]["specialist_agent_id"] == "AGENT-14-PYTHON"
+        assert kwargs["provisional"] is True
+
+        event = next(
+            record
+            for record in mission.metadata["chain_trace"]
+            if record["event_type"] == "MISSION_POD_MANAGER_ASSIGNED"
+        )
+        assert event["details"]["pod_name"] == "podA"
+        assert event["details"]["pod_assignment_recorded"] is True
+
+    @pytest.mark.asyncio
+    async def test_conflict_leaves_the_worker_claim_and_does_not_fail_the_phase(self) -> None:
+        from orchestrator.storage_core import PodAssignmentConflictError
+
+        def _upsert(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise PodAssignmentConflictError({"pod_name": "podA", "metadata": {}})
+
+        mission = _make_mission()
+        prepared, mission = await self._run(mission, upsert=_upsert)
+
+        assert prepared is True
+        event = next(
+            record
+            for record in mission.metadata["chain_trace"]
+            if record["event_type"] == "MISSION_POD_MANAGER_ASSIGNED"
+        )
+        assert event["details"]["pod_assignment_recorded"] is False
+
+    @pytest.mark.asyncio
+    async def test_storage_failure_does_not_block_the_mission(self) -> None:
+        def _upsert(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise RuntimeError("db down")
+
+        prepared, _mission = await self._run(_make_mission(), upsert=_upsert)
+        assert prepared is True
+
+    @pytest.mark.asyncio
+    async def test_cross_pod_delegation_is_corrected_to_the_language_owner(self) -> None:
+        """A Python mission routed to the Pod C manager is invisible to every pod.
+
+        Pod A rejects it on agent binding, Pod C on language, so nothing claims
+        it. Prefer the registry and record that the CEO's answer was overridden.
+        """
+        calls: list[tuple[Any, ...]] = []
+
+        def _upsert(*args: Any, **_kwargs: Any) -> dict[str, Any]:
+            calls.append(args)
+            return {"mission_id": args[1], "pod_name": args[2], "metadata": args[3]}
+
+        mission = _make_mission()
+        mission.requested_target_language = "python"
+        mission.metadata = {"ceo_delegation": {"pod_manager_agent_id": "AGENT-24-PODC-MGR"}}
+
+        _prepared, mission = await self._run(mission, upsert=_upsert)
+
+        assert mission.metadata["assigned_pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
+        assert calls[0][2] == "podA"
+        correction = mission.metadata["pod_manager_routing_correction"]
+        assert correction["delegated_pod_manager_agent_id"] == "AGENT-24-PODC-MGR"
+        assert correction["corrected_pod_manager_agent_id"] == "AGENT-12-PODA-MGR"
+
+    @pytest.mark.asyncio
+    async def test_unknown_language_leaves_the_ceo_choice_alone(self) -> None:
+        """The registry has no opinion for an unset language, so neither do we.
+
+        ``resolve_pod_manager_agent_id`` would answer Pod A for anything it does
+        not recognise; correcting on that basis would overrule a CEO decision
+        made from the prompt with a default that carries no information.
+        """
+        calls: list[tuple[Any, ...]] = []
+
+        def _upsert(*args: Any, **_kwargs: Any) -> dict[str, Any]:
+            calls.append(args)
+            return {"mission_id": args[1], "pod_name": args[2], "metadata": args[3]}
+
+        mission = _make_mission()
+        mission.requested_target_language = ""
+        mission.metadata = {"ceo_delegation": {"pod_manager_agent_id": "AGENT-24-PODC-MGR"}}
+
+        _prepared, mission = await self._run(
+            mission,
+            upsert=_upsert,
+            delegation=self._delegation(specialist_agent_id="AGENT-26-JAVA"),
+        )
+
+        assert mission.metadata["assigned_pod_manager_agent_id"] == "AGENT-24-PODC-MGR"
+        assert calls[0][2] == "podC"
+        assert "pod_manager_routing_correction" not in mission.metadata

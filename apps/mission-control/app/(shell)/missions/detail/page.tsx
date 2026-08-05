@@ -678,7 +678,7 @@ function MissionDetailPageContent() {
         className="mission-tab-panels"
       >
         <ErrorBoundary><MissionSignalsPanel loading={loading} mission={mission} chainTrace={chainTrace} lifecycleEngine={lifecycleEngine} phaseLabel={phaseLabel} phaseName={phaseName} lastUpdatedAt={lastUpdatedAt} transportMode={transportMode} streamEventsSeen={streamEventsSeen} streamErrors={streamErrors} pollFallbackTicks={pollFallbackTicks} /></ErrorBoundary>
-        <ErrorBoundary><LogicNodeProgressPanel missionId={missionId} logicNodes={logicNodes} verifiedCount={verifiedCount} avgConfidence={avgConfidence} /></ErrorBoundary>
+        <ErrorBoundary><LogicNodeProgressPanel missionId={missionId} missionType={chainTrace?.mission_type ?? missionContract?.mission_type ?? null} logicNodes={logicNodes} verifiedCount={verifiedCount} avgConfidence={avgConfidence} /></ErrorBoundary>
         <ErrorBoundary><ChainOfCommandTracePanel chainTrace={chainTrace} /></ErrorBoundary>
         <ErrorBoundary><ActiveAgentsPanel activeAgents={activeAgents} /></ErrorBoundary>
         <ErrorBoundary><CostPanel tokenUsage={tokenUsage} /></ErrorBoundary>

@@ -495,6 +495,68 @@ def test_pod_assignment_success_and_conflict(monkeypatch) -> None:
         )
 
 
+def test_pod_assignment_claim_may_supersede_a_provisional_row(monkeypatch) -> None:
+    """A worker claim takes over an orchestrator-written row on any pod."""
+    now = datetime(2026, 3, 1, tzinfo=UTC)
+    cursor = FakeCursor(
+        fetchone_results=[("mission-1", "podA", {"assigned_by": "pod-worker"}, now, now)]
+    )
+    used = _patch_db(monkeypatch, [cursor])
+
+    record = storage.upsert_pod_assignment(
+        _settings(),
+        "mission-1",
+        "podA",
+        {"assigned_by": "pod-worker"},
+        "2026-03-01T00:00:00+00:00",
+    )
+
+    assert record["metadata"] == {"assigned_by": "pod-worker"}
+    query, params = used[0].executed[0]
+    # Same pod, or any pod when the existing row is provisional.
+    assert "mission_pod_assignments.pod_name = EXCLUDED.pod_name" in query
+    assert "mission_pod_assignments.metadata_json->>'assigned_by' = %(provisional)s" in query
+    assert params["provisional"] == "orchestrator"
+
+
+def test_provisional_pod_assignment_never_overwrites_a_claim(monkeypatch) -> None:
+    """The orchestrator's provisional write only updates provisional rows."""
+    existing = {
+        "mission_id": "mission-1",
+        "pod_name": "podA",
+        "metadata": {"assigned_by": "pod-worker"},
+        "assigned_at": "2026-03-01T00:00:00+00:00",
+        "updated_at": "2026-03-01T00:00:00+00:00",
+    }
+    used = _patch_db(monkeypatch, [FakeCursor(fetchone_results=[None])])
+    monkeypatch.setattr(storage_pods, "get_pod_assignment", lambda *_: existing)
+
+    with pytest.raises(storage.PodAssignmentConflictError) as excinfo:
+        storage.upsert_pod_assignment(
+            _settings(),
+            "mission-1",
+            "podA",
+            {"assigned_by": "orchestrator"},
+            "2026-03-01T00:00:00+00:00",
+            provisional=True,
+        )
+
+    assert excinfo.value.existing_assignment["metadata"]["assigned_by"] == "pod-worker"
+    query, _params = used[0].executed[0]
+    # No same-pod escape hatch: a provisional write must not be able to downgrade
+    # a claim just because it happens to name the same pod.
+    assert "mission_pod_assignments.pod_name = EXCLUDED.pod_name" not in query
+    assert "mission_pod_assignments.metadata_json->>'assigned_by' = %(provisional)s" in query
+
+
+def test_is_provisional_assignment_reads_record_or_metadata() -> None:
+    assert storage.is_provisional_assignment({"metadata": {"assigned_by": "orchestrator"}})
+    assert storage.is_provisional_assignment({"assigned_by": "Orchestrator"})
+    assert not storage.is_provisional_assignment({"metadata": {"assigned_by": "pod-worker"}})
+    assert not storage.is_provisional_assignment({"pod_name": "podA"})
+    assert not storage.is_provisional_assignment("podA")
+
+
 def test_get_pod_assignment_present_and_missing(monkeypatch) -> None:
     now = datetime(2026, 3, 1, tzinfo=UTC)
     _patch_db(

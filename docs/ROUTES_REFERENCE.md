@@ -341,9 +341,11 @@ This is the largest route module. It exposes the endpoints that pod workers, aud
 
 Request: `PodAssignmentUpsert` (`mission_id`, `pod_name`, `metadata`, `assigned_at?`)  
 Response: pod assignment record dict  
-Error: `409` if mission already assigned to a different pod (`PodAssignmentConflictError`)
+Error: `409` if another pod worker already claimed the mission (`PodAssignmentConflictError`)
 
-Called by `AGENT-02-CEO` when it delegates a mission to a pod manager. Writes the pod assignment to Postgres and records a `MISSION_POD_ASSIGNMENT_WRITTEN` audit event.
+The **claim** endpoint: called by a pod worker when it accepts execution of a mission, writing `metadata.assigned_by = "pod-worker"`. Writes the pod assignment to Postgres and records a `MISSION_POD_ASSIGNMENT_WRITTEN` audit event.
+
+The orchestrator writes the same table directly (never through this route) when the delegation chain emits `MISSION_POD_MANAGER_ASSIGNED`, with `metadata.assigned_by = "orchestrator"`. A claim through this route supersedes such a provisional row; see [Two writers, one row](STORAGE_LAYER.md#two-writers-one-row).
 
 ---
 
@@ -366,7 +368,7 @@ Returns the current health status and latency stats for all configured LLM provi
 
 #### `GET /internal/missions/{mission_id}/pod-assignment`
 
-Returns the pod assignment record for a mission. `404` if not yet assigned.
+Returns the pod assignment record for a mission. `404` if not yet assigned — which, once the delegation chain has emitted `MISSION_POD_MANAGER_ASSIGNED`, should not happen. Check `metadata.assigned_by` to tell a routed mission (`orchestrator`) from one a pod is executing (`pod-worker`).
 
 ---
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import Any, TypedDict
 
 from fastapi import FastAPI
@@ -23,8 +24,10 @@ from .mission_flow import (
     with_chain_defaults,
 )
 from .mission_flow_v2 import V2_TRANSITIONS
+from .mission_flow_v2.base import _pod_key_for_manager
 from .models import MissionState
 from .settings import Settings
+from .storage_core import PodAssignmentConflictError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -55,6 +58,50 @@ RUNNING_PHASE_CHECKPOINT_EVENTS: tuple[str, ...] = (
     "MISSION_GATING",
     "MISSION_FUSION",
 )
+
+
+async def _record_provisional_pod_assignment(
+    *,
+    settings: Settings,
+    mission_id: str,
+    requested_target_language: str | None,
+    pod_manager_agent_id: str,
+    specialist_agent_id: str,
+) -> None:
+    """Give ``MISSION_POD_MANAGER_ASSIGNED`` a matching assignment record.
+
+    Mirrors ``mission_flow_v2.phases_build._persist_pod_assignment_record`` so
+    the record exists whichever engine drove the mission -- without it, this
+    path emits an "assigned" event that ``/missions/{id}/pod-assignment``
+    answers with a 404.  Provisional: a pod worker's claim supersedes it, and it
+    can never overwrite one.  Never fatal.
+    """
+    pod_name = _pod_key_for_manager(pod_manager_agent_id)
+    try:
+        await asyncio.to_thread(
+            storage.upsert_pod_assignment,
+            settings,
+            mission_id,
+            pod_name,
+            {
+                "assigned_by": "orchestrator",
+                "pod_name": pod_name,
+                "agent_id": pod_manager_agent_id,
+                "specialist_agent_id": specialist_agent_id,
+                "requested_target_language": requested_target_language or "",
+                "reason": "delegation-routing",
+            },
+            datetime.now(UTC).isoformat(),
+            provisional=True,
+        )
+    except PodAssignmentConflictError:
+        LOGGER.info("langgraph: mission %s already claimed by a pod worker", mission_id)
+    except Exception as exc:
+        LOGGER.warning(
+            "langgraph: failed to record pod assignment for mission %s: %s",
+            mission_id,
+            type(exc).__name__,
+        )
 
 
 def _select_transitions(
@@ -296,6 +343,13 @@ async def maybe_advance_mission_lifecycle(
         )
         if updated is None:
             return {"mission_id": state["mission_id"], "halted": True, "delegation": {}}
+        await _record_provisional_pod_assignment(
+            settings=settings,
+            mission_id=state["mission_id"],
+            requested_target_language=mission.requested_target_language,
+            pod_manager_agent_id=pod_manager_agent_id,
+            specialist_agent_id=specialist_agent_id,
+        )
         await _emit_chain_event(
             mission_id=state["mission_id"],
             mission=updated,

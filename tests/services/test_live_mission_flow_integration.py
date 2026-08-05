@@ -292,14 +292,58 @@ def test_live_mission_chain_and_artifact_integrity() -> None:
         f"Missing: {sorted(missing_chain_events)}; observed: {sorted(chain_event_types)}"
     )
 
-    # Artifact integrity is checked against the build artifact -- the mission's
-    # actual deliverable -- rather than the pod-assignment and logicnode records
-    # this test used to assert. Those two are written only by the pod-worker
-    # execution path (`assigned_by: "pod-worker"`); a mission driven through
-    # mission_flow_v2 in-process reaches VERIFIED with the full delegation chain
-    # and produces neither, so asserting them here was testing which code path
-    # happened to run, not whether artifacts survived. The gap between the two
-    # paths is recorded in docs/CURRENT_TODO.md rather than hidden by this test.
+    # MISSION_POD_MANAGER_ASSIGNED asserts a pod manager was assigned, so the
+    # assignment must be queryable. The orchestrator now writes a provisional
+    # record as it emits that event, and a pod worker's claim supersedes it, so
+    # this holds on both paths -- previously the record existed only when a
+    # worker happened to claim the mission, and a BUILD_NEW mission (nothing to
+    # extract) reached VERIFIED with the event emitted and a 404 here.
+    # urlopen raises on 4xx, so catch it here -- the bare traceback would hide
+    # which of the two records is missing, which is the whole point of the check.
+    try:
+        assignment_status, assignment_payload = _request_json(
+            "GET",
+            f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}/pod-assignment",
+        )
+    except HTTPError as exc:
+        raise AssertionError(
+            f"mission {mission_id} emitted MISSION_POD_MANAGER_ASSIGNED but "
+            f"/pod-assignment returned HTTP {exc.code}. The chain event and the "
+            "assignment record must be written together."
+        ) from exc
+    assert assignment_status == 200, (
+        f"mission {mission_id} emitted MISSION_POD_MANAGER_ASSIGNED but "
+        f"/pod-assignment returned HTTP {assignment_status}: {assignment_payload!r}"
+    )
+    assert isinstance(assignment_payload, dict) and assignment_payload.get("pod_name"), (
+        f"pod assignment for mission {mission_id} names no pod: {assignment_payload!r}"
+    )
+    assigned_by = str(
+        (assignment_payload.get("metadata") or {}).get("assigned_by") or ""
+    ).lower()
+    assert assigned_by in {"orchestrator", "pod-worker"}, (
+        f"pod assignment for mission {mission_id} has an unrecognised writer "
+        f"{assigned_by!r}: {assignment_payload!r}"
+    )
+
+    # LogicNodes are the *extraction* artifact and have only source-reading
+    # writers, so a BUILD_NEW mission legitimately has none -- it synthesises its
+    # logic from the mission contract instead. Asserting a non-empty set here
+    # would only be testing whether a pod worker with source to chew on happened
+    # to run. Assert the endpoint is healthy and the shape is right.
+    logicnodes_status, logicnodes_payload = _request_json(
+        "GET",
+        f"{GATEWAY_BASE_URL}/v1/missions/{mission_id}/logicnodes?limit=50",
+    )
+    assert logicnodes_status == 200, (
+        f"logicnodes endpoint failed for mission {mission_id}: "
+        f"HTTP {logicnodes_status}: {logicnodes_payload!r}"
+    )
+    assert isinstance(logicnodes_payload, list), (
+        f"expected a logicnode list for mission {mission_id}, "
+        f"got {type(logicnodes_payload).__name__}"
+    )
+
     # Packaging happens well after the delegation chain closes, so this needs its
     # own wait -- the chain loop above exits at SPECIALIST_ASSIGNED, several
     # phases before MISSION_BUILD_ARTIFACT_PACKAGED.

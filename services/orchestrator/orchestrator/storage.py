@@ -78,7 +78,9 @@ from .storage_missions import (
     upsert_mission,
 )
 from .storage_pods import (
+    PROVISIONAL_ASSIGNED_BY,
     get_pod_assignment,
+    is_provisional_assignment,
     list_pod_assignments,
     summarize_projects,
     upsert_pod_assignment,
@@ -111,8 +113,10 @@ __all__ = [
     "mission_state_counts",
     "record_partition_result",
     # pods
+    "PROVISIONAL_ASSIGNED_BY",
     "upsert_pod_assignment",
     "get_pod_assignment",
+    "is_provisional_assignment",
     "list_pod_assignments",
     "summarize_projects",
     # logicnodes

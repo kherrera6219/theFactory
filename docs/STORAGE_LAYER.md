@@ -110,7 +110,7 @@ class PodAssignmentConflictError(Exception):
     existing_assignment: dict[str, Any]
 ```
 
-Raised by `storage_pod_assignments.upsert_pod_assignment()` when a mission is already assigned to a different pod and a second assignment is attempted. The `existing_assignment` dict carries the current assignment for the caller to inspect.
+Raised by `storage_pods.upsert_pod_assignment()` when the write is refused: a pod worker claiming a mission another worker already holds on a different pod, or the orchestrator's provisional write finding an existing worker claim. The `existing_assignment` dict carries the current assignment for the caller to inspect. See [Two writers, one row](#two-writers-one-row).
 
 ---
 
@@ -144,10 +144,32 @@ Manages the `mission_pod_assignments` table (one row per mission, unique constra
 
 | Function | Description |
 |----------|-------------|
-| `upsert_pod_assignment(settings, upsert)` | Writes or updates a pod assignment; raises `PodAssignmentConflictError` if a different pod is already assigned |
+| `upsert_pod_assignment(settings, mission_id, pod_name, metadata, assigned_at, *, provisional=False)` | Writes or updates a pod assignment; raises `PodAssignmentConflictError` if the write is refused |
 | `get_pod_assignment(settings, mission_id)` | Returns the current pod assignment dict or `None` |
+| `is_provisional_assignment(record)` | True when the row was written by the orchestrator and no worker has claimed it; accepts a record or its `metadata` mapping |
 | `list_pod_assignments(settings, limit)` | Returns all pod assignments |
 | `summarize_projects(settings, limit)` | Returns project-level mission groupings from the `missions` table |
+
+#### Two writers, one row
+
+`metadata.assigned_by` distinguishes the two facts that share this table:
+
+| `assigned_by` | Writer | Means |
+|---------------|--------|-------|
+| `orchestrator` | `mission_flow_v2._prepare_pod_assignment`, via `provisional=True` | The delegation chain routed this mission to pod X. Written as `MISSION_POD_MANAGER_ASSIGNED` is emitted, so the event always has a matching record |
+| `pod-worker` | `POST /internal/pod-assignment` (the claim endpoint) | Pod X accepted execution and is running the mission |
+
+Precedence is directional and enforced in SQL by the `ON CONFLICT ... DO UPDATE ... WHERE`
+predicate, so no read-then-write race exists:
+
+- a **claim** may update its own row and may take over a *provisional* row on any pod;
+- a **claim** may never take over another worker's claim on a different pod → `PodAssignmentConflictError`;
+- a **provisional** write may only insert, or update another provisional row — it can never
+  overwrite or downgrade a claim, which also makes re-running the delegation phase idempotent.
+
+Consumers that mean "a pod is executing this" (rather than "this mission was routed
+somewhere") must exclude provisional rows — the pod worker's `_has_assignment` does exactly
+that, and skipping it would make every mission look claimed and stop workers from running.
 
 ---
 

@@ -141,7 +141,12 @@ function LogicNodesPageContent() {
         )}
         {!loading && !error && filteredNodes.length === 0 && (
           <EmptyState title="No LogicNodes match the current criteria" compact>
-            Run a mission that extracts logic artifacts, or clear the search and mission filters.
+            {missionFilter.trim().length > 0
+              ? "This mission has no LogicNodes. Only missions that extract from existing " +
+                "source (IMPORT_MODERNIZE, PORT, DEBUG_REPAIR, ANALYZE_ONLY) produce them — " +
+                "a BUILD_NEW mission generates its logic from the mission contract instead, " +
+                "and an empty result here is expected."
+              : "Run a mission that extracts logic artifacts, or clear the search and mission filters."}
           </EmptyState>
         )}
         {!loading && !error && filteredNodes.length > 0 && (
