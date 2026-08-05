@@ -37,10 +37,20 @@ OBJECT_STORAGE_LEGAL_HOLD_FALLBACK_TOTAL = Counter(
     "Times a legal-hold write could not apply Object Lock because the bucket "
     "does not support it (the write is refused rather than written unprotected)",
 )
+OPTIONAL_ADAPTER_OBJECT_LOCK_ENABLED = Gauge(
+    "orchestrator_optional_adapter_object_lock_enabled",
+    "Whether the adapter's bucket was created with Object Lock enabled (1=true, 0=false). "
+    "0 while legal holds are required means every failed-audit artifact is being refused",
+    ("adapter",),
+)
 
 
 def set_optional_adapter_enabled(adapter: str, *, enabled: bool) -> None:
     OPTIONAL_ADAPTER_ENABLED.labels(adapter=adapter).set(1.0 if enabled else 0.0)
+
+
+def set_object_lock_enabled(adapter: str, *, enabled: bool) -> None:
+    OPTIONAL_ADAPTER_OBJECT_LOCK_ENABLED.labels(adapter=adapter).set(1.0 if enabled else 0.0)
 
 
 def set_optional_adapter_ready(adapter: str, *, ready: bool) -> None:

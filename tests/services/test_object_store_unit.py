@@ -63,11 +63,14 @@ def _settings(**overrides: object) -> Settings:
 
 
 class _FakeS3Client:
-    def __init__(self) -> None:
+    def __init__(self, *, object_lock: bool = True) -> None:
         self.head_bucket_called = 0
         self.created_bucket = False
         self.put_calls: list[dict[str, object]] = []
         self.contents: list[dict[str, object]] = []
+        # Mirrors the real constraint: Object Lock is a property fixed at
+        # creation, so this flips only via create_bucket.
+        self.object_lock = object_lock
 
     def head_bucket(self, *, Bucket: str) -> None:
         _ = Bucket
@@ -76,8 +79,14 @@ class _FakeS3Client:
             raise RuntimeError("missing")
 
     def create_bucket(self, **kwargs) -> None:
-        _ = kwargs
         self.created_bucket = True
+        self.object_lock = bool(kwargs.get("ObjectLockEnabledForBucket", False))
+
+    def get_object_lock_configuration(self, *, Bucket: str):
+        _ = Bucket
+        if not self.object_lock:
+            raise RuntimeError("ObjectLockConfigurationNotFoundError")
+        return {"ObjectLockConfiguration": {"ObjectLockEnabled": "Enabled"}}
 
     def put_object(self, **kwargs):
         self.put_calls.append(kwargs)
@@ -90,8 +99,13 @@ class _FakeS3Client:
         }
 
 
-def test_ensure_bucket_creates_when_missing(monkeypatch) -> None:
+def _reset_bucket_state() -> None:
     object_store._BUCKET_CACHE.clear()
+    object_store._OBJECT_LOCK_STATE.clear()
+
+
+def test_ensure_bucket_creates_when_missing(monkeypatch) -> None:
+    _reset_bucket_state()
     fake = _FakeS3Client()
     monkeypatch.setattr(object_store, "_s3_client", lambda _settings: fake)
 
@@ -184,7 +198,7 @@ def test_s3_client_raises_when_boto_missing(monkeypatch) -> None:
 
 
 def test_ensure_bucket_creates_with_location_constraint(monkeypatch) -> None:
-    object_store._BUCKET_CACHE.clear()
+    _reset_bucket_state()
     fake = _FakeS3Client()
     calls: list[dict[str, object]] = []
 
@@ -201,8 +215,135 @@ def test_ensure_bucket_creates_with_location_constraint(monkeypatch) -> None:
         {
             "Bucket": "mission-audit-artifacts",
             "CreateBucketConfiguration": {"LocationConstraint": "us-west-2"},
+            # Object Lock can only be enabled at creation, and legal holds are
+            # required by default, so it must be requested here or failed-audit
+            # artifacts can never be stored.
+            "ObjectLockEnabledForBucket": True,
         }
     ]
+
+
+def test_ensure_bucket_omits_object_lock_when_legal_holds_disabled(monkeypatch) -> None:
+    _reset_bucket_state()
+    fake = _FakeS3Client()
+    calls: list[dict[str, object]] = []
+
+    def _create_bucket(**kwargs) -> None:
+        calls.append(kwargs)
+        fake.created_bucket = True
+        fake.object_lock = bool(kwargs.get("ObjectLockEnabledForBucket", False))
+
+    fake.create_bucket = _create_bucket
+    monkeypatch.setattr(object_store, "_s3_client", lambda _settings: fake)
+
+    object_store.ensure_bucket(_settings(object_storage_legal_hold_on_fail=False))
+
+    # Object Lock forces versioning on permanently and cannot be undone, so it
+    # is not imposed when no legal hold will ever be requested.
+    assert calls == [{"Bucket": "mission-audit-artifacts"}]
+
+
+def test_ensure_bucket_falls_back_when_backend_rejects_object_lock(monkeypatch) -> None:
+    _reset_bucket_state()
+    fake = _FakeS3Client(object_lock=False)
+    calls: list[dict[str, object]] = []
+
+    def _create_bucket(**kwargs) -> None:
+        calls.append(kwargs)
+        if kwargs.get("ObjectLockEnabledForBucket"):
+            raise RuntimeError("object lock not supported by this backend")
+        fake.created_bucket = True
+
+    fake.create_bucket = _create_bucket
+    monkeypatch.setattr(object_store, "_s3_client", lambda _settings: fake)
+
+    settings = _settings()
+    object_store.ensure_bucket(settings)
+
+    # A backend without Object Lock support still gets a usable bucket for
+    # retention-only writes, and the degradation is reported rather than hidden.
+    assert len(calls) == 2
+    assert calls[0]["ObjectLockEnabledForBucket"] is True
+    assert "ObjectLockEnabledForBucket" not in calls[1]
+    assert object_store.object_lock_ready(settings) is False
+
+
+def test_ensure_bucket_reports_missing_object_lock_on_existing_bucket(
+    monkeypatch, caplog
+) -> None:
+    _reset_bucket_state()
+    # The regression this guards: a bucket created before Object Lock was
+    # requested already exists, so head_bucket succeeds and create_bucket is
+    # never reached -- the only way to notice is to inspect the configuration.
+    fake = _FakeS3Client(object_lock=False)
+    fake.created_bucket = True
+    monkeypatch.setattr(object_store, "_s3_client", lambda _settings: fake)
+
+    settings = _settings()
+    with caplog.at_level("ERROR", logger="orchestrator.object_store"):
+        object_store.ensure_bucket(settings)
+
+    assert object_store.object_lock_ready(settings) is False
+    assert any("no Object Lock configuration" in message for message in caplog.messages)
+
+
+def test_ensure_bucket_reports_object_lock_on_compliant_bucket(monkeypatch) -> None:
+    _reset_bucket_state()
+    fake = _FakeS3Client(object_lock=True)
+    fake.created_bucket = True
+    monkeypatch.setattr(object_store, "_s3_client", lambda _settings: fake)
+
+    settings = _settings()
+    object_store.ensure_bucket(settings)
+
+    assert object_store.object_lock_ready(settings) is True
+
+
+def test_object_lock_state_is_unknown_when_probe_fails(monkeypatch, caplog) -> None:
+    _reset_bucket_state()
+    fake = _FakeS3Client()
+    fake.created_bucket = True
+
+    def _raise_access_denied(*, Bucket: str):
+        _ = Bucket
+        error = Exception("nope")
+        error.response = {"Error": {"Code": "InvalidAccessKeyId"}}
+        raise error
+
+    fake.get_object_lock_configuration = _raise_access_denied
+    monkeypatch.setattr(object_store, "_s3_client", lambda _settings: fake)
+
+    settings = _settings()
+    with caplog.at_level("WARNING", logger="orchestrator.object_store"):
+        object_store.ensure_bucket(settings)
+
+    # A credentials failure must not masquerade as a compliance alarm.
+    assert object_store.object_lock_ready(settings) is None
+    assert not any("no Object Lock configuration" in message for message in caplog.messages)
+    assert any("Could not determine the Object Lock status" in m for m in caplog.messages)
+
+
+def test_bucket_has_object_lock_classifies_error_codes() -> None:
+    class _Client:
+        def __init__(self, code: str) -> None:
+            self.code = code
+
+        def get_object_lock_configuration(self, *, Bucket: str):
+            _ = Bucket
+            error = Exception("boom")
+            error.response = {"Error": {"Code": self.code}}
+            raise error
+
+    assert object_store._bucket_has_object_lock(_Client("ObjectLockConfigurationNotFoundError"), "b") is False
+    assert object_store._bucket_has_object_lock(_Client("NotImplemented"), "b") is False
+    assert object_store._bucket_has_object_lock(_Client("AccessDenied"), "b") is None
+    assert object_store._bucket_has_object_lock(_Client("InvalidAccessKeyId"), "b") is None
+
+
+def test_object_lock_ready_is_unknown_until_inspected() -> None:
+    _reset_bucket_state()
+    assert object_store.object_lock_ready(_settings()) is None
+    assert object_store.object_lock_ready(_settings(object_storage_enabled=False)) is None
 
 
 def test_put_audit_report_applies_legal_hold_for_failure(monkeypatch) -> None:
@@ -280,7 +421,9 @@ def test_put_audit_report_raises_when_legal_hold_lock_unsupported(monkeypatch) -
     monkeypatch.setattr(object_store, "_s3_client", lambda _settings: fake)
     before = data_plane_metrics.OBJECT_STORAGE_LEGAL_HOLD_FALLBACK_TOTAL._value.get()
 
-    with pytest.raises(RuntimeError, match="lock unsupported"):
+    # Raised as a distinct type so callers can separate a permanent Object Lock
+    # misconfiguration from a transient outage, while remaining a RuntimeError.
+    with pytest.raises(object_store.LegalHoldUnavailableError, match="lock unsupported") as excinfo:
         object_store.put_audit_report(
             _settings(object_storage_legal_hold_on_fail=True),
             "mission-1",
@@ -290,6 +433,8 @@ def test_put_audit_report_raises_when_legal_hold_lock_unsupported(monkeypatch) -
             "2026-03-03T00:00:00+00:00",
         )
 
+    assert isinstance(excinfo.value, RuntimeError)
+    assert isinstance(excinfo.value.__cause__, RuntimeError)
     # The locked write was attempted, but no unprotected fallback write happened.
     assert len(fake.put_calls) == 1
     assert "ObjectLockMode" in fake.put_calls[0]

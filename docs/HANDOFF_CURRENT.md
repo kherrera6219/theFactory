@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.08.04
-Last updated: 2026-08-04
+Document version: 2026.08.05
+Last updated: 2026-08-05
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -31,7 +31,93 @@ The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1
 is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
 `docs/EDCP_PHASE_PLAN.md` instead.
 
-### What happened on 2026-08-04 (most recent)
+### What happened on 2026-08-05 (most recent)
+
+**Legal-hold audit artifacts were never being written, and nothing said so.**
+`object_store.ensure_bucket()` created the artifact bucket without
+`ObjectLockEnabledForBucket`, while `put_audit_report()` correctly *refuses* to
+write a legal-hold object to a bucket that cannot hold one. Object Lock can only
+be enabled **at bucket creation** in both S3 and MinIO — there is no API that
+retrofits it — so every audit report with status `FAIL`/`FAILED`/`REJECT`/
+`REJECTED`/`ERROR` was silently dropped while `/internal/audit-reports` still
+returned 200. Live proof: an identical report posted as `PASSED` mirrored fine
+and appeared in `audit-artifacts`; posted as `FAILED` it returned 200 and the
+listing stayed empty.
+
+The refusal in `put_audit_report` is correct and **must not be relaxed** — a
+legal hold that silently degrades to an unprotected write is worse than a loud
+failure. What was missing was creating a lock-capable bucket and saying so when
+one isn't. Now:
+
+- `ensure_bucket()` requests `ObjectLockEnabledForBucket=True` whenever
+  `object_storage_legal_hold_on_fail` is set, and falls back to an unlocked
+  bucket only if the backend rejects the parameter.
+- `_bucket_has_object_lock()` returns `True`/`False`/**`None`** — an auth or
+  network failure is *unknown*, not "no lock". An early version returned `False`
+  on any exception, which raised a full compliance alarm for a credentials typo.
+- Three independent signals: an ERROR log at startup, the
+  `orchestrator_optional_adapter_object_lock_enabled` gauge, and a new
+  `object_storage_object_lock_ready` field on `/health` and `/readyz`.
+- `LegalHoldUnavailableError` lets callers tell a permanent misconfiguration
+  from a transient outage; `/internal/audit-reports` now returns
+  `object_storage_mirror: {stored, legal_hold_refused, detail}`.
+
+**`object_storage_object_lock_ready` is deliberately NOT folded into
+`object_storage_ready` or into `/readyz`'s `ready`.** Reachability and
+compliance capability are different facts. Failing readiness would take the
+orchestrator out of rotation for a config problem, and — worse — would make the
+live data-plane test *skip* rather than fail, trading one silent
+non-verification for another.
+
+**The local bucket was migrated, non-destructively.** `mission-audit-artifacts`
+already existed without Object Lock and cannot be upgraded in place. The three
+objects in it were backed up (verified by SHA-256 in two locations), `.env` now
+sets `OBJECT_STORAGE_BUCKET=mission-audit-artifacts-locked`, the orchestrator's
+own `ensure_bucket()` created that bucket **with** Object Lock on startup, and
+the objects were restored into it. The old bucket is untouched and is the
+rollback path. A `FAILED` audit report now stores with
+`X-Amz-Object-Lock-Legal-Hold: ON`, `Mode: COMPLIANCE`, retained to 2026-11-03.
+Fresh environments need no override — they get a locked bucket under the default
+name automatically.
+
+**Both live test suites authenticate now.** They posted to gateway `/v1/*`
+routes with no `x-api-key` while the gateway runs `AUTH_MODE=api_key`, so every
+call 401'd whenever the stack was up — and passed trivially when it was down.
+The credential is resolved by `tests/services/live_stack_auth.py` (shared, so
+the two suites cannot drift apart again) from `LIVE_INTERNAL_SERVICE_API_KEY` →
+`INTERNAL_SERVICE_API_KEY` → the repo `.env`, walking upward from `__file__` so
+it also resolves from a git worktree where `.env` does not exist. **No
+well-known placeholder default** — an unresolvable key skips with a reason
+rather than sending a guess and reporting an opaque 401. The header is injected
+inside `_request_json`, so no request can go out bare.
+`test_live_extended_data_plane_integration.py` also carries module-level
+`skipif` markers keyed on gateway reachability, so a run that verified nothing
+says so at collection time.
+
+**`test_live_mission_chain_and_artifact_integrity` was asserting the wrong
+things, and its prompt could never run.** It waited for `COMPLETE` with a vague
+prompt, but intake parks any mission scoring `ambiguity_score >= 0.7` in
+`CLARIFYING` for an operator — the test's prompt scored **1.0**, and so did a
+much more detailed replacement (the PM only wanted the output separator and
+ASCII-vs-Unicode). Chasing an unaskable prompt is the wrong fix: the design
+pairs clarifying questions with a *proceed-with-defaults* operator action, so
+the test now drives that documented path via
+`POST {orchestrator}/missions/{id}/clarify` and then waits for the four
+delegation-chain events it actually inspects. With that, it runs a real mission
+to `VERIFIED` with a 20-event chain and a real build artifact.
+
+**It also stopped asserting `pod-assignment` and `logicnodes`** — see the open
+item in `docs/CURRENT_TODO.md`. Those records are written only by the
+**pod-worker** execution path (`assigned_by: "pod-worker"`); a mission driven
+in-process by `mission_flow_v2` emits `MISSION_POD_MANAGER_ASSIGNED`, reaches
+`VERIFIED`, and produces neither. Asserting them tested which code path happened
+to run. The test now asserts the build artifact — the actual deliverable — and
+the two-path gap is recorded rather than hidden.
+
+**Full suite: 1929 passed, 4 skipped, 0 failed**, with both live suites green
+against a running stack.
+
+### What happened on 2026-08-04
 
 **A BUILD_NEW mission reached `COMPLETE` for the first time.** It took four live
 runs of the same CSV-to-JSON CLI mission. Runs 1–3 each stranded at `VERIFIED`
@@ -68,10 +154,10 @@ crashed `agent-01-pm` or a mid-startup stack read as condensed and the guard
 refused a legitimate full-dedicated start, locking the operator out of
 restarting the stack it protects.
 
-Also noted, not fixed: `tests/services/test_live_extended_data_plane_integration.py`
-fails with 401 whenever the stack is **up**, because it posts a mission with no
-credentials. It passes trivially when the stack is down, so a green suite there
-is not evidence.
+Also noted that day, **fixed 2026-08-05**:
+`tests/services/test_live_extended_data_plane_integration.py` failed with 401
+whenever the stack was **up**, because it posted a mission with no credentials,
+and passed trivially when the stack was down. See the 2026-08-05 section above.
 
 ### What happened on 2026-08-01
 

@@ -1004,6 +1004,12 @@ async def upsert_audit_report(
                 payload.audit_id,
                 exc,
             )
+    # Mirror writes stay fail-open (the Postgres record above is authoritative),
+    # but the caller is told what happened. A legal-hold refusal is reported
+    # separately from a transient outage: the first means a compliance artifact
+    # is being dropped on every write until the bucket is recreated, the second
+    # clears on its own once the adapter comes back.
+    object_storage_mirror: dict[str, Any] | None = None
     if app.state.settings.object_storage_enabled:
         try:
             await _main._run_optional_mirror_write(
@@ -1019,6 +1025,19 @@ async def upsert_audit_report(
                     created_at,
                 ),
             )
+            object_storage_mirror = {"stored": True, "legal_hold_refused": False, "detail": None}
+        except object_store.LegalHoldUnavailableError as exc:
+            LOGGER.error(
+                "legal-hold audit artifact for mission %s/%s was NOT stored: %s",
+                payload.mission_id,
+                payload.audit_id,
+                exc,
+            )
+            object_storage_mirror = {
+                "stored": False,
+                "legal_hold_refused": True,
+                "detail": str(exc),
+            }
         except Exception as exc:
             LOGGER.warning(
                 "failed to store audit artifact in object storage for mission %s/%s: %s",
@@ -1026,6 +1045,11 @@ async def upsert_audit_report(
                 payload.audit_id,
                 exc,
             )
+            object_storage_mirror = {
+                "stored": False,
+                "legal_hold_refused": False,
+                "detail": str(exc),
+            }
     await record_audit_event(
         app,
         mission_id=payload.mission_id,
@@ -1049,7 +1073,10 @@ async def upsert_audit_report(
         },
         content_hash_source=payload.report,
     )
-    return record
+    # Copied so the annotation never leaks back into the persisted storage record.
+    response = dict(record)
+    response["object_storage_mirror"] = object_storage_mirror
+    return response
 
 
 @router.post("/internal/review-approvals")

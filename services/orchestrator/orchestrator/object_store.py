@@ -12,6 +12,7 @@ from urllib.parse import quote
 from .data_plane_metrics import (
     OBJECT_STORAGE_LEGAL_HOLD_FALLBACK_TOTAL,
     observe_optional_adapter_operation,
+    set_object_lock_enabled,
     set_optional_adapter_enabled,
     set_optional_adapter_ready,
 )
@@ -20,7 +21,21 @@ from .settings import Settings
 LOGGER = logging.getLogger(__name__)
 
 _BUCKET_CACHE: set[str] = set()
+# Object Lock status per bucket, populated by ensure_bucket(). Cached because it
+# is a property of the bucket that cannot change after creation, so re-checking
+# it on every write would be a pointless round-trip.
+_OBJECT_LOCK_STATE: dict[str, bool] = {}
 _ADAPTER = "object_storage"
+
+
+class LegalHoldUnavailableError(RuntimeError):
+    """A legal-hold write was refused because the bucket has no Object Lock.
+
+    Distinct from a transient object-storage outage: this is a permanent
+    misconfiguration that drops every failed-audit artifact until the bucket is
+    recreated, so callers should be able to tell the two apart. Subclasses
+    ``RuntimeError`` so existing ``except RuntimeError`` handling is unaffected.
+    """
 
 
 def _cache_key(settings: Settings) -> str:
@@ -79,6 +94,131 @@ def _s3_client(settings: Settings):
     )
 
 
+# Error codes that positively mean "this bucket cannot hold a legal hold",
+# as opposed to "we could not find out". Anything else (auth failure, network
+# error, throttling) is genuinely unknown and must not be reported as a
+# missing lock -- that would raise a loud compliance alarm for a credentials
+# typo, and train operators to ignore it.
+_NO_OBJECT_LOCK_ERROR_CODES = frozenset(
+    {
+        "ObjectLockConfigurationNotFoundError",
+        "ObjectLockConfigurationNotFound",
+        "NoSuchObjectLockConfiguration",
+        "InvalidRequest",
+        "NotImplemented",
+        "MethodNotAllowed",
+    }
+)
+
+
+def _bucket_has_object_lock(client, bucket: str) -> bool | None:
+    """Report whether ``bucket`` was created with Object Lock enabled.
+
+    Returns ``True``/``False`` when the answer is known, and ``None`` when it
+    could not be determined. A backend that does not implement the API at all
+    counts as ``False`` -- it can never hold a legal hold either.
+    """
+    try:
+        response = client.get_object_lock_configuration(Bucket=bucket)
+    except Exception as exc:
+        code = ""
+        response_payload = getattr(exc, "response", None)
+        if isinstance(response_payload, dict):
+            code = str((response_payload.get("Error") or {}).get("Code", ""))
+        if code:
+            return False if code in _NO_OBJECT_LOCK_ERROR_CODES else None
+        # Backends and fakes that raise a plain exception carry no error code.
+        # Treat the well-known "not found" wording as definitive and anything
+        # else as unknown.
+        message = str(exc)
+        if any(token in message for token in ("ObjectLock", "NoSuchObjectLock", "NotImplemented")):
+            return False
+        return None
+    configuration = response.get("ObjectLockConfiguration") or {}
+    return str(configuration.get("ObjectLockEnabled", "")).strip().lower() == "enabled"
+
+
+def _create_bucket(client, settings: Settings) -> None:
+    """Create the artifact bucket, with Object Lock when legal holds are required.
+
+    Object Lock can only be turned on *at creation time* in both S3 and MinIO;
+    there is no API that retrofits it onto an existing bucket. A bucket created
+    without it can therefore never accept the legal-hold writes that
+    :func:`put_audit_report` performs for failed audits, so getting this right
+    here is the only chance we have.
+    """
+    create_args: dict[str, Any] = {"Bucket": settings.object_storage_bucket}
+    if settings.object_storage_region != "us-east-1":
+        create_args["CreateBucketConfiguration"] = {
+            "LocationConstraint": settings.object_storage_region
+        }
+
+    if not settings.object_storage_legal_hold_on_fail:
+        # No legal holds will ever be requested, so don't impose Object Lock
+        # (it forces versioning on permanently and cannot be turned back off).
+        client.create_bucket(**create_args)
+        return
+
+    try:
+        client.create_bucket(**create_args, ObjectLockEnabledForBucket=True)
+    except Exception as exc:
+        # Some S3-compatible backends reject the parameter outright. Falling
+        # back to an unlocked bucket keeps retention-only writes working rather
+        # than failing storage entirely; _record_object_lock_state then reports
+        # the degradation loudly, so this fallback hides nothing.
+        LOGGER.warning(
+            "Could not create bucket %s with Object Lock enabled (%s); creating it "
+            "without Object Lock. Legal-hold audit reports will be refused.",
+            settings.object_storage_bucket,
+            exc,
+        )
+        client.create_bucket(**create_args)
+
+
+def _record_object_lock_state(client, settings: Settings) -> bool | None:
+    """Cache the bucket's Object Lock status and complain loudly if it is missing."""
+    enabled = _bucket_has_object_lock(client, settings.object_storage_bucket)
+    cache_key = _cache_key(settings)
+    if enabled is None:
+        # Unknown: leave any previously established answer in place rather than
+        # overwriting it with a guess.
+        _OBJECT_LOCK_STATE.pop(cache_key, None)
+        LOGGER.warning(
+            "Could not determine the Object Lock status of bucket %s; legal-hold audit "
+            "reports may be refused.",
+            settings.object_storage_bucket,
+        )
+        return None
+
+    _OBJECT_LOCK_STATE[cache_key] = enabled
+    set_object_lock_enabled(_ADAPTER, enabled=enabled)
+
+    if settings.object_storage_legal_hold_on_fail and not enabled:
+        LOGGER.error(
+            "Bucket %s has no Object Lock configuration, so legal-hold audit reports "
+            "(status FAIL/FAILED/REJECT/REJECTED/ERROR) will be REFUSED and not stored. "
+            "Object Lock can only be enabled when a bucket is created: recreate %s with "
+            "ObjectLockEnabledForBucket=true and migrate existing objects into it, or set "
+            "OBJECT_STORAGE_LEGAL_HOLD_ON_FAIL=false to accept unprotected retention-only "
+            "writes.",
+            settings.object_storage_bucket,
+            settings.object_storage_bucket,
+        )
+    return enabled
+
+
+def object_lock_ready(settings: Settings) -> bool | None:
+    """Object Lock status for the configured bucket.
+
+    ``None`` means "not established yet" -- object storage is disabled, or
+    :func:`ensure_bucket` has not successfully inspected the bucket. Callers
+    should treat that as unknown rather than as a failure.
+    """
+    if not settings.object_storage_enabled:
+        return None
+    return _OBJECT_LOCK_STATE.get(_cache_key(settings))
+
+
 def ensure_bucket(settings: Settings) -> None:
     set_optional_adapter_enabled(_ADAPTER, enabled=settings.object_storage_enabled)
     if not settings.object_storage_enabled:
@@ -96,15 +236,12 @@ def ensure_bucket(settings: Settings) -> None:
         try:
             client.head_bucket(Bucket=bucket)
         except Exception:
-            if settings.object_storage_region == "us-east-1":
-                client.create_bucket(Bucket=bucket)
-            else:
-                client.create_bucket(
-                    Bucket=bucket,
-                    CreateBucketConfiguration={
-                        "LocationConstraint": settings.object_storage_region
-                    },
-                )
+            _create_bucket(client, settings)
+
+        # Checked on every fresh bucket -- an existing bucket created before
+        # Object Lock was requested is exactly the case that silently dropped
+        # failed-audit artifacts, and it is invisible without this probe.
+        _record_object_lock_state(client, settings)
 
         _BUCKET_CACHE.add(cache_key)
         success = True
@@ -234,7 +371,7 @@ def put_audit_report(
             if legal_hold:
                 lock_args["ObjectLockLegalHoldStatus"] = "ON"
             response = client.put_object(**lock_args)
-        except Exception:
+        except Exception as exc:
             if legal_hold:
                 # A legal hold must never silently degrade to an unprotected
                 # write. Make the failure loud and refuse the write.
@@ -246,7 +383,14 @@ def put_audit_report(
                     audit_id,
                     mission_id,
                 )
-                raise
+                # Re-raised as a distinct type so callers can tell a permanent
+                # Object Lock misconfiguration from a transient outage. The
+                # original message is preserved in the text and as __cause__.
+                raise LegalHoldUnavailableError(
+                    f"Object Lock is not configured on bucket "
+                    f"{settings.object_storage_bucket}; refused to store legal-hold "
+                    f"audit report {audit_id} for mission {mission_id}: {exc}"
+                ) from exc
             # Retention-only writes may proceed without a lock; retention will
             # not be enforced for this object.
             LOGGER.warning(
