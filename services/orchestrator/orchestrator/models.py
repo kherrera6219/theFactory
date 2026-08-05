@@ -147,6 +147,19 @@ EventType = Literal[
     "MISSION_SECURITY_COMPLIANCE_PASSED",
     "MISSION_SECURITY_COMPLIANCE_WARNED",
     "MISSION_TESTDATA_MANIFEST_READY",
+    # Gate-failure events. Each is written to mission_events by
+    # mission_flow_v2.lifecycle when a gate refuses to advance the mission, and
+    # every one was missing here while its success sibling was present -- only
+    # the happy paths had ever been added. Because this Literal is the response
+    # model for mission events, a single unlisted value makes pydantic reject
+    # the whole payload: /missions/{id}/events, /chain-trace and
+    # /operations/alerts all 500 (502 at the gateway), so a mission that failed
+    # a gate could not be opened in Mission Control at all -- exactly the
+    # mission an operator needs to look at. Any new event type that reaches
+    # insert_mission_event belongs here.
+    "MISSION_EQUIVALENCE_BLOCKED",
+    "MISSION_SECURITY_COMPLIANCE_BLOCKED",
+    "MISSION_DEPENDENCY_ABSORPTION_BLOCKED",
     # Agent events
     "AGENT_STATE_CHANGED",
 ]

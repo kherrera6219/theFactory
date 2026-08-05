@@ -50,10 +50,16 @@ export function LogicNodeProgressPanel({
   if (!extractsLogicNodes(missionType) && logicNodes.length === 0) {
     return (
       <Panel title="LogicNode Progress">
+        {/*
+          One expression rather than JSX text around {missionType}: the JSX
+          transform drops the space between an expression container and the text
+          that follows it on the same line, which rendered "BUILD_NEWmissions".
+        */}
         <p className="muted">
-          Not applicable — {missionType} missions generate logic from the mission contract
-          rather than extracting LogicNodes from existing source. This mission&apos;s logic
-          decomposition is in its mission contract and pod group standards.
+          {`Not applicable — ${missionType} missions generate logic from the mission ` +
+            "contract rather than extracting LogicNodes from existing source. This " +
+            "mission's logic decomposition is in its mission contract and pod group " +
+            "standards."}
         </p>
       </Panel>
     );
