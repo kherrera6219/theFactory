@@ -142,7 +142,7 @@ def test_the_live_mission_no_longer_produces_a_required_failure() -> None:
             "generated_output": {
                 "filename": "csv2json.py",
                 "language": "python",
-                "generated_code": "import csv, json, argparse\n\n\ndef main():\n    pass\n",
+                "generated_code": "import csv\nimport json\n\n\ndef main():\n    pass\n",
                 "source": "llm",
             },
             "feature_contract": {"acceptance_criteria": LIVE_CRITERIA},
@@ -156,3 +156,62 @@ def test_the_live_mission_no_longer_produces_a_required_failure() -> None:
     assert required_failures == [], [c["check_id"] for c in required_failures]
     assert report["blocking"] is False
     assert report["passed"] is True
+
+
+# --- the second half: filename literals in CLI examples ---------------------
+#
+# Fixing the "<format> file" pattern was not enough. The PM rewrites the
+# contract during intake and writes its acceptance criteria as CLI examples,
+# which match the *explicit* `.ext` pattern instead. The run immediately after
+# the first fix still stranded at VERIFIED for exactly this reason.
+
+# The PM's real generated criteria from the live mission.
+PM_CRITERIA = [
+    "Running `csv2json input.csv` prints a valid pretty-printed JSON array to stdout.",
+    "Running `csv2json input.csv -o output.json` writes the JSON output to `output.json` "
+    "without printing to stdout.",
+    "CSV cell '123' becomes JSON integer 123.",
+]
+
+
+@pytest.mark.parametrize("text", PM_CRITERIA)
+def test_filenames_in_cli_examples_are_not_deliverable_formats(text: str) -> None:
+    assert _expected_artifact_extensions(text) == set()
+
+
+def test_an_explicit_format_demand_is_still_detected() -> None:
+    """A dot after whitespace is a format requirement, not a filename."""
+    assert _expected_artifact_extensions("The deliverable must be a .html file.") == {
+        "html",
+        "htm",
+    }
+
+
+def test_the_pm_rewritten_contract_no_longer_blocks() -> None:
+    """End-to-end with the contract the PM actually produced."""
+    report = build_equivalence_report(
+        mission_id="mission-pm-contract",
+        requested_target_language="python",
+        metadata={
+            "generated_output": {
+                "filename": "csv2json.py",
+                "language": "python",
+                "generated_code": "import csv\nimport json\n\n\ndef main():\n    pass\n",
+                "source": "llm",
+            },
+            "feature_contract": {
+                "summary": (
+                    "A zero-dependency Python command-line utility that converts CSV files "
+                    "into pretty-printed JSON arrays."
+                ),
+                "acceptance_criteria": PM_CRITERIA,
+            },
+        },
+        build_artifacts=_artifacts("csv2json.py"),
+        enforcement_enabled=True,
+    )
+    required_failures = [
+        check for check in report["checks"] if check["required"] and check["status"] == "fail"
+    ]
+    assert required_failures == [], [c["check_id"] for c in required_failures]
+    assert report["blocking"] is False

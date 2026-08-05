@@ -388,11 +388,39 @@ def _expected_artifact_extensions(contract_text: str) -> set[str]:
             expected |= _ARTIFACT_FORMAT_EXTENSIONS[keyword]
     for match in _EXPLICIT_EXTENSION_PATTERN.finditer(text):
         ext = match.group(1)
-        if ext in _KNOWN_ARTIFACT_EXTENSIONS and not _is_prohibited_extension_mention(
-            text, match.start()
-        ):
-            expected.add(ext)
+        if ext not in _KNOWN_ARTIFACT_EXTENSIONS:
+            continue
+        if _is_prohibited_extension_mention(text, match.start()):
+            continue
+        if _is_filename_literal(text, match.start()):
+            continue
+        expected.add(ext)
     return expected
+
+
+def _is_filename_literal(text: str, extension_start: int) -> bool:
+    """Return whether a ``.ext`` is part of a filename rather than a format demand.
+
+    A dot immediately preceded by a word character belongs to a filename token —
+    ``input.csv``, ``output.json``, ``report.md`` — which in contract text is
+    almost always a **usage example**, not a statement about the deliverable's
+    own format. A real format requirement reads ``"a single .html file"``, where
+    the dot follows whitespace.
+
+    This is the second half of the operand problem. The PM rewrites the contract
+    during intake, and its acceptance criteria are written as CLI examples:
+
+        Running `csv2json input.csv -o output.json` writes the JSON output...
+
+    Those matched the explicit-extension pattern and made ``csv``/``json``
+    required deliverable formats, so a correct ``csv2json.py`` was failed for not
+    being a ``.csv`` — which then cascaded into a security-compliance block and
+    stranded the mission at VERIFIED (observed live 2026-08-04, on the run
+    immediately after the ``<format> file`` half of this was fixed).
+    """
+    return extension_start > 0 and (
+        text[extension_start - 1].isalnum() or text[extension_start - 1] == "_"
+    )
 
 
 def _is_prohibited_extension_mention(text: str, extension_start: int) -> bool:
