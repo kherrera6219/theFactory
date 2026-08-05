@@ -1048,6 +1048,11 @@ async def health() -> dict[str, Any]:
         "neo4j_ready": neo4j_ready,
         "neo4j_url": app.state.settings.neo4j_url if app.state.settings.neo4j_enabled else None,
         "object_storage_ready": object_storage_ready,
+        # Reachability and compliance capability are separate facts: the bucket can
+        # be perfectly reachable and still be unable to hold a legal hold, in which
+        # case every failed-audit artifact is refused. Reported alongside rather
+        # than folded into object_storage_ready so neither masks the other.
+        "object_storage_object_lock_ready": object_store.object_lock_ready(app.state.settings),
         "object_storage_endpoint": app.state.settings.object_storage_endpoint if app.state.settings.object_storage_enabled else None,
         "jaeger_ready": jaeger_ready,
         "mission_count": mission_count,
@@ -1149,6 +1154,11 @@ async def readyz() -> dict[str, Any]:
         "milvus_ready": milvus_ready,
         "neo4j_ready": neo4j_ready,
         "object_storage_ready": object_storage_ready,
+        # Deliberately not folded into `ready` above: a bucket without Object Lock
+        # is a compliance misconfiguration, not an unhealthy process, and taking
+        # the orchestrator out of rotation for it would be a worse outage than the
+        # one it reports. Visible here, plus an ERROR log and a Prometheus gauge.
+        "object_storage_object_lock_ready": object_store.object_lock_ready(app.state.settings),
         "protocol_ready": protocol_ready,
         "consumer_running": consumer_running,
         **_langgraph_runtime_payload(app),

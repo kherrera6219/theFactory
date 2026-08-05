@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.08.04
-Last updated: 2026-08-04
+Document version: 2026.08.05
+Last updated: 2026-08-05
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -12,6 +12,67 @@ as current work.
 ---
 
 ## Current Status
+
+**NEW — 2026-08-05: legal-hold audit artifacts were never being stored, and the
+two live test suites never authenticated.** Both were silent failures that a
+green suite actively concealed.
+
+**Object Lock.** `object_store.ensure_bucket()` created the artifact bucket
+without `ObjectLockEnabledForBucket`, while `put_audit_report()` correctly
+refuses to write a legal-hold object to a bucket that cannot hold one. Object
+Lock can only be enabled **at bucket creation** in S3 and MinIO, so every audit
+report with status `FAIL`/`FAILED`/`REJECT`/`REJECTED`/`ERROR` was dropped while
+`/internal/audit-reports` still returned 200. Proven live: the same report
+posted `PASSED` mirrored and appeared in `audit-artifacts`; posted `FAILED` it
+returned 200 and the listing stayed empty.
+
+The refusal is correct and **must not be relaxed**. Fixed by creating a
+lock-capable bucket and making its absence impossible to miss:
+
+| Change | Detail |
+|---|---|
+| `ensure_bucket()` | requests `ObjectLockEnabledForBucket=True` when `object_storage_legal_hold_on_fail` is set; falls back to unlocked only if the backend rejects it |
+| `_bucket_has_object_lock()` | returns `True`/`False`/**`None`** — an auth or network failure is *unknown*, never "no lock" (an earlier cut alarmed on a credentials typo) |
+| Surfacing | ERROR log at startup + `orchestrator_optional_adapter_object_lock_enabled` gauge + `object_storage_object_lock_ready` on `/health` and `/readyz` |
+| `LegalHoldUnavailableError` | lets callers separate a permanent misconfiguration from a transient outage; `/internal/audit-reports` returns `object_storage_mirror: {stored, legal_hold_refused, detail}` |
+
+**`object_storage_object_lock_ready` is deliberately not folded into
+`object_storage_ready` or `/readyz`'s `ready`** — reachability and compliance
+capability are different facts, and failing readiness would make the live
+data-plane test *skip* rather than fail, trading one silent non-verification for
+another.
+
+**Local bucket migrated non-destructively.** The three existing objects were
+backed up (SHA-256 verified in two locations), `.env` now sets
+`OBJECT_STORAGE_BUCKET=mission-audit-artifacts-locked`, the orchestrator's own
+`ensure_bucket()` created it **with** Object Lock on startup, and the objects
+were restored. The old bucket is untouched and is the rollback path. A `FAILED`
+report now stores with `X-Amz-Object-Lock-Legal-Hold: ON`, `Mode: COMPLIANCE`,
+retained to 2026-11-03. **Fresh environments need no override** — they get a
+locked bucket under the default name.
+
+**Live test authentication.** Both suites posted to gateway `/v1/*` with no
+`x-api-key` under `AUTH_MODE=api_key`, so every call 401'd when the stack was up
+and passed trivially when it was down. `tests/services/live_stack_auth.py` now
+resolves the credential for both (so they cannot drift apart again) from
+`LIVE_INTERNAL_SERVICE_API_KEY` → `INTERNAL_SERVICE_API_KEY` → the repo `.env`,
+walking upward from `__file__` so it resolves from a git worktree too. **No
+well-known placeholder default.** The header is injected inside `_request_json`
+so no request can go out bare, and the extended suite carries module-level
+`skipif` markers keyed on gateway reachability.
+
+**`test_live_mission_chain_and_artifact_integrity` could never have run.** It
+waited for `COMPLETE` with a prompt that scored the maximum `ambiguity_score` of
+**1.0**, parking every run in `CLARIFYING`. A far more detailed replacement also
+scored 1.0 — the PM will find something to ask about almost any prompt, which is
+why the design pairs clarifying questions with a *proceed-with-defaults*
+operator action. The test now drives that documented path via
+`POST {orchestrator}/missions/{id}/clarify` and asserts the four delegation-chain
+events it actually inspects, then the build artifact. It runs a real mission to
+`VERIFIED` with a 20-event chain.
+
+**Full suite: 1929 passed, 4 skipped, 0 failed**, both live suites green against
+a running stack.
 
 **NEW — 2026-08-04: the first BUILD_NEW mission to reach `COMPLETE`.** Four live
 runs of the same CSV-to-JSON CLI mission were needed. Runs 1–3 all stranded at
@@ -1694,6 +1755,9 @@ focused on the active queue plus recent history.
 | Stack credentials | Postgres credential mismatch (Finding 3): resolved — confirmed `db_ready: true` on the rebuilt stack (old volume was wiped, fresh initdb picked up current `.env`). `api-gateway` `INTERNAL_SERVICE_API_KEY` (Finding 4): very likely resolved (clean 404 instead of the old 503 auth-not-configured error; compose config confirms correct resolution) but not confirmed against a fresh live mission — see Next Actions #1 |
 | Database state | `postgres-data`/`redis-data` volumes were wiped once by `stop_app.bat` (`docker compose down -v`) after the 2026-06-30 battery; the stack has since been rebuilt from scratch and is healthy again. A second, non-destructive container recreation happened mid-Phase-4 (via `start_app.bat`) — volumes confirmed intact, no data lost |
 | Live verification of Phases 0-3 | Stack is up, healthy, and running the fixed code, but no fresh mission has been run through the chat UI yet to prove the fixes work live end-to-end — this is the single most important next action |
+| Legal-hold audit artifacts | **CLOSED 2026-08-05.** `ensure_bucket()` now creates the bucket with Object Lock, absence is reported three ways (ERROR log, `orchestrator_optional_adapter_object_lock_enabled` gauge, `object_storage_object_lock_ready` on `/health` and `/readyz`), and `/internal/audit-reports` returns `object_storage_mirror`. The local bucket was migrated non-destructively to `mission-audit-artifacts-locked`; a `FAILED` report now stores with `Legal-Hold: ON`, `Mode: COMPLIANCE`. **Do not relax `put_audit_report`'s refusal** — a legal hold that silently degrades to an unprotected write is worse than a loud failure |
+| Live test authentication | **CLOSED 2026-08-05.** Both live suites authenticate via the shared `tests/services/live_stack_auth.py`; no well-known placeholder credential; the extended suite skips loudly when the gateway is unreachable so a non-verifying run cannot read as green |
+| **Pod-assignment and logicnodes missing on the v2 path** | **OPEN — found 2026-08-05.** A mission driven in-process by `mission_flow_v2` emits `MISSION_POD_MANAGER_ASSIGNED` and reaches `VERIFIED` with a full 20-event chain and a real build artifact, but `GET /v1/missions/{id}/pod-assignment` returns **404** and `logicnodes` returns **[]**. The only writers of `/internal/pod-assignment` are `pod-worker/main.py:1252` and `:1425`, and the two assignment records that do exist are both `assigned_by: "pod-worker"` — so the two execution paths disagree. Emitting an "assigned" event with no matching record is the inconsistency to resolve. Evidence: `mission-008af057-8eaf-4935-ba2c-25398ea5e118`. `test_live_mission_chain_and_artifact_integrity` asserts the build artifact instead; restore the two assertions if the records should exist on both paths |
 
 ---
 
