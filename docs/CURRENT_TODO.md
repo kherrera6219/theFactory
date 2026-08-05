@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.08.01
-Last updated: 2026-08-01
+Document version: 2026.08.04
+Last updated: 2026-08-04
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -12,6 +12,66 @@ as current work.
 ---
 
 ## Current Status
+
+**NEW — 2026-08-04: the first BUILD_NEW mission to reach `COMPLETE`.** Four live
+runs of the same CSV-to-JSON CLI mission were needed. Runs 1–3 all stranded at
+`VERIFIED` on the same cascade, each time for a *different* string in the
+contract:
+
+```
+artifact_format_matches_contract FAILS (required, false positive)
+  -> equivalence passed = false
+    -> security_compliance: "no passing equivalence evidence"
+      -> status = blocked, blocking = TRUE  -> stuck at VERIFIED
+```
+
+An advisory check reaching through security compliance to hard-block a correct
+mission. The three triggers, in order:
+
+| Run | Trigger | Field | Fix |
+|---|---|---|---|
+| 1 | `"a valid CSV file"` | `acceptance_criteria` | operand detection (`<format> file` the tool *operates on*) |
+| 2 | `` `csv2json input.csv -o output.json` `` | `acceptance_criteria` | filename-literal detection (a dot after a word char is a usage example) |
+| 3 | `"-o/--output to specify output JSON file destination"` | **`functional_requirements`** | runtime-output detection, keyed on a `--flag` token |
+
+**The process lesson is the durable one.** Fixes 1 and 2 each passed their own
+tests and still failed live, because both were validated against
+`acceptance_criteria` alone while `_contract_format_text` reads **five fields
+across two contracts** (`summary`, `title`, `functional_requirements`,
+`acceptance_criteria`, `deliverables`). A test now runs through
+`_contract_format_text` itself, so a format demand hiding in an untested field
+cannot pass unnoticed again.
+
+Run 3's fix deliberately keys on a `--flag` token rather than the word
+"output": keying on "output" would suppress *"the output must be a single HTML
+file"*, and "command-line" would suppress *"a command-line tool delivered as a
+single HTML file"* — both genuine deliverable demands. A false negative in this
+check is silent, so the narrow signal wins. Tests pin both directions.
+
+**Run 4 evidence (UPG-20 candidate).** `mission-7a098d0f-f695-47b5-9c0f-79f18e58afd6`
+reached `COMPLETE`; equivalence `passed=true`, security compliance `passed` with
+no findings. The delivered `csv2json.py` (3111 bytes) was executed independently
+and satisfies every acceptance criterion: int/float/bool/null inference,
+case-insensitive booleans, `-o` writes a file with no stdout, `--help` works.
+It also preserves leading zeros (`01234` stays a string) — behaviour beyond the
+contract, documented in its own docstring.
+
+**Behavioural equivalence remains honestly `skipped`** with reason
+`"no Refined-IR module in mission metadata"`. This is architectural, not a bug:
+BUILD_NEW missions have no source to extract LogicNodes *from*, so there is
+nothing to project equivalence vectors out of. Phase 5 currently verifies
+missions that transform existing code, not missions that create new code. See
+the open decision below.
+
+**Also fixed 2026-08-04: compose topology detection was a census, now a fact.**
+`scripts/compose_topology.py` decided topology by asking "is `agent-01-pm` up?",
+which made `CONDENSED` a *fallback* — mid-startup, a crashed `agent-01-pm`, and
+a partial teardown all read as condensed, and the guard then refused a
+legitimate full-dedicated start. The crashed case locked the operator out of
+restarting the very stack the guard protects. It now reads the
+`com.docker.compose.project.config_files` label Docker stamps at container
+creation, so a single surviving container reports the truth. Hit live when a
+start ran while `up` was still creating containers.
 
 **NEW — 2026-08-01: a full design-vs-build audit was completed and an
 upgrade plan now supersedes ad-hoc prioritisation.** Two new documents in
@@ -735,7 +795,12 @@ be weakened.
    durable evidence from a *non-trivial* mission (the existing proof,
    `output/mission-ac933664-.../reverser.py`, is a 22-line string reverser —
    real LLM output, but not a meaningful exercise of the pipeline). **S1-01 is
-   a hard blocker for Phase 6.** · UPG-21 resolve the dead
+   a hard blocker for Phase 6.** **Candidate evidence now exists (2026-08-04):**
+   `mission-7a098d0f-f695-47b5-9c0f-79f18e58afd6` ran end to end to `COMPLETE`
+   and its `csv2json.py` was executed independently against every acceptance
+   criterion — see Current Status. What remains for UPG-20 is *durability*:
+   capturing that run as durable evidence in the repo rather than in a
+   database row and a chat transcript. · UPG-21 resolve the dead
    `mission_equivalence_python_execution_enabled` flag (declared at
    `settings.py:88`, loaded at `:384`, read nowhere) · UPG-22 reconcile the two
    envelope priority vocabularies (`NORMAL|HIGH` vs
@@ -757,6 +822,20 @@ be weakened.
    existing hardened Docker sandbox (`rqca_agent.py:649-661` —
    `--network=none --read-only --cap-drop=ALL`, 60s, 512MB). **Do not build a
    second execution path.**
+   **OPEN DECISION (raised 2026-08-04, not yet made): Phase 5 cannot verify
+   BUILD_NEW missions at all.** Behavioural equivalence projects vectors from
+   LogicNodes, and LogicNodes come from *extracting* existing source. A
+   BUILD_NEW mission has no source to extract from, so it produces **zero**
+   LogicNodes and the gate reports `skipped` /
+   `"no Refined-IR module in mission metadata"` — correctly and permanently, on
+   every such mission. Phase 5 as designed verifies missions that *transform*
+   code, not missions that *create* it. The candidate answer is to project
+   vectors from the **generated artifact's own AST** and execute them against
+   the contract's acceptance criteria, which turns the gate from
+   "old behaviour == new behaviour" into "delivered behaviour == contracted
+   behaviour". That is a genuine scope change to D1 and needs an ADR amendment
+   before any code. Until it is decided, `skipped` is the honest result and must
+   not be papered over by relaxing the gate.
 6. **Phase 6** (plan §9) — EDCP. Execute `docs/EDCP_PHASE_PLAN.md` as written,
    with one inserted sub-phase first: **EDCP-02a**, a Delta consumer as the
    pod-audit gate. Delta already has two live producer call sites

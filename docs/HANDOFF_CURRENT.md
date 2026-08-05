@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.08.01
-Last updated: 2026-08-01
+Document version: 2026.08.04
+Last updated: 2026-08-04
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -30,6 +30,48 @@ Then `docs/CURRENT_TODO.md` → "Active Work Queue" → the *Design Reconciliati
 The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1x`
 is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
 `docs/EDCP_PHASE_PLAN.md` instead.
+
+### What happened on 2026-08-04 (most recent)
+
+**A BUILD_NEW mission reached `COMPLETE` for the first time.** It took four live
+runs of the same CSV-to-JSON CLI mission. Runs 1–3 each stranded at `VERIFIED`
+on the same cascade — `artifact_format_matches_contract` raising a false
+required failure, which flipped `equivalence.passed` to false, which made
+security compliance report "no passing equivalence evidence" and hard-block.
+Each run tripped on a *different* string in the contract; the full table is in
+`docs/CURRENT_TODO.md` → Current Status.
+
+**Read this before touching `equivalence_verifier.py`:** the first two fixes
+each passed their own tests and still failed live, because both were validated
+against `acceptance_criteria` alone while `_contract_format_text` reads **five
+fields across two contracts**. If you change format detection, test through
+`_contract_format_text`, not through one field.
+
+The check's failure modes are asymmetric and that asymmetry drives its design.
+A false *positive* is loud — it blocks a correct mission, and you find it in one
+run. A false *negative* is silent — it lets a wrong deliverable through, which
+is the incident the check was built for. So detection deliberately keys on
+narrow, unambiguous signals (a `--flag` token) rather than plausible ones (the
+words "output" or "command-line", both of which appear in genuine deliverable
+demands). Tests pin both directions; do not relax them to make a mission pass.
+
+**Behavioural equivalence is `skipped` on BUILD_NEW missions and that is
+correct.** There is no source to extract LogicNodes from, so there are no
+vectors to project. This is a design gap, not a bug, and there is an **open
+decision** about it in `docs/CURRENT_TODO.md` (Active Work Queue, Phase 5). Do
+not "fix" it by relaxing the gate.
+
+**Two operational fixes landed the same day.** `scripts/compose_topology.py` now
+reads Docker's `com.docker.compose.project.config_files` label instead of taking
+a census of running services — the census made `CONDENSED` a fallback, so a
+crashed `agent-01-pm` or a mid-startup stack read as condensed and the guard
+refused a legitimate full-dedicated start, locking the operator out of
+restarting the stack it protects.
+
+Also noted, not fixed: `tests/services/test_live_extended_data_plane_integration.py`
+fails with 401 whenever the stack is **up**, because it posts a mission with no
+credentials. It passes trivially when the stack is down, so a green suite there
+is not evidence.
 
 ### What happened on 2026-08-01
 
