@@ -95,3 +95,64 @@ def test_start_app_aborts_rather_than_warning() -> None:
     script = (ROOT / "start_app.bat").read_text(encoding="utf-8")
     assert "errorlevel 1" in script
     assert "exit /b 1" in script
+
+
+# --- label-based detection --------------------------------------------------
+#
+# The census above ("is agent-01-pm up?") makes CONDENSED a *fallback*: any
+# state where our containers run but that one does not reads as condensed. That
+# conflates a genuine condensed stack with three others — mid-startup, a
+# crashed agent-01-pm, and a partial teardown — and the guard then refuses a
+# legitimate full-dedicated start.
+#
+# The crashed case is the damaging one: it locks the operator out of restarting
+# the very stack the guard protects. The mid-startup case was hit live on
+# 2026-08-04, when a start ran while `up` was still creating containers.
+#
+# Compose records the files that created each container in a label, which is
+# exact and independent of what happens to be running.
+
+_FULL = "deploy/docker-compose.yaml,deploy/docker-compose.full-dedicated-agents.yaml"
+_BASE = "deploy/docker-compose.yaml"
+
+
+def test_labels_identify_full_dedicated_from_a_single_container() -> None:
+    """Mid-startup: only the orchestrator exists, and it is still correct."""
+    assert detect_topology(config_files=[_FULL]) == FULL_DEDICATED
+
+
+def test_labels_identify_condensed() -> None:
+    assert detect_topology(config_files=[_BASE, _BASE]) == CONDENSED
+
+
+def test_no_labelled_containers_is_none() -> None:
+    assert detect_topology(config_files=[]) == NONE
+
+
+def test_mixed_labels_report_full_dedicated() -> None:
+    """Overlay containers alongside base-only ones IS the desync state.
+
+    Order must not matter — any overlay marker wins.
+    """
+    assert detect_topology(config_files=[_BASE, _FULL]) == FULL_DEDICATED
+    assert detect_topology(config_files=[_FULL, _BASE]) == FULL_DEDICATED
+
+
+def test_the_live_race_no_longer_produces_a_false_block() -> None:
+    """The exact 2026-08-04 sequence, both paths, side by side.
+
+    `up` had created the orchestrator but not yet agent-01-pm. The census says
+    condensed and blocks; the labels say full-dedicated and permit.
+    """
+    assert detect_topology(["deploy-orchestrator-1"]) == CONDENSED
+    assert check_mismatch(FULL_DEDICATED, CONDENSED) is not None
+
+    assert detect_topology(config_files=[_FULL]) == FULL_DEDICATED
+    assert check_mismatch(FULL_DEDICATED, FULL_DEDICATED) is None
+
+
+def test_a_crashed_pm_agent_does_not_lock_out_a_restart() -> None:
+    """agent-01-pm down must not make the stack unrestartable."""
+    survivors = [_FULL] * 40
+    assert detect_topology(config_files=survivors) == FULL_DEDICATED
+    assert check_mismatch(FULL_DEDICATED, FULL_DEDICATED) is None

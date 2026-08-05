@@ -42,6 +42,20 @@ _OPERAND_FORMAT_CONTEXT_PATTERN = re.compile(
     r"|transform|transforms|transforming|process|processes|processing|input|inputs"
     r"|given|valid|source|from|on)\b[\w\s,;:./'\"-]{0,40}$"
 )
+# The emitting half of the same idea, keyed on a command-line flag rather than a
+# verb. A contract describing the tool's runtime output path introduces it with
+# a flag — "flag -o/--output to specify output JSON file destination" — whereas a
+# contract describing the deliverable never does.
+#
+# Keying on the word "output" itself was considered and rejected: "the output
+# must be a single HTML file" is a genuine deliverable demand, so that signal
+# would suppress real format requirements and re-open the incident this check
+# exists for. "command-line" was rejected for the same reason ("a command-line
+# tool delivered as a single HTML file"). A `--flag` token carries no such
+# ambiguity.
+_RUNTIME_OUTPUT_CONTEXT_PATTERN = re.compile(
+    r"(?:--[a-z][a-z0-9-]*|\bstdout\b|\bstderr\b)[\w\s,;:./'\"-]{0,40}$"
+)
 
 _KNOWN_ARTIFACT_EXTENSIONS = {
     "html", "htm", "js", "mjs", "ts", "tsx", "jsx", "py", "rb", "go", "rs",
@@ -441,9 +455,23 @@ def _is_operand_format_mention(text: str, keyword_start: int) -> bool:
     positive: a Python CSV-to-JSON CLI delivered `csv2json.py` and was failed
     for "not matching the contracted deliverable format(s): ['csv', 'json']",
     which then cascaded into a hard security-compliance block (2026-08-04).
+
+    Formats the tool *emits* at runtime are the same category and are detected
+    the same way. The third live run of that mission still failed, on
+
+        "Accept optional command-line flag -o/--output to specify output
+         JSON file destination."
+
+    in the contract's ``functional_requirements`` — a field the earlier fixes
+    were never tested against, because they were validated against acceptance
+    criteria alone while `_contract_format_text` reads five fields across two
+    contracts.
     """
     context = text[max(0, keyword_start - 60):keyword_start]
-    return bool(_OPERAND_FORMAT_CONTEXT_PATTERN.search(context))
+    return bool(
+        _OPERAND_FORMAT_CONTEXT_PATTERN.search(context)
+        or _RUNTIME_OUTPUT_CONTEXT_PATTERN.search(context)
+    )
 
 
 def _check_language_alignment(

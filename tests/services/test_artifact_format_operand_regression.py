@@ -35,6 +35,7 @@ sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 
 from orchestrator.equivalence_verifier import (  # noqa: E402
     _check_artifact_format,
+    _contract_format_text,
     _expected_artifact_extensions,
     build_equivalence_report,
 )
@@ -187,7 +188,7 @@ def test_an_explicit_format_demand_is_still_detected() -> None:
     }
 
 
-def test_the_pm_rewritten_contract_no_longer_blocks() -> None:
+def test_the_pm_rewritten_contract_no_longer_blocks_on_criteria_alone() -> None:
     """End-to-end with the contract the PM actually produced."""
     report = build_equivalence_report(
         mission_id="mission-pm-contract",
@@ -206,6 +207,134 @@ def test_the_pm_rewritten_contract_no_longer_blocks() -> None:
                 ),
                 "acceptance_criteria": PM_CRITERIA,
             },
+        },
+        build_artifacts=_artifacts("csv2json.py"),
+        enforcement_enabled=True,
+    )
+    required_failures = [
+        check for check in report["checks"] if check["required"] and check["status"] == "fail"
+    ]
+    assert required_failures == [], [c["check_id"] for c in required_failures]
+    assert report["blocking"] is False
+
+
+# --- the third half: runtime output destinations ----------------------------
+#
+# The two fixes above were both validated against `acceptance_criteria` alone.
+# But `_contract_format_text` reads FIVE fields across TWO contracts — title,
+# summary, functional_requirements, acceptance_criteria, deliverables — so the
+# third live run still stranded at VERIFIED, on a clause in a field neither
+# earlier fix had ever been tested against:
+#
+#     "Accept optional command-line flag -o/--output to specify output
+#      JSON file destination."
+#
+# That is the tool's runtime output path, not the deliverable's container.
+
+# The full contract the PM produced on the third live run (2026-08-04).
+LIVE_FC = {
+    "title": "CSV to JSON CLI Converter",
+    "summary": (
+        "A lightweight Python command-line tool using only standard library modules to "
+        "convert CSV files into pretty-printed JSON arrays with automatic type inference "
+        "for integers, floats, booleans, and null values."
+    ),
+    "functional_requirements": [
+        "Accept positional argument for input CSV file path.",
+        "Accept optional command-line flag -o/--output to specify output JSON file destination.",
+        "Read CSV data using standard library 'csv' module and treat the first row as "
+        "column header keys.",
+        "Perform automatic type inference on field values: convert empty strings to null, "
+        "integer strings to int, decimal strings",
+        "Format resulting output as a pretty-printed JSON array with standard indentation.",
+        "Write formatted JSON to standard output by default, or write to the target output "
+        "file if -o/--output is provided.",
+    ],
+    "acceptance_criteria": [
+        "Executing the tool with a valid CSV file outputs a formatted JSON array to stdout.",
+        "Executing the tool with -o/--output target.json writes the formatted JSON array to "
+        "target.json without stdout payload.",
+        "CSV cell with empty value renders as JSON null.",
+        "CSV cells containing integer or float numeric strings render as JSON numbers.",
+        "CSV cells containing 'true', 'False', 'TRUE' render as JSON booleans.",
+        "Running with --help prints clear usage guidelines.",
+    ],
+}
+LIVE_MC = {"acceptance_criteria": LIVE_FC["acceptance_criteria"]}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Accept optional command-line flag -o/--output to specify output JSON file destination.",
+        "Write formatted JSON to standard output by default, or write to the target output "
+        "file if -o/--output is provided.",
+        "Use --output to name the JSON file to write.",
+    ],
+)
+def test_runtime_output_destinations_are_not_deliverables(text: str) -> None:
+    assert _expected_artifact_extensions(text) == set()
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # The word "output" alone must NOT suppress a real format demand —
+        # keying on it would silently re-open the incident this check exists for.
+        ("The output must be a single HTML file.", {"html", "htm"}),
+        # Nor may "command-line" suppress one.
+        ("A command-line tool delivered as a single HTML file.", {"html", "htm"}),
+        ("The deliverable is a PDF file.", {"pdf"}),
+    ],
+)
+def test_deliverable_demands_survive_the_runtime_output_rule(
+    text: str, expected: set[str]
+) -> None:
+    """The dangerous direction: a false negative here is silent."""
+    assert _expected_artifact_extensions(text) == expected
+
+
+def test_the_whole_live_contract_names_no_deliverable_format() -> None:
+    """Every field, both contracts — the assembly the check actually sees.
+
+    The previous two fixes each passed their own tests and still failed live
+    because those tests fed only `acceptance_criteria`. This one goes through
+    `_contract_format_text`, so a format demand hiding in `summary`, `title`, or
+    `functional_requirements` cannot pass unnoticed again.
+    """
+    assert _expected_artifact_extensions(_contract_format_text(LIVE_FC, LIVE_MC)) == set()
+
+
+def test_the_live_mission_check_is_advisory_not_a_required_failure() -> None:
+    check = _check_artifact_format(
+        LIVE_FC,
+        LIVE_MC,
+        _artifacts("csv2json.py"),
+        {"filename": "csv2json.py", "language": "python"},
+        "python",
+    )
+    assert check["status"] != "fail"
+    assert check["required"] is False
+
+
+def test_the_live_mission_produces_no_blocking_equivalence_report() -> None:
+    """End to end: the cascade that stranded the mission must not re-form.
+
+    artifact_format fails (required) -> passed=false -> security compliance
+    reports "no passing equivalence evidence" -> blocking -> stuck at VERIFIED.
+    """
+    report = build_equivalence_report(
+        mission_id="mission-live-third-run",
+        requested_target_language="python",
+        metadata={
+            "generated_output": {
+                "filename": "csv2json.py",
+                "language": "python",
+                "generated_code": "import csv\nimport json\n\n\ndef main():\n    pass\n",
+                "source": "llm",
+            },
+            "feature_contract": LIVE_FC,
+            "mission_contract": LIVE_MC,
         },
         build_artifacts=_artifacts("csv2json.py"),
         enforcement_enabled=True,
