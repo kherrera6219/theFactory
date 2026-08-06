@@ -66,3 +66,7 @@ deploy/.local/
 
 # Live API keys for local testing — never commit
 test-keys/
+
+# Shared sandbox workspace for RQCA / behavioural-equivalence execution.
+# Contents are throwaway per-mission directories.
+.sandbox-workspace/
