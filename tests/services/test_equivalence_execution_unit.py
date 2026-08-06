@@ -52,12 +52,41 @@ def test_every_security_flag_is_present_in_the_invocation() -> None:
         "--memory-swap=0",
         "--cpus=1",
         "--read-only",
-        "--tmpfs=/tmp:size=64m,mode=1777",
         "--security-opt=no-new-privileges:true",
         "--cap-drop=ALL",
     ):
         assert flag in args, f"sandbox lost its {flag} hardening"
     assert "--rm" in args
+
+
+def test_tmpfs_is_size_capped_and_executable() -> None:
+    """/tmp must stay capped, and must stay executable.
+
+    Asserted by property rather than as one literal string, because the two
+    requirements pull in opposite directions and a future edit is likely to drop
+    one while "tightening" the other. ``size=`` bounds a runaway sample; ``exec``
+    is what makes compiled languages possible at all -- Docker mounts tmpfs
+    noexec by default, and with /workspace read-only there is nowhere else a
+    compiler can write a binary and then run it. Dropping ``exec`` silently
+    reverts every C/C++/Rust run to "/tmp/a.out: Permission denied".
+    """
+    args = sandbox_exec.build_sandbox_args(
+        docker_bin="docker",
+        workspace_dir="/tmp/ws",
+        base_image="gcc:13-bookworm",
+        command="true",
+        timeout_seconds=10,
+        memory_mb=128,
+    )
+    tmpfs = [a for a in args if a.startswith("--tmpfs=/tmp:")]
+    assert tmpfs, "sandbox lost its /tmp tmpfs entirely"
+    options = tmpfs[0].split(":", 1)[1].split(",")
+    assert any(option.startswith("size=") for option in options), (
+        f"/tmp tmpfs is no longer size-capped: {tmpfs[0]}"
+    )
+    assert "exec" in options, (
+        f"/tmp lost exec, so no compiled language can run: {tmpfs[0]}"
+    )
 
 
 def test_workspace_is_mounted_read_only() -> None:
@@ -430,3 +459,46 @@ def test_supported_languages_are_a_subset_of_the_sandbox_executables(language) -
     from orchestrator.rqca_agent import _EXECUTABLE_LANGUAGES
 
     assert language in _EXECUTABLE_LANGUAGES
+
+
+# --- Sibling-container workspace addressing --------------------------------
+
+
+def test_workspace_path_is_translated_to_its_host_equivalent(monkeypatch) -> None:
+    """The daemon resolves --volume sources on the HOST, not in this container.
+
+    The orchestrator reaches the host daemon through a mounted socket, so the
+    sandbox is a sibling container. Passing the orchestrator's own temp path
+    makes the daemon silently create and mount an *empty* directory -- the
+    compile step then fails with "no such file", and under
+    RQCA_ENFORCEMENT_ENABLED that blocks the mission. Nothing about that failure
+    points at path translation, which is why it is asserted here.
+    """
+    monkeypatch.setattr(sandbox_exec, "_WORKSPACE_ROOT", "/sandbox-workspace")
+    monkeypatch.setattr(sandbox_exec, "_WORKSPACE_HOST_ROOT", "/host/shared")
+
+    args = sandbox_exec.build_sandbox_args(
+        docker_bin="docker",
+        workspace_dir="/sandbox-workspace/hgr-rqca-abc123",
+        base_image="gcc:13-bookworm",
+        command="true",
+        timeout_seconds=10,
+        memory_mb=128,
+    )
+    mounts = [a for a in args if a.startswith("--volume=")]
+    assert mounts == ["--volume=/host/shared/hgr-rqca-abc123:/workspace:ro"], mounts
+
+
+def test_workspace_path_passes_through_when_unconfigured(monkeypatch) -> None:
+    """A non-containerised orchestrator shares the daemon's filesystem already."""
+    monkeypatch.setattr(sandbox_exec, "_WORKSPACE_ROOT", "")
+    monkeypatch.setattr(sandbox_exec, "_WORKSPACE_HOST_ROOT", "")
+    assert sandbox_exec.daemon_workspace_path("/tmp/hgr-rqca-abc") == "/tmp/hgr-rqca-abc"
+    assert sandbox_exec.workspace_root() is None
+
+
+def test_workspace_outside_the_shared_root_is_not_rewritten(monkeypatch) -> None:
+    """There is no correct translation, so don't fabricate one."""
+    monkeypatch.setattr(sandbox_exec, "_WORKSPACE_ROOT", "/sandbox-workspace")
+    monkeypatch.setattr(sandbox_exec, "_WORKSPACE_HOST_ROOT", "/host/shared")
+    assert sandbox_exec.daemon_workspace_path("/tmp/elsewhere") == "/tmp/elsewhere"

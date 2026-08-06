@@ -18,14 +18,23 @@ from .sandbox_exec import (
     MAX_TIMEOUT_SECONDS as _SHARED_MAX_TIMEOUT_SECONDS,
 )
 from .sandbox_exec import (
+    SANDBOX_BUILD_DIR,
     run_in_sandbox,
+    workspace_root,
 )
 
 RQCA_SCHEMA_VERSION = "runtime_qc_report.v1"
 # Languages that get live Docker execution when RQCA_AGENT_ENABLED=true.
 # Dynamic languages run their output directly; compiled languages compile-then-run.
 _EXECUTABLE_LANGUAGES = {"python", "javascript", "typescript"}
-_COMPILED_LANGUAGES = {"c", "cpp", "c++", "rust", "csharp", "c#"}
+# C#/.NET is deliberately absent. Its config invoked `dotnet-script`, which is a
+# global tool that is NOT present in `mcr.microsoft.com/dotnet/sdk:8.0`
+# (verified by running `command -v dotnet-script` in that image) and cannot be
+# installed at run time because the sandbox is `--network=none`. Listing it here
+# would produce a guaranteed FAIL verdict, and with RQCA_ENFORCEMENT_ENABLED
+# that blocks the mission -- strictly worse than the DRY_RUN an unsupported
+# language returns. Re-add it with an image that ships a single-file C# runner.
+_COMPILED_LANGUAGES = {"c", "cpp", "c++", "rust"}
 _ALL_LIVE_LANGUAGES = _EXECUTABLE_LANGUAGES | _COMPILED_LANGUAGES
 # Aliased to the shared sandbox ceilings (UPG-50) so RQCA and behavioural
 # equivalence cannot drift apart on resource limits.
@@ -36,37 +45,53 @@ _SCRIPT_EXTENSIONS = {"js", "mjs", "cjs", "ts", "tsx", "jsx"}
 _NODE_CHECK_LANGUAGES = {"javascript", "typescript"}
 
 # Docker image + compile-and-run command templates for compiled languages.
-# The run_command is a shell snippet executed inside the container with /workspace mounted.
+# The run_command is a shell snippet executed inside the container with
+# /workspace mounted READ-ONLY.
+#
+# Build output therefore goes to SANDBOX_BUILD_DIR (/tmp), the only writable and
+# executable location in the sandbox. These templates previously wrote
+# `/workspace/a.out`, which made every compiled-language run fail at link time
+# with "cannot open output file /workspace/a.out: Read-only file system" -- the
+# whole compiled path had never worked. Verified by hand against gcc:13-bookworm
+# (C) and rust:1.78-slim-bookworm (Rust); both now compile and run.
+# Base images for the interpreted languages. Without these, a manifest that does
+# not name an image falls back to `python:3.11-slim` for *every* language, so a
+# JavaScript mission ran `node /workspace/main.js` inside the Python image and
+# died with "sh: 1: node: not found" (exit 127) -- recorded as a FAIL of the
+# generated code, and blocked under RQCA_ENFORCEMENT_ENABLED. The compiled
+# languages already had this injection; the interpreted ones were relying on the
+# testdata agent to supply an image, and that agent is off by default.
+_EXECUTABLE_LANGUAGE_IMAGES: dict[str, str] = {
+    "python": "python:3.11-slim",
+    "javascript": "node:20-slim",
+    "typescript": "node:20-slim",
+}
+
+_BUILD_OUTPUT = f"{SANDBOX_BUILD_DIR}/a.out"
 _COMPILED_LANGUAGE_CONFIG: dict[str, dict[str, str]] = {
     "c": {
         "base_image": "gcc:13-bookworm",
-        "compile_command": "gcc -Wall -Wextra -o /workspace/a.out /workspace/{filename}",
-        "run_command": "/workspace/a.out",
+        "compile_command": f"gcc -Wall -Wextra -o {_BUILD_OUTPUT} /workspace/{{filename}}",
+        "run_command": _BUILD_OUTPUT,
     },
     "cpp": {
         "base_image": "gcc:13-bookworm",
-        "compile_command": "g++ -std=c++20 -Wall -Wextra -o /workspace/a.out /workspace/{filename}",
-        "run_command": "/workspace/a.out",
+        "compile_command": (
+            f"g++ -std=c++20 -Wall -Wextra -o {_BUILD_OUTPUT} /workspace/{{filename}}"
+        ),
+        "run_command": _BUILD_OUTPUT,
     },
     "c++": {
         "base_image": "gcc:13-bookworm",
-        "compile_command": "g++ -std=c++20 -Wall -Wextra -o /workspace/a.out /workspace/{filename}",
-        "run_command": "/workspace/a.out",
+        "compile_command": (
+            f"g++ -std=c++20 -Wall -Wextra -o {_BUILD_OUTPUT} /workspace/{{filename}}"
+        ),
+        "run_command": _BUILD_OUTPUT,
     },
     "rust": {
         "base_image": "rust:1.78-slim-bookworm",
-        "compile_command": "rustc /workspace/{filename} -o /workspace/a.out",
-        "run_command": "/workspace/a.out",
-    },
-    "csharp": {
-        "base_image": "mcr.microsoft.com/dotnet/sdk:8.0",
-        "compile_command": "dotnet-script /workspace/{filename}",
-        "run_command": "",  # dotnet-script compiles + runs in one step
-    },
-    "c#": {
-        "base_image": "mcr.microsoft.com/dotnet/sdk:8.0",
-        "compile_command": "dotnet-script /workspace/{filename}",
-        "run_command": "",
+        "compile_command": f"rustc /workspace/{{filename}} -o {_BUILD_OUTPUT}",
+        "run_command": _BUILD_OUTPUT,
     },
 }
 
@@ -171,7 +196,9 @@ async def _node_syntax_check(
     node_bin = str(getattr(settings, "node_bin", "node") or "node")
     suffix = Path(filename).suffix or ".js"
     started_at = datetime.now(UTC).isoformat()
-    with tempfile.TemporaryDirectory(prefix="hgr-rqca-node-check-") as tmpdir:
+    with tempfile.TemporaryDirectory(
+        prefix="hgr-rqca-node-check-", dir=workspace_root()
+    ) as tmpdir:
         check_file = Path(tmpdir) / f"artifact{suffix}"
         check_file.write_text(code, encoding="utf-8")
         try:
@@ -399,6 +426,15 @@ async def run_runtime_qc(
             reason="Docker not available.",
             artifact_smoke=artifact_smoke,
         )
+    # Interpreted languages need a runtime image just as much as compiled ones:
+    # the sandbox default is the Python image, which has no `node`.
+    if normalized_language in _EXECUTABLE_LANGUAGE_IMAGES and not testdata_manifest.get(
+        "base_image"
+    ):
+        testdata_manifest = {
+            **testdata_manifest,
+            "base_image": _EXECUTABLE_LANGUAGE_IMAGES[normalized_language],
+        }
     # Inject compiled-language defaults into the testdata manifest when the
     # language has a known compile-then-run config and the manifest doesn't
     # already specify a base_image.
@@ -584,7 +620,9 @@ async def _execute_in_sandbox(
     multi_container = bool(testdata_manifest.get("multi_container"))
     # Set only by the single-container path, which no longer holds a `proc`.
     single_container_exit_code: int | None = None
-    with tempfile.TemporaryDirectory(prefix=f"hgr-rqca-{mission_id[:8]}-") as tmpdir:
+    with tempfile.TemporaryDirectory(
+        prefix=f"hgr-rqca-{mission_id[:8]}-", dir=workspace_root()
+    ) as tmpdir:
         workspace = Path(tmpdir)
         (workspace / filename).write_text(code, encoding="utf-8")
         if test_code.strip():

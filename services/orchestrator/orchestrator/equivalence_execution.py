@@ -40,7 +40,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from .sandbox_exec import check_docker_available, run_in_sandbox
+from .sandbox_exec import check_docker_available, run_in_sandbox, workspace_root
 
 LOGGER = logging.getLogger(__name__)
 
@@ -272,7 +272,9 @@ async def run_behavioural_equivalence(
 
     for vector in vectors:
         try:
-            with tempfile.TemporaryDirectory(prefix=f"hgr-eqv-{mission_id[:8]}-") as tmpdir:
+            with tempfile.TemporaryDirectory(
+                prefix=f"hgr-eqv-{mission_id[:8]}-", dir=workspace_root()
+            ) as tmpdir:
                 workspace = Path(tmpdir)
                 (workspace / artifact_filename).write_text(artifact_code, encoding="utf-8")
                 (workspace / _DRIVER_FILENAME).write_text(

@@ -22,6 +22,16 @@ COPY protocol /app/protocol
 # beyond the standard library, with optional AST libraries (esprima,
 # javalang) that gracefully degrade to regex-only extraction when absent.
 COPY services/pod-worker/pod_worker /app/pod_worker
+# RQCA runtime QC and behavioural-equivalence verification execute generated
+# code inside a hardened, throwaway SIBLING container (see sandbox_exec.py).
+# Only the Docker *client* belongs here -- the daemon stays on the host and is
+# reached through a socket mounted by compose. The compose plugin is required by
+# RQCA's multi-container path. Copied from the official CLI image rather than
+# installed via apt, so no package repository or GPG key is added to this image.
+COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker:27-cli \
+     /usr/local/libexec/docker/cli-plugins/docker-compose \
+     /usr/local/libexec/docker/cli-plugins/docker-compose
 RUN useradd --system --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
 USER appuser

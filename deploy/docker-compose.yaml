@@ -345,6 +345,14 @@ services:
       TESTDATA_AGENT_ENABLED: ${TESTDATA_AGENT_ENABLED:-false}
       RQCA_AGENT_ENABLED: ${RQCA_AGENT_ENABLED:-false}
       RQCA_ENFORCEMENT_ENABLED: ${RQCA_ENFORCEMENT_ENABLED:-true}
+      # Sandbox workspaces are created under SANDBOX_WORKSPACE_ROOT inside this
+      # container, then bind-mounted into throwaway sibling containers by the
+      # HOST daemon, which resolves the source path on the host -- hence the
+      # pair. See sandbox_exec.daemon_workspace_path. Without both set, the
+      # daemon mounts an empty directory it silently creates and every
+      # compiled-language run fails with "no such file".
+      SANDBOX_WORKSPACE_ROOT: /sandbox-workspace
+      SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-}
       # Equivalence verification. Correctness (contract-conformance) checks always
       # run; these two control what they can do and whether behavioural
       # verification executes at all.
@@ -405,6 +413,20 @@ services:
       - ./.local/redis-certs:/run/redis-certs:ro
       - ./.local/postgres-certs:/run/postgres-certs:ro
       - ../output:/app/output
+      # Host Docker daemon, for the RQCA / behavioural-equivalence sandbox.
+      # This is a real privilege grant: socket access is equivalent to root on
+      # the host. It is scoped as tightly as the mechanism allows -- the
+      # container still runs as uid 10001 (see group_add below, which adds only
+      # the socket's group), and every container it launches carries
+      # SANDBOX_SECURITY_FLAGS. Do not extend this pattern to other services.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Must resolve to the same directory as SANDBOX_WORKSPACE_HOST_ROOT.
+      - ${SANDBOX_WORKSPACE_HOST_ROOT:-../.sandbox-workspace}:/sandbox-workspace
+    # The docker socket is root:root mode 0660, so the non-root service user
+    # cannot open it. Adding the socket's group is the smallest grant that
+    # works: the process stays uid 10001 rather than being promoted to root.
+    group_add:
+      - "0"
     ports:
       - "${ORCHESTRATOR_HOST_BIND:-127.0.0.1}:${ORCHESTRATOR_HOST_PORT:-8101}:8001"
     depends_on:
