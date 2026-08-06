@@ -456,9 +456,9 @@ def test_flag_off_leaves_the_report_byte_identical() -> None:
 
 @pytest.mark.parametrize("language", sorted(SUPPORTED_LANGUAGES))
 def test_supported_languages_are_a_subset_of_the_sandbox_executables(language) -> None:
-    from orchestrator.rqca_agent import _EXECUTABLE_LANGUAGES
+    from orchestrator.rqca_agent import _LANGUAGE_RUNTIMES
 
-    assert language in _EXECUTABLE_LANGUAGES
+    assert language in _LANGUAGE_RUNTIMES
 
 
 # --- Sibling-container workspace addressing --------------------------------

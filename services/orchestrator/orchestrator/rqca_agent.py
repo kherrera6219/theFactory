@@ -18,24 +18,155 @@ from .sandbox_exec import (
     MAX_TIMEOUT_SECONDS as _SHARED_MAX_TIMEOUT_SECONDS,
 )
 from .sandbox_exec import (
-    SANDBOX_BUILD_DIR,
     run_in_sandbox,
     workspace_root,
 )
 
 RQCA_SCHEMA_VERSION = "runtime_qc_report.v1"
-# Languages that get live Docker execution when RQCA_AGENT_ENABLED=true.
-# Dynamic languages run their output directly; compiled languages compile-then-run.
-_EXECUTABLE_LANGUAGES = {"python", "javascript", "typescript"}
-# C#/.NET is deliberately absent. Its config invoked `dotnet-script`, which is a
-# global tool that is NOT present in `mcr.microsoft.com/dotnet/sdk:8.0`
-# (verified by running `command -v dotnet-script` in that image) and cannot be
-# installed at run time because the sandbox is `--network=none`. Listing it here
-# would produce a guaranteed FAIL verdict, and with RQCA_ENFORCEMENT_ENABLED
-# that blocks the mission -- strictly worse than the DRY_RUN an unsupported
-# language returns. Re-add it with an image that ships a single-file C# runner.
-_COMPILED_LANGUAGES = {"c", "cpp", "c++", "rust"}
-_ALL_LIVE_LANGUAGES = _EXECUTABLE_LANGUAGES | _COMPILED_LANGUAGES
+
+# --- Language runtimes -----------------------------------------------------
+#
+# One table per language: the image to run in, and the complete shell snippet
+# that turns the artifact into a running program. `{filename}` is the generated
+# file, `{stem}` its basename without extension (JVM languages need the class
+# name). Anything not listed here returns DRY_RUN rather than executing.
+#
+# Constraints every command must respect, all of them enforced by
+# SANDBOX_SECURITY_FLAGS and each one having broken a language during bring-up:
+#   * /workspace is READ-ONLY -- build output and caches go under /tmp
+#     (SANDBOX_BUILD_DIR), the only writable+executable location.
+#   * There is no network, so nothing may fetch a compiler, package or toolchain
+#     at run time.
+#   * HOME is not writable, so toolchains that scribble into it (go, ghc,
+#     kotlinc, julia, R, zig) need it pointed at /tmp explicitly.
+#
+# Every entry below was verified by executing a hello-world through the real
+# sandbox; see test_every_live_language_has_a_runtime for the guard that keeps
+# this table and _ALL_LIVE_LANGUAGES in step.
+#
+# NOT PRESENT, deliberately:
+#   csharp/c# -- its config called `dotnet-script`, absent from
+#     mcr.microsoft.com/dotnet/sdk:8.0 and uninstallable offline.
+#   matlab, mathematica -- no runnable image exists without a paid licence
+#     (MathWorks) or network activation (Wolfram Engine), and --network=none
+#     rules the latter out. GNU Octave is NOT a stand-in: passing Octave would
+#     assert something untrue about MATLAB compatibility.
+# A language listed here but unable to run is worse than one that is absent: it
+# yields FAIL, and RQCA_ENFORCEMENT_ENABLED turns FAIL into a blocked mission,
+# whereas an absent language degrades to an honest DRY_RUN.
+_LANGUAGE_RUNTIMES: dict[str, dict[str, str]] = {
+    # -- interpreted ---------------------------------------------------------
+    "python": {
+        "base_image": "python:3.11-slim",
+        "run_command": "python /workspace/{filename}",
+    },
+    "javascript": {
+        "base_image": "node:20-slim",
+        "run_command": "node /workspace/{filename}",
+    },
+    "typescript": {
+        "base_image": "node:20-slim",
+        "run_command": "node /workspace/{filename}",
+    },
+    "ruby": {
+        "base_image": "ruby:3.3-slim",
+        "run_command": "ruby /workspace/{filename}",
+    },
+    "php": {
+        "base_image": "php:8.3-cli",
+        "run_command": "php /workspace/{filename}",
+    },
+    "r": {
+        "base_image": "r-base:4.4.1",
+        "run_command": "env HOME=/tmp Rscript /workspace/{filename}",
+    },
+    "julia": {
+        "base_image": "julia:1.10",
+        "run_command": (
+            "env HOME=/tmp JULIA_DEPOT_PATH=/tmp/.julia julia /workspace/{filename}"
+        ),
+    },
+    "ocaml": {
+        # The opam switch is not on PATH once the image entrypoint is bypassed.
+        "base_image": "ocaml/opam:debian-12-ocaml-5.1",
+        "run_command": (
+            "export HOME=/tmp; export PATH=/home/opam/.opam/5.1/bin:$PATH; "
+            "ocaml /workspace/{filename}"
+        ),
+    },
+    # -- compiled ------------------------------------------------------------
+    "c": {
+        "base_image": "gcc:13-bookworm",
+        "run_command": (
+            "gcc -Wall -Wextra -o /tmp/a.out /workspace/{filename} && /tmp/a.out"
+        ),
+    },
+    "cpp": {
+        "base_image": "gcc:13-bookworm",
+        "run_command": (
+            "g++ -std=c++20 -Wall -Wextra -o /tmp/a.out /workspace/{filename} && /tmp/a.out"
+        ),
+    },
+    "c++": {
+        "base_image": "gcc:13-bookworm",
+        "run_command": (
+            "g++ -std=c++20 -Wall -Wextra -o /tmp/a.out /workspace/{filename} && /tmp/a.out"
+        ),
+    },
+    "rust": {
+        "base_image": "rust:1.78-slim-bookworm",
+        "run_command": "rustc /workspace/{filename} -o /tmp/a.out && /tmp/a.out",
+    },
+    "go": {
+        "base_image": "golang:1.22-bookworm",
+        "run_command": (
+            "env HOME=/tmp GOCACHE=/tmp/gocache "
+            "go build -o /tmp/a.out /workspace/{filename} && /tmp/a.out"
+        ),
+    },
+    "zig": {
+        "base_image": "euantorano/zig:master",
+        "run_command": (
+            "env HOME=/tmp zig run /workspace/{filename} "
+            "--cache-dir /tmp/zig-cache --global-cache-dir /tmp/zig-global"
+        ),
+    },
+    "haskell": {
+        "base_image": "haskell:9.6-slim",
+        "run_command": (
+            "env HOME=/tmp ghc -outputdir /tmp -o /tmp/a.out /workspace/{filename} "
+            "&& /tmp/a.out"
+        ),
+    },
+    # -- JVM: the entry class is the filename stem ---------------------------
+    "java": {
+        "base_image": "eclipse-temurin:21-jdk",
+        "run_command": "javac -d /tmp /workspace/{filename} && java -cp /tmp {stem}",
+    },
+    "kotlin": {
+        "base_image": "zenika/kotlin",
+        "run_command": (
+            "env HOME=/tmp kotlinc /workspace/{filename} -include-runtime -d /tmp/a.jar "
+            "&& java -jar /tmp/a.jar"
+        ),
+    },
+    "scala": {
+        "base_image": "sbtscala/scala-sbt:eclipse-temurin-jammy-21.0.2_13_1.9.9_3.4.0",
+        "run_command": (
+            "env HOME=/tmp scalac -d /tmp /workspace/{filename} "
+            "&& env HOME=/tmp scala -cp /tmp {stem}"
+        ),
+    },
+}
+
+#: Images not published by Docker Official Images or the language's own vendor.
+#: Recorded on every report so a surprising verdict can be traced to a
+#: third-party toolchain rather than to the generated code. These languages
+#: publish no official image; the sandbox's containment (no network, no
+#: capabilities, read-only rootfs) applies to them exactly as to the rest.
+_UNOFFICIAL_IMAGE_LANGUAGES = frozenset({"kotlin", "scala", "zig", "ocaml"})
+
+_ALL_LIVE_LANGUAGES = frozenset(_LANGUAGE_RUNTIMES)
 # Aliased to the shared sandbox ceilings (UPG-50) so RQCA and behavioural
 # equivalence cannot drift apart on resource limits.
 _MAX_TIMEOUT_SECONDS = _SHARED_MAX_TIMEOUT_SECONDS
@@ -43,57 +174,6 @@ _MAX_MEMORY_MB = _SHARED_MAX_MEMORY_MB
 _HTML_EXTENSIONS = {"html", "htm"}
 _SCRIPT_EXTENSIONS = {"js", "mjs", "cjs", "ts", "tsx", "jsx"}
 _NODE_CHECK_LANGUAGES = {"javascript", "typescript"}
-
-# Docker image + compile-and-run command templates for compiled languages.
-# The run_command is a shell snippet executed inside the container with
-# /workspace mounted READ-ONLY.
-#
-# Build output therefore goes to SANDBOX_BUILD_DIR (/tmp), the only writable and
-# executable location in the sandbox. These templates previously wrote
-# `/workspace/a.out`, which made every compiled-language run fail at link time
-# with "cannot open output file /workspace/a.out: Read-only file system" -- the
-# whole compiled path had never worked. Verified by hand against gcc:13-bookworm
-# (C) and rust:1.78-slim-bookworm (Rust); both now compile and run.
-# Base images for the interpreted languages. Without these, a manifest that does
-# not name an image falls back to `python:3.11-slim` for *every* language, so a
-# JavaScript mission ran `node /workspace/main.js` inside the Python image and
-# died with "sh: 1: node: not found" (exit 127) -- recorded as a FAIL of the
-# generated code, and blocked under RQCA_ENFORCEMENT_ENABLED. The compiled
-# languages already had this injection; the interpreted ones were relying on the
-# testdata agent to supply an image, and that agent is off by default.
-_EXECUTABLE_LANGUAGE_IMAGES: dict[str, str] = {
-    "python": "python:3.11-slim",
-    "javascript": "node:20-slim",
-    "typescript": "node:20-slim",
-}
-
-_BUILD_OUTPUT = f"{SANDBOX_BUILD_DIR}/a.out"
-_COMPILED_LANGUAGE_CONFIG: dict[str, dict[str, str]] = {
-    "c": {
-        "base_image": "gcc:13-bookworm",
-        "compile_command": f"gcc -Wall -Wextra -o {_BUILD_OUTPUT} /workspace/{{filename}}",
-        "run_command": _BUILD_OUTPUT,
-    },
-    "cpp": {
-        "base_image": "gcc:13-bookworm",
-        "compile_command": (
-            f"g++ -std=c++20 -Wall -Wextra -o {_BUILD_OUTPUT} /workspace/{{filename}}"
-        ),
-        "run_command": _BUILD_OUTPUT,
-    },
-    "c++": {
-        "base_image": "gcc:13-bookworm",
-        "compile_command": (
-            f"g++ -std=c++20 -Wall -Wextra -o {_BUILD_OUTPUT} /workspace/{{filename}}"
-        ),
-        "run_command": _BUILD_OUTPUT,
-    },
-    "rust": {
-        "base_image": "rust:1.78-slim-bookworm",
-        "compile_command": f"rustc /workspace/{{filename}} -o {_BUILD_OUTPUT}",
-        "run_command": _BUILD_OUTPUT,
-    },
-}
 
 
 async def _check_docker_available(docker_bin: str = "docker") -> bool:
@@ -426,32 +506,19 @@ async def run_runtime_qc(
             reason="Docker not available.",
             artifact_smoke=artifact_smoke,
         )
-    # Interpreted languages need a runtime image just as much as compiled ones:
-    # the sandbox default is the Python image, which has no `node`.
-    if normalized_language in _EXECUTABLE_LANGUAGE_IMAGES and not testdata_manifest.get(
-        "base_image"
-    ):
-        testdata_manifest = {
-            **testdata_manifest,
-            "base_image": _EXECUTABLE_LANGUAGE_IMAGES[normalized_language],
-        }
-    # Inject compiled-language defaults into the testdata manifest when the
-    # language has a known compile-then-run config and the manifest doesn't
-    # already specify a base_image.
-    if normalized_language in _COMPILED_LANGUAGES:
-        compiled_cfg = _COMPILED_LANGUAGE_CONFIG.get(normalized_language, {})
-        if compiled_cfg and not testdata_manifest.get("base_image"):
-            testdata_manifest = {**testdata_manifest}
-            testdata_manifest.setdefault("base_image", compiled_cfg["base_image"])
-            if compiled_cfg.get("run_command"):
-                run_cmd = (
-                    compiled_cfg["compile_command"].format(filename=filename)
-                    + " && "
-                    + compiled_cfg["run_command"]
-                )
-            else:
-                run_cmd = compiled_cfg["compile_command"].format(filename=filename)
-            testdata_manifest.setdefault("run_command", run_cmd)
+    # Fill in the runtime for this language when the manifest does not pin one.
+    # Both the image and the command must come from the same entry: supplying an
+    # image without its command (or vice versa) is how a JavaScript artifact
+    # ended up running `node` inside the Python image.
+    runtime = _LANGUAGE_RUNTIMES.get(normalized_language)
+    if runtime is not None:
+        stem = Path(filename).stem
+        testdata_manifest = {**testdata_manifest}
+        testdata_manifest.setdefault("base_image", runtime["base_image"])
+        testdata_manifest.setdefault(
+            "run_command", runtime["run_command"].format(filename=filename, stem=stem)
+        )
+
     result = await _execute_in_sandbox(
         docker_bin=docker_bin,
         mission_id=mission_id,
@@ -735,6 +802,9 @@ async def _execute_in_sandbox(
         "stdout_preview": stdout_bytes.decode("utf-8", errors="replace")[:2000],
         "stderr_preview": stderr_bytes.decode("utf-8", errors="replace")[:1000],
         "base_image": base_image,
+        # Recorded so a surprising verdict can be traced to a third-party
+        # toolchain image rather than assumed to be a defect in the artifact.
+        "base_image_official": language.strip().lower() not in _UNOFFICIAL_IMAGE_LANGUAGES,
         "language": language,
         "filename": filename,
         "timeout_seconds": timeout,

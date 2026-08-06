@@ -38,15 +38,15 @@ def test_testdata_manifest_is_safe_and_capped() -> None:
 
 
 def test_rqca_unsupported_language_returns_dry_run() -> None:
-    # Java is not in _ALL_LIVE_LANGUAGES so must always get DRY_RUN regardless of Docker.
-    # (Rust, C, C++, C# are now supported compiled languages via S3-02.)
+    # MATLAB has no runnable image (paid licence), so it must always return
+    # DRY_RUN regardless of Docker rather than a FAIL that blocks the mission.
     result = asyncio.run(
         rqca_agent.run_runtime_qc(
             mission_id="mission-1",
-            generated_output={"filename": "Main.java", "generated_code": "public class Main {}"},
-            testdata_manifest={"base_image": "eclipse-temurin:21", "run_command": "java Main"},
+            generated_output={"filename": "main.m", "generated_code": "disp('x')"},
+            testdata_manifest={},
             integration_tests=None,
-            language="java",
+            language="matlab",
             settings=SimpleNamespace(docker_bin="docker"),
         )
     )
@@ -55,49 +55,57 @@ def test_rqca_unsupported_language_returns_dry_run() -> None:
     assert result["execution_type"] == "dry_run"
 
 
-def test_rqca_compiled_language_live_languages_set() -> None:
-    """Rust, C and C++ are in the live execution set (S3-02)."""
-    assert "rust" in rqca_agent._ALL_LIVE_LANGUAGES
-    assert "c" in rqca_agent._ALL_LIVE_LANGUAGES
-    assert "cpp" in rqca_agent._ALL_LIVE_LANGUAGES
-    # Java still unsupported — validate it stays out
-    assert "java" not in rqca_agent._ALL_LIVE_LANGUAGES
-    # C# is deliberately out. Its config called `dotnet-script`, which is not in
-    # mcr.microsoft.com/dotnet/sdk:8.0 and cannot be installed at run time
-    # because the sandbox is --network=none. A language listed here but unable
-    # to run yields FAIL, and RQCA_ENFORCEMENT_ENABLED turns FAIL into a blocked
-    # mission -- strictly worse than the DRY_RUN an unlisted language returns.
-    assert "csharp" not in rqca_agent._ALL_LIVE_LANGUAGES
-    assert "c#" not in rqca_agent._ALL_LIVE_LANGUAGES
+def test_live_language_set_is_exactly_the_runtime_table() -> None:
+    """`_ALL_LIVE_LANGUAGES` is derived, so the two can never disagree."""
+    assert set(rqca_agent._ALL_LIVE_LANGUAGES) == set(rqca_agent._LANGUAGE_RUNTIMES)
+    for language in ("c", "cpp", "rust", "go", "java", "kotlin", "scala", "haskell"):
+        assert language in rqca_agent._ALL_LIVE_LANGUAGES
+
+    # Absent on purpose, and each for a reason that would otherwise be
+    # rediscovered by watching missions fail:
+    #   csharp  -- dotnet-script is not in the SDK image and --network=none
+    #              means it cannot be installed at run time.
+    #   matlab / mathematica -- no runnable image without a paid licence or
+    #              network activation. Octave is not a substitute: passing it
+    #              would assert something untrue about MATLAB compatibility.
+    # An absent language returns an honest DRY_RUN. A listed-but-broken one
+    # returns FAIL, which RQCA_ENFORCEMENT_ENABLED turns into a blocked mission.
+    for language in ("csharp", "c#", "matlab", "mathematica"):
+        assert language not in rqca_agent._ALL_LIVE_LANGUAGES
 
 
-def test_compiled_languages_build_into_the_writable_dir_not_the_workspace() -> None:
-    """Compile output must never target /workspace -- it is mounted read-only.
+def test_every_runtime_respects_the_sandbox_constraints() -> None:
+    """Each command must survive the flags the sandbox actually applies.
 
-    Every template used to write /workspace/a.out, so the whole compiled-language
-    path failed at link time with "cannot open output file /workspace/a.out:
-    Read-only file system". Nothing caught it because no test ever rendered these
-    commands, and the flag they collide with lives in another module.
+    /workspace is read-only and there is no network, so a command may not write
+    build output next to the source and may not fetch a toolchain. Both broke a
+    language during bring-up and neither is visible from this file, which is why
+    it is asserted rather than left to review.
     """
-    for language, config in rqca_agent._COMPILED_LANGUAGE_CONFIG.items():
-        compile_command = config["compile_command"].format(filename="main.src")
-        run_command = config["run_command"]
-        assert "-o /workspace/" not in compile_command, (
-            f"{language} compiles into the read-only workspace: {compile_command}"
+    fetchers = ("apt-get", "apk add", "pip install", "npm install", "curl ", "wget ")
+    for language, runtime in rqca_agent._LANGUAGE_RUNTIMES.items():
+        command = runtime["run_command"].format(filename="main.src", stem="main")
+        assert runtime["base_image"], f"{language} has no base image"
+        assert "-o /workspace/" not in command, (
+            f"{language} writes build output into the read-only workspace: {command}"
         )
-        assert rqca_agent.SANDBOX_BUILD_DIR in compile_command, (
-            f"{language} does not build into the writable sandbox dir: {compile_command}"
+        assert "-outputdir /workspace" not in command, (
+            f"{language} writes intermediates into the read-only workspace: {command}"
         )
-        assert run_command.startswith(rqca_agent.SANDBOX_BUILD_DIR), (
-            f"{language} runs a binary from outside the writable dir: {run_command}"
-        )
+        for fetcher in fetchers:
+            assert fetcher not in command, (
+                f"{language} tries to fetch a toolchain, but the sandbox has no "
+                f"network: {command}"
+            )
 
-    # Every language claiming live compilation must actually have a config.
-    for language in rqca_agent._COMPILED_LANGUAGES:
-        assert language in rqca_agent._COMPILED_LANGUAGE_CONFIG, (
-            f"{language} is listed as live-compiled but has no image/command config, "
-            "so it would fail every run and block the mission under enforcement"
+
+def test_jvm_runtimes_use_the_filename_stem_as_the_entry_class() -> None:
+    """javac/scalac emit a class named after the file, not after the artifact."""
+    for language in ("java", "scala"):
+        rendered = rqca_agent._LANGUAGE_RUNTIMES[language]["run_command"].format(
+            filename="Widget.x", stem="Widget"
         )
+        assert rendered.rstrip().endswith("Widget"), rendered
 
 
 def test_rqca_missing_artifact_returns_skipped() -> None:
@@ -321,25 +329,3 @@ def test_pod_audit_offline_fallback_is_degraded() -> None:
     assert result["status"] == "degraded"
     assert result["advisory"] is True
     assert result["reason"] == "LLM unavailable — gate bypassed"
-
-
-def test_every_live_language_resolves_a_runtime_image() -> None:
-    """No live language may fall through to the default Python image.
-
-    `_execute_in_sandbox` defaults `base_image` to python:3.11-slim when the
-    manifest names none. That made a JavaScript mission run
-    `node /workspace/main.js` inside the Python image -- "sh: 1: node: not
-    found", exit 127, recorded as a FAIL of the *generated code* and blocked
-    under RQCA_ENFORCEMENT_ENABLED. The compiled languages had image injection;
-    the interpreted ones were relying on the testdata agent, which is off by
-    default, so nothing supplied one.
-    """
-    for language in rqca_agent._ALL_LIVE_LANGUAGES:
-        has_image = (
-            language in rqca_agent._EXECUTABLE_LANGUAGE_IMAGES
-            or language in rqca_agent._COMPILED_LANGUAGE_CONFIG
-        )
-        assert has_image, (
-            f"{language} is live but resolves no runtime image, so it would run in "
-            "python:3.11-slim and fail with 'command not found'"
-        )

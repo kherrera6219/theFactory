@@ -206,8 +206,14 @@ def build_sandbox_args(
         # Translated, not raw: the daemon resolves this on the host. See
         # daemon_workspace_path.
         f"--volume={daemon_workspace_path(workspace_dir)}:/workspace:ro",
+        # Run the command under a plain shell regardless of what the image
+        # declares. Without this, an image with its own ENTRYPOINT wraps our
+        # command in it: ocaml/opam prefixes `opam exec --`, which tries to
+        # write a log into a read-only home and dies before our command runs,
+        # and sbtscala launches sbt. Normalising here means one language config
+        # cannot behave differently from another because of an image's default.
+        "--entrypoint=sh",
         str(base_image),
-        "sh",
         "-c",
         command,
     ]
