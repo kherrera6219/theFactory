@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.08.05
-Last updated: 2026-08-05
+Document version: 2026.08.06
+Last updated: 2026-08-06
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -31,7 +31,117 @@ The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1
 is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
 `docs/EDCP_PHASE_PLAN.md` instead.
 
-### What happened on 2026-08-05 (most recent)
+### What happened on 2026-08-06 (most recent)
+
+Five commits: `87ed6bc`, `4924e9e`, `613e57f`, `4c5991a`, `5c14c4f`. Two defects
+found by inspection, then the code-execution sandbox made functional, then 11
+more languages brought up to the same level.
+
+**Headline: runtime verification went from 1 language to 17.**
+
+**1. `MISSION_POD_MANAGER_ASSIGNED` was emitted with no assignment record**
+(`87ed6bc`). One premise of the original report was wrong and is worth not
+re-deriving: **there are not two execution paths.** `mission_flow_v2` is the only
+lifecycle driver (`lifecycle_interface.get_lifecycle_engine`); the pod worker is
+a *side consumer* of `missions.state` that merely happened to be the sole writer
+of `mission_pod_assignments`. It writes when it *claims* execution -- a different
+fact from "the CEO delegated to pod manager X", and one that never happens for a
+mission no worker picks up. `_prepare_pod_assignment` now writes the record as it
+emits the event, marked `assigned_by: "orchestrator"` and written
+`provisional=True`. Precedence is directional and enforced in the
+`ON CONFLICT ... DO UPDATE ... WHERE` predicate, so no read-then-write race
+exists: a worker claim supersedes a provisional row, a provisional write can
+never overwrite a claim. The worker's `_has_assignment` ignores provisional rows
+-- without that every mission would look claimed and no worker would ever run.
+
+**Root cause of the original 404:** the CEO's `pod_manager_agent_id` was
+constrained to "one of the four pod managers" but not to the one owning the
+mission's *language*, and the two pod-worker gates key off different fields
+(language vs. bound agent id). A cross-pod choice therefore made a mission
+invisible to *every* pod, silently -- Pod A rejects on binding, Pod C on
+language, neither logs. The registry now wins when the language is known, the
+override is recorded in `metadata.pod_manager_routing_correction`, and the
+language gate increments `pod_worker_binding_skips_total{reason="language-mismatch"}`.
+**Proven live:** `mission-03753eb7-a92b-4741-a181-c72ebcc37ec9` reached VERIFIED
+with `/pod-assignment` returning 200.
+
+**2. Gate-failure events made failed missions unopenable** (`4924e9e`).
+`MISSION_EQUIVALENCE_BLOCKED`, `MISSION_SECURITY_COMPLIANCE_BLOCKED` and
+`MISSION_DEPENDENCY_ABSORPTION_BLOCKED` are written to `mission_events`, but none
+were in the `EventType` Literal -- only their happy-path siblings had ever been
+added. `EventType` is the *response model*, so a single unlisted value made
+pydantic reject the entire payload: `/missions/{id}/events`, `/chain-trace` and
+`/operations/alerts` all 500, surfacing as 502 at the gateway. Any mission that
+failed a gate could not be opened in Mission Control at all -- precisely the
+mission an operator needs to read. A guard in
+`tests/services/test_regression_contracts.py` now scans every
+`insert_mission_event` / `transition_mission_state` site. It must follow the
+`asyncio.to_thread(storage.insert_mission_event, ..., "EVENT")` form, where the
+function name is an *argument* rather than a call: a first version matched only
+`name(`, passed cleanly against the broken file, and caught none of the three
+events it was written for.
+
+**3. The RQCA / behavioural-equivalence sandbox now actually executes code**
+(`613e57f`, `4c5991a`). `RQCA_AGENT_ENABLED` was off and nobody remembered why.
+The flag was never the blocker -- **four independent defects each guaranteed
+failure, and the first made the other three unobservable**:
+
+- The orchestrator container had neither the docker CLI nor a socket, so every
+  mission returned `DRY_RUN, "Docker not available"`. Harmless, and useless.
+  This is almost certainly why it was switched off, and it was reasonable.
+- Compiled languages could never have worked: the configs compiled into
+  `/workspace/a.out` while `/workspace` is mounted read-only. Fixing that
+  exposed the next layer -- Docker mounts tmpfs `noexec` by default, so the
+  binary could not be executed. Build output now goes to `SANDBOX_BUILD_DIR`
+  (`/tmp`) and the tmpfs carries `exec`. **No load-bearing protection was
+  relaxed:** rootfs read-only, workspace `:ro`, `--network=none`,
+  `--cap-drop=ALL` and `no-new-privileges` are all unchanged.
+- C# was configured but unrunnable (`dotnet-script` is absent from
+  `mcr.microsoft.com/dotnet/sdk:8.0` and cannot be installed offline). Removed
+  -- see the DRY_RUN-vs-FAIL rule below.
+- Interpreted languages ran in the wrong image: only compiled languages had
+  base-image injection, so a JavaScript mission ran `node` inside
+  `python:3.11-slim` and reported "node: not found" as a defect in the
+  generated code.
+
+Two further problems appeared only once execution was real: **sibling-container
+path resolution** (the daemon resolves `--volume` sources on the *host*, so the
+orchestrator's own tempdir mounts as an empty directory the daemon silently
+creates -- hence `SANDBOX_WORKSPACE_ROOT` + `SANDBOX_WORKSPACE_HOST_ROOT` and
+`daemon_workspace_path`), and **`--cap-drop=ALL` removing `CAP_DAC_OVERRIDE`**,
+which makes the sandbox's root subject to ordinary permission bits so it could
+not read `tempfile`'s 0700 directory (`main.c: Permission denied`, which reads
+like broken code rather than a mount problem).
+
+**4. Eleven more pod languages** (`5c14c4f`). ruby, php, r, julia, ocaml, go,
+zig, haskell, java, kotlin and scala joined c/cpp/rust/python/javascript/
+typescript. The two partial tables (`_EXECUTABLE_LANGUAGE_IMAGES`,
+`_COMPILED_LANGUAGE_CONFIG`) were replaced by a single `_LANGUAGE_RUNTIMES`, and
+`_ALL_LIVE_LANGUAGES` is derived from it -- so "which languages are live" can no
+longer drift from "how do we run them". That split was the direct cause of the
+JavaScript-in-the-Python-image bug. Verified by executing a hello-world through
+the real sandbox: **17 of 17 PASS**, MATLAB correctly `DRY_RUN`.
+
+**The rule that governs this table:** a language listed but unable to run is
+*worse* than an absent one. Listed-but-broken yields `FAIL`, and
+`RQCA_ENFORCEMENT_ENABLED=true` turns `FAIL` into a **blocked mission**; an
+absent language degrades to an honest `DRY_RUN`. That is why `matlab`,
+`mathematica` and `csharp` are currently out.
+
+**Correction to that reasoning, 2026-08-06.** The first pass rejected MATLAB and
+Mathematica as "licence-blocked, nothing we can do", and rejected GNU Octave on
+the grounds that passing Octave asserts something untrue about MATLAB. That
+conflated two different claims. This product is meant to run **with no external
+requirements** -- a per-clone licence is not an option -- so a licence-free
+runtime is the only acceptable design, and the question is what a licence-free
+runtime can honestly verify. The dominant failure mode this gate exists to catch
+is a specialist **silently emitting Python** while labelling it as the target
+language (the 2026-06-30 battery caught exactly that for C and R). Detecting
+*that* needs a parser for the target language, not a bit-exact MATLAB. Provided
+the report never claims more than it checked, a subset runtime is honest and
+useful. See Next Action 1 for the plan and the evidence already gathered.
+
+### What happened on 2026-08-05
 
 **Legal-hold audit artifacts were never being written, and nothing said so.**
 `object_store.ensure_bucket()` created the artifact bucket without
@@ -2260,6 +2370,69 @@ Security alert remediation validation:
 
 ## Next Actions
 
+### Priorities set 2026-08-06 (ahead of the older list below)
+
+1. **Licence-free runtime verification for MATLAB and Mathematica.** Decision
+   taken 2026-08-06: the product must run with **no external requirements**, so
+   a per-clone MathWorks licence or Wolfram network activation is not an option
+   at any price. Use licence-free subset runtimes and make the report say
+   exactly what was checked. Evidence already gathered under the real sandbox
+   flags (`--network=none`, read-only rootfs, no licence):
+
+   - **MATLAB -> `gnuoctave/octave:9.2.0`.** Ready to implement.
+     `env HOME=/tmp octave --no-gui --no-history -q /workspace/{filename}`
+     printed `hi` for a MATLAB hello-world, and — the test that matters —
+     **rejected a realistic Python-fallback artifact with a parse error and
+     exit 1**. That is the failure mode this gate exists for.
+   - **Mathematica -> `mathicsorg/mathics:latest`.** Needs one extra mechanism
+     first. `env HOME=/tmp mathics --quiet --file /workspace/{filename}` runs
+     correctly (note `--file`; `-script` silently does nothing), **but it
+     emitted `Syntax::sntxf` errors on Python source and still exited 0**.
+     Wolfram is an expression language: undefined symbols evaluate to
+     themselves rather than erroring, so an exit-code verdict would return a
+     **false PASS** — strictly worse than the DRY_RUN it replaces. Add an
+     optional `failure_patterns` field to `_LANGUAGE_RUNTIMES` (e.g. `Syntax::`)
+     that marks a run failed on match regardless of exit code, and only then
+     add the language.
+
+   Report honestly in both cases: record the substitute runtime and scope on the
+   report (e.g. `runtime_substitute: "octave"`,
+   `verified_scope: "matlab-subset"`) so nothing downstream can read a pass as
+   full MATLAB compatibility. The same `failure_patterns` mechanism is worth
+   auditing against the existing 17 — any other language whose runtime can print
+   errors and still exit 0 has the same false-PASS exposure.
+
+2. **Pin the four unofficial sandbox images by digest.** `kotlin`
+   (`zenika/kotlin`), `scala` (`sbtscala/scala-sbt:...`), `zig`
+   (`euantorano/zig:master`) and `ocaml` (`ocaml/opam:debian-12-ocaml-5.1`)
+   publish no official image and are referenced by **mutable tags** -- `:master`
+   in particular moves. These images are the containment for untrusted generated
+   code. Reports already carry `base_image_official` so a surprising verdict can
+   be traced to the toolchain rather than blamed on the artifact; pinning is the
+   remaining work.
+3. **Fix the live suite's silent skip.** `LIVE_HTTP_TIMEOUT_SECONDS` defaults to
+   `4.0`, which the first request under pytest exceeds; the probe catches
+   `OSError` and calls `pytest.skip("Live stack not reachable")` against a stack
+   that answers `/readyz` in 0.25s. The run then reports **exit 0 having verified
+   nothing** -- the same "a non-verifying run reads as green" failure the auth
+   fix closed, reached by a different route. Raise the default; 30s is ample.
+4. **Mission Control polling exhausts the API rate limit.** The gateway allows
+   120 req/min keyed by API-key hash, and the UI issues ~13 requests per poll
+   cycle on the *same* `INTERNAL_SERVICE_API_KEY`, so an open browser tab starves
+   every other client and mission creation returns **429**. Worked around on
+   2026-08-06 by stopping `deploy-mission-control-1` before the live run. Give
+   the UI its own key, or exempt read polling from the limit.
+5. **Move sandbox execution to a dedicated service before production.** The
+   orchestrator now mounts `/var/run/docker.sock`, which is effectively root on
+   the host. It is scoped as tightly as the mechanism allows -- uid 10001
+   retained, only the socket's group added, every sandbox carries
+   `SANDBOX_SECURITY_FLAGS` -- and is acceptable for a local dev stack, but it
+   should not ship. The existing `agent-41-rqca` container is the natural home.
+6. **A chat-UI mission is still unproven.** The 2026-08-06 live mission ran
+   through the API (`test_live_mission_chain_and_artifact_integrity`), not the
+   browser. Item 3 in the older list below still stands for the UI path.
+
+
 1. **Post-restart Mission Control UX proof.** Restart the app, then submit a
    real browser mission through Mission Control asking for a modern Angular
    Snake game with a `start.bat` file. Confirm: (a) PM clarification cards
@@ -2315,3 +2488,54 @@ Security alert remediation validation:
 - Archive docs are historical only.
 - The local `.pytest-tmp/` warning can appear in `git status`; it is local
   generated output and should not be committed.
+
+### Running the live-stack suite (added 2026-08-06)
+
+Two settings are required or the run is worthless, and **both fail quietly**:
+
+```bash
+docker stop deploy-mission-control-1
+LIVE_STACK_ENABLED=1 LIVE_HTTP_TIMEOUT_SECONDS=30 \
+  LIVE_MISSION_CHAIN_TIMEOUT_SECONDS=600 OTEL_SDK_DISABLED=true \
+  python -m pytest tests/services/test_live_mission_flow_integration.py -q -rs
+docker start deploy-mission-control-1
+```
+
+Always pass `-rs`. Without the timeout override the suite **skips and still
+exits 0**; without stopping the UI, mission creation returns 429. An `s` in the
+output means nothing was verified, whatever the exit code says.
+
+### RQCA / sandbox execution config (added 2026-08-06)
+
+`.env` is gitignored, so these are **local-only** -- a fresh clone silently
+returns `DRY_RUN` for every language until they are set. See `.env.example`,
+which documents them and keeps the safe default of `false`.
+
+- `RQCA_AGENT_ENABLED=true` -- inert on its own; needs the socket and workspace
+  below, both of which compose provides.
+- `SANDBOX_WORKSPACE_HOST_ROOT=<absolute host path>` -- required whenever the
+  orchestrator runs in a container. Sandboxes are *sibling* containers, so the
+  daemon resolves `--volume` sources on the host, not inside the orchestrator.
+  Without it the daemon mounts an empty directory it created itself and every
+  run fails with "no such file".
+- The compose orchestrator service mounts `/var/run/docker.sock` and sets
+  `group_add: ["0"]` -- the socket is `root:root` 0660 and the service runs as
+  uid 10001, so the group is the smallest grant that works.
+
+**To add a language:** add one entry to `_LANGUAGE_RUNTIMES` in `rqca_agent.py`
+(`base_image` + `run_command`, with `{filename}` and `{stem}` substituted).
+Constraints that are invisible from the config file and each of which broke a
+language during bring-up:
+
+- `/workspace` is **read-only** -- build output and caches must go under `/tmp`.
+- `HOME` is not writable -- go, ghc, kotlinc, julia, R and zig all need `HOME`
+  or their cache directory redirected there explicitly.
+- There is **no network** -- nothing may fetch a compiler or package at run time.
+- `--entrypoint=sh` is pinned, because `ocaml/opam` prefixes `opam exec --` and
+  `sbtscala` launches sbt; otherwise a language's behaviour depends on an image
+  default rather than on its config.
+
+`test_every_runtime_respects_the_sandbox_constraints` renders every command and
+fails on workspace writes or toolchain fetches, so adding language 20 does not
+require re-running all 19. Still verify a new language with a real hello-world
+through the sandbox before trusting it.

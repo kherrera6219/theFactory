@@ -65,9 +65,12 @@ def test_live_language_set_is_exactly_the_runtime_table() -> None:
     # rediscovered by watching missions fail:
     #   csharp  -- dotnet-script is not in the SDK image and --network=none
     #              means it cannot be installed at run time.
-    #   matlab / mathematica -- no runnable image without a paid licence or
-    #              network activation. Octave is not a substitute: passing it
-    #              would assert something untrue about MATLAB compatibility.
+    #   matlab / mathematica -- the vendor runtimes need a paid licence or
+    #              network activation, and this product must run with no
+    #              external requirements. The route in is a licence-free
+    #              SUBSET runtime (octave / mathics, both verified to run
+    #              offline) plus a report stating what it actually checked.
+    #              See HANDOFF_CURRENT.md Next Action 1.
     # An absent language returns an honest DRY_RUN. A listed-but-broken one
     # returns FAIL, which RQCA_ENFORCEMENT_ENABLED turns into a blocked mission.
     for language in ("csharp", "c#", "matlab", "mathematica"):

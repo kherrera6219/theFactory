@@ -44,16 +44,30 @@ RQCA_SCHEMA_VERSION = "runtime_qc_report.v1"
 # sandbox; see test_every_live_language_has_a_runtime for the guard that keeps
 # this table and _ALL_LIVE_LANGUAGES in step.
 #
-# NOT PRESENT, deliberately:
-#   csharp/c# -- its config called `dotnet-script`, absent from
-#     mcr.microsoft.com/dotnet/sdk:8.0 and uninstallable offline.
-#   matlab, mathematica -- no runnable image exists without a paid licence
-#     (MathWorks) or network activation (Wolfram Engine), and --network=none
-#     rules the latter out. GNU Octave is NOT a stand-in: passing Octave would
-#     assert something untrue about MATLAB compatibility.
 # A language listed here but unable to run is worse than one that is absent: it
 # yields FAIL, and RQCA_ENFORCEMENT_ENABLED turns FAIL into a blocked mission,
 # whereas an absent language degrades to an honest DRY_RUN.
+#
+# NOT PRESENT YET:
+#   csharp/c# -- its config called `dotnet-script`, absent from
+#     mcr.microsoft.com/dotnet/sdk:8.0 and uninstallable offline.
+#   matlab, mathematica -- the vendor runtimes need a paid licence (MathWorks)
+#     or network activation (Wolfram Engine), and this product must run with no
+#     external requirements, so neither is an option at any price. The route in
+#     is a LICENCE-FREE SUBSET runtime plus a report that states what it checked.
+#     Verified under these exact flags on 2026-08-06:
+#       gnuoctave/octave:9.2.0 ran a MATLAB hello-world AND rejected a realistic
+#         Python-fallback artifact (parse error, exit 1) -- which is the failure
+#         mode this gate exists for. Ready to add.
+#       mathicsorg/mathics:latest ran a Wolfram hello-world with
+#         `mathics --quiet --file ...` (note: `-script` silently does nothing),
+#         BUT printed Syntax::sntxf on Python source and still exited 0. Wolfram
+#         is an expression language -- undefined symbols evaluate to themselves
+#         rather than erroring -- so an exit-code verdict would be a false PASS,
+#         worse than the DRY_RUN it replaces. It needs the `failure_patterns`
+#         mechanism described in HANDOFF_CURRENT.md Next Action 1 first.
+#     When either lands, record the substitute and its scope on the report so a
+#     pass cannot be read as full vendor compatibility.
 _LANGUAGE_RUNTIMES: dict[str, dict[str, str]] = {
     # -- interpreted ---------------------------------------------------------
     "python": {
