@@ -70,7 +70,9 @@ Cheap self-contained hardening follows, then evidence, then features.
   via `live_stack_auth` (they had drifted to 4.0s and 30.0s), and every skip
   says **"NOTHING WAS VERIFIED"**. `LIVE_STACK_REQUIRED=1` turns any skip into a
   failure — set it for any run whose output becomes evidence.
-  *Live re-verification is blocked: see "Stack state" below.*
+  **Live-verified 2026-08-11**: the suite runs with zero env overrides and
+  under `LIVE_STACK_REQUIRED=1`; it previously needed a 30s override or it
+  skipped green.
 - [x] **2 — UI rate-limit exhaustion** *(2026-08-11)*. Read and write traffic
   now use separate Redis buckets: polling a dashboard is not abuse, and
   counting ~13 GETs per cycle against the same 120/min allowance as mission
@@ -108,19 +110,32 @@ Cheap self-contained hardening follows, then evidence, then features.
 
 ---
 
-## Stack state — 2026-08-11 (blocks items 4 and 5)
+## Stack state — 2026-08-11
 
-**The local stack is down.** Only 6 of 55 containers are running; the rest
-exited **137** (SIGKILL/OOM) roughly two days ago, including `minio`, `jaeger`
-and every pod worker and agent.
+**Recovered.** 55 containers running; gateway and orchestrator both ready.
 
-Symptom to recognise: the orchestrator answers `/livez` in milliseconds but
-`/health` and `/readyz` hang for tens of seconds, because both call the object
-store and `minio` no longer resolves. Docker still reported the container
-`healthy` — that status was stale, since the healthcheck itself was hanging.
+Earlier in the session only 6 of 55 were up, the rest exited **137** — almost
+certainly Docker Desktop shutting down across the several days this session
+spanned, not memory exhaustion (the host has 31 GiB and 28 CPUs allocated).
 
-Not restarted here, per the standing rule against poking live infrastructure
-mid-session. The mass exit-137 suggests memory pressure — roughly 10GB of
-language images were pulled during the sandbox work — so a blind restart may
-repeat it. Worth checking Docker Desktop's memory allocation before bringing it
-back up.
+Diagnostic worth keeping: the orchestrator answered `/livez` in milliseconds
+while `/health` and `/readyz` hung for tens of seconds, because both call the
+object store and `minio` had died. Docker still reported the container
+`healthy` — a stale status, since the healthcheck itself was hanging. "Healthy
+but hanging" points at a *dependency* death, not the service's own.
+
+On restart `/readyz` returns 503 until Milvus finishes warming (~1 min); every
+other adapter is ready immediately. That is normal, not a fault.
+
+### Verified in the rebuilt image
+
+| | |
+|---|---|
+| `pypdf` | 6.15.0 (was 6.14.2) |
+| `langgraph-checkpoint-postgres` | 3.1.1 (was 3.1.0) |
+| Docker CLI | 29.7.2 (was 27.5.1) |
+| compose plugin | absent, intended — see the orchestrator Dockerfile |
+
+Disk is the real pressure, not memory: 64 GB reclaimable images and 21 GB build
+cache. Worth a `docker system prune` when convenient — not run here, since it
+is destructive and was not asked for.
