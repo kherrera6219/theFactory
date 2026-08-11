@@ -9,6 +9,86 @@ This plan expands the production-readiness path into **phases → sprints**, wit
 
 ---
 
+---
+
+## Validation against live source — 2026-08-06
+
+Every claim below was checked against code, not against the status docs the plan
+was built from. Three sprints were already complete when the plan was written;
+one of its standards was itself failing.
+
+| Sprint | Verdict | Evidence |
+|---|---|---|
+| 0.1 Pod-assignment consistency | **DONE** (`87ed6bc`) | `provisional=True` write in `phases_build.py`; live proof `mission-03753eb7-…` returns 200 |
+| 0.2 Formalize S1-01 evidence | **OPEN — valid** | no `s1_01*` / UPG-20 file in `docs/evidence/` |
+| 1.1 Multi-mission live proof | **OPEN — partially advanced** | one API-driven live mission green; UI / PORT / failure-injection / fallback still owed |
+| 1.2 BUILD_NEW equivalence decision | **OPEN — now much cheaper** | its Option 2 needed artifact execution, which now exists for 19 languages |
+| 1.3 `type_strategy` coverage | **ALREADY DONE** | all 10 `MissionType` values present; `test_mission_type_routing_coverage.py` exists |
+| 2.1 Delta consumer gate | **OPEN — valid** | `main.py:505` — `handlers = {"sigma": _handle_sigma_knowledge_ready}` |
+| 3.1 Electron packaging | **PARTIALLY DONE** | `next.config.mjs` already off `output: export` and on `standalone`; the 3 user decisions + installer tests remain |
+| 3.2 Repo ZIP import | **OPEN — valid** | migration plan Phases 1–4 complete, 5–7 open |
+| 3.3 Operator polish | **OPEN — partially advanced** | LogicNode panel is now mission-type aware; a real graph still needs a transform mission |
+| 4.1 Measurement before enforcement | **OPEN — valid** | `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED=false` |
+| 4.2 Final documentation package | **OPEN** | depends on the above |
+
+### Corrections to the plan's own premises
+
+1. **"The durable writers currently live primarily in the pod-worker path"** —
+   no longer true, and the framing behind it was wrong. There are not two
+   execution paths. `mission_flow_v2` is the only lifecycle driver
+   (`lifecycle_interface.get_lifecycle_engine`); the pod worker is a *side
+   consumer* of `missions.state` that merely happened to be the sole writer of
+   the record. The plan's "Preferred" option is what shipped.
+2. **Cited pod-worker lines ~1252 / ~1425 no longer locate the writers.** The
+   plan flagged this itself as medium confidence; treat it as confirmed stale.
+3. **"`scripts/production_review_audit.py` still 23/23"** was **22/23** when this
+   plan was written. DOC-006 asserted the literal string
+   `"Last validated: 2026-06-26"` in `AGENTS.md`; revalidating that file on
+   2026-08-01 broke the check, and the only way to pass was to backdate the
+   timestamp — inverting the purpose of a staleness check. Fixed in `371ad85`
+   (parse + floor). Back to 23/23. **Any exit criterion that cites 23/23 was
+   citing a number that did not hold.**
+4. **"Beta emission site in `phases_build.py`"** — `CURRENT_TODO.md` records that
+   the findings doc named the wrong function and the emission went into
+   `_prepare_specialist_plan`. Inherited error; re-read before acting on 1.1.
+5. **Date skew.** This plan is dated 2026-08-07, the harness reports 2026-08-10,
+   and container clocks read 2026-08-06 (the dates used in today's commits and
+   handoff). Worth resolving before evidence filenames are minted, since the
+   promotion gate consumes them by date.
+
+### Missing from the plan (added 2026-08-06, none of it known when it was written)
+
+The plan predates the RQCA/sandbox work, which changes two of its sprints and
+adds five items it does not cover:
+
+- **Runtime verification now covers 19 of 19 pod languages**, each with a
+  positive *and* a negative control (`scripts/rqca_language_audit.py`). This is
+  the capability Sprint 1.2's Option 2 assumed was missing.
+- **Pin `kotlin`/`scala`/`zig`/`ocaml` sandbox images by digest.** They have no
+  official image and are referenced by mutable tags; `euantorano/zig:master`
+  moves. These images are the containment for untrusted generated code.
+- **The live suite silently skips.** `LIVE_HTTP_TIMEOUT_SECONDS` defaults to 4.0s
+  and the probe treats the resulting `OSError` as "stack unreachable", so the
+  run reports **exit 0 having verified nothing**. Any sprint whose exit criterion
+  is "live suites still green" is at risk of passing vacuously.
+- **Mission Control polling exhausts the API rate limit** (120/min on the shared
+  key, ~13 requests per poll cycle), returning 429 to every other client
+  including the live suite.
+- **Sandbox execution should move out of the orchestrator before production.**
+  The plan's "sandbox rule" (one `docker run` path) is still honoured, but the
+  orchestrator now mounts `/var/run/docker.sock` to satisfy it — effectively host
+  root. `agent-41-rqca` is the natural home.
+- **C# has no offline runtime** (`dotnet-script` uninstallable with
+  `--network=none`); it returns an honest DRY_RUN.
+
+### Recommended revision to the critical path
+
+Sprint 0.1 is done and 1.3 needs nothing, so the real head of the queue is
+**0.2 → 1.1**. Fix the live-suite timeout *before* 1.1, or its evidence may be
+produced by a run that verified nothing.
+
+---
+
 ## Standards That Apply to Every Sprint (Do Not Relax)
 
 - **Code is truth.** Verify against live source before claiming a gap is closed.
