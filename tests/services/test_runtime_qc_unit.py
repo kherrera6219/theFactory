@@ -38,15 +38,17 @@ def test_testdata_manifest_is_safe_and_capped() -> None:
 
 
 def test_rqca_unsupported_language_returns_dry_run() -> None:
-    # MATLAB has no runnable image (paid licence), so it must always return
-    # DRY_RUN regardless of Docker rather than a FAIL that blocks the mission.
+    # C# has no runnable offline image (dotnet-script is absent from the SDK
+    # image and --network=none blocks installing it), so it must always return
+    # DRY_RUN rather than a FAIL that RQCA_ENFORCEMENT_ENABLED would turn into a
+    # blocked mission.
     result = asyncio.run(
         rqca_agent.run_runtime_qc(
             mission_id="mission-1",
-            generated_output={"filename": "main.m", "generated_code": "disp('x')"},
+            generated_output={"filename": "Main.cs", "generated_code": "class M {}"},
             testdata_manifest={},
             integration_tests=None,
-            language="matlab",
+            language="csharp",
             settings=SimpleNamespace(docker_bin="docker"),
         )
     )
@@ -61,20 +63,50 @@ def test_live_language_set_is_exactly_the_runtime_table() -> None:
     for language in ("c", "cpp", "rust", "go", "java", "kotlin", "scala", "haskell"):
         assert language in rqca_agent._ALL_LIVE_LANGUAGES
 
-    # Absent on purpose, and each for a reason that would otherwise be
-    # rediscovered by watching missions fail:
-    #   csharp  -- dotnet-script is not in the SDK image and --network=none
-    #              means it cannot be installed at run time.
-    #   matlab / mathematica -- the vendor runtimes need a paid licence or
-    #              network activation, and this product must run with no
-    #              external requirements. The route in is a licence-free
-    #              SUBSET runtime (octave / mathics, both verified to run
-    #              offline) plus a report stating what it actually checked.
-    #              See HANDOFF_CURRENT.md Next Action 1.
-    # An absent language returns an honest DRY_RUN. A listed-but-broken one
-    # returns FAIL, which RQCA_ENFORCEMENT_ENABLED turns into a blocked mission.
-    for language in ("csharp", "c#", "matlab", "mathematica"):
+    # matlab and mathematica run on licence-free subset interpreters, because the
+    # product must work with no external requirements and a per-clone vendor
+    # licence is not an option at any price.
+    for language in ("matlab", "mathematica"):
+        assert language in rqca_agent._ALL_LIVE_LANGUAGES
+
+    # C# is still absent: dotnet-script is not in the SDK image and
+    # --network=none means it cannot be installed at run time. An absent
+    # language returns an honest DRY_RUN; a listed-but-broken one returns FAIL,
+    # which RQCA_ENFORCEMENT_ENABLED turns into a blocked mission.
+    for language in ("csharp", "c#"):
         assert language not in rqca_agent._ALL_LIVE_LANGUAGES
+
+
+def test_substitute_runtimes_declare_what_they_actually_verified() -> None:
+    """A subset interpreter must never let a pass read as vendor compatibility.
+
+    Octave is not MATLAB and Mathics is not Mathematica. Running on them is
+    honest -- it catches the Python-fallback substitution this gate exists for --
+    but only while the report says which interpreter ran and how far the claim
+    extends.
+    """
+    for language in ("matlab", "mathematica"):
+        runtime = rqca_agent._LANGUAGE_RUNTIMES[language]
+        assert runtime.get("runtime_substitute"), (
+            f"{language} runs on a substitute interpreter but does not name it"
+        )
+        assert runtime.get("verified_scope", "").endswith("subset"), (
+            f"{language} must declare a subset scope, got "
+            f"{runtime.get('verified_scope')!r}"
+        )
+
+
+def test_wolfram_needs_failure_patterns_because_it_exits_zero_on_bad_input() -> None:
+    """Exit code is not a verdict for an expression language.
+
+    Wolfram evaluates an undefined symbol to itself rather than erroring, so
+    mathics printed Syntax::sntxf on Python source and still exited 0. Without a
+    pattern the verdict would be a FALSE PASS -- worse than the DRY_RUN it
+    replaced, because it asserts a verification that never happened.
+    """
+    patterns = rqca_agent._LANGUAGE_RUNTIMES["mathematica"].get("failure_patterns")
+    assert patterns, "mathematica must declare failure patterns"
+    assert any("Syntax::" in str(p) for p in patterns), patterns
 
 
 def test_every_runtime_respects_the_sandbox_constraints() -> None:
@@ -332,3 +364,30 @@ def test_pod_audit_offline_fallback_is_degraded() -> None:
     assert result["status"] == "degraded"
     assert result["advisory"] is True
     assert result["reason"] == "LLM unavailable — gate bypassed"
+
+
+def test_php_requires_an_opening_tag_before_it_will_run() -> None:
+    """PHP echoes a file with no `<?php` tag and exits 0.
+
+    That made a Python artifact renamed `.php` return PASS -- the precise
+    substitution this gate exists to catch. Caught by the negative-control audit
+    rather than by review, so it is pinned here.
+    """
+    command = rqca_agent._LANGUAGE_RUNTIMES["php"]["run_command"].format(
+        filename="main.php", stem="main"
+    )
+    assert "<?php" in command, (
+        "php runtime no longer verifies the opening tag, so any plain-text file "
+        f"will be echoed and pass: {command}"
+    )
+
+
+def test_typescript_runs_on_a_runtime_that_understands_types() -> None:
+    """`node` cannot parse type annotations.
+
+    On node, only TypeScript that happened to also be valid JavaScript passed,
+    and every genuinely typed artifact FAILED -- which under
+    RQCA_ENFORCEMENT_ENABLED blocks the mission.
+    """
+    runtime = rqca_agent._LANGUAGE_RUNTIMES["typescript"]
+    assert "node:" not in runtime["base_image"], runtime["base_image"]

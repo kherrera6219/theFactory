@@ -51,24 +51,18 @@ RQCA_SCHEMA_VERSION = "runtime_qc_report.v1"
 # NOT PRESENT YET:
 #   csharp/c# -- its config called `dotnet-script`, absent from
 #     mcr.microsoft.com/dotnet/sdk:8.0 and uninstallable offline.
-#   matlab, mathematica -- the vendor runtimes need a paid licence (MathWorks)
-#     or network activation (Wolfram Engine), and this product must run with no
-#     external requirements, so neither is an option at any price. The route in
-#     is a LICENCE-FREE SUBSET runtime plus a report that states what it checked.
-#     Verified under these exact flags on 2026-08-06:
-#       gnuoctave/octave:9.2.0 ran a MATLAB hello-world AND rejected a realistic
-#         Python-fallback artifact (parse error, exit 1) -- which is the failure
-#         mode this gate exists for. Ready to add.
-#       mathicsorg/mathics:latest ran a Wolfram hello-world with
-#         `mathics --quiet --file ...` (note: `-script` silently does nothing),
-#         BUT printed Syntax::sntxf on Python source and still exited 0. Wolfram
-#         is an expression language -- undefined symbols evaluate to themselves
-#         rather than erroring -- so an exit-code verdict would be a false PASS,
-#         worse than the DRY_RUN it replaces. It needs the `failure_patterns`
-#         mechanism described in HANDOFF_CURRENT.md Next Action 1 first.
-#     When either lands, record the substitute and its scope on the report so a
-#     pass cannot be read as full vendor compatibility.
-_LANGUAGE_RUNTIMES: dict[str, dict[str, str]] = {
+#
+# LICENCE-FREE SUBSTITUTES (matlab, mathematica): the vendor runtimes need a
+# paid licence (MathWorks) or network activation (Wolfram Engine), and this
+# product must run with no external requirements, so neither is an option at any
+# price. They run on open-source subset interpreters instead. That is honest
+# because of what this gate is actually for: catching a specialist that silently
+# emitted Python under the target language's label. Detecting that needs a
+# *parser for the language*, not bit-exact vendor semantics -- and both subsets
+# reject Python source. Entries carry `runtime_substitute` and `verified_scope`,
+# which are copied onto every report so a pass can never be read as full vendor
+# compatibility.
+_LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
     # -- interpreted ---------------------------------------------------------
     "python": {
         "base_image": "python:3.11-slim",
@@ -79,16 +73,30 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, str]] = {
         "run_command": "node /workspace/{filename}",
     },
     "typescript": {
-        "base_image": "node:20-slim",
-        "run_command": "node /workspace/{filename}",
+        # Deno, not node: node cannot parse type annotations, so every genuinely
+        # typed artifact FAILED and only TypeScript that happened to be valid
+        # JavaScript passed. Deno also type-checks, which is a stronger check
+        # than stripping types would give.
+        "base_image": "denoland/deno:latest",
+        "run_command": (
+            "env HOME=/tmp DENO_DIR=/tmp/deno deno run --quiet /workspace/{filename}"
+        ),
     },
     "ruby": {
         "base_image": "ruby:3.3-slim",
         "run_command": "ruby /workspace/{filename}",
     },
     "php": {
+        # The grep guard is load bearing. PHP treats a file with no `<?php` tag
+        # as plain text and simply echoes it, exit 0 -- so a Python artifact
+        # renamed .php PASSED, the exact substitution this gate exists to catch.
+        # Found by the negative-control audit, not by review.
         "base_image": "php:8.3-cli",
-        "run_command": "php /workspace/{filename}",
+        "run_command": (
+            "grep -qF '<?php' /workspace/{filename} "
+            "&& php -l /workspace/{filename} > /dev/null "
+            "&& php /workspace/{filename}"
+        ),
     },
     "r": {
         "base_image": "r-base:4.4.1",
@@ -163,6 +171,33 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, str]] = {
             "env HOME=/tmp kotlinc /workspace/{filename} -include-runtime -d /tmp/a.jar "
             "&& java -jar /tmp/a.jar"
         ),
+    },
+    # -- licence-free subset runtimes ----------------------------------------
+    "matlab": {
+        # GNU Octave. Verified 2026-08-06 under the real sandbox flags: runs a
+        # MATLAB hello-world, and rejects a realistic Python-fallback artifact
+        # with a parse error and exit 1.
+        "base_image": "gnuoctave/octave:9.2.0",
+        "run_command": (
+            "env HOME=/tmp octave --no-gui --no-history -q /workspace/{filename}"
+        ),
+        "runtime_substitute": "octave",
+        "verified_scope": "matlab-subset",
+    },
+    "mathematica": {
+        # Mathics3. `--file` is required: `-script` silently does nothing.
+        #
+        # failure_patterns is not optional here. Wolfram is an expression
+        # language, so an undefined symbol evaluates to itself rather than
+        # erroring: fed Python source, mathics printed Syntax::sntxf and still
+        # exited 0. An exit-code-only verdict would therefore return a FALSE
+        # PASS -- strictly worse than the DRY_RUN it replaces, because it would
+        # assert a verification that never happened.
+        "base_image": "mathicsorg/mathics:latest",
+        "run_command": "env HOME=/tmp mathics --quiet --file /workspace/{filename}",
+        "runtime_substitute": "mathics",
+        "verified_scope": "wolfram-language-subset",
+        "failure_patterns": ["Syntax::"],
     },
     "scala": {
         "base_image": "sbtscala/scala-sbt:eclipse-temurin-jammy-21.0.2_13_1.9.9_3.4.0",
@@ -532,6 +567,9 @@ async def run_runtime_qc(
         testdata_manifest.setdefault(
             "run_command", runtime["run_command"].format(filename=filename, stem=stem)
         )
+        for carried in ("failure_patterns", "runtime_substitute", "verified_scope"):
+            if runtime.get(carried) is not None:
+                testdata_manifest.setdefault(carried, runtime[carried])
 
     result = await _execute_in_sandbox(
         docker_bin=docker_bin,
@@ -805,6 +843,23 @@ async def _execute_in_sandbox(
     )
     expected_exit_code = int(testdata_manifest.get("expected_exit_code") or 0)
     passed = exit_code == expected_exit_code
+    # Some runtimes report a fatal problem without a non-zero exit code, so the
+    # exit code alone is not a verdict. Mathics is the case that forced this:
+    # Wolfram evaluates an undefined symbol to itself instead of erroring, so
+    # Python source produced Syntax::sntxf messages and exit 0. Treating that as
+    # a pass would assert a verification that never happened.
+    matched_failure_pattern: str | None = None
+    raw_patterns = testdata_manifest.get("failure_patterns") or []
+    if isinstance(raw_patterns, (list, tuple)):
+        combined_output = (
+            stdout_bytes.decode("utf-8", errors="replace")
+            + stderr_bytes.decode("utf-8", errors="replace")
+        )
+        for pattern in raw_patterns:
+            if str(pattern) and str(pattern) in combined_output:
+                matched_failure_pattern = str(pattern)
+                passed = False
+                break
     return {
         "schema_version": RQCA_SCHEMA_VERSION,
         "mission_id": mission_id,
@@ -819,6 +874,12 @@ async def _execute_in_sandbox(
         # Recorded so a surprising verdict can be traced to a third-party
         # toolchain image rather than assumed to be a defect in the artifact.
         "base_image_official": language.strip().lower() not in _UNOFFICIAL_IMAGE_LANGUAGES,
+        # Present only when a licence-free subset interpreter stood in for the
+        # vendor runtime, so nothing downstream can read this pass as full
+        # vendor compatibility.
+        "runtime_substitute": testdata_manifest.get("runtime_substitute"),
+        "verified_scope": testdata_manifest.get("verified_scope") or language.strip().lower(),
+        "failed_on_pattern": matched_failure_pattern,
         "language": language,
         "filename": filename,
         "timeout_seconds": timeout,

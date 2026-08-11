@@ -2372,35 +2372,17 @@ Security alert remediation validation:
 
 ### Priorities set 2026-08-06 (ahead of the older list below)
 
-1. **Licence-free runtime verification for MATLAB and Mathematica.** Decision
-   taken 2026-08-06: the product must run with **no external requirements**, so
-   a per-clone MathWorks licence or Wolfram network activation is not an option
-   at any price. Use licence-free subset runtimes and make the report say
-   exactly what was checked. Evidence already gathered under the real sandbox
-   flags (`--network=none`, read-only rootfs, no licence):
-
-   - **MATLAB -> `gnuoctave/octave:9.2.0`.** Ready to implement.
-     `env HOME=/tmp octave --no-gui --no-history -q /workspace/{filename}`
-     printed `hi` for a MATLAB hello-world, and — the test that matters —
-     **rejected a realistic Python-fallback artifact with a parse error and
-     exit 1**. That is the failure mode this gate exists for.
-   - **Mathematica -> `mathicsorg/mathics:latest`.** Needs one extra mechanism
-     first. `env HOME=/tmp mathics --quiet --file /workspace/{filename}` runs
-     correctly (note `--file`; `-script` silently does nothing), **but it
-     emitted `Syntax::sntxf` errors on Python source and still exited 0**.
-     Wolfram is an expression language: undefined symbols evaluate to
-     themselves rather than erroring, so an exit-code verdict would return a
-     **false PASS** — strictly worse than the DRY_RUN it replaces. Add an
-     optional `failure_patterns` field to `_LANGUAGE_RUNTIMES` (e.g. `Syntax::`)
-     that marks a run failed on match regardless of exit code, and only then
-     add the language.
-
-   Report honestly in both cases: record the substitute runtime and scope on the
-   report (e.g. `runtime_substitute: "octave"`,
-   `verified_scope: "matlab-subset"`) so nothing downstream can read a pass as
-   full MATLAB compatibility. The same `failure_patterns` mechanism is worth
-   auditing against the existing 17 — any other language whose runtime can print
-   errors and still exit 0 has the same false-PASS exposure.
+1. ~~**Licence-free runtime verification for MATLAB and Mathematica.**~~ **DONE 2026-08-06.**
+   Both ship on licence-free subset interpreters (`gnuoctave/octave:9.2.0`,
+   `mathicsorg/mathics:latest`), with `runtime_substitute` / `verified_scope`
+   on every report so a pass cannot read as vendor compatibility, and
+   `failure_patterns` (`Syntax::`) for Mathics because Wolfram exits 0 on
+   Python source. **All 19 languages now pass a positive AND a negative
+   control** — `scripts/rqca_language_audit.py`, which should be re-run after
+   any `_LANGUAGE_RUNTIMES` change. That audit found two false-PASS holes
+   invisible to review: PHP echoed a tagless file and exited 0 (Python
+   renamed `.php` PASSED), and TypeScript on `node` failed every genuinely
+   typed artifact. Residual: `csharp` still has no offline runtime.
 
 2. **Pin the four unofficial sandbox images by digest.** `kotlin`
    (`zenika/kotlin`), `scala` (`sbtscala/scala-sbt:...`), `zig`
