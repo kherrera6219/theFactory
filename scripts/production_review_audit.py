@@ -9,6 +9,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+#: Oldest acceptable "Last validated" date in AGENTS.md. A floor, not an
+#: equality: revalidating the doc must never break the check that asks for it.
+_AGENTS_VALIDATED_FLOOR = (2026, 6, 26)
+
 
 @dataclass(frozen=True)
 class AuditResult:
@@ -317,8 +321,21 @@ def check_documentation_drift_controls() -> AuditResult:
         missing_items.append("make validate does not run documentation validation")
     if "python scripts/export_openapi.py --check" not in makefile:
         missing_items.append("make validate does not enforce OpenAPI drift checks")
-    if "Last validated: 2026-06-26" not in agents:
-        missing_items.append("AGENTS.md last validated timestamp is not current")
+    # Parsed and floored, not matched as a literal string. This previously
+    # asserted the exact text "Last validated: 2026-06-26", so revalidating
+    # AGENTS.md -- the very thing the check exists to encourage -- broke it: the
+    # doc legitimately moved forward to 2026-08-01 and DOC-006 began failing.
+    # The only way to make it pass again was to revert the timestamp to a staler
+    # date, which inverts the check's purpose.
+    agents_validated = re.search(r"Last validated:\s*(\d{4})-(\d{2})-(\d{2})", agents)
+    if agents_validated is None:
+        missing_items.append("AGENTS.md has no parseable 'Last validated: YYYY-MM-DD'")
+    elif tuple(int(part) for part in agents_validated.groups()) < _AGENTS_VALIDATED_FLOOR:
+        floor = "{:04d}-{:02d}-{:02d}".format(*_AGENTS_VALIDATED_FLOOR)
+        missing_items.append(
+            f"AGENTS.md last validated {agents_validated.group(1)}-"
+            f"{agents_validated.group(2)}-{agents_validated.group(3)}, older than {floor}"
+        )
     if "Audit Phase 12 Documentation Drift" not in changelog:
         missing_items.append("CHANGELOG.md missing current Phase 12 audit entry")
     if "DOCUMENTATION_INDEX.md" not in docs_index and "Documentation Index" not in docs_index:
