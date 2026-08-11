@@ -115,6 +115,14 @@ MISSION_CREATE_UPSTREAM_RETRY_DELAY_SECONDS = max(
     float(os.getenv("MISSION_CREATE_UPSTREAM_RETRY_DELAY_SECONDS", "0.5")),
 )
 API_RATE_LIMIT_PER_MINUTE = int(os.getenv("API_RATE_LIMIT_PER_MINUTE", "120"))
+# Safe (read-only) methods get their own, larger budget. Polling a dashboard is
+# not abuse, and counting it against the same allowance as mission creation let
+# a single open browser tab 429 every other client. Writes keep the tighter
+# limit above -- this separates the buckets, it does not relax the write one.
+API_READ_RATE_LIMIT_PER_MINUTE = int(
+    os.getenv("API_READ_RATE_LIMIT_PER_MINUTE", str(max(600, API_RATE_LIMIT_PER_MINUTE * 5)))
+)
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_KEY_PREFIX = "ratelimit:api-gateway"
 RATE_LIMIT_HMAC_KEY = os.getenv("RATE_LIMIT_HMAC_KEY", "ratelimit-default").encode()
@@ -787,17 +795,34 @@ def _client_identifier(request: Request) -> str:
     return f"ip:{client_ip}"
 
 
-async def _check_rate_limit(redis_client: Any, identifier: str) -> tuple[bool, int, int]:
+async def _check_rate_limit(
+    redis_client: Any,
+    identifier: str,
+    *,
+    limit: int | None = None,
+    bucket: str = "all",
+) -> tuple[bool, int, int]:
+    """Count one request against *bucket* for *identifier*.
+
+    Read and write traffic use separate buckets so they cannot starve each
+    other. Mission Control polls ~13 read requests per cycle on the same
+    credential the rest of the system uses, which exhausted a single shared
+    120/min budget and made mission creation return 429 -- an open browser tab
+    denied service to every other client, including the live test suite.
+    """
+    # Resolved here, not as a default argument: a default binds at definition
+    # time, so a reconfigured or monkeypatched module constant would be ignored.
+    effective_limit = API_RATE_LIMIT_PER_MINUTE if limit is None else limit
     window = int(time.time() // RATE_LIMIT_WINDOW_SECONDS)
     identifier_hash = hashlib.sha256(identifier.encode("utf-8")).hexdigest()
-    key = f"{RATE_LIMIT_KEY_PREFIX}:{identifier_hash}:{window}"
+    key = f"{RATE_LIMIT_KEY_PREFIX}:{bucket}:{identifier_hash}:{window}"
     current = int(await redis_client.incr(key))
     if current == 1:
         await redis_client.expire(key, RATE_LIMIT_WINDOW_SECONDS + 5)
 
     retry_after = RATE_LIMIT_WINDOW_SECONDS - int(time.time() % RATE_LIMIT_WINDOW_SECONDS)
-    remaining = max(0, API_RATE_LIMIT_PER_MINUTE - current)
-    return current > API_RATE_LIMIT_PER_MINUTE, retry_after, remaining
+    remaining = max(0, effective_limit - current)
+    return current > effective_limit, retry_after, remaining
 
 
 def _parse_stream_json(value: Any) -> dict[str, Any]:
@@ -1942,13 +1967,18 @@ async def _security_and_rate_limit(request: Request, call_next):
     is_probe = path in {"/health", "/readyz", "/metrics"}
     is_stream = path == "/v1/stream/state"
 
-    if API_RATE_LIMIT_PER_MINUTE > 0 and not is_probe and not is_stream:
+    is_safe = request.method.upper() in _SAFE_METHODS
+    active_limit = API_READ_RATE_LIMIT_PER_MINUTE if is_safe else API_RATE_LIMIT_PER_MINUTE
+    if active_limit > 0 and not is_probe and not is_stream:
         redis_client = getattr(app.state, "redis", None)
         redis_ready = bool(getattr(app.state, "redis_ready", False))
         if redis_client is not None and redis_ready:
             try:
                 limited, retry_after, remaining = await _check_rate_limit(
-                    redis_client, _client_identifier(request)
+                    redis_client,
+                    _client_identifier(request),
+                    limit=active_limit,
+                    bucket="read" if is_safe else "write",
                 )
                 if limited:
                     return JSONResponse(
@@ -1956,13 +1986,13 @@ async def _security_and_rate_limit(request: Request, call_next):
                         content={"detail": "rate limit exceeded"},
                         headers={
                             "Retry-After": str(retry_after),
-                            "X-RateLimit-Limit": str(API_RATE_LIMIT_PER_MINUTE),
+                            "X-RateLimit-Limit": str(active_limit),
                             "X-RateLimit-Remaining": "0",
                             "X-Correlation-Id": correlation_id,
                         },
                     )
                 rate_limit_headers = {
-                    "X-RateLimit-Limit": str(API_RATE_LIMIT_PER_MINUTE),
+                    "X-RateLimit-Limit": str(active_limit),
                     "X-RateLimit-Remaining": str(remaining),
                 }
             except (ConnectionError, TimeoutError, OSError, _RedisConnectionError) as exc:

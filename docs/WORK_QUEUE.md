@@ -71,7 +71,13 @@ Cheap self-contained hardening follows, then evidence, then features.
   says **"NOTHING WAS VERIFIED"**. `LIVE_STACK_REQUIRED=1` turns any skip into a
   failure — set it for any run whose output becomes evidence.
   *Live re-verification is blocked: see "Stack state" below.*
-- [ ] 2 — UI rate-limit exhaustion *(not started)*
+- [x] **2 — UI rate-limit exhaustion** *(2026-08-11)*. Read and write traffic
+  now use separate Redis buckets: polling a dashboard is not abuse, and
+  counting ~13 GETs per cycle against the same 120/min allowance as mission
+  creation let one open browser tab 429 every other client. Writes keep the
+  tighter budget (`API_RATE_LIMIT_PER_MINUTE`); reads get
+  `API_READ_RATE_LIMIT_PER_MINUTE` (600). This separates the buckets, it does
+  not relax the write limit.
 - [x] **3 — pin non-official sandbox images by digest** *(2026-08-11)*. Seven
   pinned, not the four originally scoped: `mathicsorg/mathics:latest`,
   `denoland/deno:latest` and `euantorano/zig:master` were all floating.
@@ -79,7 +85,14 @@ Cheap self-contained hardening follows, then evidence, then features.
   to a mutable tag.
 - [ ] 4 — S1-01 evidence *(blocked: needs a live stack)*
 - [ ] 5 — multi-mission live proof matrix *(blocked: needs a live stack)*
-- [ ] 6 — Delta consumer gate
+- [x] **6 — Delta consumer gate (EDCP-02a)** *(2026-08-11)*. `handlers` now
+  registers `delta`; a consumed verdict is recorded on the mission and
+  `_advance_verified_to_complete` refuses COMPLETE without a *passing* one.
+  Absence blocks — that is the exit criterion: a **down consumer stalls the
+  mission visibly** instead of letting it complete as though audited.
+  Correlation is prefix-parsed, never compared for equality. Inert unless
+  `EVENT_DRIVEN_CONTROL_PLANE_ENABLED`. Not yet exercised against a live bus
+  (stack is down).
 - [ ] 7 — BUILD_NEW equivalence decision
 - [ ] 8 — repo ZIP Phases 5–7
 - [ ] 9 — Electron decisions *(blocked on user sign-off)*

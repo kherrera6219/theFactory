@@ -488,6 +488,90 @@ async def _handle_sigma_knowledge_ready(message: dict[str, Any]) -> None:
         )
 
 
+#: Delta ``audit_result`` values that count as a pass. Anything else -- including
+#: an unrecognised value -- is treated as not-a-pass, so a producer that invents
+#: a new verdict blocks rather than sails through.
+_DELTA_PASS_RESULTS = frozenset({"pass", "passed", "verified", "approved", "ok"})
+
+#: Where a consumed Delta verdict is recorded on the mission.
+DELTA_AUDIT_GATE_KEY = "delta_audit_gate"
+
+
+def _mission_id_from_delta(content: dict[str, Any], message: dict[str, Any]) -> str:
+    """Resolve the mission a Delta verdict belongs to.
+
+    ``findings.mission_id`` is authoritative. The correlation id is the fallback
+    and is parsed by PREFIX, never compared for equality: the bus reuses
+    correlation ids for replay and dedup, and the producer builds them as
+    ``delta-<mission_id>-<pod_name>``.
+    """
+    findings = content.get("findings")
+    findings = findings if isinstance(findings, dict) else {}
+    mission_id = str(findings.get("mission_id") or "").strip()
+    if mission_id:
+        return mission_id
+
+    correlation_id = str(message.get("correlation_id") or "").strip()
+    if correlation_id.startswith("delta-"):
+        remainder = correlation_id[len("delta-") :]
+        # Strip the trailing -<pod_name>; mission ids contain hyphens themselves,
+        # so take everything up to the LAST separator.
+        return remainder.rsplit("-", 1)[0] if "-" in remainder else remainder
+    return ""
+
+
+async def _handle_delta_audit_verdict(message: dict[str, Any]) -> None:
+    """Delta lane handler: record a pod-audit verdict so completion can gate on it.
+
+    This is what makes the Delta lane load bearing rather than telemetry. The
+    verdict is written onto the mission so ``_advance_verified_to_complete`` can
+    refuse COMPLETE without one -- meaning a *down* consumer blocks the mission
+    instead of letting it silently complete, which is the EDCP exit criterion.
+
+    Inert unless ``EVENT_DRIVEN_CONTROL_PLANE_ENABLED``: with the flag off the
+    message is consumed and dropped, so behaviour is byte-identical.
+    """
+    from . import storage  # noqa: PLC0415
+
+    settings = app.state.settings
+    if not getattr(settings, "event_driven_control_plane_enabled", False):
+        return
+
+    payload = message.get("payload") or {}
+    content = payload.get("content") if isinstance(payload, dict) else None
+    content = content if isinstance(content, dict) else {}
+
+    mission_id = _mission_id_from_delta(content, message)
+    if not mission_id:
+        LOGGER.warning("Delta verdict without a resolvable mission_id; ignoring")
+        return
+
+    audit_result = str(content.get("audit_result") or "").strip().lower()
+    findings = content.get("findings") if isinstance(content.get("findings"), dict) else {}
+    mission = await asyncio.to_thread(storage.fetch_mission, settings, mission_id)
+    if mission is None:
+        LOGGER.warning("Delta verdict for unknown mission %s; ignoring", mission_id)
+        return
+
+    metadata = dict(mission.metadata) if isinstance(mission.metadata, dict) else {}
+    metadata[DELTA_AUDIT_GATE_KEY] = {
+        "audit_result": audit_result,
+        "passed": audit_result in _DELTA_PASS_RESULTS,
+        "pod": findings.get("pod"),
+        "verification_method": content.get("verification_method"),
+        "tolerance_score": content.get("tolerance_score"),
+        "consumed_at": datetime.now(UTC).isoformat(),
+        "correlation_id": message.get("correlation_id"),
+    }
+    await asyncio.to_thread(storage.update_mission_metadata, settings, mission_id, metadata)
+    LOGGER.info(
+        "Delta audit verdict consumed: mission=%s result=%s passed=%s",
+        mission_id,
+        audit_result or "<empty>",
+        metadata[DELTA_AUDIT_GATE_KEY]["passed"],
+    )
+
+
 async def protocol_bus_consumer_loop(app: FastAPI) -> None:
     """Run the Protocol Bus consumer, restarting it if the Redis client rotates.
 
@@ -502,7 +586,13 @@ async def protocol_bus_consumer_loop(app: FastAPI) -> None:
         LOGGER.info("Protocol Bus consumer disabled via PROTOCOL_BUS_CONSUMER_ENABLED")
         return
 
-    handlers = {"sigma": _handle_sigma_knowledge_ready}
+    handlers = {
+        "sigma": _handle_sigma_knowledge_ready,
+        # Delta is load bearing when EDCP is on: the gate in
+        # _advance_verified_to_complete refuses COMPLETE without a consumed
+        # verdict, so a down consumer blocks rather than silently completes.
+        "delta": _handle_delta_audit_verdict,
+    }
 
     while True:
         try:

@@ -484,7 +484,10 @@ services:
       INTAKE_TOPIC: intake.feature_contract.created
       MAX_STREAM_LEN: 20000
       IDEMPOTENCY_TTL_SECONDS: 86400
-      API_RATE_LIMIT_PER_MINUTE: 120
+      API_RATE_LIMIT_PER_MINUTE: ${API_RATE_LIMIT_PER_MINUTE:-120}
+      # Read-only methods get their own budget so dashboard polling cannot
+      # starve mission creation. Writes keep the tighter limit above.
+      API_READ_RATE_LIMIT_PER_MINUTE: ${API_READ_RATE_LIMIT_PER_MINUTE:-600}
       RATE_LIMIT_WINDOW_SECONDS: 60
       AUTH_MODE: ${AUTH_MODE:-api_key}
       INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}

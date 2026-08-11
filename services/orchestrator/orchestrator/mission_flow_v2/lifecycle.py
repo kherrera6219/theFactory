@@ -14,6 +14,7 @@ from ..models import MissionState
 from .base import (
     RUNTIME_PHASES,
     _chain_event_exists,
+    _setting_bool,
 )
 from .phases_build import (
     _ensure_verified_build_artifact,
@@ -80,6 +81,47 @@ async def _advance_running_to_gating(
     return True
 
 
+async def _delta_audit_gate(*, settings: Any, mission: Any) -> tuple[bool, dict[str, Any]]:
+    """Require a consumed Delta audit verdict before a mission may COMPLETE.
+
+    Returns ``(True, {})`` unchanged when ``EVENT_DRIVEN_CONTROL_PLANE_ENABLED``
+    is off, so the flag-off path is byte-identical.
+
+    With the flag on, three states are distinguished, and only the first passes:
+    a consumed passing verdict; a consumed failing verdict; and no verdict at
+    all -- which is what a down consumer looks like. Treating "no verdict" as
+    permission would recreate exactly the silent completion this gate exists to
+    prevent.
+    """
+    # _setting_bool, not bool(getattr(...)): a non-bool settings value (a mock,
+    # a stray string) must fall back to the default rather than read as True.
+    # A gate that switches itself on because a value was the wrong type is a
+    # gate that blocks missions nobody asked it to block.
+    if not _setting_bool(settings, "event_driven_control_plane_enabled", False):
+        return True, {}
+
+    metadata = mission.metadata if isinstance(mission.metadata, dict) else {}
+    gate = metadata.get("delta_audit_gate")
+    if not isinstance(gate, dict):
+        return False, {
+            "reason": "no Delta audit verdict has been consumed for this mission",
+            "gate": "delta_audit",
+            "consumer": "protocol-bus-orchestrator",
+            "hint": (
+                "the Delta consumer may be down; the verdict must be consumed off "
+                "the bus, not merely produced"
+            ),
+        }
+    if not gate.get("passed"):
+        return False, {
+            "reason": "consumed Delta audit verdict did not pass",
+            "gate": "delta_audit",
+            "audit_result": gate.get("audit_result"),
+            "pod": gate.get("pod"),
+        }
+    return True, {}
+
+
 async def _advance_verified_to_complete(
     *,
     app: Any,
@@ -93,6 +135,12 @@ async def _advance_verified_to_complete(
     if mission is None:
         return False
     ready, details = await completion_check_fn(settings=settings, mission=mission)
+    if ready:
+        # EDCP: COMPLETE also requires a Delta audit verdict that was actually
+        # CONSUMED off the bus, not merely produced. Folded into the same
+        # ready/details pair so it reuses the MISSION_COMPLETION_BLOCKED path
+        # below rather than duplicating it. Inert with the flag off.
+        ready, details = await _delta_audit_gate(settings=settings, mission=mission)
     if not ready:
         metadata = with_chain_defaults(
             mission.metadata,

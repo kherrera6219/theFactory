@@ -3751,3 +3751,100 @@ class TestPreparePodAssignment:
         assert mission.metadata["assigned_pod_manager_agent_id"] == "AGENT-24-PODC-MGR"
         assert calls[0][2] == "podC"
         assert "pod_manager_routing_correction" not in mission.metadata
+
+
+class TestDeltaAuditGate:
+    """EDCP-02a: a consumed Delta verdict is required before COMPLETE.
+
+    The point of a load-bearing lane is that a *down consumer blocks the
+    mission*. Producing the verdict is not enough -- it must have been consumed
+    off the bus and recorded, otherwise "no verdict" would read as permission
+    and recreate the silent completion this gate exists to prevent.
+    """
+
+    @staticmethod
+    def _mission(metadata: dict[str, Any] | None = None) -> MagicMock:
+        mission = _make_mission()
+        mission.metadata = metadata if metadata is not None else {}
+        return mission
+
+    @pytest.mark.asyncio
+    async def test_flag_off_is_byte_identical(self) -> None:
+        settings = _make_settings()
+        settings.event_driven_control_plane_enabled = False
+        ready, details = await orchestrator_mission_flow_v2_lifecycle._delta_audit_gate(
+            settings=settings, mission=self._mission()
+        )
+        assert (ready, details) == (True, {})
+
+    @pytest.mark.asyncio
+    async def test_absent_verdict_blocks_because_that_is_a_down_consumer(self) -> None:
+        settings = _make_settings()
+        settings.event_driven_control_plane_enabled = True
+        ready, details = await orchestrator_mission_flow_v2_lifecycle._delta_audit_gate(
+            settings=settings, mission=self._mission()
+        )
+        assert ready is False
+        assert details["gate"] == "delta_audit"
+        assert "consumed" in details["reason"]
+
+    @pytest.mark.asyncio
+    async def test_consumed_failing_verdict_blocks(self) -> None:
+        settings = _make_settings()
+        settings.event_driven_control_plane_enabled = True
+        mission = self._mission(
+            {"delta_audit_gate": {"audit_result": "fail", "passed": False, "pod": "podA"}}
+        )
+        ready, details = await orchestrator_mission_flow_v2_lifecycle._delta_audit_gate(
+            settings=settings, mission=mission
+        )
+        assert ready is False
+        assert details["audit_result"] == "fail"
+
+    @pytest.mark.asyncio
+    async def test_consumed_passing_verdict_allows_completion(self) -> None:
+        settings = _make_settings()
+        settings.event_driven_control_plane_enabled = True
+        mission = self._mission(
+            {"delta_audit_gate": {"audit_result": "pass", "passed": True, "pod": "podA"}}
+        )
+        ready, details = await orchestrator_mission_flow_v2_lifecycle._delta_audit_gate(
+            settings=settings, mission=mission
+        )
+        assert (ready, details) == (True, {})
+
+    @pytest.mark.asyncio
+    async def test_unrecognised_verdict_does_not_pass(self) -> None:
+        """A producer inventing a new verdict must block, not sail through."""
+        settings = _make_settings()
+        settings.event_driven_control_plane_enabled = True
+        mission = self._mission(
+            {"delta_audit_gate": {"audit_result": "probably-fine", "passed": False}}
+        )
+        ready, _ = await orchestrator_mission_flow_v2_lifecycle._delta_audit_gate(
+            settings=settings, mission=mission
+        )
+        assert ready is False
+
+
+def test_delta_correlation_id_is_parsed_by_prefix_never_equality() -> None:
+    """The bus reuses correlation ids for replay/dedup, so equality is wrong.
+
+    The producer builds `delta-<mission_id>-<pod_name>` and mission ids contain
+    hyphens themselves, so the pod suffix must be stripped from the right.
+    """
+    import orchestrator.main as orchestrator_main
+
+    resolved = orchestrator_main._mission_id_from_delta(
+        {}, {"correlation_id": "delta-mission-03753eb7-a92b-4741-a181-c72ebcc37ec9-podA"}
+    )
+    assert resolved == "mission-03753eb7-a92b-4741-a181-c72ebcc37ec9"
+
+    # findings.mission_id is authoritative when present.
+    assert (
+        orchestrator_main._mission_id_from_delta(
+            {"findings": {"mission_id": "mission-abc"}},
+            {"correlation_id": "delta-mission-zzz-podB"},
+        )
+        == "mission-abc"
+    )

@@ -464,3 +464,46 @@ def test_maintenance_routes_proxy_call_signatures(monkeypatch) -> None:
     paths = [c[0] for c in captured]
     assert "/internal/maintenance/diagnostics" in paths
     assert "/internal/maintenance/backup" in paths
+
+
+def test_read_and_write_rate_limits_use_separate_buckets() -> None:
+    """A polling dashboard must not be able to starve mission creation.
+
+    Mission Control issues ~13 read requests per poll cycle on the same
+    credential everything else uses. Against one shared 120/min budget that
+    exhausted the allowance and mission creation returned 429 -- an open browser
+    tab denying service to every other client, including the live test suite.
+    """
+    import api_gateway.main as gateway
+
+    assert gateway.API_READ_RATE_LIMIT_PER_MINUTE > gateway.API_RATE_LIMIT_PER_MINUTE, (
+        "read budget must exceed the write budget or polling still starves writes"
+    )
+    assert "GET" in gateway._SAFE_METHODS
+    assert "POST" not in gateway._SAFE_METHODS, (
+        "mission creation must stay on the tighter write budget"
+    )
+
+
+def test_rate_limit_bucket_is_part_of_the_redis_key() -> None:
+    """Separate limits are meaningless if both increment the same counter."""
+    import asyncio
+
+    import api_gateway.main as gateway
+
+    keys: list[str] = []
+
+    class _Redis:
+        async def incr(self, key: str) -> int:
+            keys.append(key)
+            return 1
+
+        async def expire(self, key: str, ttl: int) -> None:
+            return None
+
+    async def _exercise() -> None:
+        await gateway._check_rate_limit(_Redis(), "same-caller", limit=10, bucket="read")
+        await gateway._check_rate_limit(_Redis(), "same-caller", limit=10, bucket="write")
+
+    asyncio.run(_exercise())
+    assert len(keys) == 2 and keys[0] != keys[1], keys
