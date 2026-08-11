@@ -232,6 +232,30 @@ _SCRIPT_EXTENSIONS = {"js", "mjs", "cjs", "ts", "tsx", "jsx"}
 _NODE_CHECK_LANGUAGES = {"javascript", "typescript"}
 
 
+def _compose_available() -> bool:
+    """True when the docker CLI has a working `compose` subcommand.
+
+    Only consulted on the multi-container branch, so the subprocess cost is paid
+    at most once per such mission.
+    """
+    import shutil  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+
+    docker_bin = shutil.which("docker")
+    if not docker_bin:
+        return False
+    try:
+        completed = subprocess.run(  # noqa: S603
+            [docker_bin, "compose", "version"],
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return completed.returncode == 0
+
+
 async def _check_docker_available(docker_bin: str = "docker") -> bool:
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -753,6 +777,22 @@ async def _execute_in_sandbox(
         (workspace / filename).write_text(code, encoding="utf-8")
         if test_code.strip():
             (workspace / f"test_{filename}").write_text(test_code, encoding="utf-8")
+
+        if multi_container and testdata_manifest.get("services") and not _compose_available():
+            # The compose plugin is not shipped in the orchestrator image (see
+            # services/orchestrator/Dockerfile for why). Say so plainly rather
+            # than failing deep in a subprocess with "docker: 'compose' is not a
+            # docker command", which reads like a defect in the artifact.
+            return _dry_run_report(
+                mission_id=mission_id,
+                language=language,
+                filename=filename,
+                testdata_manifest=testdata_manifest,
+                reason=(
+                    "Multi-container runtime QC needs the docker compose plugin, "
+                    "which is not installed in the orchestrator image."
+                ),
+            )
 
         if multi_container and testdata_manifest.get("services"):
             # ── Multi-container path: build compose file, run with docker compose ──
