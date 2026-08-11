@@ -77,7 +77,7 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
         # typed artifact FAILED and only TypeScript that happened to be valid
         # JavaScript passed. Deno also type-checks, which is a stronger check
         # than stripping types would give.
-        "base_image": "denoland/deno:latest",
+        "base_image": "denoland/deno:latest@sha256:b429777c3dcff34a6488f365a1537db1640b2d48379b60f5e6206be034472463",
         "run_command": (
             "env HOME=/tmp DENO_DIR=/tmp/deno deno run --quiet /workspace/{filename}"
         ),
@@ -110,7 +110,7 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
     },
     "ocaml": {
         # The opam switch is not on PATH once the image entrypoint is bypassed.
-        "base_image": "ocaml/opam:debian-12-ocaml-5.1",
+        "base_image": "ocaml/opam:debian-12-ocaml-5.1@sha256:441d5fcf1d8d9d1ffab06b651f6bf9f87c4562c3b9d7adf774dbb876d503acc5",
         "run_command": (
             "export HOME=/tmp; export PATH=/home/opam/.opam/5.1/bin:$PATH; "
             "ocaml /workspace/{filename}"
@@ -147,7 +147,7 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
         ),
     },
     "zig": {
-        "base_image": "euantorano/zig:master",
+        "base_image": "euantorano/zig:master@sha256:fc57f6939ebd938b0219b78f3f4dbd8bdb3ebb52ee3d756d2abbbfae0057f3bb",
         "run_command": (
             "env HOME=/tmp zig run /workspace/{filename} "
             "--cache-dir /tmp/zig-cache --global-cache-dir /tmp/zig-global"
@@ -166,7 +166,7 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
         "run_command": "javac -d /tmp /workspace/{filename} && java -cp /tmp {stem}",
     },
     "kotlin": {
-        "base_image": "zenika/kotlin",
+        "base_image": "zenika/kotlin@sha256:6aa73e11c07b361e4cf068dce3745a4bc9f8b0b7d8d0b8cbbcc385539184d46a",
         "run_command": (
             "env HOME=/tmp kotlinc /workspace/{filename} -include-runtime -d /tmp/a.jar "
             "&& java -jar /tmp/a.jar"
@@ -174,10 +174,10 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
     },
     # -- licence-free subset runtimes ----------------------------------------
     "matlab": {
-        # GNU Octave. Verified 2026-08-06 under the real sandbox flags: runs a
+        # GNU Octave. Verified 2026-08-11 under the real sandbox flags: runs a
         # MATLAB hello-world, and rejects a realistic Python-fallback artifact
         # with a parse error and exit 1.
-        "base_image": "gnuoctave/octave:9.2.0",
+        "base_image": "gnuoctave/octave:9.2.0@sha256:100d394c57b86469748d26ddafcf73a1074338a66dabcababe2e4e05146772b9",
         "run_command": (
             "env HOME=/tmp octave --no-gui --no-history -q /workspace/{filename}"
         ),
@@ -193,14 +193,14 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
         # exited 0. An exit-code-only verdict would therefore return a FALSE
         # PASS -- strictly worse than the DRY_RUN it replaces, because it would
         # assert a verification that never happened.
-        "base_image": "mathicsorg/mathics:latest",
+        "base_image": "mathicsorg/mathics:latest@sha256:4c6b5cbe02f38ed8980fd4acbac91bb5ac8f3538cafb8c43150d30ca3090fb4e",
         "run_command": "env HOME=/tmp mathics --quiet --file /workspace/{filename}",
         "runtime_substitute": "mathics",
         "verified_scope": "wolfram-language-subset",
         "failure_patterns": ["Syntax::"],
     },
     "scala": {
-        "base_image": "sbtscala/scala-sbt:eclipse-temurin-jammy-21.0.2_13_1.9.9_3.4.0",
+        "base_image": "sbtscala/scala-sbt:eclipse-temurin-jammy-21.0.2_13_1.9.9_3.4.0@sha256:6a1a1c8f9881cf4d2b9963cb9945e6209087538e79d9237072c6ef09ca4c3ef6",
         "run_command": (
             "env HOME=/tmp scalac -d /tmp /workspace/{filename} "
             "&& env HOME=/tmp scala -cp /tmp {stem}"
@@ -208,6 +208,13 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
     },
 }
 
+# Every image outside Docker Official Images is pinned by digest above.
+# `repo:tag@sha256:...` keeps the tag readable while making the daemon resolve
+# the exact content: three of them were floating tags (`:master`, two `:latest`)
+# and these images are the containment for untrusted generated code, so a
+# silently-moved tag changes what executes it. Re-pin deliberately when
+# upgrading -- `docker buildx imagetools inspect <ref> --format '{{.Manifest.Digest}}'`.
+#
 #: Images not published by Docker Official Images or the language's own vendor.
 #: Recorded on every report so a surprising verdict can be traced to a
 #: third-party toolchain rather than to the generated code. These languages

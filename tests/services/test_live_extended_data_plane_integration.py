@@ -8,16 +8,27 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import pytest
-from live_stack_auth import resolve_internal_service_api_key
+from live_stack_auth import (
+    http_timeout_seconds,
+    probe_timeout_seconds,
+    resolve_internal_service_api_key,
+    skip_or_fail,
+)
 
-GATEWAY_BASE_URL = os.getenv("LIVE_GATEWAY_URL", "http://localhost:8100").rstrip("/")
-ORCHESTRATOR_BASE_URL = os.getenv("LIVE_ORCHESTRATOR_URL", "http://localhost:8101").rstrip("/")
-HTTP_TIMEOUT_SECONDS = float(os.getenv("LIVE_HTTP_TIMEOUT_SECONDS", "30.0"))
+# 127.0.0.1, not localhost: compose binds these ports on IPv4 only
+# (ORCHESTRATOR_HOST_BIND defaults to 127.0.0.1), while `localhost` resolves
+# ::1 first on Windows and pays a fallback penalty -- measured at 2.09s vs
+# 0.02s. That inflated the first request past the old 4s timeout, whose
+# OSError the probe read as "stack unreachable", producing a green run that
+# verified nothing.
+GATEWAY_BASE_URL = os.getenv("LIVE_GATEWAY_URL", "http://127.0.0.1:8100").rstrip("/")
+ORCHESTRATOR_BASE_URL = os.getenv("LIVE_ORCHESTRATOR_URL", "http://127.0.0.1:8101").rstrip("/")
+HTTP_TIMEOUT_SECONDS = http_timeout_seconds()
 # Generous on purpose: a cold gateway can take several seconds to answer /readyz,
 # and a probe that times out would produce a false "stack is down" skip -- exactly
 # the silent non-verification this marker exists to prevent. Connection-refused
 # (the genuinely-down case) returns immediately, so this costs nothing then.
-GATEWAY_PROBE_TIMEOUT_SECONDS = float(os.getenv("LIVE_GATEWAY_PROBE_TIMEOUT_SECONDS", "15.0"))
+GATEWAY_PROBE_TIMEOUT_SECONDS = probe_timeout_seconds()
 COMPOSE_FILE = os.getenv("LIVE_COMPOSE_FILE", "deploy/docker-compose.yaml")
 RUN_DISRUPTION_TESTS = os.getenv("LIVE_ENABLE_DISRUPTION_TESTS", "false").lower() == "true"
 
@@ -133,20 +144,20 @@ def _require_live_stack() -> dict[str, Any]:
             "GET", f"{ORCHESTRATOR_BASE_URL}/readyz"
         )
     except (URLError, TimeoutError, OSError):
-        pytest.skip("Live stack not reachable; skipping live extended-data-plane tests.")
+        skip_or_fail("Live stack not reachable.")
 
     if (
         gateway_status != 200
         or not isinstance(gateway_ready, dict)
         or not gateway_ready.get("ready")
     ):
-        pytest.skip("Gateway is not ready; skipping live extended-data-plane tests.")
+        skip_or_fail("Gateway is not ready.")
     if (
         orchestrator_status != 200
         or not isinstance(orchestrator_ready, dict)
         or not orchestrator_ready.get("ready")
     ):
-        pytest.skip("Orchestrator is not ready; skipping live extended-data-plane tests.")
+        skip_or_fail("Orchestrator is not ready.")
 
     health_status, health_payload = _request_json("GET", f"{ORCHESTRATOR_BASE_URL}/health")
     if health_status != 200 or not isinstance(health_payload, dict):

@@ -61,3 +61,50 @@ def resolve_internal_service_api_key() -> str:
         if candidate.strip():
             return candidate.strip()
     return ""
+
+
+# --- Shared live-run policy -------------------------------------------------
+#
+# Timeouts live here because the two live suites drifted: the extended suite used
+# 30s while the mission-flow suite kept a 4.0s default, and under pytest the
+# first request exceeds 4s even against a stack answering /readyz in 0.25s. The
+# probe caught the resulting OSError, called pytest.skip("not reachable"), and
+# the run reported **exit 0 having verified nothing** -- the same
+# "a non-verifying run reads as green" failure this module was created to stop,
+# reached through timeouts instead of credentials.
+
+def http_timeout_seconds() -> float:
+    """Per-request timeout for live-stack calls."""
+    return float(os.getenv("LIVE_HTTP_TIMEOUT_SECONDS", "30.0"))
+
+
+def probe_timeout_seconds() -> float:
+    """Timeout for the readiness probe that decides whether to run at all.
+
+    Deliberately generous: treating a slow-but-healthy stack as absent is the
+    expensive mistake, because it converts "verified nothing" into a green run.
+    """
+    return float(os.getenv("LIVE_GATEWAY_PROBE_TIMEOUT_SECONDS", "15.0"))
+
+
+def live_stack_required() -> bool:
+    """True when this run must actually verify something.
+
+    Set ``LIVE_STACK_REQUIRED=1`` for any run whose output will be used as
+    evidence. Skipping is right for a developer with no stack; it is wrong for a
+    run that is meant to certify a release, where a skip must be a failure.
+    """
+    return os.getenv("LIVE_STACK_REQUIRED", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def skip_or_fail(reason: str) -> None:
+    """Skip the run, or fail it when the caller declared verification mandatory."""
+    import pytest  # noqa: PLC0415 -- keeps this module importable outside pytest
+
+    message = (
+        f"{reason} NOTHING WAS VERIFIED by this run. Set LIVE_STACK_REQUIRED=1 to "
+        "make this a failure instead of a skip when the result is used as evidence."
+    )
+    if live_stack_required():
+        pytest.fail(message, pytrace=False)
+    pytest.skip(message)

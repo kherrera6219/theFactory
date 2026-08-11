@@ -391,3 +391,26 @@ def test_typescript_runs_on_a_runtime_that_understands_types() -> None:
     """
     runtime = rqca_agent._LANGUAGE_RUNTIMES["typescript"]
     assert "node:" not in runtime["base_image"], runtime["base_image"]
+
+
+def test_non_official_sandbox_images_are_pinned_by_digest() -> None:
+    """Images outside Docker Official Images must be content-addressed.
+
+    These images are the containment for untrusted generated code, so a tag that
+    silently moves changes what executes it. Three were floating when this was
+    written: `euantorano/zig:master` and two `:latest` tags. Docker Official
+    Images are exempt only because they are the project's own curated namespace.
+    """
+    official_namespaces = {
+        "python", "node", "gcc", "rust", "golang", "haskell",
+        "eclipse-temurin", "php", "ruby", "r-base", "julia",
+    }
+    for language, runtime in rqca_agent._LANGUAGE_RUNTIMES.items():
+        image = runtime["base_image"]
+        if image.split(":")[0].split("/")[0] in official_namespaces and "/" not in image.split(":")[0]:
+            continue
+        assert "@sha256:" in image, (
+            f"{language} uses a non-official image by mutable tag: {image}. "
+            "Pin it: docker buildx imagetools inspect <ref> "
+            "--format '{{.Manifest.Digest}}'"
+        )

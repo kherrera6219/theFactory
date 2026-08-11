@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.08.06
-Last updated: 2026-08-06
+Document version: 2026.08.11
+Last updated: 2026-08-11
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -31,7 +31,7 @@ The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1
 is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
 `docs/EDCP_PHASE_PLAN.md` instead.
 
-### What happened on 2026-08-06 (most recent)
+### What happened on 2026-08-11 (most recent)
 
 Five commits: `87ed6bc`, `4924e9e`, `613e57f`, `4c5991a`, `5c14c4f`. Two defects
 found by inspection, then the code-execution sandbox made functional, then 11
@@ -128,7 +128,7 @@ the real sandbox: **17 of 17 PASS**, MATLAB correctly `DRY_RUN`.
 absent language degrades to an honest `DRY_RUN`. That is why `matlab`,
 `mathematica` and `csharp` are currently out.
 
-**Correction to that reasoning, 2026-08-06.** The first pass rejected MATLAB and
+**Correction to that reasoning, 2026-08-11.** The first pass rejected MATLAB and
 Mathematica as "licence-blocked, nothing we can do", and rejected GNU Octave on
 the grounds that passing Octave asserts something untrue about MATLAB. That
 conflated two different claims. This product is meant to run **with no external
@@ -2370,9 +2370,9 @@ Security alert remediation validation:
 
 ## Next Actions
 
-### Priorities set 2026-08-06 (ahead of the older list below)
+### Priorities set 2026-08-11 (ahead of the older list below)
 
-1. ~~**Licence-free runtime verification for MATLAB and Mathematica.**~~ **DONE 2026-08-06.**
+1. ~~**Licence-free runtime verification for MATLAB and Mathematica.**~~ **DONE 2026-08-11.**
    Both ship on licence-free subset interpreters (`gnuoctave/octave:9.2.0`,
    `mathicsorg/mathics:latest`), with `runtime_substitute` / `verified_scope`
    on every report so a pass cannot read as vendor compatibility, and
@@ -2402,7 +2402,7 @@ Security alert remediation validation:
    120 req/min keyed by API-key hash, and the UI issues ~13 requests per poll
    cycle on the *same* `INTERNAL_SERVICE_API_KEY`, so an open browser tab starves
    every other client and mission creation returns **429**. Worked around on
-   2026-08-06 by stopping `deploy-mission-control-1` before the live run. Give
+   2026-08-11 by stopping `deploy-mission-control-1` before the live run. Give
    the UI its own key, or exempt read polling from the limit.
 5. **Move sandbox execution to a dedicated service before production.** The
    orchestrator now mounts `/var/run/docker.sock`, which is effectively root on
@@ -2410,7 +2410,7 @@ Security alert remediation validation:
    retained, only the socket's group added, every sandbox carries
    `SANDBOX_SECURITY_FLAGS` -- and is acceptable for a local dev stack, but it
    should not ship. The existing `agent-41-rqca` container is the natural home.
-6. **A chat-UI mission is still unproven.** The 2026-08-06 live mission ran
+6. **A chat-UI mission is still unproven.** The 2026-08-11 live mission ran
    through the API (`test_live_mission_chain_and_artifact_integrity`), not the
    browser. Item 3 in the older list below still stands for the UI path.
 
@@ -2471,7 +2471,7 @@ Security alert remediation validation:
 - The local `.pytest-tmp/` warning can appear in `git status`; it is local
   generated output and should not be committed.
 
-### Running the live-stack suite (added 2026-08-06)
+### Running the live-stack suite (added 2026-08-11)
 
 Two settings are required or the run is worthless, and **both fail quietly**:
 
@@ -2487,7 +2487,7 @@ Always pass `-rs`. Without the timeout override the suite **skips and still
 exits 0**; without stopping the UI, mission creation returns 429. An `s` in the
 output means nothing was verified, whatever the exit code says.
 
-### RQCA / sandbox execution config (added 2026-08-06)
+### RQCA / sandbox execution config (added 2026-08-11)
 
 `.env` is gitignored, so these are **local-only** -- a fresh clone silently
 returns `DRY_RUN` for every language until they are set. See `.env.example`,

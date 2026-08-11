@@ -7,11 +7,25 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import pytest
-from live_stack_auth import resolve_internal_service_api_key
+from live_stack_auth import (
+    http_timeout_seconds,
+    probe_timeout_seconds,
+    resolve_internal_service_api_key,
+    skip_or_fail,
+)
 
-GATEWAY_BASE_URL = os.getenv("LIVE_GATEWAY_URL", "http://localhost:8100").rstrip("/")
-ORCHESTRATOR_BASE_URL = os.getenv("LIVE_ORCHESTRATOR_URL", "http://localhost:8101").rstrip("/")
-HTTP_TIMEOUT_SECONDS = float(os.getenv("LIVE_HTTP_TIMEOUT_SECONDS", "4.0"))
+# 127.0.0.1, not localhost: compose binds these ports on IPv4 only
+# (ORCHESTRATOR_HOST_BIND defaults to 127.0.0.1), while `localhost` resolves
+# ::1 first on Windows and pays a fallback penalty -- measured at 2.09s vs
+# 0.02s. That inflated the first request past the old 4s timeout, whose
+# OSError the probe read as "stack unreachable", producing a green run that
+# verified nothing.
+GATEWAY_BASE_URL = os.getenv("LIVE_GATEWAY_URL", "http://127.0.0.1:8100").rstrip("/")
+ORCHESTRATOR_BASE_URL = os.getenv("LIVE_ORCHESTRATOR_URL", "http://127.0.0.1:8101").rstrip("/")
+# Shared with the extended suite so the two cannot drift again; the 4.0s that
+# used to live here made this suite skip against a healthy stack.
+HTTP_TIMEOUT_SECONDS = http_timeout_seconds()
+PROBE_TIMEOUT_SECONDS = probe_timeout_seconds()
 # The delegation chain involves several real LLM calls, so this is minutes, not
 # seconds. It covers PM intake through specialist assignment -- not a full build.
 CHAIN_TIMEOUT_SECONDS = float(os.getenv("LIVE_MISSION_CHAIN_TIMEOUT_SECONDS", "300.0"))
@@ -28,6 +42,7 @@ def _request_json(
     *,
     payload: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
+    timeout: float | None = None,
 ) -> tuple[int, Any]:
     request_headers = {"Accept": "application/json"}
     # Authenticate every request from one place. The gateway runs
@@ -45,7 +60,7 @@ def _request_json(
         request_headers.setdefault("Content-Type", "application/json")
 
     request = Request(url, data=body, method=method, headers=request_headers)
-    with urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+    with urlopen(request, timeout=timeout or HTTP_TIMEOUT_SECONDS) as response:
         status = int(response.status)
         raw = response.read().decode("utf-8")
     if not raw:
@@ -57,31 +72,33 @@ def _require_live_stack() -> None:
     if not LIVE_STACK_ENABLED:
         pytest.skip("Live stack tests are opt-in; set LIVE_STACK_ENABLED=1 to run them.")
     if not INTERNAL_SERVICE_API_KEY:
-        pytest.skip(
-            "No gateway credential resolved, so live mission-flow behaviour is NOT verified by "
-            "this run. Set LIVE_INTERNAL_SERVICE_API_KEY (or INTERNAL_SERVICE_API_KEY, or "
-            "LIVE_ENV_FILE) to the value the running stack was started with."
+        skip_or_fail(
+            "No gateway credential resolved. Set LIVE_INTERNAL_SERVICE_API_KEY (or "
+            "INTERNAL_SERVICE_API_KEY, or LIVE_ENV_FILE) to the value the running stack "
+            "was started with."
         )
     try:
-        gateway_status, gateway_ready = _request_json("GET", f"{GATEWAY_BASE_URL}/readyz")
-        orchestrator_status, orchestrator_ready = _request_json(
-            "GET", f"{ORCHESTRATOR_BASE_URL}/readyz"
+        gateway_status, gateway_ready = _request_json(
+            "GET", f"{GATEWAY_BASE_URL}/readyz", timeout=PROBE_TIMEOUT_SECONDS
         )
-    except (URLError, TimeoutError, OSError):
-        pytest.skip("Live stack not reachable; skipping live integration tests.")
+        orchestrator_status, orchestrator_ready = _request_json(
+            "GET", f"{ORCHESTRATOR_BASE_URL}/readyz", timeout=PROBE_TIMEOUT_SECONDS
+        )
+    except (URLError, TimeoutError, OSError) as exc:
+        skip_or_fail(f"Live stack not reachable ({type(exc).__name__}).")
 
     if (
         gateway_status != 200
         or not isinstance(gateway_ready, dict)
         or not gateway_ready.get("ready")
     ):
-        pytest.skip("Gateway is not ready; skipping live integration tests.")
+        skip_or_fail("Gateway is not ready.")
     if (
         orchestrator_status != 200
         or not isinstance(orchestrator_ready, dict)
         or not orchestrator_ready.get("ready")
     ):
-        pytest.skip("Orchestrator is not ready; skipping live integration tests.")
+        skip_or_fail("Orchestrator is not ready.")
 
 
 def test_live_runtime_reports_redis_and_db_ready() -> None:

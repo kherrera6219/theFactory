@@ -11,7 +11,7 @@ This plan expands the production-readiness path into **phases → sprints**, wit
 
 ---
 
-## Validation against live source — 2026-08-06
+## Validation against live source — 2026-08-11
 
 Every claim below was checked against code, not against the status docs the plan
 was built from. Three sprints were already complete when the plan was written;
@@ -52,11 +52,11 @@ one of its standards was itself failing.
    the findings doc named the wrong function and the emission went into
    `_prepare_specialist_plan`. Inherited error; re-read before acting on 1.1.
 5. **Date skew.** This plan is dated 2026-08-07, the harness reports 2026-08-10,
-   and container clocks read 2026-08-06 (the dates used in today's commits and
+   and container clocks read 2026-08-11 (the dates used in today's commits and
    handoff). Worth resolving before evidence filenames are minted, since the
    promotion gate consumes them by date.
 
-### Missing from the plan (added 2026-08-06, none of it known when it was written)
+### Missing from the plan (added 2026-08-11, none of it known when it was written)
 
 The plan predates the RQCA/sandbox work, which changes two of its sprints and
 adds five items it does not cover:
