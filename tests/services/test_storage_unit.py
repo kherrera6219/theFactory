@@ -513,9 +513,14 @@ def test_pod_assignment_claim_may_supersede_a_provisional_row(monkeypatch) -> No
 
     assert record["metadata"] == {"assigned_by": "pod-worker"}
     query, params = used[0].executed[0]
+    # Normalised: these assert the predicate's MEANING, not its line wrapping.
+    normalised = " ".join(query.split())
     # Same pod, or any pod when the existing row is provisional.
-    assert "mission_pod_assignments.pod_name = EXCLUDED.pod_name" in query
-    assert "mission_pod_assignments.metadata_json->>'assigned_by' = %(provisional)s" in query
+    assert "mission_pod_assignments.pod_name = EXCLUDED.pod_name" in normalised
+    assert (
+        "mission_pod_assignments.metadata_json->>'assigned_by' = %(provisional)s"
+        in normalised
+    )
     assert params["provisional"] == "orchestrator"
 
 
@@ -543,10 +548,16 @@ def test_provisional_pod_assignment_never_overwrites_a_claim(monkeypatch) -> Non
 
     assert excinfo.value.existing_assignment["metadata"]["assigned_by"] == "pod-worker"
     query, _params = used[0].executed[0]
+    normalised = " ".join(query.split())
     # No same-pod escape hatch: a provisional write must not be able to downgrade
-    # a claim just because it happens to name the same pod.
-    assert "mission_pod_assignments.pod_name = EXCLUDED.pod_name" not in query
-    assert "mission_pod_assignments.metadata_json->>'assigned_by' = %(provisional)s" in query
+    # a claim just because it happens to name the same pod. Checked on the WHERE
+    # clause alone -- the shared INSERT head legitimately mentions EXCLUDED.
+    where_clause = normalised.split("ON CONFLICT", 1)[1]
+    assert "mission_pod_assignments.pod_name = EXCLUDED.pod_name" not in where_clause
+    assert (
+        "mission_pod_assignments.metadata_json->>'assigned_by' = %(provisional)s"
+        in normalised
+    )
 
 
 def test_is_provisional_assignment_reads_record_or_metadata() -> None:

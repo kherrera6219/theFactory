@@ -11,17 +11,63 @@ from .storage_core import PodAssignmentConflictError, _json_to_dict, _to_iso, ge
 #: delegated the mission, before (or instead of) any pod worker claiming it.
 PROVISIONAL_ASSIGNED_BY = "orchestrator"
 
-#: A claim may replace a provisional row; a provisional write may only replace
-#: another provisional row.  Expressed as ``ON CONFLICT ... DO UPDATE ... WHERE``
-#: predicates -- when the predicate is false Postgres updates nothing and
-#: ``RETURNING`` yields no row, which is how the caller detects a conflict
-#: without a second round trip.
-_CLAIM_CONFLICT_PREDICATE = (
-    "WHERE mission_pod_assignments.pod_name = EXCLUDED.pod_name"
-    " OR mission_pod_assignments.metadata_json->>'assigned_by' = %(provisional)s"
+# Two COMPLETE statements rather than one template with the predicate
+# interpolated. The interpolated value was only ever a module constant, but a
+# reader -- and Bandit (B608) -- cannot tell that from the call site, and an SQL
+# string built by f-string is a pattern worth not having in the codebase at all.
+# Writing both out also makes the difference between them the obvious thing on
+# the page.
+#
+# The rule: a claim may replace a provisional row; a provisional write may only
+# replace another provisional row. Expressed in the
+# ``ON CONFLICT ... DO UPDATE ... WHERE`` predicate -- when it is false Postgres
+# updates nothing and ``RETURNING`` yields no row, which is how the caller
+# detects a conflict without a second round trip.
+_UPSERT_HEAD = """
+                INSERT INTO mission_pod_assignments (
+                    mission_id,
+                    pod_name,
+                    metadata_json,
+                    assigned_at,
+                    updated_at
+                )
+                VALUES (
+                    %(mission_id)s,
+                    %(pod_name)s,
+                    %(metadata)s::jsonb,
+                    %(assigned_at)s::timestamptz,
+                    NOW()
+                )
+                ON CONFLICT (mission_id) DO UPDATE SET
+                    pod_name = EXCLUDED.pod_name,
+                    metadata_json = EXCLUDED.metadata_json,
+                    assigned_at = EXCLUDED.assigned_at,
+                    updated_at = NOW()
+"""
+_UPSERT_TAIL = """
+                RETURNING mission_id, pod_name, metadata_json, assigned_at, updated_at
+"""
+
+#: Worker claim: keep your own row current, or take over a provisional one.
+_CLAIM_UPSERT_SQL = (
+    _UPSERT_HEAD
+    + """
+                WHERE mission_pod_assignments.pod_name = EXCLUDED.pod_name
+                   OR mission_pod_assignments.metadata_json->>'assigned_by'
+                      = %(provisional)s
+"""
+    + _UPSERT_TAIL
 )
-_PROVISIONAL_CONFLICT_PREDICATE = (
-    "WHERE mission_pod_assignments.metadata_json->>'assigned_by' = %(provisional)s"
+
+#: Orchestrator provisional write: insert, or update another provisional row.
+#: Deliberately has no same-pod escape hatch -- it must never downgrade a claim.
+_PROVISIONAL_UPSERT_SQL = (
+    _UPSERT_HEAD
+    + """
+                WHERE mission_pod_assignments.metadata_json->>'assigned_by'
+                      = %(provisional)s
+"""
+    + _UPSERT_TAIL
 )
 
 
@@ -50,33 +96,11 @@ def upsert_pod_assignment(
 
     Raises ``PodAssignmentConflictError`` when the write is refused.
     """
-    predicate = _PROVISIONAL_CONFLICT_PREDICATE if provisional else _CLAIM_CONFLICT_PREDICATE
+    statement = _PROVISIONAL_UPSERT_SQL if provisional else _CLAIM_UPSERT_SQL
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                f"""
-                INSERT INTO mission_pod_assignments (
-                    mission_id,
-                    pod_name,
-                    metadata_json,
-                    assigned_at,
-                    updated_at
-                )
-                VALUES (
-                    %(mission_id)s,
-                    %(pod_name)s,
-                    %(metadata)s::jsonb,
-                    %(assigned_at)s::timestamptz,
-                    NOW()
-                )
-                ON CONFLICT (mission_id) DO UPDATE SET
-                    pod_name = EXCLUDED.pod_name,
-                    metadata_json = EXCLUDED.metadata_json,
-                    assigned_at = EXCLUDED.assigned_at,
-                    updated_at = NOW()
-                {predicate}
-                RETURNING mission_id, pod_name, metadata_json, assigned_at, updated_at
-                """,
+                statement,
                 {
                     "mission_id": mission_id,
                     "pod_name": pod_name,

@@ -137,7 +137,14 @@ SANDBOX_SECURITY_FLAGS: tuple[str, ...] = (
 
 #: The one writable, executable location inside the sandbox. Compiled languages
 #: must place build output here: ``/workspace`` is mounted read-only on purpose.
-SANDBOX_BUILD_DIR = "/tmp"
+#:
+#: nosec B108 -- this is not a host temp path. It names the tmpfs mounted inside
+#: a throwaway, single-use container (see SANDBOX_SECURITY_FLAGS): no other
+#: process shares that namespace, nothing persists past the run, and the
+#: predictable-path/symlink attack B108 guards against has no attacker to
+#: mount it. Making it unpredictable would also break the compile commands,
+#: which must name the directory they build into.
+SANDBOX_BUILD_DIR = "/tmp"  # nosec B108
 
 
 @dataclass(frozen=True, slots=True)
