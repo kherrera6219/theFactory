@@ -1119,8 +1119,17 @@ async def _execute_in_sandbox(
     # short-circuits the ' && ' before the program ever runs, so wrong-language
     # and non-compiling artifacts still fail here.
     exercised = bool(testdata_manifest.get("invocation_args"))
+
+    # A parse-or-compile check has no arguments by nature, so "no invocation was
+    # derived" says nothing about it -- its exit code IS the verdict. Without
+    # this, the rule below swallowed the very failure the check exists to find:
+    # a live PyQt6 artifact came back from `python -m py_compile` with
+    # "IndentationError: unexpected indent (line 42)", exit 1, and was recorded
+    # as PASS.
+    syntax_only = str(testdata_manifest.get("verified_scope") or "").endswith("syntax-only")
+
     not_exercised_note = None
-    if not passed and not exercised:
+    if not passed and not exercised and not syntax_only:
         passed = True
         not_exercised_note = (
             "executed with no arguments because no invocation could be derived "
@@ -1164,7 +1173,10 @@ async def _execute_in_sandbox(
         # What this verdict actually covers. "executed" means the artifact was
         # invoked the way its own usage example documents; "started_only" means
         # it was launched bare, so only startup was observed.
-        "verified_scope_detail": "executed" if exercised else "started_only",
+        "verified_scope_detail": (
+            "syntax_only" if syntax_only else ("executed" if exercised else "started_only")
+        ),
+        "artifact_class": testdata_manifest.get("artifact_class"),
         "invocation_args": testdata_manifest.get("invocation_args") or [],
         "not_exercised_note": not_exercised_note,
         "runtime_substitute": testdata_manifest.get("runtime_substitute"),

@@ -564,3 +564,26 @@ class TestOfflineSandboxDependencyHandling:
         for language, command in commands.items():
             assert "/workspace/{filename}" in command, language
             assert "install" not in command, f"{language} syntax check tries to install"
+
+
+def test_a_syntax_check_failure_is_never_excused_as_not_exercised() -> None:
+    """The false PASS that P4 caught, pinned.
+
+    "No invocation was derived" is a reason to withhold judgement on a program
+    that might have needed arguments. A parse-or-compile check takes no
+    arguments at all, so that reason cannot apply to it -- its exit code is the
+    verdict. Without the guard, a live PyQt6 artifact whose `py_compile` reported
+    "IndentationError: unexpected indent (line 42)" with exit 1 was recorded as
+    PASS: the check found exactly the defect it exists to find, and the verdict
+    threw the answer away.
+    """
+    import inspect
+
+    source = inspect.getsource(rqca_agent)
+    assert "syntax_only" in source, "the syntax-only guard is gone"
+    # The excusing branch must require `not syntax_only`.
+    marker = "if not passed and not exercised and not syntax_only:"
+    assert marker in source, (
+        "the not-exercised excuse no longer excludes syntax-only runs, so a "
+        "compile failure can be recorded as PASS again"
+    )
