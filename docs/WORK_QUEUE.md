@@ -110,6 +110,56 @@ Cheap self-contained hardening follows, then evidence, then features.
 
 ---
 
+## Finding — every mission is parked for clarification (2026-08-12)
+
+**100% of missions require an operator before they will run.** Measured across
+12 consecutive real missions: every one scored `last_ambiguity_score` between
+0.95 and 1.0, against a gate of `>= 0.7`
+(`mission_flow_v2/phases_intake.py:420`). That includes a Go prompt specifying
+the sort order, field separator, exit code and error behaviour explicitly.
+
+The metric is the problem, not the threshold. `normalizers.py:108` always
+overwrites the LLM's own score with `_pm_ambiguity_score()`
+(`llm_delegation/text.py:339`), which adds up signals a *thorough* PM emits on
+any prompt:
+
+| Signal | Adds |
+|---|---|
+| `intake_status == "needs_clarification"` | **0.55** |
+| each clarifying question | 0.15 (cap 0.45) |
+| each risk note | 0.10 (cap 0.20) |
+| prompt shorter than 60 chars | 0.20 |
+
+Two questions plus two risk notes plus the PM's own flag is 1.05, capped to 1.0,
+before the prompt's content is weighed at all. It is also circular: the
+`needs_clarification` flag alone supplies 0.55 of the 0.7 threshold, so the PM's
+decision to ask anything very nearly fires the gate by itself. The one escape,
+`user_intent == "finalize_plan"` clamping to 0.35 (`generators.py:138`), is not
+used by the normal creation path.
+
+The score therefore measures **how much the PM said**, not **how unclear the
+request was**.
+
+Options, in the order I would take them:
+
+1. **Auto-apply the PM's recommended defaults and proceed**, recording the
+   assumptions on the mission, and hold only for a question the PM marks as
+   having no safe default. The defaults already exist -- both the live suite and
+   the evidence script simply answer "proceed with the recommended defaults" and
+   every mission then completes. Today the app asks a question it already knows
+   the answer to.
+2. **Fix the metric** so it reflects unresolved specification gaps: drop the
+   self-referential `needs_clarification` term, and count only questions the PM
+   marks blocking rather than every question and risk note it raises.
+3. Raising the threshold does **not** work. The scores are 0.95-1.0; there is no
+   value below 1.0 that separates the clear prompts from the unclear ones,
+   because the metric does not vary with clarity.
+
+Not changed here: this alters what every mission does at intake, so it is a
+product decision rather than a cleanup.
+
+---
+
 ## Finding — runtime QC never runs on a real mission (2026-08-12)
 
 **The RQCA/sandbox work is inert in the live pipeline.** The Go evidence mission

@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.08.11
-Last updated: 2026-08-11
+Document version: 2026.08.12
+Last updated: 2026-08-12
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -31,7 +31,89 @@ The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1
 is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
 `docs/EDCP_PHASE_PLAN.md` instead.
 
-### What happened on 2026-08-11 (most recent)
+### What happened on 2026-08-12 (most recent)
+
+Read `docs/WORK_QUEUE.md` first from now on -- it is the single ordered queue,
+merged from this file's Next Actions, `PRODUCTION_COMPLETION_PLAN.md` and
+`docs/CURRENT_TODO.md`, and it says what is actually next.
+
+**Start with this: runtime QC has never run on a real mission.**
+
+The first live evidence mission recorded
+`runtime_qc_report.verdict = SKIPPED`, `reason = "TESTDATA disabled"`.
+`mission_flow_v2/phases_runtime.py:326` short-circuits runtime QC unless
+`TESTDATA_AGENT_ENABLED` is true, **before** it consults `RQCA_AGENT_ENABLED` --
+and that flag is `false`. The 19-language matrix from 2026-08-11 was proven by
+calling `run_runtime_qc` directly, which bypasses this gate. **The sandbox
+genuinely works; the pipeline never reaches it.** Any claim of the form "N
+languages are verified" is true of the sandbox and not of any mission until this
+is opened.
+
+Two ways forward, and the choice matters because `RQCA_ENFORCEMENT_ENABLED` is
+`true`, so whatever starts running also starts **blocking** missions:
+
+1. Set `TESTDATA_AGENT_ENABLED=true`. Smallest change, but enables a separate
+   agent with its own LLM calls and failure modes.
+2. Teach the gate what RQCA now needs. `_LANGUAGE_RUNTIMES` already supplies a
+   base image and run command for all 19 languages, so RQCA no longer depends on
+   the testdata agent for the ordinary single-file case -- that agent adds
+   dependencies and fixtures for richer ones. Skip only when the language has no
+   known runtime *and* testdata is off.
+
+Option 2 is the better design, but land it with enforcement temporarily off, or
+the first genuinely failing artifact blocks a mission before anyone has watched
+the gate work once.
+
+**Everything else that changed**
+
+- **Security Checks was failing on `main`**, which is why all 18 open Dependabot
+  PRs showed three failing checks -- they inherited a broken workflow rather than
+  being broken. Two root causes: `nanoid 3.3.16` (one bump cleared both the Node
+  Audit and Trivy jobs -- they reported the same package), and two Bandit
+  findings introduced the previous day. B608 was removed rather than suppressed
+  by writing the two pod-assignment statements out as complete literals instead
+  of interpolating a predicate; B108 (`SANDBOX_BUILD_DIR = "/tmp"`) is suppressed
+  with reasoning, since it names a tmpfs inside a throwaway container, not a host
+  temp path.
+- **`DOC-006` was failing** because it asserted the literal string
+  `"Last validated: 2026-06-26"` in `AGENTS.md`. Revalidating that file broke the
+  check, and the only way to pass was to backdate the timestamp -- inverting the
+  purpose of a staleness check. Now parsed against a floor. The audit was 22/23,
+  not the 23/23 several documents cite as a release gate.
+- **14 Dependabot PRs applied as one verified batch** rather than 14 CI cycles:
+  fastapi 0.140->0.141, uvicorn 0.51->0.52.1 across seven services, redis, boto3,
+  and three SHA-pinned action bumps taken from the PR diffs so the pin and its
+  version comment cannot disagree. Dependabot auto-closed all 14. The four left
+  open -- electron 43 (a major), next-ecosystem, vitest, playwright -- are held
+  deliberately: CI cannot catch what they would break, they need the app
+  exercised in a browser.
+- **The live suites could pass having verified nothing.** Root cause was not the
+  timeout it looked like: `localhost` resolves `::1` first on Windows while
+  compose binds IPv4 only (2.09s vs 0.02s), which pushed the first request past
+  the mission-flow suite's 4.0s budget, and the probe read that `OSError` as
+  "stack unreachable". Both suites now default to `127.0.0.1` and share one
+  timeout policy through `live_stack_auth`; they had drifted to 4.0s and 30.0s.
+  Every skip says **NOTHING WAS VERIFIED**, and `LIVE_STACK_REQUIRED=1` turns a
+  skip into a failure. **Set that for any run whose output becomes evidence.**
+- **A polling dashboard could deny service to everything else.** Read and write
+  traffic now use separate rate-limit buckets; ~13 GETs per Mission Control poll
+  cycle were exhausting the same 120/min budget as mission creation, returning
+  429 to every other client including the live suite.
+- **The Delta lane is load bearing** (EDCP-02a). A consumed verdict is recorded
+  on the mission and `_advance_verified_to_complete` refuses COMPLETE without a
+  passing one -- absence blocks, because that is what a down consumer looks like.
+  Inert unless `EVENT_DRIVEN_CONTROL_PLANE_ENABLED`. Unit-covered only; not yet
+  exercised against a live bus.
+- **First S1-01 evidence file**:
+  `docs/evidence/s1_01_live_generation_go_20260811.json`, written by
+  `scripts/capture_live_mission_evidence.py`. Mission
+  `mission-f8a5accf-63fa-47a6-9f33-3f76346db650`, **Go**, COMPLETE, 25 chain
+  events, a 1298-byte artifact, and a pod-assignment record on podB -- the record
+  that returned 404 at the start of this work. Go rather than Python on purpose:
+  it is Python-dissimilar, so `language_content_signature` was in scope and
+  passed, which a Python mission cannot demonstrate.
+
+### What happened on 2026-08-11
 
 Five commits: `87ed6bc`, `4924e9e`, `613e57f`, `4c5991a`, `5c14c4f`. Two defects
 found by inspection, then the code-execution sandbox made functional, then 11
@@ -2370,50 +2452,29 @@ Security alert remediation validation:
 
 ## Next Actions
 
-### Priorities set 2026-08-11 (ahead of the older list below)
+### Priorities — refreshed 2026-08-12
 
-1. ~~**Licence-free runtime verification for MATLAB and Mathematica.**~~ **DONE 2026-08-11.**
-   Both ship on licence-free subset interpreters (`gnuoctave/octave:9.2.0`,
-   `mathicsorg/mathics:latest`), with `runtime_substitute` / `verified_scope`
-   on every report so a pass cannot read as vendor compatibility, and
-   `failure_patterns` (`Syntax::`) for Mathics because Wolfram exits 0 on
-   Python source. **All 19 languages now pass a positive AND a negative
-   control** — `scripts/rqca_language_audit.py`, which should be re-run after
-   any `_LANGUAGE_RUNTIMES` change. That audit found two false-PASS holes
-   invisible to review: PHP echoed a tagless file and exited 0 (Python
-   renamed `.php` PASSED), and TypeScript on `node` failed every genuinely
-   typed artifact. Residual: `csharp` still has no offline runtime.
+`docs/WORK_QUEUE.md` is the authoritative ordered list; this is the summary.
 
-2. **Pin the four unofficial sandbox images by digest.** `kotlin`
-   (`zenika/kotlin`), `scala` (`sbtscala/scala-sbt:...`), `zig`
-   (`euantorano/zig:master`) and `ocaml` (`ocaml/opam:debian-12-ocaml-5.1`)
-   publish no official image and are referenced by **mutable tags** -- `:master`
-   in particular moves. These images are the containment for untrusted generated
-   code. Reports already carry `base_image_official` so a surprising verdict can
-   be traced to the toolchain rather than blamed on the artifact; pinning is the
-   remaining work.
-3. **Fix the live suite's silent skip.** `LIVE_HTTP_TIMEOUT_SECONDS` defaults to
-   `4.0`, which the first request under pytest exceeds; the probe catches
-   `OSError` and calls `pytest.skip("Live stack not reachable")` against a stack
-   that answers `/readyz` in 0.25s. The run then reports **exit 0 having verified
-   nothing** -- the same "a non-verifying run reads as green" failure the auth
-   fix closed, reached by a different route. Raise the default; 30s is ample.
-4. **Mission Control polling exhausts the API rate limit.** The gateway allows
-   120 req/min keyed by API-key hash, and the UI issues ~13 requests per poll
-   cycle on the *same* `INTERNAL_SERVICE_API_KEY`, so an open browser tab starves
-   every other client and mission creation returns **429**. Worked around on
-   2026-08-11 by stopping `deploy-mission-control-1` before the live run. Give
-   the UI its own key, or exempt read polling from the limit.
-5. **Move sandbox execution to a dedicated service before production.** The
-   orchestrator now mounts `/var/run/docker.sock`, which is effectively root on
-   the host. It is scoped as tightly as the mechanism allows -- uid 10001
-   retained, only the socket's group added, every sandbox carries
-   `SANDBOX_SECURITY_FLAGS` -- and is acceptable for a local dev stack, but it
-   should not ship. The existing `agent-41-rqca` container is the natural home.
-6. **A chat-UI mission is still unproven.** The 2026-08-11 live mission ran
-   through the API (`test_live_mission_chain_and_artifact_integrity`), not the
-   browser. Item 3 in the older list below still stands for the UI path.
+1. **Open the runtime-QC gate** (see the finding above). Nothing else about the
+   sandbox matters until a mission actually reaches it. Land with
+   `RQCA_ENFORCEMENT_ENABLED` temporarily off.
+2. **Finish the live proof matrix.** A UI-driven mission, a PORT/transform,
+   failure injection, and provider fallback are still owed. The suite and a
+   non-Python mission are done.
+3. **Move sandbox execution out of the orchestrator** into `agent-41-rqca`. The
+   orchestrator mounts `/var/run/docker.sock` -- effectively host root. Fine for
+   a local dev stack, must not ship.
+4. **The four held Dependabot PRs**: electron 43, next-ecosystem, vitest,
+   playwright. All frontend; they need the app exercised in a browser.
+5. **Exercise the Delta gate against a live bus** with
+   `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true` on ONE mission first -- if producer
+   and consumer do not line up, it stalls every mission at VERIFIED.
+6. **Electron decisions still need sign-off**: Docker lifecycle on quit, the
+   Docker Desktop/WSL2 prerequisite story, auto-start.
 
+DONE since this list was written: licence-free MATLAB/Mathematica runtimes,
+image digest pinning, the live-suite silent skip, and the rate-limit starvation.
 
 1. **Post-restart Mission Control UX proof.** Restart the app, then submit a
    real browser mission through Mission Control asking for a modern Angular
