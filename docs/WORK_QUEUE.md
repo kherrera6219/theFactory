@@ -85,8 +85,8 @@ Cheap self-contained hardening follows, then evidence, then features.
   `denoland/deno:latest` and `euantorano/zig:master` were all floating.
   `test_non_official_sandbox_images_are_pinned_by_digest` fails if one reverts
   to a mutable tag.
-- [ ] 4 — S1-01 evidence *(blocked: needs a live stack)*
-- [ ] 5 — multi-mission live proof matrix *(blocked: needs a live stack)*
+- [x] **4 — S1-01 evidence** *(2026-08-12)*. `docs/evidence/s1_01_live_generation_go_20260811.json`, captured by the new `scripts/capture_live_mission_evidence.py`. Mission `mission-f8a5accf-63fa-47a6-9f33-3f76346db650`, **Go**, reached COMPLETE with 25 chain events, a 1298-byte generated_code artifact, and a pod-assignment record on **podB** (`assigned_by: orchestrator`) — the record that used to 404. Deliberately non-Python: Go is Python-dissimilar, so `language_content_signature` was in scope and **passed**, and 0 logicnodes is correct for BUILD_NEW.
+- [~] **5 — multi-mission live proof matrix** *(partial, 2026-08-12)*. Done: the full live mission-flow suite passes in strict mode (`LIVE_STACK_REQUIRED=1`), plus a non-Python (Go) mission end to end. **Still owed:** a UI-driven mission, a PORT/transform, failure injection, and provider fallback.
 - [x] **6 — Delta consumer gate (EDCP-02a)** *(2026-08-11)*. `handlers` now
   registers `delta`; a consumed verdict is recorded on the mission and
   `_advance_verified_to_complete` refuses COMPLETE without a *passing* one.
@@ -107,6 +107,36 @@ Cheap self-contained hardening follows, then evidence, then features.
   agree on **2026-08-11**. Docs written earlier in the session carried
   2026-08-06, taken from a container timestamp read during a long-running
   session; 19 occurrences corrected.
+
+---
+
+## Finding — runtime QC never runs on a real mission (2026-08-12)
+
+**The RQCA/sandbox work is inert in the live pipeline.** The Go evidence mission
+recorded `runtime_qc_report.verdict = SKIPPED`, `reason = "TESTDATA disabled"`.
+
+`mission_flow_v2/phases_runtime.py:326` short-circuits runtime QC unless
+`TESTDATA_AGENT_ENABLED` is true, *before* it ever consults
+`RQCA_AGENT_ENABLED`. That flag is `false`, so no mission has ever reached the
+sandbox — the 19-language matrix was proven by calling `run_runtime_qc`
+directly, which bypasses this gate. The sandbox genuinely works; the pipeline
+does not reach it.
+
+Two ways forward, and the choice matters because `RQCA_ENFORCEMENT_ENABLED` is
+`true`, so whatever starts running can also start **blocking** missions:
+
+1. **Set `TESTDATA_AGENT_ENABLED=true`.** Smallest change, but it also enables a
+   separate agent with its own LLM calls and failure modes.
+2. **Make the gate reflect what RQCA now needs.** `_LANGUAGE_RUNTIMES` already
+   supplies a base image and run command for all 19 languages, so RQCA no longer
+   depends on the testdata agent for the ordinary single-file case — the testdata
+   agent adds dependencies and fixtures for richer ones. The gate should skip
+   only when the language has no known runtime *and* testdata is off.
+
+Option 2 is the better design and the one this session's work argues for, but it
+should land with enforcement temporarily off, or the first genuinely failing
+artifact blocks a mission before anyone has seen the gate work. Not changed here:
+turning it on is a decision about what starts blocking missions, not a cleanup.
 
 ---
 
