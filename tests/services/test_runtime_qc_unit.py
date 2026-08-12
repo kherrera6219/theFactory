@@ -440,3 +440,29 @@ def test_runtime_qc_gate_no_longer_requires_the_testdata_agent() -> None:
         "the gate skips on testdata alone again; that is what made runtime QC "
         "dead code on every real mission"
     )
+
+
+def test_no_live_language_can_resolve_to_a_vacuous_cat_command() -> None:
+    """`cat` exits 0 having executed nothing, so it is a PASS that proves nothing.
+
+    testdata_agent used to carry its own smaller language table whose fallback
+    was `cat /workspace/<file>`, and because it writes BOTH image and command
+    into the manifest, RQCA's setdefault never fired and the verified
+    _LANGUAGE_RUNTIMES table was bypassed. A live Go mission passed runtime QC by
+    printing its own source. Both tables are now one; this fails if they split
+    again.
+    """
+    for language in sorted(rqca_agent._ALL_LIVE_LANGUAGES):
+        filename = "Main.java" if language in {"java", "scala"} else f"main.{language[:3]}"
+        command = testdata_agent._default_run_command(filename, language)
+        image = testdata_agent._default_base_image(language)
+        assert not command.startswith("cat "), (
+            f"{language} is executed by RQCA but its default command is {command!r}, "
+            "which exits 0 without running anything"
+        )
+        assert command == rqca_agent._LANGUAGE_RUNTIMES[language]["run_command"].format(
+            filename=filename, stem=Path(filename).stem
+        ), f"{language} default command diverges from _LANGUAGE_RUNTIMES"
+        assert image == rqca_agent._LANGUAGE_RUNTIMES[language]["base_image"], (
+            f"{language} default image diverges from _LANGUAGE_RUNTIMES"
+        )

@@ -1,24 +1,253 @@
 {
   "schema_version": "live_mission_evidence.v1",
-  "captured_at": "2026-08-12T06:24:10Z",
-  "mission_id": "mission-fe2f7ca7-bb72-46b2-a93a-b880c9f1d3ad",
+  "captured_at": "2026-08-12T06:47:55Z",
+  "mission_id": "mission-c770507b-b234-4f72-a401-cef91f7d307c",
   "requested_target_language": "go",
-  "final_state": "CLARIFYING",
+  "final_state": "COMPLETE",
   "chain_events": [
-    "MISSION_PM_INTAKE"
+    "MISSION_PM_INTAKE",
+    "MISSION_CLARIFICATION_APPLIED",
+    "FEATURE_CONTRACT_CREATED",
+    "MISSION_FETCH_COMPLETE",
+    "MISSION_CEO_DELEGATED",
+    "MISSION_CONTRACT_GENERATED",
+    "LOGIC_CLUSTERS_DECOMPOSED",
+    "CEO_REASONING_SUMMARY",
+    "MISSION_POD_MANAGER_ASSIGNED",
+    "MISSION_SPECIALIST_ASSIGNED",
+    "GENERATED_OUTPUT_CREATED",
+    "MISSION_SPECIALIST_PLANNED",
+    "MISSION_POD_GROUP_STANDARD_PRODUCED",
+    "MISSION_POD_AUDIT_COMPLETE",
+    "MISSION_LOGIC_FOLDED",
+    "MISSION_BUILD_ARTIFACT_PACKAGED",
+    "MISSION_EQUIVALENCE_VERIFIED",
+    "MISSION_SECURITY_COMPLIANCE_PASSED",
+    "MISSION_TESTDATA_MANIFEST_READY",
+    "MISSION_RUNTIME_QC_COMPLETE",
+    "MISSION_SECURITY_ANALYSIS_COMPLETE",
+    "MISSION_VC_COMMIT_STRATEGY_READY",
+    "MISSION_INTEGRATION_TESTS_GENERATED",
+    "MISSION_COMPLIANCE_ASSESSMENT_COMPLETE",
+    "MISSION_DELIVERED"
   ],
   "pod_assignment": {
-    "_http_error": 404
+    "mission_id": "mission-c770507b-b234-4f72-a401-cef91f7d307c",
+    "pod_name": "podB",
+    "metadata": {
+      "reason": "delegation-routing",
+      "agent_id": "AGENT-18-PODB-MGR",
+      "pod_name": "podB",
+      "assigned_by": "orchestrator",
+      "specialist_agent_id": "AGENT-36-GO",
+      "requested_target_language": "go"
+    },
+    "assigned_at": "2026-08-12T06:46:13.238977+00:00",
+    "updated_at": "2026-08-12T06:46:13.239475+00:00"
   },
   "logicnodes_count": 0,
-  "build_artifacts": [],
-  "runtime_qc_report": null,
-  "equivalence_report": null,
+  "build_artifacts": [
+    {
+      "artifact_id": "generated-code-output",
+      "artifact_type": "generated_code",
+      "size_bytes": 1378,
+      "status": "SUCCESS"
+    }
+  ],
+  "runtime_qc_report": {
+    "passed": true,
+    "source": "live_execution",
+    "verdict": "PASS",
+    "filename": "main.go",
+    "language": "go",
+    "exit_code": 0,
+    "base_image": "golang:1.22-alpine",
+    "mission_id": "mission-c770507b-b234-4f72-a401-cef91f7d307c",
+    "started_at": "2026-08-12T06:46:56.342121+00:00",
+    "completed_at": "2026-08-12T06:47:02.886077+00:00",
+    "qc_assessment": {
+      "source": "fallback",
+      "findings": [
+        "Runtime execution completed with the expected exit code."
+      ],
+      "confidence": "LOW",
+      "qc_verdict": "PASS",
+      "assessed_at": "2026-08-12T06:47:02.886136+00:00",
+      "remediation": [],
+      "deployment_safe": true,
+      "execution_verdict": "PASS"
+    },
+    "artifact_smoke": {
+      "passed": true,
+      "source": "skipped",
+      "verdict": "SKIPPED",
+      "filename": "main.go",
+      "language": "go",
+      "skip_reason": "No artifact smoke is defined for this artifact type.",
+      "generated_at": "2026-08-12T06:46:56.319381+00:00",
+      "artifact_kind": "generic",
+      "schema_version": "artifact_runtime_smoke.v1"
+    },
+    "execution_type": "docker_live",
+    "schema_version": "runtime_qc_report.v1",
+    "stderr_preview": "Unable to find image 'golang:1.22-alpine' locally\n1.22-alpine: Pulling from library/golang\n4f4fb700ef54: Pulling fs layer\nafa154b433c7: Pulling fs layer\n1f3e46996e29: Pulling fs layer\n5f837c998576: Pulling fs layer\n4d75fd4b7386: Pulling fs layer\nafa154b433c7: Already exists\n4f4fb700ef54: Already exists\n4f4fb700ef54: Pull complete\n4d75fd4b7386: Download complete\n5f837c998576: Download complete\n1f3e46996e29: Download complete\n1f3e46996e29: Pull complete\nce0f87364ab7: Download complete\n1e3d789bc7de: Download complete\n4d75fd4b7386: Pull complete\nafa154b433c7: Pull complete\n5f837c998576: Pull complete\nDigest: sha256:1699c10032ca2582ec89a24a1312d986a3f094aed3d5c1147b19880afe40e052\nStatus: Downloaded newer image for golang:1.22-alpine\n",
+    "stdout_preview": "package main\n\nimport (\n\t\"bufio\"\n\t\"fmt\"\n\t\"os\"\n\t\"sort\"\n\t\"strings\"\n\t\"unicode\"\n)\n\ntype wordCount struct {\n\tword  string\n\tcount int\n}\n\nfunc main() {\n\tif len(os.Args) < 2 {\n\t\tfmt.Fprintln(os.Stderr, \"Error: missing input file path\")\n\t\tfmt.Fprintf(os.Stderr, \"Usage: %s <filename>\\n\", os.Args[0])\n\t\tos.Exit(1)\n\t}\n\n\tfilePath := os.Args[1]\n\tfile, err := os.Open(filePath)\n\tif err != nil {\n\t\tfmt.Fprintf(os.Stderr, \"Error: unable to open file '%s': %v\\n\", filePath, err)\n\t\tos.Exit(1)\n\t}\n\tdefer file.Close()\n\n\tcounts := make(map[string]int)\n\tscanner := bufio.NewScanner(file)\n\n\tbuf := make([]byte, 64*1024)\n\tscanner.Buffer(buf, 1024*1024)\n\n\tfor scanner.Scan() {\n\t\tline := scanner.Text()\n\t\twords := strings.FieldsFunc(line, func(r rune) bool {\n\t\t\treturn !unicode.IsLetter(r) && !unicode.IsDigit(r)\n\t\t})\n\t\tfor _, w := range words {\n\t\t\tcounts[strings.ToLower(w)]++\n\t\t}\n\t}\n\n\tif err := scanner.Err(); err != nil {\n\t\tfmt.Fprintf(os.Stderr, \"Error: failed to read file '%s': %v\\n\", filePath, err)\n\t\tos.Exit(1)\n\t}\n\n\tpairs := make([]wordCount, 0, len(counts))\n\tfor w, c := range counts {\n\t\tpairs = append(pairs, wordCount{word: w, count: c})\n\t}\n\n\tsort.Slice(pairs, func(i, j int) bool {\n\t\tif pairs[i].count != pairs[j].count {\n\t\t\treturn pairs[i].count > pairs[j].count\n\t\t}\n\t\treturn pairs[i].word < pairs[j].word\n\t})\n\n\tfor _, pair := range pairs {\n\t\tfmt.Printf(\"%s %d\\n\", pair.word, pair.count)\n\t}\n}",
+    "verified_scope": "go",
+    "memory_limit_mb": 256,
+    "timeout_seconds": 30,
+    "failed_on_pattern": null,
+    "expected_exit_code": 0,
+    "runtime_substitute": null,
+    "base_image_official": true
+  },
+  "equivalence_report": {
+    "checks": [
+      {
+        "title": "Generated output exists",
+        "status": "pass",
+        "message": "Generated output has executable text.",
+        "check_id": "generated_output_exists",
+        "evidence": {
+          "code_length_chars": 1378
+        },
+        "required": true
+      },
+      {
+        "title": "Generated artifact integrity verified",
+        "status": "pass",
+        "message": "Generated-code artifact passed integrity verification (digest/signature). This attests the bytes are intact, not that the artifact is correct \u2014 correctness is assessed by the other checks.",
+        "check_id": "generated_artifact_verified",
+        "evidence": {
+          "artifact_id": "generated-code-output",
+          "digest_sha256": "a145c0b5129f1d0705947c0db607ffd2a42c89273052d8cf77be0b31a1f71707",
+          "verification_scope": "integrity",
+          "verification_method": "sha256"
+        },
+        "required": true
+      },
+      {
+        "title": "Artifact format matches contract",
+        "status": "manual_review",
+        "message": "No explicit deliverable format was specified in the contract.",
+        "check_id": "artifact_format_matches_contract",
+        "evidence": {
+          "artifact_filename": "main.go",
+          "artifact_extension": "go"
+        },
+        "required": false
+      },
+      {
+        "title": "Language alignment",
+        "status": "pass",
+        "message": "Generated output language matches the target language.",
+        "check_id": "language_alignment",
+        "evidence": {
+          "target_language": "go",
+          "generated_language": "go"
+        },
+        "required": true
+      },
+      {
+        "title": "Language content signature",
+        "status": "pass",
+        "message": "No contradicting Python syntax signature found for target language 'go'.",
+        "check_id": "language_content_signature",
+        "evidence": {
+          "target_language": "go",
+          "python_signals_matched": 0
+        },
+        "required": true
+      },
+      {
+        "title": "Acceptance criteria mapped",
+        "status": "manual_review",
+        "message": "1 of 4 acceptance criteria are not clearly reflected in the generated output and need manual review.",
+        "check_id": "acceptance_criteria_mapped",
+        "evidence": {
+          "criteria_count": 4,
+          "criteria_status": [
+            {
+              "status": "covered",
+              "criterion": "Running `go run main.go test.txt` with a valid UTF-8 file produces formatted output matching '<word> <count>' per line.",
+              "covered_ratio": 0.5
+            },
+            {
+              "status": "needs_review",
+              "criterion": "Lines with identical counts are sorted alphabetically by word (e.g., 'apple 5' appears before 'banana 5').",
+              "covered_ratio": 0.333
+            },
+            {
+              "status": "covered",
+              "criterion": "Invocation with a non-existent file path writes a descriptive error to stderr and returns a non-zero exit code.",
+              "covered_ratio": 0.5
+            },
+            {
+              "status": "covered",
+              "criterion": "Invocation with no arguments writes a usage error to stderr and returns a non-zero exit code.",
+              "covered_ratio": 0.5
+            }
+          ]
+        },
+        "required": false
+      },
+      {
+        "title": "AIM context available",
+        "status": "manual_review",
+        "message": "No AIM was available for source-context comparison.",
+        "check_id": "aim_context_available",
+        "evidence": {},
+        "required": false
+      }
+    ],
+    "passed": true,
+    "source": "deterministic",
+    "status": "passed",
+    "blocking": false,
+    "findings": [
+      "No explicit deliverable format was specified in the contract.",
+      "1 of 4 acceptance criteria are not clearly reflected in the generated output and need manual review.",
+      "No AIM was available for source-context comparison."
+    ],
+    "report_id": "equivalence-mission-c770507b-b234-4f72-a401-cef91f7d307c",
+    "mission_id": "mission-c770507b-b234-4f72-a401-cef91f7d307c",
+    "risk_level": "medium",
+    "behavioural": {
+      "reason": "no Refined-IR module in mission metadata",
+      "status": "skipped",
+      "findings": [],
+      "mission_id": "mission-c770507b-b234-4f72-a401-cef91f7d307c",
+      "schema_version": "1.0.0",
+      "verification_scope": "behavioural",
+      "equivalence_vectors_total": 0,
+      "equivalence_vectors_passed": 0
+    },
+    "generated_at": "2026-08-12T06:46:56.296748+00:00",
+    "evidence_refs": [
+      {
+        "ref": "feature_contract",
+        "type": "metadata"
+      },
+      {
+        "ref": "mission_contract",
+        "type": "metadata"
+      },
+      {
+        "ref": "generated-code-output",
+        "type": "build_artifact",
+        "artifact_type": "generated_code",
+        "digest_sha256": "a145c0b5129f1d0705947c0db607ffd2a42c89273052d8cf77be0b31a1f71707"
+      }
+    ],
+    "schema_version": "equivalence_report.v1",
+    "target_language": "go",
+    "verification_scope": "correctness",
+    "enforcement_enabled": false
+  },
   "generated_output": {
-    "language": null,
-    "filename": null,
-    "source": null,
-    "code_length_chars": null
+    "language": "go",
+    "filename": "main.go",
+    "source": "llm",
+    "code_length_chars": 1378
   },
   "pod_manager_routing_correction": null,
   "delta_audit_gate": null

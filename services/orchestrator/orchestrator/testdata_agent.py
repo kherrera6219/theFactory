@@ -26,24 +26,33 @@ def _default_framework(language: str) -> str:
     }.get(language.lower(), "generic")
 
 
+# Delegated to rqca_agent._LANGUAGE_RUNTIMES so there is ONE answer to "how do
+# you run this language". These used to be a second, smaller table whose command
+# fell back to `cat /workspace/<file>` for anything outside python/js/ts -- and
+# because this module writes both image and command into the manifest, RQCA's
+# setdefault never fired and the verified table was bypassed. A live Go mission
+# therefore "passed" runtime QC by printing its own source: exit 0, verdict PASS,
+# nothing executed. A vacuous pass is worse than a skip, because it asserts a
+# verification that never happened.
 def _default_base_image(language: str) -> str:
-    return {
-        "python": "python:3.11-slim",
-        "javascript": "node:20-slim",
-        "typescript": "node:20-slim",
-        "java": "eclipse-temurin:21-jre",
-        "go": "golang:1.22-alpine",
-        "rust": "rust:1.78-slim",
-        "ruby": "ruby:3.3-slim",
-    }.get(language.lower(), "python:3.11-slim")
+    from .rqca_agent import _LANGUAGE_RUNTIMES  # noqa: PLC0415
+
+    runtime = _LANGUAGE_RUNTIMES.get(language.strip().lower())
+    return runtime["base_image"] if runtime else "python:3.11-slim"
 
 
 def _default_run_command(filename: str, language: str) -> str:
-    return {
-        "python": f"python /workspace/{filename}",
-        "javascript": f"node /workspace/{filename}",
-        "typescript": f"node /workspace/{filename}",
-    }.get(language.lower(), f"cat /workspace/{filename}")
+    from pathlib import Path as _Path  # noqa: PLC0415
+
+    from .rqca_agent import _LANGUAGE_RUNTIMES  # noqa: PLC0415
+
+    runtime = _LANGUAGE_RUNTIMES.get(language.strip().lower())
+    if runtime:
+        return runtime["run_command"].format(filename=filename, stem=_Path(filename).stem)
+    # No known runtime. `cat` is deliberate here and only reachable for languages
+    # RQCA refuses to execute anyway (run_runtime_qc dry-runs anything outside
+    # _ALL_LIVE_LANGUAGES), so it can never produce a passing verdict.
+    return f"cat /workspace/{filename}"
 
 
 def _install_commands(language: str, dependencies: list[Any]) -> list[str]:
