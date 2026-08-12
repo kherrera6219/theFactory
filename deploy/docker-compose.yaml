@@ -343,6 +343,10 @@ services:
       MISSION_FLOW_V2_ENABLED: ${MISSION_FLOW_V2_ENABLED:-true}
       EVENT_DRIVEN_CONTROL_PLANE_ENABLED: ${EVENT_DRIVEN_CONTROL_PLANE_ENABLED:-false}
       TESTDATA_AGENT_ENABLED: ${TESTDATA_AGENT_ENABLED:-false}
+      # Proceed with the PM's own recommended defaults instead of parking
+      # the mission in CLARIFYING. Defaults true: the alternative is not a
+      # safe default but a broken one -- it parked 100% of missions.
+      PM_AUTO_ACCEPT_DEFAULTS_ENABLED: ${PM_AUTO_ACCEPT_DEFAULTS_ENABLED:-true}
       RQCA_AGENT_ENABLED: ${RQCA_AGENT_ENABLED:-false}
       RQCA_ENFORCEMENT_ENABLED: ${RQCA_ENFORCEMENT_ENABLED:-true}
       # Sandbox workspaces are created under SANDBOX_WORKSPACE_ROOT inside this
