@@ -466,3 +466,45 @@ def test_no_live_language_can_resolve_to_a_vacuous_cat_command() -> None:
         assert image == rqca_agent._LANGUAGE_RUNTIMES[language]["base_image"], (
             f"{language} default image diverges from _LANGUAGE_RUNTIMES"
         )
+
+
+class TestInvocationDerivedFromUsageExample:
+    """Runtime QC invoked every artifact bare, then failed it for saying so.
+
+    A live Go word counter compiled, ran, and exited 1 with "missing file path
+    argument" -- correct behaviour for a tool the harness handed no arguments and
+    no input file. The information needed was already present and unused: the
+    codegen prompt asks the specialist for "one short usage example", and the
+    manifest has carried a decorative `synthetic_inputs` field all along.
+    """
+
+    def test_arguments_come_from_the_example(self) -> None:
+        derive = rqca_agent._invocation_from_usage_example
+        assert derive("go run main.go input.txt", "main.go") == ["input.txt"]
+        assert derive("python wordcount.py data.txt", "wordcount.py") == ["data.txt"]
+        assert derive("java -cp . Main sample.txt", "Main.java") == ["sample.txt"]
+        assert derive("$ node main.js a.json b.json", "main.js") == ["a.json", "b.json"]
+
+    def test_an_unrecognised_example_derives_nothing_rather_than_guessing(self) -> None:
+        """Fabricating an invocation is worse than deriving none.
+
+        An earlier version stripped known runner words and turned "just run it"
+        into ["run", "it"], which would create files named `run` and `it` and
+        hand them to the program. Deriving nothing degrades to "not exercised",
+        which is safe.
+        """
+        derive = rqca_agent._invocation_from_usage_example
+        assert derive("just run it", "main.go") == []
+        assert derive("", "main.go") == []
+        assert derive(None, "main.go") == []
+        assert derive("see the README", "main.go") == []
+
+    def test_fixture_content_prefers_the_manifest_then_falls_back(self) -> None:
+        """`synthetic_inputs` finally has a consumer."""
+        assert rqca_agent._fixture_content(
+            {"synthetic_inputs": [{"input_data": "alpha beta"}]}
+        ) == "alpha beta"
+        fallback = rqca_agent._fixture_content({})
+        assert fallback.strip(), "a fixture must never be empty"
+        # Repeated tokens, so a counting tool produces something meaningful.
+        assert fallback.count("the") > 1

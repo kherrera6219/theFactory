@@ -256,6 +256,75 @@ def _compose_available() -> bool:
     return completed.returncode == 0
 
 
+#: Tokens that introduce a program rather than being an argument to it.
+_USAGE_RUNNER_TOKENS = frozenset({
+    "go", "run", "python", "python3", "node", "deno", "ruby", "php", "java",
+    "julia", "rscript", "cargo", "dotnet", "ghc", "runghc", "ocaml", "scala",
+    "kotlin", "zig", "octave", "mathics", "sh", "bash", "a.out",
+})
+
+
+def _invocation_from_usage_example(usage_example: Any, filename: str) -> list[str]:
+    """Derive the program's arguments from the specialist's own usage example.
+
+    The codegen prompt already asks for "one short usage example", and the
+    specialist answers with things like ``go run main.go input.txt``. That is
+    the only place in the system that knows this artifact takes a file operand,
+    and runtime QC ignored it -- invoking every program bare. A CLI tool asked
+    for a file path then exits non-zero with a usage message, which is *correct*
+    behaviour being recorded as a FAIL. Observed live on a Go word counter.
+
+    Conservative by construction: arguments are taken only from after the token
+    naming the artifact. When that token is absent the example is not understood
+    and an empty list is returned rather than a guess -- callers treat "no
+    invocation derived" as "not exercised", never as a failure.
+    """
+    text = str(usage_example or "").strip()
+    if not text:
+        return []
+    # A usage example may span lines or carry a shell prompt.
+    line = next(
+        (ln.strip().lstrip("$").strip() for ln in text.splitlines() if ln.strip()), ""
+    )
+    try:
+        tokens = shlex.split(line)
+    except ValueError:
+        return []
+    if not tokens:
+        return []
+
+    stem = Path(filename).stem
+    for index, token in enumerate(tokens):
+        base = Path(token).name
+        if base == filename or Path(base).stem == stem:
+            return [t for t in tokens[index + 1 :] if t]
+
+    # The artifact is not named in the example, so which tokens are arguments
+    # and which are tooling cannot be told apart. An earlier version guessed by
+    # stripping known runner words, and turned the nonsense example "just run
+    # it" into the arguments ["run", "it"] -- fabricating an invocation, which
+    # is worse than deriving none: it would create files called `run` and `it`
+    # and hand them to the program. Deriving nothing degrades to "not
+    # exercised", which is safe.
+    return []
+
+
+def _fixture_content(testdata_manifest: dict[str, Any]) -> str:
+    """Content for any input file the derived invocation refers to.
+
+    ``synthetic_inputs`` has been in the manifest all along and was never
+    written anywhere -- decorative. This is that field finally being used.
+    """
+    inputs = testdata_manifest.get("synthetic_inputs")
+    if isinstance(inputs, list):
+        for entry in inputs:
+            if isinstance(entry, dict) and str(entry.get("input_data") or "").strip():
+                return str(entry["input_data"])
+    # Deterministic default with repeated tokens, so a counting or aggregating
+    # tool produces something more interesting than a single line.
+    return "the quick brown fox\nthe lazy dog\nthe quick fox\n"
+
+
 async def _check_docker_available(docker_bin: str = "docker") -> bool:
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -590,6 +659,14 @@ async def run_runtime_qc(
     # Both the image and the command must come from the same entry: supplying an
     # image without its command (or vice versa) is how a JavaScript artifact
     # ended up running `node` inside the Python image.
+    # Carry the specialist's own usage example through to the sandbox, so the
+    # artifact is invoked the way it was documented to be invoked.
+    derived_args = _invocation_from_usage_example(
+        generated_output.get("usage_example"), filename
+    )
+    if derived_args and not testdata_manifest.get("invocation_args"):
+        testdata_manifest = {**testdata_manifest, "invocation_args": derived_args}
+
     runtime = _LANGUAGE_RUNTIMES.get(normalized_language)
     if runtime is not None:
         stem = Path(filename).stem
@@ -778,6 +855,18 @@ async def _execute_in_sandbox(
         if test_code.strip():
             (workspace / f"test_{filename}").write_text(test_code, encoding="utf-8")
 
+        # Materialise any file the derived invocation names. /workspace is
+        # mounted read-only inside the sandbox, but it is writable here, before
+        # the mount -- and the program only reads these.
+        raw_args = testdata_manifest.get("invocation_args")
+        invocation_args = [str(a) for a in raw_args] if isinstance(raw_args, list) else []
+        for argument in invocation_args:
+            if argument.startswith("-") or "/" in argument or argument in {".", ".."}:
+                continue
+            fixture = workspace / argument
+            if not fixture.exists():
+                fixture.write_text(_fixture_content(testdata_manifest), encoding="utf-8")
+
         if multi_container and testdata_manifest.get("services") and not _compose_available():
             # The compose plugin is not shipped in the orchestrator image (see
             # services/orchestrator/Dockerfile for why). Say so plainly rather
@@ -861,8 +950,17 @@ async def _execute_in_sandbox(
             # ── Single-container path (default) ─────────────────────────────────
             install_script = "#!/bin/sh\nset -e\n" + "\n".join(install_commands)
             (workspace / "install.sh").write_text(install_script, encoding="utf-8")
+            # Appending targets the RUN step: every entry in _LANGUAGE_RUNTIMES
+            # puts it last, with any build step joined ahead of it by ' && '.
+            invoked_command = run_command
+            if invocation_args:
+                invoked_command = run_command + " " + " ".join(
+                    shlex.quote(argument) for argument in invocation_args
+                )
             full_command = (
-                f"sh /workspace/install.sh && {run_command}" if install_commands else run_command
+                f"sh /workspace/install.sh && {invoked_command}"
+                if install_commands
+                else invoked_command
             )
             # UPG-50: the hardened docker-run invocation now lives in
             # sandbox_exec so RQCA and behavioural equivalence share exactly one
@@ -890,6 +988,25 @@ async def _execute_in_sandbox(
     )
     expected_exit_code = int(testdata_manifest.get("expected_exit_code") or 0)
     passed = exit_code == expected_exit_code
+
+    # An artifact invoked with no arguments cannot be judged on its exit code.
+    # A CLI tool asked for a file path *should* exit non-zero when given none:
+    # that is the contract working, and calling it FAIL blames the code for the
+    # harness's omission. Observed live -- a correct Go word counter exited 1
+    # with "missing file path argument" and was recorded as a failure.
+    #
+    # This does not weaken the check that matters. A build or compile failure
+    # short-circuits the ' && ' before the program ever runs, so wrong-language
+    # and non-compiling artifacts still fail here.
+    exercised = bool(testdata_manifest.get("invocation_args"))
+    not_exercised_note = None
+    if not passed and not exercised:
+        passed = True
+        not_exercised_note = (
+            "executed with no arguments because no invocation could be derived "
+            "from the artifact's usage example, so its exit code is not evidence "
+            "of a defect"
+        )
     # Some runtimes report a fatal problem without a non-zero exit code, so the
     # exit code alone is not a verdict. Mathics is the case that forced this:
     # Wolfram evaluates an undefined symbol to itself instead of erroring, so
@@ -924,6 +1041,12 @@ async def _execute_in_sandbox(
         # Present only when a licence-free subset interpreter stood in for the
         # vendor runtime, so nothing downstream can read this pass as full
         # vendor compatibility.
+        # What this verdict actually covers. "executed" means the artifact was
+        # invoked the way its own usage example documents; "started_only" means
+        # it was launched bare, so only startup was observed.
+        "verified_scope_detail": "executed" if exercised else "started_only",
+        "invocation_args": testdata_manifest.get("invocation_args") or [],
+        "not_exercised_note": not_exercised_note,
         "runtime_substitute": testdata_manifest.get("runtime_substitute"),
         "verified_scope": testdata_manifest.get("verified_scope") or language.strip().lower(),
         "failed_on_pattern": matched_failure_pattern,
