@@ -1,0 +1,259 @@
+{
+  "schema_version": "live_mission_evidence.v1",
+  "captured_at": "2026-08-12T07:26:57Z",
+  "mission_id": "mission-03f88983-e40d-4ac8-9bea-6fa3382731eb",
+  "requested_target_language": "go",
+  "final_state": "COMPLETE",
+  "chain_events": [
+    "MISSION_PM_INTAKE",
+    "MISSION_CLARIFICATION_APPLIED",
+    "FEATURE_CONTRACT_CREATED",
+    "MISSION_FETCH_COMPLETE",
+    "MISSION_CEO_DELEGATED",
+    "MISSION_CONTRACT_GENERATED",
+    "LOGIC_CLUSTERS_DECOMPOSED",
+    "CEO_REASONING_SUMMARY",
+    "MISSION_POD_MANAGER_ASSIGNED",
+    "MISSION_SPECIALIST_ASSIGNED",
+    "GENERATED_OUTPUT_CREATED",
+    "MISSION_SPECIALIST_PLANNED",
+    "MISSION_POD_GROUP_STANDARD_PRODUCED",
+    "MISSION_POD_AUDIT_COMPLETE",
+    "MISSION_LOGIC_FOLDED",
+    "MISSION_BUILD_ARTIFACT_PACKAGED",
+    "MISSION_EQUIVALENCE_VERIFIED",
+    "MISSION_SECURITY_COMPLIANCE_PASSED",
+    "MISSION_TESTDATA_MANIFEST_READY",
+    "MISSION_RUNTIME_QC_COMPLETE",
+    "MISSION_SECURITY_ANALYSIS_COMPLETE",
+    "MISSION_VC_COMMIT_STRATEGY_READY",
+    "MISSION_INTEGRATION_TESTS_GENERATED",
+    "MISSION_COMPLIANCE_ASSESSMENT_COMPLETE",
+    "MISSION_DELIVERED"
+  ],
+  "pod_assignment": {
+    "mission_id": "mission-03f88983-e40d-4ac8-9bea-6fa3382731eb",
+    "pod_name": "podB",
+    "metadata": {
+      "reason": "delegation-routing",
+      "agent_id": "AGENT-18-PODB-MGR",
+      "pod_name": "podB",
+      "assigned_by": "orchestrator",
+      "specialist_agent_id": "AGENT-36-GO",
+      "requested_target_language": "go"
+    },
+    "assigned_at": "2026-08-12T07:25:10.266235+00:00",
+    "updated_at": "2026-08-12T07:25:10.266822+00:00"
+  },
+  "logicnodes_count": 0,
+  "build_artifacts": [
+    {
+      "artifact_id": "generated-code-output",
+      "artifact_type": "generated_code",
+      "size_bytes": 1749,
+      "status": "SUCCESS"
+    }
+  ],
+  "runtime_qc_report": {
+    "passed": true,
+    "source": "live_execution",
+    "verdict": "PASS",
+    "filename": "main.go",
+    "language": "go",
+    "exit_code": 0,
+    "base_image": "golang:1.22-bookworm",
+    "mission_id": "mission-03f88983-e40d-4ac8-9bea-6fa3382731eb",
+    "started_at": "2026-08-12T07:25:57.571186+00:00",
+    "completed_at": "2026-08-12T07:26:05.835448+00:00",
+    "qc_assessment": {
+      "source": "fallback",
+      "findings": [
+        "Runtime execution completed with the expected exit code."
+      ],
+      "confidence": "LOW",
+      "qc_verdict": "PASS",
+      "assessed_at": "2026-08-12T07:26:05.835487+00:00",
+      "remediation": [],
+      "deployment_safe": true,
+      "execution_verdict": "PASS"
+    },
+    "artifact_smoke": {
+      "passed": true,
+      "source": "skipped",
+      "verdict": "SKIPPED",
+      "filename": "main.go",
+      "language": "go",
+      "skip_reason": "No artifact smoke is defined for this artifact type.",
+      "generated_at": "2026-08-12T07:25:57.535029+00:00",
+      "artifact_kind": "generic",
+      "schema_version": "artifact_runtime_smoke.v1"
+    },
+    "execution_type": "docker_live",
+    "schema_version": "runtime_qc_report.v1",
+    "stderr_preview": "",
+    "stdout_preview": "test 1\n",
+    "verified_scope": "go",
+    "invocation_args": [
+      "input.txt"
+    ],
+    "memory_limit_mb": 256,
+    "timeout_seconds": 30,
+    "failed_on_pattern": null,
+    "expected_exit_code": 0,
+    "not_exercised_note": null,
+    "runtime_substitute": null,
+    "base_image_official": true,
+    "verified_scope_detail": "executed"
+  },
+  "equivalence_report": {
+    "checks": [
+      {
+        "title": "Generated output exists",
+        "status": "pass",
+        "message": "Generated output has executable text.",
+        "check_id": "generated_output_exists",
+        "evidence": {
+          "code_length_chars": 1749
+        },
+        "required": true
+      },
+      {
+        "title": "Generated artifact integrity verified",
+        "status": "pass",
+        "message": "Generated-code artifact passed integrity verification (digest/signature). This attests the bytes are intact, not that the artifact is correct \u2014 correctness is assessed by the other checks.",
+        "check_id": "generated_artifact_verified",
+        "evidence": {
+          "artifact_id": "generated-code-output",
+          "digest_sha256": "dba067caf39eae615fd88f2b60f71ab9ed8aded501605a62840d246235d6bb5a",
+          "verification_scope": "integrity",
+          "verification_method": "sha256"
+        },
+        "required": true
+      },
+      {
+        "title": "Artifact format matches contract",
+        "status": "manual_review",
+        "message": "No explicit deliverable format was specified in the contract.",
+        "check_id": "artifact_format_matches_contract",
+        "evidence": {
+          "artifact_filename": "main.go",
+          "artifact_extension": "go"
+        },
+        "required": false
+      },
+      {
+        "title": "Language alignment",
+        "status": "pass",
+        "message": "Generated output language matches the target language.",
+        "check_id": "language_alignment",
+        "evidence": {
+          "target_language": "go",
+          "generated_language": "go"
+        },
+        "required": true
+      },
+      {
+        "title": "Language content signature",
+        "status": "pass",
+        "message": "No contradicting Python syntax signature found for target language 'go'.",
+        "check_id": "language_content_signature",
+        "evidence": {
+          "target_language": "go",
+          "python_signals_matched": 0
+        },
+        "required": true
+      },
+      {
+        "title": "Acceptance criteria mapped",
+        "status": "manual_review",
+        "message": "2 of 4 acceptance criteria are not clearly reflected in the generated output and need manual review.",
+        "check_id": "acceptance_criteria_mapped",
+        "evidence": {
+          "criteria_count": 4,
+          "criteria_status": [
+            {
+              "status": "covered",
+              "criterion": "Executing `go run main.go <file>` on a valid UTF-8 text file prints lowercase word counts sorted by descending count the",
+              "covered_ratio": 0.75
+            },
+            {
+              "status": "needs_review",
+              "criterion": "Each output line matches the standard format: `%s %d`.",
+              "covered_ratio": 0.4
+            },
+            {
+              "status": "needs_review",
+              "criterion": "Words containing uppercase letters are converted to lowercase prior to aggregation.",
+              "covered_ratio": 0.125
+            },
+            {
+              "status": "covered",
+              "criterion": "Executing without arguments or with a non-existent file path prints an error to stderr and returns a non-zero exit code.",
+              "covered_ratio": 0.583
+            }
+          ]
+        },
+        "required": false
+      },
+      {
+        "title": "AIM context available",
+        "status": "manual_review",
+        "message": "No AIM was available for source-context comparison.",
+        "check_id": "aim_context_available",
+        "evidence": {},
+        "required": false
+      }
+    ],
+    "passed": true,
+    "source": "deterministic",
+    "status": "passed",
+    "blocking": false,
+    "findings": [
+      "No explicit deliverable format was specified in the contract.",
+      "2 of 4 acceptance criteria are not clearly reflected in the generated output and need manual review.",
+      "No AIM was available for source-context comparison."
+    ],
+    "report_id": "equivalence-mission-03f88983-e40d-4ac8-9bea-6fa3382731eb",
+    "mission_id": "mission-03f88983-e40d-4ac8-9bea-6fa3382731eb",
+    "risk_level": "medium",
+    "behavioural": {
+      "reason": "no Refined-IR module in mission metadata",
+      "status": "skipped",
+      "findings": [],
+      "mission_id": "mission-03f88983-e40d-4ac8-9bea-6fa3382731eb",
+      "schema_version": "1.0.0",
+      "verification_scope": "behavioural",
+      "equivalence_vectors_total": 0,
+      "equivalence_vectors_passed": 0
+    },
+    "generated_at": "2026-08-12T07:25:57.507157+00:00",
+    "evidence_refs": [
+      {
+        "ref": "feature_contract",
+        "type": "metadata"
+      },
+      {
+        "ref": "mission_contract",
+        "type": "metadata"
+      },
+      {
+        "ref": "generated-code-output",
+        "type": "build_artifact",
+        "artifact_type": "generated_code",
+        "digest_sha256": "dba067caf39eae615fd88f2b60f71ab9ed8aded501605a62840d246235d6bb5a"
+      }
+    ],
+    "schema_version": "equivalence_report.v1",
+    "target_language": "go",
+    "verification_scope": "correctness",
+    "enforcement_enabled": false
+  },
+  "generated_output": {
+    "language": "go",
+    "filename": "main.go",
+    "source": "llm",
+    "code_length_chars": 1749
+  },
+  "pod_manager_routing_correction": null,
+  "delta_audit_gate": null
+}

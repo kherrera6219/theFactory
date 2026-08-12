@@ -110,6 +110,59 @@ Cheap self-contained hardening follows, then evidence, then features.
 
 ---
 
+## Runtime QC now verifies behaviour, not just startup (2026-08-12)
+
+The false FAIL is fixed and verified live. `mission-03f88983` (Go word counter):
+
+```
+run_command    : go build -o /tmp/a.out /workspace/main.go && /tmp/a.out
+invocation_args: ['input.txt']
+verified_scope : executed
+verdict        : PASS | exit 0 | docker_live
+stdout         : "test 1
+"
+```
+
+The program compiled, read the input file, counted the words and printed the
+result. That is a functional verification, not a smoke test.
+
+**Nothing new had to be invented — two existing fields were simply never
+consumed.** The codegen prompt has always asked the specialist for "one short
+usage example" and it answers with the real invocation
+(`"go run main.go input.txt"`); the manifest has always carried
+`synthetic_inputs`, which nothing ever wrote to disk. Arguments are now derived
+from the example, any file operand is materialised into the workspace before it
+is mounted read-only, and the arguments are appended to the run step.
+
+**Enabling the TESTDATA agent would not have fixed this** — worth recording,
+because it is the obvious-looking answer. It is a stub (`_ = mission_contract,
+settings`) that emits the same argument-free command and never writes its own
+`synthetic_inputs` anywhere.
+
+Derivation is conservative by design: arguments come only from after the token
+naming the artifact, and an unrecognised example derives nothing. A first
+version stripped runner words instead and turned the nonsense example
+`"just run it"` into arguments `["run", "it"]` — it would have created files
+called `run` and `it` and handed them to the program. Fabricating an invocation
+is worse than deriving none.
+
+When no invocation can be derived the report says `verified_scope_detail:
+"started_only"` and a non-zero exit is no longer a failure, since nothing told
+the program what to do. The check that matters is untouched: a build failure
+short-circuits the `&&` before the program runs, so wrong-language and
+non-compiling artifacts still FAIL.
+
+### On `RQCA_ENFORCEMENT_ENABLED`
+
+Still `false`, but the blocker is now removed rather than outstanding. Before
+flipping it, run a handful of missions across languages — one Go mission is one
+data point, and enabling enforcement on that basis would repeat the pattern this
+queue exists to break. Watch for `verified_scope_detail: "started_only"` on
+missions that should have been exercised; that indicates a usage example the
+derivation did not understand.
+
+---
+
 ## Both gates opened — and what the first real runs exposed (2026-08-12)
 
 **Intake.** `PM_AUTO_ACCEPT_DEFAULTS_ENABLED` (default true) makes intake take

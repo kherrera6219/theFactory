@@ -37,9 +37,10 @@ Read `docs/WORK_QUEUE.md` first from now on -- it is the single ordered queue,
 merged from this file's Next Actions, `PRODUCTION_COMPLETION_PLAN.md` and
 `docs/CURRENT_TODO.md`, and it says what is actually next.
 
-**Start with this: do NOT set `RQCA_ENFORCEMENT_ENABLED=true` yet.**
-It is `false` in `.env` deliberately. Runtime QC now runs, but it still returns a
-wrong verdict for any CLI program that takes input -- see "Runtime QC" below.
+**`RQCA_ENFORCEMENT_ENABLED` is `false` and should stay off for now** -- not
+because anything is known to be broken, but because it has been correct for
+exactly one mission. Run a handful across languages first; enabling a gate on one
+data point is the pattern this work exists to break.
 
 **Two gates were opened, each of which had made a whole subsystem unreachable.**
 
@@ -77,15 +78,17 @@ wrong verdict each, for opposite reasons:
    and because it writes both image and command into the manifest, RQCA's
    `setdefault` never fired and the verified `_LANGUAGE_RUNTIMES` table was
    bypassed. Now one table, with a guard test that fails if they split again.
-2. **A false FAIL, still open.** With the real command the program compiled and
-   ran, then exited 1 with `"Error: missing file path argument"`. That is the
-   generated code behaving *correctly* -- it was asked for a tool taking a file
-   path that exits non-zero when it cannot read one, and the harness invoked it
-   with no arguments and no input file. Runtime QC therefore mis-scores every
-   CLI program that takes input. Supplying arguments and fixtures is the
-   **testdata agent's** job and it is off. Either enable
-   `TESTDATA_AGENT_ENABLED`, or give `_LANGUAGE_RUNTIMES` a per-mission default
-   invocation. Enforcement must stay off until this is settled.
+2. **A false FAIL, now fixed and verified.** With the real command the program
+   compiled and ran, then exited 1 with `"Error: missing file path argument"` --
+   correct behaviour for a tool the harness invoked with no arguments and no
+   input file. Two fields already held what was needed and neither was consumed:
+   `generated_output.usage_example` (`"go run main.go input.txt"`, which the
+   codegen prompt has always requested) and the manifest's decorative
+   `synthetic_inputs`. Arguments are now derived from the example and any file
+   operand is materialised into the workspace. Verified on `mission-03f88983`:
+   `invocation_args ['input.txt']`, scope `executed`, `PASS`, stdout `"test 1"` --
+   the counter actually counted. Enabling the TESTDATA agent would NOT have
+   fixed this; it is a stub that emits the same argument-free command.
 
 Worth internalising: opening the gate produced a false PASS, fixing that produced
 a false FAIL, and only the second run executed anything real. The false PASS was
