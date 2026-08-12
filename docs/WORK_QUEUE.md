@@ -110,6 +110,50 @@ Cheap self-contained hardening follows, then evidence, then features.
 
 ---
 
+## Both gates opened — and what the first real runs exposed (2026-08-12)
+
+**Intake.** `PM_AUTO_ACCEPT_DEFAULTS_ENABLED` (default true) makes intake take
+the same path an operator takes: set `user_intent="finalize_plan"`, which the PM
+prompt already defines as "return intake_status ready and list every assumption".
+Verified live — `mission-24fe7ed8` ran `QUEUED → PM_INTAKE → FETCH → …` with **no
+CLARIFYING stop**, auto-accepting 2 questions whose prior score was 0.95. The
+questions are kept under `metadata.pm_auto_accepted_defaults`. **Missions now run
+unattended.**
+
+**Runtime QC.** The gate no longer skips on the testdata agent alone, so RQCA is
+reachable. Two things came out of the first two live runs, in order:
+
+1. **A vacuous PASS, now fixed** (`e5c2316`). The first mission reported
+   `PASS / docker_live` with stdout containing its own Go source: the command was
+   `cat /workspace/main.go`. `testdata_agent` carried a second, smaller language
+   table whose fallback was `cat`, and since it writes both image and command
+   into the manifest, RQCA's `setdefault` never fired and the verified
+   `_LANGUAGE_RUNTIMES` table was bypassed. It now delegates to that table, and a
+   guard test fails if the two split again.
+
+2. **A false FAIL, still open.** With the real command
+   (`go build -o /tmp/a.out … && /tmp/a.out`) the program genuinely compiled and
+   ran — and exited 1 with
+   `"Error: missing file path argument
+Usage: /tmp/a.out <filepath>"`.
+   That is the generated code behaving **correctly**: the prompt asked for a tool
+   that takes a file path and exits non-zero when it cannot read one. The harness
+   simply invoked it with no arguments and no input file.
+
+   So runtime QC currently mis-scores every CLI program that takes input.
+   Supplying invocation arguments and fixtures is exactly what the **testdata
+   agent** exists for, and it is off. Options: enable `TESTDATA_AGENT_ENABLED`,
+   or give `_LANGUAGE_RUNTIMES` a per-mission default invocation. **Do not turn
+   `RQCA_ENFORCEMENT_ENABLED` back on until this is settled** — it is currently
+   `false` in `.env` for exactly this reason, and enforcing today would block
+   every argument-taking CLI mission on a verdict that is wrong.
+
+The sequence is worth noting: opening the gate produced a false PASS, fixing that
+produced a false FAIL, and only the second run showed real execution. Neither
+verdict could be trusted until the command and the invocation were both right.
+
+---
+
 ## Finding — every mission is parked for clarification (2026-08-12)
 
 **100% of missions require an operator before they will run.** Measured across
