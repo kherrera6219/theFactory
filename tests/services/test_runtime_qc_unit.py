@@ -560,10 +560,16 @@ class TestOfflineSandboxDependencyHandling:
         and without a display, where executing it could prove neither.
         """
         commands = rqca_agent._SYNTAX_ONLY_COMMANDS
-        assert "py_compile" in commands["python"]
+        assert "ast.parse" in commands["python"], (
+            "python must parse without writing: py_compile emits __pycache__ beside "
+            "the source and /workspace is read-only, which failed every well-formed "
+            "artifact with '[Errno 30] Read-only file system'"
+        )
+        assert "py_compile" not in commands["python"]
         for language, command in commands.items():
             assert "/workspace/{filename}" in command, language
             assert "install" not in command, f"{language} syntax check tries to install"
+            assert "-o /workspace" not in command, f"{language} writes into the workspace"
 
 
 def test_a_syntax_check_failure_is_never_excused_as_not_exercised() -> None:

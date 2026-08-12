@@ -329,10 +329,22 @@ _GUI_TOOLKITS = frozenset({
 #: Parse-or-compile commands that prove an artifact is well-formed WITHOUT
 #: needing its dependencies present or a display to draw on. This is the right
 #: verification for a GUI artifact: the strongest claim honestly available.
+#:
+#: Every command here must also write NOTHING. `/workspace` is read-only, and
+#: `python -m py_compile` emits a `__pycache__` directory beside the source --
+#: which failed every *well-formed* artifact with
+#: "[Errno 30] Read-only file system: '/workspace/__pycache__'", turning a check
+#: for broken code into a check that broke on correct code. `ast.parse` reads
+#: and parses without touching the filesystem.
 _SYNTAX_ONLY_COMMANDS: dict[str, str] = {
-    "python": "python -m py_compile /workspace/{filename}",
+    "python": (
+        "python -c \"import ast,sys;"
+        "ast.parse(open('/workspace/{filename}',encoding='utf-8').read())\""
+    ),
     "javascript": "node --check /workspace/{filename}",
-    "typescript": "deno check /workspace/{filename}",
+    "typescript": (
+        "env HOME=/tmp DENO_DIR=/tmp/deno deno check --quiet /workspace/{filename}"
+    ),
     "ruby": "ruby -c /workspace/{filename}",
     "php": "php -l /workspace/{filename}",
 }
