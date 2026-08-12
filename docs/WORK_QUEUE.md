@@ -86,7 +86,7 @@ Cheap self-contained hardening follows, then evidence, then features.
   `test_non_official_sandbox_images_are_pinned_by_digest` fails if one reverts
   to a mutable tag.
 - [x] **4 — S1-01 evidence** *(2026-08-12)*. `docs/evidence/s1_01_live_generation_go_20260811.json`, captured by the new `scripts/capture_live_mission_evidence.py`. Mission `mission-f8a5accf-63fa-47a6-9f33-3f76346db650`, **Go**, reached COMPLETE with 25 chain events, a 1298-byte generated_code artifact, and a pod-assignment record on **podB** (`assigned_by: orchestrator`) — the record that used to 404. Deliberately non-Python: Go is Python-dissimilar, so `language_content_signature` was in scope and **passed**, and 0 logicnodes is correct for BUILD_NEW.
-- [~] **5 — multi-mission live proof matrix** *(partial, 2026-08-12)*. Done: the full live mission-flow suite passes in strict mode (`LIVE_STACK_REQUIRED=1`), plus a non-Python (Go) mission end to end. **Still owed:** a UI-driven mission, a PORT/transform, failure injection, and provider fallback.
+- [~] **5 — multi-mission live proof matrix** *(partial, 2026-08-12)*. Done: the live suite in strict mode (`LIVE_STACK_REQUIRED=1`), a non-Python (Go) mission, and **a full chat-UI-driven mission** — `mission-e42fd7e2`, a PyQt6 desktop app built from a two-turn PM conversation, COMPLETE with a 26KB artifact. That run found five defects; see `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md` for the findings and the P1-P4 plan. **Still owed:** a PORT/transform, failure injection, provider fallback.
 - [x] **6 — Delta consumer gate (EDCP-02a)** *(2026-08-11)*. `handlers` now
   registers `delta`; a consumed verdict is recorded on the mission and
   `_advance_verified_to_complete` refuses COMPLETE without a *passing* one.
@@ -107,6 +107,23 @@ Cheap self-contained hardening follows, then evidence, then features.
   agree on **2026-08-11**. Docs written earlier in the session carried
   2026-08-06, taken from a container timestamp read during a long-running
   session; 19 occurrences corrected.
+
+---
+
+## Next up — P1-P4 from the chat-to-mission run (2026-08-12)
+
+The first chat-driven mission worked end to end and exposed five defects. Full
+write-up and plan: `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md`.
+
+| | Fix | Why it ranks here |
+|---|---|---|
+| **P1** | Stop emitting `pip install` / `npm install` into an offline sandbox; report unmet dependencies as DRY_RUN, never PASS | Produced a wasted run, a misattributed reason in evidence, and a PASS on an artifact that never executed |
+| **P2** | Classify the artifact before choosing a verification strategy — CLI / GUI / library / server | A PyQt6 app cannot be verified by execution at all; it should reach `compiled_only` |
+| **P3** | Require approval-shaped confirmation in chat rather than a `"proceed"` substring | A mis-fire launches a build the user did not ask for |
+| **P4** | Re-run the same scenario and confirm all three | |
+
+`RQCA_ENFORCEMENT_ENABLED` stays `false` until P1 lands: a PASS on an artifact
+that never ran is exactly the wrong verdict enforcement would act on.
 
 ---
 
