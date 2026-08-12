@@ -56,11 +56,22 @@ def _default_run_command(filename: str, language: str) -> str:
 
 
 def _install_commands(language: str, dependencies: list[Any]) -> list[str]:
-    cleaned = [str(dep).strip() for dep in dependencies[:5] if str(dep).strip()]
-    if language.lower() == "python":
-        return [f"pip install {dep}" for dep in cleaned]
-    if language.lower() in {"javascript", "typescript"}:
-        return [f"npm install {dep}" for dep in cleaned]
+    """Always empty: the runtime-QC sandbox has no network, by design.
+
+    This used to emit ``pip install <dep>`` / ``npm install <dep>``. Those ran
+    inside a ``--network=none`` container, so they always failed on DNS
+    resolution, the artifact never started, and the wasted run was still scored
+    PASS. A command that cannot succeed should not be generated at all.
+
+    Unmet dependencies are now detected before execution -- see
+    ``rqca_agent._unmet_dependencies`` -- and reported as a DRY_RUN naming them,
+    which is the honest outcome for an artifact that cannot run here.
+
+    Kept as a function rather than deleted: the manifest schema still carries
+    ``install_commands``, and a sandbox profile with a curated offline package
+    mirror would populate it.
+    """
+    _ = language, dependencies
     return []
 
 

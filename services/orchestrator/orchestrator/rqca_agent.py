@@ -309,6 +309,91 @@ def _invocation_from_usage_example(usage_example: Any, filename: str) -> list[st
     return []
 
 
+#: Node built-ins, so a JS artifact importing only these is still runnable.
+_NODE_BUILTIN_MODULES = frozenset({
+    "assert", "buffer", "child_process", "cluster", "console", "crypto", "dns",
+    "events", "fs", "http", "http2", "https", "net", "os", "path", "process",
+    "querystring", "readline", "stream", "string_decoder", "timers", "tls",
+    "tty", "url", "util", "v8", "vm", "worker_threads", "zlib",
+})
+
+
+#: Toolkits whose presence means the artifact draws a window. Running one
+#: headless proves nothing: it needs a display server, and its absence is not a
+#: defect in the generated code.
+_GUI_TOOLKITS = frozenset({
+    "pyqt5", "pyqt6", "pyside2", "pyside6", "tkinter", "kivy", "wxpython",
+    "pygame", "electron", "gtk", "pygobject", "toga", "dearpygui", "arcade",
+})
+
+#: Parse-or-compile commands that prove an artifact is well-formed WITHOUT
+#: needing its dependencies present or a display to draw on. This is the right
+#: verification for a GUI artifact: the strongest claim honestly available.
+_SYNTAX_ONLY_COMMANDS: dict[str, str] = {
+    "python": "python -m py_compile /workspace/{filename}",
+    "javascript": "node --check /workspace/{filename}",
+    "typescript": "deno check /workspace/{filename}",
+    "ruby": "ruby -c /workspace/{filename}",
+    "php": "php -l /workspace/{filename}",
+}
+
+
+def _is_gui_artifact(dependencies: Any, generated_code: str) -> bool:
+    """True when the artifact draws a user interface.
+
+    Judged from the declared dependencies first, falling back to import lines in
+    the source, because a specialist sometimes omits the dependency list.
+    """
+    declared = " ".join(str(d).lower() for d in dependencies or [])
+    if any(toolkit in declared for toolkit in _GUI_TOOLKITS):
+        return True
+    head = "\n".join(str(generated_code or "").splitlines()[:60]).lower()
+    return any(
+        f"import {toolkit}" in head or f"from {toolkit}" in head or f"require('{toolkit}" in head
+        for toolkit in _GUI_TOOLKITS
+    )
+
+
+def _unmet_dependencies(language: str, dependencies: Any) -> list[str]:
+    """Dependencies the offline sandbox cannot provide.
+
+    The sandbox runs ``--network=none`` by design, so nothing can be fetched at
+    run time -- that is a property to preserve, not a misconfiguration. An
+    artifact needing a third-party package therefore cannot be executed at all,
+    and saying so is the honest outcome. Previously the manifest emitted
+    ``pip install PyQt6`` into that container, the install died on DNS, the
+    application never started, and the run was still recorded as a PASS.
+
+    Only languages whose standard library can be identified reliably are
+    classified. For anything else this returns nothing, so behaviour is
+    unchanged rather than guessed at.
+    """
+    names = [str(d).strip() for d in dependencies or [] if str(d).strip()]
+    if not names:
+        return []
+    normalized = str(language or "").strip().lower()
+
+    if normalized == "python":
+        import sys  # noqa: PLC0415
+
+        stdlib = getattr(sys, "stdlib_module_names", frozenset())
+        return [n for n in names if n.split(".")[0].split("[")[0].lower() not in
+                {m.lower() for m in stdlib}]
+
+    if normalized == "go":
+        # A Go import path is external exactly when its first segment is a host
+        # name: "github.com/x/y" versus "unicode/utf8".
+        return [n for n in names if "." in n.split("/")[0]]
+
+    if normalized in {"javascript", "typescript"}:
+        return [
+            n for n in names
+            if n.split("/")[0].removeprefix("node:") not in _NODE_BUILTIN_MODULES
+        ]
+
+    return []
+
+
 def _fixture_content(testdata_manifest: dict[str, Any]) -> str:
     """Content for any input file the derived invocation refers to.
 
@@ -655,6 +740,41 @@ async def run_runtime_qc(
             reason="Docker not available.",
             artifact_smoke=artifact_smoke,
         )
+    # A GUI artifact cannot be judged by running it: it needs a display server,
+    # and its absence says nothing about the code. Verify that it is well formed
+    # instead, which is the strongest claim honestly available -- and which also
+    # needs none of its dependencies installed.
+    declared_dependencies = generated_output.get("dependencies")
+    syntax_command = _SYNTAX_ONLY_COMMANDS.get(normalized_language)
+    if syntax_command and _is_gui_artifact(declared_dependencies, code):
+        testdata_manifest = {
+            **testdata_manifest,
+            "base_image": testdata_manifest.get("base_image")
+            or (_LANGUAGE_RUNTIMES.get(normalized_language) or {}).get("base_image"),
+            "run_command": syntax_command.format(filename=filename),
+            "install_commands": [],
+            "verified_scope": f"{normalized_language}-syntax-only",
+            "artifact_class": "gui",
+        }
+
+    # An artifact needing a third-party package cannot run here at all: the
+    # sandbox is --network=none by design and nothing can be fetched. Saying so
+    # is the honest outcome. The previous behaviour emitted `pip install PyQt6`
+    # into that container, watched it die on DNS, never started the program, and
+    # still recorded PASS.
+    elif unmet := _unmet_dependencies(normalized_language, declared_dependencies):
+        return _dry_run_report(
+            mission_id=mission_id,
+            language=normalized_language,
+            filename=filename,
+            testdata_manifest=testdata_manifest,
+            reason=(
+                "artifact requires dependencies that cannot be installed in an "
+                f"offline sandbox: {', '.join(sorted(unmet))}"
+            ),
+            artifact_smoke=artifact_smoke,
+        )
+
     # Fill in the runtime for this language when the manifest does not pin one.
     # Both the image and the command must come from the same entry: supplying an
     # image without its command (or vice versa) is how a JavaScript artifact

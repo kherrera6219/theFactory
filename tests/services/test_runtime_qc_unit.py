@@ -508,3 +508,59 @@ class TestInvocationDerivedFromUsageExample:
         assert fallback.strip(), "a fixture must never be empty"
         # Repeated tokens, so a counting tool produces something meaningful.
         assert fallback.count("the") > 1
+
+
+class TestOfflineSandboxDependencyHandling:
+    """P1/P2 from docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md.
+
+    A live chat-driven mission produced a PyQt6 desktop app. The manifest emitted
+    `pip install PyQt6` into a --network=none container, the install died on DNS,
+    the application never started -- and the verdict was PASS, attributed to
+    "no invocation could be derived", which was not the reason.
+    """
+
+    def test_install_commands_are_never_emitted(self) -> None:
+        """A command that cannot succeed should not be generated at all."""
+        for language in ("python", "javascript", "typescript", "go"):
+            assert testdata_agent._install_commands(language, ["PyQt6", "express"]) == [], (
+                f"{language} still emits installs into an offline sandbox"
+            )
+
+    def test_third_party_dependencies_are_detected_as_unmet(self) -> None:
+        unmet = rqca_agent._unmet_dependencies
+        assert unmet("python", ["PyQt6"]) == ["PyQt6"]
+        assert unmet("javascript", ["express", "lodash"]) == ["express", "lodash"]
+        # A Go import path is external exactly when its first segment is a host.
+        assert unmet("go", ["github.com/foo/bar", "fmt"]) == ["github.com/foo/bar"]
+
+    def test_standard_library_dependencies_are_met(self) -> None:
+        """Otherwise every artifact would be reported as unrunnable."""
+        unmet = rqca_agent._unmet_dependencies
+        assert unmet("python", ["os", "sys", "sqlite3", "json"]) == []
+        assert unmet("go", ["bufio", "fmt", "unicode/utf8"]) == []
+        assert unmet("javascript", ["fs", "path", "node:crypto"]) == []
+
+    def test_unclassifiable_languages_are_left_alone(self) -> None:
+        """Guessing would turn every Rust or Java mission into a DRY_RUN."""
+        assert rqca_agent._unmet_dependencies("rust", ["serde"]) == []
+        assert rqca_agent._unmet_dependencies("java", ["org.junit"]) == []
+
+    def test_gui_artifacts_are_recognised_from_deps_or_imports(self) -> None:
+        """Running a GUI app headless proves nothing -- it needs a display."""
+        gui = rqca_agent._is_gui_artifact
+        assert gui(["PyQt6"], "")
+        assert gui([], "import sys\nfrom PyQt6.QtWidgets import QApplication")
+        assert gui(["tkinter"], "")
+        assert not gui(["requests"], "import sys\nprint(1)")
+
+    def test_gui_languages_have_a_dependency_free_syntax_check(self) -> None:
+        """The strongest claim honestly available for a GUI artifact.
+
+        `python -m py_compile` proves a PyQt6 app parses without PyQt6 present
+        and without a display, where executing it could prove neither.
+        """
+        commands = rqca_agent._SYNTAX_ONLY_COMMANDS
+        assert "py_compile" in commands["python"]
+        for language, command in commands.items():
+            assert "/workspace/{filename}" in command, language
+            assert "install" not in command, f"{language} syntax check tries to install"

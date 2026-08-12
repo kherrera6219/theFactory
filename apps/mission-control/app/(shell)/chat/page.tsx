@@ -204,22 +204,53 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown error";
 }
 
+/** Approval phrases, including the misspellings people actually type. */
+const APPROVAL_PHRASES = [
+  "create the plan",
+  "produce the plan",
+  "finalize",
+  "proceed",
+  "procced",
+  "procede",
+  "use your best judgment",
+  "use your best judgement",
+  "figure out the rest",
+  "firgure out the rest",
+  "go ahead",
+  "looks good",
+  "lgtm",
+  "ship it",
+];
+
+/**
+ * Decide whether a message approves the current contract or continues drafting.
+ *
+ * This used to be a bare substring test, so any message containing "proceed"
+ * launched the build the moment a contract existed. That fires on exactly the
+ * phrasing people reach for while still deciding — "before we proceed, can it
+ * also send email?" — turning a question into a launch and spending a full
+ * mission on a scope the user was still editing.
+ *
+ * Two guards, both about intent rather than vocabulary:
+ *  - a message ending in "?" is a question, whatever words it contains;
+ *  - an approval phrase must lead the message, not merely appear in it, so
+ *    "proceed" approves while "before we proceed, ..." does not.
+ *
+ * Being wrong in the safe direction costs one extra click on *Confirm and
+ * Start*, which is on screen anyway. Being wrong the other way costs a build.
+ */
 function detectUserIntent(text: string): PmConversationContext["user_intent"] {
-  const normalized = text.toLowerCase();
-  if (
-    normalized.includes("create the plan") ||
-    normalized.includes("produce the plan") ||
-    normalized.includes("finalize") ||
-    normalized.includes("proceed") ||
-    normalized.includes("procced") ||
-    normalized.includes("procede") ||
-    normalized.includes("use your best judgment") ||
-    normalized.includes("figure out the rest") ||
-    normalized.includes("firgure out the rest")
-  ) {
-    return "finalize_plan";
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || normalized.endsWith("?")) {
+    return "draft";
   }
-  return "draft";
+  // Strip a leading politeness so "please proceed" and "ok, proceed" still read
+  // as approval.
+  const lead = normalized.replace(/^(please|ok(ay)?|yes|yep|sure|alright)[\s,.:!-]+/, "");
+  const approved = APPROVAL_PHRASES.some(
+    (phrase) => lead === phrase || lead.startsWith(`${phrase} `) || lead.startsWith(`${phrase},`),
+  );
+  return approved ? "finalize_plan" : "draft";
 }
 
 function extractDecisionMemory(messages: ChatMessage[]): string[] {
