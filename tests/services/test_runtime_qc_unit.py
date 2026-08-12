@@ -414,3 +414,29 @@ def test_non_official_sandbox_images_are_pinned_by_digest() -> None:
             "Pin it: docker buildx imagetools inspect <ref> "
             "--format '{{.Manifest.Digest}}'"
         )
+
+
+def test_runtime_qc_gate_no_longer_requires_the_testdata_agent() -> None:
+    """Runtime QC had never run on a mission: the gate skipped before RQCA.
+
+    `phases_runtime` returned SKIPPED("TESTDATA disabled") before
+    RQCA_AGENT_ENABLED was consulted, and TESTDATA_AGENT_ENABLED is off by
+    default -- so no mission ever reached the sandbox. The 19-language matrix was
+    proven by calling run_runtime_qc directly, which bypasses that line.
+    RQCA now carries its own runtimes, so a supported language must not be
+    skipped just because the testdata agent is off.
+    """
+    import importlib
+
+    phases_runtime = importlib.import_module("orchestrator.mission_flow_v2.phases_runtime")
+    source = Path(phases_runtime.__file__).read_text(encoding="utf-8")
+
+    assert "_LANGUAGE_RUNTIMES" in source, (
+        "the runtime-QC gate no longer consults the language runtime table, so a "
+        "supported language can be skipped purely because testdata is disabled"
+    )
+    # The bare testdata-only skip must not come back.
+    assert 'reason="TESTDATA disabled",' not in source, (
+        "the gate skips on testdata alone again; that is what made runtime QC "
+        "dead code on every real mission"
+    )

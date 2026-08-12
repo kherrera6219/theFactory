@@ -323,12 +323,31 @@ async def _prepare_runtime_qc(
             metadata=metadata,
             reason="no generated output",
         )
-    if not bool(getattr(settings, "testdata_agent_enabled", False)):
+    # Runtime QC used to be gated purely on the testdata agent, which meant it
+    # never ran: TESTDATA_AGENT_ENABLED is off by default, so this returned
+    # SKIPPED before RQCA_AGENT_ENABLED was ever consulted and no mission has
+    # reached the sandbox. The 19-language matrix was proven by calling
+    # run_runtime_qc directly, which bypasses this line.
+    #
+    # RQCA no longer depends on that agent for the ordinary case: rqca_agent's
+    # _LANGUAGE_RUNTIMES supplies a base image and run command for every
+    # supported language. The testdata agent adds dependencies and fixtures for
+    # richer scenarios. So skip only when BOTH are unavailable -- no manifest
+    # generator and no known runtime for this language.
+    from ..rqca_agent import _LANGUAGE_RUNTIMES  # noqa: PLC0415
+
+    qc_language = str(
+        mission.requested_target_language or generated_output.get("language") or ""
+    ).strip().lower()
+    if (
+        not bool(getattr(settings, "testdata_agent_enabled", False))
+        and qc_language not in _LANGUAGE_RUNTIMES
+    ):
         return await _persist_runtime_qc_skip(
             settings=settings,
             mission=mission,
             metadata=metadata,
-            reason="TESTDATA disabled",
+            reason=f"TESTDATA disabled and no known runtime for {qc_language or 'unknown'}",
         )
     target_language = mission.requested_target_language or str(
         generated_output.get("language") or "python"

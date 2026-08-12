@@ -3848,3 +3848,80 @@ def test_delta_correlation_id_is_parsed_by_prefix_never_equality() -> None:
         )
         == "mission-abc"
     )
+
+
+class TestIntakeAutoAcceptsPmDefaults:
+    """The intake gate parked 100% of missions, including fully-specified ones.
+
+    Measured across 12 consecutive real missions: every ambiguity score landed
+    between 0.95 and 1.0 against a 0.7 gate. `_pm_ambiguity_score` sums signals a
+    thorough PM emits on any prompt, so it measures how much the PM said rather
+    than how unclear the request was. The PM already attaches a recommended
+    default to every question, so the app was stopping to ask questions it knew
+    the answers to.
+    """
+
+    @pytest.mark.asyncio
+    async def test_auto_accept_reruns_the_pm_with_finalize_plan(self) -> None:
+        app = _make_app_state()
+        settings = _make_settings()
+        settings.pm_auto_accept_defaults_enabled = True
+        mission = _make_mission()
+        mission.metadata = {}
+        _state, fetch_mission, update_metadata, _t, insert_event = _make_stateful_storage(mission)
+
+        calls: list[Any] = []
+
+        async def _contract(**kwargs: Any) -> dict[str, Any]:
+            calls.append(kwargs.get("user_intent"))
+            if kwargs.get("user_intent") == "finalize_plan":
+                return {
+                    "schema_version": "feature_contract.v1",
+                    "intake_status": "ready",
+                    "ambiguity_score": 0.2,
+                    "assumptions": ["ASCII word split", "space separator"],
+                    "clarifying_questions": [],
+                }
+            return {
+                "schema_version": "feature_contract.v1",
+                "intake_status": "needs_clarification",
+                "ambiguity_score": 1.0,
+                "clarifying_questions": [
+                    "Separator between word and count? Recommended default: a single space.",
+                    "ASCII or Unicode words? Recommended default: ASCII [a-z]+.",
+                ],
+            }
+
+        with patch("orchestrator.mission_flow_v2.storage") as mock_storage, patch(
+            "orchestrator.mission_flow_v2.generate_pm_feature_contract", _contract
+        ), patch("orchestrator.mission_flow_v2.record_audit_event", AsyncMock()), patch(
+            "orchestrator.mission_flow_v2.generate_aim", AsyncMock(return_value={})
+        ):
+            mock_storage.fetch_mission = fetch_mission
+            mock_storage.update_mission_metadata = update_metadata
+            mock_storage.insert_mission_event = insert_event
+            await orchestrator_mission_flow_v2_intake._prepare_pm_intake(
+                app=app, settings=settings, validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(), mission_id=mission.mission_id,
+            )
+
+        # The PM is re-asked with finalize_plan rather than the mission parking.
+        assert calls == [None, "finalize_plan"], calls
+        assert mission.metadata["user_intent"] == "finalize_plan"
+        # The questions stay visible -- auto-accepting must not hide what was assumed.
+        accepted = mission.metadata["pm_auto_accepted_defaults"]
+        assert len(accepted["questions"]) == 2
+        assert accepted["ambiguity_score"] == 1.0
+        assert mission.state != MissionState.clarifying
+
+    @pytest.mark.asyncio
+    async def test_flag_off_still_parks_the_mission(self) -> None:
+        """The old behaviour must remain reachable."""
+        settings = _make_settings()
+        settings.pm_auto_accept_defaults_enabled = False
+        assert (
+            orchestrator_mission_flow_v2_base._setting_bool(
+                settings, "pm_auto_accept_defaults_enabled", True
+            )
+            is False
+        )

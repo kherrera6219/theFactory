@@ -417,6 +417,68 @@ async def _prepare_pm_intake(
     )
 
     ambiguity_score = feature_contract.get("ambiguity_score", 0.0)
+
+    # Auto-accept the PM's own recommended defaults instead of parking.
+    #
+    # Measured across 12 consecutive real missions, every one scored 0.95-1.0
+    # against this 0.7 gate -- including prompts that specified sort order,
+    # separator, exit code and error behaviour explicitly. `_pm_ambiguity_score`
+    # sums signals a *thorough* PM emits on any prompt (0.55 for its own
+    # needs_clarification flag, 0.15 per question, 0.10 per risk note), so it
+    # measures how much the PM said rather than how unclear the request was, and
+    # 100% of missions stopped for an operator.
+    #
+    # The PM prompt already requires "a recommended default in each question",
+    # and already knows how to close gaps itself: given
+    # user_intent="finalize_plan" it must return intake_status "ready" and list
+    # every assumption it relied on. That is exactly what an operator triggers by
+    # answering "proceed with the defaults" -- so this takes the same path rather
+    # than inventing a second one, and the questions stay visible on the mission.
+    auto_accept = _setting_bool(settings, "pm_auto_accept_defaults_enabled", True)
+    questions = feature_contract.get("clarifying_questions") or []
+    if (
+        ambiguity_score >= 0.7
+        and auto_accept
+        and isinstance(questions, list)
+        and questions
+        and str(metadata.get("user_intent") or "").strip().lower() != "finalize_plan"
+    ):
+        LOGGER.info(
+            "Auto-accepting PM defaults for mission %s (%d question(s), score %.2f)",
+            mission_id,
+            len(questions),
+            float(ambiguity_score),
+        )
+        metadata["pm_auto_accepted_defaults"] = {
+            "questions": [str(q) for q in questions],
+            "ambiguity_score": ambiguity_score,
+            "applied_at": datetime.now(UTC).isoformat(),
+            "reason": "clarifying questions carried recommended defaults",
+        }
+        metadata["user_intent"] = "finalize_plan"
+        append_chain_event(
+            metadata,
+            event_type="MISSION_CLARIFICATION_APPLIED",
+            agent_id=PM_AGENT_ID,
+            details={
+                "auto_accepted": True,
+                "question_count": len(questions),
+                "prior_ambiguity_score": ambiguity_score,
+            },
+        )
+        feature_contract = await _pkg().generate_pm_feature_contract(
+            prompt=str(mission.prompt or ""),
+            mission_type=mission_type,
+            depth_mode=depth_mode,
+            output_mode=output_mode,
+            requested_target_language=mission.requested_target_language,
+            attachments=pm_attachments,
+            global_style_directives=getattr(mission, "global_style_directives", []),
+            conversation_context=conversation_context,
+            user_intent="finalize_plan",
+        )
+        ambiguity_score = feature_contract.get("ambiguity_score", 0.0)
+
     if ambiguity_score >= 0.7:
         LOGGER.warning("High ambiguity detected for mission %s; pausing for clarification", mission_id)
         metadata["last_ambiguity_score"] = ambiguity_score

@@ -91,6 +91,7 @@ class Settings:
     # proceed to delivery. Operators can still opt out for staged rollouts.
     mission_security_compliance_enforcement_enabled: bool = True
     testdata_agent_enabled: bool = False
+    pm_auto_accept_defaults_enabled: bool = True
     rqca_agent_enabled: bool = False
     # Defaults to True (was False): a mission that fails its RQCA runtime QC
     # check must not silently proceed to delivery. Operators can still opt
@@ -388,6 +389,9 @@ def load_settings() -> Settings:
             os.getenv("MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED", "true"), True
         ),
         testdata_agent_enabled=_as_bool(os.getenv("TESTDATA_AGENT_ENABLED", "false"), False),
+        pm_auto_accept_defaults_enabled=_as_bool(
+            os.getenv("PM_AUTO_ACCEPT_DEFAULTS_ENABLED", "true"), True
+        ),
         rqca_agent_enabled=_as_bool(os.getenv("RQCA_AGENT_ENABLED", "false"), False),
         rqca_enforcement_enabled=rqca_enforcement_enabled,
         rqca_test_command_template=os.getenv("RQCA_TEST_COMMAND_TEMPLATE", "").strip(),
