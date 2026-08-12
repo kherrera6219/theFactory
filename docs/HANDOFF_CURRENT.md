@@ -37,32 +37,59 @@ Read `docs/WORK_QUEUE.md` first from now on -- it is the single ordered queue,
 merged from this file's Next Actions, `PRODUCTION_COMPLETION_PLAN.md` and
 `docs/CURRENT_TODO.md`, and it says what is actually next.
 
-**Start with this: runtime QC has never run on a real mission.**
+**Start with this: do NOT set `RQCA_ENFORCEMENT_ENABLED=true` yet.**
+It is `false` in `.env` deliberately. Runtime QC now runs, but it still returns a
+wrong verdict for any CLI program that takes input -- see "Runtime QC" below.
 
-The first live evidence mission recorded
-`runtime_qc_report.verdict = SKIPPED`, `reason = "TESTDATA disabled"`.
-`mission_flow_v2/phases_runtime.py:326` short-circuits runtime QC unless
-`TESTDATA_AGENT_ENABLED` is true, **before** it consults `RQCA_AGENT_ENABLED` --
-and that flag is `false`. The 19-language matrix from 2026-08-11 was proven by
-calling `run_runtime_qc` directly, which bypasses this gate. **The sandbox
-genuinely works; the pipeline never reaches it.** Any claim of the form "N
-languages are verified" is true of the sandbox and not of any mission until this
-is opened.
+**Two gates were opened, each of which had made a whole subsystem unreachable.**
 
-Two ways forward, and the choice matters because `RQCA_ENFORCEMENT_ENABLED` is
-`true`, so whatever starts running also starts **blocking** missions:
+**Intake -- fixed, verified live.** 100% of missions used to stop for an
+operator. Across 12 consecutive real missions the ambiguity score was 0.95-1.0
+against a 0.7 gate, including prompts specifying sort order, separator, exit code
+and error behaviour. The threshold was never the problem: `normalizers.py`
+overwrites the LLM's score with `_pm_ambiguity_score`, which sums signals a
+*thorough* PM emits on any prompt -- 0.55 for its own `needs_clarification` flag,
+0.15 per question, 0.10 per risk note -- so it measures how much the PM said, not
+how unclear the request was, and it is circular, since that flag alone supplies
+0.55 of the 0.7.
 
-1. Set `TESTDATA_AGENT_ENABLED=true`. Smallest change, but enables a separate
-   agent with its own LLM calls and failure modes.
-2. Teach the gate what RQCA now needs. `_LANGUAGE_RUNTIMES` already supplies a
-   base image and run command for all 19 languages, so RQCA no longer depends on
-   the testdata agent for the ordinary single-file case -- that agent adds
-   dependencies and fixtures for richer ones. Skip only when the language has no
-   known runtime *and* testdata is off.
+The fix does not touch the score. The PM prompt already requires "a recommended
+default in each question" and already defines the escape: with
+`user_intent="finalize_plan"` it must return `intake_status: ready` and list every
+assumption. That is what an operator triggers by answering "proceed with the
+defaults", so intake now takes the same path instead of inventing a second one.
+The questions stay recorded under `metadata.pm_auto_accepted_defaults`.
+`PM_AUTO_ACCEPT_DEFAULTS_ENABLED` defaults to **true** -- against the usual
+convention -- because off is not the safe value here, it is the broken one.
+Verified: `mission-24fe7ed8` ran `QUEUED -> PM_INTAKE -> FETCH -> ...` with no
+CLARIFYING stop. **Missions run unattended.**
 
-Option 2 is the better design, but land it with enforcement temporarily off, or
-the first genuinely failing artifact blocks a mission before anyone has watched
-the gate work once.
+**Runtime QC -- reachable, not yet trustworthy.** `phases_runtime` used to skip
+on `TESTDATA_AGENT_ENABLED` *before* consulting `RQCA_AGENT_ENABLED`, so no
+mission ever reached the sandbox and the 19-language matrix described a component
+the pipeline never called. The gate now skips only when there is neither a
+manifest generator nor a known runtime. The first two live runs then produced a
+wrong verdict each, for opposite reasons:
+
+1. **A vacuous PASS, fixed in `e5c2316`.** `PASS / docker_live` with stdout
+   containing the Go source -- the command was `cat /workspace/main.go`.
+   `testdata_agent` carried a *second* language table whose fallback was `cat`,
+   and because it writes both image and command into the manifest, RQCA's
+   `setdefault` never fired and the verified `_LANGUAGE_RUNTIMES` table was
+   bypassed. Now one table, with a guard test that fails if they split again.
+2. **A false FAIL, still open.** With the real command the program compiled and
+   ran, then exited 1 with `"Error: missing file path argument"`. That is the
+   generated code behaving *correctly* -- it was asked for a tool taking a file
+   path that exits non-zero when it cannot read one, and the harness invoked it
+   with no arguments and no input file. Runtime QC therefore mis-scores every
+   CLI program that takes input. Supplying arguments and fixtures is the
+   **testdata agent's** job and it is off. Either enable
+   `TESTDATA_AGENT_ENABLED`, or give `_LANGUAGE_RUNTIMES` a per-mission default
+   invocation. Enforcement must stay off until this is settled.
+
+Worth internalising: opening the gate produced a false PASS, fixing that produced
+a false FAIL, and only the second run executed anything real. The false PASS was
+the more dangerous -- it would have been captured as evidence.
 
 **Everything else that changed**
 
@@ -2456,26 +2483,26 @@ Security alert remediation validation:
 
 `docs/WORK_QUEUE.md` is the authoritative ordered list; this is the summary.
 
-1. **Open the runtime-QC gate** (see the finding above). Nothing else about the
-   sandbox matters until a mission actually reaches it. Land with
-   `RQCA_ENFORCEMENT_ENABLED` temporarily off.
+1. **Give runtime QC a real invocation** so its verdict can be trusted, then and
+   only then consider `RQCA_ENFORCEMENT_ENABLED=true`. Today it fails every
+   argument-taking CLI program for a reason that is not the code's fault.
 2. **Finish the live proof matrix.** A UI-driven mission, a PORT/transform,
-   failure injection, and provider fallback are still owed. The suite and a
-   non-Python mission are done.
+   failure injection and provider fallback are still owed; the suite, an
+   unattended run and a non-Python mission are done.
 3. **Move sandbox execution out of the orchestrator** into `agent-41-rqca`. The
    orchestrator mounts `/var/run/docker.sock` -- effectively host root. Fine for
-   a local dev stack, must not ship.
+   local dev, must not ship.
 4. **The four held Dependabot PRs**: electron 43, next-ecosystem, vitest,
    playwright. All frontend; they need the app exercised in a browser.
 5. **Exercise the Delta gate against a live bus** with
    `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true` on ONE mission first -- if producer
-   and consumer do not line up, it stalls every mission at VERIFIED.
+   and consumer do not line up it stalls every mission at VERIFIED.
 6. **Electron decisions still need sign-off**: Docker lifecycle on quit, the
    Docker Desktop/WSL2 prerequisite story, auto-start.
 
-DONE since this list was written: licence-free MATLAB/Mathematica runtimes,
-image digest pinning, the live-suite silent skip, and the rate-limit starvation.
-
+DONE since this list was written: licence-free MATLAB/Mathematica runtimes, image
+digest pinning, the live-suite silent skip, rate-limit starvation, the intake
+gate, and reachability of runtime QC.
 1. **Post-restart Mission Control UX proof.** Restart the app, then submit a
    real browser mission through Mission Control asking for a modern Angular
    Snake game with a `start.bat` file. Confirm: (a) PM clarification cards
