@@ -69,6 +69,13 @@ def test_estimate_cost_gemini_known() -> None:
     assert round(cost, 6) == 0.0105
 
 
+def test_estimate_cost_gemini_3_7_flash() -> None:
+    cost, known = ledger._estimate_cost("gemini", "gemini-3.7-flash", 1000, 1000)
+    # (1000*0.00075 + 1000*0.00375) / 1000 = 0.0045
+    assert known is True
+    assert round(cost, 6) == 0.0045
+
+
 # ---------------------------------------------------------------------------
 # record_llm_usage
 # ---------------------------------------------------------------------------

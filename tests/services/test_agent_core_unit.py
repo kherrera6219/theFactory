@@ -180,7 +180,7 @@ def test_integration_protocol_topic_store_and_llm_fallback_paths(monkeypatch) ->
     llm = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-XX-UNKNOWN"))
     assert llm["profile"] == "gemini_flash_high"
     assert llm["provider"] == "gemini"
-    assert llm["model"] == "gemini-3.6-flash"
+    assert llm["model"] == "gemini-3.7-flash"
     assert llm["thinking_level"] == "high"
 
     records = [
@@ -271,6 +271,13 @@ def test_llm_recommendation_provider_and_override_branches(monkeypatch) -> None:
     rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
     assert rec["profile"] == "gemini_flash_high"
     assert rec["provider"] == "gemini"
+
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.7-flash")
+    monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "openai_exec"})
+    rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    assert rec["provider"] == "gemini"
+    assert rec["model"] == "gemini-3.7-flash"
 
     # Fallback rewrite leaves a non-placeholder OPENAI_MODEL untouched.
     monkeypatch.setenv("LLM_PROVIDER", "gemini")

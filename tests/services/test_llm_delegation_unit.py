@@ -86,7 +86,7 @@ def test_agent_model_inventory_defaults_to_gemini_flash() -> None:
         for record in snapshot.get("agents", [])
         if isinstance(record, dict)
     }
-    assert models == {"gemini-3.6-flash"}
+    assert models == {"gemini-3.7-flash"}
     assert "gpt-5.2-codex" not in models
 
 

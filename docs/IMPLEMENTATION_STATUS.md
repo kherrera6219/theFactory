@@ -107,7 +107,7 @@ The application currently includes:
 | `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | `false` | Contract-conformance findings are advisory until pass rates are measured |
 | `DEPABS_EXECUTION_ENABLED` | `false` | Dependency absorption execution remains opt-in |
 | `LLM_PROVIDER` | `gemini` | Default provider route |
-| `GEMINI_MODEL` | `gemini-3.6-flash` | Default model for all agent routes (compose / gateway). |
+| `GEMINI_MODEL` | `gemini-3.7-flash` | Default model for all agent routes (compose / gateway / vault). |
 | `OPENAI_MODEL` | `gpt-5.5` | Selectable non-default route |
 | `ANTHROPIC_MODEL` | `claude-opus-4-8` | Selectable non-default route |
 | `MILVUS_ENABLED` | `true` | Extended vector store enabled in base stack |

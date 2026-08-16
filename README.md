@@ -237,7 +237,7 @@ Each agent exposes:
   "active_mission_id": null,
   "llm_recommendation": {
     "provider": "gemini",
-    "model": "gemini-3.6-flash",
+    "model": "gemini-3.7-flash",
     "mode": "thinking",
     "thinking_level": "high"
   },
@@ -267,7 +267,7 @@ Runtime persona and delegation metadata currently support provider-aware recomme
 - **Google Gemini**
 
 Current runtime default: all 41 agents route to Gemini 3.6 Flash
-(`gemini-3.6-flash`) with high thinking. Mission Control Settings exposes three
+(`gemini-3.7-flash`) with high thinking. Mission Control Settings exposes three
 operator-selectable vault-slot model routes for testing: ChatGPT 5.5, Claude
 Opus 4.8, and Gemini 3.6 Flash. OpenAI and Anthropic remain supported provider
 routes, but they are not the default assignment for any agent.
@@ -835,9 +835,9 @@ OTEL_TRACING_ENABLED=true
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
 
 # LLM Providers
-LLM_PROVIDER=gemini                # gemini default; UI model choices: gpt-5.5 | claude-opus-4-8 | gemini-3.6-flash
+LLM_PROVIDER=gemini                # gemini default; UI model choices: gpt-5.5 | claude-opus-4-8 | gemini-3.7-flash
 GEMINI_API_KEY=AIza...
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-3.7-flash
 
 GEMINI_THINKING_LEVEL=high
 OPENAI_MODEL=gpt-5.5

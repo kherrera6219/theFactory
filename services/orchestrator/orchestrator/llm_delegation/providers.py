@@ -519,7 +519,7 @@ async def _call_with_recommendation(
     system_prompt: str | None = None,
 ) -> tuple[dict[str, Any] | None, str, str, str]:
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
 
     # Security Hardening: redact PII from the prompt before sending to any
