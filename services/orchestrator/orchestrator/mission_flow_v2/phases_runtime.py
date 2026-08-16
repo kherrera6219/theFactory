@@ -13,6 +13,7 @@ from ..dependency_absorption import (
     mission_requires_dependency_absorption,
 )
 from ..llm_delegation import (
+    generate_integration_tests,
     generate_rqca_assessment,
 )
 from ..mission_flow import (
@@ -410,6 +411,34 @@ async def _prepare_runtime_qc(
             metadata=metadata,
             reason="RQCA disabled",
         )
+
+    # Tests used to be generated in delivery, after QC had already run. The
+    # Snake mission wrote 8 pytest cases that never entered the sandbox.
+    if not isinstance(metadata.get("integration_tests"), dict):
+        integration_tests = await generate_integration_tests(
+            mission_id=mission.mission_id,
+            mission_context=_mission_context(mission, metadata),
+            generated_output=generated_output
+            if isinstance(generated_output, dict)
+            else None,
+            mission_contract=metadata.get("mission_contract")
+            if isinstance(metadata.get("mission_contract"), dict)
+            else {},
+        )
+        metadata["integration_tests"] = integration_tests
+        if not _chain_event_exists(metadata, "MISSION_INTEGRATION_TESTS_GENERATED"):
+            append_chain_event(
+                metadata,
+                event_type="MISSION_INTEGRATION_TESTS_GENERATED",
+                agent_id="AGENT-10-TESTER",
+                details={
+                    "test_filename": integration_tests.get("test_filename"),
+                    "test_case_count": len(integration_tests.get("test_cases") or []),
+                    "framework": integration_tests.get("framework"),
+                    "source": integration_tests.get("source"),
+                    "when": "before_runtime_qc",
+                },
+            )
 
     execution = await run_runtime_qc(
         mission_id=mission.mission_id,

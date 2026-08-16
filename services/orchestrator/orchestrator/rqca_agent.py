@@ -436,19 +436,62 @@ def _is_library_artifact(
     return (not has_entry) and usage_is_import
 
 
+#: Tokens that mean the artifact is an interactive loop, not a CLI that exits.
+_INTERACTIVE_SOURCE_MARKERS = (
+    "msvcrt.kbhit",
+    "msvcrt.getch",
+    "curses.",
+    "turtle.",
+    "pygame.",
+    "while true",
+    "while running",
+    "game_over",
+    "get_action(",
+)
+
+
+def _is_interactive_artifact(
+    generated_output: dict[str, Any] | None,
+    generated_code: str,
+) -> bool:
+    """True when the artifact is a game or input loop that should not exit 0."""
+    payload = generated_output or {}
+    usage = str(payload.get("usage_example") or "").strip().lower()
+    filename = str(payload.get("filename") or "").strip().lower()
+    text = " ".join(
+        [
+            filename,
+            usage,
+            str(payload.get("title") or ""),
+            "\n".join(str(generated_code or "").splitlines()[:80]).lower(),
+        ]
+    )
+    looks_like_game = any(
+        token in text
+        for token in ("snake", "pong", "tetris", "game loop", "score:")
+    )
+    has_loop = any(marker in text for marker in _INTERACTIVE_SOURCE_MARKERS)
+    no_cli_args = not _invocation_from_usage_example(
+        payload.get("usage_example"), payload.get("filename") or "main.py"
+    )
+    return bool((looks_like_game or has_loop) and no_cli_args)
+
+
 def _classify_artifact(
     *,
     dependencies: Any,
     generated_code: str,
     generated_output: dict[str, Any] | None = None,
 ) -> str:
-    """Return gui | server | library | cli. Used to pick a verification strategy."""
+    """Return gui | server | library | interactive | cli."""
     if _is_gui_artifact(dependencies, generated_code):
         return "gui"
     if _is_server_artifact(dependencies, generated_code):
         return "server"
     if _is_library_artifact(generated_output, generated_code):
         return "library"
+    if _is_interactive_artifact(generated_output, generated_code):
+        return "interactive"
     return "cli"
 
 
@@ -875,7 +918,7 @@ async def run_runtime_qc(
         generated_output=generated_output if isinstance(generated_output, dict) else None,
     )
     syntax_command = _SYNTAX_ONLY_COMMANDS.get(normalized_language)
-    if artifact_class in {"gui", "library", "server"}:
+    if artifact_class in {"gui", "library", "server", "interactive"}:
         if syntax_command:
             testdata_manifest = {
                 **testdata_manifest,

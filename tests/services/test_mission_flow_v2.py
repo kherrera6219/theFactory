@@ -2231,6 +2231,10 @@ async def test_prepare_runtime_qc_records_complete_report_and_blocks_on_enforced
             new=AsyncMock(return_value=manifest),
         ), patch.object(
             orchestrator_mission_flow_v2_runtime,
+            "generate_integration_tests",
+            new=AsyncMock(return_value={"test_filename": "test_x.py", "test_cases": [], "source": "test"}),
+        ), patch.object(
+            orchestrator_mission_flow_v2_runtime,
             "run_runtime_qc",
             new=AsyncMock(return_value=execution),
         ), patch.object(

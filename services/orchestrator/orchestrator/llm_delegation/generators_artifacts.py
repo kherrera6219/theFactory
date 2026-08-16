@@ -768,8 +768,10 @@ async def generate_integration_tests(
     prompt = (
         "You are AGENT-10-TESTER generating integration tests.\n"
         f"Recommended model: {provider}/{model}\n"
-        "Write integration tests that verify the acceptance criteria "
-        "of the generated artifact. Match the target language.\n"
+        "Write tests that verify the acceptance criteria of the generated artifact.\n"
+        "If the artifact is an interactive game or a process that does not exit, "
+        "write unit tests of extractable logic (collision, score, movement) — "
+        "do not spawn the interactive process.\n"
         "Return only JSON. No markdown.\n\n"
         f"Mission ID: {_clean_text(mission_id, max_length=96)}\n"
         f"Language: {language}\n"
@@ -831,6 +833,27 @@ async def generate_integration_tests(
     }
 
 
+def _logicnodes_are_unstated(nodes: Any) -> bool:
+    """True when there is nothing extracted to audit.
+
+    BUILD_NEW often writes a routing_stub or an empty list. Scoring that 0.96
+    PASS is how pod-audit rubber-stamped the Snake mission.
+    """
+    if not isinstance(nodes, list) or not nodes:
+        return True
+    stated = 0
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        cmd = str(node.get("cmd") or "").strip().lower()
+        payload = node.get("payload") if isinstance(node.get("payload"), dict) else {}
+        origin = str(payload.get("origin") or payload.get("concept") or "").strip().lower()
+        if cmd in {"routing_stub", "stub"} or origin in {"routing_stub", "stub"}:
+            continue
+        stated += 1
+    return stated == 0
+
+
 async def generate_pod_audit_verdict(
     *,
     mission_id: str,
@@ -852,7 +875,40 @@ async def generate_pod_audit_verdict(
     model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
 
-    canonical_count = len(pod_group_standard.get("canonical_logicnodes") or [])
+    nodes = pod_group_standard.get("canonical_logicnodes") or []
+    if _logicnodes_are_unstated(nodes):
+        return {
+            "schema_version": "pod_audit_verdict.v1",
+            "mission_id": _clean_text(mission_id, max_length=96),
+            "pod_name": pod_name,
+            "agent_id": audit_agent_id,
+            "verdict": "WARN",
+            "passed": True,
+            "quality_score": 0.0,
+            "findings": [
+                {
+                    "id": "F000",
+                    "severity": "info",
+                    "description": (
+                        "No extracted LogicNodes to audit on this BUILD_NEW path. "
+                        "Codegen already produced the artifact; this is not a quality score."
+                    ),
+                }
+            ],
+            "summary": (
+                "Pod audit skipped scoring: there is no extracted LogicNode graph "
+                "to review. Do not treat this as a 0.96 PASS."
+            ),
+            "recommendations": [
+                "Use runtime QC and generated tests to judge BUILD_NEW quality."
+            ],
+            "source": "no_extractable_logicnodes",
+            "model_provider": provider,
+            "model": model,
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+
+    canonical_count = len(nodes)
     eliminated = int(pod_group_standard.get("eliminated_duplicates") or 0)
     contract_summary = _clean_text(
         str(mission_context.get("contract_summary") or ""), max_length=300

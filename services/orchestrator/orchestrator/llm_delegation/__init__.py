@@ -78,6 +78,8 @@ from .fallbacks import (
     _fallback_security_analysis,
     _fallback_specialist_plan,
     _fallback_vc_commit_strategy,
+    _looks_like_boilerplate_plan,
+    _plan_from_contract,
 )
 from .generators import (
     generate_ceo_delegation,
@@ -159,6 +161,7 @@ from .text import (
     _normalize_agent_choice,
     _normalize_text_list,
     _pm_ambiguity_score,
+    _pm_product_clarifying_questions,
     _priority,
     _safe_context_json,
     _safe_filename,

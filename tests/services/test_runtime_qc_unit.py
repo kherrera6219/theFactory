@@ -664,3 +664,8 @@ def test_server_and_library_artifacts_are_classified() -> None:
         generated_code="if __name__ == '__main__':\n    print(1)\n",
         generated_output={"usage_example": "python main.py input.txt"},
     ) == "cli"
+    assert classify(
+        dependencies=[],
+        generated_code="import msvcrt\nwhile True:\n    if msvcrt.kbhit():\n        pass\n",
+        generated_output={"filename": "snake.py", "usage_example": "python snake.py"},
+    ) == "interactive"

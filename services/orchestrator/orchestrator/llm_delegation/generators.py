@@ -19,6 +19,8 @@ from .fallbacks import (
     _fallback_pod_group_standard,
     _fallback_pod_manager_delegation,
     _fallback_specialist_plan,
+    _looks_like_boilerplate_plan,
+    _plan_from_contract,
 )
 from .normalizers import (
     _normalize_codegen_result,
@@ -501,27 +503,28 @@ async def generate_specialist_plan(
         )
 
     plan_summary = _clean_text(parsed.get("plan_summary", ""), max_length=280)
-    if not plan_summary:
-        plan_summary = "Specialist execution plan generated from mission context."
-
     deliverables = _normalize_text_list(parsed.get("deliverables"), limit=6)
-    if not deliverables:
-        deliverables = [
-            "Produce implementation changes for the assigned mission scope.",
-            "Persist logicnode evidence and audit artifacts before completion.",
-        ]
-
     risk_notes = _normalize_text_list(parsed.get("risk_notes"), limit=6)
-    if not risk_notes:
-        risk_notes = ["No explicit risks returned by model output."]
+    boilerplate = _looks_like_boilerplate_plan(plan_summary, deliverables)
+    if not plan_summary or not deliverables or boilerplate:
+        derived = _plan_from_contract(mission_context)
+        if not plan_summary or boilerplate:
+            plan_summary = str(derived["plan_summary"])
+        if not deliverables or boilerplate:
+            deliverables = list(derived["deliverables"])
+        if not risk_notes:
+            risk_notes = list(derived["risk_notes"])
+        source = "contract"
+    else:
+        source = "llm"
 
     return {
         "specialist_agent_id": normalized_specialist_agent_id,
         "pod_manager_agent_id": normalized_pod_manager_agent_id,
         "plan_summary": plan_summary,
         "deliverables": deliverables,
-        "risk_notes": risk_notes,
-        "source": "llm",
+        "risk_notes": risk_notes or ["No explicit risks returned by model output."],
+        "source": source,
         "llm_route": llm_route,
         "model_provider": resolved_provider,
         "model": resolved_model,
