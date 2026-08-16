@@ -1452,7 +1452,7 @@ async def test_prepare_specialist_plan_emits_beta_production_result() -> None:
     assert kwargs["specialist_agent_id"] == "AGENT-36-GO"
     assert kwargs["pod_manager_agent_id"] == "AGENT-18-PODB-MGR"
     assert kwargs["source_language"] == "go"
-    assert kwargs["confidence_score"] == 0.85
+    assert kwargs["confidence_score"] == 0.0
     assert kwargs["logicnode_id"] == f"ln-{mission.mission_id}-specialist"
 
 
@@ -2371,6 +2371,37 @@ async def test_prepare_runtime_qc_generates_manifest_then_skips_when_rqca_disabl
         event["event_type"] == "MISSION_TESTDATA_MANIFEST_READY"
         for event in mission.metadata["chain_trace"]
     )
+
+
+@pytest.mark.asyncio
+async def test_prepare_runtime_qc_skip_blocks_when_enforcement_on_and_agent_off() -> None:
+    """Enforcement plus a disabled agent used to deliver with SKIPPED."""
+    settings = _make_settings()
+    settings.testdata_agent_enabled = True
+    settings.rqca_agent_enabled = False
+    settings.rqca_enforcement_enabled = True
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {"generated_code": "print('hello')", "language": "python"},
+        "testdata_manifest": {"base_image": "python:3.12", "run_command": "python /workspace/x.py"},
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = MagicMock()
+        updated, ready, report = await orchestrator_mission_flow_v2_runtime._prepare_runtime_qc(
+            app=_make_app_state(),
+            settings=settings,
+            mission=mission,
+        )
+
+    assert updated is mission
+    assert ready is False
+    assert report["skipped"] is True
+    assert report["reason"] == "RQCA disabled"
 
 
 @pytest.mark.asyncio

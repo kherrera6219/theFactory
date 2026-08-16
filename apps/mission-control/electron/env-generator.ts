@@ -50,6 +50,7 @@ const SECRET_FAMILY_BY_VAR: Record<string, string> = {
   AUDIT_SERVICE_API_KEY: "audit_service_api_key",
   MCP_API_KEY: "mcp_api_key",
   APPROVAL_HMAC_SECRET: "approval_hmac_secret",
+  RATE_LIMIT_HMAC_KEY: "rate_limit_hmac_key",
 };
 
 export type LlmProviderKeys = {

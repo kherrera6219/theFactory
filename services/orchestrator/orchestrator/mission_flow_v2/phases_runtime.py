@@ -30,6 +30,7 @@ from .base import (
     _extension_for_language,
     _mission_context,
     _record_artifact,
+    _setting_bool,
     _validate_agent_id,
 )
 from .phases_build import _ensure_verified_build_artifact
@@ -287,7 +288,16 @@ async def _persist_runtime_qc_skip(
             )
         except Exception as exc:
             LOGGER.warning("failed to persist runtime QC skip event for %s: %s", mission.mission_id, exc)
-    return updated or mission, True, runtime_qc_report
+    # Enforcement means "a required QC result is missing or failed". Skipping
+    # because the operator turned the agent off is not a result -- delivering
+    # with a decorative RQCA_ENFORCEMENT_ENABLED=true was the previous default.
+    # Other skip reasons (no artifact, no runtime) stay advisory so an unknown
+    # language cannot strand a mission.
+    ready = not (
+        _setting_bool(settings, "rqca_enforcement_enabled", False)
+        and reason == "RQCA disabled"
+    )
+    return updated or mission, ready, runtime_qc_report
 
 async def _prepare_runtime_qc(
     *,
@@ -342,6 +352,7 @@ async def _prepare_runtime_qc(
     if (
         not bool(getattr(settings, "testdata_agent_enabled", False))
         and qc_language not in _LANGUAGE_RUNTIMES
+        and not bool(getattr(settings, "rqca_agent_enabled", False))
     ):
         return await _persist_runtime_qc_skip(
             settings=settings,
@@ -651,13 +662,14 @@ async def _prepare_fusion(
             metadata["generated_output"] = generated_output
             # PBLA-03: emit the specialist result on the Beta lane (fire-and-forget).
             # Only runs on a successful codegen (inside the try, after the output is
-            # stored). logicnode_id/confidence_score are synthesized — generated_output
-            # carries neither — and confidence is clamped in the helper.
+            # stored). logicnode_id is synthesized. confidence_score is 0.0
+            # until a real score exists — a hardcoded 0.85 used to look like a
+            # specialist self-check.
             _beta_pod_manager = _validate_agent_id(
                 metadata.get("assigned_pod_manager_agent_id"),
                 fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
             )
-            _beta_confidence = 0.85 if generated_output.get("source") == "llm" else 0.3
+            _beta_confidence = 0.0
             await _send_beta_production_result(
                 settings=settings,
                 mission_id=mission.mission_id,

@@ -608,7 +608,7 @@ async def _prepare_specialist_plan(
             ),
             pod_manager_agent_id=pod_manager_agent_id,
             logicnode_id=f"ln-{mission_id}-specialist",
-            confidence_score=0.85 if generated_output.get("source") == "llm" else 0.3,
+            confidence_score=0.0,
             source_language=str(generated_output.get("language") or _target_lang),
         )
         if not _chain_event_exists(metadata, "GENERATED_OUTPUT_CREATED"):

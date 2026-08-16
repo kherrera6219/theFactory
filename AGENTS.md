@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-08-01 against actual codebase (design-vs-build audit).
+> Last validated: 2026-08-15 against actual codebase (review-fixes honesty gates).
 
 ---
 
@@ -141,7 +141,7 @@ As of v1.1.0, all agents are grounded as **Certified Experts** in their respecti
 |---|---|
 | DLQ on intake stream | ✅ Fixed — `_write_intake_dlq()` in `orchestrator/runtime.py:394` |
 | MCP_API_KEY auto-gen instability | ✅ Fixed — production hard-fails; dev warns loudly (`mcp_server.py:32`) |
-| Silent AUTH_MODE fallback | ✅ Fixed — production hard-fails on invalid value (`api-gateway/main.py:152`) |
+| Silent AUTH_MODE fallback | ✅ Fixed — invalid `AUTH_MODE` raises in every environment; no fallback to `api_key` |
 | Cert path mismatch (.env.example vs docker-compose) | ✅ Fixed — `.env.example` now explains both paths with inline comments |
 | GO/HASKELL/OCAML fall back to BaseAgent | ✅ Fixed — concrete SpecialistAgent subclasses implemented (#187) |
 | MCP replay detection not wired; except/pass on Redis errors | ✅ Fixed — 409 on replay, 503 on Redis failure, all channels checked (#188) |

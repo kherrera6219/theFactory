@@ -112,16 +112,27 @@ async def generate_rqca_assessment(
     _ = mission_id, mission_contract, language
     verdict = str(execution_result.get("verdict") or "SKIPPED").strip().upper()
     passed = bool(execution_result.get("passed", False))
-    if verdict in {"DRY_RUN", "SKIPPED"}:
-        # Runtime QC could not actually execute the artifact (no sandbox / Docker
-        # unavailable / unsupported language). Report this honestly as a degraded
-        # advisory rather than claiming the artifact is deployment-safe. The
-        # mission can still continue (advisory=True) but the operator sees that
-        # the gate was bypassed instead of a fake green check.
+    scope_detail = str(execution_result.get("verified_scope_detail") or "").strip().lower()
+    # started_only is not a pass: the process launched without a derived
+    # invocation, so the exit code is not evidence. Treat it like DRY_RUN even
+    # if an older report still labelled the verdict PASS.
+    if verdict in {"DRY_RUN", "SKIPPED"} or (
+        scope_detail == "started_only" and verdict != "FAIL"
+    ):
+        if scope_detail == "started_only":
+            reason = (
+                "Runtime QC launched the artifact with no derived invocation, "
+                "so the exit code is not evidence of correctness"
+            )
+        else:
+            reason = (
+                "Runtime QC did not fully execute the artifact "
+                f"({verdict}); gate is advisory, not a pass"
+            )
         return {
             "qc_verdict": "ADVISORY",
             "status": "degraded",
-            "reason": "Runtime QC did not execute — sandbox unavailable; gate bypassed",
+            "reason": reason,
             "advisory": True,
             "confidence": "LOW",
             "execution_verdict": verdict,

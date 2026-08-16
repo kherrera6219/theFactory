@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.08.01
-Last updated: 2026-08-01
+Document version: 2026.08.15
+Last updated: 2026-08-15
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -41,10 +41,10 @@ The application currently includes:
 - API gateway with dual-mode auth (API Key + OIDC) and rate limiting
 - Orchestrator state engine on MissionFlow v2 (LangGraph ships disabled; see ADR row 13)
 - Protocol bus MCP (6-protocol typed Redis message bus with DLQ, 409 replay protection, and 503 backpressure)
-- Pod workers with concrete AST extractors for 7 language families & pre-flight toolchain checkers
-- LogicNode schema v2 — descriptive fields promoted to first-class optional properties; `types.in`/`types.out` populated from real AST signatures for Python, Java, and Haskell (see [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md))
-- Refined-IR with a self-describing `projection_method` (`ast_v1` / `templated_v1` / `mixed_v1`), real statement-level op streams, and purity from genuine side-effect analysis
-- Behavioural equivalence verification — executes the artifact against generated vectors in a shared hardened Docker sandbox (opt-in, advisory; see [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md))
+- Pod workers with real AST extractors for Python, JavaScript/TypeScript, and Java. Go, Haskell, OCaml, and Julia extractors are named AST but implemented as regex. Pre-flight toolchain checkers exist for all four pods.
+- LogicNode schema v2 — descriptive fields promoted to first-class optional properties; `types.in`/`types.out` populated from real AST signatures for Python, Java, and Haskell (see [LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md)). BUILD_NEW missions produce source artifacts; LogicNodes earn their keep on PORT/transform, not as a parallel semantic engine under every new app.
+- Refined-IR with a self-describing `projection_method` (`ast_v1` / `templated_v1` / `mixed_v1`). `ast_v1` requires recovered types; otherwise the projection is `templated_v1`.
+- Behavioural equivalence verification — Python only (`equivalence_execution.SUPPORTED_LANGUAGES`). BUILD_NEW skips it (no Refined-IR). Opt-in, advisory; see [SUPPORTING_MODULES.md](SUPPORTING_MODULES.md)
 - Audit worker for verification stream processing
 - Dedicated single-agent runtime containers (supporting condensed, dedicated, and full-dedicated topologies)
 - Integrated data plane: PostgreSQL, Redis, Qdrant, Milvus, Neo4j, and MinIO
@@ -60,11 +60,11 @@ The application currently includes:
 | Runtime validation | Full-dedicated stack evidence refreshed on 2026-07-25 |
 | Rebuild readiness | API gateway and orchestrator readiness passed in current smoke evidence |
 | Backend/API mission path | Phase 13 smoke passed |
-| Multi-Language AST Extractors | AST structural extractors live across Python (`ast`), JS/TS (`esprima`), Java (`javalang`), Go (`go_ast_extractor`), Haskell (`haskell_ast_extractor`), OCaml (`ocaml_ast_extractor`), and Julia (`julia_ast_extractor`) with zero-false-positive structural extraction and regex fallback |
+| Multi-Language AST Extractors | Real AST: Python (`ast`), JS/TS (`esprima`), Java (`javalang`). Go/Haskell/OCaml/Julia files are regex under an AST name. Regex concept catalog still runs for every language. |
 | Pod Toolchain Checkers | Pre-flight syntax and compiler checkers live (`toolchains.py`) covering Pods A/B/C/D (`py_compile`, `node --check`, `go vet`, `rustc --parse-only`, `gcc -fsyntax-only`, `javac`, `ghc -fno-code`, `ocamlc -c`) |
 | Deployment Handshake Exporters | Downstream deployment exporter engine live (`deploy_exporter.py`), producing gzipped Helm Charts & GitHub Actions workflows via REST endpoints |
 | Desktop Electron Build | Electron desktop packaging build passed (`npm run electron:build`), standalone Next.js server bundle assembled, and Docker Desktop/WSL2 daemon preflight active |
-| Production Review Audit | **23 / 23 Checks Passed** (`scripts/production_review_audit.py`) |
+| Production Review Audit | Static config/string checks in `scripts/production_review_audit.py`. Useful as a hygiene gate, not as proof the runtime works. |
 | Documentation Validation | **100% Passed** (`scripts/validate_documentation.py`) |
 | Mission Control Unit Suite | 146/146 Vitest unit tests passed across 26 test files |
 | Pytest Backend Suite | **1,868** pytest tests passed, 0 failed, 0 errors |
@@ -73,7 +73,7 @@ The application currently includes:
 | Stack operations safety | Teardown preserves volumes by default; `start_app.bat` refuses a compose topology that conflicts with what is running |
 
 | Documentation controls | 76 metadata docs, 119 link docs, 17 docstring files, migration guide, and three diagram sets validated cleanly |
-| Production audit | 23/23 audit checks passed; all security and governance requirements closed |
+| Production audit | Hygiene script, not a live-mission gate. Do not treat a green run as release evidence. |
 
 ---
 
@@ -82,11 +82,13 @@ The application currently includes:
 | Area | Status | Notes |
 |---|---|---|
 | Core Software Engine | **Complete for v1.3 scope** | 11-phase Smelt cycle, 41-agent registry, 6 Redis protocols, AST parsers for all 4 pods, and Deployment Exporters are operational. Refined-IR now carries **real** typed signatures, statement-level op streams, and side-effect-derived purity for AST-backed languages, and labels itself `ast_v1` vs `templated_v1` ([LOGICNODE_SCHEMA.md](LOGICNODE_SCHEMA.md)) |
-| Semantic depth | **Partially reinstated; remainder scoped out** | Type recovery and behavioural verification are **real for Python, Java, and Haskell** — other languages produce honestly-empty types and a `templated_v1` projection. Still Superseded or Deferred by recorded decision: the four-pod comprehension model, the LogicNode Registry (Doc 30), binary/LLVM output, and the 0.0001% tolerance. Verdicts in [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) |
-| Behavioural equivalence | **Shipped, opt-in, advisory** | Executes generated artifacts against Phase 4 vectors in the shared hardened sandbox. Gated on `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` (default `false`). Advisory until pass rates are measured across 20+ real missions — a vector that merely *ran* is reported as `executed_without_error`, never `passed` |
-| Live mission evidence | **Outstanding (S1-01 / UPG-20)** | The current proof is a 22-line string reverser. A non-trivial multi-criterion mission has not yet been run end to end, and it is the hard blocker for the Protocol Bus EDCP phase |
-| Audit & Quality Standards | **100% Passed** | 23/23 production audit checks passed, 88.33% backend coverage (floor 80%), 146 UI unit tests green, docs validation clean |
-| Desktop Packaging Path | **100% Complete** | Electron build pipeline, embedded standalone server bundle, NSIS installer target, and Docker preflight validation verified |
+| Semantic depth | **Partially reinstated; remainder scoped out** | Type recovery is real for Python, Java, and Haskell. Behavioural execution is **Python only**. Other languages produce honestly-empty types and a `templated_v1` projection. Still Superseded or Deferred: the four-pod comprehension model, the LogicNode Registry (Doc 30), binary/LLVM output, and the 0.0001% tolerance. Verdicts in [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) |
+| Behavioural equivalence | **Shipped, opt-in, advisory, Python only** | Gated on `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` (default `false`). BUILD_NEW skips (no Refined-IR). A vector that merely *ran* is `executed_without_error`, never `passed`. Behavioural results do not flip top-level `passed`. |
+| Live mission evidence | **S1-01 captured; matrix still open** | Go CLI `mission-f8a5accf` COMPLETE (`docs/evidence/s1_01_live_generation_go_20260811.json`). Chat-driven PyQt6 `mission-e42fd7e2` COMPLETE. Still owed: a PORT/transform, failure injection, and provider fallback. EDCP is implemented but off (`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`) and not live-bus proven. |
+| Audit & Quality Standards | **Hygiene green, not a release certificate** | `production_review_audit.py` is a static file/string check. Backend coverage floor 80%, Mission Control Vitest suite exists. Do not cite 23/23 as the release gate. |
+| Data plane | **Do not grow** | Postgres, Redis, Qdrant, Milvus, Neo4j, and MinIO already ship. BUILD_NEW does not need more stores. Add a consumer before adding an engine. |
+| Orchestrator docker.sock | **Accepted local grant; must not ship** | `deploy/docker-compose.yaml` mounts `/var/run/docker.sock` and `group_add: "0"`. Move sandbox execution to `agent-41-rqca` before any non-local profile (`docs/WORK_QUEUE.md` item 11). |
+| Desktop Packaging Path | **Web path is primary** | `start_app.bat` launches Docker + browser. Electron exists and now uses the Next.js `/api/gateway` proxy (it previously called `:8100` with no API key). Installer signing and uninstall hooks remain open. |
 
 
 ---
@@ -98,14 +100,14 @@ The application currently includes:
 | `MISSION_FLOW_V2_ENABLED` | `true` | Primary runtime path |
 | `LANGGRAPH_ENABLED` | `false` | Optional alternative lifecycle engine |
 | `LANGGRAPH_CHECKPOINTER` | `none` | Postgres checkpointer requires explicit direct Postgres URL |
-| `TESTDATA_AGENT_ENABLED` | `false` | Runtime QC support is opt-in |
-| `RQCA_AGENT_ENABLED` | `false` | Runtime QC support is opt-in |
-| `RQCA_ENFORCEMENT_ENABLED` | `true` | Blocking by default — a failed runtime QC check blocks delivery (`settings.py:98`, `:228`). Fails fast in production if disabled |
+| `TESTDATA_AGENT_ENABLED` | `false` | Extra fixtures/deps for richer QC. RQCA no longer depends on this flag to run. |
+| `RQCA_AGENT_ENABLED` | `true` | Runtime QC runs on the completion path. Docker missing → honest `DRY_RUN` / `ADVISORY`. |
+| `RQCA_ENFORCEMENT_ENABLED` | `true` | Blocks only `qc_verdict == FAIL`. `started_only`, `DRY_RUN`, `SKIPPED`, and `ADVISORY` do not block. Turning the agent off while this is on now blocks (skip is not a QC result). Production still fails fast if this is false. |
 | `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `true` | Blocking by default — a detected hardcoded secret blocks delivery (`settings.py:92`) |
 | `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | `false` | Contract-conformance findings are advisory until pass rates are measured |
 | `DEPABS_EXECUTION_ENABLED` | `false` | Dependency absorption execution remains opt-in |
 | `LLM_PROVIDER` | `gemini` | Default provider route |
-| `GEMINI_MODEL` | `gemini-3.5-flash` | Default model for all agent routes |
+| `GEMINI_MODEL` | `gemini-3.6-flash` | Default model for all agent routes (compose / gateway). |
 | `OPENAI_MODEL` | `gpt-5.5` | Selectable non-default route |
 | `ANTHROPIC_MODEL` | `claude-opus-4-8` | Selectable non-default route |
 | `MILVUS_ENABLED` | `true` | Extended vector store enabled in base stack |

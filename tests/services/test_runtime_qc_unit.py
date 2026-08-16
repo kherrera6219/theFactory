@@ -277,6 +277,23 @@ def test_rqca_assessment_skipped_is_degraded_not_safe() -> None:
         assert result["deployment_safe"] is False
 
 
+def test_rqca_assessment_started_only_is_advisory_even_if_verdict_says_pass() -> None:
+    result = asyncio.run(
+        llm_delegation.generate_rqca_assessment(
+            mission_id="mission-1",
+            execution_result={
+                "verdict": "PASS",
+                "passed": True,
+                "verified_scope_detail": "started_only",
+            },
+            mission_contract={},
+            language="python",
+        )
+    )
+    assert result["qc_verdict"] == "ADVISORY"
+    assert result["deployment_safe"] is False
+
+
 def test_rqca_compose_yaml_is_hardened_and_sanitized() -> None:
     manifest = {
         "multi_container": True,
@@ -540,10 +557,13 @@ class TestOfflineSandboxDependencyHandling:
         assert unmet("go", ["bufio", "fmt", "unicode/utf8"]) == []
         assert unmet("javascript", ["fs", "path", "node:crypto"]) == []
 
-    def test_unclassifiable_languages_are_left_alone(self) -> None:
-        """Guessing would turn every Rust or Java mission into a DRY_RUN."""
-        assert rqca_agent._unmet_dependencies("rust", ["serde"]) == []
-        assert rqca_agent._unmet_dependencies("java", ["org.junit"]) == []
+    def test_unclassifiable_third_party_deps_are_unmet(self) -> None:
+        """Executing rust/java with crates/jars against --network=none is a false run."""
+        assert rqca_agent._unmet_dependencies("rust", ["serde"]) == ["serde"]
+        assert rqca_agent._unmet_dependencies("java", ["org.junit"]) == ["org.junit"]
+        assert rqca_agent._unmet_dependencies("rust", ["std"]) == []
+        assert rqca_agent._unmet_dependencies("java", ["java.util"]) == []
+        assert rqca_agent._unmet_dependencies("zig", ["some-dep"]) == ["some-dep"]
 
     def test_gui_artifacts_are_recognised_from_deps_or_imports(self) -> None:
         """Running a GUI app headless proves nothing -- it needs a display."""
@@ -573,23 +593,74 @@ class TestOfflineSandboxDependencyHandling:
 
 
 def test_a_syntax_check_failure_is_never_excused_as_not_exercised() -> None:
-    """The false PASS that P4 caught, pinned.
-
-    "No invocation was derived" is a reason to withhold judgement on a program
-    that might have needed arguments. A parse-or-compile check takes no
-    arguments at all, so that reason cannot apply to it -- its exit code is the
-    verdict. Without the guard, a live PyQt6 artifact whose `py_compile` reported
-    "IndentationError: unexpected indent (line 42)" with exit 1 was recorded as
-    PASS: the check found exactly the defect it exists to find, and the verdict
-    threw the answer away.
-    """
-    import inspect
-
-    source = inspect.getsource(rqca_agent)
-    assert "syntax_only" in source, "the syntax-only guard is gone"
-    # The excusing branch must require `not syntax_only`.
-    marker = "if not passed and not exercised and not syntax_only:"
-    assert marker in source, (
-        "the not-exercised excuse no longer excludes syntax-only runs, so a "
-        "compile failure can be recorded as PASS again"
+    """A parse-or-compile check takes no arguments; its exit code is the verdict."""
+    verdict, passed, note = rqca_agent._sandbox_verdict(
+        exit_matched=False,
+        exercised=False,
+        syntax_only=True,
+        matched_failure_pattern=None,
     )
+    assert verdict == "FAIL"
+    assert passed is False
+    assert note is None
+
+
+def test_started_only_is_dry_run_not_pass() -> None:
+    """A bare launch is not evidence. Promoting it to PASS authorized delivery."""
+    for exit_matched in (True, False):
+        verdict, passed, note = rqca_agent._sandbox_verdict(
+            exit_matched=exit_matched,
+            exercised=False,
+            syntax_only=False,
+            matched_failure_pattern=None,
+        )
+        assert verdict == "DRY_RUN", exit_matched
+        assert passed is False
+        assert note is not None
+
+
+def test_exercised_exit_code_is_the_verdict() -> None:
+    assert rqca_agent._sandbox_verdict(
+        exit_matched=True, exercised=True, syntax_only=False, matched_failure_pattern=None
+    ) == ("PASS", True, None)
+    assert rqca_agent._sandbox_verdict(
+        exit_matched=False, exercised=True, syntax_only=False, matched_failure_pattern=None
+    ) == ("FAIL", False, None)
+
+
+def test_failure_pattern_wins_over_started_only() -> None:
+    verdict, passed, note = rqca_agent._sandbox_verdict(
+        exit_matched=True,
+        exercised=False,
+        syntax_only=False,
+        matched_failure_pattern="Syntax::",
+    )
+    assert verdict == "FAIL"
+    assert passed is False
+    assert note is None
+
+
+def test_server_and_library_artifacts_are_classified() -> None:
+    classify = rqca_agent._classify_artifact
+    assert classify(
+        dependencies=["fastapi"],
+        generated_code="from fastapi import FastAPI\napp = FastAPI()\n",
+    ) == "server"
+    assert classify(
+        dependencies=[],
+        generated_code="const app = express();\napp.listen(3000);\n",
+    ) == "server"
+    assert classify(
+        dependencies=["PyQt6"],
+        generated_code="from PyQt6.QtWidgets import QApplication\n",
+    ) == "gui"
+    assert classify(
+        dependencies=[],
+        generated_code="def add(a, b):\n    return a + b\n",
+        generated_output={"usage_example": "import adder", "output_mode": "LIBRARY"},
+    ) == "library"
+    assert classify(
+        dependencies=[],
+        generated_code="if __name__ == '__main__':\n    print(1)\n",
+        generated_output={"usage_example": "python main.py input.txt"},
+    ) == "cli"
