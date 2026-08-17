@@ -231,10 +231,56 @@ def test_codegen_normalizer_strips_fences_and_sanitizes_filename() -> None:
     assert ".." not in result["filename"]
     assert "/" not in result["filename"]
     assert result["dependencies"] == ["pytest"]
+    assert result["file_count"] == 1
     trace = result["encoding_trace"]["codegen_normalization"]
     assert trace["stripped_code_fences"] is True
     assert trace["raw"]["digest_sha256"] != trace["normalized"]["digest_sha256"]
     assert trace["normalized"]["length_chars"] == len(result["generated_code"])
+
+
+def test_codegen_normalizer_serializes_files_array_as_tree() -> None:
+    result = llm_delegation._normalize_codegen_result(
+        {
+            "generated_code": "print('ignored')\n",
+            "files": [
+                {"path": "pkg/a.py", "content": "A = 1\n"},
+                {"path": "pkg/b.py", "content": "B = 2\n"},
+            ],
+            "language": "python",
+        },
+        specialist_agent_id="AGENT-14-PYTHON",
+        target_language="python",
+        provider="gemini",
+        model="gemini-3.7-flash",
+        route="primary",
+    )
+    assert result is not None
+    assert result["file_count"] == 2
+    assert "## FILE pkg/a.py" in result["generated_code"]
+    assert "## FILE pkg/b.py" in result["generated_code"]
+    assert [item["path"] for item in result["files"]] == ["pkg/a.py", "pkg/b.py"]
+
+
+def test_codegen_prompt_includes_imported_source_tree_instruction() -> None:
+    prompt = llm_delegation._build_codegen_prompt(
+        mission_context={
+            "imported_source_code": "## FILE app.py\nprint('old')\n",
+            "mission_type": "IMPORT_MODERNIZE",
+        },
+        mission_contract={
+            "contract_summary": "Modernize the imported app",
+            "acceptance_criteria": ["Keep the file tree"],
+            "deliverables": [{"name": "app.py"}, {"name": "tests/test_app.py"}],
+        },
+        logicnodes=[],
+        target_language="python",
+        specialist_agent_id="AGENT-14-PYTHON",
+        recommended_provider="gemini",
+        recommended_model="gemini-3.7-flash",
+    )
+    assert "Imported project source" in prompt
+    assert "files" in prompt
+    assert "print('old')" in prompt
 
 
 def test_generate_code_from_contract_uses_llm_result(monkeypatch) -> None:

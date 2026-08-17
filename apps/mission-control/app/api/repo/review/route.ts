@@ -25,7 +25,7 @@ import {
 export const runtime = "nodejs";
 
 type RepoFileOverlayAction = "include" | "reference" | "exclude";
-type MissionType = "analyze" | "update" | "add_feature" | "refactor";
+type MissionType = "analyze" | "update" | "add_feature" | "refactor" | "port";
 
 type RepoReviewRequest = {
   display_name?: string;
@@ -122,7 +122,7 @@ const REFERENCE_FILE_SOFT_LIMIT = 12_000;
 const EXCERPT_LINE_LIMIT = 20;
 const EXCERPT_CHAR_LIMIT = 1_500;
 
-const MISSION_TYPES = new Set<MissionType>(["analyze", "update", "add_feature", "refactor"]);
+const MISSION_TYPES = new Set<MissionType>(["analyze", "update", "add_feature", "refactor", "port"]);
 
 function parseSelectedFilesField(value: FormDataEntryValue | null): RepoReviewRequest["selected_files"] | null {
   if (typeof value !== "string" || !value.trim()) {
@@ -471,6 +471,8 @@ function buildPlan(params: {
       "Add the requested feature inside the selected repository scope and preserve surrounding integration points.",
     refactor:
       "Refactor the selected implementation while preserving observable behavior and existing repository contracts.",
+    port:
+      "Port the selected repository scope to the requested target language while preserving observable behavior.",
   };
 
   const plan = [
@@ -608,7 +610,7 @@ export async function POST(request: Request) {
 
   const missionType = formString(formData, "mission_type") as MissionType;
   if (!missionType || !MISSION_TYPES.has(missionType)) {
-    return badRequest("mission_type must be one of analyze, update, add_feature, or refactor.");
+    return badRequest("mission_type must be one of analyze, update, add_feature, refactor, or port.");
   }
 
   const description = sanitizeText(formString(formData, "description")).slice(0, DESCRIPTION_LIMIT);

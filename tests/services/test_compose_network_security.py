@@ -61,6 +61,19 @@ def test_production_compose_requires_tls_object_storage() -> None:
     assert "Override OBJECT_STORAGE_ENDPOINT to a TLS endpoint" in prod_text
 
 
+def test_orchestrator_does_not_mount_docker_sock() -> None:
+    compose_text = BASE_COMPOSE.read_text(encoding="utf-8")
+    orchestrator_start = compose_text.find("\n  orchestrator:")
+    next_service = compose_text.find("\n  api-gateway:", orchestrator_start + 1)
+    if next_service < 0:
+        next_service = compose_text.find("\n  protocol-bus", orchestrator_start + 1)
+    block = compose_text[orchestrator_start:next_service if next_service > 0 else None]
+    assert "/var/run/docker.sock" not in block
+    assert "SANDBOX_EXECUTOR_URL" in block
+    assert "sandbox-runner:" in compose_text
+    assert compose_text.count("/var/run/docker.sock:/var/run/docker.sock") == 1
+
+
 def test_production_compose_uses_canonical_protocol_bus_dedup_ttl() -> None:
     prod_text = PROD_COMPOSE.read_text(encoding="utf-8")
 

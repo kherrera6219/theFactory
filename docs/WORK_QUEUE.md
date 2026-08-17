@@ -53,7 +53,7 @@ Cheap self-contained hardening follows, then evidence, then features.
 
 | # | Item | Source | Note |
 |---|---|---|---|
-| 11 | Move sandbox execution out of the orchestrator into `agent-41-rqca` | Handoff NA-5 | The orchestrator currently mounts `/var/run/docker.sock` — effectively host root. Acceptable for local dev, must not ship |
+| 11 | Move sandbox execution out of the orchestrator into `agent-41-rqca` | Handoff NA-5 | **Done in condensed topology (2026-08-17):** `sandbox-runner` owns `docker.sock`; orchestrator uses `SANDBOX_EXECUTOR_URL`. AGENT-41-RQCA still owns the verdict. Dedicated overlay can point the same URL at a worker that serves `/internal/sandbox/execute`. |
 | 12 | C# offline runtime (`dotnet-script` uninstallable with `--network=none`) | Language matrix | Currently an honest DRY_RUN; lowest priority |
 | 13 | Sprint 4.1 — measurement before enforcement; ≥20 missions before raising `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | Plan 4.1 | |
 | 14 | Sprint 4.2 — final documentation and promotion package | Plan 4.2 | |
@@ -126,11 +126,9 @@ P1–P3 from `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md` are **done**. P4
 (re-run) was exercised as Snake `mission-911a6b3f` and a follow-up review;
 remaining honesty holes from that run shipped in PR #460.
 
-**Current next items:** execute `docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`
-starting at **P0** (gateway mission types + enforcement). Then P1 (SOW +
-cost estimate + Accept). PORT/transform live proof (#5 remainder) should
-run **through** that PM SOW path, not the old Repo-page shortcut. Then #6
-live-bus, then #11 (sandbox out of the orchestrator).
+**Current next items:** rebuild so `sandbox-runner` and Chat ZIP are live,
+then prove Chat SOW + ZIP PORT/update (#5 remainder) through Accept SOW.
+Then #6 live-bus. Item #11 is implemented in condensed topology.
 
 Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still
 set `false` — that override is not the product default.

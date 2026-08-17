@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .sow_estimator import estimate_mission_cost
+from .sow_estimator import estimate_change_order, estimate_mission_cost
 
 
 def _sow_root(settings: Any) -> Path:
@@ -48,15 +48,30 @@ def attach_cost_estimate(
     mission_type: str,
     provider: str | None = None,
     model: str | None = None,
+    change_order: bool = False,
+    prior_cost: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     contract = dict(feature_contract)
-    estimate = estimate_mission_cost(
-        mission_type=mission_type or str(contract.get("engagement_type") or "BUILD_NEW"),
-        complexity=str(contract.get("estimated_complexity") or "medium"),
-        provider=str(provider or contract.get("model_provider") or "gemini"),
-        model=str(model or contract.get("model") or "gemini-3.7-flash"),
-    )
-    contract["engagement_type"] = str(mission_type or contract.get("engagement_type") or "BUILD_NEW")
+    resolved_type = mission_type or str(contract.get("engagement_type") or "BUILD_NEW")
+    complexity = str(contract.get("estimated_complexity") or "medium")
+    resolved_provider = str(provider or contract.get("model_provider") or "gemini")
+    resolved_model = str(model or contract.get("model") or "gemini-3.7-flash")
+    if change_order:
+        estimate = estimate_change_order(
+            prior=prior_cost,
+            mission_type=resolved_type,
+            complexity=complexity,
+            provider=resolved_provider,
+            model=resolved_model,
+        )
+    else:
+        estimate = estimate_mission_cost(
+            mission_type=resolved_type,
+            complexity=complexity,
+            provider=resolved_provider,
+            model=resolved_model,
+        )
+    contract["engagement_type"] = str(resolved_type)
     contract["cost_estimate"] = estimate
     contract["timeline"] = {
         "estimated_minutes_low": estimate["estimated_minutes_low"],

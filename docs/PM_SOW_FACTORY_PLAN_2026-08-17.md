@@ -2,7 +2,7 @@
 
 Document version: 2026.08.17
 Last updated: 2026-08-17
-Status: Canonical — next initiative (not yet implemented)
+Status: Canonical — P0–P4 implemented on `grok/end-state-factory`; live proof still owed
 Audience: Maintainers, operators, and AI coding agents
 
 This is the execution plan for the end state: a 41-role factory whose **face**

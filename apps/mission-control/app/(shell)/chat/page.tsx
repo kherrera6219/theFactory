@@ -12,18 +12,30 @@ import {
   createBuilderPreview,
   createMission,
   createPmFeatureContract,
+  createRepoZipReview,
   getMission,
   getMissionChainTrace,
   getMissionOutputFolderStatus,
+  importRepoZip,
+  indexRepoImport,
   listMissionBuildArtifacts,
   type MissionOutputFolderStatus,
 } from "../../lib/api-client";
+import {
+  REPO_HANDOFF_STORAGE_KEY,
+  isProjectZipFile,
+  officialMissionTypeFromIntent,
+  officialMissionTypeFromRepoChoice,
+  parseRepoPmHandoff,
+  type OfficialFactoryMissionType,
+} from "../../lib/chat-repo-import";
 import { pruneExpiredSessions } from "../../lib/chat-session-retention";
 import { formatDateTime } from "../../lib/format";
 import { inferRequestedTargetLanguage } from "../../lib/language";
 import { fitConversationContext } from "../../lib/mission-metadata-budget";
 import { operatorRecoveryMessage } from "../../lib/operator-auth-error";
 import { sanitizeUserText } from "../../lib/security";
+import type { RepoReviewResponse } from "../../lib/types";
 
 type ChatRole = "user" | "pm";
 
@@ -82,6 +94,14 @@ type ContinuationContext = {
   }>;
   deliveryTitle?: string;
   deliverySummary?: string;
+  changeOrder?: boolean;
+  priorSowId?: string;
+  priorCost?: {
+    likely_usd?: number | null;
+    high_usd?: number | null;
+    cap_usd?: number | null;
+    pricing_known?: boolean;
+  };
 };
 
 type PmConversationContext = {
@@ -95,6 +115,9 @@ type PmConversationContext = {
   };
   attached_files: string[];
   user_intent: "clarify" | "draft" | "finalize_plan";
+  change_order?: boolean;
+  prior_cost?: ContinuationContext["priorCost"];
+  prior_mission_id?: string;
 };
 
 const CHAT_STORAGE_KEY = "mission-control:pm-chat-history";
@@ -126,7 +149,7 @@ function safeFileName(file: File): string {
 function isBinaryFile(file: File): boolean {
   const binaryExtensions = [
     ".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".bmp",
-    ".pdf", ".docx", ".doc", ".xls", ".xlsx", ".ppt", ".pptx"
+    ".pdf", ".docx", ".doc", ".xls", ".xlsx", ".ppt", ".pptx", ".zip"
   ];
   const lowerName = safeFileName(file).toLowerCase();
   return binaryExtensions.some(ext => lowerName.endsWith(ext));
@@ -333,6 +356,7 @@ function buildPmConversationContext(params: {
   nextUserMessage: ChatMessage;
   contract: DisplayFeatureContract | null;
   files: File[];
+  continuation?: ContinuationContext | null;
 }): PmConversationContext {
   const combinedMessages = [...params.messages, params.nextUserMessage].filter(
     (message) => message.id !== "welcome",
@@ -355,6 +379,9 @@ function buildPmConversationContext(params: {
       : undefined,
     attached_files: params.files.map(fileLabel),
     user_intent: detectUserIntent(params.nextUserMessage.text),
+    change_order: params.continuation?.changeOrder === true,
+    prior_cost: params.continuation?.priorCost,
+    prior_mission_id: params.continuation?.missionId,
   };
 }
 
@@ -400,6 +427,9 @@ function compactLaunchConversationContext(
     },
     attached_files: attachedFiles,
     user_intent: "finalize_plan",
+    change_order: context?.change_order === true,
+    prior_cost: context?.prior_cost,
+    prior_mission_id: context?.prior_mission_id,
   };
 }
 
@@ -543,8 +573,9 @@ function initialWelcomeMessage(): ChatMessage {
     id: "welcome",
     role: "pm",
     text:
-      "Hello. I am your PM Agent. Describe what you want to build or analyze, " +
-      "and attach source files if needed. I will ask clarifying questions before launch when scope is not ready.",
+      "Hello. I am your PM Agent. Describe what you want to build, or attach a project ZIP " +
+      "to rework, port, or update existing software. I will draft a Statement of Work with " +
+      "scope, out of scope, and a factory cost estimate before you approve.",
     ts: "",
   };
 }
@@ -552,9 +583,15 @@ function initialWelcomeMessage(): ChatMessage {
 export default function ChatPage() {
   const router = useRouter();
   const continueMissionRef = useRef<string | null>(null);
+  const repoHandoffRef = useRef<string | null>(null);
+  const zipArchiveRef = useRef<File | null>(null);
+  const repoImportRef = useRef<RepoReviewResponse | null>(null);
   const [continuationContext, setContinuationContext] = useState<ContinuationContext | null>(null);
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [repoImport, setRepoImport] = useState<RepoReviewResponse | null>(null);
+  const [repoImporting, setRepoImporting] = useState(false);
+  const [preferredOfficialType, setPreferredOfficialType] = useState<OfficialFactoryMissionType | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([initialWelcomeMessage()]);
   const [contract, setContract] = useState<DisplayFeatureContract | null>(null);
   const [clarificationPrompt, setClarificationPrompt] = useState<ClarificationPrompt | null>(null);
@@ -619,6 +656,8 @@ export default function ChatPage() {
           typeof metadata.name === "string" && metadata.name.trim()
             ? metadata.name.trim()
             : mission.prompt?.slice(0, 80) || continueMissionId;
+        const priorContract = chainTrace?.feature_contract;
+        const priorCost = priorContract?.cost_estimate;
         const context: ContinuationContext = {
           missionId: continueMissionId,
           state: mission.state,
@@ -640,6 +679,16 @@ export default function ChatPage() {
           })),
           deliveryTitle: chainTrace?.delivery_summary?.delivery_title,
           deliverySummary: chainTrace?.delivery_summary?.delivery_summary,
+          changeOrder: true,
+          priorSowId: typeof mission.metadata?.sow_id === "string" ? mission.metadata.sow_id : undefined,
+          priorCost: priorCost
+            ? {
+                likely_usd: priorCost.likely_usd,
+                high_usd: priorCost.high_usd,
+                cap_usd: priorCost.cap_usd,
+                pricing_known: priorCost.pricing_known,
+              }
+            : undefined,
         };
         setContinuationContext(context);
         setMessages([
@@ -648,8 +697,8 @@ export default function ChatPage() {
             id: makeId("pm-continue"),
             role: "pm",
             text:
-              `Continuing mission ${continueMissionId} (${missionName}). ` +
-              "I loaded the prior output location and artifact list so the follow-up mission can use that project as the baseline.",
+              `Continuing mission ${continueMissionId} (${missionName}) as a change order. ` +
+              "I loaded the prior output and the last factory quote so we can scope the delta before you accept a new SOW.",
             ts: timestamp,
           },
         ]);
@@ -663,6 +712,7 @@ export default function ChatPage() {
           state: "unknown",
           title: continueMissionId,
           artifactRefs: [],
+          changeOrder: true,
         });
         setMessages([
           initialWelcomeMessage(),
@@ -695,6 +745,46 @@ export default function ChatPage() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("fromRepo") !== "1") {
+      return;
+    }
+    const raw = window.sessionStorage.getItem(REPO_HANDOFF_STORAGE_KEY);
+    const parsed = parseRepoPmHandoff(raw);
+    if (!parsed) {
+      return;
+    }
+    const handoffKey = `${parsed.review.repository.archive_id}:${parsed.officialMissionType}`;
+    if (repoHandoffRef.current === handoffKey) {
+      return;
+    }
+    repoHandoffRef.current = handoffKey;
+    repoImportRef.current = parsed.review;
+    setRepoImport(parsed.review);
+    setPreferredOfficialType(parsed.officialMissionType);
+    const description =
+      parsed.description.trim() ||
+      `Draft a Statement of Work to ${parsed.officialMissionType} the imported project ${parsed.review.repository.display_name}.`;
+    setMessages([
+      initialWelcomeMessage(),
+      {
+        id: makeId("pm-repo"),
+        role: "pm",
+        text:
+          `I have the reviewed ZIP for ${parsed.review.repository.display_name} ` +
+          `(${parsed.review.source_stats.bundled_files} bundled files). ` +
+          `Recommended engagement: ${parsed.officialMissionType}. I will draft the SOW next.`,
+        ts: new Date().toISOString(),
+      },
+    ]);
+    setInput(description);
+    void sendMessage(description);
   }, []);
 
   useEffect(() => {
@@ -767,6 +857,9 @@ export default function ChatPage() {
     setClarificationPrompt(null);
     setContinuationContext(null);
     continueMissionRef.current = null;
+    repoImportRef.current = null;
+    setRepoImport(null);
+    setPreferredOfficialType(null);
     setEditingContract(false);
     setInput("");
     setError(null);
@@ -783,6 +876,9 @@ export default function ChatPage() {
     setClarificationPrompt(null);
     setContinuationContext(null);
     continueMissionRef.current = null;
+    repoImportRef.current = null;
+    setRepoImport(null);
+    setPreferredOfficialType(null);
     setEditingContract(false);
     setInput("");
     setError(null);
@@ -794,7 +890,68 @@ export default function ChatPage() {
     if (incoming.length === 0) {
       return;
     }
-    setFiles((current) => [...current, ...incoming].slice(0, 20));
+    const zip = incoming.find((file) => isProjectZipFile(file));
+    const rest = incoming.filter((file) => !isProjectZipFile(file));
+    if (rest.length > 0) {
+      setFiles((current) => [...current, ...rest].slice(0, 20));
+    }
+    if (zip) {
+      void importAttachedZip(zip);
+    }
+  }
+
+  async function importAttachedZip(archiveFile: File) {
+    setRepoImporting(true);
+    setError(null);
+    zipArchiveRef.current = archiveFile;
+    try {
+      const importData = new FormData();
+      importData.set("archive", archiveFile);
+      importData.set("display_name", sanitizeUserText(archiveFile.name.replace(/\.zip$/i, "")));
+      importData.set("source_ref", "main");
+      importData.set("subdirectory", "/");
+      const imported = await importRepoZip(importData);
+      const selected = imported.files.slice(0, 120).map((file) => ({
+        path: file.path,
+        overlay_action: "include" as const,
+        language: file.language,
+        bytes: file.bytes,
+        estimated_lines: file.estimated_lines,
+      }));
+      if (selected.length === 0) {
+        throw new Error("The ZIP did not contain any reviewable source files.");
+      }
+      const reviewData = new FormData();
+      reviewData.set("archive", archiveFile);
+      reviewData.set("display_name", imported.repository.display_name);
+      reviewData.set("source_ref", imported.repository.source_ref);
+      reviewData.set("subdirectory", imported.stats.selected_subdirectory || "/");
+      reviewData.set("archive_sha256", imported.repository.archive_sha256);
+      reviewData.set("mission_type", "update");
+      reviewData.set("description", "Imported through PM chat");
+      reviewData.set("selected_files", JSON.stringify(selected));
+      const review = await createRepoZipReview(reviewData);
+      repoImportRef.current = review;
+      setRepoImport(review);
+      setPreferredOfficialType((current) => current ?? "IMPORT_MODERNIZE");
+      setMessages((current) => [
+        ...current,
+        {
+          id: makeId("pm-zip"),
+          role: "pm",
+          text:
+            `Imported ${review.repository.display_name}: ${review.source_stats.bundled_files} files ready for the SOW. ` +
+            "Tell me whether this is a rework, port, update, or analysis.",
+          ts: new Date().toISOString(),
+        },
+      ]);
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : "Unable to import project ZIP.");
+      repoImportRef.current = null;
+      setRepoImport(null);
+    } finally {
+      setRepoImporting(false);
+    }
   }
 
   async function sendMessage(messageOverride?: string) {
@@ -830,13 +987,15 @@ export default function ChatPage() {
         return;
       }
 
-      const sourceCode = await readFilesAsText(files);
+      const sourceCode =
+        repoImportRef.current?.source_code || (await readFilesAsText(files));
       const detected = detectLanguages(files);
       const conversationContext = buildPmConversationContext({
         messages,
         nextUserMessage,
         contract: contextContract,
         files,
+        continuation: continuationContext,
       });
       const launchPrompt = buildFullLaunchPrompt(messages, nextUserMessage);
       let acknowledgement = "Request received. I have prepared a feature contract.";
@@ -896,7 +1055,14 @@ export default function ChatPage() {
           acceptance: featureContract.acceptance_criteria ?? [],
           assumptions: featureContract.assumptions ?? [],
           risks: featureContract.risk_notes ?? [],
-          engagementType: featureContract.engagement_type || "BUILD_NEW",
+          engagementType:
+            officialMissionTypeFromRepoChoice(
+              featureContract.engagement_type ||
+                preferredOfficialType ||
+                (repoImportRef.current
+                  ? officialMissionTypeFromIntent(normalized)
+                  : "BUILD_NEW"),
+            ),
           likelyUsd: featureContract.cost_estimate?.likely_usd,
           highUsd: featureContract.cost_estimate?.high_usd,
           capUsd: featureContract.cost_estimate?.cap_usd,
@@ -997,8 +1163,12 @@ export default function ChatPage() {
     if (fileList.length === 0) {
       return "";
     }
+    const readable = fileList.filter((file) => !isProjectZipFile(file));
+    if (readable.length === 0) {
+      return repoImportRef.current?.source_code ?? "";
+    }
     const parts = await Promise.all(
-      fileList.map(
+      readable.map(
         (file) =>
           new Promise<string>((resolve) => {
             const reader = new FileReader();
@@ -1028,10 +1198,17 @@ export default function ChatPage() {
     setLaunching(true);
     setError(null);
     try {
-      const sourceCode = await readFilesAsText(files);
+      const imported = repoImportRef.current;
+      const sourceCode = imported?.source_code || (await readFilesAsText(files));
+      const officialType = officialMissionTypeFromRepoChoice(
+        launchContract.engagementType || preferredOfficialType || (imported ? "IMPORT_MODERNIZE" : "BUILD_NEW"),
+      );
       const requestedTargetLanguage = inferRequestedTargetLanguage({
         prompt: launchContract.launchPrompt,
-        filePaths: files.map((file) => file.name),
+        filePaths: [
+          ...files.map((file) => file.name),
+          ...(imported?.files.map((file) => file.path) ?? []),
+        ],
         contractLanguages: launchContract.languages,
       });
       const compactedContext = compactLaunchConversationContext(
@@ -1060,10 +1237,27 @@ export default function ChatPage() {
           conversation_context: conversationContext,
           user_intent: "finalize_plan",
           sow_id: sowId,
-          mission_type: launchContract.engagementType,
+          mission_type: officialType,
           launch_confirmed_at: new Date().toISOString(),
           launch_source: "feature-contract-confirmation",
           continued_from_mission_id: continueMissionRef.current,
+          change_order: continueMissionRef.current
+            ? {
+                prior_mission_id: continueMissionRef.current,
+                prior_sow_id: continuationContext?.priorSowId,
+                prior_likely_usd: continuationContext?.priorCost?.likely_usd,
+                prior_cap_usd: continuationContext?.priorCost?.cap_usd,
+              }
+            : undefined,
+          repo_import: imported
+            ? {
+                source: "repo_zip_import",
+                import_id: imported.repository.archive_id,
+                archive_sha256: imported.repository.archive_sha256,
+                index_required: true,
+                index_status: "pending",
+              }
+            : undefined,
           continued_from: continuationContext
             ? {
                 mission_id: continuationContext.missionId,
@@ -1085,10 +1279,38 @@ export default function ChatPage() {
       const mission = await createMission({
         prompt: launchContract.launchPrompt,
         requested_target_language: requestedTargetLanguage,
-        mission_type: launchContract.engagementType,
+        mission_type: officialType,
         source_code: sourceCode || undefined,
         metadata: launchMetadata,
       });
+      if (imported) {
+        try {
+          await indexRepoImport({
+            mission_id: mission.mission_id,
+            import_id: imported.repository.archive_id,
+            archive_sha256: imported.repository.archive_sha256,
+            display_name: imported.repository.display_name,
+            source_ref: imported.repository.source_ref,
+            files: imported.files
+              .filter((file) => file.text_available)
+              .map((file) => ({
+                path: file.path,
+                language: file.language,
+                content_excerpt: file.content_excerpt,
+                bytes: file.bytes,
+                estimated_lines: file.estimated_lines,
+                sha: file.sha,
+                overlay_action: file.overlay_action,
+              })),
+          });
+        } catch (indexError) {
+          setError(
+            `Mission launched, but repository indexing failed: ${
+              indexError instanceof Error ? indexError.message : "unknown error"
+            }. PM intake may stay paused until indexing succeeds.`,
+          );
+        }
+      }
       router.push(`/missions/detail?id=${mission.mission_id}`);
     } catch (launchError) {
       setError(launchError instanceof Error ? launchError.message : "Mission launch failed.");
@@ -1118,7 +1340,7 @@ export default function ChatPage() {
         compact
         eyebrow="PM Agent Chat"
         title="Mission Intake Conversation"
-        description="Describe your request in natural language, attach source files, and confirm the generated feature contract."
+        description="Describe new work or attach a project ZIP to rework, port, or update existing software. Accept the Statement of Work before the factory starts."
       />
 
       <div className="chat-layout">
@@ -1199,7 +1421,7 @@ export default function ChatPage() {
             addFiles(event.dataTransfer.files);
           }}
         >
-          Drag and drop files here, or choose files below.
+          Drag and drop files here, or attach a project ZIP to import existing software.
         </div>
         <label className="file-input-label">
           <span>Choose files</span>
@@ -1216,6 +1438,29 @@ export default function ChatPage() {
             }}
           />
         </label>
+        <label className="file-input-label" style={{ marginLeft: "8px" }}>
+          <span>{repoImporting ? "Importing ZIP..." : "Attach project (ZIP)"}</span>
+          <input
+            type="file"
+            accept=".zip,application/zip"
+            className="sr-only"
+            aria-label="Attach a project ZIP for rework, port, or update"
+            disabled={repoImporting || launching}
+            onChange={(event) => {
+              const zip = event.target.files?.[0];
+              if (zip) {
+                void importAttachedZip(zip);
+              }
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+        {repoImport && (
+          <p className="muted" style={{ marginTop: "8px" }}>
+            Imported project: {repoImport.repository.display_name} · {repoImport.source_stats.bundled_files} files
+            {preferredOfficialType ? ` · ${preferredOfficialType}` : ""}
+          </p>
+        )}
         {files.length > 0 && (
           <ul className="chip-list" aria-label="Attached files" style={{ display: "flex", flexWrap: "wrap", gap: "10px", listStyle: "none", padding: 0, marginTop: "12px", marginBottom: "12px" }}>
             {files.map((file, idx) => (
@@ -1306,7 +1551,7 @@ export default function ChatPage() {
       )}
 
       {contract && (
-        <Panel title="Statement of Work">
+        <Panel title={continuationContext?.changeOrder ? "Change order" : "Statement of Work"}>
           {!editingContract && (
             <>
               {isDegradedContract(contract) && (
@@ -1322,7 +1567,11 @@ export default function ChatPage() {
               <dl>
                 <div>
                   <dt>Engagement</dt>
-                  <dd>{contract.engagementType}</dd>
+                  <dd>
+                    {continuationContext?.changeOrder
+                      ? `Change order on ${continuationContext.missionId}`
+                      : contract.engagementType}
+                  </dd>
                 </div>
                 <div>
                   <dt>Mission Title</dt>

@@ -24,3 +24,13 @@ describe("SOW panel copy", () => {
     expect(formatFactoryCost({ pricing_known: false })).toBe("Unpriced");
   });
 });
+
+describe("repo-to-chat handoff", () => {
+  it("maps ZIP+port to official PORT and keeps source in the handoff", async () => {
+    const { officialMissionTypeFromIntent, officialMissionTypeFromRepoChoice } = await import(
+      "../../lib/chat-repo-import"
+    );
+    expect(officialMissionTypeFromRepoChoice("port")).toBe("PORT");
+    expect(officialMissionTypeFromIntent("port this repo to rust")).toBe("PORT");
+  });
+});

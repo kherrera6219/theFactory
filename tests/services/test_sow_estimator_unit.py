@@ -81,3 +81,16 @@ def test_basis_records_model_and_rate_date() -> None:
     estimate = sow_estimator.estimate_mission_cost(model="gemini-3.7-flash")
     assert "gemini-3.7-flash" in estimate["basis"]
     assert estimate["pricing_as_of"]
+
+
+def test_change_order_quotes_new_run_and_delta_vs_prior() -> None:
+    prior = sow_estimator.estimate_mission_cost(mission_type="BUILD_NEW", complexity="low")
+    change = sow_estimator.estimate_change_order(
+        prior=prior,
+        mission_type="IMPORT_MODERNIZE",
+        complexity="medium",
+    )
+    assert change["change_order"] is True
+    assert change["prior_likely_usd"] == prior["likely_usd"]
+    assert change["delta_likely_usd"] == round(change["likely_usd"] - prior["likely_usd"], 6)
+    assert "change_order" in change["basis"]

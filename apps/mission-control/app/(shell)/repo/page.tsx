@@ -8,12 +8,15 @@ import { Panel } from "../../components/panel";
 import { EmptyState, SystemMessage } from "../../components/status";
 import {
   approveReviewArtifact,
-  createMission,
   createRepoZipReview,
   importRepoZip,
-  indexRepoImport,
   verifyReviewApproval,
 } from "../../lib/api-client";
+import {
+  REPO_HANDOFF_STORAGE_KEY,
+  buildRepoPmHandoff,
+  officialMissionTypeFromRepoChoice,
+} from "../../lib/chat-repo-import";
 import { formatDateTime } from "../../lib/format";
 import { sanitizeUserText } from "../../lib/security";
 import type { RepoImportResponse, RepoReviewResponse, ReviewApprovalReceipt } from "../../lib/types";
@@ -365,90 +368,19 @@ export default function RepoImportPage() {
       const missionPrompt =
         sanitizeUserText(description) ||
         `Run ${missionType} mission for ${selectedFiles.length} files from ${reviewPreview.repository.display_name}.`;
-      const officialType =
-        missionType === "analyze"
-          ? "ANALYZE_ONLY"
-          : missionType === "port"
-            ? "PORT"
-            : "IMPORT_MODERNIZE";
-      const mission = await createMission({
-        prompt: missionPrompt,
-        requested_target_language: reviewPreview.requested_target_language,
-        mission_type: officialType,
-        source_code: reviewPreview.source_code,
-        metadata: {
-          source: "repo-zip-import-ui",
-          archive_id: reviewPreview.repository.archive_id,
-          archive_sha256: reviewPreview.repository.archive_sha256,
-          source_ref: reviewPreview.repository.source_ref,
-          display_name: reviewPreview.repository.display_name,
-          subdirectory:
-            importSnapshot?.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/",
-          mission_type:
-            missionType === "analyze"
-              ? "ANALYZE_ONLY"
-              : missionType === "port"
-                ? "PORT"
-                : "IMPORT_MODERNIZE",
-          selected_file_count: selectedFiles.length,
-          include_file_count: reviewPreview.source_stats.include_files,
-          reference_file_count: reviewPreview.source_stats.reference_files,
-          estimated_lines: selectedLines,
-          repository_name: reviewPreview.repository.repo,
-          review_gate_applied_at: approvalReceipt.approved_at,
-          review_approval_id: approvalReceipt.approval_id,
-          review_receipt_digest: approvalReceipt.receipt_digest,
-          review_request_id: reviewPreview.request_id,
-          review_fingerprint: reviewPreview.review_fingerprint,
-          requested_target_language: reviewPreview.requested_target_language,
-          source_bundle_characters: reviewPreview.source_stats.source_characters,
-          selected_files_preview: reviewPreview.files
-            .slice(0, 12)
-            .map((file) => `${file.overlay_action}:${file.path}`),
-          // Repo ZIP Import Phase 5: PM intake waits (REPO_INDEX_PENDING) until
-          // Phase 6 indexing below flips index_status to "complete".
-          repo_import: {
-            source: "repo_zip_import",
-            import_id: reviewPreview.repository.archive_id,
-            archive_sha256: reviewPreview.repository.archive_sha256,
-            index_required: true,
-            index_status: "pending",
-          },
+      const officialType = officialMissionTypeFromRepoChoice(missionType);
+      const handoff = buildRepoPmHandoff({
+        officialMissionType: officialType,
+        description: missionPrompt,
+        review: reviewPreview,
+        approval: {
+          approval_id: approvalReceipt.approval_id,
+          fingerprint: approvalReceipt.fingerprint,
+          receipt_digest: approvalReceipt.receipt_digest,
         },
       });
-
-      try {
-        await indexRepoImport({
-          mission_id: mission.mission_id,
-          import_id: reviewPreview.repository.archive_id,
-          archive_sha256: reviewPreview.repository.archive_sha256,
-          display_name: reviewPreview.repository.display_name,
-          source_ref: reviewPreview.repository.source_ref,
-          files: reviewPreview.files
-            .filter((file) => file.text_available)
-            .map((file) => ({
-              path: file.path,
-              language: file.language,
-              content_excerpt: file.content_excerpt,
-              bytes: file.bytes,
-              estimated_lines: file.estimated_lines,
-              sha: file.sha,
-              overlay_action: file.overlay_action,
-            })),
-        });
-      } catch (indexError) {
-        // Non-fatal: the mission was created successfully. PM intake will
-        // stay paused on REPO_INDEX_PENDING until indexing is retried --
-        // surface this so the operator isn't left guessing why the mission
-        // looks stuck in Mission Detail.
-        setError(
-          `Mission launched, but repository indexing failed: ${
-            indexError instanceof Error ? indexError.message : "unknown error"
-          }. PM intake will remain paused until indexing succeeds.`,
-        );
-      }
-
-      router.push(`/missions/detail?id=${mission.mission_id}`);
+      window.sessionStorage.setItem(REPO_HANDOFF_STORAGE_KEY, JSON.stringify(handoff));
+      router.push("/chat?fromRepo=1");
     } catch (launchError) {
       if (launchError instanceof Error && /approval/i.test(launchError.message)) {
         setApprovalReceipt(null);
@@ -473,7 +405,7 @@ export default function RepoImportPage() {
         compact
         eyebrow="Repository ZIP Import"
         title="Repository Intake and Mission Configuration"
-        description="Import a repository ZIP snapshot, layer file-level mission overlays, review approved source scope, then launch."
+        description="Import a repository ZIP snapshot, review approved source scope, then continue with the PM Agent to accept a Statement of Work."
       />
 
       <Panel title="Step 1: Import Repository ZIP" className="step-panel">
@@ -792,10 +724,10 @@ export default function RepoImportPage() {
         )}
       </Panel>
 
-      <Panel title="Step 4: Launch Mission" className={`step-panel ${step4Locked ? "locked" : ""}`}>
+      <Panel title="Step 4: Continue with PM" className={`step-panel ${step4Locked ? "locked" : ""}`}>
         {step4Locked && (
-          <EmptyState title="Launch is locked by review approval" compact>
-            Apply the Step 3 review gate to persist scope approval and unlock mission launch.
+          <EmptyState title="PM handoff is locked by review approval" compact>
+            Apply the Step 3 review gate to persist scope approval and unlock the PM Statement of Work.
           </EmptyState>
         )}
         {!step4Locked && (
@@ -826,7 +758,7 @@ export default function RepoImportPage() {
             </ul>
             <div className="inline-actions">
               <button type="button" onClick={() => void launchRepoMission()} disabled={launching}>
-                {launching ? "Launching..." : "Launch Mission"}
+                {launching ? "Opening PM..." : "Draft SOW with PM"}
               </button>
             </div>
           </>

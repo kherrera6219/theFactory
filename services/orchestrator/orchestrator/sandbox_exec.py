@@ -52,8 +52,11 @@ both attacker-influenced in the threat model this sandbox exists for.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -250,7 +253,126 @@ def _make_workspace_readable(workspace_dir: str | Path) -> None:
         LOGGER.warning("could not relax sandbox workspace permissions on %s: %s", root, exc)
 
 
-async def run_in_sandbox(
+def sandbox_executor_url() -> str:
+    """Remote executor base URL, or empty when this process runs docker locally.
+
+    Read at call time so tests and compose env changes are honored after import.
+    The runner must set ``SANDBOX_RUNNER_MODE=true`` so it cannot loop to itself.
+    Only http(s) URLs are accepted.
+    """
+    runner_mode = os.getenv("SANDBOX_RUNNER_MODE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if runner_mode:
+        return ""
+    raw = os.getenv("SANDBOX_EXECUTOR_URL", "").strip().rstrip("/")
+    if raw.startswith("https://") or raw.startswith("http://"):
+        return raw
+    return ""
+
+
+def _sandbox_auth_header() -> str:
+    key = os.getenv("INTERNAL_SERVICE_API_KEY", "").strip()
+    return f"Bearer {key}" if key else ""
+
+
+def result_from_payload(payload: dict[str, object], *, fallback_image: str, timeout: int, memory: int) -> SandboxResult:
+    return SandboxResult(
+        exit_code=int(payload.get("exit_code") or 0),
+        stdout=str(payload.get("stdout") or ""),
+        stderr=str(payload.get("stderr") or ""),
+        timed_out=bool(payload.get("timed_out")),
+        timeout_seconds=int(payload.get("timeout_seconds") or timeout),
+        memory_limit_mb=int(payload.get("memory_limit_mb") or memory),
+        base_image=str(payload.get("base_image") or fallback_image),
+    )
+
+
+async def run_in_sandbox_remote(
+    *,
+    executor_url: str,
+    workspace_dir: str | Path,
+    base_image: str,
+    command: str,
+    timeout_seconds: int = 30,
+    memory_mb: int = 256,
+    docker_bin: str = "docker",
+) -> SandboxResult:
+    """POST a sandbox job to the privileged runner. No local docker.sock."""
+    timeout = clamp_timeout(timeout_seconds)
+    memory = clamp_memory_mb(memory_mb)
+    body = json.dumps(
+        {
+            "workspace_dir": str(workspace_dir),
+            "base_image": str(base_image),
+            "command": str(command),
+            "timeout_seconds": timeout,
+            "memory_mb": memory,
+            "docker_bin": str(docker_bin or "docker"),
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        f"{executor_url.rstrip('/')}/internal/sandbox/execute",
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": _sandbox_auth_header(),
+        },
+    )
+    http_timeout = float(timeout) + _PROCESS_GRACE_SECONDS + 5.0
+
+    def _post() -> SandboxResult:
+        try:
+            with urllib.request.urlopen(request, timeout=http_timeout) as response:  # nosec B310
+                payload = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            LOGGER.warning("sandbox executor HTTP %s: %s", exc.code, detail[:300])
+            return SandboxResult(
+                exit_code=-1,
+                stdout="",
+                stderr=f"sandbox executor HTTP {exc.code}: {detail[:300]}",
+                timed_out=False,
+                timeout_seconds=timeout,
+                memory_limit_mb=memory,
+                base_image=str(base_image),
+            )
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+            LOGGER.warning("sandbox executor unreachable: %s", exc)
+            return SandboxResult(
+                exit_code=-1,
+                stdout="",
+                stderr=f"sandbox executor unreachable: {exc}",
+                timed_out=False,
+                timeout_seconds=timeout,
+                memory_limit_mb=memory,
+                base_image=str(base_image),
+            )
+        if not isinstance(payload, dict):
+            return SandboxResult(
+                exit_code=-1,
+                stdout="",
+                stderr="sandbox executor returned a non-object payload",
+                timed_out=False,
+                timeout_seconds=timeout,
+                memory_limit_mb=memory,
+                base_image=str(base_image),
+            )
+        return result_from_payload(
+            payload,
+            fallback_image=str(base_image),
+            timeout=timeout,
+            memory=memory,
+        )
+
+    return await asyncio.to_thread(_post)
+
+
+async def run_in_sandbox_local(
     *,
     docker_bin: str,
     workspace_dir: str | Path,
@@ -259,14 +381,10 @@ async def run_in_sandbox(
     timeout_seconds: int = 30,
     memory_mb: int = 256,
 ) -> SandboxResult:
-    """Execute *command* against *workspace_dir* inside the hardened sandbox.
+    """Execute *command* against *workspace_dir* with a local ``docker run``.
 
-    The workspace is mounted **read-only**; anything the command needs to write
-    goes to the container's tmpfs and is discarded.
-
-    A timeout kills the process and returns ``timed_out=True`` rather than
-    raising, so a hostile or merely slow sample degrades to a recorded
-    non-result instead of propagating an exception into the mission pipeline.
+    Only the sandbox-runner (or a non-containerized orchestrator) should call
+    this. Mission orchestrators in compose use :func:`run_in_sandbox_remote`.
     """
     timeout = clamp_timeout(timeout_seconds)
     memory = clamp_memory_mb(memory_mb)
@@ -318,12 +436,71 @@ async def run_in_sandbox(
     )
 
 
+async def run_in_sandbox(
+    *,
+    docker_bin: str,
+    workspace_dir: str | Path,
+    base_image: str,
+    command: str,
+    timeout_seconds: int = 30,
+    memory_mb: int = 256,
+) -> SandboxResult:
+    """Execute *command* against *workspace_dir* inside the hardened sandbox.
+
+    When ``SANDBOX_EXECUTOR_URL`` is set (and this process is not the runner),
+    the job is POSTed to the privileged sandbox-runner. Otherwise this process
+    runs ``docker`` locally.
+
+    The workspace is mounted **read-only**; anything the command needs to write
+    goes to the container's tmpfs and is discarded.
+
+    A timeout kills the process and returns ``timed_out=True`` rather than
+    raising, so a hostile or merely slow sample degrades to a recorded
+    non-result instead of propagating an exception into the mission pipeline.
+    """
+    remote = sandbox_executor_url()
+    if remote:
+        return await run_in_sandbox_remote(
+            executor_url=remote,
+            workspace_dir=workspace_dir,
+            base_image=base_image,
+            command=command,
+            timeout_seconds=timeout_seconds,
+            memory_mb=memory_mb,
+            docker_bin=docker_bin,
+        )
+    return await run_in_sandbox_local(
+        docker_bin=docker_bin,
+        workspace_dir=workspace_dir,
+        base_image=base_image,
+        command=command,
+        timeout_seconds=timeout_seconds,
+        memory_mb=memory_mb,
+    )
+
+
 async def check_docker_available(docker_bin: str = "docker") -> bool:
     """Return whether a usable Docker daemon is reachable.
 
     Callers must degrade to a recorded ``DRY_RUN``/skipped result when this is
     false — never to "passed".
     """
+    remote = sandbox_executor_url()
+    if remote:
+        request = urllib.request.Request(
+            f"{remote}/internal/sandbox/health",
+            method="GET",
+            headers={"Authorization": _sandbox_auth_header()},
+        )
+
+        def _probe() -> bool:
+            try:
+                with urllib.request.urlopen(request, timeout=10.0) as response:  # nosec B310
+                    return 200 <= int(response.status) < 300
+            except (urllib.error.URLError, TimeoutError, OSError):
+                return False
+
+        return await asyncio.to_thread(_probe)
     try:
         proc = await asyncio.create_subprocess_exec(
             str(docker_bin),
