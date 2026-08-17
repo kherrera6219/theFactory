@@ -479,10 +479,29 @@ def _build_codegen_prompt(
                 f"Preserve this behavior in your {target_language} implementation.\n"
             )
 
+    imported_source = str(mission_context.get("imported_source_code") or "")
+    deliverables = mission_contract.get("deliverables") if isinstance(mission_contract, dict) else None
+    deliverable_count = len(deliverables) if isinstance(deliverables, list) else 0
+    wants_tree = bool(imported_source.strip()) or deliverable_count > 1
+    imported_excerpt = ""
+    if imported_source.strip():
+        imported_excerpt = (
+            "\nImported project source (rewrite these files; do not replace the tree "
+            "with one invented file):\n"
+            f"{imported_source[:12_000]}\n"
+        )
+    tree_instruction = (
+        "If the mission imported a project or the SOW lists multiple deliverable files, "
+        "return a files array covering the tree you are delivering. Rewrite imported "
+        "files in place. You may also put the same tree in generated_code as a "
+        "## FILE relative/path bundle.\n"
+        if wants_tree
+        else "Generate a complete source file that satisfies the mission contract.\n"
+    )
     return (
         f"You are {specialist_agent_id}, a {target_language} specialist.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
-        "Generate a single complete source file that satisfies the mission contract.\n"
+        f"{tree_instruction}"
         "Return only JSON. No markdown, prose, or code fences.\n\n"
         f"Mission: {contract_summary}\n"
         f"Target language: {_clean_text(target_language, max_length=32)}\n"
@@ -491,13 +510,15 @@ def _build_codegen_prompt(
         f"{risk_context}"
         f"{hw_context}"
         f"{port_source_context}"
+        f"{imported_excerpt}"
         f"Acceptance criteria:\n{acceptance}\n\n"
         f"Contract requirements:\n{chr(10).join(requirements) or '- primary_operation'}\n\n"
         f"Extracted logicnode context:\n{chr(10).join(logicnode_lines) or '- none'}\n\n"
         "Required JSON keys:\n"
         "{\n"
-        '  "generated_code": "complete source code string",\n'
-        '  "filename": "safe filename",\n'
+        '  "generated_code": "complete source or ## FILE bundle",\n'
+        '  "filename": "safe filename for the primary file",\n'
+        '  "files": [{"path": "relative/path", "content": "file body"}],\n'
         '  "language": "target language",\n'
         '  "description": "one sentence",\n'
         '  "dependencies": ["package names"],\n'

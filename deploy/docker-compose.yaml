@@ -280,6 +280,48 @@ services:
       - "${OTLP_GRPC_HOST_BIND:-127.0.0.1}:${OTLP_GRPC_HOST_PORT:-4317}:4317"
       - "${OTLP_HTTP_HOST_BIND:-127.0.0.1}:${OTLP_HTTP_HOST_PORT:-4318}:4318"
 
+  sandbox-runner:
+    <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
+    build:
+      context: ..
+      dockerfile: services/orchestrator/Dockerfile
+    command:
+      [
+        "uvicorn",
+        "orchestrator.sandbox_runner:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8020",
+      ]
+    environment:
+      SANDBOX_RUNNER_MODE: "true"
+      SANDBOX_WORKSPACE_ROOT: /sandbox-workspace
+      SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR}/../.sandbox-workspace}
+      DOCKER_BIN: ${DOCKER_BIN:-docker}
+      INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
+    volumes:
+      # Host Docker daemon. This is the privilege grant formerly on the
+      # orchestrator: socket access is equivalent to root on the host.
+      # Scoped to this service only. Every container it launches carries
+      # SANDBOX_SECURITY_FLAGS. Do not extend this pattern to other services.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${SANDBOX_WORKSPACE_HOST_ROOT:-../.sandbox-workspace}:/sandbox-workspace
+    group_add:
+      - "0"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8020/livez')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+
   orchestrator:
     <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
@@ -358,6 +400,8 @@ services:
       # compiled-language run fails with "no such file".
       SANDBOX_WORKSPACE_ROOT: /sandbox-workspace
       SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR}/../.sandbox-workspace}
+      # Privilege boundary: docker.sock lives on sandbox-runner, not here.
+      SANDBOX_EXECUTOR_URL: ${SANDBOX_EXECUTOR_URL:-http://sandbox-runner:8020}
       # Equivalence verification. Correctness (contract-conformance) checks always
       # run; these two control what they can do and whether behavioural
       # verification executes at all.
@@ -418,20 +462,9 @@ services:
       - ./.local/redis-certs:/run/redis-certs:ro
       - ./.local/postgres-certs:/run/postgres-certs:ro
       - ../output:/app/output
-      # Host Docker daemon, for the RQCA / behavioural-equivalence sandbox.
-      # This is a real privilege grant: socket access is equivalent to root on
-      # the host. It is scoped as tightly as the mechanism allows -- the
-      # container still runs as uid 10001 (see group_add below, which adds only
-      # the socket's group), and every container it launches carries
-      # SANDBOX_SECURITY_FLAGS. Do not extend this pattern to other services.
-      - /var/run/docker.sock:/var/run/docker.sock
+      # Workspace only — docker.sock is mounted on sandbox-runner, not here.
       # Must resolve to the same directory as SANDBOX_WORKSPACE_HOST_ROOT.
       - ${SANDBOX_WORKSPACE_HOST_ROOT:-../.sandbox-workspace}:/sandbox-workspace
-    # The docker socket is root:root mode 0660, so the non-root service user
-    # cannot open it. Adding the socket's group is the smallest grant that
-    # works: the process stays uid 10001 rather than being promoted to root.
-    group_add:
-      - "0"
     ports:
       - "${ORCHESTRATOR_HOST_BIND:-127.0.0.1}:${ORCHESTRATOR_HOST_PORT:-8101}:8001"
     depends_on:
@@ -443,6 +476,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
+      sandbox-runner:
+        condition: service_healthy
     healthcheck:
       # Liveness, not readiness: probe /livez, which returns 200 as soon as the
       # process can serve and performs NO blocking probes. /health additionally

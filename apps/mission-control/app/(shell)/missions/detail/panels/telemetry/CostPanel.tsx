@@ -1,18 +1,61 @@
 'use client';
 
 import React from 'react';
+import { compareQuotedActual, type QuotedFactoryCost } from '../../../../../lib/cost-quote';
 import { Panel } from '../../../../../components/panel';
 import type { LlmUsageSummary } from '../../../../../lib/types';
 
 interface CostPanelProps {
   tokenUsage: LlmUsageSummary | null;
+  quoted?: QuotedFactoryCost | null;
 }
 
-export function CostPanel({ tokenUsage }: CostPanelProps) {
-  if (!tokenUsage || tokenUsage.call_count === 0) return null;
+export function CostPanel({ tokenUsage, quoted }: CostPanelProps) {
+  const comparison = compareQuotedActual(quoted, tokenUsage?.estimated_cost_usd ?? null);
+  if ((!tokenUsage || tokenUsage.call_count === 0) && !comparison.pricingKnown) return null;
 
   return (
     <Panel title="Token Usage & Cost Analysis" className="cost-analysis-panel">
+      {comparison.pricingKnown && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '16px',
+            marginBottom: '20px',
+          }}
+        >
+          <div className="card" style={{ padding: '16px', background: 'rgba(15, 23, 42, 0.4)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px' }}>
+            <p className="help-text" style={{ margin: 0, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+              Quoted (SOW)
+            </p>
+            <h3 style={{ fontSize: '1.75rem', fontWeight: 'bold', margin: '8px 0 0 0', color: 'var(--text-primary)' }}>
+              {comparison.quotedLikely != null ? `$${comparison.quotedLikely.toFixed(4)}` : 'n/a'}
+            </h3>
+            <p className="help-text" style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              High {comparison.quotedHigh != null ? `$${comparison.quotedHigh.toFixed(4)}` : 'n/a'} · Cap{' '}
+              {comparison.quotedCap != null ? `$${comparison.quotedCap.toFixed(4)}` : 'n/a'}
+            </p>
+          </div>
+          <div className="card" style={{ padding: '16px', background: comparison.overCap ? 'rgba(239, 68, 68, 0.12)' : 'rgba(15, 23, 42, 0.4)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px' }}>
+            <p className="help-text" style={{ margin: 0, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em', color: comparison.overCap ? '#f87171' : 'var(--text-muted)' }}>
+              vs Cap
+            </p>
+            <h3 style={{ fontSize: '1.75rem', fontWeight: 'bold', margin: '8px 0 0 0', color: comparison.overCap ? '#f87171' : '#10b981' }}>
+              {comparison.remainingToCap == null
+                ? 'n/a'
+                : comparison.overCap
+                  ? `Over by $${Math.abs(comparison.remainingToCap).toFixed(4)}`
+                  : `$${comparison.remainingToCap.toFixed(4)} left`}
+            </h3>
+            <p className="help-text" style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              This is model spend for this run, not a human project quote.
+            </p>
+          </div>
+        </div>
+      )}
+      {(!tokenUsage || tokenUsage.call_count === 0) ? null : (
+      <>
       <div
         style={{
           display: 'grid',
@@ -50,7 +93,9 @@ export function CostPanel({ tokenUsage }: CostPanelProps) {
           <p className="help-text" style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             {tokenUsage.unknown_pricing_count > 0
               ? `(${tokenUsage.unknown_pricing_count} calls unpriced)`
-              : 'All calls priced'}
+              : comparison.varianceVsLikely != null
+                ? `Actual vs likely ${comparison.varianceVsLikely >= 0 ? '+' : ''}$${comparison.varianceVsLikely.toFixed(4)}`
+                : 'All calls priced'}
           </p>
         </div>
 
@@ -211,6 +256,8 @@ export function CostPanel({ tokenUsage }: CostPanelProps) {
           </div>
         </div>
       </div>
+      </>
+      )}
     </Panel>
   );
 }

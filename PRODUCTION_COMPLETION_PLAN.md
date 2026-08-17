@@ -74,10 +74,11 @@ adds five items it does not cover:
 - **Mission Control polling exhausts the API rate limit** (120/min on the shared
   key, ~13 requests per poll cycle), returning 429 to every other client
   including the live suite.
-- **Sandbox execution should move out of the orchestrator before production.**
-  The plan's "sandbox rule" (one `docker run` path) is still honoured, but the
-  orchestrator now mounts `/var/run/docker.sock` to satisfy it — effectively host
-  root. `agent-41-rqca` is the natural home.
+- **Sandbox execution privilege moved off the orchestrator (2026-08-17).**
+  The plan's "sandbox rule" (one `docker run` path) is still honoured.
+  Condensed compose mounts `/var/run/docker.sock` on `sandbox-runner` only;
+  the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`. AGENT-41-RQCA still owns
+  the verdict. Do not put the socket back on the orchestrator.
 - **C# has no offline runtime** (`dotnet-script` uninstallable with
   `--network=none`); it returns an honest DRY_RUN.
 

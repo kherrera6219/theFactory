@@ -24,7 +24,7 @@
 >
 > Deliberately **not** built, by recorded decision: the four-pod parallel comprehension model, the Doc 30 LogicNode Registry, binary/LLVM output, and the 0.0001% equivalence tolerance. Per-area verdicts are in [`docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md).
 >
-> **Not production-ready.** Remaining work: the rest of the live-proof matrix (PORT/transform, failure injection, provider fallback), a live EDCP bus exercise, and moving sandbox execution off the orchestrator's `docker.sock`. See [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md) and [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md).
+> **Not production-ready.** Remaining work: the rest of the live-proof matrix (PORT/transform through Chat SOW, failure injection, provider fallback) and a live EDCP bus exercise. Sandbox `docker.sock` now lives on `sandbox-runner`, not the orchestrator. See [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md) and [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md).
 
 
 ---
@@ -770,7 +770,7 @@ python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
 The live run is the launch-demo proof point. It requires a running stack and
 provider-key configuration when generated LLM output is part of the claim.
 
-**Validation snapshot (2026-08-17):** Live BUILD_NEW evidence includes Go `mission-f8a5accf` (`docs/evidence/s1_01_live_generation_go_20260811.json`), chat-driven PyQt6 `mission-e42fd7e2`, and stdlib Snake `mission-911a6b3f`. Honesty/QC follow-up is on `main` (PR #460). Older Phase 13 / non-ASCII smokes remain on disk. `production_review_audit.py` 23/23 is a hygiene check, not a release certificate. Still open: PORT/transform live proof, failure injection, provider fallback, EDCP live-bus, and moving sandbox execution off `docker.sock`.
+**Validation snapshot (2026-08-17):** Live BUILD_NEW evidence includes Go `mission-f8a5accf` (`docs/evidence/s1_01_live_generation_go_20260811.json`), chat-driven PyQt6 `mission-e42fd7e2`, and stdlib Snake `mission-911a6b3f`. Honesty/QC follow-up is on `main` (PR #460). PM SOW, Chat ZIP import, file-tree delivery, quoted-vs-actual cost, and `sandbox-runner` are on `main`. Older Phase 13 / non-ASCII smokes remain on disk. `production_review_audit.py` 23/23 is a hygiene check, not a release certificate. Still open: PORT/transform live proof through Chat SOW, failure injection, provider fallback, and EDCP live-bus.
 
 ---
 

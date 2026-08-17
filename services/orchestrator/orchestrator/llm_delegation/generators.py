@@ -87,6 +87,13 @@ async def generate_pm_feature_contract(
         if isinstance(item, dict)
     )
     context_text = str(conversation_context or "")
+    change_order = False
+    prior_cost = None
+    if isinstance(conversation_context, dict):
+        change_order = bool(conversation_context.get("change_order"))
+        raw_prior = conversation_context.get("prior_cost")
+        if isinstance(raw_prior, dict):
+            prior_cost = raw_prior
     if not _pkg().check_user_input(
         f"{prompt}\n{attachment_text}\n{context_text[:4000]}",
         "pm feature contract",
@@ -104,6 +111,8 @@ async def generate_pm_feature_contract(
             mission_type=mission_type,
             provider=fallback.get("model_provider") or provider,
             model=fallback.get("model") or model,
+            change_order=change_order,
+            prior_cost=prior_cost,
         )
     pm_prompt = _build_pm_feature_contract_prompt(
         prompt=prompt,
@@ -139,6 +148,8 @@ async def generate_pm_feature_contract(
             mission_type=mission_type,
             provider=fallback.get("model_provider") or provider,
             model=fallback.get("model") or model,
+            change_order=change_order,
+            prior_cost=prior_cost,
         )
     ambiguity_prompt = prompt
     if conversation_context:
@@ -161,6 +172,8 @@ async def generate_pm_feature_contract(
         mission_type=mission_type,
         provider=normalized.get("model_provider") or resolved_provider,
         model=normalized.get("model") or resolved_model,
+        change_order=change_order,
+        prior_cost=prior_cost,
     )
 
 

@@ -20,15 +20,16 @@ update. They get a real Statement of Work — including a factory cost
 estimate — **before** they approve. Work is tested, QC'd, and saved locally.
 
 Canonical plan: [`docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`](PM_SOW_FACTORY_PLAN_2026-08-17.md).
-**Implementation started on `grok/pm-sow-factory`.** P0–P3 are in code:
-gateway persists official `mission_type`; SOW estimator + persist + Chat
-**Accept SOW and start**; intake honors `sow_id`; spend-cap pause hook;
-import types map to the official enum; specialist codegen sees imported
-source. Local `.env` enforcement flipped to `true` (file is gitignored —
-rebuild compose to inject `PORT_TWO_PHASE_ENABLED`).
+**P0–P4 are on `main`.** Chat ZIP attach + repo page handoff into the PM
+SOW; codegen can emit a file tree; CostPanel shows quoted vs actual vs
+cap; continue-with-PM is a change order; sandbox `docker.sock` lives on
+`sandbox-runner` (`SANDBOX_EXECUTOR_URL`). Local `.env` enforcement is
+`true` (gitignored). Rebuild compose so the runner and Chat ZIP path are
+live.
 
-**Next action:** rebuild the stack, then prove a chat SOW launch and a ZIP
-PORT/update through Accept SOW. P4 (sandbox off orchestrator) is still open.
+**Next action:** rebuild the stack, then prove Chat SOW, ZIP
+PORT/update through Accept SOW, and a failing generated test that blocks
+COMPLETE. Live PORT/transform evidence and EDCP bus remain after that.
 
 ---
 
@@ -52,13 +53,13 @@ A checked-in local `.env` may still set `false` — FAIL will not block delivery
 until that line is `true`. Do not treat the local override as the product
 default.
 
-**On GitHub:** `main` is at `0b6ee4c` (merged #460). Branch
-`grok/review-findings-qc-wiring`.
+**On GitHub:** `main` includes the PM SOW factory and `sandbox-runner`
+(this merge), built on PR #460 (`0b6ee4c`).
 
 **Still owed after the SOW factory (see `docs/WORK_QUEUE.md`):** remaining
 live-proof matrix (PORT/transform through the new PM SOW path, failure
-injection, provider fallback); Phase 6 EDCP live-bus; sandbox execution out
-of the orchestrator (`WORK_QUEUE` item 11 — do not ship `docker.sock`).
+injection, provider fallback); Phase 6 EDCP live-bus. Sandbox privilege
+moved to `sandbox-runner` (item 11 implemented in condensed topology).
 
 ---
 

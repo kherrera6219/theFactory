@@ -119,3 +119,42 @@ def estimate_mission_cost(
         ),
         "pricing_as_of": datetime.now(UTC).date().isoformat(),
     }
+
+
+def estimate_change_order(
+    *,
+    prior: dict[str, Any] | None,
+    mission_type: str = "IMPORT_MODERNIZE",
+    complexity: str = "medium",
+    provider: str = "gemini",
+    model: str = "gemini-3.7-flash",
+) -> dict[str, Any]:
+    """Quote the new factory run and the delta versus the prior accepted bid.
+
+    A change order is still a full factory run (tokens for this mission). The
+    delta is informational: how this quote compares to the last accepted SOW.
+    """
+    fresh = estimate_mission_cost(
+        mission_type=mission_type,
+        complexity=complexity,
+        provider=provider,
+        model=model,
+    )
+    prior = prior if isinstance(prior, dict) else {}
+    prior_likely = prior.get("likely_usd")
+    prior_cap = prior.get("cap_usd")
+    delta_likely = None
+    if (
+        fresh.get("pricing_known")
+        and isinstance(fresh.get("likely_usd"), (int, float))
+        and isinstance(prior_likely, (int, float))
+    ):
+        delta_likely = round(float(fresh["likely_usd"]) - float(prior_likely), 6)
+    fresh["change_order"] = True
+    fresh["prior_likely_usd"] = prior_likely if isinstance(prior_likely, (int, float)) else None
+    fresh["prior_cap_usd"] = prior_cap if isinstance(prior_cap, (int, float)) else None
+    fresh["delta_likely_usd"] = delta_likely
+    fresh["basis"] = (
+        f"change_order vs prior likely={prior_likely} cap={prior_cap} | {fresh.get('basis')}"
+    )
+    return fresh

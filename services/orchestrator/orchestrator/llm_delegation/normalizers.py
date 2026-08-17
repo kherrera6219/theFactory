@@ -227,14 +227,22 @@ def _normalize_codegen_result(
 ) -> dict[str, Any] | None:
     raw_generated_code = str(raw.get("generated_code", ""))
     generated_code = _strip_code_fences(raw_generated_code)
+    from ..file_tree import codegen_bundle_from_result, first_filename
+
+    generated_code, tree_files = codegen_bundle_from_result(raw, generated_code)
     if len(generated_code.strip()) < 10:
         return None
     language = _clean_text(raw.get("language", target_language), max_length=32).lower()
-    filename = _safe_filename(raw.get("filename"), f"generated.{language or 'txt'}")
+    filename = _safe_filename(
+        raw.get("filename") or (first_filename(tree_files, "") if tree_files else ""),
+        f"generated.{language or 'txt'}",
+    )
     return {
         "schema_version": "generated_output.v1",
         "generated_code": generated_code,
         "filename": filename,
+        "file_count": len(tree_files) if tree_files else 1,
+        "files": [{"path": item["path"]} for item in tree_files],
         "language": language or target_language,
         "description": _clean_text(raw.get("description", "Generated output."), max_length=240),
         "dependencies": _string_list(raw.get("dependencies"), limit=20, max_length=80),

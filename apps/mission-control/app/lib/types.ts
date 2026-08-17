@@ -1049,7 +1049,7 @@ export type RepoReviewResponse = {
     source_ref: string;
     root_prefix: string;
   };
-  mission_type: "analyze" | "update" | "add_feature" | "refactor";
+  mission_type: "analyze" | "update" | "add_feature" | "refactor" | "port";
   requested_target_language: string | null;
   source_code: string;
   source_stats: {

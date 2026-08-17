@@ -563,6 +563,13 @@ async def _prepare_specialist_plan(
         source_bundle = metadata.get("source_code")
         if isinstance(source_bundle, str) and source_bundle.strip():
             _codegen_context["imported_source_code"] = source_bundle[:80_000]
+        aim = metadata.get("application_intelligence_map")
+        if isinstance(aim, dict) and aim:
+            _codegen_context["application_intelligence_map"] = {
+                key: aim.get(key)
+                for key in ("languages", "entrypoints", "file_count", "summary")
+                if key in aim
+            }
 
         _target_lang = (
             str(metadata.get("port_target_language") or "").strip()
@@ -991,12 +998,29 @@ def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dic
         manifest = artifact_record.get("manifest") or {}
 
         if artifact_type == "generated_code":
-            filename = str(manifest.get("filename") or "generated.txt")
-            # Clean up paths to prevent directory traversal
-            filename = os.path.basename(filename)
-            file_path = mission_dir / filename
-            file_path.write_text(artifact_text, encoding="utf-8")
-            LOGGER.info("Wrote generated code to %s", file_path)
+            from ..file_tree import parse_file_tree
+
+            tree_files = parse_file_tree(str(artifact_text))
+            if len(tree_files) > 1:
+                resolved_mission_dir = mission_dir.resolve()
+                for item in tree_files:
+                    rel_path = item["path"]
+                    candidate_path = (mission_dir / rel_path).resolve()
+                    if (
+                        candidate_path != resolved_mission_dir
+                        and resolved_mission_dir not in candidate_path.parents
+                    ):
+                        candidate_path = (mission_dir / os.path.basename(rel_path)).resolve()
+                    candidate_path.parent.mkdir(parents=True, exist_ok=True)
+                    candidate_path.write_text(item["content"], encoding="utf-8")
+                    LOGGER.info("Wrote generated tree file to %s", candidate_path)
+            else:
+                filename = str(manifest.get("filename") or "generated.txt")
+                # Clean up paths to prevent directory traversal
+                filename = os.path.basename(filename)
+                file_path = mission_dir / filename
+                file_path.write_text(artifact_text, encoding="utf-8")
+                LOGGER.info("Wrote generated code to %s", file_path)
 
         elif artifact_type == "source_bundle_package":
             # Parse files out of the source bundle

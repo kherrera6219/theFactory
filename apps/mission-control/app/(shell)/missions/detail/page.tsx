@@ -37,6 +37,7 @@ import type {
   OperationsAgentRecord,
   OperationsAuditReportRecord,
   OperationsLogicNodeRecord,
+  FeatureContract,
   LlmUsageSummary,
 } from "../../../lib/types";
 
@@ -681,7 +682,21 @@ function MissionDetailPageContent() {
         <ErrorBoundary><LogicNodeProgressPanel missionId={missionId} missionType={chainTrace?.mission_type ?? missionContract?.mission_type ?? null} logicNodes={logicNodes} verifiedCount={verifiedCount} avgConfidence={avgConfidence} /></ErrorBoundary>
         <ErrorBoundary><ChainOfCommandTracePanel chainTrace={chainTrace} /></ErrorBoundary>
         <ErrorBoundary><ActiveAgentsPanel activeAgents={activeAgents} /></ErrorBoundary>
-        <ErrorBoundary><CostPanel tokenUsage={tokenUsage} /></ErrorBoundary>
+        <ErrorBoundary>
+          <CostPanel
+            tokenUsage={tokenUsage}
+            quoted={
+              featureContract?.cost_estimate ??
+              (typeof mission?.metadata?.feature_contract === "object" &&
+              mission.metadata.feature_contract &&
+              "cost_estimate" in mission.metadata.feature_contract
+                ? (mission.metadata.feature_contract as { cost_estimate?: FeatureContract["cost_estimate"] })
+                    .cost_estimate
+                : null) ??
+              null
+            }
+          />
+        </ErrorBoundary>
       </div>
 
       {/* Artifacts tab — generated output, build artifacts, audit evidence, quality reports */}

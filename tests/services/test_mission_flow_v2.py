@@ -2101,6 +2101,25 @@ def test_write_artifact_to_disk_sanitizes_generated_and_source_bundle_paths(tmp_
     assert (tmp_path / "mission-inline" / "inline.py").read_text(encoding="utf-8") == "plain source"
 
 
+def test_import_delivery_writes_tree_when_generated_code_lists_multiple_files(tmp_path: Path) -> None:
+    settings = SimpleNamespace(delivery_dir=str(tmp_path))
+    orchestrator_mission_flow_v2_build._write_artifact_to_disk(
+        settings,
+        "mission-tree",
+        {
+            "artifact_type": "generated_code",
+            "artifact_text": (
+                "## FILE src/app.py\nprint('app')\n"
+                "## FILE src/util.py\nprint('util')\n"
+            ),
+            "manifest": {"filename": "app.py"},
+        },
+    )
+    mission_dir = tmp_path / "mission-tree"
+    assert (mission_dir / "src" / "app.py").read_text(encoding="utf-8") == "print('app')\n"
+    assert (mission_dir / "src" / "util.py").read_text(encoding="utf-8") == "print('util')\n"
+
+
 def test_write_artifact_to_disk_rejects_drive_relative_traversal(tmp_path: Path) -> None:
     """Hardening: a Windows drive-relative path like "C:evil.txt" is
     neither absolute (os.path.isabs) nor ".."-prefixed, so a fragment-based
