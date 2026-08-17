@@ -24,8 +24,11 @@ Audience: Maintainers, operators, and AI coding agents
 `docs/DESIGN_TRACEABILITY.md` answers "design document N — where is it
 implemented?" without re-reading the corpus.
 
-Then `docs/CURRENT_TODO.md` → "Active Work Queue", and `docs/WORK_QUEUE.md`
-for the ordered next items.
+Then `docs/CURRENT_TODO.md` → "Active Work Queue", `docs/WORK_QUEUE.md`
+for the ordered next items, and
+`docs/PM_SOW_FACTORY_PLAN_2026-08-17.md` for the **current initiative**
+(PM SOW + factory cost estimate + import-through-chat). That plan is
+canonical and **not yet implemented**.
 
 The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1x`
 is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
@@ -34,7 +37,24 @@ is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
 **UPG-20 / S1-01 is closed (2026-08-12).** Phase 6 is implemented but off
 (`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`) and not live-bus proven.
 
-### What happened on 2026-08-16/17 (most recent)
+### What happened on 2026-08-17 (most recent) — plan only
+
+The operator chose the end state: a 41-role factory whose **face** is the PM
+agent. Users create new software **or** import existing software for rework /
+port / update through that PM, see a real SOW (scope, out of scope,
+deliverables, acceptance, **factory cost range + cap**) before they approve,
+then get tested/QC'd work saved locally.
+
+Plan saved: `docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`. It includes the
+research bar (ISO/IEC/IEEE 29148-style verifiable requirements, Cone of
+Uncertainty range estimates, LLM FinOps spend caps) and the **new test
+modules** that must ship with each slice. Implementation has **not** started.
+
+**Next action:** P0 in that plan (enforcement + gateway `mission_type` +
+alias map + intake sees source). Do not build the Chat SOW panel until P0
+tests are green.
+
+### What happened on 2026-08-16/17 — honesty / Gemini / tests-as-QC
 
 Honesty gates, Gemini 3.7 Flash, BUILD_NEW role honesty, and tests-as-QC
 landed on `main` via [PR #460](https://github.com/kherrera6219/theFactory/pull/460)
@@ -1482,6 +1502,14 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 
 ## Latest Completed Work
 
+### PM SOW factory plan filed (2026-08-17) — docs only
+
+`docs/PM_SOW_FACTORY_PLAN_2026-08-17.md` is the current initiative. Research
+bar: ISO/IEC/IEEE 29148-style verifiable acceptance, Cone of Uncertainty
+range estimates, LLM FinOps mission-level spend cap. §6 lists the new test
+modules that must ship with each slice. **No application code in this
+commit.**
+
 ### Honesty gates, Gemini 3.7, tests-as-QC (2026-08-16/17)
 
 Merged to `main` as PR #460 (`0b6ee4c`). Commits `2544eac`, `4f94ba0`,
@@ -2523,25 +2551,26 @@ Security alert remediation validation:
 
 ## Next Actions
 
-### Priorities — refreshed 2026-08-17
+### Priorities — refreshed 2026-08-17 (SOW factory)
 
-`docs/WORK_QUEUE.md` is the authoritative ordered list; this is the summary.
+`docs/PM_SOW_FACTORY_PLAN_2026-08-17.md` is the current initiative.
+`docs/WORK_QUEUE.md` remains the factory-wide ordered list.
 
-1. **Finish the live proof matrix.** UI-driven, unattended, and non-Python
-   missions are done. Still owed: a PORT/transform, failure injection, and
-   provider fallback.
-2. **Exercise the Delta gate against a live bus** with
-   `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true` on **one** mission first. S1-01
-   no longer blocks this; a misaligned producer/consumer will stall every
-   mission at VERIFIED.
-3. **Move sandbox execution out of the orchestrator** into `agent-41-rqca`.
-   The orchestrator mounts `/var/run/docker.sock` — host root. Fine for
-   local dev, must not ship.
-4. **If you want FAIL to block locally**, set `RQCA_ENFORCEMENT_ENABLED=true`
-   in `.env` (compose default is already true).
-5. **Electron decisions still need sign-off**: Docker lifecycle on quit, the
-   Docker Desktop/WSL2 prerequisite story, auto-start.
-6. **Held Dependabot PRs**: electron 43, next-ecosystem, vitest, playwright.
+1. **P0 of the SOW plan** — persist real `mission_type` through the gateway,
+   alias unofficial repo types, flip live enforcement, pass source into PM
+   intake. New tests: `test_api_gateway_mission_create_types.py`.
+2. **P1** — SOW schema, pure estimator, persist approved bid, Chat Accept SOW.
+   New tests: `test_sow_estimator_unit.py`, `test_sow_document_unit.py`,
+   `sow-panel.test.ts`.
+3. **Finish the live proof matrix** through that SOW path. Still owed: a
+   PORT/transform, failure injection, and provider fallback.
+4. **Exercise the Delta gate against a live bus** with
+   `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true` on **one** mission first.
+5. **Move sandbox execution out of the orchestrator** into `agent-41-rqca`.
+   Do not ship `docker.sock`.
+6. **Electron decisions still need sign-off**: Docker lifecycle on quit,
+   Docker Desktop/WSL2, auto-start. Held Dependabot: electron 43,
+   next-ecosystem, vitest, playwright.
 
 DONE since the 2026-08-12 list: QC invocation derivation, unmet-dep honesty,
 artifact classification, tests-as-QC, `started_only`/syntax-only ADVISORY,

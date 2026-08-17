@@ -41,6 +41,7 @@ are not listed as current implementation truth unless called out explicitly.
 | [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list and outstanding production-readiness work (refreshed 2026-08-17) | Maintainers, Operators |
 | [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff for maintainers and AI coding agents (refreshed 2026-08-17) | Maintainers, AI coding agents |
 | [WORK_QUEUE.md](WORK_QUEUE.md) | Single ordered execution queue — what is actually next | Maintainers, AI coding agents |
+| [PM_SOW_FACTORY_PLAN_2026-08-17.md](PM_SOW_FACTORY_PLAN_2026-08-17.md) | **Current initiative.** PM-led SOW + factory cost estimate + import-through-chat. Not yet implemented | Maintainers, AI coding agents |
 | [PROTOCOL_BUS_PROGRAM_ROADMAP.md](PROTOCOL_BUS_PROGRAM_ROADMAP.md) | Umbrella roadmap for the 4-stage bus program (PBLA → EDCP → Agent Runtime Split → Semantic Bus). Stage 1 (PBLA) is code-complete and live-validated; its implementation plan is archived at `archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` | Maintainers, AI coding agents |
 | [EDCP_PHASE_PLAN.md](EDCP_PHASE_PLAN.md) | Stage 2 (EDCP) — event-driven control plane: consumers + control-flow inversion seam by seam | Maintainers, AI coding agents |
 | [AGENT_RUNTIME_SPLIT_PLAN.md](AGENT_RUNTIME_SPLIT_PLAN.md) | Stage 3 (stub) — split agents into independent bus-participant processes | Maintainers, AI coding agents |

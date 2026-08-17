@@ -126,9 +126,11 @@ P1–P3 from `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md` are **done**. P4
 (re-run) was exercised as Snake `mission-911a6b3f` and a follow-up review;
 remaining honesty holes from that run shipped in PR #460.
 
-**Current next items:** WORK_QUEUE #5 remainder (PORT/transform, failure
-injection, provider fallback), then #6 live-bus (`EVENT_DRIVEN_CONTROL_PLANE_ENABLED`),
-then #11 (sandbox out of the orchestrator).
+**Current next items:** execute `docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`
+starting at **P0** (gateway mission types + enforcement). Then P1 (SOW +
+cost estimate + Accept). PORT/transform live proof (#5 remainder) should
+run **through** that PM SOW path, not the old Repo-page shortcut. Then #6
+live-bus, then #11 (sandbox out of the orchestrator).
 
 Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still
 set `false` — that override is not the product default.

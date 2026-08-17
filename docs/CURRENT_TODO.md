@@ -13,6 +13,22 @@ as current work.
 
 ## Current Status
 
+**NEW — 2026-08-17: next initiative is the PM-led SOW factory.** End state:
+the user talks to the PM (product + program + sales for the factory) to
+**create** software or **import** existing software for rework / port /
+update. They get a real Statement of Work — including a factory cost
+estimate — **before** they approve. Work is tested, QC'd, and saved locally.
+
+Canonical plan: [`docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`](PM_SOW_FACTORY_PLAN_2026-08-17.md).
+**Not implemented yet.** Do not start P1 UI until P0 (gateway mission types +
+enforcement) is green. Required new test modules are listed in that plan §6.
+
+**Next action:** P0 — `RQCA_ENFORCEMENT_ENABLED=true` in live `.env`; persist
+`mission_type` through the gateway; alias unofficial repo types; pass source
+into live PM intake; prove a broken test blocks COMPLETE.
+
+---
+
 **NEW — 2026-08-16/17: honesty gates, Gemini 3.7 Flash, and tests-as-QC
 landed on `main` (PR #460, `0b6ee4c`).** Session work after the 2026-08-12
 gates-opened pass. Live Snake mission
@@ -36,10 +52,10 @@ default.
 **On GitHub:** `main` is at `0b6ee4c` (merged #460). Branch
 `grok/review-findings-qc-wiring`.
 
-**Next action (see `docs/WORK_QUEUE.md`):** remaining live-proof matrix
-(PORT/transform, failure injection, provider fallback); then Phase 6 EDCP
-live-bus exercise; then move sandbox execution out of the orchestrator
-(`WORK_QUEUE` item 11 — do not ship `docker.sock`).
+**Still owed after the SOW factory (see `docs/WORK_QUEUE.md`):** remaining
+live-proof matrix (PORT/transform through the new PM SOW path, failure
+injection, provider fallback); Phase 6 EDCP live-bus; sandbox execution out
+of the orchestrator (`WORK_QUEUE` item 11 — do not ship `docker.sock`).
 
 ---
 
