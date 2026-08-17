@@ -115,6 +115,122 @@ def test_sandbox_runner_rejects_missing_or_wrong_key(monkeypatch) -> None:
     _authorize("Bearer correct-key")
 
 
+def test_run_in_sandbox_local_returns_success_and_timeout(monkeypatch, tmp_path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / "main.py").write_text("print(1)\n", encoding="utf-8")
+
+    class _Proc:
+        def __init__(self, hang: bool) -> None:
+            self.hang = hang
+            self.returncode = 0
+            self.killed = False
+
+        async def communicate(self):
+            if self.hang:
+                raise TimeoutError()
+            return b"ok\n", b""
+
+        def kill(self) -> None:
+            self.killed = True
+
+    async def _exec(*_args, **_kwargs):
+        return _Proc(hang=False)
+
+    monkeypatch.setattr(sandbox_exec.asyncio, "create_subprocess_exec", _exec)
+    result = asyncio.run(
+        sandbox_exec.run_in_sandbox_local(
+            docker_bin="docker",
+            workspace_dir=workspace,
+            base_image="python:3.12-slim",
+            command="pytest -q",
+        )
+    )
+    assert result.succeeded is True
+    assert result.stdout == "ok\n"
+
+    async def _hang(*_args, **_kwargs):
+        return _Proc(hang=True)
+
+    monkeypatch.setattr(sandbox_exec.asyncio, "create_subprocess_exec", _hang)
+    timed = asyncio.run(
+        sandbox_exec.run_in_sandbox_local(
+            docker_bin="docker",
+            workspace_dir=workspace,
+            base_image="python:3.12-slim",
+            command="sleep 99",
+            timeout_seconds=1,
+        )
+    )
+    assert timed.timed_out is True
+    assert "exceeded" in timed.stderr
+
+
+def test_check_docker_available_local_and_remote(monkeypatch) -> None:
+    monkeypatch.delenv("SANDBOX_EXECUTOR_URL", raising=False)
+    monkeypatch.delenv("SANDBOX_RUNNER_MODE", raising=False)
+
+    class _Proc:
+        returncode = 0
+
+        async def communicate(self):
+            return b"27.0.0", b""
+
+    async def _exec(*_args, **_kwargs):
+        return _Proc()
+
+    monkeypatch.setattr(sandbox_exec.asyncio, "create_subprocess_exec", _exec)
+    assert asyncio.run(sandbox_exec.check_docker_available()) is True
+
+    async def _boom(*_args, **_kwargs):
+        raise OSError("no docker")
+
+    monkeypatch.setattr(sandbox_exec.asyncio, "create_subprocess_exec", _boom)
+    assert asyncio.run(sandbox_exec.check_docker_available()) is False
+
+    monkeypatch.setenv("SANDBOX_EXECUTOR_URL", "http://sandbox-runner:8020")
+
+    def _urlopen(request, timeout=None):
+        raise sandbox_exec.urllib.error.URLError("down")
+
+    monkeypatch.setattr(sandbox_exec.urllib.request, "urlopen", _urlopen)
+    assert asyncio.run(sandbox_exec.check_docker_available()) is False
+
+
+def test_sandbox_runner_execute_calls_local(monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+    from orchestrator.sandbox_runner import app
+
+    monkeypatch.setenv("INTERNAL_SERVICE_API_KEY", "runner-key")
+
+    async def _local(**kwargs):
+        assert kwargs["command"] == "pytest -q"
+        return sandbox_exec.SandboxResult(
+            exit_code=0,
+            stdout="ok",
+            stderr="",
+            timed_out=False,
+            timeout_seconds=30,
+            memory_limit_mb=256,
+            base_image="python:3.12-slim",
+        )
+
+    monkeypatch.setattr("orchestrator.sandbox_runner.run_in_sandbox_local", _local)
+    client = TestClient(app)
+    response = client.post(
+        "/internal/sandbox/execute",
+        headers={"Authorization": "Bearer runner-key"},
+        json={
+            "workspace_dir": "/sandbox-workspace/job",
+            "base_image": "python:3.12-slim",
+            "command": "pytest -q",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["exit_code"] == 0
+    assert client.get("/livez").json() == {"ok": True}
+
+
 def test_sandbox_execute_request_requires_workspace_and_command() -> None:
     parsed = SandboxExecuteRequest(
         workspace_dir="/sandbox-workspace/job",

@@ -83,18 +83,26 @@ lint:
 	ruff check services tests scripts
 
 test:
-	pytest --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+	pytest --cov=services --cov=shared_runtime --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 	python scripts/check_coverage_thresholds.py \
 		--coverage-file coverage.xml \
 		--global-threshold 80 \
+		--line-threshold 80 \
+		--branch-threshold 70 \
 		--module-threshold services/pod-worker/pod_worker/main.py=80 \
+		--module-threshold services/pod-worker/pod_worker/toolchains.py=80 \
 		--module-threshold services/audit-worker/audit_worker/main.py=90 \
 		--module-threshold services/protocol-bus-mcp/protocol_bus/mcp_server.py=100 \
 		--module-threshold services/orchestrator/orchestrator/protocol.py=100 \
 		--module-threshold services/orchestrator/orchestrator/runtime.py=80 \
 		--module-threshold services/orchestrator/orchestrator/agent_personas.py=100 \
 		--module-threshold services/orchestrator/orchestrator/agent_integrations.py=100 \
-		--module-threshold services/orchestrator/orchestrator/agent_registry.py=100
+		--module-threshold services/orchestrator/orchestrator/agent_registry.py=100 \
+		--module-threshold services/orchestrator/orchestrator/sandbox_exec.py=90 \
+		--module-threshold services/orchestrator/orchestrator/sandbox_runner.py=90 \
+		--module-threshold services/orchestrator/orchestrator/sow_store.py=90 \
+		--module-threshold services/orchestrator/orchestrator/port_coordinator.py=80 \
+		--module-threshold services/orchestrator/orchestrator/rqca_agent.py=70
 
 test-ui:
 	cd apps/mission-control && npm run lint && npm run test

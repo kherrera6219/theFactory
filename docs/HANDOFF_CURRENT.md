@@ -53,6 +53,13 @@ order. Condensed compose mounts `docker.sock` on `sandbox-runner` only;
 the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`. Rebuild required.
 Live Chat ZIP / PORT proof is still owed.
 
+Coverage standard (2026-08-17): keep the 80% mixed floor; **also fail
+line <80% or branch <70%**. Privilege/money/PORT files have their own
+floors (`sandbox_exec`/`sandbox_runner` 90%, `sow_store` 90%,
+`port_coordinator`/`toolchains` 80%, `rqca_agent` 70%). Mission Control
+measures `app/lib/**` via `npm run test:coverage`. A red suite does not
+count as an 80% pass.
+
 ### What happened on 2026-08-16/17 — honesty / Gemini / tests-as-QC
 
 Honesty gates, Gemini 3.7 Flash, BUILD_NEW role honesty, and tests-as-QC

@@ -343,7 +343,12 @@ def test_prompt_guard_mode_defaults_to_block() -> None:
     # Regression: PROMPT_GUARD_MODE used to default to "log", so OWASP LLM01
     # prompt-injection attempts were only recorded in scan metadata while the
     # mission proceeded to persistence anyway. It must default to "block".
-    assert api_gateway_main.PROMPT_GUARD_MODE == "block"
+    #
+    # Do not read the imported module constant: other tests (and a local
+    # `.env`) can mutate PROMPT_GUARD_MODE after import. The source default
+    # is the contract.
+    source = Path(api_gateway_main.__file__).read_text(encoding="utf-8")
+    assert 'os.getenv("PROMPT_GUARD_MODE", "block")' in source
 
 
 def test_validate_startup_auth_config_hybrid_missing_audience_ok(monkeypatch) -> None:
