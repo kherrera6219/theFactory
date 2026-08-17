@@ -54,9 +54,17 @@ It now probes `SANDBOX_EXECUTOR_URL`. Python QC tests run via stdlib
 <80%; Makefile and CI must keep `--line-threshold 80`. Every critical
 file is floored at **at least 80%** (`rqca_agent` raised from 70%).
 
-**Next action:** EDCP live-bus, failure injection, provider fallback.
-Chat ZIP through the UI (this proof used the same SOW+mission APIs the
-Chat Accept path calls).
+**Remaining live proofs (2026-08-17):** recorded in
+`docs/evidence/remaining_live_proof_20260817.json`.
+
+- Failure injection `mission-6ee8b1fe` — bus restarted at FETCH; visible VERIFIED.
+- Provider fallback `mission-db901d98` — invalid Gemini → `source=fallback`.
+- EDCP live-bus `mission-56bfd2dc` — consumed `delta_audit_gate` (prefix parse).
+- Spend-cap pause `mission-c1aedfbd` — `spend_cap.state=pause`, `spend_cap_hit=true`.
+- Chat ZIP import — Mission Control `POST /api/repo/import` 200 + SOW.
+
+**Next action:** product decisions that need sign-off — BUILD_NEW
+equivalence (#7) and Electron installer (#9). Not code cleanup.
 
 ---
 
@@ -83,10 +91,10 @@ default.
 **On GitHub:** `main` includes the PM SOW factory, `sandbox-runner`,
 coverage floors (PR #463), and live PORT + fail-QC evidence (`d9e3b3e`).
 
-**Still owed after the SOW factory (see `docs/WORK_QUEUE.md`):** failure
-injection, provider fallback, and Phase 6 EDCP live-bus. PORT-through-SOW
-and failing-QC-blocks-COMPLETE are recorded. Sandbox privilege is on
-`sandbox-runner`.
+**Still owed after the SOW factory (see `docs/WORK_QUEUE.md`):** BUILD_NEW
+equivalence decision, Electron sign-off, Repo ZIP knowledge phases 5–7,
+and the release package. Failure injection, provider fallback, EDCP
+live-bus, spend-cap pause, and Chat ZIP import are recorded.
 
 ---
 

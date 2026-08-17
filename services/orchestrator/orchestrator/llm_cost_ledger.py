@@ -155,12 +155,33 @@ def _fetch_usage_rows_sync(settings: Any, mission_id: str) -> list:
             return cur.fetchall()
 
 
+def _fetch_routing_sources_sync(settings: Any, mission_id: str) -> list[str]:
+    with db_connect(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT routing_source
+                FROM llm_usage_events
+                WHERE mission_id = %s AND routing_source IS NOT NULL
+                ORDER BY routing_source
+                """,
+                (mission_id,),
+            )
+            return [str(row[0]) for row in cur.fetchall() if row and row[0]]
+
+
 async def get_mission_token_usage(*, settings: Any, mission_id: str) -> dict[str, Any]:
     """Return aggregated token usage summary for a mission."""
     try:
         rows = await asyncio.to_thread(_fetch_usage_rows_sync, settings, mission_id)
     except Exception:  # noqa: BLE001
         rows = []
+    try:
+        routing_sources = await asyncio.to_thread(
+            _fetch_routing_sources_sync, settings, mission_id
+        )
+    except Exception:  # noqa: BLE001
+        routing_sources = []
 
     by_agent: list[dict[str, Any]] = []
     by_provider: dict[str, dict[str, Any]] = {}
@@ -212,4 +233,5 @@ async def get_mission_token_usage(*, settings: Any, mission_id: str) -> dict[str
         "call_count": call_count,
         "by_provider": list(by_provider.values()),
         "by_agent": by_agent,
+        "routing_sources": routing_sources,
     }

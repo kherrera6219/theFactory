@@ -86,15 +86,21 @@ Cheap self-contained hardening follows, then evidence, then features.
   `test_non_official_sandbox_images_are_pinned_by_digest` fails if one reverts
   to a mutable tag.
 - [x] **4 — S1-01 evidence** *(2026-08-12)*. `docs/evidence/s1_01_live_generation_go_20260811.json`, captured by the new `scripts/capture_live_mission_evidence.py`. Mission `mission-f8a5accf-63fa-47a6-9f33-3f76346db650`, **Go**, reached COMPLETE with 25 chain events, a 1298-byte generated_code artifact, and a pod-assignment record on **podB** (`assigned_by: orchestrator`) — the record that used to 404. Deliberately non-Python: Go is Python-dissimilar, so `language_content_signature` was in scope and **passed**, and 0 logicnodes is correct for BUILD_NEW.
-- [~] **5 — multi-mission live proof matrix** *(partial, 2026-08-12)*. Done: the live suite in strict mode (`LIVE_STACK_REQUIRED=1`), a non-Python (Go) mission, and **a full chat-UI-driven mission** — `mission-e42fd7e2`, a PyQt6 desktop app built from a two-turn PM conversation, COMPLETE with a 26KB artifact. That run found five defects; see `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md` for the findings and the P1-P4 plan. **Still owed:** a PORT/transform, failure injection, provider fallback.
+- [x] **5 — multi-mission live proof matrix** *(closed 2026-08-17)*.
+  PORT-through-SOW `mission-dc0c8c4e`. Failure injection
+  `mission-6ee8b1fe` (bus restarted at FETCH; 21 events, visible
+  VERIFIED). Provider fallback `mission-db901d98` (`generated_output.source=fallback`
+  after invalid Gemini). Evidence:
+  `docs/evidence/remaining_live_proof_20260817.json`.
 - [x] **6 — Delta consumer gate (EDCP-02a)** *(2026-08-11)*. `handlers` now
   registers `delta`; a consumed verdict is recorded on the mission and
   `_advance_verified_to_complete` refuses COMPLETE without a *passing* one.
   Absence blocks — that is the exit criterion: a **down consumer stalls the
   mission visibly** instead of letting it complete as though audited.
   Correlation is prefix-parsed, never compared for equality. Inert unless
-  `EVENT_DRIVEN_CONTROL_PLANE_ENABLED`. Not yet exercised against a live bus
-  (stack is down).
+  `EVENT_DRIVEN_CONTROL_PLANE_ENABLED`. **Live-bus 2026-08-17:**
+  `mission-56bfd2dc` consumed Delta
+  `delta-mission-56bfd2dc-…-podA` onto `delta_audit_gate` (prefix parse).
 - [ ] 7 — BUILD_NEW equivalence decision
 - [ ] 8 — repo ZIP Phases 5–7
 - [ ] 9 — Electron decisions *(blocked on user sign-off)*
@@ -126,12 +132,12 @@ P1–P3 from `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md` are **done**. P4
 (re-run) was exercised as Snake `mission-911a6b3f` and a follow-up review;
 remaining honesty holes from that run shipped in PR #460.
 
-**Current next items:** #5 remainder is failure injection and provider
-fallback. PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded
-(`docs/evidence/end_state_live_proof_20260817.json`). Coverage line ≥80%
-is locked in tests (mixed cannot hide line; Makefile/CI keep
-`--line-threshold 80`). Every critical file is floored at **at least
-80%**. Then #6 live-bus. Item #11 is implemented (`sandbox-runner`).
+**Current next items:** #7 BUILD_NEW equivalence decision (needs ADR if
+option 2). #9 Electron lifecycle (needs user sign-off). #8 Repo ZIP
+knowledge phases 5–7. Item 5 remainder, item 6 live-bus, spend-cap
+pause, and Chat ZIP import are recorded in
+`docs/evidence/remaining_live_proof_20260817.json`. Item #11 is
+implemented (`sandbox-runner`).
 
 Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still
 set `false` — that override is not the product default.

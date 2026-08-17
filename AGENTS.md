@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-08-17 after live PORT-through-SOW (`mission-dc0c8c4e` COMPLETE) and failing-QC-blocks-COMPLETE (`mission-8db1af71` VERIFIED). RQCA docker probe uses `SANDBOX_EXECUTOR_URL`.
+> Last validated: 2026-08-17 after remaining live proofs (failure injection, provider fallback, EDCP consumed Delta, spend-cap pause, Chat ZIP import). See `docs/evidence/remaining_live_proof_20260817.json`.
 
 ---
 
@@ -26,9 +26,11 @@ SOW factory (P0–P4) is on `main`. Live PORT-through-SOW
 (`mission-dc0c8c4e` COMPLETE) and failing-QC-blocks-COMPLETE
 (`mission-8db1af71` VERIFIED / BLOCKED) are recorded in
 `docs/evidence/end_state_live_proof_20260817.json`. Coverage stays at
-line ≥80% / branch ≥70% / mixed ≥80%; every critical file ≥80%. **Next:** failure injection,
-provider fallback, then a one-mission EDCP live-bus run — see
-`docs/WORK_QUEUE.md`.
+line ≥80% / branch ≥70% / mixed ≥80%; every critical file ≥80%.
+Failure injection, provider fallback, EDCP live-bus, spend-cap pause, and
+Chat ZIP import are recorded in
+`docs/evidence/remaining_live_proof_20260817.json`. **Next:** items that
+need a product decision or sign-off (`docs/WORK_QUEUE.md` #7, #9).
 
 > **Executing generated code goes through `orchestrator/sandbox_exec.py` and
 > nowhere else.** In compose the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`
@@ -46,13 +48,12 @@ plan statement — rule 1 below is not a formality here.
 
 **Next action:**
 
-- Failure injection and provider fallback (`docs/WORK_QUEUE.md` item 5
-  remainder). PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded.
-- Then **Phase 6 live-bus**: `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true` on
-  **one** mission. EDCP-02a is already in code. Before exercising it, read
-  `docs/PROTOCOL_ENVELOPES.md` §4: the two transports join by **prefix
-  parse, never equality**, and a consumer that queries
-  `correlation_id == mission_id` finds nothing and fails silently.
+- Item 5 remainder and Phase 6 live-bus are recorded
+  (`docs/evidence/remaining_live_proof_20260817.json`).
+- **Do not reopen** Electron installer decisions (#9) or BUILD_NEW
+  equivalence option 2 (#7) without an operator decision / ADR amendment.
+- Repo ZIP knowledge phases 5–7 and the release package remain later
+  queue items.
 
 Work item IDs are `UPG-<phase><item>` — `UPG-2x` is Phase 2, `UPG-3x` is
 Phase 3, and so on. Phase 6 uses the `EDCP-*` IDs from

@@ -271,6 +271,13 @@ class ProtocolBusConsumer:
     def _decode_entry(
         channel: str, entry_id: str, fields: dict[str, Any]
     ) -> dict[str, Any] | None:
+        normalized: dict[str, Any] = {}
+        for key, value in (fields or {}).items():
+            text_key = key.decode("utf-8", errors="replace") if isinstance(key, bytes) else str(key)
+            if isinstance(value, bytes):
+                value = value.decode("utf-8", errors="replace")
+            normalized[text_key] = value
+        fields = normalized
         envelope_raw = fields.get("envelope")
         payload_raw = fields.get("payload")
         envelope: dict[str, Any] = {}

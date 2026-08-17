@@ -1214,6 +1214,34 @@ def test_call_with_recommendation_skips_cross_provider_fallback_when_pinned(monk
     llm_delegation.reset_circuit_breakers()
 
 
+def test_call_with_recommendation_allows_fallback_when_provider_is_auto(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "auto")
+    llm_delegation.reset_circuit_breakers()
+
+    async def _call_provider(*, provider: str, model: str, prompt: str, call_context: str):
+        _ = model, prompt, call_context
+        if provider == "gemini":
+            return None
+        return {"ok": True}
+
+    monkeypatch.setattr(llm_delegation, "_call_provider", _call_provider)
+    parsed, provider, model, route = asyncio.run(
+        llm_delegation._call_with_recommendation(
+            recommendation={
+                "provider": "gemini",
+                "model": "gemini-3.7-flash",
+                "fallback_provider": "openai",
+                "fallback_model": "gpt-5.5",
+            },
+            prompt="prompt",
+            call_context="ctx",
+        )
+    )
+    assert parsed == {"ok": True}
+    assert (provider, route) == ("openai", "fallback")
+    llm_delegation.reset_circuit_breakers()
+
+
 def test_call_with_recommendation_returns_primary_when_fallback_is_same(monkeypatch) -> None:
     async def _call_provider(*, provider: str, model: str, prompt: str, call_context: str):
         _ = provider, model, prompt, call_context

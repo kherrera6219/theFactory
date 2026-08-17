@@ -6,6 +6,19 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Remaining live proofs (2026-08-17)
+
+#### Added
+- `scripts/prove_remaining_live.py` plus contract tests.
+- Evidence `docs/evidence/remaining_live_proof_20260817.json`: failure
+  injection, provider fallback, EDCP consumed Delta, spend-cap pause,
+  Chat ZIP import.
+
+#### Fixed
+- Delta consumer reads the producer payload (not nested `content`) and
+  Redis bytes keys. `LLM_PROVIDER=auto` is unpinned so fallback can run.
+- Token usage API includes `routing_sources`.
+
 ### Critical-file coverage floors at 80% (2026-08-17)
 
 #### Changed

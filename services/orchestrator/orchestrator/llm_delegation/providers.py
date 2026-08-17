@@ -617,6 +617,8 @@ async def _call_with_recommendation(
     # silently degrade every agent. When a provider is pinned, fail straight to
     # the deterministic fallback instead.
     explicit_provider = os.getenv("LLM_PROVIDER", "").strip().lower()
+    if explicit_provider in {"", "auto"}:
+        explicit_provider = ""
     if explicit_provider and fallback_provider != explicit_provider:
         return None, provider, model, "primary"
 

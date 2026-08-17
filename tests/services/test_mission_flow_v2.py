@@ -3972,6 +3972,54 @@ def test_delta_correlation_id_is_parsed_by_prefix_never_equality() -> None:
     )
 
 
+def test_delta_handler_reads_producer_payload_not_nested_content(monkeypatch) -> None:
+    """send_delta_audit writes findings on the payload itself, not payload.content."""
+    import asyncio
+    from types import SimpleNamespace
+
+    import orchestrator.main as orchestrator_main
+
+    stored: dict[str, Any] = {}
+
+    class _Mission:
+        metadata: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        orchestrator_main,
+        "app",
+        SimpleNamespace(state=SimpleNamespace(settings=SimpleNamespace(event_driven_control_plane_enabled=True))),
+    )
+
+    def _fetch(_settings, _mission_id):
+        return _Mission()
+
+    def _update(_settings, mission_id, metadata):
+        stored["mission_id"] = mission_id
+        stored["metadata"] = metadata
+
+    monkeypatch.setattr("orchestrator.storage.fetch_mission", _fetch)
+    monkeypatch.setattr("orchestrator.storage.update_mission_metadata", _update)
+
+    asyncio.run(
+        orchestrator_main._handle_delta_audit_verdict(
+            {
+                "envelope": {
+                    "correlation_id": "delta-mission-live-1-podA",
+                    "protocol": "delta",
+                },
+                "payload": {
+                    "schema_version": "v1",
+                    "audit_result": "pass",
+                    "findings": {"mission_id": "mission-live-1", "pod": "podA"},
+                },
+            }
+        )
+    )
+    assert stored["mission_id"] == "mission-live-1"
+    assert stored["metadata"]["delta_audit_gate"]["passed"] is True
+    assert stored["metadata"]["delta_audit_gate"]["correlation_id"] == "delta-mission-live-1-podA"
+
+
 class TestIntakeAutoAcceptsPmDefaults:
     """The intake gate parked 100% of missions, including fully-specified ones.
 

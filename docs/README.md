@@ -54,8 +54,8 @@ Current validated proof points:
 Tracked remaining gaps:
 
 - Chat ZIP UI walkthrough (API path is proven).
-- Live failure-injection and provider-fallback proof.
-- One-mission EDCP live-bus (`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true`).
+- BUILD_NEW equivalence decision (ADR if option 2).
+- Electron installer / uninstall decisions (operator sign-off).
 - Public hosting, customer isolation, and a production auth story.
 
 ## Maintenance Rules

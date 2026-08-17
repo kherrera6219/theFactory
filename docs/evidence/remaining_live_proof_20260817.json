@@ -1,0 +1,62 @@
+{
+  "schema_version": "remaining_live_proof.v1",
+  "captured_at": "2026-08-17T04:50:44Z",
+  "results": {
+    "failure_injection": {
+      "kind": "failure_injection",
+      "mission_id": "mission-6ee8b1fe-22df-451e-83f5-f4f6228430f5",
+      "final_state": "VERIFIED",
+      "state_at_inject": "FETCH",
+      "event_count": 21,
+      "note": "protocol-bus-mcp restarted mid-mission; factory kept a visible VERIFIED state and 21 chain events.",
+      "passed": true
+    },
+    "provider_fallback": {
+      "kind": "provider_fallback",
+      "mission_id": "mission-db901d98-6bc0-41e1-bcc4-973c81feeae4",
+      "final_state": "VERIFIED",
+      "generated_source": "fallback",
+      "routing_sources": [],
+      "note": "LLM_PROVIDER=auto with invalid Gemini. Generated output is source=fallback, not a fake Gemini success. Cross-provider OpenAI fallback remains unpinned-only.",
+      "passed": true
+    },
+    "edcp_live_bus": {
+      "kind": "edcp_live_bus",
+      "sow_id": "sow-6112523e-5ac6-42f7-a3f2-2de3b771103a",
+      "mission_id": "mission-56bfd2dc-c842-45a5-bfe2-76f35dafd251",
+      "final_state": "VERIFIED",
+      "delta_audit_gate": {
+        "pod": "podA",
+        "passed": true,
+        "consumed_at": "2026-08-17T04:50:27.528981+00:00",
+        "audit_result": "pass",
+        "correlation_id": "delta-mission-56bfd2dc-c842-45a5-bfe2-76f35dafd251-podA",
+        "tolerance_score": 0.96,
+        "verification_method": "llm"
+      },
+      "completion_blocked": false,
+      "passed": true
+    },
+    "spend_cap": {
+      "kind": "spend_cap",
+      "mission_id": "mission-c1aedfbd-5405-4067-b84d-a42d9dba851d",
+      "final_state": "VERIFIED",
+      "spend_cap": {
+        "state": "pause",
+        "cap_usd": 1e-06,
+        "actual_usd": 0.01628,
+        "quoted_usd": 0.35
+      },
+      "spend_cap_hit": true,
+      "passed": true
+    },
+    "chat_zip": {
+      "kind": "chat_zip",
+      "import_http": 200,
+      "review_source": "zip",
+      "note": "Mission Control POST /api/repo/import (the Chat ZIP path) returned 200 and a SOW was created.",
+      "passed": true
+    }
+  },
+  "all_passed": true
+}

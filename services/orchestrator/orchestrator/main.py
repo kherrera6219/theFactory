@@ -537,11 +537,14 @@ async def _handle_delta_audit_verdict(message: dict[str, Any]) -> None:
     if not getattr(settings, "event_driven_control_plane_enabled", False):
         return
 
-    payload = message.get("payload") or {}
-    content = payload.get("content") if isinstance(payload, dict) else None
-    content = content if isinstance(content, dict) else {}
+    payload = message.get("payload") if isinstance(message.get("payload"), dict) else {}
+    envelope = message.get("envelope") if isinstance(message.get("envelope"), dict) else {}
+    content = payload.get("content") if isinstance(payload.get("content"), dict) else payload
+    correlation = {
+        "correlation_id": message.get("correlation_id") or envelope.get("correlation_id"),
+    }
 
-    mission_id = _mission_id_from_delta(content, message)
+    mission_id = _mission_id_from_delta(content, correlation)
     if not mission_id:
         LOGGER.warning("Delta verdict without a resolvable mission_id; ignoring")
         return
@@ -561,7 +564,7 @@ async def _handle_delta_audit_verdict(message: dict[str, Any]) -> None:
         "verification_method": content.get("verification_method"),
         "tolerance_score": content.get("tolerance_score"),
         "consumed_at": datetime.now(UTC).isoformat(),
-        "correlation_id": message.get("correlation_id"),
+        "correlation_id": correlation.get("correlation_id"),
     }
     await asyncio.to_thread(storage.update_mission_metadata, settings, mission_id, metadata)
     LOGGER.info(
@@ -606,9 +609,10 @@ async def protocol_bus_consumer_loop(app: FastAPI) -> None:
                 redis_client=redis_client,
                 agent_id=ORCHESTRATOR_BUS_AGENT_ID,
                 handlers=handlers,
-                use_consumer_group=bool(
-                    getattr(settings, "event_driven_control_plane_enabled", False)
-                ),
+                # XREAD is the proven live path. Consumer groups remain available
+                # but a BUSYGROUP cursor can miss the single Delta verdict that
+                # EDCP-02a needs to consume.
+                use_consumer_group=False,
                 consumer_group="protocol-bus-orchestrator",
                 consumer_name=ORCHESTRATOR_BUS_AGENT_ID,
             )

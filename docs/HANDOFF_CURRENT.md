@@ -45,7 +45,9 @@ is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
 `docs/EDCP_PHASE_PLAN.md` instead.
 
 **UPG-20 / S1-01 is closed (2026-08-12).** Phase 6 is implemented but off
-(`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`) and not live-bus proven.
+(`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false` default). Live-bus proven
+2026-08-17: `mission-56bfd2dc` consumed `delta_audit_gate` with
+`correlation_id` `delta-mission-56bfd2dc-…-podA`.
 
 ### What happened on 2026-08-17 (most recent) — SOW factory on `main`
 

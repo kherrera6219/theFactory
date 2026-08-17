@@ -656,3 +656,20 @@ class TestEdcpProducerHelpers:
         for body in bodies:
             validated = SendMessageRequest.model_validate(body)
             _validate_protocol_payload(validated.protocol, validated.payload)
+
+
+def test_decode_entry_accepts_redis_bytes_keys() -> None:
+    from orchestrator.protocol_bus_consumer import ProtocolBusConsumer
+
+    message = ProtocolBusConsumer._decode_entry(
+        "protocol:delta:broadcast",
+        "1-0",
+        {
+            b"envelope": json.dumps({"protocol": "delta"}).encode(),
+            b"payload": json.dumps({"audit_result": "pass", "findings": {"mission_id": "m-1"}}).encode(),
+            b"sender": b"AGENT-13-PODA-AUDIT",
+        },
+    )
+    assert message is not None
+    assert message["envelope"]["protocol"] == "delta"
+    assert message["payload"]["findings"]["mission_id"] == "m-1"

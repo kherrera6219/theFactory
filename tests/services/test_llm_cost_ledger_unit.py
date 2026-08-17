@@ -157,6 +157,7 @@ def test_get_mission_token_usage_aggregates(monkeypatch) -> None:
     assert result["estimated_cost_usd"] == 0.02
     assert len(result["by_agent"]) == 2
     assert len(result["by_provider"]) == 1  # both rows share openai::gpt-5.5
+    assert result["routing_sources"] == []
 
 
 def test_get_mission_token_usage_unknown_pricing(monkeypatch) -> None:
@@ -172,6 +173,17 @@ def test_get_mission_token_usage_unknown_pricing(monkeypatch) -> None:
     assert result["estimated_cost_usd"] is None
     assert result["unknown_pricing_count"] == 1
     assert result["by_provider"][0]["estimated_cost_usd"] is None
+
+
+def test_get_mission_token_usage_includes_routing_sources(monkeypatch) -> None:
+    monkeypatch.setattr(ledger, "_fetch_usage_rows_sync", lambda settings, mid: [])
+    monkeypatch.setattr(
+        ledger, "_fetch_routing_sources_sync", lambda settings, mid: ["fallback", "primary"]
+    )
+    result = asyncio.run(
+        ledger.get_mission_token_usage(settings=object(), mission_id="mission-routes")
+    )
+    assert result["routing_sources"] == ["fallback", "primary"]
 
 
 def test_get_mission_token_usage_empty(monkeypatch) -> None:

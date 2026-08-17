@@ -29,9 +29,10 @@ P0–P4 are on `main`. Live proof:
 Python QC uses `python -m unittest discover` because `python:3.11-slim`
 has no pytest. RQCA probes `SANDBOX_EXECUTOR_URL`, not local `docker info`.
 
-Still owed: Chat ZIP UI walkthrough (the proof used the same `/v1/sows` +
-`/v1/missions` APIs Chat Accept calls), spend-cap pause live, failure
-injection, provider fallback, EDCP live-bus.
+Also recorded 2026-08-17
+([`docs/evidence/remaining_live_proof_20260817.json`](evidence/remaining_live_proof_20260817.json)):
+failure injection, provider fallback (`source=fallback`), EDCP consumed
+Delta, spend-cap pause, and Chat ZIP `POST /api/repo/import`.
 
 ---
 
@@ -318,11 +319,14 @@ Target module: `services/orchestrator/orchestrator/sow_estimator.py` (new).
 
 1. Specified stdlib Snake — **recorded.** SOW with out-of-scope + token
    range; tests run; FAIL blocks COMPLETE (`mission-8db1af71`).
-2. Chat + ZIP update — **APIs recorded.** Same `/v1/sows` + `/v1/missions`
-   path Chat Accept uses. Chat ZIP UI walkthrough still owed.
+2. Chat + ZIP update — **recorded.** Mission Control
+   `POST /api/repo/import` 200 + SOW
+   (`remaining_live_proof_20260817.json`).
 3. PORT (small real tree) — **recorded.** `mission-dc0c8c4e` official type
    `PORT`; output `go.mod` + `main.go`.
-4. User rejects SOW / edits cap — in code; live walkthrough still owed.
-5. Spend approaches cap — in code; live walkthrough still owed.
+4. User rejects SOW / edits cap — in code; reject-SOW UI walkthrough still
+   owed.
+5. Spend approaches cap — **recorded.** `mission-c1aedfbd`
+   `spend_cap.state=pause`, `spend_cap_hit=true`.
 
 When 2, 4, and 5 are as boring as 1 and 3, this plan is done.
