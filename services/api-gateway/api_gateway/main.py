@@ -125,7 +125,23 @@ API_READ_RATE_LIMIT_PER_MINUTE = int(
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 RATE_LIMIT_KEY_PREFIX = "ratelimit:api-gateway"
-RATE_LIMIT_HMAC_KEY = os.getenv("RATE_LIMIT_HMAC_KEY", "ratelimit-default").encode()
+_RATE_LIMIT_HMAC_RAW = os.getenv("RATE_LIMIT_HMAC_KEY", "").strip()
+if not _RATE_LIMIT_HMAC_RAW:
+    if ENVIRONMENT == "production":
+        raise RuntimeError(
+            "RATE_LIMIT_HMAC_KEY must be set explicitly in production. "
+            "The previous default 'ratelimit-default' is a well-known pepper."
+        )
+    _RATE_LIMIT_HMAC_RAW = "ratelimit-default"
+    logging.getLogger(__name__).warning(
+        "RATE_LIMIT_HMAC_KEY is unset; using the well-known development default. "
+        "Set an explicit key before any non-local deployment."
+    )
+elif ENVIRONMENT == "production" and _RATE_LIMIT_HMAC_RAW == "ratelimit-default":
+    raise RuntimeError(
+        "RATE_LIMIT_HMAC_KEY must not be the well-known 'ratelimit-default' in production."
+    )
+RATE_LIMIT_HMAC_KEY = _RATE_LIMIT_HMAC_RAW.encode()
 # X-Forwarded-For is caller-supplied and unauthenticated. Only honor it for
 # rate-limit bucketing when explicitly enabled by an operator who has a
 # trusted reverse proxy stripping/overwriting the header before it reaches
@@ -169,13 +185,14 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_BASE_URL = os.getenv(
     "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"
 ).rstrip("/")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.7-flash").strip()
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "-1"))
 GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "high").strip().lower()
 ALLOWED_LLM_MODELS: dict[str, str] = {
     "gpt-5.5": "openai",
     "claude-opus-4-8": "anthropic",
+    "gemini-3.7-flash": "gemini",
     "gemini-3.6-flash": "gemini",
     "gemini-3.5-flash": "gemini",
 }
@@ -256,19 +273,11 @@ configure_logging("api-gateway")
 LOGGER = logging.getLogger(__name__)
 VALID_AUTH_MODES = {"api_key", "hybrid", "oidc"}
 if AUTH_MODE not in VALID_AUTH_MODES:
-    _invalid_auth_mode_msg = (
+    raise RuntimeError(
         f"Invalid AUTH_MODE '{AUTH_MODE}'. "
         f"Valid values: {', '.join(sorted(VALID_AUTH_MODES))}. "
-        f"Falling back to api_key."
+        "Set AUTH_MODE to a valid value before starting the service."
     )
-    if ENVIRONMENT == "production":
-        raise RuntimeError(
-            f"Invalid AUTH_MODE '{AUTH_MODE}' in production. "
-            f"Valid values: {', '.join(sorted(VALID_AUTH_MODES))}. "
-            f"Set AUTH_MODE to a valid value before starting the service."
-        )
-    LOGGER.error(_invalid_auth_mode_msg)
-    AUTH_MODE = "api_key"
 LOGGER.info("api-gateway auth mode active: %s (environment=%s)", AUTH_MODE, ENVIRONMENT)
 _OIDC_JWKS_CLIENT: Any | None = None
 

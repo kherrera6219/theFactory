@@ -19,17 +19,17 @@ import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
 type ModelOption = {
   label: string;
   provider: "openai" | "anthropic" | "gemini";
-  model: "gpt-5.5" | "claude-opus-4-8" | "gemini-3.6-flash" | "gemini-3.5-flash";
+  model: "gpt-5.5" | "claude-opus-4-8" | "gemini-3.7-flash" | "gemini-3.6-flash" | "gemini-3.5-flash";
   endpoint: string;
   effort: "high";
 };
 
 const MODEL_OPTIONS: ModelOption[] = [
   {
-    label: "Gemini 3.6 Flash",
+    label: "Gemini 3.7 Flash",
     provider: "gemini",
-    model: "gemini-3.6-flash",
-    endpoint: "POST /v1beta/models/gemini-3.6-flash:generateContent",
+    model: "gemini-3.7-flash",
+    endpoint: "POST /v1beta/models/gemini-3.7-flash:generateContent",
     effort: "high",
   },
   {
@@ -320,8 +320,8 @@ export default function SettingsPage() {
         // from the vault slot. A slot's stored provider/model is metadata about
         // the key recorded when the slot was written, and nothing refreshes it
         // when routing defaults change — so preferring it showed a stale model
-        // indefinitely. It reported the fleet on gemini-3.5-flash long after
-        // routing had moved to 3.6, with only the one agent lacking a slot
+        // indefinitely. It reported the fleet on an older Flash pin long after
+        // routing had moved on, with only the one agent lacking a slot
         // showing the truth. The slot still supplies key status, rotation, and
         // masked preview below, which is what it is actually authoritative for.
         provider: snapshot ? agent.provider : (existing?.provider ?? agent.provider),

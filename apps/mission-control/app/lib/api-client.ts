@@ -1,4 +1,3 @@
-import { isElectron } from "./electron-bridge";
 import type {
   BuilderPreviewResponse,
   PmFeatureContractResponse,
@@ -45,14 +44,12 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-// 7E — In Electron, talk directly to the local API Gateway.
-// In the browser, proxy through Next.js /api/gateway.
+// Browser and Electron both go through the Next.js /api/gateway proxy so the
+// session cookie can inject x-api-key. Talking to :8100 directly 401s because
+// the renderer has no operator key. Override only via NEXT_PUBLIC_API_PROXY_BASE_URL.
 const getMissionApiBase = () => {
   if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_PROXY_BASE_URL) {
     return process.env.NEXT_PUBLIC_API_PROXY_BASE_URL;
-  }
-  if (isElectron()) {
-    return "http://localhost:8100/v1";
   }
   return "/api/gateway";
 };
@@ -329,13 +326,10 @@ export function toDisplayError(err: unknown): DisplayError {
 export function missionApiUrl(path: string): string {
     const base = missionApiBase.endsWith("/") ? missionApiBase.slice(0, -1) : missionApiBase;
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
-    
-    // 7E — If talkling directly to v1 gateway, we don't need the /v1 prefix in path 
-    // if the base already has it.
+    // Collapse /v1/v1 when a custom base already ends with /v1.
     if (base.endsWith("/v1") && cleanPath.startsWith("/v1/")) {
         return `${base}${cleanPath.slice(3)}`;
     }
-    
     return `${base}${cleanPath}`;
 }
 

@@ -1,7 +1,7 @@
 # Settings Reference
 
-Document version: 2026.07.03
-Last updated: 2026-07-03
+Document version: 2026.08.15
+Last updated: 2026-08-15
 Status: Canonical
 
 **Code file:** `services/orchestrator/orchestrator/settings.py`  
@@ -81,8 +81,8 @@ The design follows three rules:
 | `mission_equivalence_python_execution_enabled` | `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` | `false` | Run **behavioural** equivalence: execute the artifact against Phase 4's equivalence vectors in the shared hardened Docker sandbox and attach a `behavioural` section to the equivalence report. Python only. Requires a reachable Docker daemon — without one the section records `skipped`, never `passed`. Advisory regardless of `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED`: behavioural results do not block delivery until pass rates have been measured across real missions (UPG-53) |
 | `mission_security_compliance_enforcement_enabled` | `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `true` | Block mission delivery on a required security-compliance check failure (e.g. a detected hardcoded secret), instead of only warning. Defaults to `true` as of 2026-07-03 (was `false`) — set to `false` to opt back into warn-only for staged rollouts. |
 | `testdata_agent_enabled` | `TESTDATA_AGENT_ENABLED` | `false` | Enable the TestData agent (AGENT-40) |
-| `rqca_agent_enabled` | `RQCA_AGENT_ENABLED` | `false` | Enable the RQCA agent (AGENT-41) |
-| `rqca_enforcement_enabled` | `RQCA_ENFORCEMENT_ENABLED` | `true` | Block mission delivery when the RQCA runtime QC verdict is `FAIL`, instead of only warning. Defaults to `true` as of 2026-07-03 (was `false`) — set to `false` to opt back into warn-only. Note: a `DRY_RUN`/`ADVISORY` verdict (e.g. Docker unavailable in this environment) never blocks regardless of this flag — that reflects "could not execute," not "failed." |
+| `rqca_agent_enabled` | `RQCA_AGENT_ENABLED` | `true` | Enable the RQCA agent (AGENT-41). Default on so enforcement is not decorative. Docker missing → `DRY_RUN` / `ADVISORY`. |
+| `rqca_enforcement_enabled` | `RQCA_ENFORCEMENT_ENABLED` | `true` | Block mission delivery when the RQCA runtime QC verdict is `FAIL`. `started_only`, syntax-only, `DRY_RUN`, `SKIPPED`, and `ADVISORY` never block. Generated tests, when present, are the sandbox command. If the agent is off while this is on, the skip is treated as not-ready (the previous pair delivered with a decorative flag). Production fails fast if this is false. |
 | `rqca_test_command_template` | `RQCA_TEST_COMMAND_TEMPLATE` | `""` | Per-language shell template for RQCA test execution. `{filename}` and `{test_filename}` are substituted at runtime. |
 | `docker_bin` | `DOCKER_BIN` | `docker` | Docker binary used by RQCA for sandboxed execution |
 | `depabs_execution_enabled` | `DEPABS_EXECUTION_ENABLED` | `false` | Enable DEPABS live dependency resolution (experimental) |

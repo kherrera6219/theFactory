@@ -112,16 +112,30 @@ async def generate_rqca_assessment(
     _ = mission_id, mission_contract, language
     verdict = str(execution_result.get("verdict") or "SKIPPED").strip().upper()
     passed = bool(execution_result.get("passed", False))
-    if verdict in {"DRY_RUN", "SKIPPED"}:
-        # Runtime QC could not actually execute the artifact (no sandbox / Docker
-        # unavailable / unsupported language). Report this honestly as a degraded
-        # advisory rather than claiming the artifact is deployment-safe. The
-        # mission can still continue (advisory=True) but the operator sees that
-        # the gate was bypassed instead of a fake green check.
+    scope_detail = str(execution_result.get("verified_scope_detail") or "").strip().lower()
+    # started_only / syntax_only are not a pass unless tests actually ran.
+    if verdict in {"DRY_RUN", "SKIPPED"} or (
+        scope_detail in {"started_only", "syntax_only"} and verdict != "FAIL"
+    ):
+        if scope_detail == "started_only":
+            reason = (
+                "Runtime QC launched the artifact with no derived invocation, "
+                "so the exit code is not evidence of correctness"
+            )
+        elif scope_detail == "syntax_only":
+            reason = (
+                "Runtime QC only compiled or parsed the artifact; no tests ran, "
+                "so the exit code is not evidence of correctness"
+            )
+        else:
+            reason = (
+                "Runtime QC did not fully execute the artifact "
+                f"({verdict}); gate is advisory, not a pass"
+            )
         return {
             "qc_verdict": "ADVISORY",
             "status": "degraded",
-            "reason": "Runtime QC did not execute — sandbox unavailable; gate bypassed",
+            "reason": reason,
             "advisory": True,
             "confidence": "LOW",
             "execution_verdict": verdict,
@@ -162,7 +176,7 @@ async def generate_pm_delivery_summary(
     """PM Agent produces a final delivery summary for completed missions."""
     recommendation = _pkg()._agent_recommendation("AGENT-01-PM")
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
 
     primary_artifact = next(
@@ -296,7 +310,7 @@ async def generate_master_logic_stream(
 
     recommendation = _pkg()._ceo_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
 
     pods_summary = []
@@ -419,7 +433,7 @@ async def generate_security_analysis(
     """
     recommendation = _pkg()._agent_recommendation("AGENT-05-SECURITY")
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
 
     code_snippet = _clean_text(
@@ -527,7 +541,7 @@ async def generate_vc_commit_strategy(
     """
     recommendation = _pkg()._agent_recommendation("AGENT-07-VC")
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
 
     language = _clean_text(
@@ -627,7 +641,7 @@ async def generate_compliance_assessment(
     """
     recommendation = _pkg()._agent_recommendation("AGENT-08-COMPLIANCE")
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
 
     language = _clean_text(
@@ -730,7 +744,7 @@ async def generate_integration_tests(
     """
     recommendation = _pkg()._agent_recommendation("AGENT-10-TESTER")
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
 
     language = _clean_text(
@@ -757,8 +771,10 @@ async def generate_integration_tests(
     prompt = (
         "You are AGENT-10-TESTER generating integration tests.\n"
         f"Recommended model: {provider}/{model}\n"
-        "Write integration tests that verify the acceptance criteria "
-        "of the generated artifact. Match the target language.\n"
+        "Write tests that verify the acceptance criteria of the generated artifact.\n"
+        "If the artifact is an interactive game or a process that does not exit, "
+        "write unit tests of extractable logic (collision, score, movement) — "
+        "do not spawn the interactive process.\n"
         "Return only JSON. No markdown.\n\n"
         f"Mission ID: {_clean_text(mission_id, max_length=96)}\n"
         f"Language: {language}\n"
@@ -820,6 +836,23 @@ async def generate_integration_tests(
     }
 
 
+def _logicnodes_are_unstated(nodes: Any) -> bool:
+    """True when nodes are empty or only routing stubs. Those are not a quality score."""
+    if not isinstance(nodes, list) or not nodes:
+        return True
+    stated = 0
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        cmd = str(node.get("cmd") or "").strip().lower()
+        payload = node.get("payload") if isinstance(node.get("payload"), dict) else {}
+        origin = str(payload.get("origin") or payload.get("concept") or "").strip().lower()
+        if cmd in {"routing_stub", "stub"} or origin in {"routing_stub", "stub"}:
+            continue
+        stated += 1
+    return stated == 0
+
+
 async def generate_pod_audit_verdict(
     *,
     mission_id: str,
@@ -838,10 +871,43 @@ async def generate_pod_audit_verdict(
     audit_agent_id = _POD_AUDIT_AGENTS_BY_LOWER.get(normalized_pod, _DEFAULT_AUDIT_AGENT)
     recommendation = _pkg()._agent_recommendation(audit_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
 
-    canonical_count = len(pod_group_standard.get("canonical_logicnodes") or [])
+    nodes = pod_group_standard.get("canonical_logicnodes") or []
+    if _logicnodes_are_unstated(nodes):
+        return {
+            "schema_version": "pod_audit_verdict.v1",
+            "mission_id": _clean_text(mission_id, max_length=96),
+            "pod_name": pod_name,
+            "agent_id": audit_agent_id,
+            "verdict": "WARN",
+            "passed": True,
+            "quality_score": 0.0,
+            "findings": [
+                {
+                    "id": "F000",
+                    "severity": "info",
+                    "description": (
+                        "No extracted LogicNodes to audit on this BUILD_NEW path. "
+                        "Codegen already produced the artifact; this is not a quality score."
+                    ),
+                }
+            ],
+            "summary": (
+                "Pod audit skipped scoring: there is no extracted LogicNode graph "
+                "to review. Do not treat this as a 0.96 PASS."
+            ),
+            "recommendations": [
+                "Use runtime QC and generated tests to judge BUILD_NEW quality."
+            ],
+            "source": "no_extractable_logicnodes",
+            "model_provider": provider,
+            "model": model,
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+
+    canonical_count = len(nodes)
     eliminated = int(pod_group_standard.get("eliminated_duplicates") or 0)
     contract_summary = _clean_text(
         str(mission_context.get("contract_summary") or ""), max_length=300

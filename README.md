@@ -125,7 +125,7 @@ The list below describes implemented, CI-verified subsystems across theFactory:
 - **Semantic LogicNodes & Refined-IR** — LogicNodes carry AST-recovered `types.in`/`types.out`; Refined-IR carries real statement-level op streams, side-effect-derived purity, and executable equivalence vectors. Each module labels itself `ast_v1` or `templated_v1`, so a consumer can always tell a real projection from a synthetic one. Type recovery covers **Python, Java, and Haskell**; other languages emit honestly-empty types.
 - **Behavioural Equivalence Verification** — executes generated artifacts against their equivalence vectors inside a hardened Docker sandbox (`--network=none`, `--read-only`, `--cap-drop=ALL`, no-new-privileges) shared with runtime QC. Opt-in and advisory; a vector that merely ran is reported as `executed_without_error`, never `passed`.
 - **Downstream Deployment Handshake Exporters** — REST endpoints (`/v1/missions/{id}/export/helm` and `/v1/missions/{id}/export/github-actions`) generating gzipped Kubernetes Helm Charts and GitHub Actions CI/CD workflows.
-- **Gemini 3.6 Flash Primary Model Integration** — Upgraded primary default model routing, cost ledgers, API Gateway registries, compose overlays, environment templates, and Mission Control Vault settings to Gemini 3.6 Flash.
+- **Gemini 3.7 Flash Primary Model Integration** — Upgraded primary default model routing, cost ledgers, API Gateway registries, compose overlays, environment templates, and Mission Control Vault settings to Gemini 3.7 Flash.
 - **Desktop Electron Packaging** — Built standalone Next.js server bundle with Docker Desktop & WSL2 daemon preflight diagnostics in Electron bridge (`diagnostics.ts`).
 - **Audit & Quality Gates** — 23 of 23 production audit checks passed, 100% line / 99% branch coverage on `runtime.py`, >=80% backend test coverage, **1,883 green backend tests and 146 green UI unit tests**, and 0 SAST/SCA/secret/license findings.
 - **Multi-modal Context Ingestion** — Native support for PDF, Word, Markdown, and image diagrams converted via IS-Agent & provider layer.
@@ -237,7 +237,7 @@ Each agent exposes:
   "active_mission_id": null,
   "llm_recommendation": {
     "provider": "gemini",
-    "model": "gemini-3.6-flash",
+    "model": "gemini-3.7-flash",
     "mode": "thinking",
     "thinking_level": "high"
   },
@@ -266,10 +266,10 @@ Runtime persona and delegation metadata currently support provider-aware recomme
 - **OpenAI**
 - **Google Gemini**
 
-Current runtime default: all 41 agents route to Gemini 3.6 Flash
-(`gemini-3.6-flash`) with high thinking. Mission Control Settings exposes three
+Current runtime default: all 41 agents route to Gemini 3.7 Flash
+(`gemini-3.7-flash`) with high thinking. Mission Control Settings exposes three
 operator-selectable vault-slot model routes for testing: ChatGPT 5.5, Claude
-Opus 4.8, and Gemini 3.6 Flash. OpenAI and Anthropic remain supported provider
+Opus 4.8, and Gemini 3.7 Flash. OpenAI and Anthropic remain supported provider
 routes, but they are not the default assignment for any agent.
 
 
@@ -835,9 +835,9 @@ OTEL_TRACING_ENABLED=true
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
 
 # LLM Providers
-LLM_PROVIDER=gemini                # gemini default; UI model choices: gpt-5.5 | claude-opus-4-8 | gemini-3.6-flash
+LLM_PROVIDER=gemini                # gemini default; UI model choices: gpt-5.5 | claude-opus-4-8 | gemini-3.7-flash
 GEMINI_API_KEY=AIza...
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-3.7-flash
 
 GEMINI_THINKING_LEVEL=high
 OPENAI_MODEL=gpt-5.5

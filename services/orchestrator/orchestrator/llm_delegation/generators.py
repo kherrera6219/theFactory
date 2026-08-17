@@ -19,6 +19,8 @@ from .fallbacks import (
     _fallback_pod_group_standard,
     _fallback_pod_manager_delegation,
     _fallback_specialist_plan,
+    _looks_like_boilerplate_plan,
+    _plan_from_contract,
 )
 from .normalizers import (
     _normalize_codegen_result,
@@ -74,7 +76,7 @@ async def generate_pm_feature_contract(
 ) -> dict[str, Any]:
     recommendation = _pkg()._pm_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
     # OWASP LLM01 — scan the operator-supplied mission description (and any
     # attached file content) before it is embedded in the prompt. On a blocked
@@ -151,7 +153,7 @@ async def generate_pod_group_standard(
     normalized_pod_manager_agent_id = pod_manager_agent_id.strip().upper()
     recommendation = _pkg()._agent_recommendation(normalized_pod_manager_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
     prompt = _build_pod_group_standard_prompt(
         pod_name=pod_name,
@@ -203,7 +205,7 @@ async def generate_code_from_contract(
 ) -> dict[str, Any]:
     recommendation = _pkg()._agent_recommendation(specialist_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
     prompt = _build_codegen_prompt(
         mission_context=mission_context,
@@ -255,7 +257,7 @@ async def generate_logic_clusters(
 ) -> dict[str, Any]:
     recommendation = _pkg()._ceo_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
     prompt = _build_logic_clusters_prompt(
         mission_context=mission_context,
@@ -300,7 +302,7 @@ async def generate_mission_contract(
 ) -> dict[str, Any]:
     recommendation = _pkg()._ceo_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
     contract_prompt = _build_mission_contract_prompt(
         mission_context=mission_context,
@@ -344,7 +346,7 @@ async def generate_ceo_delegation(
 ) -> dict[str, Any]:
     recommendation = _pkg()._ceo_recommendation()
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
     prompt = _build_prompt(
         mission_context=mission_context,
@@ -411,7 +413,7 @@ async def generate_pod_manager_delegation(
 
     recommendation = _pkg()._agent_recommendation(normalized_pod_manager_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
     prompt = _build_pod_manager_prompt(
         mission_context=mission_context,
@@ -476,7 +478,7 @@ async def generate_specialist_plan(
 
     recommendation = _pkg()._agent_recommendation(normalized_specialist_agent_id)
     provider = str(recommendation.get("provider", "gemini")).strip().lower()
-    model = str(recommendation.get("model", "gemini-3.6-flash")).strip()
+    model = str(recommendation.get("model", "gemini-3.7-flash")).strip()
 
     prompt = _build_specialist_prompt(
         mission_context=mission_context,
@@ -501,27 +503,28 @@ async def generate_specialist_plan(
         )
 
     plan_summary = _clean_text(parsed.get("plan_summary", ""), max_length=280)
-    if not plan_summary:
-        plan_summary = "Specialist execution plan generated from mission context."
-
     deliverables = _normalize_text_list(parsed.get("deliverables"), limit=6)
-    if not deliverables:
-        deliverables = [
-            "Produce implementation changes for the assigned mission scope.",
-            "Persist logicnode evidence and audit artifacts before completion.",
-        ]
-
     risk_notes = _normalize_text_list(parsed.get("risk_notes"), limit=6)
-    if not risk_notes:
-        risk_notes = ["No explicit risks returned by model output."]
+    boilerplate = _looks_like_boilerplate_plan(plan_summary, deliverables)
+    if not plan_summary or not deliverables or boilerplate:
+        derived = _plan_from_contract(mission_context)
+        if not plan_summary or boilerplate:
+            plan_summary = str(derived["plan_summary"])
+        if not deliverables or boilerplate:
+            deliverables = list(derived["deliverables"])
+        if not risk_notes:
+            risk_notes = list(derived["risk_notes"])
+        source = "contract"
+    else:
+        source = "llm"
 
     return {
         "specialist_agent_id": normalized_specialist_agent_id,
         "pod_manager_agent_id": normalized_pod_manager_agent_id,
         "plan_summary": plan_summary,
         "deliverables": deliverables,
-        "risk_notes": risk_notes,
-        "source": "llm",
+        "risk_notes": risk_notes or ["No explicit risks returned by model output."],
+        "source": source,
         "llm_route": llm_route,
         "model_provider": resolved_provider,
         "model": resolved_model,

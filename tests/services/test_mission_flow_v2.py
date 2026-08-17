@@ -1452,7 +1452,7 @@ async def test_prepare_specialist_plan_emits_beta_production_result() -> None:
     assert kwargs["specialist_agent_id"] == "AGENT-36-GO"
     assert kwargs["pod_manager_agent_id"] == "AGENT-18-PODB-MGR"
     assert kwargs["source_language"] == "go"
-    assert kwargs["confidence_score"] == 0.85
+    assert kwargs["confidence_score"] == 0.0
     assert kwargs["logicnode_id"] == f"ln-{mission.mission_id}-specialist"
 
 
@@ -2231,6 +2231,10 @@ async def test_prepare_runtime_qc_records_complete_report_and_blocks_on_enforced
             new=AsyncMock(return_value=manifest),
         ), patch.object(
             orchestrator_mission_flow_v2_runtime,
+            "generate_integration_tests",
+            new=AsyncMock(return_value={"test_filename": "test_x.py", "test_cases": [], "source": "test"}),
+        ), patch.object(
+            orchestrator_mission_flow_v2_runtime,
             "run_runtime_qc",
             new=AsyncMock(return_value=execution),
         ), patch.object(
@@ -2316,6 +2320,74 @@ async def test_prepare_runtime_qc_reuses_cached_report_without_re_executing() ->
 
 
 @pytest.mark.asyncio
+async def test_prepare_runtime_qc_reassesses_cached_started_only_pass() -> None:
+    """Older started_only PASS reports must not short-circuit the new verdict."""
+    settings = _make_settings()
+    settings.testdata_agent_enabled = True
+    settings.rqca_agent_enabled = True
+    settings.rqca_enforcement_enabled = True
+    cached_report = {
+        "verdict": "PASS",
+        "passed": True,
+        "verified_scope_detail": "started_only",
+        "invocation_args": [],
+        "qc_assessment": {"qc_verdict": "PASS", "deployment_safe": True},
+    }
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {
+            "generated_code": "print('hello')",
+            "filename": "solution.py",
+            "language": "python",
+        },
+        "mission_contract": {"acceptance_criteria": ["prints hello"]},
+        "integration_tests": {
+            "test_filename": "test_solution.py",
+            "test_code": "def test_ok():\n    assert True\n",
+        },
+        "testdata_manifest": {
+            "base_image": "python:3.12",
+            "run_command": "python /workspace/solution.py",
+        },
+        "runtime_qc_report": cached_report,
+    }
+    fresh_execution = {
+        "verdict": "PASS",
+        "passed": True,
+        "verified_scope_detail": "tests",
+        "source": "live_execution",
+    }
+    fresh_assessment = {"qc_verdict": "PASS", "deployment_safe": True}
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_runtime_qc_report = MagicMock()
+        mock_storage.insert_mission_event = MagicMock()
+        with patch.object(
+            orchestrator_mission_flow_v2_runtime,
+            "run_runtime_qc",
+            new=AsyncMock(return_value=fresh_execution),
+        ) as run_qc, patch.object(
+            orchestrator_mission_flow_v2_runtime,
+            "generate_rqca_assessment",
+            new=AsyncMock(return_value=fresh_assessment),
+        ):
+            updated, ready, report = await orchestrator_mission_flow_v2_runtime._prepare_runtime_qc(
+                app=_make_app_state(),
+                settings=settings,
+                mission=mission,
+            )
+
+    assert run_qc.await_count == 1
+    assert report["verified_scope_detail"] == "tests"
+    assert ready is True
+    assert updated is mission
+
+
+@pytest.mark.asyncio
 async def test_prepare_runtime_qc_generates_manifest_then_skips_when_rqca_disabled() -> None:
     settings = _make_settings()
     settings.testdata_agent_enabled = True
@@ -2371,6 +2443,37 @@ async def test_prepare_runtime_qc_generates_manifest_then_skips_when_rqca_disabl
         event["event_type"] == "MISSION_TESTDATA_MANIFEST_READY"
         for event in mission.metadata["chain_trace"]
     )
+
+
+@pytest.mark.asyncio
+async def test_prepare_runtime_qc_skip_blocks_when_enforcement_on_and_agent_off() -> None:
+    """Enforcement plus a disabled agent used to deliver with SKIPPED."""
+    settings = _make_settings()
+    settings.testdata_agent_enabled = True
+    settings.rqca_agent_enabled = False
+    settings.rqca_enforcement_enabled = True
+    mission = _make_mission(state=MissionState.verified)
+    mission.metadata = {
+        "generated_output": {"generated_code": "print('hello')", "language": "python"},
+        "testdata_manifest": {"base_image": "python:3.12", "run_command": "python /workspace/x.py"},
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.update_mission_metadata = (
+            lambda _settings, _mission_id, metadata: setattr(mission, "metadata", metadata)
+            or mission
+        )
+        mock_storage.insert_mission_event = MagicMock()
+        updated, ready, report = await orchestrator_mission_flow_v2_runtime._prepare_runtime_qc(
+            app=_make_app_state(),
+            settings=settings,
+            mission=mission,
+        )
+
+    assert updated is mission
+    assert ready is False
+    assert report["skipped"] is True
+    assert report["reason"] == "RQCA disabled"
 
 
 @pytest.mark.asyncio

@@ -82,6 +82,26 @@ def test_single_token_keys_reject_embedded_spaces(env_dir, capsys) -> None:
     assert "single bare token" in capsys.readouterr().out
 
 
+def test_auth_mode_rejects_inline_comment(env_dir, capsys) -> None:
+    _write(env_dir, "AUTH_MODE=api_key # local only\n")
+    assert check_env.check_env() == 1
+    out = capsys.readouterr().out
+    assert "AUTH_MODE" in out
+    assert "single bare token" in out
+
+
+def test_gateway_auth_mode_warns_but_auth_mode_is_the_live_key(env_dir, capsys) -> None:
+    _write(env_dir, "GATEWAY_AUTH_MODE=api_key\nAUTH_MODE=api_key\nENVIRONMENT=development\n")
+    assert check_env.check_env() == 0
+    assert "GATEWAY_AUTH_MODE is not read" in capsys.readouterr().out
+
+
+def test_empty_sandbox_host_root_is_rejected(env_dir, capsys) -> None:
+    _write(env_dir, "SANDBOX_WORKSPACE_HOST_ROOT=\n")
+    assert check_env.check_env() == 1
+    assert "SANDBOX_WORKSPACE_HOST_ROOT" in capsys.readouterr().out
+
+
 def test_change_me_is_still_rejected(env_dir, capsys) -> None:
     """The original check must survive the rewrite."""
     _write(env_dir, "POSTGRES_PASSWORD=CHANGE_ME\n")

@@ -397,6 +397,31 @@ def _pm_product_clarifying_questions(
     if not is_interactive_app:
         return []
 
+    # Specified stdlib/CLI/single-file requests are ready; do not add arcade prompts.
+    specified_stdlib = has_token(
+        "standard library",
+        "stdlib",
+        "no pygame",
+        "no pip",
+        "no pyqt",
+        "zero-dependency",
+        "zero dependency",
+        "no third-party",
+    )
+    specified_single_file = has_token("single file", "single python file") or bool(
+        re.search(r"\b\w+\.(py|js|ts|go|rs)\b", text)
+    )
+    specified_controls = has_token("wasd", "arrow", "arrows", "keyboard")
+    specified_loop = has_token("score", "collision", "wall", "game over", "quit")
+    specified_terminal = has_token(
+        "terminal", "curses", "msvcrt", "console", "no curses", "windows without curses"
+    )
+    fully_specified_cli_game = (
+        is_game and specified_stdlib and specified_single_file and specified_controls
+    )
+    if fully_specified_cli_game:
+        return []
+
     existing_questions = {
         str(question).strip().lower()
         for question in contract.get("clarifying_questions") or []
@@ -421,10 +446,10 @@ def _pm_product_clarifying_questions(
         "light mode",
         "pixel",
     )
-    if not has_token(*style_tokens):
+    if not specified_terminal and not specified_stdlib and not has_token(*style_tokens):
         add("What visual direction should the UI use? Recommended default: polished dark arcade style with clear contrast and responsive layout.")
 
-    if is_game:
+    if is_game and not specified_controls and not specified_loop:
         gameplay_tokens = (
             "power",
             "level",
@@ -450,7 +475,7 @@ def _pm_product_clarifying_questions(
         "dev server",
         "production build",
     )
-    if not has_token(*packaging_tokens):
+    if not specified_single_file and not specified_stdlib and not has_token(*packaging_tokens):
         framework_default = "Angular CLI" if "angular" in text or "typescript" in language_text else "the framework default"
         add(f"How should the project be packaged for handoff? Recommended default: complete {framework_default} project with install/start script and run instructions.")
 
@@ -458,7 +483,7 @@ def _pm_product_clarifying_questions(
     # code-generation platform ("build a game/app") and is not itself a signal
     # that the user specified acceptance criteria.
     acceptance_tokens = ("test", "acceptance", "done", "verify", "lint", "playtest")
-    if not has_token(*acceptance_tokens):
+    if not specified_loop and not has_token(*acceptance_tokens):
         add("What should count as done for acceptance? Recommended default: app builds, starts locally, and the main user flow can be manually verified.")
 
     return questions[:3]

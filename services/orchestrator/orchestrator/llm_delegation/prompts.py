@@ -115,11 +115,18 @@ def _build_prompt(
         f"Target language: {language}\n"
         f"Strategic guidance: {strategy}{complexity_note}{risk_note}{style_note}\n\n"
         "Your rationale must explain why this pod, why this specialist, and any "
-        "cross-pod or support-agent dependencies flagged by mission type.\n\n"
+        "cross-pod or support-agent dependencies flagged by mission type.\n"
+        "specialist_agent_id MUST be one of the valid specialist ids listed below. "
+        "Do not invent ids such as AGENT-13-PYTHON-SPEC.\n\n"
         "Mission context JSON:\n"
         f"{_safe_context_json(mission_context)}\n"
         "Valid pod manager ids: AGENT-12-PODA-MGR, AGENT-18-PODB-MGR, "
-        "AGENT-24-PODC-MGR, AGENT-30-PODD-MGR."
+        "AGENT-24-PODC-MGR, AGENT-30-PODD-MGR.\n"
+        "Valid specialist ids: AGENT-14-PYTHON, AGENT-15-JAVASCRIPT, AGENT-16-RUBY, "
+        "AGENT-17-PHP, AGENT-20-C, AGENT-21-CPP, AGENT-22-RUST, AGENT-23-ZIG, "
+        "AGENT-26-JAVA, AGENT-27-CSHARP, AGENT-28-SCALA, AGENT-29-KOTLIN, "
+        "AGENT-32-MATLAB, AGENT-33-R, AGENT-34-JULIA, AGENT-35-MATHEMATICA, "
+        "AGENT-36-GO, AGENT-37-HASKELL, AGENT-38-OCAML."
     )
 
 
@@ -184,14 +191,37 @@ def _build_specialist_prompt(
     language = str(mission_context.get("requested_target_language") or "").strip().lower()
     risk_context = _format_upstream_risks(mission_context)
     style_context = _format_upstream_style(mission_context)
+    feature = mission_context.get("feature_contract")
+    contract = mission_context.get("mission_contract")
+    feature = feature if isinstance(feature, dict) else {}
+    contract = contract if isinstance(contract, dict) else {}
+    title = _clean_text(feature.get("title") or contract.get("title") or "", max_length=120)
+    summary = _clean_text(
+        feature.get("summary") or contract.get("contract_summary") or "",
+        max_length=400,
+    )
+    criteria = _string_list(
+        feature.get("acceptance_criteria") or contract.get("acceptance_criteria"),
+        limit=6,
+        max_length=160,
+    )
+    criteria_block = "\n".join(f"  - {item}" for item in criteria) or "  - (none listed)"
     return (
         f"You are {specialist_agent_id}, delegated by {pod_manager_agent_id}.\n"
         f"Recommended model route: {recommended_provider}/{recommended_model}\n"
         f"{_language_context(language)}"
         f"{risk_context}{style_context}"
+        "Plan the implementation of THIS mission's deliverable. Do not plan "
+        "Refined-IR extraction, LogicNode fusion, PEP-theory work, or async "
+        "framework design unless the operator request is about those things.\n"
         "Return only JSON with keys: plan_summary, deliverables, risk_notes.\n"
-        "deliverables and risk_notes must be arrays of short strings.\n"
-        "Mission context JSON:\n"
+        "plan_summary must name the artifact and the concrete build steps.\n"
+        "deliverables must be files or behaviours from the contract, not "
+        "audit paperwork.\n"
+        f"Mission title: {title or '(untitled)'}\n"
+        f"Mission summary: {summary or '(none)'}\n"
+        f"Acceptance criteria:\n{criteria_block}\n"
+        "Mission routing JSON:\n"
         f"{_safe_context_json(mission_context)}"
     )
 

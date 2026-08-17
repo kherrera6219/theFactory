@@ -33,6 +33,11 @@ describe("api-client", () => {
     expect(missionApiUrl("/health")).toBe("/api/gateway/health");
   });
 
+  it("uses the Next.js proxy even when a renderer electronAPI is present", () => {
+    vi.stubGlobal("window", { electronAPI: { platform: "win32" } });
+    expect(missionApiUrl("/v1/missions")).toBe("/api/gateway/v1/missions");
+  });
+
   it("builds mission stream URLs with optional filters", () => {
     expect(missionStateStreamUrl()).toBe("/api/gateway/v1/stream/state");
     expect(missionStateStreamUrl({ missionId: "mission-1" })).toBe(

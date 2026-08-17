@@ -86,7 +86,7 @@ def test_agent_model_inventory_defaults_to_gemini_flash() -> None:
         for record in snapshot.get("agents", [])
         if isinstance(record, dict)
     }
-    assert models == {"gemini-3.6-flash"}
+    assert models == {"gemini-3.7-flash"}
     assert "gpt-5.2-codex" not in models
 
 
@@ -1452,10 +1452,10 @@ def test_generate_specialist_plan_defaults_empty_model_output(monkeypatch) -> No
             pod_manager_agent_id="AGENT-12-PODA-MGR",
         )
     )
-    assert result["source"] == "llm"
-    assert result["plan_summary"] == "Specialist execution plan generated from mission context."
+    assert result["source"] == "contract"
+    assert "python" in result["plan_summary"].lower()
     assert result["deliverables"]
-    assert result["risk_notes"] == ["No explicit risks returned by model output."]
+    assert result["risk_notes"]
 
 
 def test_retry_delay_for_response_uses_default_on_invalid_header() -> None:
@@ -1497,6 +1497,53 @@ def test_specialist_prompt_includes_language_and_risk_context() -> None:
     assert "Certified Rust Architect" in prompt
     assert "PM risk notes" in prompt
     assert "PM open questions" in prompt
+    assert "Do not plan Refined-IR extraction" in prompt
+
+
+def test_specified_snake_prompt_does_not_inject_arcade_questions() -> None:
+    questions = llm_delegation._pm_product_clarifying_questions(
+        prompt=(
+            "Build a playable Snake game as a single Python 3.11 file named snake.py "
+            "using only the standard library (no pygame, PyQt, or pip packages). "
+            "20x20 grid, WASD and arrow keys, score +10, q quits."
+        ),
+        contract={"summary": "stdlib snake", "functional_requirements": []},
+        requested_target_language="python",
+    )
+    assert questions == []
+
+
+def test_underspecified_game_still_asks_product_questions() -> None:
+    questions = llm_delegation._pm_product_clarifying_questions(
+        prompt="I want a game",
+        contract={"summary": "a game", "functional_requirements": []},
+    )
+    assert any("visual direction" in q.lower() for q in questions)
+
+
+def test_boilerplate_specialist_plan_is_detected() -> None:
+    assert llm_delegation._looks_like_boilerplate_plan(
+        "Execute intent extraction into Refined-IR semantics",
+        ["PEP 585/604 typed interfaces", "Audit-ready traceability matrix"],
+    )
+    assert not llm_delegation._looks_like_boilerplate_plan(
+        "Implement snake.py as a 20x20 stdlib terminal game",
+        ["WASD and arrow controls", "Score +10 per food"],
+    )
+    assert not llm_delegation._looks_like_boilerplate_plan(
+        "Build a LogicNode walker with async safety for the move loop",
+        ["Keep the game loop non-blocking"],
+    )
+
+
+def test_pod_audit_does_not_score_routing_stubs() -> None:
+    from orchestrator.llm_delegation.generators_artifacts import _logicnodes_are_unstated
+
+    assert _logicnodes_are_unstated([])
+    assert _logicnodes_are_unstated([{"cmd": "routing_stub", "payload": {"origin": "routing_stub"}}])
+    assert not _logicnodes_are_unstated(
+        [{"cmd": "extract_function", "payload": {"concept": "move_snake"}}]
+    )
 
 
 def test_codegen_prompt_includes_hw_context_for_systems_language() -> None:

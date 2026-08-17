@@ -121,14 +121,12 @@ function mapEventToBusRecord(event: MissionEvent, index: number): BusEventRecord
   const missionId = event.mission_id ?? "unknown-mission";
   const normalizedState = event.new_state.toUpperCase();
   const protocol = deriveProtocol(event.event_type);
-  const consumer =
-    protocol === "ALPHA" ? "executive-tier" : protocol === "DELTA" ? "audit-ring" : "mission-workers";
   return {
     id: `${missionId}-${event.event_type}-${event.ts}-${index}`,
     ts: event.ts,
     protocol,
     producer: "orchestrator",
-    consumer,
+    consumer: "derived (not a bus consumer)",
     message_type: event.event_type,
     topic: `mission.state.${event.new_state.toLowerCase()}`,
     summary: `${missionId}: ${event.event_type}`,
@@ -155,7 +153,7 @@ function mapLiveStreamToBusRecord(event: LiveStateStreamEvent): BusEventRecord |
     ts: event.created_at ?? new Date().toISOString(),
     protocol: deriveProtocol(eventType),
     producer: event.producer ?? "orchestrator",
-    consumer: eventType.startsWith("AGENT_") ? "operations-grid" : "mission-workers",
+    consumer: "derived (not a bus consumer)",
     message_type: eventType,
     topic: event.topic ?? `mission.state.${state.toLowerCase()}`,
     summary: `${missionId}: ${eventType}`,
@@ -372,7 +370,7 @@ export default function ProtocolBusPage() {
         compact
         eyebrow="Protocol Bus"
         title="Protocol Event Monitor"
-        description="Inspect envelope traffic by protocol, topic, producer, and priority to detect routing anomalies."
+        description="Lane Activity is the real Protocol Bus. The table below is mission-state events with derived lane labels — not live bus subscribers."
       />
 
       <Panel
@@ -482,7 +480,7 @@ export default function ProtocolBusPage() {
       </Panel>
 
       <Panel
-        title="Event Stream"
+        title="Mission state events (derived)"
         actions={
           <button
             type="button"
@@ -499,6 +497,11 @@ export default function ProtocolBusPage() {
           </button>
         }
       >
+        <p className="help-text">
+          Derived from mission lifecycle events. Protocol and consumer columns are
+          labels, not evidence that a lane consumer handled the message. EDCP is
+          off unless EVENT_DRIVEN_CONTROL_PLANE_ENABLED is set.
+        </p>
         {loading && <p className="muted">Loading recent protocol bus events...</p>}
         {error && (
           <SystemMessage tone="critical" title="Protocol bus events are unavailable">
@@ -518,7 +521,7 @@ export default function ProtocolBusPage() {
         >
           <table className="data-table">
             <caption className="sr-only">
-              Protocol bus event stream including protocol, producer, topic, priority, and summary.
+              Mission state events with derived protocol labels. Not the Protocol Bus send log.
             </caption>
             <thead>
               <tr>

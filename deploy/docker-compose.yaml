@@ -347,7 +347,7 @@ services:
       # the mission in CLARIFYING. Defaults true: the alternative is not a
       # safe default but a broken one -- it parked 100% of missions.
       PM_AUTO_ACCEPT_DEFAULTS_ENABLED: ${PM_AUTO_ACCEPT_DEFAULTS_ENABLED:-true}
-      RQCA_AGENT_ENABLED: ${RQCA_AGENT_ENABLED:-false}
+      RQCA_AGENT_ENABLED: ${RQCA_AGENT_ENABLED:-true}
       RQCA_ENFORCEMENT_ENABLED: ${RQCA_ENFORCEMENT_ENABLED:-true}
       # Sandbox workspaces are created under SANDBOX_WORKSPACE_ROOT inside this
       # container, then bind-mounted into throwaway sibling containers by the
@@ -356,7 +356,7 @@ services:
       # daemon mounts an empty directory it silently creates and every
       # compiled-language run fails with "no such file".
       SANDBOX_WORKSPACE_ROOT: /sandbox-workspace
-      SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-}
+      SANDBOX_WORKSPACE_HOST_ROOT: ${SANDBOX_WORKSPACE_HOST_ROOT:-${COMPOSE_PROJECT_DIR}/../.sandbox-workspace}
       # Equivalence verification. Correctness (contract-conformance) checks always
       # run; these two control what they can do and whether behavioural
       # verification executes at all.
@@ -403,7 +403,7 @@ services:
       ANTHROPIC_THINKING_BUDGET_TOKENS: ${ANTHROPIC_THINKING_BUDGET_TOKENS:-8192}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.7-flash}
 
       GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-20}
       GEMINI_THINKING_BUDGET: ${GEMINI_THINKING_BUDGET:--1}
@@ -493,6 +493,7 @@ services:
       # starve mission creation. Writes keep the tighter limit above.
       API_READ_RATE_LIMIT_PER_MINUTE: ${API_READ_RATE_LIMIT_PER_MINUTE:-600}
       RATE_LIMIT_WINDOW_SECONDS: 60
+      RATE_LIMIT_HMAC_KEY: ${RATE_LIMIT_HMAC_KEY:-}
       AUTH_MODE: ${AUTH_MODE:-api_key}
       INTERNAL_SERVICE_API_KEY: ${INTERNAL_SERVICE_API_KEY:-}
       ORCHESTRATOR_ADMIN_API_KEY: ${ORCHESTRATOR_ADMIN_API_KEY:-}
@@ -532,7 +533,7 @@ services:
       ANTHROPIC_THINKING_BUDGET_TOKENS: ${ANTHROPIC_THINKING_BUDGET_TOKENS:-8192}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.7-flash}
 
       GEMINI_TIMEOUT_SECONDS: ${GEMINI_TIMEOUT_SECONDS:-20}
       GEMINI_THINKING_BUDGET: ${GEMINI_THINKING_BUDGET:--1}

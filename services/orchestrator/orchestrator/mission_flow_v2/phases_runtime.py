@@ -13,6 +13,7 @@ from ..dependency_absorption import (
     mission_requires_dependency_absorption,
 )
 from ..llm_delegation import (
+    generate_integration_tests,
     generate_rqca_assessment,
 )
 from ..mission_flow import (
@@ -30,11 +31,29 @@ from .base import (
     _extension_for_language,
     _mission_context,
     _record_artifact,
+    _setting_bool,
     _validate_agent_id,
 )
 from .phases_build import _ensure_verified_build_artifact
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _cached_runtime_qc_is_stale(report: dict[str, Any]) -> bool:
+    """True when a stored QC report used a verdict this build no longer trusts."""
+    scope = str(report.get("verified_scope_detail") or "").strip().lower()
+    if scope == "started_only":
+        return True
+    assessment = report.get("qc_assessment")
+    qc_verdict = ""
+    if isinstance(assessment, dict):
+        qc_verdict = str(assessment.get("qc_verdict") or "").strip().upper()
+    invocation_args = report.get("invocation_args") or []
+    return (
+        qc_verdict == "PASS"
+        and not invocation_args
+        and scope not in {"tests", "executed"}
+    )
 
 def _pkg() -> Any:
     """Return the public ``mission_flow_v2`` package module.
@@ -287,7 +306,13 @@ async def _persist_runtime_qc_skip(
             )
         except Exception as exc:
             LOGGER.warning("failed to persist runtime QC skip event for %s: %s", mission.mission_id, exc)
-    return updated or mission, True, runtime_qc_report
+    # Enforcement requires a QC result. Agent-off is not a result; other skips
+    # stay advisory so an unknown language cannot strand a mission.
+    ready = not (
+        _setting_bool(settings, "rqca_enforcement_enabled", False)
+        and reason == "RQCA disabled"
+    )
+    return updated or mission, ready, runtime_qc_report
 
 async def _prepare_runtime_qc(
     *,
@@ -299,21 +324,17 @@ async def _prepare_runtime_qc(
 
     cached_report = metadata.get("runtime_qc_report")
     if isinstance(cached_report, dict) and not cached_report.get("skipped"):
-        # Runtime QC already executed (real sandboxed execution + LLM QC
-        # assessment) for this mission. The completion gate that calls this
-        # function re-runs its entire body on every retry (e.g. an
-        # orchestrator restart recovering a mission still blocked by a
-        # later gate), so without this guard the expensive execution would
-        # re-run from scratch and duplicate MISSION_RUNTIME_QC_COMPLETE
-        # chain/audit events on every such retry.
-        cached_qc_assessment = cached_report.get("qc_assessment")
-        if not isinstance(cached_qc_assessment, dict):
-            cached_qc_assessment = {}
-        blocked = (
-            bool(getattr(settings, "rqca_enforcement_enabled", False))
-            and cached_qc_assessment.get("qc_verdict") == "FAIL"
-        )
-        return mission, not blocked, cached_report
+        # Reuse a real QC report on completion retries so the sandbox is not
+        # re-run. Re-assess dishonest started_only PASS reports from older builds.
+        if not _cached_runtime_qc_is_stale(cached_report):
+            cached_qc_assessment = cached_report.get("qc_assessment")
+            if not isinstance(cached_qc_assessment, dict):
+                cached_qc_assessment = {}
+            blocked = (
+                bool(getattr(settings, "rqca_enforcement_enabled", False))
+                and cached_qc_assessment.get("qc_verdict") == "FAIL"
+            )
+            return mission, not blocked, cached_report
 
     generated_output = metadata.get("generated_output")
     if not isinstance(generated_output, dict):
@@ -342,6 +363,7 @@ async def _prepare_runtime_qc(
     if (
         not bool(getattr(settings, "testdata_agent_enabled", False))
         and qc_language not in _LANGUAGE_RUNTIMES
+        and not bool(getattr(settings, "rqca_agent_enabled", False))
     ):
         return await _persist_runtime_qc_skip(
             settings=settings,
@@ -352,6 +374,85 @@ async def _prepare_runtime_qc(
     target_language = mission.requested_target_language or str(
         generated_output.get("language") or "python"
     )
+
+    if not bool(getattr(settings, "rqca_agent_enabled", False)):
+        # Still record a testdata manifest when the testdata agent is on, so
+        # skip reports stay inspectable. Tests are not generated unless QC runs.
+        manifest = metadata.get("testdata_manifest")
+        if not isinstance(manifest, dict) and bool(
+            getattr(settings, "testdata_agent_enabled", False)
+        ):
+            manifest = await generate_testdata_manifest(
+                mission_id=mission.mission_id,
+                generated_output=generated_output,
+                integration_tests=metadata.get("integration_tests")
+                if isinstance(metadata.get("integration_tests"), dict)
+                else None,
+                mission_contract=metadata.get("mission_contract")
+                if isinstance(metadata.get("mission_contract"), dict)
+                else {},
+                language=target_language,
+                settings=settings,
+            )
+            metadata["testdata_manifest"] = manifest
+            append_chain_event(
+                metadata,
+                event_type="MISSION_TESTDATA_MANIFEST_READY",
+                agent_id="AGENT-40-TESTDATA",
+                details={
+                    "base_image": manifest.get("base_image"),
+                    "timeout_seconds": manifest.get("timeout_seconds"),
+                    "synthetic_input_count": len(manifest.get("synthetic_inputs") or []),
+                    "source": manifest.get("source"),
+                },
+            )
+            try:
+                await asyncio.to_thread(
+                    _pkg().storage.insert_testdata_manifest,
+                    settings,
+                    mission.mission_id,
+                    manifest,
+                )
+            except Exception as exc:
+                LOGGER.warning(
+                    "failed to persist testdata manifest for %s: %s",
+                    mission.mission_id,
+                    exc,
+                )
+        return await _persist_runtime_qc_skip(
+            settings=settings,
+            mission=mission,
+            metadata=metadata,
+            reason="RQCA disabled",
+        )
+
+    # Generate tests before the testdata manifest so the QC command can name them.
+    if not isinstance(metadata.get("integration_tests"), dict):
+        integration_tests = await generate_integration_tests(
+            mission_id=mission.mission_id,
+            mission_context=_mission_context(mission, metadata),
+            generated_output=generated_output
+            if isinstance(generated_output, dict)
+            else None,
+            mission_contract=metadata.get("mission_contract")
+            if isinstance(metadata.get("mission_contract"), dict)
+            else {},
+        )
+        metadata["integration_tests"] = integration_tests
+        if not _chain_event_exists(metadata, "MISSION_INTEGRATION_TESTS_GENERATED"):
+            append_chain_event(
+                metadata,
+                event_type="MISSION_INTEGRATION_TESTS_GENERATED",
+                agent_id="AGENT-10-TESTER",
+                details={
+                    "test_filename": integration_tests.get("test_filename"),
+                    "test_case_count": len(integration_tests.get("test_cases") or []),
+                    "framework": integration_tests.get("framework"),
+                    "source": integration_tests.get("source"),
+                    "when": "before_runtime_qc",
+                },
+            )
+
     manifest = metadata.get("testdata_manifest")
     if not isinstance(manifest, dict):
         manifest = await generate_testdata_manifest(
@@ -391,14 +492,6 @@ async def _prepare_runtime_qc(
                 mission.mission_id,
                 exc,
             )
-
-    if not bool(getattr(settings, "rqca_agent_enabled", False)):
-        return await _persist_runtime_qc_skip(
-            settings=settings,
-            mission=mission,
-            metadata=metadata,
-            reason="RQCA disabled",
-        )
 
     execution = await run_runtime_qc(
         mission_id=mission.mission_id,
@@ -651,13 +744,14 @@ async def _prepare_fusion(
             metadata["generated_output"] = generated_output
             # PBLA-03: emit the specialist result on the Beta lane (fire-and-forget).
             # Only runs on a successful codegen (inside the try, after the output is
-            # stored). logicnode_id/confidence_score are synthesized — generated_output
-            # carries neither — and confidence is clamped in the helper.
+            # stored). logicnode_id is synthesized. confidence_score is 0.0
+            # until a real score exists — a hardcoded 0.85 used to look like a
+            # specialist self-check.
             _beta_pod_manager = _validate_agent_id(
                 metadata.get("assigned_pod_manager_agent_id"),
                 fallback=resolve_pod_manager_agent_id(mission.requested_target_language),
             )
-            _beta_confidence = 0.85 if generated_output.get("source") == "llm" else 0.3
+            _beta_confidence = 0.0
             await _send_beta_production_result(
                 settings=settings,
                 mission_id=mission.mission_id,

@@ -73,26 +73,71 @@ def _fallback_specialist_plan(
     recommendation: dict[str, Any],
 ) -> dict[str, Any]:
     LLM_FALLBACK_TOTAL.labels(agent_id=specialist_agent_id, reason="offline").inc()
+    plan = _plan_from_contract(mission_context)
+    plan.update(
+        {
+            "specialist_agent_id": specialist_agent_id,
+            "pod_manager_agent_id": pod_manager_agent_id,
+            "source": "fallback",
+            "model_provider": recommendation.get("provider"),
+            "model": recommendation.get("model"),
+            "mission_context": mission_context,
+        }
+    )
+    return plan
+
+
+# IR-specific pairs only. Any two tokens from a flat list rewrote real plans
+# that mentioned "LogicNode" and "async safety".
+_PLAN_BOILERPLATE_PAIRS = (
+    ("refined-ir", "logicnode"),
+    ("pep 585", "traceability matrix"),
+    ("pep 8/585", "traceability matrix"),
+    ("intent extraction", "semantic mapping"),
+)
+
+
+def _plan_from_contract(mission_context: dict[str, Any]) -> dict[str, Any]:
+    """Build a specialist plan from the PM/CEO contract, not language theory."""
     language = str(mission_context.get("requested_target_language") or "general").strip().lower()
+    feature = mission_context.get("feature_contract")
+    contract = mission_context.get("mission_contract")
+    feature = feature if isinstance(feature, dict) else {}
+    contract = contract if isinstance(contract, dict) else {}
+    title = str(feature.get("title") or "").strip()
+    summary = str(
+        feature.get("summary") or contract.get("contract_summary") or ""
+    ).strip()
+    criteria = [
+        str(item).strip()
+        for item in (feature.get("acceptance_criteria") or contract.get("acceptance_criteria") or [])
+        if str(item).strip()
+    ][:6]
+    risks = [
+        str(item).strip()
+        for item in (feature.get("risk_notes") or contract.get("risk_notes") or [])
+        if str(item).strip()
+    ][:4]
+    if summary:
+        plan_summary = summary[:280]
+    elif title:
+        plan_summary = f"Implement {title} in {language}."
+    else:
+        plan_summary = f"Implement the requested {language} artifact against the mission contract."
+    deliverables = criteria or [
+        f"Produce the requested {language} artifact.",
+        "Keep third-party dependencies at the contract minimum.",
+    ]
     return {
-        "specialist_agent_id": specialist_agent_id,
-        "pod_manager_agent_id": pod_manager_agent_id,
-        "plan_summary": (
-            "Fallback specialist plan generated deterministically from mission metadata "
-            "and language routing."
-        ),
-        "deliverables": [
-            f"Produce validated implementation for {language} target.",
-            "Publish logicnode evidence and audit artifacts before mission verification.",
-        ],
-        "risk_notes": [
-            "Provider output unavailable; deterministic fallback plan used.",
-        ],
-        "source": "fallback",
-        "model_provider": recommendation.get("provider"),
-        "model": recommendation.get("model"),
-        "mission_context": mission_context,
+        "plan_summary": plan_summary,
+        "deliverables": deliverables,
+        "risk_notes": risks or ["No explicit contract risks recorded."],
     }
+
+
+def _looks_like_boilerplate_plan(plan_summary: str, deliverables: list[str]) -> bool:
+    blob = " ".join([plan_summary, *deliverables]).lower()
+    return any(left in blob and right in blob for left, right in _PLAN_BOILERPLATE_PAIRS)
 
 
 def _fallback_pm_feature_contract(

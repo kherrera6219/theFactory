@@ -41,9 +41,16 @@ _HASH_ALLOWED_SUFFIXES = (
 _SINGLE_TOKEN_KEYS = {
     "ENVIRONMENT",
     "LLM_PROVIDER",
+    "AUTH_MODE",
     "GATEWAY_AUTH_MODE",
     "TOPOLOGY_MODE",
     "LANGGRAPH_CHECKPOINTER",
+}
+
+# An explicit empty assignment overrides Compose `${VAR:-default}` and mounts
+# an empty host directory. Delete the line instead of leaving KEY=.
+_EMPTY_UNSAFE_KEYS = {
+    "SANDBOX_WORKSPACE_HOST_ROOT",
 }
 
 _ASSIGNMENT = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
@@ -89,6 +96,31 @@ def _single_token_errors(path: Path, text: str) -> list[str]:
     return errors
 
 
+def _empty_override_errors(path: Path, text: str) -> list[str]:
+    errors: list[str] = []
+    for lineno, key, value in _assignments(text):
+        if key not in _EMPTY_UNSAFE_KEYS:
+            continue
+        if value.strip().strip("\"'") == "":
+            errors.append(
+                f"{path.name}:{lineno}: {key} is set empty. Compose treats "
+                f"KEY= as set, so the default host sandbox path is not used "
+                f"and the daemon mounts an empty directory.\n"
+                f"      fix: delete the line, or set an absolute host path."
+            )
+    return errors
+
+
+def _legacy_auth_mode_warnings(path: Path, text: str) -> list[str]:
+    keys = {key for _, key, _ in _assignments(text)}
+    if "GATEWAY_AUTH_MODE" in keys:
+        return [
+            f"{path.name}: GATEWAY_AUTH_MODE is not read by the gateway; "
+            "use AUTH_MODE."
+        ]
+    return []
+
+
 def _env_files(repo_root: Path) -> list[Path]:
     candidates = [repo_root / ".env", repo_root / "deploy" / ".env", Path(".env")]
     resolved: list[Path] = []
@@ -110,12 +142,18 @@ def check_env() -> int:
         return 0
 
     errors: list[str] = []
+    warnings: list[str] = []
     for path in paths:
         text = path.read_text(encoding="utf-8", errors="replace")
         if "CHANGE_ME" in text:
             errors.append(f"{path.name}: unset CHANGE_ME values")
         errors.extend(_inline_comment_errors(path, text))
         errors.extend(_single_token_errors(path, text))
+        errors.extend(_empty_override_errors(path, text))
+        warnings.extend(_legacy_auth_mode_warnings(path, text))
+
+    for warning in warnings:
+        print(f"WARNING: {warning}")
 
     if errors:
         print("ERROR: .env validation failed:\n")
