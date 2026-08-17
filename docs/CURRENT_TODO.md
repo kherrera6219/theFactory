@@ -24,14 +24,19 @@ Canonical plan: [`docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`](PM_SOW_FACTORY_PLAN_2
 SOW; codegen can emit a file tree; CostPanel shows quoted vs actual vs
 cap; continue-with-PM is a change order; sandbox `docker.sock` lives on
 `sandbox-runner` (`SANDBOX_EXECUTOR_URL`). Local `.env` enforcement is
-`true` (gitignored). Rebuild compose so the runner and Chat ZIP path are
-live.
+`true` (gitignored).
 
-**Next action:** rebuild the stack, then prove Chat SOW, ZIP
-PORT/update through Accept SOW, and a failing generated test that blocks
-COMPLETE. Coverage gates now split line (≥80%) vs branch (≥70%) and floor
-sandbox / SOW / PORT / toolchains. Live PORT/transform evidence and EDCP
-bus remain after that.
+**Coverage gates** (PR #463, `dd13785`): line ≥80%, branch ≥70%, mixed ≥80%,
+plus floors on sandbox / SOW / PORT / toolchains / RQCA. Mission Control
+measures `app/lib/**` via `npm run test:coverage`.
+
+**Rebuild (2026-08-17):** full-dedicated stack rebuilt with `sandbox-runner`.
+`sandbox-runner`, orchestrator, api-gateway, mission-control, and all 41
+dedicated agents reported healthy.
+
+**Next action:** prove Chat SOW, ZIP PORT/update through Accept SOW, and a
+failing generated test that blocks COMPLETE. Live PORT/transform evidence
+and EDCP bus remain after that.
 
 ---
 

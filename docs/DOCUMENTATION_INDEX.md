@@ -37,7 +37,7 @@ are not listed as current implementation truth unless called out explicitly.
 | [DESIGN_VS_BUILD_AUDIT_2026-08-01.md](DESIGN_VS_BUILD_AUDIT_2026-08-01.md) | Read-only audit behind that plan — 143 design documents vs live source, with file/line evidence for every divergence | Maintainers, Architects, AI coding agents |
 | [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) | **Governing verdict document.** Implemented / Superseded / Deferred for every design area. Outranks the numbered design corpus | All |
 | [DESIGN_TRACEABILITY.md](DESIGN_TRACEABILITY.md) | Per-design-document (01–64) status → implementing module → evidence | Maintainers, Architects, Auditors |
-| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem. Completeness claims scoped to v1.3 mission-pipeline scope; last refreshed 2026-08-17 (SOW factory + sandbox-runner) | All |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem. Completeness claims scoped to v1.3 mission-pipeline scope; last refreshed 2026-08-17 (SOW factory, sandbox-runner, coverage floors, full-dedicated rebuild) | All |
 | [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list and outstanding production-readiness work (refreshed 2026-08-17) | Maintainers, Operators |
 | [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff for maintainers and AI coding agents (refreshed 2026-08-17) | Maintainers, AI coding agents |
 | [WORK_QUEUE.md](WORK_QUEUE.md) | Single ordered execution queue — what is actually next | Maintainers, AI coding agents |

@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-08-17 against `main` after the PM SOW / Chat ZIP / sandbox-runner merge (built on PR #460 honesty gates, Gemini 3.7 Flash, tests-as-QC).
+> Last validated: 2026-08-17 against `main` at `dd13785` (PRs #462 SOW factory + #463 coverage floors). Full-dedicated stack rebuilt with `sandbox-runner` healthy.
 
 ---
 

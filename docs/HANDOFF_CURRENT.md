@@ -28,7 +28,9 @@ Then `docs/CURRENT_TODO.md` → "Active Work Queue", `docs/WORK_QUEUE.md`
 for the ordered next items, and
 `docs/PM_SOW_FACTORY_PLAN_2026-08-17.md` for the **current initiative**
 (PM SOW + factory cost estimate + import-through-chat). P0–P4 are on
-`main`; live proof of Chat ZIP / PORT is still owed.
+`main` (`dd13785`, PRs #462 and #463). Full-dedicated stack rebuilt
+2026-08-17 with `sandbox-runner` healthy. Live proof of Chat ZIP / PORT
+is still owed.
 
 The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1x`
 is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
@@ -50,8 +52,11 @@ is the front door for new **and** import (ZIP attach + repo page **Draft
 SOW with PM**). Delivery writes a file tree when codegen/SOW promises one.
 CostPanel shows quoted vs actual vs cap. Continue-with-PM is a change
 order. Condensed compose mounts `docker.sock` on `sandbox-runner` only;
-the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`. Rebuild required.
-Live Chat ZIP / PORT proof is still owed.
+the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`. Full-dedicated stack
+rebuilt 2026-08-17: `sandbox-runner` and the rest of the dedicated
+topology came up healthy. Coverage floors from [PR
+#463](https://github.com/kherrera6219/theFactory/pull/463) are on `main`
+(`dd13785`). Live Chat ZIP / PORT proof is still owed.
 
 Coverage standard (2026-08-17): keep the 80% mixed floor; **also fail
 line <80% or branch <70%**. Privilege/money/PORT files have their own
