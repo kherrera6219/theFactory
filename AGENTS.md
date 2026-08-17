@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-08-17 against `main` at `dd13785` (PRs #462 SOW factory + #463 coverage floors). Full-dedicated stack rebuilt with `sandbox-runner` healthy.
+> Last validated: 2026-08-17 after live PORT-through-SOW (`mission-dc0c8c4e` COMPLETE) and failing-QC-blocks-COMPLETE (`mission-8db1af71` VERIFIED). RQCA docker probe uses `SANDBOX_EXECUTOR_URL`.
 
 ---
 

@@ -34,9 +34,23 @@ measures `app/lib/**` via `npm run test:coverage`.
 `sandbox-runner`, orchestrator, api-gateway, mission-control, and all 41
 dedicated agents reported healthy.
 
-**Next action:** prove Chat SOW, ZIP PORT/update through Accept SOW, and a
-failing generated test that blocks COMPLETE. Live PORT/transform evidence
-and EDCP bus remain after that.
+**Live proof (2026-08-17):** both unique-factory claims ran on the rebuilt
+full-dedicated stack. Evidence:
+`docs/evidence/end_state_live_proof_20260817.json`.
+
+- **PORT through accepted SOW** — `mission-dc0c8c4e` `COMPLETE`. Official
+  type `PORT`. Output `go.mod` + `main.go` (Python adder → Go).
+- **Failing tests block COMPLETE** — `mission-8db1af71` stayed `VERIFIED`.
+  RQCA `qc_verdict=FAIL`, event `MISSION_RUNTIME_QC_BLOCKED`. Not delivered.
+
+Fix required for the QC proof: after `docker.sock` left the orchestrator,
+RQCA still ran local `docker info` and every mission became `DRY_RUN`.
+It now probes `SANDBOX_EXECUTOR_URL`. Python QC tests run via stdlib
+`unittest` because `python:3.11-slim` has no pytest.
+
+**Next action:** EDCP live-bus, failure injection, provider fallback.
+Chat ZIP through the UI (this proof used the same SOW+mission APIs the
+Chat Accept path calls).
 
 ---
 

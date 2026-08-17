@@ -569,17 +569,16 @@ def _fixture_content(testdata_manifest: dict[str, Any]) -> str:
 
 
 async def _check_docker_available(docker_bin: str = "docker") -> bool:
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            docker_bin,
-            "info",
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        await asyncio.wait_for(proc.wait(), timeout=5.0)
-        return proc.returncode == 0
-    except Exception:
-        return False
+    """True when the sandbox executor can run containers.
+
+    After docker.sock moved off the orchestrator, a local ``docker info`` is
+    the wrong probe: it is always false in compose and every mission becomes
+    an honest-looking DRY_RUN that cannot fail QC. Ask the shared sandbox
+    module, which POSTs to ``SANDBOX_EXECUTOR_URL`` when configured.
+    """
+    from .sandbox_exec import check_docker_available
+
+    return await check_docker_available(docker_bin=docker_bin)
 
 
 def _default_run_command(filename: str, language: str) -> str:
@@ -805,7 +804,7 @@ async def _build_artifact_smoke_report(
 # test framework so pass/fail reflects assertions, not just "artifact exited 0".
 # "{filename}" and "{test_filename}" are substituted with shell-quoted paths.
 _DEFAULT_TEST_COMMAND_TEMPLATES: dict[str, str] = {
-    "python": "python -m pytest -q /workspace/{test_filename}",
+    "python": "python -m unittest discover -s /workspace -p {test_filename}",
     "javascript": "node --test /workspace/{test_filename}",
     "typescript": "node --test /workspace/{test_filename}",
 }

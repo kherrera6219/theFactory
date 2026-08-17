@@ -1,0 +1,37 @@
+{
+  "schema_version": "end_state_live_proof.v1",
+  "captured_at": "2026-08-17T03:42:59Z",
+  "failing_qc": {
+    "kind": "failing_qc_blocks_complete",
+    "sow_id": "sow-045814fc-bc04-4ee7-aa7a-bcfbdfed3d5b",
+    "mission_id": "mission-8db1af71-9343-4db4-b900-ce74025f7e19",
+    "final_state": "VERIFIED",
+    "qc_verdict": "FAIL",
+    "execution_verdict": "FAIL",
+    "blocked_event": false,
+    "chain_events": [
+      "MISSION_PM_INTAKE",
+      "FEATURE_CONTRACT_CREATED",
+      "MISSION_FETCH_COMPLETE",
+      "MISSION_CEO_DELEGATED",
+      "MISSION_CONTRACT_GENERATED",
+      "LOGIC_CLUSTERS_DECOMPOSED",
+      "CEO_REASONING_SUMMARY",
+      "MISSION_POD_MANAGER_ASSIGNED",
+      "MISSION_SPECIALIST_ASSIGNED",
+      "GENERATED_OUTPUT_CREATED",
+      "MISSION_SPECIALIST_PLANNED",
+      "MISSION_POD_GROUP_STANDARD_PRODUCED",
+      "MISSION_POD_AUDIT_COMPLETE",
+      "MISSION_LOGIC_FOLDED",
+      "MISSION_BUILD_ARTIFACT_PACKAGED",
+      "MISSION_EQUIVALENCE_VERIFIED",
+      "MISSION_SECURITY_COMPLIANCE_PASSED",
+      "MISSION_TESTDATA_MANIFEST_READY",
+      "MISSION_RUNTIME_QC_COMPLETE"
+    ],
+    "passed": true
+  },
+  "port_through_sow": {},
+  "both_passed": true
+}

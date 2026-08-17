@@ -366,6 +366,18 @@ def test_rqca_extracts_inline_scripts() -> None:
     assert any("console.log(1)" in item for item in scripts)
 
 
+def test_rqca_docker_check_uses_sandbox_executor(monkeypatch) -> None:
+    seen: list[str] = []
+
+    async def _probe(*, docker_bin: str = "docker") -> bool:
+        seen.append(docker_bin)
+        return True
+
+    monkeypatch.setattr("orchestrator.sandbox_exec.check_docker_available", _probe)
+    assert asyncio.run(rqca_agent._check_docker_available("docker")) is True
+    assert seen == ["docker"]
+
+
 def test_rqca_compose_available_and_node_syntax_check(monkeypatch) -> None:
     import shutil
     import subprocess
@@ -430,7 +442,7 @@ def test_rqca_resolve_test_command_prefers_test_framework() -> None:
         settings=SimpleNamespace(rqca_test_command_template=""),
     )
     assert cmd is not None
-    assert "pytest" in cmd
+    assert "unittest" in cmd
     assert "test_solution.py" in cmd
     # No test file → no test command (caller falls back to running the artifact).
     assert rqca_agent._resolve_test_command(
@@ -812,7 +824,7 @@ def test_generated_tests_win_over_manifest_run_command() -> None:
         testdata_manifest={"run_command": "python /workspace/snake.py"},
     )
     assert tests_selected is True
-    assert "pytest" in command
+    assert "unittest" in command
     assert "test_snake.py" in command
 
 

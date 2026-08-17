@@ -28,9 +28,17 @@ Then `docs/CURRENT_TODO.md` → "Active Work Queue", `docs/WORK_QUEUE.md`
 for the ordered next items, and
 `docs/PM_SOW_FACTORY_PLAN_2026-08-17.md` for the **current initiative**
 (PM SOW + factory cost estimate + import-through-chat). P0–P4 are on
-`main` (`dd13785`, PRs #462 and #463). Full-dedicated stack rebuilt
-2026-08-17 with `sandbox-runner` healthy. Live proof of Chat ZIP / PORT
-is still owed.
+`main` (PRs #462 / #463 plus the live-proof follow-up). Full-dedicated
+stack rebuilt 2026-08-17 with `sandbox-runner` healthy.
+
+**Live proof recorded** in
+`docs/evidence/end_state_live_proof_20260817.json`:
+
+- PORT + accepted SOW: `mission-dc0c8c4e` COMPLETE, files `go.mod` /
+  `main.go`.
+- Failing QC: `mission-8db1af71` VERIFIED, `MISSION_RUNTIME_QC_BLOCKED`,
+  not COMPLETE. Required a fix: RQCA docker probe now uses
+  `SANDBOX_EXECUTOR_URL` instead of local `docker info`.
 
 The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1x`
 is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from

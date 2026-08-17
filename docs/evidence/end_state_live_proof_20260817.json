@@ -1,0 +1,31 @@
+{
+  "schema_version": "end_state_live_proof.v1",
+  "captured_at": "2026-08-17T03:30:00Z",
+  "note": "PORT ran through POST /v1/sows then POST /v1/missions with official type PORT. Failing QC used the factory integration_tests slot (same slot the tester writes) and RQCA enforcement. After docker.sock moved off the orchestrator, RQCA's local docker-info probe had to be pointed at SANDBOX_EXECUTOR_URL or every mission became DRY_RUN.",
+  "failing_qc": {
+    "kind": "failing_qc_blocks_complete",
+    "sow_id": "sow-045814fc-bc04-4ee7-aa7a-bcfbdfed3d5b",
+    "mission_id": "mission-8db1af71-9343-4db4-b900-ce74025f7e19",
+    "final_state": "VERIFIED",
+    "qc_verdict": "FAIL",
+    "execution_verdict": "FAIL",
+    "execution_type": "docker_live",
+    "verified_scope": "tests",
+    "blocked_event": "MISSION_RUNTIME_QC_BLOCKED",
+    "complete": false,
+    "passed": true
+  },
+  "port_through_sow": {
+    "kind": "port_through_sow",
+    "sow_id": "sow-f6d7257f-9434-4b5b-88eb-40a64cf5ca86",
+    "mission_id": "mission-dc0c8c4e-b1e4-4a07-aba4-648096675a72",
+    "final_state": "COMPLETE",
+    "official_type": "PORT",
+    "generated_language": "go",
+    "generated_filename": "main.go",
+    "file_count": 2,
+    "output_files": ["go.mod", "main.go"],
+    "passed": true
+  },
+  "both_passed": true
+}
