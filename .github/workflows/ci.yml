@@ -88,7 +88,7 @@ jobs:
         working-directory: apps/mission-control
 
       - name: Mission Control Unit Tests
-        run: npm run test
+        run: npm run test:coverage
         working-directory: apps/mission-control
 
       - name: Mission Control Build
@@ -122,14 +122,22 @@ jobs:
           python scripts/check_coverage_thresholds.py \
             --coverage-file coverage.xml \
             --global-threshold 80 \
+            --line-threshold 80 \
+            --branch-threshold 70 \
             --module-threshold services/pod-worker/pod_worker/main.py=80 \
+            --module-threshold services/pod-worker/pod_worker/toolchains.py=80 \
             --module-threshold services/audit-worker/audit_worker/main.py=90 \
             --module-threshold services/protocol-bus-mcp/protocol_bus/mcp_server.py=100 \
             --module-threshold services/orchestrator/orchestrator/protocol.py=100 \
             --module-threshold services/orchestrator/orchestrator/runtime.py=80 \
             --module-threshold services/orchestrator/orchestrator/agent_personas.py=100 \
             --module-threshold services/orchestrator/orchestrator/agent_integrations.py=100 \
-            --module-threshold services/orchestrator/orchestrator/agent_registry.py=100
+            --module-threshold services/orchestrator/orchestrator/agent_registry.py=100 \
+            --module-threshold services/orchestrator/orchestrator/sandbox_exec.py=90 \
+            --module-threshold services/orchestrator/orchestrator/sandbox_runner.py=90 \
+            --module-threshold services/orchestrator/orchestrator/sow_store.py=90 \
+            --module-threshold services/orchestrator/orchestrator/port_coordinator.py=80 \
+            --module-threshold services/orchestrator/orchestrator/rqca_agent.py=70
 
       - name: Upload Test Artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5

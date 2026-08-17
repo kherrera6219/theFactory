@@ -14,5 +14,23 @@ export default defineConfig({
     environment: "jsdom",
     include: ["app/**/*.test.ts"],
     clearMocks: true,
+    coverage: {
+      provider: "v8",
+      include: ["app/lib/**/*.{ts,tsx}"],
+      exclude: [
+        "**/*.test.ts",
+        "app/lib/types.ts",
+        "app/lib/types/**",
+        "app/lib/mock-data.ts",
+        "app/lib/test/**",
+      ],
+      thresholds: {
+        lines: 60,
+        statements: 60,
+        functions: 50,
+        branches: 45,
+      },
+      reporter: ["text", "json-summary"],
+    },
   },
 });

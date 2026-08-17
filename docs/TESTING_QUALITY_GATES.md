@@ -94,14 +94,23 @@ npm run test:e2e    # Playwright
 ### Global Gate
 
 ```
-services/ total coverage ≥ 80%
+services/ + shared_runtime
+  line coverage     ≥ 80%
+  branch coverage   ≥ 70%
+  mixed line+branch ≥ 80%
 ```
 
-Enforced by:
-- `make test` — `pytest --cov-fail-under=80`
-- `ci.yml` — `Test with Coverage` step
+The mixed number is not the only story: CI prints line and branch separately
+so an 83% mixed score cannot hide 73% branch coverage.
 
-**Latest local sweep (2026-07-03):** `1348 passed, 5 skipped` (`pytest tests/services/ --ignore=tests/services/test_agent_base_unit.py`)
+Enforced by:
+- `make test` — `pytest --cov-fail-under=80` plus `check_coverage_thresholds.py`
+- `ci.yml` — `Test with Coverage` step (`--line-threshold 80 --branch-threshold 70`)
+
+A red suite invalidates the coverage number. `pytest` must exit 0.
+
+**Latest local sweep (2026-08-17):** mixed **82.72%**, line **85.80%**,
+branch **72.82%**.
 
 ### Core Module Gates
 
@@ -127,7 +136,13 @@ The following files are individually gated by `scripts/check_coverage_thresholds
 | `services/protocol-bus-mcp/protocol_bus/mcp_server.py` | `100%` |
 | `services/audit-worker/audit_worker/main.py` | `90%` |
 | `services/pod-worker/pod_worker/main.py` | `80%` |
+| `services/pod-worker/pod_worker/toolchains.py` | `80%` |
 | `services/orchestrator/orchestrator/runtime.py` | `80%` (measured: 100% line / 99% branch) |
+| `services/orchestrator/orchestrator/sandbox_exec.py` | `90%` |
+| `services/orchestrator/orchestrator/sandbox_runner.py` | `90%` |
+| `services/orchestrator/orchestrator/sow_store.py` | `90%` |
+| `services/orchestrator/orchestrator/port_coordinator.py` | `80%` |
+| `services/orchestrator/orchestrator/rqca_agent.py` | `70%` (raise to 80% after the next RQCA helper pass) |
 
 These floors preserve exhaustive coverage for narrow protocol/configuration modules and enforce maintained baselines for the larger runtime/worker entry points, which are covered primarily through broader service tests.
 
@@ -161,6 +176,10 @@ The smaller modules remain at `100%` because they are deterministic configuratio
 ---
 
 ## Frontend Testing
+
+Mission Control unit coverage is measured on `app/lib/**` (not page chrome).
+`npm run test:coverage` enforces **60% lines/statements** on that tree. Playwright
+covers the sold journeys (Chat SOW front door, repo → PM handoff, cost panel).
 
 ### Vitest Unit Tests (63 tests)
 

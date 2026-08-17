@@ -343,6 +343,85 @@ def test_rqca_compose_yaml_is_hardened_and_sanitized() -> None:
     assert '"POSTGRES_PASSWORD"' in yml
 
 
+def test_rqca_compose_yaml_clamps_invalid_limits_and_skips_bad_services() -> None:
+    yml = rqca_agent._build_rqca_compose_yml(
+        mission_id="mission-2",
+        filename="output.py",
+        code_tmpdir="/tmp/ws",
+        testdata_manifest={
+            "timeout_seconds": "nope",
+            "memory_limit_mb": "nope",
+            "cpus": "nope",
+            "services": ["bad", {"name": "", "image": "python:3.11-slim"}],
+        },
+    )
+    assert "mem_limit:" in yml
+    assert "cpus:" in yml
+
+
+def test_rqca_extracts_inline_scripts() -> None:
+    scripts = rqca_agent._extract_inline_scripts(
+        "<html><script>console.log(1)</script><script src='x.js'></script></html>"
+    )
+    assert any("console.log(1)" in item for item in scripts)
+
+
+def test_rqca_compose_available_and_node_syntax_check(monkeypatch) -> None:
+    import shutil
+    import subprocess
+
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    assert rqca_agent._compose_available() is False
+
+    monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/docker")
+
+    def _ok(*_args, **_kwargs):
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", _ok)
+    assert rqca_agent._compose_available() is True
+
+    def _raise(*_args, **_kwargs):
+        raise OSError("no compose")
+
+    monkeypatch.setattr(subprocess, "run", _raise)
+    assert rqca_agent._compose_available() is False
+
+    async def _missing(*_args, **_kwargs):
+        raise FileNotFoundError("node")
+
+    monkeypatch.setattr(rqca_agent.asyncio, "create_subprocess_exec", _missing)
+    missing = asyncio.run(
+        rqca_agent._node_syntax_check(
+            code="console.log(1)",
+            filename="app.js",
+            settings=SimpleNamespace(node_bin="node"),
+        )
+    )
+    assert missing["verdict"] == "DRY_RUN"
+
+    class _Hang:
+        async def communicate(self):
+            raise asyncio.TimeoutError()
+
+        def kill(self) -> None:
+            return None
+
+    async def _hang(*_args, **_kwargs):
+        return _Hang()
+
+    monkeypatch.setattr(rqca_agent.asyncio, "create_subprocess_exec", _hang)
+    timed = asyncio.run(
+        rqca_agent._node_syntax_check(
+            code="while(true){}",
+            filename="app.js",
+            settings=SimpleNamespace(node_bin="node"),
+            timeout_seconds=0.01,
+        )
+    )
+    assert timed["verdict"] == "TIMEOUT"
+
+
 def test_rqca_resolve_test_command_prefers_test_framework() -> None:
     cmd = rqca_agent._resolve_test_command(
         filename="solution.py",

@@ -29,7 +29,9 @@ live.
 
 **Next action:** rebuild the stack, then prove Chat SOW, ZIP
 PORT/update through Accept SOW, and a failing generated test that blocks
-COMPLETE. Live PORT/transform evidence and EDCP bus remain after that.
+COMPLETE. Coverage gates now split line (≥80%) vs branch (≥70%) and floor
+sandbox / SOW / PORT / toolchains. Live PORT/transform evidence and EDCP
+bus remain after that.
 
 ---
 

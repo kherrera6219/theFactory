@@ -244,7 +244,11 @@ The pod-worker extracts concepts from source code using regex by default. Three 
 ## Testing Guidelines
 - Frameworks: `pytest` (backend/scripts), `vitest` (UI unit), `playwright` (UI e2e).
 - Naming: Python `test_*.py`; UI unit `*.test.ts`; e2e `*.spec.ts`.
-- Coverage policy: backend global `>=80%` plus enforced per-module floors for critical runtime files via `scripts/check_coverage_thresholds.py`.
+- Coverage policy: backend **line ≥80%**, **branch ≥70%**, mixed ≥80%, plus
+  per-module floors (sandbox/SOW/PORT/RQCA/toolchains and the original
+  protocol/runtime files) via `scripts/check_coverage_thresholds.py`.
+  Mission Control: Vitest coverage on `app/lib/**` (`npm run test:coverage`).
+  A red suite invalidates the coverage number.
 - Before merge: `make lint`, `make test`, `make test-ui`, `make test-ui-e2e`, `make audit`.
 
 ## Commit & Pull Request Guidelines

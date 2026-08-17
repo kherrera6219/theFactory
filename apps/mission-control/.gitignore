@@ -4,6 +4,7 @@ out/
 .env.local
 playwright-report/
 test-results/
+coverage/
 temp_*.py
 *.pyc
 __pycache__/

@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit",
     "gen:api": "openapi-typescript ../../docs/openapi/api-gateway.v1.json -o app/lib/types/api.gen.ts",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "node scripts/run-npm-exec-clean-env.mjs playwright test",
     "test:e2e:electron": "node scripts/run-npm-exec-clean-env.mjs playwright test --config=playwright.electron.config.ts",
@@ -36,7 +37,11 @@
       {
         "from": "../../deploy",
         "to": "deploy",
-        "filter": ["**/*", "!.local", "!.local/**"]
+        "filter": [
+          "**/*",
+          "!.local",
+          "!.local/**"
+        ]
       },
       {
         "from": "../../.env.example",
@@ -105,6 +110,7 @@
     "@types/react-dom": "19.2.3",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/yauzl": "^3.4.0",
+    "@vitest/coverage-v8": "^4.1.9",
     "cross-env": "^7.0.3",
     "electron": "^42.4.1",
     "electron-builder": "^26.15.3",

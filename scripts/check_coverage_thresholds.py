@@ -53,13 +53,25 @@ def main() -> int:
         "--global-threshold",
         type=float,
         default=80.0,
-        help="Minimum global coverage percentage.",
+        help="Minimum mixed (line+branch) coverage percentage.",
+    )
+    parser.add_argument(
+        "--line-threshold",
+        type=float,
+        default=80.0,
+        help="Minimum global line coverage percentage.",
+    )
+    parser.add_argument(
+        "--branch-threshold",
+        type=float,
+        default=70.0,
+        help="Minimum global branch coverage percentage.",
     )
     parser.add_argument(
         "--module-threshold",
         action="append",
         default=[],
-        help="Per-module threshold in the form path=percent (repeatable).",
+        help="Per-module line-rate threshold in the form path=percent (repeatable).",
     )
     args = parser.parse_args()
 
@@ -71,6 +83,10 @@ def main() -> int:
     branches_valid = int(root.attrib.get("branches-valid", "0"))
     branches_covered = int(root.attrib.get("branches-covered", "0"))
 
+    line_percent = (lines_covered / lines_valid) * 100.0 if lines_valid > 0 else 0.0
+    branch_percent = (
+        (branches_covered / branches_valid) * 100.0 if branches_valid > 0 else 100.0
+    )
     if branches_valid > 0:
         global_denominator = lines_valid + branches_valid
         global_numerator = lines_covered + branches_covered
@@ -82,10 +98,20 @@ def main() -> int:
     )
 
     failures: list[str] = []
-    print(f"Global coverage: {global_percent:.2f}% (threshold {args.global_threshold:.2f}%)")
+    print(f"Line coverage: {line_percent:.2f}% (threshold {args.line_threshold:.2f}%)")
+    print(f"Branch coverage: {branch_percent:.2f}% (threshold {args.branch_threshold:.2f}%)")
+    print(f"Mixed coverage: {global_percent:.2f}% (threshold {args.global_threshold:.2f}%)")
+    if line_percent < args.line_threshold:
+        failures.append(
+            f"line coverage {line_percent:.2f}% is below threshold {args.line_threshold:.2f}%"
+        )
+    if branch_percent < args.branch_threshold:
+        failures.append(
+            f"branch coverage {branch_percent:.2f}% is below threshold {args.branch_threshold:.2f}%"
+        )
     if global_percent < args.global_threshold:
         failures.append(
-            f"global coverage {global_percent:.2f}% is below threshold {args.global_threshold:.2f}%"
+            f"mixed coverage {global_percent:.2f}% is below threshold {args.global_threshold:.2f}%"
         )
 
     file_rates: dict[str, float] = {}

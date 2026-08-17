@@ -69,6 +69,39 @@ def test_approved_sow_does_not_fit_in_metadata_budget() -> None:
     assert len(str(document)) < 200
 
 
+def test_attach_cost_estimate_marks_change_order() -> None:
+    from orchestrator.sow_store import attach_cost_estimate, check_mission_spend_cap
+
+    priced = attach_cost_estimate(
+        {"estimated_complexity": "low"},
+        mission_type="BUILD_NEW",
+    )
+    assert priced["cost_estimate"]["pricing_known"] is True
+    assert "change_order" not in priced["cost_estimate"] or priced["cost_estimate"].get("change_order") is not True
+    prior = {"likely_usd": 0.2, "cap_usd": 0.6, "pricing_known": True}
+    contract = attach_cost_estimate(
+        {"estimated_complexity": "medium"},
+        mission_type="IMPORT_MODERNIZE",
+        change_order=True,
+        prior_cost=prior,
+    )
+    assert contract["cost_estimate"]["change_order"] is True
+    assert contract["cost_estimate"]["prior_likely_usd"] == 0.2
+    assert check_mission_spend_cap(actual_usd=0.1, cap_usd=1.0) == "ok"
+    assert check_mission_spend_cap(actual_usd=0.9, cap_usd=1.0) == "warn"
+    assert check_mission_spend_cap(actual_usd=1.2, cap_usd=1.0) == "pause"
+
+
+def test_load_approved_sow_rejects_unsafe_id_and_bad_json(tmp_path: Path) -> None:
+    from orchestrator.sow_store import load_approved_sow, save_approved_sow
+
+    settings = SimpleNamespace(delivery_dir=tmp_path)
+    assert load_approved_sow(settings, "../etc/passwd") is None
+    saved = save_approved_sow(settings, _priced_contract())
+    (tmp_path / ".sow" / f"{saved['sow_id']}.json").write_text("{not-json", encoding="utf-8")
+    assert load_approved_sow(settings, saved["sow_id"]) is None
+
+
 def test_accept_without_cost_estimate_is_rejected() -> None:
     contract = _priced_contract()
     contract["cost_estimate"] = {"pricing_known": False}
