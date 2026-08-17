@@ -130,8 +130,8 @@ remaining honesty holes from that run shipped in PR #460.
 fallback. PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded
 (`docs/evidence/end_state_live_proof_20260817.json`). Coverage line ≥80%
 is locked in tests (mixed cannot hide line; Makefile/CI keep
-`--line-threshold 80`). Then #6 live-bus. Item #11 is implemented
-(`sandbox-runner`).
+`--line-threshold 80`). Every critical file is floored at **at least
+80%**. Then #6 live-bus. Item #11 is implemented (`sandbox-runner`).
 
 Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still
 set `false` — that override is not the product default.

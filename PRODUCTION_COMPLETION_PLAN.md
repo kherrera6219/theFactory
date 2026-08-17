@@ -94,7 +94,7 @@ produced by a run that verified nothing.
 
 - **Code is truth.** Verify against live source before claiming a gap is closed.
 - **Additive + flagged.** Behavioural changes ship behind `*_ENABLED` flags that default to the safe/off value. Flag off ⇒ byte-identical behaviour.
-- **Tests first / regression discipline.** New behaviour requires tests that would have failed against the pre-change code (use `git stash` or equivalent to prove it when practical). Keep backend **line ≥80%**, **branch ≥70%**, mixed ≥80%, and existing per-module floors. A mixed score above 80% cannot hide a line score below 80%. UI: Vitest + Playwright critical paths.
+- **Tests first / regression discipline.** New behaviour requires tests that would have failed against the pre-change code (use `git stash` or equivalent to prove it when practical). Keep backend **line ≥80%**, **branch ≥70%**, mixed ≥80%, and existing per-module floors. Every critical file is floored at **at least 80%**. A mixed score above 80% cannot hide a line score below 80%. UI: Vitest + Playwright critical paths.
 - **Documentation standards.** Update `docs/CURRENT_TODO.md`, `docs/IMPLEMENTATION_STATUS.md`, and the governing ADR when scope or status changes. Run `scripts/validate_documentation.py` and keep it green. No new claim that contradicts code. Evidence files go under `docs/evidence/`.
 - **No silent failure paths.** Prefer loud, observable failure over silent degradation (especially for Object Lock, auth, and bus consumers).
 - **Sandbox rule.** All generated-code execution continues to go through `orchestrator/sandbox_exec.py`. Do not introduce a second `docker run` path.

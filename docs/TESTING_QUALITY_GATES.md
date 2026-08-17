@@ -114,7 +114,9 @@ A red suite invalidates the coverage number. `pytest` must exit 0.
 
 **Latest local sweep (2026-08-17):** mixed **82.72%**, line **85.80%**,
 branch **72.82%**. The checker **fails line <80% even when mixed is above
-80%** (`test_line_floor_fails_when_mixed_still_passes`).
+80%** (`test_line_floor_fails_when_mixed_still_passes`). Every critical
+file is floored at **at least 80%** (`rqca_agent` raised from 70%;
+`sow_estimator` and `file_tree` added).
 
 ### Core Module Gates
 
@@ -130,6 +132,13 @@ The following files are individually gated by `scripts/check_coverage_thresholds
 | `services/protocol-bus-mcp/protocol_bus/mcp_server.py` | 6-protocol routing and DLQ |
 | `services/pod-worker/pod_worker/main.py` | Mission routing and agent binding enforcement |
 | `services/audit-worker/audit_worker/main.py` | Verification stream processing |
+| `services/orchestrator/orchestrator/sandbox_exec.py` | Privilege boundary — one hardened docker-run path |
+| `services/orchestrator/orchestrator/sandbox_runner.py` | Owns `docker.sock`; orchestrator POSTs here |
+| `services/orchestrator/orchestrator/sow_store.py` | Approved SOW persist / accept / spend cap |
+| `services/orchestrator/orchestrator/sow_estimator.py` | Honest factory token-spend range + cap |
+| `services/orchestrator/orchestrator/file_tree.py` | Multi-file delivery tree parse / write |
+| `services/orchestrator/orchestrator/port_coordinator.py` | PORT two-phase extraction / generation |
+| `services/orchestrator/orchestrator/rqca_agent.py` | Runtime QC verdict; FAIL blocks COMPLETE |
 
 | File | Coverage floor |
 |------|----------------|

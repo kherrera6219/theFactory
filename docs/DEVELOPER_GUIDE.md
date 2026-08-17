@@ -31,7 +31,7 @@ docker compose -f deploy/docker-compose.yaml up -d
 
 ```powershell
 make test
-# line ≥80%, branch ≥70%, mixed ≥80%, plus privilege/SOW/PORT floors
+# line ≥80%, branch ≥70%, mixed ≥80%; every critical file ≥80%
 make test-ui
 make test-ui-e2e
 ```

@@ -26,7 +26,7 @@ SOW factory (P0–P4) is on `main`. Live PORT-through-SOW
 (`mission-dc0c8c4e` COMPLETE) and failing-QC-blocks-COMPLETE
 (`mission-8db1af71` VERIFIED / BLOCKED) are recorded in
 `docs/evidence/end_state_live_proof_20260817.json`. Coverage stays at
-line ≥80% / branch ≥70% / mixed ≥80%. **Next:** failure injection,
+line ≥80% / branch ≥70% / mixed ≥80%; every critical file ≥80%. **Next:** failure injection,
 provider fallback, then a one-mission EDCP live-bus run — see
 `docs/WORK_QUEUE.md`.
 

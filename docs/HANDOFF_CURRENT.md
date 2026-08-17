@@ -61,9 +61,10 @@ SOW with PM**). Delivery writes a file tree when codegen/SOW promises one.
 CostPanel shows quoted vs actual vs cap. Continue-with-PM is a change
 order. Condensed compose mounts `docker.sock` on `sandbox-runner` only;
 the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`. Full-dedicated stack
-rebuilt 2026-08-17: `sandbox-runner` and the rest of the dedicated
-topology came up healthy. Coverage floors from [PR
+rebuilt again 2026-08-17 after the 80% critical-file floors: `sandbox-runner`
+and the rest of the dedicated topology came up healthy. Coverage floors from [PR
 #463](https://github.com/kherrera6219/theFactory/pull/463) are on `main`.
+Every critical file is floored at **at least 80%** (`98c165d`).
 Live PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded in
 `docs/evidence/end_state_live_proof_20260817.json`.
 

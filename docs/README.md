@@ -43,9 +43,11 @@ Current validated proof points:
   [end_state_live_proof_20260817.json](evidence/end_state_live_proof_20260817.json).
 - Live BUILD_NEW: Go S1-01 `mission-f8a5accf`, chat-driven PyQt6
   `mission-e42fd7e2`, stdlib Snake `mission-911a6b3f`.
-- Coverage gates: line ≥80%, branch ≥70%, mixed ≥80%, plus privilege /
-  money / PORT floors. Latest sweep: line 85.80%, branch 72.82%, mixed
-  82.72%. A mixed score above 80% cannot hide a line score below 80%.
+- Coverage gates: line ≥80%, branch ≥70%, mixed ≥80%. Every critical
+  file is floored at **at least 80%** (`rqca_agent`, `sow_estimator`,
+  `file_tree`, `port_coordinator`, sandbox/SOW). Latest sweep: line
+  85.80%, branch 72.82%, mixed 82.72%. A mixed score above 80% cannot
+  hide a line score below 80%.
 - Production audit (`production_review_audit.py`) is a hygiene check, not
   a release certificate.
 

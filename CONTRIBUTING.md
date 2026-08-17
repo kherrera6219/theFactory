@@ -150,7 +150,7 @@ The CI pipeline enforces:
 | Python lint | `ruff` | Zero errors |
 | TypeScript lint | `tsc --noEmit` | Zero errors |
 | Python tests | `pytest` | line ≥80%, branch ≥70%, mixed ≥80% |
-| Critical module coverage | `check_coverage_thresholds.py` | Strict per-module floors on privilege / money / PORT / protocol files |
+| Critical module coverage | `check_coverage_thresholds.py` | Every critical file ≥80% (some protocol files 90–100%) |
 | SAST | `bandit` | Zero high/critical |
 | Dependency audit | `pip-audit`, `npm audit` | Zero high/critical CVEs |
 | Secret scan | `gitleaks` | Zero secrets |

@@ -26,13 +26,15 @@ cap; continue-with-PM is a change order; sandbox `docker.sock` lives on
 `sandbox-runner` (`SANDBOX_EXECUTOR_URL`). Local `.env` enforcement is
 `true` (gitignored).
 
-**Coverage gates** (PR #463, `dd13785`): line ≥80%, branch ≥70%, mixed ≥80%,
-plus floors on sandbox / SOW / PORT / toolchains / RQCA. Mission Control
-measures `app/lib/**` via `npm run test:coverage`.
+**Coverage gates** (PR #463, `dd13785`, floors raised `98c165d`): line ≥80%,
+branch ≥70%, mixed ≥80%, plus per-file floors. Every critical file is at
+**at least 80%** (`rqca_agent` 80%, `sow_estimator` 80%, `file_tree` 80%,
+sandbox/SOW 90%). Mission Control measures `app/lib/**` via
+`npm run test:coverage`.
 
-**Rebuild (2026-08-17):** full-dedicated stack rebuilt with `sandbox-runner`.
-`sandbox-runner`, orchestrator, api-gateway, mission-control, and all 41
-dedicated agents reported healthy.
+**Rebuild (2026-08-17, after 80% critical floors):** full-dedicated stack
+rebuilt with `sandbox-runner`. `sandbox-runner`, orchestrator, api-gateway,
+mission-control, and all 41 dedicated agents reported healthy.
 
 **Live proof (2026-08-17):** both unique-factory claims ran on the rebuilt
 full-dedicated stack. Evidence:
