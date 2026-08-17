@@ -21,6 +21,13 @@ from pydantic import BaseModel, Field
 
 from shared_runtime.agent_keys import normalize_agent_id
 from shared_runtime.logging_config import configure_logging
+from shared_runtime.mission_types import (
+    UnknownMissionTypeError,
+    normalize_data_classification,
+    normalize_depth_mode,
+    normalize_mission_type,
+    normalize_output_mode,
+)
 from shared_runtime.pii_guard import detect_pii, scan_dict_for_pii
 from shared_runtime.prompt_guard import check_prompt
 from shared_runtime.protocol import (
@@ -338,6 +345,10 @@ class MissionCreate(BaseModel):
     prompt: str = Field(min_length=3)
     requested_target_language: str | None = None
     source_code: str | None = Field(default=None, max_length=512_000)
+    mission_type: str | None = None
+    depth_mode: str | None = None
+    output_mode: str | None = None
+    data_classification: str | None = None
     attachments: list[MissionAttachment] = Field(default_factory=list)
     global_style_directives: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -537,6 +548,38 @@ def _normalize_mission_metadata(
     normalized["last_chain_event_type"] = "MISSION_PM_INTAKE"
     normalized["last_chain_event_at"] = None
     return normalized
+
+
+def _apply_mission_classification(
+    payload: "MissionCreate",
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    """Stamp official type/mode/classification onto metadata for the orchestrator."""
+    try:
+        raw_type = payload.mission_type if payload.mission_type is not None else metadata.get("mission_type")
+        mission_type = normalize_mission_type(raw_type)
+        raw_output = payload.output_mode if payload.output_mode is not None else metadata.get("output_mode")
+        if not str(raw_output or "").strip() and mission_type == "PORT":
+            output_mode = "FULL_TRANSFORMATION"
+        elif not str(raw_output or "").strip() and mission_type == "ANALYZE_ONLY":
+            output_mode = "ANALYZE_ONLY"
+        else:
+            output_mode = normalize_output_mode(raw_output)
+        depth_mode = normalize_depth_mode(
+            payload.depth_mode if payload.depth_mode is not None else metadata.get("depth_mode")
+        )
+        data_classification = normalize_data_classification(
+            payload.data_classification
+            if payload.data_classification is not None
+            else metadata.get("data_classification")
+        )
+    except UnknownMissionTypeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    metadata["mission_type"] = mission_type
+    metadata["output_mode"] = output_mode
+    metadata["depth_mode"] = depth_mode
+    metadata["data_classification"] = data_classification
+    return metadata
 
 
 
@@ -2156,6 +2199,10 @@ async def _persist_mission_upstream(
         "mission_id": mission_id,
         "prompt": payload.prompt,
         "requested_target_language": payload.requested_target_language,
+        "mission_type": metadata.get("mission_type"),
+        "depth_mode": metadata.get("depth_mode"),
+        "output_mode": metadata.get("output_mode"),
+        "data_classification": metadata.get("data_classification"),
         "attachments": [a.model_dump() for a in payload.attachments],
         "global_style_directives": payload.global_style_directives,
         "metadata": metadata,
@@ -2275,6 +2322,7 @@ async def create_mission(
     )
     if payload.source_code:
         normalized_metadata["source_code"] = payload.source_code
+    normalized_metadata = _apply_mission_classification(payload, normalized_metadata)
 
     prompt_input_scan = _build_prompt_input_scan(payload)
     normalized_metadata["prompt_input_scan"] = prompt_input_scan
@@ -2473,6 +2521,26 @@ async def get_mission_chain_trace(
 ) -> dict[str, Any]:
     _require_reader_access(x_api_key=x_api_key, authorization=authorization)
     return await _proxy_get_internal(f"/internal/missions/{mission_id}/chain-trace")
+
+
+@app.post("/v1/sows", status_code=201)
+async def create_sow(
+    payload: dict[str, Any],
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
+    return await _proxy_post_internal("/internal/sows", json_body=payload, timeout=15.0)
+
+
+@app.get("/v1/sows/{sow_id}")
+async def get_sow(
+    sow_id: str,
+    x_api_key: str | None = Header(default=None),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> dict[str, Any]:
+    _require_reader_access(x_api_key=x_api_key, authorization=authorization)
+    return await _proxy_get_internal(f"/internal/sows/{sow_id}")
 
 
 @app.post("/v1/pm/feature-contract")

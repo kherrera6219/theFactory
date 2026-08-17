@@ -8,6 +8,7 @@ import { PageHeader } from "../../components/page-header";
 import { Panel } from "../../components/panel";
 import { EmptyState, SystemMessage } from "../../components/status";
 import {
+  createApprovedSow,
   createBuilderPreview,
   createMission,
   createPmFeatureContract,
@@ -38,6 +39,19 @@ type DisplayFeatureContract = {
   languages: string;
   scope: string;
   estimatedDuration: string;
+  outOfScope: string[];
+  deliverables: string[];
+  acceptance: string[];
+  assumptions: string[];
+  risks: string[];
+  engagementType: string;
+  likelyUsd?: number | null;
+  highUsd?: number | null;
+  capUsd?: number | null;
+  pricingKnown?: boolean;
+  minutesLow?: number;
+  minutesHigh?: number;
+  rawContract?: Record<string, unknown>;
   launchPrompt: string;
   source?: string;
   degraded?: boolean;
@@ -202,6 +216,29 @@ function summarizeScope(text: string): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown error";
+}
+
+function formatFactoryTime(contract: {
+  cost_estimate?: { estimated_minutes_low?: number; estimated_minutes_high?: number };
+  timeline?: { estimated_minutes_low?: number; estimated_minutes_high?: number };
+}): string {
+  const low = contract.cost_estimate?.estimated_minutes_low ?? contract.timeline?.estimated_minutes_low;
+  const high = contract.cost_estimate?.estimated_minutes_high ?? contract.timeline?.estimated_minutes_high;
+  if (low && high) {
+    return `${low}–${high} min factory time`;
+  }
+  return "Factory time after estimate";
+}
+
+function emptySowFields() {
+  return {
+    outOfScope: [] as string[],
+    deliverables: [] as string[],
+    acceptance: [] as string[],
+    assumptions: [] as string[],
+    risks: [] as string[],
+    engagementType: "BUILD_NEW",
+  };
 }
 
 /** Approval phrases, including the misspellings people actually type. */
@@ -851,7 +888,24 @@ export default function ChatPage() {
               ? featureContract.target_languages.join(", ")
               : detected,
           scope: featureContract.summary || summarizeScope(normalized),
-          estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
+          estimatedDuration: formatFactoryTime(featureContract),
+          outOfScope: featureContract.out_of_scope ?? [],
+          deliverables: (featureContract.deliverables ?? []).map((item) =>
+            typeof item === "string" ? item : item.name,
+          ),
+          acceptance: featureContract.acceptance_criteria ?? [],
+          assumptions: featureContract.assumptions ?? [],
+          risks: featureContract.risk_notes ?? [],
+          engagementType: featureContract.engagement_type || "BUILD_NEW",
+          likelyUsd: featureContract.cost_estimate?.likely_usd,
+          highUsd: featureContract.cost_estimate?.high_usd,
+          capUsd: featureContract.cost_estimate?.cap_usd,
+          pricingKnown: featureContract.cost_estimate?.pricing_known,
+          minutesLow: featureContract.cost_estimate?.estimated_minutes_low
+            ?? featureContract.timeline?.estimated_minutes_low,
+          minutesHigh: featureContract.cost_estimate?.estimated_minutes_high
+            ?? featureContract.timeline?.estimated_minutes_high,
+          rawContract: featureContract as unknown as Record<string, unknown>,
           launchPrompt,
           source: pmPreview.source,
           degraded: featureContract.degraded === true || pmPreview.source === "fallback",
@@ -888,7 +942,8 @@ export default function ChatPage() {
             normalized.split(" ").slice(0, 8).join(" ").replace(/[.?!]$/, "") || "New Mission",
           languages: detected,
           scope: summarizeScope(normalized),
-          estimatedDuration: files.length > 10 ? "~12 minutes" : "~6 minutes",
+          estimatedDuration: formatFactoryTime({}),
+          ...emptySowFields(),
           launchPrompt,
           source: "local-fallback",
           degraded: true,
@@ -987,6 +1042,15 @@ export default function ChatPage() {
       // exceeds 4096 bytes. Per-field caps above allow far more than that, so
       // budget the assembled object and shed context until it actually fits —
       // otherwise a thorough PM clarification makes the mission unlaunchable.
+      let sowId: string | undefined;
+      if (launchContract.rawContract) {
+        const approved = await createApprovedSow({
+          feature_contract: launchContract.rawContract,
+          approved_by: "operator",
+          unpriced_ack: launchContract.pricingKnown === false,
+        });
+        sowId = approved.sow_id;
+      }
       const { metadata: launchMetadata } = fitConversationContext(
         compactedContext,
         (conversationContext) => ({
@@ -995,6 +1059,8 @@ export default function ChatPage() {
           inferred_requested_target_language: requestedTargetLanguage,
           conversation_context: conversationContext,
           user_intent: "finalize_plan",
+          sow_id: sowId,
+          mission_type: launchContract.engagementType,
           launch_confirmed_at: new Date().toISOString(),
           launch_source: "feature-contract-confirmation",
           continued_from_mission_id: continueMissionRef.current,
@@ -1019,6 +1085,7 @@ export default function ChatPage() {
       const mission = await createMission({
         prompt: launchContract.launchPrompt,
         requested_target_language: requestedTargetLanguage,
+        mission_type: launchContract.engagementType,
         source_code: sourceCode || undefined,
         metadata: launchMetadata,
       });
@@ -1139,8 +1206,9 @@ export default function ChatPage() {
           <input
             type="file"
             multiple
+            accept=".zip,application/zip,text/plain,text/*,.py,.js,.ts,.go,.rs,.java"
             className="sr-only"
-            aria-label="Choose files to attach"
+            aria-label="Choose files or a project ZIP to attach"
             onChange={(event) => {
               if (event.target.files) {
                 addFiles(event.target.files);
@@ -1238,13 +1306,13 @@ export default function ChatPage() {
       )}
 
       {contract && (
-        <Panel title="Feature Contract">
+        <Panel title="Statement of Work">
           {!editingContract && (
             <>
               {isDegradedContract(contract) && (
                 <SystemMessage tone="warning" title="Fallback planning output">
                   <p>
-                    This contract was generated without a confirmed live PM model response
+                    This SOW was generated without a confirmed live PM model response
                     ({contractSourceLabel(contract)}). Treat it as degraded planning output
                     until provider/key configuration is verified.
                   </p>
@@ -1253,29 +1321,53 @@ export default function ChatPage() {
               )}
               <dl>
                 <div>
-                  <dt>Mission Title</dt>
-                  <dd>{contract.title}</dd>
+                  <dt>Engagement</dt>
+                  <dd>{contract.engagementType}</dd>
                 </div>
                 <div>
-                  <dt>Planning Source</dt>
-                  <dd>{contractSourceLabel(contract)}</dd>
+                  <dt>Mission Title</dt>
+                  <dd>{contract.title}</dd>
                 </div>
                 <div>
                   <dt>Languages</dt>
                   <dd>{contract.languages}</dd>
                 </div>
                 <div>
-                  <dt>Scope</dt>
+                  <dt>In scope</dt>
                   <dd>{contract.scope}</dd>
                 </div>
                 <div>
-                  <dt>Estimated Duration</dt>
-                  <dd>{contract.estimatedDuration}</dd>
+                  <dt>Out of scope</dt>
+                  <dd>{contract.outOfScope.length ? contract.outOfScope.join("; ") : "PM must name at least one exclusion"}</dd>
+                </div>
+                <div>
+                  <dt>Deliverables</dt>
+                  <dd>{contract.deliverables.length ? contract.deliverables.join("; ") : "—"}</dd>
+                </div>
+                <div>
+                  <dt>Acceptance</dt>
+                  <dd>{contract.acceptance.length ? contract.acceptance.join("; ") : "—"}</dd>
+                </div>
+                <div>
+                  <dt>Factory estimate</dt>
+                  <dd>
+                    {contract.pricingKnown && contract.likelyUsd != null
+                      ? `Likely $${contract.likelyUsd.toFixed(2)} · High $${(contract.highUsd ?? 0).toFixed(2)} · Cap $${(contract.capUsd ?? 0).toFixed(2)}`
+                      : "Unpriced — accept only if you acknowledge no quote"}
+                    {contract.minutesLow && contract.minutesHigh
+                      ? ` · ${contract.minutesLow}–${contract.minutesHigh} min factory time`
+                      : ""}
+                    <div className="muted">This is model spend for this run, not a human project quote.</div>
+                  </dd>
                 </div>
               </dl>
               <div className="inline-actions">
-                <button type="button" onClick={() => void confirmAndLaunch()} disabled={launching}>
-                  {launching ? "Launching..." : "Confirm and Start"}
+                <button
+                  type="button"
+                  onClick={() => void confirmAndLaunch()}
+                  disabled={launching || (contract.outOfScope.length === 0 && !contract.degraded)}
+                >
+                  {launching ? "Launching..." : "Accept SOW and start"}
                 </button>
                 <button
                   type="button"

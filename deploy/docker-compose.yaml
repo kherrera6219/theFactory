@@ -349,6 +349,7 @@ services:
       PM_AUTO_ACCEPT_DEFAULTS_ENABLED: ${PM_AUTO_ACCEPT_DEFAULTS_ENABLED:-true}
       RQCA_AGENT_ENABLED: ${RQCA_AGENT_ENABLED:-true}
       RQCA_ENFORCEMENT_ENABLED: ${RQCA_ENFORCEMENT_ENABLED:-true}
+      PORT_TWO_PHASE_ENABLED: ${PORT_TWO_PHASE_ENABLED:-true}
       # Sandbox workspaces are created under SANDBOX_WORKSPACE_ROOT inside this
       # container, then bind-mounted into throwaway sibling containers by the
       # HOST daemon, which resolves the source path on the host -- hence the

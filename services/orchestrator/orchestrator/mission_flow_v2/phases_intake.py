@@ -404,17 +404,38 @@ async def _prepare_pm_intake(
         attachments=getattr(mission, "attachments", []),
         settings=settings,
     )
-    feature_contract = await _pkg().generate_pm_feature_contract(
-        prompt=str(mission.prompt or ""),
-        mission_type=mission_type,
-        depth_mode=depth_mode,
-        output_mode=output_mode,
-        requested_target_language=mission.requested_target_language,
-        attachments=pm_attachments,
-        global_style_directives=getattr(mission, "global_style_directives", []),
-        conversation_context=conversation_context,
-        user_intent=user_intent,
-    )
+    source_code = metadata.get("source_code")
+    if not isinstance(source_code, str) or not source_code.strip():
+        source_code = None
+    approved_sow = None
+    sow_id = str(metadata.get("sow_id") or "").strip()
+    if sow_id:
+        from ..sow_store import load_approved_sow
+
+        approved_sow = load_approved_sow(settings, sow_id)
+    if isinstance(approved_sow, dict) and isinstance(approved_sow.get("feature_contract"), dict):
+        feature_contract = dict(approved_sow["feature_contract"])
+        extra_assumptions = [
+            str(item).strip()
+            for item in (feature_contract.get("assumptions") or [])
+            if str(item).strip()
+        ]
+        feature_contract["assumptions"] = extra_assumptions
+        metadata["approved_sow_id"] = sow_id
+        metadata["approved_sow_digest"] = approved_sow.get("digest")
+    else:
+        feature_contract = await _pkg().generate_pm_feature_contract(
+            prompt=str(mission.prompt or ""),
+            mission_type=mission_type,
+            depth_mode=depth_mode,
+            output_mode=output_mode,
+            requested_target_language=mission.requested_target_language,
+            attachments=pm_attachments,
+            global_style_directives=getattr(mission, "global_style_directives", []),
+            source_code=source_code,
+            conversation_context=conversation_context,
+            user_intent=user_intent,
+        )
 
     ambiguity_score = feature_contract.get("ambiguity_score", 0.0)
 
@@ -437,7 +458,8 @@ async def _prepare_pm_intake(
     auto_accept = _setting_bool(settings, "pm_auto_accept_defaults_enabled", True)
     questions = feature_contract.get("clarifying_questions") or []
     if (
-        ambiguity_score >= 0.7
+        not sow_id
+        and ambiguity_score >= 0.7
         and auto_accept
         and isinstance(questions, list)
         and questions

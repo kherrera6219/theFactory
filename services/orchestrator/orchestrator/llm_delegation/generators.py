@@ -91,11 +91,19 @@ async def generate_pm_feature_contract(
         f"{prompt}\n{attachment_text}\n{context_text[:4000]}",
         "pm feature contract",
     ):
-        return _fallback_pm_feature_contract(
+        from ..sow_store import attach_cost_estimate
+
+        fallback = _fallback_pm_feature_contract(
             prompt=prompt,
             mission_type=mission_type,
             requested_target_language=requested_target_language,
             recommendation=recommendation,
+        )
+        return attach_cost_estimate(
+            fallback,
+            mission_type=mission_type,
+            provider=fallback.get("model_provider") or provider,
+            model=fallback.get("model") or model,
         )
     pm_prompt = _build_pm_feature_contract_prompt(
         prompt=prompt,
@@ -118,11 +126,19 @@ async def generate_pm_feature_contract(
         agent_id="AGENT-01-PM",
     )
     if not isinstance(parsed, dict):
-        return _fallback_pm_feature_contract(
+        from ..sow_store import attach_cost_estimate
+
+        fallback = _fallback_pm_feature_contract(
             prompt=prompt,
             mission_type=mission_type,
             requested_target_language=requested_target_language,
             recommendation=recommendation,
+        )
+        return attach_cost_estimate(
+            fallback,
+            mission_type=mission_type,
+            provider=fallback.get("model_provider") or provider,
+            model=fallback.get("model") or model,
         )
     ambiguity_prompt = prompt
     if conversation_context:
@@ -138,7 +154,14 @@ async def generate_pm_feature_contract(
     if str(user_intent or "").strip().lower() == "finalize_plan":
         normalized["intake_status"] = "ready"
         normalized["ambiguity_score"] = min(float(normalized.get("ambiguity_score", 0.0)), 0.35)
-    return normalized
+    from ..sow_store import attach_cost_estimate
+
+    return attach_cost_estimate(
+        normalized,
+        mission_type=mission_type,
+        provider=normalized.get("model_provider") or resolved_provider,
+        model=normalized.get("model") or resolved_model,
+    )
 
 
 async def generate_pod_group_standard(

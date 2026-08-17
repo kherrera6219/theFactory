@@ -29,7 +29,7 @@ type RepoFile = {
   overlayAction: RepoFileOverlayAction;
 };
 
-type MissionType = "analyze" | "update" | "add_feature" | "refactor";
+type MissionType = "analyze" | "update" | "add_feature" | "refactor" | "port";
 
 function formatBytes(value: number): string {
   if (value >= 1_000_000) {
@@ -365,9 +365,16 @@ export default function RepoImportPage() {
       const missionPrompt =
         sanitizeUserText(description) ||
         `Run ${missionType} mission for ${selectedFiles.length} files from ${reviewPreview.repository.display_name}.`;
+      const officialType =
+        missionType === "analyze"
+          ? "ANALYZE_ONLY"
+          : missionType === "port"
+            ? "PORT"
+            : "IMPORT_MODERNIZE";
       const mission = await createMission({
         prompt: missionPrompt,
         requested_target_language: reviewPreview.requested_target_language,
+        mission_type: officialType,
         source_code: reviewPreview.source_code,
         metadata: {
           source: "repo-zip-import-ui",
@@ -377,7 +384,12 @@ export default function RepoImportPage() {
           display_name: reviewPreview.repository.display_name,
           subdirectory:
             importSnapshot?.stats.selected_subdirectory || sanitizeUserText(subdirectory) || "/",
-          mission_type: missionType,
+          mission_type:
+            missionType === "analyze"
+              ? "ANALYZE_ONLY"
+              : missionType === "port"
+                ? "PORT"
+                : "IMPORT_MODERNIZE",
           selected_file_count: selectedFiles.length,
           include_file_count: reviewPreview.source_stats.include_files,
           reference_file_count: reviewPreview.source_stats.reference_files,
@@ -656,6 +668,13 @@ export default function RepoImportPage() {
                 onClick={() => selectMissionType("add_feature")}
               >
                 Add Feature
+              </button>
+              <button
+                type="button"
+                className={`secondary-button ${missionType === "port" ? "active-tab" : ""}`}
+                onClick={() => selectMissionType("port")}
+              >
+                Port
               </button>
               <button
                 type="button"

@@ -34,6 +34,27 @@ def _code_text_trace(value: str) -> dict[str, Any]:
     }
 
 
+def _normalize_deliverables(raw: Any, fallback_requirements: list[str]) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    source = raw if isinstance(raw, list) else []
+    for item in source[:8]:
+        if isinstance(item, dict):
+            name = _clean_text(str(item.get("name") or ""), max_length=120)
+            hint = _clean_text(str(item.get("artifact_hint") or ""), max_length=160)
+        else:
+            name = _clean_text(str(item), max_length=120)
+            hint = ""
+        if name:
+            items.append({"name": name, "artifact_hint": hint})
+    if items:
+        return items
+    return [
+        {"name": _clean_text(req, max_length=120), "artifact_hint": ""}
+        for req in fallback_requirements[:4]
+        if _clean_text(req, max_length=120)
+    ]
+
+
 def _normalize_pm_feature_contract(
     raw: dict[str, Any],
     *,
@@ -98,6 +119,10 @@ def _normalize_pm_feature_contract(
             max_length=800,
         ),
         "assumptions": _string_list(raw.get("assumptions"), limit=6),
+        "out_of_scope": _string_list(raw.get("out_of_scope"), limit=6),
+        "deliverables": _normalize_deliverables(raw.get("deliverables"), functional_requirements),
+        "engagement_type": _clean_text(raw.get("engagement_type", ""), max_length=32).upper()
+        or None,
         "intake_status": intake_status,
         "source": "llm",
         "llm_route": route,

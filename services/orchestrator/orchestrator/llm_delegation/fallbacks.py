@@ -164,6 +164,8 @@ def _fallback_pm_feature_contract(
         # UI/operator can tell the planning model never ran — without forcing an
         # ambiguity-pause (intake_status stays "ready" so mission-flow behavior is
         # unchanged; surfacing is the UI's job via the `degraded` flag).
+        "out_of_scope": ["Anything not stated in the operator request."],
+        "deliverables": [{"name": "Requested artifact", "artifact_hint": ""}],
         "risk_notes": [
             "Planning model (LLM) was unavailable — this is a deterministic fallback "
             "draft, not a scoped contract. Verify provider config (provider, model, "

@@ -135,6 +135,22 @@ export type FeatureContract = {
   risk_notes: string[];
   clarifying_questions: string[];
   assumptions?: string[];
+  out_of_scope?: string[];
+  deliverables?: Array<string | { name: string; artifact_hint?: string }>;
+  engagement_type?: string;
+  cost_estimate?: {
+    likely_usd?: number | null;
+    high_usd?: number | null;
+    cap_usd?: number | null;
+    pricing_known?: boolean;
+    estimated_minutes_low?: number;
+    estimated_minutes_high?: number;
+    basis?: string;
+  };
+  timeline?: {
+    estimated_minutes_low?: number;
+    estimated_minutes_high?: number;
+  };
   intake_status?: "needs_clarification" | "ready";
   ambiguity_score?: number;
   source: "llm" | "fallback";

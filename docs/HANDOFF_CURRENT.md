@@ -45,14 +45,11 @@ port / update through that PM, see a real SOW (scope, out of scope,
 deliverables, acceptance, **factory cost range + cap**) before they approve,
 then get tested/QC'd work saved locally.
 
-Plan saved: `docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`. It includes the
-research bar (ISO/IEC/IEEE 29148-style verifiable requirements, Cone of
-Uncertainty range estimates, LLM FinOps spend caps) and the **new test
-modules** that must ship with each slice. Implementation has **not** started.
-
-**Next action:** P0 in that plan (enforcement + gateway `mission_type` +
-alias map + intake sees source). Do not build the Chat SOW panel until P0
-tests are green.
+Plan: `docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`. P0–P3 are implemented on
+`grok/pm-sow-factory`. Chat now shows a Statement of Work with factory
+cost range/cap and **Accept SOW and start**. Rebuild to pick up compose
+`PORT_TWO_PHASE_ENABLED` and local enforcement. P4 (sandbox off
+`docker.sock`) is not done.
 
 ### What happened on 2026-08-16/17 — honesty / Gemini / tests-as-QC
 

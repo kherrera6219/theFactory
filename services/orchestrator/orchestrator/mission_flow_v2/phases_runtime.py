@@ -561,6 +561,36 @@ async def _prepare_runtime_qc(
         bool(getattr(settings, "rqca_enforcement_enabled", False))
         and qc_assessment.get("qc_verdict") == "FAIL"
     )
+    feature = metadata.get("feature_contract") if isinstance(metadata.get("feature_contract"), dict) else {}
+    estimate = feature.get("cost_estimate") if isinstance(feature.get("cost_estimate"), dict) else {}
+    cap_usd = estimate.get("cap_usd")
+    try:
+        from ..llm_cost_ledger import get_mission_token_usage
+        from ..sow_store import check_mission_spend_cap
+
+        usage = await get_mission_token_usage(settings=settings, mission_id=mission.mission_id)
+        actual = usage.get("estimated_cost_usd")
+        spend_state = check_mission_spend_cap(
+            actual_usd=float(actual) if actual is not None else None,
+            cap_usd=float(cap_usd) if cap_usd is not None else None,
+        )
+        metadata["spend_cap"] = {
+            "state": spend_state,
+            "quoted_usd": estimate.get("likely_usd"),
+            "actual_usd": actual,
+            "cap_usd": cap_usd,
+        }
+        if spend_state == "pause":
+            metadata["spend_cap_hit"] = True
+            updated = await asyncio.to_thread(
+                _pkg().storage.update_mission_metadata,
+                settings,
+                mission.mission_id,
+                metadata,
+            )
+            return updated or mission, False, runtime_qc_report
+    except Exception as exc:
+        LOGGER.warning("spend-cap check failed for %s: %s", mission.mission_id, exc)
     return updated or mission, not blocked, runtime_qc_report
 
 

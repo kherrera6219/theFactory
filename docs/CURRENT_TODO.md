@@ -20,12 +20,15 @@ update. They get a real Statement of Work — including a factory cost
 estimate — **before** they approve. Work is tested, QC'd, and saved locally.
 
 Canonical plan: [`docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`](PM_SOW_FACTORY_PLAN_2026-08-17.md).
-**Not implemented yet.** Do not start P1 UI until P0 (gateway mission types +
-enforcement) is green. Required new test modules are listed in that plan §6.
+**Implementation started on `grok/pm-sow-factory`.** P0–P3 are in code:
+gateway persists official `mission_type`; SOW estimator + persist + Chat
+**Accept SOW and start**; intake honors `sow_id`; spend-cap pause hook;
+import types map to the official enum; specialist codegen sees imported
+source. Local `.env` enforcement flipped to `true` (file is gitignored —
+rebuild compose to inject `PORT_TWO_PHASE_ENABLED`).
 
-**Next action:** P0 — `RQCA_ENFORCEMENT_ENABLED=true` in live `.env`; persist
-`mission_type` through the gateway; alias unofficial repo types; pass source
-into live PM intake; prove a broken test blocks COMPLETE.
+**Next action:** rebuild the stack, then prove a chat SOW launch and a ZIP
+PORT/update through Accept SOW. P4 (sandbox off orchestrator) is still open.
 
 ---
 

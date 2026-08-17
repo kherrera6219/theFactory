@@ -378,6 +378,9 @@ def _build_pm_feature_contract_prompt(
         '  "target_languages": ["language names"],\n'
         '  "estimated_complexity": "low | medium | high | very_high",\n'
         '  "human_approval_required": true,\n'
+        '  "out_of_scope": ["explicitly not in this run"],\n'
+        '  "deliverables": [{"name": "artifact name", "artifact_hint": "snake.py"}],\n'
+        '  "engagement_type": "BUILD_NEW | PORT | IMPORT_MODERNIZE | DEBUG_REPAIR | ANALYZE_ONLY",\n'
         '  "risk_notes": ["material risks or constraints"],\n'
         '  "clarifying_questions": ["specific, answerable questions about missing execution detail"]\n'
         "}\n\n"
@@ -403,7 +406,9 @@ def _build_pm_feature_contract_prompt(
         '- Set "intake_status":"ready" when the request is concrete enough to build, or when '
         "user_intent is finalize_plan and reasonable defaults can close remaining gaps; "
         "in that case list every material assumption you are relying on under "
-        '"assumptions".\n'
+        '"assumptions". Always fill out_of_scope with at least one concrete exclusion. '
+        "Do not invent human labor prices or agency quotes. Cost is factory model spend "
+        "and will be attached separately.\n"
         "- Clarifying questions must be concrete and decision-shaped (e.g. \"No GUI library was "
         "named — should the desktop window use pygame or tkinter?\"), never generic (\"What "
         "features would you like?\").\n"

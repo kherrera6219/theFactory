@@ -9,6 +9,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from shared_runtime.mission_types import (
+    UnknownMissionTypeError,
+    normalize_mission_type,
+)
+
 from .. import milvus_store, neo4j_store, object_store, qdrant_store, storage
 from ..audit_events import record_audit_event, summarize_mapping
 from ..auth import AuthContext
@@ -43,39 +48,12 @@ LOGGER = logging.getLogger(__name__)
 
 router = APIRouter()
 
-MISSION_TYPE_ALIASES = {
-    "": "BUILD_NEW",
-    "BUILD": "BUILD_NEW",
-    "BUILD_NEW": "BUILD_NEW",
-    "CREATE": "BUILD_NEW",
-    "FEATURE": "BUILD_NEW",
-    "FULL_BUILD": "BUILD_NEW",
-    "IMPLEMENTATION": "BUILD_NEW",
-    "NEW": "BUILD_NEW",
-    "IMPORT_MODERNIZE": "IMPORT_MODERNIZE",
-    "MODERNIZE": "IMPORT_MODERNIZE",
-    "PORT": "PORT",
-    "DEBUG": "DEBUG_REPAIR",
-    "DEBUG_REPAIR": "DEBUG_REPAIR",
-    "REPAIR": "DEBUG_REPAIR",
-    "SECURITY": "SECURITY_HARDEN",
-    "SECURITY_HARDEN": "SECURITY_HARDEN",
-    "REDUCE_DEPENDENCIES": "REDUCE_DEPENDENCIES",
-    "DEPENDENCY_REDUCTION": "REDUCE_DEPENDENCIES",
-    "RUN_QC": "RUN_QC",
-    "QC": "RUN_QC",
-    "ARCHITECTURE": "ARCHITECTURE_DOCS",
-    "ARCHITECTURE_DOCS": "ARCHITECTURE_DOCS",
-    "ANALYZE": "ANALYZE_ONLY",
-    "ANALYZE_ONLY": "ANALYZE_ONLY",
-    "ANALYSIS": "ANALYZE_ONLY",
-    "SELF_ANALYZE": "SELF_ANALYZE",
-}
-
 
 def _normalize_pm_mission_type(value: Any) -> str:
-    normalized = str(value or "BUILD_NEW").strip().upper().replace("-", "_").replace(" ", "_")
-    return MISSION_TYPE_ALIASES.get(normalized, "BUILD_NEW")
+    try:
+        return normalize_mission_type(value)
+    except UnknownMissionTypeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -401,6 +379,44 @@ async def create_pm_feature_contract(
         "model_provider": feature_contract.get("model_provider"),
         "model": feature_contract.get("model"),
     }
+
+
+@router.post("/internal/sows")
+async def create_approved_sow(
+    request: Request,
+    payload: dict[str, Any],
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    from ..sow_store import save_approved_sow
+
+    feature_contract = payload.get("feature_contract")
+    if not isinstance(feature_contract, dict):
+        raise HTTPException(status_code=400, detail="feature_contract is required")
+    unpriced_ack = bool(payload.get("unpriced_ack"))
+    try:
+        document = save_approved_sow(
+            request.app.state.settings,
+            feature_contract,
+            approved_by=str(payload.get("approved_by") or "operator"),
+            unpriced_ack=unpriced_ack,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return document
+
+
+@router.get("/internal/sows/{sow_id}")
+async def get_approved_sow(
+    request: Request,
+    sow_id: str,
+    _: AuthContext = INTERNAL_AUTH_DEP,
+) -> dict[str, Any]:
+    from ..sow_store import load_approved_sow
+
+    document = load_approved_sow(request.app.state.settings, sow_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="sow not found")
+    return document
 
 
 @router.get("/internal/broker/provider-health")

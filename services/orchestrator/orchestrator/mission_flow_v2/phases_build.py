@@ -560,6 +560,9 @@ async def _prepare_specialist_plan(
             _codegen_context["port_source_logicnodes"] = port_source_logicnodes
             _codegen_context["port_source_language"] = metadata.get("port_source_language", "")
             _codegen_context["port_target_language"] = metadata.get("port_target_language", "")
+        source_bundle = metadata.get("source_code")
+        if isinstance(source_bundle, str) and source_bundle.strip():
+            _codegen_context["imported_source_code"] = source_bundle[:80_000]
 
         _target_lang = (
             str(metadata.get("port_target_language") or "").strip()

@@ -487,6 +487,17 @@ export async function openMissionOutputInVsCode(
   return payload;
 }
 
+export async function createApprovedSow(payload: {
+  feature_contract: Record<string, unknown>;
+  approved_by?: string;
+  unpriced_ack?: boolean;
+}): Promise<{ sow_id: string; digest?: string; approved_at?: string }> {
+  return fetchJson(missionApiUrl("/v1/sows"), {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function createMission(payload: MissionCreatePayload): Promise<MissionRecord> {
   return fetchJson<MissionRecord>(missionApiUrl("/v1/missions"), {
     method: "POST",
