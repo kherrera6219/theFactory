@@ -9,20 +9,22 @@
 [![CI](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/ci.yml)
 [![Security](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml/badge.svg)](https://github.com/kherrera6219/theFactory/actions/workflows/security.yml)
 [![Coverage Gate](https://img.shields.io/badge/coverage%20gate-80%25%2B-blue)](docs/TESTING_QUALITY_GATES.md)
-[![Audit](https://img.shields.io/badge/repo%20audit-23%2F23%20checks%20passing-brightgreen)](scripts/production_review_audit.py)
+[![Audit](https://img.shields.io/badge/repo%20audit-hygiene%20script-blue)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2F%20Commercial-blue)](LICENSE)
 
 </div>
 
-> **Version:** 1.3.0 · **Last updated:** 2026-08-03 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
-
-> **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. The **semantic engine is partially realised**: LogicNodes carry real AST-recovered types, Refined-IR carries real op streams and side-effect-derived purity, and behavioural equivalence executes generated code in a hardened sandbox — but **only for Python, Java, and Haskell**. Other languages produce honestly-labelled templated output.
+> **Version:** 1.3.0 · **Last updated:** 2026-08-17 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
+>
+> **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. Live BUILD_NEW missions have reached `COMPLETE` (Go S1-01, chat-driven PyQt6, stdlib Snake). Default LLM route is **Gemini 3.7 Flash**. Runtime QC runs generated tests when they exist; a bare launch (`started_only`) or syntax-only compile is **ADVISORY**, never a PASS.
+>
+> The **semantic engine is partially realised**: LogicNodes carry AST-recovered types, Refined-IR carries real op streams and side-effect-derived purity, and behavioural equivalence executes generated code in a hardened sandbox — but type recovery is real only for **Python, Java, and Haskell**. Other languages produce honestly-labelled templated output. BUILD_NEW is a sequential specialist prompt-chain, not a four-pod fan-out.
 >
 > Deliberately **not** built, by recorded decision: the four-pod parallel comprehension model, the Doc 30 LogicNode Registry, binary/LLVM output, and the 0.0001% equivalence tolerance. Per-area verdicts are in [`docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md).
 >
-> **Not production-ready.** The outstanding gate is live end-to-end evidence from a non-trivial mission — see [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md).
+> **Not production-ready.** Remaining work: the rest of the live-proof matrix (PORT/transform, failure injection, provider fallback), a live EDCP bus exercise, and moving sandbox execution off the orchestrator's `docker.sock`. See [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md) and [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md).
 
 
 ---
@@ -57,7 +59,7 @@
 
 theFactory is a **local-first, event-driven AI software factory in active development**. It is designed to accept natural-language missions and deliver working software through a governed orchestration pipeline staffed by task-activated specialist agents.
 
-It is **not** a code-completion tool, a chat-to-code assistant, or a single-prompt generator. The goal is a complete software production system that produces requirements, architecture, code, tests, runtime environments, runtime validation, and audit-ready evidence as part of each mission. That goal is not yet fully live-proven end to end; current development is still validating the PM agent, LLM routing, mission launch handoff, and delivery pipeline.
+It is **not** a code-completion tool, a chat-to-code assistant, or a single-prompt generator. The goal is a complete software production system that produces requirements, architecture, code, tests, runtime environments, runtime validation, and audit-ready evidence as part of each mission. The intake → generate → QC → deliver path has been run live; it is a governed sequential LLM factory, not a 41-process smelter, and it is not a production release.
 
 Read more in [`docs/00_PRODUCT_OVERVIEW.md`](docs/00_PRODUCT_OVERVIEW.md) and [`docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md`](docs/WHAT_THEFACTORY_IS_AND_IS_NOT.md).
 
@@ -121,13 +123,14 @@ Current implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTA
 
 The list below describes implemented, CI-verified subsystems across theFactory:
 
-- **Core Software Engine** — 11-phase Smelt cycle, 41-agent canonical registry, 6 Redis protocols (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`), and AST structural extractors across Python, JS/TS, Java, Go, Haskell, OCaml, and Julia.
-- **Semantic LogicNodes & Refined-IR** — LogicNodes carry AST-recovered `types.in`/`types.out`; Refined-IR carries real statement-level op streams, side-effect-derived purity, and executable equivalence vectors. Each module labels itself `ast_v1` or `templated_v1`, so a consumer can always tell a real projection from a synthetic one. Type recovery covers **Python, Java, and Haskell**; other languages emit honestly-empty types.
-- **Behavioural Equivalence Verification** — executes generated artifacts against their equivalence vectors inside a hardened Docker sandbox (`--network=none`, `--read-only`, `--cap-drop=ALL`, no-new-privileges) shared with runtime QC. Opt-in and advisory; a vector that merely ran is reported as `executed_without_error`, never `passed`.
+- **Core Software Engine** — 11-phase Mission Flow v2 (default), 41-agent canonical registry, 6 Redis protocols (`alpha`/`beta`/`delta`/`sigma`/`omega`/`rho`). Real AST extractors for **Python, JS/TS, and Java**. Go, Haskell, OCaml, and Julia files are regex parsers shipped under an AST filename — they are not language ASTs.
+- **Semantic LogicNodes & Refined-IR** — LogicNodes carry AST-recovered `types.in`/`types.out`; Refined-IR carries real statement-level op streams, side-effect-derived purity, and executable equivalence vectors. Each module labels itself `ast_v1` or `templated_v1`, so a consumer can always tell a real projection from a synthetic one. Type recovery covers **Python, Java, and Haskell**; other languages emit honestly-empty types. BUILD_NEW missions do not extract LogicNodes from source they just invented.
+- **Runtime QC** — RQCA on by default. Generated integration tests, when present, are the sandbox command. Unmet third-party deps in a `--network=none` sandbox are `DRY_RUN`, never PASS. `started_only` and syntax-only success are ADVISORY. Compose default is `RQCA_ENFORCEMENT_ENABLED=true` (FAIL blocks; advisory verdicts do not).
+- **Behavioural Equivalence Verification** — executes generated artifacts against their equivalence vectors inside a hardened Docker sandbox (`--network=none`, `--read-only`, `--cap-drop=ALL`, no-new-privileges) shared with runtime QC. Opt-in, advisory, Python only; a vector that merely ran is reported as `executed_without_error`, never `passed`. BUILD_NEW skips this (no Refined-IR to project from).
 - **Downstream Deployment Handshake Exporters** — REST endpoints (`/v1/missions/{id}/export/helm` and `/v1/missions/{id}/export/github-actions`) generating gzipped Kubernetes Helm Charts and GitHub Actions CI/CD workflows.
-- **Gemini 3.7 Flash Primary Model Integration** — Upgraded primary default model routing, cost ledgers, API Gateway registries, compose overlays, environment templates, and Mission Control Vault settings to Gemini 3.7 Flash.
-- **Desktop Electron Packaging** — Built standalone Next.js server bundle with Docker Desktop & WSL2 daemon preflight diagnostics in Electron bridge (`diagnostics.ts`).
-- **Audit & Quality Gates** — 23 of 23 production audit checks passed, 100% line / 99% branch coverage on `runtime.py`, >=80% backend test coverage, **1,883 green backend tests and 146 green UI unit tests**, and 0 SAST/SCA/secret/license findings.
+- **Gemini 3.7 Flash Primary Model Integration** — Default route for all agents (`GEMINI_MODEL=gemini-3.7-flash`). Vault, gateway allow-list, compose, and cost ledger match. OpenAI and Anthropic remain selectable non-default routes.
+- **Desktop Electron Packaging** — Standalone Next.js server bundle; the packaged app talks to the backend through `/api/gateway` (same operator session as the browser). Docker Desktop & WSL2 daemon preflight lives in `electron/diagnostics.ts`.
+- **Audit & Quality Gates** — `production_review_audit.py` is a **hygiene** script (static file/string checks), not a live-mission certificate. Backend coverage floor is 80%; `runtime.py` is at 100% line / 99% branch. Mission Control Vitest suite is 146 tests. Do not treat a green audit badge as “zero vulnerabilities.”
 - **Multi-modal Context Ingestion** — Native support for PDF, Word, Markdown, and image diagrams converted via IS-Agent & provider layer.
 - **Protocol Bus Architecture** — Six-protocol Redis Streams event plane with DLQ, 409 replay detection, and fail-closed Redis error handling.
 - **41-Agent Control Model** — Canonical registry across interface, executive, support, and pod-specialist tiers; supports condensed, dedicated, and full-dedicated runtime topologies.
@@ -152,7 +155,7 @@ The list below describes implemented, CI-verified subsystems across theFactory:
             │ internal REST                         │ SSE stream
 ┌───────────▼───────────────────────────────────────▼─────────────┐
 │                      ORCHESTRATOR :8101                         │
-│  LangGraph StateGraph · Mission lifecycle · Pod assignment      │
+│  Mission Flow v2 (default) · LangGraph optional, off            │
 │  41-agent registry · Operations APIs · Qdrant/Neo4j/S3 plane   │
 └──┬──────┬──────────┬───────────────┬───────────────────────────┘
    │      │ Redis    │               │
@@ -215,13 +218,13 @@ The orchestrator maintains a canonical registry of **41 specialist agents** orga
 |------|-------|--------|------|
 | **Interface** | 1 | AGENT-01-PM | Project Manager — mission intake and PM→CEO handoff |
 | **Executive** | 1 | AGENT-02-CEO | Chief Executor — mission delegation to pod managers |
-| **Support Ring** | 12 | AGENT-03 through AGENT-14 | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, DEPABS, TESTDATA, RQCA |
+| **Support Ring** | 12 | AGENT-03–11 plus AGENT-39–41 | Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, DEPABS, TESTDATA, RQCA |
 | **Pod Managers** | 4 | Pod A/B/C/D Managers | Pod-level mission coordination |
 | **Pod Auditors** | 4 | Pod A/B/C/D Auditors | Pod-level verification |
 | **Specialists** | 19 | Language specialists across all pods | Language-specific code analysis and generation |
 | **Total** | **41** | | |
 
-**Support Ring detail (AGENT-03 through AGENT-14):** Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy, DEPABS (dependency absorption), TESTDATA (test data), RQCA (runtime QC + code analysis).
+**Support Ring detail:** Broker, Accountant, Security, IS, VC, Compliance, HW, Tester, Deploy (AGENT-03–11), plus DEPABS, TESTDATA, and RQCA (AGENT-39–41).
 
 **Specialist language implementations (19):** Python, JavaScript/TypeScript (TypeScript aliases to JavaScript — 20 routed keys, 19 specialist implementations), Ruby, PHP (Pod A); C, C++, Rust, Zig, Go (Pod B); Java, C#, Scala, Kotlin (Pod C); MATLAB, R, Julia, Mathematica, Haskell, OCaml (Pod D).
 
@@ -308,8 +311,7 @@ Pod workers run a hybrid AST + regex static-analysis extraction engine that dete
 - **Python** (`PYTHON_AST_EXTRACTOR_ENABLED=true`) — uses stdlib `ast` module; zero false positives for structural fields.
 - **JavaScript/TypeScript** (`JS_AST_EXTRACTOR_ENABLED=true`) — uses `esprima`; strips TS syntax before parsing.
 - **Java** (`JAVA_AST_EXTRACTOR_ENABLED=true`) — uses `javalang`; extracts packages, imports, classes, constructors, methods, annotations.
-- **Go** (`go_ast_extractor.py`) — structural parser for Go packages, imports, structs, interfaces, functions, and methods.
-- **Haskell / OCaml / Julia** (`haskell_ast_extractor.py`) — structural parsers for functional modules, types, data constructors, function signatures, and mathematical definitions.
+- **Go / Haskell / OCaml / Julia** — regex structural parsers in `*_ast_extractor.py` files. They are **not** language ASTs. Types stay honestly empty except where noted above.
 
 
 No LLM calls are required for this phase.
@@ -447,7 +449,7 @@ The protocol bus is a six-protocol typed message bus. Routing is lexical/channel
 | Databases | Shared data-system readiness and diagnostics |
 | Settings | Provider key management, vault-backed secrets, and local environment controls |
 
-Primary shell navigation currently exposes `Home`, `Chat`, `Missions`, `Agents`, `LogicNodes`, `Protocol Bus`, `Databases`, `Repo Import`, and `Settings`. Additional shipped operator routes include `Mission Detail`, `Builder`, `Projects`, `Alerts`, `Performance`, and `/dashboard` as a direct launch-pad alias.
+Primary shell navigation is grouped as **Workflow** (Home, Chat, Builder, Missions, Projects, Mission History), **Observability** (Agents, LogicNodes, Protocol Bus, Alerts, Performance), and **Configuration** (Databases, Repo Import, Audit Log, Settings). `/dashboard` is a Home alias; `/history`, `/logic-nodes`, and `/repo-import` redirect to the canonical routes.
 
 **Agent runtime labels:**
 
@@ -525,7 +527,8 @@ is optional future/deployment scope, not the default local product path.
 
 ### Security Controls
 
-- Rate limiting: 120 req/min per key (Redis sliding-window), `X-RateLimit-*` headers
+- Rate limiting: writes 120 req/min per key; reads 600 req/min (`API_READ_RATE_LIMIT_PER_MINUTE`) so Mission Control polling does not starve mission creation. Redis sliding-window, `X-RateLimit-*` headers
+- `AUTH_MODE` is fail-fast in every environment (no silent fallback to `api_key`). `scripts/check_env.py` validates `AUTH_MODE` and rejects an empty `SANDBOX_WORKSPACE_HOST_ROOT=` assignment
 - Idempotency: SHA256-keyed mission creation with 24h TTL
 - Security headers: `X-Frame-Options DENY`, `X-Content-Type-Options nosniff`, `Referrer-Policy no-referrer`, `Permissions-Policy`
 - Service API key isolation supports both shared and strict modes; condensed local defaults can share worker keys, while dedicated profiles can bind per-service and per-agent keys with `AGENT_SERVICE_KEY_MODE=strict`
@@ -594,7 +597,9 @@ make tls-certs
 
 This generates local-only PostgreSQL and Redis TLS material under `deploy/.local/postgres-certs` and `deploy/.local/redis-certs`. Private keys are intentionally gitignored and must not be committed.
 
-### 3. Start the Default Full-Dedicated Stack
+### 3. Start the Stack
+
+On Windows, `start_app.bat` is the usual path (runs `scripts/check_env.py`, then compose). It starts the **full-dedicated** topology unless you pass `--condensed`. Do not start condensed against a live full-dedicated stack — the script refuses that mismatch.
 
 ```bash
 make up
@@ -681,7 +686,7 @@ cd apps/mission-control
 npm install
 npm run dev        # Dev server (http://localhost:3000)
 npm run build      # Production build
-npm run lint       # ESLint
+npm run lint       # tsc --noEmit (there is no ESLint config)
 npm run test       # Vitest unit tests
 npm run test:e2e   # Playwright critical-path E2E
 ```
@@ -765,7 +770,7 @@ python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
 The live run is the launch-demo proof point. It requires a running stack and
 provider-key configuration when generated LLM output is part of the claim.
 
-**Validation snapshot (2026-07-02):** Focused Phase 3 hardening, Phase 8 Mission Flow v2 coverage, failure-injection regression coverage, CI/security gate checks, and the Mission Control UX lock-in have been refreshed locally. Current evidence includes the standard Phase 13 smoke mission `mission-ac933664-bda8-4acf-b265-10171c2ccdf6`, the non-ASCII smoke mission `mission-bd5369ec-3777-4099-89fe-81699289a29d`, Mission Flow v2 coverage at 92.43% line / 74.70% branch across the broader related suite, a 23/23 production audit, and `docs/evidence/mission_control_ux_lockin_2026-07-02.md`. Documentation validation remains part of the release gate, while full provider-key rotation and post-restart Mission Control browser smoke remain open.
+**Validation snapshot (2026-08-17):** Live BUILD_NEW evidence includes Go `mission-f8a5accf` (`docs/evidence/s1_01_live_generation_go_20260811.json`), chat-driven PyQt6 `mission-e42fd7e2`, and stdlib Snake `mission-911a6b3f`. Honesty/QC follow-up is on `main` (PR #460). Older Phase 13 / non-ASCII smokes remain on disk. `production_review_audit.py` 23/23 is a hygiene check, not a release certificate. Still open: PORT/transform live proof, failure injection, provider fallback, EDCP live-bus, and moving sandbox execution off `docker.sock`.
 
 ---
 
@@ -838,11 +843,16 @@ OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
 LLM_PROVIDER=gemini                # gemini default; UI model choices: gpt-5.5 | claude-opus-4-8 | gemini-3.7-flash
 GEMINI_API_KEY=AIza...
 GEMINI_MODEL=gemini-3.7-flash
-
 GEMINI_THINKING_LEVEL=high
 OPENAI_MODEL=gpt-5.5
 OPENAI_REASONING_EFFORT=high
 ANTHROPIC_MODEL=claude-opus-4-8
+
+# Runtime QC (compose defaults)
+RQCA_AGENT_ENABLED=true
+RQCA_ENFORCEMENT_ENABLED=true      # FAIL blocks; started_only / syntax-only / DRY_RUN do not
+# Leave SANDBOX_WORKSPACE_HOST_ROOT unset so Compose can default it.
+# An empty KEY= assignment remounts an empty host directory.
 
 # Agent Scaling (experimental)
 AGENT_SCALING_ENABLED=false
@@ -970,6 +980,9 @@ theFactory/
 | [`docs/SCHEMA_REGISTRY_AND_VERSIONING.md`](docs/SCHEMA_REGISTRY_AND_VERSIONING.md) | Schema registry, versioning rules, compatibility |
 | [`docs/LICENSE_STRATEGY.md`](docs/LICENSE_STRATEGY.md) | Dual AGPL-3.0/Commercial license strategy and CLA requirement |
 | [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Current shipped defaults, known gaps, and validation snapshot |
+| [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md) | Ordered next work — start here for “what is actually next” |
+| [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md) | Session-level current status and active queue |
+| [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md) | Cold-start handoff for maintainers and coding agents |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture and topology |
 | [`docs/ARCHITECTURE_DIAGRAMS.md`](docs/ARCHITECTURE_DIAGRAMS.md) | System, runtime, deployment, and multi-agent diagrams |
 | [`docs/ARCHITECTURE_DATA_FLOWS.md`](docs/ARCHITECTURE_DATA_FLOWS.md) | Mission, approval, artifact, identity, and telemetry flows |
@@ -978,7 +991,6 @@ theFactory/
 | [`docs/DIAGRAM_STANDARDS.md`](docs/DIAGRAM_STANDARDS.md) | Enterprise diagram set and standards basis |
 | [`docs/DOCUMENTATION_INDEX.md`](docs/DOCUMENTATION_INDEX.md) | Full documentation map |
 | [`docs/api/README.md`](docs/api/README.md) | API entry point, Swagger locations, and versioned OpenAPI files |
-| [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Current application status and active validation work |
 | [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) | Operational procedures |
 | [`docs/DEPLOYMENT_DR_PLAYBOOK.md`](docs/DEPLOYMENT_DR_PLAYBOOK.md) | Deployment and disaster recovery |
 | [`docs/OBSERVABILITY_STACK.md`](docs/OBSERVABILITY_STACK.md) | Monitoring and alerting guide |
