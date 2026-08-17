@@ -2,7 +2,7 @@
 
 Document version: 2026.08.17
 Last updated: 2026-08-17
-Status: Canonical — P0–P4 implemented on `grok/end-state-factory`; live proof still owed
+Status: Canonical — P0–P4 on `main`; live PORT-through-SOW and failing-QC-blocks-COMPLETE recorded 2026-08-17
 Audience: Maintainers, operators, and AI coding agents
 
 This is the execution plan for the end state: a 41-role factory whose **face**
@@ -15,6 +15,23 @@ tested, QC'd work saved locally.
 
 Companion: `docs/WORK_QUEUE.md` (ordered remaining factory work),
 `docs/CURRENT_TODO.md`, `docs/HANDOFF_CURRENT.md`.
+
+## Status of this plan (2026-08-17)
+
+P0–P4 are on `main`. Live proof:
+[`docs/evidence/end_state_live_proof_20260817.json`](evidence/end_state_live_proof_20260817.json).
+
+| Claim | Result |
+|---|---|
+| PORT through an accepted SOW | `mission-dc0c8c4e` `COMPLETE`. Official type `PORT`. Files `go.mod` + `main.go`. |
+| Failing factory QC blocks COMPLETE | `mission-8db1af71` stayed `VERIFIED`. `qc_verdict=FAIL`, `MISSION_RUNTIME_QC_BLOCKED`. |
+
+Python QC uses `python -m unittest discover` because `python:3.11-slim`
+has no pytest. RQCA probes `SANDBOX_EXECUTOR_URL`, not local `docker info`.
+
+Still owed: Chat ZIP UI walkthrough (the proof used the same `/v1/sows` +
+`/v1/missions` APIs Chat Accept calls), spend-cap pause live, failure
+injection, provider fallback, EDCP live-bus.
 
 ---
 
@@ -299,12 +316,13 @@ Target module: `services/orchestrator/orchestrator/sow_estimator.py` (new).
 
 ## 8. Success bar
 
-1. Specified stdlib Snake — SOW with out-of-scope + token range; tests run; FAIL
-   blocks if we break a test.
-2. Chat + ZIP update — PM describes the existing app; specialist changes more
-   than one invented file.
-3. PORT (small real tree) — type is really `PORT`; two-phase on.
-4. User rejects SOW / edits cap — factory does not start.
-5. Spend approaches cap — mission pauses.
+1. Specified stdlib Snake — **recorded.** SOW with out-of-scope + token
+   range; tests run; FAIL blocks COMPLETE (`mission-8db1af71`).
+2. Chat + ZIP update — **APIs recorded.** Same `/v1/sows` + `/v1/missions`
+   path Chat Accept uses. Chat ZIP UI walkthrough still owed.
+3. PORT (small real tree) — **recorded.** `mission-dc0c8c4e` official type
+   `PORT`; output `go.mod` + `main.go`.
+4. User rejects SOW / edits cap — in code; live walkthrough still owed.
+5. Spend approaches cap — in code; live walkthrough still owed.
 
-When those five are boring, this plan is done.
+When 2, 4, and 5 are as boring as 1 and 3, this plan is done.

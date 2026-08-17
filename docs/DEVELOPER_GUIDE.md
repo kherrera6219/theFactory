@@ -1,7 +1,7 @@
 # Developer Guide
 
-Document version: 2026.03.29  
-Last updated: 2026-03-29  
+Document version: 2026.08.17  
+Last updated: 2026-08-17  
 Status: Canonical  
 Audience: Engineers and maintainers
 
@@ -30,12 +30,10 @@ docker compose -f deploy/docker-compose.yaml up -d
 ### 2. Validate your changes
 
 ```powershell
-python -m pytest -q
-python -m pytest --cov=services --cov-report=xml --cov-fail-under=80
-cd apps/mission-control
-npm run lint
-npm test
-npm run test:e2e
+make test
+# line ≥80%, branch ≥70%, mixed ≥80%, plus privilege/SOW/PORT floors
+make test-ui
+make test-ui-e2e
 ```
 
 ### 3. Regenerate and validate docs when structure changes

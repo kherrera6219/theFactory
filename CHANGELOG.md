@@ -6,6 +6,22 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Live PORT / fail-QC proof and 80% line floor (2026-08-17)
+
+#### Added
+- Proof helpers in `scripts/prove_end_state_live.py`: `sow_contract`,
+  `port_proof_passed`, `fail_qc_proof_passed`. Tests in
+  `tests/scripts/test_prove_end_state_live.py` lock PORT must COMPLETE with
+  output files, FAIL QC must not COMPLETE, Python QC uses stdlib
+  `unittest`, and a SOW is acceptable without `unpriced_ack`.
+- Coverage-gate tests: line 79% fails even when mixed is above 80%;
+  Makefile and CI must keep `--line-threshold 80`.
+
+#### Changed
+- Docs record live PORT `mission-dc0c8c4e` COMPLETE (`go.mod` + `main.go`)
+  and fail-QC `mission-8db1af71` VERIFIED / `MISSION_RUNTIME_QC_BLOCKED`.
+  Next work is failure injection, provider fallback, and EDCP live-bus.
+
 ### Mission Control UX Lock-In (2026-07-02)
 
 #### Added

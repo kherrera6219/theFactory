@@ -1,7 +1,7 @@
 # Product Overview
 
-Document version: 2026.04.25
-Last updated: 2026-04-25
+Document version: 2026.08.17
+Last updated: 2026-08-17
 Status: Canonical
 Audience: Operators, developers, partners, evaluators, and new contributors
 
@@ -27,6 +27,16 @@ This is the five-minute orientation document for theFactory. Read this first if 
 theFactory is a local-first, event-driven AI software factory. It accepts natural-language missions and delivers working software through a fully governed orchestration pipeline staffed by task-activated specialist agents.
 
 It is not a code-completion tool, a chat-to-code assistant, or a single-prompt generator. It is a complete software production system that produces requirements, architecture, code, tests, runtime environments, runtime validation, and audit-ready evidence as part of every mission it runs.
+
+### Current factory face (2026-08-17)
+
+The operator talks to the PM. They can **create** software or **import**
+existing software for rework / port / update. They receive a Statement of
+Work — scope, out of scope, deliverables, acceptance, and an honest
+factory token-spend range plus cap — **before** they approve. Work is
+tested in `sandbox-runner`. A failing generated test does not become
+`COMPLETE`. Live evidence:
+[end_state_live_proof_20260817.json](evidence/end_state_live_proof_20260817.json).
 
 ## What Problem It Solves
 

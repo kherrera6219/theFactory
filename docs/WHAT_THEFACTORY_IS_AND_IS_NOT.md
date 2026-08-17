@@ -1,7 +1,7 @@
 # What theFactory Is and Is Not
 
-Document version: 2026.07.03
-Last updated: 2026-07-03
+Document version: 2026.08.17
+Last updated: 2026-08-17
 Status: Canonical
 Audience: Operators, evaluators, contributors, partners, and internal stakeholders
 
@@ -30,10 +30,11 @@ If a proposed feature, talking point, or roadmap item conflicts with this docume
 theFactory is:
 
 - **A complete software production system.** Missions take a request from natural-language intake through requirements, architecture, code, tests, runtime validation, and audit evidence.
-- **A multi-agent runtime.** A registry of 41 specialist roles activates on demand, communicates over an event bus, and produces verifiable artifacts.
+- **A PM-led SOW factory.** Create, import, port, or update through the PM. The operator sees a Statement of Work with an honest factory token-spend range and cap before they approve. PORT through an accepted SOW and fail-QC-blocks-COMPLETE are recorded live.
+- **A multi-agent runtime.** A registry of 41 specialist roles activates on demand, communicates over an event bus, and produces verifiable artifacts. The default deployed topology is condensed; 41 isolated processes are not the default.
 - **A dependency-reduction engine.** It absorbs unnecessary dependencies by extracting their intent and regenerating first-party code with equivalence tests.
 - **A workspace-isolated execution environment.** Every mission operates in an isolated, recoverable workspace; the original source is never modified.
-- **A runtime QC platform.** It launches built or patched applications in a sandboxed environment and validates them through automated browser sessions.
+- **A runtime QC platform.** Generated tests run in `sandbox-runner`. A FAIL verdict blocks COMPLETE. A launch-only or syntax-only run is ADVISORY, never PASS.
 - **An audit-evidence producer.** Every mission emits a structured chain-of-custody bundle: charter, plan, diff, tests, QC report, approvals.
 - **Local-first by design.** It runs on a single Docker host, with optional cloud LLM routing controlled by data classification policy.
 - **A governed system.** Human approval gates, signed approvals, and policy enforcement are first-class, not afterthoughts.

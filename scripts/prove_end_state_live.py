@@ -1,7 +1,7 @@
 """Live proof for the two claims that make this factory unique.
 
 1. ZIP-style import through an accepted SOW as PORT (Python -> Go).
-2. A failing pytest in the factory QC slot blocks COMPLETE.
+2. A failing factory QC test (stdlib unittest) blocks COMPLETE.
 
     python scripts/prove_end_state_live.py
 
@@ -115,8 +115,8 @@ def wait_for_mission(mission_id: str, *, timeout_seconds: float) -> dict[str, An
     return get_mission(mission_id)
 
 
-def create_sow(title: str, engagement: str, summary: str) -> str:
-    contract = {
+def sow_contract(title: str, engagement: str, summary: str) -> dict[str, Any]:
+    return {
         "schema_version": "feature_contract.v1",
         "title": title,
         "summary": summary,
@@ -138,6 +138,20 @@ def create_sow(title: str, engagement: str, summary: str) -> str:
             "pricing_known": True,
         },
     }
+
+
+def port_proof_passed(state: Any, files: list[str] | None) -> bool:
+    return str(state or "").upper() == "COMPLETE" and bool(files)
+
+
+def fail_qc_proof_passed(state: Any, qc_verdict: Any, blocked: bool) -> bool:
+    return str(state or "").upper() != "COMPLETE" and (
+        str(qc_verdict or "").upper() == "FAIL" or blocked
+    )
+
+
+def create_sow(title: str, engagement: str, summary: str) -> str:
+    contract = sow_contract(title, engagement, summary)
     status, body = request_json(
         "POST",
         "/v1/sows",
@@ -226,7 +240,7 @@ def prove_port() -> dict[str, Any]:
         "file_count": generated.get("file_count"),
         "output_files": files,
         "chain_events": events,
-        "passed": str(mission.get("state") or "").upper() == "COMPLETE" and bool(files),
+        "passed": port_proof_passed(mission.get("state"), files),
     }
 
 
@@ -235,7 +249,7 @@ def prove_failing_qc() -> dict[str, Any]:
     sow_id = create_sow(
         "QC must fail this run",
         "BUILD_NEW",
-        "Generate a tiny adder and run factory QC. A planted failing pytest must block delivery.",
+        "Generate a tiny adder and run factory QC. A planted failing unittest must block delivery.",
     )
     print(f"  sow_id={sow_id}", flush=True)
     mission_id = create_mission(
@@ -251,7 +265,7 @@ def prove_failing_qc() -> dict[str, Any]:
             "proof": "failing_qc_blocks_complete",
             "integration_tests": {
                 "schema_version": "integration_tests.v1",
-                "framework": "pytest",
+                "framework": "unittest",
                 "source": "live-proof-planted-fail",
                 "test_filename": "test_adder.py",
                 "test_cases": ["intentional fail"],
@@ -286,7 +300,7 @@ def prove_failing_qc() -> dict[str, Any]:
         "execution_verdict": report.get("verdict"),
         "blocked_event": blocked,
         "chain_events": events,
-        "passed": state != "COMPLETE" and (qc_verdict == "FAIL" or blocked),
+        "passed": fail_qc_proof_passed(state, qc_verdict, blocked),
     }
 
 

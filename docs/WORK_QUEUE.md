@@ -126,9 +126,12 @@ P1–P3 from `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md` are **done**. P4
 (re-run) was exercised as Snake `mission-911a6b3f` and a follow-up review;
 remaining honesty holes from that run shipped in PR #460.
 
-**Current next items:** rebuild so `sandbox-runner` and Chat ZIP are live,
-then prove Chat SOW + ZIP PORT/update (#5 remainder) through Accept SOW.
-Then #6 live-bus. Item #11 is implemented in condensed topology.
+**Current next items:** #5 remainder is failure injection and provider
+fallback. PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded
+(`docs/evidence/end_state_live_proof_20260817.json`). Coverage line ≥80%
+is locked in tests (mixed cannot hide line; Makefile/CI keep
+`--line-threshold 80`). Then #6 live-bus. Item #11 is implemented
+(`sandbox-runner`).
 
 Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still
 set `false` — that override is not the product default.

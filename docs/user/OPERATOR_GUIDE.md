@@ -1,7 +1,7 @@
 # Mission Control Operator Guide
 
-Document version: 2026.05.30  
-Last updated: 2026-05-30  
+Document version: 2026.08.17  
+Last updated: 2026-08-17  
 Status: Canonical  
 Audience: Operators, reviewers, and technical users
 
@@ -12,7 +12,7 @@ This guide explains how to use theFactory through Mission Control for the main o
 - `Home`
   - runtime summary and launch overview
 - `Chat`
-  - PM-style mission intake from a prompt and attachments
+  - PM-led Statement of Work: create, import, port, or update; review factory cost range + cap; Accept SOW before start
 - `Missions`
   - mission list, state, and navigation to mission detail
 - `Projects`
@@ -44,10 +44,10 @@ This guide explains how to use theFactory through Mission Control for the main o
 ### Launch a mission from Chat
 
 1. Open `Chat`.
-2. Enter the mission request and add any supporting files.
-3. Review the inferred target language.
-4. Launch the mission.
-5. Open the created mission in `Missions` to watch progression.
+2. Enter the request. Attach a ZIP to import, port, or update existing software.
+3. Review the SOW panel: out of scope, deliverables, and factory cost range + cap.
+4. Accept the SOW. That is the bid, not "start anyway."
+5. Open the created mission in `Missions`. A FAIL QC verdict does not become `COMPLETE`.
 
 ### Launch a mission from Builder review
 

@@ -48,6 +48,9 @@ RQCA still ran local `docker info` and every mission became `DRY_RUN`.
 It now probes `SANDBOX_EXECUTOR_URL`. Python QC tests run via stdlib
 `unittest` because `python:3.11-slim` has no pytest.
 
+**Coverage line floor** is locked in tests: mixed >80% cannot hide line
+<80%; Makefile and CI must keep `--line-threshold 80`.
+
 **Next action:** EDCP live-bus, failure injection, provider fallback.
 Chat ZIP through the UI (this proof used the same SOW+mission APIs the
 Chat Accept path calls).
@@ -66,7 +69,7 @@ into the full-dedicated stack.
 | Honesty gates | `started_only` is `DRY_RUN` / `ADVISORY`, never PASS. Agent-off + `RQCA_ENFORCEMENT_ENABLED` is not-ready (skip is not a QC result). `AUTH_MODE` fails in every environment; `check_env.py` validates `AUTH_MODE` and rejects empty `SANDBOX_WORKSPACE_HOST_ROOT=`. |
 | Gemini 3.7 Flash | All agent routes, vault, gateway allow-list, compose, and cost ledger. |
 | BUILD_NEW role honesty | Specialist IR/PEP boilerplate is replaced from the contract; pod-audit is WARN/unscored on empty or routing-stub LogicNodes; specified stdlib/CLI games no longer get arcade PM questions. |
-| Tests are the QC command | Integration tests generate **before** the testdata manifest. `_select_sandbox_command` prefers pytest (or the language equivalent) over a default `run_command`. Interactive/gui/server/library run those tests when present; syntax-only success is ADVISORY. `while True` and bare `.listen(` no longer force compile-only. Cached `started_only` PASS reports are re-assessed. |
+| Tests are the QC command | Integration tests generate **before** the testdata manifest. `_select_sandbox_command` prefers the language test runner over a default `run_command`. Python uses stdlib `unittest` (`python:3.11-slim` has no pytest). Interactive/gui/server/library run those tests when present; syntax-only success is ADVISORY. `while True` and bare `.listen(` no longer force compile-only. Cached `started_only` PASS reports are re-assessed. |
 | Electron dual-launch | Packaged Mission Control uses `/api/gateway`, not a bare `:8100` call. |
 
 **Local `.env` override:** compose default is `RQCA_ENFORCEMENT_ENABLED=true`.
@@ -74,13 +77,13 @@ A checked-in local `.env` may still set `false` — FAIL will not block delivery
 until that line is `true`. Do not treat the local override as the product
 default.
 
-**On GitHub:** `main` includes the PM SOW factory and `sandbox-runner`
-(this merge), built on PR #460 (`0b6ee4c`).
+**On GitHub:** `main` includes the PM SOW factory, `sandbox-runner`,
+coverage floors (PR #463), and live PORT + fail-QC evidence (`d9e3b3e`).
 
-**Still owed after the SOW factory (see `docs/WORK_QUEUE.md`):** remaining
-live-proof matrix (PORT/transform through the new PM SOW path, failure
-injection, provider fallback); Phase 6 EDCP live-bus. Sandbox privilege
-moved to `sandbox-runner` (item 11 implemented in condensed topology).
+**Still owed after the SOW factory (see `docs/WORK_QUEUE.md`):** failure
+injection, provider fallback, and Phase 6 EDCP live-bus. PORT-through-SOW
+and failing-QC-blocks-COMPLETE are recorded. Sandbox privilege is on
+`sandbox-runner`.
 
 ---
 

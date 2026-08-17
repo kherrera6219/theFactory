@@ -1,7 +1,7 @@
 # Developer Onboarding Guide
 
-Document version: 2026.05.30  
-Last updated: 2026-05-30  
+Document version: 2026.08.17  
+Last updated: 2026-08-17  
 Status: Canonical  
 Audience: Contributors, maintainers, and new developers
 
@@ -181,7 +181,12 @@ curl http://localhost:8100/v1/missions/<mission_id>
 make test
 ```
 
-Runs pytest with `--cov-fail-under=80` global gate plus `scripts/check_coverage_thresholds.py` for critical per-module floors. `make test` now enforces an **80% floor on `runtime.py`** (raised from 60%). Current baseline: **709 passing backend tests, 5 skipped, and 81.76% services coverage**.
+Runs pytest with `--cov-fail-under=80` plus `scripts/check_coverage_thresholds.py`.
+Gates: **line ≥80%**, **branch ≥70%**, **mixed ≥80%**, plus per-module floors
+on privilege / money / PORT files (`sandbox_exec` 90%, `sow_store` 90%,
+`port_coordinator` 80%, `rqca_agent` 70%). A mixed score above 80% cannot
+hide a line score below 80%. Latest sweep (2026-08-17): line **85.80%**,
+branch **72.82%**, mixed **82.72%**.
 
 ### Fast Tests (no coverage)
 
@@ -405,7 +410,7 @@ python scripts/check_coverage_thresholds.py
 - [ ] Docker Desktop running, `docker compose ps` shows all services healthy
 - [ ] `curl http://localhost:8100/health` returns `{"status":"healthy"}`
 - [ ] Test mission submitted and polled successfully
-- [ ] `make test` passes — services coverage gate stays at or above 80%
+- [ ] `make test` passes — line ≥80%, branch ≥70%, mixed ≥80%
 - [ ] `make audit` passes — 17/17 checks
 - [ ] Mission Control UI opens at `http://localhost:3100`
 - [ ] Agent roster shows 41 agents at `http://localhost:8100/v1/operations/agents`

@@ -24,7 +24,7 @@
 >
 > Deliberately **not** built, by recorded decision: the four-pod parallel comprehension model, the Doc 30 LogicNode Registry, binary/LLVM output, and the 0.0001% equivalence tolerance. Per-area verdicts are in [`docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md).
 >
-> **Not production-ready.** Remaining work: the rest of the live-proof matrix (PORT/transform through Chat SOW, failure injection, provider fallback) and a live EDCP bus exercise. Sandbox `docker.sock` now lives on `sandbox-runner`, not the orchestrator. See [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md) and [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md).
+> **Not production-ready.** PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded ([`docs/evidence/end_state_live_proof_20260817.json`](docs/evidence/end_state_live_proof_20260817.json)). Remaining: failure injection, provider fallback, and a live EDCP bus exercise. Sandbox `docker.sock` lives on `sandbox-runner`. See [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md) and [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md).
 
 
 ---
@@ -742,8 +742,8 @@ npm run test:e2e   # Playwright critical-path E2E
 
 | Gate | Target | Enforcement |
 |------|--------|-------------|
-| Global Python coverage | ≥ 80% | CI + `make test` |
-| Critical module coverage | Strict per-file floors (`80%`–`100%`); `runtime.py` floor is `80%` (currently at 100% line / 99% branch) | `scripts/check_coverage_thresholds.py` |
+| Global Python coverage | line ≥80%, branch ≥70%, mixed ≥80% | CI + `make test` |
+| Critical module coverage | Strict per-file floors (`70%`–`100%`) on privilege / money / PORT / protocol files | `scripts/check_coverage_thresholds.py` |
 | Production audit | 23/23 checks pass; `INF-008` closed | `scripts/production_review_audit.py` |
 | Frontend lint | 0 errors | CI |
 | Frontend unit tests | currently passing | `apps/mission-control` Vitest |

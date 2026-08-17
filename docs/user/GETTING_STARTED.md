@@ -1,7 +1,7 @@
 # Getting Started
 
-Document version: 2026.05.30  
-Last updated: 2026-05-30  
+Document version: 2026.08.17  
+Last updated: 2026-08-17  
 Status: Canonical  
 Audience: Operators and developers
 
@@ -34,17 +34,17 @@ The API Gateway runs at `http://localhost:8100`.
 
 1. Open Mission Control at `http://localhost:3100`.
 2. Unlock Mission Control with `MISSION_CONTROL_ADMIN_KEY`.
-3. Visit `Settings` and confirm any required provider or GitHub credentials are loaded.
-4. Open `Chat` if you want PM-style mission intake from a prompt and optional attached files.
-5. Open `Builder` if you want a grounded local-workspace review before launch.
-6. Open `Repo Import` if you want to review selected GitHub files and turn that review into a mission bundle.
-7. Launch the mission and switch to `Missions` or the mission detail page to watch live state changes.
-8. For source-bundle missions, confirm the `Build Artifacts` section on the mission detail page shows a successful packaged artifact before treating the mission as release-ready.
+3. Visit `Settings` and confirm any required provider credentials are loaded.
+4. Open `Chat`. Describe new work, or attach a ZIP to import / port / update existing software.
+5. Review the Statement of Work: out of scope, deliverables, and the factory token-spend range + cap. Accept the SOW before the factory starts.
+6. `Repo Import` can hand off into the same PM SOW path (`Draft SOW with PM`).
+7. Watch `Missions`. `COMPLETE` means QC did not FAIL. A FAIL stays `VERIFIED` / blocked.
+8. Confirm local output under `output/<mission_id>/` before treating the run as delivered.
 
 ## Main Screens
 
 - `Home`: high-level platform and health summary
-- `Chat`: PM-driven mission drafting and launch flow
+- `Chat`: PM-driven SOW — create, import, port, or update; accept the bid before start
 - `Missions`: recent missions and mission state transitions
 - `Agents`: live roster, workload, and heartbeat telemetry
 - `LogicNodes`: extracted graph fragments and mission-linked nodes

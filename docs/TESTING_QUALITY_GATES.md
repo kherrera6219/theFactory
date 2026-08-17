@@ -64,6 +64,9 @@ python -m pytest tests/services/test_language_extractor.py -v
 # Live integration (skips safely when stack is offline)
 python -m pytest tests/services/test_live_mission_flow_integration.py -q
 
+# End-state live proof (requires stack; stop Mission Control first to avoid 429)
+python scripts/prove_end_state_live.py
+
 # Extended live tests (Neo4j/MinIO disruption recovery)
 LIVE_ENABLE_DISRUPTION_TESTS=true make test-live-extended
 ```
@@ -110,7 +113,8 @@ Enforced by:
 A red suite invalidates the coverage number. `pytest` must exit 0.
 
 **Latest local sweep (2026-08-17):** mixed **82.72%**, line **85.80%**,
-branch **72.82%**.
+branch **72.82%**. The checker **fails line <80% even when mixed is above
+80%** (`test_line_floor_fails_when_mixed_still_passes`).
 
 ### Core Module Gates
 

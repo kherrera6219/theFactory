@@ -63,15 +63,17 @@ order. Condensed compose mounts `docker.sock` on `sandbox-runner` only;
 the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`. Full-dedicated stack
 rebuilt 2026-08-17: `sandbox-runner` and the rest of the dedicated
 topology came up healthy. Coverage floors from [PR
-#463](https://github.com/kherrera6219/theFactory/pull/463) are on `main`
-(`dd13785`). Live Chat ZIP / PORT proof is still owed.
+#463](https://github.com/kherrera6219/theFactory/pull/463) are on `main`.
+Live PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded in
+`docs/evidence/end_state_live_proof_20260817.json`.
 
 Coverage standard (2026-08-17): keep the 80% mixed floor; **also fail
 line <80% or branch <70%**. Privilege/money/PORT files have their own
 floors (`sandbox_exec`/`sandbox_runner` 90%, `sow_store` 90%,
 `port_coordinator`/`toolchains` 80%, `rqca_agent` 70%). Mission Control
 measures `app/lib/**` via `npm run test:coverage`. A red suite does not
-count as an 80% pass.
+count as an 80% pass. `test_line_floor_fails_when_mixed_still_passes`
+and `test_makefile_and_ci_keep_line_threshold_80` lock the line floor.
 
 ### What happened on 2026-08-16/17 — honesty / Gemini / tests-as-QC
 
@@ -83,9 +85,10 @@ landed on `main` via [PR #460](https://github.com/kherrera6219/theFactory/pull/4
 - **`started_only` is never a PASS.** Syntax-only compile success is
   `DRY_RUN` / `ADVISORY`. Agent-off + enforcement is not-ready.
 - **Generated tests are the QC command.** Tester output is written before
-  the testdata manifest; `_select_sandbox_command` prefers pytest (or the
-  language equivalent) over a default `run_command`. Interactive/gui/server
-  artifacts run those tests when present.
+  the testdata manifest. `_select_sandbox_command` prefers the language
+  test runner over a default `run_command`. Python uses stdlib `unittest`
+  (`python:3.11-slim` has no pytest). Interactive/gui/server artifacts run
+  those tests when present.
 - **Classifiers tightened.** `while True` is not interactive by itself;
   bare `.listen(` is not a server. Cached `started_only` PASS reports are
   re-assessed.

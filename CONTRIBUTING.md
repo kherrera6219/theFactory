@@ -132,7 +132,7 @@ BREAKING CHANGE: /api/vault now requires x-vault-admin-key header
 ### PR Checklist
 
 - [ ] All CI checks pass (lint, tests, build, security scan)
-- [ ] Coverage does not regress below 80% overall or below module thresholds
+- [ ] Coverage does not regress below line 80%, branch 70%, mixed 80%, or module thresholds
 - [ ] New environment variables added to `.env.example` with `CHANGE_ME_` placeholders
 - [ ] Any new API endpoints have auth guards and are tested
 - [ ] Secrets removed or replaced with env variable references
@@ -149,8 +149,8 @@ The CI pipeline enforces:
 |------|------|-----------|
 | Python lint | `ruff` | Zero errors |
 | TypeScript lint | `tsc --noEmit` | Zero errors |
-| Python tests | `pytest` | ≥80% global coverage |
-| Critical module coverage | `check_coverage_thresholds.py` | Strict per-module floors on listed runtime files |
+| Python tests | `pytest` | line ≥80%, branch ≥70%, mixed ≥80% |
+| Critical module coverage | `check_coverage_thresholds.py` | Strict per-module floors on privilege / money / PORT / protocol files |
 | SAST | `bandit` | Zero high/critical |
 | Dependency audit | `pip-audit`, `npm audit` | Zero high/critical CVEs |
 | Secret scan | `gitleaks` | Zero secrets |

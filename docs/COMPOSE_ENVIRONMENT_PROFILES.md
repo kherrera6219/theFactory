@@ -1,7 +1,7 @@
 # Compose Environment Profiles
 
-Document version: 2026.06.13
-Last updated: 2026-06-27
+Document version: 2026.08.17
+Last updated: 2026-08-17
 Status: Canonical  
 Audience: Operators, developers, and maintainers
 
@@ -11,7 +11,7 @@ Define the supported compose overlay set for local development, staging qualific
 
 ## Files
 
-- `deploy/docker-compose.yaml`: shared baseline stack and hardening defaults.
+- `deploy/docker-compose.yaml`: shared baseline stack and hardening defaults. Includes `sandbox-runner` (owns `docker.sock`; orchestrator uses `SANDBOX_EXECUTOR_URL`).
 - `deploy/docker-compose.full-dedicated-agents.yaml`: default startup topology overlay that adds isolated PM/CEO/support/pod-audit and covered specialist workers on top of the baseline stack.
 - `deploy/docker-compose.dev.yaml`: local developer profile.
 - `deploy/docker-compose.staging.yaml`: pre-production qualification profile.

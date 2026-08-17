@@ -1,7 +1,7 @@
 # Mission Taxonomy
 
-Document version: 2026.08.03
-Last updated: 2026-08-03
+Document version: 2026.08.17
+Last updated: 2026-08-17
 Status: Canonical
 Audience: Operators, maintainers, AI coding agents, and anyone extending the mission surface
 
@@ -74,6 +74,10 @@ Ten values. This is the only dimension that changes *which agents run*.
 `routes/internal.py` normalises several spellings before the enum is applied —
 e.g. `QC` → `RUN_QC`, `ARCHITECTURE` → `ARCHITECTURE_DOCS`. Aliases are an
 intake convenience; the canonical value is what is stored and matched.
+
+Live PORT-through-SOW (2026-08-17): accepted SOW + official type `PORT`
+produced `mission-dc0c8c4e` `COMPLETE` with `go.mod` + `main.go`. Evidence:
+`docs/evidence/end_state_live_proof_20260817.json`.
 
 ---
 

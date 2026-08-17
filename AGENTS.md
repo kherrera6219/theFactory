@@ -22,10 +22,13 @@ Two documents are canonical for all forward work:
 including UPG-20** (`docs/evidence/s1_01_live_generation_go_20260811.json`).
 Phase 6 (EDCP-02a) is implemented but off and not live-bus proven. Honesty
 gates, Gemini 3.7 Flash, and tests-as-QC are on `main` (PR #460). The PM
-SOW factory (P0–P4) is in code: Chat ZIP / repo handoff, file-tree
-delivery, quoted-vs-actual cost, change orders, and `sandbox-runner`
-owning `docker.sock`. **Next is live proof of that path, then a
-one-mission EDCP live-bus run** — see `docs/WORK_QUEUE.md`.
+SOW factory (P0–P4) is on `main`. Live PORT-through-SOW
+(`mission-dc0c8c4e` COMPLETE) and failing-QC-blocks-COMPLETE
+(`mission-8db1af71` VERIFIED / BLOCKED) are recorded in
+`docs/evidence/end_state_live_proof_20260817.json`. Coverage stays at
+line ≥80% / branch ≥70% / mixed ≥80%. **Next:** failure injection,
+provider fallback, then a one-mission EDCP live-bus run — see
+`docs/WORK_QUEUE.md`.
 
 > **Executing generated code goes through `orchestrator/sandbox_exec.py` and
 > nowhere else.** In compose the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`
@@ -43,8 +46,8 @@ plan statement — rule 1 below is not a formality here.
 
 **Next action:**
 
-- Rebuild the stack so `sandbox-runner` and Chat ZIP are live, then prove
-  Chat SOW + ZIP PORT/update through Accept SOW (`docs/WORK_QUEUE.md` item 5).
+- Failure injection and provider fallback (`docs/WORK_QUEUE.md` item 5
+  remainder). PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded.
 - Then **Phase 6 live-bus**: `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true` on
   **one** mission. EDCP-02a is already in code. Before exercising it, read
   `docs/PROTOCOL_ENVELOPES.md` §4: the two transports join by **prefix
@@ -247,8 +250,11 @@ The pod-worker extracts concepts from source code using regex by default. Three 
 - Coverage policy: backend **line ≥80%**, **branch ≥70%**, mixed ≥80%, plus
   per-module floors (sandbox/SOW/PORT/RQCA/toolchains and the original
   protocol/runtime files) via `scripts/check_coverage_thresholds.py`.
-  Mission Control: Vitest coverage on `app/lib/**` (`npm run test:coverage`).
-  A red suite invalidates the coverage number.
+  Mixed above 80% cannot hide line below 80%
+  (`test_line_floor_fails_when_mixed_still_passes`). Makefile and CI must
+  keep `--line-threshold 80`. Mission Control: Vitest coverage on
+  `app/lib/**` (`npm run test:coverage`). A red suite invalidates the
+  coverage number.
 - Before merge: `make lint`, `make test`, `make test-ui`, `make test-ui-e2e`, `make audit`.
 
 ## Commit & Pull Request Guidelines

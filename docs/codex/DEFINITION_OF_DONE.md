@@ -1,7 +1,7 @@
 # Definition of Done — theFactory / Holy Grail Refinery
 
-Document version: 2026.04.14  
-Last updated: 2026-04-14  
+Document version: 2026.08.17  
+Last updated: 2026-08-17  
 Status: Canonical  
 Audience: Developers, reviewers, and maintainers
 
@@ -11,7 +11,7 @@ A change is done only when every applicable item below is satisfied for the modi
 
 ## 1. Tests
 
-- [ ] `make test` passes with no failures and no coverage regressions
+- [ ] `make test` passes with no failures and no coverage regressions (line ≥80%, branch ≥70%, mixed ≥80%)
 - [ ] `make test-ui` passes (TypeScript lint + Vitest)
 - [ ] `make test-ui-e2e` passes (Playwright), or the waiver is recorded below
 - [ ] `make validate` passes when the change touches docs, schemas, APIs, runtime, or release-sensitive paths
