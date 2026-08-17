@@ -294,6 +294,23 @@ def test_rqca_assessment_started_only_is_advisory_even_if_verdict_says_pass() ->
     assert result["deployment_safe"] is False
 
 
+def test_rqca_assessment_syntax_only_is_advisory_even_if_verdict_says_pass() -> None:
+    result = asyncio.run(
+        llm_delegation.generate_rqca_assessment(
+            mission_id="mission-1",
+            execution_result={
+                "verdict": "PASS",
+                "passed": True,
+                "verified_scope_detail": "syntax_only",
+            },
+            mission_contract={},
+            language="python",
+        )
+    )
+    assert result["qc_verdict"] == "ADVISORY"
+    assert result["deployment_safe"] is False
+
+
 def test_rqca_compose_yaml_is_hardened_and_sanitized() -> None:
     manifest = {
         "multi_container": True,
@@ -593,7 +610,7 @@ class TestOfflineSandboxDependencyHandling:
 
 
 def test_a_syntax_check_failure_is_never_excused_as_not_exercised() -> None:
-    """A parse-or-compile check takes no arguments; its exit code is the verdict."""
+    """A parse-or-compile failure is still a defect."""
     verdict, passed, note = rqca_agent._sandbox_verdict(
         exit_matched=False,
         exercised=False,
@@ -603,6 +620,19 @@ def test_a_syntax_check_failure_is_never_excused_as_not_exercised() -> None:
     assert verdict == "FAIL"
     assert passed is False
     assert note is None
+
+
+def test_a_syntax_check_success_is_not_a_functional_pass() -> None:
+    """Compile-only success is not evidence the artifact works."""
+    verdict, passed, note = rqca_agent._sandbox_verdict(
+        exit_matched=True,
+        exercised=False,
+        syntax_only=True,
+        matched_failure_pattern=None,
+    )
+    assert verdict == "DRY_RUN"
+    assert passed is False
+    assert note is not None
 
 
 def test_started_only_is_dry_run_not_pass() -> None:
@@ -669,3 +699,51 @@ def test_server_and_library_artifacts_are_classified() -> None:
         generated_code="import msvcrt\nwhile True:\n    if msvcrt.kbhit():\n        pass\n",
         generated_output={"filename": "snake.py", "usage_example": "python snake.py"},
     ) == "interactive"
+
+
+def test_while_true_cli_is_not_interactive() -> None:
+    assert rqca_agent._classify_artifact(
+        dependencies=[],
+        generated_code=(
+            "def main():\n"
+            "    while True:\n"
+            "        line = input('> ')\n"
+            "        if line == 'q':\n"
+            "            break\n"
+            "        print(line)\n"
+        ),
+        generated_output={"filename": "repl.py", "usage_example": "python repl.py"},
+    ) == "cli"
+
+
+def test_bare_listen_is_not_a_server() -> None:
+    assert rqca_agent._classify_artifact(
+        dependencies=[],
+        generated_code="emitter.listen('data', handler)\nprint('ok')\n",
+        generated_output={"filename": "cli.js", "usage_example": "node cli.js"},
+    ) == "cli"
+
+
+def test_generated_tests_win_over_manifest_run_command() -> None:
+    command, tests_selected = rqca_agent._select_sandbox_command(
+        filename="snake.py",
+        test_filename="test_snake.py",
+        language="python",
+        settings=SimpleNamespace(rqca_test_command_template=""),
+        testdata_manifest={"run_command": "python /workspace/snake.py"},
+    )
+    assert tests_selected is True
+    assert "pytest" in command
+    assert "test_snake.py" in command
+
+
+def test_no_tests_keeps_manifest_run_command() -> None:
+    command, tests_selected = rqca_agent._select_sandbox_command(
+        filename="snake.py",
+        test_filename="",
+        language="python",
+        settings=SimpleNamespace(rqca_test_command_template=""),
+        testdata_manifest={"run_command": "python /workspace/snake.py"},
+    )
+    assert tests_selected is False
+    assert command == "python /workspace/snake.py"

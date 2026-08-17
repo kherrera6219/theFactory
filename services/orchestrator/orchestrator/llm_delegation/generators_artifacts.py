@@ -113,15 +113,18 @@ async def generate_rqca_assessment(
     verdict = str(execution_result.get("verdict") or "SKIPPED").strip().upper()
     passed = bool(execution_result.get("passed", False))
     scope_detail = str(execution_result.get("verified_scope_detail") or "").strip().lower()
-    # started_only is not a pass: the process launched without a derived
-    # invocation, so the exit code is not evidence. Treat it like DRY_RUN even
-    # if an older report still labelled the verdict PASS.
+    # started_only / syntax_only are not a pass unless tests actually ran.
     if verdict in {"DRY_RUN", "SKIPPED"} or (
-        scope_detail == "started_only" and verdict != "FAIL"
+        scope_detail in {"started_only", "syntax_only"} and verdict != "FAIL"
     ):
         if scope_detail == "started_only":
             reason = (
                 "Runtime QC launched the artifact with no derived invocation, "
+                "so the exit code is not evidence of correctness"
+            )
+        elif scope_detail == "syntax_only":
+            reason = (
+                "Runtime QC only compiled or parsed the artifact; no tests ran, "
                 "so the exit code is not evidence of correctness"
             )
         else:
@@ -834,11 +837,7 @@ async def generate_integration_tests(
 
 
 def _logicnodes_are_unstated(nodes: Any) -> bool:
-    """True when there is nothing extracted to audit.
-
-    BUILD_NEW often writes a routing_stub or an empty list. Scoring that 0.96
-    PASS is how pod-audit rubber-stamped the Snake mission.
-    """
+    """True when nodes are empty or only routing stubs. Those are not a quality score."""
     if not isinstance(nodes, list) or not nodes:
         return True
     stated = 0

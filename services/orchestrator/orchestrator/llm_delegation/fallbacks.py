@@ -87,15 +87,13 @@ def _fallback_specialist_plan(
     return plan
 
 
-_PLAN_BOILERPLATE_MARKERS = (
-    "refined-ir",
-    "logicnode",
-    "pep 585",
-    "pep 8/585",
-    "async safety",
-    "traceability matrix",
-    "intent extraction",
-    "semantic mapping",
+# IR-specific pairs only. Any two tokens from a flat list rewrote real plans
+# that mentioned "LogicNode" and "async safety".
+_PLAN_BOILERPLATE_PAIRS = (
+    ("refined-ir", "logicnode"),
+    ("pep 585", "traceability matrix"),
+    ("pep 8/585", "traceability matrix"),
+    ("intent extraction", "semantic mapping"),
 )
 
 
@@ -139,8 +137,7 @@ def _plan_from_contract(mission_context: dict[str, Any]) -> dict[str, Any]:
 
 def _looks_like_boilerplate_plan(plan_summary: str, deliverables: list[str]) -> bool:
     blob = " ".join([plan_summary, *deliverables]).lower()
-    hits = sum(1 for marker in _PLAN_BOILERPLATE_MARKERS if marker in blob)
-    return hits >= 2
+    return any(left in blob and right in blob for left, right in _PLAN_BOILERPLATE_PAIRS)
 
 
 def _fallback_pm_feature_contract(

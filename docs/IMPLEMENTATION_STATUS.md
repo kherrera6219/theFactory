@@ -103,7 +103,7 @@ The application currently includes:
 | `LANGGRAPH_CHECKPOINTER` | `none` | Postgres checkpointer requires explicit direct Postgres URL |
 | `TESTDATA_AGENT_ENABLED` | `false` | Extra fixtures/deps for richer QC. RQCA no longer depends on this flag to run. |
 | `RQCA_AGENT_ENABLED` | `true` | Runtime QC runs on the completion path. Docker missing → honest `DRY_RUN` / `ADVISORY`. |
-| `RQCA_ENFORCEMENT_ENABLED` | `true` | Blocks only `qc_verdict == FAIL`. `started_only`, `DRY_RUN`, `SKIPPED`, and `ADVISORY` do not block. Turning the agent off while this is on now blocks (skip is not a QC result). Production still fails fast if this is false. |
+| `RQCA_ENFORCEMENT_ENABLED` | `true` | Blocks only `qc_verdict == FAIL`. `started_only`, syntax-only, `DRY_RUN`, `SKIPPED`, and `ADVISORY` do not block. Generated tests, when present, are the sandbox command. Turning the agent off while this is on now blocks (skip is not a QC result). Production still fails fast if this is false. |
 | `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `true` | Blocking by default — a detected hardcoded secret blocks delivery (`settings.py:92`) |
 | `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | `false` | Contract-conformance findings are advisory until pass rates are measured |
 | `DEPABS_EXECUTION_ENABLED` | `false` | Dependency absorption execution remains opt-in |

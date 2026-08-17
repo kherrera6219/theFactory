@@ -1530,6 +1530,10 @@ def test_boilerplate_specialist_plan_is_detected() -> None:
         "Implement snake.py as a 20x20 stdlib terminal game",
         ["WASD and arrow controls", "Score +10 per food"],
     )
+    assert not llm_delegation._looks_like_boilerplate_plan(
+        "Build a LogicNode walker with async safety for the move loop",
+        ["Keep the game loop non-blocking"],
+    )
 
 
 def test_pod_audit_does_not_score_routing_stubs() -> None:

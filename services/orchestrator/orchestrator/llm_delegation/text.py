@@ -397,9 +397,7 @@ def _pm_product_clarifying_questions(
     if not is_interactive_app:
         return []
 
-    # A fully specified stdlib/CLI/single-file request is ready to build.
-    # Injecting arcade-theme and packaging questions is what parked every
-    # Snake-style mission in CLARIFYING with a 1.0 ambiguity score.
+    # Specified stdlib/CLI/single-file requests are ready; do not add arcade prompts.
     specified_stdlib = has_token(
         "standard library",
         "stdlib",

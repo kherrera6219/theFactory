@@ -374,17 +374,17 @@ _SERVER_MARKERS = frozenset({
     "gin-gonic", "labstack/echo", "gofiber", "actix-web", "axum", "warp",
     "spring-boot", "ktor",
 })
+# Bare `.listen(` / `app.run(` match EventEmitter, sockets, and many CLIs.
 _SERVER_SOURCE_MARKERS = (
     "app.listen(",
-    ".listen(",
     "create_server(",
     "createserver(",
     "uvicorn.run(",
-    "app.run(",
     "http.server",
     "httpserver(",
     "serve_forever(",
 )
+_SERVER_APP_RUN_FRAMEWORKS = ("flask", "django", "quart", "fastapi")
 
 
 def _is_server_artifact(dependencies: Any, generated_code: str) -> bool:
@@ -397,7 +397,9 @@ def _is_server_artifact(dependencies: Any, generated_code: str) -> bool:
     if any(marker in declared for marker in _SERVER_MARKERS):
         return True
     head = "\n".join(str(generated_code or "").splitlines()[:80]).lower()
-    return any(marker in head for marker in _SERVER_SOURCE_MARKERS)
+    if any(marker in head for marker in _SERVER_SOURCE_MARKERS):
+        return True
+    return "app.run(" in head and any(name in head for name in _SERVER_APP_RUN_FRAMEWORKS)
 
 
 def _is_library_artifact(
@@ -436,17 +438,14 @@ def _is_library_artifact(
     return (not has_entry) and usage_is_import
 
 
-#: Tokens that mean the artifact is an interactive loop, not a CLI that exits.
-_INTERACTIVE_SOURCE_MARKERS = (
+#: Input-loop tokens strong enough to classify as interactive. `while True`
+#: alone is a normal CLI/REPL and must not force syntax-only.
+_INTERACTIVE_INPUT_MARKERS = (
     "msvcrt.kbhit",
     "msvcrt.getch",
     "curses.",
     "turtle.",
     "pygame.",
-    "while true",
-    "while running",
-    "game_over",
-    "get_action(",
 )
 
 
@@ -456,25 +455,18 @@ def _is_interactive_artifact(
 ) -> bool:
     """True when the artifact is a game or input loop that should not exit 0."""
     payload = generated_output or {}
-    usage = str(payload.get("usage_example") or "").strip().lower()
-    filename = str(payload.get("filename") or "").strip().lower()
+    kind = str(payload.get("artifact_class") or payload.get("kind") or "").strip().lower()
+    if kind in {"interactive", "game"}:
+        return True
     text = " ".join(
         [
-            filename,
-            usage,
+            str(payload.get("filename") or "").strip().lower(),
+            str(payload.get("usage_example") or "").strip().lower(),
             str(payload.get("title") or ""),
             "\n".join(str(generated_code or "").splitlines()[:80]).lower(),
         ]
     )
-    looks_like_game = any(
-        token in text
-        for token in ("snake", "pong", "tetris", "game loop", "score:")
-    )
-    has_loop = any(marker in text for marker in _INTERACTIVE_SOURCE_MARKERS)
-    no_cli_args = not _invocation_from_usage_example(
-        payload.get("usage_example"), payload.get("filename") or "main.py"
-    )
-    return bool((looks_like_game or has_loop) and no_cli_args)
+    return any(marker in text for marker in _INTERACTIVE_INPUT_MARKERS)
 
 
 def _classify_artifact(
@@ -846,6 +838,37 @@ def _resolve_test_command(
     )
 
 
+def _select_sandbox_command(
+    *,
+    filename: str,
+    test_filename: str,
+    language: str,
+    settings: Any,
+    testdata_manifest: dict[str, Any],
+) -> tuple[str, bool]:
+    """Choose the sandbox command. Generated tests beat a default run_command.
+
+    ``RQCA_TEST_COMMAND_TEMPLATE`` is already preferred inside
+    ``_resolve_test_command``. A testdata default that just launches the
+    artifact must not hide pytest (or the language equivalent).
+    """
+    test_command = _resolve_test_command(
+        filename=filename,
+        test_filename=test_filename,
+        language=language,
+        settings=settings,
+    )
+    if test_command:
+        return test_command, True
+    return (
+        str(
+            testdata_manifest.get("run_command")
+            or _default_run_command(filename, language)
+        ),
+        False,
+    )
+
+
 async def run_runtime_qc(
     *,
     mission_id: str,
@@ -906,20 +929,34 @@ async def run_runtime_qc(
             reason="Docker not available.",
             artifact_smoke=artifact_smoke,
         )
-    # GUI, library, and server artifacts cannot be judged by "run until it
-    # exits". A GUI needs a display, a library has no entry point, and a server
-    # is supposed to keep running -- all three used to become started_only PASS
-    # or a 30s timeout FAIL. Parse-or-compile is the strongest honest check
-    # when we have one; otherwise DRY_RUN.
+    # GUI/library/server/interactive cannot be judged by run-to-exit. Prefer
+    # unit tests when present; otherwise parse-or-compile, or DRY_RUN.
     declared_dependencies = generated_output.get("dependencies")
     artifact_class = _classify_artifact(
         dependencies=declared_dependencies,
         generated_code=code,
         generated_output=generated_output if isinstance(generated_output, dict) else None,
     )
+    test_code = str((integration_tests or {}).get("test_code") or "")
+    test_filename = f"test_{filename}" if test_code.strip() else ""
+    test_command = _resolve_test_command(
+        filename=filename,
+        test_filename=test_filename,
+        language=normalized_language,
+        settings=settings,
+    )
     syntax_command = _SYNTAX_ONLY_COMMANDS.get(normalized_language)
     if artifact_class in {"gui", "library", "server", "interactive"}:
-        if syntax_command:
+        if test_command:
+            testdata_manifest = {
+                **testdata_manifest,
+                "base_image": testdata_manifest.get("base_image")
+                or (_LANGUAGE_RUNTIMES.get(normalized_language) or {}).get("base_image"),
+                "run_command": test_command,
+                "verified_scope": f"{normalized_language}-tests",
+                "artifact_class": artifact_class,
+            }
+        elif syntax_command:
             testdata_manifest = {
                 **testdata_manifest,
                 "base_image": testdata_manifest.get("base_image")
@@ -989,7 +1026,7 @@ async def run_runtime_qc(
         mission_id=mission_id,
         filename=filename,
         code=code,
-        test_code=str((integration_tests or {}).get("test_code") or ""),
+        test_code=test_code,
         testdata_manifest=testdata_manifest,
         language=normalized_language,
         settings=settings,
@@ -1120,13 +1157,19 @@ def _sandbox_verdict(
     A bare launch (no derived invocation) is not evidence either way: a CLI
     asked for a file path *should* exit non-zero when given none, and exit 0
     only proves the process started. Promoting that to PASS is how
-    ``started_only`` authorized delivery. Syntax-only checks are different --
-    they take no arguments by nature, so their exit code *is* the verdict.
+    ``started_only`` authorized delivery. A syntax-only compile success is
+    also not a functional PASS -- fail still means the artifact is broken.
     """
     if matched_failure_pattern:
         return "FAIL", False, None
     if syntax_only:
-        return ("PASS" if exit_matched else "FAIL"), exit_matched, None
+        if not exit_matched:
+            return "FAIL", False, None
+        return (
+            "DRY_RUN",
+            False,
+            "syntax-only check passed; no tests were executed",
+        )
     if not exercised:
         return (
             "DRY_RUN",
@@ -1153,19 +1196,12 @@ async def _execute_in_sandbox(
 ) -> dict[str, Any]:
     base_image = str(testdata_manifest.get("base_image") or "python:3.11-slim")
     test_filename = f"test_{filename}" if test_code.strip() else ""
-    # When a test file was generated, prefer running the language's test framework
-    # against it so pass/fail reflects assertions rather than "artifact exited 0".
-    # An explicit manifest run_command still wins for backwards compatibility.
-    test_command = _resolve_test_command(
+    run_command, tests_selected = _select_sandbox_command(
         filename=filename,
         test_filename=test_filename,
         language=language,
         settings=settings,
-    )
-    run_command = str(
-        testdata_manifest.get("run_command")
-        or test_command
-        or _default_run_command(filename, language)
+        testdata_manifest=testdata_manifest,
     )
     install_commands = [
         str(command) for command in (testdata_manifest.get("install_commands") or [])[:10]
@@ -1325,10 +1361,11 @@ async def _execute_in_sandbox(
     )
     expected_exit_code = int(testdata_manifest.get("expected_exit_code") or 0)
     exit_matched = exit_code == expected_exit_code
-    exercised = bool(testdata_manifest.get("invocation_args"))
-    # A parse-or-compile check has no arguments by nature, so "no invocation was
-    # derived" says nothing about it -- its exit code IS the verdict.
-    syntax_only = str(testdata_manifest.get("verified_scope") or "").endswith("syntax-only")
+    exercised = bool(testdata_manifest.get("invocation_args")) or tests_selected
+    syntax_only = (
+        str(testdata_manifest.get("verified_scope") or "").endswith("syntax-only")
+        and not tests_selected
+    )
 
     # Some runtimes report a fatal problem without a non-zero exit code, so the
     # exit code alone is not a verdict. Mathics is the case that forced this:
@@ -1374,7 +1411,9 @@ async def _execute_in_sandbox(
         # invoked the way its own usage example documents; "started_only" means
         # it was launched bare, so only startup was observed.
         "verified_scope_detail": (
-            "syntax_only" if syntax_only else ("executed" if exercised else "started_only")
+            "tests"
+            if tests_selected
+            else ("syntax_only" if syntax_only else ("executed" if exercised else "started_only"))
         ),
         "artifact_class": testdata_manifest.get("artifact_class"),
         "invocation_args": testdata_manifest.get("invocation_args") or [],
