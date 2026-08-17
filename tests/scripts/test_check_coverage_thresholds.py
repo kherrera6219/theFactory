@@ -181,7 +181,10 @@ def test_makefile_and_ci_keep_line_threshold_80() -> None:
         assert "sandbox_exec.py=90" in text
         assert "sandbox_runner.py=90" in text
         assert "sow_store.py=90" in text
-        assert "rqca_agent.py=70" in text
+        assert "sow_estimator.py=80" in text
+        assert "file_tree.py=80" in text
+        assert "rqca_agent.py=80" in text
+        assert "rqca_agent.py=70" not in text
 
 
 def test_branch_floor_fails_when_mixed_still_passes(tmp_path: Path, monkeypatch, capsys) -> None:

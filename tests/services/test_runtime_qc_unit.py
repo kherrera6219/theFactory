@@ -838,3 +838,284 @@ def test_no_tests_keeps_manifest_run_command() -> None:
     )
     assert tests_selected is False
     assert command == "python /workspace/snake.py"
+
+
+def test_unbalanced_usage_example_derives_nothing() -> None:
+    assert rqca_agent._invocation_from_usage_example('python add.py "oops', "add.py") == []
+
+
+def test_library_and_interactive_kinds_short_circuit() -> None:
+    assert rqca_agent._is_library_artifact({"kind": "library"}, "") is True
+    assert rqca_agent._is_library_artifact({}, "") is False
+    assert rqca_agent._is_interactive_artifact({"artifact_class": "game"}, "") is True
+
+
+def test_resolve_test_command_unknown_language_returns_none() -> None:
+    assert (
+        rqca_agent._resolve_test_command(
+            filename="Main.hs",
+            test_filename="MainSpec.hs",
+            language="haskell",
+            settings=SimpleNamespace(rqca_test_command_template=""),
+        )
+        is None
+    )
+
+
+def test_default_run_command_falls_back_to_cat() -> None:
+    assert rqca_agent._default_run_command("Main.hs", "haskell") == "cat /workspace/Main.hs"
+
+
+def test_html_smoke_degrades_when_inline_script_check_is_dry_run() -> None:
+    with patch.object(
+        rqca_agent,
+        "_node_syntax_check",
+        new=AsyncMock(
+            return_value={
+                "verdict": "DRY_RUN",
+                "passed": False,
+                "execution_type": "node_check_unavailable",
+            }
+        ),
+    ):
+        report = asyncio.run(
+            rqca_agent._build_artifact_smoke_report(
+                code="<!doctype html><html><body><script>const ok = 1;</script></body></html>",
+                filename="index.html",
+                language="javascript",
+                settings=SimpleNamespace(),
+            )
+        )
+    assert report["verdict"] == "DRY_RUN"
+    assert report["passed"] is False
+
+
+def test_run_runtime_qc_docker_unavailable_is_dry_run(monkeypatch) -> None:
+    async def _missing(_docker_bin: str = "docker") -> bool:
+        return False
+
+    monkeypatch.setattr(rqca_agent, "_check_docker_available", _missing)
+    result = asyncio.run(
+        rqca_agent.run_runtime_qc(
+            mission_id="mission-nodocker",
+            generated_output={"filename": "add.py", "generated_code": "print(1)\n"},
+            testdata_manifest={},
+            integration_tests=None,
+            language="python",
+            settings=SimpleNamespace(docker_bin="docker"),
+        )
+    )
+    assert result["verdict"] == "DRY_RUN"
+    assert "Docker not available" in str(result.get("dry_run_reason") or "")
+
+
+def test_run_runtime_qc_gui_without_tests_uses_syntax_only(monkeypatch) -> None:
+    captured: dict = {}
+
+    async def _present(_docker_bin: str = "docker") -> bool:
+        return True
+
+    async def _exec(**kwargs):
+        captured.update(kwargs["testdata_manifest"])
+        return {"verdict": "DRY_RUN", "passed": False, "execution_type": "docker_live"}
+
+    monkeypatch.setattr(rqca_agent, "_check_docker_available", _present)
+    monkeypatch.setattr(rqca_agent, "_execute_in_sandbox", _exec)
+    result = asyncio.run(
+        rqca_agent.run_runtime_qc(
+            mission_id="mission-gui",
+            generated_output={
+                "filename": "app.py",
+                "generated_code": "import pygame\npygame.init()\n",
+                "dependencies": ["pygame"],
+            },
+            testdata_manifest={},
+            integration_tests=None,
+            language="python",
+            settings=SimpleNamespace(docker_bin="docker", rqca_test_command_template=""),
+        )
+    )
+    assert result["verdict"] == "DRY_RUN"
+    assert str(captured.get("verified_scope") or "").endswith("syntax-only")
+
+
+def test_run_runtime_qc_library_without_syntax_template_is_dry_run(monkeypatch) -> None:
+    async def _present(_docker_bin: str = "docker") -> bool:
+        return True
+
+    monkeypatch.setattr(rqca_agent, "_check_docker_available", _present)
+    result = asyncio.run(
+        rqca_agent.run_runtime_qc(
+            mission_id="mission-lib",
+            generated_output={
+                "filename": "lib.go",
+                "generated_code": "package lib\nfunc Add(a, b int) int { return a + b }\n",
+                "artifact_class": "library",
+            },
+            testdata_manifest={},
+            integration_tests=None,
+            language="go",
+            settings=SimpleNamespace(docker_bin="docker", rqca_test_command_template=""),
+        )
+    )
+    assert result["verdict"] == "DRY_RUN"
+    assert "cannot be executed to completion" in str(result.get("dry_run_reason") or "")
+
+
+def test_run_runtime_qc_unmet_dependency_is_dry_run(monkeypatch) -> None:
+    async def _present(_docker_bin: str = "docker") -> bool:
+        return True
+
+    monkeypatch.setattr(rqca_agent, "_check_docker_available", _present)
+    result = asyncio.run(
+        rqca_agent.run_runtime_qc(
+            mission_id="mission-deps",
+            generated_output={
+                "filename": "cli.py",
+                "generated_code": "print('ok')\n",
+                "dependencies": ["requests"],
+            },
+            testdata_manifest={},
+            integration_tests=None,
+            language="python",
+            settings=SimpleNamespace(docker_bin="docker"),
+        )
+    )
+    assert result["verdict"] == "DRY_RUN"
+    assert "requests" in str(result.get("dry_run_reason") or "")
+
+
+def test_run_runtime_qc_fills_runtime_and_invocation(monkeypatch) -> None:
+    captured: dict = {}
+
+    async def _present(_docker_bin: str = "docker") -> bool:
+        return True
+
+    async def _exec(**kwargs):
+        captured.update(kwargs["testdata_manifest"])
+        return {"verdict": "PASS", "passed": True, "execution_type": "docker_live"}
+
+    monkeypatch.setattr(rqca_agent, "_check_docker_available", _present)
+    monkeypatch.setattr(rqca_agent, "_execute_in_sandbox", _exec)
+    result = asyncio.run(
+        rqca_agent.run_runtime_qc(
+            mission_id="mission-fill",
+            generated_output={
+                "filename": "add.py",
+                "generated_code": "import sys\nprint(int(sys.argv[1])+int(sys.argv[2]))\n",
+                "usage_example": "python add.py 1 2",
+            },
+            testdata_manifest={},
+            integration_tests={"test_code": "import unittest\n"},
+            language="python",
+            settings=SimpleNamespace(docker_bin="docker", rqca_test_command_template=""),
+        )
+    )
+    assert result["verdict"] == "PASS"
+    assert captured.get("invocation_args") == ["1", "2"]
+    assert "base_image" in captured
+    assert "run_command" in captured
+
+
+def test_execute_in_sandbox_pass_and_invalid_limits(monkeypatch) -> None:
+    from orchestrator.sandbox_exec import SandboxResult
+
+    async def _run(**_kwargs):
+        return SandboxResult(
+            exit_code=0,
+            stdout="ok\n",
+            stderr="",
+            timed_out=False,
+            timeout_seconds=30,
+            memory_limit_mb=256,
+            base_image="python:3.11-slim",
+        )
+
+    monkeypatch.setattr(rqca_agent, "run_in_sandbox", _run)
+    result = asyncio.run(
+        rqca_agent._execute_in_sandbox(
+            docker_bin="docker",
+            mission_id="mission-exec",
+            filename="add.py",
+            code="print(2)\n",
+            test_code="import unittest\nclass T(unittest.TestCase):\n    def test_ok(self):\n        self.assertTrue(True)\n",
+            testdata_manifest={
+                "timeout_seconds": "bad",
+                "memory_limit_mb": "nope",
+                "invocation_args": ["input.txt"],
+                "expected_exit_code": 0,
+                "failure_patterns": ["boom"],
+            },
+            language="python",
+            settings=SimpleNamespace(rqca_test_command_template=""),
+        )
+    )
+    assert result["verdict"] == "PASS"
+    assert result["execution_type"] == "docker_live"
+    assert result["exit_code"] == 0
+
+
+def test_execute_in_sandbox_timeout_is_not_a_fail(monkeypatch) -> None:
+    from orchestrator.sandbox_exec import SandboxResult
+
+    async def _run(**_kwargs):
+        return SandboxResult(
+            exit_code=124,
+            stdout="",
+            stderr="killed",
+            timed_out=True,
+            timeout_seconds=30,
+            memory_limit_mb=256,
+            base_image="python:3.11-slim",
+        )
+
+    monkeypatch.setattr(rqca_agent, "run_in_sandbox", _run)
+    result = asyncio.run(
+        rqca_agent._execute_in_sandbox(
+            docker_bin="docker",
+            mission_id="mission-to",
+            filename="loop.py",
+            code="while True: pass\n",
+            test_code="",
+            testdata_manifest={"run_command": "python /workspace/loop.py"},
+            language="python",
+            settings=SimpleNamespace(rqca_test_command_template=""),
+        )
+    )
+    assert result["verdict"] == "TIMEOUT"
+    assert result["passed"] is False
+
+
+def test_execute_in_sandbox_multi_container_without_compose_is_dry_run(monkeypatch) -> None:
+    monkeypatch.setattr(rqca_agent, "_compose_available", lambda: False)
+    result = asyncio.run(
+        rqca_agent._execute_in_sandbox(
+            docker_bin="docker",
+            mission_id="mission-compose",
+            filename="app.py",
+            code="print(1)\n",
+            test_code="",
+            testdata_manifest={
+                "multi_container": True,
+                "services": [{"name": "runner", "image": "python:3.11-slim"}],
+                "run_command": "python /workspace/app.py",
+            },
+            language="python",
+            settings=SimpleNamespace(rqca_test_command_template=""),
+        )
+    )
+    assert result["verdict"] == "DRY_RUN"
+    assert "compose plugin" in str(result.get("dry_run_reason") or "")
+
+
+def test_timeout_report_shape() -> None:
+    report = rqca_agent._timeout_report(
+        mission_id="mission-to",
+        language="python",
+        filename="loop.py",
+        timeout_seconds=30,
+        started_at="2026-08-17T00:00:00+00:00",
+    )
+    assert report["verdict"] == "TIMEOUT"
+    assert report["passed"] is False
+    assert report["execution_type"] == "docker_live"

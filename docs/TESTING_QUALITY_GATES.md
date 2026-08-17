@@ -145,8 +145,10 @@ The following files are individually gated by `scripts/check_coverage_thresholds
 | `services/orchestrator/orchestrator/sandbox_exec.py` | `90%` |
 | `services/orchestrator/orchestrator/sandbox_runner.py` | `90%` |
 | `services/orchestrator/orchestrator/sow_store.py` | `90%` |
+| `services/orchestrator/orchestrator/sow_estimator.py` | `80%` |
+| `services/orchestrator/orchestrator/file_tree.py` | `80%` |
 | `services/orchestrator/orchestrator/port_coordinator.py` | `80%` |
-| `services/orchestrator/orchestrator/rqca_agent.py` | `70%` (raise to 80% after the next RQCA helper pass) |
+| `services/orchestrator/orchestrator/rqca_agent.py` | `80%` |
 
 These floors preserve exhaustive coverage for narrow protocol/configuration modules and enforce maintained baselines for the larger runtime/worker entry points, which are covered primarily through broader service tests.
 

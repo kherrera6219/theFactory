@@ -6,6 +6,15 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Critical-file coverage floors at 80% (2026-08-17)
+
+#### Changed
+- `rqca_agent.py` floor raised from 70% to 80%. `sow_estimator.py` and
+  `file_tree.py` now have 80% floors. Every gated critical file is at
+  least 80%.
+- Added RQCA unit tests for docker-unavailable, GUI/library/unmet-dep
+  paths, and `_execute_in_sandbox` pass/timeout/compose-missing.
+
 ### Live PORT / fail-QC proof and 80% line floor (2026-08-17)
 
 #### Added

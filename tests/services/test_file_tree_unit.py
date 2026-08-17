@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 
 from orchestrator.file_tree import (  # noqa: E402
     codegen_bundle_from_result,
+    first_filename,
     normalize_codegen_files,
     parse_file_tree,
     sanitize_rel_path,
@@ -61,3 +62,17 @@ def test_codegen_bundle_prefers_files_array() -> None:
     assert "## FILE pkg/a.py" in bundle
     assert "## FILE pkg/b.py" in bundle
     assert len(files) == 2
+
+
+def test_first_filename_and_empty_inputs() -> None:
+    assert first_filename([], "dir/fallback.py") == "fallback.py"
+    assert first_filename([{"path": "pkg/main.go", "content": "package main\n"}], "x.py") == "main.go"
+    assert parse_file_tree("") == []
+    assert serialize_file_tree([]) == ""
+    assert normalize_codegen_files(None) == []
+    assert normalize_codegen_files([{"path": "dup.py", "content": "a"}, {"path": "dup.py", "content": "b"}]) == [
+        {"path": "dup.py", "content": "a"}
+    ]
+    bundle, files = codegen_bundle_from_result({}, "print('single')\n")
+    assert files == []
+    assert bundle == "print('single')\n"

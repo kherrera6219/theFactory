@@ -49,7 +49,8 @@ It now probes `SANDBOX_EXECUTOR_URL`. Python QC tests run via stdlib
 `unittest` because `python:3.11-slim` has no pytest.
 
 **Coverage line floor** is locked in tests: mixed >80% cannot hide line
-<80%; Makefile and CI must keep `--line-threshold 80`.
+<80%; Makefile and CI must keep `--line-threshold 80`. Every critical
+file is floored at **at least 80%** (`rqca_agent` raised from 70%).
 
 **Next action:** EDCP live-bus, failure injection, provider fallback.
 Chat ZIP through the UI (this proof used the same SOW+mission APIs the

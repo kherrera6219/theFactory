@@ -70,7 +70,8 @@ Live PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded in
 Coverage standard (2026-08-17): keep the 80% mixed floor; **also fail
 line <80% or branch <70%**. Privilege/money/PORT files have their own
 floors (`sandbox_exec`/`sandbox_runner` 90%, `sow_store` 90%,
-`port_coordinator`/`toolchains` 80%, `rqca_agent` 70%). Mission Control
+`port_coordinator`/`toolchains`/`sow_estimator`/`file_tree`/`rqca_agent` 80%).
+Every critical file is floored at **at least 80%**. Mission Control
 measures `app/lib/**` via `npm run test:coverage`. A red suite does not
 count as an 80% pass. `test_line_floor_fails_when_mixed_still_passes`
 and `test_makefile_and_ci_keep_line_threshold_80` lock the line floor.

@@ -250,6 +250,7 @@ The pod-worker extracts concepts from source code using regex by default. Three 
 - Coverage policy: backend **line ≥80%**, **branch ≥70%**, mixed ≥80%, plus
   per-module floors (sandbox/SOW/PORT/RQCA/toolchains and the original
   protocol/runtime files) via `scripts/check_coverage_thresholds.py`.
+  Every critical file is floored at **at least 80%** (`rqca_agent` included).
   Mixed above 80% cannot hide line below 80%
   (`test_line_floor_fails_when_mixed_still_passes`). Makefile and CI must
   keep `--line-threshold 80`. Mission Control: Vitest coverage on

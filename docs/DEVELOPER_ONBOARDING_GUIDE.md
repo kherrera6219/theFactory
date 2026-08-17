@@ -184,7 +184,8 @@ make test
 Runs pytest with `--cov-fail-under=80` plus `scripts/check_coverage_thresholds.py`.
 Gates: **line ≥80%**, **branch ≥70%**, **mixed ≥80%**, plus per-module floors
 on privilege / money / PORT files (`sandbox_exec` 90%, `sow_store` 90%,
-`port_coordinator` 80%, `rqca_agent` 70%). A mixed score above 80% cannot
+`port_coordinator` / `sow_estimator` / `file_tree` / `rqca_agent` 80%).
+Every critical file is floored at **at least 80%**. A mixed score above 80% cannot
 hide a line score below 80%. Latest sweep (2026-08-17): line **85.80%**,
 branch **72.82%**, mixed **82.72%**.
 

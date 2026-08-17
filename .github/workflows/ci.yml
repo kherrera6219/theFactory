@@ -136,8 +136,10 @@ jobs:
             --module-threshold services/orchestrator/orchestrator/sandbox_exec.py=90 \
             --module-threshold services/orchestrator/orchestrator/sandbox_runner.py=90 \
             --module-threshold services/orchestrator/orchestrator/sow_store.py=90 \
+            --module-threshold services/orchestrator/orchestrator/sow_estimator.py=80 \
+            --module-threshold services/orchestrator/orchestrator/file_tree.py=80 \
             --module-threshold services/orchestrator/orchestrator/port_coordinator.py=80 \
-            --module-threshold services/orchestrator/orchestrator/rqca_agent.py=70
+            --module-threshold services/orchestrator/orchestrator/rqca_agent.py=80
 
       - name: Upload Test Artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5

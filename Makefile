@@ -101,8 +101,10 @@ test:
 		--module-threshold services/orchestrator/orchestrator/sandbox_exec.py=90 \
 		--module-threshold services/orchestrator/orchestrator/sandbox_runner.py=90 \
 		--module-threshold services/orchestrator/orchestrator/sow_store.py=90 \
+		--module-threshold services/orchestrator/orchestrator/sow_estimator.py=80 \
+		--module-threshold services/orchestrator/orchestrator/file_tree.py=80 \
 		--module-threshold services/orchestrator/orchestrator/port_coordinator.py=80 \
-		--module-threshold services/orchestrator/orchestrator/rqca_agent.py=70
+		--module-threshold services/orchestrator/orchestrator/rqca_agent.py=80
 
 test-ui:
 	cd apps/mission-control && npm run lint && npm run test
