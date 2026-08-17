@@ -770,7 +770,7 @@ python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
 The live run is the launch-demo proof point. It requires a running stack and
 provider-key configuration when generated LLM output is part of the claim.
 
-**Validation snapshot (2026-08-17):** Live BUILD_NEW evidence includes Go `mission-f8a5accf` (`docs/evidence/s1_01_live_generation_go_20260811.json`), chat-driven PyQt6 `mission-e42fd7e2`, and stdlib Snake `mission-911a6b3f`. Honesty/QC follow-up is on `main` (PR #460). PM SOW + Chat ZIP + sandbox-runner are on `grok/end-state-factory`. Older Phase 13 / non-ASCII smokes remain on disk. `production_review_audit.py` 23/23 is a hygiene check, not a release certificate. Still open: PORT/transform live proof through Chat SOW, failure injection, provider fallback, and EDCP live-bus.
+**Validation snapshot (2026-08-17):** Live BUILD_NEW evidence includes Go `mission-f8a5accf` (`docs/evidence/s1_01_live_generation_go_20260811.json`), chat-driven PyQt6 `mission-e42fd7e2`, and stdlib Snake `mission-911a6b3f`. Honesty/QC follow-up is on `main` (PR #460). PM SOW, Chat ZIP import, file-tree delivery, quoted-vs-actual cost, and `sandbox-runner` are on `main`. Older Phase 13 / non-ASCII smokes remain on disk. `production_review_audit.py` 23/23 is a hygiene check, not a release certificate. Still open: PORT/transform live proof through Chat SOW, failure injection, provider fallback, and EDCP live-bus.
 
 ---
 

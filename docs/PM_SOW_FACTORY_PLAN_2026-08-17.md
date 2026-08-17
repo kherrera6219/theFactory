@@ -185,7 +185,9 @@ project quote.”
 
 ### P4 — Ship locally
 
-- Sandbox off orchestrator `docker.sock` onto `agent-41-rqca`.
+- Sandbox off orchestrator `docker.sock` onto `sandbox-runner`
+  (`SANDBOX_EXECUTOR_URL`). AGENT-41-RQCA still owns the verdict. **Done
+  in condensed topology.**
 - One live EDCP mission only.
 - Deeper PORT/Python first.
 

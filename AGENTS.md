@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-08-17 against `main` at `0b6ee4c` (PR #460: honesty gates, Gemini 3.7 Flash, tests-as-QC).
+> Last validated: 2026-08-17 against `main` after the PM SOW / Chat ZIP / sandbox-runner merge (built on PR #460 honesty gates, Gemini 3.7 Flash, tests-as-QC).
 
 ---
 
@@ -21,12 +21,16 @@ Two documents are canonical for all forward work:
 **Progress as of 2026-08-17:** Phases 1–5 and 7 **done**; Phase 2 **done
 including UPG-20** (`docs/evidence/s1_01_live_generation_go_20260811.json`).
 Phase 6 (EDCP-02a) is implemented but off and not live-bus proven. Honesty
-gates, Gemini 3.7 Flash, and tests-as-QC are on `main` (PR #460). **Next is
-the remaining live-proof matrix and a one-mission EDCP live-bus run** — see
-`docs/WORK_QUEUE.md`.
+gates, Gemini 3.7 Flash, and tests-as-QC are on `main` (PR #460). The PM
+SOW factory (P0–P4) is in code: Chat ZIP / repo handoff, file-tree
+delivery, quoted-vs-actual cost, change orders, and `sandbox-runner`
+owning `docker.sock`. **Next is live proof of that path, then a
+one-mission EDCP live-bus run** — see `docs/WORK_QUEUE.md`.
 
 > **Executing generated code goes through `orchestrator/sandbox_exec.py` and
-> nowhere else.** RQCA and behavioural equivalence share one hardened
+> nowhere else.** In compose the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`
+> (`sandbox-runner`); only that service mounts `docker.sock` and runs
+> `docker`. RQCA and behavioural equivalence still share one hardened
 > invocation. Do not add a second `docker run` command line, and do not relax
 > any flag in `SANDBOX_SECURITY_FLAGS` — a test fails if you do.
 
@@ -39,8 +43,8 @@ plan statement — rule 1 below is not a formality here.
 
 **Next action:**
 
-- Remaining live-proof matrix (PORT/transform, failure injection, provider
-  fallback) — `docs/WORK_QUEUE.md` item 5.
+- Rebuild the stack so `sandbox-runner` and Chat ZIP are live, then prove
+  Chat SOW + ZIP PORT/update through Accept SOW (`docs/WORK_QUEUE.md` item 5).
 - Then **Phase 6 live-bus**: `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true` on
   **one** mission. EDCP-02a is already in code. Before exercising it, read
   `docs/PROTOCOL_ENVELOPES.md` §4: the two transports join by **prefix

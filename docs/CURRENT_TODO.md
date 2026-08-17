@@ -20,10 +20,9 @@ update. They get a real Statement of Work — including a factory cost
 estimate — **before** they approve. Work is tested, QC'd, and saved locally.
 
 Canonical plan: [`docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`](PM_SOW_FACTORY_PLAN_2026-08-17.md).
-**Implementation continued on `grok/end-state-factory`.** P0–P4 are in
-code: Chat ZIP attach + repo page handoff into the PM SOW; codegen can
-emit a file tree; CostPanel shows quoted vs actual vs cap; continue-with-PM
-is a change order; sandbox `docker.sock` moved off the orchestrator onto
+**P0–P4 are on `main`.** Chat ZIP attach + repo page handoff into the PM
+SOW; codegen can emit a file tree; CostPanel shows quoted vs actual vs
+cap; continue-with-PM is a change order; sandbox `docker.sock` lives on
 `sandbox-runner` (`SANDBOX_EXECUTOR_URL`). Local `.env` enforcement is
 `true` (gitignored). Rebuild compose so the runner and Chat ZIP path are
 live.
@@ -54,8 +53,8 @@ A checked-in local `.env` may still set `false` — FAIL will not block delivery
 until that line is `true`. Do not treat the local override as the product
 default.
 
-**On GitHub:** `main` is at `0b6ee4c` (merged #460). Branch
-`grok/review-findings-qc-wiring`.
+**On GitHub:** `main` includes the PM SOW factory and `sandbox-runner`
+(this merge), built on PR #460 (`0b6ee4c`).
 
 **Still owed after the SOW factory (see `docs/WORK_QUEUE.md`):** remaining
 live-proof matrix (PORT/transform through the new PM SOW path, failure

@@ -27,8 +27,8 @@ implemented?" without re-reading the corpus.
 Then `docs/CURRENT_TODO.md` → "Active Work Queue", `docs/WORK_QUEUE.md`
 for the ordered next items, and
 `docs/PM_SOW_FACTORY_PLAN_2026-08-17.md` for the **current initiative**
-(PM SOW + factory cost estimate + import-through-chat). P0–P4 are in
-code on `grok/end-state-factory`; live proof of Chat ZIP / PORT is still owed.
+(PM SOW + factory cost estimate + import-through-chat). P0–P4 are on
+`main`; live proof of Chat ZIP / PORT is still owed.
 
 The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1x`
 is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
@@ -37,7 +37,7 @@ is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
 **UPG-20 / S1-01 is closed (2026-08-12).** Phase 6 is implemented but off
 (`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`) and not live-bus proven.
 
-### What happened on 2026-08-17 (most recent) — plan only
+### What happened on 2026-08-17 (most recent) — SOW factory on `main`
 
 The operator chose the end state: a 41-role factory whose **face** is the PM
 agent. Users create new software **or** import existing software for rework /
@@ -45,10 +45,9 @@ port / update through that PM, see a real SOW (scope, out of scope,
 deliverables, acceptance, **factory cost range + cap**) before they approve,
 then get tested/QC'd work saved locally.
 
-Plan: `docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`. P0–P4 are implemented on
-`grok/end-state-factory` (built on the earlier PM SOW slice). Chat is the
-front door for new **and** import (ZIP attach + repo page **Draft SOW with
-PM**). Delivery writes a file tree when codegen/SOW promises one.
+Plan: `docs/PM_SOW_FACTORY_PLAN_2026-08-17.md`. P0–P4 are on `main`. Chat
+is the front door for new **and** import (ZIP attach + repo page **Draft
+SOW with PM**). Delivery writes a file tree when codegen/SOW promises one.
 CostPanel shows quoted vs actual vs cap. Continue-with-PM is a change
 order. Condensed compose mounts `docker.sock` on `sandbox-runner` only;
 the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`. Rebuild required.
