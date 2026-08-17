@@ -1013,21 +1013,21 @@ theFactory/
 
 ## Current Status
 
-Current state (2026-08-03): **active development, feature-complete against the
+Current state (2026-08-17): **active development, feature-complete against the
 v1.3 mission-pipeline scope.** Infrastructure, security, the protocol bus, the
 data plane, the operator UI, and the test surface are mature and CI-verified.
-The semantic engine is partially realised and honestly labelled. The system is
-**not production-ready**: the outstanding gate is live end-to-end evidence from a
-non-trivial mission.
+The semantic engine is partially realised and honestly labelled. Live BUILD_NEW
+missions have reached `COMPLETE`. The system is **not production-ready**.
 
 | Maturity Area | Status | Status Details |
 | --- | --- | --- |
-| **Core Software Engine** | **Complete for v1.3 scope** | 11-phase Smelt cycle, 41-agent registry, 6 Redis protocols, AST parsers for Python/TS/Java/Go/Haskell/OCaml/Julia, downstream Helm & GitHub Actions exporters, and Gemini primary model routing are operational. |
-| **Semantic depth** | **Partially realised; remainder scoped out** | Real AST-recovered types, op streams, purity, and behavioural equivalence — for **Python, Java, and Haskell**. Other languages emit honestly-labelled `templated_v1` output. Superseded or Deferred by recorded decision: four-pod comprehension, Doc 30 registry, binary/LLVM output, the 0.0001% tolerance. See the [reconciliation ADR](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md). |
-| **Live mission evidence** | **Outstanding** | The current proof is a 22-line string reverser. A non-trivial multi-criterion mission has not yet run end to end; this blocks the event-driven control-plane work. |
-| **Audit & Quality Standards** | **Passing** | 23/23 production audit checks, 100% line / 99% branch coverage on `runtime.py`, >=80% backend coverage, 1,883 backend + 146 UI tests green, 0 SAST/SCA/secret/license findings. |
-| **Desktop Packaging Path** | **Built** | Standalone Next.js production build, Docker Desktop & WSL2 preflight diagnostics (`diagnostics.ts`), custom Electron titlebar, system tray, and native file dialogs. Installer buildout is still outstanding. |
-| **CI & Release Pipeline** | **Green** | GitHub Actions green across Python 3.11 lint/test, CodeQL, Bandit SAST, Trivy, Node License Scanner, 7 Docker build validations, and the Release Trust & Promotion Gate. |
+| **Core Software Engine** | **Complete for v1.3 scope** | Mission Flow v2 default, 41-agent registry, 6 Redis protocols, real AST for Python/JS/TS/Java, regex parsers for Go/Haskell/OCaml/Julia, Helm & GitHub Actions exporters, Gemini 3.7 Flash default route. |
+| **Semantic depth** | **Partially realised; remainder scoped out** | Real AST-recovered types, op streams, purity, and behavioural equivalence — type recovery for **Python, Java, and Haskell**. Other languages emit honestly-labelled `templated_v1` output. BUILD_NEW does not extract LogicNodes. See the [reconciliation ADR](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md). |
+| **Live mission evidence** | **S1-01 captured; matrix still open** | Go `mission-f8a5accf`, chat PyQt6 `mission-e42fd7e2`, Snake `mission-911a6b3f`. Still owed: PORT/transform, failure injection, provider fallback. EDCP is in code, off, not live-bus proven. |
+| **Runtime QC honesty** | **Shipped (PR #460)** | Generated tests are the sandbox command. `started_only` / syntax-only are ADVISORY. Unmet offline deps are DRY_RUN. Compose default `RQCA_ENFORCEMENT_ENABLED=true`. |
+| **Audit & Quality Standards** | **Hygiene green, not a release certificate** | `production_review_audit.py` is a static file/string check. Coverage floor 80%; `runtime.py` 100% line / 99% branch. Mission Control 146 Vitest tests. Do not cite 23/23 or “0 SAST findings” as release evidence. |
+| **Desktop Packaging Path** | **Web path is primary** | `start_app.bat` launches Docker + browser. Electron uses `/api/gateway`. Installer signing and uninstall hooks remain open. |
+| **CI & Release Pipeline** | **Mostly green** | Lint/test, CodeQL, Docker builds, and the promotion gate run in Actions. Bandit can still fail on pre-existing findings; Dependabot currently reports open high-severity alerts. |
 
 ---
 
