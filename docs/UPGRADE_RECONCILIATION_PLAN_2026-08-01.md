@@ -268,11 +268,14 @@ which is a repo file map and does not serve this purpose.
 
 ## 5. Phase 2 — Foundation truth and cheap corrections
 
-> **◐ PARTIAL — 2026-08-01. UPG-21, UPG-22, UPG-23 are DONE. UPG-20 is NOT
-> STARTED** and requires a running stack (see below).
+> **DONE — 2026-08-12. UPG-21, UPG-22, UPG-23 landed 2026-08-01. UPG-20
+> durable evidence landed 2026-08-12**
+> (`docs/evidence/s1_01_live_generation_go_20260811.json`). Phase 6 is no
+> longer blocked on S1-01; EDCP-02a is in code but off
+> (`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`) and not live-bus proven.
 >
-> Exit criteria 2, 3, 4, 5 met. **Criterion 1 (S1-01 evidence) is outstanding
-> and remains the hard blocker for Phase 6.**
+> Historical note (2026-08-01): exit criteria 2–5 met first; criterion 1
+> (S1-01 evidence) was the remaining blocker until 2026-08-12.
 >
 > **UPG-22 turned out to be a live bug, not cosmetic drift.**
 > `DEFAULT_EVENT_PRIORITY` is operator-settable and was written into the event

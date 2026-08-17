@@ -32,8 +32,11 @@ live lane traffic to validate against.
 > silently complete") on a seam where failure is recoverable, before betting the
 > PM→CEO handoff on it.
 >
-> The hard prerequisite below is tracked as **UPG-20** in that plan.
-> Everything else in this document stands as written.
+> The hard prerequisite below was tracked as **UPG-20**. That evidence file
+> landed 2026-08-12 (`docs/evidence/s1_01_live_generation_go_20260811.json`).
+> EDCP-02a is in code; remaining work is a live-bus run with
+> `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true`. Everything else in this document
+> stands as written.
 
 ---
 

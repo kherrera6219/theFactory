@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-08-15 against actual codebase (review-fixes honesty gates).
+> Last validated: 2026-08-17 against `main` at `0b6ee4c` (PR #460: honesty gates, Gemini 3.7 Flash, tests-as-QC).
 
 ---
 
@@ -18,10 +18,12 @@ Two documents are canonical for all forward work:
 | `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md` | The read-only audit behind it: 143 design documents vs live source, with file/line evidence. |
 | `docs/DESIGN_TRACEABILITY.md` | Design document 01–64 → status → implementing module → evidence. Answers "where is Doc N implemented?" without re-reading the corpus. |
 
-**Progress as of 2026-08-03:** Phases 1, 3, 4, 5, 7 **done**; Phase 2 **done
-except UPG-20**; Phase 6 blocked by UPG-20. Backend 1843 passed / Mission
-Control 146 passed / 0 failed. **All offline work is complete** — what remains
-needs the live stack.
+**Progress as of 2026-08-17:** Phases 1–5 and 7 **done**; Phase 2 **done
+including UPG-20** (`docs/evidence/s1_01_live_generation_go_20260811.json`).
+Phase 6 (EDCP-02a) is implemented but off and not live-bus proven. Honesty
+gates, Gemini 3.7 Flash, and tests-as-QC are on `main` (PR #460). **Next is
+the remaining live-proof matrix and a one-mission EDCP live-bus run** — see
+`docs/WORK_QUEUE.md`.
 
 > **Executing generated code goes through `orchestrator/sandbox_exec.py` and
 > nowhere else.** RQCA and behavioural equivalence share one hardened
@@ -35,14 +37,14 @@ audit and plan" section, `docs/PROTOCOL_ENVELOPES.md` §4, and the per-phase
 status blocks in the plan itself. Verify against live source before trusting a
 plan statement — rule 1 below is not a formality here.
 
-**Next action — two options, neither blocking the other:**
+**Next action:**
 
-- **UPG-20** — live-mission S1-01 evidence. Needs a running stack and makes real
-  paid LLM calls. **Hard blocker for Phase 6 (EDCP)**, and the last item in the
-  upgrade plan that is not done.
-- Then **Phase 6 (EDCP)**, starting with the inserted EDCP-02a Delta consumer.
-  Before writing it, read `docs/PROTOCOL_ENVELOPES.md` §4: the two transports
-  join by **prefix parse, never equality**, and a consumer that queries
+- Remaining live-proof matrix (PORT/transform, failure injection, provider
+  fallback) — `docs/WORK_QUEUE.md` item 5.
+- Then **Phase 6 live-bus**: `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true` on
+  **one** mission. EDCP-02a is already in code. Before exercising it, read
+  `docs/PROTOCOL_ENVELOPES.md` §4: the two transports join by **prefix
+  parse, never equality**, and a consumer that queries
   `correlation_id == mission_id` finds nothing and fails silently.
 
 Work item IDs are `UPG-<phase><item>` — `UPG-2x` is Phase 2, `UPG-3x` is

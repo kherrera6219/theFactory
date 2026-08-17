@@ -1,7 +1,7 @@
 # Combined Work Queue
 
-Document version: 2026.08.11
-Last updated: 2026-08-11
+Document version: 2026.08.17
+Last updated: 2026-08-17
 Status: Canonical execution order
 Audience: Maintainers and AI coding agents
 
@@ -107,23 +107,31 @@ Cheap self-contained hardening follows, then evidence, then features.
   agree on **2026-08-11**. Docs written earlier in the session carried
   2026-08-06, taken from a container timestamp read during a long-running
   session; 19 occurrences corrected.
+- [x] **P1 — no install into `--network=none`** *(2026-08-12)*. Unmet
+  third-party deps are DRY_RUN, never PASS.
+- [x] **P2 — classify before verifying** *(2026-08-12, tightened 2026-08-17)*.
+  CLI / GUI / library / server / interactive. `while True` and bare `.listen(`
+  are not enough. Syntax-only success is ADVISORY. Generated tests run when
+  present.
+- [x] **P3 — approval-shaped chat confirm** *(2026-08-12, `d84d64e`)*.
+- [x] **Honesty / Gemini 3.7 / tests-as-QC** *(2026-08-16/17, PR #460)*.
+  `started_only` never PASS; all agents on `gemini-3.7-flash`; Tester output
+  is the sandbox command; `main` at `0b6ee4c`.
 
 ---
 
-## Next up — P1-P4 from the chat-to-mission run (2026-08-12)
+## Next up
 
-The first chat-driven mission worked end to end and exposed five defects. Full
-write-up and plan: `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md`.
+P1–P3 from `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md` are **done**. P4
+(re-run) was exercised as Snake `mission-911a6b3f` and a follow-up review;
+remaining honesty holes from that run shipped in PR #460.
 
-| | Fix | Why it ranks here |
-|---|---|---|
-| **P1** | Stop emitting `pip install` / `npm install` into an offline sandbox; report unmet dependencies as DRY_RUN, never PASS | Produced a wasted run, a misattributed reason in evidence, and a PASS on an artifact that never executed |
-| **P2** | Classify the artifact before choosing a verification strategy — CLI / GUI / library / server | A PyQt6 app cannot be verified by execution at all; it should reach `compiled_only` |
-| **P3** | Require approval-shaped confirmation in chat rather than a `"proceed"` substring | A mis-fire launches a build the user did not ask for |
-| **P4** | Re-run the same scenario and confirm all three | |
+**Current next items:** WORK_QUEUE #5 remainder (PORT/transform, failure
+injection, provider fallback), then #6 live-bus (`EVENT_DRIVEN_CONTROL_PLANE_ENABLED`),
+then #11 (sandbox out of the orchestrator).
 
-`RQCA_ENFORCEMENT_ENABLED` stays `false` until P1 lands: a PASS on an artifact
-that never ran is exactly the wrong verdict enforcement would act on.
+Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still
+set `false` — that override is not the product default.
 
 ---
 
@@ -171,12 +179,11 @@ non-compiling artifacts still FAIL.
 
 ### On `RQCA_ENFORCEMENT_ENABLED`
 
-Still `false`, but the blocker is now removed rather than outstanding. Before
-flipping it, run a handful of missions across languages — one Go mission is one
-data point, and enabling enforcement on that basis would repeat the pattern this
-queue exists to break. Watch for `verified_scope_detail: "started_only"` on
-missions that should have been exercised; that indicates a usage example the
-derivation did not understand.
+**Superseded 2026-08-17.** The shipped default is `true`. FAIL blocks;
+`started_only`, syntax-only, `DRY_RUN`, `SKIPPED`, and `ADVISORY` do not.
+A local `.env` may still pin `false`. Watch for `verified_scope_detail:
+"started_only"` on missions that should have been exercised — that means
+the usage example did not yield invocation args and tests did not run.
 
 ---
 
@@ -201,22 +208,12 @@ reachable. Two things came out of the first two live runs, in order:
    `_LANGUAGE_RUNTIMES` table was bypassed. It now delegates to that table, and a
    guard test fails if the two split again.
 
-2. **A false FAIL, still open.** With the real command
-   (`go build -o /tmp/a.out … && /tmp/a.out`) the program genuinely compiled and
-   ran — and exited 1 with
-   `"Error: missing file path argument
-Usage: /tmp/a.out <filepath>"`.
-   That is the generated code behaving **correctly**: the prompt asked for a tool
-   that takes a file path and exits non-zero when it cannot read one. The harness
-   simply invoked it with no arguments and no input file.
-
-   So runtime QC currently mis-scores every CLI program that takes input.
-   Supplying invocation arguments and fixtures is exactly what the **testdata
-   agent** exists for, and it is off. Options: enable `TESTDATA_AGENT_ENABLED`,
-   or give `_LANGUAGE_RUNTIMES` a per-mission default invocation. **Do not turn
-   `RQCA_ENFORCEMENT_ENABLED` back on until this is settled** — it is currently
-   `false` in `.env` for exactly this reason, and enforcing today would block
-   every argument-taking CLI mission on a verdict that is wrong.
+2. **A false FAIL, closed 2026-08-12.** With the real command the program
+   compiled and ran, then exited 1 with `"Error: missing file path argument"` —
+   correct behaviour for a tool invoked with no arguments. Arguments are now
+   derived from `usage_example` and file operands are materialised. Verified
+   on `mission-03f88983`. **Do not treat the 2026-08-12 "leave enforcement
+   off" note as current** — the shipped default is `true` as of 2026-08-17.
 
 The sequence is worth noting: opening the gate produced a false PASS, fixing that
 produced a false FAIL, and only the second run showed real execution. Neither

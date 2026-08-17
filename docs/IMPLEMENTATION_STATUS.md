@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.08.16
-Last updated: 2026-08-16
+Document version: 2026.08.17
+Last updated: 2026-08-17
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -88,7 +88,7 @@ The application currently includes:
 | Audit & Quality Standards | **Hygiene green, not a release certificate** | `production_review_audit.py` is a static file/string check. Backend coverage floor 80%, Mission Control Vitest suite exists. Do not cite 23/23 as the release gate. |
 | Data plane | **Do not grow** | Postgres, Redis, Qdrant, Milvus, Neo4j, and MinIO already ship. BUILD_NEW does not need more stores. Add a consumer before adding an engine. |
 | Orchestrator docker.sock | **Accepted local grant; must not ship** | `deploy/docker-compose.yaml` mounts `/var/run/docker.sock` and `group_add: "0"`. Move sandbox execution to `agent-41-rqca` before any non-local profile (`docs/WORK_QUEUE.md` item 11). |
-| BUILD_NEW agent honesty (2026-08-16) | **Shipped** | Snake mission `mission-911a6b3f` showed a working prompt-chain and four role failures: specialist plan was persona boilerplate, pod-audit scored 0.96 on empty LogicNodes, Tester wrote tests after QC, PM injected arcade/packaging questions on a fully specified stdlib game. Specialist plans now derive from the contract when the LLM emits IR/PEP boilerplate; pod-audit is WARN/unscored without extracted nodes; integration tests generate before RQCA; interactive games classify as `interactive` (syntax-only); specified CLI/stdlib games no longer get generic product questions. |
+| BUILD_NEW agent honesty (2026-08-16/17) | **Shipped on `main` (PR #460)** | Snake `mission-911a6b3f` showed a working prompt-chain and four role failures. Specialist plans derive from the contract when the LLM emits IR/PEP boilerplate; pod-audit is WARN/unscored without extracted nodes; specified CLI/stdlib games no longer get generic product questions. Follow-up: generated tests run **as** the sandbox command (not after QC, not overwritten by a testdata default `run_command`); syntax-only success is ADVISORY; `while True` / bare `.listen(` no longer force compile-only; cached `started_only` PASS reports are re-assessed. |
 | Desktop Packaging Path | **Web path is primary** | `start_app.bat` launches Docker + browser. Electron exists and now uses the Next.js `/api/gateway` proxy (it previously called `:8100` with no API key). Installer signing and uninstall hooks remain open. |
 
 

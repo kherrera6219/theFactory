@@ -1,7 +1,7 @@
 # Current TODO
 
-Document version: 2026.08.05
-Last updated: 2026-08-05
+Document version: 2026.08.17
+Last updated: 2026-08-17
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -12,6 +12,36 @@ as current work.
 ---
 
 ## Current Status
+
+**NEW — 2026-08-16/17: honesty gates, Gemini 3.7 Flash, and tests-as-QC
+landed on `main` (PR #460, `0b6ee4c`).** Session work after the 2026-08-12
+gates-opened pass. Live Snake mission
+`mission-911a6b3f-06a7-451f-a49b-57f6cc73a951` reached `COMPLETE` and exposed
+four role failures; those plus a follow-up code review were fixed and rebuilt
+into the full-dedicated stack.
+
+| What shipped | Detail |
+|---|---|
+| Honesty gates | `started_only` is `DRY_RUN` / `ADVISORY`, never PASS. Agent-off + `RQCA_ENFORCEMENT_ENABLED` is not-ready (skip is not a QC result). `AUTH_MODE` fails in every environment; `check_env.py` validates `AUTH_MODE` and rejects empty `SANDBOX_WORKSPACE_HOST_ROOT=`. |
+| Gemini 3.7 Flash | All agent routes, vault, gateway allow-list, compose, and cost ledger. |
+| BUILD_NEW role honesty | Specialist IR/PEP boilerplate is replaced from the contract; pod-audit is WARN/unscored on empty or routing-stub LogicNodes; specified stdlib/CLI games no longer get arcade PM questions. |
+| Tests are the QC command | Integration tests generate **before** the testdata manifest. `_select_sandbox_command` prefers pytest (or the language equivalent) over a default `run_command`. Interactive/gui/server/library run those tests when present; syntax-only success is ADVISORY. `while True` and bare `.listen(` no longer force compile-only. Cached `started_only` PASS reports are re-assessed. |
+| Electron dual-launch | Packaged Mission Control uses `/api/gateway`, not a bare `:8100` call. |
+
+**Local `.env` override:** compose default is `RQCA_ENFORCEMENT_ENABLED=true`.
+A checked-in local `.env` may still set `false` — FAIL will not block delivery
+until that line is `true`. Do not treat the local override as the product
+default.
+
+**On GitHub:** `main` is at `0b6ee4c` (merged #460). Branch
+`grok/review-findings-qc-wiring`.
+
+**Next action (see `docs/WORK_QUEUE.md`):** remaining live-proof matrix
+(PORT/transform, failure injection, provider fallback); then Phase 6 EDCP
+live-bus exercise; then move sandbox execution out of the orchestrator
+(`WORK_QUEUE` item 11 — do not ship `docker.sock`).
+
+---
 
 **NEW — 2026-08-05: legal-hold audit artifacts were never being stored, and the
 two live test suites never authenticated.** Both were silent failures that a
@@ -249,16 +279,18 @@ widened additively, and a concept→function correlation step was added (nodes a
 built per concept, signatures are per function, and the two arrive as unlinked
 sibling lists). The correlation refuses to guess and cannot invent types.
 
-**Next action: UPG-20** — the one remaining Phase 2 item and the **hard blocker
-for Phase 6 (EDCP)**. Requires the live stack (Docker Desktop was not running on
-2026-08-01). Run a *non-trivial* `BUILD_NEW` mission — multiple acceptance
-criteria and a required artifact format, not another string reverser — through
-to `COMPLETE`, and commit the result as
-`docs/evidence/s1_01_live_generation_2026-08-XX.json`. **Stack ops: both former footguns are fixed
-(2026-08-03).** Teardown now preserves volumes by default (`make down-wipe` or
-`force_stop.py --wipe-volumes` to delete), and `start_app.bat` refuses to start
-a topology that conflicts with what is already running. `make topology` reports
-the running topology and its correct paired commands.
+**DONE — UPG-20 durable evidence (2026-08-12).**
+`docs/evidence/s1_01_live_generation_go_20260811.json` — Go BUILD_NEW
+`mission-f8a5accf` reached `COMPLETE`. Additional live proofs since: chat
+PyQt6 `mission-e42fd7e2`, Snake `mission-911a6b3f`. Phase 6 (EDCP) is no
+longer blocked on S1-01; it is still off
+(`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`) and not live-bus proven.
+
+**Stack ops: both former footguns are fixed (2026-08-03).** Teardown now
+preserves volumes by default (`make down-wipe` or `force_stop.py --wipe-volumes`
+to delete), and `start_app.bat` refuses to start a topology that conflicts
+with what is already running. `make topology` reports the running topology
+and its correct paired commands.
 
 **DONE — UPGRADE plan Phase 4 (2026-08-01): real Refined-IR projection.** All
 six exit criteria met. Full backend suite **1816 passed, 0 failed, 0 errors**
@@ -852,22 +884,10 @@ be weakened.
    against live code and were deliberately not executed as written.
    **The likely confusion was honoured:** retiring binary *synthesis* did not
    remove `toolchains.py` *syntax validation*, which stays.
-2. **Phase 2** (plan §5) — foundation truth. UPG-20 close the S1-01 gate with
-   durable evidence from a *non-trivial* mission (the existing proof,
-   `output/mission-ac933664-.../reverser.py`, is a 22-line string reverser —
-   real LLM output, but not a meaningful exercise of the pipeline). **S1-01 is
-   a hard blocker for Phase 6.** **Candidate evidence now exists (2026-08-04):**
-   `mission-7a098d0f-f695-47b5-9c0f-79f18e58afd6` ran end to end to `COMPLETE`
-   and its `csv2json.py` was executed independently against every acceptance
-   criterion — see Current Status. What remains for UPG-20 is *durability*:
-   capturing that run as durable evidence in the repo rather than in a
-   database row and a chat transcript. · UPG-21 resolve the dead
-   `mission_equivalence_python_execution_enabled` flag (declared at
-   `settings.py:88`, loaded at `:384`, read nowhere) · UPG-22 reconcile the two
-   envelope priority vocabularies (`NORMAL|HIGH` vs
-   `low|normal|high|critical`) additively and add `docs/PROTOCOL_ENVELOPES.md` ·
-   UPG-23 rename Pod D to "Mathematical & Functional" (it contains Haskell and
-   OCaml).
+2. **DONE — Phase 2** (plan §5). UPG-21 / UPG-22 / UPG-23 landed 2026-08-01.
+   **UPG-20 durable evidence landed 2026-08-12**
+   (`docs/evidence/s1_01_live_generation_go_20260811.json`). Phase 6 is no
+   longer blocked on S1-01.
 3. **Phase 3** (plan §6) — LogicNode schema v2, additive. Single insertion
    point: `services/pod-worker/pod_worker/main.py:_build_schema_node` (~L265),
    through which both `_coerce_schema_node` (~L317) and
@@ -902,7 +922,8 @@ be weakened.
    pod-audit gate. Delta already has two live producer call sites
    (`phases_build.py:250`, `:816`) and a natural gate in
    `lifecycle.py:_advance_verified_to_complete`, making it the cheapest way to
-   make a lane genuinely load-bearing. Blocked by UPG-20.
+   make a lane genuinely load-bearing. S1-01/UPG-20 is closed; remaining
+   work is a live-bus exercise with `EVENT_DRIVEN_CONTROL_PLANE_ENABLED`.
 7. **Phase 7** (plan §10) — consolidation: LogicNode dependency graph in
    Mission Control (needs Phase 3's data; must respect the CSP work deferred
    from remediation Phase 4), LangGraph decision, `docs/MISSION_TAXONOMY.md`,
@@ -1759,7 +1780,7 @@ focused on the active queue plus recent history.
 | Live test authentication | **CLOSED 2026-08-05.** Both live suites authenticate via the shared `tests/services/live_stack_auth.py`; no well-known placeholder credential; the extended suite skips loudly when the gateway is unreachable so a non-verifying run cannot read as green |
 | **Pod-assignment and logicnodes missing on the v2 path** | **FIXED IN CODE 2026-08-05, not yet re-confirmed live.** Diagnosis corrected one premise: there are not two execution paths. `mission_flow_v2` is the only lifecycle driver (`lifecycle_interface.get_lifecycle_engine`); the pod worker is a *side consumer* of `missions.state` that happened to be the sole writer of both record types. **Pod assignment:** `_prepare_pod_assignment` now writes the record as it emits `MISSION_POD_MANAGER_ASSIGNED`, marked `assigned_by: "orchestrator"` and written `provisional=True`. `upsert_pod_assignment` enforces directional precedence in SQL — a worker claim supersedes a provisional row, a provisional write can never overwrite a claim — and the worker's `_has_assignment` ignores provisional rows so it still claims and runs its pipeline. **Root cause of *this* mission's 404:** the CEO's `pod_manager_agent_id` was constrained to "one of the four pod managers" but not to the one owning the mission's language, and the two pod-worker gates key off different fields (language vs. bound agent id) — a cross-pod choice makes a mission invisible to *every* pod, silently. `_prepare_pod_assignment` now prefers the registry when the language is known, records the override in `metadata.pod_manager_routing_correction`, and the language gate increments `pod_worker_binding_skips_total{reason="language-mismatch"}` instead of returning silently. **LogicNodes:** empty is correct for `BUILD_NEW` — both writers require source code to extract from; the analogue for generative missions is `logic_clusters` → `pod_group_standards` → `master_logic_stream`, which lives in mission metadata. The misleading part was the UI, now mission-type aware. `test_live_mission_chain_and_artifact_integrity` asserts the assignment record again, plus a shape/health check on logicnodes rather than a non-empty set. Evidence mission: `mission-008af057-8eaf-4935-ba2c-25398ea5e118` |
 | **Gate-failure events made missions unopenable** | **FIXED AND VERIFIED LIVE 2026-08-05.** Found while inspecting the rebuilt UI. `MISSION_EQUIVALENCE_BLOCKED`, `MISSION_SECURITY_COMPLIANCE_BLOCKED` and `MISSION_DEPENDENCY_ABSORPTION_BLOCKED` are written to `mission_events` by `mission_flow_v2.lifecycle`, but none were in the `EventType` Literal in `models.py` — only the happy-path siblings had ever been added. `EventType` is the response model, so one unlisted value makes pydantic reject the entire payload: `/missions/{id}/events`, `/chain-trace` and `/operations/alerts` all 500 → **502 at the gateway**, and any mission that failed a gate could not be opened in Mission Control at all — precisely the mission an operator needs to read. Observed on `mission-2eb92c32-0a7b-456b-9c40-bdff2d98a805`, whose detail page hung on "Loading mission diagnostics". All three added; a regression guard in `tests/services/test_regression_contracts.py` scans every `insert_mission_event` / `transition_mission_state` site (including the `asyncio.to_thread(fn, ...)` form, which an earlier version of the guard missed) and fails if any persisted event type is undeclared. Verified live after rebuild: all three endpoints 200, mission detail loads |
-| **Intake parked 100% of missions / runtime QC never ran** | **BOTH GATES OPENED 2026-08-12.** Intake: every mission scored 0.95-1.0 ambiguity against a 0.7 gate because `_pm_ambiguity_score` sums signals a thorough PM emits on any prompt (0.55 for its own `needs_clarification` flag alone). `PM_AUTO_ACCEPT_DEFAULTS_ENABLED` (default **true**) now takes the same `user_intent="finalize_plan"` path an operator triggers, keeping the questions under `metadata.pm_auto_accepted_defaults`. Verified: `mission-24fe7ed8` ran with no CLARIFYING stop. Runtime QC: `phases_runtime` skipped on `TESTDATA_AGENT_ENABLED` **before** consulting `RQCA_AGENT_ENABLED`, so no mission ever reached the sandbox; the gate now also accepts a known `_LANGUAGE_RUNTIMES` entry. **Two wrong verdicts followed:** a vacuous PASS (`cat /workspace/main.go`, fixed in `e5c2316` by making `testdata_agent` delegate to the one runtime table) and a **false FAIL that is still open** — the Go program compiled, ran, and exited 1 with "missing file path argument", which is correct behaviour for a tool the harness invoked with no arguments and no input fixture. **`RQCA_ENFORCEMENT_ENABLED` must stay `false`** until invocation is supplied (enable the testdata agent, or add a per-mission default invocation) |
+| **Intake parked 100% of missions / runtime QC never ran** | **BOTH GATES OPENED 2026-08-12; invocation + honesty closed 2026-08-12→17.** Intake: `PM_AUTO_ACCEPT_DEFAULTS_ENABLED` (default **true**) takes the `user_intent="finalize_plan"` path. Runtime QC is reachable without the testdata agent. The false FAIL (CLI invoked with no args) was fixed by deriving `invocation_args` from `usage_example`. `started_only` / syntax-only are ADVISORY. Generated tests, when present, are the sandbox command. Compose default is `RQCA_ENFORCEMENT_ENABLED=true` (local `.env` may still override to `false`). |
 | **Pod-language runtime verification** | **19 of 19 languages verified live 2026-08-11, with negative controls.** Was 1 (Python). Every language now runs a hello-world through the real sandbox AND rejects a realistic Python-fallback artifact — the substitution this gate exists to catch. `matlab` and `mathematica` run on licence-free subset interpreters (`gnuoctave/octave:9.2.0`, `mathicsorg/mathics:latest`) because the product must work with **no external requirements** and a per-clone vendor licence is not an option; reports carry `runtime_substitute` and `verified_scope` so a pass can never read as full vendor compatibility. Mathics additionally needs `failure_patterns` (`Syntax::`) because Wolfram self-evaluates undefined symbols and exits 0 on Python source. **Two false-PASS holes were found by the negative control and would not have been found by review:** PHP echoed a file with no `<?php` tag and exited 0 (Python renamed `.php` PASSED — now guarded), and TypeScript on `node` failed every genuinely typed artifact (now Deno, which type-checks). Re-run `scripts/rqca_language_audit.py` after touching `_LANGUAGE_RUNTIMES`. Still absent: `csharp` (`dotnet-script` uninstallable offline). **Open:** kotlin/scala/zig/ocaml use third-party images by mutable tag; pin by digest |
 
 ---

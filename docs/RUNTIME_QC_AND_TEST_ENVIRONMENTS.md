@@ -1,7 +1,7 @@
 # Runtime QC and Ephemeral Test Environments
 
-Document version: 2026.08.15
-Last updated: 2026-08-15
+Document version: 2026.08.17
+Last updated: 2026-08-17
 Status: Canonical (Forward-Looking — Phases 9 and 10)
 Audience: Operators, mission designers, agent developers, security reviewers
 
@@ -27,7 +27,7 @@ Runtime QC is integrated into MissionFlow V2 completion checks. `TESTDATA_AGENT_
 
 Enabling full Runtime QC remains a follow-up decision for standard BUILD_NEW missions. Until then, completed missions should show either a real Runtime QC report or an explicit skipped reason.
 
-**Enforcement default (2026-07-03, skip-honesty 2026-08-15):** `rqca_enforcement_enabled` defaults to `true`. A `qc_verdict: FAIL` blocks delivery. `DRY_RUN` / `ADVISORY` / `started_only` never block — those mean "could not judge," not "failed." If the agent is **off** while enforcement is on, the skip is not-ready: that pair used to deliver with a decorative flag.
+**Enforcement default (2026-07-03, skip-honesty 2026-08-15, tests-as-QC 2026-08-17):** `rqca_enforcement_enabled` defaults to `true`. A `qc_verdict: FAIL` blocks delivery. `DRY_RUN` / `ADVISORY` / `started_only` / syntax-only never block — those mean "could not judge," not "failed." Generated tests, when present, are the sandbox command. If the agent is **off** while enforcement is on, the skip is not-ready: that pair used to deliver with a decorative flag. A local `.env` may still pin the flag `false`; that is an override, not the shipped default.
 
 ## Doctrine
 

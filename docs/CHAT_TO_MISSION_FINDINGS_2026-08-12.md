@@ -1,14 +1,20 @@
 # First full chat → mission run: findings and plan
 
-Document version: 2026.08.12
-Last updated: 2026-08-12
-Status: Active
+Document version: 2026.08.17
+Last updated: 2026-08-17
+Status: Historical findings (P1–P3 shipped)
 Audience: Maintainers and AI coding agents
 
 The first mission driven end to end through the **Mission Control chat UI**
-rather than the API. Closes the UI-driven gap in `docs/WORK_QUEUE.md` item 5 and
+rather than the API. Closed the UI-driven gap in `docs/WORK_QUEUE.md` item 5 and
 is the first observation of the PM's SOW-building loop working against a real
 backend.
+
+**Disposition (2026-08-17):** P1 (no install into `--network=none`), P2
+(classify before verify), and P3 (approval-shaped confirm) shipped. P4
+follow-up ran as Snake `mission-911a6b3f`; remaining honesty holes from that
+run shipped in PR #460. Do not treat the "leave enforcement off" note below
+as current — compose default is `RQCA_ENFORCEMENT_ENABLED=true`.
 
 **Mission:** `mission-e42fd7e2-55cd-44ea-9ee3-02bde5e6366e` — "Home Lab Server
 Monitoring Desktop Application with Email Alerts", Python/PyQt6, reached
@@ -147,6 +153,7 @@ revises scope instead of launching.
 
 ## Not changed
 
-`RQCA_ENFORCEMENT_ENABLED` stays `false`. D5 is precisely the class of wrong
-verdict that enforcement would convert into a blocked mission, and P1 has to land
-first.
+**Was (2026-08-12):** `RQCA_ENFORCEMENT_ENABLED` stays `false` until P1 lands.
+**Now (2026-08-17):** P1 landed; shipped default is `true`. FAIL blocks;
+`started_only` / syntax-only / `DRY_RUN` / `ADVISORY` do not. A local `.env`
+may still override to `false`.

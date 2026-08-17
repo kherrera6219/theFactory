@@ -37,9 +37,10 @@ are not listed as current implementation truth unless called out explicitly.
 | [DESIGN_VS_BUILD_AUDIT_2026-08-01.md](DESIGN_VS_BUILD_AUDIT_2026-08-01.md) | Read-only audit behind that plan — 143 design documents vs live source, with file/line evidence for every divergence | Maintainers, Architects, AI coding agents |
 | [ADR_DESIGN_RECONCILIATION_2026-08-01.md](ADR_DESIGN_RECONCILIATION_2026-08-01.md) | **Governing verdict document.** Implemented / Superseded / Deferred for every design area. Outranks the numbered design corpus | All |
 | [DESIGN_TRACEABILITY.md](DESIGN_TRACEABILITY.md) | Per-design-document (01–64) status → implementing module → evidence | Maintainers, Architects, Auditors |
-| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem. Completeness claims scoped to v1.3 mission-pipeline scope as of 2026-08-01 | All |
-| [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list and outstanding production-readiness work | Maintainers, Operators |
-| [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff for maintainers and AI coding agents | Maintainers, AI coding agents |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Current implementation status, test coverage, and known gaps by subsystem. Completeness claims scoped to v1.3 mission-pipeline scope; last refreshed 2026-08-17 (PR #460) | All |
+| [CURRENT_TODO.md](CURRENT_TODO.md) | Active TODO list and outstanding production-readiness work (refreshed 2026-08-17) | Maintainers, Operators |
+| [HANDOFF_CURRENT.md](HANDOFF_CURRENT.md) | Current handoff for maintainers and AI coding agents (refreshed 2026-08-17) | Maintainers, AI coding agents |
+| [WORK_QUEUE.md](WORK_QUEUE.md) | Single ordered execution queue — what is actually next | Maintainers, AI coding agents |
 | [PROTOCOL_BUS_PROGRAM_ROADMAP.md](PROTOCOL_BUS_PROGRAM_ROADMAP.md) | Umbrella roadmap for the 4-stage bus program (PBLA → EDCP → Agent Runtime Split → Semantic Bus). Stage 1 (PBLA) is code-complete and live-validated; its implementation plan is archived at `archive/2026-07-03/PROTOCOL_BUS_LANE_ACTIVATION_PLAN.md` | Maintainers, AI coding agents |
 | [EDCP_PHASE_PLAN.md](EDCP_PHASE_PLAN.md) | Stage 2 (EDCP) — event-driven control plane: consumers + control-flow inversion seam by seam | Maintainers, AI coding agents |
 | [AGENT_RUNTIME_SPLIT_PLAN.md](AGENT_RUNTIME_SPLIT_PLAN.md) | Stage 3 (stub) — split agents into independent bus-participant processes | Maintainers, AI coding agents |

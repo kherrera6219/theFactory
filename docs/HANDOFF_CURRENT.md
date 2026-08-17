@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.08.12
-Last updated: 2026-08-12
+Document version: 2026.08.17
+Last updated: 2026-08-17
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -24,23 +24,55 @@ Audience: Maintainers, operators, and AI coding agents
 `docs/DESIGN_TRACEABILITY.md` answers "design document N — where is it
 implemented?" without re-reading the corpus.
 
-Then `docs/CURRENT_TODO.md` → "Active Work Queue" → the *Design Reconciliation
-& Semantic Engine Upgrade* section for what is actually next.
+Then `docs/CURRENT_TODO.md` → "Active Work Queue", and `docs/WORK_QUEUE.md`
+for the ordered next items.
 
 The plan runs **Phases 1–7**. Work item IDs are `UPG-<phase><item>` — `UPG-1x`
 is Phase 1, `UPG-2x` is Phase 2, and so on. Phase 6 uses the `EDCP-*` IDs from
 `docs/EDCP_PHASE_PLAN.md` instead.
 
-### What happened on 2026-08-12 (most recent)
+**UPG-20 / S1-01 is closed (2026-08-12).** Phase 6 is implemented but off
+(`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false`) and not live-bus proven.
 
-Read `docs/WORK_QUEUE.md` first from now on -- it is the single ordered queue,
+### What happened on 2026-08-16/17 (most recent)
+
+Honesty gates, Gemini 3.7 Flash, BUILD_NEW role honesty, and tests-as-QC
+landed on `main` via [PR #460](https://github.com/kherrera6219/theFactory/pull/460)
+(`0b6ee4c`). Full-dedicated stack rebuilt after the merge-prep commit
+`06bb923`.
+
+- **`started_only` is never a PASS.** Syntax-only compile success is
+  `DRY_RUN` / `ADVISORY`. Agent-off + enforcement is not-ready.
+- **Generated tests are the QC command.** Tester output is written before
+  the testdata manifest; `_select_sandbox_command` prefers pytest (or the
+  language equivalent) over a default `run_command`. Interactive/gui/server
+  artifacts run those tests when present.
+- **Classifiers tightened.** `while True` is not interactive by itself;
+  bare `.listen(` is not a server. Cached `started_only` PASS reports are
+  re-assessed.
+- **All agents route to Gemini 3.7 Flash** (`gemini-3.7-flash`).
+- **`AUTH_MODE` fail-fast** in every environment; `check_env.py` watches
+  `AUTH_MODE` (not `GATEWAY_AUTH_MODE`) and rejects empty
+  `SANDBOX_WORKSPACE_HOST_ROOT=`.
+- **Electron** uses the Next.js `/api/gateway` session proxy.
+
+Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still
+set `false` — that is an operator override, not the shipped default. FAIL
+blocks only when the running container has the flag on.
+
+Live proof from this pass: Snake `mission-911a6b3f` (COMPLETE, then used as
+the honesty postmortem). Earlier: Go S1-01 `mission-f8a5accf`, chat PyQt6
+`mission-e42fd7e2`.
+
+### What happened on 2026-08-12
+
+Read `docs/WORK_QUEUE.md` first -- it is the single ordered queue,
 merged from this file's Next Actions, `PRODUCTION_COMPLETION_PLAN.md` and
-`docs/CURRENT_TODO.md`, and it says what is actually next.
+`docs/CURRENT_TODO.md`.
 
-**`RQCA_ENFORCEMENT_ENABLED` is `false` and should stay off for now** -- not
-because anything is known to be broken, but because it has been correct for
-exactly one mission. Run a handful across languages first; enabling a gate on one
-data point is the pattern this work exists to break.
+**`RQCA_ENFORCEMENT_ENABLED` (historical note, 2026-08-12):** left off until
+invocation derivation and unmet-dep honesty landed. Those blockers are
+closed as of 2026-08-17. The product default is now `true`.
 
 **Two gates were opened, each of which had made a whole subsystem unreachable.**
 
@@ -684,8 +716,9 @@ requiring `unsafe-inline` or `unsafe-eval`). UPG-71 (LangGraph disposition),
 UPG-72 (`MISSION_TAXONOMY.md`), and UPG-73 (formally defer Doc 30) are decision
 and documentation work.
 
-**Option B: UPG-20** — the last Phase 2 item, and the **hard blocker for Phase 6
-(EDCP)**. Needs the live stack.
+**Option B: UPG-20** — **closed 2026-08-12.** Durable evidence:
+`docs/evidence/s1_01_live_generation_go_20260811.json`. Phase 6 is no longer
+blocked on S1-01. Historical detail below is kept for the original brief.
 
 #### Option B detail — UPG-20
 
@@ -1448,6 +1481,14 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### Honesty gates, Gemini 3.7, tests-as-QC (2026-08-16/17)
+
+Merged to `main` as PR #460 (`0b6ee4c`). Commits `2544eac`, `4f94ba0`,
+`8d753d7`, `06bb923`. Full-dedicated stack rebuilt; orchestrator image
+contains `_select_sandbox_command` and the tighter classifiers. See the
+2026-08-16/17 section at the top of this file and
+`docs/CURRENT_TODO.md` Current Status.
 
 ### Full Whole-App Remediation Plan Phase 3 (2026-07-06): documentation accuracy
 
@@ -2482,30 +2523,33 @@ Security alert remediation validation:
 
 ## Next Actions
 
-### Priorities — refreshed 2026-08-12
+### Priorities — refreshed 2026-08-17
 
 `docs/WORK_QUEUE.md` is the authoritative ordered list; this is the summary.
 
-1. **Give runtime QC a real invocation** so its verdict can be trusted, then and
-   only then consider `RQCA_ENFORCEMENT_ENABLED=true`. Today it fails every
-   argument-taking CLI program for a reason that is not the code's fault.
-2. **Finish the live proof matrix.** A UI-driven mission, a PORT/transform,
-   failure injection and provider fallback are still owed; the suite, an
-   unattended run and a non-Python mission are done.
-3. **Move sandbox execution out of the orchestrator** into `agent-41-rqca`. The
-   orchestrator mounts `/var/run/docker.sock` -- effectively host root. Fine for
+1. **Finish the live proof matrix.** UI-driven, unattended, and non-Python
+   missions are done. Still owed: a PORT/transform, failure injection, and
+   provider fallback.
+2. **Exercise the Delta gate against a live bus** with
+   `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true` on **one** mission first. S1-01
+   no longer blocks this; a misaligned producer/consumer will stall every
+   mission at VERIFIED.
+3. **Move sandbox execution out of the orchestrator** into `agent-41-rqca`.
+   The orchestrator mounts `/var/run/docker.sock` — host root. Fine for
    local dev, must not ship.
-4. **The four held Dependabot PRs**: electron 43, next-ecosystem, vitest,
-   playwright. All frontend; they need the app exercised in a browser.
-5. **Exercise the Delta gate against a live bus** with
-   `EVENT_DRIVEN_CONTROL_PLANE_ENABLED=true` on ONE mission first -- if producer
-   and consumer do not line up it stalls every mission at VERIFIED.
-6. **Electron decisions still need sign-off**: Docker lifecycle on quit, the
+4. **If you want FAIL to block locally**, set `RQCA_ENFORCEMENT_ENABLED=true`
+   in `.env` (compose default is already true).
+5. **Electron decisions still need sign-off**: Docker lifecycle on quit, the
    Docker Desktop/WSL2 prerequisite story, auto-start.
+6. **Held Dependabot PRs**: electron 43, next-ecosystem, vitest, playwright.
 
-DONE since this list was written: licence-free MATLAB/Mathematica runtimes, image
-digest pinning, the live-suite silent skip, rate-limit starvation, the intake
-gate, and reachability of runtime QC.
+DONE since the 2026-08-12 list: QC invocation derivation, unmet-dep honesty,
+artifact classification, tests-as-QC, `started_only`/syntax-only ADVISORY,
+Gemini 3.7 Flash, AUTH_MODE fail-fast, UPG-20 evidence, PR #460 on `main`.
+
+Older residual backlog (do not treat as the current #1; several items were
+closed by the 2026-08-12→17 live runs):
+
 1. **Post-restart Mission Control UX proof.** Restart the app, then submit a
    real browser mission through Mission Control asking for a modern Angular
    Snake game with a `start.bat` file. Confirm: (a) PM clarification cards

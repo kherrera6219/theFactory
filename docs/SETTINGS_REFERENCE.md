@@ -1,7 +1,7 @@
 # Settings Reference
 
-Document version: 2026.08.15
-Last updated: 2026-08-15
+Document version: 2026.08.17
+Last updated: 2026-08-17
 Status: Canonical
 
 **Code file:** `services/orchestrator/orchestrator/settings.py`  
