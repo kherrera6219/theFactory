@@ -76,7 +76,7 @@ def request_json(
         hdrs["Content-Type"] = content_type
     req = Request(f"{base}{path}", data=body, method=method, headers=hdrs)
     try:
-        with urlopen(req, timeout=TIMEOUT) as response:
+        with urlopen(req, timeout=TIMEOUT) as response:  # nosec B310
             raw = response.read().decode("utf-8")
             if not raw:
                 return int(response.status), None

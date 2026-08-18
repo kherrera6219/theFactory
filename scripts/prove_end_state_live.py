@@ -67,7 +67,7 @@ def request_json(
         hdrs.setdefault("Content-Type", "application/json")
     req = Request(f"{GATEWAY}{path}", data=body, method=method, headers=hdrs)
     try:
-        with urlopen(req, timeout=TIMEOUT) as response:
+        with urlopen(req, timeout=TIMEOUT) as response:  # nosec B310
             raw = response.read().decode("utf-8")
             return int(response.status), (json.loads(raw) if raw else None)
     except HTTPError as exc:
