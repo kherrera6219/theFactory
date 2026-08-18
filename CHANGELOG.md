@@ -6,6 +6,16 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Dependabot highs (2026-08-18)
+
+#### Fixed
+- Mission Control `js-yaml` override `4.3.0` → `4.3.1` (GHSA-5p4m-2wfm-xmqj).
+- Dropped unmaintained `extract-zip` 2.0.1 (CVE-2026-56876 / GHSA-jmr9-qjv8-65gv)
+  by overriding `@puppeteer/browsers` to `3.2.1`, which uses OS unzip /
+  `modern-tar` instead. No official extract-zip patch exists. Production ZIP
+  import still uses `yauzl`. `@electron-internal/extract-zip` (different
+  package, electron-builder only) is unchanged.
+
 ### Docs — deep-review disposition (2026-08-18)
 
 - Filed `docs/reviews/theFactory_Deep_Code_Review_2026-08-18.md` with
@@ -438,9 +448,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
     feature is unavailable there) and run normally on public/org repos.
 
 #### Known
-- One remaining Dependabot medium alert (`js-yaml ≤4.1.1`) is dev-only transitive
-  via `@lhci/cli` and `@redocly/openapi-core`; deferred pending an `@lhci/cli`
-  release on js-yaml 4.x.
+- Historical note: `js-yaml` was later pinned to `4.3.1` (see Unreleased
+  Dependabot highs). The old `≤4.1.1` medium is no longer the open finding.
 
 ### Extended Data Stores Enabled by Default (2026-06-13)
 

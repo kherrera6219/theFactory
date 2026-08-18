@@ -67,6 +67,10 @@ rebuilt again 2026-08-17 after the 80% critical-file floors: `sandbox-runner`
 and the rest of the dedicated topology came up healthy. Coverage floors from [PR
 #463](https://github.com/kherrera6219/theFactory/pull/463) are on `main`.
 Every critical file is floored at **at least 80%** (`98c165d`).
+
+**Dependabot highs closed (2026-08-18):** `js-yaml` 4.3.1 override;
+`extract-zip` removed by `@puppeteer/browsers` 3.2.1 override. Production
+ZIP import uses `yauzl`, not extract-zip.
 Live PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded in
 `docs/evidence/end_state_live_proof_20260817.json`.
 

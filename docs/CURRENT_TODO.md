@@ -69,6 +69,11 @@ ADVISORY, not PASS. `PORT_TWO_PHASE_ENABLED` Python default is `true`
 Knowledge Lake status restated as a 4-language bootstrap seed. ADR row
 17 marks the LogicNode graph Implemented.
 
+**Dependabot highs (2026-08-18):** `js-yaml` override is `4.3.1`.
+`extract-zip` 2.0.1 (no upstream patch) is gone from the lockfile by
+overriding `@puppeteer/browsers` to `3.2.1`. Chat/repo ZIP import still
+uses `yauzl`.
+
 **Next action:** product decisions that need sign-off — BUILD_NEW
 equivalence (#7) and Electron installer (#9). Not code cleanup.
 

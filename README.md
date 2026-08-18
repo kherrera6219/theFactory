@@ -1027,7 +1027,7 @@ missions have reached `COMPLETE`. The system is **not production-ready**.
 | **Runtime QC honesty** | **Shipped (PR #460)** | Generated tests are the sandbox command. `started_only` / syntax-only are ADVISORY. Unmet offline deps are DRY_RUN. Compose default `RQCA_ENFORCEMENT_ENABLED=true`. |
 | **Audit & Quality Standards** | **Hygiene green, not a release certificate** | `production_review_audit.py` is a static file/string check. Coverage floor 80%; `runtime.py` 100% line / 99% branch. Mission Control 146 Vitest tests. Do not cite 23/23 or “0 SAST findings” as release evidence. |
 | **Desktop Packaging Path** | **Web path is primary** | `start_app.bat` launches Docker + browser. Electron uses `/api/gateway`. Installer signing and uninstall hooks remain open. |
-| **CI & Release Pipeline** | **Mostly green** | Lint/test, CodeQL, Docker builds, and the promotion gate run in Actions. Bandit can still fail on pre-existing findings; Dependabot currently reports open high-severity alerts. |
+| **CI & Release Pipeline** | **Mostly green** | Lint/test, CodeQL, Docker builds, and the promotion gate run in Actions. Bandit can still fail on pre-existing findings. Dependabot highs for `js-yaml` (4.3.1) and `extract-zip` (removed via `@puppeteer/browsers` 3.2.1) are addressed. |
 
 ---
 
