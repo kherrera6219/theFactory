@@ -16,7 +16,7 @@
 
 </div>
 
-> **Version:** 1.3.0 · **Last updated:** 2026-08-17 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
+> **Version:** 1.3.0 · **Last updated:** 2026-08-18 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
 >
 > **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. Live BUILD_NEW missions have reached `COMPLETE` (Go S1-01, chat-driven PyQt6, stdlib Snake). Default LLM route is **Gemini 3.7 Flash**. Runtime QC runs generated tests when they exist; a bare launch (`started_only`) or syntax-only compile is **ADVISORY**, never a PASS.
 >

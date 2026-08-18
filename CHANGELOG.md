@@ -6,6 +6,11 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Docs — deep-review disposition (2026-08-18)
+
+- Filed `docs/reviews/theFactory_Deep_Code_Review_2026-08-18.md` with
+  N1–N4 disposition. Electron is deferred until production, not a defect.
+
 ### Honesty pass — fallback QC and review drift (2026-08-18)
 
 #### Fixed

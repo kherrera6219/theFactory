@@ -1,7 +1,7 @@
 # theFactory Docs
 
-Document version: 2026.08.17
-Last updated: 2026-08-17
+Document version: 2026.08.18
+Last updated: 2026-08-18
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 

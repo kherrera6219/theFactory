@@ -225,7 +225,7 @@ For each `AgentDefinition`, `build_agent_integration_record()` derives:
 
 **Source:** `services/orchestrator/orchestrator/port_coordinator.py`
 
-Coordinates the two-phase flow for `PORT`-type missions (porting source code from one language to another) when `port_two_phase_enabled` is set. This is not a network port allocator — the name refers to code *porting*.
+Coordinates the two-phase flow for `PORT`-type missions (porting source code from one language to another). `PORT_TWO_PHASE_ENABLED` defaults **true** (Python and compose). This is not a network port allocator — the name refers to code *porting*.
 
 ```python
 def _setup_port_two_phase(metadata: dict, mission: Any, clusters: list[dict] | None) -> None: ...

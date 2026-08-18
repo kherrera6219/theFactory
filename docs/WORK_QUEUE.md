@@ -1,7 +1,7 @@
 # Combined Work Queue
 
-Document version: 2026.08.17
-Last updated: 2026-08-17
+Document version: 2026.08.18
+Last updated: 2026-08-18
 Status: Canonical execution order
 Audience: Maintainers and AI coding agents
 
@@ -132,11 +132,10 @@ P1–P3 from `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md` are **done**. P4
 (re-run) was exercised as Snake `mission-911a6b3f` and a follow-up review;
 remaining honesty holes from that run shipped in PR #460.
 
-**Current next items:** #7 BUILD_NEW equivalence decision (needs ADR if
-option 2). #9 Electron lifecycle (needs user sign-off). #8 Repo ZIP
-knowledge phases 5–7. Item 5 remainder, item 6 live-bus, spend-cap
-pause, and Chat ZIP import are recorded in
-`docs/evidence/remaining_live_proof_20260817.json`. Item #11 is
+**Current next items:** brownfield import in a non-seeded language;
+then #7 BUILD_NEW equivalence (ADR if option 2); #8 Repo ZIP knowledge
+phases 5–7. Deep-review N1–N4 closed (`af88a79`). #9 Electron is
+**later production work**, not a current defect. Item #11 is
 implemented (`sandbox-runner`).
 
 Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still

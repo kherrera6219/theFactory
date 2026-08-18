@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.08.17
-Last updated: 2026-08-17
+Document version: 2026.08.18
+Last updated: 2026-08-18
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 

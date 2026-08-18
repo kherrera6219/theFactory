@@ -1,7 +1,7 @@
 # AGENTS.md — theFactory / Holy Grail Refinery (HGR)
 
 > Read this file fully before touching any file. When docs and code disagree, code is truth.
-> Last validated: 2026-08-17 after remaining live proofs (failure injection, provider fallback, EDCP consumed Delta, spend-cap pause, Chat ZIP import). See `docs/evidence/remaining_live_proof_20260817.json`.
+> Last validated: 2026-08-18. Honesty pass `af88a79`: fallback QC tests are ADVISORY; PORT default matches compose; Knowledge Lake restated as a seed. Live proofs: `docs/evidence/remaining_live_proof_20260817.json`.
 
 ---
 
@@ -18,19 +18,13 @@ Two documents are canonical for all forward work:
 | `docs/DESIGN_VS_BUILD_AUDIT_2026-08-01.md` | The read-only audit behind it: 143 design documents vs live source, with file/line evidence. |
 | `docs/DESIGN_TRACEABILITY.md` | Design document 01–64 → status → implementing module → evidence. Answers "where is Doc N implemented?" without re-reading the corpus. |
 
-**Progress as of 2026-08-17:** Phases 1–5 and 7 **done**; Phase 2 **done
-including UPG-20** (`docs/evidence/s1_01_live_generation_go_20260811.json`).
-Phase 6 (EDCP-02a) is implemented but off and not live-bus proven. Honesty
-gates, Gemini 3.7 Flash, and tests-as-QC are on `main` (PR #460). The PM
-SOW factory (P0–P4) is on `main`. Live PORT-through-SOW
-(`mission-dc0c8c4e` COMPLETE) and failing-QC-blocks-COMPLETE
-(`mission-8db1af71` VERIFIED / BLOCKED) are recorded in
-`docs/evidence/end_state_live_proof_20260817.json`. Coverage stays at
-line ≥80% / branch ≥70% / mixed ≥80%; every critical file ≥80%.
-Failure injection, provider fallback, EDCP live-bus, spend-cap pause, and
-Chat ZIP import are recorded in
-`docs/evidence/remaining_live_proof_20260817.json`. **Next:** items that
-need a product decision or sign-off (`docs/WORK_QUEUE.md` #7, #9).
+**Progress as of 2026-08-18:** Phases 1–5 and 7 **done**; Phase 2 **done
+including UPG-20**. Phase 6 (EDCP-02a) is in code (default off) and
+**live-bus proven** (`mission-56bfd2dc`). Honesty pass `af88a79`: Tester
+`source=fallback` is ADVISORY; `PORT_TWO_PHASE_ENABLED` defaults true;
+Knowledge Lake is a 4-language seed; ADR row 17 graph is Implemented.
+Electron is later production work, not a current defect. **Next:**
+brownfield import, then `docs/WORK_QUEUE.md` #7 / #8.
 
 > **Executing generated code goes through `orchestrator/sandbox_exec.py` and
 > nowhere else.** In compose the orchestrator POSTs to `SANDBOX_EXECUTOR_URL`
@@ -48,12 +42,12 @@ plan statement — rule 1 below is not a formality here.
 
 **Next action:**
 
-- Item 5 remainder and Phase 6 live-bus are recorded
-  (`docs/evidence/remaining_live_proof_20260817.json`).
-- **Do not reopen** Electron installer decisions (#9) or BUILD_NEW
-  equivalence option 2 (#7) without an operator decision / ADR amendment.
-- Repo ZIP knowledge phases 5–7 and the release package remain later
-  queue items.
+- Deep-review N1–N4 honesty items are closed (`af88a79`). Review filed at
+  `docs/reviews/theFactory_Deep_Code_Review_2026-08-18.md`.
+- **Do not treat Electron as a defect.** Installer work waits until the
+  app is production-ready (`docs/WORK_QUEUE.md` #9).
+- Next product work: brownfield import; BUILD_NEW equivalence (#7);
+  Repo ZIP knowledge phases 5–7 (#8).
 
 Work item IDs are `UPG-<phase><item>` — `UPG-2x` is Phase 2, `UPG-3x` is
 Phase 3, and so on. Phase 6 uses the `EDCP-*` IDs from
