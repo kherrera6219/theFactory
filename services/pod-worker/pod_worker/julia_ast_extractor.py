@@ -1,9 +1,7 @@
-"""julia_ast_extractor.py — Structural AST-based extraction for Julia.
+"""julia_ast_extractor.py — Regex structural extraction for Julia.
 
-Mirrors the design of ``ast_extractor.py`` for Python:
-- Structural analysis for Julia module headers, imports/using, struct/mutable struct definitions, and multiple dispatch function bindings.
-- Preserves regex concept detection while providing zero false-positive function/struct structures.
-- Graceful fallback on syntax errors.
+Not a language AST. Filename is historical. Recovers module headers, using/
+import, struct, and function bindings with regular expressions.
 """
 from __future__ import annotations
 

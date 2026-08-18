@@ -294,6 +294,40 @@ def test_rqca_assessment_started_only_is_advisory_even_if_verdict_says_pass() ->
     assert result["deployment_safe"] is False
 
 
+def test_rqca_assessment_fallback_tests_are_advisory_even_if_sandbox_passed() -> None:
+    result = asyncio.run(
+        llm_delegation.generate_rqca_assessment(
+            mission_id="mission-1",
+            execution_result={
+                "verdict": "PASS",
+                "passed": True,
+                "verified_scope_detail": "tests",
+            },
+            mission_contract={},
+            language="python",
+            integration_tests={"source": "fallback", "test_code": "assert True\n"},
+        )
+    )
+    assert result["qc_verdict"] == "ADVISORY"
+    assert result["deployment_safe"] is False
+    assert result["advisory"] is True
+    assert "cannot fail" in str(result.get("reason") or "")
+
+
+def test_rqca_assessment_fallback_tests_still_fail_when_sandbox_fails() -> None:
+    result = asyncio.run(
+        llm_delegation.generate_rqca_assessment(
+            mission_id="mission-1",
+            execution_result={"verdict": "FAIL", "passed": False},
+            mission_contract={},
+            language="python",
+            integration_tests={"source": "fallback"},
+        )
+    )
+    assert result["qc_verdict"] == "FAIL"
+    assert result["deployment_safe"] is False
+
+
 def test_rqca_assessment_syntax_only_is_advisory_even_if_verdict_says_pass() -> None:
     result = asyncio.run(
         llm_delegation.generate_rqca_assessment(

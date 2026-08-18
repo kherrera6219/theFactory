@@ -6,6 +6,20 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Honesty pass — fallback QC and review drift (2026-08-18)
+
+#### Fixed
+- Tester fallback tests (`source=fallback`, `assert True`) no longer
+  produce `qc_verdict=PASS`. Assessment is ADVISORY / `deployment_safe=False`.
+- `PORT_TWO_PHASE_ENABLED` Python default is `true`, matching compose.
+- Extractor modules for Go / Haskell / Julia / OCaml no longer claim AST
+  in their docstrings.
+
+#### Changed
+- Knowledge Lake documented as a 42-entry bootstrap seed for four
+  languages. ADR row 17: LogicNode graph is Implemented.
+- `check_env` warns when `.env` sets `RQCA_ENFORCEMENT_ENABLED=false`.
+
 ### Remaining live proofs (2026-08-17)
 
 #### Added

@@ -510,6 +510,9 @@ async def _prepare_runtime_qc(
         if isinstance(metadata.get("mission_contract"), dict)
         else {},
         language=target_language,
+        integration_tests=metadata.get("integration_tests")
+        if isinstance(metadata.get("integration_tests"), dict)
+        else None,
     )
     runtime_qc_report = {**execution, "qc_assessment": qc_assessment}
     metadata["runtime_qc_report"] = runtime_qc_report

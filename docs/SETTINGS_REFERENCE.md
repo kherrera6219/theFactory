@@ -82,11 +82,11 @@ The design follows three rules:
 | `mission_security_compliance_enforcement_enabled` | `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `true` | Block mission delivery on a required security-compliance check failure (e.g. a detected hardcoded secret), instead of only warning. Defaults to `true` as of 2026-07-03 (was `false`) — set to `false` to opt back into warn-only for staged rollouts. |
 | `testdata_agent_enabled` | `TESTDATA_AGENT_ENABLED` | `false` | Enable the TestData agent (AGENT-40) |
 | `rqca_agent_enabled` | `RQCA_AGENT_ENABLED` | `true` | Enable the RQCA agent (AGENT-41). Default on so enforcement is not decorative. Docker missing → `DRY_RUN` / `ADVISORY`. |
-| `rqca_enforcement_enabled` | `RQCA_ENFORCEMENT_ENABLED` | `true` | Block mission delivery when the RQCA runtime QC verdict is `FAIL`. `started_only`, syntax-only, `DRY_RUN`, `SKIPPED`, and `ADVISORY` never block. Generated tests, when present, are the sandbox command. If the agent is off while this is on, the skip is treated as not-ready (the previous pair delivered with a decorative flag). Production fails fast if this is false. |
+| `rqca_enforcement_enabled` | `RQCA_ENFORCEMENT_ENABLED` | `true` | Block mission delivery when the RQCA runtime QC verdict is `FAIL`. `started_only`, syntax-only, Tester `source=fallback` stubs, `DRY_RUN`, `SKIPPED`, and `ADVISORY` never block. A local `.env` `false` is an operator override (`check_env` warns). Production fails fast if this is false. |
 | `rqca_test_command_template` | `RQCA_TEST_COMMAND_TEMPLATE` | `""` | Per-language shell template for RQCA test execution. `{filename}` and `{test_filename}` are substituted at runtime. |
 | `docker_bin` | `DOCKER_BIN` | `docker` | Docker binary used by RQCA for sandboxed execution |
 | `depabs_execution_enabled` | `DEPABS_EXECUTION_ENABLED` | `false` | Enable DEPABS live dependency resolution (experimental) |
-| `port_two_phase_enabled` | `PORT_TWO_PHASE_ENABLED` | `false` | Enable two-phase PORT mission processing |
+| `port_two_phase_enabled` | `PORT_TWO_PHASE_ENABLED` | `true` | Two-phase PORT (extract then generate). Matches compose. Set `false` to force single-pod PORT. |
 | `llm_safety_block_enabled` | `LLM_SAFETY_BLOCK_ENABLED` | `false` | Hard-block missions that trigger LLM safety filters |
 | `event_driven_control_plane_enabled` | `EVENT_DRIVEN_CONTROL_PLANE_ENABLED` | `false` | EDCP Stage 2 flag — enables event-driven control-flow inversion seams (see `EDCP_PHASE_PLAN.md`) |
 

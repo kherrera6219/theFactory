@@ -1,9 +1,8 @@
-"""go_ast_extractor.py — Structural AST-based extraction for Go / Systems languages.
+"""go_ast_extractor.py — Regex structural extraction for Go / Systems languages.
 
-Mirrors the design of ``ast_extractor.py`` for Python:
-- AST-first structural analysis for Go package, import, struct, interface, and method definitions.
-- Preserves regex concept detection while providing zero false-positive function/class structures.
-- Graceful fallback on syntax errors.
+Not a language AST. Filename is historical. Recovers package, import, struct,
+interface, and method shapes with regular expressions. Real AST recovery is
+Python / Java / (typed Haskell signatures where they parse).
 """
 from __future__ import annotations
 

@@ -1,9 +1,8 @@
-"""haskell_ast_extractor.py — Structural AST-based extraction for Haskell / Mathematical / Functional languages.
+"""haskell_ast_extractor.py — Regex structural extraction for Haskell.
 
-Mirrors the design of ``ast_extractor.py`` for Python:
-- Structural analysis for Haskell module headers, imports, data/type definitions, type signatures, and function bindings.
-- Preserves regex concept detection while providing zero false-positive function/class structures.
-- Graceful fallback on syntax errors.
+Not a language AST. Filename is historical. Recovers module headers, imports,
+data/type definitions, and ``::`` signatures with regular expressions. When
+those signatures parse, Refined-IR may still label the function ``ast_v1``.
 """
 from __future__ import annotations
 

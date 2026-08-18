@@ -70,6 +70,11 @@ Every critical file is floored at **at least 80%** (`98c165d`).
 Live PORT-through-SOW and failing-QC-blocks-COMPLETE are recorded in
 `docs/evidence/end_state_live_proof_20260817.json`.
 
+Honesty pass (2026-08-18): Tester `source=fallback` tests are ADVISORY,
+not PASS. `PORT_TWO_PHASE_ENABLED` defaults true in Python and compose.
+Knowledge Lake is a 4-language bootstrap seed. ADR row 17 graph is
+Implemented.
+
 Coverage standard (2026-08-17): keep the 80% mixed floor; **also fail
 line <80% or branch <70%**. Privilege/money/PORT files have their own
 floors (`sandbox_exec`/`sandbox_runner` 90%, `sow_store` 90%,

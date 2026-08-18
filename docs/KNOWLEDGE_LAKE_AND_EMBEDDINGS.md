@@ -1,7 +1,7 @@
 # Knowledge Lake and Embeddings
 
-Document version: 2026.07.03
-Last updated: 2026-07-03
+Document version: 2026.08.18
+Last updated: 2026-08-18
 Status: Canonical
 Audience: Developers and operators
 
@@ -10,6 +10,12 @@ Audience: Developers and operators
 The **Knowledge Lake** is a PostgreSQL-backed shared documentation store that the IS Agent
 (AGENT-06-IS) populates during the FETCH phase of Mission Flow v2.  Language specialists read from
 it during the BUILD phase to get library/API context injected into their prompts.
+
+**Current content (2026-08-18):** a static Phase-8 bootstrap seed
+(`is_agent._BOOTSTRAP_DOCS`) — 42 one-liners for Python, JavaScript,
+TypeScript, and Java. There is no crawler and no 14-language docs window.
+Go, Rust, C#, and the other routed languages get nothing. Retrieval
+plumbing is real; the lake is not stocked.
 
 **Key design decisions:**
 

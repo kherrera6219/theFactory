@@ -107,12 +107,35 @@ async def generate_rqca_assessment(
     execution_result: dict[str, Any],
     mission_contract: dict[str, Any],
     language: str,
+    integration_tests: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Interpret runtime-QC execution results with deterministic fallback."""
     _ = mission_id, mission_contract, language
     verdict = str(execution_result.get("verdict") or "SKIPPED").strip().upper()
     passed = bool(execution_result.get("passed", False))
     scope_detail = str(execution_result.get("verified_scope_detail") or "").strip().lower()
+    tests_source = ""
+    if isinstance(integration_tests, dict):
+        tests_source = str(integration_tests.get("source") or "").strip().lower()
+    # Placeholder Tester fallbacks assert True / expect(true). Exit 0 is not
+    # evidence — same class as started_only. A real FAIL still stands.
+    if tests_source == "fallback" and verdict != "FAIL":
+        return {
+            "qc_verdict": "ADVISORY",
+            "status": "degraded",
+            "reason": (
+                "Runtime QC ran Tester fallback tests (source=fallback) that "
+                "cannot fail; the exit code is not evidence of correctness"
+            ),
+            "advisory": True,
+            "confidence": "LOW",
+            "execution_verdict": verdict,
+            "findings": [],
+            "remediation": [],
+            "deployment_safe": False,
+            "source": "advisory",
+            "assessed_at": datetime.now(UTC).isoformat(),
+        }
     # started_only / syntax_only are not a pass unless tests actually ran.
     if verdict in {"DRY_RUN", "SKIPPED"} or (
         scope_detail in {"started_only", "syntax_only"} and verdict != "FAIL"

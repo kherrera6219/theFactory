@@ -99,7 +99,7 @@ This one maps *design intent* to *implementation*.
 
 | Doc | Title | Status | Implementing module(s) | Evidence / note |
 |---|---|---|---|---|
-| 29 | Knowledge Lake Implementation | **Implemented** | `knowledge_lake.py`, `qdrant_store.py`, `milvus_store.py` | |
+| 29 | Knowledge Lake Implementation | **Partial** | `knowledge_lake.py`, `is_agent.py`, `qdrant_store.py` | Plumbing is real (Postgres source of truth, optional Qdrant mirror, codegen inject). Content is a static 42-entry seed for Python / JS / TS / Java only — not a 14-language crawler. |
 | 30 | LogicNode Registry Implementation | **Deferred** | `mission_logicnodes` table only | 1,635 lines — the largest unimplemented spec in the corpus. No cross-mission registry, versioning, clustering, or semantic search. **Revisit trigger: Phase 4 `ast_v1` projections cover a majority of missions** (ADR row 10, UPG-73) |
 | 31 | Agent Communication Patterns | **Partial** | `protocol_bus_producer.py`, `mission_flow_v2/lifecycle.py` | Patterns exist as producers; the subscribe-and-activate model is Deferred with Doc 07 §1.2 |
 

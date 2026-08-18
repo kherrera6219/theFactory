@@ -120,6 +120,15 @@ def test_comment_lines_and_blank_lines_are_ignored(env_dir) -> None:
     assert check_env.check_env() == 0
 
 
+def test_rqca_enforcement_false_warns_but_does_not_fail(env_dir, capsys) -> None:
+    _write(env_dir, "ENVIRONMENT=development\nRQCA_ENFORCEMENT_ENABLED=false\n")
+    assert check_env.check_env() == 0
+    out = capsys.readouterr().out
+    assert "WARNING" in out
+    assert "RQCA_ENFORCEMENT_ENABLED" in out
+    assert "will not block COMPLETE" in out
+
+
 def test_missing_env_warns_but_does_not_fail(tmp_path, monkeypatch, capsys) -> None:
     """A fresh checkout with no .env must not be blocked from starting."""
     monkeypatch.setattr(check_env, "_env_files", lambda _root: [])

@@ -104,7 +104,7 @@ class Settings:
     rqca_test_command_template: str = ""
     docker_bin: str = "docker"
     depabs_execution_enabled: bool = False
-    port_two_phase_enabled: bool = False
+    port_two_phase_enabled: bool = True
     llm_safety_block_enabled: bool = False
     knowledge_refresh_interval_seconds: int = 3600
     agent_scaling_enabled: bool = False
@@ -226,7 +226,14 @@ def load_settings() -> Settings:
                 "INTERNAL_SERVICE_API_KEY, or ORCHESTRATOR_API_KEYS to be set"
             )
 
-    rqca_enforcement_enabled = _as_bool(os.getenv("RQCA_ENFORCEMENT_ENABLED", "true"), True)
+    rqca_raw = os.getenv("RQCA_ENFORCEMENT_ENABLED")
+    rqca_enforcement_enabled = _as_bool(rqca_raw, True)
+    if rqca_raw is not None and not rqca_enforcement_enabled:
+        logging.getLogger(__name__).warning(
+            "RQCA_ENFORCEMENT_ENABLED=%s — FAIL will not block delivery. "
+            "Compose / product default is true. This is an operator override.",
+            rqca_raw,
+        )
     if is_production and not rqca_enforcement_enabled:
         raise RuntimeError(
             "ENVIRONMENT=production requires RQCA_ENFORCEMENT_ENABLED=true — a "
@@ -400,7 +407,7 @@ def load_settings() -> Settings:
             os.getenv("DEPABS_EXECUTION_ENABLED", "false"), False
         ),
         port_two_phase_enabled=_as_bool(
-            os.getenv("PORT_TWO_PHASE_ENABLED", "false"), False
+            os.getenv("PORT_TWO_PHASE_ENABLED", "true"), True
         ),
         llm_safety_block_enabled=_as_bool(
             os.getenv("LLM_SAFETY_BLOCK_ENABLED", "false"), False

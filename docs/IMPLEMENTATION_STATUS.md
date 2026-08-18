@@ -1,7 +1,7 @@
 # Implementation Status
 
-Document version: 2026.08.17
-Last updated: 2026-08-17
+Document version: 2026.08.18
+Last updated: 2026-08-18
 Status: Canonical
 Audience: Operators, developers, maintainers, and auditors
 
@@ -86,9 +86,9 @@ The application currently includes:
 | Behavioural equivalence | **Shipped, opt-in, advisory, Python only** | Gated on `MISSION_EQUIVALENCE_PYTHON_EXECUTION_ENABLED` (default `false`). BUILD_NEW skips (no Refined-IR). A vector that merely *ran* is `executed_without_error`, never `passed`. Behavioural results do not flip top-level `passed`. |
 | Live mission evidence | **Sprint 1.1 matrix + EDCP live-bus recorded** | Go S1-01 `mission-f8a5accf`, PyQt6 `mission-e42fd7e2`, Snake `mission-911a6b3f`. PORT-through-SOW `mission-dc0c8c4e`. Fail-QC `mission-8db1af71`. Failure injection `mission-6ee8b1fe`. Fallback `mission-db901d98`. EDCP consume `mission-56bfd2dc`. Spend-cap `mission-c1aedfbd`. Chat ZIP import 200. |
 | Audit & Quality Standards | **Hygiene green, not a release certificate** | `production_review_audit.py` is a static file/string check. Backend gates: line ≥80%, branch ≥70%, mixed ≥80%, plus sandbox/SOW/PORT/RQCA floors. Every critical file is floored at **at least 80%** (`rqca_agent` included). Mixed cannot hide a line score below 80% (`test_line_floor_fails_when_mixed_still_passes`). Makefile/CI keep `--line-threshold 80`. Mission Control measures `app/lib/**` via `npm run test:coverage`. Do not cite 23/23 as the release gate. |
-| Data plane | **Do not grow** | Postgres, Redis, Qdrant, Milvus, Neo4j, and MinIO already ship. BUILD_NEW does not need more stores. Add a consumer before adding an engine. |
+| Knowledge Lake / FETCH | **Bootstrap seed, not a lake** | `is_agent._BOOTSTRAP_DOCS` is 42 one-liners for Python, JavaScript, TypeScript, and Java. Other routed languages get no context. No crawler. Retrieval plumbing (`knowledge_lake.get_language_context` → codegen) is real. |
 | Orchestrator docker.sock | **Moved to sandbox-runner (2026-08-17)** | Condensed compose mounts `/var/run/docker.sock` on `sandbox-runner` only. Orchestrator calls `SANDBOX_EXECUTOR_URL`. AGENT-41-RQCA still owns the verdict. |
-| BUILD_NEW agent honesty (2026-08-16/17) | **Shipped on `main` (PR #460)** | Snake `mission-911a6b3f` showed a working prompt-chain and four role failures. Specialist plans derive from the contract when the LLM emits IR/PEP boilerplate; pod-audit is WARN/unscored without extracted nodes; specified CLI/stdlib games no longer get generic product questions. Follow-up: generated tests run **as** the sandbox command (not after QC, not overwritten by a testdata default `run_command`); syntax-only success is ADVISORY; `while True` / bare `.listen(` no longer force compile-only; cached `started_only` PASS reports are re-assessed. |
+| BUILD_NEW agent honesty (2026-08-16/17) | **Shipped on `main` (PR #460)** | Snake `mission-911a6b3f` showed a working prompt-chain and four role failures. Specialist plans derive from the contract when the LLM emits IR/PEP boilerplate; pod-audit is WARN/unscored without extracted nodes; specified CLI/stdlib games no longer get generic product questions. Follow-up: generated tests run **as** the sandbox command (not after QC, not overwritten by a testdata default `run_command`); syntax-only success is ADVISORY; Tester `source=fallback` stubs (`assert True`) are ADVISORY, not PASS; `while True` / bare `.listen(` no longer force compile-only; cached `started_only` PASS reports are re-assessed. |
 | Desktop Packaging Path | **Web path is primary** | `start_app.bat` launches Docker + browser. Electron exists and now uses the Next.js `/api/gateway` proxy (it previously called `:8100` with no API key). Installer signing and uninstall hooks remain open. |
 
 
@@ -103,7 +103,8 @@ The application currently includes:
 | `LANGGRAPH_CHECKPOINTER` | `none` | Postgres checkpointer requires explicit direct Postgres URL |
 | `TESTDATA_AGENT_ENABLED` | `false` | Extra fixtures/deps for richer QC. RQCA no longer depends on this flag to run. |
 | `RQCA_AGENT_ENABLED` | `true` | Runtime QC runs on the completion path. Docker missing → honest `DRY_RUN` / `ADVISORY`. |
-| `RQCA_ENFORCEMENT_ENABLED` | `true` | Blocks only `qc_verdict == FAIL`. `started_only`, syntax-only, `DRY_RUN`, `SKIPPED`, and `ADVISORY` do not block. Generated tests, when present, are the sandbox command. Turning the agent off while this is on now blocks (skip is not a QC result). Production still fails fast if this is false. |
+| `RQCA_ENFORCEMENT_ENABLED` | `true` | Blocks only `qc_verdict == FAIL`. `started_only`, syntax-only, Tester `source=fallback` stubs, `DRY_RUN`, `SKIPPED`, and `ADVISORY` do not block. A local `.env` `false` is an operator override (`check_env` warns). Production fails fast if this is false. |
+| `PORT_TWO_PHASE_ENABLED` | `true` | Extract-then-generate PORT. Python default matches compose. |
 | `MISSION_SECURITY_COMPLIANCE_ENFORCEMENT_ENABLED` | `true` | Blocking by default — a detected hardcoded secret blocks delivery (`settings.py:92`) |
 | `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | `false` | Contract-conformance findings are advisory until pass rates are measured |
 | `DEPABS_EXECUTION_ENABLED` | `false` | Dependency absorption execution remains opt-in |

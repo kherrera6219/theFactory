@@ -121,6 +121,18 @@ def _legacy_auth_mode_warnings(path: Path, text: str) -> list[str]:
     return []
 
 
+def _rqca_override_warnings(path: Path, text: str) -> list[str]:
+    for _lineno, key, value in _assignments(text):
+        if key != "RQCA_ENFORCEMENT_ENABLED":
+            continue
+        if value.strip().strip("\"'").lower() in {"0", "false", "no", "off"}:
+            return [
+                f"{path.name}: RQCA_ENFORCEMENT_ENABLED={value.strip()} overrides "
+                "the product default (true). FAIL will not block COMPLETE."
+            ]
+    return []
+
+
 def _env_files(repo_root: Path) -> list[Path]:
     candidates = [repo_root / ".env", repo_root / "deploy" / ".env", Path(".env")]
     resolved: list[Path] = []
@@ -151,6 +163,7 @@ def check_env() -> int:
         errors.extend(_single_token_errors(path, text))
         errors.extend(_empty_override_errors(path, text))
         warnings.extend(_legacy_auth_mode_warnings(path, text))
+        warnings.extend(_rqca_override_warnings(path, text))
 
     for warning in warnings:
         print(f"WARNING: {warning}")

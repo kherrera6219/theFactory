@@ -63,6 +63,12 @@ file is floored at **at least 80%** (`rqca_agent` raised from 70%).
 - Spend-cap pause `mission-c1aedfbd` — `spend_cap.state=pause`, `spend_cap_hit=true`.
 - Chat ZIP import — Mission Control `POST /api/repo/import` 200 + SOW.
 
+**Honesty pass (2026-08-18):** Tester fallback tests (`assert True`) are
+ADVISORY, not PASS. `PORT_TWO_PHASE_ENABLED` Python default is `true`
+(matches compose). Extractor file headers no longer claim AST.
+Knowledge Lake status restated as a 4-language bootstrap seed. ADR row
+17 marks the LogicNode graph Implemented.
+
 **Next action:** product decisions that need sign-off — BUILD_NEW
 equivalence (#7) and Electron installer (#9). Not code cleanup.
 
