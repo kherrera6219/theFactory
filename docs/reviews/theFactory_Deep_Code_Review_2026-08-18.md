@@ -104,6 +104,57 @@ ADVISORY. Added `test_rqca_assessment_real_tests_still_pass`, and confirmed it i
 load-bearing by mutating the rule to always fire — the new test fails, the two
 existing ones do not.
 
+### CI health (checked 2026-08-19)
+
+Pass 2 ran the test suite locally and reported exit 0. It did not look at GitHub.
+On GitHub, **CI had failed on `main` five consecutive times** and **Weekly
+Qualification had failed every scheduled run since at least 2026-08-03**. Neither
+was visible from a local run, and neither was a product defect.
+
+**P3-6 — E2E still asserted the pre-SOW repo flow, and the coverage gate never ran. (Fixed.)**
+
+Two Playwright failures, both tests left behind by the SOW factory work:
+
+- `repo intake imports files and launches mission` waited 30s for a
+  **"Launch Mission"** button that no longer exists. `/repo` Step 4 now stores a
+  review handoff and pushes to `/chat?fromRepo=1`; the button reads **"Draft SOW
+  with PM"**. The product is right and the test was stale — its own sibling in
+  `mission-sow-journeys.spec.ts` asserts the new behaviour and was passing.
+- `chat is the SOW front door` used `getByText` with a four-way alternation that
+  matched four nodes (intro copy, PM greeting, panel heading, empty state) and so
+  failed Playwright strict mode. The page was rendering correctly.
+
+The second-order effect is the one worth keeping: E2E runs **before**
+`Test with Coverage` in the same job, so for five pushes the 80% line / 70% branch
+floors and all 16 per-module floors — added 2026-08-17 precisely to hold the line —
+**never executed on `main`**. A gate that an earlier failing step prevents from
+running is indistinguishable from a gate that passes. Both now run; both pass.
+
+**P3-7 — Weekly Qualification could never start its stack. (Fixed.)**
+
+Every run died at "Start qualification stack" with
+`container deploy-postgres-1 is unhealthy`. That reads like a slow boot, and it
+is not: postgres was declared unhealthy **~0.5s after start**, against a
+`start_period` of 30s and 5 retries. The container had exited.
+
+`deploy/postgres/entrypoint.sh` runs under `set -euo pipefail` and its first act
+is copying `/run/postgres-certs/server.{crt,key}`. Those certs are produced by
+`scripts/generate_dev_tls_certs.sh` into `deploy/.local/`, which is **gitignored**.
+On a fresh runner the bind-mount source did not exist, Docker helpfully created an
+empty directory, the `cp` failed, and postgres died before serving anything.
+`ci.yml` had generated the certs since forever; `qualification.yml` never did, and
+also had no `.env` at all.
+
+Fixed by giving qualification both steps. Rather than paste ci.yml's 40-line env
+block into a second workflow and let the two drift, that block now lives in
+`scripts/write_ci_env.sh` and both workflows call it — every override keeping the
+comment naming the CI failure that earned it.
+
+This one is worth noting for a second reason: the qualification workflow is what
+produces the operator auth matrix, the dedicated-agent canary trend, and the DORA
+summary. Those artifacts have not been generated for at least three weeks, so any
+document citing them is citing something that did not run.
+
 ### Numbers, re-measured
 
 | Measure | Pass 2 | Pass 3 (2026-08-19) |
