@@ -331,7 +331,7 @@ async def _prepare_runtime_qc(
             if not isinstance(cached_qc_assessment, dict):
                 cached_qc_assessment = {}
             blocked = (
-                bool(getattr(settings, "rqca_enforcement_enabled", False))
+                _setting_bool(settings, "rqca_enforcement_enabled", False)
                 and cached_qc_assessment.get("qc_verdict") == "FAIL"
             )
             return mission, not blocked, cached_report
@@ -561,7 +561,7 @@ async def _prepare_runtime_qc(
         metadata,
     )
     blocked = (
-        bool(getattr(settings, "rqca_enforcement_enabled", False))
+        _setting_bool(settings, "rqca_enforcement_enabled", False)
         and qc_assessment.get("qc_verdict") == "FAIL"
     )
     feature = metadata.get("feature_contract") if isinstance(metadata.get("feature_contract"), dict) else {}

@@ -70,3 +70,6 @@ test-keys/
 # Shared sandbox workspace for RQCA / behavioural-equivalence execution.
 # Contents are throwaway per-mission directories.
 .sandbox-workspace/
+
+# Scratch pytest transcripts from local full-suite runs.
+pytest_full_run.txt

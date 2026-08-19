@@ -115,6 +115,12 @@ def normalize_mission_type(value: Any, *, default_if_empty: str = "BUILD_NEW") -
 
 
 def normalize_output_mode(value: Any, *, default_if_empty: str = "FULL_BUILD") -> str:
+    """Return an official output mode or raise ``UnknownMissionTypeError``.
+
+    Empty / omitted values become ``default_if_empty`` (FULL_BUILD). Unlike
+    mission types these have no alias table, so any non-empty unrecognised
+    value is a client error.
+    """
     folded = _fold_token(value)
     if not folded:
         return default_if_empty
@@ -124,6 +130,10 @@ def normalize_output_mode(value: Any, *, default_if_empty: str = "FULL_BUILD") -
 
 
 def normalize_depth_mode(value: Any, *, default_if_empty: str = "STANDARD") -> str:
+    """Return an official depth mode or raise ``UnknownMissionTypeError``.
+
+    Empty / omitted values become ``default_if_empty`` (STANDARD).
+    """
     folded = _fold_token(value)
     if not folded:
         return default_if_empty
@@ -135,6 +145,12 @@ def normalize_depth_mode(value: Any, *, default_if_empty: str = "STANDARD") -> s
 def normalize_data_classification(
     value: Any, *, default_if_empty: str = "TIER_1_INTERNAL"
 ) -> str:
+    """Return an official data classification or raise ``UnknownMissionTypeError``.
+
+    Empty / omitted values become ``default_if_empty`` (TIER_1_INTERNAL). An
+    unrecognised classification must never be silently downgraded to the
+    default -- it decides how the mission's data may be handled.
+    """
     folded = _fold_token(value)
     if not folded:
         return default_if_empty

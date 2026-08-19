@@ -1,4 +1,151 @@
-# theFactory — Deep Code Review (Pass 2, Corrected)
+# theFactory — Deep Code Review (Pass 3)
+
+Document version: 2026.08.19
+Last updated: 2026-08-19
+Status: Current — pass 3 re-review against live source and a running stack
+Audience: Maintainers and AI coding agents
+
+**Date:** 2026-08-19
+**Target:** `main` @ `af8a403` — four commits past pass 2's `c1b044f`
+**Stack:** live, **full-dedicated** (56 containers), not the condensed topology
+
+### What pass 3 did differently
+
+Pass 2 read implementations and ran the test suite. Pass 3 assumed **none of its
+own disposition table was true** and re-derived each claim from source, from a
+running stack, or by mutation. The disposition block below says N1–N4 and C4 were
+fixed; that block is now independently confirmed rather than asserted — including
+one claim I first got wrong myself and had to re-check (see P3-5).
+
+The reason for the method: this repo's whole failure history is checks that pass
+having verified nothing. A disposition table is exactly that shape.
+
+### Re-verification of the pass-2 dispositions
+
+| ID | Claim | How pass 3 checked it | Result |
+|---|---|---|---|
+| N1 | fallback QC tests can no longer PASS | Called `generate_rqca_assessment` directly with four inputs, then **mutated** the rule to over-trigger and confirmed a test fails | **Confirmed.** `source=fallback` + exit 0 → `ADVISORY`/`deployment_safe=False`; real FAIL still `FAIL`; LLM-authored tests still `PASS` |
+| N2 | Knowledge Lake restated honestly | Imported `_BOOTSTRAP_DOCS` and counted, then read `IMPLEMENTATION_STATUS.md` | **Confirmed.** Exactly 42 entries across `java`, `javascript`, `python`, `typescript`; status page now reads "Bootstrap seed, not a lake" |
+| N3 | extractor docstrings corrected | Read all four extractor headers; grepped for the old claims | **Confirmed.** Go now says "Regex structural extraction… Not a language AST. Filename is historical." No "zero false-positive" survives |
+| N4 | flag defaults aligned | Read `settings.py`, `check_env.py`, and the local `.env` | **Confirmed.** `port_two_phase_enabled: bool = True`; `check_env` warns on an RQCA override; local `.env` now pins `true` and `check_env` reports `env OK` |
+| C4 | ADR row 17 updated | Read the row | **Confirmed.** Row 17 records the shipped SVG graph and the CSP reason |
+
+### Item 11 — the privilege boundary, proved by execution
+
+Pass 2 predates this. The work queue also disagreed with itself: the Tier 4 table
+said "done in condensed topology" while the progress list still showed `[ ] 11`.
+
+Checked on the running full-dedicated stack:
+
+- The orchestrator has **no `/var/run/docker.sock` at all** — `ls` reports no such
+  file. `sandbox-runner` has it (`srw-rw---- root root`).
+- `sandbox-runner`'s `/internal/sandbox/health` answers the orchestrator's bearer
+  token; unauthenticated callers do not get in.
+- Then the part that matters: a valid Python file executed through
+  `/internal/sandbox/execute` returned **exit 0 with real stdout**, and a
+  deliberately broken one returned **exit 1 with a real `SyntaxError`**.
+
+Presence of a service proves nothing; a runner that returns 0 for everything looks
+identical to a working one until you feed it something that must fail. Item 11 is
+closed, in full-dedicated.
+
+### New findings
+
+**P3-1 — the enforcement flag was read three ways, two of them wrong. (Fixed.)**
+
+`phases_runtime.py` read `rqca_enforcement_enabled` at three sites: line 312 via
+`_setting_bool`, lines 334 and 564 via `bool(getattr(...))`. `_setting_bool`
+exists precisely because `bool("false")` is `True`. Both bypasses sat on real
+blocking paths — 564 is the main gate that decides whether a `FAIL` stops
+`COMPLETE`, 334 is the cached-verdict path. Pydantic coerces the field today, so
+this was latent rather than live, but it meant one file could disagree with itself
+about whether enforcement was on. All three now route through `_setting_bool`.
+
+**P3-2 — the documentation gate was red on `main`. (Fixed.)**
+
+`scripts/validate_documentation.py` exited 1 for two unrelated reasons: three
+`normalize_*` functions in `shared_runtime/mission_types.py` shipped without
+docstrings, and **this review file itself** lacked the required metadata header.
+Both fixed. Worth stating plainly because it is the same failure mode the rest of
+this document is about: a gate nobody notices is red is a gate that certifies
+nothing.
+
+**P3-3 — N1 is now honest, but it still does not block. (Open — a decision, not a bug.)**
+
+Enforcement blocks on `qc_verdict == "FAIL"` only. `ADVISORY` does not block. So
+the end-to-end behaviour today is: LLM outage → fallback stub tests → sandbox exit
+0 → `ADVISORY` / `deployment_safe: False` → **mission still reaches COMPLETE**,
+now correctly labelled instead of falsely green.
+
+That is a large improvement and may well be the right product choice — it keeps
+offline development moving, which is the stated reason `_fallback_pod_audit_verdict`
+is advisory too. But pass 2 framed N1 as "a delivery gate that can currently pass
+on a test that cannot fail", and strictly that is still true; what changed is that
+the pass is now labelled unsafe rather than safe. Decide explicitly whether
+`ADVISORY` should block under `RQCA_ENFORCEMENT_ENABLED=true`, and record the
+decision either way.
+
+**P3-4 — the file holding the gate has no coverage floor. (Open.)**
+
+CI enforces 16 per-module floors: `sandbox_exec.py` and `sandbox_runner.py` at 90,
+`rqca_agent.py` at 80, several at 100. `phases_runtime.py` — which contains the
+enforcement decision itself, the cached-verdict path, and the spend-cap check — has
+no floor. The files it calls are protected; the file that decides is not.
+
+**P3-5 — a missing control test, and a correction to my own finding. (Fixed.)**
+
+I first recorded that N1 shipped without a regression test. That was wrong — my
+grep required "fallback" and "ADVISORY" on the same line and they are on different
+ones. Two tests exist: the fallback case and the FAIL-still-stands case.
+
+What was genuinely missing is the **over-trigger control**: both existing tests
+would still pass if the rule ignored `source` and downgraded everything to
+ADVISORY. Added `test_rqca_assessment_real_tests_still_pass`, and confirmed it is
+load-bearing by mutating the rule to always fire — the new test fails, the two
+existing ones do not.
+
+### Numbers, re-measured
+
+| Measure | Pass 2 | Pass 3 (2026-08-19) |
+|---|---|---|
+| Backend test suite | ~2,030 tests, exit 0 | **2,099 passed, 4 skipped, 0 failed, exit 0** |
+| Production audit | not run | **23/23 checks passed** |
+| Ruff (`services/ tests/ scripts/`) | not run | **clean** |
+| Documentation gate | not run | **was red; now green** |
+| Route surface | 39 + 56 + 6 = 101 | **101, unchanged** (22 Mission Control pages) |
+
+Only warnings remain the two `jsonschema.RefResolver` deprecations pass 2 noted.
+
+### Revised recommendations
+
+1. **Decide P3-3.** Should `ADVISORY` block under enforcement? This is the last
+   place where "it ran" and "it works" are still allowed to produce the same
+   outcome, and it is now a product decision rather than a defect.
+2. **Floor `phases_runtime.py` (P3-4)** alongside the sandbox files it calls.
+3. **Knowledge Lake** — unchanged from pass 2 and still the largest claim/reality
+   gap. The docs are now honest about it; the decision (build ingestion vs. rename)
+   is still open.
+4. **Run one real brownfield mission in a non-seeded language** — still the highest-value
+   untried path, and N2 is exactly why.
+5. Then the open queue: BUILD_NEW equivalence (#7), Repo ZIP Phases 5–7 (#8),
+   Electron (#9, needs sign-off).
+
+### Bottom line
+
+Everything pass 2 said was fixed, is fixed — verified against source, a live
+stack, and mutation rather than against a table. The privilege boundary is real
+and now proved by execution in the topology that actually ships. Two new defects
+surfaced (a flag read inconsistently, a red documentation gate) and both are
+closed; two items are left open as decisions rather than bugs.
+
+The one honest caveat is P3-3: an LLM outage still produces a `COMPLETE` mission.
+It is now labelled `deployment_safe: False` instead of green, which is the
+difference between a system that lies and a system that tells you what it did not
+check — but it is not yet the difference between shipping and not shipping.
+
+---
+
+## Pass 2 (corrected) — retained below
 
 **Date:** 2026-08-18
 **Target:** `C:\software\Holygrail\theFactory` @ `main`, commit `c1b044f`

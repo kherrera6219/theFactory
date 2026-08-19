@@ -328,6 +328,34 @@ def test_rqca_assessment_fallback_tests_still_fail_when_sandbox_fails() -> None:
     assert result["deployment_safe"] is False
 
 
+def test_rqca_assessment_real_tests_still_pass() -> None:
+    """The fallback rule must not swallow real results.
+
+    The two tests above would both pass if `source == "fallback"` were ignored
+    and everything downgraded to ADVISORY. This is the control that fails in
+    that case: LLM-authored tests that actually executed and exited 0 have to
+    keep earning a deployment-safe PASS, or the gate stops distinguishing
+    anything.
+    """
+    for source in ("llm", None):
+        integration_tests = None if source is None else {"source": source}
+        result = asyncio.run(
+            llm_delegation.generate_rqca_assessment(
+                mission_id="mission-1",
+                execution_result={
+                    "verdict": "PASS",
+                    "passed": True,
+                    "verified_scope_detail": "tests",
+                },
+                mission_contract={},
+                language="python",
+                integration_tests=integration_tests,
+            )
+        )
+        assert result["qc_verdict"] == "PASS", source
+        assert result["deployment_safe"] is True, source
+
+
 def test_rqca_assessment_syntax_only_is_advisory_even_if_verdict_says_pass() -> None:
     result = asyncio.run(
         llm_delegation.generate_rqca_assessment(

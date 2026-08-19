@@ -53,7 +53,7 @@ Cheap self-contained hardening follows, then evidence, then features.
 
 | # | Item | Source | Note |
 |---|---|---|---|
-| 11 | Move sandbox execution out of the orchestrator into `agent-41-rqca` | Handoff NA-5 | **Done in condensed topology (2026-08-17):** `sandbox-runner` owns `docker.sock`; orchestrator uses `SANDBOX_EXECUTOR_URL`. AGENT-41-RQCA still owns the verdict. Dedicated overlay can point the same URL at a worker that serves `/internal/sandbox/execute`. |
+| 11 | Move sandbox execution out of the orchestrator into `agent-41-rqca` | Handoff NA-5 | **Done (2026-08-17; verified in full-dedicated 2026-08-19):** `sandbox-runner` owns `docker.sock`; orchestrator uses `SANDBOX_EXECUTOR_URL`. AGENT-41-RQCA still owns the verdict. Dedicated overlay can point the same URL at a worker that serves `/internal/sandbox/execute`. |
 | 12 | C# offline runtime (`dotnet-script` uninstallable with `--network=none`) | Language matrix | Currently an honest DRY_RUN; lowest priority |
 | 13 | Sprint 4.1 — measurement before enforcement; ≥20 missions before raising `MISSION_EQUIVALENCE_ENFORCEMENT_ENABLED` | Plan 4.1 | |
 | 14 | Sprint 4.2 — final documentation and promotion package | Plan 4.2 | |
@@ -105,7 +105,13 @@ Cheap self-contained hardening follows, then evidence, then features.
 - [ ] 8 — repo ZIP Phases 5–7
 - [ ] 9 — Electron decisions *(blocked on user sign-off)*
 - [ ] 10 — operator polish
-- [ ] 11 — sandbox out of the orchestrator
+- [x] **11 — sandbox out of the orchestrator** *(closed 2026-08-19)*. Verified
+  live in **full-dedicated** (56 containers), not only condensed: the
+  orchestrator has no `/var/run/docker.sock` at all, `sandbox-runner` holds it,
+  and `/internal/sandbox/health` answers the orchestrator's bearer token. Proved
+  by execution rather than presence — a valid Python file returned exit 0 with
+  real stdout, and a deliberately broken one returned exit 1 with a real
+  `SyntaxError`, so the runner is not passing everything.
 - [ ] 12 — C# offline runtime
 - [ ] 13 — measurement before enforcement
 - [ ] 14 — release package
