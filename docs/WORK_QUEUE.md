@@ -1,7 +1,7 @@
 # Combined Work Queue
 
-Document version: 2026.08.18
-Last updated: 2026-08-18
+Document version: 2026.08.19
+Last updated: 2026-08-19
 Status: Canonical execution order
 Audience: Maintainers and AI coding agents
 
@@ -115,6 +115,17 @@ Cheap self-contained hardening follows, then evidence, then features.
 - [ ] 12 — C# offline runtime
 - [ ] 13 — measurement before enforcement
 - [ ] 14 — release package
+- [x] **CI and Weekly Qualification restored** *(2026-08-19)*. CI had been red on
+  `main` for five consecutive pushes and Weekly Qualification for every run since
+  at least 2026-08-03; neither was visible from a local test run, and none of it
+  was a product defect. CI: two Playwright tests still asserted the pre-SOW repo
+  flow. Qualification: three faults stacked in series — missing TLS certs (postgres
+  exited 0.5s after start), a stack missing neo4j/minio/milvus while their
+  `*_ENABLED` flags were true (orchestrator readiness unsatisfiable by
+  construction), and a canary that sent no API credential (every mission creation
+  401). Consequence worth remembering: the 80% coverage floors added 2026-08-17 sit
+  after the E2E step, so they **never ran on `main`** for those five pushes.
+  Details in `docs/reviews/theFactory_Deep_Code_Review_2026-08-18.md` (P3-6, P3-7).
 - [x] **15 — date skew** *(2026-08-11)*. Resolved: host and container clocks
   agree on **2026-08-11**. Docs written earlier in the session carried
   2026-08-06, taken from a container timestamp read during a long-running

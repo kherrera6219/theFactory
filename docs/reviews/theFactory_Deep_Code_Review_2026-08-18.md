@@ -130,7 +130,7 @@ floors and all 16 per-module floors — added 2026-08-17 precisely to hold the l
 **never executed on `main`**. A gate that an earlier failing step prevents from
 running is indistinguishable from a gate that passes. Both now run; both pass.
 
-**P3-7 — Weekly Qualification had three stacked defects, none previously observable. (Two fixed and confirmed; the third verifying.)**
+**P3-7 — Weekly Qualification had three stacked defects, each masked by the one before it. (All three fixed; first two confirmed on GitHub, third confirmed against the live stack.)**
 
 Every run died at "Start qualification stack" with
 `container deploy-postgres-1 is unhealthy`. That reads like a slow boot, and it
@@ -171,6 +171,23 @@ readiness wait now also polls the orchestrator's `/readyz`, since that pair is
 what the matrix itself waits on — the first wait passed while the endpoint the
 matrix actually needed was still failing, which is its own small lesson about
 what a readiness check is worth if it does not check the thing that matters.
+
+With the matrix passing, a third defect surfaced underneath: all four language
+canaries "failed" in under a second each, without running a single mission.
+`dedicated_agent_canary_rollout.py` sends only an `Idempotency-Key` and **no
+credential at all**, so every `POST /v1/missions` was a 401. Verified against the
+live stack with both controls — the same request returns **401 without**
+`x-api-key` and **200 with** it. That is precisely the bug
+`tests/services/live_stack_auth.py` exists to prevent; its own docstring says it
+was written because "one of them shipped sending no credential at all". This
+script was the one that never got the fix, and nothing could reveal that while
+the workflow died two steps earlier.
+
+The pattern across all three is the same and worth stating: each defect was
+**masked by the one before it**. Three weeks of red runs looked like one broken
+workflow and were actually three unrelated faults stacked in series. Nothing here
+was a product defect — the app was fine; the thing that was supposed to be
+checking the app was not running.
 
 This one is worth noting for a second reason: the qualification workflow is what
 produces the operator auth matrix, the dedicated-agent canary trend, and the DORA

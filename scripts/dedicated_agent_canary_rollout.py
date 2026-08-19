@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 import uuid
 from datetime import UTC, datetime
@@ -11,7 +12,17 @@ from urllib.parse import urlsplit
 
 import httpx
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests" / "services"))
+from live_stack_auth import resolve_internal_service_api_key  # noqa: E402
+
 HTTP_TIMEOUT_SECONDS = 10.0
+# The gateway runs AUTH_MODE=api_key and rejects unauthenticated callers with
+# 401. This script sent only an Idempotency-Key, so every mission creation was
+# rejected before a mission existed -- invisible until the qualification
+# workflow could start its stack for the first time in three weeks, at which
+# point all four language canaries "failed" in under a second each without
+# running anything. Same resolution the other live scripts use.
+API_KEY = resolve_internal_service_api_key()
 PM_AGENT_ID = "AGENT-01-PM"
 CEO_AGENT_ID = "AGENT-02-CEO"
 DEFAULT_REQUIRED_CHAIN_EVENTS = (
@@ -50,6 +61,8 @@ def _request_json(
     headers: dict[str, str] | None = None,
 ) -> tuple[int, Any]:
     request_headers = {"Accept": "application/json"}
+    if API_KEY:
+        request_headers["x-api-key"] = API_KEY
     if headers:
         request_headers.update(headers)
     response = httpx.request(

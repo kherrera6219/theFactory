@@ -1,7 +1,7 @@
 # Current Handoff
 
-Document version: 2026.08.18
-Last updated: 2026-08-18
+Document version: 2026.08.19
+Last updated: 2026-08-19
 Status: Canonical
 Audience: Maintainers, operators, and AI coding agents
 
@@ -1536,6 +1536,51 @@ when EDCP starts inverting control flow onto the bus. Start with PBLA-01 (Delta)
 ---
 
 ## Latest Completed Work
+
+### CI restored and pass-3 review (2026-08-19)
+
+Re-reviewed the app against `main` and a live full-dedicated stack, then rebuilt.
+`docs/reviews/theFactory_Deep_Code_Review_2026-08-18.md` now carries a **Pass 3**
+section; every pass-2 disposition (N1–N4, C4) was re-derived from source, a
+running stack, or mutation rather than taken from the disposition table, and all
+of them held.
+
+**What was actually broken was the checking, not the app.** CI had been red on
+`main` for five consecutive pushes; Weekly Qualification for every run since at
+least 2026-08-03. A local `pytest` run showed none of it.
+
+- CI: two Playwright tests still asserted the pre-SOW repo flow (`/repo` now
+  reads "Draft SOW with PM" and hands off to `/chat?fromRepo=1`). Because E2E
+  runs *before* `Test with Coverage` in the same job, the 80% floors added
+  2026-08-17 **never executed on `main`** during that window. Both run and pass
+  now.
+- Qualification: three faults in series, each hidden by the one before —
+  missing TLS certs (postgres exited ~0.5s after start, reported as
+  "unhealthy"); a stack without neo4j/minio/milvus while their `*_ENABLED` flags
+  were true, making orchestrator `/readyz` unsatisfiable; and
+  `dedicated_agent_canary_rollout.py` sending no API credential, so every
+  mission creation was a 401.
+- New shared scripts: `scripts/write_ci_env.sh` (CI `.env` recipe, previously
+  inlined in `ci.yml`, now shared so the two workflows cannot drift) and
+  `scripts/wait_for_stack_ready.sh` (polls gateway **and** orchestrator
+  `/readyz`, dumps state on timeout).
+
+Also fixed: `phases_runtime` read `rqca_enforcement_enabled` three ways, two via
+`bool(getattr(...))` (`bool("false")` is `True`) on blocking paths; a red
+documentation gate; and a missing over-trigger control test for the
+fallback→ADVISORY rule.
+
+Work-queue item 11 closed with live full-dedicated evidence: the orchestrator has
+no `docker.sock`, `sandbox-runner` holds it, and execution through it returns
+exit 0 with real stdout for a valid file and exit 1 with a real `SyntaxError` for
+a broken one.
+
+Open decision, not a defect: `ADVISORY` does not block, so an LLM outage still
+produces a `COMPLETE` mission — now labelled `deployment_safe: False` rather than
+falsely green.
+
+Stack rebuilt after these changes: 56 containers, full-dedicated, and the running
+orchestrator image verified to contain the `_setting_bool` fix.
 
 ### PM SOW factory plan filed (2026-08-17) — docs only
 

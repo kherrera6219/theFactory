@@ -6,6 +6,70 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### CI restored, and the gates that were not running (2026-08-19)
+
+Pass-3 re-review of `docs/reviews/theFactory_Deep_Code_Review_2026-08-18.md`,
+re-deriving every pass-2 disposition from source, a live stack, and mutation
+rather than from the disposition table. All of N1–N4 and C4 confirmed fixed.
+Then the same treatment applied to GitHub, which no previous pass had looked at.
+
+#### Fixed
+- `phases_runtime` read `rqca_enforcement_enabled` three ways; two sites used
+  `bool(getattr(...))`, which returns `True` for the string `"false"`. Both were
+  on blocking paths — the gate deciding whether a `FAIL` stops `COMPLETE`, and
+  the cached-verdict path. All three now use `_setting_bool`.
+- `validate_documentation` exited 1 on `main`: three `normalize_*` functions in
+  `shared_runtime/mission_types.py` had no docstrings, and the review file itself
+  had no metadata header.
+- Mission Control E2E asserted the pre-SOW repo flow. `/repo` hands off to the PM
+  (`Draft SOW with PM` → `/chat?fromRepo=1`); the test waited 30s for a
+  `Launch Mission` button that no longer exists. A second test used a four-way
+  `getByText` alternation that matched four nodes and failed strict mode.
+  **CI had been red on `main` for five consecutive pushes on these two.**
+- Weekly Qualification, red every scheduled run since at least 2026-08-03, had
+  three stacked defects — each invisible until the one before it was cleared:
+  1. No TLS certs. `deploy/postgres/entrypoint.sh` copies
+     `/run/postgres-certs/server.{crt,key}` under `set -e`; the certs live in
+     gitignored `deploy/.local`, so on a fresh runner the bind mount was an empty
+     directory and postgres exited ~0.5s after start. Compose reported that as
+     "unhealthy", which reads like a slow boot.
+  2. The stack omitted neo4j, minio and milvus while the env had
+     `NEO4J_ENABLED`, `OBJECT_STORAGE_ENABLED` and `MILVUS_ENABLED` true. The
+     orchestrator's `/readyz` ANDs in each enabled backend, so readiness was
+     unsatisfiable by construction and the gateway returned 502.
+  3. `dedicated_agent_canary_rollout.py` sent only an `Idempotency-Key` and **no
+     credential at all**, so every mission creation was a 401 — the exact bug
+     `tests/services/live_stack_auth.py` was written to prevent. It now resolves
+     the key the same way the other live scripts do.
+
+#### Added
+- `scripts/write_ci_env.sh` — the CI `.env` recipe, previously inlined in
+  `ci.yml`, now shared with `qualification.yml` so the two cannot drift. Every
+  override keeps the comment naming the failure that earned it.
+- `scripts/wait_for_stack_ready.sh` — polls the gateway **and** the orchestrator
+  `/readyz`, and dumps compose state, both readiness bodies and recent service
+  logs on timeout. Used twice in qualification: after the initial start, and
+  after the auth matrix restores the gateway's `AUTH_MODE` with `up -d`, which
+  returns before the container answers.
+- `test_rqca_assessment_real_tests_still_pass` — the over-trigger control for the
+  fallback→ADVISORY rule. The two existing tests would both pass if the rule
+  ignored `source` and downgraded everything; this one fails when the rule is
+  mutated to always fire.
+
+#### Notes
+- The coverage floors added 2026-08-17 sit after the E2E step in the same job, so
+  for five pushes they **never executed on `main`**. A gate an earlier failing
+  step prevents from running is indistinguishable from a gate that passes. Both
+  run and pass now.
+- Item 11 (sandbox out of the orchestrator) closed with live evidence from
+  **full-dedicated**, not only condensed: the orchestrator has no `docker.sock`,
+  `sandbox-runner` holds it, and execution through it returns exit 0 with real
+  stdout for a valid file and exit 1 with a real `SyntaxError` for a broken one.
+- Still open and now a decision rather than a defect: `ADVISORY` does not block.
+  An LLM outage yields a `COMPLETE` mission labelled `deployment_safe: False`
+  instead of a false green. Whether that should block under
+  `RQCA_ENFORCEMENT_ENABLED=true` is unresolved.
+
 ### Dependabot highs (2026-08-18)
 
 #### Fixed
