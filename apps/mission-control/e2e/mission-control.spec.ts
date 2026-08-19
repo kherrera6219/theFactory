@@ -872,7 +872,7 @@ test("builder workspace generates actionable diff previews", async ({ page }) =>
   await expect(page).toHaveURL(/\/missions\/detail\?id=mission-e2e-\d+/);
 });
 
-test("repo intake imports files and launches mission", async ({ page }) => {
+test("repo intake imports files and hands off to the PM", async ({ page }) => {
   await setupMissionControlApiMocks(page);
 
   await page.goto("/repo");
@@ -903,10 +903,14 @@ test("repo intake imports files and launches mission", async ({ page }) => {
   await expect(page.getByText(/Review gate persisted at/i)).toBeVisible();
 
   await expect(page.getByText("Requested target language")).toBeVisible();
-  await page.getByRole("button", { name: "Launch Mission" }).click();
 
-  await expect(page).toHaveURL(/\/missions\/detail\?id=mission-e2e-\d+/);
-  await expect(page.getByRole("heading", { name: /Mission mission-e2e-/i })).toBeVisible();
+  // Repo intake no longer launches a raw mission. Step 4 stores the review
+  // handoff and continues into the PM conversation, which is where the SOW is
+  // agreed before any mission exists.
+  await page.getByRole("button", { name: "Draft SOW with PM" }).click();
+
+  await expect(page).toHaveURL(/\/chat\?fromRepo=1/);
+  await expect(page.getByRole("heading", { name: "Mission Intake Conversation" })).toBeVisible();
 });
 
 test("error states surface actionable UI messaging", async ({ page }) => {
