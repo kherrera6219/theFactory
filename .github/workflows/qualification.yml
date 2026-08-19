@@ -66,6 +66,28 @@ jobs:
             pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker \
             pod-c-dedicated-mgr-worker pod-d-dedicated-mgr-worker
 
+      # `up -d` returns when containers are created, not when they serve. The
+      # orchestrator runs schema migrations on boot, and the gateway's /readyz
+      # requires the orchestrator's /livez plus a Redis ping, so the matrix used
+      # to start against a stack that had not finished booting. ci.yml has always
+      # waited here; this workflow never did. On failure, dump state -- the last
+      # run failed with "readyz failed" for all three auth modes and a bare 502,
+      # which says the gateway could not reach the orchestrator but not why.
+      - name: Wait for API gateway readiness
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://localhost:8100/readyz >/dev/null 2>&1; then
+              echo "api-gateway ready after ${attempt} attempt(s)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::api-gateway did not become ready in time" >&2
+          docker compose -f deploy/docker-compose.yaml ps
+          curl -sS http://localhost:8100/readyz || true
+          docker compose -f deploy/docker-compose.yaml logs --tail=120 api-gateway orchestrator postgres pgbouncer
+          exit 1
+
       - name: Operator route auth matrix
         # This CI job's stack is disposable (built fresh above, torn down in
         # "Shutdown qualification stack" below), so --execute is safe and
