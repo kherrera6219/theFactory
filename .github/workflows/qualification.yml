@@ -42,6 +42,21 @@ jobs:
           python scripts/validate_schemas.py
           python scripts/build_refined_ir_catalog.py
 
+      # The stack could never start without these two steps. postgres runs a
+      # TLS entrypoint that copies /run/postgres-certs/server.{crt,key} under
+      # `set -e`; the certs live in deploy/.local, which is gitignored, so in CI
+      # the bind mount produced an empty directory, the copy failed, and the
+      # container exited ~0.5s after start. Compose reported that as
+      # "postgres is unhealthy" -- which read like a slow boot rather than a
+      # missing file, and left this workflow red every week.
+      - name: Generate dev TLS certs
+        run: sh scripts/generate_dev_tls_certs.sh
+
+      - name: Write CI .env
+        run: |
+          sh scripts/write_ci_env.sh
+          cp .env deploy/.env
+
       - name: Start qualification stack
         run: |
           docker compose -f deploy/docker-compose.yaml up -d --build \
