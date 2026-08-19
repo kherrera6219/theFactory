@@ -74,28 +74,12 @@ jobs:
             pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker \
             pod-c-dedicated-mgr-worker pod-d-dedicated-mgr-worker
 
-      # `up -d` returns when containers are created, not when they serve. The
-      # orchestrator runs schema migrations on boot, and the gateway's /readyz
-      # requires the orchestrator's /livez plus a Redis ping, so the matrix used
-      # to start against a stack that had not finished booting. ci.yml has always
-      # waited here; this workflow never did. On failure, dump state -- the last
-      # run failed with "readyz failed" for all three auth modes and a bare 502,
-      # which says the gateway could not reach the orchestrator but not why.
+      # `up -d` returns when containers are created, not when they serve, and
+      # the orchestrator runs schema migrations on boot. ci.yml has always waited
+      # before using its stack; this workflow went straight into the matrix. The
+      # script explains why both endpoints are polled and dumps state on timeout.
       - name: Wait for gateway and orchestrator readiness
-        run: |
-          for attempt in $(seq 1 60); do
-            if curl -fsS http://localhost:8100/readyz >/dev/null 2>&1 && curl -fsS http://localhost:8101/readyz >/dev/null 2>&1; then
-              echo "gateway and orchestrator ready after ${attempt} attempt(s)"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "::error::stack did not become ready in time" >&2
-          docker compose -f deploy/docker-compose.yaml ps
-          curl -sS http://localhost:8100/readyz || true
-          curl -sS http://localhost:8101/readyz || true
-          docker compose -f deploy/docker-compose.yaml logs --tail=120 api-gateway orchestrator postgres pgbouncer neo4j minio milvus
-          exit 1
+        run: sh scripts/wait_for_stack_ready.sh
 
       - name: Operator route auth matrix
         # This CI job's stack is disposable (built fresh above, torn down in
@@ -103,6 +87,14 @@ jobs:
         # required here — without it the qualification silently no-ops
         # (dry-run) and reports no pass/fail verdict.
         run: python scripts/operator_route_auth_matrix_qualification.py --execute
+
+      # The auth matrix leaves the gateway freshly recreated: it restores the
+      # initial AUTH_MODE with `docker compose up -d`, which returns before the
+      # container answers. The canary's first act is a /readyz probe, and it
+      # exits 2 on anything but 200 -- which is why all four language canaries
+      # "failed" in about one second without running a single mission.
+      - name: Wait for stack after auth matrix reconfiguration
+        run: sh scripts/wait_for_stack_ready.sh
 
       - name: Dedicated-agent canary trend
         run: python scripts/dedicated_agent_canary_trend.py

@@ -130,7 +130,7 @@ floors and all 16 per-module floors — added 2026-08-17 precisely to hold the l
 **never executed on `main`**. A gate that an earlier failing step prevents from
 running is indistinguishable from a gate that passes. Both now run; both pass.
 
-**P3-7 — Weekly Qualification could never start its stack. (Fixed.)**
+**P3-7 — Weekly Qualification had three stacked defects, none previously observable. (Two fixed and confirmed; the third verifying.)**
 
 Every run died at "Start qualification stack" with
 `container deploy-postgres-1 is unhealthy`. That reads like a slow boot, and it
@@ -149,6 +149,28 @@ Fixed by giving qualification both steps. Rather than paste ci.yml's 40-line env
 block into a second workflow and let the two drift, that block now lives in
 `scripts/write_ci_env.sh` and both workflows call it — every override keeping the
 comment naming the CI failure that earned it.
+
+Fixing that exposed a second failure that had been hidden behind it for three
+weeks: the matrix reported `readyz failed` for all three auth modes and 502 on
+`/v1/operations/summary`. My first diagnosis — that `up -d` returns before the
+stack serves — was **wrong**. I added a gateway readiness wait, the wait passed,
+and the matrix failed identically.
+
+The actual cause is structural. The orchestrator's `/readyz` ANDs in every
+optional backend whose `*_ENABLED` flag is set, and the environment carries
+`NEO4J_ENABLED`, `OBJECT_STORAGE_ENABLED` and `MILVUS_ENABLED` all true — while
+this workflow started none of neo4j, minio or milvus. Orchestrator readiness was
+**unsatisfiable by construction**, and the gateway's proxy to it returned 502.
+ci.yml's perf-smoke stack has always started those three, which is why the same
+environment works there and only here.
+
+Fixed by starting them. Setting the three flags to false would also have gone
+green, and would have been the wrong fix: the gate would then assert less than it
+claims, which is the exact failure mode the rest of this document is about. The
+readiness wait now also polls the orchestrator's `/readyz`, since that pair is
+what the matrix itself waits on — the first wait passed while the endpoint the
+matrix actually needed was still failing, which is its own small lesson about
+what a readiness check is worth if it does not check the thing that matters.
 
 This one is worth noting for a second reason: the qualification workflow is what
 produces the operator auth matrix, the dedicated-agent canary trend, and the DORA
