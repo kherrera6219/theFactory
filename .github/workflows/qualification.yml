@@ -120,7 +120,13 @@ jobs:
           python scripts/dora_metrics_summary.py \
             --output-file docs/evidence/dora_metrics_latest.json
 
+      # always(): every qualification step is a gate, so the runs whose evidence
+      # matters most are exactly the ones that fail -- and without this the
+      # upload is skipped precisely then. The canary trend writes per-run reports
+      # with the failure reasons and chain diagnostics; losing them means the
+      # next debugging pass starts from the one-line summary in the log.
       - name: Upload qualification artifacts
+        if: always()
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: weekly-qualification-artifacts
@@ -128,6 +134,7 @@ jobs:
             docs/evidence/operator_route_oidc_matrix_latest.json
             docs/evidence/operator_route_oidc_matrix_history.jsonl
             docs/evidence/dedicated_agent_canary_trend_latest.json
+            docs/evidence/canary-runs/**
             docs/evidence/dedicated_agent_canary_trend_history.jsonl
             docs/evidence/langgraph_v2_prototype_matrix_latest.json
             docs/evidence/langgraph_v2_prototype_matrix_history.jsonl
