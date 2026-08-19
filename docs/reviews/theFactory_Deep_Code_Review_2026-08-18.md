@@ -159,7 +159,7 @@ document citing them is citing something that did not run.
 
 | Measure | Pass 2 | Pass 3 (2026-08-19) |
 |---|---|---|
-| Backend test suite | ~2,030 tests, exit 0 | **2,099 passed, 4 skipped, 0 failed, exit 0** |
+| Backend test suite | ~2,030 tests, exit 0 | **2,100 passed, 4 skipped, 0 failed, exit 0** |
 | Production audit | not run | **23/23 checks passed** |
 | Ruff (`services/ tests/ scripts/`) | not run | **clean** |
 | Documentation gate | not run | **was red; now green** |

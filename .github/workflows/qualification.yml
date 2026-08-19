@@ -57,10 +57,18 @@ jobs:
           sh scripts/write_ci_env.sh
           cp .env deploy/.env
 
+      # neo4j, minio and milvus are not optional here. The orchestrator's
+      # /readyz ANDs in every backend whose *_ENABLED flag is set, and the env
+      # has NEO4J_ENABLED, OBJECT_STORAGE_ENABLED and MILVUS_ENABLED true.
+      # Starting without them meant /readyz could never return 200, so the auth
+      # matrix reported "readyz failed" for all three modes and 502 on
+      # /v1/operations/summary. ci.yml's perf-smoke stack has always started
+      # them, which is why it passes. Supply what readiness checks rather than
+      # switching the checks off.
       - name: Start qualification stack
         run: |
           docker compose -f deploy/docker-compose.yaml up -d --build \
-            redis postgres qdrant orchestrator api-gateway \
+            redis postgres qdrant neo4j minio milvus orchestrator api-gateway \
             pod-a-worker pod-b-worker pod-c-worker pod-d-worker audit-worker
           docker compose -f deploy/docker-compose.yaml --profile dedicated-agents up -d \
             pod-a-dedicated-mgr-worker pod-b-dedicated-mgr-worker \
@@ -73,19 +81,20 @@ jobs:
       # waited here; this workflow never did. On failure, dump state -- the last
       # run failed with "readyz failed" for all three auth modes and a bare 502,
       # which says the gateway could not reach the orchestrator but not why.
-      - name: Wait for API gateway readiness
+      - name: Wait for gateway and orchestrator readiness
         run: |
           for attempt in $(seq 1 60); do
-            if curl -fsS http://localhost:8100/readyz >/dev/null 2>&1; then
-              echo "api-gateway ready after ${attempt} attempt(s)"
+            if curl -fsS http://localhost:8100/readyz >/dev/null 2>&1 && curl -fsS http://localhost:8101/readyz >/dev/null 2>&1; then
+              echo "gateway and orchestrator ready after ${attempt} attempt(s)"
               exit 0
             fi
             sleep 5
           done
-          echo "::error::api-gateway did not become ready in time" >&2
+          echo "::error::stack did not become ready in time" >&2
           docker compose -f deploy/docker-compose.yaml ps
           curl -sS http://localhost:8100/readyz || true
-          docker compose -f deploy/docker-compose.yaml logs --tail=120 api-gateway orchestrator postgres pgbouncer
+          curl -sS http://localhost:8101/readyz || true
+          docker compose -f deploy/docker-compose.yaml logs --tail=120 api-gateway orchestrator postgres pgbouncer neo4j minio milvus
           exit 1
 
       - name: Operator route auth matrix
