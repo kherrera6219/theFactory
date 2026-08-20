@@ -1,7 +1,7 @@
 # Agent LLM Provider Model Matrix
 
 Document version: 2026.08.15
-Last updated: 2026-08-15
+Last updated: 2026-08-20
 Status: Canonical runtime matrix
 Audience: Architects, developers, AI operators, and release reviewers
 
@@ -28,7 +28,7 @@ three model routes. All routes default to high effort / high thinking.
 | UI label | Provider key | Model ID | Provider endpoint | High-effort field |
 |---|---|---|---|---|
 | Gemini 3.7 Flash | `gemini` | `gemini-3.7-flash` | `POST /v1beta/models/gemini-3.7-flash:generateContent` | Gemini thinking level `high` |
-| ChatGPT 5.5 | `openai` | `gpt-5.5` | `POST /v1/responses` | `reasoning.effort=high` |
+| ChatGPT 5.6 | `openai` | `gpt-5.6` | `POST /v1/responses` | `reasoning.effort=high` |
 | Claude Opus 4.8 | `anthropic` | `claude-opus-4-8` | `POST /v1/messages` | Thinking enabled with high token budget |
 
 The non-Gemini routes are available for vault-slot testing and future
@@ -88,7 +88,7 @@ The shipped local defaults are:
 LLM_PROVIDER=gemini
 GEMINI_MODEL=gemini-3.7-flash
 GEMINI_THINKING_LEVEL=high
-OPENAI_MODEL=gpt-5.5
+OPENAI_MODEL=gpt-5.6
 OPENAI_REASONING_EFFORT=high
 ANTHROPIC_MODEL=claude-opus-4-8
 ANTHROPIC_THINKING_BUDGET_TOKENS=8192

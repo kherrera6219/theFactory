@@ -33,14 +33,14 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
     },
     "openai_exec": {
         "provider": "openai",
-        "model": "gpt-5.5",
+        "model": "gpt-5.6",
         "mode": "thinking",
         "reasoning_effort": "high",
         "reason": "Best fit for deep orchestration and multi-step planning.",
     },
     "openai_instant_ops": {
         "provider": "openai",
-        "model": "gpt-5.5",
+        "model": "gpt-5.6",
         "mode": "thinking",
         "reasoning_effort": "low",
         "reason": (
@@ -50,21 +50,21 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
     },
     "openai_codegen": {
         "provider": "openai",
-        "model": "gpt-5.5",
+        "model": "gpt-5.6",
         "mode": "thinking",
         "reasoning_effort": "xhigh",
         "reason": "Best fit for long-horizon coding and agentic code changes.",
     },
     "openai_deep_audit": {
         "provider": "openai",
-        "model": "gpt-5.5",
+        "model": "gpt-5.6",
         "mode": "thinking",
         "reasoning_effort": "xhigh",
         "reason": "Highest-quality analysis for policy, security, and correctness audits.",
     },
     "openai_audit": {
         "provider": "openai",
-        "model": "gpt-5.5",
+        "model": "gpt-5.6",
         "mode": "thinking",
         "reasoning_effort": "high",
         "reason": "Strong quality with efficient latency for routine code and quality validation.",
@@ -75,7 +75,7 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
         "mode": "thinking",
         "thinking_level": "low",
         "fallback_provider": "openai",
-        "fallback_model": "gpt-5.5",
+        "fallback_model": "gpt-5.6",
         "reason": "Gemini 3.7 Flash — best throughput for high-volume operational and routing traffic.",
     },
     "gemini_ops_balanced": {
@@ -84,7 +84,7 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
         "mode": "thinking",
         "thinking_level": "medium",
         "fallback_provider": "openai",
-        "fallback_model": "gpt-5.5",
+        "fallback_model": "gpt-5.6",
         "reason": "Gemini 3.7 Flash — balanced quality/speed for delivery and release coordination.",
     },
     "gemini_stem": {
@@ -93,7 +93,7 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
         "mode": "thinking",
         "thinking_level": "high",
         "fallback_provider": "openai",
-        "fallback_model": "gpt-5.5",
+        "fallback_model": "gpt-5.6",
         "reason": "Gemini 3.7 Flash — strong technical and mathematical reasoning.",
     },
     "gemini_knowledge": {
@@ -102,7 +102,7 @@ _LLM_PROFILES: Final[dict[str, dict[str, Any]]] = {
         "mode": "thinking",
         "thinking_level": "high",
         "fallback_provider": "openai",
-        "fallback_model": "gpt-5.5",
+        "fallback_model": "gpt-5.6",
 
         "reason": "GA Flash model (Google I/O May 2026) — large-context knowledge indexing, retrieval, and synthesis.",
     },
@@ -388,17 +388,20 @@ def _llm_recommendation_for_agent(agent: AgentDefinition) -> dict[str, Any]:
     recommendation["profile"] = profile_key
     recommendation["rank"] = "primary"
 
-    if recommendation.get("provider") == "openai" and recommendation.get("model") == "gpt-5.5":
-        openai_model = os.getenv("OPENAI_MODEL", "gpt-4o").strip()
-        if openai_model == "gpt-5.5" or not openai_model:
-            openai_model = "gpt-4o"
-        recommendation["model"] = openai_model
+    # OPENAI_MODEL overrides the profile's OpenAI model when set. This block used
+    # to force gpt-4o whenever the resolved model was the profile default, so the
+    # OpenAI route silently ran a much older model than the one Settings offered
+    # and .env named — the same class of mismatch as the stale Gemini vault pin.
+    # The configured model is now honoured; only an unset/blank value falls back.
+    if recommendation.get("provider") == "openai":
+        openai_model = os.getenv("OPENAI_MODEL", "").strip()
+        if openai_model:
+            recommendation["model"] = openai_model
 
-    if recommendation.get("fallback_provider") == "openai" and recommendation.get("fallback_model") == "gpt-5.5":
-        openai_model = os.getenv("OPENAI_MODEL", "gpt-4o").strip()
-        if openai_model == "gpt-5.5" or not openai_model:
-            openai_model = "gpt-4o"
-        recommendation["fallback_model"] = openai_model
+    if recommendation.get("fallback_provider") == "openai":
+        openai_model = os.getenv("OPENAI_MODEL", "").strip()
+        if openai_model:
+            recommendation["fallback_model"] = openai_model
 
     if recommendation.get("provider") == "gemini":
         gemini_model = os.getenv("GEMINI_MODEL", "").strip()

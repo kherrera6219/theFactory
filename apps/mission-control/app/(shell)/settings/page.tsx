@@ -19,7 +19,7 @@ import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
 type ModelOption = {
   label: string;
   provider: "openai" | "anthropic" | "gemini";
-  model: "gpt-5.5" | "claude-opus-4-8" | "gemini-3.7-flash";
+  model: "gpt-5.6" | "claude-opus-4-8" | "gemini-3.7-flash";
   endpoint: string;
   effort: "high";
 };
@@ -33,9 +33,9 @@ const MODEL_OPTIONS: ModelOption[] = [
     effort: "high",
   },
   {
-    label: "ChatGPT 5.5",
+    label: "ChatGPT 5.6",
     provider: "openai",
-    model: "gpt-5.5",
+    model: "gpt-5.6",
     endpoint: "POST /v1/responses",
     effort: "high",
   },

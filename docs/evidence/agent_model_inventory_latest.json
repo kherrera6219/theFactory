@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-20T07:49:48.524341+00:00",
+  "generated_at": "2026-08-20T08:12:08.251128+00:00",
   "source": "services/orchestrator/orchestrator/agent_integrations.py",
   "summary": {
     "total_agents": 41,
@@ -90,7 +90,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -123,7 +123,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -156,7 +156,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -178,7 +178,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -387,7 +387,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -398,7 +398,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -409,7 +409,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -420,7 +420,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -431,7 +431,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -442,7 +442,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -464,7 +464,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -475,7 +475,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },
@@ -497,7 +497,7 @@
       "lifecycle": "stable",
       "production_approved": true,
       "fallback_provider": "openai",
-      "fallback_model": "gpt-4o",
+      "fallback_model": "gpt-5.6",
       "fallback_lifecycle": "stable",
       "fallback_production_approved": true
     },

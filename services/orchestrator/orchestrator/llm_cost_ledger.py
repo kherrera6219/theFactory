@@ -22,6 +22,10 @@ from .storage_core import db_connect
 # ---------------------------------------------------------------------------
 _PRICING: dict[str, dict[str, tuple[float, float]]] = {
     "openai": {
+        # PLACEHOLDER RATE — mirrors gpt-5.5 so cost estimates stay populated
+        # rather than counting as unknown_pricing. Replace with the published
+        # gpt-5.6 rate before running spend against the OpenAI route.
+        "gpt-5.6": (0.005, 0.015),
         "gpt-5.5": (0.005, 0.015),
         "gpt-5.3-codex": (0.010, 0.030),
         "gpt-4o": (0.0025, 0.010),

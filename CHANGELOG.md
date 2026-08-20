@@ -6,6 +6,80 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### A working game, blocked — and the model nobody was running (2026-08-20)
+
+Review of mission-128c77fd ("Mega Bonk Clone"), which produced a genuinely
+playable single-file HTML5 Canvas game and was blocked at
+`MISSION_SECURITY_COMPLIANCE_BLOCKED` anyway. Findings verified against the
+mission's stored metadata and by running the delivered artifact in a browser.
+
+#### Fixed
+- Equivalence failed `language_alignment` for a browser game requested as
+  `javascript` and delivered as `html`, even though the CEO's own contract
+  listed `["javascript", "html", "css"]`. `_target_language` returned the
+  intake scalar whenever codegen reported a language, so the contract's list
+  was only reachable in the dead branch where the language is unknown.
+  Enforcement now uses the accepted set, published as `accepted_languages`.
+- Compliance re-armed equivalence's disabled enforcement switch.
+  `_check_equivalence_presence` read `.passed` rather than `.blocking`, turning
+  an advisory finding into a required failure one stage later. A missing report
+  still hard-fails; one that declared itself non-blocking no longer does.
+- Single-file bundles were delivered with their `## FILE` envelope attached.
+  The `len(tree_files) > 1` guard in `_write_artifact_to_disk` sent them down
+  the raw-write path, so `index.html` began with a stray line before
+  `<!DOCTYPE html>` — confirmed in a browser as quirks mode with `<head>`
+  content hoisted into `<body>`.
+- `GENERATED_OUTPUT_CREATED` permanently advertised a 0-char fallback for a
+  mission that delivered 14 KB of real code. The `_chain_event_exists` guard is
+  right for phase markers and wrong for outcome records; these now restate in
+  place via `_restate_chain_event`.
+- Equivalence reported "No explicit deliverable format was specified" while the
+  contract named `index.html`, `game.js`, `style.css` and `README.md`.
+  `_is_filename_literal` correctly ignores dotted tokens in prose, but
+  `deliverables` is structured data and was being skipped by the same guard.
+  Declared deliverables are now read separately and the delivered file count is
+  reported — advisory only, since one self-contained file can legitimately beat
+  four.
+- The pod audit verdict — the run's only quality gate — reached neither audit
+  store. Every neighbouring stage records an audit event; this one only
+  appended a chain event, so `/audit-events` listed 13 events for the mission
+  with `MISSION_POD_AUDIT_COMPLETE` absent.
+- A stale `ACTIVE-LLM-ROUTE` vault slot routed every agent on every mission to
+  `gemini-3.5-flash` while Settings displayed "Gemini 3.7 Flash".
+  `MODEL_OPTIONS` had stopped offering 3.5, but `normalizeModel` preserved the
+  stored pin, `ALLOWED_LLM_MODELS` still validated it, and `modelOptionFor`
+  falls back to the default for any unlisted model. Superseded revisions are
+  now migrated forward on read and removed from both allowlists.
+- The OpenAI route silently substituted `gpt-4o` whenever the resolved model
+  was the profile default, so it ran a much older model than Settings offered
+  and `.env` named. The configured model is now honoured.
+- `pytest tests/` could not collect 73 modules while each passed when run
+  alone. Under the default `prepend` import mode, test directories named after
+  real packages (`tests/services/orchestrator`, `tests/services/pod_worker`,
+  `tests/shared_runtime`) are importable *as* those packages, so `orchestrator`
+  resolved to an empty namespace package for every module collected after them.
+  Switched to `importmode = "importlib"` and registered the service roots in
+  `conftest.py`. Suite now collects clean.
+
+#### Added
+- AGENT-01-PM can look up a product it does not recognise instead of inferring
+  from the name. Asked for a "Mega Bonk Clone", the PM had no retrieval path,
+  guessed from the name, offered "like Bonk's Adventure" as a clarification
+  option, and four agents executed that premise faithfully. Grounding is
+  enabled for the feature-contract call only — that is where an unidentified
+  name becomes an authoritative premise — via Gemini's server-side search tool,
+  so there is no crawler and no new egress host. Grounded text is screened with
+  the same detector the gateway uses at intake, a hit downgrades the contract to
+  `needs_clarification`, and sources are recorded so a looked-up fact is
+  distinguishable from an invented one.
+
+#### Changed
+- OpenAI model routes updated to `gpt-5.6` across profiles, allowlists, vault,
+  Settings, compose and docs. Superseded `gpt-5.5` pins migrate forward like the
+  Gemini ones. The cost ledger carries a **placeholder** `gpt-5.6` rate mirroring
+  `gpt-5.5`; replace it with the published rate before running OpenAI spend.
+  Historical pricing entries are retained so past missions still price.
+
 ### CI restored, and the gates that were not running (2026-08-19)
 
 Pass-3 re-review of `docs/reviews/theFactory_Deep_Code_Review_2026-08-18.md`,

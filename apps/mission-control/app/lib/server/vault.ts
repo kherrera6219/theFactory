@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 
 type VaultProvider = "openai" | "anthropic" | "gemini" | "github" | "operator";
 type VaultModel =
-  | "gpt-5.5"
+  | "gpt-5.6"
   | "claude-opus-4-8"
   | "gemini-3.7-flash"
   | "gemini-embedding-001"
@@ -21,6 +21,8 @@ type VaultModel =
 // are migrated forward on read rather than preserved.
 const SUPERSEDED_GEMINI_MODELS = new Set(["gemini-3.5-flash", "gemini-3.6-flash"]);
 const CURRENT_GEMINI_MODEL: VaultModel = "gemini-3.7-flash";
+const SUPERSEDED_OPENAI_MODELS = new Set(["gpt-5.5"]);
+const CURRENT_OPENAI_MODEL: VaultModel = "gpt-5.6";
 
 type VaultBackend = "memory" | "local-encrypted" | "hashicorp-vault";
 
@@ -118,7 +120,8 @@ function normalizeProvider(value: string): VaultProvider {
 
 function normalizeModel(value: string | undefined, provider: VaultProvider): VaultModel | undefined {
   const candidate = (value ?? "").trim();
-  if (candidate === "gpt-5.5") return "gpt-5.5";
+  if (candidate === "gpt-5.6") return "gpt-5.6";
+  if (SUPERSEDED_OPENAI_MODELS.has(candidate)) return CURRENT_OPENAI_MODEL;
   if (candidate === "claude-opus-4-8") return "claude-opus-4-8";
   if (candidate === "gemini-3.7-flash") return "gemini-3.7-flash";
   // Migrate a pin saved against an older Flash revision rather than honouring
@@ -127,7 +130,7 @@ function normalizeModel(value: string | undefined, provider: VaultProvider): Vau
   if (candidate === "gemini-embedding-001") return "gemini-embedding-001";
   if (candidate === "text-embedding-3-large") return "text-embedding-3-large";
   if (candidate === "text-embedding-3-small") return "text-embedding-3-small";
-  if (provider === "openai") return "gpt-5.5";
+  if (provider === "openai") return "gpt-5.6";
   if (provider === "anthropic") return "claude-opus-4-8";
   if (provider === "gemini") return "gemini-3.7-flash";
   return undefined;

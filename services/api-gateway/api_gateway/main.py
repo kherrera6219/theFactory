@@ -178,7 +178,7 @@ PAYLOAD_REF_PATTERN = re.compile(r"^registry://")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6")
 OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "20"))
 OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "high").strip().lower()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
@@ -202,7 +202,7 @@ GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "high").strip().lower
 # live missions to an older model. Historical missions are unaffected — this
 # gates new selections, not records already written.
 ALLOWED_LLM_MODELS: dict[str, str] = {
-    "gpt-5.5": "openai",
+    "gpt-5.6": "openai",
     "claude-opus-4-8": "anthropic",
     "gemini-3.7-flash": "gemini",
 }

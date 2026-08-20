@@ -840,11 +840,11 @@ OTEL_TRACING_ENABLED=true
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
 
 # LLM Providers
-LLM_PROVIDER=gemini                # gemini default; UI model choices: gpt-5.5 | claude-opus-4-8 | gemini-3.7-flash
+LLM_PROVIDER=gemini                # gemini default; UI model choices: gpt-5.6 | claude-opus-4-8 | gemini-3.7-flash
 GEMINI_API_KEY=AIza...
 GEMINI_MODEL=gemini-3.7-flash
 GEMINI_THINKING_LEVEL=high
-OPENAI_MODEL=gpt-5.5
+OPENAI_MODEL=gpt-5.6
 OPENAI_REASONING_EFFORT=high
 ANTHROPIC_MODEL=claude-opus-4-8
 

@@ -235,24 +235,36 @@ def test_llm_recommendation_provider_and_override_branches(monkeypatch) -> None:
     assert rec["model"] == "gpt-4.1"
 
     # LLM_PROVIDER=gemini keeps the Gemini path; gemini_ops_fast carries an OpenAI
-    # fallback whose pinned gpt-5.5 is rewritten to the configured OPENAI_MODEL.
+    # fallback, which picks up the configured OPENAI_MODEL.
     monkeypatch.setenv("LLM_PROVIDER", "gemini")
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.5")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.6")
     monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "gemini_ops_fast"})
     rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
     assert rec["provider"] == "gemini"
-    assert rec["fallback_model"] == "gpt-4o"  # gpt-5.5 rewritten via empty/placeholder guard
+    assert rec["fallback_model"] == "gpt-5.6"
 
-    # No LLM_PROVIDER + an OpenAI key but no Gemini key auto-selects OpenAI; the
-    # primary openai_exec profile's pinned gpt-5.5 is likewise rewritten.
+    # OPENAI_MODEL is honoured rather than second-guessed. This previously
+    # forced gpt-4o whenever the resolved model matched the profile default, so
+    # the OpenAI route silently ran an older model than Settings offered and
+    # .env named.
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.5")
+    rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    assert rec["fallback_model"] == "gpt-5.5"
+
+    # An unset OPENAI_MODEL leaves the profile's own model in place.
+    monkeypatch.setenv("OPENAI_MODEL", "")
+    rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
+    assert rec["fallback_model"] == "gpt-5.6"
+
+    # No LLM_PROVIDER + an OpenAI key but no Gemini key auto-selects OpenAI.
     monkeypatch.setenv("LLM_PROVIDER", "")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
     monkeypatch.setenv("GEMINI_API_KEY", "")
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.5")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.6")
     monkeypatch.setattr(agent_integrations, "_AGENT_LLM_PROFILE_MAP", {"AGENT-TEST": "openai_exec"})
     rec = agent_integrations._llm_recommendation_for_agent(_agent(agent_id="AGENT-TEST"))
     assert rec["provider"] == "openai"
-    assert rec["model"] == "gpt-4o"
+    assert rec["model"] == "gpt-5.6"
 
     # Auto-detect with a Gemini key present (and no OpenAI key) stays on Gemini.
     monkeypatch.setenv("LLM_PROVIDER", "")

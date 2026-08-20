@@ -61,7 +61,7 @@ served from `out/` rather than started with `next start`.
 - `MISSION_CONTROL_SESSION_SECURE` (`true` for HTTPS production deployments)
 - `VAULT_ADMIN_KEY` (optional break-glass header auth for scripted `/api/vault` access)
 - Vault model metadata:
-  - Supported UI model routes: `gpt-5.5`, `claude-opus-4-8`,
+  - Supported UI model routes: `gpt-5.6`, `claude-opus-4-8`,
     `gemini-3.7-flash`
   - Runtime default: all 41 agents use `gemini-3.7-flash` with high thinking
 

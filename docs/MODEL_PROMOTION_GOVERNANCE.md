@@ -1,7 +1,7 @@
 # Model Promotion Governance
 
 Document version: 2026.06.13
-Last updated: 2026-08-15
+Last updated: 2026-08-20
 Status: Canonical  
 Audience: Maintainers, AI operators, and release reviewers
 
@@ -16,7 +16,7 @@ Prevent release promotion when runtime-default LLM routes use preview, experimen
 - All 41 agents default to `gemini-3.7-flash` with high thinking for the
   Gemini-first local test path.
 - Mission Control exposes operator-selectable model routes:
-  `gemini-3.7-flash`, `gpt-5.5`, and `claude-opus-4-8`. These routes are
+  `gemini-3.7-flash`, `gpt-5.6`, and `claude-opus-4-8`. These routes are
   allowed for vault-slot testing, but only Gemini 3.7 Flash is assigned as an
   agent default.
 - `allowlist_models` in `deploy/promotion-policy.json` is empty; no preview
