@@ -10,11 +10,17 @@ type VaultModel =
   | "gpt-5.5"
   | "claude-opus-4-8"
   | "gemini-3.7-flash"
-  | "gemini-3.6-flash"
-  | "gemini-3.5-flash"
   | "gemini-embedding-001"
   | "text-embedding-3-large"
   | "text-embedding-3-small";
+
+// Gemini Flash revisions this app has shipped and has since moved past. A slot
+// saved while one of these was current keeps returning it forever, and the
+// model picker no longer lists them — so the Settings page renders its default
+// (3.7) while the vault still hands 3.5 to every agent on every mission. These
+// are migrated forward on read rather than preserved.
+const SUPERSEDED_GEMINI_MODELS = new Set(["gemini-3.5-flash", "gemini-3.6-flash"]);
+const CURRENT_GEMINI_MODEL: VaultModel = "gemini-3.7-flash";
 
 type VaultBackend = "memory" | "local-encrypted" | "hashicorp-vault";
 
@@ -115,8 +121,9 @@ function normalizeModel(value: string | undefined, provider: VaultProvider): Vau
   if (candidate === "gpt-5.5") return "gpt-5.5";
   if (candidate === "claude-opus-4-8") return "claude-opus-4-8";
   if (candidate === "gemini-3.7-flash") return "gemini-3.7-flash";
-  if (candidate === "gemini-3.6-flash") return "gemini-3.6-flash";
-  if (candidate === "gemini-3.5-flash") return "gemini-3.5-flash";
+  // Migrate a pin saved against an older Flash revision rather than honouring
+  // it. Preserving it silently downgraded every agent on every mission.
+  if (SUPERSEDED_GEMINI_MODELS.has(candidate)) return CURRENT_GEMINI_MODEL;
   if (candidate === "gemini-embedding-001") return "gemini-embedding-001";
   if (candidate === "text-embedding-3-large") return "text-embedding-3-large";
   if (candidate === "text-embedding-3-small") return "text-embedding-3-small";

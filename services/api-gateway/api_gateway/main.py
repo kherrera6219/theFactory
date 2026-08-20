@@ -196,12 +196,15 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.7-flash").strip()
 GEMINI_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "-1"))
 GEMINI_THINKING_LEVEL = os.getenv("GEMINI_THINKING_LEVEL", "high").strip().lower()
+# Selectable models. Superseded Gemini Flash revisions (3.5, 3.6) were removed
+# once 3.7 became the standard: they were no longer offered in Mission Control's
+# model picker but were still accepted here, so a stale stored pin kept routing
+# live missions to an older model. Historical missions are unaffected — this
+# gates new selections, not records already written.
 ALLOWED_LLM_MODELS: dict[str, str] = {
     "gpt-5.5": "openai",
     "claude-opus-4-8": "anthropic",
     "gemini-3.7-flash": "gemini",
-    "gemini-3.6-flash": "gemini",
-    "gemini-3.5-flash": "gemini",
 }
 
 

@@ -51,7 +51,7 @@ describe("pm feature-contract route", () => {
   });
 
   it("injects the operator's active LLM route into the forwarded vault payload", async () => {
-    await upsertVaultSlot("ACTIVE-LLM-ROUTE", "gemini", "active-route", "gemini-3.5-flash");
+    await upsertVaultSlot("ACTIVE-LLM-ROUTE", "gemini", "active-route", "gemini-3.7-flash");
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ feature_contract: {} }), { status: 200 }),
     );
@@ -64,7 +64,25 @@ describe("pm feature-contract route", () => {
       vault?: Record<string, unknown>;
     };
     expect(sentPayload.vault?.llm_provider).toBe("gemini");
-    expect(sentPayload.vault?.llm_model).toBe("gemini-3.5-flash");
+    expect(sentPayload.vault?.llm_model).toBe("gemini-3.7-flash");
+  });
+
+  it("forwards a superseded Gemini pin as the current model", async () => {
+    // Regression for mission-128c77fd: a slot saved against gemini-3.5-flash
+    // kept routing every agent on every mission to it, while the Settings page
+    // — which no longer lists 3.5 — displayed the 3.7 default.
+    await upsertVaultSlot("ACTIVE-LLM-ROUTE", "gemini", "active-route", "gemini-3.5-flash");
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ feature_contract: {} }), { status: 200 }),
+    );
+
+    await POST(request({ prompt: "build a snake game" }));
+
+    const [, init] = fetchMock.mock.calls[0];
+    const sentPayload = JSON.parse(init?.body as string) as {
+      vault?: Record<string, unknown>;
+    };
+    expect(sentPayload.vault?.llm_model).toBe("gemini-3.7-flash");
   });
 
   it("omits llm_provider/llm_model when no active route is configured", async () => {

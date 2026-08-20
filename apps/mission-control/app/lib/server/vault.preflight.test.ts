@@ -86,16 +86,30 @@ describe("preflightProviderCall", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    const result = await preflightProviderCall("gemini", "AIzaTestKey1234567890", "gemini-3.5-flash");
+    const result = await preflightProviderCall("gemini", "AIzaTestKey1234567890", "gemini-3.7-flash");
 
     expect(result.valid).toBe(true);
     expect(result.live_checked).toBe(true);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=AIzaTestKey1234567890",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=AIzaTestKey1234567890",
     );
     const body = JSON.parse(init.body as string);
     expect(body.generationConfig.maxOutputTokens).toBe(1);
+  });
+
+  it("preflights a superseded Gemini revision against the current model", async () => {
+    const preflightProviderCall = await loadPreflight();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await preflightProviderCall("gemini", "AIzaTestKey1234567890", "gemini-3.5-flash");
+
+    // Testing the key against a model the app no longer routes to would report
+    // health for something no mission will ever use.
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("gemini-3.7-flash:generateContent");
+    expect(url).not.toContain("gemini-3.5-flash");
   });
 
   it("returns a network-error result without throwing when fetch rejects", async () => {

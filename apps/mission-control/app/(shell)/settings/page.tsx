@@ -19,7 +19,7 @@ import type { OperationsAgentIntegrationsSnapshot } from "../../lib/types";
 type ModelOption = {
   label: string;
   provider: "openai" | "anthropic" | "gemini";
-  model: "gpt-5.5" | "claude-opus-4-8" | "gemini-3.7-flash" | "gemini-3.6-flash" | "gemini-3.5-flash";
+  model: "gpt-5.5" | "claude-opus-4-8" | "gemini-3.7-flash";
   endpoint: string;
   effort: "high";
 };
@@ -51,6 +51,13 @@ const MODEL_OPTIONS: ModelOption[] = [
 
 const DEFAULT_MODEL_OPTION = MODEL_OPTIONS[0];
 
+// NOTE: a stored model that is not in MODEL_OPTIONS renders as the default
+// rather than as itself, so this page can show "Gemini 3.7 Flash" while the
+// vault holds something else entirely — which is exactly how a stale 3.5 pin
+// went unnoticed while it routed every live mission. The vault now migrates
+// superseded revisions on read (see normalizeModel), so this fallback should
+// only ever see genuinely unknown values; keep that migration in step with
+// MODEL_OPTIONS whenever an option is retired.
 function modelOptionFor(model: string | null | undefined): ModelOption {
   return MODEL_OPTIONS.find((option) => option.model === model) ?? DEFAULT_MODEL_OPTION;
 }
