@@ -2060,7 +2060,17 @@ async def test_produce_pod_group_standard_records_thin_coverage_and_pod_audit() 
     assert "MISSION_POD_GROUP_STANDARD_PRODUCED" in event_types
     assert "MISSION_POD_STANDARD_THIN_COVERAGE" in event_types
     assert "MISSION_POD_AUDIT_COMPLETE" in event_types
-    assert audit_event.await_count == 1
+    # Both the pod standard and the pod audit verdict must reach the audit
+    # trail: the verdict is the run's only quality gate, and recording it only
+    # in mission metadata left it invisible to /audit-events.
+    audited = [call.kwargs["event_type"] for call in audit_event.await_args_list]
+    assert audited == [
+        "MISSION_POD_GROUP_STANDARD_PRODUCED",
+        "MISSION_POD_AUDIT_COMPLETE",
+    ]
+    audit_payload = audit_event.await_args_list[1].kwargs
+    assert audit_payload["object_type"] == "pod_audit_verdict"
+    assert audit_payload["payload_summary"]["verdict"] == pod_audit["verdict"]
     emit_fn.assert_awaited_once()
 
 

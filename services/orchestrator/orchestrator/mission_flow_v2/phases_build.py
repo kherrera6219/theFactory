@@ -974,6 +974,31 @@ async def _produce_pod_group_standard(
             pod_manager_agent_id=pod_manager_agent_id,
             pod_audit=pod_audit,
         )
+        # Every neighbouring stage records an audit event; the pod audit did
+        # not, so the run's only quality verdict lived solely in mission
+        # metadata and was absent from the audit trail operators actually read.
+        await _pkg().record_audit_event(
+            app,
+            mission_id=mission.mission_id,
+            mission=mission,
+            agent_id=pod_audit.get("agent_id", pod_manager_agent_id),
+            service_name="orchestrator",
+            event_type="MISSION_POD_AUDIT_COMPLETE",
+            object_type="pod_audit_verdict",
+            object_id=pod_name,
+            tool_name="llm_delegation",
+            payload_summary={
+                "pod": pod_name,
+                "verdict": pod_audit.get("verdict"),
+                "passed": pod_audit.get("passed"),
+                "quality_score": pod_audit.get("quality_score"),
+                "finding_count": len(pod_audit.get("findings") or []),
+                "source": pod_audit.get("source"),
+                "model_provider": pod_audit.get("model_provider"),
+                "model": pod_audit.get("model"),
+            },
+            content_hash_source=pod_audit,
+        )
 
     return (
         await _persist_metadata(
