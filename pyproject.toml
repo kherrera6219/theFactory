@@ -6,7 +6,16 @@ requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --timeout=120 --timeout-method=thread"
+# --import-mode=importlib: the default "prepend" mode puts each test file's
+# directory on sys.path, which makes a test subdirectory named after a real
+# package importable *as* that package. tests/services/orchestrator,
+# tests/services/pod_worker and tests/shared_runtime all collide that way, so
+# collecting the suite as a whole resolved `orchestrator` to an empty namespace
+# package and 73 modules failed to import — while each file still passed when
+# run on its own. importlib mode does not touch sys.path; conftest.py registers
+# the service roots explicitly. (There is no `importmode` ini key — it only
+# works as a command-line option, hence addopts.)
+addopts = "-q --timeout=120 --timeout-method=thread --import-mode=importlib"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
