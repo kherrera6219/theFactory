@@ -438,3 +438,92 @@ def test_language_alignment_still_fails_a_language_outside_the_contract() -> Non
     assert check["required"] is True
     assert report["passed"] is False
     assert report["blocking"] is True
+
+
+def _html_output() -> dict[str, object]:
+    generated = _generated_output()
+    generated["filename"] = "index.html"
+    generated["language"] = "html"
+    generated["files"] = [{"path": "index.html"}]
+    generated["file_count"] = 1
+    return generated
+
+
+def _deliverable_check(metadata: dict[str, object]) -> dict[str, object]:
+    report = equivalence_verifier.build_equivalence_report(
+        mission_id="mission-1",
+        requested_target_language="javascript",
+        metadata=metadata,
+        build_artifacts=[_artifact()],
+        enforcement_enabled=True,
+    )
+    return next(
+        c for c in report["checks"] if c["check_id"] == "artifact_format_matches_contract"
+    )
+
+
+def test_declared_deliverables_surface_a_shortfall_without_blocking() -> None:
+    """A 4-file contract satisfied by 1 file must be visible, not silent.
+
+    Regression for mission-128c77fd, which reported "No explicit deliverable
+    format was specified in the contract" while the contract named index.html,
+    game.js, style.css and README.md.
+    """
+    check = _deliverable_check(
+        {
+            "generated_output": _html_output(),
+            "mission_contract": {"target_languages": ["javascript", "html", "css"]},
+            "feature_contract": {
+                "deliverables": [
+                    {"name": "index.html", "artifact_hint": "index.html"},
+                    {"name": "game.js", "artifact_hint": "game.js"},
+                    {"name": "style.css", "artifact_hint": "style.css"},
+                    {"name": "README.md", "artifact_hint": "README.md"},
+                ]
+            },
+        }
+    )
+
+    assert check["status"] == "manual_review"
+    # Never blocking: one self-contained file can legitimately beat four.
+    assert check["required"] is False
+    assert check["evidence"]["contract_deliverables"] == [
+        "index.html",
+        "game.js",
+        "style.css",
+        "README.md",
+    ]
+    assert check["evidence"]["delivered_file_count"] == 1
+    assert check["evidence"]["contract_deliverable_count"] == 4
+
+
+def test_declared_deliverables_pass_when_fully_satisfied() -> None:
+    generated = _html_output()
+    generated["files"] = [{"path": "index.html"}]
+    check = _deliverable_check(
+        {
+            "generated_output": generated,
+            "feature_contract": {"deliverables": [{"name": "index.html"}]},
+        }
+    )
+
+    assert check["status"] == "pass"
+    assert check["required"] is False
+
+
+def test_artifact_matching_no_declared_deliverable_is_flagged() -> None:
+    check = _deliverable_check(
+        {
+            "generated_output": _html_output(),
+            "feature_contract": {"deliverables": [{"name": "main.py"}]},
+        }
+    )
+
+    assert check["status"] == "manual_review"
+    assert "matches none of them" in check["message"]
+
+
+def test_contract_without_deliverables_keeps_the_original_message() -> None:
+    check = _deliverable_check({"generated_output": _html_output(), "feature_contract": {}})
+    assert check["status"] == "manual_review"
+    assert check["message"] == "No explicit deliverable format was specified in the contract."

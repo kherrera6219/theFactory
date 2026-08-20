@@ -325,13 +325,11 @@ def _check_artifact_format(
         _contract_format_text(feature_contract, mission_contract)
     )
     if not expected:
-        return _check(
-            check_id="artifact_format_matches_contract",
-            title="Artifact format matches contract",
-            status="manual_review",
-            required=False,
-            message="No explicit deliverable format was specified in the contract.",
-            evidence={"artifact_filename": filename, "artifact_extension": actual_ext},
+        return _check_declared_deliverables(
+            feature_contract,
+            generated_output,
+            filename=filename,
+            actual_ext=actual_ext,
         )
     if not actual_ext:
         return _check(
@@ -378,6 +376,112 @@ def _check_artifact_format(
             "artifact_extension": actual_ext,
             "artifact_filename": filename,
         },
+    )
+
+
+def _contract_deliverable_files(feature_contract: dict[str, Any]) -> list[str]:
+    """Return filenames the feature contract named as deliverables.
+
+    ``deliverables`` is normalised to ``[{"name": ..., "artifact_hint": ...}]``,
+    so these are *structured* declarations rather than prose. That distinction
+    matters: ``_is_filename_literal`` deliberately ignores ``index.html`` in
+    narrative text because a dotted token there is almost always a usage
+    example. A deliverables entry is the opposite — it is the contract stating
+    what it expects to receive — so it is read separately from the prose scan.
+    """
+    raw = feature_contract.get("deliverables")
+    if not isinstance(raw, list):
+        return []
+    names: list[str] = []
+    for item in raw[:20]:
+        if isinstance(item, dict):
+            candidate = str(item.get("name") or item.get("artifact_hint") or "").strip()
+        else:
+            candidate = str(item or "").strip()
+        if "." in candidate and len(candidate) <= 120:
+            names.append(candidate)
+    return names
+
+
+def _check_declared_deliverables(
+    feature_contract: dict[str, Any],
+    generated_output: dict[str, Any],
+    *,
+    filename: str,
+    actual_ext: str,
+) -> dict[str, Any]:
+    """Advisory comparison against the contract's declared deliverable list.
+
+    Deliberately never a required failure. A contract naming four files that is
+    satisfied by one self-contained file is frequently the *better* outcome —
+    a single-file HTML game avoids the local-``file://`` CORS problem such
+    contracts often flag themselves. The value here is visibility: reporting
+    "no deliverable format was specified" when the contract named index.html,
+    game.js, style.css and README.md hides a real gap behind a true-sounding
+    statement.
+    """
+    declared = _contract_deliverable_files(feature_contract)
+    delivered_files = generated_output.get("files")
+    delivered_count = (
+        len(delivered_files)
+        if isinstance(delivered_files, list) and delivered_files
+        else int(generated_output.get("file_count") or 0)
+    )
+    evidence: dict[str, Any] = {
+        "artifact_filename": filename,
+        "artifact_extension": actual_ext,
+        "contract_deliverables": declared,
+        "contract_deliverable_count": len(declared),
+        "delivered_file_count": delivered_count,
+    }
+    if not declared:
+        return _check(
+            check_id="artifact_format_matches_contract",
+            title="Artifact format matches contract",
+            status="manual_review",
+            required=False,
+            message="No explicit deliverable format was specified in the contract.",
+            evidence=evidence,
+        )
+
+    declared_exts = {
+        name.rsplit(".", 1)[-1].lower() for name in declared if "." in name
+    }
+    evidence["contract_deliverable_extensions"] = sorted(declared_exts)
+    shortfall = len(declared) > 1 and 0 < delivered_count < len(declared)
+
+    if actual_ext and actual_ext in declared_exts:
+        if shortfall:
+            return _check(
+                check_id="artifact_format_matches_contract",
+                title="Artifact format matches contract",
+                status="manual_review",
+                required=False,
+                message=(
+                    f"Delivered {delivered_count} file(s) against {len(declared)} "
+                    "contracted deliverables; the format matches but the "
+                    "deliverable set needs review."
+                ),
+                evidence=evidence,
+            )
+        return _check(
+            check_id="artifact_format_matches_contract",
+            title="Artifact format matches contract",
+            status="pass",
+            required=False,
+            message="Delivered artifact matches a contracted deliverable.",
+            evidence=evidence,
+        )
+    return _check(
+        check_id="artifact_format_matches_contract",
+        title="Artifact format matches contract",
+        status="manual_review",
+        required=False,
+        message=(
+            "The contract named specific deliverables and the packaged artifact "
+            "matches none of them."
+        ),
+        evidence=evidence,
     )
 
 
