@@ -193,12 +193,43 @@ def _check_equivalence_presence(
             message="Passing equivalence evidence is present.",
             evidence={"report_id": equivalence_report.get("report_id")},
         )
+    # Equivalence owns its own enforcement switch. When it ran in advisory mode
+    # (``enforcement_enabled`` false, hence ``blocking`` false) its failures are
+    # review signals, not delivery gates — re-raising them as a *required*
+    # compliance failure here would silently re-arm the switch the operator
+    # turned off. Only a report that is missing entirely, or one that declared
+    # itself blocking, hard-fails this check.
+    ran = bool(equivalence_report)
+    advisory_only = ran and equivalence_report.get("blocking") is not True
+    if advisory_only:
+        return _check(
+            check_id="equivalence_evidence_present",
+            title="Equivalence evidence present",
+            status="manual_review",
+            required=False,
+            message=(
+                "Equivalence verification reported findings in advisory mode; "
+                "review them before delivery."
+            ),
+            evidence={
+                "report_id": equivalence_report.get("report_id"),
+                "equivalence_status": equivalence_report.get("status"),
+                "equivalence_enforcement_enabled": equivalence_report.get(
+                    "enforcement_enabled"
+                ),
+            },
+            recommendation="Review the equivalence findings before approving delivery.",
+        )
     return _check(
         check_id="equivalence_evidence_present",
         title="Equivalence evidence present",
         status="fail",
         required=True,
-        message="Generated output does not have passing equivalence evidence.",
+        message=(
+            "Generated output does not have passing equivalence evidence."
+            if ran
+            else "Generated output has no equivalence evidence at all."
+        ),
         evidence={"report_id": equivalence_report.get("report_id")},
         recommendation="Run or repair equivalence verification before delivery.",
     )

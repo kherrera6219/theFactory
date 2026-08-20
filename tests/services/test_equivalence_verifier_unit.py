@@ -385,3 +385,56 @@ def test_acceptance_criteria_reports_per_criterion_coverage() -> None:
     # Acceptance heuristics are advisory: an uncovered criterion does not block.
     assert check["required"] is False
     assert report["passed"] is True
+
+
+def test_language_alignment_accepts_a_contract_target_language() -> None:
+    """A browser game requested as "javascript" may legitimately ship as HTML.
+
+    Regression for mission-128c77fd, which delivered a working single-file
+    HTML5 Canvas game and was failed because the check compared only against
+    the intake scalar and ignored ``mission_contract["target_languages"]``.
+    """
+    generated = _generated_output()
+    generated["filename"] = "index.html"
+    generated["language"] = "html"
+
+    report = equivalence_verifier.build_equivalence_report(
+        mission_id="mission-1",
+        requested_target_language="javascript",
+        metadata={
+            "generated_output": generated,
+            "mission_contract": {"target_languages": ["javascript", "html", "css"]},
+        },
+        build_artifacts=[_artifact()],
+        enforcement_enabled=True,
+    )
+
+    check = next(c for c in report["checks"] if c["check_id"] == "language_alignment")
+    assert check["status"] == "pass"
+    assert check["evidence"]["accepted_languages"] == ["css", "html", "javascript"]
+    assert report["accepted_languages"] == ["css", "html", "javascript"]
+    assert report["passed"] is True
+    assert report["blocking"] is False
+
+
+def test_language_alignment_still_fails_a_language_outside_the_contract() -> None:
+    generated = _generated_output()
+    generated["filename"] = "solution.rb"
+    generated["language"] = "ruby"
+
+    report = equivalence_verifier.build_equivalence_report(
+        mission_id="mission-1",
+        requested_target_language="javascript",
+        metadata={
+            "generated_output": generated,
+            "mission_contract": {"target_languages": ["javascript", "html", "css"]},
+        },
+        build_artifacts=[_artifact()],
+        enforcement_enabled=True,
+    )
+
+    check = next(c for c in report["checks"] if c["check_id"] == "language_alignment")
+    assert check["status"] == "fail"
+    assert check["required"] is True
+    assert report["passed"] is False
+    assert report["blocking"] is True

@@ -77,6 +77,40 @@ def _chain_event_exists(metadata: dict[str, Any], event_type: str) -> bool:
     )
 
 
+def _restate_chain_event(
+    metadata: dict[str, Any],
+    *,
+    event_type: str,
+    agent_id: str,
+    details: dict[str, Any],
+) -> bool:
+    """Refresh the newest ``event_type`` record in place; return True if found.
+
+    ``_chain_event_exists`` guards make chain emission first-write-wins, which
+    is right for "did this phase happen" markers but wrong for records that
+    describe an *outcome*: when a phase retries and succeeds, the trace would
+    otherwise keep advertising the failed first attempt forever. Callers that
+    emit outcome records use this to restate the existing entry rather than
+    appending a duplicate.
+    """
+    trace = metadata.get("chain_trace")
+    if not isinstance(trace, list):
+        return False
+    for record in reversed(trace):
+        if not isinstance(record, dict):
+            continue
+        if str(record.get("event_type", "")).upper() != event_type:
+            continue
+        record["agent_id"] = agent_id
+        record["details"] = details
+        record["ts"] = datetime.now(UTC).isoformat()
+        record["restated"] = True
+        metadata["last_chain_event_type"] = event_type
+        metadata["last_chain_event_at"] = record["ts"]
+        return True
+    return False
+
+
 def _extract_support_agent_flags(
     ceo_delegation: dict[str, Any],
     mission_type: str,

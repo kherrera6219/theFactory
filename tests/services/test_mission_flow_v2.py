@@ -4095,3 +4095,48 @@ class TestIntakeAutoAcceptsPmDefaults:
             )
             is False
         )
+
+
+def test_write_artifact_to_disk_splits_a_single_file_bundle(tmp_path: Path) -> None:
+    """A one-file bundle must be split, not written with its envelope intact.
+
+    Regression for mission-128c77fd: the ``len(tree_files) > 1`` guard sent
+    single-file deliverables down the raw-write path, so the delivered
+    index.html began with "## FILE index.html" before "<!DOCTYPE html>" —
+    which puts browsers into quirks mode and hoists <head> content into <body>.
+    """
+    settings = SimpleNamespace(delivery_dir=str(tmp_path))
+    page = "<!DOCTYPE html>\n<html lang=\"en\">\n<body>hi</body>\n</html>"
+
+    orchestrator_mission_flow_v2_build._write_artifact_to_disk(
+        settings,
+        "mission-single",
+        {
+            "artifact_type": "generated_code",
+            "artifact_text": f"## FILE index.html\n{page}\n",
+            "manifest": {"filename": "index.html"},
+        },
+    )
+
+    written = (tmp_path / "mission-single" / "index.html").read_text(encoding="utf-8")
+    assert "## FILE" not in written
+    assert written.startswith("<!DOCTYPE html>")
+
+
+def test_write_artifact_to_disk_keeps_unbundled_code_verbatim(tmp_path: Path) -> None:
+    """Generated code with no ``## FILE`` marker still writes through unchanged."""
+    settings = SimpleNamespace(delivery_dir=str(tmp_path))
+
+    orchestrator_mission_flow_v2_build._write_artifact_to_disk(
+        settings,
+        "mission-plain",
+        {
+            "artifact_type": "generated_code",
+            "artifact_text": "print('plain')\n",
+            "manifest": {"filename": "main.py"},
+        },
+    )
+
+    assert (tmp_path / "mission-plain" / "main.py").read_text(
+        encoding="utf-8"
+    ) == "print('plain')\n"

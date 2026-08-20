@@ -103,3 +103,54 @@ async def test_send_delta_audit_verdict_swallows_producer_failure() -> None:
             pod_audit={"verdict": "WARN", "quality_score": 0.9},
         )
     send_mock.assert_called_once()
+
+
+base = importlib.import_module("orchestrator.mission_flow_v2.base")
+
+
+def test_restate_chain_event_overwrites_a_stale_outcome_record() -> None:
+    """A successful retry must correct the record the failed attempt wrote.
+
+    Regression for mission-128c77fd, whose trace permanently advertised
+    ``source=fallback, code_length_chars=0`` even though the mission went on to
+    deliver 14 KB of real code from the fusion-stage retry.
+    """
+    metadata = {
+        "chain_trace": [
+            {"event_type": "MISSION_SPECIALIST_ASSIGNED", "agent_id": "AGENT-15-JAVASCRIPT"},
+            {
+                "event_type": "GENERATED_OUTPUT_CREATED",
+                "agent_id": "AGENT-15-JAVASCRIPT",
+                "details": {"source": "fallback", "code_length_chars": 0},
+            },
+        ]
+    }
+
+    restated = base._restate_chain_event(
+        metadata,
+        event_type="GENERATED_OUTPUT_CREATED",
+        agent_id="AGENT-15-JAVASCRIPT",
+        details={"source": "llm", "code_length_chars": 14074, "filename": "index.html"},
+    )
+
+    assert restated is True
+    records = [
+        r for r in metadata["chain_trace"] if r["event_type"] == "GENERATED_OUTPUT_CREATED"
+    ]
+    assert len(records) == 1, "restating must not append a duplicate"
+    assert records[0]["details"]["source"] == "llm"
+    assert records[0]["details"]["code_length_chars"] == 14074
+    assert records[0]["restated"] is True
+    assert metadata["last_chain_event_type"] == "GENERATED_OUTPUT_CREATED"
+
+
+def test_restate_chain_event_reports_missing_records() -> None:
+    assert (
+        base._restate_chain_event(
+            {"chain_trace": []},
+            event_type="GENERATED_OUTPUT_CREATED",
+            agent_id="AGENT-15-JAVASCRIPT",
+            details={"source": "llm"},
+        )
+        is False
+    )

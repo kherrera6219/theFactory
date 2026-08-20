@@ -122,6 +122,12 @@ def build_equivalence_report(
         generated_output=generated_output,
     )
 
+    accepted_languages = _accepted_languages(
+        requested_target_language=requested_target_language,
+        mission_contract=mission_contract,
+        target_language=target_language,
+    )
+
     checks = [
         _check_generated_output_exists(generated_output),
         _check_generated_artifact(build_artifacts),
@@ -132,7 +138,7 @@ def build_equivalence_report(
             generated_output,
             target_language,
         ),
-        _check_language_alignment(generated_output, target_language),
+        _check_language_alignment(generated_output, target_language, accepted_languages),
         _check_language_content_signature(generated_output, target_language),
         _check_acceptance_criteria(feature_contract, mission_contract, generated_output),
         _check_aim_consistency(aim, generated_output),
@@ -169,6 +175,7 @@ def build_equivalence_report(
         "enforcement_enabled": enforcement_enabled,
         "risk_level": _risk_level(checks=checks, blocking=blocking),
         "target_language": target_language,
+        "accepted_languages": sorted(accepted_languages),
         "checks": checks,
         "findings": findings,
         "evidence_refs": _evidence_refs(metadata, build_artifacts),
@@ -477,17 +484,36 @@ def _is_operand_format_mention(text: str, keyword_start: int) -> bool:
 def _check_language_alignment(
     generated_output: dict[str, Any],
     target_language: str | None,
+    accepted_languages: set[str] | None = None,
 ) -> dict[str, Any]:
+    """Require the generated language to be one the contract actually accepts.
+
+    The mission has two representations of "what language": the scalar
+    ``requested_target_language`` captured at intake, and the
+    ``target_languages`` list the CEO widens during contract generation (a
+    browser game requested as "javascript" legitimately ships as
+    ``["javascript", "html", "css"]``).  Comparing only against the intake
+    scalar fails deliverables the contract explicitly permits, so the accepted
+    set — not the single target — decides this check.
+    """
     generated_language = str(generated_output.get("language") or "").strip().lower()
     target = str(target_language or "").strip().lower()
-    if not generated_language or not target:
+    accepted = {item for item in (accepted_languages or set()) if item}
+    if target:
+        accepted.add(target)
+    evidence = {
+        "generated_language": generated_language,
+        "target_language": target,
+        "accepted_languages": sorted(accepted),
+    }
+    if not generated_language or not accepted:
         return _check(
             check_id="language_alignment",
             title="Language alignment",
             status="manual_review",
             required=False,
             message="Language metadata is incomplete and needs review.",
-            evidence={"generated_language": generated_language, "target_language": target},
+            evidence=evidence,
         )
     if generated_language == target:
         return _check(
@@ -496,15 +522,27 @@ def _check_language_alignment(
             status="pass",
             required=True,
             message="Generated output language matches the target language.",
-            evidence={"generated_language": generated_language, "target_language": target},
+            evidence=evidence,
+        )
+    if generated_language in accepted:
+        return _check(
+            check_id="language_alignment",
+            title="Language alignment",
+            status="pass",
+            required=True,
+            message=(
+                "Generated output language is one of the contract's accepted "
+                "target languages."
+            ),
+            evidence=evidence,
         )
     return _check(
         check_id="language_alignment",
         title="Language alignment",
         status="fail",
         required=True,
-        message="Generated output language does not match the target language.",
-        evidence={"generated_language": generated_language, "target_language": target},
+        message="Generated output language is not an accepted contract language.",
+        evidence=evidence,
     )
 
 
@@ -738,6 +776,34 @@ def _target_language(
                 return candidate
     candidate = str(requested_target_language or "").strip().lower()
     return candidate or None
+
+
+def _accepted_languages(
+    *,
+    requested_target_language: str | None,
+    mission_contract: dict[str, Any],
+    target_language: str | None,
+) -> set[str]:
+    """Every language the mission legitimately permits the artifact to be in.
+
+    ``_target_language`` deliberately returns a single headline language for
+    reporting.  Enforcement needs the full set: the intake request, the
+    resolved target, and every entry of ``mission_contract["target_languages"]``
+    — the list the CEO produces when a deliverable spans more than one
+    language.
+    """
+    accepted: set[str] = set()
+    for value in (requested_target_language, target_language):
+        candidate = str(value or "").strip().lower()
+        if candidate:
+            accepted.add(candidate)
+    target_languages = mission_contract.get("target_languages")
+    if isinstance(target_languages, list):
+        for item in target_languages:
+            candidate = str(item or "").strip().lower()
+            if candidate:
+                accepted.add(candidate)
+    return accepted
 
 
 def _evidence_refs(

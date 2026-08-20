@@ -92,3 +92,62 @@ def test_build_security_compliance_report_blocks_regulated_missing_equivalence()
     assert report["regulated_context"] is True
     assert report["blocking"] is True
     assert report["status"] == "blocked"
+
+
+def test_advisory_equivalence_failure_does_not_block_delivery() -> None:
+    """Equivalence owns its enforcement switch; compliance must not re-arm it.
+
+    When equivalence runs advisory (``enforcement_enabled`` false, so
+    ``blocking`` false) its findings are review signals. Treating them as a
+    required compliance failure made the disabled switch fire one stage later.
+    """
+    metadata = _metadata()
+    metadata["equivalence_report"] = {
+        "report_id": "equivalence-mission-1",
+        "passed": False,
+        "blocking": False,
+        "status": "review_required",
+        "enforcement_enabled": False,
+    }
+
+    report = security_compliance.build_security_compliance_report(
+        mission_id="mission-1",
+        metadata=metadata,
+        enforcement_enabled=True,
+    )
+
+    check = next(
+        c
+        for c in report["compliance"]["checks"]
+        if c["check_id"] == "equivalence_evidence_present"
+    )
+    assert check["status"] == "manual_review"
+    assert check["required"] is False
+    assert report["passed"] is True
+    assert report["blocking"] is False
+
+
+def test_blocking_equivalence_failure_still_blocks_delivery() -> None:
+    metadata = _metadata()
+    metadata["equivalence_report"] = {
+        "report_id": "equivalence-mission-1",
+        "passed": False,
+        "blocking": True,
+        "status": "blocked",
+        "enforcement_enabled": True,
+    }
+
+    report = security_compliance.build_security_compliance_report(
+        mission_id="mission-1",
+        metadata=metadata,
+        enforcement_enabled=True,
+    )
+
+    check = next(
+        c
+        for c in report["compliance"]["checks"]
+        if c["check_id"] == "equivalence_evidence_present"
+    )
+    assert check["status"] == "fail"
+    assert check["required"] is True
+    assert report["blocking"] is True

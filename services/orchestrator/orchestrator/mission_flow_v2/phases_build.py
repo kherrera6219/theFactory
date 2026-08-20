@@ -34,6 +34,7 @@ from .base import (
     _mission_context,
     _pod_key_for_manager,
     _record_artifact,
+    _restate_chain_event,
     _scaling_workload_items,
     _setting_bool,
     _setting_int,
@@ -621,19 +622,29 @@ async def _prepare_specialist_plan(
             confidence_score=0.0,
             source_language=str(generated_output.get("language") or _target_lang),
         )
-        if not _chain_event_exists(metadata, "GENERATED_OUTPUT_CREATED"):
+        # This record describes the outcome, not merely that codegen ran, so a
+        # later successful retry must restate it. Leaving it first-write-wins
+        # left the trace reporting a 0-char fallback for missions that went on
+        # to deliver real code from the fusion-stage retry.
+        generated_output_details = {
+            "source": generated_output.get("source"),
+            "filename": generated_output.get("filename"),
+            "language": generated_output.get("language"),
+            "code_length_chars": generated_output.get("code_length_chars", 0),
+            "model_provider": generated_output.get("model_provider"),
+            "model": generated_output.get("model"),
+        }
+        if not _restate_chain_event(
+            metadata,
+            event_type="GENERATED_OUTPUT_CREATED",
+            agent_id=specialist_agent_id,
+            details=generated_output_details,
+        ):
             append_chain_event(
                 metadata,
                 event_type="GENERATED_OUTPUT_CREATED",
                 agent_id=specialist_agent_id,
-                details={
-                    "source": generated_output.get("source"),
-                    "filename": generated_output.get("filename"),
-                    "language": generated_output.get("language"),
-                    "code_length_chars": generated_output.get("code_length_chars", 0),
-                    "model_provider": generated_output.get("model_provider"),
-                    "model": generated_output.get("model"),
-                },
+                details=generated_output_details,
             )
         # PORT generation phase complete
         if port_source_logicnodes and not _chain_event_exists(
@@ -1001,7 +1012,12 @@ def _write_artifact_to_disk(settings: Any, mission_id: str, artifact_record: dic
             from ..file_tree import parse_file_tree
 
             tree_files = parse_file_tree(str(artifact_text))
-            if len(tree_files) > 1:
+            # Any parsed bundle — including a single-file one — must be split so
+            # the "## FILE <path>" envelope stays out of the delivered file. A
+            # ``> 1`` guard here wrote the raw bundle verbatim for single-file
+            # deliverables, prepending a stray line before "<!DOCTYPE html>"
+            # that puts browsers into quirks mode.
+            if tree_files:
                 resolved_mission_dir = mission_dir.resolve()
                 for item in tree_files:
                     rel_path = item["path"]
