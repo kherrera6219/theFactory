@@ -418,6 +418,14 @@ async def _call_gemini(
     payload["generationConfig"] = {
         "thinkingConfig": {"thinkingLevel": _GEMINI_THINKING_LEVEL},
     }
+    # Search grounding is a server-side tool: the model decides whether to
+    # search, Google runs the query, and the answer comes back with
+    # groundingMetadata naming the sources. No crawler and no new egress host —
+    # this is the same endpoint every call already uses.
+    from .config import GEMINI_GROUNDING_ENABLED, current_grounding_enabled
+    grounding_requested = bool(current_grounding_enabled.get()) and GEMINI_GROUNDING_ENABLED
+    if grounding_requested:
+        payload["tools"] = [{"google_search": {}}]
     # Pass the API key via the x-goog-api-key header rather than a ?key= query
     # param so it never lands in request-URL logs (httpx logs the full URL).
     response = await _pkg()._post_with_retry(
@@ -449,7 +457,39 @@ async def _call_gemini(
         meta = body.get("usageMetadata") or {}
         parsed["__input_tokens__"] = int(meta.get("promptTokenCount", 0) or 0)
         parsed["__output_tokens__"] = int(meta.get("candidatesTokenCount", 0) or 0)
+        if grounding_requested:
+            parsed["__grounding_sources__"] = _extract_gemini_grounding_sources(body)
     return parsed
+
+
+def _extract_gemini_grounding_sources(body: dict[str, Any]) -> list[dict[str, str]]:
+    """Return the sources a grounded answer was built from, newest schema first.
+
+    Recorded so a grounded contract can be audited after the fact: without the
+    sources, a looked-up fact and an invented one are indistinguishable in the
+    mission record — which is the ambiguity grounding is meant to remove.
+    """
+    sources: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for candidate in body.get("candidates") or []:
+        if not isinstance(candidate, dict):
+            continue
+        grounding = candidate.get("groundingMetadata")
+        if not isinstance(grounding, dict):
+            continue
+        for chunk in grounding.get("groundingChunks") or []:
+            web = chunk.get("web") if isinstance(chunk, dict) else None
+            if not isinstance(web, dict):
+                continue
+            uri = str(web.get("uri") or "").strip()
+            title = str(web.get("title") or "").strip()
+            if not uri or uri in seen:
+                continue
+            seen.add(uri)
+            sources.append({"uri": uri[:500], "title": title[:200]})
+            if len(sources) >= 10:
+                return sources
+    return sources
 
 
 async def _call_provider(

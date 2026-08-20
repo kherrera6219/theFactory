@@ -27,12 +27,30 @@ PROMPT_GUARD_BLOCK_ENABLED = (
 # Minimum risk level (low < medium < high < critical) that triggers a block.
 PROMPT_GUARD_BLOCK_LEVEL = os.getenv("PROMPT_GUARD_BLOCK_LEVEL", "high").strip().lower()
 
+# Search grounding lets a Gemini call resolve facts it does not know rather than
+# inventing them — the failure mode behind missions whose contract is built on a
+# guess about an unfamiliar product name. It is opt-in per call site (see
+# current_grounding_enabled) and this flag is the global kill switch, because
+# grounding introduces an input channel the operator did not author.
+GEMINI_GROUNDING_ENABLED = (
+    os.getenv("GEMINI_GROUNDING_ENABLED", "true").strip().lower()
+    in {"1", "true", "yes"}
+)
+
 current_mission_id: ContextVar[str | None] = ContextVar("current_mission_id", default=None)
 current_settings: ContextVar[Any | None] = ContextVar("current_settings", default=None)
 current_agent_id: ContextVar[str | None] = ContextVar("current_agent_id", default=None)
 current_vault_secrets: ContextVar[dict[str, str] | None] = ContextVar(
     "current_vault_secrets",
     default=None,
+)
+# Opt-in per call site rather than per agent: only the call that writes the
+# feature contract turns this on. Specialists generate executable code, so
+# giving them their own retrieval path would widen the injection surface far
+# more than it would improve correctness.
+current_grounding_enabled: ContextVar[bool] = ContextVar(
+    "current_grounding_enabled",
+    default=False,
 )
 
 # Lazy import to avoid circular — resolved at call time.

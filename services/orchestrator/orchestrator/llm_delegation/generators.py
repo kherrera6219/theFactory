@@ -61,6 +61,79 @@ def _pkg() -> Any:
     """
     return importlib.import_module(__package__)
 
+
+# Narrative contract fields — the ones a grounded lookup can actually reach, and
+# therefore the ones an injection riding in a search result would surface in.
+_GROUNDABLE_CONTRACT_FIELDS = (
+    "title",
+    "summary",
+    "assumptions",
+    "functional_requirements",
+    "non_functional_requirements",
+    "acceptance_criteria",
+    "risk_notes",
+)
+
+
+def _attach_grounding_provenance(
+    normalized: dict[str, Any],
+    parsed: dict[str, Any],
+) -> None:
+    """Record what the contract was grounded on, and screen what came back.
+
+    Grounding adds an input channel the operator did not author, arriving after
+    the gateway's intake scan has already run. A contract is a trust amplifier —
+    every downstream agent validates *against* it — so grounded text is screened
+    here with the same detector the gateway uses, and a hit downgrades the
+    contract to ``needs_clarification`` rather than silently proceeding. Nothing
+    is dropped: the operator sees the finding and decides.
+    """
+    sources = parsed.get("__grounding_sources__")
+    if not isinstance(sources, list):
+        return
+
+    normalized["grounding"] = {
+        "schema_version": "contract_grounding.v1",
+        "enabled": True,
+        "source_count": len(sources),
+        "sources": sources,
+    }
+    if not sources:
+        # The tool was offered and the model chose not to search — worth
+        # distinguishing from "grounding was never available".
+        normalized["grounding"]["searched"] = False
+        return
+    normalized["grounding"]["searched"] = True
+
+    fragments: list[str] = [
+        str(source.get("title") or "")
+        for source in sources
+        if isinstance(source, dict)
+    ]
+    for field_name in _GROUNDABLE_CONTRACT_FIELDS:
+        value = normalized.get(field_name)
+        if isinstance(value, str):
+            fragments.append(value)
+        elif isinstance(value, list):
+            fragments.extend(str(item) for item in value)
+
+    from shared_runtime.prompt_guard import check_prompt
+
+    result = check_prompt("\n".join(fragments))
+    normalized["grounding"]["scan"] = {
+        "status": result.summary,
+        "is_suspicious": result.is_suspicious,
+        "risk_level": result.risk_level,
+        "attack_types": sorted({match.attack_type for match in result.matches}),
+    }
+    if result.is_suspicious:
+        LOGGER.warning(
+            "pm feature contract: grounded content flagged by prompt guard (%s)",
+            result.summary,
+        )
+        normalized["intake_status"] = "needs_clarification"
+
+
 async def generate_pm_feature_contract(
     *,
     prompt: str,
@@ -128,12 +201,22 @@ async def generate_pm_feature_contract(
         conversation_context=conversation_context,
         user_intent=user_intent,
     )
-    parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
-        recommendation=recommendation,
-        prompt=pm_prompt,
-        call_context="pm feature contract",
-        agent_id="AGENT-01-PM",
-    )
+    # The contract is where an unidentified product name becomes an
+    # authoritative premise, so this is the one call that gets to look things
+    # up. The token is reset in `finally` so grounding cannot leak into any
+    # later call sharing this context.
+    from .config import current_grounding_enabled
+
+    _grounding_token = current_grounding_enabled.set(True)
+    try:
+        parsed, resolved_provider, resolved_model, llm_route = await _call_with_agent_system(
+            recommendation=recommendation,
+            prompt=pm_prompt,
+            call_context="pm feature contract",
+            agent_id="AGENT-01-PM",
+        )
+    finally:
+        current_grounding_enabled.reset(_grounding_token)
     if not isinstance(parsed, dict):
         from ..sow_store import attach_cost_estimate
 
@@ -162,6 +245,7 @@ async def generate_pm_feature_contract(
         prompt=ambiguity_prompt,
         requested_target_language=requested_target_language,
     )
+    _attach_grounding_provenance(normalized, parsed)
     if str(user_intent or "").strip().lower() == "finalize_plan":
         normalized["intake_status"] = "ready"
         normalized["ambiguity_score"] = min(float(normalized.get("ambiguity_score", 0.0)), 0.35)
