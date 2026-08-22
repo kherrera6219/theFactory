@@ -1,7 +1,7 @@
 # Combined Work Queue
 
-Document version: 2026.08.19
-Last updated: 2026-08-19
+Document version: 2026.08.21
+Last updated: 2026-08-21
 Status: Canonical execution order
 Audience: Maintainers and AI coding agents
 
@@ -45,7 +45,7 @@ Cheap self-contained hardening follows, then evidence, then features.
 |---|---|---|---|
 | 6 | Sprint 2.1 — Delta consumer as pod-audit gate (`main.py:505` still `handlers = {"sigma": …}`) | Plan 2.1 | First lane where a down consumer must block a mission |
 | 7 | Sprint 1.2 — BUILD_NEW behavioural-equivalence decision | Plan 1.2 | Option 2 is now far cheaper: artifact execution exists for 19 languages |
-| 8 | Sprint 3.2 — Repo ZIP import Phases 5–7 (launch guard, knowledge ingestion, context loading) | Plan 3.2 | |
+| 8 | Sprint 3.2 — Repo ZIP import **UI trigger seam** (backend Phases 5–7 already in source; arm `metadata.repo_import` + call `POST /api/repo/index` after createMission) | Plan 3.2 | See `docs/evidence/repo_zip_phases_5_7_verification_20260821.md` |
 | 9 | Sprint 3.1 — Electron: the three lifecycle decisions + installer/uninstall tests | Plan 3.1 | **Needs user sign-off**, not just code |
 | 10 | Sprint 3.3 — operator polish; real LogicNode graph needs a transform mission | Plan 3.3 | |
 
@@ -102,7 +102,7 @@ Cheap self-contained hardening follows, then evidence, then features.
   `mission-56bfd2dc` consumed Delta
   `delta-mission-56bfd2dc-…-podA` onto `delta_audit_gate` (prefix parse).
 - [ ] 7 — BUILD_NEW equivalence decision
-- [ ] 8 — repo ZIP Phases 5–7
+- [ ] **8 — repo ZIP Phases 5–7 UI trigger** *(backend verified present 2026-08-21; UI seam open)* — see `docs/evidence/repo_zip_phases_5_7_verification_20260821.md`. Do **not** rebuild Phase 5 guard, `/api/repo/index`, `/internal/.../repo-import-index`, `load_repo_context`, or pod-worker `_fetch_doc_context`. Wire `metadata.repo_import` + post-create index call only.
 - [ ] 9 — Electron decisions *(blocked on user sign-off)*
 - [ ] 10 — operator polish
 - [x] **11 — sandbox out of the orchestrator** *(closed 2026-08-19)*. Verified
@@ -145,15 +145,13 @@ Cheap self-contained hardening follows, then evidence, then features.
 
 ## Next up
 
-P1–P3 from `docs/CHAT_TO_MISSION_FINDINGS_2026-08-12.md` are **done**. P4
-(re-run) was exercised as Snake `mission-911a6b3f` and a follow-up review;
-remaining honesty holes from that run shipped in PR #460.
+**Immediate implementation candidate:** item **#8** UI trigger seam for repo ZIP
+indexing (metadata + `POST /api/repo/index` after mission create). Backend
+Phases 5–7 are already in source — do not re-implement them.
 
-**Current next items:** brownfield import in a non-seeded language;
-then #7 BUILD_NEW equivalence (ADR if option 2); #8 Repo ZIP knowledge
-phases 5–7. Deep-review N1–N4 closed (`af88a79`). #9 Electron is
-**later production work**, not a current defect. Item #11 is
-implemented (`sandbox-runner`).
+**Product decision (not code cleanup):** item **#7** BUILD_NEW equivalence.
+
+**Later / blocked:** #9 Electron (user sign-off), then #10 polish, #13–#14 release.
 
 Compose default is `RQCA_ENFORCEMENT_ENABLED=true`. A local `.env` may still
 set `false` — that override is not the product default.
@@ -209,149 +207,3 @@ non-compiling artifacts still FAIL.
 A local `.env` may still pin `false`. Watch for `verified_scope_detail:
 "started_only"` on missions that should have been exercised — that means
 the usage example did not yield invocation args and tests did not run.
-
----
-
-## Both gates opened — and what the first real runs exposed (2026-08-12)
-
-**Intake.** `PM_AUTO_ACCEPT_DEFAULTS_ENABLED` (default true) makes intake take
-the same path an operator takes: set `user_intent="finalize_plan"`, which the PM
-prompt already defines as "return intake_status ready and list every assumption".
-Verified live — `mission-24fe7ed8` ran `QUEUED → PM_INTAKE → FETCH → …` with **no
-CLARIFYING stop**, auto-accepting 2 questions whose prior score was 0.95. The
-questions are kept under `metadata.pm_auto_accepted_defaults`. **Missions now run
-unattended.**
-
-**Runtime QC.** The gate no longer skips on the testdata agent alone, so RQCA is
-reachable. Two things came out of the first two live runs, in order:
-
-1. **A vacuous PASS, now fixed** (`e5c2316`). The first mission reported
-   `PASS / docker_live` with stdout containing its own Go source: the command was
-   `cat /workspace/main.go`. `testdata_agent` carried a second, smaller language
-   table whose fallback was `cat`, and since it writes both image and command
-   into the manifest, RQCA's `setdefault` never fired and the verified
-   `_LANGUAGE_RUNTIMES` table was bypassed. It now delegates to that table, and a
-   guard test fails if the two split again.
-
-2. **A false FAIL, closed 2026-08-12.** With the real command the program
-   compiled and ran, then exited 1 with `"Error: missing file path argument"` —
-   correct behaviour for a tool invoked with no arguments. Arguments are now
-   derived from `usage_example` and file operands are materialised. Verified
-   on `mission-03f88983`. **Do not treat the 2026-08-12 "leave enforcement
-   off" note as current** — the shipped default is `true` as of 2026-08-17.
-
-The sequence is worth noting: opening the gate produced a false PASS, fixing that
-produced a false FAIL, and only the second run showed real execution. Neither
-verdict could be trusted until the command and the invocation were both right.
-
----
-
-## Finding — every mission is parked for clarification (2026-08-12)
-
-**100% of missions require an operator before they will run.** Measured across
-12 consecutive real missions: every one scored `last_ambiguity_score` between
-0.95 and 1.0, against a gate of `>= 0.7`
-(`mission_flow_v2/phases_intake.py:420`). That includes a Go prompt specifying
-the sort order, field separator, exit code and error behaviour explicitly.
-
-The metric is the problem, not the threshold. `normalizers.py:108` always
-overwrites the LLM's own score with `_pm_ambiguity_score()`
-(`llm_delegation/text.py:339`), which adds up signals a *thorough* PM emits on
-any prompt:
-
-| Signal | Adds |
-|---|---|
-| `intake_status == "needs_clarification"` | **0.55** |
-| each clarifying question | 0.15 (cap 0.45) |
-| each risk note | 0.10 (cap 0.20) |
-| prompt shorter than 60 chars | 0.20 |
-
-Two questions plus two risk notes plus the PM's own flag is 1.05, capped to 1.0,
-before the prompt's content is weighed at all. It is also circular: the
-`needs_clarification` flag alone supplies 0.55 of the 0.7 threshold, so the PM's
-decision to ask anything very nearly fires the gate by itself. The one escape,
-`user_intent == "finalize_plan"` clamping to 0.35 (`generators.py:138`), is not
-used by the normal creation path.
-
-The score therefore measures **how much the PM said**, not **how unclear the
-request was**.
-
-Options, in the order I would take them:
-
-1. **Auto-apply the PM's recommended defaults and proceed**, recording the
-   assumptions on the mission, and hold only for a question the PM marks as
-   having no safe default. The defaults already exist -- both the live suite and
-   the evidence script simply answer "proceed with the recommended defaults" and
-   every mission then completes. Today the app asks a question it already knows
-   the answer to.
-2. **Fix the metric** so it reflects unresolved specification gaps: drop the
-   self-referential `needs_clarification` term, and count only questions the PM
-   marks blocking rather than every question and risk note it raises.
-3. Raising the threshold does **not** work. The scores are 0.95-1.0; there is no
-   value below 1.0 that separates the clear prompts from the unclear ones,
-   because the metric does not vary with clarity.
-
-Not changed here: this alters what every mission does at intake, so it is a
-product decision rather than a cleanup.
-
----
-
-## Finding — runtime QC never runs on a real mission (2026-08-12)
-
-**The RQCA/sandbox work is inert in the live pipeline.** The Go evidence mission
-recorded `runtime_qc_report.verdict = SKIPPED`, `reason = "TESTDATA disabled"`.
-
-`mission_flow_v2/phases_runtime.py:326` short-circuits runtime QC unless
-`TESTDATA_AGENT_ENABLED` is true, *before* it ever consults
-`RQCA_AGENT_ENABLED`. That flag is `false`, so no mission has ever reached the
-sandbox — the 19-language matrix was proven by calling `run_runtime_qc`
-directly, which bypasses this gate. The sandbox genuinely works; the pipeline
-does not reach it.
-
-Two ways forward, and the choice matters because `RQCA_ENFORCEMENT_ENABLED` is
-`true`, so whatever starts running can also start **blocking** missions:
-
-1. **Set `TESTDATA_AGENT_ENABLED=true`.** Smallest change, but it also enables a
-   separate agent with its own LLM calls and failure modes.
-2. **Make the gate reflect what RQCA now needs.** `_LANGUAGE_RUNTIMES` already
-   supplies a base image and run command for all 19 languages, so RQCA no longer
-   depends on the testdata agent for the ordinary single-file case — the testdata
-   agent adds dependencies and fixtures for richer ones. The gate should skip
-   only when the language has no known runtime *and* testdata is off.
-
-Option 2 is the better design and the one this session's work argues for, but it
-should land with enforcement temporarily off, or the first genuinely failing
-artifact blocks a mission before anyone has seen the gate work. Not changed here:
-turning it on is a decision about what starts blocking missions, not a cleanup.
-
----
-
-## Stack state — 2026-08-11
-
-**Recovered.** 55 containers running; gateway and orchestrator both ready.
-
-Earlier in the session only 6 of 55 were up, the rest exited **137** — almost
-certainly Docker Desktop shutting down across the several days this session
-spanned, not memory exhaustion (the host has 31 GiB and 28 CPUs allocated).
-
-Diagnostic worth keeping: the orchestrator answered `/livez` in milliseconds
-while `/health` and `/readyz` hung for tens of seconds, because both call the
-object store and `minio` had died. Docker still reported the container
-`healthy` — a stale status, since the healthcheck itself was hanging. "Healthy
-but hanging" points at a *dependency* death, not the service's own.
-
-On restart `/readyz` returns 503 until Milvus finishes warming (~1 min); every
-other adapter is ready immediately. That is normal, not a fault.
-
-### Verified in the rebuilt image
-
-| | |
-|---|---|
-| `pypdf` | 6.15.0 (was 6.14.2) |
-| `langgraph-checkpoint-postgres` | 3.1.1 (was 3.1.0) |
-| Docker CLI | 29.7.2 (was 27.5.1) |
-| compose plugin | absent, intended — see the orchestrator Dockerfile |
-
-Disk is the real pressure, not memory: 64 GB reclaimable images and 21 GB build
-cache. Worth a `docker system prune` when convenient — not run here, since it
-is destructive and was not asked for.
