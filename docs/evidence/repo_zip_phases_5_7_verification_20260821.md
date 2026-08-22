@@ -2,19 +2,20 @@
 
 Document version: 2026.08.21
 Last updated: 2026-08-21
-Status: Evidence / status reconciliation
+Status: Evidence / status reconciliation — **UI trigger seam closed**
 Audience: Maintainers and coding agents
 
 ## Purpose
 
 Reconcile `docs/REPO_ZIP_IMPORT_MIGRATION_PLAN.md`, `docs/WORK_QUEUE.md` item #8,
 and live source. Prior status text treated Phases 5–7 as fully open. That was
-wrong for the backend; the remaining gap is launch-path wiring.
+wrong for the backend; the launch-path wiring is also present in source.
 
 ## Method
 
-Read-only inspection of `main` at SHA `ce9e04234b3dd7aaaaceb94fda84767da2c42df5`
-(and contemporaneous file contents). No live mission was run in this pass.
+Read-only inspection of `main` (file/function evidence below). No live mission
+was run in the original 2026-08-21 pass; UI wiring was confirmed on re-read the
+same day.
 
 ## Verified — implemented in code
 
@@ -66,71 +67,46 @@ Read-only inspection of `main` at SHA `ce9e04234b3dd7aaaaceb94fda84767da2c42df5`
 - Includes `bootstrap_documentation` (language-filtered),
   `repo_summary` (all specialists), and up to 10 `repo_source_chunk` records
 
-## Verified — not wired end-to-end
+### UI trigger seam (WORK_QUEUE #8)
 
-### Launch path does not arm or trigger indexing
+**Verified** end-to-end operator path in Chat:
 
-**Verified** gaps:
+1. `apps/mission-control/app/lib/chat-repo-import.ts`
+   - `buildRepoImportLaunchMetadata(review)` → compact `metadata.repo_import`
+     (`index_required: true`, `index_status: "pending"`)
+   - `buildRepoIndexRequest(missionId, review)` → POST body for `/api/repo/index`
+   - Unit tests in `chat-repo-import.test.ts` cover both helpers
 
-1. `apps/mission-control/app/(shell)/repo/page.tsx` `launchRepoMission()` only
-   writes a session handoff (`REPO_HANDOFF_STORAGE_KEY`) and navigates to
-   `/chat?fromRepo=1`. It does **not** create a mission and does **not** call
-   `POST /api/repo/index`.
+2. `apps/mission-control/app/(shell)/chat/page.tsx` `confirmAndLaunch`:
+   - When `repoImportRef.current` is set, `fitConversationContext` metadata
+     includes `repo_import` with `index_required: true` / `index_status: "pending"`
+   - After `createMission` returns, calls `indexRepoImport(...)` with the
+     reviewed text-available file excerpts
+   - Index failure is non-fatal to mission creation but surfaces a warning that
+     PM intake may stay paused until indexing succeeds
 
-2. `apps/mission-control/app/lib/chat-repo-import.ts` handoff shape carries
-   `review` + `approval` only. There is no `repo_import` block
-   (`import_id`, `archive_sha256`, `index_required`, `index_status`).
+3. Repo page still hands off via sessionStorage (`REPO_HANDOFF_STORAGE_KEY`);
+   Chat consumes the handoff, sets `repoImportRef`, and the launch path above
+   arms Phase 5 + triggers Phase 6.
 
-3. Repo-wide TypeScript search for `repo_import` / `index_required` under
-   `apps/mission-control` returned **no** application usages outside the
-   Phase 6 index route itself. Mission create from Chat therefore does not
-   set `metadata.repo_import.index_required=true`.
+Consequence: Phase 5 guard arms on ZIP/repo launches; Phase 6 is called from
+the operator path; Phase 7 loaders can find repo knowledge rows once index
+completes.
 
-Consequence: Phase 5 guard never arms; Phase 6 endpoint is never called from
-the operator path; Phase 7 loaders find no repo knowledge rows. Backend is
-ready; the product path is still “approved source bundle only.”
+## Remaining optional polish (not blocking #8)
 
-## What is still owed (implementation slice)
-
-Do not reopen Phases 5–7 backend. Close the **UI trigger seam**:
-
-1. Extend handoff / Chat launch metadata with compact:
-
-   ```json
-   {
-     "repo_import": {
-       "import_id": "repozip-…",
-       "archive_sha256": "…",
-       "display_name": "…",
-       "source_ref": "…",
-       "index_required": true,
-       "index_status": "pending"
-     }
-   }
-   ```
-
-2. After `createMission` returns a `mission_id` for a repo/ZIP handoff, call
-   `POST /api/repo/index` with `mission_id`, `import_id`, `archive_sha256`,
-   and the reviewed file excerpts already held in the handoff/review object.
-
-3. Surface index status in Chat/Repo UI (`pending` → `complete` / error).
-
-4. Tests:
-   - unit: handoff carries `repo_import` and Chat post-create calls index
-   - optional integration: pending mission stays queued until index complete,
-     then PM receives `repository_context`
-
-5. Update `docs/REPO_ZIP_IMPORT_MIGRATION_PLAN.md` phase statuses and
-   `docs/WORK_QUEUE.md` item #8 after the wiring lands and is test-green.
+- Surface index status (`pending` → `complete` / error) more visibly in Chat/Repo UI
+- Live end-to-end ZIP→index→PM proof under `LIVE_STACK_REQUIRED=1` (not run in
+  this verification pass)
+- Extracted-folder / “Open Folder” UI remains a separate operator convenience
 
 ## Non-goals for this note
 
-- No application code change in this commit
-- No claim of live end-to-end ZIP→index→PM proof (not run here)
+- No claim of live runtime of the closed loop in the original session
 - Electron packaging and BUILD_NEW equivalence remain separate open items
 
 ## Confidence
 
 - **High** on backend Phase 5–7 presence (file/function evidence above)
-- **High** on missing UI `repo_import` / index call (negative search + page read)
+- **High** on UI `repo_import` + post-create index call (direct page + helper read)
 - **N/A** on live runtime of the closed loop in this session

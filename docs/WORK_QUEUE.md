@@ -102,7 +102,13 @@ Cheap self-contained hardening follows, then evidence, then features.
   `mission-56bfd2dc` consumed Delta
   `delta-mission-56bfd2dc-…-podA` onto `delta_audit_gate` (prefix parse).
 - [ ] 7 — BUILD_NEW equivalence decision
-- [ ] **8 — repo ZIP Phases 5–7 UI trigger** *(backend verified present 2026-08-21; UI seam open)* — see `docs/evidence/repo_zip_phases_5_7_verification_20260821.md`. Do **not** rebuild Phase 5 guard, `/api/repo/index`, `/internal/.../repo-import-index`, `load_repo_context`, or pod-worker `_fetch_doc_context`. Wire `metadata.repo_import` + post-create index call only.
+- [x] **8 — repo ZIP Phases 5–7 UI trigger** *(closed 2026-08-21)*. Backend
+  Phases 5–7 were already present. Chat `confirmAndLaunch` arms
+  `metadata.repo_import` (`index_required: true`, `index_status: "pending"`)
+  and calls `indexRepoImport` after `createMission`. Pure helpers
+  `buildRepoImportLaunchMetadata` / `buildRepoIndexRequest` + unit tests in
+  `apps/mission-control/app/lib/chat-repo-import.ts`. Evidence:
+  `docs/evidence/repo_zip_phases_5_7_verification_20260821.md`.
 - [ ] 9 — Electron decisions *(blocked on user sign-off)*
 - [ ] 10 — operator polish
 - [x] **11 — sandbox out of the orchestrator** *(closed 2026-08-19)*. Verified
@@ -144,10 +150,6 @@ Cheap self-contained hardening follows, then evidence, then features.
 ---
 
 ## Next up
-
-**Immediate implementation candidate:** item **#8** UI trigger seam for repo ZIP
-indexing (metadata + `POST /api/repo/index` after mission create). Backend
-Phases 5–7 are already in source — do not re-implement them.
 
 **Product decision (not code cleanup):** item **#7** BUILD_NEW equivalence.
 
