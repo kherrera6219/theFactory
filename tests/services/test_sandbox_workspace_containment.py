@@ -15,7 +15,7 @@ if str(ORCH) not in sys.path:
 
 
 def test_contained_workspace_accepts_tempdir_child(tmp_path: Path) -> None:
-    from orchestrator.sandbox_exec import _contained_workspace, _make_workspace_readable
+    from orchestrator.sandbox_paths import contained_workspace, make_workspace_readable
 
     workspace = tmp_path / "ws"
     workspace.mkdir()
@@ -24,21 +24,19 @@ def test_contained_workspace_accepts_tempdir_child(tmp_path: Path) -> None:
     os.chmod(workspace, 0o700)
     os.chmod(secret, 0o600)
 
-    with patch("orchestrator.sandbox_exec._WORKSPACE_ROOT", ""):
-        with patch("orchestrator.sandbox_exec.tempfile.gettempdir", return_value=str(tmp_path)):
-            assert _contained_workspace(workspace) == workspace.resolve()
-            _make_workspace_readable(workspace)
+    with patch("orchestrator.sandbox_paths.tempfile.gettempdir", return_value=str(tmp_path)):
+        assert contained_workspace(workspace) == workspace.resolve()
+        make_workspace_readable(workspace)
 
     assert stat.S_IMODE(workspace.stat().st_mode) == 0o755
     assert stat.S_IMODE(secret.stat().st_mode) == 0o644
 
 
 def test_contained_workspace_rejects_escape(tmp_path: Path) -> None:
-    from orchestrator.sandbox_exec import _contained_workspace, _make_workspace_readable
+    from orchestrator.sandbox_paths import contained_workspace, make_workspace_readable
 
     outside = Path(tempfile.gettempdir()).resolve()
-    with patch("orchestrator.sandbox_exec._WORKSPACE_ROOT", str(tmp_path)):
-        assert _contained_workspace(outside) is None
-        before = stat.S_IMODE(outside.stat().st_mode)
-        _make_workspace_readable(outside)
-        assert stat.S_IMODE(outside.stat().st_mode) == before
+    assert contained_workspace(outside, workspace_root=str(tmp_path)) is None
+    before = stat.S_IMODE(outside.stat().st_mode)
+    make_workspace_readable(outside, workspace_root=str(tmp_path))
+    assert stat.S_IMODE(outside.stat().st_mode) == before
