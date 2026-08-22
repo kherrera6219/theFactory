@@ -2,6 +2,7 @@
 FROM python:3.11-slim-bookworm@sha256:721dc13fd1be0a771e54b72097634291d628d0007dee9da777e2ce676a9c998f AS builder
 RUN python -m venv /opt/venv
 ENV PATH=/opt/venv/bin:$PATH
+RUN pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=83.0.0"
 COPY services/orchestrator/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -37,8 +38,16 @@ COPY services/pod-worker/pod_worker /app/pod_worker
 # an unreachable branch alive is a bad trade; the path now reports honestly that
 # compose is unavailable. Track the CLI's own major rather than pinning old --
 # 27-cli was two majors behind the daemon it talks to.
+# docker:29-cli 29.7.2 is still built with Go 1.26.5. Official CLI images
+# have not published a 1.26.6 rebuild yet (fixed versions: 1.25.13 / 1.26.6).
+# Track the floating 29-cli tag so the next upstream rebuild is picked up
+# automatically; do not vendor a second docker binary.
 COPY --from=docker:29-cli /usr/local/bin/docker /usr/local/bin/docker
-RUN useradd --system --create-home --uid 10001 appuser \
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends ca-certificates liblzma5 \
+    && python -m pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=83.0.0" \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
 USER appuser
 # Liveness probe: /health returns 200 whenever the process is serving, even if

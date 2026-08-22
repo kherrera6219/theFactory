@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,6 +17,23 @@ def _sow_root(settings: Any) -> Path:
     root = Path(getattr(settings, "delivery_dir", None) or "output") / ".sow"
     root.mkdir(parents=True, exist_ok=True)
     return root
+
+
+def _safe_sow_path(settings: Any, sow_id: str) -> Path | None:
+    """Return a SOW path only when it stays inside the SOW root.
+
+    ``sow_id`` is caller-supplied. Allow only ``[A-Za-z0-9_-]``, then
+    normalize and require the resolved path to be a child of the root.
+    """
+    raw = str(sow_id)
+    safe = "".join(ch for ch in raw if ch.isalnum() or ch in {"-", "_"})
+    if not safe or safe != raw:
+        return None
+    root = os.path.abspath(str(_sow_root(settings)))
+    fullpath = os.path.normpath(os.path.join(root, f"{safe}.json"))
+    if not fullpath.startswith(root + os.sep):
+        return None
+    return Path(fullpath)
 
 
 def sow_digest(document: dict[str, Any]) -> str:
@@ -99,7 +117,9 @@ def save_approved_sow(
         "digest": "",
     }
     document["digest"] = sow_digest(document["feature_contract"])
-    path = _sow_root(settings) / f"{sow_id}.json"
+    path = _safe_sow_path(settings, sow_id)
+    if path is None:
+        raise ValueError("refusing to write sow outside the sow root")
     path.write_text(json.dumps(document, indent=2), encoding="utf-8")
     return document
 
@@ -121,11 +141,8 @@ def check_mission_spend_cap(
 
 
 def load_approved_sow(settings: Any, sow_id: str) -> dict[str, Any] | None:
-    safe = "".join(ch for ch in str(sow_id) if ch.isalnum() or ch in {"-", "_"})
-    if not safe or safe != sow_id:
-        return None
-    path = _sow_root(settings) / f"{safe}.json"
-    if not path.is_file():
+    path = _safe_sow_path(settings, sow_id)
+    if path is None or not path.is_file():
         return None
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
