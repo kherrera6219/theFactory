@@ -13,6 +13,7 @@ storage_pods        — Pod assignments, project aggregation
 storage_logicnodes  — LogicNode and knowledge-fragment persistence
 storage_artifacts   — Audit reports, review approvals, build artifacts
 storage_agents      — Agent heartbeats and runtime event log
+storage_projects    — Project continuity bus (handoff + work ledger)
 """
 from __future__ import annotations
 
@@ -85,6 +86,16 @@ from .storage_pods import (
     summarize_projects,
     upsert_pod_assignment,
 )
+from .storage_projects import (
+    fetch_project,
+    fetch_project_handoff,
+    list_work_items,
+    load_project_bus,
+    mark_work_items_done_for_mission,
+    upsert_project,
+    upsert_project_handoff,
+    upsert_work_item,
+)
 
 __all__ = [
     # core
@@ -119,6 +130,15 @@ __all__ = [
     "is_provisional_assignment",
     "list_pod_assignments",
     "summarize_projects",
+    # projects
+    "upsert_project",
+    "fetch_project",
+    "upsert_project_handoff",
+    "fetch_project_handoff",
+    "upsert_work_item",
+    "list_work_items",
+    "mark_work_items_done_for_mission",
+    "load_project_bus",
     # logicnodes
     "upsert_logicnode",
     "upsert_logicnodes_batch",
