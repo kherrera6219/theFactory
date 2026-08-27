@@ -3,8 +3,15 @@
 Plan only. Nothing in here has been executed against the running stack.
 
 As of 2026-08-27 the local stack shows the `missions-completion-blocked` alert
-open, driven by missions parked at `VERIFIED`. They are **not one problem**.
-Three groups, and only one of them is live.
+open, driven by 17 missions parked at `VERIFIED`.
+
+**Headline, after tracing:** 15 of the 17 are blocked by a failing runtime QC
+that recorded nothing an operator could read. The chain trace showed whatever
+had blocked them *previously* -- in most cases a `delta_audit` entry from
+2026-08-17 -- so the visible reason was months out of date and pointed at the
+wrong subsystem. Commit `1b40edc` fixes the silence. Group B below documents the
+correction, including the wrong conclusion this document reached on first
+draft.
 
 ## Group A -- 2 missions in a permanent retry loop (LIVE)
 
@@ -41,31 +48,50 @@ path regenerates it.
 **Recommendation: option 1.** These predate today's fixes and there is no path
 by which retrying produces a different result.
 
-## Group B -- 10 missions with stale `delta_audit` blocks (NOT live)
+## Group B -- CORRECTED: not stale, silently blocked by runtime QC (LIVE)
 
-Newest block: **2026-08-17**. None have re-blocked since.
+**This section originally read "10 missions with stale delta_audit blocks (NOT
+live)". That was wrong, and the error is instructive: it was inferred from the
+last *recorded* chain event, and the actual block recorded nothing at all.**
 
-`EVENT_DRIVEN_CONTROL_PLANE_ENABLED=false` in the running orchestrator
-(confirmed via `docker exec deploy-orchestrator-1 env`), and `_delta_audit_gate`
-returns `(True, {})` when the flag is off (`mission_flow_v2/lifecycle.py:100`).
-That gate is therefore inert now, and these blocks are residue from when EDCP
-was enabled.
+Orchestrator logs settle it:
 
-**Unresolved:** they are not re-blocking, but they are also not advancing. With
-the gate inert, a re-drive should carry them past it to the equivalence stage
-and either complete them or emit `MISSION_EQUIVALENCE_BLOCKED`. Neither event
-appears. This is the one thread from the 2026-08-27 investigation that was never
-closed.
+```
+2026-08-27T04:02:11 INFO orchestrator.mission_flow_v2.lifecycle:
+  v2: mission mission-7030222d-... blocked by runtime QC report FAIL
+```
 
-**Do not clear these before understanding that**, since "not advancing and not
-recording why" may be the same class of silent stall that
-`docs/LANGUAGE_COVERAGE_FINDINGS_2026-08-27.md` UPDATE-3 fixed for runtime QC --
-in which case there is a second silent path still unfixed.
+`docker logs deploy-orchestrator-1 | grep "blocked by runtime QC"` names **15
+distinct missions** since the rebuild -- nearly every VERIFIED mission on the
+box, including `mission-9730a057` from the 2026-08-27 coverage batch.
 
-**Suggested next step:** read-only. Pick one of the ten, watch an orchestrator
-restart, and trace whether `start_lifecycle_task` reaches
-`_advance_verified_to_complete` for it at all. Cheap, mutates nothing, and
-answers whether a second silent-stall path exists.
+So the true breakdown of the 17 is:
+
+| Cause | Count | Recorded a reason before `1b40edc`? |
+| --- | --- | --- |
+| Runtime QC failure | 15 | **No -- silent** |
+| Build artifact FAILED | 2 | Yes |
+
+The `delta_audit` entries dated 2026-08-17 were simply the last block that
+*left a trace*, from when EDCP was still on. Every block since has been runtime
+QC, writing only to `mission_events` and to the log, never to
+`metadata.chain_trace` -- so `/chain-trace` kept showing a months-old
+delta_audit reason while the live cause went unrecorded.
+
+**This is the strongest possible argument for UPDATE-3** (commit `1b40edc`): the
+silent path was not an edge case affecting three missions from one test batch,
+it was hiding the real cause of 15 of 17 stalled missions and actively
+misdirecting diagnosis -- including mine, in the first draft of this document.
+
+There is **no second silent-stall path**. There is one, it is this, and it is
+fixed.
+
+**What to do:** deploy `1b40edc`, then let recovery re-drive them once. Each
+will re-block with `gate: "runtime_qc"`, its verdict, exit code and stderr
+excerpt in the chain trace, and the real cause becomes visible per mission. Only
+then is it worth deciding which to fail out -- several are likely the same
+bundle-header and argv defects that commit also fixes, so a subset may simply
+pass on re-run.
 
 ## Group C -- 5 missions blocked by security compliance (working as intended)
 
@@ -89,8 +115,16 @@ in the chain trace.
 
 ## Order
 
-1. Trace one Group B mission (read-only) -- it may reveal a second silent path.
-2. Fail out Group A and Group D once Group B is understood.
-3. Leave Group C alone.
+1. **Done (read-only).** Traced Group B: no second silent path exists. The one
+   silent path is the runtime QC block, fixed in `1b40edc`.
+2. **Deploy `1b40edc`, then let recovery re-drive once.** Every stalled mission
+   then records its real cause. Do this before deciding anything else -- it
+   costs one restart and turns 15 unexplained stalls into 15 readable ones.
+3. **Re-run the coverage batch** (`test_batch=lang-coverage-2026-08-27`). The
+   bundle-header and argv fixes in the same commit may let some of these pass
+   outright, which changes how many need failing out.
+4. **Then** fail out whatever still cannot complete -- Group A almost certainly,
+   plus whichever of the 15 still fail for real reasons.
+5. Leave Group C alone; it is working as designed.
 
 Nothing here should run while a mission batch is in flight.
