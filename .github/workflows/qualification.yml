@@ -53,6 +53,16 @@ jobs:
         run: sh scripts/generate_dev_tls_certs.sh
 
       - name: Write CI .env
+        # LLM credentials are optional. Undefined secrets resolve to an empty
+        # string, which write_ci_env.sh skips, leaving the stack on its fallback
+        # path -- so this workflow runs unchanged in a fork or a repo that has
+        # never configured a key. Supplying one upgrades the canary from
+        # "pipeline is wired" to "the factory actually generated code".
+        env:
+          LLM_PROVIDER: ${{ secrets.QUALIFICATION_LLM_PROVIDER }}
+          GEMINI_API_KEY: ${{ secrets.QUALIFICATION_GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.QUALIFICATION_ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.QUALIFICATION_OPENAI_API_KEY }}
         run: |
           sh scripts/write_ci_env.sh
           cp .env deploy/.env
@@ -96,8 +106,25 @@ jobs:
       - name: Wait for stack after auth matrix reconfiguration
         run: sh scripts/wait_for_stack_ready.sh
 
+      # Split contract, deliberately. One language carries the real end-to-end
+      # proof (must reach COMPLETE) and only runs when credentials exist; the
+      # other three are cheap deterministic wiring checks that assert routing,
+      # chain events and VERIFIED without requiring generated code.
+      #
+      # Before this split all four ran the full contract against a stack with no
+      # LLM credentials, so all four were guaranteed to fail once
+      # mission_requires_build_artifact() started returning True for every v2
+      # mission (d27a0ff). Four expensive checks all quietly proved less than
+      # their name suggested. See docs/CANARY_BUILD_ARTIFACT_REGRESSION.md.
       - name: Dedicated-agent canary trend
-        run: python scripts/dedicated_agent_canary_trend.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.QUALIFICATION_GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.QUALIFICATION_ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.QUALIFICATION_OPENAI_API_KEY }}
+        run: |
+          python scripts/dedicated_agent_canary_trend.py \
+            --languages python \
+            --wiring-languages rust kotlin julia
 
       - name: LangGraph v2 prototype matrix
         run: python scripts/langgraph_v2_prototype_matrix.py --allow-prototype-failure

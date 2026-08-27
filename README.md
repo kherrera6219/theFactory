@@ -16,9 +16,11 @@
 
 </div>
 
-> **Version:** 1.3.0 · **Last updated:** 2026-08-18 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
+> **Version:** 1.3.0 · **Last updated:** 2026-08-21 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
 >
 > **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. Live BUILD_NEW missions have reached `COMPLETE` (Go S1-01, chat-driven PyQt6, stdlib Snake). Default LLM route is **Gemini 3.7 Flash**. Runtime QC runs generated tests when they exist; a bare launch (`started_only`) or syntax-only compile is **ADVISORY**, never a PASS.
+>
+> **Recent on `main` (2026-08-21/22):** Project continuity bus (`projects` / `project_handoff` / `project_work_items`, migration `V010`) so follow-on missions resume shared project state instead of starting blank — see [`docs/PROJECT_CONTINUITY_BUS.md`](docs/PROJECT_CONTINUITY_BUS.md). Repo ZIP import Phases 5–7 (launch index guard, knowledge ingestion, agent context load) are implemented and the Chat UI trigger seam is closed — see [`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md). Ordered remaining work lives in [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
 >
 > The **semantic engine is partially realised**: LogicNodes carry AST-recovered types, Refined-IR carries real op streams and side-effect-derived purity, and behavioural equivalence executes generated code in a hardened sandbox — but type recovery is real only for **Python, Java, and Haskell**. Other languages produce honestly-labelled templated output. BUILD_NEW is a sequential specialist prompt-chain, not a four-pod fan-out.
 >
@@ -135,6 +137,8 @@ The list below describes implemented, CI-verified subsystems across theFactory:
 - **Protocol Bus Architecture** — Six-protocol Redis Streams event plane with DLQ, 409 replay detection, and fail-closed Redis error handling.
 - **41-Agent Control Model** — Canonical registry across interface, executive, support, and pod-specialist tiers; supports condensed, dedicated, and full-dedicated runtime topologies.
 - **Observability & Data Plane** — Complete integration across PostgreSQL, Redis, Qdrant, Milvus, Neo4j, MinIO, Jaeger OTLP, Prometheus, Grafana, Loki, and Alertmanager.
+- **Project Continuity Bus** — Durable `projects`, `project_handoff`, and `project_work_items` (migration `V010`) so a follow-on mission can resume the same project's handoff, work ledger, and plan authority instead of a blank slate. Intake ensures the bus; delivery finalizes claimed work items only with evidence. Foundation on `main`; Mission Control project detail UI and public work-item APIs remain follow-ups ([`docs/PROJECT_CONTINUITY_BUS.md`](docs/PROJECT_CONTINUITY_BUS.md)).
+- **Repo ZIP Import Knowledge Path (Phases 5–7)** — Chat/Repo launch arms `metadata.repo_import` (`index_required`, `index_status: pending`). Phase 5 blocks PM intake until indexing completes. Phase 6 ingests bounded manifest/summary/chunk knowledge via `POST /api/repo/index` → orchestrator `/internal/missions/{id}/repo-import-index`. Phase 7 loads repository context into PM and pod-worker prompts. UI trigger seam closed 2026-08-21.
 
 
 ---
@@ -445,7 +449,7 @@ The protocol bus is a six-protocol typed message bus. Routing is lexical/channel
 | Alerts | Incident and alert center with acknowledge/resolve workflow |
 | Performance | Runtime readiness, dependency health, and mission-state capacity snapshot |
 | Builder | Grounded local-workspace review with patch contract, durable approval gate, launch-time approval verification, and mission launch bundle |
-| Repo Import | Local ZIP import, archive-hash review gate, launch-time approval verification, and mission scoping with bundled source context |
+| Repo Import | Local ZIP import, archive-hash review gate, launch-time approval verification, mission scoping, and Phase 5–7 index path (launch guard → knowledge ingestion → agent context) |
 | Databases | Shared data-system readiness and diagnostics |
 | Settings | Provider key management, vault-backed secrets, and local environment controls |
 
@@ -499,7 +503,7 @@ is optional future/deployment scope, not the default local product path.
 
 **Schema governance:** Versioned SQL migrations with checksum-tracked `schema_migrations` table (`V001_...` naming).
 
-**Traceability Ledger:** Active runtime ledger tables are Postgres migrations under `services/orchestrator/orchestrator/migrations/` including `V005_project_audit_event_schema.sql`, `V007_llm_usage_ledger_schema.sql`, and `V009_immutable_audit.sql`.
+**Traceability Ledger:** Active runtime ledger tables are Postgres migrations under `services/orchestrator/orchestrator/migrations/` including `V005_project_audit_event_schema.sql`, `V007_llm_usage_ledger_schema.sql`, `V009_immutable_audit.sql`, and `V010_project_continuity_bus.sql` (projects, handoff, work ledger).
 
 ---
 
@@ -770,7 +774,7 @@ python scripts/demo_missions.py --live --gateway-base-url http://localhost:8100
 The live run is the launch-demo proof point. It requires a running stack and
 provider-key configuration when generated LLM output is part of the claim.
 
-**Validation snapshot (2026-08-17):** Live BUILD_NEW evidence includes Go `mission-f8a5accf` (`docs/evidence/s1_01_live_generation_go_20260811.json`), chat-driven PyQt6 `mission-e42fd7e2`, and stdlib Snake `mission-911a6b3f`. Honesty/QC follow-up is on `main` (PR #460). PM SOW, Chat ZIP import, file-tree delivery, quoted-vs-actual cost, and `sandbox-runner` are on `main` (PR #462). Coverage gates (line ≥80%, branch ≥70%, privilege-path floors) landed in PR #463 (`dd13785`). Every critical file is floored at **at least 80%** (`rqca_agent` included; `sow_estimator` and `file_tree` gated). Full-dedicated stack rebuilt 2026-08-17; `sandbox-runner` is healthy. Older Phase 13 / non-ASCII smokes remain on disk. `production_review_audit.py` 23/23 is a hygiene check, not a release certificate. Live PORT-through-SOW and failing-QC-blocks-COMPLETE evidence is in [`docs/evidence/end_state_live_proof_20260817.json`](docs/evidence/end_state_live_proof_20260817.json). Failure injection, provider fallback, EDCP live-bus, spend-cap pause, and Chat ZIP import are in [`docs/evidence/remaining_live_proof_20260817.json`](docs/evidence/remaining_live_proof_20260817.json).
+**Validation snapshot (2026-08-21):** Live BUILD_NEW evidence includes Go `mission-f8a5accf` (`docs/evidence/s1_01_live_generation_go_20260811.json`), chat-driven PyQt6 `mission-e42fd7e2`, and stdlib Snake `mission-911a6b3f`. Honesty/QC follow-up is on `main` (PR #460). PM SOW, Chat ZIP import, file-tree delivery, quoted-vs-actual cost, and `sandbox-runner` are on `main` (PR #462). Coverage gates (line ≥80%, branch ≥70%, privilege-path floors) landed in PR #463 (`dd13785`). Every critical file is floored at **at least 80%**. Full-dedicated stack rebuilt 2026-08-17; `sandbox-runner` is healthy. **Project continuity bus** landed on `main` (`ce9e042`, 2026-08-22) with migration `V010` and unit tests. **Repo ZIP Phases 5–7** backend + Chat UI trigger seam verified closed 2026-08-21 ([`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md)); WORK_QUEUE item #8 closed. `production_review_audit.py` 23/23 is a hygiene check, not a release certificate. Live PORT-through-SOW and failing-QC-blocks-COMPLETE evidence is in [`docs/evidence/end_state_live_proof_20260817.json`](docs/evidence/end_state_live_proof_20260817.json). Failure injection, provider fallback, EDCP live-bus, spend-cap pause, and Chat ZIP import are in [`docs/evidence/remaining_live_proof_20260817.json`](docs/evidence/remaining_live_proof_20260817.json).
 
 ---
 
@@ -981,6 +985,8 @@ theFactory/
 | [`docs/LICENSE_STRATEGY.md`](docs/LICENSE_STRATEGY.md) | Dual AGPL-3.0/Commercial license strategy and CLA requirement |
 | [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Current shipped defaults, known gaps, and validation snapshot |
 | [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md) | Ordered next work — start here for “what is actually next” |
+| [`docs/PROJECT_CONTINUITY_BUS.md`](docs/PROJECT_CONTINUITY_BUS.md) | Project continuity bus — handoff, work ledger, plan authority across missions |
+| [`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md) | Repo ZIP Phases 5–7 source verification (index guard, ingestion, context, UI seam) |
 | [`docs/CURRENT_TODO.md`](docs/CURRENT_TODO.md) | Session-level current status and active queue |
 | [`docs/HANDOFF_CURRENT.md`](docs/HANDOFF_CURRENT.md) | Cold-start handoff for maintainers and coding agents |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture and topology |
@@ -1013,15 +1019,18 @@ theFactory/
 
 ## Current Status
 
-Current state (2026-08-17): **active development, feature-complete against the
+Current state (2026-08-21): **active development, feature-complete against the
 v1.3 mission-pipeline scope.** Infrastructure, security, the protocol bus, the
 data plane, the operator UI, and the test surface are mature and CI-verified.
 The semantic engine is partially realised and honestly labelled. Live BUILD_NEW
-missions have reached `COMPLETE`. The system is **not production-ready**.
+missions have reached `COMPLETE`. Project continuity and the Repo ZIP knowledge
+path are on `main`. The system is **not production-ready**.
 
 | Maturity Area | Status | Status Details |
 | --- | --- | --- |
 | **Core Software Engine** | **Complete for v1.3 scope** | Mission Flow v2 default, 41-agent registry, 6 Redis protocols, real AST for Python/JS/TS/Java, regex parsers for Go/Haskell/OCaml/Julia, Helm & GitHub Actions exporters, Gemini 3.7 Flash default route. |
+| **Project continuity** | **Foundation on `main`** | Migration `V010`, `project_bus` ensure/finalize hooks, unit tests (`ce9e042`). Follow-on missions can resume handoff + work ledger. Project detail UI and public work-item APIs are follow-ups. |
+| **Repo ZIP knowledge path** | **Phases 5–7 closed** | Launch index guard, knowledge ingestion, agent context load, and Chat UI trigger seam verified 2026-08-21. Optional polish: index-status visibility in UI and live closed-loop proof under `LIVE_STACK_REQUIRED=1`. |
 | **Semantic depth** | **Partially realised; remainder scoped out** | Real AST-recovered types, op streams, purity, and behavioural equivalence — type recovery for **Python, Java, and Haskell**. Other languages emit honestly-labelled `templated_v1` output. BUILD_NEW does not extract LogicNodes. See the [reconciliation ADR](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md). |
 | **Live mission evidence** | **Sprint 1.1 + EDCP recorded** | Go `mission-f8a5accf`, PyQt6 `mission-e42fd7e2`, Snake `mission-911a6b3f`, PORT `mission-dc0c8c4e`, fail-QC `mission-8db1af71`, injection `mission-6ee8b1fe`, fallback `mission-db901d98`, EDCP `mission-56bfd2dc`, spend-cap `mission-c1aedfbd`. |
 | **Runtime QC honesty** | **Shipped (PR #460)** | Generated tests are the sandbox command. `started_only` / syntax-only are ADVISORY. Unmet offline deps are DRY_RUN. Compose default `RQCA_ENFORCEMENT_ENABLED=true`. |
