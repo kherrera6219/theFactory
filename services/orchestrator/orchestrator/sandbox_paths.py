@@ -18,12 +18,20 @@ def path_is_contained(candidate: str, root: str) -> bool:
 
 
 def contained_workspace(workspace_dir: str | Path, workspace_root: str = "") -> Path | None:
-    """Accept a workspace only when it stays under an allowed root."""
+    """Accept a workspace only when it is *strictly inside* an allowed root.
+
+    An allowed root itself is rejected. Accepting it would let
+    ``make_workspace_readable(tempfile.gettempdir())`` relax permissions across
+    the whole system temp tree -- which is the escape this containment exists to
+    prevent, not an edge case of it. A real workspace is always a directory
+    created *under* one of these roots, so requiring strict descent costs
+    nothing and closes the case the accompanying test asserts.
+    """
     raw = os.path.abspath(str(workspace_dir))
     allowed = [os.path.abspath(tempfile.gettempdir())]
     if workspace_root:
         allowed.append(os.path.abspath(workspace_root))
-    if not any(path_is_contained(raw, root) for root in allowed):
+    if not any(path_is_contained(raw, root) and raw != root for root in allowed):
         LOGGER.warning("sandbox workspace %s is outside allowed roots", raw)
         return None
     if not os.path.isdir(raw):

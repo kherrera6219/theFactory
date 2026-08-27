@@ -8,12 +8,24 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 ORCH = ROOT / "services" / "orchestrator"
 if str(ORCH) not in sys.path:
     sys.path.insert(0, str(ORCH))
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason=(
+        "Windows does not honour POSIX mode bits -- chmod only toggles the "
+        "read-only flag, so st_mode reports 0o777 for any writable directory "
+        "and the 0o755/0o644 assertions cannot hold there. The containment "
+        "decision itself is asserted on every platform by "
+        "test_contained_workspace_rejects_escape."
+    ),
+)
 def test_contained_workspace_accepts_tempdir_child(tmp_path: Path) -> None:
     from orchestrator.sandbox_paths import contained_workspace, make_workspace_readable
 
