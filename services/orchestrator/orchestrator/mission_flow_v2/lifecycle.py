@@ -318,6 +318,47 @@ async def _advance_verified_to_complete(
         mission=mission,
     )
     if not runtime_qc_ready:
+        # The state event alone left no cause an operator could read: it lands in
+        # mission_events, not in metadata.chain_trace, so /chain-trace showed a
+        # mission parked at VERIFIED with every gate passed and nothing saying
+        # why. Every other stop in this lifecycle records a reason; this one must
+        # too. Observed on javascript/ocaml/python in the 2026-08-27 language
+        # coverage run -- docs/LANGUAGE_COVERAGE_FINDINGS_2026-08-27.md.
+        qc_metadata = with_chain_defaults(
+            mission.metadata,
+            mission.requested_target_language,
+        )
+        append_chain_event(
+            qc_metadata,
+            event_type="MISSION_COMPLETION_BLOCKED",
+            agent_id=CEO_AGENT_ID,
+            details={
+                "gate": "runtime_qc",
+                "reason": "runtime QC did not pass, so the mission may not complete",
+                "verdict": runtime_qc_report.get("verdict"),
+                "exit_code": runtime_qc_report.get("exit_code"),
+                "filename": runtime_qc_report.get("filename"),
+                "execution_type": runtime_qc_report.get("execution_type"),
+                "stderr_excerpt": str(runtime_qc_report.get("stderr_preview") or "")[:400],
+            },
+        )
+        await asyncio.to_thread(
+            _pkg().storage.update_mission_metadata,
+            settings,
+            mission_id,
+            qc_metadata,
+        )
+        # Both events on purpose: MISSION_COMPLETION_BLOCKED is what the
+        # operations alert counts (routes/operations.py), while
+        # MISSION_RUNTIME_QC_BLOCKED keeps the specific cause in state history.
+        await asyncio.to_thread(
+            _pkg().storage.insert_mission_event,
+            settings,
+            mission_id,
+            MissionState.verified,
+            MissionState.verified,
+            "MISSION_COMPLETION_BLOCKED",
+        )
         await asyncio.to_thread(
             _pkg().storage.insert_mission_event,
             settings,
@@ -327,9 +368,10 @@ async def _advance_verified_to_complete(
             "MISSION_RUNTIME_QC_BLOCKED",
         )
         LOGGER.info(
-            "v2: mission %s blocked by runtime QC report %s",
+            "v2: mission %s blocked by runtime QC report %s (exit=%s)",
             mission_id,
             runtime_qc_report.get("verdict"),
+            runtime_qc_report.get("exit_code"),
         )
         return False
 

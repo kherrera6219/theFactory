@@ -174,3 +174,88 @@ def test_run_accepts_201_created_for_mission_creation(tmp_path, monkeypatch) -> 
 
     assert canary.run(args) == 0
     assert output_file.exists()
+
+
+def _blocked_at_verified(**overrides):
+    """The exact shape of the 2026-08-24 qualification failure.
+
+    Mission routes correctly and folds logic, then the completion gate blocks it
+    because a credential-less stack produced source="fallback" output that
+    cannot package. See docs/CANARY_BUILD_ARTIFACT_REGRESSION.md.
+    """
+    metadata = {
+        "routing_enforced": True,
+        "intake_agent_id": "AGENT-01-PM",
+        "executive_agent_id": "AGENT-02-CEO",
+        "expected_pod_manager_agent_id": "AGENT-18-PODB-MGR",
+    }
+    metadata.update(overrides.pop("metadata", {}))
+    payload = dict(
+        final_state="VERIFIED",
+        mission_record={"metadata": metadata},
+        chain_trace=[
+            {"event_type": event}
+            for event in (
+                "MISSION_PM_INTAKE",
+                "MISSION_CEO_DELEGATED",
+                "MISSION_POD_MANAGER_ASSIGNED",
+                "MISSION_SPECIALIST_ASSIGNED",
+                "MISSION_LOGIC_FOLDED",
+                "MISSION_BUILD_ARTIFACT_FAILED",
+                "MISSION_COMPLETION_BLOCKED",
+            )
+        ],
+        pod_assignment=None,
+        logicnodes=[],
+        expected_pod_manager_agent_id="AGENT-18-PODB-MGR",
+        required_chain_events=canary.DEFAULT_REQUIRED_CHAIN_EVENTS,
+    )
+    payload.update(overrides)
+    return payload
+
+
+def test_full_mode_still_fails_a_completion_blocked_mission() -> None:
+    """The regression must stay visible to the contract that claims to catch it."""
+    passed, reasons, diagnostics = canary._evaluate_canary_result(
+        **_blocked_at_verified(), mode=canary.FULL_MODE
+    )
+    assert passed is False
+    assert any("did not reach COMPLETE" in reason for reason in reasons)
+    assert any("completion-blocked" in reason for reason in reasons)
+    assert diagnostics["build_artifact_failed"] is True
+
+
+def test_wiring_mode_accepts_the_expected_completion_block() -> None:
+    passed, reasons, diagnostics = canary._evaluate_canary_result(
+        **_blocked_at_verified(), mode=canary.WIRING_MODE
+    )
+    assert passed is True
+    assert reasons == []
+    # The block is tolerated, not hidden.
+    assert diagnostics["completion_blocked_events"] == 1
+    assert diagnostics["build_artifact_failed"] is True
+    assert "NOT proven" in diagnostics["proves"]
+
+
+def test_wiring_mode_still_fails_on_broken_routing() -> None:
+    """Wiring mode must not be a rubber stamp -- real defects still fail it."""
+    passed, reasons, _ = canary._evaluate_canary_result(
+        **_blocked_at_verified(metadata={"routing_enforced": False}),
+        mode=canary.WIRING_MODE,
+    )
+    assert passed is False
+    assert any("routing_enforced" in reason for reason in reasons)
+
+
+def test_wiring_mode_still_fails_when_the_mission_never_gets_going() -> None:
+    passed, reasons, _ = canary._evaluate_canary_result(
+        **_blocked_at_verified(final_state="CLARIFYING"), mode=canary.WIRING_MODE
+    )
+    assert passed is False
+    assert any("neither VERIFIED nor COMPLETE" in reason for reason in reasons)
+
+
+def test_wiring_mode_treats_verified_as_terminal() -> None:
+    """Otherwise every wiring run burns its full timeout before reporting."""
+    assert "VERIFIED" in canary.WIRING_TERMINAL_STATES
+    assert "VERIFIED" not in canary.TERMINAL_STATES

@@ -1181,3 +1181,104 @@ def test_timeout_report_shape() -> None:
     assert report["verdict"] == "TIMEOUT"
     assert report["passed"] is False
     assert report["execution_type"] == "docker_live"
+
+
+# ---------------------------------------------------------------------------
+# Bundle header stripping and shell-vs-source invocation. Both regressions were
+# found by the 20-language coverage run on 2026-08-27; see
+# docs/LANGUAGE_COVERAGE_FINDINGS_2026-08-27.md.
+# ---------------------------------------------------------------------------
+
+
+def test_bundle_header_is_stripped_before_execution() -> None:
+    """The '## FILE x' delimiter is packaging metadata and must never compile.
+
+    Observed live: OCaml failed with `Error: Syntax error` on line 1 because the
+    header was written into the workspace file verbatim.
+    """
+    bundle = "## FILE sum_integers.ml\n(** doc *)\nlet rec sum lst = 0\n"
+    body, extras = rqca_agent._unbundle_source(bundle, "sum_integers.ml")
+    assert not body.lstrip().startswith("## FILE")
+    assert body.startswith("(** doc *)")
+    assert extras == {}
+
+
+def test_bundle_without_header_is_returned_unchanged() -> None:
+    bare = "def f():\n    return 1\n"
+    body, extras = rqca_agent._unbundle_source(bare, "f.py")
+    assert body == bare
+    assert extras == {}
+
+
+def test_multi_file_bundle_splits_primary_from_siblings() -> None:
+    bundle = "## FILE main.py\nimport helper\n\n## FILE helper.py\ndef h():\n    return 1\n"
+    body, extras = rqca_agent._unbundle_source(bundle, "main.py")
+    assert body.strip() == "import helper"
+    assert set(extras) == {"helper.py"}
+    assert "def h()" in extras["helper.py"]
+
+
+def test_bundle_primary_selected_by_filename_not_position() -> None:
+    bundle = "## FILE helper.py\ndef h():\n    return 1\n\n## FILE main.py\nimport helper\n"
+    body, extras = rqca_agent._unbundle_source(bundle, "main.py")
+    assert body.strip() == "import helper"
+    assert set(extras) == {"helper.py"}
+
+
+def test_library_usage_examples_derive_no_invocation() -> None:
+    """Source-code examples must not be shell-split into argv.
+
+    Each of these produced a live runtime-QC FAIL: the artifact's own name
+    appears as an identifier, defeating the artifact-is-named guard.
+    """
+    cases = [
+        ("let total = sum_integers [1; 2; 3; 4] (* returns 10 *)", "sum_integers.ml"),
+        ("from math_utilities import sum_integers", "math_utilities.py"),
+        ("const { sum_integers } = require('./src/sum.js');", "sum.js"),
+        ("total = sum_integers([1, 2, 3, 4])", "sum_integers.py"),
+    ]
+    for usage_example, filename in cases:
+        assert rqca_agent._invocation_from_usage_example(usage_example, filename) == [], (
+            f"{filename} should derive no invocation from {usage_example!r}"
+        )
+
+
+def test_real_cli_invocations_still_derive_arguments() -> None:
+    """The CLI case this function exists for must keep working."""
+    assert rqca_agent._invocation_from_usage_example(
+        "go run main.go input.txt", "main.go"
+    ) == ["input.txt"]
+    assert rqca_agent._invocation_from_usage_example(
+        "python wordcount.py data.txt --verbose", "wordcount.py"
+    ) == ["data.txt", "--verbose"]
+    assert rqca_agent._invocation_from_usage_example(
+        "./tool.py --flag x", "tool.py"
+    ) == ["--flag", "x"]
+    assert rqca_agent._invocation_from_usage_example(
+        "$ node server.js 8080", "server.js"
+    ) == ["8080"]
+
+
+def test_nonsense_usage_example_still_derives_nothing() -> None:
+    assert rqca_agent._invocation_from_usage_example("just run it", "main.go") == []
+    assert rqca_agent._invocation_from_usage_example("", "main.go") == []
+    assert rqca_agent._invocation_from_usage_example(None, "main.go") == []
+
+
+def test_dry_run_reason_is_readable_from_either_field() -> None:
+    """Both non-executing paths must answer "why no correctness evidence?".
+
+    The two paths diverged: live-but-no-arguments set only not_exercised_note,
+    dry-run set only dry_run_reason. A reader checking one field saw None and
+    could reasonably conclude no reason was recorded -- which is exactly the
+    false conclusion drawn while reviewing the 2026-08-27 coverage run.
+    """
+    report = rqca_agent._dry_run_report(
+        mission_id="mission-1",
+        language="java",
+        filename="Main.java",
+        testdata_manifest={"base_image": "x", "run_command": "y"},
+        reason="artifact requires dependencies that cannot be installed offline: junit",
+    )
+    assert report["dry_run_reason"] == report["not_exercised_note"]
+    assert "junit" in report["not_exercised_note"]

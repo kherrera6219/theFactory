@@ -73,3 +73,9 @@ test-keys/
 
 # Scratch pytest transcripts from local full-suite runs.
 pytest_full_run.txt
+
+# Private keys. Dev TLS material (deploy/*/certs) is generated locally and must
+# never be committed; the matching public certs (*.crt) are intentionally
+# tracked, which is exactly why the keys need an explicit rule.
+*.key
+*.pem
