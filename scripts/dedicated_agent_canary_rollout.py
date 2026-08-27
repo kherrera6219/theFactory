@@ -32,6 +32,22 @@ DEFAULT_REQUIRED_CHAIN_EVENTS = (
     "MISSION_SPECIALIST_ASSIGNED",
 )
 TERMINAL_STATES = {"COMPLETE", "FAILED"}
+
+# Canary contracts. "full" is the real end-to-end proof and needs live LLM
+# credentials; "wiring" proves only that the pipeline is connected end to end
+# and is what a credential-less environment can honestly assert.
+FULL_MODE = "full"
+WIRING_MODE = "wiring"
+CANARY_MODES = (FULL_MODE, WIRING_MODE)
+_WIRING_TERMINAL_STATES = {"COMPLETE", "VERIFIED"}
+# VERIFIED is not in TERMINAL_STATES, so a completion-blocked mission is polled
+# until the timeout expires. In wiring mode that park is the expected result,
+# so stop as soon as it is reached instead of burning the full timeout.
+WIRING_TERMINAL_STATES = TERMINAL_STATES | {"VERIFIED"}
+_MODE_CLAIMS = {
+    FULL_MODE: "mission generated code and reached COMPLETE",
+    WIRING_MODE: "pipeline is wired end to end; generation output NOT proven",
+}
 _POD_A_LANGUAGES = {"python", "javascript", "typescript", "ruby", "php"}
 _POD_B_LANGUAGES = {"go", "rust", "c", "cpp", "zig"}
 _POD_C_LANGUAGES = {"java", "csharp", "kotlin", "scala"}
@@ -119,11 +135,31 @@ def _evaluate_canary_result(
     logicnodes: Any,
     expected_pod_manager_agent_id: str,
     required_chain_events: tuple[str, ...],
+    mode: str = FULL_MODE,
 ) -> tuple[bool, list[str], dict[str, Any]]:
+    """Evaluate a canary run under one of two contracts.
+
+    ``full`` is the real end-to-end proof: the mission must reach COMPLETE and
+    must not have been completion-blocked. It only means anything when the
+    stack has real LLM credentials, because generation without them yields
+    ``source="fallback"``, which cannot package into a build artifact.
+
+    ``wiring`` proves only that the pipeline is connected -- routing, pod
+    assignment, and the required chain events all happened -- and accepts a
+    mission parked at VERIFIED by the completion gate. It is honest about
+    proving less; do not read a passing wiring run as evidence that the
+    factory can build software.
+    """
     failure_reasons: list[str] = []
+    normalized_mode = (mode or FULL_MODE).strip().lower()
 
     normalized_state = final_state.strip().upper()
-    if normalized_state != "COMPLETE":
+    if normalized_mode == WIRING_MODE:
+        if normalized_state not in _WIRING_TERMINAL_STATES:
+            failure_reasons.append(
+                f"mission reached neither VERIFIED nor COMPLETE (state={normalized_state or 'unknown'})"
+            )
+    elif normalized_state != "COMPLETE":
         failure_reasons.append(
             f"mission did not reach COMPLETE (state={normalized_state or 'unknown'})"
         )
@@ -166,15 +202,18 @@ def _evaluate_canary_result(
         event_type for event_type in required_chain_events if event_type not in chain_event_types
     ]
     if missing_chain_events:
-        failure_reasons.append(
-            f"missing required chain events: {', '.join(missing_chain_events)}"
-        )
+        failure_reasons.append(f"missing required chain events: {', '.join(missing_chain_events)}")
 
     blocked_events = [event for event in chain_event_types if event == "MISSION_COMPLETION_BLOCKED"]
-    if blocked_events:
+    # In wiring mode a completion block is the expected outcome, not a failure:
+    # without LLM credentials generation returns source="fallback", which
+    # mission_has_generated_output() rejects, so packaging cannot succeed. The
+    # event is still recorded in diagnostics so the evidence shows it happened.
+    if blocked_events and normalized_mode != WIRING_MODE:
         failure_reasons.append("completion-blocked event detected during canary")
 
     diagnostics = {
+        "mode": normalized_mode,
         "assignment_present": assignment_present,
         "logicnode_count": logicnode_count,
         "chain_event_types": chain_event_types,
@@ -184,6 +223,8 @@ def _evaluate_canary_result(
         "executive_agent_id": metadata.get("executive_agent_id"),
         "expected_pod_manager_agent_id": metadata.get("expected_pod_manager_agent_id"),
         "completion_blocked_events": len(blocked_events),
+        "build_artifact_failed": "MISSION_BUILD_ARTIFACT_FAILED" in chain_event_types,
+        "proves": _MODE_CLAIMS[normalized_mode],
     }
     return not failure_reasons, failure_reasons, diagnostics
 
@@ -194,7 +235,13 @@ def _wait_for_terminal_state(
     mission_id: str,
     timeout_seconds: float,
     poll_seconds: float,
+    mode: str = FULL_MODE,
 ) -> tuple[str, dict[str, Any] | None]:
+    terminal_states = (
+        WIRING_TERMINAL_STATES
+        if (mode or FULL_MODE).strip().lower() == WIRING_MODE
+        else TERMINAL_STATES
+    )
     deadline = time.monotonic() + timeout_seconds
     latest_payload: dict[str, Any] | None = None
     latest_state = ""
@@ -203,7 +250,7 @@ def _wait_for_terminal_state(
         if status == 200 and isinstance(payload, dict):
             latest_payload = payload
             latest_state = str(payload.get("state", "")).strip().upper()
-            if latest_state in TERMINAL_STATES:
+            if latest_state in terminal_states:
                 return latest_state, latest_payload
         time.sleep(poll_seconds)
     return latest_state, latest_payload
@@ -288,6 +335,7 @@ def run(args: argparse.Namespace) -> int:
         mission_id=mission_id,
         timeout_seconds=args.timeout_seconds,
         poll_seconds=args.poll_seconds,
+        mode=getattr(args, "mode", FULL_MODE),
     )
 
     chain_status, chain_trace = _request_json(
@@ -318,12 +366,14 @@ def run(args: argparse.Namespace) -> int:
         logicnodes=logicnodes,
         expected_pod_manager_agent_id=expected_pod_manager,
         required_chain_events=tuple(event.strip().upper() for event in args.required_chain_events),
+        mode=getattr(args, "mode", FULL_MODE),
     )
 
     report = {
         "run_timestamp_utc": datetime.now(UTC).isoformat(),
         "mission_id": mission_id,
         "profile_label": args.profile_label,
+        "mode": getattr(args, "mode", FULL_MODE),
         "requested_target_language": args.language,
         "expected_pod_manager_agent_id": expected_pod_manager,
         "final_state": final_state or str((mission_payload or {}).get("state", "")),
@@ -369,6 +419,18 @@ def parse_args() -> argparse.Namespace:
         "--profile-label",
         default="dedicated-agent-canary",
         help="Execution profile label recorded in report",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=CANARY_MODES,
+        default=FULL_MODE,
+        help=(
+            "Qualification contract. 'full' requires the mission to reach COMPLETE "
+            "and needs live LLM credentials. 'wiring' only requires the pipeline to "
+            "route correctly and reach VERIFIED, tolerating the completion block a "
+            "credential-less stack necessarily produces -- it does NOT prove that "
+            "code generation works."
+        ),
     )
     parser.add_argument(
         "--prompt",

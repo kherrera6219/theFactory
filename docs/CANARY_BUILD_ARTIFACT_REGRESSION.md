@@ -1,6 +1,6 @@
 # Canary regression: `MISSION_BUILD_ARTIFACT_FAILED`
 
-**Status:** root cause identified, fix not yet chosen.
+**Status:** root cause identified; **option 1 (scoped down) implemented**.
 **Found:** 2026-08-26, from Weekly Qualification run `32707536901` (2026-08-24).
 
 ## Symptom
@@ -76,21 +76,53 @@ in place.
 Uniformity across four unrelated languages is consistent with this: every step
 in the chain is language-agnostic.
 
-## Fix options (not yet decided)
+## Resolution: option 1, scoped down
 
-The real question is what the canary is meant to prove. Pick deliberately.
+The three options below differ in *what the canary proves*. The chosen answer
+splits the four languages across two explicit contracts rather than running all
+four under a contract none of them could satisfy.
 
-1. **Give CI real LLM credentials.** The canary then exercises the true path and
-   proves what it claims to prove. Costs money per scheduled run and makes a
-   scheduled job depend on a third-party API's availability.
-2. **Make the canary assert the fallback outcome.** Honest about what a
-   credential-less environment can verify, but it stops being evidence that
-   mission generation works — it only proves the pipeline is wired.
-3. **Let a fallback artifact package as a degraded-but-real artifact** (new
-   status, e.g. `DEGRADED`, that satisfies packaging without claiming success).
-   Keeps the canary green and preserves the signal that output was synthetic.
-   Largest blast radius — `equivalence_verifier.py:100` applies the same
-   `source == "fallback"` rejection and would need the same treatment.
+| Language | Contract | Requires | Proves |
+| --- | --- | --- | --- |
+| python | `full` | LLM credentials | mission generated code and reached COMPLETE |
+| rust, kotlin, julia | `wiring` | nothing | routing, chain events, VERIFIED reached |
+
+`--mode full` is the pre-existing contract. `--mode wiring` accepts the
+completion block that a credential-less stack necessarily produces, but still
+fails on broken routing, a missing pod assignment, missing chain events, or a
+mission that never reaches VERIFIED. It is not a rubber stamp.
+
+Three properties make the split honest rather than a way to silence the alarm:
+
+1. **Full mode is skipped entirely when no credential is set**, instead of
+   running and failing. A permanently red weekly job teaches people to ignore
+   it -- the exact failure this is meant to prevent.
+2. **The evidence states its own scope.** `end_to_end_generation_proven` and
+   `proof_scope` are written into the trend report, and a wiring-only run
+   prints `NOTE: end-to-end generation was NOT proven this run`. A green check
+   never implies more than it earned.
+3. **Wiring mode treats VERIFIED as terminal.** Previously VERIFIED was not in
+   `TERMINAL_STATES`, so each blocked language polled until its 360s timeout --
+   which is why the failing run took 29 minutes to report a foregone
+   conclusion.
+
+Enable the full canary by setting any one of `QUALIFICATION_GEMINI_API_KEY`,
+`QUALIFICATION_ANTHROPIC_API_KEY`, or `QUALIFICATION_OPENAI_API_KEY` as a
+repository secret (optionally with `QUALIFICATION_LLM_PROVIDER`). Undefined
+secrets resolve to empty strings, which `write_ci_env.sh` skips, so the
+workflow runs unchanged until one is configured.
+
+### Options considered and not taken
+
+2. **Make the canary assert the fallback outcome for every language.** Green,
+   free, deterministic -- but nothing would exercise generation at all. Adopted
+   only for the three breadth languages, where it is labelled as such.
+3. **Let a fallback artifact package as a degraded-but-real artifact** (a new
+   `DEGRADED` status). Keeps the full lifecycle exercised, but has the largest
+   blast radius: `equivalence_verifier.py:100` carries the same
+   `source == "fallback"` rejection, and a new terminal state in a
+   compliance-sensitive lifecycle must be impossible to mistake for `SUCCESS`
+   in audit reporting. Still worth revisiting if the cost of option 1 bites.
 
 **Do not** simply drop the `source == "fallback"` check in
 `mission_has_generated_output()`. That check exists so a fallback stub cannot

@@ -50,6 +50,17 @@ sed -E \
   # /health probe re-runs the failing migration until the 3s healthcheck times
   # out. Bypass PgBouncer and use plaintext, matching the CI dev stack.
   echo "MIGRATION_POSTGRES_URL=postgresql://postgres:ci_dev_postgres_password_0123456789ab@postgres:5432/ulr?sslmode=disable"
+  # LLM credentials are optional and normally absent. When absent the stack runs
+  # the fallback path, generation yields source="fallback", and only the wiring
+  # canary can pass -- which is the intended, honest default. When a workflow
+  # supplies a key, pass it through so the full-mode canary can actually prove
+  # end-to-end generation. Empty values are deliberately not written: an empty
+  # assignment would still count as "set" to a naive reader of the env file.
+  [ -n "${LLM_PROVIDER:-}" ] && echo "LLM_PROVIDER=${LLM_PROVIDER}"
+  [ -n "${OPENAI_API_KEY:-}" ] && echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+  [ -n "${ANTHROPIC_API_KEY:-}" ] && echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+  [ -n "${GEMINI_API_KEY:-}" ] && echo "GEMINI_API_KEY=${GEMINI_API_KEY}"
+  :
 } >> "$out"
 
 echo "write_ci_env: wrote $out"

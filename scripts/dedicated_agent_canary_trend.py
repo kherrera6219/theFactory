@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -9,10 +10,36 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+FULL_MODE = "full"
+WIRING_MODE = "wiring"
+
+
+def _planned_runs(args: argparse.Namespace) -> list[tuple[str, str]]:
+    """Pair each language with the contract it will be judged against.
+
+    Full-mode languages are only scheduled when credentials are actually
+    present. Running them without credentials guarantees a completion block and
+    a red job, which would train everyone to ignore this alarm -- the precise
+    failure this split exists to prevent.
+    """
+    planned: list[tuple[str, str]] = []
+    if _credentials_present():
+        planned.extend((language, FULL_MODE) for language in args.languages)
+    planned.extend((language, WIRING_MODE) for language in args.wiring_languages)
+    return planned
+
+
+def _credentials_present() -> bool:
+    return any(
+        os.getenv(name, "").strip()
+        for name in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY")
+    )
+
 
 @dataclass
 class CanaryRun:
     language: str
+    mode: str
     command: list[str]
     exit_code: int | None
     report_path: str
@@ -54,6 +81,7 @@ def _build_canary_command(
     gateway_base_url: str,
     orchestrator_base_url: str,
     language: str,
+    mode: str,
     timeout_seconds: float,
     poll_seconds: float,
     output_file: str,
@@ -73,6 +101,8 @@ def _build_canary_command(
         str(poll_seconds),
         "--output-file",
         output_file,
+        "--mode",
+        mode,
     ]
 
 
@@ -82,6 +112,11 @@ def _summarize_runs(runs: list[CanaryRun]) -> dict[str, Any]:
     failed_count = total - passed_count
     pass_rate = round((passed_count / total) * 100.0, 2) if total else 0.0
     failed_languages = [run.language for run in runs if not run.passed]
+    full_runs = [run for run in runs if run.mode == FULL_MODE]
+    # The headline claim. A run with no full-mode language proves the pipeline
+    # is wired and nothing more; say so in the evidence rather than letting a
+    # green check imply the factory built something.
+    end_to_end_proven = bool(full_runs) and all(run.passed for run in full_runs)
     return {
         "total_runs": total,
         "passed_runs": passed_count,
@@ -89,6 +124,14 @@ def _summarize_runs(runs: list[CanaryRun]) -> dict[str, Any]:
         "pass_rate_percent": pass_rate,
         "failed_languages": failed_languages,
         "all_passed": failed_count == 0,
+        "full_mode_languages": [run.language for run in full_runs],
+        "wiring_mode_languages": [run.language for run in runs if run.mode == WIRING_MODE],
+        "end_to_end_generation_proven": end_to_end_proven,
+        "proof_scope": (
+            "generation proven end to end"
+            if end_to_end_proven
+            else "pipeline wiring only -- generation NOT proven (no LLM credentials)"
+        ),
     }
 
 
@@ -109,7 +152,7 @@ def run(args: argparse.Namespace) -> int:
     report_dir = Path(args.report_dir)
     run_rows: list[CanaryRun] = []
 
-    for language in args.languages:
+    for language, mode in _planned_runs(args):
         language_key = language.strip().lower()
         per_run_report = report_dir / f"dedicated_agent_canary_{language_key}_{timestamp}.json"
         command = _build_canary_command(
@@ -117,6 +160,7 @@ def run(args: argparse.Namespace) -> int:
             gateway_base_url=args.gateway_base_url,
             orchestrator_base_url=args.orchestrator_base_url,
             language=language_key,
+            mode=mode,
             timeout_seconds=args.timeout_seconds,
             poll_seconds=args.poll_seconds,
             output_file=str(per_run_report),
@@ -139,6 +183,7 @@ def run(args: argparse.Namespace) -> int:
         run_rows.append(
             CanaryRun(
                 language=language_key,
+                mode=mode,
                 command=command,
                 exit_code=exit_code,
                 report_path=str(per_run_report),
@@ -154,7 +199,7 @@ def run(args: argparse.Namespace) -> int:
         "run_timestamp_utc": datetime.now(UTC).isoformat(),
         "gateway_base_url": args.gateway_base_url,
         "orchestrator_base_url": args.orchestrator_base_url,
-        "languages": list(args.languages),
+        "languages": [row.language for row in run_rows],
         "summary": summary,
         "runs": [asdict(row) for row in run_rows],
     }
@@ -172,9 +217,17 @@ def run(args: argparse.Namespace) -> int:
         )
 
     print("== Dedicated-Agent Canary Trend Qualification ==")
-    print(f"languages={','.join(args.languages)}")
+    print(f"full-mode={','.join(summary['full_mode_languages']) or '(none - no LLM credentials)'}")
+    print(f"wiring-mode={','.join(summary['wiring_mode_languages']) or '(none)'}")
     print(f"pass_rate={summary['pass_rate_percent']}%")
+    print(f"proof_scope={summary['proof_scope']}")
     print(f"output={args.output_file}")
+    if not summary["end_to_end_generation_proven"]:
+        print(
+            "NOTE: end-to-end generation was NOT proven this run. Set "
+            "GEMINI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY to enable the "
+            "full-mode canary."
+        )
     if summary["all_passed"]:
         print("PASS: all canary routes satisfied qualification contract")
     else:
@@ -206,8 +259,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--languages",
         nargs="+",
-        default=["python", "rust", "kotlin", "julia"],
-        help="Target languages for canary qualification",
+        default=["python"],
+        help=(
+            "Languages judged against the FULL contract (must reach COMPLETE). "
+            "Requires live LLM credentials; skipped entirely when none are set, "
+            "because without them a completion block is guaranteed."
+        ),
+    )
+    parser.add_argument(
+        "--wiring-languages",
+        nargs="+",
+        default=["rust", "kotlin", "julia"],
+        help=(
+            "Languages judged against the WIRING contract: routing and chain "
+            "events must be correct and the mission must reach VERIFIED, but a "
+            "completion block is accepted. Cheap and deterministic; proves the "
+            "pipeline is connected, NOT that generation works."
+        ),
     )
     parser.add_argument(
         "--timeout-seconds",
