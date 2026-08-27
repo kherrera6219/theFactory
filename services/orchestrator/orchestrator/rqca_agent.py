@@ -264,6 +264,114 @@ _USAGE_RUNNER_TOKENS = frozenset({
 })
 
 
+#: Same delimiter build_artifacts.py packages with. Kept as its own compiled
+#: copy so runtime QC takes no dependency on the packaging module, but the
+#: literal must not drift from build_artifacts._SOURCE_BUNDLE_FILE_PATTERN.
+_BUNDLE_FILE_PATTERN = re.compile(r"^## FILE (.+)$", re.MULTILINE)
+
+
+def _unbundle_source(code: str, filename: str) -> tuple[str, dict[str, str]]:
+    """Split a ``## FILE <path>`` bundle into the artifact body plus siblings.
+
+    Specialists return generated code in the source-bundle format, and runtime
+    QC used to write that text to the workspace verbatim -- header line and all.
+    Most languages in the matrix treat ``#`` as a line comment and silently
+    swallowed it, so the defect stayed invisible until OCaml, which has no ``#``
+    line comment, failed to compile on ``## FILE sum_integers.ml``. The header is
+    packaging metadata, never source, so it must be stripped before execution.
+
+    Returns ``(primary_code, extra_files)``. The primary is the section whose
+    path matches ``filename`` when one does, else the first section -- a
+    single-file bundle, the common case, has exactly one either way. Text with
+    no header is returned unchanged, so a specialist replying with bare source
+    is unaffected.
+    """
+    text = str(code or "")
+    matches = list(_BUNDLE_FILE_PATTERN.finditer(text))
+    if not matches:
+        return text, {}
+
+    sections: list[tuple[str, str]] = []
+    for index, match in enumerate(matches):
+        path = str(match.group(1)).strip()
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        sections.append((path, text[start:end].lstrip("\r\n")))
+
+    wanted = Path(filename).name
+    primary_index = next(
+        (i for i, (path, _) in enumerate(sections) if Path(path).name == wanted), 0
+    )
+    primary = sections[primary_index][1]
+    extras = {
+        Path(path).name: body
+        for i, (path, body) in enumerate(sections)
+        if i != primary_index and Path(path).name and body.strip()
+    }
+    return primary, extras
+
+
+#: Tokens that begin a genuine shell invocation. Anything else is read as source
+#: code rather than a command line -- see _looks_like_shell_invocation.
+_RUNNER_TOKENS = frozenset(
+    {
+        "python", "python3", "py", "node", "deno", "bun", "ruby", "php", "rscript",
+        "julia", "ocaml", "dotnet", "java", "javac", "kotlin", "kotlinc", "scala",
+        "go", "cargo", "rustc", "zig", "gcc", "g++", "clang", "clang++", "make",
+        "ghc", "runghc", "runhaskell", "octave", "matlab", "mathics", "wolframscript",
+        "sh", "bash", "zsh", "npm", "npx", "yarn", "pnpm", "pip", "uv", "poetry",
+        "a.out",
+    }
+)
+
+#: Punctuation that a "usage example" is source code rather than a command line.
+_SOURCE_CODE_MARKERS = ("=", "(", ";", "{", "}", "<-", "::", "=>", "->")
+
+#: Leading keywords that mark source code with no punctuation to give it away.
+#: `from math_utilities import sum_integers` has no marker character at all, so
+#: punctuation alone is not enough to classify it.
+_SOURCE_CODE_LEAD_KEYWORDS = frozenset(
+    {
+        "from", "import", "let", "const", "var", "val", "def", "fn", "func",
+        "require", "using", "include", "package", "module", "open", "use",
+        "class", "struct", "type", "return", "print", "println", "echo",
+    }
+)
+
+
+def _looks_like_shell_invocation(line: str, tokens: list[str], filename: str) -> bool:
+    """True when ``line`` reads as a command line rather than as source code.
+
+    ``_invocation_from_usage_example`` derives arguments by taking every token
+    after the one naming the artifact. That is right for ``go run main.go in.txt``
+    and wrong for a library example such as
+    ``let total = sum_integers [1; 2; 3; 4]``, where the artifact's name appears
+    as an *identifier* rather than as a command operand -- which produced the
+    argv ``["[1;", "2;", "3;", "4]", ...]`` observed live on OCaml, and
+    ``python -m unittest discover: error: unrecognized arguments`` on Python.
+
+    The artifact-is-named guard cannot catch that, because the artifact genuinely
+    is named. So require positive evidence of a command line instead: a known
+    runner, or the artifact invoked directly as the program.
+    """
+    if not tokens:
+        return False
+    head = tokens[0]
+    head_base = Path(head).name.lower()
+    if head_base in _RUNNER_TOKENS or head.lower() in _RUNNER_TOKENS:
+        return True
+    # ./tool.py style, or the artifact named as the executable itself.
+    if head.startswith("./") or head.startswith("/"):
+        return True
+    if head_base == Path(filename).name.lower():
+        return True
+    # No runner led the line: reject anything that reads as source, by
+    # punctuation or by a leading language keyword.
+    if head.lower() in _SOURCE_CODE_LEAD_KEYWORDS:
+        return False
+    return not any(marker in line for marker in _SOURCE_CODE_MARKERS)
+
+
 def _invocation_from_usage_example(usage_example: Any, filename: str) -> list[str]:
     """Derive the program's arguments from the specialist's own usage example.
 
@@ -291,6 +399,14 @@ def _invocation_from_usage_example(usage_example: Any, filename: str) -> list[st
     except ValueError:
         return []
     if not tokens:
+        return []
+
+    # The artifact-is-named guard below cannot tell a command operand from an
+    # identifier in source code, so gate on the line actually reading as a
+    # command line first. Without this, a library usage example such as
+    # `let total = sum_integers [1; 2; 3; 4]` matched on its own stem and
+    # yielded argv `["[1;", "2;", "3;", "4]", ...]`.
+    if not _looks_like_shell_invocation(line, tokens, filename):
         return []
 
     stem = Path(filename).stem
@@ -879,7 +995,13 @@ async def run_runtime_qc(
 ) -> dict[str, Any]:
     normalized_language = str(language or generated_output.get("language") or "python").lower()
     filename = str(generated_output.get("filename") or f"output.{normalized_language}")
-    code = str(generated_output.get("generated_code") or "")
+    # Strip the packaging bundle header before anything compiles or lints this.
+    # Every downstream consumer -- the artifact smoke check, the syntax check and
+    # the workspace write -- reads `code`, so unbundling once here fixes all of
+    # them, and keeps any sibling files for the workspace.
+    code, bundle_siblings = _unbundle_source(
+        str(generated_output.get("generated_code") or ""), filename
+    )
     if not code.strip():
         return _skipped_report(
             mission_id=mission_id,
@@ -1029,6 +1151,7 @@ async def run_runtime_qc(
         testdata_manifest=testdata_manifest,
         language=normalized_language,
         settings=settings,
+        bundle_siblings=bundle_siblings,
     )
     result["artifact_smoke"] = artifact_smoke
     return result
@@ -1192,6 +1315,7 @@ async def _execute_in_sandbox(
     testdata_manifest: dict[str, Any],
     language: str,
     settings: Any = None,
+    bundle_siblings: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     base_image = str(testdata_manifest.get("base_image") or "python:3.11-slim")
     test_filename = f"test_{filename}" if test_code.strip() else ""
@@ -1224,6 +1348,14 @@ async def _execute_in_sandbox(
     ) as tmpdir:
         workspace = Path(tmpdir)
         (workspace / filename).write_text(code, encoding="utf-8")
+        # A multi-file bundle's other files, so an artifact importing a sibling
+        # module can resolve it. Basenames only -- the bundle path is untrusted
+        # and nothing may escape the workspace.
+        for sibling_name, sibling_body in (bundle_siblings or {}).items():
+            safe_name = Path(sibling_name).name
+            if not safe_name or safe_name in {filename, f"test_{filename}"}:
+                continue
+            (workspace / safe_name).write_text(sibling_body, encoding="utf-8")
         if test_code.strip():
             (workspace / f"test_{filename}").write_text(test_code, encoding="utf-8")
 
@@ -1449,6 +1581,12 @@ def _dry_run_report(
         "passed": manifest_valid,
         "execution_type": "dry_run",
         "dry_run_reason": reason,
+        # Mirrored into not_exercised_note so one field answers "why is there no
+        # correctness evidence?" across both non-executing paths. They diverged:
+        # the live-but-no-arguments path set only not_exercised_note and this one
+        # set only dry_run_reason, so a reader checking one saw None and could
+        # reasonably conclude the reason was never recorded at all.
+        "not_exercised_note": reason,
         "manifest_valid": manifest_valid,
         "language": language,
         "filename": filename,

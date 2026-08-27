@@ -4150,3 +4150,83 @@ def test_write_artifact_to_disk_keeps_unbundled_code_verbatim(tmp_path: Path) ->
     assert (tmp_path / "mission-plain" / "main.py").read_text(
         encoding="utf-8"
     ) == "print('plain')\n"
+
+
+@pytest.mark.asyncio
+async def test_runtime_qc_block_records_a_readable_reason() -> None:
+    """A failing runtime QC must leave a cause an operator can actually read.
+
+    The state event alone lands in mission_events, not in metadata.chain_trace,
+    so /chain-trace showed missions parked at VERIFIED with every gate passed
+    and nothing explaining why. Observed on javascript/ocaml/python in the
+    2026-08-27 language coverage run.
+    """
+    settings = _make_settings()
+    app = _make_app_state()
+    mission = _make_mission(state=MissionState.verified)
+    inserted_events: list[str] = []
+
+    async def _completion_check(*, settings, mission):
+        _ = settings, mission
+        return True, {}
+
+    qc_report = {
+        "verdict": "FAIL",
+        "exit_code": 2,
+        "filename": "sum_integers.ml",
+        "execution_type": "docker_live",
+        "stderr_preview": "Error: Syntax error",
+    }
+
+    with patch("orchestrator.mission_flow_v2.storage") as mock_storage:
+        mock_storage.fetch_mission = lambda _s, _m, _mission=mission: _mission
+        mock_storage.insert_mission_event = (
+            lambda _s, _m, _p, _n, event_type, _e=inserted_events: _e.append(event_type)
+        )
+        mock_storage.update_mission_metadata = (
+            lambda _s, _m, metadata, _mission=mission: setattr(_mission, "metadata", metadata)
+            or _mission
+        )
+        with patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_equivalence_report",
+            new=AsyncMock(return_value=(mission, True, {})),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_security_compliance_report",
+            new=AsyncMock(return_value=(mission, True, {})),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_dependency_absorption_reports",
+            new=AsyncMock(return_value=(mission, True, {})),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_depabs_execution",
+            new=AsyncMock(return_value=mission),
+        ), patch.object(
+            orchestrator_mission_flow_v2_lifecycle,
+            "_prepare_runtime_qc",
+            new=AsyncMock(return_value=(mission, False, qc_report)),
+        ):
+            result = await orchestrator_mission_flow_v2_lifecycle._advance_verified_to_complete(
+                app=app,
+                settings=settings,
+                validator=MagicMock(),
+                emit_state_event_fn=AsyncMock(),
+                mission_id=mission.mission_id,
+                completion_check_fn=_completion_check,
+            )
+
+    assert result is False
+    # Counted by the operations alert, and the specific cause is kept too.
+    assert "MISSION_COMPLETION_BLOCKED" in inserted_events
+    assert "MISSION_RUNTIME_QC_BLOCKED" in inserted_events
+
+    chain = (mission.metadata or {}).get("chain_trace") or []
+    blocked = [e for e in chain if e.get("event_type") == "MISSION_COMPLETION_BLOCKED"]
+    assert blocked, "runtime QC block must appear in the chain trace"
+    details = blocked[-1].get("details") or {}
+    assert details.get("gate") == "runtime_qc"
+    assert details.get("verdict") == "FAIL"
+    assert details.get("exit_code") == 2
+    assert "Syntax error" in details.get("stderr_excerpt", "")
