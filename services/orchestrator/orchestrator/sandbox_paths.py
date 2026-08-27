@@ -12,31 +12,62 @@ LOGGER = logging.getLogger(__name__)
 
 def path_is_contained(candidate: str, root: str) -> bool:
     """True when *candidate* is *root* or a descendant after normalization."""
-    base = os.path.abspath(root)
-    full = os.path.abspath(candidate)
+    base = os.path.realpath(root)
+    full = os.path.realpath(candidate)
     return full == base or full.startswith(base + os.sep)
 
 
-def contained_workspace(workspace_dir: str | Path, workspace_root: str = "") -> Path | None:
-    """Accept a workspace only when it is *strictly inside* an allowed root.
-
-    An allowed root itself is rejected. Accepting it would let
-    ``make_workspace_readable(tempfile.gettempdir())`` relax permissions across
-    the whole system temp tree -- which is the escape this containment exists to
-    prevent, not an edge case of it. A real workspace is always a directory
-    created *under* one of these roots, so requiring strict descent costs
-    nothing and closes the case the accompanying test asserts.
-    """
-    raw = os.path.abspath(str(workspace_dir))
-    allowed = [os.path.abspath(tempfile.gettempdir())]
+def _allowed_roots(workspace_root: str = "") -> list[str]:
+    """Roots a sandbox workspace is permitted to live directly beneath."""
+    roots = [os.path.realpath(tempfile.gettempdir())]
     if workspace_root:
-        allowed.append(os.path.abspath(workspace_root))
-    if not any(path_is_contained(raw, root) and raw != root for root in allowed):
-        LOGGER.warning("sandbox workspace %s is outside allowed roots", raw)
+        roots.append(os.path.realpath(workspace_root))
+    return roots
+
+
+def contained_workspace(workspace_dir: str | Path, workspace_root: str = "") -> Path | None:
+    """Accept a workspace only when it is a direct child of an allowed root.
+
+    Two properties matter here, and the second is why this is written the way
+    it is rather than as a plain prefix check.
+
+    **An allowed root itself is rejected.** Accepting it would let
+    ``make_workspace_readable(tempfile.gettempdir())`` relax permissions across
+    the whole system temp tree -- the escape this containment exists to prevent,
+    not an edge case of it.
+
+    **The returned path is rebuilt as** ``<allowed root>/<basename>``, so the
+    value that later reaches ``chmod``/``rglob`` is derived from a trusted root
+    plus a single name component, never from the caller's string. The directory
+    part of the input is discarded by ``os.path.basename`` rather than merely
+    inspected, so no input can steer the walk elsewhere even if the checks above
+    were somehow bypassed. That distinction is what makes the containment
+    *verifiable* instead of asserted, and it is what ``py/path-injection``
+    requires -- an earlier version validated the same conditions but passed the
+    caller's path through, which is indistinguishable from no check at all to
+    any analysis that cannot follow the validator.
+
+    Restricting to direct children costs nothing: sandbox workspaces are always
+    created by ``tempfile.TemporaryDirectory(dir=workspace_root())``, so a
+    nested path never occurs in practice and is refused rather than guessed at.
+    """
+    raw = os.path.realpath(str(workspace_dir))
+    name = os.path.basename(raw)
+    if not name or name in {os.curdir, os.pardir}:
         return None
-    if not os.path.isdir(raw):
-        return None
-    return Path(raw)
+
+    for root in _allowed_roots(workspace_root):
+        if os.path.dirname(raw) != root:
+            continue
+        # Rebuilt from the root, not from `raw`: basename has stripped every
+        # directory component, so this cannot escape `root`.
+        rebuilt = os.path.join(root, name)
+        if not os.path.isdir(rebuilt):
+            return None
+        return Path(rebuilt)
+
+    LOGGER.warning("sandbox workspace %s is not a direct child of an allowed root", raw)
+    return None
 
 
 def make_workspace_readable(workspace_dir: str | Path, workspace_root: str = "") -> None:
