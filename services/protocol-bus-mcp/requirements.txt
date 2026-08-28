@@ -1,5 +1,5 @@
 fastapi==0.141.1
-uvicorn==0.52.1
+uvicorn==0.52.4
 jsonschema==4.26.0
 redis==8.1.0
 pydantic==2.13.4
