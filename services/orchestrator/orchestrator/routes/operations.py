@@ -526,9 +526,17 @@ async def get_operations_agents(
                 app.state.settings,
                 500,
             )
-        except Exception as exc:
+        except Exception:
+            # str(exc) on a storage failure carries the driver's message, which
+            # for psycopg includes the connection string -- host, port, database
+            # and user. This snapshot is served to the operator console, so that
+            # detail crossed a trust boundary for no operational gain: the
+            # console only needs to know the data is unavailable. The full
+            # exception, traceback included, goes to the service log where an
+            # operator can already read it.
             db_ready = False
-            runtime_error = str(exc)
+            runtime_error = "operations data temporarily unavailable"
+            LOGGER.exception("operations agents snapshot could not read storage")
 
     runtime = {
         "redis_ready": redis_ready,

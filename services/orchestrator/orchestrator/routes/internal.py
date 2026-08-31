@@ -1049,10 +1049,13 @@ async def upsert_audit_report(
                 payload.audit_id,
                 exc,
             )
+            # The reason is already in the log line above, with mission and
+            # audit ids to correlate on. Echoing the exception text back adds
+            # the object store's endpoint and bucket to an API response.
             object_storage_mirror = {
                 "stored": False,
                 "legal_hold_refused": True,
-                "detail": str(exc),
+                "detail": "object store refused the legal-hold write",
             }
         except Exception as exc:
             LOGGER.warning(
@@ -1064,7 +1067,7 @@ async def upsert_audit_report(
             object_storage_mirror = {
                 "stored": False,
                 "legal_hold_refused": False,
-                "detail": str(exc),
+                "detail": "audit artifact could not be mirrored to object storage",
             }
     await record_audit_event(
         app,
@@ -1272,9 +1275,16 @@ async def get_build_artifact(
                 )
                 return RedirectResponse(url=presigned, status_code=302)
             except Exception as exc:
+                # The botocore error names the endpoint, bucket and key, and
+                # this route is reachable by any caller holding an internal
+                # key. Log it; return a stable string the caller can act on.
+                LOGGER.exception(
+                    "could not generate presigned URL for storage_ref %s",
+                    record.get("storage_ref"),
+                )
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Could not generate presigned URL: {exc}",
+                    detail="Could not generate presigned URL",
                 ) from exc
 
     if (

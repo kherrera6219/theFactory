@@ -53,15 +53,27 @@ def contained_workspace(workspace_dir: str | Path, workspace_root: str = "") -> 
     """
     raw = os.path.realpath(str(workspace_dir))
     name = os.path.basename(raw)
-    if not name or name in {os.curdir, os.pardir}:
+    # Character allowlist, not just basename. `safe != name` means the name
+    # survived the filter unchanged, so it provably contains no separator, no
+    # dot segment and no drive letter -- it cannot denote anything but a single
+    # child of whichever root is chosen below. Basename alone establishes the
+    # same thing by construction, but only to a reader; this states it as a
+    # value test, which is what makes the containment checkable rather than
+    # asserted. Sandbox workspaces are named by
+    # `tempfile.TemporaryDirectory(prefix="hgr-rqca-...")`, whose alphabet is
+    # exactly [a-z0-9_] plus the caller's alphanumeric-and-dash prefix, so no
+    # real workspace is rejected by this.
+    safe = "".join(ch for ch in name if ch.isalnum() or ch in {"-", "_"})
+    if not safe or safe != name:
+        LOGGER.warning("sandbox workspace name %r is not a plain child name", name)
         return None
 
     for root in _allowed_roots(workspace_root):
         if os.path.dirname(raw) != root:
             continue
-        # Rebuilt from the root, not from `raw`: basename has stripped every
-        # directory component, so this cannot escape `root`.
-        rebuilt = os.path.join(root, name)
+        # Built from the validated root plus a validated single name -- no part
+        # of the caller's path string reaches this join.
+        rebuilt = os.path.join(root, safe)
         if not os.path.isdir(rebuilt):
             return None
         return Path(rebuilt)
