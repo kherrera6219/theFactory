@@ -60,6 +60,8 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from .sandbox_paths import make_workspace_readable
+
 LOGGER = logging.getLogger(__name__)
 
 # --- Sibling-container workspace addressing --------------------------------
@@ -243,14 +245,14 @@ def _make_workspace_readable(workspace_dir: str | Path) -> None:
     are the artifact we are deliberately handing to the sandbox to execute.
     Failures are logged rather than raised -- on some bind-mount backends chmod
     is a no-op, and the run should proceed and fail on its own merits.
+
+    The chmod/rglob walk itself is delegated to sandbox_paths, which refuses any
+    directory that does not resolve under an allowed root and skips entries that
+    escape it via symlink. Without that containment a caller-supplied path could
+    have this relax permissions anywhere the service user can write (CodeQL
+    522/523).
     """
-    root = Path(workspace_dir)
-    try:
-        root.chmod(0o755)
-        for entry in root.rglob("*"):
-            entry.chmod(0o755 if entry.is_dir() else 0o644)
-    except OSError as exc:
-        LOGGER.warning("could not relax sandbox workspace permissions on %s: %s", root, exc)
+    make_workspace_readable(workspace_dir, workspace_root=_WORKSPACE_ROOT)
 
 
 def sandbox_executor_url() -> str:
