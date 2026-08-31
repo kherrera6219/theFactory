@@ -16,6 +16,19 @@
 
 </div>
 
+<div align="center">
+
+### Mission Control
+
+*A `BUILD_NEW` Rust mission after delivery — generated artifact, live progress, and the
+Smelt-cycle phase stepper showing every state it passed through.*
+
+<img src="docs/screenshots/16-mission-detail.png" alt="Mission Control detail view showing a delivered Rust mission at 100% with its full phase stepper" width="900">
+
+<sub><a href="#screenshots">See all 16 views →</a></sub>
+
+</div>
+
 > **Version:** 1.3.0 · **Last updated:** 2026-08-21 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
 >
 > **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. Live BUILD_NEW missions have reached `COMPLETE` (Go S1-01, chat-driven PyQt6, stdlib Snake). Default LLM route is **Gemini 3.7 Flash**. Runtime QC runs generated tests when they exist; a bare launch (`started_only`) or syntax-only compile is **ADVISORY**, never a PASS.
@@ -424,6 +437,57 @@ The protocol bus is a six-protocol typed message bus. Routing is lexical/channel
 ---
 
 ## Mission Control UI
+
+### Screenshots
+
+Captured from a live local stack running real missions. Regenerate any time with
+`cd apps/mission-control && node scripts/capture_readme_screenshots.mjs`.
+
+#### Mission detail — a mission end to end
+
+A `BUILD_NEW` Rust mission after delivery: the generated artifact, live progress,
+and the Smelt-cycle phase stepper showing every state it passed through.
+
+![Mission detail view showing a delivered Rust mission at 100% with its phase stepper](docs/screenshots/16-mission-detail.png)
+
+#### Launch pad and system health
+
+![Mission Control home screen showing mission counts and runtime health](docs/screenshots/01-home.png)
+
+#### Mission intake and lifecycle
+
+![Missions screen with the launch form and recent mission list](docs/screenshots/04-missions.png)
+
+#### Agent runtime control grid
+
+Live dependency health, transport mode, and stream diagnostics across the
+41-agent roster.
+
+![Agents screen showing runtime dependency health and stream diagnostics](docs/screenshots/07-agents.png)
+
+<details>
+<summary><b>All 16 views</b> — click to expand</summary>
+
+| View | Screenshot |
+|------|------------|
+| Home — launch pad and system health | ![Home](docs/screenshots/01-home.png) |
+| Chat — PM agent intake | ![Chat](docs/screenshots/02-chat.png) |
+| Builder — guided mission builder | ![Builder](docs/screenshots/03-builder.png) |
+| Missions — intake and lifecycle | ![Missions](docs/screenshots/04-missions.png) |
+| Mission History — full archive | ![Mission History](docs/screenshots/05-mission-history.png) |
+| Projects — portfolio and audit trail | ![Projects](docs/screenshots/06-projects.png) |
+| Agents — runtime control grid | ![Agents](docs/screenshots/07-agents.png) |
+| LogicNodes — logic graph explorer | ![LogicNodes](docs/screenshots/08-logicnodes.png) |
+| Protocol Bus — live message stream | ![Protocol Bus](docs/screenshots/09-protocol-bus.png) |
+| Alerts — incident centre | ![Alerts](docs/screenshots/10-alerts.png) |
+| Performance — throughput and latency | ![Performance](docs/screenshots/11-performance.png) |
+| Databases — data-system readiness | ![Databases](docs/screenshots/12-databases.png) |
+| Repo Import — local ZIP import | ![Repo Import](docs/screenshots/13-repo-import.png) |
+| Audit Log — system activity | ![Audit Log](docs/screenshots/14-audit-log.png) |
+| Settings — provider keys and vault | ![Settings](docs/screenshots/15-settings.png) |
+| Mission Detail — live mission view | ![Mission Detail](docs/screenshots/16-mission-detail.png) |
+
+</details>
 
 **Access:**
 - Docker stack: `http://localhost:3100`
