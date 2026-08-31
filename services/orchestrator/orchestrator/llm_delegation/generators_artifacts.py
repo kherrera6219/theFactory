@@ -17,6 +17,7 @@ from .fallbacks import (
 )
 from .providers import _call_with_agent_system
 from .text import (
+    _clean_code,
     _clean_text,
     _string_list,
 )
@@ -849,7 +850,10 @@ async def generate_integration_tests(
         "test_filename": _clean_text(
             parsed.get("test_filename", f"test_{filename}"), max_length=200
         ),
-        "test_code": _clean_text(parsed.get("test_code", ""), max_length=10000),
+        # _clean_code, not _clean_text: the latter replaces every control
+        # character with a space, which flattens generated tests onto one
+        # line and makes them unimportable. See text._clean_code.
+        "test_code": _clean_code(parsed.get("test_code", ""), max_length=10000),
         "test_cases": test_cases,
         "framework": _clean_text(parsed.get("framework", "pytest"), max_length=32),
         "source": "llm",
