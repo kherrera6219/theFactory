@@ -115,11 +115,11 @@
     "cross-env": "^7.0.3",
     "electron": "^42.4.1",
     "electron-builder": "^26.15.3",
-    "jsdom": "29.1.1",
+    "jsdom": "30.0.1",
     "openapi-typescript": "^7.13.0",
     "patch-package": "^8.0.1",
     "ts-node": "^10.9.2",
     "typescript": "6.0.2",
-    "vitest": "4.1.9"
+    "vitest": "4.1.11"
   }
 }
