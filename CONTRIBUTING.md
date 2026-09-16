@@ -6,6 +6,11 @@ Status: Canonical
 
 Thank you for contributing to theFactory (HolyGrail Multi-Agent Software Refinery).
 
+Contributions of all sizes are welcome, including code, tests, security
+improvements, documentation, design feedback, and reproducible bug reports.
+For a substantial feature or architecture change, open an issue first so the
+approach can be discussed before implementation begins.
+
 ---
 
 ## Table of Contents
@@ -15,6 +20,7 @@ Thank you for contributing to theFactory (HolyGrail Multi-Agent Software Refiner
 - [Branch Naming](#branch-naming)
 - [Commit Format](#commit-format)
 - [Pull Request Process](#pull-request-process)
+- [Contributor License Agreement](#contributor-license-agreement)
 - [Code Quality Gates](#code-quality-gates)
 - [Testing](#testing)
 - [Security](#security)
@@ -128,6 +134,13 @@ BREAKING CHANGE: /api/vault now requires x-vault-admin-key header
 4. **Fill in the PR template** — all checklist items must be addressed
 5. **Squash commits** — keep the merge commit history clean
 6. **Do not force-push to `main`** — always use PRs
+
+## Contributor License Agreement
+
+By submitting a contribution, you agree to [`CLA.md`](CLA.md). You retain the
+copyright in your contribution while granting the project maintainer the rights
+described there. For a first contribution, add your name and GitHub username to
+the signature table in `CLA.md` as part of the pull request.
 
 ### PR Checklist
 

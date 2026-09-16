@@ -2,7 +2,7 @@
 
 # 🏭 theFactory
 
-**An AI software factory — not a code-completion tool.**
+**An open-source AI software factory — not a code-completion tool.**
 
 *theFactory is a local-first, event-driven AI software factory for building, modernizing, debugging, securing, porting, validating, and optimizing applications through task-activated specialist agents, multi-provider model routing, dependency absorption, isolated workspaces, ephemeral runtime test environments, AI runtime QC, and audit-ready evidence.*
 
@@ -12,7 +12,8 @@
 [![Audit](https://img.shields.io/badge/repo%20audit-hygiene%20script-blue)](scripts/production_review_audit.py)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](apps/mission-control/package.json)
-[![License](https://img.shields.io/badge/license-AGPL--3.0%20%2F%20Commercial-blue)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 </div>
 
@@ -66,6 +67,7 @@ Smelt-cycle phase stepper showing every state it passed through.*
 - [Testing & Quality Gates](#testing--quality-gates)
 - [Configuration](#configuration)
 - [Deployment Profiles](#deployment-profiles)
+- [Contributing](#contributing)
 - [Documentation Index](#documentation-index)
 
 ---
@@ -1030,6 +1032,24 @@ theFactory/
 
 ---
 
+## Contributing
+
+theFactory is open source and welcomes developers, AI engineers, security
+practitioners, technical writers, testers, and product thinkers. Useful
+contributions include:
+
+- implementing items in the ordered [`WORK_QUEUE`](docs/WORK_QUEUE.md);
+- improving provider integrations, runtime reliability, security, and tests;
+- expanding language extraction and validation coverage;
+- refining Mission Control UX, documentation, and onboarding.
+
+Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, branch, test, and pull
+request guidance. If you are considering a larger change, open an issue first
+so the design can be discussed before implementation. First-time contributors
+are welcome.
+
+---
+
 ## Documentation Index
 
 | Document | Description |
@@ -1046,7 +1066,7 @@ theFactory/
 | [`docs/RUNTIME_QC_AND_TEST_ENVIRONMENTS.md`](docs/RUNTIME_QC_AND_TEST_ENVIRONMENTS.md) | Ephemeral test environments and AI runtime QC |
 | [`docs/SENSITIVE_CODE_HANDLING_POLICY.md`](docs/SENSITIVE_CODE_HANDLING_POLICY.md) | Source code classification, provider routing, redaction |
 | [`docs/SCHEMA_REGISTRY_AND_VERSIONING.md`](docs/SCHEMA_REGISTRY_AND_VERSIONING.md) | Schema registry, versioning rules, compatibility |
-| [`docs/LICENSE_STRATEGY.md`](docs/LICENSE_STRATEGY.md) | Dual AGPL-3.0/Commercial license strategy and CLA requirement |
+| [`docs/LICENSE_STRATEGY.md`](docs/LICENSE_STRATEGY.md) | MIT license policy and contributor licensing |
 | [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Current shipped defaults, known gaps, and validation snapshot |
 | [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md) | Ordered next work — start here for “what is actually next” |
 | [`docs/PROJECT_CONTINUITY_BUS.md`](docs/PROJECT_CONTINUITY_BUS.md) | Project continuity bus — handoff, work ledger, plan authority across missions |
