@@ -13,8 +13,7 @@ This Contributor License Agreement ("Agreement") clarifies the intellectual
 property rights granted by contributors to the Author in connection with any
 contribution made to theFactory (the "Project"). This Agreement protects both
 you (the contributor) and the Author, and ensures that the Author retains the
-ability to license the Project — including under commercial licenses — without
-restriction.
+ability to maintain and distribute the Project over time.
 
 By submitting a pull request, patch, issue with attached code, or any other
 material contribution to the Project, **you agree to the terms of this
@@ -83,13 +82,13 @@ Contribution with the Project.
 
 ---
 
-## 5. Dual Licensing Acknowledgment
+## 5. Project Licensing Acknowledgment
 
-You understand and agree that the Author may license theFactory — including
-your Contribution — under **both open-source and commercial license terms**.
-Your Contribution will be subject to the dual license model described in
-`LICENSE`, and the Author retains the sole right to grant commercial licenses
-to third parties that include your Contribution.
+You understand and agree that theFactory, including accepted Contributions,
+is distributed publicly under the MIT License described in `LICENSE`. The
+license grant in Section 2 also permits the Author to distribute the Project
+under other terms without changing the MIT rights already granted for
+published versions.
 
 ---
 
