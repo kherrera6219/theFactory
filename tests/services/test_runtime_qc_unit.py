@@ -1406,9 +1406,11 @@ def test_factory_sandbox_images_pin_every_input() -> None:
 
 def test_factory_run_tests_scripts_are_lf() -> None:
     """A CRLF shebang fails as 'run-tests: not found' (exit 127)."""
-    for script in SANDBOX_IMAGES.glob("*/run-tests"):
+    scripts = [*SANDBOX_IMAGES.glob("*/run-tests"), *SANDBOX_IMAGES.glob("*/run-program")]
+    for script in scripts:
         assert b"\r\n" not in script.read_bytes(), script
-    assert "run-tests text eol=lf" in (ROOT / ".gitattributes").read_text(encoding="utf-8")
+    attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+    assert "run-tests text eol=lf" in attributes and "run-program text eol=lf" in attributes
 
 
 class TestVendoredTestRuntimes:

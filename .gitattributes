@@ -2,3 +2,4 @@
 # "not found" (exit 127). Keep them LF regardless of core.autocrlf.
 *.sh text eol=lf
 deploy/sandbox-images/*/run-tests text eol=lf
+deploy/sandbox-images/*/run-program text eol=lf
