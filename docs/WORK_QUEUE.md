@@ -154,8 +154,8 @@ Cheap self-contained hardening follows, then evidence, then features.
 
 ## Next up
 
-1. Redeploy + object-store migration, then stuck missions + coverage re-run
-   (see `docs/CURRENT_TODO.md`, 2026-09-27).
+1. ~~Redeploy + object-store migration~~ (done 2026-09-27); next: stuck missions +
+   coverage re-run (see `docs/CURRENT_TODO.md`, 2026-09-27).
 2. **#9 Electron build-out** (approved).
 3. #13 measure behavioural equivalence (≥20 missions), #10 polish, #14 release.
 
