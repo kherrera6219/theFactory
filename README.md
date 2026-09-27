@@ -29,17 +29,19 @@ Smelt-cycle phase stepper showing every state it passed through.*
 
 </div>
 
-> **Version:** 1.3.0 · **Last updated:** 2026-08-21 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
+> **Version:** 1.3.0 · **Last updated:** 2026-09-27 · **Status:** Active development — feature-complete against the v1.3 mission-pipeline scope
 >
 > **Development status:** the infrastructure, security model, protocol bus, data plane, operator UI, and test surface are mature and CI-verified. Live BUILD_NEW missions have reached `COMPLETE` (Go S1-01, chat-driven PyQt6, stdlib Snake). Default LLM route is **Gemini 3.7 Flash**. Runtime QC runs generated tests when they exist — **in every routed language, offline**, via vendored test-runner images (JUnit, kotlin-test, ScalaTest, PHPUnit, testthat, vitest, xUnit, minitest, Julia `Test`); a bare launch (`started_only`) or syntax-only compile is **ADVISORY**, never a PASS.
 >
-> **Recent on `main` (2026-08-21/22):** Project continuity bus (`projects` / `project_handoff` / `project_work_items`, migration `V010`) so follow-on missions resume shared project state instead of starting blank — see [`docs/PROJECT_CONTINUITY_BUS.md`](docs/PROJECT_CONTINUITY_BUS.md). Repo ZIP import Phases 5–7 (launch index guard, knowledge ingestion, agent context load) are implemented and the Chat UI trigger seam is closed — see [`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md). Ordered remaining work lives in [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
+> **Recent on `main` (2026-09-27, [#538](https://github.com/kherrera6219/theFactory/pull/538)):** **Every routed language now executes in the sandbox** — C# joined via a .NET 10 image, and generated tests run offline in vendored, checksum-pinned test-runner images, CI-verified to pass a correct artifact and fail a broken one. **BUILD_NEW missions now get behavioural equivalence** from their approved contract (an oracle that never sees the implementation). The object store moved from MinIO — whose image was withdrawn and project archived — to **SeaweedFS** with the same Object Lock guarantees. A Next.js remote-code-execution advisory was closed (`npm audit`: 0). A missing sandbox image is now reported as infrastructure, never as the generated code failing. Next initiative: the **Electron desktop build-out**. Ordered work: [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
+>
+> **Earlier (2026-08-21/22):** Project continuity bus (migration `V010`) so follow-on missions resume shared project state — [`docs/PROJECT_CONTINUITY_BUS.md`](docs/PROJECT_CONTINUITY_BUS.md). Repo ZIP import Phases 5–7 with the Chat UI trigger seam closed — [`docs/evidence/repo_zip_phases_5_7_verification_20260821.md`](docs/evidence/repo_zip_phases_5_7_verification_20260821.md).
 >
 > The **semantic engine is partially realised**: LogicNodes carry AST-recovered types, Refined-IR carries real op streams and side-effect-derived purity, and behavioural equivalence executes generated code in a hardened sandbox — but type recovery is real only for **Python, Java, and Haskell**. Other languages produce honestly-labelled templated output. BUILD_NEW is a sequential specialist prompt-chain, not a four-pod fan-out.
 >
 > Deliberately **not** built, by recorded decision: the four-pod parallel comprehension model, the Doc 30 LogicNode Registry, binary/LLVM output, and the 0.0001% equivalence tolerance. Per-area verdicts are in [`docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md`](docs/ADR_DESIGN_RECONCILIATION_2026-08-01.md).
 >
-> **Not production-ready.** PORT-through-SOW, fail-QC-blocks-COMPLETE, failure injection, provider fallback, EDCP live-bus, spend-cap pause, and Chat ZIP import are recorded ([`docs/evidence/end_state_live_proof_20260817.json`](docs/evidence/end_state_live_proof_20260817.json), [`docs/evidence/remaining_live_proof_20260817.json`](docs/evidence/remaining_live_proof_20260817.json)). Sandbox `docker.sock` lives on `sandbox-runner`. See [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
+> **Not production-ready.** PORT-through-SOW, fail-QC-blocks-COMPLETE, failure injection, provider fallback, EDCP live-bus, spend-cap pause, and Chat ZIP import are recorded ([`docs/evidence/end_state_live_proof_20260817.json`](docs/evidence/end_state_live_proof_20260817.json), [`docs/evidence/remaining_live_proof_20260817.json`](docs/evidence/remaining_live_proof_20260817.json)). Sandbox `docker.sock` lives on `sandbox-runner`. Still open: behavioural-equivalence measurement across ≥20 missions before it may gate (WQ13), the Electron installer, and the release package. See [`docs/WORK_QUEUE.md`](docs/WORK_QUEUE.md).
 
 
 ---
@@ -144,8 +146,8 @@ The list below describes implemented, CI-verified subsystems across theFactory:
 - **Behavioural Equivalence Verification** — executes generated artifacts against their equivalence vectors inside a hardened Docker sandbox (`--network=none`, `--read-only`, `--cap-drop=ALL`, no-new-privileges) shared with runtime QC. Two oracles: Refined-IR vectors projected from source being ported (opt-in, Python), and — for BUILD_NEW, since 2026-09-27 (WQ7) — **contract-oracle vectors** derived from the approved acceptance criteria by an oracle that sees the artifact's interface but never its implementation, executed as function calls (Python) or argv/stdin → stdout/exit checks (every language). Advisory until measured across ≥20 missions; a vector that merely ran is never `passed`, and with no model the result is `skipped`, never a stub.
 - **Downstream Deployment Handshake Exporters** — REST endpoints (`/v1/missions/{id}/export/helm` and `/v1/missions/{id}/export/github-actions`) generating gzipped Kubernetes Helm Charts and GitHub Actions CI/CD workflows.
 - **Gemini 3.7 Flash Primary Model Integration** — Default route for all agents (`GEMINI_MODEL=gemini-3.7-flash`). Vault, gateway allow-list, compose, and cost ledger match. OpenAI and Anthropic remain selectable non-default routes.
-- **Desktop Electron Packaging** — Standalone Next.js server bundle; the packaged app talks to the backend through `/api/gateway` (same operator session as the browser). Docker Desktop & WSL2 daemon preflight lives in `electron/diagnostics.ts`.
-- **Audit & Quality Gates** — `production_review_audit.py` is a **hygiene** script (static file/string checks), not a live-mission certificate. Backend coverage floor is 80%; `runtime.py` is at 100% line / 99% branch. Mission Control Vitest suite is 146 tests. Do not treat a green audit badge as “zero vulnerabilities.”
+- **Desktop Electron Packaging** — *(full build-out is the next initiative)* Standalone Next.js server bundle; the packaged app talks to the backend through `/api/gateway` (same operator session as the browser). Docker Desktop & WSL2 daemon preflight lives in `electron/diagnostics.ts`.
+- **Audit & Quality Gates** — `production_review_audit.py` is a **hygiene** script (static file/string checks), not a live-mission certificate. Backend suite: 2,200+ tests at 84% coverage against an 80% floor, plus per-file floors on privilege, money and sandbox paths; `runtime.py` is at 100% line / 99% branch. Mission Control Vitest suite is 172 tests. Do not treat a green audit badge as “zero vulnerabilities.”
 - **Multi-modal Context Ingestion** — Native support for PDF, Word, Markdown, and image diagrams converted via IS-Agent & provider layer.
 - **Protocol Bus Architecture** — Six-protocol Redis Streams event plane with DLQ, 409 replay detection, and fail-closed Redis error handling.
 - **41-Agent Control Model** — Canonical registry across interface, executive, support, and pod-specialist tiers; supports condensed, dedicated, and full-dedicated runtime topologies.
@@ -814,7 +816,9 @@ npm run test:e2e   # Playwright critical-path E2E
 | Critical module coverage | Strict per-file floors (`80%`–`100%`) on privilege / money / PORT / protocol files | `scripts/check_coverage_thresholds.py` |
 | Production audit | 23/23 checks pass; `INF-008` closed | `scripts/production_review_audit.py` |
 | Frontend lint | 0 errors | CI |
-| Frontend unit tests | currently passing | `apps/mission-control` Vitest |
+| Frontend unit tests | 172 passing | `apps/mission-control` Vitest |
+| Sandbox test runners | every image passes a correct artifact and fails a broken one | CI `sandbox-images` job (`scripts/verify_sandbox_images.py`) |
+| Dependency audit | `npm audit` 0 (prod + dev) | `security.yml` Node Audit |
 | Frontend E2E | currently passing | Playwright critical-path regression suite |
 | Bandit SAST | 0 high/crit | `security.yml` |
 | Trivy container scan | 0 critical | `security.yml` |
@@ -1085,12 +1089,13 @@ theFactory/
 
 ## Current Status
 
-Current state (2026-08-21): **active development, feature-complete against the
+Current state (2026-09-27): **active development, feature-complete against the
 v1.3 mission-pipeline scope.** Infrastructure, security, the protocol bus, the
 data plane, the operator UI, and the test surface are mature and CI-verified.
-The semantic engine is partially realised and honestly labelled. Live BUILD_NEW
-missions have reached `COMPLETE`. Project continuity and the Repo ZIP knowledge
-path are on `main`. The system is **not production-ready**.
+Every routed language now has sandbox execution, and BUILD_NEW missions carry
+contract-derived behavioural evidence. The semantic engine is partially realised
+and honestly labelled. Live BUILD_NEW missions have reached `COMPLETE`. The
+system is **not production-ready**; the Electron desktop build-out is next.
 
 | Maturity Area | Status | Status Details |
 | --- | --- | --- |
@@ -1101,9 +1106,9 @@ path are on `main`. The system is **not production-ready**.
 | **Live mission evidence** | **Sprint 1.1 + EDCP recorded** | Go `mission-f8a5accf`, PyQt6 `mission-e42fd7e2`, Snake `mission-911a6b3f`, PORT `mission-dc0c8c4e`, fail-QC `mission-8db1af71`, injection `mission-6ee8b1fe`, fallback `mission-db901d98`, EDCP `mission-56bfd2dc`, spend-cap `mission-c1aedfbd`. |
 | **Runtime QC honesty** | **Shipped (PR #460, #538)** | Generated tests are the sandbox command, in every routed language, offline. `started_only` / syntax-only are ADVISORY. Unmet offline deps are DRY_RUN; sandbox infrastructure errors are never a FAIL. Compose default `RQCA_ENFORCEMENT_ENABLED=true`. |
 | **BUILD_NEW behavioural equivalence** | **Shipped, advisory (PR #538, WQ7)** | Contract-oracle vectors, implementation-blind, falsifiable, executed in the shared sandbox. Enforcement waits on ≥20 measured missions (WQ13). |
-| **Audit & Quality Standards** | **Hygiene green, not a release certificate** | `production_review_audit.py` is a static file/string check. Coverage floor 80%; `runtime.py` 100% line / 99% branch. Mission Control 146 Vitest tests. Do not cite 23/23 or “0 SAST findings” as release evidence. |
-| **Desktop Packaging Path** | **Web path is primary** | `start_app.bat` launches Docker + browser. Electron uses `/api/gateway`. Installer signing and uninstall hooks remain open. |
-| **CI & Release Pipeline** | **Mostly green** | Lint/test, CodeQL, Docker builds, and the promotion gate run in Actions. Bandit can still fail on pre-existing findings. Dependabot highs for `js-yaml` (4.3.1) and `extract-zip` (removed via `@puppeteer/browsers` 3.2.1) are addressed. |
+| **Audit & Quality Standards** | **Hygiene green, not a release certificate** | `production_review_audit.py` is a static file/string check. Backend 2,200+ tests, 84% coverage (floor 80%); `runtime.py` 100% line / 99% branch. Mission Control 172 Vitest tests. Do not cite 23/23 or “0 SAST findings” as release evidence. |
+| **Desktop Packaging Path** | **Web path is primary; Electron build-out next** | `start_app.bat` launches Docker + browser. Electron uses `/api/gateway`. The full desktop build-out (installer, signing, uninstall hooks) was approved 2026-09-27 as the next initiative. |
+| **CI & Release Pipeline** | **Green on `main`; qualification being re-proven** | Lint/test, CodeQL, Docker builds, Security Checks, the new `sandbox-images` job, and the promotion gate run in Actions. Weekly Qualification was red from 2026-09-14 because the MinIO image was withdrawn from Docker Hub; #538 replaced it, and the next scheduled run is the proof. Its full end-to-end canary additionally needs a `QUALIFICATION_*_API_KEY` repository secret. |
 
 ---
 
