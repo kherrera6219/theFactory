@@ -116,7 +116,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "cross-env": "^7.0.3",
     "electron": "^42.11.8",
-    "electron-builder": "^26.15.3",
+    "electron-builder": "^26.16.1",
     "jsdom": "29.1.1",
     "openapi-typescript": "^7.13.0",
     "patch-package": "^8.0.1",
