@@ -1,0 +1,32 @@
+#!/bin/sh
+# Usage: run-tests <artifact.scala> <test_artifact.scala>
+# Compiles the artifact with its generated ScalaTest suites and runs every
+# suite found. Exit code is the verdict.
+set -eu
+export HOME=/tmp
+cp_test=$(find /opt/factory/scalatest -name '*.jar' | sort | tr '\n' ':')
+scala_lib=/usr/share/scala/lib
+
+mkdir -p /tmp/out
+cd /workspace
+scalac -d /tmp/out -classpath "$cp_test" ./*.scala
+
+# The Runner reports through -o (stdout); -R names the directory to discover
+# suites in. Its exit status alone is not relied on: the summary line is.
+set +e
+java -cp "/tmp/out:$cp_test:$scala_lib/scala3-library_3-3.4.0.jar:$scala_lib/scala-library-2.13.12.jar" \
+  org.scalatest.tools.Runner -R /tmp/out -oW > /tmp/scalatest.log 2>&1
+status=$?
+set -e
+cat /tmp/scalatest.log
+if [ "$status" -ne 0 ]; then
+  exit "$status"
+fi
+if grep -Eq '\*\*\* (TEST FAILED|[0-9]+ TESTS? FAILED|RUN ABORTED|SUITE ABORTED)' /tmp/scalatest.log; then
+  exit 1
+fi
+if grep -Eq 'Total number of tests run: 0' /tmp/scalatest.log; then
+  echo "run-tests: no tests ran" >&2
+  exit 2
+fi
+grep -Eq 'All tests passed\.' /tmp/scalatest.log

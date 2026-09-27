@@ -1,0 +1,39 @@
+#!/bin/sh
+# Usage: run-tests <artifact.(js|ts|...)> <test_artifact.(js|ts|...)>
+# Runs generated JavaScript/TypeScript tests. Tests written against node:test
+# run on Node's built-in runner; everything else (vitest, or the jest-style
+# describe/it/expect globals vitest implements) runs on vitest. Exit code is
+# the verdict.
+set -eu
+export HOME=/tmp
+export NO_COLOR=1
+tests=$(basename "$2")
+
+# The workspace is read-only; vite writes a transform cache under the project,
+# and bundles its config into the nearest node_modules. An empty, writable
+# /tmp/w/node_modules takes those writes; bare imports still resolve upward to
+# the vendored /node_modules.
+mkdir -p /tmp/w
+cp -R /workspace/. /tmp/w/
+mkdir -p /tmp/w/node_modules
+cd /tmp/w
+
+case "$tests" in
+  *.ts|*.tsx|*.mts|*.cts) typed=1 ;;
+  *) typed=0 ;;
+esac
+
+if [ "$typed" = 0 ] && grep -Eq "(from|require\()[[:space:]]*['\"]node:test['\"]" "$tests"; then
+  exec node --test "$tests"
+fi
+
+# vitest only collects *.test.* / *.spec.* by default, and the factory names
+# tests test_<artifact>. An explicit config, passed with --config so an
+# artifact's own vitest config is never consulted, names exactly the one
+# generated test file. Node does the quoting, so no filename can break out.
+node -e '
+const [file] = process.argv.slice(1);
+const config = { test: { root: "/tmp/w", include: [file], globals: true, passWithNoTests: false } };
+require("fs").writeFileSync("/tmp/w/.factory.vitest.config.mjs", "export default " + JSON.stringify(config) + ";\n");
+' "$tests"
+exec /node_modules/.bin/vitest run --config /tmp/w/.factory.vitest.config.mjs --reporter=verbose

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Usage: run-tests <artifact.R> <test_artifact.R>
+# Runs the generated testthat file from the workspace, so `source("x.R")`
+# resolves against the artifact. Exit code is the verdict: testthat's
+# stop_on_failure turns any failed expectation into a non-zero exit.
+set -eu
+export HOME=/tmp
+tests=$(basename "$2")
+cd /workspace
+exec Rscript -e "testthat::test_file('$tests', reporter = 'summary', stop_on_failure = TRUE, stop_on_warning = FALSE)"

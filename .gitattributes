@@ -1,0 +1,4 @@
+# Shell scripts run inside Linux containers; a CRLF shebang fails as
+# "not found" (exit 127). Keep them LF regardless of core.autocrlf.
+*.sh text eol=lf
+deploy/sandbox-images/*/run-tests text eol=lf

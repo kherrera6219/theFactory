@@ -129,6 +129,18 @@ completed.
 verdict/exit code in `details` whenever a failing runtime QC prevents the
 advance, matching how `delta_audit` and the artifact gate already report.
 
+## Resolution status (2026-09-27)
+
+| Item | Status |
+|---|---|
+| UPDATE-1 bundle header | Fixed (`_unbundle_source`, PR #501) |
+| UPDATE-2 source examples as argv | Fixed (`_looks_like_shell_invocation`, PR #501) |
+| UPDATE-3 silent runtime-QC block | Fixed (chain event `gate: runtime_qc`, PR #501) |
+| UPDATE-4 frameworks unavailable offline | **Decided and done: vendored.** See `docs/RUNTIME_QC_AND_TEST_ENVIRONMENTS.md`, "Test frameworks and infrastructure honesty". Three of the nine were a detector bug (Julia, Haskell, Ruby ship their frameworks). |
+| Generated tests flattened onto one line | Fixed (PR #511) |
+
+The coverage batch has not yet been re-run on the fixed build.
+
 ## UPDATE-4 -- WITHDRAWN (not a defect)
 
 **Originally filed as "10 languages never execute and do not say why". That was

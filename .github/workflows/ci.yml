@@ -209,6 +209,32 @@ jobs:
         if: always()
         run: docker compose -f deploy/docker-compose.yaml -f deploy/docker-compose.dev.yaml down -v
 
+  # The only CI job that executes anything in the real hardened sandbox: no
+  # other workflow starts sandbox-runner, so runtime QC was never exercised in
+  # CI. Each vendored runner must pass a correct artifact AND fail a broken one.
+  sandbox-images:
+    name: Sandbox Test-Runner Images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.11"
+
+      - name: Build vendored sandbox images
+        run: |
+          docker compose -f deploy/docker-compose.yaml --profile sandbox-images build \
+            sandbox-test-java sandbox-test-kotlin sandbox-test-scala \
+            sandbox-test-php sandbox-test-r sandbox-test-node
+
+      - name: Verify each runner separates correct from broken artifacts
+        run: python scripts/verify_sandbox_images.py
+
   docker-build:
     name: Docker Build Validation
     runs-on: ubuntu-latest

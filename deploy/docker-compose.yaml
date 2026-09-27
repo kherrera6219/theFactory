@@ -299,6 +299,51 @@ services:
       - "${OTLP_GRPC_HOST_BIND:-127.0.0.1}:${OTLP_GRPC_HOST_PORT:-4317}:4317"
       - "${OTLP_HTTP_HOST_BIND:-127.0.0.1}:${OTLP_HTTP_HOST_PORT:-4318}:4318"
 
+  # Vendored test-runner images for runtime QC (deploy/sandbox-images). Never
+  # started -- the sandbox-runner launches them per test run with
+  # --network=none. Built by `make sandbox-images` (part of `make up`).
+  sandbox-test-java:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-java:1
+    build:
+      context: ./sandbox-images/java
+    entrypoint: ["true"]
+
+  sandbox-test-kotlin:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-kotlin:1
+    build:
+      context: ./sandbox-images/kotlin
+    entrypoint: ["true"]
+
+  sandbox-test-scala:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-scala:1
+    build:
+      context: ./sandbox-images/scala
+    entrypoint: ["true"]
+
+  sandbox-test-php:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-php:1
+    build:
+      context: ./sandbox-images/php
+    entrypoint: ["true"]
+
+  sandbox-test-r:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-r:1
+    build:
+      context: ./sandbox-images/r
+    entrypoint: ["true"]
+
+  sandbox-test-node:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-test-node:1
+    build:
+      context: ./sandbox-images/node
+    entrypoint: ["true"]
+
   sandbox-runner:
     <<: [*common-service, *runtime-service-hardening, *readonly-service-hardening]
     build:
@@ -410,6 +455,7 @@ services:
       PM_AUTO_ACCEPT_DEFAULTS_ENABLED: ${PM_AUTO_ACCEPT_DEFAULTS_ENABLED:-true}
       RQCA_AGENT_ENABLED: ${RQCA_AGENT_ENABLED:-true}
       RQCA_ENFORCEMENT_ENABLED: ${RQCA_ENFORCEMENT_ENABLED:-true}
+      SANDBOX_VENDORED_TEST_IMAGES_ENABLED: ${SANDBOX_VENDORED_TEST_IMAGES_ENABLED:-true}
       PORT_TWO_PHASE_ENABLED: ${PORT_TWO_PHASE_ENABLED:-true}
       # Sandbox workspaces are created under SANDBOX_WORKSPACE_ROOT inside this
       # container, then bind-mounted into throwaway sibling containers by the

@@ -1,0 +1,28 @@
+#!/bin/sh
+# Usage: run-tests <artifact.java> <test_artifact.java>
+# Compiles the artifact and its generated tests, then runs every JUnit 5 test.
+# Exit code is the verdict: 0 all passed, 1 a test failed, 2 no tests found,
+# other non-zero a compile error.
+set -eu
+artifact=$(basename "$1")
+tests=$(basename "$2")
+
+mkdir -p /tmp/src /tmp/out
+cp /workspace/*.java /tmp/src/
+cd /tmp/src
+
+# A public class must live in a file of the same name, but the factory writes
+# tests as test_<artifact>.java. Rename to the declared public class, if any.
+cls=$(sed -n 's/^[[:space:]]*public[[:space:]]\{1,\}\(final[[:space:]]\{1,\}\)\{0,1\}class[[:space:]]\{1,\}\([A-Za-z_][A-Za-z0-9_]*\).*/\2/p' "$tests" | head -n 1)
+if [ -n "$cls" ] && [ "$cls.java" != "$tests" ]; then
+  if [ -e "$cls.java" ]; then
+    echo "run-tests: test class $cls collides with $cls.java" >&2
+    exit 3
+  fi
+  mv "$tests" "$cls.java"
+fi
+
+javac -encoding UTF-8 -d /tmp/out -cp /opt/factory/junit-console.jar ./*.java
+exec java -jar /opt/factory/junit-console.jar execute \
+  --class-path /tmp/out --scan-class-path --fail-if-no-tests \
+  --disable-banner --details=tree

@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "services" / "orchestrator"))
 testdata_agent = importlib.import_module("orchestrator.testdata_agent")
 rqca_agent = importlib.import_module("orchestrator.rqca_agent")
 llm_delegation = importlib.import_module("orchestrator.llm_delegation")
+sandbox_exec = importlib.import_module("orchestrator.sandbox_exec")
 
 
 def test_testdata_manifest_is_safe_and_capped() -> None:
@@ -595,6 +596,11 @@ def test_non_official_sandbox_images_are_pinned_by_digest() -> None:
     for language, runtime in rqca_agent._LANGUAGE_RUNTIMES.items():
         image = runtime["base_image"]
         if image.split(":")[0].split("/")[0] in official_namespaces and "/" not in image.split(":")[0]:
+            continue
+        if image.startswith("thefactory/"):
+            # Built locally, so there is no registry digest to pin. The pin
+            # moves into the Dockerfile -- asserted by
+            # test_factory_sandbox_images_pin_every_input.
             continue
         assert "@sha256:" in image, (
             f"{language} uses a non-official image by mutable tag: {image}. "
@@ -1367,3 +1373,120 @@ class TestTestOnlyDependencies:
                 settings=SimpleNamespace(rqca_test_command_template=""),
             )
             assert command and needle in command
+
+
+SANDBOX_IMAGES = ROOT / "deploy" / "sandbox-images"
+
+
+def _factory_images_in_use() -> set[str]:
+    images = {r["image"] for r in rqca_agent._VENDORED_TEST_RUNTIMES.values()}
+    images |= {
+        r["base_image"] for r in rqca_agent._LANGUAGE_RUNTIMES.values()
+        if r["base_image"].startswith("thefactory/")
+    }
+    return images
+
+
+def test_factory_sandbox_images_pin_every_input() -> None:
+    """A factory image is only as trustworthy as what it was built from.
+
+    Every image runtime QC names must have a Dockerfile whose base is pinned by
+    digest and whose every download carries --checksum, so the containment for
+    untrusted code cannot drift between builds.
+    """
+    assert _factory_images_in_use(), "expected factory sandbox images to be in use"
+    for image in _factory_images_in_use():
+        name = image.split("/", 1)[1].split(":")[0]  # sandbox-test-java
+        directory = SANDBOX_IMAGES / name.removeprefix("sandbox-test-")
+        dockerfile = (directory / "Dockerfile").read_text(encoding="utf-8")
+        from_lines = [line for line in dockerfile.splitlines() if line.startswith("FROM ")]
+        assert from_lines and all("@sha256:" in line for line in from_lines), image
+        for line in dockerfile.splitlines():
+            if line.startswith("ADD ") and "://" in line:
+                assert "--checksum=sha256:" in line, f"{image}: unverified download: {line}"
+        assert (directory / "run-tests").exists(), image
+
+
+def test_factory_run_tests_scripts_are_lf() -> None:
+    """A CRLF shebang fails as 'run-tests: not found' (exit 127)."""
+    for script in SANDBOX_IMAGES.glob("*/run-tests"):
+        assert b"\r\n" not in script.read_bytes(), script
+    assert "run-tests text eol=lf" in (ROOT / ".gitattributes").read_text(encoding="utf-8")
+
+
+class TestVendoredTestRuntimes:
+    ON = SimpleNamespace(sandbox_vendored_test_images_enabled=True, rqca_test_command_template="")
+    OFF = SimpleNamespace(sandbox_vendored_test_images_enabled=False, rqca_test_command_template="")
+
+    def test_vendored_command_used_only_when_enabled(self) -> None:
+        on = rqca_agent._resolve_test_command(
+            filename="Main.java", test_filename="test_Main.java", language="java", settings=self.ON
+        )
+        assert on == "/opt/factory/run-tests /workspace/Main.java test_Main.java"
+        off = rqca_agent._resolve_test_command(
+            filename="Main.java", test_filename="test_Main.java", language="java", settings=self.OFF
+        )
+        assert off is None
+
+    def test_operator_template_still_wins(self) -> None:
+        settings = SimpleNamespace(
+            sandbox_vendored_test_images_enabled=True, rqca_test_command_template="make test"
+        )
+        assert rqca_agent._resolve_test_command(
+            filename="a.php", test_filename="test_a.php", language="php", settings=settings
+        ) == "make test"
+
+    def test_vendored_framework_is_not_set_aside(self, monkeypatch) -> None:
+        captured: dict = {}
+
+        async def _present(_docker_bin: str = "docker") -> bool:
+            return True
+
+        async def _exec(**kwargs):
+            captured.update(kwargs)
+            return {"verdict": "PASS", "passed": True, "execution_type": "docker_live"}
+
+        monkeypatch.setattr(rqca_agent, "_check_docker_available", _present)
+        monkeypatch.setattr(rqca_agent, "_execute_in_sandbox", _exec)
+        asyncio.run(
+            rqca_agent.run_runtime_qc(
+                mission_id="mission-junit",
+                generated_output={
+                    "filename": "Main.java",
+                    "generated_code": "public class Main { public static void main(String[] a) {} }",
+                    "dependencies": ["org.junit.jupiter:junit-jupiter:5.10.0", "org.mockito:mockito"],
+                },
+                testdata_manifest={},
+                integration_tests={"test_code": "import org.junit.jupiter.api.Test;"},
+                language="java",
+                settings=self.ON,
+            )
+        )
+        # junit is vendored, so the tests run; mockito is not, and says so
+        assert captured["test_code"] == "" or "mockito" in str(
+            captured["testdata_manifest"].get("tests_not_run_reason")
+        )
+        assert "junit" not in str(captured["testdata_manifest"].get("tests_not_run_reason") or "")
+
+    def test_tests_run_in_the_vendored_image(self, monkeypatch) -> None:
+        seen: dict = {}
+
+        async def _run(**kwargs):
+            seen.update(kwargs)
+            return sandbox_exec.SandboxResult(
+                exit_code=0, stdout="1 tests successful", stderr="", timed_out=False,
+                timeout_seconds=60, memory_limit_mb=512, base_image=kwargs["base_image"],
+            )
+
+        monkeypatch.setattr(rqca_agent, "run_in_sandbox", _run)
+        report = asyncio.run(
+            rqca_agent._execute_in_sandbox(
+                docker_bin="docker", mission_id="mission-v", filename="Main.java",
+                code="public class Main {}", test_code="public class MainTest {}",
+                testdata_manifest={"base_image": "eclipse-temurin:21-jdk"},
+                language="java", settings=self.ON,
+            )
+        )
+        assert seen["base_image"] == "thefactory/sandbox-test-java:1"
+        assert seen["command"].startswith("/opt/factory/run-tests")
+        assert report["verdict"] == "PASS" and report["verified_scope_detail"] == "tests"

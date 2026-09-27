@@ -166,7 +166,11 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
         "run_command": "javac -d /tmp /workspace/{filename} && java -cp /tmp {stem}",
     },
     "kotlin": {
-        "base_image": "zenika/kotlin@sha256:6aa73e11c07b361e4cf068dce3745a4bc9f8b0b7d8d0b8cbbcc385539184d46a",
+        # Factory-built (deploy/sandbox-images/kotlin): Kotlin 2.4.20 on the
+        # pinned Temurin 21 base. Replaced zenika/kotlin -- Oracle Linux 7.6,
+        # JRE 12 and kotlinc 1.4.10, all end-of-life -- on 2026-09-27, so the
+        # program and its tests compile with the same compiler.
+        "base_image": "thefactory/sandbox-test-kotlin:1",
         "run_command": (
             "env HOME=/tmp kotlinc /workspace/{filename} -include-runtime -d /tmp/a.jar "
             "&& java -jar /tmp/a.jar"
@@ -1027,6 +1031,39 @@ _DEFAULT_TEST_COMMAND_TEMPLATES: dict[str, str] = {
 }
 
 
+#: Factory-built images with a test framework vendored in (see
+#: deploy/sandbox-images). Each carries /opt/factory/run-tests, whose exit code
+#: is the verdict. `frameworks` are the dependency tokens the image satisfies,
+#: so tests declaring them are no longer set aside as uninstallable.
+_VENDORED_TEST_RUNTIMES: dict[str, dict[str, Any]] = {
+    "java": {"image": "thefactory/sandbox-test-java:1", "frameworks": ("junit",)},
+    "kotlin": {
+        "image": "thefactory/sandbox-test-kotlin:1",
+        "frameworks": ("kotlin-test", "kotlin.test", "junit"),
+    },
+    "scala": {"image": "thefactory/sandbox-test-scala:1", "frameworks": ("scalatest", "scalactic")},
+    "php": {"image": "thefactory/sandbox-test-php:1", "frameworks": ("phpunit",)},
+    "r": {"image": "thefactory/sandbox-test-r:1", "frameworks": ("testthat",)},
+    "javascript": {"image": "thefactory/sandbox-test-node:1", "frameworks": ("vitest",)},
+    "typescript": {"image": "thefactory/sandbox-test-node:1", "frameworks": ("vitest",)},
+}
+_VENDORED_TEST_COMMAND = "/opt/factory/run-tests {filename} {test_filename}"
+
+
+def _vendored_test_runtime(language: str, settings: Any) -> dict[str, Any] | None:
+    if not bool(getattr(settings, "sandbox_vendored_test_images_enabled", False)):
+        return None
+    return _VENDORED_TEST_RUNTIMES.get(str(language or "").strip().lower())
+
+
+def _vendored_framework_satisfies(language: str, dependency: str, settings: Any) -> bool:
+    runtime = _vendored_test_runtime(language, settings)
+    if runtime is None:
+        return False
+    lowered = dependency.lower()
+    return any(token in lowered for token in runtime["frameworks"])
+
+
 def _resolve_test_command(
     *,
     filename: str,
@@ -1044,6 +1081,8 @@ def _resolve_test_command(
     if not test_filename:
         return None
     template = str(getattr(settings, "rqca_test_command_template", "") or "").strip()
+    if not template and _vendored_test_runtime(language, settings):
+        template = _VENDORED_TEST_COMMAND
     if not template:
         template = _DEFAULT_TEST_COMMAND_TEMPLATES.get(language.lower(), "")
     if not template:
@@ -1165,9 +1204,11 @@ async def run_runtime_qc(
     # Frameworks the generated tests need but the offline image lacks. Those
     # tests cannot run here; the artifact itself still can, and the report says
     # which tests were set aside and why rather than silently dropping them.
-    unavailable_test_dependencies = _unmet_dependencies(
-        normalized_language, test_only_dependencies
-    )
+    unavailable_test_dependencies = [
+        dependency
+        for dependency in _unmet_dependencies(normalized_language, test_only_dependencies)
+        if not _vendored_framework_satisfies(normalized_language, dependency, settings)
+    ]
     if unavailable_test_dependencies and test_code.strip():
         testdata_manifest = {
             **testdata_manifest,
@@ -1444,6 +1485,11 @@ async def _execute_in_sandbox(
         settings=settings,
         testdata_manifest=testdata_manifest,
     )
+    vendored = _vendored_test_runtime(language, settings) if tests_selected else None
+    if vendored is not None and run_command.startswith("/opt/factory/run-tests"):
+        # The framework lives only in the factory image; the language image
+        # would report "run-tests: not found" as if the artifact had failed.
+        base_image = str(vendored["image"])
     install_commands = [
         str(command) for command in (testdata_manifest.get("install_commands") or [])[:10]
     ]

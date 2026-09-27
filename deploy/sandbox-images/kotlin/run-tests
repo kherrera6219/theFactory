@@ -1,0 +1,15 @@
+#!/bin/sh
+# Usage: run-tests <artifact.kt> <test_artifact.kt>
+# Compiles the artifact with its generated tests and runs them on JUnit 5
+# (kotlin.test maps onto it via kotlin-test-junit5). Exit code is the verdict.
+set -eu
+export HOME=/tmp
+lib=/opt/kotlinc/lib
+cp_test="$lib/kotlin-test.jar:$lib/kotlin-test-junit5.jar:/opt/factory/junit-console.jar"
+
+mkdir -p /tmp/out
+cd /workspace
+kotlinc ./*.kt -cp "$cp_test" -d /tmp/out
+exec java -jar /opt/factory/junit-console.jar execute \
+  --class-path "/tmp/out:$lib/kotlin-stdlib.jar:$cp_test" --scan-class-path \
+  --fail-if-no-tests --disable-banner --details=tree
