@@ -615,7 +615,104 @@ _STDLIB_PREFIXES: dict[str, frozenset[str]] = {
     "c": frozenset({"stdio", "stdlib", "string", "math", "time", "ctype", "assert"}),
     "cpp": frozenset({"iostream", "string", "vector", "map", "stdio", "cstdlib", "cstdio"}),
     "c++": frozenset({"iostream", "string", "vector", "map", "stdio", "cstdlib", "cstdio"}),
+    # The three below were each verified inside the pinned sandbox image with
+    # --network=none on 2026-09-27. Before they existed, a Julia artifact whose
+    # tests did `using Test`, a Haskell one importing `base`, and a Ruby one
+    # requiring `minitest` were all reported "cannot be installed offline" and
+    # never executed -- 3 of the 9 dependency dry runs in the 2026-08-27
+    # language coverage run were this detector, not the environment.
+    "julia": frozenset({
+        "base", "core", "test", "linearalgebra", "statistics", "random", "printf",
+        "dates", "sparsearrays", "serialization", "sockets", "unicode", "logging",
+        "markdown", "sha", "uuids", "tomls", "interactiveutils", "distributed",
+        "sharedarrays", "mmap", "filewatching", "base64", "crc32c", "libgit2",
+        "pkg", "profile", "delimitedfiles",
+    }),
+    "haskell": frozenset({
+        "base", "array", "binary", "bytestring", "containers", "deepseq",
+        "directory", "exceptions", "filepath", "ghc-prim", "haskeline", "mtl",
+        "parsec", "pretty", "process", "stm", "template-haskell", "text", "time",
+        "transformers", "unix",
+        # Package names only. Module namespaces ("Data", "Control") are not
+        # listed: "Data.Aeson" would match them and execute against a missing
+        # package, turning an honest dry run into a misattributed FAIL.
+    }),
+    "ruby": frozenset({
+        # default + bundled gems of ruby:3.3-slim, including both test frameworks
+        "minitest", "test-unit", "test", "json", "set", "csv", "date", "time",
+        "fileutils", "optparse", "securerandom", "digest", "stringio", "strscan",
+        "logger", "pp", "prime", "open3", "tempfile", "tmpdir", "benchmark",
+        "english", "erb", "forwardable", "ostruct", "pathname", "shellwords",
+        "singleton", "timeout", "yaml", "psych", "bigdecimal", "matrix", "racc",
+        "rake", "net", "uri", "socket", "zlib", "etc", "io", "objspace", "ripper",
+        "coverage", "monitor", "observer", "abbrev", "base64", "delegate",
+    }),
+    "r": frozenset({
+        # R's base and recommended-free core packages, present in r-base
+        "base", "stats", "utils", "methods", "graphics", "grdevices", "datasets",
+        "tools", "parallel", "grid", "splines", "stats4", "compiler", "tcltk",
+    }),
 }
+
+
+#: Test frameworks per language. A declared dependency matching one of these is
+#: *test-only* unless the artifact's own source references it: specialists list
+#: the framework their generated tests import alongside the program's real
+#: dependencies, and treating junit-jupiter as a runtime requirement meant a
+#: self-contained Java CLI was never executed at all (9 of 20 languages in the
+#: 2026-08-27 coverage run).
+_TEST_FRAMEWORK_TOKENS: dict[str, tuple[str, ...]] = {
+    "python": ("pytest", "hypothesis"),
+    "javascript": ("vitest", "jest", "mocha", "chai"),
+    "typescript": ("vitest", "jest", "mocha", "chai", "ts-jest"),
+    "ruby": ("rspec", "minitest", "test-unit"),
+    "php": ("phpunit",),
+    "r": ("testthat",),
+    "julia": ("test",),
+    "java": ("junit", "hamcrest", "mockito", "assertj", "testng"),
+    "kotlin": ("kotlin-test", "kotlin.test", "junit", "kotest", "mockk"),
+    "scala": ("scalatest", "munit", "junit", "scalacheck", "specs2"),
+    "csharp": ("xunit", "nunit", "mstest", "microsoft.net.test.sdk"),
+    "c#": ("xunit", "nunit", "mstest", "microsoft.net.test.sdk"),
+    "haskell": ("hspec", "hunit", "quickcheck", "tasty"),
+    "go": ("testify",),
+}
+
+
+def _split_test_dependencies(
+    language: str, dependencies: Any, code: str
+) -> tuple[list[str], list[str]]:
+    """Return ``(runtime_dependencies, test_only_dependencies)``.
+
+    A test framework the artifact itself imports stays a runtime dependency, so
+    a program that genuinely needs one still dry-runs honestly.
+    """
+    names = [str(d).strip() for d in dependencies or [] if str(d).strip()]
+    tokens = _TEST_FRAMEWORK_TOKENS.get(str(language or "").strip().lower(), ())
+    if not tokens:
+        return names, []
+    lowered_code = str(code or "").lower()
+    runtime: list[str] = []
+    test_only: list[str] = []
+    for name in names:
+        lowered = name.lower()
+        segments = {part for part in re.split(r"[.:/@\s]+", lowered) if part}
+        token = next(
+            (t for t in tokens if t in segments or lowered.startswith(t) or f"-{t}" in lowered),
+            None,
+        )
+        if token is None:
+            runtime.append(name)
+            continue
+        # A package name and its import path spell the separator differently
+        # (kotlin-test / kotlin.test), so either counts as a reference.
+        spellings = {token, token.replace("-", "."), token.replace("-", "_")}
+        referenced = any(
+            re.search(rf"(?<![a-z0-9_]){re.escape(spelling)}(?![a-z0-9_])", lowered_code)
+            for spelling in spellings
+        )
+        (runtime if referenced else test_only).append(name)
+    return runtime, test_only
 
 
 def _unmet_dependencies(language: str, dependencies: Any) -> list[str]:
@@ -923,6 +1020,10 @@ _DEFAULT_TEST_COMMAND_TEMPLATES: dict[str, str] = {
     "python": "python -m unittest discover -s /workspace -p {test_filename}",
     "javascript": "node --test /workspace/{test_filename}",
     "typescript": "node --test /workspace/{test_filename}",
+    # Both frameworks ship inside the pinned images (verified offline
+    # 2026-09-27): minitest is a Ruby bundled gem, Test is a Julia stdlib.
+    "ruby": "ruby -I/workspace /workspace/{test_filename}",
+    "julia": "env HOME=/tmp JULIA_DEPOT_PATH=/tmp/.julia julia /workspace/{test_filename}",
 }
 
 
@@ -1052,13 +1153,30 @@ async def run_runtime_qc(
         )
     # GUI/library/server/interactive cannot be judged by run-to-exit. Prefer
     # unit tests when present; otherwise parse-or-compile, or DRY_RUN.
-    declared_dependencies = generated_output.get("dependencies")
+    declared_dependencies, test_only_dependencies = _split_test_dependencies(
+        normalized_language, generated_output.get("dependencies"), code
+    )
     artifact_class = _classify_artifact(
         dependencies=declared_dependencies,
         generated_code=code,
         generated_output=generated_output if isinstance(generated_output, dict) else None,
     )
     test_code = str((integration_tests or {}).get("test_code") or "")
+    # Frameworks the generated tests need but the offline image lacks. Those
+    # tests cannot run here; the artifact itself still can, and the report says
+    # which tests were set aside and why rather than silently dropping them.
+    unavailable_test_dependencies = _unmet_dependencies(
+        normalized_language, test_only_dependencies
+    )
+    if unavailable_test_dependencies and test_code.strip():
+        testdata_manifest = {
+            **testdata_manifest,
+            "tests_not_run_reason": (
+                "generated tests need test frameworks the offline sandbox image does "
+                f"not provide: {', '.join(sorted(unavailable_test_dependencies))}"
+            ),
+        }
+        test_code = ""
     test_filename = f"test_{filename}" if test_code.strip() else ""
     test_command = _resolve_test_command(
         filename=filename,
@@ -1549,6 +1667,7 @@ async def _execute_in_sandbox(
         "artifact_class": testdata_manifest.get("artifact_class"),
         "invocation_args": testdata_manifest.get("invocation_args") or [],
         "not_exercised_note": not_exercised_note,
+        "tests_not_run_reason": testdata_manifest.get("tests_not_run_reason"),
         "runtime_substitute": testdata_manifest.get("runtime_substitute"),
         "verified_scope": testdata_manifest.get("verified_scope") or language.strip().lower(),
         "failed_on_pattern": matched_failure_pattern,

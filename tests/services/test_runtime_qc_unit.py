@@ -1282,3 +1282,88 @@ def test_dry_run_reason_is_readable_from_either_field() -> None:
     )
     assert report["dry_run_reason"] == report["not_exercised_note"]
     assert "junit" in report["not_exercised_note"]
+
+
+class TestTestOnlyDependencies:
+    """UPDATE-4 (docs/LANGUAGE_COVERAGE_FINDINGS_2026-08-27.md), decided 2026-09-27.
+
+    9 of 20 languages were DRY_RUN because the specialist listed the framework
+    its *tests* import (junit-jupiter, vitest, testthat, ...) as a dependency of
+    the program. The program never needed it and was never executed.
+    """
+
+    def test_framework_the_artifact_does_not_import_is_test_only(self) -> None:
+        split = rqca_agent._split_test_dependencies
+        assert split("java", ["org.junit.jupiter:junit-jupiter:5.10.0", "com.google.gson"],
+                     "public class Main {}") == (
+            ["com.google.gson"], ["org.junit.jupiter:junit-jupiter:5.10.0"]
+        )
+        assert split("typescript", ["vitest", "zod"], "import { z } from 'zod'") == (
+            ["zod"], ["vitest"]
+        )
+        assert split("r", ["testthat"], "x <- 1") == ([], ["testthat"])
+        assert split("scala", ["org.scalatest:scalatest_3:3.2.18"], "object Main") == (
+            [], ["org.scalatest:scalatest_3:3.2.18"]
+        )
+
+    def test_framework_the_artifact_imports_stays_a_runtime_dependency(self) -> None:
+        split = rqca_agent._split_test_dependencies
+        assert split("java", ["junit"], "import org.junit.Test;") == (["junit"], [])
+        # package and import spell the separator differently
+        assert split("kotlin", ["kotlin-test"], "import kotlin.test.assertEquals") == (
+            ["kotlin-test"], []
+        )
+
+    def test_language_stdlib_test_frameworks_are_available_offline(self) -> None:
+        """Each verified with --network=none inside the pinned image."""
+        unmet = rqca_agent._unmet_dependencies
+        assert unmet("julia", ["Test", "Statistics"]) == []
+        assert unmet("ruby", ["minitest", "test/unit"]) == []
+        assert unmet("haskell", ["base", "containers"]) == []
+        assert unmet("r", ["stats", "utils"]) == []
+        # third-party is still honestly unmet, including by module namespace
+        assert unmet("haskell", ["aeson", "Data.Aeson"]) == ["aeson", "Data.Aeson"]
+        assert unmet("ruby", ["rspec"]) == ["rspec"]
+        assert unmet("r", ["testthat"]) == ["testthat"]
+
+    def test_program_runs_when_only_its_tests_need_a_missing_framework(
+        self, monkeypatch
+    ) -> None:
+        captured: dict = {}
+
+        async def _present(_docker_bin: str = "docker") -> bool:
+            return True
+
+        async def _exec(**kwargs):
+            captured.update(kwargs)
+            return {"verdict": "PASS", "passed": True, "execution_type": "docker_live"}
+
+        monkeypatch.setattr(rqca_agent, "_check_docker_available", _present)
+        monkeypatch.setattr(rqca_agent, "_execute_in_sandbox", _exec)
+        result = asyncio.run(
+            rqca_agent.run_runtime_qc(
+                mission_id="mission-java",
+                generated_output={
+                    "filename": "Main.java",
+                    "generated_code": 'public class Main { public static void main(String[] a)'
+                    ' { System.out.println("hi"); } }\n',
+                    "dependencies": ["org.junit.jupiter:junit-jupiter:5.10.0"],
+                },
+                testdata_manifest={},
+                integration_tests={"test_code": "import org.junit.jupiter.api.Test;\n"},
+                language="java",
+                settings=SimpleNamespace(docker_bin="docker", rqca_test_command_template=""),
+            )
+        )
+        assert result["verdict"] == "PASS"
+        # the unrunnable tests were set aside, with the reason recorded
+        assert captured["test_code"] == ""
+        assert "junit-jupiter" in captured["testdata_manifest"]["tests_not_run_reason"]
+
+    def test_ruby_and_julia_generated_tests_have_runners(self) -> None:
+        for language, needle in (("ruby", "ruby -I/workspace"), ("julia", "julia /workspace")):
+            command = rqca_agent._resolve_test_command(
+                filename="x", test_filename="test_x", language=language,
+                settings=SimpleNamespace(rqca_test_command_template=""),
+            )
+            assert command and needle in command
