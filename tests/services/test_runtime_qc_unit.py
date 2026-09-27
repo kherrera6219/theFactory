@@ -39,17 +39,16 @@ def test_testdata_manifest_is_safe_and_capped() -> None:
 
 
 def test_rqca_unsupported_language_returns_dry_run() -> None:
-    # C# has no runnable offline image (dotnet-script is absent from the SDK
-    # image and --network=none blocks installing it), so it must always return
-    # DRY_RUN rather than a FAIL that RQCA_ENFORCEMENT_ENABLED would turn into a
-    # blocked mission.
+    # A language with no runtime entry must return DRY_RUN rather than a FAIL
+    # that RQCA_ENFORCEMENT_ENABLED would turn into a blocked mission. (This
+    # used C# until C# gained a runtime on 2026-09-27.)
     result = asyncio.run(
         rqca_agent.run_runtime_qc(
             mission_id="mission-1",
-            generated_output={"filename": "Main.cs", "generated_code": "class M {}"},
+            generated_output={"filename": "main.cob", "generated_code": "IDENTIFICATION DIVISION."},
             testdata_manifest={},
             integration_tests=None,
-            language="csharp",
+            language="cobol",
             settings=SimpleNamespace(docker_bin="docker"),
         )
     )
@@ -70,12 +69,10 @@ def test_live_language_set_is_exactly_the_runtime_table() -> None:
     for language in ("matlab", "mathematica"):
         assert language in rqca_agent._ALL_LIVE_LANGUAGES
 
-    # C# is still absent: dotnet-script is not in the SDK image and
-    # --network=none means it cannot be installed at run time. An absent
-    # language returns an honest DRY_RUN; a listed-but-broken one returns FAIL,
-    # which RQCA_ENFORCEMENT_ENABLED turns into a blocked mission.
+    # C# joined on 2026-09-27 via the factory .NET 10 image, whose packages are
+    # restored at build time -- verified by scripts/verify_sandbox_images.py.
     for language in ("csharp", "c#"):
-        assert language not in rqca_agent._ALL_LIVE_LANGUAGES
+        assert language in rqca_agent._ALL_LIVE_LANGUAGES
 
 
 def test_substitute_runtimes_declare_what_they_actually_verified() -> None:
@@ -1397,7 +1394,7 @@ def test_factory_sandbox_images_pin_every_input() -> None:
     assert _factory_images_in_use(), "expected factory sandbox images to be in use"
     for image in _factory_images_in_use():
         name = image.split("/", 1)[1].split(":")[0]  # sandbox-test-java
-        directory = SANDBOX_IMAGES / name.removeprefix("sandbox-test-")
+        directory = SANDBOX_IMAGES / name.removeprefix("sandbox-test-").removeprefix("sandbox-")
         dockerfile = (directory / "Dockerfile").read_text(encoding="utf-8")
         from_lines = [line for line in dockerfile.splitlines() if line.startswith("FROM ")]
         assert from_lines and all("@sha256:" in line for line in from_lines), image

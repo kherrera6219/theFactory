@@ -48,9 +48,10 @@ RQCA_SCHEMA_VERSION = "runtime_qc_report.v1"
 # yields FAIL, and RQCA_ENFORCEMENT_ENABLED turns FAIL into a blocked mission,
 # whereas an absent language degrades to an honest DRY_RUN.
 #
-# NOT PRESENT YET:
-#   csharp/c# -- its config called `dotnet-script`, absent from
-#     mcr.microsoft.com/dotnet/sdk:8.0 and uninstallable offline.
+# csharp/c# (added 2026-09-27, WQ12): the old config called `dotnet-script`,
+#   absent from the SDK image and uninstallable offline. The factory image
+#   (deploy/sandbox-images/csharp, .NET 10 LTS) restores a console host and an
+#   xUnit project at BUILD time; at run time sources are built --no-restore.
 #
 # LICENCE-FREE SUBSTITUTES (matlab, mathematica): the vendor runtimes need a
 # paid licence (MathWorks) or network activation (Wolfram Engine), and this
@@ -211,6 +212,13 @@ _LANGUAGE_RUNTIMES: dict[str, dict[str, Any]] = {
         ),
     },
 }
+
+for _csharp_key in ("csharp", "c#"):
+    _LANGUAGE_RUNTIMES[_csharp_key] = {
+        "base_image": "thefactory/sandbox-csharp:1",
+        # Arguments RQCA appends are forwarded to the program by run-program.
+        "run_command": "/opt/factory/run-program /workspace/{filename}",
+    }
 
 # Every image outside Docker Official Images is pinned by digest above.
 # `repo:tag@sha256:...` keeps the tag readable while making the daemon resolve
@@ -1046,6 +1054,8 @@ _VENDORED_TEST_RUNTIMES: dict[str, dict[str, Any]] = {
     "r": {"image": "thefactory/sandbox-test-r:1", "frameworks": ("testthat",)},
     "javascript": {"image": "thefactory/sandbox-test-node:1", "frameworks": ("vitest",)},
     "typescript": {"image": "thefactory/sandbox-test-node:1", "frameworks": ("vitest",)},
+    "csharp": {"image": "thefactory/sandbox-csharp:1", "frameworks": ("xunit", "microsoft.net.test.sdk")},
+    "c#": {"image": "thefactory/sandbox-csharp:1", "frameworks": ("xunit", "microsoft.net.test.sdk")},
 }
 _VENDORED_TEST_COMMAND = "/opt/factory/run-tests {filename} {test_filename}"
 

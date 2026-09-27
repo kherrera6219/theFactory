@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Console host for a generated C# artifact. Its sources are copied in at
+       run time; this file only fixes the framework and build settings. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>app</AssemblyName>
+    <RootNamespace>App</RootNamespace>
+    <!-- Deterministic, offline, single-process build inside the sandbox. -->
+    <UseSharedCompilation>false</UseSharedCompilation>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

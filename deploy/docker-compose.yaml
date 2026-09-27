@@ -337,6 +337,13 @@ services:
       context: ./sandbox-images/r
     entrypoint: ["true"]
 
+  sandbox-csharp:
+    profiles: ["sandbox-images"]
+    image: thefactory/sandbox-csharp:1
+    build:
+      context: ./sandbox-images/csharp
+    entrypoint: ["true"]
+
   sandbox-test-node:
     profiles: ["sandbox-images"]
     image: thefactory/sandbox-test-node:1

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Usage: run-tests <artifact.cs> <test_artifact.cs>
+# Compiles the artifact together with its generated xUnit tests and runs them.
+# Exit code is the verdict.
+set -eu
+export HOME=/tmp
+
+mkdir -p /tmp/t
+cp /opt/factory/templates/tests/tests.csproj /tmp/t/
+cp -R /opt/factory/templates/tests/obj /tmp/t/obj
+cp /workspace/*.cs /tmp/t/
+
+exec dotnet test /tmp/t/tests.csproj --no-restore -nologo -nodeReuse:false \
+  --logger "console;verbosity=normal"

@@ -102,6 +102,21 @@ CASES: dict[str, Case] = {
         ),
         bug=("a + b", "a + b + 1"),
     ),
+    "csharp": Case(
+        image="thefactory/sandbox-csharp:1",
+        artifact=(
+            "Calc.cs",
+            "public static class Calc\n{\n    public static int Add(int a, int b) => a + b;\n}\n\n"
+            "public static class Program\n{\n    public static void Main(string[] args) =>\n"
+            "        System.Console.WriteLine(Calc.Add(2, 3));\n}\n",
+        ),
+        tests=(
+            "test_Calc.cs",
+            "using Xunit;\n\npublic class CalcTests\n{\n"
+            "    [Fact]\n    public void Adds() => Assert.Equal(5, Calc.Add(2, 3));\n}\n",
+        ),
+        bug=("=> a + b;", "=> a + b + 1;"),
+    ),
     "typescript-vitest": Case(
         image="thefactory/sandbox-test-node:1",
         artifact=("calc.ts", "export function add(a: number, b: number): number {\n  return a + b;\n}\n"),

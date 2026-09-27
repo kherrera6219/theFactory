@@ -40,8 +40,9 @@ for enterprise grade -- vendor the frameworks rather than accept syntax-only:
 
 `scripts/verify_sandbox_images.py` (CI job `sandbox-images`) requires every
 runner to pass a correct artifact and fail an off-by-one one, through the real
-hardened sandbox. C# (`dotnet`, WQ12) remains the one language without offline
-execution.
+hardened sandbox. **C# (WQ12) is now live too**: a factory .NET 10 LTS image restores a
+console host and an xUnit project at build time, so programs and their tests build
+`--no-restore` offline. Every routed language now has sandbox execution.
 
 Enabling full Runtime QC remains a follow-up decision for standard BUILD_NEW missions. Until then, completed missions should show either a real Runtime QC report or an explicit skipped reason.
 
