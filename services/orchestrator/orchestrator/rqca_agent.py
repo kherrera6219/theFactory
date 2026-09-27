@@ -1595,6 +1595,16 @@ async def _execute_in_sandbox(
                 timeout_seconds=timeout,
                 memory_mb=memory_mb,
             )
+            if sandbox_result.infrastructure_error:
+                # The artifact never ran. Not a PASS, and never a FAIL of the
+                # generated code: see sandbox_exec.ensure_sandbox_image.
+                return _dry_run_report(
+                    mission_id=mission_id,
+                    language=language,
+                    filename=filename,
+                    testdata_manifest=testdata_manifest,
+                    reason=f"sandbox infrastructure error: {sandbox_result.infrastructure_error}",
+                )
             if sandbox_result.timed_out:
                 return _timeout_report(
                     mission_id=mission_id, language=language, filename=filename,

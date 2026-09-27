@@ -303,8 +303,9 @@ async def run_behavioural_equivalence(
             )
             continue
 
-        if sandbox_result.timed_out:
-            # A timeout is a non-result, not a behavioural failure of the code.
+        if sandbox_result.infrastructure_error or sandbox_result.timed_out:
+            # A timeout or harness failure is a non-result, not a behavioural
+            # failure of the code.
             skipped += 1
             message = f"{vector['fn_name']}[{vector['case']}]: timed out"
             findings.append(message)
@@ -487,6 +488,8 @@ async def _run_one_contract_vector(
             timeout_seconds=timeout,
             memory_mb=memory,
         )
+    if result.infrastructure_error:
+        return "skipped", f"{vector['vector_id']}: {result.infrastructure_error}"
     if result.timed_out:
         # A timeout is a non-result, not a behavioural failure of the code.
         return "skipped", f"{vector['vector_id']}: timed out"

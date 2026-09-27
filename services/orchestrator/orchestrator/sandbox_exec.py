@@ -168,10 +168,16 @@ class SandboxResult:
     timeout_seconds: int
     memory_limit_mb: int
     base_image: str
+    #: Set when the *harness* failed -- the image could not be obtained, or the
+    #: remote runner could not be reached -- so the artifact never ran. Only
+    #: code outside the container sets it (an artifact cannot spoof it by
+    #: printing Docker's error text and exiting 125). Callers must report these
+    #: as "not verified", never as a defect in the artifact.
+    infrastructure_error: str | None = None
 
     @property
     def succeeded(self) -> bool:
-        return not self.timed_out and self.exit_code == 0
+        return not self.timed_out and self.exit_code == 0 and not self.infrastructure_error
 
 
 def clamp_timeout(value: int | None, default: int = 30) -> int:
@@ -290,6 +296,9 @@ def result_from_payload(payload: dict[str, object], *, fallback_image: str, time
         timeout_seconds=int(payload.get("timeout_seconds") or timeout),
         memory_limit_mb=int(payload.get("memory_limit_mb") or memory),
         base_image=str(payload.get("base_image") or fallback_image),
+        infrastructure_error=(
+            str(payload["infrastructure_error"]) if payload.get("infrastructure_error") else None
+        ),
     )
 
 
@@ -338,6 +347,7 @@ async def run_in_sandbox_remote(
                 exit_code=-1,
                 stdout="",
                 stderr=f"sandbox executor HTTP {exc.code}: {detail[:300]}",
+                infrastructure_error=f"sandbox executor HTTP {exc.code}",
                 timed_out=False,
                 timeout_seconds=timeout,
                 memory_limit_mb=memory,
@@ -349,6 +359,7 @@ async def run_in_sandbox_remote(
                 exit_code=-1,
                 stdout="",
                 stderr=f"sandbox executor unreachable: {exc}",
+                infrastructure_error=f"sandbox executor unreachable: {type(exc).__name__}",
                 timed_out=False,
                 timeout_seconds=timeout,
                 memory_limit_mb=memory,
@@ -359,6 +370,7 @@ async def run_in_sandbox_remote(
                 exit_code=-1,
                 stdout="",
                 stderr="sandbox executor returned a non-object payload",
+                infrastructure_error="sandbox executor returned a non-object payload",
                 timed_out=False,
                 timeout_seconds=timeout,
                 memory_limit_mb=memory,
@@ -372,6 +384,55 @@ async def run_in_sandbox_remote(
         )
 
     return await asyncio.to_thread(_post)
+
+
+#: Images confirmed present on this daemon. An image, once present, stays
+#: present for the life of the process; re-checking every run is waste.
+_PRESENT_IMAGES: set[str] = set()
+_IMAGE_PULL_TIMEOUT_SECONDS = float(os.getenv("SANDBOX_IMAGE_PULL_TIMEOUT_SECONDS", "600"))
+
+
+async def _docker_quiet(docker_bin: str, *args: str, timeout: float) -> tuple[int, str]:
+    proc = await asyncio.create_subprocess_exec(
+        str(docker_bin),
+        *args,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except TimeoutError:
+        proc.kill()
+        return -1, f"docker {args[0]} timed out after {int(timeout)}s"
+    return int(proc.returncode or 0), stderr.decode("utf-8", errors="replace")
+
+
+async def ensure_sandbox_image(docker_bin: str, image: str) -> str | None:
+    """Make sure *image* is on the daemon before any artifact runs in it.
+
+    Returns ``None`` when it is, or a short reason when it cannot be obtained.
+    Doing this *before* ``docker run`` is what makes the distinction trustworthy:
+    ``docker run`` reports a missing image as exit 125, which runtime QC used to
+    record as a FAIL of the generated code -- a Docker Hub rate limit, or a
+    factory image that was never built, blamed on the artifact.
+    """
+    if image in _PRESENT_IMAGES:
+        return None
+    try:
+        code, _ = await _docker_quiet(docker_bin, "image", "inspect", image, timeout=30.0)
+        if code == 0:
+            _PRESENT_IMAGES.add(image)
+            return None
+        code, stderr = await _docker_quiet(
+            docker_bin, "pull", "--quiet", image, timeout=_IMAGE_PULL_TIMEOUT_SECONDS
+        )
+    except (OSError, ValueError) as exc:
+        return f"sandbox image check failed: {type(exc).__name__}"
+    if code == 0:
+        _PRESENT_IMAGES.add(image)
+        return None
+    detail = " ".join(stderr.split())[-240:]
+    return f"sandbox image {image} is unavailable: {detail or f'docker pull exit {code}'}"
 
 
 async def run_in_sandbox_local(
@@ -390,6 +451,18 @@ async def run_in_sandbox_local(
     """
     timeout = clamp_timeout(timeout_seconds)
     memory = clamp_memory_mb(memory_mb)
+    image_problem = await ensure_sandbox_image(docker_bin, str(base_image))
+    if image_problem:
+        return SandboxResult(
+            exit_code=-1,
+            stdout="",
+            stderr=image_problem,
+            timed_out=False,
+            timeout_seconds=timeout,
+            memory_limit_mb=memory,
+            base_image=str(base_image),
+            infrastructure_error=image_problem,
+        )
     _make_workspace_readable(workspace_dir)
     args = build_sandbox_args(
         docker_bin=docker_bin,

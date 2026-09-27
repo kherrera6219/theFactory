@@ -216,7 +216,8 @@ class _FakeSandbox:
         stdout, exit_code, timed_out = self.responses.pop(0)
         stderr = "main.go:3: syntax error" if exit_code not in (0, 124) else ""
         return SimpleNamespace(
-            stdout=stdout, stderr=stderr, exit_code=exit_code, timed_out=timed_out
+            stdout=stdout, stderr=stderr, exit_code=exit_code, timed_out=timed_out,
+            infrastructure_error=None,
         )
 
 

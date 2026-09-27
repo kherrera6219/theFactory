@@ -65,6 +65,7 @@ def result_to_payload(result: SandboxResult) -> dict[str, Any]:
         "timeout_seconds": result.timeout_seconds,
         "memory_limit_mb": result.memory_limit_mb,
         "base_image": result.base_image,
+        "infrastructure_error": result.infrastructure_error,
     }
 
 
