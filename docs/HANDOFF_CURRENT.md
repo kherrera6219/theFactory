@@ -26,10 +26,7 @@ the **Electron build-out next**.
 
 **Still owed (in order):**
 
-1. **Local stack redeploy + object-store data migration.** The running stack is
-   still MinIO. Follow `docs/OBJECT_STORE_MIGRATION.md` §"Migrating an existing
-   local stack" (dry run first; keep `deploy_minio-data`). `make up` now also
-   builds the sandbox images (`make sandbox-images`).
+1. ~~**Local stack redeploy + object-store data migration.**~~ **DONE 2026-09-27.** 99 objects copied from MinIO (`mission-audit-artifacts-locked` 96, rollback bucket 3), each verified by read-back; per-object lock state compared with **0 mismatches** (25 legal holds, 93 COMPLIANCE retentions, 3 pre-2026-08-05 unlocked restores stay unlocked). `.env` now `OBJECT_STORAGE_ENDPOINT=http://object-store:9000`, `OBJECT_STORE_HOST_PORT=9002` (9000 belongs to another project's MinIO); pre-migration copy at `.env.backup-premigration-20260927` (gitignored). Full-dedicated stack rebuilt from `main`: 62 containers up, `/readyz` ready with `object_storage_object_lock_ready: true`; live 11/11 Object Lock probe in bucket `zz-conformance-probe-20260927`. Old container removed; **volume `deploy_minio-data` kept** until its retention dates pass (latest 2026-11-03+).
 2. **Stuck missions** (`docs/STUCK_MISSIONS_PLAN_2026-08-27.md`): after redeploy,
    let recovery re-drive once, re-run the 20-language coverage batch, then fail
    out Group A (`mission-769bf926`, `mission-db901d98`).
