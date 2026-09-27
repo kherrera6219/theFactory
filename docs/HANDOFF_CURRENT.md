@@ -9,7 +9,7 @@ Audience: Maintainers, operators, and AI coding agents
 
 ## Latest session (2026-09-27) — read first
 
-**NEW — 2026-09-27: enterprise-hardening pass (branch `claude/enterprise-hardening`).**
+**NEW — 2026-09-27: enterprise-hardening pass — merged to `main` via [PR #538](https://github.com/kherrera6219/theFactory/pull/538).**
 Operator decisions this session: fix every finding from the 2026-09-27 status
 review, **take WQ7 Option 2**, aim everything else at enterprise grade, and do
 the **Electron build-out next**.
